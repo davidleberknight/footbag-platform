@@ -26,10 +26,18 @@ state_bucket_suffix = "a1b2c3d4e5"            # Matches the suffix used in terra
 ses_sender_identity = "noreply@footbag.org"
 
 # Aggregate-report mailbox for DMARC reports. Receives daily XML summaries
-# of SPF/DKIM pass/fail rates. Empty string omits the rua= field from the
-# DMARC record (acceptable initial state; recommended to set before
-# extended production traffic).
-ses_dmarc_rua_email = ""
+# of SPF/DKIM pass/fail rates, one per reporting provider. Required: the
+# DMARC record carries this address, and its precondition fails the apply
+# when the value is empty. Keep it on this domain, so no external-destination
+# authorisation record is needed at the receiving side.
+ses_dmarc_rua_email = "dmarc-reports@footbag.org"
+
+# Every apex TXT string other than the SPF record ses.tf builds. Route 53
+# stores one TXT record set per name, so anything left out of this list is
+# destroyed when the apex TXT record applies. Read the live zone before the
+# apex records go in and list what is already there, for example:
+#   apex_txt_records = ["google-site-verification=<token>"]
+apex_txt_records = []
 
 # CIDR ranges permitted to SSH into the production Lightsail instance.
 operator_cidrs = ["TODO-your-public-ip/32"]
@@ -44,11 +52,16 @@ lightsail_origin_dns = "TODO-origin.footbag.org"
 # AFTER scripts/install-cwagent-remote.sh has run and CWAgent is confirmed
 # emitting metrics. Pass 3: enable_backup_alarm = true AFTER the snapshot
 # job emits BackupAgeMinutes. ses_enable_domain_auth: keep false until
-# route53_zone_id names a zone Route 53 actually serves (the webmaster holds
-# the authoritative zone until the DNS-handover milestone), else its records
-# will not resolve; flip to true at handover. enable_cutover_login_alarm:
-# true for the cutover monitoring window only, back to false after.
+# route53_zone_id names a zone Route 53 actually serves (the previous mail
+# host holds the authoritative zone until the zone move), else its records
+# will not resolve; flip to true at the zone move, ahead of live sending,
+# since it retires the single-address sender identity. ses_enable_mail_records
+# publishes the apex SPF, DMARC, and MAIL FROM records and belongs to the day
+# inbound mail moves to the new provider, because it replaces the apex SPF the
+# previous host published. enable_cutover_login_alarm: true for the cutover
+# monitoring window only, back to false after.
 enable_cwagent_alarms      = false
 enable_backup_alarm        = false
 ses_enable_domain_auth     = false
+ses_enable_mail_records    = false
 enable_cutover_login_alarm = false

@@ -797,9 +797,9 @@ describe('the digest cadence gate', () => {
     expect((await operationsPlatformService.runReconciliationDigest(threeDaysOn)).skipped).toBe(true);
 
     // Well past the window, it sends again. The date is deliberately far out
-    // rather than exactly eight days on: the run's completion timestamp comes
-    // from the real clock even when a start time is injected, so a boundary
-    // date here would test the test harness rather than the cadence rule.
+    // rather than exactly eight days on, so the case reads as clearly outside
+    // the interval rather than resting on which side of the boundary a
+    // same-instant comparison falls.
     const wellPastTheWindow = new Date('2027-01-01T03:00:00.000Z');
     expect((await operationsPlatformService.runReconciliationDigest(wellPastTheWindow)).skipped)
       .toBe(false);

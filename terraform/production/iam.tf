@@ -153,10 +153,19 @@ resource "aws_iam_role_policy" "app_jwt_ses" {
         Resource = aws_kms_key.jwt_signing.arn
       },
       {
-        Sid      = "OutboundEmail"
-        Effect   = "Allow"
-        Action   = "ses:SendEmail"
-        Resource = aws_ses_email_identity.sender.arn
+        Sid    = "OutboundEmail"
+        Effect = "Allow"
+        Action = "ses:SendEmail"
+        # SES authorises a send against the identity that covers the From
+        # address, so the grant must name whichever identity exists: the
+        # single-address one before domain auth, the domain one after. Naming
+        # the address identity while sending under the domain identity is
+        # refused at send time, not at apply time.
+        Resource = var.ses_enable_domain_auth ? [
+          aws_ses_domain_identity.main[0].arn
+          ] : [
+          aws_ses_email_identity.sender[0].arn
+        ]
       }
     ]
   })

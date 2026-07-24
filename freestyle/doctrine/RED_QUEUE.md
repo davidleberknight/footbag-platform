@@ -7,9 +7,62 @@ work by subject, one entry per operator, so each question can be answered on its
 own. Each entry names the rows or names it affects, the exact fact that unlocks it,
 and the condition that closes it.
 
-Maintenance rule: when a question is answered, integrate the answer, record the
-ruling in `RED_RULINGS.md` (or the relevant doctrine document), and delete the
-entry here. No tombstones.
+## Working this queue
+
+The maintenance rule is: when a question is answered, integrate the answer, record
+the ruling, and delete the entry here. No tombstones. What follows is what
+"integrate" involves, in order, because several steps are enforced mechanically and
+skipping one produces a confusing failure rather than a clean error.
+
+**1. Record the ruling.** Expert and curator rulings go in `RED_RULINGS.md`, or in
+the standing doctrine document that owns the topic. A ruling derived from the
+written record rather than from expert judgement carries its proof and its
+adversarial checks in `OPERATOR_DERIVATIONS.md`, so a later ruling that changes it
+has a chain to amend instead of an unexplained edit.
+
+**2. Delete this entry.** The queue lists open work only.
+
+**3. Update the machine-readable registry.** `QUESTION_REGISTRY.csv` is the grain
+behind this document and is wired into the build: the observational-universe content
+generator loads it and exits outright if it is missing, because doctrine blockers
+cannot be validated without it. An Emerging Vocabulary row names a question there as
+its blocker, so leaving a closed question's status stale leaves rows blocked on a
+question that is answered.
+
+**4. If the ruling defines an operator, update the operator authority.** An
+operator's ADD, structure and X-Dex behaviour are owned by
+`src/content/freestyleOperatorReference.ts`, mirrored on the data side by
+`inputs/base_dictionary/trick_modifiers.csv`. The generator cross-checks these: a
+ledger row still claiming an operator is undefined while the registry defines it is
+reported as a reconciliation defect, and the registry wins. Creating a modifier is
+deliberately code-managed with no in-app editor, because publishing one publishes its
+ADD to public surfaces.
+
+**5. Clear the rows the answer unblocks, then re-run the generator and read its
+warnings.** It reports rows gated on an operator the registry now defines, rows whose
+owner disagrees with their question's owner, and names the live database has resolved
+that the ledger still holds. Those warnings are the checklist for what the ruling left
+half-done.
+
+**6. Author the affected trick rows through the right path for the moment.** After
+cutover the live database is the source of truth and every edit goes through the
+audited admin surfaces — the trick edit page for scalar fields, the seven editorial
+prose fields, aliases, source links and modifier links. The committed-CSV rebuild path
+is pre-go-live history and is not used to edit a live row.
+
+**7. Rebuild and run the QC.** `run_freestyle.sh` rebuilds the freestyle tables from
+the committed inputs; the trick-dictionary QC is a hard gate and must pass, including
+the alias-versus-active-canonical collision check. The media-coverage QC is advisory.
+
+**8. Apply the publication gate before promoting anything to accepted canonical
+status.** It is set out in the freestyle maintainer guide under publication
+governance, and its central rule is that arithmetic validity is not structural
+certainty: when the ADD number is settled but the structure is contested, the trick is
+held, not published. Holding it is the contract working, not a coverage gap.
+
+A question none of this resolves stays here, or the affected name stays in Emerging
+Vocabulary, visibly and honestly. Parking a name is a correct outcome, not a failure.
+Frequency of attestation is evidence, never authority.
 
 ## Undefined operators
 

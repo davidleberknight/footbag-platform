@@ -11,7 +11,7 @@
 # =============================================================================
 
 variable "enable_apex_alias_records" {
-  description = "Create the apex/www alias records to CloudFront. Off until the optional DNS-handover milestone (the webmaster's zone serves apex/www before then; the apex points at the platform's apex redirector)."
+  description = "Create the apex/www alias records to CloudFront. Both are Route 53 ALIAS records to the distribution, and the apex redirects to www through it, so no separate redirector exists. Off until the switch itself: Route 53 first serves the zone's existing records faithfully after the zone move, and this flag flips at go-live."
   type        = bool
   default     = false
 }

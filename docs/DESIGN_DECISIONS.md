@@ -2801,10 +2801,12 @@ Outbound send is handled by AWS SES (see §5.4). Inbound receive for all role ad
 | `admin@footbag.org` | Legal, administrative, privacy, copyright, and trademark contact for members and the public | Receives | `/legal` page (Privacy, Terms, Copyright sections); operator of record contact |
 | `announce@footbag.org` | IFPA community announce list. A Tier 2+ member composes via the web form (not by emailing the address) and the platform distributes via SES; replies and direct mail to the address are received on Google and monitored or forwarded to IFPA admins. The platform never ingests inbound mail for this address | Sends (platform) + Receives (Google) | `CommunicationService.sendAnnounceEmail` (`M_Send_Announce_Email`) |
 | `brat@footbag.org` | Legacy footbag.org webmaster (operator of record for the pre-migration site); must remain deliverable through and after cutover for migration coordination and any ongoing legacy-recovery correspondence | Receives | Carried over from the legacy site; in-use contact for the current webmaster |
-| `directors@footbag.org` | IFPA Board of Directors contact for governance, board inquiries, and director correspondence | Receives | Carried over from the legacy site; in-use public contact for the Board |
+| `directors@footbag.org` | IFPA Board of Directors contact for governance, board inquiries, and director correspondence | Receives | Carried over from the legacy site as an apex alias; not a published contact on the legacy site |
+| `dmarc-reports@footbag.org` | DMARC aggregate-report mailbox: receives the daily machine-readable XML each mail provider sends about messages claiming to be from the domain | Receives | The `rua` destination in the `_dmarc.footbag.org` record; the evidence SPF and DMARC policy tightening depends on |
+| `ifpa-treasurer@footbag.org` | IFPA treasurer contact for donation, sponsorship, and other financial correspondence | Receives | Carried over from the legacy site as an apex alias; published donations contact on the legacy site |
 | `noreply@footbag.org` | Transactional sender (account verification, password reset, receipts, system notifications); never monitored, never a reply target | Sends | `CommunicationService.processSendQueue` via SES |
 | `ops-alert@footbag.org` | Operational alarm recipient (system health, backup failures, worker errors, SES bounce/complaint thresholds) | Receives | Terraform alarms (CloudWatch), `OperationsPlatformService` alarm flows |
-| `sanctioning@footbag.org` | Event sanctioning contact for organizers applying for IFPA-sanctioned events and related correspondence | Receives | Carried over from the legacy site; in-use public contact for event sanctioning |
+| `sanctioning@footbag.org` | Event sanctioning contact for organizers applying for IFPA-sanctioned events and related correspondence | Receives | Carried over from the legacy site as an apex alias; the sanctioning committee's own published working contact is its list on the IFPA subdomain |
 
 Rationale:
 
@@ -2815,7 +2817,7 @@ Rationale:
 
 Requirements:
 
-- Outbound email uses an SES domain identity (not a single verified address) with DKIM signing enabled, an SPF record published for the sending domain, and a DMARC policy of at least `quarantine` aligned with the sending identity. Bounce and complaint handling consume SES feedback notifications.
+- Outbound email uses an SES domain identity (not a single verified address) with DKIM signing enabled, an SPF record published for the sending domain, and a DMARC policy aligned with the sending identity that reaches at least `quarantine` through the staged rollout, which publishes monitor-only first and tightens once the aggregate reports run clean. Bounce and complaint handling consume SES feedback notifications.
 - The application's IAM grant to SES is scoped to the verified sending identity (`ses:SendEmail`, `ses:SendRawEmail` on the configured From-address ARN) and the specific actions the application uses, not `ses:*` on `*`. The Configuration Set used for sending is named explicitly in the policy.
 
 Trade-offs:
@@ -2827,7 +2829,8 @@ Impact:
 
 - `admin@footbag.org` is named in the `/legal` page Privacy, Terms, and Copyright sections as the legal/administrative contact.
 - `announce@footbag.org` is documented in `docs/USER_STORIES.md` (`M_Send_Announce_Email`, Tier 2 benefits).
-- Google Workspace is configured with one mailbox or forwarding rule per receive address (`admin@`, `announce@` inbound, `brat@`, `directors@`, `ops-alert@`, `sanctioning@`). `brat@`, `directors@`, and `sanctioning@` are in-use contacts carried over from the legacy site and must be live on Google before legacy delivery is withdrawn so no mail is lost.
+- Google Workspace is configured with one mailbox or forwarding rule per receive address (`admin@`, `announce@` inbound, `brat@`, `directors@`, `dmarc-reports@`, `ifpa-treasurer@`, `ops-alert@`, `sanctioning@`). `brat@`, `directors@`, `ifpa-treasurer@`, and `sanctioning@` are carried over from the legacy site and must be live on Google before legacy delivery is withdrawn so no mail is lost. `dmarc-reports@` is live before the DMARC record publishes, since reports sent to an address that does not exist are discarded and the tightening evidence is lost.
+- Keeping the report mailbox on this domain avoids the external-destination authorization record a receiving domain must publish before it may accept another domain's DMARC reports.
 - Any additional address (e.g., `privacy@`, `legal@`, `support@`, `info@`) must be justified against this list and added here before it is introduced. The default is to route new purposes to `admin@footbag.org` unless volume or scope warrants a split.
 - Handover to IFPA: ownership of these addresses transfers as part of the operational handover; the addresses themselves and their purposes do not change.
 
@@ -3144,7 +3147,7 @@ A static, read-only mirror of key site content (e.g., events, clubs, media galle
 
 Decision:
 
-The legacy footbag.org site is preserved as a static HTML mirror in a dedicated S3 bucket served via CloudFront at archive.footbag.org. Access is restricted to authenticated members of the main platform. Legacy URLs redirect to archive equivalents via 301. Edge authentication uses CloudFront signed cookies via a trusted-signer key group; the main app issues the signed cookie at session creation and on every session refresh.
+The legacy footbag.org site is preserved as a static HTML mirror in a dedicated S3 bucket served via CloudFront at archive.footbag.org. Access is restricted to authenticated members of the main platform. Only the legacy URL patterns that a concrete need requires redirect into the archive via 301; the legacy URL space is not otherwise preserved. Edge authentication uses CloudFront signed cookies via a trusted-signer key group; the main app issues the signed cookie at session creation and on every session refresh.
 
 Rationale:
 
@@ -3154,7 +3157,7 @@ Rationale:
 
 - Members-only access protects old member contact information preserved in the archive HTML.
 
-- 301 redirects from legacy URL patterns preserve link integrity and search-engine equity.
+- Redirects are added only where a concrete need requires one, not as a general policy of backward compatibility. The patterns that qualify are those circulating in old transactional email, member profiles and clubs, which are the links real people still follow. Link integrity and search-engine equity across the roughly 93,500 mirrored URLs are deliberately traded away rather than carried by a catch-all redirect: every other legacy path returns the friendly legacy-URL 404, with its content reachable inside the archive.
 
 - Archive HTML uses mp4 video and jpg images, and contains no JavaScript, so the mirror is fully static.
 
@@ -3665,13 +3668,13 @@ Rationale:
 - Moving the zone to Route 53 before go-live removes the last infrastructure dependency on the legacy operator: the apex is served as a free ALIAS record (no CNAME-at-apex limitation, no Anycast fee, no redirector instance to run), the switch and any emergency DNS change are operator-executed rather than resting on one person's availability, and DNS sits under IFPA-controlled access from before go-live.
 - The simplest recovery for a DNS-switch cutover is platform-side: fix-forward or a restore from the pre-flip snapshot; when a DNS change is needed, the low-TTL zone converges in minutes.
 - Mail is decoupled from the web switch: MX routing is independent of A/AAAA changes, inbound moves to Google Workspace as its own earlier preparation step, and the web cutover never touches MX.
-- Outbound authentication is flexible by design: the apex SPF authorizes every legitimate sender (SES, Google, the webmaster's own sending host while it still sends), starting softfail with DMARC in monitor-only mode and tightening only after the verified sender list and clean aggregate reports prove no legitimate mail would be quarantined.
+- Outbound authentication starts permissive and tightens on evidence: the apex SPF authorizes the platform's own senders (SES for outbound, Google for mail sent from a hosted role mailbox), starting softfail with DMARC in monitor-only mode and tightening only after clean aggregate reports prove no legitimate mail would be quarantined.
 - Historical content is served from the platform-controlled `archive.footbag.org` on its own CloudFront distribution and us-east-1 certificate (the Legacy Archive decision, §6.4), so no legacy subdomain is needed for it.
 
 Requirements:
 
 - The production distribution carries `footbag.org` and `www.footbag.org` as alternate domain names with a matching ACM certificate in us-east-1; the archive distribution carries `archive.footbag.org` with its own us-east-1 certificate.
-- Records-actor by era: before the zone move the webmaster hand-applies maintainer-supplied records to his zone (the ACM validation CNAMEs, the SES DKIM CNAMEs, the custom MAIL FROM subdomain records, the SPF amendment, the DMARC record, and the Google MX when the mail step runs early); after the move Terraform owns the records and the operator applies them on Route 53.
+- Records-actor: the zone moves to Route 53 early, so Terraform owns every go-live record (the ACM validation CNAMEs, the SES DKIM CNAMEs, the custom MAIL FROM subdomain records, the SPF amendment, the DMARC record, and the Google MX) and the operator applies them there; the webmaster places only a record that a preparation step needs before the move completes.
 - The zone move mirrors every existing record faithfully (fresh snapshot, `dig`-verified against the Route 53 name servers) before the registrar name-server change, and completes before any cutover step depends on it.
 - Any CAA record on the zone must authorize Amazon's certificate authorities before certificate issuance is attempted.
 - A pre-cutover smoke test proves the CloudFront path (via a test subdomain and `curl --resolve` against a current edge IP) and the apex 301 through the distribution before the switch; the switch is gated on the smoke re-running green on the day.

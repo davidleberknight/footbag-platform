@@ -260,6 +260,6 @@ legacy_data/reports/
 legacy_data/freestyle_reconciliation/import_qc_report.md
 tricks-mosaic-clips/
 
-# Separate website project that happens to sit inside this working tree; not
-# part of this application and never shipped with it.
-/canopy-collective-website/
+# Durable working log for the cross-session tracker issue review. Summarizes
+# private-tracker content, so it stays local and is never committed.
+/issue_review.md

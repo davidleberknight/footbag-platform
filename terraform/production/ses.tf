@@ -1,20 +1,32 @@
 # =============================================================================
 # SES sender identity + domain authentication.
 #
-# Two layers of SES authentication:
+# Two layers of SES authentication, and two flags, because the records land on
+# two different days:
 #
 # 1. Email identity (`aws_ses_email_identity.sender`).
 #    Sufficient for SES sandbox sending. Operator supplies the verified
 #    address in terraform.tfvars; SES emails a verification click-link to
-#    that address after first apply.
+#    that address after first apply. It exists only while
+#    var.ses_enable_domain_auth is false: once the domain identity is in
+#    play, sending happens under the domain and no verification link is sent
+#    to an address that is deliberately never monitored.
 #
-# 2. Domain identity + DKIM + Route53 records (resources below, count-gated
-#    by var.ses_enable_domain_auth, default false until the DNS handover).
-#    Domain identity verification via DNS, DKIM CNAMEs, and SPF + DMARC TXT
-#    records are required for SES production access (out of sandbox) and
-#    for deliverability against major mail providers. Without DKIM-aligned
-#    DMARC the platform's password-reset / claim / verify emails land in
-#    spam at Gmail / Outlook / iCloud.
+# 2. Domain identity + DKIM (var.ses_enable_domain_auth) go in first. They
+#    are invisible to whoever currently holds the domain's mail: nothing at
+#    the apex changes, so SES domain verification and the production-access
+#    request can complete well ahead of any mail move. Flip this while the
+#    application still runs the stub mail adapter, so swapping the address
+#    identity for the domain identity cannot interrupt live sending.
+#
+# 3. Apex SPF, DMARC, and the custom MAIL FROM records
+#    (var.ses_enable_mail_records) go in on the day inbound mail moves. They
+#    replace the apex SPF the previous mail host published, so publishing
+#    them early would leave that host's own mail unauthorised while it is
+#    still sending. This flag requires the domain-auth flag to be on.
+#
+# Without DKIM-aligned DMARC the platform's password-reset / claim / verify
+# emails land in spam at Gmail / Outlook / iCloud.
 #
 # LiveSesAdapter (src/adapters/sesAdapter.ts) sends outbound mail via SES
 # with the From: header set to var.ses_sender_identity. The runtime role's
@@ -43,15 +55,42 @@ variable "ses_sender_identity" {
 
 variable "ses_enable_domain_auth" {
   description = <<-EOT
-    Set to true to provision the SES domain identity, DKIM verification,
-    and SPF/DMARC TXT records. Required before exiting SES sandbox and
-    before any meaningful deliverability. Default FALSE: the webmaster holds
-    the authoritative zone until the DNS-handover milestone, so the Route 53
-    records these resources create would not resolve; flip to true only when
-    var.route53_zone_id names a zone Route 53 actually serves.
+    Set to true to provision the SES domain identity, its DNS verification
+    token, and the DKIM CNAMEs. Required before exiting SES sandbox and
+    before any meaningful deliverability. Touches no apex record, so it is
+    safe to flip while another host still handles the domain's mail. Turning
+    it on retires the single-address sender identity, so flip it before
+    production sending goes live. Default FALSE: until the zone move
+    completes, the records these resources create would not resolve; flip to
+    true only when var.route53_zone_id names a zone Route 53 actually serves.
   EOT
   type        = bool
   default     = false
+}
+
+variable "ses_enable_mail_records" {
+  description = <<-EOT
+    Set to true to publish the apex SPF, the DMARC record, and the custom
+    MAIL FROM subdomain records. These replace the apex SPF that the previous
+    mail host published, so they belong to the day inbound mail moves, not to
+    the earlier domain-auth step. Requires ses_enable_domain_auth to be true.
+  EOT
+  type        = bool
+  default     = false
+}
+
+variable "apex_txt_records" {
+  description = <<-EOT
+    Every apex TXT string OTHER than the SPF record this file builds. Route 53
+    stores one record set per name and type, so all apex TXT strings live in
+    one record and Terraform must declare all of them: any string left out of
+    this list is destroyed when the apex TXT record applies. Provider
+    verification strings (for example a Google Workspace site-verification
+    token) belong here. Operator supplies the current values in
+    terraform.tfvars, read from the live zone.
+  EOT
+  type        = list(string)
+  default     = []
 }
 
 variable "ses_dmarc_rua_email" {
@@ -85,7 +124,13 @@ variable "ses_dmarc_policy" {
   }
 }
 
+# The single-address identity covers sending before the domain identity
+# exists. AWS verifies it by emailing a click-link to the address itself, so
+# it is retired the moment domain auth is on: the canonical design keeps that
+# address unmonitored, and a domain identity authorises the same From address
+# without any inbound route.
 resource "aws_ses_email_identity" "sender" {
+  count = var.ses_enable_domain_auth ? 0 : 1
   email = var.ses_sender_identity
 }
 
@@ -141,13 +186,20 @@ resource "aws_route53_record" "ses_dkim" {
 # needs its own MX (to the SES feedback endpoint) and SPF TXT record.
 
 resource "aws_ses_domain_mail_from" "main" {
-  count            = var.ses_enable_domain_auth ? 1 : 0
+  count            = var.ses_enable_mail_records ? 1 : 0
   domain           = aws_ses_domain_identity.main[0].domain
   mail_from_domain = "mail.${var.domain_name}"
+
+  lifecycle {
+    precondition {
+      condition     = var.ses_enable_domain_auth
+      error_message = "ses_enable_mail_records requires ses_enable_domain_auth: the MAIL FROM subdomain hangs off the SES domain identity, which the domain-auth flag creates."
+    }
+  }
 }
 
 resource "aws_route53_record" "ses_mail_from_mx" {
-  count   = var.ses_enable_domain_auth ? 1 : 0
+  count   = var.ses_enable_mail_records ? 1 : 0
   zone_id = var.route53_zone_id
   name    = aws_ses_domain_mail_from.main[0].mail_from_domain
   type    = "MX"
@@ -156,7 +208,7 @@ resource "aws_route53_record" "ses_mail_from_mx" {
 }
 
 resource "aws_route53_record" "ses_mail_from_spf" {
-  count   = var.ses_enable_domain_auth ? 1 : 0
+  count   = var.ses_enable_mail_records ? 1 : 0
   zone_id = var.route53_zone_id
   name    = aws_ses_domain_mail_from.main[0].mail_from_domain
   type    = "TXT"
@@ -168,18 +220,38 @@ resource "aws_route53_record" "ses_mail_from_spf" {
 # Single TXT record at the apex listing every authorised sender. The platform
 # app is outbound-only through SES (`include:amazonses.com`). The domain is not
 # SES-only: Google Workspace outbound for @footbag.org is authorised broadly via
-# `include:_spf.google.com`, and the webmaster's `brat@` sending host is added
-# here once the mail-sender scope is settled. ~all (softfail) is the conservative
-# starting policy; tighten to -all (fail) once deliverability is verified across
-# major receivers.
+# `include:_spf.google.com`, which also covers a person replying from a
+# Google-hosted role mailbox. No raw ip4 sender is listed: every canonical
+# @footbag.org address sends through SES or Google, and the legacy host's own
+# sending addresses live on the pre-migration zone and are not carried over.
+# ~all (softfail) is the conservative starting policy; tighten to -all (fail)
+# once deliverability is verified across major receivers.
+#
+# This resource owns the whole apex TXT record set, because Route 53 stores one
+# set per name and type. Every other apex TXT string in the zone must therefore
+# be listed in var.apex_txt_records, or applying this record destroys it. When
+# the zone already carries an apex TXT set, read its strings into that variable
+# and import the record into this resource; allow_overwrite is deliberately
+# left at its default so an unimported record fails the apply loudly instead of
+# being silently replaced.
 
 resource "aws_route53_record" "spf" {
-  count   = var.ses_enable_domain_auth ? 1 : 0
+  count   = var.ses_enable_mail_records ? 1 : 0
   zone_id = var.route53_zone_id
   name    = var.domain_name
   type    = "TXT"
   ttl     = 600
-  records = ["v=spf1 include:amazonses.com include:_spf.google.com ~all"]
+  records = concat(
+    ["v=spf1 include:amazonses.com include:_spf.google.com ~all"],
+    var.apex_txt_records,
+  )
+
+  lifecycle {
+    precondition {
+      condition     = var.ses_enable_domain_auth
+      error_message = "ses_enable_mail_records requires ses_enable_domain_auth: publishing the apex SPF without the DKIM records leaves outbound mail authorised by SPF alone."
+    }
+  }
 }
 
 # ── DMARC ────────────────────────────────────────────────────────────────────
@@ -191,7 +263,7 @@ resource "aws_route53_record" "spf" {
 # strict because the domain DKIM signs d=<domain>, matching the From: domain.
 
 resource "aws_route53_record" "dmarc" {
-  count   = var.ses_enable_domain_auth ? 1 : 0
+  count   = var.ses_enable_mail_records ? 1 : 0
   zone_id = var.route53_zone_id
   name    = "_dmarc.${var.domain_name}"
   type    = "TXT"
@@ -225,14 +297,16 @@ resource "aws_sns_topic" "ses_feedback" {
 }
 
 resource "aws_ses_identity_notification_topic" "sender_bounce" {
-  identity                 = aws_ses_email_identity.sender.arn
+  count                    = var.ses_enable_domain_auth ? 0 : 1
+  identity                 = aws_ses_email_identity.sender[0].arn
   notification_type        = "Bounce"
   topic_arn                = aws_sns_topic.ses_feedback.arn
   include_original_headers = false
 }
 
 resource "aws_ses_identity_notification_topic" "sender_complaint" {
-  identity                 = aws_ses_email_identity.sender.arn
+  count                    = var.ses_enable_domain_auth ? 0 : 1
+  identity                 = aws_ses_email_identity.sender[0].arn
   notification_type        = "Complaint"
   topic_arn                = aws_sns_topic.ses_feedback.arn
   include_original_headers = false
