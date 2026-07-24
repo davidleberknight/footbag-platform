@@ -47,6 +47,7 @@ OUTPUT_FIELDS = [
     "legacy_ever_paid_tier2", "legacy_ever_paid_tier1_lifetime",
     "legacy_tier1_annual_active_at_cutover",
     "legacy_was_board_at_cutover", "legacy_board_underlying_paid_tier",
+    "legacy_member_modified",
 ]
 
 # The legacy site's IFPA tier code-set, taken from the site's own admin PHP
@@ -220,6 +221,10 @@ def map_record(rec: dict, cutover_epoch: int | None = None) -> dict:
             derive_tier1_annual_active_at_cutover(tier_code, expiration, cutover_epoch),
         "legacy_was_board_at_cutover":       was_board,
         "legacy_board_underlying_paid_tier": board_underlying,
+        # Raw source record-modification timestamp, carried through untouched so
+        # the shared-email resolver can parse and validate it centrally. The
+        # extraction layer transports the evidence; it does not decide ownership.
+        "legacy_member_modified":            _val(rec, "MemberModified"),
     }
 
 

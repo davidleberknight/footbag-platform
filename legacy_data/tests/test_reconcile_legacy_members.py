@@ -8,9 +8,11 @@ Contract tests for Stage A of the legacy-member identity reconciliation
   * accounts sharing a normalized name + full date of birth group as one
     same-person candidate, and the canonical normalizer folds accents so
     spelling variants of one name land together
-  * a shared email or user id holds the ENTIRE collision group out of the
-    reconcilable universe (mirroring the member loader), listed with partners
-    in the excluded-accounts CSV for adjudication
+  * a shared user id holds the ENTIRE collision group out of the reconcilable
+    universe (mirroring the member loader), listed with partners in the
+    excluded-accounts CSV for adjudication; a shared email does NOT hold accounts
+    out -- every account stays reconcilable and the shared-email resolver decides,
+    per group, which one keeps the address
   * Stage B proposes a link only for a single same-named account with a full
     DOB or an email; several same-named accounts always route to review,
     whichever of them carries a DOB or email
@@ -41,6 +43,7 @@ def row(member_id: str, **overrides: str) -> dict[str, str]:
         "real_name": f"Person {member_id}",
         "birth_date": "",
         "legacy_email": f"{member_id}@example.com",
+        "legacy_member_modified": "",
         "city": "",
         "region": "",
         "country": "",
@@ -73,25 +76,72 @@ def test_name_plus_full_dob_groups_as_one_same_person_candidate() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Account-universe alignment: reconciliation excludes the same email / user-id
-# collision accounts the member loader drops, so it never proposes an account
-# the load will not import.
+# Account-universe alignment: reconciliation holds out the same user-id collision
+# accounts the loader drops, so it never proposes an account the load will not
+# import. Shared-email accounts are NOT held out -- every account imports and
+# stays reconcilable, and the shared resolver decides email ownership per group.
 # ---------------------------------------------------------------------------
 
-def test_shared_email_accounts_are_held_out_of_the_reconcilable_universe() -> None:
-    # Two accounts sharing an email are ambiguous identities the loader drops as
-    # an email conflict; reconciliation holds BOTH out (not just the one the
-    # loader drops after the first), and a non-sharing account stays reconcilable.
+def test_shared_email_accounts_stay_in_the_reconcilable_universe() -> None:
+    # Two accounts sharing an email both import now, so both stay reconcilable;
+    # no account is excluded solely because it shares an email.
     rows = [
-        row("20", real_name="Anna Smith", legacy_email="fam@x.com"),
-        row("21", real_name="Bob Smith", legacy_email="fam@x.com"),
-        row("22", real_name="Cy Solo", legacy_email="solo@x.com"),
+        row("20", real_name="Anna Smith", legacy_email="fam@x.com", legacy_member_modified="100"),
+        row("21", real_name="Bob Smith", legacy_email="fam@x.com", legacy_member_modified="200"),
+        row("22", real_name="Cy Solo", legacy_email="solo@x.com", legacy_member_modified="150"),
     ]
     kept, excluded = rec.reconcilable_rows(rows)
-    assert {r["legacy_member_id"] for r in kept} == {"22"}
-    assert set(excluded) == {"20", "21"}
-    assert excluded["20"]["reason"] == "email_collision"
-    assert excluded["20"]["partners"] == ["21"]
+    assert {r["legacy_member_id"] for r in kept} == {"20", "21", "22"}
+    assert excluded == {}
+
+
+def test_shared_email_resolver_picks_the_latest_modified_account() -> None:
+    # The reconciler resolves email ownership through the one shared resolver:
+    # the strictly-latest record-modification timestamp keeps the address.
+    rows = [
+        row("20", real_name="Anna Smith", legacy_email="fam@x.com", legacy_member_modified="100"),
+        row("21", real_name="Bob Smith", legacy_email="fam@x.com", legacy_member_modified="200"),
+        row("22", real_name="Cy Solo", legacy_email="solo@x.com", legacy_member_modified="150"),
+    ]
+    (res,) = rec.shared_email_resolutions(rows)
+    assert res.disposition == "unique_latest"
+    assert res.winner_id == "21"
+    assert res.email_cleared_ids == ("20",)
+
+
+def test_loader_and_reconciler_share_one_resolver_and_agree() -> None:
+    # Both the loader and the reconciler decide shared-email ownership through the
+    # same resolver module, so they cannot reach different dispositions for one
+    # group. The loader projects its alias-resolved rows into the canonical shape
+    # the reconciler's rows already carry, then calls the identical function.
+    import importlib
+    load = importlib.import_module("load_legacy_export")
+    assert load.ser is rec.ser  # the one shared authority
+    accounts = [
+        row("60", real_name="A", legacy_email="fam@x.com", legacy_member_modified="100"),
+        row("61", real_name="B", legacy_email="fam@x.com", legacy_member_modified="300"),
+        row("62", real_name="C", legacy_email="fam@x.com", legacy_member_modified="200"),
+        row("63", real_name="D", legacy_email="tie@x.com", legacy_member_modified="9"),
+        row("64", real_name="E", legacy_email="tie@x.com", legacy_member_modified="9"),
+    ]
+    rec_res = rec.shared_email_resolutions(accounts)
+    projection = [{
+        rec.ser.ID_COL: a["legacy_member_id"],
+        "legacy_email": a["legacy_email"],
+        "legacy_email2": a.get("legacy_email2", ""),
+        "legacy_email3": a.get("legacy_email3", ""),
+        rec.ser.MODIFIED_COL: a["legacy_member_modified"],
+    } for a in accounts]
+    load_res = rec.ser.resolve_shared_email(projection)
+
+    def shape(rs):
+        return [(r.disposition, r.winner_id, r.email_cleared_ids) for r in rs]
+
+    assert shape(rec_res) == shape(load_res)
+    assert shape(rec_res) == [
+        ("unique_latest", "61", ("60", "62")),
+        ("needs_adjudication", None, ("63", "64")),
+    ]
 
 
 def test_user_id_collision_accounts_are_held_out() -> None:
@@ -106,12 +156,14 @@ def test_user_id_collision_accounts_are_held_out() -> None:
 
 
 def test_reconciliation_does_not_propose_a_link_to_a_held_out_account() -> None:
-    # A held-out (shared-email) account matches a person by name + full DOB, but
+    # A held-out (shared-user-id) account matches a person by name + full DOB, but
     # because it is excluded it is never proposed -- so the link write can never
     # reference an account the loader will not import.
     accounts = [
-        row("40", real_name="Held Out", birth_date="1990-01-01", legacy_email="shared@x.com"),
-        row("41", real_name="Other Name", birth_date="1991-02-02", legacy_email="shared@x.com"),
+        row("40", real_name="Held Out", birth_date="1990-01-01",
+            legacy_email="h1@x.com", legacy_user_id="dupe"),
+        row("41", real_name="Other Name", birth_date="1991-02-02",
+            legacy_email="h2@x.com", legacy_user_id="dupe"),
         row("42", real_name="Clean Match", birth_date="1980-03-03", legacy_email="clean@x.com"),
     ]
     hps = [
@@ -170,46 +222,60 @@ def test_no_duplicates_yields_no_groups() -> None:
     assert groups == []
 
 
-def test_stage_a_writes_review_and_held_out_csvs_and_never_merges(tmp_path: Path) -> None:
-    # A same-person name+DOB pair plus a shared-mailbox pair: the duplicate pair
-    # lands in the review CSV (each its own row, no merge); the shared-email pair
-    # is held out to the excluded CSV. No database is touched.
+def test_stage_a_writes_review_held_out_and_shared_email_csvs_and_never_merges(tmp_path: Path) -> None:
+    # A same-person name+DOB pair (review CSV); a shared-email pair with distinct
+    # modified timestamps (shared-email report, one keeps the address, both stay
+    # reconcilable); and a shared-user-id pair (held out to the excluded CSV). No
+    # database is touched.
     in_csv = tmp_path / "in.csv"
     fields = ["member_valid", "legacy_member_id", "legacy_user_id", "real_name",
-              "birth_date", "legacy_email", "city", "region", "country"]
+              "birth_date", "legacy_email", "legacy_member_modified",
+              "city", "region", "country"]
     with in_csv.open("w", encoding="utf-8", newline="") as f:
         w = csv.DictWriter(f, fieldnames=fields, lineterminator="\n")
         w.writeheader()
         for r in [
             row("70", real_name="Gwen Ash", birth_date="1992-07-07", legacy_email="g1@x.com"),
             row("71", real_name="Gwen Ash", birth_date="1992-07-07", legacy_email="g2@x.com"),
-            row("80", real_name="Hank Ives", legacy_email="fam@x.com"),
-            row("81", real_name="Iris Ives", legacy_email="fam@x.com"),
+            row("80", real_name="Hank Ives", legacy_email="fam@x.com", legacy_member_modified="100"),
+            row("81", real_name="Iris Ives", legacy_email="fam@x.com", legacy_member_modified="200"),
+            row("90", real_name="Jo King", legacy_email="j1@x.com", legacy_user_id="shared_login"),
+            row("91", real_name="Kai Lang", legacy_email="j2@x.com", legacy_user_id="shared_login"),
         ]:
             w.writerow({k: r[k] for k in fields})
 
     out_csv = tmp_path / "out" / "review.csv"
     excluded_csv = tmp_path / "out" / "excluded.csv"
-    summary = rec.stage_a_duplicate_accounts(in_csv, out_csv, excluded_csv)
+    shared_email_csv = tmp_path / "out" / "shared_email.csv"
+    summary = rec.stage_a_duplicate_accounts(in_csv, out_csv, excluded_csv, shared_email_csv)
 
-    assert summary["valid"] == 4
-    assert summary["reconcilable"] == 2        # 70, 71
-    assert summary["collision_excluded"] == 2  # 80, 81 share fam@x.com
+    assert summary["valid"] == 6
+    assert summary["reconcilable"] == 4        # 70, 71, 80, 81 (email pair stays)
+    assert summary["collision_excluded"] == 2  # 90, 91 share a login id
     assert summary["name_dob_groups"] == 1
     assert summary["review_rows"] == 2
+    assert summary["shared_email"]["groups"] == 1
+    assert summary["shared_email"]["unique_winner_groups"] == 1
+    assert summary["shared_email"]["accounts_retaining_email"] == 1
+    assert summary["shared_email"]["accounts_email_cleared"] == 1
 
     with out_csv.open(encoding="utf-8", newline="") as f:
         review = list(csv.DictReader(f))
-    assert list(review[0].keys()) == rec.REVIEW_FIELDS
     assert {r["legacy_member_id"] for r in review} == {"70", "71"}
     assert all(r["signal"] == "name_dob" for r in review)
-    assert all(r["same_person_recommended"] == "yes" for r in review)
 
     with excluded_csv.open(encoding="utf-8", newline="") as f:
         held = list(csv.DictReader(f))
     assert list(held[0].keys()) == rec.EXCLUDED_ACCOUNT_FIELDS
-    assert {r["legacy_member_id"] for r in held} == {"80", "81"}
-    assert all(r["reason"] == "email_collision" for r in held)
+    assert {r["legacy_member_id"] for r in held} == {"90", "91"}
+    assert all(r["reason"] == "user_id_collision" for r in held)
+
+    with shared_email_csv.open(encoding="utf-8", newline="") as f:
+        report = list(csv.DictReader(f))
+    assert len(report) == 1
+    assert report[0]["winner_id"] == "81"
+    assert report[0]["email_cleared_ids"] == "80"
+    assert report[0]["disposition"] == "unique_latest"
 
 
 # ---------------------------------------------------------------------------

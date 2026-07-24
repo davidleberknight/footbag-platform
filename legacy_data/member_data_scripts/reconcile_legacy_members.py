@@ -10,12 +10,13 @@ never writes to the database.
 Stages:
   * Stage A -- intra-dump duplicate accounts (implemented). Groups member_valid=1
     accounts by one review signal: same normalized name + full date of birth.
-    Shared-email and shared-user-id accounts are not grouped here: every account
-    in such a collision group is held out of the reconcilable universe entirely
-    (see below) and listed with its name and partners in the excluded-accounts
-    CSV, where the adjudicator distinguishes a duplicate account (same name) from
-    a shared family mailbox (different names). Each account stays its own row;
-    the review CSV is an adjudication aid, not a merge.
+    Shared-user-id accounts are not grouped here: every account in a user-id
+    collision group is held out of the reconcilable universe entirely (see below)
+    and listed with its partners in the excluded-accounts CSV. Shared-email
+    accounts stay in the universe instead: the shared-email resolver imports every
+    account and clears the email on all but the strictly-latest, and each group's
+    disposition is written to the shared-email report CSV. Each account stays its
+    own row; the review CSV is an adjudication aid, not a merge.
   * Stage B -- dump account to historical_persons linking (implemented). Proposes
     a link only when the evidence resolves to exactly one historical person AND
     exactly one dump account: a verified id crosswalk (the person already names a
@@ -47,11 +48,14 @@ downstream. A full date of birth is month, day, and year all present (the
 extractor emits birth_date only in that case).
 
 The account universe both stages may propose from is member_valid=1 minus the
-email / user-id collision accounts. A shared email or user id is an ambiguous
-identity, so the ENTIRE collision group is held out and routed to the held-out
-review CSV -- the same hold-the-whole-group rule the member loader applies, so a
-proposal never references an account the load will not import, and the two
-universes stay aligned by construction.
+user-id collision accounts. A shared login id is an ambiguous identity, so the
+ENTIRE collision group is held out and routed to the held-out review CSV -- the
+same hold-the-whole-group rule the member loader applies, so a proposal never
+references an account the load will not import. A shared email is handled
+differently: the shared-email resolver (shared_email_resolution.py, the one
+authority the loader also calls) imports every account and clears the email on
+all but one, so email accounts stay reconcilable and the two universes stay
+aligned by construction.
 """
 from __future__ import annotations
 
@@ -69,6 +73,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from pipeline.identity.alias_resolver import normalize_name  # noqa: E402
 
+# The shared-email resolver is the single authority for shared-email ownership,
+# called identically by the member loader and this reconciler.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import shared_email_resolution as ser  # noqa: E402
+
 DEFAULT_CSV = Path("legacy_data/member_data_scripts/out/legacy_members_final.csv")
 DEFAULT_STAGE_A_REVIEW_CSV = Path(
     "legacy_data/member_data_scripts/out/stage_a_duplicate_accounts_review.csv"
@@ -81,6 +90,9 @@ DEFAULT_STAGE_B_REVIEW_CSV = Path(
 )
 DEFAULT_EXCLUDED_ACCOUNTS_CSV = Path(
     "legacy_data/member_data_scripts/out/reconciliation_excluded_accounts.csv"
+)
+DEFAULT_SHARED_EMAIL_CSV = Path(
+    "legacy_data/member_data_scripts/out/shared_email_resolution.csv"
 )
 
 # The email columns the member loader checks for cross-account collisions. In the
@@ -102,49 +114,57 @@ def _valid_rows(rows: list[dict[str, str]]) -> list[dict[str, str]]:
 
 
 def collision_excluded_accounts(valid_rows: list[dict[str, str]]) -> dict[str, dict[str, object]]:
-    """member_valid=1 accounts that share an email or a user id with another such
-    account. A shared email or user id is an ambiguous identity, so the ENTIRE
-    collision group is held: the member loader excludes the same whole groups from
-    legacy_members, and reconciliation must not propose a link for any of them, or
-    the link write would reference an account the loader excluded.
-    Returns {legacy_member_id: {"reason": str, "partners": [ids]}}."""
-    email_ids: dict[str, set[str]] = defaultdict(set)
+    """member_valid=1 accounts that share a legacy_user_id with another such
+    account. A shared login id is an ambiguous identity, so the ENTIRE collision
+    group is held out of both the member load and person-linking; reconciliation
+    must not propose a link for any of them, or the link write would reference an
+    account the loader excluded.
+
+    Shared-email collisions are NOT held out here: the shared-email resolver
+    imports every account and clears the email on all but one, so email accounts
+    stay reconcilable and are surfaced through the shared-email report, not by
+    exclusion.
+    Returns {legacy_member_id: {"reason": "user_id_collision", "partners": [ids]}}."""
     uid_ids: dict[str, set[str]] = defaultdict(set)
     for r in valid_rows:
         mid = (r.get("legacy_member_id") or "").strip()
         if not mid:
             continue
-        for col in EMAIL_COLS:
-            e = _norm_email(r.get(col))
-            if e:
-                email_ids[e].add(mid)
         uid = (r.get("legacy_user_id") or "").strip()
         if uid:
             uid_ids[uid].add(mid)
 
-    email_excluded: dict[str, set[str]] = defaultdict(set)
-    for ids in email_ids.values():
-        if len(ids) > 1:
-            for mid in ids:
-                email_excluded[mid].update(ids - {mid})
-    uid_excluded: dict[str, set[str]] = defaultdict(set)
+    excluded: dict[str, dict[str, object]] = {}
     for ids in uid_ids.values():
         if len(ids) > 1:
             for mid in ids:
-                uid_excluded[mid].update(ids - {mid})
-
-    excluded: dict[str, dict[str, object]] = {}
-    for mid in set(email_excluded) | set(uid_excluded):
-        reasons = []
-        partners: set[str] = set()
-        if mid in email_excluded:
-            reasons.append("email_collision")
-            partners |= email_excluded[mid]
-        if mid in uid_excluded:
-            reasons.append("user_id_collision")
-            partners |= uid_excluded[mid]
-        excluded[mid] = {"reason": "+".join(reasons), "partners": sorted(partners)}
+                excluded[mid] = {
+                    "reason": "user_id_collision",
+                    "partners": sorted(ids - {mid}),
+                }
     return excluded
+
+
+def shared_email_resolutions(rows: list[dict[str, str]]) -> list[ser.GroupResolution]:
+    """Resolve every shared-email collision group over the member_valid=1 rows,
+    using the one shared resolver the loader also calls. The reconciler and the
+    loader therefore reach the same disposition for the same group."""
+    return ser.resolve_shared_email(_valid_rows(rows))
+
+
+def write_shared_email_report_csv(rows: list[dict[str, str]], out_path: Path) -> dict[str, int]:
+    """Write one row per shared-email collision group (git-ignored, PII-controlled
+    output) and return the aggregate counts. Reports which account keeps the
+    address, which import without it, and why an undecidable group fell to
+    adjudication."""
+    resolutions = shared_email_resolutions(rows)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=ser.REPORT_FIELDS, lineterminator="\n")
+        w.writeheader()
+        for report_row in ser.report_rows(resolutions):
+            w.writerow(report_row)
+    return ser.summarize(resolutions)
 
 
 def reconcilable_rows(rows: list[dict[str, str]]) -> tuple[list[dict[str, str]], dict[str, dict[str, object]]]:
@@ -278,11 +298,12 @@ def write_stage_a_review_csv(groups: list[DuplicateGroup], out_path: Path) -> in
 
 
 def stage_a_duplicate_accounts(csv_path: Path, out_path: Path,
-                               excluded_out: Path | None = None) -> dict[str, object]:
+                               excluded_out: Path | None = None,
+                               shared_email_out: Path | None = None) -> dict[str, object]:
     """Read the intermediate CSV, build the duplicate-account review groups, and
-    write the review CSV plus the held-out (collision-excluded) accounts CSV.
-    Returns a summary of counts. Writes only review artifacts -- no database
-    write, no account merge."""
+    write the review CSV, the held-out (user-id-collision) accounts CSV, and the
+    shared-email resolution report. Returns a summary of counts. Writes only
+    review artifacts -- no database write, no account merge."""
     with Path(csv_path).open(encoding="utf-8", newline="") as f:
         rows = list(csv.DictReader(f))
     groups = build_stage_a_groups(rows)
@@ -290,6 +311,9 @@ def stage_a_duplicate_accounts(csv_path: Path, out_path: Path,
     kept, excluded = reconcilable_rows(rows)
     if excluded_out is not None:
         write_excluded_accounts_csv(rows, excluded, Path(excluded_out))
+    email_stats: dict[str, int] = ser.summarize(shared_email_resolutions(rows))
+    if shared_email_out is not None:
+        email_stats = write_shared_email_report_csv(rows, Path(shared_email_out))
 
     name_dob = [g for g in groups if g.signal == "name_dob"]
     return {
@@ -301,10 +325,13 @@ def stage_a_duplicate_accounts(csv_path: Path, out_path: Path,
         "review_rows": review_rows,
         "out_path": str(out_path),
         "excluded_out": str(excluded_out) if excluded_out is not None else "",
+        "shared_email_out": str(shared_email_out) if shared_email_out is not None else "",
+        "shared_email": email_stats,
     }
 
 
-def run_stage_a(csv_path: Path, out_path: Path, excluded_out: Path) -> int:
+def run_stage_a(csv_path: Path, out_path: Path, excluded_out: Path,
+                shared_email_out: Path | None = None) -> int:
     if not csv_path.exists():
         print(
             f"error: intermediate CSV not found at {csv_path}.\n"
@@ -312,13 +339,22 @@ def run_stage_a(csv_path: Path, out_path: Path, excluded_out: Path) -> int:
             file=sys.stderr,
         )
         return 1
-    s = stage_a_duplicate_accounts(csv_path, out_path, excluded_out)
+    s = stage_a_duplicate_accounts(csv_path, out_path, excluded_out, shared_email_out)
     print(f"member_valid=1: {s['valid']}  "
-          f"(reconcilable: {s['reconcilable']}, held out on email/user-id collision: {s['collision_excluded']})")
+          f"(reconcilable: {s['reconcilable']}, held out on user-id collision: {s['collision_excluded']})")
     print(f"name+full-DOB duplicate groups: {s['name_dob_groups']}  "
           f"(accounts: {s['name_dob_accounts']})")
+    em = s["shared_email"]
+    print(f"shared-email groups: {em['groups']}  "
+          f"(unique-winner {em['unique_winner_groups']}, "
+          f"needs-adjudication {em['needs_adjudication_groups']}: "
+          f"tied {em['tied_groups']}, missing-ts {em['missing_timestamp_groups']}, "
+          f"invalid-ts {em['invalid_timestamp_groups']})  "
+          f"accounts: retain {em['accounts_retaining_email']}, cleared {em['accounts_email_cleared']}")
     print(f"review CSV: {out_path}  ({s['review_rows']} rows)  -- review only, no accounts merged")
     print(f"held-out accounts CSV: {excluded_out}  ({s['collision_excluded']} accounts)")
+    if shared_email_out is not None:
+        print(f"shared-email report CSV: {shared_email_out}  ({em['groups']} groups)")
     return 0
 
 
@@ -1634,7 +1670,11 @@ def main() -> None:
     ap.add_argument("--review-out", type=Path, default=DEFAULT_STAGE_B_REVIEW_CSV,
                     help="Stage B link-review CSV output path (git-ignored out/ by default)")
     ap.add_argument("--excluded-out", type=Path, default=DEFAULT_EXCLUDED_ACCOUNTS_CSV,
-                    help="Stage A held-out (email/user-id collision) accounts CSV (git-ignored out/ by default)")
+                    help="Stage A held-out (user-id collision) accounts CSV (git-ignored out/ by default)")
+    ap.add_argument("--shared-email-out", type=Path, default=DEFAULT_SHARED_EMAIL_CSV,
+                    help="Stage A shared-email resolution report CSV, one row per collision "
+                         "group with winner / cleared / adjudication disposition "
+                         "(git-ignored out/ by default)")
     ap.add_argument("--link-holds", type=Path, default=None,
                     help="Stage B person-link hold CSV (private input; fail-closed). "
                          "Suppresses adjudicated proposed links before the proposal CSV is "
@@ -1653,7 +1693,7 @@ def main() -> None:
     if args.profile:
         sys.exit(profile(args.csv))
     if args.stage_a:
-        sys.exit(run_stage_a(args.csv, args.out, args.excluded_out))
+        sys.exit(run_stage_a(args.csv, args.out, args.excluded_out, args.shared_email_out))
     if args.stage_b or args.stage_b_survivor_view:
         sys.exit(run_stage_b(args.csv, args.db, args.proposed_out, args.review_out,
                              use_survivor_view=args.stage_b_survivor_view,

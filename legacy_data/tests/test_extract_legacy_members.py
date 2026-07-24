@@ -231,6 +231,22 @@ def test_final_export_passes_fresh_dump(tmp_path):
     assert out.exists()   # extraction proceeds after the gate passes
 
 
+def test_member_modified_carried_through_to_output_raw(tmp_path):
+    # The extract transports the raw MemberModified value into the
+    # legacy_member_modified output column untouched -- no normalization, no
+    # reinterpretation -- so the shared-email resolver parses and validates it
+    # centrally downstream.
+    e1, e2 = _epoch(2024, 6, 14), _epoch(2024, 6, 15, h=23)
+    sql = _freshness_dump([e1, e2], "2024-06-16 09:00:00")
+    dump, out = _write_dump(tmp_path, sql)
+    elm.extract(dump, out, cutover_date=FREEZE_DATE, final_export=True)
+    rows = list(csv.DictReader(out.open(encoding="utf-8")))
+    by_id = {r["legacy_member_id"]: r for r in rows}
+    assert "legacy_member_modified" in rows[0]          # part of the output contract
+    assert by_id["1001"]["legacy_member_modified"] == str(e1)
+    assert by_id["1002"]["legacy_member_modified"] == str(e2)
+
+
 def test_dump_level_counts(tmp_path):
     stats, _, _, _ = _run(tmp_path)
     assert stats["rows_examined"] == 5

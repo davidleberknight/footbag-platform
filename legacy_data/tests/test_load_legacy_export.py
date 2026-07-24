@@ -8,8 +8,12 @@ Contract tests for the legacy-site export loader
   * credential-bearing export columns abort BEFORE any write (poisoned fixture)
   * missing required headers abort with the header list
   * an export missing the tier-status columns aborts as a stale artifact
-  * a shared email or user id holds out the ENTIRE collision group (no member
-    of the group is imported; a non-colliding account in the same file loads)
+  * a shared user id holds out the ENTIRE collision group (no member of the
+    group is imported; a non-colliding account in the same file loads)
+  * a shared email imports every account and clears the address on all but the
+    strictly-latest record-modification timestamp; an export with no timestamp
+    column falls closed to adjudication, importing every account without the
+    shared address
   * source-validity filter excludes per rule with honest counts
   * linkage exception pull-back imports excluded rows referenced by
     historical_persons
@@ -291,11 +295,11 @@ def test_default_invocation_is_a_dry_run(tmp_path: Path) -> None:
     assert rows[0]["n"] == 0
 
 
-def test_intra_export_email_collision_holds_out_the_entire_group(tmp_path: Path) -> None:
-    # A shared address is an ambiguous identity: NO member of the collision
-    # group is imported (importing the first would silently hand the shared
-    # mailbox one arbitrary identity, and mailbox control alone completes a
-    # claim). A non-colliding account in the same export still loads.
+def test_intra_export_shared_email_without_timestamp_falls_to_adjudication(tmp_path: Path) -> None:
+    # Compatibility with an export carrying no legacy_member_modified column: the
+    # group cannot be decided, so it fails closed to adjudication -- every account
+    # imports, but none keeps the shared address. A non-colliding account keeps
+    # its own email.
     db = make_db(tmp_path)
     export = write_export(tmp_path, [
         export_row("700", Email="same@legacy.example.com"),
@@ -304,15 +308,39 @@ def test_intra_export_email_collision_holds_out_the_entire_group(tmp_path: Path)
     ])
     result = run_loader(db, export)
     assert result.returncode == 0, result.stderr
-    assert "excluded[email_conflict]:" in result.stdout
-    assert "700" in result.stdout and "701" in result.stdout
-    ids = {r["legacy_member_id"] for r in query(db, "SELECT legacy_member_id FROM legacy_members")}
-    assert ids == {"702"}
+    assert "needs-adjudication 1" in result.stdout
+    rows = {r["legacy_member_id"]: r for r in
+            query(db, "SELECT legacy_member_id, legacy_email FROM legacy_members")}
+    assert set(rows) == {"700", "701", "702"}            # every account imports
+    assert rows["700"]["legacy_email"] is None           # shared address withheld
+    assert rows["701"]["legacy_email"] is None
+    assert rows["702"]["legacy_email"] == "702@legacy.example.com"
 
 
-def test_cross_column_email_collision_holds_out_the_entire_group(tmp_path: Path) -> None:
-    # The shared address sits in the primary column on one account and a
-    # secondary column on the other; the group is still held out whole.
+def test_shared_email_with_timestamps_latest_keeps_the_address(tmp_path: Path) -> None:
+    # With a legacy_member_modified column the tie-break decides: the strictly
+    # latest account keeps the shared address, the older imports without it, and
+    # both import.
+    db = make_db(tmp_path)
+    headers = EXPORT_HEADERS + ["legacy_member_modified"]
+    export = write_export(tmp_path, [
+        export_row("730", Email="fam@legacy.example.com", legacy_member_modified="100"),
+        export_row("731", Email="fam@legacy.example.com", legacy_member_modified="200"),
+    ], headers=headers)
+    result = run_loader(db, export)
+    assert result.returncode == 0, result.stderr
+    assert "unique-winner 1" in result.stdout
+    rows = {r["legacy_member_id"]: r for r in
+            query(db, "SELECT legacy_member_id, legacy_email FROM legacy_members")}
+    assert set(rows) == {"730", "731"}
+    assert rows["730"]["legacy_email"] is None                       # older loses the address
+    assert rows["731"]["legacy_email"] == "fam@legacy.example.com"   # latest keeps it
+
+
+def test_cross_column_shared_email_without_timestamp_falls_to_adjudication(tmp_path: Path) -> None:
+    # The shared address sits in the primary column on one account and a secondary
+    # column on the other; still one group, and with no timestamp it adjudicates,
+    # both importing without the address.
     db = make_db(tmp_path)
     headers = EXPORT_HEADERS + ["legacy_email2"]
     export = write_export(tmp_path, [
@@ -322,8 +350,11 @@ def test_cross_column_email_collision_holds_out_the_entire_group(tmp_path: Path)
     ], headers=headers)
     result = run_loader(db, export)
     assert result.returncode == 0, result.stderr
-    ids = {r["legacy_member_id"] for r in query(db, "SELECT legacy_member_id FROM legacy_members")}
-    assert ids == {"712"}
+    rows = {r["legacy_member_id"]: r for r in
+            query(db, "SELECT legacy_member_id, legacy_email, legacy_email2 FROM legacy_members")}
+    assert set(rows) == {"710", "711", "712"}
+    assert rows["710"]["legacy_email"] is None
+    assert rows["711"]["legacy_email2"] is None
 
 
 def test_user_id_collision_holds_out_the_entire_group(tmp_path: Path) -> None:

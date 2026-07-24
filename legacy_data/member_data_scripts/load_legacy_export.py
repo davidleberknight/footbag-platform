@@ -36,15 +36,18 @@ Safety contract (in order):
 A legacy account can carry up to three email addresses (a primary plus two
 secondary); all three are imported and all three participate in claim matching.
 An address that appears, in any of the three columns, on more than one row
-identifies two different accounts -- an ambiguous identity. The ENTIRE collision
-group is held out (no member of it is imported) and reported for adjudication
-before the final production load; importing any one of them would silently
-assign the shared address to an arbitrary account and let the claim flow hand
-that account's identity to whoever controls the mailbox. The same
-hold-the-whole-group rule applies to legacy_user_id collisions
-(single-column). The email columns are non-unique in the schema (one address
+identifies two different accounts -- an ambiguous identity. Every such account
+still imports, but only one may keep the shared address: within each collision
+group the account with the strictly-latest record-modification timestamp keeps
+its email, and the others import with their email cleared, claiming through the
+name-anchored path. A group with any missing, invalid, or tied timestamp fails
+closed -- no account keeps the shared address, and all still import. The shared
+resolver (shared_email_resolution.py) is the single authority, and the
+reconciliation step calls the same function so the two universes stay aligned. A
+legacy_user_id collision is a different ambiguity and still holds the whole group
+out (single-column). The email columns are non-unique in the schema (one address
 may be primary on one account and secondary on another), so cross-account email
-uniqueness is enforced here and by the validation gate, not by the DB.
+ownership is enforced here and by the validation gate, not by the DB.
 
 The three tier-status columns (legacy_ever_paid_tier2,
 legacy_ever_paid_tier1_lifetime, legacy_tier1_annual_active_at_cutover) are
@@ -76,6 +79,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from member_merge import (  # noqa: E402
     MergeAbort, apply_member_merge, load_merge_map, precheck_live_references,
 )
+import shared_email_resolution as ser  # noqa: E402
 
 CREDENTIAL_HEADER_RE = re.compile(
     r"password|passwd|pwd|hash|salt|secret|recovery|session|token|cookie|auth",
@@ -113,6 +117,12 @@ FIELD_ALIASES: dict[str, list[str]] = {
     "legacy_ever_paid_tier2":                ["legacy_ever_paid_tier2"],
     "legacy_ever_paid_tier1_lifetime":       ["legacy_ever_paid_tier1_lifetime"],
     "legacy_tier1_annual_active_at_cutover": ["legacy_tier1_annual_active_at_cutover"],
+    # Non-required: the raw source record-modification timestamp that decides
+    # shared-email ownership. Newer extracts emit "legacy_member_modified"; older
+    # exports lack the column entirely, and a shared-email group with no complete
+    # timestamps fails closed to adjudication (no account keeps the email).
+    "legacy_member_modified": ["legacy_member_modified", "legacy_member_modified_epoch",
+                               "membermodified", "member_modified"],
 }
 REQUIRED_FIELDS = ["legacy_member_id", "member_valid"]
 # The extractor always emits the three tier-status columns; an export missing
@@ -136,7 +146,6 @@ EXCLUSION_RULES = [
     "no_identity",
     "duplicate",
     "test_placeholder",
-    "email_conflict",
     "user_id_conflict",
 ]
 
@@ -295,7 +304,7 @@ def main() -> None:
         excluded[rule].append(pk or "<missing-id>")
         # Linkage exception: results/honors provenance always wins over the
         # junk heuristics. A row with no primary key cannot be linked.
-        if pk and pk in linked_ids and rule not in ("email_conflict", "user_id_conflict"):
+        if pk and pk in linked_ids and rule != "user_id_conflict":
             exceptions_pulled_back.append((pk, rule))
             importable.append(row)
 
@@ -340,41 +349,36 @@ def main() -> None:
 
         importable.append(row)
 
-    # Cross-column email collision: an address appearing in any of the three
-    # email columns on more than one account identifies two different accounts,
-    # which is an ambiguous identity. The ENTIRE collision group is held out --
-    # importing any member of it would silently assign the shared address to one
-    # arbitrary account, and the claim flow's email-equality fast path would then
-    # hand that account's identity to whichever person controls the mailbox. The
-    # held-out group is adjudicated before the final production load (the
-    # reconciliation step holds the same groups out of person-linking, so the two
-    # universes stay aligned). Comparison is case-insensitive, matching how the
-    # platform resolves claims. This is the loader's defense-in-depth behind the
-    # validation gate.
-    email_cols = ("legacy_email", "legacy_email2", "legacy_email3")
-    email_owners: dict[str, set[str]] = {}
-    for row in importable:
-        pk = field(row, "legacy_member_id")
-        for value in {field(row, c).lower() for c in email_cols if field(row, c)}:
-            email_owners.setdefault(value, set()).add(pk)
-    email_colliding = {pk for owners in email_owners.values() if len(owners) > 1 for pk in owners}
-    kept: list[dict[str, str]] = []
-    for row in importable:
-        if field(row, "legacy_member_id") in email_colliding:
-            excluded["email_conflict"].append(field(row, "legacy_member_id"))
-            continue
-        kept.append(row)
-    importable = kept
+    # Cross-column shared-email resolution: an address appearing in any of the
+    # three email columns on more than one account is an ambiguous identity the
+    # claim flow's email-equality fast path would resolve to whoever controls the
+    # mailbox. Every such account still imports; the shared resolver decides which
+    # single account (if any) keeps the shared address -- the strictly-latest
+    # record-modification timestamp wins, and a group with any missing, invalid,
+    # or tied timestamp fails closed to adjudication with no account keeping the
+    # address. The reconciliation step calls the same resolver, so the two
+    # universes stay aligned. Losers (and every account in an adjudication group)
+    # import with their email columns cleared, below.
+    email_projection = [{
+        ser.ID_COL: field(row, "legacy_member_id"),
+        "legacy_email": field(row, "legacy_email"),
+        "legacy_email2": field(row, "legacy_email2"),
+        "legacy_email3": field(row, "legacy_email3"),
+        ser.MODIFIED_COL: field(row, "legacy_member_modified"),
+    } for row in importable]
+    email_resolutions = ser.resolve_shared_email(email_projection)
+    email_cleared = ser.email_cleared_ids(email_resolutions)
+    email_stats = ser.summarize(email_resolutions)
 
-    # legacy_user_id collisions hold out the whole group the same way
-    # (single-column comparison).
+    # A legacy_user_id collision is a different ambiguity (a shared login id) and
+    # still holds the whole group out (single-column comparison).
     uid_owners: dict[str, set[str]] = {}
     for row in importable:
         value = field(row, "legacy_user_id")
         if value:
             uid_owners.setdefault(value, set()).add(field(row, "legacy_member_id"))
     uid_colliding = {pk for owners in uid_owners.values() if len(owners) > 1 for pk in owners}
-    kept = []
+    kept: list[dict[str, str]] = []
     for row in importable:
         if field(row, "legacy_member_id") in uid_colliding:
             excluded["user_id_conflict"].append(field(row, "legacy_member_id"))
@@ -442,14 +446,18 @@ def main() -> None:
         ).fetchone()
         display_name = field(row, "display_name") or field(row, "real_name")
         real_name = field(row, "real_name") or field(row, "display_name")
+        # A shared-email loser (or any account in an adjudication group) imports
+        # with every email column cleared, so no shared address survives on more
+        # than one account and the loser claims through the name-anchored path.
+        email_withheld = pk in email_cleared
         values_common = (
             field(row, "legacy_user_id") or None,
             # Store legacy emails lowercase so the claim / auto-link lookup can
             # use the plain email indexes (the service lowercases the lookup
             # value); a stored mixed-case address would never match.
-            field(row, "legacy_email").lower() or None,
-            field(row, "legacy_email2").lower() or None,
-            field(row, "legacy_email3").lower() or None,
+            None if email_withheld else (field(row, "legacy_email").lower() or None),
+            None if email_withheld else (field(row, "legacy_email2").lower() or None),
+            None if email_withheld else (field(row, "legacy_email3").lower() or None),
             real_name or None,
             display_name or None,
             normalize(display_name) if display_name else None,
@@ -503,6 +511,13 @@ def main() -> None:
     print(f"  exceptions pulled back:   {len(exceptions_pulled_back)}"
           + (f"  ({', '.join(f'{pk}[{rule}]' for pk, rule in exceptions_pulled_back[:8])})"
              if exceptions_pulled_back else ""))
+    print(f"  shared-email groups:      {email_stats['groups']}  "
+          f"(unique-winner {email_stats['unique_winner_groups']}, "
+          f"needs-adjudication {email_stats['needs_adjudication_groups']}: "
+          f"tied {email_stats['tied_groups']}, missing-ts {email_stats['missing_timestamp_groups']}, "
+          f"invalid-ts {email_stats['invalid_timestamp_groups']})")
+    print(f"    email retained:         {email_stats['accounts_retaining_email']}")
+    print(f"    email cleared on import:{email_stats['accounts_email_cleared']}")
     print(f"  imported total:           {updated_from_mirror + re_applied + inserted_new}")
     print(f"    updated from mirror:    {updated_from_mirror}")
     print(f"    re-applied (export):    {re_applied}")
