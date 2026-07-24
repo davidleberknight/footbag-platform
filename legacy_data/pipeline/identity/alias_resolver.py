@@ -56,8 +56,11 @@ def normalize_name(name: str) -> str:
     known class of duplicate-person regression):
 
       1. Drop encoding artifacts (BOM, U+FFFD, soft hyphen).
-      2. NFKD decomposition + drop combining marks → accents/diacritics stripped
-         ("Bélanger" → "Belanger", "Zülli" → "Zulli", "Rafał" → "Rafal").
+      2. NFKD decomposition + drop combining marks → decomposable accents and
+         diacritics are stripped ("Bélanger" → "Belanger", "Zülli" → "Zulli").
+         Non-decomposable stroke letters carry no combining mark, so they are
+         NOT transliterated here ("Rafał" stays "rafał", "Bjørn" stays
+         "bjørn"); reconciling those to a base letter is the alias layer's job.
       3. Lowercase.
       4. Collapse hyphens / underscores / slashes to a single space
          ("J-F" → "j f", "Jean-Marie" → "jean marie").
