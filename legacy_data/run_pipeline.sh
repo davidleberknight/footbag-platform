@@ -252,6 +252,13 @@ run_phase_b_mirror_extract() {
     echo "║  PHASE B: MIRROR EXTRACTION                          ║"
     echo "╚══════════════════════════════════════════════════════╝"
     python scripts/extract_clubs.py
+    # Reconcile the mirror-extracted seed against the authoritative approved-club
+    # universe from the legacy clubs dump: preserve the mirror-enriched rows,
+    # add the approved clubs the mirror never captured, and drop any seeded key
+    # the dump no longer approves. Runs before URL verification so the added
+    # clubs' URLs are verified, and before the classifier so it sees the full
+    # universe. A clean no-op when the machine-local dump is absent.
+    python scripts/overlay_clubs_from_dump.py
     python scripts/extract_club_members.py
     python scripts/extract_member_usernames.py
     # Stamp URL safety verdicts for club URLs at data-prep time, so the deployed
