@@ -69,7 +69,8 @@ def test_seeds_enqueue_at_depth_zero_with_dedup(state):
     assert state.url_depth[BASE + '/news/show/3'] == 0
 
 
-def test_unsafe_and_out_of_scope_seeds_are_refused(state):
+def test_unsafe_and_out_of_scope_seeds_are_refused(state, caplog):
+    caplog.set_level('INFO')
     added = mirror_script.enqueue_seed_urls([
         BASE + '/gallery/delete/9',                 # editor view: refused
         'http://photo.footbag.org/worlds96/1.jpg',  # dead host: out of scope
@@ -77,6 +78,21 @@ def test_unsafe_and_out_of_scope_seeds_are_refused(state):
     ])
     assert added == 1
     assert state.queue == [BASE + '/members/profile/456']
+    # A refused seed is a URL an operator deliberately supplied, so both the
+    # per-URL line and the run summary warn; a quietly dropped seed file would
+    # otherwise read as full coverage.
+    refusals = [r for r in caplog.records if r.message.startswith('Seed refused')]
+    assert len(refusals) == 2
+    assert {r.levelname for r in refusals} == {'WARNING'}
+    summary = [r for r in caplog.records if r.message.startswith('Seeds enqueued')]
+    assert [r.levelname for r in summary] == ['WARNING']
+
+
+def test_seed_summary_stays_informational_when_nothing_is_refused(state, caplog):
+    caplog.set_level('INFO')
+    mirror_script.enqueue_seed_urls([BASE + '/members/profile/456'])
+    summary = [r for r in caplog.records if r.message.startswith('Seeds enqueued')]
+    assert [r.levelname for r in summary] == ['INFO']
 
 
 def test_start_urls_stay_present_when_seeds_prefill_the_queue(state):

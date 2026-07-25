@@ -63,15 +63,15 @@ TIER1_CODE = "1"
 TIER2_CODE = "2"
 LIFETIME_EXPIRATION = "-1"
 
-# The IFPA-tier code(s) in the member dump that denote board / Tier 3 governance
-# status at cutover. The committee-membership tables are the authoritative board
-# signal, but their rows have not been delivered; until then the only available
-# signal is the member's IFPA tier code, and only if that code distinguishes a
-# board value.
-# Current: the code that denotes board is not yet confirmed against the delivered
-# dump, so this set is empty and no member is marked board (nothing is guessed).
-# Target: set to the confirmed code(s) once verified; board derivation then moves
-# to the committee tables once their rows are delivered.
+# `MemberIFPATier` does not encode board / Tier 3 governance status: the members
+# sitting on the legacy board committee carry a spread of ordinary tier codes
+# between them, so no tier value distinguishes a board member from anyone else.
+# The committee-membership tables are the authoritative board signal.
+# Current: this set is empty, so the tier-code path marks nobody as board and the
+# extractor makes no positive board determination.
+# Target: board-at-cutover comes from a member's row on the board committee, and
+# the underlying paid tier from that same member's ordinary tier code; this
+# constant and the tier-code path it feeds are then removed.
 BOARD_IFPA_TIER_CODES: frozenset[str] = frozenset()
 
 def parse_member_columns(sql: str) -> list[str]:

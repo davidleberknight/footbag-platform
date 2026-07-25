@@ -130,7 +130,7 @@ The AWS CLI and Terraform install as part of the AWS deployment steps in AWS_OPE
 
 Notes:
 
-- the repo's Dockerfiles use `node:22-alpine` and `package.json` requires `"engines": {"node": ">=22.0.0"}`, so Node 22 keeps local and container behavior aligned
+- the repo's Dockerfiles use `node:22-alpine` and `package.json` requires `"engines": {"node": ">=22.21.1"}`, so Node 22 keeps local and container behavior aligned
 - `better-sqlite3` compiles a native addon during install, which is why `build-essential` is required; if you switch Node versions afterward, run `npm rebuild`
 - `ffmpeg` is required by the local database reset: the curator seed re-encodes the committed demo videos through it, so a machine without `ffmpeg` stops at `scripts/reset-local-db.sh` with `FileNotFoundError: ... 'ffmpeg'`
 

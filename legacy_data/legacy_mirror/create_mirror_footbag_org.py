@@ -4047,14 +4047,21 @@ def enqueue_seed_urls(urls):
             continue
         if not is_in_scope(norm):
             refused += 1
-            logging.info(f"Seed refused (unsafe or out of scope): {norm}")
+            # A refused seed is a URL the operator deliberately supplied, so it
+            # warns rather than informs: a whole seed file dropped quietly reads
+            # as full coverage. A refused discovered link stays ordinary noise.
+            logging.warning(f"Seed refused (unsafe or out of scope): {norm}")
             continue
         mirror_state.queue.append(norm)
         mirror_state.url_depth[norm] = 0
         queued.add(norm)
         added += 1
-    logging.info(f"Seeds enqueued: {added} added, {skipped_seen} already "
-                 f"visited/queued, {refused} refused")
+    summary = (f"Seeds enqueued: {added} added, {skipped_seen} already "
+               f"visited/queued, {refused} refused")
+    if refused:
+        logging.warning(summary)
+    else:
+        logging.info(summary)
     return added
 
 

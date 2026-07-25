@@ -272,8 +272,8 @@ def test_board_at_cutover_inert_without_configured_code(tmp_path):
 def test_derive_board_at_cutover_maps_configured_code():
     # A board member resolves to ("1", "none") (the underlying paid tier the
     # board status reverts to is not reconstructable from the tier code alone);
-    # any other or absent code is non-board. The codes here are synthetic, not
-    # the real encoding, which is supplied through BOARD_IFPA_TIER_CODES.
+    # any other or absent code is non-board. The codes here are synthetic: no
+    # real tier code denotes board, which is why the shipped set stays empty.
     codes = frozenset({"DIRECTOR", "3"})
     assert elm.derive_board_at_cutover("3", codes) == ("1", "none")
     assert elm.derive_board_at_cutover("DIRECTOR", codes) == ("1", "none")
