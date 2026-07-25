@@ -317,6 +317,16 @@ resource "aws_cloudwatch_metric_alarm" "origin_latency" {
   }
 }
 
+# ── Production-only monitoring, intentionally absent here ─────────────────────
+# Three monitoring resources exist in production and not in staging, by design,
+# so this divergence is asserted rather than silent:
+#   - the zero-logins cutover alarm and its metric filter: they watch the
+#     production DNS-cutover window for a login blackout; staging has no cutover.
+#   - the ACM certificate-expiry alarm: staging serves no custom-domain
+#     certificate, so there is no expiry to watch.
+#   - the us-east-1 alarms SNS topic and subscription: they exist only to carry
+#     the global (us-east-1) certificate alarm above, which staging does not have.
+
 # ── Dashboard ─────────────────────────────────────────────────────────────────
 
 resource "aws_cloudwatch_dashboard" "main" {

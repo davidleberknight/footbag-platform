@@ -275,6 +275,10 @@ resource "aws_s3_bucket" "dr" {
   provider            = aws.us_west_2
   bucket              = "${local.prefix}-db-snapshots-dr"
   object_lock_enabled = true
+  # Object Lock makes the snapshot objects undeletable for the retention window;
+  # prevent_destroy is the orthogonal guard against a terraform run removing the
+  # bucket resource itself. Both apply, matching the other durable buckets.
+  lifecycle { prevent_destroy = true }
 }
 
 resource "aws_s3_bucket_object_lock_configuration" "dr" {
