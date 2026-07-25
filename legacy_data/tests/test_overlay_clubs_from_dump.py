@@ -53,9 +53,9 @@ def _row(approved, club_id, name, uni, city, state, country, url,
 
 
 def _write(path: Path, text: str) -> Path:
-    # The real clubs dump is latin-1 (DEFAULT CHARSET=latin1); the fixture matches
-    # so the tool's latin-1 read round-trips accented names correctly.
-    path.write_text(text, encoding="latin-1")
+    # The clubs dump is UTF-8 and its CREATE TABLE declares no charset at all, so
+    # the fixture is written UTF-8 to match what the tool reads.
+    path.write_text(text, encoding="utf-8")
     return path
 
 
@@ -163,6 +163,56 @@ def test_unicode_name_preference_and_fallback(tmp_path: Path) -> None:
     rows = _read(seed)
     assert rows["uni"]["name"] == "Unicode Náme"
     assert rows["fallback"]["name"] == "Ascii Only"
+
+
+def test_damaged_unicode_column_falls_back_to_the_clean_plain_name(tmp_path: Path) -> None:
+    """Some legacy rows hold the same name twice and the Unicode-suffixed copy was
+    stored already double-encoded while the plain copy is intact. The clean copy
+    must win, and a Unicode copy that is merely non-ASCII must still be preferred."""
+    seed = _write_seed(tmp_path / "clubs.csv", [])
+    dump = _write(tmp_path / "dump.sql", _dump(
+        # Unicode copy carries the damage; plain copy is the same name intact.
+        _row(1, "damaged", "The Free Häcky Style", "The Free HÃ¤cky Style",
+             "C", "S", "CH", "", 0, 0, "PW", "", ""),
+        # Unicode copy is simply the better value and still wins.
+        _row(1, "healthy", "Ascii Name", "Unicode Náme", "C", "S", "USA", "", 0, 0, "PW", "", ""),
+    ))
+    r = _run(seed, dump)
+    assert r.returncode == 0, r.stderr
+    rows = _read(seed)
+    assert rows["damaged"]["name"] == "The Free Häcky Style"
+    assert rows["healthy"]["name"] == "Unicode Náme"
+
+
+def test_numeric_character_references_are_decoded(tmp_path: Path) -> None:
+    """Several legacy records store non-Latin text as numeric character
+    references. They must reach the seed as characters, not as literal escapes."""
+    seed = _write_seed(tmp_path / "clubs.csv", [])
+    dump = _write(tmp_path / "dump.sql", _dump(
+        _row(1, "ents", "Tren&#269;&#237;n footbag club", "", "Tren&#269;&#237;n",
+             "S", "SK", "", 0, 0, "PW", "kopiemy nasz&#261; zosi&#281;", ""),
+    ))
+    r = _run(seed, dump)
+    assert r.returncode == 0, r.stderr
+    rows = _read(seed)
+    assert rows["ents"]["name"] == "Trenčín footbag club"
+    assert rows["ents"]["city"] == "Trenčín"
+    assert rows["ents"]["description"] == "kopiemy naszą zosię"
+
+
+def test_utf8_dump_values_survive_the_read(tmp_path: Path) -> None:
+    """The whole point of the dump read: accented and non-Latin values arrive
+    intact rather than as double-encoded text."""
+    seed = _write_seed(tmp_path / "clubs.csv", [])
+    dump = _write(tmp_path / "dump.sql", _dump(
+        _row(1, "fi", "Jyväskylän Footbag-klubi", "", "Jyväskylä", "", "Finland",
+             "", 0, 0, "PW", "", ""),
+    ))
+    r = _run(seed, dump)
+    assert r.returncode == 0, r.stderr
+    rows = _read(seed)
+    assert rows["fi"]["name"] == "Jyväskylän Footbag-klubi"
+    assert rows["fi"]["city"] == "Jyväskylä"
 
 
 def test_tagline_preference_and_fallback_to_welcome(tmp_path: Path) -> None:

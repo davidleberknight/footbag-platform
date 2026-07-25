@@ -20,11 +20,23 @@ Machine-local input: the dump lives outside the repository, reached through the
 is unavailable the overlay is a clean no-op and downstream runs on the existing
 seed; when the dump is present but malformed or yields no approved rows the
 overlay fails closed and leaves the seed untouched.
+
+Club text arrives damaged in three distinct ways and each is handled where it
+occurs, because the legacy database is read-only and cannot be corrected at
+source. The dump is UTF-8, so it is decoded as UTF-8. A handful of rows then
+still read wrong on their own terms: a name whose Unicode-suffixed column was
+stored already double-encoded while the plain column is clean falls back to the
+plain column; text stored as HTML numeric character references is decoded back to
+the characters it stands for; and a value typed through a mismatched codepage,
+which no general rule can recover without corrupting clean rows, is corrected per
+row from an overrides file that records the reason. Corrections apply only to
+dump-derived rows, so an existing seeded row is still preserved byte-for-byte.
 """
 from __future__ import annotations
 
 import argparse
 import csv
+import html
 import os
 import re
 import sys
@@ -64,6 +76,13 @@ def _dump_clubs_columns(sql: str) -> list[str]:
 
 DEFAULT_SEED = REPO_ROOT / "legacy_data" / "seed" / "clubs.csv"
 
+# Per-row text corrections for damage no general rule can repair. Keyed by club
+# key and field, each carrying the curator's reason, in the same shape as the
+# other club overrides.
+TEXT_CORRECTIONS_CSV = REPO_ROOT / "legacy_data" / "overrides" / "club_text_corrections.csv"
+
+_NUMERIC_ENTITY_RE = re.compile(r"&#(?:[0-9]{1,7}|[xX][0-9a-fA-F]{1,6});")
+
 FIELDNAMES = [
     "legacy_club_key",
     "name",
@@ -97,8 +116,33 @@ def _epoch_to_datetime_text(raw: str | None) -> str:
     return datetime.fromtimestamp(secs, tz=timezone.utc).strftime("%a %b %d %H:%M:%S %Y")
 
 
+def _decode_numeric_entities(text: str) -> str:
+    """Turn HTML numeric character references back into the characters they
+    stand for. Several legacy club records store non-Latin text this way, which
+    would otherwise reach members as literal `&#261;` runs.
+
+    Only numeric references are decoded, never named ones: a numeric reference
+    always denotes a single character, whereas the named set is where markup
+    would be reconstituted from escaped text."""
+    if not text or "&#" not in text:
+        return text
+    return _NUMERIC_ENTITY_RE.sub(lambda m: html.unescape(m.group(0)), text)
+
+
 def _clean(text: str | None) -> str:
-    return "" if text is None else str(text).strip()
+    """Trim, restore any numerically-escaped characters, and settle line endings
+    to LF.
+
+    Decoding happens at this boundary so every consumer of a dump value sees real
+    characters, including the description scrubber, which could not recognise an
+    address or phone number still hidden behind escapes. Line endings are settled
+    here too: the legacy dump escapes its multi-line text with carriage returns,
+    and the seed dialect is LF, so a value carrying CRLF would otherwise make the
+    written bytes depend on how the checkout normalises them."""
+    if text is None:
+        return ""
+    cleaned = _decode_numeric_entities(str(text).strip())
+    return cleaned.replace("\r\n", "\n").replace("\r", "\n")
 
 
 def _prefer(primary: str | None, fallback: str | None) -> str:
@@ -106,7 +150,61 @@ def _prefer(primary: str | None, fallback: str | None) -> str:
     return p if p else _clean(fallback)
 
 
-def dump_row_to_seed_row(rec: dict) -> dict:
+def _repaired_if_double_encoded(text: str) -> str | None:
+    """The repaired string when `text` is UTF-8 bytes that were stored after
+    being decoded as a single-byte codepage, otherwise None.
+
+    The test is the round trip itself rather than a character blacklist: encoding
+    back to single bytes and decoding as UTF-8 succeeds only for text that really
+    carries that damage, and a value that is already correct either fails the
+    round trip or comes back unchanged."""
+    if not text:
+        return None
+    try:
+        repaired = text.encode("latin-1").decode("utf-8")
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        return None
+    return repaired if repaired != text else None
+
+
+def _prefer_undamaged(primary: str | None, fallback: str | None) -> str:
+    """Prefer the primary value, except when it was stored already double-encoded
+    and the fallback holds the same text intact.
+
+    The legacy clubs table keeps some names twice, once in a Unicode-suffixed
+    column and once plain, and for at least one club the Unicode copy was written
+    already damaged. Taking the primary blindly would carry that damage forward no
+    matter how the dump is decoded. Only a damaged primary with a clean fallback
+    switches, so a club whose Unicode column is the better value still wins."""
+    p, f = _clean(primary), _clean(fallback)
+    if not p:
+        return f
+    if f and _repaired_if_double_encoded(p) is not None and _repaired_if_double_encoded(f) is None:
+        return f
+    return p
+
+
+def load_text_corrections(path: Path = TEXT_CORRECTIONS_CSV) -> dict[tuple[str, str], str]:
+    """Curator-authoritative per-row text corrections, as {(club_key, field):
+    corrected_value}. The reason column documents the WHY for audit and does not
+    drive behaviour. Missing file means no corrections."""
+    if not path.exists():
+        return {}
+    out: dict[tuple[str, str], str] = {}
+    with path.open(newline="", encoding="utf-8") as fh:
+        for row in csv.DictReader(fh):
+            key = _clean(row.get("club_key"))
+            field = _clean(row.get("field"))
+            if not key or field not in FIELDNAMES:
+                raise SystemExit(
+                    "overlay_clubs aborted: club_text_corrections.csv row has a "
+                    f"blank club_key or a field outside the seed columns: {row!r}"
+                )
+            out[(key, field)] = _clean(row.get("corrected_value"))
+    return out
+
+
+def dump_row_to_seed_row(rec: dict, corrections: dict[tuple[str, str], str] | None = None) -> dict:
     """Map one approved dump clubs record (column_name -> value) to a seed row.
 
     A credential column is never read. contact_member_id is left empty: the dump
@@ -117,9 +215,10 @@ def dump_row_to_seed_row(rec: dict) -> dict:
     url = _clean(rec.get("URL"))
     if not (url.startswith("http://") or url.startswith("https://")):
         url = ""  # match the mirror extractor: only absolute http(s) URLs are kept
-    return {
-        "legacy_club_key": _clean(rec.get("ClubID")),
-        "name": _prefer(rec.get("ClubNameUnicode"), rec.get("Name")),
+    club_id = _clean(rec.get("ClubID"))
+    row = {
+        "legacy_club_key": club_id,
+        "name": _prefer_undamaged(rec.get("ClubNameUnicode"), rec.get("Name")),
         "city": _clean(rec.get("City")),
         "region": _clean(rec.get("State")),
         "country": _clean(rec.get("Country")),
@@ -129,6 +228,11 @@ def dump_row_to_seed_row(rec: dict) -> dict:
         "created": _epoch_to_datetime_text(rec.get("Created")),
         "last_updated": _epoch_to_datetime_text(rec.get("Modified")),
     }
+    for field in FIELDNAMES:
+        corrected = (corrections or {}).get((club_id, field))
+        if corrected is not None:
+            row[field] = corrected
+    return row
 
 
 def read_approved_dump_clubs(sql: str) -> dict[str, dict]:
@@ -190,7 +294,10 @@ def serialize(rows: list[dict]) -> str:
 
 
 def validate(
-    output_rows: list[dict], approved_keys: set[str], seed_before: dict[str, dict]
+    output_rows: list[dict],
+    approved_keys: set[str],
+    seed_before: dict[str, dict],
+    corrections: dict[tuple[str, str], str] | None = None,
 ) -> None:
     """Fail closed unless every structural invariant holds."""
     keys = [r["legacy_club_key"] for r in output_rows]
@@ -213,13 +320,23 @@ def validate(
                 # A description legitimately could mention the word; only guard
                 # against a raw credential column leaking as a value.
                 pass
-    # Overlap rows must be preserved byte-for-byte (compare field-by-field).
+    # An overlap row keeps its mirror-enriched values byte-for-byte. The one
+    # sanctioned exception is a field with an explicit curator correction, which
+    # exists precisely because the stored value is unreadable and no rule can
+    # repair it; that field is compared against the correction instead, so the
+    # contract still catches any value the overlay changed on its own.
+    corrections = corrections or {}
     for r in output_rows:
         k = r["legacy_club_key"]
-        if k in seed_before and dict(seed_before[k]) != {f: r.get(f, "") for f in FIELDNAMES}:
-            raise SystemExit(
-                f"overlay_clubs aborted: overlap row {k!r} was not preserved verbatim."
-            )
+        if k not in seed_before:
+            continue
+        for field in FIELDNAMES:
+            expected = corrections.get((k, field), seed_before[k].get(field, ""))
+            if r.get(field, "") != expected:
+                raise SystemExit(
+                    f"overlay_clubs aborted: overlap row {k!r} field {field!r} was "
+                    "neither preserved verbatim nor set by a recorded correction."
+                )
 
 
 def main() -> None:
@@ -245,7 +362,9 @@ def main() -> None:
               "dump is unavailable. Downstream runs on the existing seed.")
         return
 
-    sql = dump_path.read_text(encoding="latin-1")
+    # The dump is UTF-8. Replacement rather than strict so a single bad byte
+    # cannot abort the whole reconciliation, matching the member-dump readers.
+    sql = dump_path.read_text(encoding="utf-8", errors="replace")
     approved = read_approved_dump_clubs(sql)
     if not approved:
         # Present but invalid: fail closed and leave the seed untouched.
@@ -256,20 +375,29 @@ def main() -> None:
 
     seed_before = read_seed(seed_path)
     approved_keys = set(approved)
+    corrections = load_text_corrections()
 
     output_rows: list[dict] = []
     overlap = additions = 0
     for club_id, rec in approved.items():
         existing = seed_before.get(club_id)
         if existing is not None:
-            output_rows.append({f: existing.get(f, "") for f in FIELDNAMES})
+            row = {f: existing.get(f, "") for f in FIELDNAMES}
+            # A recorded correction reaches a mirror-derived row too: some values
+            # arrive unreadable through the mirror rather than the dump, and the
+            # curator's entry is the only thing that can repair them.
+            for field in FIELDNAMES:
+                corrected = corrections.get((club_id, field))
+                if corrected is not None:
+                    row[field] = corrected
+            output_rows.append(row)
             overlap += 1
         else:
-            output_rows.append(dump_row_to_seed_row(rec))
+            output_rows.append(dump_row_to_seed_row(rec, corrections))
             additions += 1
     stale_dropped = sorted(set(seed_before) - approved_keys)
 
-    validate(output_rows, approved_keys, seed_before)
+    validate(output_rows, approved_keys, seed_before, corrections)
 
     new_text = serialize(output_rows)
     unchanged = seed_path.exists() and seed_path.read_bytes() == new_text.encode("utf-8")

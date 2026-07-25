@@ -60,7 +60,11 @@ export const claimController = {
         redirectToAdminLinkRequest(req, res);
         return;
       }
-      const lookupResult = identityAccessService.lookupHistoricalPersonForClaim(req.user!.userId, personId);
+      const lookupResult = identityAccessService.lookupHistoricalPersonForClaim(
+        req.user!.userId,
+        personId,
+        req.ip ?? 'unknown',
+      );
       if (!lookupResult) {
         logger.info('hp claim unavailable: lookup returned null', {
           personId,
@@ -98,6 +102,21 @@ export const claimController = {
         },
       } satisfies PageViewModel<ClaimHpConfirmContent>);
     } catch (err) {
+      if (err instanceof RateLimitedError) {
+        // Rate-limit state is independent of whether the record exists, so this
+        // may carry its own response shape without leaking claim status.
+        res.status(429)
+          .set('Retry-After', String(err.retryAfterSeconds ?? 60))
+          .render('history/claim-hp-confirm', {
+            ...HP_FORM_VM,
+            content: {
+              personId,
+              error: err.message,
+              cancelHref: `/history/${encodeURIComponent(personId)}`,
+            },
+          } satisfies PageViewModel<ClaimHpConfirmContent>);
+        return;
+      }
       if (err instanceof ValidationError) {
         // Render the same uniform claim-unavailable page as the null-return
         // branch above. The specific ValidationError message (already-claimed,

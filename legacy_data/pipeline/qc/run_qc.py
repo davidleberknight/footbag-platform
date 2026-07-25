@@ -114,6 +114,19 @@ OPTIONAL_CHECKS = [
         "severity": "warn",
         "needs_workbook": True,
     },
+    # Committed seed text hygiene. A seed CSV is an input the production load
+    # consumes, so encoding damage in one reaches members. Detects double-encoded
+    # values and undecoded HTML numeric character references, both decidable
+    # without guessing, and leaves ordinary non-ASCII text alone. Severity=hard:
+    # the seeds are clean on current data, so any new damage is a regression in a
+    # producer, and the existing mojibake detectors match a different corruption
+    # class and would not catch either signature.
+    {
+        "name": "seed_text_hygiene",
+        "path": "pipeline/qc/check_seed_text_hygiene.py",
+        "severity": "hard",
+        "needs_workbook": False,
+    },
 ]
 
 NON_PERSON_PATTERNS = [

@@ -338,10 +338,15 @@ def main() -> None:
             print(f"    {table_name}: {n:,}")
 
         # ------------------------------------------------------------------
-        # Reconcile canonical historical_persons by stable-id upsert, not
-        # DELETE + INSERT. See the reseed-safety note at the top of main() for
-        # why deleting a canonical person would strand app / enrichment /
-        # freestyle / net-team references to a stable person_id.
+        # Reconcile canonical historical_persons by stable-id upsert plus a
+        # guarded reconciling delete. There is no blanket wipe-and-reinsert of
+        # the canonical population: rows are matched and updated by stable
+        # person_id. Rows the incoming seed no longer carries ARE deleted, but
+        # only after the guard below proves nothing outside this loader still
+        # references them; a live reference aborts the whole load instead. See
+        # the reseed-safety note at the top of main() for why stranding an app /
+        # enrichment / freestyle / net-team reference to a stable person_id is
+        # the outcome that must never happen.
         # ------------------------------------------------------------------
         fx_person_id = stable_id("person", "footbag-hacky")
         seed_person_ids = {

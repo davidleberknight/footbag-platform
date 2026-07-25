@@ -1557,7 +1557,16 @@ function processTaskSkip(
         message: 'To continue without linking, confirm you never had an account on the old footbag.org.',
       };
     }
-    completeTask(memberId, 'legacy_claim');
+    // The attestation decides every candidate card the platform staged for this
+    // member: they are stating there is no old-site account to link. Resolve
+    // them in the same transaction that completes the task, so the task can
+    // never finish with a card left open — a completed claim task keeps
+    // rendering while open candidates remain, which would otherwise go on
+    // offering records to someone who just said none of them are theirs.
+    transaction(() => {
+      identityAccessService.declineOpenStagedCandidatesOnAttestationInTx(memberId);
+      completeTask(memberId, 'legacy_claim');
+    });
     return advanceAfter(memberId, 'legacy_claim');
   }
   // A task already resolved (completed or marked not applicable) cannot be

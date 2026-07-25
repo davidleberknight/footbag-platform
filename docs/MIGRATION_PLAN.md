@@ -486,6 +486,7 @@ The delivered dump contains domains outside this plan. Recorded for a future sco
 | FAQ (`faq`/`faqsections`) | 38 entries, 7 sections | Archive-or-drop; check first for any sanctioning or membership-tier policy references |
 | Event calendar (`calendar`) | 1,723 rows, 1,434 approved and not deleted, 1985-2026 | Not imported: the curated event history is more complete and is the authoritative source, so the legacy calendar is abandoned. The table carries a password column that is stripped wherever the data is handled |
 | Group documents (`ifpa_group_files`) | 351 file records | File metadata only, no file contents; disposition of the private-group subset is an IFPA governance decision (the IFPA secretary rules) |
+| Signup / address-validation queue (`actions`) | 1,323 rows (1,233 join requests, 90 address validations) | Not imported: a transient work queue carrying no date column and an empty data column. Its only content found nowhere else is up to 21 older or alternate email addresses, and every named person it references already has an address recorded against their legacy account. A former address becomes a claim anchor only once the member declares it and proves mailbox control, so loading these would bypass that proof for people who never asked and gain nothing |
 
 ### Front-door architecture (required by design intent)
 

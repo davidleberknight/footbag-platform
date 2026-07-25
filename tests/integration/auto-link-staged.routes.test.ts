@@ -150,6 +150,57 @@ describe('wizard staged-candidate card', () => {
     expect(after.text).not.toContain(t.candidateId);
   });
 
+  it('continuing without linking resolves every open candidate, so the completed task offers none', async () => {
+    const t = seedStaged('attest', 'Attest Tester');
+    const res = await request(createApp())
+      .post('/register/wizard/legacy_claim/skip')
+      .set('Cookie', cookieFor(t.memberId))
+      .type('form')
+      .send({ no_old_account: '1' });
+    expect(res.status).toBe(303);
+
+    // The task is done and the card is resolved terminally, not left open.
+    const taskState = db.prepare(
+      `SELECT state FROM member_onboarding_tasks WHERE member_id = ? AND task_type = 'legacy_claim'`,
+    ).get(t.memberId) as { state: string };
+    expect(taskState.state).toBe('completed');
+
+    const rows = stagedRows(t.memberId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].status).toBe('declined');
+    expect(rows[0].resolved_at).not.toBeNull();
+
+    // Recorded as a decline, with the attestation distinguishing it from a
+    // card-by-card decline.
+    const declined = auditRows(t.memberId, 'legacy.auto_link_candidate_declined');
+    expect(declined).toHaveLength(1);
+    expect(JSON.parse(String(declined[0].metadata_json)).declined_via)
+      .toBe('no_old_account_attestation');
+
+    // The member is linked to nothing, and the card is gone from the surface.
+    const mem = db.prepare('SELECT * FROM members WHERE id = ?').get(t.memberId) as Record<string, unknown>;
+    expect(mem.legacy_member_id).toBeNull();
+    expect(mem.historical_person_id).toBeNull();
+
+    const after = await request(createApp())
+      .get('/register/wizard/legacy_claim')
+      .set('Cookie', cookieFor(t.memberId));
+    expect(after.text).not.toContain(t.candidateId);
+  });
+
+  it('continuing without the attestation resolves nothing and leaves the card open', async () => {
+    const t = seedStaged('noattest', 'No Attest Tester');
+    await request(createApp())
+      .post('/register/wizard/legacy_claim/skip')
+      .set('Cookie', cookieFor(t.memberId))
+      .type('form')
+      .send({});
+
+    const rows = stagedRows(t.memberId);
+    expect(rows[0].status).toBe('staged');
+    expect(auditRows(t.memberId, 'legacy.auto_link_candidate_declined')).toHaveLength(0);
+  });
+
   it('declining a foreign candidate id is non-revealing and changes nothing', async () => {
     const owner = seedStaged('victim', 'Victim Tester');
     const attacker = insertMember(db, {

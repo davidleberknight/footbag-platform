@@ -17,7 +17,10 @@
  *     the view suppresses it and the stager never re-offers it.
  *   - Staged-candidate resolution inside every claim transaction: any claim
  *     path that satisfies an open staged candidate marks it confirmed and
- *     emits the confirmed audit event.
+ *     emits the confirmed audit event. The wizard's continue-without-linking
+ *     attestation resolves the other way: it declines every open candidate in
+ *     the transaction that completes the claim task, so the task cannot finish
+ *     leaving a card unresolved.
  *   - Declared identity anchors (former surnames / old emails): rate-limited
  *     declare/remove, multi-anchor classifier matching, surname gates that honor
  *     former surnames, and the mailbox-control round-trip (single-use link to the
@@ -54,7 +57,8 @@
  *   - Historical-person reads (HistoryService)
  *   - Tier calculation or grants (MembershipTieringService -- this service delegates)
  *   - Session-cookie HTTP glue (controller responsibility)
- *   - Club lifecycle or club-leader promotion beyond bootstrap confirmation (ClubService)
+ *   - Club lifecycle and club-leader promotion (ClubService); the wizard's
+ *     club-affiliation and leadership confirmations (MemberOnboardingService)
  *
  * Non-negotiable invariants:
  *   - Anti-enumeration on every account-existence-leaking path. Same code path, same
@@ -65,6 +69,11 @@
  *   - Tokens stored as SHA-256 hashes only; plaintext never persisted.
  *   - JWT payload embeds password_version; bumping it invalidates all outstanding JWTs.
  *   - Deceased members cannot log in regardless of credentials.
+ *   - A historical record flagged deceased is not self-claimable on any path. The
+ *     direct historical-record claim refuses it, and so does a legacy-account
+ *     claim whose account transitively links to it, because that claim sets the
+ *     same member-to-record link and folds the record's honors into the tier
+ *     grant. Neither path can hand a living account a deceased person's identity.
  *   - Soft-deleted members within member_cleanup_grace_days get the restoration screen.
  *   - Candidate staging never mutates live tables and never sends mail: a
  *     staged row plus its staged audit event commit in one transaction and
@@ -86,7 +95,7 @@
  *
  * Persistence:
  *   members, members_active, legacy_members, historical_persons (read-only for HP-match),
- *   account_tokens, member_club_affiliations, club_bootstrap_leaders, club_leaders,
+ *   account_tokens,
  *   audit_entries, outbox_emails, auto_link_staged_candidates (stage /
  *   confirm / decline / expire lifecycle), member_declared_anchors (declare /
  *   remove / verify-by-link-click; deleted wholesale on PII purge by
@@ -94,7 +103,8 @@
  *   Tier-grant writes delegated to MembershipTieringService.
  *
  * Side effects:
- *   - audit_entries append (auth, claim, bootstrap, candidate staged /
+ *   - audit_entries append (auth, claim, dev/staging admin allowlist grant,
+ *     candidate staged /
  *     confirmed / declined / expired, claim blocked, revert, dispute opened /
  *     revert applied, help request submitted / approved / rejected,
  *     registration conflict prompted / disputed, registration duplicate email,
@@ -1910,6 +1920,19 @@ function claimLegacyAccountInTxInner(
   );
 
   const hp = legacyClaim.findHistoricalPersonByLegacyId.get(row.legacy_member_id) as HistoricalPersonClaimRow | undefined;
+
+  // A historical record marked deceased is not self-claimable, and claiming this
+  // legacy account would take it: the merge below sets members.historical_person_id
+  // and folds the record's honors into the tier grant, which is exactly what the
+  // direct historical-record claim refuses. Fail the whole claim rather than
+  // completing it without the link, so the two paths cannot end up disagreeing
+  // about who holds the record. Same uniform unavailable wording as the other
+  // exits here, so claim status stays non-enumerable. An administrator who
+  // flagged a record in error clears the flag and the claim then proceeds.
+  if (hp?.is_deceased) {
+    throw new ValidationError('The legacy record is no longer available for claim.');
+  }
+
   if (hp) {
     // The link write is WHERE historical_person_id IS NULL; a 0-row result means
     // this member already holds an HP link (e.g. from a prior direct-HP claim
@@ -2243,6 +2266,49 @@ function declineClassifierCandidate(
 }
 
 /**
+ * Resolves every open staged candidate the other way, inside the caller's
+ * transaction: the wizard's continue-without-linking control is an explicit
+ * attestation that the member never held an old-site account, which decides
+ * every card the platform staged for them. Without this the claim task can
+ * complete with a card still open, and the completed task keeps rendering
+ * while open candidates remain, so a member who just said they never had an
+ * old account is still shown records that might be them.
+ *
+ * Writes the same terminal decline the per-card control writes, so the stager
+ * never re-offers the pair; the attestation is recorded in the audit metadata
+ * to distinguish it from a card-by-card decline. Returns the number resolved.
+ */
+function declineOpenStagedCandidatesOnAttestationInTx(memberId: string): number {
+  const open = autoLinkStagedCandidates.listOpenByMember.all(memberId) as AutoLinkStagedCandidateRow[];
+  const now = new Date().toISOString();
+  let declined = 0;
+  for (const row of open) {
+    const res = autoLinkStagedCandidates.resolveById.run('declined', now, now, memberId, row.id);
+    if (res.changes === 0) continue;
+    declined += 1;
+    appendAuditEntry({
+      actionType:    row.source_pass === 'cross_source'
+        ? 'legacy.cross_source_candidate_declined'
+        : 'legacy.auto_link_candidate_declined',
+      category:      'identity',
+      actorType:     'member',
+      actorMemberId: memberId,
+      entityType:    'member',
+      entityId:      memberId,
+      reasonText:    'Member attested to never having held an account on the old site.',
+      metadata: {
+        candidate_id:         row.id,
+        legacy_member_id:     row.legacy_member_id,
+        historical_person_id: row.historical_person_id,
+        confidence:           row.confidence,
+        declined_via:         'no_old_account_attestation',
+      },
+    });
+  }
+  return declined;
+}
+
+/**
  * Resolves any open staged candidates that a just-completed claim satisfies,
  * inside the caller's claim transaction. Any claim path counts as the
  * member's confirmation of the matching staged candidate: the wizard's
@@ -2359,11 +2425,12 @@ function hpClaimWindowMinutes(): number {
 }
 
 /**
- * Throttle the direct historical-person claim (the confirm step). Every
- * sibling claim and auth surface is rate-limited; this is the one direct-claim
- * entry point that was not, letting an authenticated attacker script rapid
- * claim attempts across many person ids. Per-member and per-IP buckets, each
- * throwing RateLimitedError so the controller maps to HTTP 429.
+ * Throttle the direct historical-person claim. Covers both entry points, the
+ * identifier lookup that renders the claim page and the confirm step that
+ * executes it, because either one scripted across many person ids is the abuse
+ * this exists to stop. Per-member and per-IP buckets, each throwing
+ * RateLimitedError so the controller maps to HTTP 429. The two entry points
+ * share the buckets deliberately: the pair is one claim attempt.
  */
 function enforceHistoricalPersonClaimLimit(requestingMemberId: string, ip: string): void {
   const windowMinutes = hpClaimWindowMinutes();
@@ -2458,7 +2525,12 @@ function initiateLegacyClaim(
     row = undefined;
   }
 
-  if (!row) return { kind: 'no_match' };
+  if (!row) {
+    // Reach the same token-generation work the match branch performs below, so
+    // the response time does not leak whether the identifier resolved to a row.
+    burnTokenIssuanceTiming();
+    return { kind: 'no_match' };
+  }
 
   // Email-equality fast path. The requesting member proved control of
   // login_email at registration verify; if that email equals any of the
@@ -2492,7 +2564,13 @@ function initiateLegacyClaim(
   // no legacy_email collapses to the same neutral no_match outcome a missing
   // row would on this declared-email path; it remains claimable through the
   // wizard historical-person card-confirm path.
-  if (!row.legacy_email) return { kind: 'no_match' };
+  if (!row.legacy_email) {
+    // Equalize against the token-issuing branch below for the same reason: a row
+    // with no deliverable address must not be distinguishable by response time
+    // from one that got a claim email.
+    burnTokenIssuanceTiming();
+    return { kind: 'no_match' };
+  }
 
   // Per-target cap: once a single legacy mailbox has received
   // claimInitMaxPerTarget() emails, further attempts from any member
@@ -2715,7 +2793,13 @@ export type HistoricalPersonClaimLookupResult =
 function lookupHistoricalPersonForClaim(
   requestingMemberId: string,
   personId: string,
+  ip: string,
 ): HistoricalPersonClaimLookupResult | null {
+  // Throttle before anything is read, so the limit is spent identically whether
+  // or not the record exists and cannot be probed around by picking ids that
+  // miss. The controller supplies the request-derived key input only.
+  enforceHistoricalPersonClaimLimit(requestingMemberId, ip);
+
   const member = legacyClaim.findClaimingMember.get(requestingMemberId) as ClaimingMemberRow | undefined;
   if (!member) return null;
   if (member.historical_person_id) {
@@ -4446,4 +4530,4 @@ function rejectLinkHelpRequest(
   });
 }
 
-export const identityAccessService = { attemptLogin, registerMember, lookupLegacyAccount, claimLegacyAccount, initiateLegacyClaim, peekLegacyClaim, consumeAndClaimLegacy, consumeAndClaimLegacyInTx, lookupHistoricalPersonForClaim, claimHistoricalPerson, claimHistoricalPersonInTx, recordHistoricalPersonClaimBlocked, changePassword, verifyEmailByToken, resendVerifyEmail, requestPasswordReset, completePasswordReset, getAutoLinkClassificationForMember, getLinkHistoryViewForWizard, findHistoricalPersonForLinkSubmit, revertAutoLink, revertClaimForDispute, stageAutoLinkCandidate, listOpenStagedCandidates, declineStagedCandidate, declineClassifierCandidate, expireStagedCandidates, listClaimedLegacyIdentities, declareAnchor, getMemberBirthDate, listDeclaredAnchors, removeAnchor, requestAnchorMailboxVerification, consumeAnchorMailboxVerification, submitLinkHelpRequest, approveLinkHelpRequest, rejectLinkHelpRequest, findCrossSourceCandidateAfterHpClaim, findCrossSourceCandidateAfterLegacyClaim, offerCrossSourceCandidate, confirmCrossSourceLegacyCandidate, surnameMatchesWithAnchors, enforceHistoricalPersonClaimLimit };
+export const identityAccessService = { attemptLogin, registerMember, lookupLegacyAccount, claimLegacyAccount, initiateLegacyClaim, peekLegacyClaim, consumeAndClaimLegacy, consumeAndClaimLegacyInTx, lookupHistoricalPersonForClaim, claimHistoricalPerson, claimHistoricalPersonInTx, recordHistoricalPersonClaimBlocked, changePassword, verifyEmailByToken, resendVerifyEmail, requestPasswordReset, completePasswordReset, getAutoLinkClassificationForMember, getLinkHistoryViewForWizard, findHistoricalPersonForLinkSubmit, revertAutoLink, revertClaimForDispute, stageAutoLinkCandidate, listOpenStagedCandidates, declineStagedCandidate, declineClassifierCandidate, declineOpenStagedCandidatesOnAttestationInTx, expireStagedCandidates, listClaimedLegacyIdentities, declareAnchor, getMemberBirthDate, listDeclaredAnchors, removeAnchor, requestAnchorMailboxVerification, consumeAnchorMailboxVerification, submitLinkHelpRequest, approveLinkHelpRequest, rejectLinkHelpRequest, findCrossSourceCandidateAfterHpClaim, findCrossSourceCandidateAfterLegacyClaim, offerCrossSourceCandidate, confirmCrossSourceLegacyCandidate, surnameMatchesWithAnchors, enforceHistoricalPersonClaimLimit };

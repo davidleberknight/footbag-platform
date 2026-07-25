@@ -536,6 +536,40 @@ describe('claim of a record held by a deceased contact-scrubbed member', () => {
   });
 });
 
+describe('GET /history/:personId/claim — rate limiting', () => {
+  it('throttles repeated identifier lookups and answers 429 with Retry-After', async () => {
+    const app = createApp();
+    const lookerId = 'hpc-looker';
+    insertMember(testDb, {
+      id: lookerId, slug: 'hpc_looker',
+      real_name: 'Lucy Mockingbird', display_name: 'Lucy Mockingbird',
+      login_email: 'hpc-looker@example.com',
+      birth_date: '1980-01-01',
+    });
+    insertOnboardingTask(testDb, lookerId, 'personal_details', 'completed');
+    const cookie = `footbag_session=${createTestSessionJwt({ memberId: lookerId })}`;
+
+    const get = () =>
+      request(app).get(`/history/${HP_NO_LEGACY}/claim`).set('Cookie', cookie);
+
+    // A surname-matching lookup renders the confirm page, so the limit is not
+    // gating the legitimate first attempt.
+    const first = await get();
+    expect(first.status).toBe(200);
+
+    // Repeated lookups must eventually be refused. The bound is generous
+    // because the per-member and per-IP buckets are both in play and other
+    // cases in this file share the address; the contract under test is that
+    // the lookup is limited at all, which before it was not.
+    let limited = first;
+    for (let i = 0; i < 14 && limited.status !== 429; i++) {
+      limited = await get();
+    }
+    expect(limited.status).toBe(429);
+    expect(limited.headers['retry-after']).toBeDefined();
+  });
+});
+
 describe('POST /history/:personId/claim/confirm — rate limiting', () => {
   it('throttles rapid claim confirms: the sixth attempt returns 429 with Retry-After', async () => {
     const app = createApp();

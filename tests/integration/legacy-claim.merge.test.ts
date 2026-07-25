@@ -408,6 +408,88 @@ describe('claimLegacyAccount — stale HP link guard', () => {
   });
 });
 
+// ─── Deceased-record guard on the legacy-account path ────────────────────────
+//
+// A historical record flagged deceased is not self-claimable. Claiming a legacy
+// account that transitively links to such a record would take that identity
+// anyway: the merge sets members.historical_person_id and folds the record's
+// honors into the tier grant. The legacy path must refuse it, exactly as the
+// direct historical-record claim does, and must leave nothing behind.
+
+describe('claimLegacyAccount — deceased historical record is not claimable', () => {
+  it('refuses the claim, leaves the member unlinked, and grants no tier', () => {
+    const memberId = nextId('mem');
+    const legacyId = nextId('legmem');
+    const hpId     = nextId('hp');
+
+    const db = new BetterSqlite3(dbPath);
+    insertMember(db, {
+      id: memberId,
+      slug: `slug_${memberId}`,
+      login_email: `${memberId}@example.com`,
+    });
+    // Honor-bearing so a successful claim would be visibly tier-granting; the
+    // point is that none of it lands.
+    insertHistoricalPerson(db, {
+      person_id: hpId,
+      person_name: 'Deceased HP',
+      legacy_member_id: legacyId,
+      hof_member: 1,
+      hof_induction_year: 1999,
+      is_deceased: 1,
+    });
+    db.close();
+
+    expect(() => svc.claimLegacyAccount(memberId, legacyId))
+      .toThrow(/no longer available for claim/i);
+
+    const m = memberRow(memberId);
+    expect(m.historical_person_id).toBeNull();
+    expect(m.legacy_member_id).toBeNull();
+    expect(m.is_hof).toBe(0);
+    expect(m.hof_inducted_year).toBeNull();
+
+    const cdb = new BetterSqlite3(dbPath, { readonly: true });
+    const lm = cdb.prepare(
+      'SELECT claimed_by_member_id FROM legacy_members WHERE legacy_member_id = ?',
+    ).get(legacyId) as { claimed_by_member_id: string | null };
+    const grants = cdb.prepare(
+      'SELECT COUNT(*) AS n FROM member_tier_grants WHERE member_id = ?',
+    ).get(memberId) as { n: number };
+    cdb.close();
+    expect(lm.claimed_by_member_id).toBeNull();
+    expect(grants.n).toBe(0);
+  });
+
+  it('an unflagged record on the same shape still claims, so the guard is the only difference', () => {
+    const memberId = nextId('mem');
+    const legacyId = nextId('legmem');
+    const hpId     = nextId('hp');
+
+    const db = new BetterSqlite3(dbPath);
+    insertMember(db, {
+      id: memberId,
+      slug: `slug_${memberId}`,
+      login_email: `${memberId}@example.com`,
+    });
+    insertHistoricalPerson(db, {
+      person_id: hpId,
+      person_name: 'Living HP',
+      legacy_member_id: legacyId,
+      hof_member: 1,
+      hof_induction_year: 1999,
+      is_deceased: 0,
+    });
+    db.close();
+
+    svc.claimLegacyAccount(memberId, legacyId);
+
+    const m = memberRow(memberId);
+    expect(m.historical_person_id).toBe(hpId);
+    expect(m.is_hof).toBe(1);
+  });
+});
+
 // ─── Token atomicity ─────────────────────────────────────────────────────────
 //
 // consumeAndClaimLegacy must consume the token AND run the merge in ONE
