@@ -151,7 +151,8 @@ Named-gallery membership is computed at request time by **tag-AND match** agains
 
 1. **Every intended sidecar must carry the source tag.** If you introduce `#<new_source>`, ensure both new emissions AND any pre-existing sidecars from that source carry the tag. Backfill is one-shot, idempotent, and limited to the `tags` array: never modify other sidecar fields.
 2. **Whitelist the source tag** in `scripts/_trick_tag_invariant.py:UTILITY_EXACT` before introducing it. Otherwise the validator rejects sidecar emissions and post-load QC fails.
-3. **Gallery creation.** A named gallery can be created either via the admin UI or directly as a `curated/galleries/<name>.json` sidecar (tag-AND `member_galleries`; `id` = `gallery_<slug>`, `criteriaTags`, `excludeTags`), then landed by running `seed_fh_curator.py`. Whitelist any new source tag in `scripts/_trick_tag_invariant.py:UTILITY_EXACT` first.
+3. **A captioned series depends on its sidecar titles.** The Tricks of the Trade sidecars carry `title` in `NN - <lesson_title>` form with the lesson number zero-padded, and each keeps `#tricks_of_the_trade`. `curated/galleries/tricks_of_the_trade.json` sorts `caption_asc` and matches tag-AND, so an unpadded number reorders the series and a dropped tag removes the lesson from it. Preserve both whenever a tool rewrites a sidecar.
+4. **Gallery creation.** A named gallery can be created either via the admin UI or directly as a `curated/galleries/<name>.json` sidecar (tag-AND `member_galleries`; `id` = `gallery_<slug>`, `criteriaTags`, `excludeTags`), then landed by running `seed_fh_curator.py`. Whitelist any new source tag in `scripts/_trick_tag_invariant.py:UTILITY_EXACT` first.
 
 ## 9. Safety boundaries
 
@@ -162,7 +163,7 @@ Named-gallery membership is computed at request time by **tag-AND match** agains
 | `src/controllers/adminCuratorController.ts`, `src/services/curatorMediaService.ts`, `src/views/admin/curator/**` | Application code (gallery editor + member upload); change through normal review. |
 | `src/db/db.ts` schema (member_galleries, member_gallery_tags, media_items, media_tags) | Schema changes go through normal review. |
 | `freestyle/tools/trick_video_discovery/snippet_candidates.csv` | Append-only edits via `csv.writer` in append mode; never round-trip via DictReader/DictWriter (memory rule). |
-| `curated/freestyle_tricks/*.meta.json` | Promotion and backfill via `promote_snippet_candidates.py` and one-shot backfill scripts. |
+| `curated/freestyle_tricks/*.meta.json` | Promotion and backfill via `promote_snippet_candidates.py` and one-shot backfill scripts. Never rerun a sidecar-producing tool that does not preserve canonical `title` and `tags`; check its output against `curated/freestyle_media/tt_roster.csv` and `curated/freestyle_media/video_snippet_candidates.csv`. |
 | `scripts/promote_snippet_candidates.py` | Promotion script for snippet candidates. |
 | `scripts/_trick_tag_invariant.py` | Add new source tags to `UTILITY_EXACT` here. |
 | `freestyle/loaders/{24,25}_qc_*.py` + `legacy_data/event_results/scripts/28_qc_bap_coverage.py` | QC checks; run after a load. |

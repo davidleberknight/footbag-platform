@@ -156,7 +156,7 @@ The front-matter Summary carries the orientation: the three workstreams (histori
 
 ## 2. Migration sources
 
-Two legacy data bodies feed the platform. The historical pipeline (events, results, persons, honors, clubs, affiliations, and leadership) is built under `legacy_data/`; its design is the Legacy Data Migration decision in DESIGN_DECISIONS (§6.5), its inventory is in `legacy_data/CLAUDE.md`, and the club bootstrap rule, structural signals, and leadership activation paths are in the `M_Complete_Onboarding_Wizard` user story. The legacy member-account import populates the `legacy_members` table; the imported-row model and field set are in DATA_MODEL Legacy Members (§4.14b), and the credential exclusion, the `MemberValid > 0` source-validity filter with its counted-exclusions report, and the mirror pre-seed that the final export supersedes are owned by the loader in `legacy_data/member_data_scripts/`. The cutover sequence that runs these is the cutover state machine in GO_LIVE_PLAN.md (private GitHub repo); the data-quality gates are the validation gates (§25).
+Two legacy data bodies feed the platform. The historical pipeline (events, results, persons, honors, clubs, affiliations, and leadership) is built under `legacy_data/`; its design is the Legacy Data Migration decision in DESIGN_DECISIONS (§6.5), its inventory is in `legacy_data/README.md`, and the club bootstrap rule, structural signals, and leadership activation paths are in the `M_Complete_Onboarding_Wizard` user story. The legacy member-account import populates the `legacy_members` table; the imported-row model and field set are in DATA_MODEL Legacy Members (§4.14b), and the credential exclusion, the `MemberValid > 0` source-validity filter with its counted-exclusions report, and the mirror pre-seed that the final export supersedes are owned by the loader in `legacy_data/member_data_scripts/`. The cutover sequence that runs these is the cutover state machine in GO_LIVE_PLAN.md (private GitHub repo); the data-quality gates are the validation gates (§25).
 
 ---
 
@@ -208,15 +208,15 @@ When a claim resolves, the active modern account always wins and editable fields
 
 ## 10. Club bootstrap and onboarding
 
-Club bootstrap and onboarding is specified across three homes: the club classifier under `legacy_data/clubs/scripts/` with its overview in `legacy_data/CLAUDE.md` (the authoritative rule home for the four-way classification, its thresholds, and the R1-R10 rules); the `M_Complete_Onboarding_Wizard` user story (the registrant club flow and the bootstrap-leadership classification gates) and the `A_Periodic_Club_Cleanup` user story (the admin residue queue and cleanup predicates); and DATA_MODEL Migration Staging and Bootstrap Tables (§4.27) for `legacy_club_candidates`, `legacy_person_club_affiliations`, and `club_bootstrap_leaders`.
+Club bootstrap and onboarding is specified across three homes: the club classifier under `legacy_data/clubs/scripts/` (the authoritative rule home for the four-way classification, its thresholds, and the R1-R10 rules); the `M_Complete_Onboarding_Wizard` user story (the registrant club flow and the bootstrap-leadership classification gates) and the `A_Periodic_Club_Cleanup` user story (the admin residue queue and cleanup predicates); and DATA_MODEL Migration Staging and Bootstrap Tables (§4.27) for `legacy_club_candidates`, `legacy_person_club_affiliations`, and `club_bootstrap_leaders`.
 
 ### 10.1 Club classification rules
 
-The four-way classification (pre-populate, onboarding-visible, dormant, junk), its tunable thresholds, the duplicate-club merge, the junk signal-absence rule, the promotion paths, and the R1-R10 evidence columns are owned by the club classifier under `legacy_data/clubs/scripts/` and summarized in `legacy_data/CLAUDE.md`. Cutover quality is gate G7 in the validation gates (§25), which requires the club-only person extraction (§10.2) to run first.
+The four-way classification (pre-populate, onboarding-visible, dormant, junk), its tunable thresholds, the duplicate-club merge, the junk signal-absence rule, the promotion paths, and the R1-R10 evidence columns are owned by the club classifier under `legacy_data/clubs/scripts/`. Cutover quality is gate G7 in the validation gates (§25), which requires the club-only person extraction (§10.2) to run first.
 
 ### 10.2 Expanding historical_persons for club members
 
-The roughly 1,700 club-only people from the mirror are extracted into `historical_persons` with `PROVISIONAL` provenance so the classifier's contact-active and member-active signals are not deflated. This is gate G12 in the validation gates (§25), and the pipeline runs it before classification (sequenced by the cutover state machine in GO_LIVE_PLAN.md, private GitHub repo). The extraction is owned by the legacy_data pipeline (`legacy_data/CLAUDE.md`).
+The roughly 1,700 club-only people from the mirror are extracted into `historical_persons` with `PROVISIONAL` provenance so the classifier's contact-active and member-active signals are not deflated. This is gate G12 in the validation gates (§25), and the pipeline runs it before classification (sequenced by the cutover state machine in GO_LIVE_PLAN.md, private GitHub repo). The extraction is owned by the legacy_data pipeline (`legacy_data/clubs/scripts/05_build_club_only_persons.py`, run in the enrichment phases).
 
 ### 10.3 Club onboarding flow during registration
 
@@ -270,7 +270,7 @@ At test load (gate G6, §25), each field is spot-checked against known reference
 
 ## 16. Data pipeline inventory
 
-The data pipeline inventory (the curated and extracted CSVs, the generated outputs, and the pipeline script locations) is in `legacy_data/CLAUDE.md` and `legacy_data/README.md`.
+The data pipeline inventory (the curated and extracted CSVs, the generated outputs, and the pipeline script locations) is in `legacy_data/README.md`.
 
 ---
 

@@ -25,5 +25,5 @@ Free-form Markdown. No YAML frontmatter required. No fixed slug convention beyon
 ## Adding a new runbook
 
 1. Add the file under `legacy_data/runbooks/<topic>.md`.
-2. Add a routing line to `legacy_data/CLAUDE.md` under "Routing (use runbooks)".
+2. Add a routing line to `legacy_data/CLAUDE.md` under "Runbook routing".
 3. If the procedure is generic and reusable across projects, consider promoting to `.claude/skills/<slug>/SKILL.md` instead.

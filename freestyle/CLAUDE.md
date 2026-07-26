@@ -21,6 +21,11 @@ read only from `freestyle/inputs/` (and `curated/` for media), never from
   exception: it is additive (`INSERT OR IGNORE`, no `DELETE`), so re-running it preserves existing record
   rows rather than replacing them. Changes to existing records therefore require a fresh database build to
   take effect.
+- **The record CSVs are hand-curated, not generated.**
+  `inputs/curated/records/records_master.csv` and
+  `inputs/curated/records/consecutives_records.csv` have no producing pipeline and no
+  export back out, so those CSVs and the loaded tables are the only two authoritative
+  copies: a correction is edited in the CSV and reloaded.
 - **Read inputs from `freestyle/inputs/`.** When adding a loader input, put the
   file under `freestyle/inputs/` and reference it via `SCRIPT_DIR.parent` (the
   `freestyle/` root), not `legacy_data/`.

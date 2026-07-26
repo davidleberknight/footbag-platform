@@ -62,6 +62,11 @@ grep "<event_key>" out/canonical/event_result_participants.csv | wc -l
 - place values should start at 1 and be sequential where known; if intermediate
   placements are unknown, stop at the last confirmed placement — do not fabricate
   missing places
+- the event key the rebuild derives is `YYYY_city_slug` (`1985_worlds_golden`); when two
+  organizations held a same-year event in the same city, an org suffix separates them
+  (`1983_worlds_boulder_nhsa` / `1983_worlds_boulder_wfa`). A few events were not held in
+  one city and keep a non-standard key (`1982_westregion`, `1983_secret_underground`) —
+  leave those alone, do not invent a synthetic city to regularize them
 - `notes` column contains a source citation
 
 ## Validation Steps (after rebuild)

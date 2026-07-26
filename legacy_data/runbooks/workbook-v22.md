@@ -35,15 +35,16 @@ Standalone invocation (only after a completed rebuild + release + QC pass):
 
 | File | Role |
 |------|------|
-| `out/canonical/events.csv` | Event metadata (all events) |
-| `out/canonical/event_disciplines.csv` | Disciplines per event |
-| `out/canonical/event_results.csv` | Placement rows |
-| `out/canonical/event_result_participants.csv` | Participant rows |
-| `out/canonical/persons.csv` | Canonical persons (upstream) |
-| `event_results/canonical_input/persons.csv` | Platform-filtered persons (preferred for person stats) |
+| `event_results/canonical_input/*.csv` | Primary source: events, disciplines, results, participants, persons — already platform-filtered |
+| `out/canonical/persons.csv` | Early-era person supplement only |
+| `inputs/review_quarantine_events.csv` | Quarantined events, keyed by legacy integer `event_id` |
+| `out/known_unknowns.csv` | Known-unknowns sheet; the sheet notes its absence rather than failing |
+| `overrides/results_file_overrides.csv`, `overrides/events_overrides.jsonl` | Event and results overrides |
 
-The builder reads from `out/canonical/` (same source as the platform export). It does
-**not** read from `out/canonical_all/` — that path is for the early pipeline only.
+The primary source is the platform-facing `canonical_input/`, the same filtered data the
+platform loads, so the workbook and the site agree by construction; `out/canonical/persons.csv`
+is consulted only to supplement early-era persons. The builder does **not** read from
+`out/canonical_all/` — that path is for the early pipeline only.
 
 ---
 

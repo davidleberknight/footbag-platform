@@ -254,7 +254,7 @@ Alias registry validator. `--mode preflight` reports; `--mode gate` exits
 
 #### `legacy_data/pipeline/qc/check_alias_duplicate_persons.py`
 Detects duplicate persons caused by alias drift. See
-`skills/cleanup-alias-pattern-c.md`.
+`runbooks/cleanup-alias-pattern-c.md`.
 
 #### `legacy_data/pipeline/qc/check_name_variants.py`
 Structural QC for `inputs/name_variants.csv`. Runs inside `run_qc.py`.
@@ -267,7 +267,7 @@ Builds `out/event_comparison_viewer_v13.html` for visual QC.
 #### `legacy_data/pipeline/build_workbook_release.py`
 Builds `out/Footbag_Results_Release.xlsx`. Stage 5 of 7 inside the
 pipeline; standalone invocation requires a completed rebuild + release +
-QC pass. Rules and column mapping: `skills/workbook-v22.md`.
+QC pass. Rules and column mapping: `runbooks/workbook-v22.md`.
 
 #### `legacy_data/pipeline/platform/export_canonical_platform.py`
 Exports canonical CSVs to platform format
@@ -281,7 +281,7 @@ identity lock. Invoked inside `run_pipeline.sh`; safe to run standalone.
 ### Level 5, identity-chain individual scripts
 
 Normally driven by `run_pipeline.sh` phases C, D, E, F. Run individually
-during identity debugging per `skills/rebuild-identity-pipeline.md`.
+during identity debugging per `runbooks/rebuild-identity-pipeline.md`.
 
 | Script | Phase | Purpose |
 |--------|-------|---------|
@@ -413,7 +413,7 @@ cd legacy_data && . footbag_venv/bin/activate
 ```
 
 ### Identity-pipeline rebuild
-See `skills/rebuild-identity-pipeline.md`.
+See `runbooks/rebuild-identity-pipeline.md`.
 
 ### AWS staging deploy
 ```
