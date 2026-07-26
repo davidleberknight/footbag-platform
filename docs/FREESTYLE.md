@@ -197,8 +197,8 @@ proofs in `OPERATOR_DERIVATIONS.md`. Standing per-topic doctrine documents
 single-authority map) sit alongside. The `papers/` series is the narrative
 doctrine record and `reconciliation/` holds the cross-corpus studies. The
 directory's own `README.md` is the authoritative index of what lives where; the
-dated working history that produced these consolidations lives in the repository
-root `exploration/` tree.
+dated working history that produced these consolidations is held in the
+maintainers' private archive.
 
 ## 7. Publication governance (the canonical-trick publication contract)
 

@@ -2,9 +2,10 @@
 
 This directory holds the standing freestyle doctrine: the rulings in force, the rules
 they establish, and the evidence chains behind them, written as permanent documents.
-`exploration/` holds the dated working history (audit packets, decision packets,
-evidence passes) that produced these consolidations; a consumed exploration document
-carries a banner pointing at its successor here and remains in place as history.
+The dated working history (audit packets, decision packets, evidence passes) that
+produced these consolidations is held in the maintainers' private archive; a consumed
+exploration document carries a banner pointing at its successor here and remains in
+place as history.
 
 ## Promotion governance principle (curator-set)
 

@@ -1589,11 +1589,24 @@ Success Criteria:
 
 ## 3.10 Group Membership
 
+The group stories in this document are an unratified draft. They were written
+speculatively, ahead of any requirements gathering, and their specifics - group
+properties, membership and ownership limits, file handling, email behavior, and what
+each role sees - carry no authority and should be read as suspect. One example of why:
+they give every email-enabled group a posting address at a mail subdomain, which the
+settled email architecture rules out, since the platform accepts no inbound mail of any
+kind. IFPA's review of what its groups and committees actually need is what settles this
+subsystem. These stories, the group-owner and admin group-management stories, and the
+group auto-sync behavior in the mailing-list stories are inputs to that review, to be
+replaced by its outcome rather than defended.
+
 Groups (also called committees) are governance, working-group, or social entities distinct from clubs. A member may belong to many groups simultaneously; clubs are capped at two current memberships per member (primary and secondary). Group entities have configurable properties controlled by Admins: type, official flag, visibility (`policy`), `restrict_membership`, email enable, `active` flag, alias keyword, and optional `parent_group_id` for subcommittees.
 
 Group operability rule: A group is considered non-operable if it has zero current owners. Non-operable groups are flagged into the admin work queue for remediation. Admin remediation options include assigning a new owner via `A_Reassign_Group_Owner` or archiving the group via `A_Archive_Group` if defunct.
 
 ### M_Browse_Groups_Directory
+
+<< PROVISIONAL USER STORY - AWAITING FINAL REQUIREMENTS >>
 
 Access: Logged-in members can browse the directory of public groups. Visitors have no access.
 
@@ -1609,6 +1622,8 @@ Success Criteria:
 - Directory is not visible to visitors. Unauthenticated access returns `V_Access_Denied`.
 
 ### M_View_Group
+
+<< PROVISIONAL USER STORY - AWAITING FINAL REQUIREMENTS >>
 
 Access: All logged-in members can view a public group's page at a non-member view level. Only current group members and Admins can view a private group's page or see the member-only surfaces of a public group.
 
@@ -1626,6 +1641,8 @@ Success Criteria:
 
 ### M_Join_Group
 
+<< PROVISIONAL USER STORY - AWAITING FINAL REQUIREMENTS >>
+
 Access: Tier 1+ members can self-join groups where `restrict_membership=false` AND `active=true`.
 
 Story: As a member, I can self-join an open group so that I can participate in its activities and receive its communications.
@@ -1642,6 +1659,8 @@ Success Criteria:
 
 ### M_Leave_Group
 
+<< PROVISIONAL USER STORY - AWAITING FINAL REQUIREMENTS >>
+
 Access: Any current group member can leave a group they currently belong to.
 
 Story: As a group member, I can leave a group so that I am removed from its roster and no longer receive its communications.
@@ -1657,6 +1676,8 @@ Success Criteria:
 - Leaving is audit-logged with actor identity, group ID, before and after affiliation state, timestamp.
 
 ### M_Email_Group
+
+<< PROVISIONAL USER STORY - AWAITING FINAL REQUIREMENTS >>
 
 Access: Tier 1+ members can send a message to a group's email alias via web form, subject to the group's `restricted_sending` flag.
 
@@ -1677,6 +1698,8 @@ Success Criteria:
 - All sends and moderation decisions are audit-logged with actor ID, group ID, message ID, action, timestamp.
 
 ### M_Upload_Group_File
+
+<< PROVISIONAL USER STORY - AWAITING FINAL REQUIREMENTS >>
 
 Access: Any current member of the group can upload files to that group.
 
@@ -1699,6 +1722,8 @@ Success Criteria:
 
 ### M_View_Group_Files
 
+<< PROVISIONAL USER STORY - AWAITING FINAL REQUIREMENTS >>
+
 Access: Only current members of the group can view its files.
 
 Story: As a group member, I can view and download files attached to the group so that I can access shared documents.
@@ -1712,6 +1737,8 @@ Success Criteria:
 - Files are not inherited to or from subcommittees. Each group's files are scoped to that group alone.
 
 ### M_Delete_Own_Group_File
+
+<< PROVISIONAL USER STORY - AWAITING FINAL REQUIREMENTS >>
 
 Access: A group member can delete a file they originally uploaded to the group.
 
@@ -2092,6 +2119,8 @@ The group lifecycle (create, archive) is Admin-controlled and lives in `A_Create
 
 ### GO_Edit_Group
 
+<< PROVISIONAL USER STORY - AWAITING FINAL REQUIREMENTS >>
+
 Access: Group owners (including co-owners) and Admins can edit the owner-managed group fields.
 
 Story: As a group owner, I can edit my group's description and member-facing notes so that I keep the group's purpose and announcements current.
@@ -2105,6 +2134,8 @@ Success Criteria:
 - Owner sees a clear success message on save and clear validation errors otherwise.
 
 ### GO_Manage_Members
+
+<< PROVISIONAL USER STORY - AWAITING FINAL REQUIREMENTS >>
 
 Access: Group owners (including co-owners) and Admins can add or remove members of the group.
 
@@ -2123,6 +2154,8 @@ Success Criteria:
 
 ### GO_Manage_CoOwners
 
+<< PROVISIONAL USER STORY - AWAITING FINAL REQUIREMENTS >>
+
 Access: Any owner of a group can manage co-owners for that group.
 
 Story: As a group owner, I can add, view, and remove co-owners so that I share group management responsibility. A group owner cannot remove themself if the only owner; they must first promote someone else.
@@ -2140,6 +2173,8 @@ Success Criteria:
 
 ### GO_Configure_Email_Settings
 
+<< PROVISIONAL USER STORY - AWAITING FINAL REQUIREMENTS >>
+
 Access: Group owners (including co-owners) and Admins can configure the group's mailing-list behavior, when email is enabled by Admin.
 
 Story: As a group owner, I can configure the email-handling behavior for my group's alias so that group communications match the group's working style.
@@ -2154,6 +2189,8 @@ Success Criteria:
 - All configuration changes are audit-logged with actor identity, group ID, field changed, old value, new value, timestamp.
 
 ### GO_Moderate_Email_Queue
+
+<< PROVISIONAL USER STORY - AWAITING FINAL REQUIREMENTS >>
 
 Access: Group owners (including co-owners) and Admins can review the moderated message queue for the group when `moderated=true`.
 
@@ -2170,6 +2207,8 @@ Success Criteria:
 
 ### GO_Delete_Any_Group_File
 
+<< PROVISIONAL USER STORY - AWAITING FINAL REQUIREMENTS >>
+
 Access: Group owners (including co-owners) and Admins can delete any file in the group.
 
 Story: As a group owner, I can delete any file in my group so that I can remove inappropriate or obsolete documents.
@@ -2181,6 +2220,8 @@ Success Criteria:
 - Deletion is audit-logged with actor member ID, group ID, file ID, original filename, original uploader member ID, timestamp, reason.
 
 ### GO_Leave_Group
+
+<< PROVISIONAL USER STORY - AWAITING FINAL REQUIREMENTS >>
 
 Access: A group owner can leave the group they own, subject to the sole-owner promotion-first rule.
 
@@ -2833,6 +2874,9 @@ Success Criteria:
 
 ### A_Send_Mailing_List_Email
 
+<< PROVISIONAL USER STORY - AWAITING FINAL REQUIREMENTS >> applies to the group
+auto-sync behavior in this story only; the rest of the story stands.
+
 Access: Only Admins can send email to general mailing lists from the platform. Event Organizer email is scoped to an organizer's own event participants and is handled via `EO_Email_Participants`, not via this story. Exception: the IFPA announce list (announce@footbag.org) may be sent to by any Tier 2 or Tier 3 member, as defined in M_Send_Announce_Email. Group-scoped alias sending is handled via `M_Email_Group`, not via this story; admins retain the ability to send to a group's associated auto-sync `MailingList` via this story for exceptional platform-level notifications.
 
 Story: As an admin, I can send announcements to a platform-configured mailing list so that I communicate with the community.
@@ -2854,6 +2898,9 @@ Success Criteria:
 - No approval workflow is required; controls are permissions, audit logging, unsubscribe links, and rate limits where applicable.
 
 ### A_Manage_Mailing_Lists
+
+<< PROVISIONAL USER STORY - AWAITING FINAL REQUIREMENTS >> applies to the group
+auto-sync behavior in this story only; the rest of the story stands.
 
 Access: Only admins can view and manage mailing lists. The only exception is EO_Email_Participants.
 
@@ -3114,6 +3161,8 @@ Success Criteria:
 
 ### A_Create_Group
 
+<< PROVISIONAL USER STORY - AWAITING FINAL REQUIREMENTS >>
+
 Access: Only Admins can create groups, regardless of type. Members may request group creation via `M_Contact_IFPA_Admin` using the "Group creation request" category. The admin reviews the request through `A_Resolve_Contact_IFPA_Admin_Request` and then configures the group through this story if approved.
 
 Story: As an Admin, I can create a group with all configurable properties and assign its initial owner so that I provision IFPA governance, working, and social groups.
@@ -3129,6 +3178,8 @@ Success Criteria:
 - Creation is audit-logged with admin ID, group ID, all property values, initial owner ID, timestamp.
 
 ### A_Edit_Group_Properties
+
+<< PROVISIONAL USER STORY - AWAITING FINAL REQUIREMENTS >>
 
 Access: Only Admins can edit admin-controlled group properties.
 
@@ -3148,6 +3199,8 @@ Success Criteria:
 
 ### A_Reassign_Group_Owner
 
+<< PROVISIONAL USER STORY - AWAITING FINAL REQUIREMENTS >>
+
 Access: Only Admins can reassign group ownership and remediate "Group Needs Owner" admin work-queue items.
 
 Story: As an Admin, I have full control over group owner rosters so that groups remain operable when leadership breaks down.
@@ -3163,6 +3216,8 @@ Success Criteria:
 - All admin owner-management actions are audit-logged with actor identity, timestamp, before and after values, and reason text.
 
 ### A_Archive_Group
+
+<< PROVISIONAL USER STORY - AWAITING FINAL REQUIREMENTS >>
 
 Access: Only Admins can archive a group.
 
