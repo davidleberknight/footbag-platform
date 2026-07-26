@@ -18,7 +18,9 @@ Strata:
   * no_email -- no email on any of the three columns: no auto-suggestion is
     possible; manual search, anchors, or admin help only.
   * collision_stub -- bare mirror-seeded stub (held-out collision cohort):
-    carries no name or email, so nothing should match it by email.
+    carries a seeded display name but no email and no legacy user id, and the
+    claim lookup matches on ids and email columns alone, so nothing should
+    reach it by email.
   * unlinked_hp_only -- historical person with no legacy account: reachable
     only by manual name search or the browse-history direct claim.
   * explicit -- rows passed via --include-ids (edge cases the strata above
@@ -89,8 +91,10 @@ BEHAVIOR = {
         "No email on file: no auto-suggestion is possible; only manual search, "
         "verified anchors, or admin link-help can reach this account.",
     "collision_stub":
-        "Bare mirror stub (collision hold-out): it carries no name or email, so no "
-        "search or registration email should ever match it.",
+        "Bare mirror stub (collision hold-out): it carries only a seeded display "
+        "name, with no email and no legacy user id, and the claim lookup matches on "
+        "ids and email columns alone, so no search or registration email should ever "
+        "reach it.",
     "unlinked_hp_only":
         "No legacy account behind this person: reachable only via manual name search "
         "in the wizard or the browse-history direct claim during onboarding.",

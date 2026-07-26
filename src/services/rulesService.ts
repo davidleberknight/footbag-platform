@@ -17,9 +17,8 @@
  *   - Rule pages render zero offsite hyperlinks.
  *
  * Governance:
- *   - Rules content is IFPA-governed. A rule page carries a reference-currency notice (it may not
- *     reflect the latest IFPA changes; IFPA maintains the authoritative current rules) until IFPA
- *     ratifies it as current, at which point the notice is omitted.
+ *   - Rules content is IFPA-governed: IFPA authors and maintains it, and these pages publish it as
+ *     IFPA's own rules, so no platform-authored currency or ratification notice is rendered.
  */
 import { PageViewModel } from '../types/page';
 import { NotFoundError } from './serviceErrors';

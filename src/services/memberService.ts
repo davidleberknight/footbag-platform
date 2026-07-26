@@ -1227,7 +1227,7 @@ export const memberService = {
     const normalized = trimmed.toLowerCase();
     const queryHash = createHash('sha256').update(normalized).digest('hex');
 
-    // Per-IP and per-member quotas defend the member directory against scraping
+    // Per-IP and per-member quotas defend the member base against scraping
     // at the legitimate-traffic threshold; member search is held stricter than
     // ordinary page reads because each query enumerates real people. The IP
     // bucket is spent first, and the member bucket only when the IP passes, so

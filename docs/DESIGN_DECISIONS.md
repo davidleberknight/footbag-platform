@@ -4123,7 +4123,7 @@ Rationale:
 
 Requirements:
 
-- Authenticated member-search endpoints enforce a search-specific rate limit (per-IP and per-member quotas) stricter than the baseline anonymous/authenticated limits, defending against scraping the member directory at the legitimate-traffic threshold without exceeding it.
+- Authenticated member-search endpoints enforce a search-specific rate limit (per-IP and per-member quotas) stricter than the baseline anonymous/authenticated limits, defending against scraping the member base at the legitimate-traffic threshold without exceeding it.
 - Every member-search query writes an immutable, privacy-safe audit log entry (actor member id, query hash, result count, timestamp; no IP, no raw query string). Abusive search patterns are detectable post-hoc and a privacy-impacting search surface remains accountable.
 
 Trade-offs:

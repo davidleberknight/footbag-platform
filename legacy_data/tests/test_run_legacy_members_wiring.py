@@ -19,7 +19,9 @@ test_reconcile_legacy_members.py):
   * apply is opt-in and ordered: --apply snapshots members first, then loads
     the reconciled members, then applies the proposed links; without --apply a
     passing gate stops cleanly without writing;
-  * the reconciliation runs inside the --load block.
+  * the reconciliation runs inside the --load block;
+  * the production load applies the recorded account rulings and refuses without
+    them, while an ordinary load never depends on them.
 """
 from pathlib import Path
 
@@ -113,3 +115,35 @@ def test_dry_run_short_circuits_before_the_honors_rerun() -> None:
     i_dry_exit = TEXT.index("dry-run complete")
     i_honors_rerun = TEXT.index("--proposed-links")
     assert i_dry_exit < i_honors_rerun
+
+
+# The automatic merge fuses accounts sharing an exact name and a full birth date.
+# Human rulings both add merges that rule cannot see and forbid merges it would
+# otherwise make, so a production load that runs without them merges people ruled
+# to be distinct and leaves one of them holding an account nobody can claim.
+
+def test_final_merge_applies_the_recorded_account_rulings() -> None:
+    merge_call = TEXT[TEXT.index('reconcile_legacy_members.py" --final-merge'):]
+    merge_call = merge_call[:merge_call.index("LOAD_CSV=")]
+    assert "--overrides" in merge_call
+    assert "--entitlement-dispositions" in merge_call
+    assert merge_call.count("FOOTBAG_MEMBER_ADJUDICATIONS_DIR") == 2
+
+
+def test_production_load_refuses_when_the_rulings_are_absent() -> None:
+    i_guard = TEXT.index('if [[ -z "${FOOTBAG_MEMBER_ADJUDICATIONS_DIR:-}" ]]')
+    i_merge = TEXT.index('reconcile_legacy_members.py" --final-merge')
+    assert i_guard < i_merge                      # the refusal precedes the merge
+    guard = TEXT[i_guard:i_merge]
+    assert "REFUSING" in guard
+    assert "exit 1" in guard
+
+
+def test_the_rulings_are_required_only_by_the_production_load() -> None:
+    # Local and CI machines hold no private rulings, so an ordinary load must not
+    # depend on them: the guard and both flags sit inside the final-export block.
+    i_final_export = TEXT.index('if [[ "${FINAL_EXPORT}" -eq 1 ]]')
+    assert i_final_export < TEXT.index('if [[ -z "${FOOTBAG_MEMBER_ADJUDICATIONS_DIR:-}" ]]')
+    stage_b_call = TEXT[TEXT.index('reconcile_legacy_members.py" --stage-b'):
+                        TEXT.index('reconcile_legacy_members.py" --qc-gate')]
+    assert "FOOTBAG_MEMBER_ADJUDICATIONS_DIR" not in stage_b_call

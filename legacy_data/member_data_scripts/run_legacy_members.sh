@@ -67,7 +67,7 @@ Usage: run_legacy_members.sh [--extract] [--load | --from-csv PATH] [--apply] [-
   --apply            With --load, perform the real writes after the gate passes (reconciled members, then proposed links). Refused on production/staging.
   --dry-run          Validate + preview and stop cleanly (no write attempted).
   --strict-honors    Make honor validation a hard gate (final production load).
-  --final-export     Assert the dump was captured after the declared write-freeze date (needs FOOTBAG_CUTOVER_DATE); aborts extraction on a pre-freeze dump or a post-freeze member modification. For the final production load.
+  --final-export     Assert the dump was captured after the declared write-freeze date (needs FOOTBAG_CUTOVER_DATE); aborts extraction on a pre-freeze dump or a post-freeze member modification. Applies the recorded account rulings from FOOTBAG_MEMBER_ADJUDICATIONS_DIR, and refuses without them. For the final production load.
   --db PATH          Target database (default: $FOOTBAG_DB_PATH or database/footbag.db).
 USAGE
 }
@@ -234,11 +234,34 @@ BLOCKED
   # unchanged.
   LOAD_CSV="${RECONCILED_CSV}"
   if [[ "${FINAL_EXPORT}" -eq 1 ]]; then
+    # The automatic merge fuses accounts sharing an exact name and a full birth
+    # date. A human reviewed that cohort and recorded rulings that both add
+    # merges the rule cannot see and forbid merges the rule would otherwise
+    # make, so the final load must have them in front of it: without them a pair
+    # ruled to be two different people is fused, and the person whose row
+    # collapses can never claim it. The rulings hold real account identities, so
+    # they live outside this repository and the operator supplies their location,
+    # the same way the dump location is supplied.
+    if [[ -z "${FOOTBAG_MEMBER_ADJUDICATIONS_DIR:-}" ]]; then
+      cat >&2 <<'NOADJ'
+
+run_legacy_members --final-export: REFUSING. The recorded account rulings are missing.
+
+  Set FOOTBAG_MEMBER_ADJUDICATIONS_DIR to the directory holding
+  stage_a_adjudication.csv and entitlement_dispositions.csv, then re-run.
+
+  Loading production without them merges accounts a human ruled to be different
+  people, and one of those accounts becomes unclaimable. Nothing was written.
+NOADJ
+      exit 1
+    fi
     echo "==> final-export: build the exact-name + full-DOB auto-merge artifacts"
     "${PY}" "${MDS}/reconcile_legacy_members.py" --final-merge \
       --csv "${RECONCILED_CSV}" --db "${DB}" \
       --proposed-out "${PROPOSED_LINKS_CSV}" \
-      --merged-out "${MERGED_CSV}" --merge-map-out "${MERGE_MAP_CSV}"
+      --merged-out "${MERGED_CSV}" --merge-map-out "${MERGE_MAP_CSV}" \
+      --overrides "${FOOTBAG_MEMBER_ADJUDICATIONS_DIR}/stage_a_adjudication.csv" \
+      --entitlement-dispositions "${FOOTBAG_MEMBER_ADJUDICATIONS_DIR}/entitlement_dispositions.csv"
     LOAD_CSV="${MERGED_CSV}"
   fi
 

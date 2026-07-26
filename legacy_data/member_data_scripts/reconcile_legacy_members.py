@@ -797,7 +797,8 @@ def load_review_resolutions(resolutions_path: Path | None):
 
 
 def dry_run_auto_merge(csv_path: Path, proposed_links_csv: Path,
-                       overrides_path: Path | None = None) -> int:
+                       overrides_path: Path | None = None,
+                       entitlement_dispositions_path: Path | None = None) -> int:
     """Read-only: report how the auto-merge would split the current dump into
     merges and reviews, with per-reason counts. Writes nothing, merges nothing."""
     if not csv_path.exists():
@@ -809,7 +810,9 @@ def dry_run_auto_merge(csv_path: Path, proposed_links_csv: Path,
         rows = list(csv.DictReader(f))
     links = load_links_by_account(proposed_links_csv)
     overrides = load_stage_a_overrides(overrides_path)
-    plan = plan_auto_merges(rows, links_by_account=links, overrides=overrides)
+    dispositions = load_entitlement_dispositions(entitlement_dispositions_path)
+    plan = plan_auto_merges(rows, links_by_account=links, overrides=overrides,
+                            entitlement_dispositions=dispositions)
     merges, reviews = plan["merges"], plan["reviews"]
     kept, excluded = reconcilable_rows(rows)
     print("auto-merge dry run (read-only; no accounts merged)")
@@ -882,7 +885,8 @@ def _claimed_ids_from_db(db_path: Path | None) -> set[str]:
 
 def run_final_merge(csv_path: Path, links_csv: Path, db_path: Path | None,
                     merged_out: Path, map_out: Path, review_out: Path,
-                    overrides_path: Path | None = None) -> int:
+                    overrides_path: Path | None = None,
+                    entitlement_dispositions_path: Path | None = None) -> int:
     """Produce the final-load merge artifacts: the merged member CSV (survivors),
     the deterministic loser->survivor mapping, and the Stage A review CSV holding
     the contradiction groups. Read-only on the database; writes only out/ CSVs."""
@@ -910,8 +914,10 @@ def run_final_merge(csv_path: Path, links_csv: Path, db_path: Path | None,
     links = load_links_by_account(links_csv)
     claimed = _claimed_ids_from_db(db_path)
     overrides = load_stage_a_overrides(overrides_path)
+    dispositions = load_entitlement_dispositions(entitlement_dispositions_path)
     plan = plan_auto_merges(rows, links_by_account=links, claimed_ids=claimed,
-                            overrides=overrides)
+                            overrides=overrides,
+                            entitlement_dispositions=dispositions)
 
     ms = write_merged_members_csv(csv_path, plan, merged_out)
     n_map = write_merge_map_csv(plan["merges"], map_out)  # type: ignore[arg-type]
@@ -1686,6 +1692,10 @@ def main() -> None:
     ap.add_argument("--overrides", type=Path, default=None,
                     help="Stage A adjudication-override CSV (private input; fail-closed). "
                          "Applied to --dry-run-merge and --final-merge; omitted = plain baseline.")
+    ap.add_argument("--entitlement-dispositions", type=Path, default=None,
+                    help="Entitlement-disposition CSV (private input; fail-closed). Required by "
+                         "--final-merge whenever a merge survivor carries production authority; "
+                         "omitted = no dispositions, which fails closed on such a merge.")
     ap.add_argument("--db", type=Path, default=None,
                     help="built database, read-only for Stage B historical_persons and the QC gate")
     args = ap.parse_args()
@@ -1703,11 +1713,12 @@ def main() -> None:
     if args.qc_gate:
         sys.exit(run_qc_gate(args.out, args.proposed_out, args.review_out))
     if args.dry_run_merge:
-        sys.exit(dry_run_auto_merge(args.csv, args.proposed_out, args.overrides))
+        sys.exit(dry_run_auto_merge(args.csv, args.proposed_out, args.overrides,
+                                    args.entitlement_dispositions))
     if args.final_merge:
         sys.exit(run_final_merge(args.csv, args.proposed_out, args.db,
                                  args.merged_out, args.merge_map_out, args.out,
-                                 args.overrides))
+                                 args.overrides, args.entitlement_dispositions))
     ap.print_help()
     sys.exit(2)
 

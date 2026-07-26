@@ -182,3 +182,76 @@ def test_load_round_trip_applies(tmp_path):
     disp = ed.load_dispositions(p)
     plan = rec.plan_auto_merges(rows, entitlement_dispositions=disp)
     assert plan["entitlement_audit"][0]["effective_admin_authorization"] is False
+
+
+# --- the final-merge entry point reaches the dispositions -------------------
+#
+# The disposition gate only protects the production load if the entry point the
+# load actually calls can be given the dispositions. These pin that path end to
+# end, from a CSV on disk through run_final_merge, so a privileged merge cannot
+# become unreachable by having nowhere to pass its ruling.
+
+def _final_merge_rows(admin_on="100"):
+    """A privileged pair plus one unrelated account carrying the grant-bearing
+    flags, because the final merge refuses outright when either flag is
+    unpopulated across the whole source."""
+    padding = dict(_acct("900", "Unrelated Person", "1975-02-02"),
+                   legacy_tier1_annual_active_at_cutover="1",
+                   legacy_was_board_at_cutover="1")
+    return _privileged_pair(admin_on=admin_on) + [padding]
+
+
+def _members_csv(tmp_path, rows):
+    fields: list[str] = []
+    for r in rows:
+        for k in r:
+            if k not in fields:
+                fields.append(k)
+    p = tmp_path / "members.csv"
+    with p.open("w", encoding="utf-8", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=fields)
+        w.writeheader()
+        for r in rows:
+            w.writerow(r)
+    return p
+
+
+def _run_final_merge(tmp_path, rows, dispositions_path):
+    return rec.run_final_merge(
+        _members_csv(tmp_path, rows), tmp_path / "links.csv", None,
+        tmp_path / "merged.csv", tmp_path / "map.csv", tmp_path / "review.csv",
+        None, dispositions_path)
+
+
+def test_final_merge_accepts_a_disposition_file(tmp_path):
+    rows = _final_merge_rows()
+    p = tmp_path / "entitlement_dispositions.csv"
+    _write(p, [["100|200", "legacy_is_admin", ed.PRESERVE_PROVENANCE_ONLY,
+                _fp(rows, {"100", "200"}), "synthetic"]])
+    assert _run_final_merge(tmp_path, rows, p) == 0
+    assert (tmp_path / "merged.csv").exists()
+
+
+def test_final_merge_without_a_disposition_file_fails_closed(tmp_path):
+    rows = _final_merge_rows()
+    with pytest.raises(ed.EntitlementDispositionError,
+                       match="without an explicit entitlement disposition"):
+        _run_final_merge(tmp_path, rows, None)
+
+
+def test_final_merge_stale_disposition_fingerprint_fails_closed(tmp_path):
+    rows = _final_merge_rows()
+    p = tmp_path / "entitlement_dispositions.csv"
+    _write(p, [["100|200", "legacy_is_admin", ed.PRESERVE_PROVENANCE_ONLY,
+                "a" * 64, "synthetic"]])
+    with pytest.raises(ed.EntitlementDispositionError, match="stale fingerprint"):
+        _run_final_merge(tmp_path, rows, p)
+
+
+def test_final_merge_with_no_privileged_merge_needs_no_disposition(tmp_path):
+    rows = [_acct("100", "Sam Rivera", "1990-04-01"),
+            _acct("200", "Sam Rivera", "1990-04-01"),
+            dict(_acct("900", "Unrelated Person", "1975-02-02"),
+                 legacy_tier1_annual_active_at_cutover="1",
+                 legacy_was_board_at_cutover="1")]
+    assert _run_final_merge(tmp_path, rows, None) == 0
