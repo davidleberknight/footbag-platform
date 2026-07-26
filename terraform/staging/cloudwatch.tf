@@ -3,6 +3,9 @@
 # =============================================================================
 
 # ── Log groups ────────────────────────────────────────────────────────────────
+# Retention diverges from production on purpose (app 30 vs 90 days, nginx 14
+# vs 30): staging logs are rehearsal diagnostics with no forensic value, and
+# the shorter windows keep the standing cost of the staging stack down.
 
 resource "aws_cloudwatch_log_group" "app" {
   name              = "/footbag/${var.environment}/app"

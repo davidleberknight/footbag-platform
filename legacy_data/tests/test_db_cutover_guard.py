@@ -170,6 +170,115 @@ def test_legacy_member_loader_wires_the_guard():
     assert "assert_db_pre_cutover(args.db" in body
 
 
+# ── Combined maintainer-machine + post-cutover refusal ────────────────────────
+#
+# The destructive historical-pipeline loaders are maintainer-machine tools: they
+# never run against a deployed environment, and a maintainer-machine path can
+# still hold a restored copy of the live database, which the in-database marker
+# travels with. assert_maintainer_db_target refuses both cases before any
+# mutation, with no bypass flag.
+
+
+def _guard_module():
+    import sys
+    lib = str(REPO_ROOT / "scripts" / "lib")
+    if lib not in sys.path:
+        sys.path.insert(0, lib)
+    import db_cutover_guard
+    return db_cutover_guard
+
+
+def _clean_guard_env(monkeypatch):
+    monkeypatch.delenv("NODE_ENV", raising=False)
+    monkeypatch.delenv("FOOTBAG_ENV", raising=False)
+
+
+def test_maintainer_target_refuses_production_node_env(tmp_path, monkeypatch):
+    _clean_guard_env(monkeypatch)
+    monkeypatch.setenv("NODE_ENV", "production")
+    with pytest.raises(SystemExit):
+        _guard_module().assert_maintainer_db_target(str(tmp_path / "any.db"), "a loader")
+
+
+def test_maintainer_target_refuses_staging_footbag_env(tmp_path, monkeypatch):
+    _clean_guard_env(monkeypatch)
+    monkeypatch.setenv("FOOTBAG_ENV", "staging")
+    with pytest.raises(SystemExit):
+        _guard_module().assert_maintainer_db_target(str(tmp_path / "any.db"), "a loader")
+
+
+def test_maintainer_target_refuses_a_deployed_host_path(monkeypatch):
+    _clean_guard_env(monkeypatch)
+    with pytest.raises(SystemExit):
+        _guard_module().assert_maintainer_db_target("/srv/footbag/database/footbag.db", "a loader")
+
+
+def test_maintainer_target_refuses_a_marked_database(tmp_path, monkeypatch):
+    _clean_guard_env(monkeypatch)
+    db = tmp_path / "marked.db"
+    make_db(db, marker_rows=[("1", "2026-01-01T00:00:00.000Z")])
+    with pytest.raises(SystemExit):
+        _guard_module().assert_maintainer_db_target(str(db), "a loader")
+
+
+def test_maintainer_target_allows_a_local_pre_cutover_database(tmp_path, monkeypatch):
+    _clean_guard_env(monkeypatch)
+    db = tmp_path / "pre.db"
+    make_db(db)
+    _guard_module().assert_maintainer_db_target(str(db), "a loader")  # returns, no exit
+
+
+# Every destructive pipeline loader wires the combined refusal so a direct
+# invocation (outside reset-local-db.sh / run_pipeline.sh) is protected too.
+GUARDED_PIPELINE_LOADERS = [
+    "legacy_data/clubs/scripts/06_cutover_pre_populated_clubs.py",
+    "legacy_data/clubs/scripts/07_load_bootstrap_leaders.py",
+    "legacy_data/clubs/scripts/07a_load_bootstrap_leader_signals.py",
+    "legacy_data/event_results/scripts/08_load_mvfp_seed_full_to_sqlite.py",
+    "legacy_data/event_results/scripts/09_load_enrichment_to_sqlite.py",
+    "legacy_data/event_results/scripts/12_build_net_discipline_groups.py",
+    "legacy_data/event_results/scripts/13_build_net_teams.py",
+    "legacy_data/scripts/load_name_variants_seed.py",
+    "legacy_data/scripts/load_given_name_variants_to_sqlite.py",
+]
+
+
+@pytest.mark.parametrize("rel", GUARDED_PIPELINE_LOADERS)
+def test_destructive_pipeline_loader_wires_the_combined_refusal(rel):
+    body = executable_lines(REPO_ROOT / rel)
+    assert "assert_maintainer_db_target(" in body
+
+
+def test_run_pipeline_wires_the_guard_before_any_load_phase():
+    script = (REPO_ROOT / "legacy_data" / "run_pipeline.sh").read_text()
+    lines = script.splitlines()
+    guard_line = next(
+        i for i, line in enumerate(lines)
+        if "db_cutover_guard.py" in line and not line.lstrip().startswith("#")
+    )
+    first_load_line = next(i for i, line in enumerate(lines) if "load_club_members_seed.py" in line)
+    assert guard_line < first_load_line, (
+        "the cutover guard must run at top level before any phase that mutates the DB"
+    )
+
+
+def test_bootstrap_leader_loader_refuses_a_marked_database_end_to_end(tmp_path):
+    import os
+    db = tmp_path / "marked.db"
+    make_db(db, marker_rows=[("1", "2026-01-01T00:00:00.000Z")])
+    env = {k: v for k, v in os.environ.items() if k not in ("NODE_ENV", "FOOTBAG_ENV")}
+    result = subprocess.run(
+        [
+            "python3",
+            str(REPO_ROOT / "legacy_data" / "clubs" / "scripts" / "07_load_bootstrap_leaders.py"),
+            "--db", str(db),
+        ],
+        capture_output=True, text=True, cwd=REPO_ROOT, env=env,
+    )
+    assert result.returncode != 0
+    assert "post-cutover" in result.stderr
+
+
 # ── Freestyle rebuild loaders open through the shared guard ───────────────────
 #
 # Every freestyle loader that wipes and reloads a freestyle table opens its target

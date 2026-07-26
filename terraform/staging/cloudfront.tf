@@ -166,10 +166,12 @@ resource "aws_cloudfront_distribution" "main" {
     origin_access_control_id = aws_cloudfront_origin_access_control.media[0].id
   }
 
-  # Maintenance-page S3 origin intentionally omitted (deferred).
-  # Re-add when OAC, ordered_cache_behavior for /maintenance.html, bucket policy,
-  # and the maintenance.html object all exist and are tested. See
-  # AWS_OPERATIONS.md (private GitHub repo), "Provision the maintenance page (S3 + OAC)".
+  # Maintenance-page S3 origin deliberately absent here, not deferred. Staging has
+  # no audience to shield from a broken origin, and the production toggle is
+  # rehearsed on production itself before it is relied on: apply it, fetch the
+  # page, turn it off, all while there is no time pressure. That exercises the
+  # real distribution, bucket and certificate, which a staging copy cannot.
+  # The maintenance bucket still exists here so both trees hold the same buckets.
 
   # ── Default cache behaviour ───────────────────────────────────────────────
   # All HTML uses CachingDisabled; origin (Express middleware) sets
@@ -292,8 +294,9 @@ resource "aws_cloudfront_distribution" "main" {
     origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer_except_host_header.id
   }
 
-  # custom_error_response blocks for maintenance page intentionally omitted (deferred).
-  # Re-add together with the s3-maintenance origin and ordered_cache_behavior for /maintenance.html.
+  # No custom_error_response blocks: they would point at a maintenance page this
+  # tree deliberately does not serve (see the origin section above). A staging 5xx
+  # reaches the viewer as a 5xx, which is what a test environment should do.
 
   # ── TLS ──────────────────────────────────────────────────────────────────
   # DEFERRED: switch to ACM certificate when real domain is attached.

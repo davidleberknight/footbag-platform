@@ -40,6 +40,9 @@ except ImportError:
 from datetime import datetime, timezone
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts" / "lib"))
+from db_cutover_guard import assert_maintainer_db_target  # noqa: E402
+
 
 # ---------------------------------------------------------------------------
 # Utilities (mirror script 08 style)
@@ -260,6 +263,8 @@ def main() -> None:
     parser.add_argument("--candidates-csv",   required=True)
     parser.add_argument("--affiliations-csv", required=True)
     args = parser.parse_args()
+
+    assert_maintainer_db_target(args.db, "09_load_enrichment_to_sqlite.py")
 
     db_path          = Path(args.db)
     persons_csv      = Path(args.persons_csv)

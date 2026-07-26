@@ -70,6 +70,9 @@ try:
 except ImportError:
     import sqlite3  # type: ignore
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts" / "lib"))
+from db_cutover_guard import assert_maintainer_db_target  # noqa: E402
+
 SCRIPT_DIR = Path(__file__).resolve().parent
 LEGACY_ROOT = SCRIPT_DIR.parent
 
@@ -249,6 +252,8 @@ def main() -> int:
     if args.db is None:
         print("ERROR: --apply requires --db", file=sys.stderr)
         return 2
+
+    assert_maintainer_db_target(args.db, "load_name_variants_seed.py")
 
     inserted, skipped, deleted = apply_to_db(args.db, production, created_at)
     print(f"\nApplied to {args.db}:", file=sys.stderr)

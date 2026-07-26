@@ -127,10 +127,38 @@ resource "aws_cloudfront_function" "strip_media_store_prefix" {
 }
 
 # =============================================================================
+# Planned maintenance
+# Two independent ways the maintenance page reaches a visitor. The automatic one
+# is the 5xx fallback below: the origin breaks, CloudFront substitutes the page.
+# This flag is the deliberate one, for a window where the origin is deliberately
+# up and must not be shown — the cutover, when the platform is importing and
+# validating behind a site that has to read as "migrating, come back soon".
+#
+# On, every page path serves the page: the default behaviour swaps to the S3
+# origin, and 403/404 route back to the page because an OAC-read bucket with no
+# ListBucket answers 403 for every key that is not the page itself. The ordered
+# behaviours are not conditioned on the flag: static assets, media, and the
+# health path keep their normal routing (monitoring stays live through the
+# window), and the page object itself answers 200 at its own URL. Off, the
+# blocks below are absent entirely, so the app's own 403s and 404s reach the
+# viewer untouched.
+#
+# The page is returned as 503, which is what a planned window means and what
+# keeps search engines coming back instead of deindexing the site.
+# =============================================================================
+
+variable "enable_planned_maintenance" {
+  description = "Serve the maintenance page for every request, regardless of origin health. Default off; turned on for a planned window such as the cutover, and off again to go live."
+  type        = bool
+  default     = false
+}
+
+# =============================================================================
 # CloudFront Distribution
 # Origin: Lightsail static IP (nginx on port 80)
 # TLS termination at edge using ACM certificate (us-east-1)
-# Maintenance page fallback on 5xx from origin
+# Maintenance page fallback on 5xx from origin, or for every request while
+# planned maintenance is on
 # =============================================================================
 
 resource "aws_cloudfront_distribution" "main" {
@@ -184,15 +212,18 @@ resource "aws_cloudfront_distribution" "main" {
   # ── Default cache behaviour ───────────────────────────────────────────────
   # All HTML uses CachingDisabled; origin (Express middleware) sets
   # Cache-Control on every authenticated response.
+  # While planned maintenance is on this points at the S3 page instead, and drops
+  # the origin request policy: OAC signs the request itself, and forwarding
+  # viewer headers to an S3 origin is what breaks virtual-host bucket routing.
   default_cache_behavior {
-    target_origin_id       = "lightsail-origin"
+    target_origin_id       = var.enable_planned_maintenance ? "s3-maintenance" : "lightsail-origin"
     viewer_protocol_policy = "redirect-to-https"
     allowed_methods        = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
     cached_methods         = ["GET", "HEAD"]
     compress               = true
 
-    cache_policy_id          = data.aws_cloudfront_cache_policy.caching_disabled.id
-    origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer_except_host_header.id
+    cache_policy_id          = var.enable_planned_maintenance ? data.aws_cloudfront_cache_policy.caching_optimized.id : data.aws_cloudfront_cache_policy.caching_disabled.id
+    origin_request_policy_id = var.enable_planned_maintenance ? null : data.aws_cloudfront_origin_request_policy.all_viewer_except_host_header.id
   }
 
   # ── Static assets — longer cache ─────────────────────────────────────────
@@ -319,6 +350,21 @@ resource "aws_cloudfront_distribution" "main" {
     response_code         = 503
     response_page_path    = "/maintenance.html"
     error_caching_min_ttl = 10
+  }
+
+  # ── Planned maintenance: route every other status to the page too ─────────
+  # Only present while the flag is on. The S3 origin answers 403 for every key
+  # that is not the page (no ListBucket), so without these a visitor asking for
+  # anything but /maintenance.html would get a bare S3 error document.
+  dynamic "custom_error_response" {
+    for_each = var.enable_planned_maintenance ? [403, 404] : []
+
+    content {
+      error_code            = custom_error_response.value
+      response_code         = 503
+      response_page_path    = "/maintenance.html"
+      error_caching_min_ttl = 10
+    }
   }
 
   # ── TLS ──────────────────────────────────────────────────────────────────

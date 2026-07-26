@@ -72,6 +72,31 @@ def assert_db_pre_cutover(db_path: str, script_name: str) -> None:
     sys.exit(1)
 
 
+def assert_maintainer_db_target(db_path: str, script_name: str) -> None:
+    """Exit non-zero unless db_path is a maintainer-machine, pre-cutover target.
+
+    Combined refusal for the destructive pipeline loaders: they are
+    maintainer-machine tools and never run against a deployed environment
+    (positive guards only, no force flag), and a maintainer-machine path can
+    still hold a copy of the live database (a restored snapshot), which the
+    in-database post-cutover marker travels with.
+    """
+    node_env = os.environ.get("NODE_ENV", "")
+    footbag_env = os.environ.get("FOOTBAG_ENV", "")
+    if (
+        node_env == "production"
+        or footbag_env in ("production", "staging")
+        or os.path.abspath(str(db_path)).startswith("/srv/footbag/")
+    ):
+        sys.stderr.write(
+            f"REFUSED: {script_name} is maintainer-machine only and never runs "
+            "against production or staging. Guard tripped by "
+            f"NODE_ENV={node_env!r} / FOOTBAG_ENV={footbag_env!r} / db={str(db_path)!r}.\n"
+        )
+        sys.exit(1)
+    assert_db_pre_cutover(str(db_path), script_name)
+
+
 if __name__ == "__main__":
     if len(sys.argv) != 2:
         sys.stderr.write("usage: db_cutover_guard.py <db-path>\n")

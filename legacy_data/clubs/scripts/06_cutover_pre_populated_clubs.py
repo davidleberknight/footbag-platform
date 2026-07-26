@@ -45,6 +45,9 @@ import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts" / "lib"))
+from db_cutover_guard import assert_maintainer_db_target  # noqa: E402
+
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 LEGACY_DATA_ROOT = SCRIPT_DIR.parent.parent  # legacy_data/
@@ -204,6 +207,8 @@ def main() -> int:
         default=os.environ.get("FOOTBAG_DB_PATH", "database/footbag.db"),
     )
     args = ap.parse_args()
+
+    assert_maintainer_db_target(args.db, "06_cutover_pre_populated_clubs.py")
 
     db_path = Path(args.db)
     if not db_path.exists():

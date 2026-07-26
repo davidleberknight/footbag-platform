@@ -58,6 +58,9 @@ from datetime import datetime, timezone
 SCRIPT_DIR  = os.path.dirname(os.path.abspath(__file__))
 SCRIPT_NAME = os.path.basename(__file__)
 
+sys.path.insert(0, os.path.abspath(os.path.join(SCRIPT_DIR, "..", "..", "..", "scripts", "lib")))
+from db_cutover_guard import assert_maintainer_db_target  # noqa: E402
+
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.000Z')
@@ -308,6 +311,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--db', required=True, help='Path to footbag.db')
     args = parser.parse_args()
+
+    assert_maintainer_db_target(args.db, SCRIPT_NAME)
 
     if not os.path.exists(args.db):
         print(f"ERROR: database not found: {args.db}", file=sys.stderr)

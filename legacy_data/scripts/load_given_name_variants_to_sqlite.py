@@ -29,6 +29,9 @@ SCRIPT_DIR  = os.path.dirname(os.path.abspath(__file__))
 LEGACY_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, '..'))
 SOURCE_CSV  = os.path.join(LEGACY_ROOT, 'inputs', 'curated', 'given_name_variants.csv')
 
+sys.path.insert(0, os.path.abspath(os.path.join(SCRIPT_DIR, '..', '..', 'scripts', 'lib')))
+from db_cutover_guard import assert_maintainer_db_target  # noqa: E402
+
 
 def db_normalize(s):
     """NFKC + lowercase + trim + collapse whitespace."""
@@ -84,6 +87,7 @@ def main():
     args = parser.parse_args()
 
     db_path = os.path.expanduser(args.db)
+    assert_maintainer_db_target(db_path, "load_given_name_variants_to_sqlite.py")
     if not os.path.exists(db_path):
         print(f"ERROR: database not found: {db_path}", file=sys.stderr)
         sys.exit(1)

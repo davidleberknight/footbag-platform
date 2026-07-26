@@ -14,12 +14,16 @@ import argparse
 import csv
 import hashlib
 import shutil
+import sys
 try:
     import pysqlite3 as sqlite3
 except ImportError:
     import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts" / "lib"))
+from db_cutover_guard import assert_maintainer_db_target  # noqa: E402
 
 
 def now_iso() -> str:
@@ -174,6 +178,8 @@ def main() -> None:
     ap.add_argument("--seed-dir", default="legacy_data/event_results/seed/mvfp_full")
     ap.add_argument("--no-backup", action="store_true")
     args = ap.parse_args()
+
+    assert_maintainer_db_target(args.db, "08_load_mvfp_seed_full_to_sqlite.py")
 
     db_path = Path(args.db)
     seed_dir = Path(args.seed_dir)

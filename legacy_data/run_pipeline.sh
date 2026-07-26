@@ -46,6 +46,14 @@ fi
 
 MODE="${1:-full}"
 
+# The platform DB the load phases mutate can be a restored copy of the live
+# database; the in-database post-cutover marker travels with every such copy,
+# and a destructive reload would delete admin- and member-authored rows that
+# have no committed seed inputs. Refuse up front, before any phase runs.
+# Missing DB or missing marker means pre-cutover and is allowed. Invoked with
+# the venv python (already active here), like every other stage of this script.
+python "${REPO_ROOT}/scripts/lib/db_cutover_guard.py" "${REPO_ROOT}/database/footbag.db"
+
 # =============================================================================
 # PREFLIGHT
 # =============================================================================

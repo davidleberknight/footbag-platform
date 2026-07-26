@@ -387,11 +387,18 @@ The sender worker scrubs `outbox_emails.body_text` (sets it to `NULL`) on every 
 
 ### 4.9 Admin Operations
 
-**Tables:** `work_queue_items`, `system_config`, `audit_entries`, `erasure_log`, `system_job_runs`, `system_alarm_events`  
+**Tables:** `work_queue_items`, `member_messages`, `system_config`, `audit_entries`, `erasure_log`, `system_job_runs`, `system_alarm_events`  
 **Views:** `system_config_current`
 
 #### Work queue
 Admin task queue with `queue_category` and `task_type`. Active `task_type` values include `member_contact_request` (member-submitted IFPA-admin contact requests under `queue_category='membership'`; see `M_Contact_IFPA_Admin` and `A_Resolve_Contact_IFPA_Admin_Request`). Admin notifications are routed by urgency (US §1 Global Behaviors): a task type classified urgent (a security or data-integrity event needing same-day action) emails the admin-alerts mailing list immediately on enqueue; a routine task type surfaces on the work-queue dashboard and in a periodic per-administrator digest of the open routine items. An administrator claims an item (`claimed_by_member_id`, `claimed_at`) to drop it from the other administrators' digests; an item left open and unclaimed past the stale threshold escalates once with a single email to admin-alerts. Every such notification contains task type and entity ID only (no sensitive data). For `member_contact_request` rows the full member message is held in the purgeable `detail_text` column (with a short `reason_text` summary preview); account erasure and the deceased contact scrub redact both, so member free text stays off the append-only audit ledger.
+
+`status` carries `awaiting_member` for an item parked while the platform waits on the member's answer to an administrator's message. The value sits alongside `open`, `resolved`, and `dismissed`, and it is neither: the work is unfinished but no administrator can advance it. Because the active-queue, digest, and stale-escalation reads all select `status = 'open'`, a parked item leaves all three by virtue of its status. Answering returns the item to `open` with the answer attached rather than opening a duplicate.
+
+#### Member messages
+`member_messages` carries an administrator's direct question to one member and that member's structured answer. It is the one member-facing obligation with no equivalent in domain state: every other item on the member dashboard is derived from the records that already exist (see `M_View_Dashboard`), so this is the only one that needs storage of its own. One row per message: recipient member, sending administrator, subject, the purgeable message body, the expected answer kind (acknowledge, or confirm and correct a date of birth), the optional originating `work_queue_items` id, status, the structured outcome, the member's optional purgeable note, and the sent and answered timestamps.
+
+The body and the member's note are owner-and-admin-private content held in purgeable columns: both are cleared by account erasure and by the deceased contact scrub, each appending an `erasure_log` row, matching `birth_date` handling. The audit ledger records that a message was sent and answered, carrying the expected answer kind and the body length but never the body, so free text stays off the append-only ledger. Message content never travels by email: the member receives a content-free nudge to their verified login address and reads the message in the application, which is what lets the channel carry a date of birth at all.
 
 #### System config
 `system_config` is an append-only effective-dated key-value store. Each row represents the value of a config key from a given `effective_start_at` forward. The current effective value per key is provided by the `system_config_current` view (latest row with `effective_start_at <= now`). Changing a config value means inserting a new row; old rows are immutable (UPDATE and DELETE blocked by triggers).
@@ -425,7 +432,7 @@ Emitted values, grouped by namespace:
 - **`media.*`**: `member_uploaded`, `curated_uploaded`, `member_edited`, `curated_edited`, `member_deleted`, `curated_deleted`, `curated_url_reference_added`, `curated_url_reference_edited`, `curated_url_reference_deleted`, `member_gallery_created`, `curated_gallery_created`, `member_gallery_updated`, `curated_gallery_updated`, `member_gallery_deleted`, `curated_gallery_deleted`.
 - **`testkit.*`**: `persona_seed`, `persona_switch`, `persona_login`, `persona_refresh` (dev/staging persona-harness audit markers).
 
-Reserved names for designed surfaces that do not emit yet (account lifecycle, voting and recognition, content moderation) follow the same convention when they land: `auth.account_deleted`, `auth.account_restored`, `member.deceased_marked`, `member.deceased_reverted`, `vote.cast`, `vote.eligibility_snapshot_taken`, `vote.ballot_tallied`, `hof.nomination_submitted`, `hof.affidavit_submitted`, `media.flagged`, `media.deleted`.
+Reserved names for designed surfaces that do not emit yet (account lifecycle, voting and recognition, content moderation) follow the same convention when they land: `auth.account_deleted`, `auth.account_restored`, `member.deceased_marked`, `member.deceased_reverted`, `vote.cast`, `vote.eligibility_snapshot_taken`, `vote.ballot_tallied`, `hof.nomination_submitted`, `hof.affidavit_submitted`, `media.flagged`, `media.deleted`, `member_message.sent`, `member_message.answered`.
 
 This list is the authoritative inventory; new action_types must be added here as part of any code change that introduces a new event type, and the owning service's file-header JSDoc must declare its audit emissions in its Side effects section.
 

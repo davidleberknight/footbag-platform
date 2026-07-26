@@ -295,6 +295,22 @@ describe('POST /register', () => {
     expect(res.text).toContain('must include your last name');
   });
 
+  it('single-character display name → 422 with error', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .post('/register')
+      .type('form')
+      .send({
+        realName: 'Bob X',
+        displayName: 'X',
+        email: 'onechardisplay@example.com',
+        password: 'securepass123',
+        confirmPassword: 'securepass123',
+      });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('at least 2 characters');
+  });
+
   it('display name with matching surname succeeds', async () => {
     const app = createApp();
     const res = await request(app)

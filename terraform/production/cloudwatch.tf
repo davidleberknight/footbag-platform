@@ -3,6 +3,9 @@
 # =============================================================================
 
 # ── Log groups ────────────────────────────────────────────────────────────────
+# Retention is longer than staging on purpose (app 90 vs 30 days, nginx 30 vs
+# 14): production logs feed incident investigation across the post-cutover
+# watch and the quarterly review.
 
 resource "aws_cloudwatch_log_group" "app" {
   name              = "/footbag/${var.environment}/app"

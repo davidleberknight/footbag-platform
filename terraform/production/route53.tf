@@ -4,10 +4,13 @@
 # The hosted zone must exist before apply (import it; Console edits are not
 # the canonical path).
 #
-# Gated default-off: the webmaster holds the authoritative zone and switches
-# apex/www there at go-live (www to CloudFront, the apex to the platform's
-# apex redirector); these Route 53 alias records apply only at the later,
-# optional DNS-handover milestone. Flip var.enable_apex_alias_records then.
+# Gated default-off, but the gate is timing, not ownership. The zone moves to
+# Route 53 early as advance preparation and the operator applies every record
+# here; nothing is hand-applied on the legacy nameservers. The flag stays off
+# through the move so Route 53 first serves the zone's existing records
+# faithfully, then flips to point apex and www at CloudFront. Both are ALIAS
+# records to the one distribution, which 301s the apex to www, so there is no
+# separate apex redirector.
 # =============================================================================
 
 variable "enable_apex_alias_records" {
@@ -70,9 +73,9 @@ resource "aws_route53_record" "www_aaaa" {
 
 # CAA constrains TLS certificate issuance to Amazon's certificate authority (the
 # one ACM uses), so no other CA can issue a certificate for footbag.org or its
-# subdomains. A CAA at the apex is inherited by www and archive. This takes
-# effect once Route 53 is authoritative; before the DNS handover the webmaster's
-# zone must carry no CAA that would block ACM from issuing.
+# subdomains. A CAA at the apex is inherited by www and archive. It lands with
+# the alias flip rather than at the zone move, so the window in which ACM issues
+# has no CAA at all, which permits issuance rather than blocking it.
 resource "aws_route53_record" "caa" {
   count   = var.enable_apex_alias_records ? 1 : 0
   zone_id = var.route53_zone_id

@@ -150,6 +150,7 @@ import { type SimulatedEmailPreview } from './simulatedEmailService';
 
 const MIN_PASSWORD_LENGTH = 8;
 const MAX_PASSWORD_LENGTH = 128;
+const MIN_DISPLAY_NAME = 2;
 const MAX_DISPLAY_NAME = 64;
 
 function normalizeEmail(email: string): string {
@@ -564,7 +565,7 @@ async function attemptLogin(
  * Validate a full legal name for registration. The name is expected NFC-normalized.
  * Rules: required, 2-64 chars, at least two words, at least one word 2+ chars, no
  * digits, no invisible/control/bidi characters, and a single script (the UTS #39
- * mixed-script restriction; the confusable-skeleton collision check is deferred).
+ * mixed-script restriction).
  */
 function validateRealName(name: string): void {
   if (!name) {
@@ -597,11 +598,10 @@ function validateDisplayNameSurname(displayName: string, realName: string): void
   }
 }
 
-// UTS #39 display-name safety (the dependency-free subset). A member's public
-// display name is unforgeable attribution, so a name that mimics another member
-// through invisible characters or cross-script homoglyphs is a spoofing vector.
-// Two checks run on the NFC-normalized name; the heavier confusable-skeleton
-// collision check against existing names is deferred until it earns its keep.
+// UTS #39 display-name safety. A member's public display name is unforgeable
+// attribution, so a name that mimics another member through invisible characters
+// or cross-script homoglyphs is a spoofing vector. Two checks run on the
+// NFC-normalized name: forbidden code points, then the single-script rule.
 //
 // The scripts tested for the mixed-script rule. A name's letters must resolve to
 // a single script, with the CJK augmentations allowed (Japanese = Han + kana,
@@ -752,6 +752,9 @@ async function registerMember(
 
   validateRealName(trimmedRealName);
 
+  if (trimmedDisplayName.length < MIN_DISPLAY_NAME) {
+    throw new ValidationError(`Display name must be at least ${MIN_DISPLAY_NAME} characters.`);
+  }
   if (trimmedDisplayName.length > MAX_DISPLAY_NAME) {
     throw new ValidationError(`Display name must be ${MAX_DISPLAY_NAME} characters or fewer.`);
   }

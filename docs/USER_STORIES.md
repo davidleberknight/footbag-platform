@@ -51,6 +51,7 @@ This document is the Source of Truth for Functional Requirements, defining all U
     - [M_Edit_Profile](#m_edit_profile)
     - [M_Contact_IFPA_Admin](#m_contact_ifpa_admin)
     - [M_Search_Members](#m_search_members)
+    - [M_View_Dashboard](#m_view_dashboard)
     - [M_View_Profile](#m_view_profile)
   - [3.3 Club Membership](#33-club-membership)
     - [M_Join_Club](#m_join_club)
@@ -242,6 +243,8 @@ All UI labels and system-generated messages are English-only at launch. User-ent
 Reporting scope: Any dashboards/metrics described here are operational metrics (health, payment volume, job success/failure), not advanced BI or custom analytics.
 
 Admin work-queue notifications are routed by urgency, never broadcast per event to every administrator. Task types classified urgent (security or data-integrity events needing same-day action) send an immediate email to the admin-alerts mailing list when enqueued. Routine task types send no per-event email: administrators read them on the work-queue dashboard, and a periodic digest emails each administrator a rollup of open routine items. An administrator who claims an item removes it from the other administrators' digests; an item unclaimed past a configured stale threshold escalates once with a single email to admin-alerts naming the item. Every such notification contains task type and entity ID only (no sensitive member data such as email addresses, payment amounts, personal information, or content details). Queue items can be viewed after resolution with status, admin who resolved, resolution timestamp, decision label, and reason text.
+
+Member action items follow the mirror-image rule. Anything the platform is waiting on a member for surfaces on that member's dashboard (`M_View_Dashboard`), which is where every login lands, so a member is shown what they owe rather than having to remember where to look for it. Urgency is set by the part of the platform that owns the obligation, since only it knows its deadline: needs-attention-now items lead the dashboard's action block and put a compact banner on every other member page, while pending items sit quietly on the dashboard alone. Neither the block nor the banner carries private content; each item shows a headline, an optional non-private detail line, and its options, and anything private is read on the owner-only surface the item links to. Notification email is unchanged by this: each obligation keeps whatever reminder its own story specifies, and members receive no rollup digest.
 
 ## 1.1 Hashtags
 
@@ -528,7 +531,7 @@ Success Criteria:
 - New member registration with email verification.
 - **Name model:** Registration collects two name fields:
   - **Full legal name** (`real_name`): required. Must be at least two words, no digits. Capitalization is normalized on save (no policing of input casing).
-  - **Display name** (`display_name`): optional. Defaults to `real_name` if left blank. Must share a surname with `real_name` (surname extracted with suffix stripping: Jr, Sr, II, III, IV). Display name is permanent and cannot be changed after registration; the registration form must make this clear.
+  - **Display name** (`display_name`): optional. Defaults to `real_name` if left blank. Must share a surname with `real_name` (surname extracted with suffix stripping: Jr, Sr, II, III, IV, PhD, MD). Display name is permanent and cannot be changed after registration; the registration form must make this clear.
   - **Slug selection:** The member's URL slug is generated from display name by default but the member can customize it during registration. The slug must contain their surname (same suffix-stripping rule). Two members may share the same display name; slug uniqueness is enforced. Slug is permanent after registration.
 - This registration MUST use the human’s real and full name, spelled out, with no initials or abbreviations. Bogus registrations that do not follow this rule, upon discovery, will be deleted.
 - This registration MUST use the human’s city, state, country. USA members must use the official two-letter state name (eg: CO, CA, NY).
@@ -537,7 +540,7 @@ Success Criteria:
 - Email must be unique across all members including accounts in their deletion grace period (reuse only after the grace period completes and PII is cleared).
 - Registration enforces email uniqueness without disclosing account existence. The form responds identically whether or not the submitted email already belongs to an account (active or in its deletion grace period): the same generic "check your email" confirmation, with no inline indication that the address is already registered, so registration cannot be used to probe which emails have accounts. When the address already has an account, the platform emails that address an "account already exists" notice with links to log in or reset the password (never a new verification link), so the legitimate owner is helped through a channel only they control. Rate limiting and the server-side CAPTCHA apply regardless of match.
 - Registration submissions are gated by a Cloudflare Turnstile CAPTCHA verified server-side before any DB read.
-- Display names are constrained to prevent homograph and impersonation attacks, within a reasonable length limit. Each display name is NFC-normalized, must carry no invisible or control characters, and must draw its letters from a single writing system, so a name that mixes Latin and Cyrillic letters is rejected. In addition, every normalized display name is reduced to a deterministic confusable skeleton (the Unicode look-alike-character canonical form defined by Unicode Technical Standard #39), and registration is rejected with a clear validation error when a new name's skeleton equals an existing member's skeleton, even when both names would each pass the normalization, invisible-character, and single-writing-system checks on their own. This catches a whole-script look-alike, such as a name written entirely in Cyrillic but drawn to read like an existing all-Latin name. The rejection reveals no private account information: it never names or confirms the existing account. A member re-storing its own unchanged display name does not collide with itself.
+- Display names are constrained to prevent homograph and impersonation attacks, within a reasonable length limit. Each display name is NFC-normalized, must carry no invisible or control characters, and must draw its letters from a single writing system, so a name that mixes Latin and Cyrillic letters is rejected.
 - New members automatically assigned Tier 0 (free lifetime) status.
 - **Legacy-link check:** After account creation, the system checks whether the registrant’s verified email matches an imported `legacy_members` row’s `legacy_email` or a historical person’s legacy email. If a match is found, the member is prompted inline to confirm the link ("We found a history record, is this you?"). For high-confidence matches (exact name match) and medium-confidence matches (known variant name match), the prompt defaults to yes (pre-checked). For low-confidence matches (email match but name mismatch), the prompt defaults to no (member must actively opt in). The member’s decision is audit-logged. No admin involvement at registration time; the member is the authority on their own identity.
 - **Post-verify onboarding:** After email verification, the member is routed to `M_Complete_Onboarding_Wizard` with applicable outstanding tasks. The wizard owns the club affiliation flow (Stages 1A, 1B, and the wrap-up landing). `gender`, `first_competition_year`, and `show_competitive_results` are collected as fields within the `personal_details` task. A member becomes a full member by completing the two required tasks, `personal_details` (its required fields saved) and the `legacy_claim` decision; while either is outstanding the member is routed back to the wizard from the member, club, and admin capability surfaces (browse pages, the member's own profile, and the wizard's own affordances stay reachable). The optional `club_affiliations` task may be skipped. All tasks are resumable from the dashboard task widget.
@@ -1020,7 +1023,7 @@ Success Criteria:
 - External URLs on profiles (maximum 3) are validated before publication and presented safely (e.g., clearly labeled and protected against malicious links).
 - Key actions are recorded in the audit log.
 - Member profile will automatically show club affiliation, media galleries, and links to event results, if participated.
-- Display names are constrained to prevent homograph attacks (for example: no mixed scripts or confusable characters, and reasonable length limits).
+- Display names are constrained to prevent homograph attacks (for example: no mixed scripts or invisible characters, and reasonable length limits).
 
 ### M_Contact_IFPA_Admin
 
@@ -1056,6 +1059,31 @@ Success Criteria:
 - Search results exclude: (a) members with `searchable: false`, (b) members currently in the deletion grace period (account deleted but not yet purged), and (c) deceased members. Only active members with `searchable: true` are returned.
 - Broad queries return a capped result set with a "refine your query" prompt; no exhaustive browse-all or full pagination.
 - This is the only member search feature. It is authenticated-only and deliberately narrowing; not a member directory.
+
+### M_View_Dashboard
+
+Access: An authenticated member sees their own dashboard on their own profile page. It is owner-only and slug-scoped, matching the owner-only-slug pattern used elsewhere; another member's profile never shows it.
+
+Story: As a member, I see everything the platform is waiting on me for in one unmissable place the moment I log in, so that a request, a deadline, or an expiring standing is something I am shown rather than something I have to remember to go looking for.
+
+Success Criteria:
+
+- Signing in lands the member on their own profile page, which serves as their dashboard.
+- When the platform is waiting on the member for anything, the dashboard renders an action block above the profile content, styled so it cannot be missed. Each entry shows a short imperative headline, an optional single line of detail, and the options that resolve it.
+- Every action item carries one of two urgency levels, set by the part of the platform that owns the obligation because only that part knows its deadline: needs attention now, or pending. Needs-attention-now items lead the action block; pending items follow in a quieter list beneath.
+- While the member holds any needs-attention-now item, every other member-facing page carries one compact banner line linking back to the dashboard. A member holding only pending items sees the dashboard block and no banner.
+- The action block is advisory: the member keeps full use of the site while an item is outstanding, and the item stays until it is resolved.
+- With nothing outstanding, the action block and the banner render nothing (no empty-state panel, no "all caught up" message), and the dashboard is the member's profile as usual.
+- The action block and the banner carry only non-private content: a headline, an optional detail line, and the options. Private content, including an administrator's message body, is read on the owner-only surface the item links to.
+- Ordering is needs-attention-now before pending, then soonest deadline first, then a stable order among items with no deadline.
+- Every item resolves in exactly one of three ways, and its options follow from which one it is.
+- **Resolved by acting.** One option, and the item clears when the underlying record changes, with no separate dismissal step: outstanding onboarding tasks, which contribute one grouped entry, "Resume", keeping the wizard's own listing and catalog ordering behind it rather than competing for places in the block (`M_Complete_Onboarding_Wizard`); an unanswered administrator message, "Answer" (`A_Message_Member`); a completed event the member organizes with no results uploaded, "Upload results" (`EO_Upload_Results`); routine music missing on a registration before its upload deadline, "Upload music" (`M_Upload_Routine_Music`); a failed membership purchase, "Try again" (`M_Purchase_Tier_1`, `M_Purchase_Tier_2`); an approved Hall of Fame nomination with no affidavit while the nomination window is open, "Submit affidavit" (`M_Submit_HoF_Affidavit`); messages waiting in a group's moderation queue, "Review queue" (`GO_Moderate_Email_Queue`); pending group membership requests, "Review requests" (`GO_Manage_Members`).
+- **Resolved by acting or by declining.** Two options, because a decline is a legitimate final answer, and the decline is recorded so the item does not return: staged identity-claim candidates, "Confirm" or "Decline" (`M_Claim_Legacy_Account`); a club co-leader invitation, "Accept" or "Decline" (`CL_Manage_CoLeaders`); the prompt to designate a remaining club as primary after leaving the primary one, "Choose a primary club" or "Keep none" (`M_Leave_Club`).
+- **Resolved by time.** The item asks nothing of the member and retires itself, because neither case has a self-serve fix. Active Player status approaching or past expiry appears from the first reminder offset through 30 days past the expiry date and offers "See how to keep Active Player status", pointing at the tier-status page that explains later qualifying event attendance, a vouch, and the unused one-time club-join grant, and offers the tier upgrade that removes the dependence (`M_Active_Player_Expiry`). A recurring donation whose charge failed stays pending, offers "View your recurring donation" on the payment-history page, and clears when Stripe collects or cancels, since retries run on Stripe's dunning schedule (`M_Donate`).
+- An open vote the member is eligible for and has not cast appears as a pending item with a "Vote" option (`M_Vote`). It never escalates to needs-attention-now and carries no decline option, so the platform creates no record of a member's abstention; it clears when the member votes or the vote closes.
+- A completed event with no uploaded results raises one item for each of that event's organizers, and the item clears when results are uploaded.
+- Actions the member takes from the dashboard are audit-logged by the stories that own them.
+- Each obligation keeps whatever reminder email its own story specifies; appearing on the dashboard changes no email behaviour.
 
 ### M_View_Profile
 
@@ -2027,6 +2055,7 @@ Success Criteria:
 
 - Any co-leader can invite a member to co-lead, up to a maximum of 5 co-leaders per club. Co-leadership requires Tier 1+ benefits.
 - An invited member must accept before the co-leader row is written; acceptance is the member's consent to having their contact email shown to authenticated members. An invitee who already co-leads another club cannot accept (a member co-leads at most one club).
+- A pending invitation appears on the invitee's dashboard (`M_View_Dashboard`) with Accept and Decline options. Declining records the refusal so the invitation stops appearing, leaves club membership untouched, and notifies the inviting co-leader by email. The inviting co-leader may invite the same member again later.
 - The invite email states club name and responsibilities and directs the invitee to the standing "volunteer to co-lead" affordance on the club page; accepting is the invitee using it. The invitee must already be a current member of the club (a non-member joins first), and acceptance is their consent to contact-email exposure.
 - Upon acceptance, the new co-leader gains club-editing permissions, and their contact email becomes visible to authenticated members.
 - Any co-leader can view the list of current co-leaders (name, date added).
@@ -2244,8 +2273,7 @@ Success Criteria:
 - Sending writes one `member_messages` row (recipient member ID, sender admin ID, subject, purgeable message body, expected answer kind, optional originating `work_queue_items` ID, `status='sent'`, created timestamp) and one `audit_entries` row (`actor_type='admin'`, `action_type='member_message.sent'`, `metadata_json` carrying the expected answer kind and the body length; never the body).
 - A message sent from a work-queue item moves that item to an `awaiting_member` state, so it leaves the active queue while staying tracked.
 - The member receives a content-free email nudge to their verified login address ("An IFPA administrator has sent you a message. Log in to read it."). The message body never appears in email, because it may concern date of birth, which is owner-and-admin private.
-- On login, a member holding any unanswered admin message is shown an unmissable prompt front and center: a prominent interstitial naming that the IFPA administrator has a question, with an "Answer now" action and a one-line subject preview (never the private body). The prompt is non-blocking: the member can dismiss it and continue using the site.
-- Because it is non-blocking, the login prompt reappears on every login until the message is answered, and a persistent high-visibility "Answer the IFPA administrator" banner stays at the top of every member page in the meantime, so the request is never buried.
+- An unanswered admin message is a needs-attention-now item on the member's dashboard (`M_View_Dashboard`), which the member lands on at every login. It names that the IFPA administrator has a question, shows a one-line subject preview and an "Answer" action, and carries the private body only on the answer surface. Because it is a needs-attention-now item, the compact dashboard banner also follows the member across every other member page until the message is answered, so the request is never buried.
 - The read and answer surface is owner-only and slug-scoped; a slug mismatch returns 404 (anti-enumeration), matching the owner-only-slug pattern used elsewhere.
 - The member answers with the structured control the message specifies (Acknowledge, or Confirm/Correct date of birth, a correction writing the new value back to the member's record through the owning service), plus an optional free-text note up to 2000 characters.
 - Answering sets the `member_messages` row to `status='answered'` and records the structured outcome (acknowledged, confirmed, or corrected-to-value), the optional note (purgeable), and the answered timestamp; it clears the login prompt and the banner.

@@ -69,6 +69,9 @@ import uuid
 from collections import defaultdict
 from datetime import datetime, timezone
 
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "scripts", "lib")))
+from db_cutover_guard import assert_maintainer_db_target  # noqa: E402
+
 # Fixed UUID5 namespace — must never change or existing team_ids will orphan appearance FKs.
 TEAM_UUID_NAMESPACE = uuid.UUID('6ba7b810-9dad-11d1-80b4-00c04fd430c8')
 
@@ -545,6 +548,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--db', required=True, help='Path to footbag.db')
     args = parser.parse_args()
+
+    assert_maintainer_db_target(args.db, "13_build_net_teams.py")
 
     if not os.path.exists(args.db):
         print(f"ERROR: database not found: {args.db}", file=sys.stderr)

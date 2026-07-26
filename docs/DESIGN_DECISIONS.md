@@ -1947,7 +1947,7 @@ All incoming request data is validated at the controller boundary before reachin
 
 Representative validation contracts:
 
-- Registration: `{email: string (email format), password: string (min 8 chars, max 128 chars), displayName: string (max 50 chars)}`.
+- Registration: `{email: string (email format), password: string (min 8 chars, max 128 chars), displayName: string (max 64 chars)}`.
 - Event creation: `{title: string (max 200 chars), startDate: ISO8601, city: string, country: string, disciplines: array of strings}`.
 - Media caption: `{caption: string (max 500 chars), tags: array of strings (max 20 tags, each max 50 chars)}`.
 
@@ -2048,15 +2048,14 @@ Impact:
 
 Decision:
 
-Display names are restricted to prevent impersonation and spoofing via visually similar characters from different scripts. The validator runs at registration, profile edit, and any subsequent rename.
+Display names are restricted to prevent impersonation and spoofing via visually similar characters from different scripts. The validator runs at registration, where a member's display name is set and fixed.
 
 Restrictions enforced:
 
 1. Single-script requirement: characters primarily from one Unicode script (all Latin, all Cyrillic, all CJK, etc.). Allowed mixing: primary script plus the Common and Inherited script categories (spaces, digits, basic punctuation). Forbidden mixing: Latin and Cyrillic, Latin and Greek, and other cross-script combinations.
 2. Reserved name protection: reject names matching reserved words case-insensitively. The reserved set includes role-claim words ("admin", "administrator", "system", "support", "moderator", "staff") and platform-claim words ("IFPA", "footbag", "official"). Common substitutions are checked (`adm1n`, `supp0rt`, `m0derator`).
-3. Confusable character detection: compare the candidate against existing member display names using the Unicode confusables mapping (TR39). Reject if the normalized form is confusably similar to an existing member.
-4. Invisible character prohibition: reject names containing zero-width characters (U+200B, U+200C, U+200D), bidirectional formatting (U+202A through U+202E, U+2066 through U+2069), and the byte-order mark (U+FEFF).
-5. Length: minimum 2 characters, maximum 50 characters, measured after normalization.
+3. Invisible character prohibition: reject names containing zero-width characters (U+200B, U+200C, U+200D), bidirectional formatting (U+202A through U+202E, U+2066 through U+2069), and the byte-order mark (U+FEFF).
+4. Length: minimum 2 characters, maximum 64 characters, measured after normalization.
 
 Validation flow (in order):
 
@@ -2065,8 +2064,7 @@ Validation flow (in order):
 3. Detect the primary Unicode script of the normalized form.
 4. Verify the single-script requirement holds.
 5. Scan for forbidden invisible characters.
-6. Compare against existing member display names for confusability.
-7. Accept if all checks pass; otherwise reject with a specific error explaining which check failed.
+6. Accept if all checks pass; otherwise reject with a specific error explaining which check failed.
 
 Rationale:
 
@@ -2077,22 +2075,19 @@ Rationale:
 
 Requirements:
 
-- The display-name validator is a single helper module invoked by every code path that creates or renames a member.
+- The display-name validator is a single helper module invoked by every code path that sets a member's display name.
 - The reserved-names list and the substitution-variant generator live alongside the validator.
-- The confusables mapping uses the standard Unicode TR39 dataset, refreshed when the project upgrades its Unicode data dependency.
 - Rejection messages name the specific check that failed (so a user with a Cyrillic name knows it is the cross-script rule, not a typo).
 
 Trade-offs:
 
 - Some legitimate names with mixed scripts (transliterated forms, hybrid given-name plus surname) are rejected. Affected users use a single-script form.
-- The confusability comparison is O(N) over existing display names. Mitigation: indexed normalized form on the members table; the comparison runs against the indexed column.
 - Maintaining the reserved-names list and the substitution-variant generator is ongoing work as new role words appear in the product.
 
 Impact:
 
 - Display name space is the platform's primary identity surface. Rules are stricter than other text fields.
 - Affects authentication-time messages, admin tooling, member search, and audit log presentation (the rendered display name is the user's identity in every UI).
-- A rename flow inherits the same validator unchanged.
 
 ## 3.17 External URL Validation
 
@@ -3659,7 +3654,7 @@ Impact:
 
 Decision:
 
-Go-live is a clean DNS switch executed by the operator on Route 53. Before go-live the `footbag.org` zone moves to Route 53 under IFPA-controlled access as advance preparation: the zone is mirrored from the webmaster's bind9 servers (fresh zone snapshot first, verified record-for-record), the webmaster makes the registrar name-server change, and his bind9 service retires once nothing resolves through it. At the switch `www.footbag.org` and the apex `footbag.org` become Route 53 ALIAS records to the production CloudFront distribution; `www` is the canonical host and the apex 301-redirects to `www` through the distribution. No separate apex redirector exists. The legacy site leaves the live path at the switch: no reverse proxy or front door on the legacy server, and no legacy TLS certificate. Recovery is fix-forward or a platform restore first, with any DNS change operator-made on the pre-lowered low-TTL zone; no legacy server remains running for rollback. The Route 53 apex/`www` alias records (`enable_apex_alias_records`) stay gated off through the zone move — Route 53 first serves the zone's existing records faithfully — and flip at T-0 as the switch itself; the SES domain-auth records (`ses_enable_domain_auth`) flip once the zone move completes, taking over from any hand-applied copies.
+Go-live is the operator withdrawing a maintenance page on Route 53-served infrastructure the domain already points at. Before go-live the `footbag.org` zone moves to Route 53 under IFPA-controlled access as advance preparation: the zone is mirrored from the webmaster's bind9 servers (fresh zone snapshot first, verified record-for-record), the webmaster makes the registrar name-server change, and his bind9 service retires once nothing resolves through it. At the switch `www.footbag.org` and the apex `footbag.org` become Route 53 ALIAS records to the production CloudFront distribution; `www` is the canonical host and the apex 301-redirects to `www` through the distribution. No separate apex redirector exists. The legacy site leaves the live path at the switch: no reverse proxy or front door on the legacy server, and no legacy TLS certificate. Recovery is fix-forward or a platform restore first, with any DNS change operator-made on the pre-lowered low-TTL zone; no legacy server remains running for rollback. The Route 53 apex/`www` alias records (`enable_apex_alias_records`) stay gated off through the zone move — Route 53 first serves the zone's existing records faithfully — and flip at the write-freeze, paired with `enable_planned_maintenance`, so the distribution serves the migration page from that moment and go-live is that second flag turning off rather than a DNS change. The archive capture is unaffected either way: its top-up crawls are incremental and read the legacy host directly, which serves until the webmaster powers it down after go-live verification. The SES domain-auth records (`ses_enable_domain_auth`) flip once the zone move completes, taking over from any hand-applied copies.
 
 Rationale:
 
@@ -3689,7 +3684,7 @@ Trade-offs:
 
 Impact:
 
-- `terraform/production/route53.tf` gains the hosted zone and the mirrored records; `enable_apex_alias_records` flips at T-0 as the switch itself; `ses_enable_domain_auth` flips at the zone move; no apex-redirector Terraform exists.
+- `terraform/production/route53.tf` gains the hosted zone and the mirrored records; `enable_apex_alias_records` flips at the write-freeze, paired with `enable_planned_maintenance` in `terraform/production/cloudfront.tf`; `ses_enable_domain_auth` flips at the zone move; no apex-redirector Terraform exists.
 - The DNS cutover runbook in DEVOPS_GUIDE.md (private GitHub repo) scripts an operator-executed Route 53 change; the zone move follows that guide's "External DNS/mail upstream coordination runbook".
 - `TRUST_PROXY` is 2 in staging and production from go-live, with no topology change at any later milestone.
 - MIGRATION_PLAN sequences the cutover (§29.12) and the mail disposition (§29.12a) against this decision; the zone-move coordination lives in GO_LIVE_PLAN.md (private GitHub repo).
