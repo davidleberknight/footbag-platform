@@ -199,7 +199,7 @@ describe('GET /freestyle/glossary — connective panels section', () => {
 describe('GET /freestyle/glossary — connective panels do not break existing content', () => {
   it('glossary intro still renders alongside the connective panels (smoke check)', async () => {
     const res = await request(createApp()).get('/freestyle/glossary');
-    // Phase E re-tier: §1 reframed as a welcoming "Movement Basics" intro.
+    // The opening glossary section is a welcoming "Movement Basics" intro.
     expect(res.text).toMatch(/the language of freestyle footbag/);
   });
 

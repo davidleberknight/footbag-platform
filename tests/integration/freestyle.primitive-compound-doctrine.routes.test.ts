@@ -1,6 +1,5 @@
 /**
- * Integration tests for the Primitive vs Compound doctrine surfaces
- * (post-Wave-7 ontology-clarification slice, 2026-05-23).
+ * Integration tests for the Primitive vs Compound doctrine surfaces.
  *
  * Contracts under test:
  *   - Core-atom trick-detail pages render the "Core movement atom"

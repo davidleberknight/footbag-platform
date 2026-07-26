@@ -2,12 +2,11 @@
  * Integration tests for the default trick-dictionary surface at
  * /freestyle/tricks.
  *
- * Phase D (2026-05-22): the prior six-card browse-mode "gate" was
- * removed. /freestyle/tricks now opens directly on the By ADD ladder —
- * real tricks immediately. Advanced browse modes (Family, Movement
- * System, Movement Neighborhoods, Operators, Observed Tricks) are
- * reachable from a secondary view-toggle, not a gate. There is no
- * coverage / governance block and no publication-state stat strip.
+ * /freestyle/tricks opens directly on the By ADD ladder, showing real
+ * tricks immediately rather than a browse-mode gate. Advanced browse
+ * modes (Family, Movement System, Movement Neighborhoods, Operators,
+ * Observed Tricks) are reachable from a secondary view-toggle. There is
+ * no coverage / governance block and no publication-state stat strip.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -166,10 +165,10 @@ describe('GET /freestyle/tricks — default By ADD ladder', () => {
     expect(res.text).not.toContain('class="trick-coverage-summary"');
     expect(res.text).not.toContain('class="dict-note"');
     expect(res.text).not.toContain('shown for transparency');
-    // 2026-05-24: the "no lead count" assertion was reversed by the
-    // governance/polish slice — dynamic canonical-trick counts now ARE
-    // surfaced in the dictionary intro (replacing vague "hundreds of
-    // named tricks" prose).
+    // Dropping the governance block does not mean dropping counts: the
+    // dictionary intro deliberately carries dynamic canonical-trick
+    // counts rather than vague "hundreds of named tricks" prose, so no
+    // assertion here forbids a lead count.
   });
 
   it('the view-toggle offers every browse system as secondary navigation', async () => {
@@ -182,28 +181,25 @@ describe('GET /freestyle/tricks — default By ADD ladder', () => {
     expect(nav).toContain('By family');
     expect(nav).toContain('By movement system');
     expect(nav).toContain('Movement Neighborhoods');
-    // 2026-05-24 governance/polish slice: "By set" added as a primary
-    // browse axis; "Operators & Modifiers" REMOVED from the toggle row
-    // (operators/modifiers are reference vocabulary, not a dictionary
-    // grouping axis). The /freestyle/operators reference page is still
-    // reachable via the aside line below the toggle.
+    // "Operators & Modifiers" stays out of the toggle row: operators and
+    // modifiers are reference vocabulary, not a dictionary grouping axis.
+    // The /freestyle/operators reference page is reachable from the aside
+    // line below the toggle instead.
     expect(nav).toContain('By modifier');
     expect(nav).not.toContain('href="/freestyle/operators"');
-    // 2026-05-23: the duplicate Observed Tricks link was removed from
-    // the dictionary browse strip. Observed Tricks remains reachable
-    // from the freestyle landing's Go Deeper card.
+    // Observed Tricks is not duplicated into the dictionary browse strip;
+    // it is reachable from the freestyle landing's Go Deeper card.
     expect(nav).not.toContain('href="/freestyle/observational"');
-    // The retired "‹ Dictionary" back-link is gone.
+    // No "‹ Dictionary" back-link in the toggle row.
     expect(nav).not.toContain('trick-view-toggle-back');
   });
 
   it('Operators & Modifiers reference link is reachable from the landing surface', async () => {
-    // DL-1+2+5 2026-05-26: cross-links migrated from the toggle-aside
-    // paragraph into landing-grid cards. On the default landing view
-    // (?view=add, no family filter), the Operators link lives in the
-    // By-movement-system card's crossLink. On secondary views the
-    // toggle-aside paragraph is preserved (rendered only when
-    // activeView != 'add') for reachability without a return trip.
+    // Cross-links live in the landing-grid cards: on the default landing
+    // view (?view=add, no family filter) the Operators link is the
+    // By-movement-system card's crossLink. Secondary views keep the
+    // toggle-aside paragraph (rendered only when activeView != 'add') so
+    // the link stays reachable without a return trip.
     const res = await request(createApp()).get('/freestyle/tricks');
     expect(res.text).toContain('href="/freestyle/operators"');
     // The cross-link sits under the By-movement-system card; verify its

@@ -1,5 +1,5 @@
 /**
- * S3/S5 slot governance migration (2026-05-26).
+ * S3/S5 slot governance.
  *
  * Locks the forever-rule slot ownership across:
  *   - S3 (aliases_json + freestyle_trick_aliases) → pure aliases only
@@ -47,9 +47,10 @@ describe('S3/S5 slot governance — slot ownership invariants', () => {
   });
 });
 
-describe('S5 migration — removed entries (no longer chain-rendered)', () => {
-  // These three slugs had SE chain entries before the 2026-05-26
-  // migration that wrongly held content owned by other slots.
+describe('S5 — entries that must not be chain-rendered', () => {
+  // These three slugs must carry no SE chain entry: their content is owned
+  // by other slots, so a chain entry here would duplicate it in the wrong
+  // place.
 
   it('toe_blur SE chain removed (toe_blur is a pure alias of quantum-mirage, not a canonical trick)', () => {
     expect(getSymbolicEquivalenceChain('toe_blur')).toBeNull();

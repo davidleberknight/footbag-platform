@@ -307,8 +307,8 @@ describe('Landing portal-card inbound link to combo-analysis', () => {
   });
 
   it('add-analysis and combo-analysis co-locate inside exactly one Go Deeper card', async () => {
-    // Structural invariant (Phase C, 2026-05-22): the two-band landing
-    // groups /freestyle/add-analysis and /freestyle/combo-analysis into a
+    // Structural invariant: the two-band landing groups
+    // /freestyle/add-analysis and /freestyle/combo-analysis into a
     // single "Scoring & Combos" Go Deeper card. Splitting on
     // `<div class="card` yields one chunk per card; exactly one chunk
     // must contain both hrefs.

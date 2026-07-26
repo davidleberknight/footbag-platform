@@ -196,7 +196,7 @@ describe('Glossary framing — chapter navigation + non-regression', () => {
   });
 });
 
-describe('Glossary framing — Phase D pt2 steps 1-2 (additive, anchor-safe)', () => {
+describe('Glossary framing — row-contract and non-final-reading notes (additive, anchor-safe)', () => {
   it('row-contract note distinguishes aliases from interpretations and flags non-final readings', async () => {
     const html = await glossary();
     expect(html).toMatch(/is <em>not<\/em> an interpretation/);

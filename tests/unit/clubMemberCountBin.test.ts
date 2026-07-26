@@ -2,14 +2,14 @@
  * Unit tests for the /clubs world-map choropleth bin function.
  *
  * Bin boundaries (1-2 / 3-9 / 10-29 / 30-99 / 100-299 / 300+) were
- * chosen against the 2026-05-18 per-country distribution of
+ * chosen against the observed per-country distribution of
  * legacy_person_club_affiliations: USA=1153 sits alone in bin 6;
  * Canada (258) plus the 100-200 cohort populate bin 5; bin 4
  * captures the middle of the long tail; bins 1-3 split the small-
  * presence countries for visual gradient detail.
  *
- * If the distribution shifts substantially (e.g. when prod cuts in
- * with Phase-H-only clubs), revisit the boundaries — they aren't
+ * If the distribution shifts substantially, for instance once the
+ * production club load lands, revisit the boundaries — they aren't
  * intended to float automatically, they're an editorial bucketing.
  */
 import { describe, it, expect } from 'vitest';

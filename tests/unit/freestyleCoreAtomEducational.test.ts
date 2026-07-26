@@ -1,7 +1,7 @@
 /**
  * Unit tests for the core-atom registry and isCoreAtom() helper.
  *
- * Contract under test (post-Wave-7 editorial pass, 2026-05-23):
+ * Contract under test:
  *
  *   - CORE_ATOM_SLUGS is the canonical 12-atom slug set, derived from
  *     CORE_ATOM_EDUCATIONAL and used at the service layer to suppress
@@ -36,8 +36,7 @@ describe('CORE_ATOM_SLUGS — canonical 12-atom set', () => {
   });
 
   it('contains each of the 12 curator-locked atoms', () => {
-    // Per project_freestyle_core_atoms memory + freestyleCoreAtomEducational
-    // (2026-05-22 curator lock): the 12-atom registry.
+    // The curator-locked 12-atom registry.
     const expected = [
       'toe_stall', 'clipper_stall', 'around_the_world', 'orbit',
       'legover', 'mirage', 'pickup', 'illusion',

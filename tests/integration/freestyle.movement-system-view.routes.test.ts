@@ -85,9 +85,8 @@ describe('GET /freestyle/tricks?view=movement-system — route + toggle', () => 
   });
 
   it('legacy toggle entries remain present except soft-retired views (Component + Category)', async () => {
-    // Component View soft retirement (2026-05-18) and Category View soft
-    // retirement (CR-4 of dictionary-coherence-2026-05-18): toggle entries
-    // removed from the view-toggle row. URLs still resolve (?view=component
+    // Component View and Category View are soft-retired: their entries are
+    // absent from the view-toggle row. The URLs still resolve (?view=component
     // and ?view=category → 200, each with a retirement notice), but no
     // toggle-row link reaches either.
     const res = await request(createApp()).get('/freestyle/tricks?view=movement-system');

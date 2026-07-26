@@ -1,5 +1,5 @@
 /**
- * Eclipse intuition slice (2026-05-25).
+ * Eclipse movement intuition.
  *
  * Adds movement-intuition prose for eclipse on the trick-detail page.
  * The prose surfaces the airborne-hop-over topology framing in

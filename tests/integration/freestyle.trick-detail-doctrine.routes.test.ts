@@ -94,7 +94,7 @@ beforeAll(async () => {
     review_status: 'expert_reviewed', is_active: 1,
   });
 
-  // ── Phase C C1 second batch (2026-05-25) ──────────────────────────
+  // ── Compound fixtures for the doctrine surfaces below ─────────────
   insertFreestyleTrick(db, {
     slug: 'drifter', canonical_name: 'drifter', adds: '3',
     base_trick: 'clipper_stall', trick_family: 'drifter', category: 'compound',

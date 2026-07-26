@@ -416,7 +416,7 @@ describe('GET /freestyle/about', () => {
 
 // ---------------------------------------------------------------------------
 
-describe('GET /freestyle/sets/reference (flat Holden table, moved from /freestyle/sets in Phase B)', () => {
+describe('GET /freestyle/sets/reference (flat Holden table)', () => {
   it('returns 200 with page title', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/sets/reference');
@@ -2099,9 +2099,9 @@ describe('Freestyle glossary — [PDX] component-flag definition', () => {
   });
 });
 
-describe('Freestyle glossary — Batch 3: intro philosophy (C-3-B)', () => {
+describe('Freestyle glossary — intro philosophy', () => {
   it('renders the welcoming Movement Basics intro + compositional framing', async () => {
-    // Phase E re-tier: §1 reframed as a welcoming "Movement Basics" intro.
+    // The opening glossary section is a welcoming "Movement Basics" intro.
     const res = await request(createApp()).get('/freestyle/glossary');
     expect(res.text).toMatch(/the language of freestyle footbag/);
     expect(res.text).toMatch(/vocabulary is compositional/);
@@ -2409,7 +2409,7 @@ describe('Freestyle dictionary — S3: alias-governance allow-list filtering', (
     expect(res.text).not.toContain('leg over');
   });
 
-  it('filters out Wave-2-pending alias rows (osis ≡ frigidosis hidden)', async () => {
+  it('filters out alias rows suppressed pending doctrine resolution (osis ≡ frigidosis hidden)', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=add');
     expect(res.text).not.toContain('frigidosis');
   });

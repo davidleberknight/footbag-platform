@@ -1,6 +1,5 @@
 /**
- * /freestyle/sets/:slug — Set detail page (Phase B of the set-system
- * refactor, 2026-05-25).
+ * /freestyle/sets/:slug — Set detail page.
  *
  * Pins:
  *   - 200 status on known canonical-set slugs (pixie, blurry, surging)
@@ -12,9 +11,9 @@
  *   - Cross-links resolve to expected URLs (set hub, compositional hub,
  *     Movement Systems set axis, flat reference, operators page when
  *     applicable)
- *   - /freestyle/sets (no slug) renders the Set Encyclopedia (200; promoted from 301 in 2026-05-25 polish)
+ *   - /freestyle/sets (no slug) renders the Set Encyclopedia (200, not a redirect)
  *   - /freestyle/sets/reference renders the flat Holden reference (200)
- *   - Set Hub now shows "View set details →" link (no Phase A placeholder)
+ *   - Set Hub shows a "View set details →" link, never a placeholder
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -404,13 +403,10 @@ describe('GET /freestyle/sets/:slug — section order mirrors the trick-detail s
   });
 });
 
-// "Set Hub — Phase B activation of detail-page links" describe block
-// removed 2026-05-27: the Phase A/B Set Hub at /freestyle/tricks?view=sets
-// was retired; that URL now answers "which tricks use this set?" via a
-// modifier-grouped trick list (see freestyle.tricks-by-set.routes.test.ts).
-// Set Encyclopedia uses different class names (sets-encyclopedia-card-*)
-// at the new /freestyle/sets surface; its detail-link coverage lives in
-// freestyle.sets-encyclopedia.routes.test.ts.
+// Set-detail links are not covered here. The /freestyle/tricks?view=sets
+// URL answers "which tricks use this set?" with a modifier-grouped trick
+// list and carries no detail links; the Set Encyclopedia at /freestyle/sets
+// owns them, under its own card class names, and its own suite covers them.
 
 describe('Set detail — X-Dex receiver note (atomic / quantum / nuclear only)', () => {
   for (const slug of ['atomic', 'quantum', 'nuclear']) {

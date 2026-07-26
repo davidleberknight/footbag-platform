@@ -1,6 +1,5 @@
 /**
  * ADD-flattening glossary note and eclipse: routes and rendering.
- * promotion (2026-05-25).
  *
  * Two concerns:
  *
@@ -44,7 +43,7 @@ beforeAll(async () => {
     is_active:           1,
     operational_notation: 'SET > (jump) [BOD] > SAME or OP INSIDE [DEL] > OP OUT [DEX] > (land)',
   });
-  // Curator rulings 2026-05-25: sui-generis primitives + multi-bag boundary
+  // The curator-ruled sui-generis primitives and the multi-bag boundary
   // object. Seed all three so the describe blocks below can assert against
   // them. (createTestDb may only be called once per file — schema would
   // re-create otherwise.)
@@ -153,7 +152,7 @@ describe('Eclipse — curator-supplied operational notation', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────
-// Curator rulings 2026-05-25:
+// Curator rulings under test:
 //   - double-knee: sui-generis 1 ADD body primitive; JOB = self-token
 //     "double knee"; ADD = BOD(1).
 //   - peak-delay: folk-name unusual-surface delay (peak = rim of ballcap);

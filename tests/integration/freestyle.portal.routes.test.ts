@@ -336,11 +336,10 @@ describe('GET /freestyle/history', () => {
 // ---------------------------------------------------------------------------
 // GET /freestyle — two-band landing
 //
-// Structure (Phase C, 2026-05-22): hero → "What is Freestyle?" lede +
-// demo video → Start Here band (beginner paths) → Go Deeper band
-// (reference / archive / analysis) → Featured strip. The prior portal-card
-// grid, Movement Reference shelf, Get Started tiles, and under-hero
-// jump-nav were retired.
+// Structure: hero → "What is Freestyle?" lede + demo video → Start Here
+// band (beginner paths) → Go Deeper band (reference / archive / analysis)
+// → Featured strip. No portal-card grid, Movement Reference shelf, Get
+// Started tiles, or under-hero jump-nav.
 // ---------------------------------------------------------------------------
 
 describe('GET /freestyle — two-band landing', () => {

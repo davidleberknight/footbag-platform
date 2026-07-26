@@ -295,8 +295,8 @@ describe('/freestyle/compositional-sets — §4 consistency audit', () => {
   });
 });
 
-describe('/freestyle/sets/reference — flat Holden table (moved from /freestyle/sets in Phase B)', () => {
-  it('continues to render 200 at its new path (sibling not replacement)', async () => {
+describe('/freestyle/sets/reference — flat Holden table', () => {
+  it('renders 200 at its own path, as a sibling of the Set Encyclopedia rather than a replacement', async () => {
     const res = await request(createApp()).get('/freestyle/sets/reference');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/Freestyle Move Sets/);

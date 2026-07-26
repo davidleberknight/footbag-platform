@@ -201,9 +201,9 @@ describe('buildRelatedTricks — worked examples', () => {
   });
 
   it('atomic-torque: R1 → R2 → R3 → R4 ordering with R3/R4 both firing', () => {
-    // 2026-05-26 polish: R4 (parent base trick) added. atomic-torque's
-    // base_trick=torque is in the osis trick_family (not torque), so
-    // R1 doesn't surface it; R4 now does.
+    // atomic-torque's base_trick=torque sits in the osis trick_family
+    // rather than a torque family, so R1 cannot surface it; R4 (parent
+    // base trick) is the rule that does.
     const result = buildRelatedTricks(pick('atomic_torque'), FIXTURE);
     expect(result.map(r => `${r.rule}:${r.slug}`)).toEqual([
       'family:mobius',

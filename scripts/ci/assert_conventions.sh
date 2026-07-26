@@ -708,6 +708,91 @@ if [ -n "$test_doc_hits" ]; then
   violations=$((violations + 1))
 fi
 
+# Rule: tests/ comments and describe/it names carry no delivery-epoch label and
+# no dated change-marker. A test describes a permanent contract, so a sprint /
+# slice / phase / wave tag or a "(2026-05-25)" stamp on the change dates the
+# test rather than the behavior, and stops meaning anything once the epoch
+# passes. Only comment spans and the title string of a describe/it/test call
+# are scanned, so fixture dates, seeded timestamps, and asserted string values
+# are untouched. A date that is genuine data inside prose stays legal: the
+# banned shape is a parenthesized stamp, a date introducing a clause, or a date
+# next to a change verb. A title asserting that rendered output does NOT expose
+# such labels has to name them, so "does/do not expose" titles are exempt.
+echo "[conventions] check: tests/ epoch-label / dated-change-marker references"
+test_epoch_hits=$(python3 - <<'PYEOF'
+import re, pathlib
+
+label_re = re.compile(
+    r'\b(?:[Pp]hase|[Ss]lice|[Ww]ave)[ -][0-9A-Z]\b'
+    r'|-WAVE-[0-9]'
+    r'|\bUX-?SHIP'
+    r'|\bUX[0-9]'
+    r'|\bDSC-[0-9]'
+    r'|\bNCR-[0-9]'
+    r'|[A-Z]{3,}-REFACTOR'
+)
+date        = r'20[0-9]{2}-[0-9]{2}-[0-9]{2}'
+marker_re   = re.compile(
+    r'\(\s*' + date                                   # a parenthesized stamp
+    + r'|' + date + r'\s*[:;]'                        # a date introducing a clause
+    + r'|\b(?:added|removed|renamed|corrected|changed|updated|retired|moved'
+      r'|migrated|promoted|reversed|deferred)\b[^.]{0,40}?' + date
+)
+title_re    = re.compile(r"\b(?:describe|it|test)\(\s*(['\"`])(.*?)\1", re.S)
+exempt_re   = re.compile(r'do(?:es)? not expose', re.I)
+
+def comment_segments(line, in_block):
+    """Return (list of comment substrings in line, in_block_after_line)."""
+    segs = []
+    i, n = 0, len(line)
+    if in_block:
+        end = line.find('*/')
+        if end == -1:
+            return [line], True
+        segs.append(line[:end])
+        i = end + 2
+    quote = None
+    while i < n:
+        c = line[i]
+        if quote:
+            if c == '\\':
+                i += 2; continue
+            if c == quote:
+                quote = None
+            i += 1; continue
+        if c in ('"', "'", '`'):
+            quote = c; i += 1; continue
+        if c == '/' and i + 1 < n and line[i + 1] == '/':
+            segs.append(line[i + 2:]); return segs, False
+        if c == '/' and i + 1 < n and line[i + 1] == '*':
+            end = line.find('*/', i + 2)
+            if end == -1:
+                segs.append(line[i + 2:]); return segs, True
+            segs.append(line[i + 2:end]); i = end + 2; continue
+        i += 1
+    return segs, False
+
+def flagged(text):
+    if not text or exempt_re.search(text):
+        return False
+    return bool(label_re.search(text) or marker_re.search(text))
+
+for f in sorted(pathlib.Path('tests').rglob('*.ts')):
+    in_block = False
+    for lineno, line in enumerate(f.read_text().splitlines(), 1):
+        segs, in_block = comment_segments(line, in_block)
+        scanned = [' '.join(segs)]
+        scanned += [m.group(2) for m in title_re.finditer(line)]
+        if any(flagged(t) for t in scanned):
+            print(f"{f}:{lineno}: delivery-epoch label or dated change-marker in test comment or name")
+PYEOF
+)
+if [ -n "$test_epoch_hits" ]; then
+  echo "$test_epoch_hits" >&2
+  echo "  FAIL: test comments and describe/it names state the permanent contract; drop sprint/slice/phase/wave labels and dated change-markers" >&2
+  violations=$((violations + 1))
+fi
+
 # Rule: no em dashes in visitor-facing text. Em dashes are unrestricted in
 # code comments, scripts, and docs; only public text a visitor reads is in
 # scope: rendered .hbs text nodes, src/content string values, and the

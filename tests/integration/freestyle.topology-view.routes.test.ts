@@ -1,8 +1,8 @@
 /**
- * Integration tests for the topology view (?view=topology). DSC-2 topology
- * slice — six pedagogically-grounded educational groups computed from
- * existing data (base_trick + modifier links + curator-tagged dex-class
- * bases). Observational layer.
+ * Integration tests for the topology view (?view=topology): six
+ * pedagogically-grounded educational groups computed from existing data
+ * (base_trick + modifier links + curator-tagged dex-class bases).
+ * Observational layer.
  *
  * Verifies:
  *   - /freestyle/tricks?view=topology returns 200

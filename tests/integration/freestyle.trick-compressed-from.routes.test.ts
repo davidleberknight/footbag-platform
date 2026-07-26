@@ -1,6 +1,6 @@
 /**
- * "Compressed from" trick-detail pedagogy line (2026-05-25 glossary
- * follow-on). Strict allowlist of famous structural compressions only:
+ * "Compressed from" trick-detail pedagogy line. Strict allowlist of
+ * famous structural compressions only:
  * smear, ripwalk, atom_smasher, eggbeater, mobius. Reinforces the
  * glossary §composition "Structural compression" concept on flagship
  * detail pages without expanding ontology surfaces.

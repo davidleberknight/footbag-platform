@@ -1,6 +1,6 @@
 /**
- * Integration tests for the semantic-notation refinement slice
- * (2026-05-23). Two surfaces under test:
+ * Integration tests for semantic-notation refinement. Two surfaces under
+ * test:
  *
  *   1. Description column refinement (Part 1):
  *      - Primitive trick whose DB description literally repeats the
@@ -128,11 +128,10 @@ describe('Part 1 — description column refinement', () => {
 
 describe('Part 2 — reverse-pair transform overlay', () => {
   it('renders the transform section on illusion with the ALT formula + explainer', async () => {
-    // 2026-05-23 curator-rendered-output audit (2nd pass): the ALT
-    // formula was re-added to trick-transform.hbs as a labeled "ALT"
-    // <dl> row so non-first-class rev(0) entries surface the ALT
-    // formula visibly without needing the Notation Summary card. The
-    // section still carries the rev(0) explainer + base cross-link.
+    // The transform template carries the ALT formula as a labeled "ALT"
+    // <dl> row, so a non-first-class rev(0) entry surfaces it visibly
+    // without the reader needing the Notation Summary card. The section
+    // also carries the rev(0) explainer and the base cross-link.
     const res = await request(createApp()).get('/freestyle/tricks/illusion');
     expect(res.status).toBe(200);
     expect(res.text).toContain('class="content-section trick-transform"');

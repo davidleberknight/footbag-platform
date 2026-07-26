@@ -535,7 +535,7 @@ Each is separable and answered on its own.
 - **Repeated same-operator scoring (registry Q04).** When the same scored operator
   appears twice in one compound (miraging then miraging), does the second occurrence
   add again? Four rows sit in this gate, plus the active canonical paradox blur, a
-  double-paradox whose empty operational notation waits on the same answer.
+  double-paradox whose asserted ADD waits on the same answer.
 - **Terraging chain arithmetic (registry Q05).** The registry's +3, the shipped
   two-dex clipper notations, footbag.org's 3-bracket terrage, and Red's ruled 4
   cannot all be reconciled from the record; which value is authoritative for the

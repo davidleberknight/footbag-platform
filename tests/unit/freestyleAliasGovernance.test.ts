@@ -21,7 +21,7 @@ describe('freestyleAliasGovernance — allow-list entries', () => {
     expect(entry?.displayAs).toBe('ATW');
   });
 
-  it('marks illusion ≡ outside-in mirage as suppressed (folk record only, Formula Accountability 2026-05-17)', () => {
+  it('marks illusion ≡ outside-in mirage as suppressed (folk record only)', () => {
     const entry = getAliasGovernanceEntry('illusion', 'outside-in mirage');
     expect(entry).not.toBeNull();
     // "outside-in mirage" misrepresents illusion (illusion is a dex with
@@ -36,7 +36,7 @@ describe('freestyleAliasGovernance — allow-list entries', () => {
     expect(entry?.surfaceOnBrowse).toBe(false);
   });
 
-  it('marks osis ≡ frigidosis as Wave-2 pending (NOT surface)', () => {
+  it('marks osis ≡ frigidosis as suppressed pending doctrine resolution (NOT surface)', () => {
     const entry = getAliasGovernanceEntry('osis', 'frigidosis');
     expect(entry).not.toBeNull();
     expect(entry?.surfaceOnBrowse).toBe(false);
@@ -52,9 +52,9 @@ describe('freestyleAliasGovernance — allow-list entries', () => {
 describe('freestyleAliasGovernance — lookup behavior', () => {
   it('is case-insensitive on both slug and alias text', () => {
     expect(getAliasGovernanceEntry('AROUND_THE_WORLD', 'ATW')?.surfaceOnBrowse).toBe(true);
-    // 2026-05-17 Formula Accountability Slice: illusion entry is now
-    // surfaceOnBrowse:false (the "outside-in mirage" reading misrepresents
-    // illusion). Lookup still resolves; surfacing flag is what changed.
+    // The illusion entry is surfaceOnBrowse:false, because the "outside-in
+    // mirage" reading misrepresents illusion. Lookup still resolves it; only
+    // the surfacing flag is off.
     expect(getAliasGovernanceEntry('  illusion  ', 'OUTSIDE-IN MIRAGE')).not.toBeNull();
     expect(getAliasGovernanceEntry('  illusion  ', 'OUTSIDE-IN MIRAGE')?.surfaceOnBrowse).toBe(false);
   });

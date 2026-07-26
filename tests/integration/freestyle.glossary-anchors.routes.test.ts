@@ -100,10 +100,9 @@ describe('glossaryHrefForTerm (pure function)', () => {
 
 describe('GET /freestyle/glossary — fragment anchors render', () => {
   it('renders id="term-X" on all 11 §10 foundational-tricks list items', async () => {
-    // CORE-ATOM-CANONICAL-RECONCILE-1 (2026-05-15): the "clipper" foundational
-    // atom is now anchored at slug `clipper-stall` (community shorthand
-    // `#clipper` rendered via displaySlug override). The DB anchor moved
-    // from `term-clipper` to `term-clipper-stall`.
+    // The "clipper" foundational atom anchors at slug `clipper_stall`, not
+    // `clipper`: the canonical slug is the anchor, and the community
+    // shorthand `#clipper` is rendered through a displaySlug override.
     const res = await request(createApp()).get('/freestyle/glossary');
     expect(res.status).toBe(200);
     expect(res.text).toContain('id="term-clipper_stall"');

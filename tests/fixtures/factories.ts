@@ -800,18 +800,18 @@ export interface FreestyleTrickOverrides {
   sort_order?:     number;
   review_status?:  string;
   is_active?:      0 | 1;
-  // Phase-0 notation-grammar columns (all nullable; default NULL preserves
-  // the pre-Phase-3 behavior for tests that don't opt in).
+  // Notation-grammar columns (all nullable; a test that does not opt in
+  // gets NULL and is unaffected by them).
   jobs_notation_raw?:        string | null;
   jobs_notation_normalized?: string | null;
   structural_parse_json?:    string | null;
   computed_add_formula?:     string | null;
   computed_adds?:            number | null;
   add_formula_status?:       string | null;
-  // O1a (2026-05-10) operational notation column (nullable; default NULL).
+  // Operational notation column (nullable; default NULL).
   operational_notation?:        string | null;
-  // O1d (2026-05-10) free-form curator-authored provenance / citation
-  // line for operational_notation. Nullable; default NULL.
+  // Free-form curator-authored provenance / citation line for
+  // operational_notation. Nullable; default NULL.
   operational_notation_source?: string | null;
   pronunciation?:               string | null;
   // Curator-authored instructional prose (rendered in the Technique Notes
