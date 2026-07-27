@@ -48,7 +48,6 @@ QUARANTINE_CSV     = ROOT / "inputs" / "review_quarantine_events.csv"
 KNOWN_UNKNOWNS_CSV = ROOT / "out" / "known_unknowns.csv"
 RESULTS_FILE_OVERRIDES_CSV = ROOT / "overrides" / "results_file_overrides.csv"
 EVENTS_OVERRIDES_JSONL     = ROOT / "overrides" / "events_overrides.jsonl"
-CONSECUTIVE_CSV    = ROOT / "inputs" / "curated" / "records" / "consecutives_records.csv"
 OUTPUT_PATH        = ROOT / "out" / "Footbag_Results_Release.xlsx"
 
 # Threshold for early-era person supplement (section 3 of alignment audit).
@@ -925,71 +924,6 @@ def build_known_unknowns(wb: Workbook) -> None:
 
     ws.sheet_view.showGridLines = True
     print(f"  KNOWN UNKNOWNS: {len(rows)} entries")
-
-
-# ── CONSECUTIVE RECORDS sheet ─────────────────────────────────────────────────
-
-def build_consecutive_records(wb: Workbook) -> None:
-    """Build CONSECUTIVE RECORDS sheet from curated consecutives_records.csv."""
-    ws = wb.create_sheet("CONSECUTIVE RECORDS")
-
-    if not CONSECUTIVE_CSV.exists():
-        row = _title_row(ws, 1, "CONSECUTIVE RECORDS", ncols=6)
-        _w(ws, row, 1, "(consecutives_records.csv not found)", font=FONT_NOTE)
-        print("  CONSECUTIVE RECORDS: skipped (file not found)")
-        return
-
-    with open(CONSECUTIVE_CSV, newline="", encoding="utf-8") as f:
-        rows = list(csv.DictReader(f))
-
-    ws.column_dimensions["A"].width = 42
-    ws.column_dimensions["B"].width = 24
-    ws.column_dimensions["C"].width = 24
-    ws.column_dimensions["D"].width = 14
-    ws.column_dimensions["E"].width = 14
-    ws.column_dimensions["F"].width = 36
-    ws.column_dimensions["G"].width = 28
-    ws.freeze_panes = "A3"
-
-    row = _title_row(ws, 1,
-        "CONSECUTIVE KICKS RECORDS — CURATED HISTORICAL DATA", ncols=7)
-    row = _note_row(ws, row,
-        "Official world records, highest scores, record progression, "
-        "and milestone firsts.  Source: curated records archive.")
-
-    current_section = ""
-    for r in rows:
-        section    = r.get("section", "").strip()
-        subsection = r.get("subsection", "").strip()
-        division   = r.get("division", "").strip()
-        player     = r.get("person_or_team", "").strip()
-        partner    = r.get("partner", "").strip()
-        score      = r.get("score", "").strip()
-        year       = r.get("year", "").strip()
-        note       = r.get("note", "").strip()
-        event      = r.get("event_name", "").strip()
-        location   = r.get("location", "").strip()
-
-        # Section header
-        if section != current_section:
-            current_section = section
-            row = _section_row(ws, row, section, ncols=7)
-            row = _hrow(ws, row,
-                "Division / Subsection", "Player", "Partner",
-                "Score", "Year", "Event", "Note")
-
-        display_name = f"{division}" if division else subsection
-        display_partner = partner if partner else ""
-
-        row = _drow(ws, row,
-            display_name, player, display_partner,
-            int(score) if score.isdigit() else score,
-            int(year) if year.isdigit() else year,
-            event or location,
-            note)
-
-    print(f"  CONSECUTIVE RECORDS: {len(rows)} entries across "
-          f"{len(set(r.get('section','') for r in rows))} sections")
 
 
 # ── README sheet ──────────────────────────────────────────────────────────────
@@ -1959,7 +1893,6 @@ def main() -> None:
 
     build_readme(wb, events, persons, len(raw_results))
     build_known_unknowns(wb)
-    build_consecutive_records(wb)
     build_statistics(wb, stats, persons)
     build_era_leaders(wb, raw_results, events, discs, persons)
     build_player_stats(wb, stats, persons)
@@ -1982,7 +1915,6 @@ def main() -> None:
                      "STATISTICS", "ERA LEADERS", "PLAYER STATS",
                      "NET SINGLES STATS", "FREESTYLE SINGLES STATS",
                      "NET PARTNERSHIPS", "FREESTYLE PARTNERSHIPS",
-                     "CONSECUTIVE RECORDS",
                      "QC - EXCLUDED EVENTS",
                      "DATA NOTES - OVERRIDES"]
     final_order = desired_front + [s for s in wb.sheetnames if s not in desired_front]

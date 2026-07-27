@@ -61,3 +61,16 @@ def test_override_notes_empty_when_no_files(tmp_path):
     b.build_override_notes(wb, {}, {}, tmp_path / "none.csv", tmp_path / "none.jsonl")
     ws = wb["DATA NOTES - OVERRIDES"]
     assert [r for r in ws.iter_rows(values_only=True) if r[2] in ("results-file", "field")] == []
+
+
+def test_consecutive_records_sheet_is_not_built():
+    """The release workbook does not carry a CONSECUTIVE RECORDS sheet.
+
+    That sheet was a two-row missing-file placeholder with no consumer; canonical
+    consecutive records load through the freestyle loader into the database
+    instead. This guards against the obsolete builder, its input constant, and its
+    front-order entry silently returning.
+    """
+    assert not hasattr(b, "build_consecutive_records")
+    assert not hasattr(b, "CONSECUTIVE_CSV")
+    assert "CONSECUTIVE RECORDS" not in MOD.read_text(encoding="utf-8")
