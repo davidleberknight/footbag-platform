@@ -18,6 +18,12 @@ export interface AppConfig {
   logLevel: string;
   dbPath: string;
   publicBaseUrl: string;
+  // Base URL of the members-only legacy archive (the preserved original
+  // footbag.org, served by its own CloudFront distribution). The landing page
+  // is the ONLY archive URL the platform ever emits; the mirror's interior
+  // paths are the legacy site's URL space, never constructed platform-side.
+  // Null when unset (dev/test default): archive-linking UI is omitted.
+  archiveUrl: string | null;
   sessionSecret: string;
   mediaDir: string;
   curatedMediaDir: string;
@@ -708,6 +714,7 @@ function loadConfig(): AppConfig {
     logLevel: process.env.LOG_LEVEL ?? (footbagEnv === 'development' ? 'debug' : 'info'),
     dbPath: requireEnv('FOOTBAG_DB_PATH'),
     publicBaseUrl: requireEnv('PUBLIC_BASE_URL'),
+    archiveUrl: process.env.ARCHIVE_URL || null,
     sessionSecret,
     mediaDir: process.env.FOOTBAG_MEDIA_DIR || './s3-adapter-local',
     curatedMediaDir: process.env.FOOTBAG_CURATED_MEDIA_DIR || './.curated-build',

@@ -244,7 +244,15 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description="Create a local mirror of footbag.org."
     )
-    parser.add_argument("username", help="footbag.org username/email")
+    parser.add_argument(
+        "username",
+        nargs="?",
+        default=None,
+        help=(
+            "footbag.org username/email. Required for every mode that touches "
+            "the network; omitted only with --apply-exclusions-only."
+        ),
+    )
     parser.add_argument(
         "password",
         nargs="?",
@@ -312,6 +320,41 @@ def parse_args():
             "rewrite the referring pages to link the local mp4 files. Each "
             "record's outcome is written back to the manifest."
         )
+    )
+    parser.add_argument(
+        "--exclusion-list",
+        dest="exclusion_list",
+        metavar="PATH",
+        default=None,
+        help=(
+            "File of site-root-relative URL paths this crawl must never "
+            "capture (one per line, '#' comments; an entry matches itself and "
+            "everything beneath it). REQUIRED for every network mode: the "
+            "authenticated crawl account sees committee-scoped content an "
+            "IFPA ruling keeps out of the member archive, and a crawl without "
+            "the list silently re-captures it. The maintained list lives "
+            "beside the private custody copies of the same content, in the "
+            "maintainers' private operations checkout "
+            "(private-custody/ifpa-group-files/CRAWL_EXCLUSIONS.txt)."
+        ),
+    )
+    parser.add_argument(
+        "--apply-exclusions-only",
+        dest="apply_exclusions_only",
+        action="store_true",
+        help=(
+            "No crawl, no network, no credentials: load --exclusion-list, "
+            "delete every already-captured excluded artifact from the mirror "
+            "tree, prune crawl state to match, and exit. Idempotent; how a "
+            "ruling's removals are applied to an existing tree. Combine with "
+            "--dry-run to print the removals without deleting."
+        ),
+    )
+    parser.add_argument(
+        "--dry-run",
+        dest="dry_run",
+        action="store_true",
+        help="With --apply-exclusions-only: print removals, delete nothing.",
     )
 
     # If run with no args, show the full help text (instead of just a terse error)
@@ -1081,6 +1124,138 @@ def is_unsafe_url(url):
         return True
     return False
 
+# Content exclusions: legacy content an IFPA ruling keeps out of the member
+# archive (committee-scoped group files, private-group pages). Distinct from
+# is_unsafe_url, which is mutation/admin safety: these URLs are ordinary
+# readable content that the crawl account's elevated entitlement can see but
+# the member-visible archive must never widen to every member. The list is an
+# operator-supplied file of site-root-relative URL paths (one per line, '#'
+# comments, percent-decoded); an entry matches itself and everything beneath
+# it. The list lives with the private custody copies of the same content, so
+# an authenticated crawl REQUIRES it: crawling without it silently re-captures
+# what the ruling removed.
+CONTENT_EXCLUSIONS = frozenset()
+
+def load_content_exclusions(path):
+    entries = set()
+    with open(path, 'r', encoding='utf-8') as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+            entries.add(unquote(line).strip('/'))
+    if not entries:
+        raise ValueError(f"Exclusion list has no entries: {path}")
+    return frozenset(entries)
+
+def is_excluded_url(url):
+    # True when the URL's percent-decoded path equals an exclusion entry or
+    # sits beneath one. Ancestor-walk keeps 'groups/showfile/208' from ever
+    # matching 'groups/showfile/2081' the way a naive prefix test would.
+    if not CONTENT_EXCLUSIONS:
+        return False
+    path = unquote(urlparse(url).path).strip('/')
+    while path:
+        if path in CONTENT_EXCLUSIONS:
+            return True
+        if '/' not in path:
+            return False
+        path = path.rsplit('/', 1)[0]
+    return False
+
+def _excluded_disk_candidates(entry):
+    # Every on-disk artifact an excluded URL path may have produced inside the
+    # www serving tree: the path itself (file or directory), the extension-case
+    # variant, the crawler's converted media name, and each one's .sanitized
+    # sidecar. Candidates only; the sweep deletes the ones that exist.
+    root = Path(MIRROR_DIR) / WWW_HOST
+    p = root / entry
+    ext = p.suffix.lower()
+    cands = [p]
+    if p.suffix and ext != p.suffix:
+        cands.append(p.with_suffix(ext))
+    if ext in VIDEO_EXTENSIONS:
+        cands.append(p.with_suffix('.mp4'))
+    elif ext in IMAGE_EXTENSIONS and ext != '.gif':
+        cands.append(p.with_suffix('.jpg'))
+    out = []
+    for c in dict.fromkeys(cands):
+        out.append(c)
+        out.append(Path(str(c) + '.sanitized'))
+    return out
+
+def apply_exclusions_sweep(dry_run=False):
+    # Deterministic enforcement pass over an existing tree: removes every
+    # on-disk artifact of an excluded URL, prunes now-empty directories, and
+    # rewrites crawl state (progress file, skipped-video manifest) so a resumed
+    # crawl neither re-fetches nor references the removed content. Idempotent,
+    # network-free, and acts only inside the www serving tree; the mirror is
+    # regenerable crawl output, so this pass, not hand deletion, is how a
+    # ruling's removals are applied to a tree that already exists.
+    root = (Path(MIRROR_DIR) / WWW_HOST).resolve()
+    removed = []
+    for entry in sorted(CONTENT_EXCLUSIONS):
+        for cand in _excluded_disk_candidates(entry):
+            try:
+                cand.resolve().relative_to(root)
+            except ValueError:
+                logging.warning(f"Exclusion escapes the www tree, refused: {entry}")
+                continue
+            if cand.is_dir():
+                for sub in sorted(p for p in cand.rglob('*') if p.is_file()):
+                    removed.append(sub)
+                    if not dry_run:
+                        sub.unlink()
+                if not dry_run:
+                    shutil.rmtree(cand)
+            elif cand.is_file():
+                removed.append(cand)
+                if not dry_run:
+                    cand.unlink()
+    if not dry_run:
+        for parent in sorted({p.parent for p in removed}, reverse=True):
+            while parent != root and parent.is_dir() and not any(parent.iterdir()):
+                parent.rmdir()
+                parent = parent.parent
+    removed_strs = {str(p) for p in removed}
+
+    state_pruned = 0
+    if mirror_state.load_progress():
+        def keep(url):
+            return not is_excluded_url(url)
+        before = (len(mirror_state.visited) + len(mirror_state.queue)
+                  + len(mirror_state.failed_urls) + len(mirror_state.skipped_videos)
+                  + len(mirror_state.sitemap) + len(mirror_state.content_hashes))
+        mirror_state.visited = {u for u in mirror_state.visited if keep(u)}
+        mirror_state.failed_urls = {u for u in mirror_state.failed_urls if keep(u)}
+        mirror_state.queue = [u for u in mirror_state.queue if keep(u)]
+        mirror_state.url_depth = {u: d for u, d in mirror_state.url_depth.items() if keep(u)}
+        mirror_state.skipped_videos = {
+            k: r for k, r in mirror_state.skipped_videos.items()
+            if keep(k) and keep(r.get('url', k))
+        }
+        mirror_state.stats['skipped_videos'] = len(mirror_state.skipped_videos)
+        mirror_state.sitemap = [p for p in mirror_state.sitemap if p not in removed_strs]
+        mirror_state.content_hashes = {
+            h: p for h, p in mirror_state.content_hashes.items() if p not in removed_strs
+        }
+        after = (len(mirror_state.visited) + len(mirror_state.queue)
+                 + len(mirror_state.failed_urls) + len(mirror_state.skipped_videos)
+                 + len(mirror_state.sitemap) + len(mirror_state.content_hashes))
+        state_pruned = before - after
+        if not dry_run:
+            mirror_state.save_progress()
+            if os.path.exists(os.path.join(MIRROR_DIR, SKIPPED_VIDEO_MANIFEST)):
+                mirror_state.write_skipped_video_manifest()
+
+    verb = "would remove" if dry_run else "removed"
+    logging.info(f"Exclusion sweep: {verb} {len(removed)} files, "
+                 f"pruned {state_pruned} state entries "
+                 f"({len(CONTENT_EXCLUSIONS)} exclusion entries)")
+    for p in sorted(removed_strs):
+        print(f"{'DRY-RUN ' if dry_run else ''}remove: {p}")
+    return len(removed)
+
 def get_extension(url_or_path):
     return Path(urlparse(url_or_path).path.lower()).suffix
 
@@ -1759,6 +1934,9 @@ def download_and_process_media(url, session, referrer=None, thumbnail_or_poster=
     if is_unsafe_url(url):
         logging.info(f"Refusing admin/mutating URL (media): {url}")
         return None
+    if is_excluded_url(url):
+        logging.info(f"Refusing excluded content URL (media): {url}")
+        return None
     try:
         if "openVideoWindow" in url:
             logging.debug(f"Skipping JS-based media placeholder: {url}")
@@ -2152,6 +2330,9 @@ def resolve_actual_video_url(popup_url):
     # Resolve a popup page URL (e.g. /gallery/show/foo?Mode=popup (mode should be stripped))
     if is_unsafe_url(popup_url):
         logging.info(f"Refusing admin/mutating URL (popup): {popup_url}")
+        return None
+    if is_excluded_url(popup_url):
+        logging.info(f"Refusing excluded content URL (popup): {popup_url}")
         return None
     try:
         # A relative popup path joins against www (only the www gallery emits
@@ -3085,6 +3266,9 @@ def save_content(url, content, is_html):
 def is_in_scope(url):
     if is_unsafe_url(url):
         return False
+    if is_excluded_url(url):
+        logging.info(f"Refusing excluded content URL (scope): {url}")
+        return False
     parsed = urlparse(url)
     # Only the crawl hosts (www + the WordPress vhost) are fetched. Every other
     # footbag.org host — aliases, the now-dead media hosts, mail/internal — is out
@@ -3646,6 +3830,10 @@ def run_video_backfill():
             rec['disposition'] = 'backfill_refused_unsafe'
             outcomes['refused'] += 1
             continue
+        if is_excluded_url(url):
+            rec['disposition'] = 'backfill_refused_excluded'
+            outcomes['refused'] += 1
+            continue
         processed = download_and_process_media(url, session, referrer=None)
         if processed and processed != SKIPPED_VIDEO:
             rec['disposition'] = 'backfilled'
@@ -3718,6 +3906,9 @@ def is_events_show_url(url):
 def fetch(url):
     if is_unsafe_url(url):
         logging.info(f"Refusing admin/mutating URL (fetch): {url}")
+        return None, None
+    if is_excluded_url(url):
+        logging.info(f"Refusing excluded content URL (fetch): {url}")
         return None, None
     attempt = 0
     max_attempts = 1 + MAX_RETRIES  # total attempts = initial + retries
@@ -4398,10 +4589,41 @@ def crawl(start_urls):
             print_stats()
 
 def main():
-    global USERNAME, PASSWORD, LOG_TO_FILE, SKIP_VIDEOS
+    global USERNAME, PASSWORD, LOG_TO_FILE, SKIP_VIDEOS, CONTENT_EXCLUSIONS
 
     args = parse_args()
     LOG_TO_FILE = args.log_to_file   # if your parser uses dest="log", change this to: args.log
+
+    # Every mode consumes the exclusion list; every network mode REQUIRES it.
+    # The crawl account's entitlement sees committee-scoped content the member
+    # archive must never serve, so a listless crawl silently re-captures what
+    # the ruling removed - hence a hard preflight failure, not a warning.
+    if args.exclusion_list:
+        try:
+            CONTENT_EXCLUSIONS = load_content_exclusions(args.exclusion_list)
+        except (OSError, ValueError) as e:
+            sys.exit(f"ERROR: cannot load --exclusion-list: {e}")
+        logging.info(f"Content exclusions loaded: {len(CONTENT_EXCLUSIONS)} "
+                     f"entries from {args.exclusion_list}")
+    elif not args.apply_exclusions_only:
+        sys.exit(
+            "ERROR: --exclusion-list is required for any crawl or backfill. "
+            "The maintained list is CRAWL_EXCLUSIONS.txt under "
+            "private-custody/ifpa-group-files/ in the maintainers' private "
+            "operations checkout (repo-root symlink footbag_private_repo). "
+            "It keeps committee-scoped legacy content out of the member "
+            "archive; a crawl without it re-captures that content."
+        )
+
+    if args.apply_exclusions_only:
+        # Tree + state enforcement only: no login, no credentials, no network.
+        if not args.exclusion_list:
+            sys.exit("ERROR: --apply-exclusions-only requires --exclusion-list.")
+        apply_exclusions_sweep(dry_run=args.dry_run)
+        return
+
+    if not args.username:
+        sys.exit("ERROR: username is required for any crawl or backfill.")
     USERNAME = args.username
     PASSWORD = resolve_password(args.password)
     SKIP_VIDEOS = not args.process_videos

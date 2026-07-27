@@ -74,6 +74,16 @@ the human's instruction as given.
   the human names, and note the wiring gap in one line.
 - Files drafted into `footbag_private_repo/` are working drafts: a human reviews,
   commits, and pushes them.
+- **Companion-doc sync (hard rule).** Nothing drafted into the private checkout — a
+  dataset, artifact directory, script, or document — is finished until the repo's
+  primary docs account for it in the same pass: the `README.md` "What lives where"
+  map; `DATA_INVENTORY.md` (the placement-homes list, plus a dataset row for anything
+  private, sensitive, or archival); the applicable governance doc when the material is
+  governance-scoped; and a roadmap home (`GO_LIVE_PLAN.md`, `PARKED.md`, or
+  `V2_SCOPE.md`) when it changes or defers planned work. Check for those mentions
+  before declaring the drafting done, and draft any missing ones yourself. An
+  undocumented stash in an access-controlled repo is invisible data — the failure
+  mode this rule exists to prevent.
 
 ## Graduating hunt findings
 

@@ -175,6 +175,8 @@ No contact field (email, phone, social handle) is visible on any public page or 
 
 **Sealed legacy email archive.** The legacy IFPA group-message corpus (private and public discussion intermixed, including privately cast committee votes) is sealed, encrypted, and retained privately under IFPA custody; it is never imported, processed, or exposed, and privately cast votes are permanently non-publishable. Custody, key handling, and release are governed by DESIGN_DECISIONS §6.5a.
 
+**Group-scoped documents.** Documents the legacy site scoped to a group's own membership — every private group's files, and committee-scoped files in public groups — are excluded from the member-visible archive and held privately under IFPA custody, together with the captured pages that exposed their names and descriptions; the member-gated archive never widens a group-scoped audience.
+
 **IFPA governance authority over IFPA-owned legacy records.** IFPA-owned legacy records (group messages, committee votes, elections, and the official rulebook) are IFPA governance data. Their disposition, release, redaction, or destruction is an IFPA governance decision, never operator or maintainer discretion. The legacy-site webmaster may be operational custodian and is the authoritative source of facts about these records, but holding the files does not confer authority to release or destroy them.
 
 ---

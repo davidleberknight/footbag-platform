@@ -97,8 +97,9 @@ data "aws_ssm_parameter" "app_session_secret" {
 
 # ── Safe Browsing v4 API key (operator-supplied) ─────────────────────────────
 # SecureString + KMS-encrypted. Terraform owns the resource shell with a TODO
-# placeholder; the real value is operator-supplied via:
-#   AWS_PROFILE=footbag-staging-runtime aws ssm put-parameter \
+# placeholder; the real value is operator-supplied, under operator credentials —
+# the app runtime role is deliberately read-only on SSM and cannot PutParameter:
+#   aws ssm put-parameter \
 #     --name "/footbag/staging/secrets/safe_browsing_api_key" \
 #     --value "file:///tmp/sb-key" --type SecureString \
 #     --key-id alias/footbag-staging --overwrite

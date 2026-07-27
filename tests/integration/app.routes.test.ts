@@ -602,6 +602,12 @@ describe('GET /', () => {
     expect(res.text).toContain('href="/media"');
   });
 
+  it('omits the Legacy Archive card when no archive URL is configured', async () => {
+    const app = createApp();
+    const res = await request(app).get('/');
+    expect(res.text).not.toContain('Legacy Archive');
+  });
+
   it('does not expose draft events', async () => {
     const app = createApp();
     const res = await request(app).get('/');

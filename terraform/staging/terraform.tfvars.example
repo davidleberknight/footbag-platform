@@ -52,3 +52,32 @@ enable_backup_alarm   = false
 # acquired). Until then, set to a Workspace alias on an institutional
 # domain you control — recorded in local operator notes, not committed.
 ses_sender_identity = "TODO-noreply@example.org"
+
+# ── Legacy archive rehearsal ──────────────────────────────────────────────────
+# The archive serves on its distribution's own cloudfront.net name; the
+# custom-domain flag stays off in staging (no domain, no zone). Turning
+# enable_archive on needs the public key below plus archive_platform_url,
+# because staging's platform has no domain to derive it from:
+#   archive_platform_url = "https://$(terraform output -raw cloudfront_domain)"
+# (no trailing slash).
+#
+# Generate the signing keypair in the ~/AWS/ operator folder (the project home
+# for durable operator workstation files), never in Terraform and never inside
+# a repo checkout:
+#   openssl genrsa -out ~/AWS/archive-signing-key.pem 2048
+#   openssl rsa -pubout -in ~/AWS/archive-signing-key.pem -out ~/AWS/archive-signing-key.pub
+# Paste the .pub contents here; keep the private .pem off this file and put it
+# into SSM after apply:
+#   aws ssm put-parameter \
+#     --name "/footbag/staging/secrets/archive_signing_private_key" \
+#     --value "file://$HOME/AWS/archive-signing-key.pem" --type SecureString \
+#     --key-id alias/footbag-staging --overwrite
+enable_archive               = false
+enable_archive_custom_domain = false
+archive_platform_url         = ""
+
+# archive_signing_public_key = <<-EOT
+#   -----BEGIN PUBLIC KEY-----
+#   TODO-paste-archive-signing-key.pub
+#   -----END PUBLIC KEY-----
+# EOT

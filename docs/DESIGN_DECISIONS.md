@@ -3142,7 +3142,7 @@ A static, read-only mirror of key site content (e.g., events, clubs, media galle
 
 Decision:
 
-The legacy footbag.org site is preserved as a static HTML mirror in a dedicated S3 bucket served via CloudFront at archive.footbag.org. Access is restricted to authenticated members of the main platform. Only the legacy URL patterns that a concrete need requires redirect into the archive via 301; the legacy URL space is not otherwise preserved. Edge authentication uses CloudFront signed cookies via a trusted-signer key group; the main app issues the signed cookie at session creation and on every session refresh.
+The legacy footbag.org site is preserved as a static HTML mirror in a dedicated S3 bucket served via CloudFront at archive.footbag.org. Access is restricted to authenticated members of the main platform. The platform links only to the archive's landing page and never constructs URLs into the mirror's interior: the mirror's paths are the legacy site's own URL space, legacy URLs on the platform resolve to their new-platform equivalent or the friendly legacy-URL 404, and the legacy URL space is not preserved. Edge authentication uses CloudFront signed cookies via a trusted-signer key group; the main app issues the signed cookie at session creation and on every session refresh.
 
 Rationale:
 
@@ -3152,13 +3152,13 @@ Rationale:
 
 - Members-only access protects old member contact information preserved in the archive HTML.
 
-- Redirects are added only where a concrete need requires one, not as a general policy of backward compatibility. The patterns that qualify are those circulating in old transactional email, member profiles and clubs, which are the links real people still follow. Link integrity and search-engine equity across the roughly 93,500 mirrored URLs are deliberately traded away rather than carried by a catch-all redirect: every other legacy path returns the friendly legacy-URL 404, with its content reachable inside the archive.
+- No legacy URL redirects into the archive. The legacy links real people still follow are served on the platform side: old member-profile links land on the live profile, a claim soft-landing, or the friendly legacy-URL 404, and old club links resolve to the new club page or that same 404, because no interior archive path is derivable from a platform-side key. Link integrity and search-engine equity across the roughly 93,500 mirrored URLs are deliberately traded away rather than carried by a catch-all redirect: legacy content is reachable by browsing the archive from its landing page.
 
 - Archive HTML uses mp4 video and jpg images, and contains no JavaScript, so the mirror is fully static.
 
 - The archive preserves both live footbag.org content hosts as one served site: the main site at the archive root and the WordPress championship-microsite host under a reserved `sites/` path prefix, so no legacy hostname survives in served HTML and all links resolve within the single archive host.
 
-- CloudFront signed cookies enforce the auth check natively at the edge. CloudFront verifies the cookie's RSA signature against the public key in the trusted-signer key group resource; no edge code path, no Lambda@Edge, no public-key bundling.
+- CloudFront signed cookies enforce the auth check natively at the edge. CloudFront verifies the cookie's RSA signature against the public key in the trusted-signer key group resource; no Lambda@Edge, no public-key bundling. A lightweight viewer-request CloudFront Function carries the one behavior signature verification cannot: it appends `index.html` to directory URLs so the mirror's root-relative directory links resolve against the S3 origin. CloudFront validates the signature before a viewer-request function runs, so a function cannot intercept a cookie-less request; the anonymous experience is owned by the denied-access page, not by an edge redirect.
 
 - Cookie domain is `.footbag.org` so a single session covers both the apex (or www) and the archive subdomain without a separate login.
 
@@ -3170,11 +3170,13 @@ Requirements:
 
 - The main app sets the signed cookie at every login and at every JWT refresh, in the same middleware that re-issues the session JWT. Cookie expiry equals the JWT TTL (24h default per §3.4) so archive access and main-site access share the same staleness boundary.
 
-- The S3 archive bucket is private behind Origin Access Control. The bucket policy permits only the archive CloudFront distribution to read.
+- The S3 archive bucket is private behind Origin Access Control. The bucket policy permits only the archive CloudFront distribution to read, granting it `s3:ListBucket` alongside `s3:GetObject` so a key the mirror does not hold returns 404; an object-only grant makes S3 answer 403 for a missing key, which the edge cannot tell apart from a refused credential.
 
-- The archive CloudFront distribution uses 1-year edge TTL on its content (immutable archive per §6.2) and a custom 403 error response that redirects to `https://footbag.org/login?return=archive.footbag.org` when the signed cookie is missing or invalid.
+- The archive CloudFront distribution uses 1-year edge TTL on its content (immutable archive per §6.2). A request with no signed cookies, or whose cookie is expired or invalid, draws CloudFront's 403, which a custom error response maps to a denied-access page served from a dedicated unauthenticated cache behavior carrying the login link. CloudFront validates the cookie signature before the viewer-request function runs, and custom error responses serve a page from the distribution's own origins and cannot redirect to an external URL, so no edge login redirect is possible; the denied-access page is the whole refusal surface. A request for a path the archive does not hold draws a 404, mapped to its own not-found page on that same unauthenticated behavior, so a broken link inside the mirror reads as a missing page rather than as a refused sign-in.
 
 - DNS for archive.footbag.org is a Route 53 record pointing at the archive distribution.
+
+- The archive distribution writes standard access logs to a dedicated log bucket. A members-only surface holding legacy member contact details is not operated without a record of what was served.
 
 - Key rotation follows the multi-key pattern: add the new public key to the key group, the app starts signing with the new private key, the old public key stays in the group during a grace period equal to the cookie TTL, then the old key is removed.
 
@@ -3190,7 +3192,7 @@ Trade-offs:
 
 Impact:
 
-- Archive infrastructure is fully expressed in Terraform: archive S3 bucket, OAC, archive CloudFront distribution, key group, Route 53 record. No Lambda code path.
+- Archive infrastructure is fully expressed in Terraform: archive S3 bucket, OAC, archive CloudFront distribution, key group, viewer-request CloudFront Function, its own us-east-1 ACM certificate, Route 53 record, an access-log bucket receiving the distribution's standard logs, and the denied-access and not-found pages themselves, which Terraform places under a reserved key prefix so the distribution's refusal behavior can be proved before any mirror content is uploaded. No Lambda code path.
 
 - The main app's login and JWT-refresh middleware sets the signed cookie alongside the session JWT. Both cookies use `Domain=.footbag.org` (host-only scope is not sufficient for the subdomain to receive them).
 

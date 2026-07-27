@@ -75,7 +75,10 @@ def test_main_creates_relocated_state_dir_before_opening_log(tmp_path, monkeypat
         raise _Stop('stop before network')
 
     monkeypatch.setattr(m.mirror_state, 'load_progress', _boom)
-    monkeypatch.setattr(sys, 'argv', ['create_mirror_footbag_org.py', 'someuser', '-log'])
+    exclusions = tmp_path / 'exclusions.txt'   # network modes require the list
+    exclusions.write_text('groups/showfile/208\n')
+    monkeypatch.setattr(sys, 'argv', ['create_mirror_footbag_org.py', 'someuser',
+                                      '-log', '--exclusion-list', str(exclusions)])
     try:
         m.main()
     except _Stop:

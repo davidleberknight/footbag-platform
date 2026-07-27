@@ -49,6 +49,26 @@ output "maintenance_bucket_name" {
   value       = aws_s3_bucket.maintenance.bucket
 }
 
+output "archive_bucket_name" {
+  description = "S3 bucket holding the legacy archive mirror. The content publisher syncs into it."
+  value       = var.enable_archive ? aws_s3_bucket.archive[0].bucket : null
+}
+
+output "archive_distribution_id" {
+  description = "CloudFront distribution ID for the legacy archive. Every publish ends with an invalidation against it, because the edge TTL is a year."
+  value       = var.enable_archive ? aws_cloudfront_distribution.archive[0].id : null
+}
+
+output "archive_domain" {
+  description = "Hostname the archive is served at: the custom domain once its flag is on, otherwise the distribution's own cloudfront.net name, which is the host the hand-signed-cookie edge proof runs against."
+  value       = var.enable_archive ? (var.enable_archive_custom_domain ? local.archive_domain : aws_cloudfront_distribution.archive[0].domain_name) : null
+}
+
+output "archive_key_pair_id" {
+  description = "CloudFront public key ID named as CloudFront-Key-Pair-Id when signing archive cookies. Only Terraform knows this value."
+  value       = var.enable_archive ? aws_cloudfront_public_key.archive[0].id : null
+}
+
 output "kms_key_arn" {
   description = "ARN of the KMS key used for SSM parameter encryption"
   value       = aws_kms_key.main.arn

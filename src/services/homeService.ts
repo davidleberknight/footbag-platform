@@ -1,6 +1,7 @@
 import { PublicEventSummary } from './eventService';
 import { SeoMeta } from '../types/page';
 import { VideoMedia } from './videoMedia';
+import { config } from '../config/env';
 
 interface HomeHero {
   heading: string;
@@ -114,6 +115,20 @@ export const homeService = {
           href: '/media',
           description: 'Browse by hashtag or visit named galleries.',
         },
+        // The legacy archive is a separate members-only static site; the card
+        // appears only where a deployment provides its URL. Its target is
+        // member-gated at the archive edge (signed-out visitors get the
+        // archive's own sign-in page), so the card itself stays public.
+        ...(config.archiveUrl
+          ? [
+              {
+                label: 'Legacy Archive',
+                href: config.archiveUrl,
+                description:
+                  'The preserved original footbag.org site. Historical reference, for signed-in members.',
+              },
+            ]
+          : []),
       ],
     };
   },

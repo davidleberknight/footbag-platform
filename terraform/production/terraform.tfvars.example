@@ -65,3 +65,36 @@ enable_backup_alarm        = false
 ses_enable_domain_auth     = false
 ses_enable_mail_records    = false
 enable_cutover_login_alarm = false
+
+# ── Legacy archive (archive.footbag.org) ──────────────────────────────────────
+# Independent of enable_cloudfront and of the apex alias flip: archive.footbag.org
+# is a new name, so the stack can be applied, proved and loaded well ahead of the
+# cutover. enable_archive needs only the public key below and serves the archive
+# on the distribution's own cloudfront.net name; enable_archive_custom_domain
+# adds the certificate, the aliases and the DNS records, and additionally needs
+# route53_zone_id. Turn the second flag on once the zone is authoritative on
+# Route 53.
+#
+# Generate the signing keypair in the ~/AWS/ operator folder (the project home
+# for durable operator workstation files), never in Terraform and never inside
+# a repo checkout:
+#   openssl genrsa -out ~/AWS/archive-signing-key.pem 2048
+#   openssl rsa -pubout -in ~/AWS/archive-signing-key.pem -out ~/AWS/archive-signing-key.pub
+# Paste the .pub contents here; keep the private .pem off this file and put it
+# into SSM after apply:
+#   aws ssm put-parameter \
+#     --name "/footbag/production/secrets/archive_signing_private_key" \
+#     --value "file://$HOME/AWS/archive-signing-key.pem" --type SecureString \
+#     --key-id alias/footbag-production --overwrite
+enable_archive               = false
+enable_archive_custom_domain = false
+
+# Where the archive sends signed-out visitors and its gate pages link back to.
+# Leave unset in production: it derives https://<domain_name>.
+# archive_platform_url = ""
+
+# archive_signing_public_key = <<-EOT
+#   -----BEGIN PUBLIC KEY-----
+#   TODO-paste-archive-signing-key.pub
+#   -----END PUBLIC KEY-----
+# EOT

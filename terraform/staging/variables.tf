@@ -41,6 +41,16 @@ variable "route53_zone_id" {
   EOT
   type        = string
   default     = ""
+
+  # The archive's custom-domain half (archive.tf) validates its certificate
+  # through a Route 53 record, so an empty or wrong zone id hangs the apply
+  # ~15 minutes on certificate validation before failing. Fail fast instead.
+  # Inert while enable_archive_custom_domain stays off, which in staging is
+  # always.
+  validation {
+    condition     = !var.enable_archive_custom_domain || var.route53_zone_id != ""
+    error_message = "route53_zone_id is required when enable_archive_custom_domain is true: the archive certificate validates through a Route 53 record and the archive alias records are written into the same zone, so an empty or wrong zone id hangs the apply on certificate validation before failing."
+  }
 }
 
 # ── Lightsail ─────────────────────────────────────────────────────────────────

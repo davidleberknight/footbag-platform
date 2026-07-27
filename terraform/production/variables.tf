@@ -40,6 +40,16 @@ variable "route53_zone_id" {
     condition     = !var.enable_cloudfront || var.route53_zone_id != ""
     error_message = "route53_zone_id is required when enable_cloudfront is true: the referenced Route 53 hosted zone must exist so the ACM validation records can be written, or the apply hangs on certificate validation. Delegation is not required pre-cutover; the webmaster mirrors the validation CNAMEs into the authoritative zone."
   }
+
+  # The archive's custom-domain half (archive.tf) carries its own certificate
+  # and its own alias records, and validates the same way, so it fails the same
+  # way on an empty zone id even with enable_cloudfront off. The rest of the
+  # archive stack serves on the distribution's own cloudfront.net name and needs
+  # no zone at all.
+  validation {
+    condition     = !var.enable_archive_custom_domain || var.route53_zone_id != ""
+    error_message = "route53_zone_id is required when enable_archive_custom_domain is true: the archive certificate validates through a Route 53 record and the archive alias records are written into the same zone, so an empty or wrong zone id hangs the apply on certificate validation before failing."
+  }
 }
 
 variable "lightsail_bundle_id" {
