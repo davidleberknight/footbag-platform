@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { clubService } from '../services/clubService';
-import { NotFoundError, ValidationError } from '../services/serviceErrors';
+import { ValidationError } from '../services/serviceErrors';
 import { handleControllerError } from '../lib/controllerErrors';
 import { writeFlash } from '../lib/flashCookie';
 import { FLASH_KIND } from '../lib/flashCookie';

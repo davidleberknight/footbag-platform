@@ -397,11 +397,23 @@ fi
 check_equals "JWT_SIGNER" "kms" "JWT signer"
 check_equals "JWT_KMS_KEY_ID" "$TF_JWT_KMS_KEY_ARN" "JWT KMS key ARN matches terraform"
 
+# Arming switches. Deploy-synced from the SSM app/* parameters on every
+# deploy; a host missing them predates the sync and needs a redeploy.
+check_matches "PAYMENTS_ARMED" '^(armed|dark)$' "payments arming switch (deploy-synced from SSM app/payments_armed)"
+check_matches "EMAIL_SEND_ARMED" '^(armed|dark)$' "email arming switch (deploy-synced from SSM app/email_send_armed)"
+if [[ "$TARGET" == "staging" ]]; then
+  check_equals "PAYMENTS_ARMED" "armed" "payments arming switch (staging seeds 'armed'; inert below production)"
+  check_equals "EMAIL_SEND_ARMED" "armed" "email arming switch (staging seeds 'armed'; inert below production)"
+fi
+
 # SES. Staging runs the stub adapter: email-gated flows use the in-page
-# simulated-email card, and live SES delivery happens in production only.
-# Production is the sole environment with the live adapter + sender identity.
+# simulated-email card, and live SES delivery is possible in production only.
+# On production the deploy derives the adapter from the email arming flag
+# (armed -> live, dark -> stub), so the expectation follows the flag.
 if [[ "$TARGET" == "staging" ]]; then
   check_equals "SES_ADAPTER" "stub" "SES adapter (staging runs the stub adapter; live SES is production-only)"
+elif [[ "${HOST_ENV[EMAIL_SEND_ARMED]:-}" == "dark" ]]; then
+  check_equals "SES_ADAPTER" "stub" "SES adapter (email dark: the stub is the required state)"
 else
   check_equals "SES_ADAPTER" "live" "SES adapter"
   check_equals "SES_FROM_IDENTITY" "$TF_SES_SENDER" "SES sender identity matches terraform"
@@ -416,7 +428,10 @@ check_set "AWS_REGION" "AWS region"
 check_set "SAFE_BROWSING_ADAPTER" "safe-browsing adapter"
 check_set "SECRETS_ADAPTER" "secrets adapter (expected: 'live' on $TARGET)"
 check_set "HTTP_REACHABILITY_ADAPTER" "HTTP reachability adapter"
-check_set "PAYMENT_ADAPTER" "payment adapter (expected: 'stub' on staging until Stripe-SDK ships, 'live' on production)"
+check_set "PAYMENT_ADAPTER" "payment adapter (expected: 'stub' on staging always; on production the deploy derives it from the payments arming flag)"
+if [[ "$TARGET" != "staging" && "${HOST_ENV[PAYMENTS_ARMED]:-}" == "dark" ]]; then
+  check_equals "PAYMENT_ADAPTER" "stub" "payment adapter (payments dark: the stub is the required state)"
+fi
 # A stub-adapter host signs and verifies webhooks with a secret that, absent
 # this value, is the constant committed to the repository: anyone with a copy
 # could forge a delivery the endpoint accepts. The runtime refuses to boot

@@ -245,7 +245,7 @@ Stripe handles all credit card processing with separate Live/Test API keys per e
 
 Admin approval required before payment features activate for any event. Funds flow to IFPA's Stripe account, not to individual organizers. Manual distribution provides IFPA oversight and reconciliation capability. Organizers never directly handle money. All transactions logged with comprehensive audit trail.
 
-Using Stripe offloads PCI compliance (no card data touches our systems). Test mode in dev/staging enables safe payment testing. Required for processing membership dues, event registrations, and donations.
+Using Stripe offloads PCI compliance (no card data touches our systems). Stripe test mode on pre-cutover production enables safe payment testing before real money moves; dev and staging use the stub adapter. Required for processing membership dues, event registrations, and donations.
 
 Stripe webhooks are treated as durable input events; the system records them, applies idempotent payment state transitions, and runs nightly reconciliation that produces durable discrepancy reports for admins. Duplicate deliveries from Stripe retries do not cause duplicate payments or refund processing. A webhook handler validates signatures and processes payment events to update local payment records and trigger downstream effects (tier upgrades, receipts, registration confirmation).
 

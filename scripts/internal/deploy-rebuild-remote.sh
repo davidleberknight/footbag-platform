@@ -281,9 +281,9 @@ fi
 # non-production environment) and refuses any other value at boot, so the
 # operator has no legitimate choice here; overwriting corrects a stale host
 # value (a non-production host left on the live adapter, say) on the next deploy
-# instead of letting the stack crash-loop. Production is left operator-owned:
-# env.ts requires the live adapter there and SES_FROM_IDENTITY is asserted
-# below, so the value is validated rather than auto-written.
+# instead of letting the stack crash-loop. Production is derived, not
+# hand-owned: the arming-switch sync later in this script writes SES_ADAPTER
+# from the declared flag (armed -> live, dark -> stub).
 FOOTBAG_ENV_VAL=$(require_env FOOTBAG_ENV)
 if [[ "$FOOTBAG_ENV_VAL" == "staging" || "$FOOTBAG_ENV_VAL" == "development" ]]; then
   echo "    Reconciling SES_ADAPTER=stub into env file (FOOTBAG_ENV=$FOOTBAG_ENV_VAL; non-production must not send real mail)..."
@@ -299,10 +299,10 @@ fi
 
 # PAYMENT_ADAPTER: seed the stub on a fresh non-production host so the compose
 # ${PAYMENT_ADAPTER:?} guard and env.ts have a value, but do not overwrite an
-# existing one (env.ts permits PAYMENT_ADAPTER=live on staging, for instance to
-# exercise Stripe). Production is operator-set: env.ts forbids 'stub' there and
-# the live factory fails fast until the Stripe-SDK slice ships, so a fresh
-# production host fails loud at the compose guard, the correct unconfigured signal.
+# existing one. env.ts refuses the live payment SDK anywhere below production,
+# so the stub is the only bootable value here. Production is derived, not
+# hand-owned: the arming-switch sync later in this script writes
+# PAYMENT_ADAPTER from the declared flag (armed -> live, dark -> stub).
 if [[ "$FOOTBAG_ENV_VAL" != "production" ]]; then
   if ! grep -q '^PAYMENT_ADAPTER=' "$ENV_PATH"; then
     echo "    Seeding PAYMENT_ADAPTER=stub into env file (staging/dev default; preserved if already set)..."
@@ -479,6 +479,97 @@ printf 'LOG_LEVEL=%s\n' "$LOG_LEVEL_VAL" >> "$env_tmp"
 mv "$env_tmp" "$ENV_PATH"
 chmod 600 "$ENV_PATH"
 chown root:root "$ENV_PATH"
+
+# Sync the arming switches the same required-parameter way as LOG_LEVEL. Each
+# switch declares the arming state of one real-world side (payments, email);
+# Terraform owns the value, and every deploy makes the declared value the
+# running value. A missing parameter is a hard error: the environment needs
+# its terraform apply first.
+ssm_payments_armed_param="/footbag/${FOOTBAG_ENV_VAL}/app/payments_armed"
+echo "    Syncing PAYMENTS_ARMED from $ssm_payments_armed_param ..."
+PAYMENTS_ARMED_VAL=$(
+  AWS_PROFILE="$AWS_PROFILE_VAL" aws ssm get-parameter \
+    --region "$AWS_REGION_VAL" \
+    --name "$ssm_payments_armed_param" \
+    --query 'Parameter.Value' \
+    --output text
+) || {
+  echo "ERROR: aws ssm get-parameter failed for $ssm_payments_armed_param" >&2
+  echo "       If the parameter does not exist yet, from the workstation run:" >&2
+  echo "         cd terraform/${FOOTBAG_ENV_VAL} && terraform init -upgrade && terraform apply" >&2
+  exit 1
+}
+if [[ ! "$PAYMENTS_ARMED_VAL" =~ ^(armed|dark)$ ]]; then
+  echo "ERROR: SSM $ssm_payments_armed_param is '$PAYMENTS_ARMED_VAL'; expected 'armed' or 'dark'." >&2
+  exit 1
+fi
+
+env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
+chmod 600 "$env_tmp"
+chown root:root "$env_tmp"
+grep -v '^PAYMENTS_ARMED=' "$ENV_PATH" > "$env_tmp" || true
+printf 'PAYMENTS_ARMED=%s\n' "$PAYMENTS_ARMED_VAL" >> "$env_tmp"
+mv "$env_tmp" "$ENV_PATH"
+chmod 600 "$ENV_PATH"
+chown root:root "$ENV_PATH"
+
+ssm_email_send_armed_param="/footbag/${FOOTBAG_ENV_VAL}/app/email_send_armed"
+echo "    Syncing EMAIL_SEND_ARMED from $ssm_email_send_armed_param ..."
+EMAIL_SEND_ARMED_VAL=$(
+  AWS_PROFILE="$AWS_PROFILE_VAL" aws ssm get-parameter \
+    --region "$AWS_REGION_VAL" \
+    --name "$ssm_email_send_armed_param" \
+    --query 'Parameter.Value' \
+    --output text
+) || {
+  echo "ERROR: aws ssm get-parameter failed for $ssm_email_send_armed_param" >&2
+  echo "       If the parameter does not exist yet, from the workstation run:" >&2
+  echo "         cd terraform/${FOOTBAG_ENV_VAL} && terraform init -upgrade && terraform apply" >&2
+  exit 1
+}
+if [[ ! "$EMAIL_SEND_ARMED_VAL" =~ ^(armed|dark)$ ]]; then
+  echo "ERROR: SSM $ssm_email_send_armed_param is '$EMAIL_SEND_ARMED_VAL'; expected 'armed' or 'dark'." >&2
+  exit 1
+fi
+
+env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
+chmod 600 "$env_tmp"
+chown root:root "$env_tmp"
+grep -v '^EMAIL_SEND_ARMED=' "$ENV_PATH" > "$env_tmp" || true
+printf 'EMAIL_SEND_ARMED=%s\n' "$EMAIL_SEND_ARMED_VAL" >> "$env_tmp"
+mv "$env_tmp" "$ENV_PATH"
+chmod 600 "$ENV_PATH"
+chown root:root "$ENV_PATH"
+
+# On production the adapters are derived from the arming switches, never
+# hand-edited: armed -> live, dark -> stub. This is what makes an arming flip
+# ride tfvars + apply + deploy with no host edit, and what makes a dark
+# production behave exactly like staging (stub adapters, simulated-email card,
+# fake checkout, no real-world side effect). env.ts refuses a flag/adapter
+# mismatch at boot as the fail-fast backstop. A dark payment side also gets a
+# host-unique stub webhook signing secret (as staging does): the stub
+# adapter's committed fallback secret would accept a webhook forged by anyone
+# holding a checkout of the repository.
+if [[ "$FOOTBAG_ENV_VAL" == "production" ]]; then
+  SES_ADAPTER_DERIVED='stub'
+  [[ "$EMAIL_SEND_ARMED_VAL" == "armed" ]] && SES_ADAPTER_DERIVED='live'
+  PAYMENT_ADAPTER_DERIVED='stub'
+  [[ "$PAYMENTS_ARMED_VAL" == "armed" ]] && PAYMENT_ADAPTER_DERIVED='live'
+  echo "    Deriving production adapters from arming switches: SES_ADAPTER=$SES_ADAPTER_DERIVED PAYMENT_ADAPTER=$PAYMENT_ADAPTER_DERIVED ..."
+  env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
+  chmod 600 "$env_tmp"
+  chown root:root "$env_tmp"
+  grep -v -e '^SES_ADAPTER=' -e '^PAYMENT_ADAPTER=' "$ENV_PATH" > "$env_tmp" || true
+  printf 'SES_ADAPTER=%s\n' "$SES_ADAPTER_DERIVED" >> "$env_tmp"
+  printf 'PAYMENT_ADAPTER=%s\n' "$PAYMENT_ADAPTER_DERIVED" >> "$env_tmp"
+  mv "$env_tmp" "$ENV_PATH"
+  chmod 600 "$ENV_PATH"
+  chown root:root "$ENV_PATH"
+  if [[ "$PAYMENT_ADAPTER_DERIVED" == "stub" ]] && ! grep -q '^STRIPE_WEBHOOK_SECRET_STUB=' "$ENV_PATH"; then
+    echo "    Seeding a generated STRIPE_WEBHOOK_SECRET_STUB into env file (dark payments; preserved if already set)..."
+    printf 'STRIPE_WEBHOOK_SECRET_STUB=whsec_stub_%s\n' "$(openssl rand -hex 24)" >> "$ENV_PATH"
+  fi
+fi
 
 # Sync ARCHIVE_URL the same way, from the parameter Terraform writes when the
 # archive stack is enabled. Terraform is the only party that knows the served

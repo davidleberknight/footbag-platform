@@ -172,3 +172,31 @@ variable "ses_feedback_webhook_url" {
   default     = ""
   sensitive   = true
 }
+
+# ── Arming switches (inert on staging) ────────────────────────────────────────
+# Staging adapters stay stubbed below production regardless of these values;
+# the variables exist so both trees publish the same app/* parameter set and
+# the deploy sync reads one uniform contract. Production is where the switches
+# bite (armed -> live adapter, dark -> stub adapter, derived at deploy).
+
+variable "payments_armed" {
+  description = "Payments arming switch, published as SSM app/payments_armed. Inert on staging: the payment adapter is stubbed below production regardless."
+  type        = string
+  default     = "armed"
+
+  validation {
+    condition     = contains(["armed", "dark"], var.payments_armed)
+    error_message = "payments_armed must be exactly 'armed' or 'dark'."
+  }
+}
+
+variable "email_send_armed" {
+  description = "Email arming switch, published as SSM app/email_send_armed. Inert on staging: the SES adapter is stubbed below production regardless."
+  type        = string
+  default     = "armed"
+
+  validation {
+    condition     = contains(["armed", "dark"], var.email_send_armed)
+    error_message = "email_send_armed must be exactly 'armed' or 'dark'."
+  }
+}

@@ -31,6 +31,11 @@ process.env.JWT_LOCAL_KEYPAIR_PATH  ??= path.join(
   `vitest-jwt-${workerTag}.pem`,
 );
 process.env.SES_ADAPTER             ??= 'stub';
+// Arming switches are mandatory-explicit under prod-mode boots; 'armed' is
+// inert below FOOTBAG_ENV=production and matches the live adapters in the
+// production-shaped boot files. Cases proving the unset behavior delete them.
+process.env.PAYMENTS_ARMED          ??= 'armed';
+process.env.EMAIL_SEND_ARMED        ??= 'armed';
 process.env.AWS_REGION              ??= 'us-east-1';
 // Tests use the stub SecretsAdapter by default. Tests that exercise the live
 // path inject a fake SSM client via createLiveSecretsAdapter({ ssmClient: fake }).

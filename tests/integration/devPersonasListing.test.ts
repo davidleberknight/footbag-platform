@@ -27,9 +27,9 @@ const { dbPath } = setTestEnv('3437');
 
 // Full, valid FOOTBAG_ENV=staging baseline. Staging requires NODE_ENV=production
 // (production-hardening parity), SES_ADAPTER=stub (non-prod must not send real
-// mail), and PAYMENT_ADAPTER=live (stub is forbidden once NODE_ENV=production;
-// the live adapter is lazy and never constructed by this route, so it stays
-// inert). The remaining stub adapters + JWT_SIGNER=local keep boot off AWS.
+// mail), and PAYMENT_ADAPTER=stub with its own generated signing secret (the
+// live payment SDK is refused below production). The remaining stub adapters
+// + JWT_SIGNER=local keep boot off AWS.
 const PRIOR_FOOTBAG_ENV = process.env.FOOTBAG_ENV;
 const PRIOR_NODE_ENV = process.env.NODE_ENV;
 process.env.NODE_ENV                  = 'production';
@@ -44,8 +44,8 @@ process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
 process.env.SECRETS_ADAPTER           = 'stub';
 process.env.IMAGE_PROCESSOR_URL       = 'http://image:4000';
 process.env.MEDIA_STORAGE_ADAPTER     = 'local';
-process.env.PAYMENT_ADAPTER           = 'live';
-process.env.STRIPE_WEBHOOK_SECRET     = 'whsec_live_realvalue';
+process.env.PAYMENT_ADAPTER           = 'stub';
+process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_staging_generated_value';
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 

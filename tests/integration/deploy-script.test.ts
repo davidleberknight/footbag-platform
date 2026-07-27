@@ -637,6 +637,77 @@ describe('deploy-rebuild-remote.sh log-level sync', () => {
   });
 });
 
+describe('arming-switch sync and production adapter derivation (both remote halves)', () => {
+  // The arming switches declare whether a real-world side (payments, email)
+  // is armed; every deploy makes the declared SSM value the running value,
+  // and on production derives the adapters from it (armed -> live,
+  // dark -> stub) so the host can never disagree with the declared state.
+  // Both deploy halves carry the sync so an arming change rides either mode.
+  const halves = [
+    'scripts/internal/deploy-rebuild-remote.sh',
+    'scripts/internal/deploy-code-remote.sh',
+  ].map((p) => ({
+    file: p,
+    content: fs.readFileSync(path.join(REPO_ROOT, p), 'utf8'),
+  }));
+
+  it('fetches both switches from the environment app parameters, undecrypted and required', () => {
+    for (const { file, content } of halves) {
+      expect(content, file).toMatch(
+        /ssm_payments_armed_param="\/footbag\/\$\{FOOTBAG_ENV_VAL\}\/app\/payments_armed"/,
+      );
+      expect(content, file).toMatch(
+        /ssm_email_send_armed_param="\/footbag\/\$\{FOOTBAG_ENV_VAL\}\/app\/email_send_armed"/,
+      );
+      const paymentsBlock = content.slice(
+        content.indexOf('PAYMENTS_ARMED_VAL=$('),
+        content.indexOf('if [[ ! "$PAYMENTS_ARMED_VAL"'),
+      );
+      expect(paymentsBlock, file).toMatch(/aws ssm get-parameter/);
+      expect(paymentsBlock, file).not.toMatch(/--with-decryption/);
+      // Required-parameter shape: a fetch failure is a hard error pointing at
+      // terraform apply, never a silent skip.
+      expect(paymentsBlock, file).toMatch(/exit 1/);
+    }
+  });
+
+  it('refuses a switch value the runtime would not understand', () => {
+    for (const { file, content } of halves) {
+      const matches = content.match(/\^\(armed\|dark\)\$/g) ?? [];
+      expect(matches.length, file).toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  it('writes both switches into the host env file through the restricted-temp swap', () => {
+    for (const { file, content } of halves) {
+      expect(content, file).toMatch(/printf 'PAYMENTS_ARMED=%s\\n' "\$PAYMENTS_ARMED_VAL" >> "\$env_tmp"/);
+      expect(content, file).toMatch(/printf 'EMAIL_SEND_ARMED=%s\\n' "\$EMAIL_SEND_ARMED_VAL" >> "\$env_tmp"/);
+    }
+  });
+
+  it('derives the production adapters from the switches, production only', () => {
+    for (const { file, content } of halves) {
+      const deriveBlock = content.slice(
+        content.indexOf('SES_ADAPTER_DERIVED='),
+        content.indexOf('printf \'PAYMENT_ADAPTER=%s\\n\' "$PAYMENT_ADAPTER_DERIVED"'),
+      );
+      expect(deriveBlock.length, file).toBeGreaterThan(0);
+      const gate = content.slice(0, content.indexOf('SES_ADAPTER_DERIVED='));
+      expect(gate, file).toMatch(/FOOTBAG_ENV_VAL" == "production"/);
+      expect(content, file).toMatch(/\[\[ "\$EMAIL_SEND_ARMED_VAL" == "armed" \]\] && SES_ADAPTER_DERIVED='live'/);
+      expect(content, file).toMatch(/\[\[ "\$PAYMENTS_ARMED_VAL" == "armed" \]\] && PAYMENT_ADAPTER_DERIVED='live'/);
+    }
+  });
+
+  it('seeds a host-unique stub webhook secret on a dark production payment side', () => {
+    for (const { file, content } of halves) {
+      const darkSeed = content.slice(content.indexOf("PAYMENT_ADAPTER_DERIVED\" == \"stub\""));
+      expect(darkSeed, file).toMatch(/STRIPE_WEBHOOK_SECRET_STUB=whsec_stub_/);
+      expect(darkSeed, file).toMatch(/openssl rand -hex 24/);
+    }
+  });
+});
+
 // ── script 20 graceful skip ───────────────────────────────────────────────────
 
 describe('legacy_data script 20 graceful skip', () => {

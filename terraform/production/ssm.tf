@@ -20,6 +20,40 @@ resource "aws_ssm_parameter" "app_log_level" {
   value = "warn" # production: suppress info logs
 }
 
+# Arming switches. Terraform is the writer (like app_log_level): arming is a
+# tfvars flip + apply, and the next deploy syncs each value into
+# /srv/footbag/env and derives the matching adapter on this host
+# (armed -> live, dark -> stub). No ignore_changes: out-of-band put-parameter
+# drift is reverted on the next apply, keeping tfvars, SSM, and the host in
+# one line of custody, with SSM parameter history as the audit trail.
+resource "aws_ssm_parameter" "app_payments_armed" {
+  name  = "${local.ssm_prefix}/app/payments_armed"
+  type  = "String"
+  value = var.payments_armed
+}
+
+resource "aws_ssm_parameter" "app_email_send_armed" {
+  name  = "${local.ssm_prefix}/app/email_send_armed"
+  type  = "String"
+  value = var.email_send_armed
+}
+
+# Production-live marker. Seeded "false" (pre-live): data-replacing deploys
+# are permitted and a test-mode Stripe key is accepted. Flipping it to "true"
+# is a named go-live runbook step performed with an operator put-parameter;
+# from then on the full-refresh deploy is forbidden permanently and test-mode
+# Stripe keys are refused. Every data-replacing path requires an exact "false"
+# read and refuses on anything else (missing, unreadable, any other value),
+# fail closed. ignore_changes because the flip is out-of-band and deliberately
+# one-way: a later apply must never silently revert a live production to
+# pre-live and re-arm the destructive deploy paths.
+resource "aws_ssm_parameter" "app_production_live" {
+  name  = "${local.ssm_prefix}/app/production_live"
+  type  = "String"
+  value = "false"
+  lifecycle { ignore_changes = [value] }
+}
+
 resource "aws_ssm_parameter" "app_public_base_url" {
   name = "${local.ssm_prefix}/app/public_base_url"
   type = "String"

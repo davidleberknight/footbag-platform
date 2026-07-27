@@ -94,8 +94,11 @@ declare -A P=(
   [ENV_TRUST_PROXY]=""
   [ENV_BACKUP_S3_BUCKET]=unset
   [ENV_PAYMENT_ADAPTER]=""
+  [ENV_PAYMENTS_ARMED]=""
+  [ENV_EMAIL_SEND_ARMED]=""
   [ENV_WEBHOOK_SECRET]=unset
   [ENV_WEBHOOK_SECRET_PREVIOUS]=unset
+  [SSM_PRODUCTION_LIVE]=unknown
   [TIMER_ACTIVE]=unknown
   [CONTAINERS]=unknown
   [TF_PLAN]=unknown
@@ -146,6 +149,8 @@ else
         P[ENV_TRUST_PROXY]="$(get_env TRUST_PROXY)"
         [[ -n "$(get_env BACKUP_S3_BUCKET)" ]] && P[ENV_BACKUP_S3_BUCKET]=set
         P[ENV_PAYMENT_ADAPTER]="$(get_env PAYMENT_ADAPTER)"
+        P[ENV_PAYMENTS_ARMED]="$(get_env PAYMENTS_ARMED)"
+        P[ENV_EMAIL_SEND_ARMED]="$(get_env EMAIL_SEND_ARMED)"
         [[ -n "$(get_env STRIPE_WEBHOOK_SECRET)" ]] && P[ENV_WEBHOOK_SECRET]=set
         [[ -n "$(get_env STRIPE_WEBHOOK_SECRET_PREVIOUS)" ]] && P[ENV_WEBHOOK_SECRET_PREVIOUS]=set
       fi
@@ -201,6 +206,14 @@ else
           echo unknown
         fi
       }
+      # Production-live marker: a plain String parameter whose value is the
+      # whole signal ("false" = pre-live, "true" = live).
+      if [[ "$TARGET" == "production" ]]; then
+        MARKER_VAL="$(aws ssm get-parameter --name "/footbag/production/app/production_live" \
+          --query Parameter.Value --output text \
+          --profile "$AWS_PROFILE_ARG" 2>/dev/null || true)"
+        [[ -n "$MARKER_VAL" ]] && P[SSM_PRODUCTION_LIVE]="$MARKER_VAL"
+      fi
       # The Stripe key needs decryption to distinguish the terraform TODO-
       # placeholder from a real key; only the prefix is inspected, the value
       # is never printed.
@@ -286,13 +299,17 @@ ROTATION_NOTE=""
 if [[ "${P[ENV_WEBHOOK_SECRET_PREVIOUS]}" == "set" ]]; then
   ROTATION_NOTE="; rotation window open (STRIPE_WEBHOOK_SECRET_PREVIOUS set), close it with activate-payments.sh --complete-webhook-rotation"
 fi
-if [[ "$TARGET" == "staging" && "${P[ENV_PAYMENT_ADAPTER]}" != "live" ]]; then
-  row 3 "Payments" N-A "staging runs the stub adapter by default; activate only to exercise real Stripe"
+if [[ "$TARGET" == "staging" ]]; then
+  row 3 "Payments" N-A "staging runs the stub adapter permanently; the live payment SDK boots only on production"
+elif [[ "${P[ENV_PAYMENTS_ARMED]}" == "dark" && "${P[ENV_PAYMENT_ADAPTER]}" != "live" ]]; then
+  DARK_DETAIL="payments dark (stub adapter; fake checkout, no real money). SSM key: ${P[SSM_STRIPE_KEY]}, production-live marker: ${P[SSM_PRODUCTION_LIVE]}"
+  row 3 "Payments" N-A "$DARK_DETAIL"
+  next_cmd "arm payments when ready: payments_armed = \"armed\" in tfvars + terraform apply + deploy"
 elif [[ "${P[SSM_STRIPE_KEY]}" == "live" && "${P[ENV_PAYMENT_ADAPTER]}" == "live" && "${P[ENV_WEBHOOK_SECRET]}" == "set" ]]; then
-  row 3 "Payments" DONE "SSM key live, PAYMENT_ADAPTER=live, webhook secret set${ROTATION_NOTE}"
+  row 3 "Payments" DONE "armed: SSM key live, PAYMENT_ADAPTER=live, webhook secret set; production-live marker: ${P[SSM_PRODUCTION_LIVE]}${ROTATION_NOTE}"
   [[ -n "$ROTATION_NOTE" ]] && next_cmd "scripts/activate-payments.sh --target $TARGET --complete-webhook-rotation   (close the open rotation window)"
 else
-  DETAIL="SSM key: ${P[SSM_STRIPE_KEY]}, PAYMENT_ADAPTER: ${P[ENV_PAYMENT_ADAPTER]:-unset}, webhook secret: ${P[ENV_WEBHOOK_SECRET]}${ROTATION_NOTE}"
+  DETAIL="PAYMENTS_ARMED: ${P[ENV_PAYMENTS_ARMED]:-unset}, SSM key: ${P[SSM_STRIPE_KEY]}, PAYMENT_ADAPTER: ${P[ENV_PAYMENT_ADAPTER]:-unset}, webhook secret: ${P[ENV_WEBHOOK_SECRET]}, production-live marker: ${P[SSM_PRODUCTION_LIVE]}${ROTATION_NOTE}"
   row 3 "Payments" PENDING "$DETAIL"
   next_cmd "scripts/activate-payments.sh --target $TARGET --profile <profile>   (at the payments-activation milestone, not before)"
 fi

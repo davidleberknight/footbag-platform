@@ -159,9 +159,21 @@ describe('bringup-status.sh — pending steps name their next command', () => {
   it('staging on the stub adapter reads as N-A for payments, not pending', () => {
     const probe = writeProbeFile(['ENV_FETCHED=yes', 'ENV_PAYMENT_ADAPTER=stub']);
     const result = runScript(['--target', 'staging', '--probe-file', probe]);
-    expect(result.stdout).toMatch(/3\. Payments\s+N-A\s+staging runs the stub adapter by default/);
+    expect(result.stdout).toMatch(/3\. Payments\s+N-A\s+staging runs the stub adapter permanently/);
     expect(result.stdout).toMatch(/6\. First admin\s+N-A/);
     expect(result.stdout).toMatch(/7\. Cutover login alarm\s+N-A/);
+  });
+
+  it('dark production reads as N-A for payments with the arming step named', () => {
+    const probe = writeProbeFile([
+      'ENV_FETCHED=yes',
+      'ENV_PAYMENT_ADAPTER=stub',
+      'ENV_PAYMENTS_ARMED=dark',
+      'SSM_PRODUCTION_LIVE=false',
+    ]);
+    const result = runScript(['--target', 'production', '--probe-file', probe]);
+    expect(result.stdout).toMatch(/3\. Payments\s+N-A\s+payments dark \(stub adapter/);
+    expect(result.stdout).toMatch(/payments_armed = "armed"/);
   });
 
   it('production missing payments pieces points at activate-payments.sh', () => {
@@ -170,10 +182,11 @@ describe('bringup-status.sh — pending steps name their next command', () => {
       'ENV_TRUST_PROXY=3',
       'ENV_BACKUP_S3_BUCKET=set',
       'ENV_PAYMENT_ADAPTER=stub',
+      'ENV_PAYMENTS_ARMED=armed',
       'SSM_STRIPE_KEY=placeholder',
     ]);
     const result = runScript(['--target', 'production', '--probe-file', probe]);
-    expect(result.stdout).toMatch(/3\. Payments\s+PENDING\s+SSM key: placeholder/);
+    expect(result.stdout).toMatch(/3\. Payments\s+PENDING\s+PAYMENTS_ARMED: armed, SSM key: placeholder/);
     expect(result.stdout).toMatch(/scripts\/activate-payments\.sh --target production/);
   });
 

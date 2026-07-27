@@ -20,6 +20,22 @@ resource "aws_ssm_parameter" "app_log_level" {
   value = "info"
 }
 
+# Arming switches. Terraform is the writer (like app_log_level); the deploy
+# syncs each value into /srv/footbag/env. Inert on staging (adapters stay
+# stubbed below production); published so both trees carry the same app/*
+# parameter set and the deploy sync reads one uniform contract.
+resource "aws_ssm_parameter" "app_payments_armed" {
+  name  = "${local.ssm_prefix}/app/payments_armed"
+  type  = "String"
+  value = var.payments_armed
+}
+
+resource "aws_ssm_parameter" "app_email_send_armed" {
+  name  = "${local.ssm_prefix}/app/email_send_armed"
+  type  = "String"
+  value = var.email_send_armed
+}
+
 resource "aws_ssm_parameter" "app_public_base_url" {
   name = "${local.ssm_prefix}/app/public_base_url"
   type = "String"

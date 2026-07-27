@@ -96,6 +96,10 @@ services:
       MEDIA_STORAGE_ADAPTER: ${MEDIA_STORAGE_ADAPTER:-local}
       MEDIA_STORAGE_S3_BUCKET: ${MEDIA_STORAGE_S3_BUCKET:-}
       PAYMENT_ADAPTER: ${PAYMENT_ADAPTER:-stub}
+      # Arming switches are inert below production (adapters stay stubbed);
+      # 'armed' is the inert default that keeps non-production boots unchanged.
+      PAYMENTS_ARMED: ${PAYMENTS_ARMED:-armed}
+      EMAIL_SEND_ARMED: ${EMAIL_SEND_ARMED:-armed}
       # Unused in stub mode (stub adapter uses its own whsec_stub secret);
       # required by env.ts boot only when PAYMENT_ADAPTER=live.
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
@@ -206,6 +210,10 @@ services:
       MEDIA_STORAGE_ADAPTER: ${MEDIA_STORAGE_ADAPTER:-local}
       MEDIA_STORAGE_S3_BUCKET: ${MEDIA_STORAGE_S3_BUCKET:-}
       PAYMENT_ADAPTER: ${PAYMENT_ADAPTER:-stub}
+      # Arming switches are inert below production (adapters stay stubbed);
+      # 'armed' is the inert default that keeps non-production boots unchanged.
+      PAYMENTS_ARMED: ${PAYMENTS_ARMED:-armed}
+      EMAIL_SEND_ARMED: ${EMAIL_SEND_ARMED:-armed}
       # Unused in stub mode (stub adapter uses its own whsec_stub secret);
       # required by env.ts boot only when PAYMENT_ADAPTER=live.
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}

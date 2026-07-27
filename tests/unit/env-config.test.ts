@@ -40,6 +40,11 @@ function baselineRequired(): void {
   // Always required (the /ipc router is always mounted); valid by default
   // so configurations load. The dedicated required-when-unset tests delete it.
   process.env.INTERNAL_EVENT_SECRET = 'c'.repeat(48);
+  // Arming switches, mandatory-explicit under prod-mode boots; 'armed' is
+  // valid in every environment. The dedicated unset/dark cases delete or
+  // override them.
+  process.env.PAYMENTS_ARMED = 'armed';
+  process.env.EMAIL_SEND_ARMED = 'armed';
 }
 
 function clearAwsWiring(): void {
@@ -202,8 +207,8 @@ describe('env config: dev defaults apply when NODE_ENV is not production', () =>
     process.env.SECRETS_ADAPTER = 'stub';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
-    process.env.PAYMENT_ADAPTER = 'live';
-    process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test_live_value';
+    process.env.PAYMENT_ADAPTER = 'stub';
+    process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_staging_generated_value';
     delete process.env.CAPTCHA_ADAPTER;
     const { config } = await import('../../src/config/env');
     expect(config.captchaAdapter).toBe('stub');
@@ -590,8 +595,8 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.FOOTBAG_ENV = 'staging';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
-    process.env.PAYMENT_ADAPTER = 'live';
-    process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test_live_value';
+    process.env.PAYMENT_ADAPTER = 'stub';
+    process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_staging_generated_value';
     const { config } = await import('../../src/config/env');
     expect(config.footbagEnv).toBe('staging');
     expect(config.ssmPrefix).toBe('/footbag/staging');
@@ -641,7 +646,7 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     expect(config.paymentAdapter).toBe('stub');
   });
 
-  it("accepts PAYMENT_ADAPTER='live' in non-production (factory throws at call time, not at boot)", async () => {
+  it("accepts PAYMENT_ADAPTER='live' when FOOTBAG_ENV is unset (bare test boots; deployed non-production environments refuse it)", async () => {
     baselineRequired();
     clearAwsWiring();
     process.env.NODE_ENV = 'development';
@@ -957,8 +962,8 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.FOOTBAG_ENV = 'staging';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
-    process.env.PAYMENT_ADAPTER = 'live';
-    process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test_live_value';
+    process.env.PAYMENT_ADAPTER = 'stub';
+    process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_staging_generated_value';
     process.env.FOOTBAG_TEST_MEMORY_PERCENT = '85';
     const { config } = await import('../../src/config/env');
     expect(config.testMemoryPercent).toBe(85);
@@ -1004,8 +1009,8 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.FOOTBAG_ENV = 'staging';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
-    process.env.PAYMENT_ADAPTER = 'live';
-    process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test_live_value';
+    process.env.PAYMENT_ADAPTER = 'stub';
+    process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_staging_generated_value';
     process.env.FOOTBAG_DEV_INITIAL_ADMIN_EMAILS = 'someone@example.com';
     // Boot succeeds; the allowlist value reaches devShortcuts at runtime.
     await expect(import('../../src/config/env')).resolves.toBeDefined();
@@ -1108,8 +1113,8 @@ describe('env config: FOOTBAG_ENV ↔ NODE_ENV cross-invariant', () => {
     process.env.SECRETS_ADAPTER = 'stub';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
-    process.env.PAYMENT_ADAPTER = 'live';
-    process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test_live_value';
+    process.env.PAYMENT_ADAPTER = 'stub';
+    process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_staging_generated_value';
     process.env.FOOTBAG_ENV = 'staging';
     const { config } = await import('../../src/config/env');
     expect(config.footbagEnv).toBe('staging');
@@ -2016,6 +2021,218 @@ describe('env config: FOOTBAG_CHEAP_PASSWORD_HASH (test-only, VITEST-gated)', ()
     process.env.FOOTBAG_CHEAP_PASSWORD_HASH = 'maybe';
     await expect(import('../../src/config/env')).rejects.toThrow(
       /FOOTBAG_CHEAP_PASSWORD_HASH must be '1', '0', 'true', or 'false', got: maybe/,
+    );
+  });
+});
+
+describe('env config: arming switches (EMAIL_SEND_ARMED / PAYMENTS_ARMED)', () => {
+  let snap: EnvSnapshot;
+  beforeEach(() => {
+    snap = snapshotEnv();
+    vi.resetModules();
+  });
+  afterEach(() => restoreEnv(snap));
+
+  // A production-shaped boot minus the adapters and flags each case sets
+  // itself. Mirrors the passing live-load shape used elsewhere in this file.
+  function productionShape(): void {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'production';
+    process.env.JWT_SIGNER = 'local';
+    process.env.AWS_REGION = 'us-east-1';
+    process.env.SAFE_BROWSING_ADAPTER = 'stub';
+    process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
+    process.env.SECRETS_ADAPTER = 'live';
+    process.env.FOOTBAG_ENV = 'production';
+    process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
+    process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    process.env.CAPTCHA_ADAPTER = 'live';
+    process.env.TURNSTILE_SITE_KEY = 'turnstile-site-key';
+  }
+
+  function armedEmailEnv(): void {
+    process.env.SES_ADAPTER = 'live';
+    process.env.SES_FROM_IDENTITY = 'noreply@test.example.com';
+  }
+
+  function armedPaymentsEnv(): void {
+    process.env.PAYMENT_ADAPTER = 'live';
+    process.env.STRIPE_WEBHOOK_SECRET = 'whsec_live_realvalue';
+  }
+
+  it('throws when EMAIL_SEND_ARMED is unset under a prod-mode boot', async () => {
+    productionShape();
+    armedEmailEnv();
+    armedPaymentsEnv();
+    delete process.env.EMAIL_SEND_ARMED;
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /EMAIL_SEND_ARMED must be set explicitly in production \(no default\)/,
+    );
+  });
+
+  it('throws when PAYMENTS_ARMED is unset under a prod-mode boot', async () => {
+    productionShape();
+    armedEmailEnv();
+    armedPaymentsEnv();
+    delete process.env.PAYMENTS_ARMED;
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /PAYMENTS_ARMED must be set explicitly in production \(no default\)/,
+    );
+  });
+
+  it('throws on an invalid EMAIL_SEND_ARMED value', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.EMAIL_SEND_ARMED = 'on';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /EMAIL_SEND_ARMED must be 'armed' or 'dark', got: on/,
+    );
+  });
+
+  it('throws on an invalid PAYMENTS_ARMED value', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.PAYMENTS_ARMED = 'on';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /PAYMENTS_ARMED must be 'armed' or 'dark', got: on/,
+    );
+  });
+
+  it("defaults both switches to 'armed' below prod-mode boots", async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    delete process.env.EMAIL_SEND_ARMED;
+    delete process.env.PAYMENTS_ARMED;
+    const { config } = await import('../../src/config/env');
+    expect(config.emailSendArmed).toBe('armed');
+    expect(config.paymentsArmed).toBe('armed');
+  });
+
+  it('boots a fully dark production on the stub adapters', async () => {
+    productionShape();
+    process.env.EMAIL_SEND_ARMED = 'dark';
+    process.env.PAYMENTS_ARMED = 'dark';
+    process.env.SES_ADAPTER = 'stub';
+    process.env.PAYMENT_ADAPTER = 'stub';
+    process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_production_generated';
+    const { config } = await import('../../src/config/env');
+    expect(config.emailSendArmed).toBe('dark');
+    expect(config.paymentsArmed).toBe('dark');
+    expect(config.sesAdapter).toBe('stub');
+    expect(config.paymentAdapter).toBe('stub');
+  });
+
+  it('refuses a live SES adapter on a dark production email side', async () => {
+    productionShape();
+    process.env.EMAIL_SEND_ARMED = 'dark';
+    armedEmailEnv();
+    process.env.PAYMENT_ADAPTER = 'stub';
+    process.env.PAYMENTS_ARMED = 'dark';
+    process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_production_generated';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /SES_ADAPTER must be 'stub' when FOOTBAG_ENV=production and EMAIL_SEND_ARMED=dark/,
+    );
+  });
+
+  it('refuses a live payment adapter on a dark production payment side', async () => {
+    productionShape();
+    process.env.EMAIL_SEND_ARMED = 'armed';
+    armedEmailEnv();
+    process.env.PAYMENTS_ARMED = 'dark';
+    armedPaymentsEnv();
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /PAYMENT_ADAPTER must be 'stub' when FOOTBAG_ENV=production and PAYMENTS_ARMED=dark/,
+    );
+  });
+
+  it('refuses a stub SES adapter on an armed production email side', async () => {
+    productionShape();
+    process.env.EMAIL_SEND_ARMED = 'armed';
+    process.env.SES_ADAPTER = 'stub';
+    process.env.PAYMENTS_ARMED = 'dark';
+    process.env.PAYMENT_ADAPTER = 'stub';
+    process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_production_generated';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /SES_ADAPTER must be 'live' when FOOTBAG_ENV=production and EMAIL_SEND_ARMED=armed/,
+    );
+  });
+
+  it('arms each side independently (dark email beside armed payments)', async () => {
+    productionShape();
+    process.env.EMAIL_SEND_ARMED = 'dark';
+    process.env.SES_ADAPTER = 'stub';
+    process.env.PAYMENTS_ARMED = 'armed';
+    armedPaymentsEnv();
+    const { config } = await import('../../src/config/env');
+    expect(config.sesAdapter).toBe('stub');
+    expect(config.paymentAdapter).toBe('live');
+  });
+
+  it('requires a generated stub webhook secret on a dark production payment side', async () => {
+    productionShape();
+    process.env.EMAIL_SEND_ARMED = 'dark';
+    process.env.SES_ADAPTER = 'stub';
+    process.env.PAYMENTS_ARMED = 'dark';
+    process.env.PAYMENT_ADAPTER = 'stub';
+    delete process.env.STRIPE_WEBHOOK_SECRET_STUB;
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /STRIPE_WEBHOOK_SECRET_STUB is required when FOOTBAG_ENV=production and PAYMENT_ADAPTER='stub'/,
+    );
+  });
+
+  it('keeps the staging stub mandates regardless of the switch values', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'production';
+    process.env.FOOTBAG_ENV = 'staging';
+    process.env.JWT_SIGNER = 'local';
+    process.env.SES_ADAPTER = 'stub';
+    process.env.SAFE_BROWSING_ADAPTER = 'stub';
+    process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
+    process.env.SECRETS_ADAPTER = 'stub';
+    process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
+    process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    process.env.PAYMENT_ADAPTER = 'stub';
+    process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_staging_generated_value';
+    process.env.EMAIL_SEND_ARMED = 'dark';
+    process.env.PAYMENTS_ARMED = 'dark';
+    const { config } = await import('../../src/config/env');
+    expect(config.sesAdapter).toBe('stub');
+    expect(config.paymentAdapter).toBe('stub');
+  });
+
+  it('refuses the live payment SDK under FOOTBAG_ENV=staging', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'production';
+    process.env.FOOTBAG_ENV = 'staging';
+    process.env.JWT_SIGNER = 'local';
+    process.env.SES_ADAPTER = 'stub';
+    process.env.SAFE_BROWSING_ADAPTER = 'stub';
+    process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
+    process.env.SECRETS_ADAPTER = 'stub';
+    process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
+    process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    process.env.PAYMENT_ADAPTER = 'live';
+    process.env.STRIPE_WEBHOOK_SECRET = 'whsec_live_realvalue';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /PAYMENT_ADAPTER must be 'stub' when FOOTBAG_ENV=staging \(got 'live'\)/,
+    );
+  });
+
+  it('refuses the live payment SDK under FOOTBAG_ENV=development', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.FOOTBAG_ENV = 'development';
+    process.env.PAYMENT_ADAPTER = 'live';
+    process.env.STRIPE_WEBHOOK_SECRET = 'whsec_live_realvalue';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /PAYMENT_ADAPTER must be 'stub' when FOOTBAG_ENV=development \(got 'live'\)/,
     );
   });
 });

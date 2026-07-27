@@ -630,7 +630,7 @@ Requirements:
 
 - The seeder is idempotent and runs only against a disposable DB (dev, CI, or a pre-go-live staging rebuild), never against the persistent production DB. Re-running against unchanged inputs produces zero net DB writes; orphan rows (whose sidecar was removed from `/curated/`) are deleted on the next run. Orphan cleanup is scoped to system-member-owned, sidecar-derived rows, so a run can never delete member-owned media.
 
-- A destructive run against a persistent database is refused mechanically, not procedurally: at cutover the operator writes a post-cutover marker into the database itself (a `system_config` row, key `post_cutover`), and every destructive seeder and loader checks it through one shared guard at database-open, before any mutation, with no bypass flag. Because the marker lives in the database, it travels with every copy, snapshot, and restore, refusing cases no environment variable, path allowlist, or host-file marker can see (a restored production snapshot on a developer machine); those other guards remain as defense in depth.
+- A destructive run against a persistent database is refused mechanically, not procedurally: at cutover the operator writes a post-cutover marker into the database itself (a `system_config` row, key `post_cutover`), and every destructive seeder and loader checks it through one shared guard at database-open, before any mutation, with no bypass flag. Because the marker lives in the database, it travels with every copy, snapshot, and restore, refusing cases no environment variable, path allowlist, or host-file marker can see (a restored production snapshot on a developer machine); those other guards remain as defense in depth. Before cutover the same fail-closed posture applies from the other direction: every data-replacing production deploy requires the Terraform-owned production-live marker parameter to read exactly "false", and refuses independently when the target database already holds real member accounts, so the destructive path is dead from the go-live flip onward, before the post-cutover markers are even written.
 
 - Admin edit and delete on a sidecar-backed row resolve the sidecar at runtime; if the sidecar is missing on disk, edit fails (corruption guard) and delete proceeds best-effort with the DB row removal logged in audit.
 
@@ -2887,8 +2887,9 @@ Rationale:
 Requirements:
 
 - The card renders on every email-gated member-login page whenever
-  sesAdapter === 'stub' (dev and staging); production runs live and
-  has no card. Anti-enumeration response identity is a production
+  sesAdapter === 'stub': dev, staging, and a production email side
+  still dark under its arming switch; an armed production runs live
+  and has no card. Anti-enumeration response identity is a production
   property, verified with the stub card's adapter gate off.
 - The card is scoped to the flow the visitor is completing (the
   existing session/flow scoping mechanism, for example the
@@ -2902,8 +2903,10 @@ Requirements:
   scrub contract: the scrub operates on the DB row, while adapter
   memory is scrub-exempt and holds the original content for the
   lifetime of the process.
-- Production boot refuses SES_ADAPTER=stub. Non-production boot
-  refuses SES_ADAPTER=live.
+- The email arming flag selects the production mandate: armed
+  production boot refuses SES_ADAPTER=stub, dark production boot
+  refuses SES_ADAPTER=live. Non-production boot refuses
+  SES_ADAPTER=live.
 
 Trade-offs:
 
@@ -2924,9 +2927,11 @@ Impact:
 
 - Staging Docker compose and scripts/verify-staging-env.sh set
   SES_ADAPTER=stub; non-stub on staging fails boot.
-- Production sets SES_ADAPTER=live; non-live on production fails boot.
+- Production derives SES_ADAPTER from the email arming flag at deploy
+  (armed selects live, dark selects stub); a flag/adapter mismatch
+  fails boot.
 - The in-page preview card on email-gated landing pages serves as
-  the captured-email surface for dev and staging.
+  the captured-email surface for dev, staging, and dark production.
 - Future link-bearing email categories (Stripe payment receipts,
   event registration confirmations, donation acknowledgements)
   inherit the card on dev and staging at zero plumbing cost.
@@ -3018,6 +3023,38 @@ Impact:
 
 # 6. External Services and Integrations
 
+## 5.8 Production Arming Switches
+
+Decision:
+
+Production carries one arming switch per real-world side effect: EMAIL_SEND_ARMED for outbound email and PAYMENTS_ARMED for payments, each 'armed' or 'dark'. A dark side runs its stub adapter, exactly like staging: registration, verification links, password reset, purchases, and donations all work end to end, with mail captured in the in-page simulated-email card and checkout completing against the in-process Stripe simulation, and nothing leaves the platform. An armed side requires the live adapter with every strict configuration check. Terraform owns each switch as an SSM parameter (app/email_send_armed, app/payments_armed), seeded dark in production; the deploy syncs the values into the host environment and derives SES_ADAPTER and PAYMENT_ADAPTER from them (armed selects live, dark selects stub), never hand-edited. Arming a side is a tfvars change, a terraform apply, and a deploy, sequenced before real members arrive; SSM parameter history is the audit trail.
+
+Rationale:
+
+- Dark production is deliberately staging-like: the whole platform is clickable and testable at its unpublished address before any real-world side effect is possible, with no parallel test code path.
+
+- Deriving the adapters from the switches at deploy means the host can never disagree with the declared arming state; the config loader refuses a flag/adapter mismatch at boot as the fail-fast backstop, not the mechanism.
+
+- Whatever "sent" or "purchased" while dark is a stub-consumed test artifact, never delivered later; the final pre-launch data load wipes stub-era records. Arming needs no outbox pause and no service gate.
+
+Requirements:
+
+- Both switches are mandatory-explicit in production-hardened boots and inert below production, where the non-production stub mandates apply regardless of the switch values.
+
+- A dark payment side carries its own generated stub webhook signing secret, as staging does, so the committed stub constant never signs a reachable endpoint.
+
+- The simulated-email card follows the stub adapter, so a dark production renders it. Host-page-less notifications while dark are read from the outbox table directly: the production image strips the dev testkit, so the catch-all dev outbox viewer exists only below production.
+
+Trade-offs:
+
+- Arming is a deploy-shaped change (tfvars + apply + deploy), deliberately slower than a runtime toggle; the runtime kill switches (payments_paused, email_outbox_paused) remain the fast levers for incidents after arming.
+
+Impact:
+
+- Both deploy paths sync the switches on every deploy and refuse to proceed when the parameters are missing.
+
+- The pre-cutover Stripe test-mode exercise runs on a production whose payment side holds a test-mode key while the production-live marker reads pre-live; the key-match guard refuses a test key permanently once the marker flips at go-live.
+
 ## 6.1 Stripe Payments
 
 Decision:
@@ -3028,7 +3065,10 @@ Rationale:
 
 - Offloads PCI compliance to Stripe (no card data touches our systems).
 
-- Test mode in dev/staging enables safe payment testing.
+- Stripe test mode on pre-cutover production enables safe end-to-end
+  payment testing before real money moves; dev and staging use the
+  stub adapter, and the config loader refuses the live payment SDK
+  outside production.
 
 - Manual distribution provides IFPA oversight and reconciliation capability.
 
@@ -3923,9 +3963,9 @@ Rationale:
 
 - Fast default workflow: Local stubs provide instant feedback (no network latency, no AWS API calls) without requiring AWS credentials for basic development.
 
-- High-fidelity option: Real AWS services validate actual integration behavior, email rendering, payment flows, and secrets management before staging deployment.
+- High-fidelity option: Real AWS services validate actual integration behavior, email rendering, and secrets management before staging deployment.
 
-- Flexible development: Contributors choose appropriate testing level based on what they're working on (frontend changes use stubs, payment integration uses real Stripe test mode).
+- Flexible development: Contributors choose appropriate testing level based on what they're working on (frontend changes use stubs; payment work uses the programmable in-memory Stripe stub, because the live payment SDK boots only on production).
 
 AWS Credentials:
 
@@ -3949,7 +3989,7 @@ Required IAM permissions for dev profile:
 
 - S3: Limited to dev/test buckets only (no production access for devs).
 
-- Stripe: Test mode API keys only (no live keys in dev environments).
+- Stripe: no API keys in dev environments; the live payment SDK boots only on production, and payment work below production uses the stub adapter.
 
 Requirements:
 

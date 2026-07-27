@@ -830,8 +830,13 @@ type AppEnvironment = 'staging' | 'production' | 'development' | undefined;
  * means donations appear to succeed while no money is ever collected, which
  * looks healthy from every dashboard the platform has.
  *
- * The design states this directly: test-mode keys only outside production, and
- * separate live and test keys per environment.
+ * One deliberate exception: pre-cutover production runs its Stripe test-mode
+ * exercise before real members arrive, so a test key is tolerated in
+ * production exactly while the production-live marker reads pre-live
+ * (productionPreLive=true, established by the caller from the SSM marker).
+ * The default is false, so every path that does not prove pre-live keeps the
+ * strict refusal. From the go-live flip onward test keys are refused
+ * permanently.
  *
  * FOOTBAG_ENV is the discriminator, never NODE_ENV. That follows the standing
  * rule that security posture is not derived from NODE_ENV, and it matters here
@@ -847,6 +852,7 @@ type AppEnvironment = 'staging' | 'production' | 'development' | undefined;
 export function assertKeyMatchesEnvironment(
   apiKey: string,
   env: AppEnvironment = config.footbagEnv,
+  productionPreLive = false,
 ): void {
   const isLiveKey = apiKey.startsWith('sk_live_') || apiKey.startsWith('rk_live_');
   const isTestKey = apiKey.startsWith('sk_test_') || apiKey.startsWith('rk_test_');
@@ -858,11 +864,13 @@ export function assertKeyMatchesEnvironment(
         + 'Replace the value in this environment\'s stripe_secret_key parameter with a test key.',
     );
   }
-  if (isTestKey && env === 'production') {
+  if (isTestKey && env === 'production' && !productionPreLive) {
     throw new Error(
       'A test-mode Stripe key was supplied to FOOTBAG_ENV=production. Donations would appear '
-        + 'to succeed while collecting no money. Replace the value in the production '
-        + 'stripe_secret_key parameter with the live key.',
+        + 'to succeed while collecting no money. A test key is tolerated only while the '
+        + 'production-live marker reads pre-live (the pre-cutover test-mode exercise); '
+        + 'otherwise replace the value in the production stripe_secret_key parameter with '
+        + 'the live key.',
     );
   }
 }
@@ -1004,7 +1012,25 @@ export function createLivePaymentAdapter(deps: LivePaymentAdapterDeps = {}): Pay
           `Operator: aws ssm put-parameter --name <full-name> --value file://path-to-key --type SecureString --overwrite`,
       );
     }
-    assertKeyMatchesEnvironment(apiKey);
+    // A test-mode key is tolerated in production only while the platform is
+    // pre-live: the marker parameter must read exactly "false". Anything else
+    // (a "true" marker, a missing parameter, an unreadable SSM) keeps the
+    // strict refusal, so a read failure can never quietly admit a test key
+    // into a live production. The normal live-key path never enters this
+    // branch, so it costs no SSM read.
+    let productionPreLive = false;
+    if (
+      config.footbagEnv === 'production'
+      && (apiKey.startsWith('sk_test_') || apiKey.startsWith('rk_test_'))
+    ) {
+      try {
+        productionPreLive =
+          (await secrets.getAbsolute('/footbag/production/app/production_live')) === 'false';
+      } catch {
+        productionPreLive = false;
+      }
+    }
+    assertKeyMatchesEnvironment(apiKey, config.footbagEnv, productionPreLive);
     client = stripeFactory(apiKey);
     return client;
   }

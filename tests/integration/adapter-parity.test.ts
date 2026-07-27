@@ -1709,6 +1709,25 @@ describe('adapter-parity: PaymentAdapter (Stub vs. Live interface)', () => {
     });
   });
 
+  // Pre-cutover production runs its Stripe test-mode exercise before real
+  // members arrive, so a test key is tolerated in production exactly while
+  // the caller proves the production-live marker reads pre-live. The default
+  // is the strict refusal, so a caller that skips the proof fails closed.
+  it('accepts a test key in production only with an explicit pre-live proof', async () => {
+    const { assertKeyMatchesEnvironment } = await import('../../src/adapters/paymentAdapter');
+    expect(() => assertKeyMatchesEnvironment('sk_test_abc123', 'production', true)).not.toThrow();
+    expect(() => assertKeyMatchesEnvironment('rk_test_abc123', 'production', true)).not.toThrow();
+    expect(() => assertKeyMatchesEnvironment('sk_test_abc123', 'production', false)).toThrow(/test-mode/i);
+    expect(() => assertKeyMatchesEnvironment('sk_test_abc123', 'production')).toThrow(/test-mode/i);
+  });
+
+  it('the pre-live proof never widens the other rules', async () => {
+    const { assertKeyMatchesEnvironment } = await import('../../src/adapters/paymentAdapter');
+    expect(() => assertKeyMatchesEnvironment('sk_live_abc123', 'production', true)).not.toThrow();
+    expect(() => assertKeyMatchesEnvironment('sk_live_abc123', 'staging', true)).toThrow(/live-mode/i);
+    expect(() => assertKeyMatchesEnvironment('sk_live_abc123', 'development', true)).toThrow(/live-mode/i);
+  });
+
   it('verification accepts either secret while a rotation is in flight, and rejects anything else', async () => {
     // Stripe signs every delivery with both the old and the new secret for the
     // length of a secret roll. Accepting only one means a rotation fails every

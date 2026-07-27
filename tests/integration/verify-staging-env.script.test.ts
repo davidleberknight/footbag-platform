@@ -49,6 +49,8 @@ const CLEAN_STAGING_ENV = [
   'BACKUP_S3_BUCKET=footbag-staging-db-snapshots',
   'PAYMENT_ADAPTER=stub',
   'STRIPE_WEBHOOK_SECRET_STUB=whsec_stub_staging_generated_value',
+  'PAYMENTS_ARMED=armed',
+  'EMAIL_SEND_ARMED=armed',
 ].join('\n');
 
 interface RunResult {

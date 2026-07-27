@@ -98,3 +98,12 @@ enable_archive_custom_domain = false
 #   TODO-paste-archive-signing-key.pub
 #   -----END PUBLIC KEY-----
 # EOT
+
+# ── Arming switches ───────────────────────────────────────────────────────────
+# Production starts dark on both sides (the variable defaults): stub adapters,
+# staging-like, no real mail and no real money. Arm a side by setting its
+# switch to "armed" here, then terraform apply and deploy; the deploy derives
+# the adapter (armed -> live, dark -> stub) on the host. Sequence arming
+# before real members arrive, per the go-live runbook.
+# payments_armed   = "armed"
+# email_send_armed = "armed"

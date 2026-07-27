@@ -58,6 +58,13 @@ export interface AppConfig {
   awsRegion: string | undefined;
   sesAdapter: 'live' | 'stub';
   sesFromIdentity: string | undefined;
+  // Production arming switch for outbound email. 'dark' keeps production on
+  // the stub adapter (mail captured in memory, simulated-email card renders,
+  // nothing delivered), exactly like staging; 'armed' requires the live
+  // adapter with every strict check. Inert below production. Mandatory to
+  // set explicitly in production-hardened boots; the deploy syncs it from
+  // the SSM app/email_send_armed parameter and derives sesAdapter from it.
+  emailSendArmed: 'armed' | 'dark';
   safeBrowsingAdapter: 'live' | 'stub';
   // CaptchaAdapter: server-side Cloudflare Turnstile verification on
   // claim-initiation surfaces. 'live' calls Turnstile siteverify (secret via
@@ -175,8 +182,16 @@ export interface AppConfig {
   // real Stripe key in SSM plus STRIPE_WEBHOOK_SECRET, not further code.
   // 'stub' is a programmable in-memory simulation that exercises the same
   // Stripe-shaped webhook plumbing end-to-end. Required to be explicit in
-  // production; production rejects 'stub'.
+  // production; the paymentsArmed switch selects which value production
+  // requires, and the live SDK boots only on production.
   paymentAdapter: 'live' | 'stub';
+  // Production arming switch for payments. 'dark' keeps production on the
+  // stub adapter (checkout flows clickable, no real money can move), exactly
+  // like staging; 'armed' requires the live adapter with every strict check.
+  // Inert below production. Mandatory to set explicitly in
+  // production-hardened boots; the deploy syncs it from the SSM
+  // app/payments_armed parameter and derives paymentAdapter from it.
+  paymentsArmed: 'armed' | 'dark';
   // Stripe webhook signing secret. Required when paymentAdapter='live' (the
   // live verifier validates inbound Stripe-Signature headers against it).
   // Undefined in stub mode, which signs and verifies with
@@ -189,8 +204,9 @@ export interface AppConfig {
   // Per-deployment signing secret for the stub payment adapter. The stub's
   // fallback constant is committed source, so any host that kept it would
   // accept a webhook forged by anyone holding a checkout of this repository.
-  // Required on staging, where the stub is the deployed adapter; undefined in
-  // development and test, where the adapter falls back to its own constant.
+  // Required wherever the stub serves a deployed host (staging, and
+  // production while payments are dark); undefined in development and test,
+  // where the adapter falls back to its own constant.
   stripeWebhookSecretStub: string | undefined;
   // Test-only override for container memory-utilization readings. When set,
   // OperationsPlatformService.readContainerMemoryUsedPercent returns this
@@ -347,14 +363,53 @@ function loadConfig(): AppConfig {
     );
   }
 
-  // SES adapter must match the deployment environment: production sends real
-  // email (live); development and staging use the in-process stub so no real
-  // mail leaves those environments. FOOTBAG_ENV (the deployment environment),
-  // not NODE_ENV, is the discriminator, because dev containers pin
-  // NODE_ENV=production for hardening parity while still running the stub.
-  if (footbagEnv === 'production' && sesAdapter !== 'live') {
+  // Arming switches: one per real-world side effect (outbound email,
+  // payments). 'dark' keeps the side on its stub adapter in production,
+  // staging-like, so the full flows run with no mail delivered and no money
+  // moved; 'armed' requires the live adapter with every strict check. The
+  // deploy derives the production adapter values from these flags; the guards
+  // below make a flag/adapter mismatch a boot failure rather than a silent
+  // surprise. Inert below production, where the stub mandates apply
+  // regardless of the flag values.
+  const rawEmailSendArmed = process.env.EMAIL_SEND_ARMED;
+  let emailSendArmed: 'armed' | 'dark';
+  if (rawEmailSendArmed === 'armed' || rawEmailSendArmed === 'dark') {
+    emailSendArmed = rawEmailSendArmed;
+  } else if (rawEmailSendArmed) {
+    throw new Error(`EMAIL_SEND_ARMED must be 'armed' or 'dark', got: ${rawEmailSendArmed}`);
+  } else if (isProd) {
+    throw new Error('EMAIL_SEND_ARMED must be set explicitly in production (no default)');
+  } else {
+    emailSendArmed = 'armed';
+  }
+
+  const rawPaymentsArmed = process.env.PAYMENTS_ARMED;
+  let paymentsArmed: 'armed' | 'dark';
+  if (rawPaymentsArmed === 'armed' || rawPaymentsArmed === 'dark') {
+    paymentsArmed = rawPaymentsArmed;
+  } else if (rawPaymentsArmed) {
+    throw new Error(`PAYMENTS_ARMED must be 'armed' or 'dark', got: ${rawPaymentsArmed}`);
+  } else if (isProd) {
+    throw new Error('PAYMENTS_ARMED must be set explicitly in production (no default)');
+  } else {
+    paymentsArmed = 'armed';
+  }
+
+  // SES adapter must match the deployment environment and the arming switch:
+  // an armed production sends real email (live); a dark production captures
+  // mail on the stub exactly like staging; development and staging use the
+  // in-process stub so no real mail leaves those environments. FOOTBAG_ENV
+  // (the deployment environment), not NODE_ENV, is the discriminator, because
+  // dev containers pin NODE_ENV=production for hardening parity while still
+  // running the stub.
+  if (footbagEnv === 'production' && emailSendArmed === 'armed' && sesAdapter !== 'live') {
     throw new Error(
-      `SES_ADAPTER must be 'live' when FOOTBAG_ENV=production (got '${sesAdapter}'); production sends real email`,
+      `SES_ADAPTER must be 'live' when FOOTBAG_ENV=production and EMAIL_SEND_ARMED=armed (got '${sesAdapter}'); armed production sends real email`,
+    );
+  }
+  if (footbagEnv === 'production' && emailSendArmed === 'dark' && sesAdapter !== 'stub') {
+    throw new Error(
+      `SES_ADAPTER must be 'stub' when FOOTBAG_ENV=production and EMAIL_SEND_ARMED=dark (got '${sesAdapter}'); dark production must not hold a live sender`,
     );
   }
   if (
@@ -533,11 +588,27 @@ function loadConfig(): AppConfig {
   }
   // Gate on the deployment environment (FOOTBAG_ENV), not NODE_ENV: staging pins
   // NODE_ENV=production for hardening parity while legitimately running the stub
-  // adapter (same discriminator the SES guard above uses). Only true production
-  // forbids the stub.
-  if (paymentAdapter === 'stub' && footbagEnv === 'production') {
+  // adapter (same discriminator the SES guard above uses). The live payment SDK
+  // is refused outside production exactly as live SES is: no deployed
+  // non-production environment reaches real Stripe, test mode included; every
+  // real-Stripe exercise runs on pre-cutover production. Within production the
+  // arming switch selects the mandate.
+  if (
+    (footbagEnv === 'development' || footbagEnv === 'staging') &&
+    paymentAdapter === 'live'
+  ) {
     throw new Error(
-      "PAYMENT_ADAPTER='stub' is forbidden in production; use PAYMENT_ADAPTER=live (requires the real Stripe key in SSM plus STRIPE_WEBHOOK_SECRET)",
+      `PAYMENT_ADAPTER must be 'stub' when FOOTBAG_ENV=${footbagEnv} (got 'live'); no environment below production reaches the live payment SDK`,
+    );
+  }
+  if (footbagEnv === 'production' && paymentsArmed === 'armed' && paymentAdapter !== 'live') {
+    throw new Error(
+      "PAYMENT_ADAPTER='stub' is forbidden in production when PAYMENTS_ARMED=armed; use PAYMENT_ADAPTER=live (requires the real Stripe key in SSM plus STRIPE_WEBHOOK_SECRET)",
+    );
+  }
+  if (footbagEnv === 'production' && paymentsArmed === 'dark' && paymentAdapter !== 'stub') {
+    throw new Error(
+      "PAYMENT_ADAPTER must be 'stub' when FOOTBAG_ENV=production and PAYMENTS_ARMED=dark; dark production must not hold the live payment SDK",
     );
   }
 
@@ -570,13 +641,17 @@ function loadConfig(): AppConfig {
   }
   // The stub adapter's fallback signing secret is a committed constant, so a
   // deployed host that keeps it accepts webhooks forged by anyone with a copy
-  // of this repository. Staging runs the stub against the public internet and
-  // must therefore carry its own generated value, with no fallback; dev and
-  // test are not reachable and keep the constant.
+  // of this repository. Staging and dark production run the stub against the
+  // public internet and must therefore carry their own generated value, with
+  // no fallback; dev and test are not reachable and keep the constant.
   const stripeWebhookSecretStub = process.env.STRIPE_WEBHOOK_SECRET_STUB || undefined;
-  if (footbagEnv === 'staging' && paymentAdapter === 'stub' && !stripeWebhookSecretStub) {
+  if (
+    (footbagEnv === 'staging' || footbagEnv === 'production') &&
+    paymentAdapter === 'stub' &&
+    !stripeWebhookSecretStub
+  ) {
     throw new Error(
-      "STRIPE_WEBHOOK_SECRET_STUB is required when FOOTBAG_ENV=staging and PAYMENT_ADAPTER='stub' (the committed stub constant must not sign a reachable endpoint)",
+      `STRIPE_WEBHOOK_SECRET_STUB is required when FOOTBAG_ENV=${footbagEnv} and PAYMENT_ADAPTER='stub' (the committed stub constant must not sign a reachable endpoint)`,
     );
   }
 
@@ -802,6 +877,7 @@ function loadConfig(): AppConfig {
     awsRegion,
     sesAdapter,
     sesFromIdentity,
+    emailSendArmed,
     safeBrowsingAdapter,
     captchaAdapter,
     turnstileSiteKey,
@@ -834,6 +910,7 @@ function loadConfig(): AppConfig {
     trustProxy,
     useCheapPasswordHash,
     paymentAdapter,
+    paymentsArmed,
     stripeWebhookSecret,
     stripeWebhookSecretPrevious,
     stripeWebhookSecretStub,

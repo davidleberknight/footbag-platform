@@ -154,3 +154,33 @@ variable "ses_feedback_webhook_url" {
   default     = ""
   sensitive   = true
 }
+
+# ── Production arming switches ────────────────────────────────────────────────
+# Each switch is published as an SSM app/* parameter and synced into the host
+# env by every deploy, which also derives the matching adapter on production
+# hosts (armed -> live, dark -> stub). 'dark' keeps the side staging-like: the
+# stub adapter runs the full flows with no real-world side effect. Flipping a
+# switch is a tfvars change + apply + deploy; SSM parameter history is the
+# audit trail.
+
+variable "payments_armed" {
+  description = "Payments arming switch. 'dark' = stub payment adapter (checkout flows clickable, no real money can move); 'armed' = live Stripe adapter with every strict config check."
+  type        = string
+  default     = "dark"
+
+  validation {
+    condition     = contains(["armed", "dark"], var.payments_armed)
+    error_message = "payments_armed must be exactly 'armed' or 'dark'."
+  }
+}
+
+variable "email_send_armed" {
+  description = "Email arming switch. 'dark' = stub SES adapter (mail captured in memory, simulated-email card renders, nothing delivered); 'armed' = live SES adapter with every strict config check."
+  type        = string
+  default     = "dark"
+
+  validation {
+    condition     = contains(["armed", "dark"], var.email_send_armed)
+    error_message = "email_send_armed must be exactly 'armed' or 'dark'."
+  }
+}

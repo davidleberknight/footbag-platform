@@ -86,7 +86,6 @@ import {
   PublicClubRow,
   MemberCountRow,
   account,
-  declaredAnchors,
   clubs,
   clubBootstrapLeaders,
   clubLeaders,

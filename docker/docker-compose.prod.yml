@@ -113,7 +113,11 @@ services:
       IMAGE_PROCESSOR_URL: ${IMAGE_PROCESSOR_URL:-http://image:4000}
       MEDIA_STORAGE_ADAPTER: ${MEDIA_STORAGE_ADAPTER:?must be set in /srv/footbag/env (deploy scripts seed s3)}
       MEDIA_STORAGE_S3_BUCKET: ${MEDIA_STORAGE_S3_BUCKET:-}
-      PAYMENT_ADAPTER: ${PAYMENT_ADAPTER:?must be set in /srv/footbag/env (live for production after Stripe-SDK lands, stub for staging)}
+      PAYMENT_ADAPTER: ${PAYMENT_ADAPTER:?must be set in /srv/footbag/env (the deploy derives it from the SSM app/payments_armed arming flag on production; stub below production)}
+      # Arming switches: the deploy syncs both from the SSM app/* parameters
+      # and, on production, derives SES_ADAPTER/PAYMENT_ADAPTER from them.
+      PAYMENTS_ARMED: ${PAYMENTS_ARMED:?must be set in /srv/footbag/env (the deploy syncs it from the SSM app/payments_armed parameter)}
+      EMAIL_SEND_ARMED: ${EMAIL_SEND_ARMED:?must be set in /srv/footbag/env (the deploy syncs it from the SSM app/email_send_armed parameter)}
       # Optional passthrough: env.ts requires it only when PAYMENT_ADAPTER=live
       # (production); staging runs stub and leaves it unset. Production sources
       # the value from SSM into /srv/footbag/env.
@@ -232,7 +236,11 @@ services:
       IMAGE_PROCESSOR_URL: ${IMAGE_PROCESSOR_URL:-http://image:4000}
       MEDIA_STORAGE_ADAPTER: ${MEDIA_STORAGE_ADAPTER:?must be set in /srv/footbag/env (deploy scripts seed s3)}
       MEDIA_STORAGE_S3_BUCKET: ${MEDIA_STORAGE_S3_BUCKET:-}
-      PAYMENT_ADAPTER: ${PAYMENT_ADAPTER:?must be set in /srv/footbag/env (live for production after Stripe-SDK lands, stub for staging)}
+      PAYMENT_ADAPTER: ${PAYMENT_ADAPTER:?must be set in /srv/footbag/env (the deploy derives it from the SSM app/payments_armed arming flag on production; stub below production)}
+      # Arming switches: the deploy syncs both from the SSM app/* parameters
+      # and, on production, derives SES_ADAPTER/PAYMENT_ADAPTER from them.
+      PAYMENTS_ARMED: ${PAYMENTS_ARMED:?must be set in /srv/footbag/env (the deploy syncs it from the SSM app/payments_armed parameter)}
+      EMAIL_SEND_ARMED: ${EMAIL_SEND_ARMED:?must be set in /srv/footbag/env (the deploy syncs it from the SSM app/email_send_armed parameter)}
       # Optional passthrough: env.ts requires it only when PAYMENT_ADAPTER=live
       # (production); staging runs stub and leaves it unset. Production sources
       # the value from SSM into /srv/footbag/env.

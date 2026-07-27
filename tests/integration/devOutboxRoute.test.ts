@@ -48,8 +48,8 @@ process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
 process.env.SECRETS_ADAPTER           = 'stub';
 process.env.IMAGE_PROCESSOR_URL       = 'http://image:4000';
 process.env.MEDIA_STORAGE_ADAPTER     = 'local';
-process.env.PAYMENT_ADAPTER           = 'live';
-process.env.STRIPE_WEBHOOK_SECRET     = 'whsec_live_realvalue';
+process.env.PAYMENT_ADAPTER           = 'stub';
+process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_staging_generated_value';
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 

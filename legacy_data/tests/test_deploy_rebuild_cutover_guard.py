@@ -75,16 +75,22 @@ def test_refuses_the_marker_among_other_lines(tmp_path):
     assert "post-cutover" in result.stderr
 
 
-def test_deploy_script_wires_the_guard_ahead_of_the_remote_half():
-    # The guard only protects the deploy if the streaming invocation actually
-    # prepends it. Compare executable lines (comments mention both filenames).
+def test_deploy_script_wires_the_guards_ahead_of_the_remote_half():
+    # The guards only protect the deploy if the streaming invocation actually
+    # prepends them: the post-cutover guard first, then the production-live
+    # guard, then the remote half. Compare executable lines (comments mention
+    # the filenames).
     deploy = DEPLOY.read_text()
     executable = "\n".join(
         line for line in deploy.splitlines() if not line.lstrip().startswith("#")
     )
-    assert 'cat "$CUTOVER_GUARD" "$REMOTE_HALF"' in executable, (
-        "deploy-rebuild.sh must prepend the cutover guard to the remote half"
+    assert 'cat "$CUTOVER_GUARD" "$PROD_LIVE_GUARD" "$REMOTE_HALF"' in executable, (
+        "deploy-rebuild.sh must prepend the cutover and production-live guards "
+        "to the remote half"
     )
     assert '[[ -r "$CUTOVER_GUARD" ]]' in executable, (
         "deploy-rebuild.sh must readability-check the cutover guard"
+    )
+    assert '[[ -r "$PROD_LIVE_GUARD" ]]' in executable, (
+        "deploy-rebuild.sh must readability-check the production-live guard"
     )

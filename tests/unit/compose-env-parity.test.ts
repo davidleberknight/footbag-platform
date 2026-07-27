@@ -168,9 +168,9 @@ const DEV_FIXTURE: Record<string, string> = {
   SESSION_SECRET: 'a'.repeat(48),
   // Dev compose pins NODE_ENV=production for prod-mode hardening parity;
   // env.ts requires PAYMENT_ADAPTER to be set explicitly under prod mode.
-  PAYMENT_ADAPTER: 'live',
-  // env.ts requires STRIPE_WEBHOOK_SECRET when PAYMENT_ADAPTER=live.
-  STRIPE_WEBHOOK_SECRET: 'whsec_live_realvalue',
+  // The stub is the only bootable value below production (env.ts refuses
+  // the live payment SDK outside production).
+  PAYMENT_ADAPTER: 'stub',
   // The compose file requires this explicitly (no fallback literal);
   // scripts/compose-dev.sh generates a per-run value at launch.
   INTERNAL_EVENT_SECRET: 'c'.repeat(48),
@@ -203,7 +203,15 @@ const STAGING_FIXTURE: Record<string, string> = {
   IMAGE_PROCESSOR_URL: 'http://image:4000',
   IMAGE_MAX_CONCURRENT: '1',
   MEDIA_STORAGE_ADAPTER: 'local',
-  PAYMENT_ADAPTER: 'live',
+  // Staging deploys the stub payment adapter; env.ts refuses the live SDK
+  // below production, so the stub plus its generated signing secret is the
+  // only bootable staging shape.
+  PAYMENT_ADAPTER: 'stub',
+  STRIPE_WEBHOOK_SECRET_STUB: 'whsec_stub_staging_generated_value',
+  // Arming switches: mandatory under prod-mode boots (the deploy syncs them
+  // from SSM); inert below production.
+  PAYMENTS_ARMED: 'armed',
+  EMAIL_SEND_ARMED: 'armed',
   INTERNAL_EVENT_SECRET: 'a'.repeat(48),
   // Deployed hosts get this from Parameter Store via the deploy, and the prod
   // overlay requires it rather than defaulting, so the fixture supplies it.
@@ -262,6 +270,12 @@ const PRODUCTION_FIXTURE: Record<string, string> = {
   MEDIA_STORAGE_ADAPTER: 's3',
   MEDIA_STORAGE_S3_BUCKET: 'footbag-production-media',
   PAYMENT_ADAPTER: 'live',
+  // env.ts requires STRIPE_WEBHOOK_SECRET when PAYMENT_ADAPTER=live.
+  STRIPE_WEBHOOK_SECRET: 'whsec_live_realvalue',
+  // Arming switches: both sides armed is the fully-live production shape
+  // (armed requires the live adapter; dark would require the stub).
+  PAYMENTS_ARMED: 'armed',
+  EMAIL_SEND_ARMED: 'armed',
   // Production requires the real CAPTCHA (env.ts fails fast on the stub
   // under FOOTBAG_ENV=production); the compose file passes both values
   // through from the host env file.

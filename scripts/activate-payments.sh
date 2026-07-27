@@ -10,17 +10,24 @@
 #   2. Pause for the one step that cannot be scripted: creating the webhook
 #      endpoint in the Stripe Dashboard and copying its whsec_... signing
 #      secret, which is then prompted silently.
-#   3. Rewrite /srv/footbag/env on the host: PAYMENT_ADAPTER=live and
-#      STRIPE_WEBHOOK_SECRET=<value>, replace-or-append with duplicate
-#      assignments collapsed. The previous env file is kept as a .bak on the
-#      host, and a secret-masked diff is shown for confirmation before the
-#      push.
+#   3. Rewrite /srv/footbag/env on the host: STRIPE_WEBHOOK_SECRET=<value>,
+#      replace-or-append with duplicate assignments collapsed. The previous
+#      env file is kept as a .bak on the host, and a secret-masked diff is
+#      shown for confirmation before the push. PAYMENT_ADAPTER is never
+#      written here: the deploy derives it from the SSM payments arming flag
+#      (armed -> live, dark -> stub), so activation provisions credentials and
+#      arming is the separate Terraform step (tfvars flip + apply + deploy).
 #   4. Run the PAYMENTS-BOOT gate (validate-payments-boot.sh) against the
-#      updated file, then print the deploy and live-verification steps.
+#      updated file, then print the arming and verification steps.
 #
-# The Stripe key must match the environment: production requires sk_live_;
-# staging accepts sk_test_ (or sk_live_). The webhook secret must be a real
-# whsec_ value; the stub adapter's whsec_stub prefix is rejected.
+# Activation targets production only: the config loader refuses the live
+# payment SDK below production, so staging never activates and never holds a
+# Stripe key. The key mode follows the production-live marker: a test-mode
+# key (sk_test_) is valid only while the marker reads pre-live (the
+# pre-cutover test-mode exercise); the live key (sk_live_) takes over from
+# the live canary onward, and the runtime refuses a mismatched key at first
+# use. The webhook secret must be a real whsec_ value; the stub adapter's
+# whsec_stub prefix is rejected.
 #
 # Sudo pattern for the host env file: user-tmp + `ssh -t` interactive sudo
 # install. The operator types the sudo password directly into sudo's noecho
@@ -38,8 +45,7 @@
 #
 # Usage:
 #   scripts/activate-payments.sh --target production --profile <prod-profile>
-#   scripts/activate-payments.sh --target staging --profile <staging-profile>
-#   scripts/activate-payments.sh --target staging --dry-run
+#   scripts/activate-payments.sh --target production --dry-run
 #   scripts/activate-payments.sh --target production --profile <p> --rotate-webhook-secret
 #   scripts/activate-payments.sh --target production --profile <p> --complete-webhook-rotation
 #
@@ -128,6 +134,18 @@ case "$TARGET" in
     ;;
 esac
 
+# Staging never reaches Stripe: the config loader refuses the live payment SDK
+# below production, so there is nothing to activate there. The stub adapter and
+# its deploy-seeded signing secret are staging's permanent shape. Rotation
+# modes are not refused by target: their own precondition (an env file already
+# on the live adapter) refuses a stub host naturally.
+if [[ "$MODE" == "activate" && "$TARGET" == "staging" && -z "$ENV_FILE_OVERRIDE" ]]; then
+  echo "ERROR: staging never activates live payments; the live payment SDK boots only on" >&2
+  echo "       production, and every real-Stripe exercise (test mode included) runs on" >&2
+  echo "       pre-cutover production. There is no staging Stripe key to provision." >&2
+  exit 1
+fi
+
 if [[ -z "$SSH_ALIAS" ]]; then
   SSH_ALIAS="footbag-$TARGET"
 fi
@@ -142,13 +160,14 @@ if (( DRY_RUN )); then
       echo ""
       echo "Would run, in order:"
       echo "  1. Prompt (silent) for the Stripe secret API key"
-      echo "     (production requires sk_live_; staging accepts sk_test_)"
+      echo "     (sk_test_ while the production-live marker reads pre-live; sk_live_ from the canary on)"
       echo "  2. aws ssm put-parameter --name $SSM_PARAM --type SecureString \\"
       echo "       --key-id $KMS_ALIAS --overwrite --profile <profile> --value file://<0600 temp>"
       echo "  3. Pause: create the webhook endpoint in the Stripe Dashboard"
       echo "     (PUBLIC_BASE_URL + /payments/webhook), then prompt (silent) for its whsec_ secret"
       echo "  4. Stage $HOST_ENV_PATH down from $SSH_ALIAS (ssh -t + sudo install)"
-      echo "  5. Rewrite PAYMENT_ADAPTER=live and STRIPE_WEBHOOK_SECRET=... (requires SECRETS_ADAPTER=live)"
+      echo "  5. Rewrite STRIPE_WEBHOOK_SECRET=... (requires SECRETS_ADAPTER=live; the deploy"
+      echo "     derives PAYMENT_ADAPTER from the arming flag, so it is not written here)"
       echo "  6. Show a secret-masked diff, confirm, push back (.bak kept on host)"
       echo "  7. Run the PAYMENTS-BOOT gate against the updated file"
       echo "  8. Print the deploy (./deploy_to_aws.sh) and checkout+refund verification steps"
@@ -233,13 +252,14 @@ else
 fi
 
 if [[ "$MODE" == "activate" ]]; then
-  if [[ "$TARGET" == "production" && "$STRIPE_KEY" != sk_live_* ]]; then
-    echo "ERROR: production requires a live-mode key (sk_live_...); got a key with a different prefix." >&2
-    exit 1
-  fi
   if [[ "$STRIPE_KEY" != sk_live_* && "$STRIPE_KEY" != sk_test_* ]]; then
     echo "ERROR: Stripe secret keys start with sk_live_ or sk_test_." >&2
     exit 1
+  fi
+  if [[ "$TARGET" == "production" && "$STRIPE_KEY" == sk_test_* ]]; then
+    echo "NOTICE: test-mode key supplied. Production accepts it only while the production-live"
+    echo "        marker (/footbag/production/app/production_live) reads pre-live; the runtime"
+    echo "        refuses a test key at first payment use once the marker flips at go-live."
   fi
 fi
 
@@ -391,19 +411,16 @@ NEW_LOCAL="$(mktemp /tmp/footbag-env-new.XXXXXX)"
 # not argv, so they never appear in the process table.
 case "$MODE" in
   activate)
+    # PAYMENT_ADAPTER is deliberately untouched: the deploy derives it from
+    # the SSM payments arming flag, so activation writes credentials only.
     WS_VALUE="$WEBHOOK_SECRET" awk '
-      BEGIN { seen_pa = 0; seen_ws = 0 }
-      /^PAYMENT_ADAPTER=/ {
-        if (!seen_pa) { print "PAYMENT_ADAPTER=live"; seen_pa = 1 }
-        next
-      }
+      BEGIN { seen_ws = 0 }
       /^STRIPE_WEBHOOK_SECRET=/ {
         if (!seen_ws) { print "STRIPE_WEBHOOK_SECRET=" ENVIRON["WS_VALUE"]; seen_ws = 1 }
         next
       }
       { print }
       END {
-        if (!seen_pa) print "PAYMENT_ADAPTER=live"
         if (!seen_ws) print "STRIPE_WEBHOOK_SECRET=" ENVIRON["WS_VALUE"]
       }
     ' "$OLD_LOCAL" > "$NEW_LOCAL"
@@ -485,14 +502,19 @@ FOOTBAG_ENV_FILE="$GATE_FILE" bash scripts/validate-payments-boot.sh
 echo ""
 case "$MODE" in
   activate)
-    echo "== live payments configured for $TARGET =="
+    echo "== payment credentials provisioned for $TARGET =="
     echo ""
-    echo "Next steps:"
-    echo "  1. Deploy / restart: ./deploy_to_aws.sh"
-    echo "  2. Verify live: one real checkout (smallest tier), webhook signature"
-    echo "     validation in the logs, payment row 'succeeded' plus the tier grant,"
-    echo "     then refund from the Stripe Dashboard and confirm the row moves to"
-    echo "     'refunded' with the tier grant preserved."
+    echo "Activation provisions; arming is the separate Terraform step. Next steps:"
+    echo "  1. Arm payments when ready: set payments_armed = \"armed\" in the $TARGET"
+    echo "     tfvars, terraform apply (SSM app/payments_armed), then deploy"
+    echo "     (./deploy_to_aws.sh) - the deploy derives PAYMENT_ADAPTER=live from"
+    echo "     the flag. Until then the host stays dark on the stub adapter."
+    echo "  2. Verify per the two-stage doctrine: test-mode end-to-end while the"
+    echo "     production-live marker reads pre-live; then, with the live key, one"
+    echo "     real checkout (smallest tier), webhook signature validation in the"
+    echo "     logs, payment row 'succeeded' plus the tier grant, then refund from"
+    echo "     the Stripe Dashboard and confirm the row moves to 'refunded' with"
+    echo "     the tier grant preserved."
     ;;
   rotate)
     echo "== webhook signing secret rotated for $TARGET =="

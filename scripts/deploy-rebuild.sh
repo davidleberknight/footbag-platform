@@ -80,6 +80,10 @@ REMOTE_HALF="${SCRIPT_DIR}/internal/deploy-rebuild-remote.sh"
 # database replace once the host's env carries the post-cutover marker
 # (FOOTBAG_CUTOVER_COMPLETE=1), before any live mutation. No bypass flag.
 CUTOVER_GUARD="${SCRIPT_DIR}/internal/deploy-rebuild-cutover-guard.sh"
+# Also prepended, production targets only: refuses the database replace unless
+# the SSM production-live marker reads exactly "false" (fail closed), and
+# independently when the on-host database already holds real member accounts.
+PROD_LIVE_GUARD="${SCRIPT_DIR}/internal/deploy-rebuild-production-live-guard.sh"
 
 # SSH connection options. Parallel to scripts/deploy-code.sh; see that file
 # for the rationale (host-key pinning on first contact, fail-fast on dead
@@ -123,6 +127,7 @@ fi
 
 [[ -r "$REMOTE_HALF" ]] || { echo "ERROR: missing remote-half: $REMOTE_HALF" >&2; exit 1; }
 [[ -r "$CUTOVER_GUARD" ]] || { echo "ERROR: missing cutover guard: $CUTOVER_GUARD" >&2; exit 1; }
+[[ -r "$PROD_LIVE_GUARD" ]] || { echo "ERROR: missing production-live guard: $PROD_LIVE_GUARD" >&2; exit 1; }
 command -v docker >/dev/null || { echo "ERROR: docker required locally for image build" >&2; exit 1; }
 
 HOST_IP=$(ssh -G "$REMOTE" | awk '/^hostname / {print $2; exit}')
@@ -392,9 +397,10 @@ echo "==> Running remote-as-root rebuild deploy via cat-pipe..."
   printf 'DEPLOY_TARGET=%q\n'                "$REMOTE"
   printf 'FOOTBAG_DEV_INITIAL_ADMIN_EMAILS=%q\n' "$INITIAL_ADMIN_EMAILS_CSV"
   printf 'SEED_TEST_PERSONAS=%q\n'          "${SEED_TEST_PERSONAS:-no}"
-  # The cutover guard runs first inside the root session: on a post-cutover
-  # host it exits non-zero before the remote half, so nothing live is touched.
-  cat "$CUTOVER_GUARD" "$REMOTE_HALF"
+  # The guards run first inside the root session: on a post-cutover host, a
+  # live-marked production, or a production database holding real members,
+  # they exit non-zero before the remote half, so nothing live is touched.
+  cat "$CUTOVER_GUARD" "$PROD_LIVE_GUARD" "$REMOTE_HALF"
 } | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -S -p "" bash'
 
 # Smoke runs against the public CloudFront URL. No environment URL is

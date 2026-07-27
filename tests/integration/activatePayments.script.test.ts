@@ -90,17 +90,24 @@ describe('activate-payments.sh — argument validation', () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toMatch(/aws ssm put-parameter --name \/footbag\/production\/secrets\/stripe_secret_key/);
     expect(result.stdout).toMatch(/alias\/footbag-production/);
-    expect(result.stdout).toMatch(/PAYMENT_ADAPTER=live/);
+    expect(result.stdout).toMatch(/derives PAYMENT_ADAPTER from the arming flag/);
     expect(result.stdout).toMatch(/PAYMENTS-BOOT gate/);
+  });
+
+  it('refuses to activate staging (the live payment SDK boots only on production)', () => {
+    const result = runScript(['--target', 'staging', '--dry-run']);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toMatch(/staging never activates live payments/);
   });
 });
 
 describe('activate-payments.sh — credential shape refusals', () => {
-  it('refuses a test-mode key on production', () => {
-    const envFile = writeEnvFile(['SECRETS_ADAPTER=live', 'PAYMENT_ADAPTER=stub']);
+  it('accepts a test-mode key on production with a pre-live notice (the pre-cutover exercise)', () => {
+    const envFile = writeEnvFile(['SECRETS_ADAPTER=live', 'PAYMENT_ADAPTER=stub', 'PAYMENTS_ARMED=dark']);
     const result = runScript(['--target', 'production', '--env-file', envFile], SECRETS);
-    expect(result.exitCode).toBe(1);
-    expect(result.stderr).toMatch(/production requires a live-mode key/);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toMatch(/NOTICE: test-mode key supplied/);
+    expect(result.stdout).toMatch(/production-live/);
   });
 
   it('refuses a key that is neither sk_live_ nor sk_test_', () => {
@@ -143,33 +150,33 @@ describe('activate-payments.sh — env-file rewrite contract', () => {
     expect(readFileSync(envFile, 'utf-8')).toContain('PAYMENT_ADAPTER=stub');
   });
 
-  it('flips PAYMENT_ADAPTER to live and appends the webhook secret', () => {
-    const envFile = writeEnvFile(['SECRETS_ADAPTER=live', 'PAYMENT_ADAPTER=stub', 'OTHER=untouched']);
+  it('appends the webhook secret and leaves PAYMENT_ADAPTER untouched (the deploy derives it)', () => {
+    const envFile = writeEnvFile(['SECRETS_ADAPTER=live', 'PAYMENT_ADAPTER=stub', 'PAYMENTS_ARMED=dark', 'OTHER=untouched']);
     const result = runScript(['--target', 'staging', '--env-file', envFile], SECRETS);
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toMatch(/GATE: PAYMENTS-BOOT PASS/);
     const rewritten = readFileSync(envFile, 'utf-8');
-    expect(rewritten).toContain('PAYMENT_ADAPTER=live');
-    expect(rewritten).not.toContain('PAYMENT_ADAPTER=stub');
+    expect(rewritten).toContain('PAYMENT_ADAPTER=stub');
+    expect(rewritten).not.toContain('PAYMENT_ADAPTER=live');
     expect(rewritten).toContain(`STRIPE_WEBHOOK_SECRET=${SECRETS.STRIPE_WEBHOOK_SECRET_VALUE}`);
     expect(rewritten).toContain('OTHER=untouched');
   });
 
-  it('collapses duplicate assignments instead of stacking new ones', () => {
+  it('collapses duplicate webhook-secret assignments instead of stacking new ones', () => {
     // An idempotent re-activation: the file already carries the value being
     // installed (duplicated here), so activation proceeds and must leave a
-    // single assignment of each key rather than stacking another.
+    // single assignment rather than stacking another. PAYMENT_ADAPTER lines
+    // pass through verbatim; the deploy owns that key.
     const envFile = writeEnvFile([
       'SECRETS_ADAPTER=live',
       'PAYMENT_ADAPTER=stub',
-      'PAYMENT_ADAPTER=stub',
+      'PAYMENTS_ARMED=dark',
       `STRIPE_WEBHOOK_SECRET=${SECRETS.STRIPE_WEBHOOK_SECRET_VALUE}`,
       `STRIPE_WEBHOOK_SECRET=${SECRETS.STRIPE_WEBHOOK_SECRET_VALUE}`,
     ]);
     const result = runScript(['--target', 'staging', '--env-file', envFile], SECRETS);
     expect(result.exitCode).toBe(0);
     const rewritten = readFileSync(envFile, 'utf-8');
-    expect(rewritten.match(/^PAYMENT_ADAPTER=/gm)).toHaveLength(1);
     expect(rewritten.match(/^STRIPE_WEBHOOK_SECRET=/gm)).toHaveLength(1);
   });
 
@@ -188,7 +195,7 @@ describe('activate-payments.sh — env-file rewrite contract', () => {
   });
 
   it('masks the webhook secret in the displayed diff', () => {
-    const envFile = writeEnvFile(['SECRETS_ADAPTER=live', 'PAYMENT_ADAPTER=stub']);
+    const envFile = writeEnvFile(['SECRETS_ADAPTER=live', 'PAYMENT_ADAPTER=stub', 'PAYMENTS_ARMED=dark']);
     const result = runScript(['--target', 'staging', '--env-file', envFile], SECRETS);
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain('STRIPE_WEBHOOK_SECRET=********');
@@ -201,6 +208,7 @@ describe('activate-payments.sh — env-file rewrite contract', () => {
     const envFile = writeEnvFile([
       'SECRETS_ADAPTER=live',
       'PAYMENT_ADAPTER=stub',
+      'PAYMENTS_ARMED=dark',
       'SESSION_SECRET=session_plaintext_value',
       'INTERNAL_EVENT_SECRET=ipc_plaintext_value',
     ]);
