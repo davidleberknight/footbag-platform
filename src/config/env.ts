@@ -24,6 +24,31 @@ export interface AppConfig {
   // paths are the legacy site's URL space, never constructed platform-side.
   // Null when unset (dev/test default): archive-linking UI is omitted.
   archiveUrl: string | null;
+  // Routes the Legacy Archive card through the platform's own login-gated
+  // redirect (GET /archive) instead of linking the archive host directly.
+  // Set only where the archive edge cannot validate a platform session: two
+  // sibling cloudfront.net hosts can never share a cookie (public-suffix
+  // rule), so such a deployment gates archive access by platform login and
+  // serves its archive edge ungated. False by default: deployments with a
+  // shared parent domain keep the direct link and the edge-gated design.
+  archiveLoginRedirect: boolean;
+  // Archive signed-cookie issuance. When a signer is configured, every
+  // session-cookie issue site also mints the three CloudFront-* cookies that
+  // the archive edge's trusted key group validates, and logout clears all
+  // four. Null (the default) issues no archive cookies: a deployment stays
+  // on whatever other access shape it runs (the login-gated redirect, or no
+  // archive at all). 'ssm' reads the signing key from the secrets adapter at
+  // boot (deployed environments); 'local' loads or creates a PEM file (dev
+  // and test).
+  archiveCookieSigner: 'ssm' | 'local' | null;
+  // CloudFront public-key id (the CloudFront-Key-Pair-Id cookie value).
+  // Required for 'ssm'; 'local' defaults a synthetic id.
+  archiveKeyPairId: string | undefined;
+  archiveSigningKeyPath: string;
+  // Parent-domain scope for the archive cookies (production:
+  // '.footbag.org'). Unset, the cookies are host-only, which is correct
+  // everywhere a parent domain shared with the archive host does not exist.
+  archiveCookieDomain: string | undefined;
   sessionSecret: string;
   mediaDir: string;
   curatedMediaDir: string;
@@ -705,6 +730,54 @@ function loadConfig(): AppConfig {
     );
   }
 
+  const rawArchiveCookieSigner = process.env.ARCHIVE_COOKIE_SIGNER;
+  let archiveCookieSigner: 'ssm' | 'local' | null;
+  if (rawArchiveCookieSigner === undefined || rawArchiveCookieSigner === '') {
+    archiveCookieSigner = null;
+  } else if (rawArchiveCookieSigner === 'ssm' || rawArchiveCookieSigner === 'local') {
+    archiveCookieSigner = rawArchiveCookieSigner;
+  } else {
+    throw new Error(
+      `ARCHIVE_COOKIE_SIGNER must be 'ssm' or 'local', got: ${rawArchiveCookieSigner}`,
+    );
+  }
+  const archiveKeyPairId = process.env.ARCHIVE_KEY_PAIR_ID || undefined;
+  if (archiveCookieSigner === 'ssm' && !archiveKeyPairId) {
+    throw new Error('ARCHIVE_KEY_PAIR_ID is required when ARCHIVE_COOKIE_SIGNER=ssm');
+  }
+  if (archiveCookieSigner && !process.env.ARCHIVE_URL) {
+    throw new Error(
+      'ARCHIVE_URL is required when ARCHIVE_COOKIE_SIGNER is set: the signed-cookie policy scopes to the archive base URL',
+    );
+  }
+  const archiveCookieDomain = process.env.ARCHIVE_COOKIE_DOMAIN || undefined;
+  if (archiveCookieDomain && !archiveCookieDomain.startsWith('.')) {
+    throw new Error(
+      `ARCHIVE_COOKIE_DOMAIN must start with '.' (a parent-domain cookie scope), got: ${archiveCookieDomain}`,
+    );
+  }
+  if (archiveCookieDomain && !archiveCookieSigner) {
+    throw new Error(
+      'ARCHIVE_COOKIE_DOMAIN requires ARCHIVE_COOKIE_SIGNER: a cookie domain without a signer issues nothing',
+    );
+  }
+  const archiveSigningKeyPath =
+    process.env.ARCHIVE_SIGNING_KEY_PATH || 'database/dev-archive-signing-key.pem';
+
+  const rawArchiveLoginRedirect = process.env.ARCHIVE_LOGIN_REDIRECT;
+  let archiveLoginRedirect: boolean;
+  if (rawArchiveLoginRedirect === undefined || rawArchiveLoginRedirect === '') {
+    archiveLoginRedirect = false;
+  } else if (rawArchiveLoginRedirect === '1' || rawArchiveLoginRedirect === 'true') {
+    archiveLoginRedirect = true;
+  } else if (rawArchiveLoginRedirect === '0' || rawArchiveLoginRedirect === 'false') {
+    archiveLoginRedirect = false;
+  } else {
+    throw new Error(
+      `ARCHIVE_LOGIN_REDIRECT must be '1', '0', 'true', or 'false', got: ${rawArchiveLoginRedirect}`,
+    );
+  }
+
   return {
     port,
     nodeEnv,
@@ -715,6 +788,11 @@ function loadConfig(): AppConfig {
     dbPath: requireEnv('FOOTBAG_DB_PATH'),
     publicBaseUrl: requireEnv('PUBLIC_BASE_URL'),
     archiveUrl: process.env.ARCHIVE_URL || null,
+    archiveLoginRedirect,
+    archiveCookieSigner,
+    archiveKeyPairId,
+    archiveSigningKeyPath,
+    archiveCookieDomain,
     sessionSecret,
     mediaDir: process.env.FOOTBAG_MEDIA_DIR || './s3-adapter-local',
     curatedMediaDir: process.env.FOOTBAG_CURATED_MEDIA_DIR || './.curated-build',

@@ -480,6 +480,74 @@ mv "$env_tmp" "$ENV_PATH"
 chmod 600 "$ENV_PATH"
 chown root:root "$ENV_PATH"
 
+# Sync ARCHIVE_URL the same way, from the parameter Terraform writes when the
+# archive stack is enabled. Terraform is the only party that knows the served
+# hostname, and the address stays out of every committed file, so this is the
+# one route that keeps the declared value and the running value the same
+# without an operator editing the host env by hand. A MISSING parameter is
+# normal rather than an error: an environment with no archive stack simply has
+# no archive, and the variable is then cleared so the application hides its
+# Legacy Archive card instead of rendering a dead link.
+ssm_archive_url_param="/footbag/${FOOTBAG_ENV_VAL}/app/archive_url"
+echo "    Syncing ARCHIVE_URL from $ssm_archive_url_param ..."
+ARCHIVE_URL_VAL=$(
+  AWS_PROFILE="$AWS_PROFILE_VAL" aws ssm get-parameter \
+    --region "$AWS_REGION_VAL" \
+    --name "$ssm_archive_url_param" \
+    --query 'Parameter.Value' \
+    --output text 2>/dev/null
+) || ARCHIVE_URL_VAL=""
+if [[ -n "$ARCHIVE_URL_VAL" && ! "$ARCHIVE_URL_VAL" =~ ^https:// ]]; then
+  echo "ERROR: SSM $ssm_archive_url_param is '$ARCHIVE_URL_VAL'; expected an https:// base URL." >&2
+  exit 1
+fi
+if [[ -z "$ARCHIVE_URL_VAL" ]]; then
+  echo "    No archive parameter for this environment; ARCHIVE_URL left unset (card hidden)."
+fi
+env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
+chmod 600 "$env_tmp"
+chown root:root "$env_tmp"
+grep -v '^ARCHIVE_URL=' "$ENV_PATH" > "$env_tmp" || true
+if [[ -n "$ARCHIVE_URL_VAL" ]]; then
+  printf 'ARCHIVE_URL=%s\n' "$ARCHIVE_URL_VAL" >> "$env_tmp"
+fi
+mv "$env_tmp" "$ENV_PATH"
+chmod 600 "$ENV_PATH"
+chown root:root "$ENV_PATH"
+
+# Sync ARCHIVE_LOGIN_REDIRECT the same optional way. Terraform publishes the
+# parameter exactly where the archive edge does not require signed cookies, so
+# the application routes its Legacy Archive card through the platform's
+# login-gated redirect there; where the parameter is absent (an edge-gated or
+# archive-less environment) the variable is cleared and the application keeps
+# the direct-link default.
+ssm_archive_redirect_param="/footbag/${FOOTBAG_ENV_VAL}/app/archive_login_redirect"
+echo "    Syncing ARCHIVE_LOGIN_REDIRECT from $ssm_archive_redirect_param ..."
+ARCHIVE_LOGIN_REDIRECT_VAL=$(
+  AWS_PROFILE="$AWS_PROFILE_VAL" aws ssm get-parameter \
+    --region "$AWS_REGION_VAL" \
+    --name "$ssm_archive_redirect_param" \
+    --query 'Parameter.Value' \
+    --output text 2>/dev/null
+) || ARCHIVE_LOGIN_REDIRECT_VAL=""
+if [[ -n "$ARCHIVE_LOGIN_REDIRECT_VAL" && ! "$ARCHIVE_LOGIN_REDIRECT_VAL" =~ ^(0|1|true|false)$ ]]; then
+  echo "ERROR: SSM $ssm_archive_redirect_param is '$ARCHIVE_LOGIN_REDIRECT_VAL'; expected 0, 1, true, or false." >&2
+  exit 1
+fi
+if [[ -z "$ARCHIVE_LOGIN_REDIRECT_VAL" ]]; then
+  echo "    No archive-login-redirect parameter for this environment; ARCHIVE_LOGIN_REDIRECT left unset (direct link)."
+fi
+env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
+chmod 600 "$env_tmp"
+chown root:root "$env_tmp"
+grep -v '^ARCHIVE_LOGIN_REDIRECT=' "$ENV_PATH" > "$env_tmp" || true
+if [[ -n "$ARCHIVE_LOGIN_REDIRECT_VAL" ]]; then
+  printf 'ARCHIVE_LOGIN_REDIRECT=%s\n' "$ARCHIVE_LOGIN_REDIRECT_VAL" >> "$env_tmp"
+fi
+mv "$env_tmp" "$ENV_PATH"
+chmod 600 "$ENV_PATH"
+chown root:root "$ENV_PATH"
+
 # Update FOOTBAG_DEV_INITIAL_ADMIN_EMAILS from the workstation's
 # .local/initial-admins.txt content (passed via cat-pipe). Empty value clears
 # the var so removing an email from the file and redeploying correctly drops

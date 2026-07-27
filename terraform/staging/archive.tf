@@ -47,6 +47,12 @@ variable "enable_archive_custom_domain" {
   }
 }
 
+variable "archive_require_signed_cookies" {
+  description = "Require CloudFront signed cookies on archive content. On, the trusted key group is the whole access control (the production design). Off, the distribution serves archive content to anyone who reaches its unpublished hostname, and the platform's login-gated redirect route is the access gate instead: staging's platform and archive sit on two sibling cloudfront.net hosts that can never share a session cookie (cloudfront.net is a public suffix), so the edge gate is unenforceable from a staging login by design."
+  type        = bool
+  default     = true
+}
+
 variable "archive_platform_url" {
   description = "Base URL of the platform the archive's login redirect and gate pages point back to, without a trailing slash. Empty derives https://<domain_name>, which is right wherever the platform runs on its own domain; staging's platform is reachable only on its CloudFront default URL, so staging supplies that URL here."
   type        = string
@@ -268,6 +274,33 @@ resource "aws_ssm_parameter" "archive_signing_private_key" {
   key_id = aws_kms_alias.main.name
   value  = "TODO-set-via-cli-after-apply"
   lifecycle { ignore_changes = [value] }
+}
+
+# The base URL the application links its Legacy Archive card to. Terraform is
+# the only party that knows the served hostname, so it publishes it here and the
+# deploy syncs it into the host env file, the same route LOG_LEVEL takes. That
+# keeps the address out of every committed file (it is deliberately unpublished,
+# and the conventions gate refuses a concrete distribution hostname in the repo)
+# and out of operator hands: no hand-edited host env line to forget or mistype.
+# Absent when the archive is off, and the deploy then leaves the variable unset,
+# which hides the card rather than rendering a dead link.
+resource "aws_ssm_parameter" "app_archive_url" {
+  count = var.enable_archive ? 1 : 0
+  name  = "${local.ssm_prefix}/app/archive_url"
+  type  = "String"
+  value = "https://${var.enable_archive_custom_domain ? local.archive_domain : aws_cloudfront_distribution.archive[0].domain_name}"
+}
+
+# Tells the application to route the Legacy Archive card through its own
+# login-gated redirect instead of linking the archive host directly. Published
+# exactly when the edge gate is off, so the two can never disagree: whichever
+# party gates access, the other stands down. Synced into the host env the same
+# way as archive_url; absent means the direct-link default.
+resource "aws_ssm_parameter" "app_archive_login_redirect" {
+  count = var.enable_archive && !var.archive_require_signed_cookies ? 1 : 0
+  name  = "${local.ssm_prefix}/app/archive_login_redirect"
+  type  = "String"
+  value = "1"
 }
 
 # ── Certificate ──────────────────────────────────────────────────────────────
@@ -575,7 +608,10 @@ resource "aws_cloudfront_distribution" "archive" {
   # ── Archive content, members only ─────────────────────────────────────────
   # trusted_key_groups is the whole access control: CloudFront verifies the
   # cookie signature itself and refuses anything else with a 403, which the
-  # error mapping below turns into a readable page.
+  # error mapping below turns into a readable page. With
+  # archive_require_signed_cookies off, the list is empty and the distribution
+  # serves without a credential; the platform's login-gated redirect is then
+  # the access gate (see that variable for why staging cannot gate here).
   #
   # No origin_request_policy: OAC signs the request, and forwarding the viewer
   # Host header to an S3 origin breaks virtual-host bucket routing (the
@@ -589,7 +625,7 @@ resource "aws_cloudfront_distribution" "archive" {
     compress               = true
 
     cache_policy_id    = aws_cloudfront_cache_policy.archive_content[0].id
-    trusted_key_groups = [aws_cloudfront_key_group.archive[0].id]
+    trusted_key_groups = var.archive_require_signed_cookies ? [aws_cloudfront_key_group.archive[0].id] : []
 
     function_association {
       event_type   = "viewer-request"

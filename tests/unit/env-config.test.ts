@@ -54,6 +54,12 @@ function clearAwsWiring(): void {
   delete process.env.FOOTBAG_ENV;
   delete process.env.HTTP_REACHABILITY_ADAPTER;
   delete process.env.ALLOW_CURATED_SIDECAR_WRITES;
+  delete process.env.ARCHIVE_URL;
+  delete process.env.ARCHIVE_LOGIN_REDIRECT;
+  delete process.env.ARCHIVE_COOKIE_SIGNER;
+  delete process.env.ARCHIVE_KEY_PAIR_ID;
+  delete process.env.ARCHIVE_SIGNING_KEY_PATH;
+  delete process.env.ARCHIVE_COOKIE_DOMAIN;
   delete process.env.CURATED_ROOT_DIR;
   delete process.env.GALLERY_MAX_EXTERNAL_LINKS;
   delete process.env.AWS_REGION;
@@ -1746,6 +1752,130 @@ describe('env config: ALLOW_CURATED_SIDECAR_WRITES', () => {
     await expect(import('../../src/config/env')).rejects.toThrow(
       /ALLOW_CURATED_SIDECAR_WRITES must be '1', '0', 'true', or 'false', got: bogus/,
     );
+  });
+});
+
+describe('env config: ARCHIVE_LOGIN_REDIRECT', () => {
+  let snap: EnvSnapshot;
+  beforeEach(() => {
+    snap = snapshotEnv();
+    vi.resetModules();
+  });
+  afterEach(() => restoreEnv(snap));
+
+  it('defaults to false when unset', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    const { config } = await import('../../src/config/env');
+    expect(config.archiveLoginRedirect).toBe(false);
+  });
+
+  it("parses '1' as true and '0' as false", async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.ARCHIVE_LOGIN_REDIRECT = '1';
+    let mod = await import('../../src/config/env');
+    expect(mod.config.archiveLoginRedirect).toBe(true);
+    vi.resetModules();
+    process.env.ARCHIVE_LOGIN_REDIRECT = '0';
+    mod = await import('../../src/config/env');
+    expect(mod.config.archiveLoginRedirect).toBe(false);
+  });
+
+  it('throws on invalid value', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.ARCHIVE_LOGIN_REDIRECT = 'yes';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /ARCHIVE_LOGIN_REDIRECT must be '1', '0', 'true', or 'false', got: yes/,
+    );
+  });
+});
+
+describe('env config: ARCHIVE_COOKIE_SIGNER and companions', () => {
+  let snap: EnvSnapshot;
+  beforeEach(() => {
+    snap = snapshotEnv();
+    vi.resetModules();
+  });
+  afterEach(() => restoreEnv(snap));
+
+  it('defaults to null when unset', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    const { config } = await import('../../src/config/env');
+    expect(config.archiveCookieSigner).toBeNull();
+  });
+
+  it('throws on an unknown signer value', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.ARCHIVE_COOKIE_SIGNER = 'kms';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /ARCHIVE_COOKIE_SIGNER must be 'ssm' or 'local', got: kms/,
+    );
+  });
+
+  it('requires ARCHIVE_KEY_PAIR_ID when the signer is ssm', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.ARCHIVE_URL = 'https://archive.example.test';
+    process.env.ARCHIVE_COOKIE_SIGNER = 'ssm';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /ARCHIVE_KEY_PAIR_ID is required when ARCHIVE_COOKIE_SIGNER=ssm/,
+    );
+  });
+
+  it('requires ARCHIVE_URL when any signer is set', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.ARCHIVE_COOKIE_SIGNER = 'local';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /ARCHIVE_URL is required when ARCHIVE_COOKIE_SIGNER is set/,
+    );
+  });
+
+  it('requires the cookie domain to be a parent-domain scope (leading dot)', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.ARCHIVE_URL = 'https://archive.example.test';
+    process.env.ARCHIVE_COOKIE_SIGNER = 'local';
+    process.env.ARCHIVE_COOKIE_DOMAIN = 'example.test';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /ARCHIVE_COOKIE_DOMAIN must start with '\.'/,
+    );
+  });
+
+  it('refuses a cookie domain without a signer', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.ARCHIVE_COOKIE_DOMAIN = '.example.test';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /ARCHIVE_COOKIE_DOMAIN requires ARCHIVE_COOKIE_SIGNER/,
+    );
+  });
+
+  it('accepts the full ssm configuration', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.ARCHIVE_URL = 'https://archive.example.test';
+    process.env.ARCHIVE_COOKIE_SIGNER = 'ssm';
+    process.env.ARCHIVE_KEY_PAIR_ID = 'KEXAMPLE123';
+    process.env.ARCHIVE_COOKIE_DOMAIN = '.example.test';
+    const { config } = await import('../../src/config/env');
+    expect(config.archiveCookieSigner).toBe('ssm');
+    expect(config.archiveKeyPairId).toBe('KEXAMPLE123');
+    expect(config.archiveCookieDomain).toBe('.example.test');
   });
 });
 

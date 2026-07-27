@@ -141,6 +141,26 @@ services:
       # (production); env.ts fail-fasts there. scripts/activate-ses-feedback.sh
       # provisions it at live-email activation.
       SES_FEEDBACK_WEBHOOK_KEY: ${SES_FEEDBACK_WEBHOOK_KEY:-}
+      # Base URL of the members-only legacy archive, served by its own
+      # CloudFront distribution. Optional: unset hides the home page's Legacy
+      # Archive card, so an environment without an archive renders no dead
+      # link. The address is unpublished, so it is set per host in
+      # /srv/footbag/env rather than in any committed file.
+      ARCHIVE_URL: ${ARCHIVE_URL:-}
+      # Routes the Legacy Archive card through the platform's login-gated
+      # redirect where the archive edge does not require signed cookies (the
+      # staging shape: sibling cloudfront.net hosts cannot share a session
+      # cookie). Optional: unset keeps the direct-link, edge-gated default.
+      ARCHIVE_LOGIN_REDIRECT: ${ARCHIVE_LOGIN_REDIRECT:-}
+      # Archive signed-cookie issuance (the parent-domain cookie flow). All
+      # optional: unset issues no archive cookies, which is every environment
+      # until the cookie-widening verifications clear on production. When the
+      # signer is 'ssm' the runtime reads the signing key from SSM at boot;
+      # the key-pair id and the '.footbag.org' cookie scope ride the same
+      # host env.
+      ARCHIVE_COOKIE_SIGNER: ${ARCHIVE_COOKIE_SIGNER:-}
+      ARCHIVE_KEY_PAIR_ID: ${ARCHIVE_KEY_PAIR_ID:-}
+      ARCHIVE_COOKIE_DOMAIN: ${ARCHIVE_COOKIE_DOMAIN:-}
       # This overlay is applied on BOTH staging and production hosts (per the
       # header comment). The env-var passthrough below is required for staging
       # (where the dev/staging admin-bootstrap allowlist is active) and is a

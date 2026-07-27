@@ -37,6 +37,9 @@ export const publicRouter = Router();
 publicRouter.use(requireOnboardingComplete);
 
 publicRouter.get('/',      homeController.home);
+// Login-gated hop to the archive landing page, for deployments where the
+// archive edge cannot share the platform session cookie.
+publicRouter.get('/archive', requireAuth, homeController.archiveRedirect);
 publicRouter.get('/clubs',                  clubController.index);
 publicRouter.post('/clubs/swap-primary',    requireAuth, clubController.postSwapPrimary);
 publicRouter.get('/clubs/create',           requireAuth, clubController.getCreate);

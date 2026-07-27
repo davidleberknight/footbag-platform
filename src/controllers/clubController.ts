@@ -39,16 +39,10 @@ export const clubController = {
       const result = clubService.resolveByKey(req.params.key, req.isAuthenticated, req.user?.userId);
       res.render(result.template, result.vm);
     } catch (err) {
-      // Legacy-URL forwarding: an old /clubs/<slug> link whose club did not
-      // survive normalization (a known legacy candidate with no mapped
-      // club) lands on the archive mirror instead of a dead 404.
-      if (err instanceof NotFoundError) {
-        const legacyClubKey = clubService.findUnmappedLegacyClubKey(req.params.key ?? '');
-        if (legacyClubKey) {
-          res.redirect(301, `https://archive.footbag.org/clubs/${encodeURIComponent(legacyClubKey)}`);
-          return;
-        }
-      }
+      // An old /clubs/<slug> link whose club did not survive normalization
+      // falls through to the standard 404: the platform never constructs a
+      // URL into the archive mirror's interior (the archive landing page is
+      // the only archive URL it ever emits).
       handleControllerError(err, res, next, 'clubs controller');
     }
   },

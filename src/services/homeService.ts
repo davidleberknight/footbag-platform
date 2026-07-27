@@ -116,14 +116,16 @@ export const homeService = {
           description: 'Browse by hashtag or visit named galleries.',
         },
         // The legacy archive is a separate members-only static site; the card
-        // appears only where a deployment provides its URL. Its target is
-        // member-gated at the archive edge (signed-out visitors get the
-        // archive's own sign-in page), so the card itself stays public.
+        // appears only where a deployment provides its URL, and the card
+        // itself stays public. Its target is member-gated one of two ways:
+        // at the archive edge (signed-out visitors get the archive's own
+        // sign-in page), or, where the archive edge cannot share the platform
+        // session cookie, through the platform's own login-gated redirect.
         ...(config.archiveUrl
           ? [
               {
                 label: 'Legacy Archive',
-                href: config.archiveUrl,
+                href: config.archiveLoginRedirect ? '/archive' : config.archiveUrl,
                 description:
                   'The preserved original footbag.org site. Historical reference, for signed-in members.',
               },

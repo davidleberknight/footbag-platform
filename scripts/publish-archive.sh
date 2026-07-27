@@ -145,8 +145,6 @@ tf_out() {
 }
 BUCKET="$(tf_out archive_bucket_name)"
 DIST_ID="$(tf_out archive_distribution_id)"
-ARCHIVE_DOMAIN="$(tf_out archive_domain)"
-KEY_PAIR_ID="$(tf_out archive_key_pair_id)"
 if [[ -z "$BUCKET" || -z "$DIST_ID" ]]; then
   echo "ERROR: archive terraform outputs are empty in ${TF_DIR}." >&2
   echo "The archive stack must be applied (enable_archive = true) and" >&2
@@ -256,36 +254,14 @@ echo "Invalidation created: ${INVALIDATION_ID} (distribution ${DIST_ID})"
 # ---- 8. Optional edge verification -------------------------------------------
 
 if [[ "$VERIFY_EDGE" -eq 1 ]]; then
-  if [[ -z "$ARCHIVE_DOMAIN" || -z "$KEY_PAIR_ID" ]]; then
-    echo "ERROR: --verify-edge needs archive_domain and archive_key_pair_id outputs" >&2
-    exit 1
-  fi
-  if [[ ! -r "$SIGNING_KEY" ]]; then
-    echo "ERROR: signing key not readable: ${SIGNING_KEY}" >&2
-    echo "Generate/fetch the archive signing keypair into ~/AWS/ or pass --signing-key." >&2
-    exit 1
-  fi
-  EXPIRES="$(( $(date +%s) + 3600 ))"
-  POLICY="$(printf '{"Statement":[{"Resource":"https://%s/*","Condition":{"DateLessThan":{"AWS:EpochTime":%s}}}]}' \
-    "$ARCHIVE_DOMAIN" "$EXPIRES")"
-  cf_b64() { openssl base64 -A | tr '+=/' '-_~'; }
-  POLICY_B64="$(printf '%s' "$POLICY" | cf_b64)"
-  SIGNATURE="$(printf '%s' "$POLICY" | openssl dgst -sha1 -sign "$SIGNING_KEY" | cf_b64)"
-  # The signed cookie is a bearer credential: it reaches curl through a 0600
-  # header file, never argv.
-  COOKIE_FILE="${WORK_DIR}/cookie_header.txt"
-  touch "$COOKIE_FILE" && chmod 600 "$COOKIE_FILE"
-  printf 'Cookie: CloudFront-Policy=%s; CloudFront-Signature=%s; CloudFront-Key-Pair-Id=%s\n' \
-    "$POLICY_B64" "$SIGNATURE" "$KEY_PAIR_ID" > "$COOKIE_FILE"
-
-  LANDING_CODE="$(curl -sS -o /dev/null -w '%{http_code}' -H "@${COOKIE_FILE}" \
-    "https://${ARCHIVE_DOMAIN}/index.html")"
-  MISSING_CODE="$(curl -sS -o /dev/null -w '%{http_code}' -H "@${COOKIE_FILE}" \
-    "https://${ARCHIVE_DOMAIN}/no-such-key-$$-${RANDOM}")"
-  echo "Edge check: landing page ${LANDING_CODE} (want 200), missing key ${MISSING_CODE} (want 404)"
-  if [[ "$LANDING_CODE" != "200" || "$MISSING_CODE" != "404" ]]; then
-    echo "ERROR: edge verification failed. If the invalidation just ran, the edge" >&2
-    echo "may still be settling; retry in a minute before investigating." >&2
+  # Delegate to the edge-proof script rather than carrying a second copy of the
+  # cookie-signing logic: one implementation of the signing means a change to
+  # the policy shape cannot leave the two disagreeing.
+  EDGE_ARGS=(--env "$TARGET_ENV" --signing-key "$SIGNING_KEY")
+  [[ -n "$AWS_PROFILE_ARG" ]] && EDGE_ARGS+=(--profile "$AWS_PROFILE_ARG")
+  if ! bash "${SCRIPT_DIR}/verify-archive-edge.sh" "${EDGE_ARGS[@]}"; then
+    echo "ERROR: edge verification failed after publish. If the invalidation just" >&2
+    echo "ran, the edge may still be settling; retry before investigating." >&2
     exit 1
   fi
 fi

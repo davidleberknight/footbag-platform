@@ -2725,6 +2725,14 @@ Rationale:
 
 - Simple metrics and alarms provide operational visibility without heavy analytics infrastructure.
 
+- The first bulk send to the migrated member list is rate-limited and staged, never
+  issued as a single blast. The list is built from legacy addresses of unknown
+  freshness, so a full-volume first send risks a bounce spike, and SES scores bounce
+  rate against the account's sending reputation, which is slow to rebuild and degrades
+  every later transactional message. Sending in bounded batches, with the bounce and
+  complaint rates observed between batches and the send halted if they climb, keeps a
+  stale-address problem operational rather than reputational.
+
 Trade-offs:
 
 - Requires running a separate worker process and monitoring its health.
@@ -3667,6 +3675,8 @@ Rationale:
 - Mail is decoupled from the web switch: MX routing is independent of A/AAAA changes, inbound moves to Google Workspace as its own earlier preparation step, and the web cutover never touches MX.
 - Outbound authentication starts permissive and tightens on evidence: the apex SPF authorizes the platform's own senders (SES for outbound, Google for mail sent from a hosted role mailbox), starting softfail with DMARC in monitor-only mode and tightening only after clean aggregate reports prove no legitimate mail would be quarantined.
 - Historical content is served from the platform-controlled `archive.footbag.org` on its own CloudFront distribution and us-east-1 certificate (the Legacy Archive decision, §6.4), so no legacy subdomain is needed for it.
+- The switch is deliberately the cheapest step in the sequence. Every novel part (certificate issuance, the distribution, the origin path, the archive's signed-cookie flow, and the incremental deploy) is stood up and proved in advance on names that have never resolved: `archive.footbag.org` under its real name, and the temporary `preview.footbag.org` platform subdomain removed at cutover. Go-live therefore changes a record whose target is already known good, instead of exercising anything for the first time inside the freeze window.
+- The temporary pre-cutover platform subdomain is `preview.footbag.org`, and the name must be one that has never existed in the legacy zone: the zone move mirrors every existing record faithfully, so a repurposed name would silently override a webmaster-owned record. `test.footbag.org` already exists in the live zone (a legacy CNAME to `v2.footbag.org`) and is preserved untouched, while `preview` carries no record of any type. The name is re-verified against the fresh zone snapshot before its record is created, is a SAN on the production certificate from first issuance (a later addition forces a certificate replacement), and its record is removed at cutover.
 
 Requirements:
 
@@ -3674,15 +3684,16 @@ Requirements:
 - Records-actor: the zone moves to Route 53 early, so Terraform owns every go-live record (the ACM validation CNAMEs, the SES DKIM CNAMEs, the custom MAIL FROM subdomain records, the SPF amendment, the DMARC record, and the Google MX) and the operator applies them there; the webmaster places only a record that a preparation step needs before the move completes.
 - The zone move mirrors every existing record faithfully (fresh snapshot, `dig`-verified against the Route 53 name servers) before the registrar name-server change, and completes before any cutover step depends on it.
 - Any CAA record on the zone must authorize Amazon's certificate authorities before certificate issuance is attempted.
-- A pre-cutover smoke test proves the CloudFront path (via a test subdomain and `curl --resolve` against a current edge IP) and the apex 301 through the distribution before the switch; the switch is gated on the smoke re-running green on the day.
+- A pre-cutover smoke test proves the CloudFront path (via the `preview.footbag.org` subdomain and `curl --resolve` against a current edge IP) and the apex 301 through the distribution before the switch; the switch is gated on the smoke re-running green on the day.
 - Post-go-live legacy retention is limited to encrypted, non-public artifacts under IFPA-controlled access; a catastrophic-failure fallback is a read-only reconstruction from a tested encrypted artifact, never a standing legacy server.
 
 Trade-offs:
 
-- The zone move is one more coordinated preparation step with the registrar and the webmaster; mitigated by the zone-authority handoff checklist and a test-subdomain rehearsal.
+- The zone move is one more coordinated preparation step with the registrar and the webmaster; mitigated by the zone-authority handoff checklist and a preview-subdomain rehearsal.
 - Apex URLs cost one redirect hop; `www` is the canonical host everywhere.
 - A DNS change is not instantaneous for clients that cached the prior records; the low-TTL choreography bounds this to minutes.
 - Hand-applied records on an externally operated zone are a manual failure mode only until the move; after it, records are Terraform-owned and the manual mode disappears.
+- Proving the path early does not reduce every go-live risk, and the sequence must not be read as though it does: the residual risk sits away from the switch. The final data load runs against the frozen export, which is different data from anything rehearsed; the first bulk member communication is the first send at list scale; and the switch stops being reversible at the first member write after it rather than at the record change. Abort criteria weight those three, not DNS.
 
 Impact:
 

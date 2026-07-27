@@ -5,9 +5,9 @@
  *    live member's slug URL; a soft-landing claim page for an unclaimed
  *    legacy account (generic message; display name only for signed-in
  *    visitors); friendly not-routable 404 otherwise;
- *  - a legacy /clubs/<slug> whose club did not survive normalization
- *    forwards permanently (301) to the archive mirror; surviving club and
- *    country URLs are untouched.
+ *  - a legacy /clubs/<slug> whose club did not survive normalization falls
+ *    through to the standard 404: the platform never constructs a URL into
+ *    the archive mirror's interior, so no club URL redirects there.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
@@ -66,7 +66,7 @@ describe('stored-sample replay', () => {
     { url: '/members/profile/LM-1001', expect: 'live_member' },
     { url: '/members/profile/LM-2002', expect: 'claimable' },
     { url: '/members/profile/LM-9999', expect: 'not_routable' },
-    { url: '/clubs/defunct_club_1999', expect: 'club_archive' },
+    { url: '/clubs/defunct_club_1999', expect: 'club_not_routable' },
   ] as const;
 
   it('every sampled URL lands per contract', async () => {
@@ -85,9 +85,9 @@ describe('stored-sample replay', () => {
           expect(res.status, sample.url).toBe(404);
           expect(res.text).toContain('no longer routable');
           break;
-        case 'club_archive':
-          expect(res.status, sample.url).toBe(301);
-          expect(res.headers.location).toBe('https://archive.footbag.org/clubs/defunct_club_1999');
+        case 'club_not_routable':
+          expect(res.status, sample.url).toBe(404);
+          expect(res.headers.location).toBeUndefined();
           break;
       }
     }

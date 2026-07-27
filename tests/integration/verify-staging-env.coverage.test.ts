@@ -85,6 +85,13 @@ const ALLOWLIST: Map<string, string> = new Map([
   // the staging env check must not require it; it is verified out-of-band as part
   // of the production-only live-captcha config.
   ['TURNSTILE_SITE_KEY', 'rationale: required only under CAPTCHA_ADAPTER=live (production-only); staging uses the captcha stub'],
+  // The archive cookie signer is the parent-domain signed-cookie flow, which
+  // staging cannot run (two sibling cloudfront.net hosts share no cookie);
+  // staging gates archive access by its login-gated redirect instead and
+  // sets no ARCHIVE_COOKIE_SIGNER, so its two companions are never required
+  // on a staging host.
+  ['ARCHIVE_KEY_PAIR_ID', 'rationale: required only when ARCHIVE_COOKIE_SIGNER=ssm, which staging does not set'],
+  ['ARCHIVE_URL', 'rationale: required only when ARCHIVE_COOKIE_SIGNER is set, which staging does not set; on staging the deploy syncs ARCHIVE_URL from SSM and its absence just hides the card'],
 ]);
 
 describe('verify-staging-env.sh ↔ env.ts coverage drift', () => {

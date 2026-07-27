@@ -26,6 +26,7 @@ import {
   createLocalJwtAdapter,
   createKmsJwtAdapter,
 } from '../../src/adapters/jwtSigningAdapter';
+import { createCloudFrontSigningAdapter } from '../../src/adapters/cloudFrontSigningAdapter';
 import {
   createStubSesAdapter,
   createLiveSesAdapter,
@@ -2195,5 +2196,55 @@ describe('adapter-parity: PaymentAdapter (Stub vs. Live interface)', () => {
     expect(() => adapter.constructWebhookEvent('{}', 't=1,v1=deadbeef')).toThrow(
       /STRIPE_WEBHOOK_SECRET is not configured/,
     );
+  });
+});
+
+describe('adapter-parity: CloudFrontSigningAdapter (SSM-sourced vs. local-file key)', () => {
+  // Both backends share one signing implementation; the seam is where the
+  // private key comes from (a SecureString read at boot vs. a local PEM
+  // file). Parity holds when the same key yields byte-identical output
+  // through either sourcing path.
+  const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', {
+    modulusLength: 2048,
+    publicKeyEncoding: { type: 'spki', format: 'pem' },
+    privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+  });
+
+  it('a secrets-adapter-sourced key and a file-sourced key sign identically', async () => {
+    const secrets = createStubSecretsAdapter();
+    secrets.setSecret('archive_signing_private_key', privateKey);
+    const ssmSourced = createCloudFrontSigningAdapter({
+      privateKeyPem: await secrets.getRequired('archive_signing_private_key'),
+      keyPairId: 'KPARITY',
+    });
+
+    const keyFile = path.join(os.tmpdir(), `footbag-test-cf-parity-${process.pid}.pem`);
+    fs.writeFileSync(keyFile, privateKey, { mode: 0o600 });
+    try {
+      const fileSourced = createCloudFrontSigningAdapter({
+        privateKeyPem: fs.readFileSync(keyFile, 'utf8'),
+        keyPairId: 'KPARITY',
+      });
+
+      const resource = 'https://archive.example.test/*';
+      const expires = 1800000000;
+      const a = ssmSourced.signArchiveCookies(resource, expires);
+      const b = fileSourced.signArchiveCookies(resource, expires);
+      expect(a).toEqual(b);
+
+      // Either output verifies against the shared public key.
+      const cookieSafeToBuffer = (v: string): Buffer =>
+        Buffer.from(v.replace(/-/g, '+').replace(/_/g, '=').replace(/~/g, '/'), 'base64');
+      expect(
+        crypto.verify(
+          'sha1',
+          cookieSafeToBuffer(a.policy),
+          publicKey,
+          cookieSafeToBuffer(a.signature),
+        ),
+      ).toBe(true);
+    } finally {
+      fs.rmSync(keyFile, { force: true });
+    }
   });
 });
