@@ -12,12 +12,12 @@ ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT"
 
 violations=$(git ls-files 'terraform/' \
-  | grep -vE '(\.tf|\.hcl|\.tfvars\.example)$|/cloudfront-functions/[^/]+\.js$' \
+  | grep -vE '(\.tf|\.hcl|\.tfvars\.example|\.tftpl)$|/cloudfront-functions/[^/]+\.js$' \
   || true)
 
 if [ -n "$violations" ]; then
   echo "$violations" >&2
-  echo "FAIL: only *.tf, *.hcl, *.tfvars.example, and cloudfront-functions/*.js may be tracked under terraform/; state and plan artifacts embed secret values" >&2
+  echo "FAIL: only *.tf, *.hcl, *.tfvars.example, *.tftpl, and cloudfront-functions/*.js may be tracked under terraform/; state and plan artifacts embed secret values" >&2
   exit 1
 fi
 
