@@ -147,18 +147,17 @@ export const TRICK_INTERPRETATION_ENTRIES: readonly TrickInterpretationEntry[] =
     ],
   },
   // ── Terminology notes: one label, different moves ───────────────────────
-  // The dictionary entry and a historical footbag.org move share a name but
-  // are NOT the same move. The historical move is described in the notes
-  // rather than as a "historical reading", because it is a separate trick,
-  // not another analysis of this one. No alias or merge links them.
+  // Clipper (the kick) and clipper stall (the delay) share a root name but are
+  // separate canonical records with their own routes. The overlay states the
+  // distinction so a reader does not conflate the 1-ADD kick with the 2-ADD delay.
   {
     slug: 'clipper',
-    canonicalReading: 'cross-body inside-foot stall',
+    canonicalReading: 'cross-body inside-foot kick',
     historicalReadings: [],
     structuralNotes: [
-      'A different move shares this name: the historical footbag.org "clipper kick" is a jumping inside-foot kick.',
-      'This dictionary\'s clipper is a stall, not a kick; the two are distinct moves that share related terminology.',
-      'They are not linked by an alias or a merge.',
+      'Clipper is the 1-ADD cross-body inside-foot kick: the inside surface of the kicking foot strikes the bag with the kicking leg swung behind and across the support leg.',
+      'The clipper stall is a separate move: a 2-ADD delay of the bag on the inside surface of the foot, across the support leg.',
+      'The kick and the stall are distinct canonical records with their own pages; they are not the same trick.',
     ],
   },
   {

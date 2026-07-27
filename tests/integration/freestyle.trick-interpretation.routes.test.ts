@@ -63,11 +63,11 @@ beforeAll(async () => {
     review_status: 'curated', is_active: 1,
   });
 
-  // Terminology note: one label, different moves (no historical-reading line).
+  // Terminology note: clipper (kick) and clipper stall (delay) are distinct records.
   insertFreestyleTrick(testDbHandle, {
     slug: 'clipper', canonical_name: 'clipper', adds: '1',
     base_trick: 'clipper', trick_family: 'clipper', category: 'body',
-    description: 'A cross-body inside-foot stall.',
+    description: 'A cross-body inside-foot kick.',
     review_status: 'curated', is_active: 1,
   });
 
@@ -152,15 +152,22 @@ describe('Naming & interpretation overlay — interpretation note (torque)', () 
 });
 
 describe('Naming & interpretation overlay — terminology note (clipper)', () => {
-  it('renders the section and states the footbag.org clipper kick is a different move', async () => {
+  it('renders the section with the kick as the canonical reading and distinguishes the clipper stall', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/clipper');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Naming &amp; interpretation');
-    expect(res.text).toMatch(/Canonical reading[\s\S]*?cross-body inside-foot stall/);
-    expect(res.text).toMatch(/different move shares this name[\s\S]*?clipper kick/);
+    expect(res.text).toMatch(/Canonical reading[\s\S]*?cross-body inside-foot kick/);
+    expect(res.text).toMatch(/1-ADD cross-body inside-foot kick/);
+    expect(res.text).toMatch(/clipper stall is a separate move[\s\S]*?2-ADD delay/);
   });
 
-  it('does NOT render a "Historical reading" label (a different move is not a reading of this trick)', async () => {
+  it('does NOT frame the clipper as a stall', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks/clipper');
+    expect(res.text).not.toMatch(/Canonical reading[\s\S]*?cross-body inside-foot stall/);
+    expect(res.text).not.toContain("clipper is a stall, not a kick");
+  });
+
+  it('does NOT render a "Historical reading" label (the clipper stall is a separate record, not a reading of this trick)', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/clipper');
     expect(res.text).not.toContain('Historical reading');
   });
