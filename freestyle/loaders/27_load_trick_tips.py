@@ -66,6 +66,51 @@ AMBIGUOUS_UNRESOLVED = {
     "atomic double over down",  # a canonical ('fusion') may exist but is unconfirmed; do not guess
 }
 
+# Curated legacy-move-ID -> canonical-slug overrides. Some legacy footbag.org
+# moves cannot be disambiguated by name because the legacy `moves` table gives
+# them the bare Name "Clipper": move 18 is the delay, which is the modern
+# clipper_stall (the modern bare "clipper" is the 1-ADD kick, its own move 2
+# "Clipper Kick"); move 209's Name is a stale "Clipper" though the move is
+# Spinning Clipper (its tips page heading reads "Tips for Spinning Clipper").
+# Without these, name mapping collides both onto the kick. Keyed on the stable
+# legacy move ID, which is authoritative for the source page.
+LEGACY_MOVE_ID_SLUG_OVERRIDES: dict[int, str] = {
+    18: "clipper_stall",
+    209: "spinning_clipper",
+}
+
+
+def _abort_override(move_id: int, slug: str, problem: str) -> None:
+    """Abort the load with an actionable message. Never returns."""
+    raise SystemExit(
+        f"ERROR: curated tip override for legacy move {move_id} targets canonical "
+        f"slug '{slug}', which is {problem} in freestyle_tricks.\n"
+        f"  Aborting before any tip write so move {move_id} is never silently "
+        f"re-routed onto a different trick by its legacy name.\n"
+        f"  Fix: rebuild the trick dictionary so '{slug}' exists with is_active=1 "
+        f"before loading tips, or update LEGACY_MOVE_ID_SLUG_OVERRIDES in this "
+        f"loader if the canonical target changed."
+    )
+
+
+def assert_override_targets_present_and_active(
+    conn: sqlite3.Connection, tips: list[dict]
+) -> None:
+    """Fail closed before any write: every curated override a loaded tip uses
+    must point at an existing, active trick. A missing or inactive target aborts
+    the load rather than falling back to legacy-name mapping, which could route
+    an override move onto the very trick the override exists to correct."""
+    used = {t.get("legacy_move_id") for t in tips} & set(LEGACY_MOVE_ID_SLUG_OVERRIDES)
+    for move_id in sorted(used):
+        slug = LEGACY_MOVE_ID_SLUG_OVERRIDES[move_id]
+        row = conn.execute(
+            "SELECT is_active FROM freestyle_tricks WHERE slug = ?", (slug,)
+        ).fetchone()
+        if row is None:
+            _abort_override(move_id, slug, "missing")
+        if row[0] != 1:
+            _abort_override(move_id, slug, "inactive")
+
 
 def classify(tip: dict, idx: dict[str, str]) -> tuple[str, str]:
     """Return (status, trick_slug) for a tip.
@@ -76,6 +121,12 @@ def classify(tip: dict, idx: dict[str, str]) -> tuple[str, str]:
     unresolved_ambiguous-> 'unresolved:<name>'     (a plausible canonical exists but unconfirmed)
     unresolved_freestyle-> 'unresolved:<name>'     (real freestyle trick simply not authored yet)
     """
+    move_id = tip.get("legacy_move_id")
+    if move_id in LEGACY_MOVE_ID_SLUG_OVERRIDES:
+        # The preflight (assert_override_targets_present_and_active) has already
+        # confirmed this target exists and is active, so route unconditionally.
+        # Never fall back to name mapping for an override move.
+        return ("published", LEGACY_MOVE_ID_SLUG_OVERRIDES[move_id])
     name = tip.get("legacy_trick_name", "")
     slug = idx.get(name_to_slug(name))
     if slug:
@@ -151,6 +202,9 @@ def main() -> None:
     conn = open_freestyle_db(str(args.db))
     conn.execute("PRAGMA foreign_keys = ON")
     idx = build_slug_index(conn)
+
+    # Fail closed on a misconfigured curated override before touching the table.
+    assert_override_targets_present_and_active(conn, tips)
 
     # Classify every tip into a bucket. All buckets are PRESERVED in the table
     # (no tip is discarded); only status='published' rows reach public pages.

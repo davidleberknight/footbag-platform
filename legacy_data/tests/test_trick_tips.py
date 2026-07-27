@@ -243,3 +243,100 @@ def test_loader_is_idempotent_across_all_buckets(tmp_path: Path) -> None:
     first = count(db)
     assert run(_loader_args(db, tips, review)).returncode == 0
     assert count(db) == first == 3
+
+
+def test_curated_move_id_override_routes_the_clipper_family(tmp_path: Path) -> None:
+    # Legacy `moves.Name` is the bare "Clipper" for both the delay (move 18) and
+    # Spinning Clipper (move 209); name mapping alone collides both onto the modern
+    # 1-ADD kick. The curated move-ID override routes each to its real trick, while
+    # the kick's own tips (move 2, "Clipper Kick") still resolve by name/alias.
+    db = make_db(tmp_path)
+    seed_trick(db, "clipper", "clipper", aliases_json='["Clipper Kick"]')
+    seed_trick(db, "clipper_stall", "clipper stall")
+    seed_trick(db, "spinning_clipper", "spinning clipper")
+    tips = _write_tips(tmp_path / "t.ndjson", [
+        _tip(1, 2, "Clipper Kick", "kick tip"),
+        _tip(2, 18, "Clipper", "delay tip"),
+        _tip(3, 209, "Clipper", "spin tip"),   # colliding name; the override wins
+    ])
+    assert run(_loader_args(db, tips, tmp_path / "r.json")).returncode == 0
+    got = {text: slug for slug, _st, _o, text in rows(db, "WHERE status='published'")}
+    assert got == {
+        "kick tip": "clipper",
+        "delay tip": "clipper_stall",
+        "spin tip": "spinning_clipper",
+    }
+    # no tip is lost, duplicated, or left unpublished
+    assert count(db) == 3
+    assert count(db, "WHERE status='published'") == 3
+    # a second run is idempotent (DELETE-by-source + INSERT)
+    assert run(_loader_args(db, tips, tmp_path / "r.json")).returncode == 0
+    assert count(db) == 3
+
+
+def _seed_tip_row(db: Path, slug: str, text: str) -> None:
+    # A pre-existing tip under the loader's own source, so a fail-closed abort can
+    # be shown to leave the population untouched (no DELETE-by-source ran).
+    conn = sqlite3.connect(db)
+    conn.execute(
+        "INSERT INTO freestyle_trick_tips "
+        "(trick_slug, legacy_hint_id, legacy_move_id, tip_text, display_order, "
+        " status, source, loaded_at) "
+        "VALUES (?, 999, 2, ?, 0, 'published', 'footbag_org_moves2', '2026-01-01T00:00:00Z')",
+        (slug, text),
+    )
+    conn.commit()
+    conn.close()
+
+
+def test_override_missing_target_fails_closed_before_mutation(tmp_path: Path) -> None:
+    # A recognized override whose target trick is absent must abort the load with
+    # an actionable error and never fall back to name mapping (which would route
+    # move 18 back onto the clipper kick). The abort happens before any write.
+    db = make_db(tmp_path)
+    seed_trick(db, "clipper", "clipper")            # clipper_stall (move 18) NOT seeded
+    _seed_tip_row(db, "clipper", "sentinel")        # must survive the aborted run
+    tips = _write_tips(tmp_path / "t.ndjson", [_tip(1, 18, "Clipper", "delay tip")])
+    r = run(_loader_args(db, tips, tmp_path / "r.json"))
+    assert r.returncode != 0
+    assert "18" in r.stderr and "clipper_stall" in r.stderr and "missing" in r.stderr, r.stderr
+    # population untouched: the sentinel survives, the new tip was never written
+    assert rows(db) == [("clipper", "published", 0, "sentinel")]
+
+
+def test_override_inactive_target_fails_closed_before_mutation(tmp_path: Path) -> None:
+    # A recognized override whose target trick exists but is inactive must also
+    # abort, distinctly reporting "inactive", before any write.
+    db = make_db(tmp_path)
+    seed_trick(db, "clipper", "clipper")
+    seed_trick(db, "clipper_stall", "clipper stall")
+    conn = sqlite3.connect(db)
+    conn.execute("UPDATE freestyle_tricks SET is_active = 0 WHERE slug = 'clipper_stall'")
+    conn.commit()
+    conn.close()
+    _seed_tip_row(db, "clipper", "sentinel")
+    tips = _write_tips(tmp_path / "t.ndjson", [_tip(1, 18, "Clipper", "delay tip")])
+    r = run(_loader_args(db, tips, tmp_path / "r.json"))
+    assert r.returncode != 0
+    assert "18" in r.stderr and "clipper_stall" in r.stderr and "inactive" in r.stderr, r.stderr
+    assert rows(db) == [("clipper", "published", 0, "sentinel")]
+
+
+def test_extraction_corrects_stale_spinning_clipper_move_name(tmp_path: Path) -> None:
+    # Legacy `moves.Name` for move 209 is a stale "Clipper"; the move is Spinning
+    # Clipper. Extraction applies the curated correction so the emitted tip carries
+    # the real trick name.
+    src = tmp_path / "legacy.sql"
+    src.write_text(
+        "INSERT INTO `moves` VALUES (209,0,'Clipper');\n"
+        "INSERT INTO `movehints` VALUES "
+        "(42,209,12338,'tt','Begin your spin with your head.',943602004,943602004,0);\n",
+        encoding="utf-8",
+    )
+    out = tmp_path / "tips.ndjson"
+    r = run([str(EXTRACT), "--source", str(src), "--out", str(out)])
+    assert r.returncode == 0, r.stderr
+    got = [json.loads(ln) for ln in out.read_text(encoding="utf-8").splitlines() if ln.strip()]
+    assert len(got) == 1
+    assert got[0]["legacy_trick_name"] == "Spinning Clipper"
+    assert got[0]["legacy_move_id"] == 209

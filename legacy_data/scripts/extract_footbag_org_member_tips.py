@@ -192,6 +192,13 @@ def main() -> None:
             if len(f) > 16:
                 move_type[mid] = unquote(f[16])
 
+    # Curated corrections for known-stale legacy `moves.Name` values. Move 209's
+    # Name is "Clipper", but the move is Spinning Clipper (its tips page heading
+    # reads "Tips for Spinning Clipper"); left as-is the tip collides onto the
+    # bare "clipper" kick. The stable legacy move ID is authoritative here.
+    CURATED_MOVE_NAME_OVERRIDES = {209: "Spinning Clipper"}
+    move_name.update(CURATED_MOVE_NAME_OVERRIDES)
+
     # movehints: HintID(0) MoveID(1) MemberID(2) HintTitle(3) HintText(4)
     #            HintCreated(5) HintModified(6) HintPriority(7)
     total = 0
