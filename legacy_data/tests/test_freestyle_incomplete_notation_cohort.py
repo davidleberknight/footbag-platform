@@ -27,7 +27,7 @@ Run from repo root:
 import sqlite3
 from pathlib import Path
 
-import pytest
+from built_db import require_loaded
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DB_PATH = REPO_ROOT / "database" / "footbag.db"
@@ -71,8 +71,7 @@ def _active_blank_notation_slugs(conn):
 
 
 def test_incomplete_notation_cohort_is_bounded():
-    if not DB_PATH.exists():
-        pytest.skip("built database is absent; run the freestyle loaders first")
+    require_loaded("freestyle_tricks")
     conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
     try:
         found = _active_blank_notation_slugs(conn)

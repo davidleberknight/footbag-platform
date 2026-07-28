@@ -21,7 +21,7 @@ Run from repo root:
 import sqlite3
 from pathlib import Path
 
-import pytest
+from built_db import require_loaded
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DB_PATH = REPO_ROOT / "database" / "footbag.db"
@@ -32,8 +32,7 @@ def _conn():
 
 
 def test_no_around_the_world_trick_is_direction_neutral():
-    if not DB_PATH.exists():
-        pytest.skip("built database is absent; run the freestyle loaders first")
+    require_loaded("freestyle_tricks")
     conn = _conn()
     try:
         rows = conn.execute(
@@ -50,8 +49,7 @@ def test_no_around_the_world_trick_is_direction_neutral():
 
 
 def test_atw_atom_resolves_inward_and_orbit_atom_outward():
-    if not DB_PATH.exists():
-        pytest.skip("built database is absent; run the freestyle loaders first")
+    require_loaded("freestyle_tricks")
     conn = _conn()
     try:
         atw = conn.execute(

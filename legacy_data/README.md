@@ -263,9 +263,12 @@ Structural QC for `inputs/name_variants.csv`. Runs inside `run_qc.py`.
 #### `legacy_data/event_results/scripts/26_qc_hof_coverage.py`
 Hall of Fame coverage. Every honoree carrying a person id must exist in
 `historical_persons` with the honor flag set and no split-identity twin, because
-the honor grants a membership tier when a member claims the identity. Runs inside
-`run_qc.py` as a hard check, and reads the database, so it reports a skip rather
-than a failure when none has been loaded.
+the honor grants a membership tier when a member claims the identity. Standalone
+and run by hand, not part of the gate chain: the roster is static, while what can
+break the link is a person-layer change, so the time to run it is after a member
+or canonical load and before cutover sign-off. Reads the database, and reports a
+skip rather than an error under `--skip-when-unloaded` when the person layer is
+absent or empty.
 
 #### `legacy_data/pipeline/event_comparison_viewerV13.py`
 Builds `out/event_comparison_viewer_v13.html` for visual QC.

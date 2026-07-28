@@ -23,7 +23,7 @@ Run from repo root:
 import sqlite3
 from pathlib import Path
 
-import pytest
+from built_db import require_loaded
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DB_PATH = REPO_ROOT / "database" / "footbag.db"
@@ -41,8 +41,7 @@ def _notation(conn, slug):
 
 
 def test_butterfly_atom_defaults_to_far_opposite_side():
-    if not DB_PATH.exists():
-        pytest.skip("built database is absent; run the freestyle loaders first")
+    require_loaded("freestyle_tricks")
     conn = _conn()
     try:
         butterfly = _notation(conn, "butterfly")
@@ -59,8 +58,7 @@ def test_butterfly_atom_defaults_to_far_opposite_side():
 
 
 def test_far_butterfly_is_an_alias_of_the_base():
-    if not DB_PATH.exists():
-        pytest.skip("built database is absent; run the freestyle loaders first")
+    require_loaded("freestyle_trick_aliases")
     conn = _conn()
     try:
         row = conn.execute(

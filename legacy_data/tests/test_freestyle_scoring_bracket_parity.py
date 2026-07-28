@@ -31,7 +31,7 @@ import re
 import sqlite3
 from pathlib import Path
 
-import pytest
+from built_db import require_loaded
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DB_PATH = REPO_ROOT / "database" / "footbag.db"
@@ -57,8 +57,7 @@ def _bracket_parity_violations(conn):
 
 
 def test_corpus_scoring_bracket_parity_holds():
-    if not DB_PATH.exists():
-        pytest.skip("built database is absent; run the freestyle loaders first")
+    require_loaded("freestyle_tricks")
     conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
     try:
         violations = _bracket_parity_violations(conn)

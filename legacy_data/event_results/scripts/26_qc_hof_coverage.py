@@ -99,27 +99,31 @@ def main() -> int:
         help="Path to hof.csv (default: legacy_data/inputs/hof.csv)",
     )
     ap.add_argument(
-        "--skip-when-db-absent",
+        "--skip-when-unloaded",
         action="store_true",
-        help="Report a skip instead of an error when no database exists. The "
-        "gate chain runs before the seed is loaded and on checkouts that never "
-        "load one, where a missing database is normal rather than a fault; an "
-        "operator running this directly wants the error.",
+        help="Report a skip instead of an error when the person layer is not "
+        "loaded: no database file, no historical_persons table, or an empty "
+        "one. The gate chain runs ahead of the seed load and on checkouts that "
+        "never load one, where an unloaded person layer is the normal state "
+        "rather than a fault; an operator running this directly wants the error.",
     )
     args = ap.parse_args()
 
+    def unloaded(reason: str) -> int:
+        if not args.skip_when_unloaded:
+            print(f"ERROR: {reason}", file=sys.stderr)
+            return 2
+        print(
+            f"SKIP: {reason}, so Hall of Fame coverage cannot be checked yet. "
+            f"Load the seed with "
+            f"legacy_data/event_results/scripts/08_load_mvfp_seed_full_to_sqlite.py "
+            f"and re-run this check."
+        )
+        return 0
+
     db_path = Path(args.db)
     if not db_path.exists():
-        if args.skip_when_db_absent:
-            print(
-                f"SKIP: no platform database at {db_path}, so Hall of Fame coverage "
-                f"cannot be checked. Load the seed with "
-                f"legacy_data/event_results/scripts/08_load_mvfp_seed_full_to_sqlite.py "
-                f"and re-run this check."
-            )
-            return 0
-        print(f"ERROR: DB not found: {db_path}", file=sys.stderr)
-        return 2
+        return unloaded(f"no platform database at {db_path}")
     hof_path = Path(args.hof_csv)
     if not hof_path.exists():
         print(f"ERROR: hof.csv not found: {hof_path}", file=sys.stderr)
@@ -131,13 +135,22 @@ def main() -> int:
     con = sqlite3.connect(db_path)
     con.row_factory = sqlite3.Row
     try:
-        hps = {r["person_id"]: dict(r) for r in con.execute(
-            "SELECT person_id, person_name, aliases, hof_member, "
-            "hof_induction_year, event_count "
-            "FROM historical_persons"
-        )}
+        try:
+            hps = {r["person_id"]: dict(r) for r in con.execute(
+                "SELECT person_id, person_name, aliases, hof_member, "
+                "hof_induction_year, event_count "
+                "FROM historical_persons"
+            )}
+        except sqlite3.OperationalError:
+            return unloaded(f"no historical_persons table in {db_path}")
     finally:
         con.close()
+
+    # An empty person layer is the same condition as an absent one: the gate runs
+    # ahead of the seed load, and reporting every honoree as missing there would
+    # bury a real regression under the whole roster.
+    if not hps:
+        return unloaded(f"historical_persons is empty in {db_path}")
 
     by_surname: dict[str, list[dict]] = defaultdict(list)
     for r in hps.values():
