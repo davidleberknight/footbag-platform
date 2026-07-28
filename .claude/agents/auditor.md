@@ -23,6 +23,8 @@ hooks:
         - type: command
           command: "$CLAUDE_PROJECT_DIR/.claude/hooks/guard-prod-ops.sh"
         - type: command
+          command: "$CLAUDE_PROJECT_DIR/.claude/hooks/guard-aws-reach.sh"
+        - type: command
           command: "$CLAUDE_PROJECT_DIR/.claude/hooks/guard-db-destructive.sh"
         - type: command
           command: "$CLAUDE_PROJECT_DIR/.claude/hooks/guard-dangerous-git.sh"

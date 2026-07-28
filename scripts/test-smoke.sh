@@ -7,10 +7,39 @@
 # environment-specific read (terraform dir, AWS profile, SSM path) at the
 # production account instead. The exported variable names stay the same
 # either way because the smoke tests read those exact names.
+#
+# An optional suite name runs one file instead of the directory:
+#   npm run test:smoke -- captcha
+# This matters against a production target, where the full directory includes
+# the media-storage suite: that one puts and deletes objects in the configured
+# bucket, which is the real media bucket under a production target. Naming a
+# suite keeps a narrow pre-cutover wiring check from touching object storage.
+# Filters always resolve under tests/smoke/, so a filter can never widen the
+# run to a suite outside this directory.
 
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
+
+SUITES=()
+if [[ $# -gt 0 ]]; then
+  for suite_arg in "$@"; do
+    if [[ ! "$suite_arg" =~ ^[A-Za-z0-9._-]+$ ]]; then
+      echo "ERROR: suite filter must be a bare suite name (letters, digits, dot, underscore, hyphen), got '$suite_arg'." >&2
+      echo "       Example: npm run test:smoke -- captcha" >&2
+      exit 1
+    fi
+    if ! compgen -G "tests/smoke/${suite_arg}*.test.ts" >/dev/null; then
+      echo "ERROR: no smoke suite matches 'tests/smoke/${suite_arg}*.test.ts'." >&2
+      echo "       Available:" >&2
+      ls tests/smoke/ >&2
+      exit 1
+    fi
+    SUITES+=("tests/smoke/${suite_arg}")
+  done
+else
+  SUITES=("tests/smoke/")
+fi
 
 SMOKE_TARGET_ENV="${SMOKE_TARGET_ENV:-staging}"
 case "$SMOKE_TARGET_ENV" in
@@ -70,4 +99,14 @@ SAFE_BROWSING_API_KEY="$(
 )"
 export SAFE_BROWSING_API_KEY
 
-exec node_modules/.bin/vitest run tests/smoke/
+TURNSTILE_SECRET_KEY="$(
+  aws ssm get-parameter \
+    --region "$AWS_REGION" \
+    --name "/footbag/${SMOKE_TARGET_ENV}/secrets/turnstile_secret_key" \
+    --with-decryption \
+    --query 'Parameter.Value' \
+    --output text 2>/dev/null || true
+)"
+export TURNSTILE_SECRET_KEY
+
+exec node_modules/.bin/vitest run "${SUITES[@]}"

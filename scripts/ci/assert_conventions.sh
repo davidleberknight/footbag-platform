@@ -302,6 +302,36 @@ if [ -n "$skip_hits" ]; then
   violations=$((violations + 1))
 fi
 
+# Rule: no test may reach real cloud object storage or a deployed database.
+# Reason: a test suite is collectible by anyone and runs unattended, so it is
+# the wrong place to hold something that mutates a live bucket or database.
+# Building the S3 adapter with an injected `s3Client` is the supported way to
+# exercise the adapter contract; building it without one resolves real AWS
+# credentials and writes real objects. Deployed database paths are barred for
+# the same reason: every test database is `:memory:` or a temp file.
+echo "[conventions] check: real cloud storage / deployed DB access in tests"
+cloud_hits=$(python3 - <<'PYEOF'
+import pathlib
+
+WINDOW = 6
+for path in sorted(pathlib.Path('tests').rglob('*.ts')):
+    lines = path.read_text(encoding='utf-8', errors='replace').splitlines()
+    for i, line in enumerate(lines):
+        if 'createS3MediaStorageAdapter(' not in line:
+            continue
+        window = '\n'.join(lines[i:i + WINDOW])
+        if 's3Client' not in window:
+            print(f'{path}:{i + 1}: {line.strip()}')
+PYEOF
+)
+db_hits=$(grep -rnE --include='*.ts' "FOOTBAG_DB_PATH[[:space:]]*=[[:space:]]*['\"]/(srv|var|opt)/" tests/ || true)
+if [ -n "$cloud_hits" ] || [ -n "$db_hits" ]; then
+  [ -n "$cloud_hits" ] && echo "$cloud_hits" >&2
+  [ -n "$db_hits" ] && echo "$db_hits" >&2
+  echo "  FAIL: tests never touch real object storage or a deployed database; inject an s3Client, and keep every test DB in :memory: or a temp path" >&2
+  violations=$((violations + 1))
+fi
+
 # Rule: short-form Handlebars comments must not contain mustaches.
 # Reason: {{! ... }} terminates at the FIRST }}, so a comment containing a
 # mustache (e.g. an inline {{example}}) ends early and spills its remaining

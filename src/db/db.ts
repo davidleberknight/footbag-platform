@@ -5307,9 +5307,9 @@ export const account = {
   `); },
 
   // Deliverability of the exact mailbox an outbox enqueue is about to write
-  // to. Address-keyed rather than member-keyed: bounce/complaint state is a
-  // property of the mailbox, and some flows deliberately write to an address
-  // that is not the recipient member's login email.
+  // to. Address-keyed rather than member-keyed, because bounce and complaint
+  // state is a property of the mailbox, and some flows deliberately write to
+  // an address that is not the recipient member's login email.
   get emailStatusByNormalizedLoginEmail() { return db.prepare(`
     SELECT id, email_status
     FROM members_active

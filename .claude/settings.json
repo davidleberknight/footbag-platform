@@ -85,6 +85,12 @@
       "mcp__playwright__browser_close"
     ],
     "ask": [
+      "Bash(aws:*)",
+      "Bash(terraform:*)",
+      "Bash(bash scripts/test-smoke.sh:*)",
+      "Bash(npm run test:smoke*)",
+      "Bash(bash deploy_to_aws.sh:*)",
+      "Bash(./deploy_to_aws.sh:*)",
       "Bash(sed -i:*)",
       "Bash(sed --in-place:*)",
       "Bash(chmod -R:*)",
@@ -263,6 +269,10 @@
           {
             "type": "command",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard-prod-ops.sh"
+          },
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard-aws-reach.sh"
           },
           {
             "type": "command",

@@ -238,6 +238,35 @@ expect "$H" 'echo "run systemctl restart footbag on production"' defer
 expect "$H" 'grep -rn "systemctl restart" ops/systemd' defer
 expect "$H" 'echo terraform apply to production' defer
 
+H=guard-aws-reach.sh
+
+# Anything reaching AWS asks, every invocation, whether the reach is visible in
+# the command or hidden inside a script the command names.
+expect "$H" 'aws ssm get-parameter --name /footbag/staging/secrets/x' ask
+expect "$H" 'aws s3 ls' ask
+expect "$H" 'AWS_PROFILE=footbag-staging-runtime aws sts get-caller-identity' ask
+expect "$H" 'ls && aws sts get-caller-identity' ask
+expect "$H" 'terraform -chdir=terraform/staging output' ask
+expect "$H" 'terraform apply' ask
+expect "$H" 'terraform -chdir=terraform/production plan' ask
+
+# The wrapper-script case: neither command names aws or terraform, and both
+# reach SSM and Terraform state through the script body.
+expect "$H" 'bash scripts/test-smoke.sh captcha' ask
+expect "$H" 'npm run test:smoke' ask
+
+# Local-only terraform subcommands never prompt, or formatting and syntax
+# checks become noise the operator learns to click through.
+expect "$H" 'terraform -chdir=terraform/staging fmt -check' defer
+expect "$H" 'terraform -chdir=terraform/staging validate' defer
+
+# `aws` as an argument is not an AWS call.
+expect "$H" 'grep -rn aws src/adapters/' defer
+expect "$H" 'echo "run aws ssm get-parameter yourself"' defer
+expect "$H" 'ls scripts/ | grep aws' defer
+expect "$H" 'npm test' defer
+expect "$H" 'npm run build' defer
+
 H=guard-readonly-bash.sh
 
 # Writes hidden behind read-only command heads must ask.
@@ -976,6 +1005,7 @@ expect_err2 guard-readonly-bash.sh
 expect_err2 guard-leading-cd.sh
 expect_err2 guard-shell-loop.sh
 expect_err2 guard-process-substitution.sh
+expect_err2 guard-aws-reach.sh
 
 if [ "$fail" -ne 0 ]; then
   echo "[hooks] FAIL: one or more hook fixtures failed." >&2

@@ -1,0 +1,11 @@
+# Verified false positives already published in git history. The working tree
+# no longer contains these strings; the entries exist because a full-history
+# scan still reaches the commit that introduced them, and history is not
+# rewritten. Each line is one exact finding: commit, file, rule, line. A
+# fingerprint cannot mask a recurrence in new code, which a regex allowlist
+# would; anything the scanner reports outside this list is a real finding.
+#
+# A prose comment describing address-keyed bounce and complaint state. The
+# generic-api-key rule read "member-keyed: bounce/complaint" as a key being
+# assigned a high-entropy value. No credential was ever present.
+017c323b905e0d0dba62eec8e0502767b9cbc0e1:src/db/db.ts:generic-api-key:5310

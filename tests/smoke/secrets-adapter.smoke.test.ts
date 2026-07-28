@@ -31,9 +31,12 @@ import {
 } from '../../src/adapters/secretsAdapter';
 
 const RUN = process.env.RUN_STAGING_SMOKE === '1';
-const SSM_PREFIX = '/footbag/staging';
+// Follows the run's target. A fixed prefix would make a production-targeted
+// run read staging parameters and report green about an environment it never
+// touched, which is worse than failing.
+const SSM_PREFIX = `/footbag/${process.env.SMOKE_TARGET_ENV ?? 'staging'}`;
 
-describe.skipIf(!RUN)('SecretsAdapter live SSM round-trip (staging)', () => {
+describe.skipIf(!RUN)('SecretsAdapter live SSM round-trip', () => {
   it('reads an existing SecureString via the assumed-role + KMS chain', async () => {
     // Assert via boolean predicates so a failure never dumps the secret
     // value into test output. The shape (64 lowercase hex) matches the
@@ -82,8 +85,9 @@ describe.skipIf(!RUN)('SecretsAdapter live SSM round-trip (staging)', () => {
     // Terraform-generated. After the operator runs the put, the live
     // SafeBrowsingAdapter reads this on every URL validation. Failures here
     // are typically: param name typo at put time, runtime role missing
-    // ssm:GetParameter on /footbag/staging/secrets/safe_browsing_api_key,
-    // or the SSM resource was deleted out-of-band.
+    // ssm:GetParameter on the target environment's
+    // secrets/safe_browsing_api_key, or the SSM resource was deleted
+    // out-of-band.
     //
     // Existence + non-emptiness only — the value's shape is opaque (Google
     // API keys are arbitrary alphanumeric strings) and we never log it.
@@ -92,7 +96,7 @@ describe.skipIf(!RUN)('SecretsAdapter live SSM round-trip (staging)', () => {
     const exists = typeof value === 'string' && value.length > 0;
     expect(
       exists,
-      'safe_browsing_api_key missing — has the operator run aws ssm put-parameter for /footbag/staging/secrets/safe_browsing_api_key?',
+      `safe_browsing_api_key missing — has the operator run aws ssm put-parameter for ${SSM_PREFIX}/secrets/safe_browsing_api_key?`,
     ).toBe(true);
   });
 });
