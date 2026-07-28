@@ -107,10 +107,24 @@ describe('Glossary framing — settled family-root test note', () => {
   it('renders the settled family-root rule inside the families section', async () => {
     const html = await glossary();
     expect(html).toMatch(/family-root test is settled/);
-    expect(html).toMatch(/more than 10 documented descendants/);
+    expect(html).toMatch(/curated first-class roster/);
+    expect(html).toMatch(/editorial classification/);
     expect(html).toMatch(/<strong>Minor Lineages<\/strong>/);
     expect(html).toContain('id="section-families"');
     expect(html).toContain('Family Parents');
+  });
+});
+
+describe('Glossary framing — no obsolete family-tier threshold claims', () => {
+  it('the rendered glossary carries none of the removed count-threshold claims', async () => {
+    const html = await glossary();
+    expect(html).not.toMatch(/more than 10 documented descendants/);
+    expect(html).not.toMatch(/fewer than the current threshold/);
+    expect(html).not.toMatch(/rather than being hand-picked/);
+    // Eligibility is explicitly stated as a curated editorial classification,
+    // never as the trick count alone deciding Family Parent status.
+    expect(html).toMatch(/not a trick-count threshold/);
+    expect(html).toMatch(/curated first-class roster/);
   });
 });
 
@@ -377,8 +391,9 @@ describe('Glossary §families — Phase D2 step 3 (parent/child/descendant-linea
     // Derived branches render nested in parentheses after their root.
     expect(html).toMatch(/Osis<\/a> \([^)]*family=torque[^)]*family=blender[^)]*\)/);
     expect(html).toMatch(/Legover<\/a> \([^)]*family=double_leg_over[^)]*family=eggbeater[^)]*\)/);
-    // The first-class rule states the current editorial standard (>10 descendants).
-    expect(html).toMatch(/more than 10 documented descendants/);
+    // The first-class rule states the curated editorial classification, not a count threshold.
+    expect(html).toMatch(/curated first-class roster/);
+    expect(html).toMatch(/not a trick-count threshold/);
     expect(html).not.toMatch(/at least three recursive descendant tricks/);
     expect(html).not.toMatch(/curator-selected balance/);
     // The three newly-carded families carry educational cards.

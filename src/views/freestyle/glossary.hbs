@@ -1035,9 +1035,9 @@
         independent axes. Its <strong>lineage position</strong> is either a
         <em>root</em> (Mirage, Whirl, Swirl) or a <em>branch</em> of another family
         (Torque and Blender branch from Osis). Its <strong>display tier</strong> is
-        a <strong>Family Parent</strong> when it clears the current standard (more
-        than 10 documented descendants) or a <strong>Minor Lineage</strong> below
-        it. The two axes are independent: a branch can be a Family Parent (Torque),
+        either <strong>Family Parent</strong>, a curated first-class lineage taught
+        through its own standalone page, or <strong>Minor Lineage</strong>, which
+        remains browsable in the family view without a standalone page. The two axes are independent: a branch can be a Family Parent (Torque),
         and a root can be a Minor Lineage (Eclipse). The family cards below carry
         both as separate chips.</dd>
       <dt>Atom / primitive</dt>
@@ -1069,10 +1069,12 @@
 
     <p class="glossary-note">
       <strong>The family-root test is settled; fine-grained labels are still
-      tidying.</strong> A <strong>Family Parent</strong> must clear a hard rule: a
-      conserved terminal identity that descendants inherit plus more than 10
-      documented descendants (the current standard). Conserved-terminal
-      lineages below that bar are <strong>Minor Lineages</strong>, real and
+      tidying.</strong> A <strong>Family Parent</strong> conserves a recognizable
+      terminal identity that descendants inherit and appears on an explicit curated
+      first-class roster. First-class status is an editorial classification and is
+      not determined automatically by the number of tricks in the lineage.
+      Conserved-terminal lineages that are not on that roster are
+      <strong>Minor Lineages</strong>, real and
       browsable but not Family Parents; some legacy &ldquo;families&rdquo; are really
       <a href="#section-modifiers">modifier ecosystems</a>, surfaces, or aliases
       (see <a href="#section-reading-the-dictionary">the five kinds of object</a>).
@@ -1138,11 +1140,10 @@
 
     <h3 class="section-heading">Family roster</h3>
     <p class="detail-muted">
-      The dictionary&rsquo;s Family Parents, admitted by one rule applied
-      uniformly: a <strong>Family Parent</strong> conserves a recognizable terminal
-      identity (descendants keep the signature even as modifiers stack) and clears
-      the current standard of more than 10 documented descendants.
-      Families emerge from the vocabulary rather than being hand-picked. The two
+      The dictionary&rsquo;s Family Parents: a <strong>Family Parent</strong>
+      conserves a recognizable terminal identity across its descendants and appears
+      on the curated first-class roster. First-class status is an editorial
+      classification, not a trick-count threshold. The two
       dominant catch surfaces (toe-stall, clipper-stall) are
       <strong>Foundational Terminal Surfaces</strong>: nearly every trick resolves
       to one, so they are too broad to teach as a lineage and are excluded
@@ -1178,9 +1179,9 @@
       {{#each content.firstClassFamilyRoster}}{{#unless @first}} &middot; {{/unless}}<a href="/freestyle/tricks?family={{slug}}">{{label}}</a>{{#if branches.length}} ({{#each branches}}{{#unless @first}}, {{/unless}}<a href="/freestyle/tricks?family={{slug}}">{{label}}</a>{{/each}}){{/if}}{{/each}}
     </p>
     <p class="detail-muted glossary-family-roster">
-      <strong>Minor lineages</strong> ({{content.minorLineageRoster.length}}): conserved terminal
-      identity, fewer than the current threshold of documented descendants. Real and
-      browsable, but not Family Parents.
+      <strong>Minor lineages</strong> ({{content.minorLineageRoster.length}}): conserved-terminal lineages
+      that are not on the curated first-class roster. They remain real and browsable
+      in the family view but do not have standalone family pages.
       {{#each content.minorLineageRoster}}{{#unless @first}} &middot; {{/unless}}<a href="/freestyle/tricks?family={{slug}}">{{label}}</a>{{/each}}
     </p>
     <p class="detail-muted">

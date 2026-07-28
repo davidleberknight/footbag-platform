@@ -76,8 +76,9 @@ export const PUBLIC_DISPLAY_FAMILIES: readonly PublicDisplayFamily[] = [
   { slug: 'flurry',            label: 'Flurry' },
   { slug: 'flail',             label: 'Flail' },
   { slug: 'butterfly_swirl',   label: 'Butterfly-Swirl' },
-  // Family Parents (current first-class standard: conserved terminal identity plus more than 10
-  // documented descendants; tier lives in freestyleFamilyTiers.ts). swirl and inside-stall are roots
+  // Family Parents (curated first-class roster: a conserved terminal identity, placed on the roster
+  // as an editorial classification, not a trick count; tier lives in freestyleFamilyTiers.ts).
+  // swirl and inside-stall are roots
   // (swirl's movement differs from
   // whirl; inside-stall is the surface identity the guay lineage lands into); the others are derived
   // branches that inherit a root's terminal identity, recorded via the parent field.

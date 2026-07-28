@@ -200,7 +200,6 @@ import {
 import {
   familyTier,
   isOfficialFamilyParent,
-  FAMILY_DESCENDANT_COUNTS,
   FAMILY_TIER_LABEL,
   type FamilyTier,
 } from '../content/freestyleFamilyTiers';
@@ -3374,7 +3373,7 @@ export interface SetsClusterView {
 export interface FreestyleMinorLineage {
   slug:  string;              // trick_family value; drives ?family={slug}
   name:  string;              // display label (e.g. "Flurry")
-  count: number;              // documented descendant count
+  count: number;              // live rendered membership (tricks shown in the lineage)
   href:  string;              // /freestyle/tricks?family={slug}
 }
 
@@ -3506,7 +3505,7 @@ export interface FreestyleFamilyDetailContent {
   displayArticle: string;          // 'a' | 'an'; shapes the "What is a/an <Name>?" heading
   hashtag: string;                 // '#' + slug; identity token, never a link
   tierLabel: string;               // 'Family Parent'
-  descendantCountLabel: string;    // pre-shaped: 'NN documented descendants'
+  descendantCountLabel: string;    // pre-shaped: 'NN tricks in this family'
   // For a derived branch family, the parent family it presents under
   // (barfly and double-over-down present as branches of Down).
   branchParent: { name: string; href: string } | null;
@@ -4142,9 +4141,9 @@ export interface FreestyleGlossaryContent {
   // glossary roster always matches the dictionary's. Not every entry has a
   // rich family card above; uncarded first-class families still appear here.
   firstClassFamilyRoster: readonly { slug: string; label: string; branches: readonly { slug: string; label: string }[] }[];
-  // Minor lineages: conserved-terminal families below the current first-class
-  // threshold, shown as a compact list under the roster.
-  minorLineageRoster: readonly { slug: string; label: string; count: number }[];
+  // Minor lineages: conserved-terminal families that are not first-class, shown
+  // as a compact list under the roster.
+  minorLineageRoster: readonly { slug: string; label: string }[];
   // Measured topology histograms (how tricks end / begin); widthBucket is a
   // quantized 5%-step width class so the bar carries no inline style.
   familyHistogram: readonly { label: string; count: number; tier: string; widthBucket: number }[];
@@ -9432,11 +9431,10 @@ export const freestyleService = {
       familyTrickCounts.set(fslug, rows.length);
     }
 
-    // Display tier (current editorial standard, reversible): split the rendered
-    // family groups into first-class Family Parents and a compact Minor-Lineage
-    // band. Derived live from the descendant count above; trick_family data is
-    // untouched. Branch families inherit their root's tier presentation but the
-    // count decides each one independently.
+    // Display tier (curated first-class roster): split the rendered family
+    // groups into first-class Family Parents and a compact Minor-Lineage band.
+    // The tier is curated doctrine; the count shown for each minor lineage is
+    // its live rendered membership. trick_family data is untouched.
     const familyParentGroups = familyGroups.filter(
       g => familyTier(g.familySlug) === 'family-parent',
     );
@@ -9445,12 +9443,12 @@ export const freestyleService = {
       .map(g => ({
         slug:  g.familySlug,
         name:  g.familyName,
-        count: FAMILY_DESCENDANT_COUNTS.get(g.familySlug) ?? g.cards.length,
+        count: g.cards.length,
         href:  `/freestyle/tricks?family=${g.familySlug}`,
       }));
-    // The full curated Family-Parent roster (tier from the descendant-count map,
-    // independent of what the current data populates). The landing By-family card
-    // previews all of these; the browse renders only the populated ones.
+    // The full curated Family-Parent roster (tier from the curated first-class
+    // set, independent of what the current data populates). The landing By-family
+    // card previews all of these; the browse renders only the populated ones.
     const familyParentRoster = PUBLIC_DISPLAY_FAMILIES.filter(
       f => familyTier(f.slug) === 'family-parent',
     );
@@ -10248,7 +10246,7 @@ export const freestyleService = {
           })),
         minorLineageRoster: PUBLIC_DISPLAY_FAMILIES
           .filter(f => !f.parent && familyTier(f.slug) === 'minor-lineage')
-          .map(f => ({ slug: f.slug, label: f.label, count: FAMILY_DESCENDANT_COUNTS.get(f.slug) ?? 0 })),
+          .map(f => ({ slug: f.slug, label: f.label })),
         familyHistogram: topologyHistogramRows(FAMILY_HISTOGRAM),
         entryHistogram:  topologyHistogramRows(ENTRY_HISTOGRAM),
         operatorSystemHistogram,
@@ -10955,7 +10953,13 @@ export const freestyleService = {
     }));
 
     const anchorRow = memberRows.find(r => r.slug === slug) ?? null;
-    const descendantCount = FAMILY_DESCENDANT_COUNTS.get(slug) ?? group.cards.length;
+    // Live rendered membership: the number of trick cards this page actually
+    // shows. An umbrella family (e.g. down) renders its members grouped by
+    // variant branch, so its count is the sum of those branches; a normal family
+    // renders its own group.
+    const descendantCount = isUmbrella
+      ? variantGroups.reduce((n, v) => n + v.memberCount, 0)
+      : group.cards.length;
 
     const representativeMedia = pickRepresentativeMedia(
       isUmbrella
@@ -11053,7 +11057,7 @@ export const freestyleService = {
         displayArticle,
         hashtag:              `#${slug}`,
         tierLabel:            FAMILY_TIER_LABEL['family-parent'],
-        descendantCountLabel: `${descendantCount} documented descendants`,
+        descendantCountLabel: `${descendantCount} tricks in this family`,
         branchParent,
         orientation,
         overview: card
@@ -11081,7 +11085,7 @@ export const freestyleService = {
               members: rg.cards.map(memberLinkOf),
             })),
         showRungLabels: !isUmbrella && group.showRungLabels,
-        memberCount:    group.cards.length,
+        memberCount:    descendantCount,
         hasMembers:     isUmbrella ? variantGroups.length > 0 : group.cards.length > 0,
         siblingFamilies,
         notableCompounds:   [...(card?.notableCompounds ?? [])],
