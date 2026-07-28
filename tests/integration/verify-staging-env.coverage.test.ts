@@ -85,6 +85,11 @@ const ALLOWLIST: Map<string, string> = new Map([
   // the staging env check must not require it; it is verified out-of-band as part
   // of the production-only live-captcha config.
   ['TURNSTILE_SITE_KEY', 'rationale: required only under CAPTCHA_ADAPTER=live (production-only); staging uses the captcha stub'],
+  // CAPTCHA_ADAPTER is mandatory-explicit under prod-mode boots, but the
+  // compose base passthrough supplies the explicit staging default (stub)
+  // to the container, so the staging host env file itself does not carry it;
+  // production sets live in its host env at bring-up.
+  ['CAPTCHA_ADAPTER', 'rationale: the compose passthrough supplies the explicit stub default on staging; production sets live in its host env'],
   // The archive cookie signer is the parent-domain signed-cookie flow, which
   // staging cannot run (two sibling cloudfront.net hosts share no cookie);
   // staging gates archive access by its login-gated redirect instead and

@@ -160,4 +160,55 @@ describe('production-live guard: real-member tripwire', () => {
     expect(res.status).toBe(1);
     expect(res.stderr).toContain('could not be read');
   });
+
+  it('resolves the tripwire database from the host env file when no explicit path is given', () => {
+    // The remote half deploys against FOOTBAG_DB_PATH from the host env
+    // file, so the tripwire must inspect the same file; a hardcoded-only
+    // fallback would silently pass on a host with a non-standard path.
+    seedMembers({ real: 4 });
+    fs.appendFileSync(envPath, `FOOTBAG_DB_PATH=${dbPath}\n`);
+    const res = spawnSync('bash', [GUARD], {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        PATH: `${fakeBin}:${process.env.PATH ?? ''}`,
+        FOOTBAG_ENV: 'production',
+        ENV_PATH: envPath,
+        FAKE_SSM_VALUE: 'false',
+        DB_PATH: '',
+      },
+    });
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain('login-capable non-persona member accounts');
+  });
+
+  it('also inspects the pre-migration database location (static)', () => {
+    // A host whose env still carries the pre-migration path keeps its
+    // database there until the remote half migrates it, after this guard;
+    // reading as "fresh" there would silently skip the tripwire.
+    const content = fs.readFileSync(GUARD, 'utf8');
+    expect(content).toContain('PROD_LIVE_GUARD_DB_CANDIDATES+=("/srv/footbag/footbag.db")');
+  });
+});
+
+describe('production-live guard: host-identity reconciliation', () => {
+  it('refuses when the host env file records a different FOOTBAG_ENV than asserted', () => {
+    // A misrouted SSH alias (staging alias pointing at the production box)
+    // would otherwise skip every production-only check.
+    fs.appendFileSync(envPath, 'FOOTBAG_ENV=production\n');
+    const res = runGuard({ FOOTBAG_ENV: 'staging', FAKE_SSM_VALUE: 'true' });
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain('misrouted SSH alias');
+  });
+
+  it('passes when the host record matches the asserted environment', () => {
+    fs.appendFileSync(envPath, 'FOOTBAG_ENV=production\n');
+    const res = runGuard({ FAKE_SSM_VALUE: 'false' });
+    expect(res.status).toBe(0);
+  });
+
+  it('passes a host with no recorded environment (first deploy)', () => {
+    const res = runGuard({ FAKE_SSM_VALUE: 'false' });
+    expect(res.status).toBe(0);
+  });
 });

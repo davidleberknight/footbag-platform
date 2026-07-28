@@ -299,8 +299,9 @@ resource "aws_cloudfront_distribution" "main" {
   # reaches the viewer as a 5xx, which is what a test environment should do.
 
   # ── TLS ──────────────────────────────────────────────────────────────────
-  # DEFERRED: switch to ACM certificate when real domain is attached.
-  # See acm.tf and route53.tf (currently commented out).
+  # The default CloudFront certificate is the permanent staging stance:
+  # staging serves on its unpublished *.cloudfront.net URL and never attaches
+  # a custom domain (acm.tf and route53.tf stay commented reference shapes).
   viewer_certificate {
     cloudfront_default_certificate = true
   }

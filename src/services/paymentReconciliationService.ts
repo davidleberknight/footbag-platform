@@ -932,6 +932,11 @@ function comparePayments(
   // record, which is the missed-webhook case reconciliation exists to catch.
   for (const intent of provider) {
     if (matchedProviderIds.has(intent.id)) continue;
+    // An invoice-linked intent is the provider's own settlement vehicle for a
+    // subscription cycle; local subscription rows store no intent id, so it
+    // can never match here. The invoice pass owns that comparison - flagging
+    // it here would raise one unresolvable issue per renewal, forever.
+    if (intent.invoiceId) continue;
     if (!PROVIDER_SETTLED_INTENT_STATUSES.has(intent.status)) continue;
     // A charge the provider settled moments ago may still be in flight to the
     // webhook that records it locally.

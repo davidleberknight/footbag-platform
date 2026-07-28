@@ -126,8 +126,13 @@ if [[ "${DEPLOY_TARGET:-footbag-staging}" == "footbag-production" ]] \
     fi
     echo "  → Confirmed. Proceeding." >&2
     echo "" >&2
+    # Thread the confirmed ack through to the leaf: deploy-rebuild.sh
+    # refuses a production database replacement without it, so a direct
+    # leaf invocation cannot bypass this typed confirmation.
+    export FOOTBAG_PROD_DB_REPLACE_ACK=1
   else
     echo "  FOOTBAG_PROD_DB_REPLACE_ACK=1 → skipping interactive confirmation." >&2
+    export FOOTBAG_PROD_DB_REPLACE_ACK
   fi
 fi
 

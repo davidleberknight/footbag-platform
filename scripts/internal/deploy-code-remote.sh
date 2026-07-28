@@ -380,6 +380,41 @@ chmod 600 "$ENV_PATH"
 chown root:root "$ENV_PATH"
 unset SESSION_SECRET_VAL
 
+# Sync LOG_LEVEL from SSM, mirroring the rebuild half: Terraform owns the
+# canonical value, and every deploy - code-only included - makes the declared
+# value the running value. Without this, a code-only deploy after an SSM
+# change leaves the host at a stale level, and production's warn floor
+# decides whether the CloudWatch metric filters see anything at all. Plain
+# String parameter (no --with-decryption); a missing parameter is a hard
+# error: the environment needs its terraform apply first.
+ssm_log_level_param="/footbag/${FOOTBAG_ENV_VAL}/app/log_level"
+echo "==> Syncing LOG_LEVEL from $ssm_log_level_param ..."
+LOG_LEVEL_VAL=$(
+  AWS_PROFILE="$AWS_PROFILE_VAL" aws ssm get-parameter \
+    --region "$AWS_REGION_VAL" \
+    --name "$ssm_log_level_param" \
+    --query 'Parameter.Value' \
+    --output text
+) || {
+  echo "ERROR: aws ssm get-parameter failed for $ssm_log_level_param" >&2
+  echo "       If the parameter does not exist yet, from the workstation run:" >&2
+  echo "         cd terraform/${FOOTBAG_ENV_VAL} && terraform init -upgrade && terraform apply" >&2
+  exit 1
+}
+if [[ ! "$LOG_LEVEL_VAL" =~ ^(error|warn|info|debug)$ ]]; then
+  echo "ERROR: SSM $ssm_log_level_param is '$LOG_LEVEL_VAL'; expected one of error, warn, info, debug." >&2
+  exit 1
+fi
+
+env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
+chmod 600 "$env_tmp"
+chown root:root "$env_tmp"
+grep -v '^LOG_LEVEL=' "$ENV_PATH" > "$env_tmp" || true
+printf 'LOG_LEVEL=%s\n' "$LOG_LEVEL_VAL" >> "$env_tmp"
+mv "$env_tmp" "$ENV_PATH"
+chmod 600 "$ENV_PATH"
+chown root:root "$ENV_PATH"
+
 # Sync ARCHIVE_URL from the parameter Terraform writes when the archive stack
 # is enabled. Terraform is the only party that knows the served hostname, and
 # the address stays out of every committed file, so this is the one route that
@@ -537,6 +572,52 @@ if [[ "$FOOTBAG_ENV_VAL" == "production" ]]; then
     echo "==> Seeding a generated STRIPE_WEBHOOK_SECRET_STUB into env file (dark payments; preserved if already set)..."
     printf 'STRIPE_WEBHOOK_SECRET_STUB=whsec_stub_%s\n' "$(openssl rand -hex 24)" >> "$ENV_PATH"
   fi
+
+  # Sync the Stripe webhook signing secrets from Parameter Store. Mirrors
+  # deploy-rebuild-remote.sh: a real value in the parameter is authoritative
+  # and overwrites the host line on every deploy, so the secret is never
+  # hand-pasted onto a host; while the parameter still holds its bootstrap
+  # placeholder (or is unreadable) the sync leaves any existing host value
+  # untouched, so a value installed by the payments activation or rotation
+  # script survives deploys until the parameter carries the real secret.
+  # The _previous twin carries the outgoing secret during a Stripe secret roll.
+  sync_stripe_webhook_secret() {
+    local env_key="$1" param_suffix="$2"
+    local param="/footbag/${FOOTBAG_ENV_VAL}/secrets/${param_suffix}"
+    local value
+    echo "==> Syncing ${env_key} from ${param} ..."
+    value=$(
+      AWS_PROFILE="$AWS_PROFILE_VAL" aws ssm get-parameter \
+        --region "$AWS_REGION_VAL" \
+        --name "$param" \
+        --with-decryption \
+        --query 'Parameter.Value' \
+        --output text 2>/dev/null
+    ) || value=""
+    if [[ "$value" == TODO-* ]]; then value=""; fi
+    if [[ -z "$value" ]]; then
+      echo "    ${param} still the placeholder or unreadable; leaving any existing ${env_key} in place."
+      return 0
+    fi
+    if [[ "$value" != whsec_* ]]; then
+      echo "ERROR: SSM $param does not look like a Stripe webhook signing secret (whsec_...)." >&2
+      exit 1
+    fi
+    if [[ "$value" == whsec_stub* ]]; then
+      echo "ERROR: SSM $param carries a stub-prefixed secret; production must hold a real Stripe endpoint secret." >&2
+      exit 1
+    fi
+    env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
+    chmod 600 "$env_tmp"
+    chown root:root "$env_tmp"
+    grep -v "^${env_key}=" "$ENV_PATH" > "$env_tmp" || true
+    printf '%s=%s\n' "$env_key" "$value" >> "$env_tmp"
+    mv "$env_tmp" "$ENV_PATH"
+    chmod 600 "$ENV_PATH"
+    chown root:root "$ENV_PATH"
+  }
+  sync_stripe_webhook_secret STRIPE_WEBHOOK_SECRET stripe_webhook_secret
+  sync_stripe_webhook_secret STRIPE_WEBHOOK_SECRET_PREVIOUS stripe_webhook_secret_previous
 fi
 
 # Update FOOTBAG_DEV_INITIAL_ADMIN_EMAILS from the workstation's

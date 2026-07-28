@@ -111,8 +111,8 @@ else
   LOCAL_PID=$$
   TMP_REMOTE="/tmp/footbag-env-sesfb-${LOCAL_PID}.env"
   cleanup_remote() {
-    ssh -o BatchMode=yes "$SSH_ALIAS" "rm -f $TMP_REMOTE" 2>/dev/null || true
-    rm -f "${OLD_LOCAL:-}" "${NEW_LOCAL:-}" 2>/dev/null || true
+    ssh -o BatchMode=yes "$SSH_ALIAS" "shred -u $TMP_REMOTE" 2>/dev/null || true
+    shred -u "${OLD_LOCAL:-}" "${NEW_LOCAL:-}" 2>/dev/null || true
   }
   trap cleanup_remote EXIT INT TERM
 
@@ -189,7 +189,7 @@ echo ""
 
 if [[ -n "$ENV_FILE_OVERRIDE" ]]; then
   cp "$NEW_LOCAL" "$ENV_FILE_OVERRIDE"
-  rm -f "$NEW_LOCAL"
+  shred -u "$NEW_LOCAL"
 else
   printf "Push this change to %s on %s? (yes/no): " "$HOST_ENV_PATH" "$SSH_ALIAS"
   read -r PUSH_CONFIRM

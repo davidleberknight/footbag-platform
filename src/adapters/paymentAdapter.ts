@@ -98,6 +98,13 @@ export interface StripePaymentIntentSummary {
   /** Stripe's own payment-intent status, mapped by the reconciliation service. */
   status: string;
   createdAt: string;
+  /**
+   * Invoice this intent settles, when the provider auto-created it for a
+   * subscription cycle; null for a one-time checkout intent. Reconciliation
+   * compares invoice-linked settlement in its invoice pass, so the one-time
+   * reverse pass skips these instead of flagging every renewal.
+   */
+  invoiceId: string | null;
 }
 
 export interface StripeSubscriptionSummary {
@@ -595,6 +602,7 @@ export function createStubPaymentAdapter(): StubPaymentAdapter {
         currency: typeof obj.currency === 'string' ? obj.currency.toUpperCase() : 'USD',
         status: type === 'payment_intent.succeeded' ? 'succeeded' : 'requires_payment_method',
         createdAt,
+        invoiceId: typeof obj.invoice === 'string' ? obj.invoice : null,
       });
       return;
     }
@@ -931,6 +939,7 @@ export interface StripePaymentIntentLike {
   currency: string;
   status: string;
   created: number;
+  invoice?: string | { id: string } | null;
 }
 
 export interface StripeSubscriptionLike {
@@ -991,9 +1000,28 @@ export function createLivePaymentAdapter(deps: LivePaymentAdapterDeps = {}): Pay
   // Lazy client: the API key lives in SSM (SecureString) and resolves on the
   // first payment operation, never at construction, so the app boots without
   // AWS reachability and a misconfigured key fails the first checkout loudly.
+  //
+  // A client built from a TEST-mode key expires after a short interval and
+  // re-resolves the key: the go-live arming step swaps the SSM value from the
+  // test key to the live key, and a permanently cached test client would keep
+  // completing member checkouts against Stripe test mode - appearing to
+  // succeed while collecting no money. The live-key path keeps the permanent
+  // cache (zero extra secret reads per call); the forced service restart in
+  // the arming runbook remains the belt to this suspenders.
+  const TEST_MODE_CLIENT_TTL_MS = 60_000;
   let client: StripeClientLike | null = null;
+  let clientIsTestMode = false;
+  let clientBuiltAtMs = 0;
   async function getClient(): Promise<StripeClientLike> {
-    if (client) return client;
+    if (client) {
+      if (!clientIsTestMode || Date.now() - clientBuiltAtMs < TEST_MODE_CLIENT_TTL_MS) {
+        return client;
+      }
+      // Expire the test-mode client and drop the cached secret so the fresh
+      // read sees a swapped key rather than the adapter's cached copy.
+      client = null;
+      secrets.invalidate(secretKey);
+    }
     let apiKey: string;
     try {
       apiKey = await secrets.getRequired(secretKey);
@@ -1024,23 +1052,28 @@ export function createLivePaymentAdapter(deps: LivePaymentAdapterDeps = {}): Pay
       && (apiKey.startsWith('sk_test_') || apiKey.startsWith('rk_test_'))
     ) {
       try {
+        // Trimmed compare: a hand-put parameter value carrying a stray
+        // newline must not read as a different state.
         productionPreLive =
-          (await secrets.getAbsolute('/footbag/production/app/production_live')) === 'false';
+          (await secrets.getAbsolute('/footbag/production/app/production_live'))?.trim() === 'false';
       } catch {
         productionPreLive = false;
       }
     }
     assertKeyMatchesEnvironment(apiKey, config.footbagEnv, productionPreLive);
     client = stripeFactory(apiKey);
+    clientIsTestMode = apiKey.startsWith('sk_test_') || apiKey.startsWith('rk_test_');
+    clientBuiltAtMs = Date.now();
     return client;
   }
 
-  // Both the client and the API key behind it are held for the life of the
-  // process, so a key revoked at Stripe would keep being presented until
-  // someone restarts the service. An authentication failure is Stripe telling
-  // us the held key is dead: drop it and the client built from it, so the next
-  // call fetches whatever the operator put in its place. The failed call still
-  // fails; recovery is the following one.
+  // A live-key client and the API key behind it are held for the life of the
+  // process (a test-mode client expires on the TTL above), so a key revoked
+  // at Stripe would keep being presented until someone restarts the service.
+  // An authentication failure is Stripe telling us the held key is dead: drop
+  // it and the client built from it, so the next call fetches whatever the
+  // operator put in its place. The failed call still fails; recovery is the
+  // following one.
   async function withClient<T>(run: (stripe: StripeClientLike) => Promise<T>): Promise<T> {
     const stripe = await getClient();
     try {
@@ -1190,6 +1223,7 @@ export function createLivePaymentAdapter(deps: LivePaymentAdapterDeps = {}): Pay
           currency: pi.currency.toUpperCase(),
           status: pi.status,
           createdAt: new Date(pi.created * 1000).toISOString(),
+          invoiceId: typeof pi.invoice === 'string' ? pi.invoice : pi.invoice?.id ?? null,
         }));
       });
     },
@@ -1279,6 +1313,16 @@ let stubSingleton: StubPaymentAdapter | null = null;
 export function getPaymentAdapter(): PaymentAdapter {
   if (singleton) return singleton;
   if (config.paymentAdapter === 'live') {
+    // The Vitest runner must never resolve the live Stripe adapter through
+    // the application path: a test that reached this branch could move real
+    // money. Adapter-parity tests exercise the live implementation against
+    // an injected fake client via createLivePaymentAdapter directly, so
+    // they never pass through this accessor.
+    if (config.isTestRunner) {
+      throw new Error(
+        'getPaymentAdapter() refuses PAYMENT_ADAPTER=live under the Vitest runner; a test must use the stub adapter or inject a double',
+      );
+    }
     singleton = createLivePaymentAdapter();
   } else {
     stubSingleton = createStubPaymentAdapter();

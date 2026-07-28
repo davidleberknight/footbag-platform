@@ -17,8 +17,8 @@ output "cloudfront_distribution_id" {
   value       = var.enable_cloudfront ? aws_cloudfront_distribution.main[0].id : null
 }
 
-# DEFERRED: ACM certificate resources are commented out for initial test deployment.
-# Uncomment when attaching a real domain (see acm.tf activation checklist).
+# Staging never attaches a custom domain (default cloudfront.net URL by
+# design), so no certificate output exists; the commented shape is reference.
 # output "acm_certificate_arn" {
 #   description = "ARN of the ACM certificate attached to CloudFront"
 #   value       = aws_acm_certificate_validation.main.certificate_arn
@@ -35,7 +35,7 @@ output "dr_bucket_name" {
 }
 
 output "media_bucket_name" {
-  description = "S3 bucket for processed photo objects (CloudFront /media/* origin)"
+  description = "S3 bucket for processed photo objects (CloudFront /media-store/* origin)"
   value       = aws_s3_bucket.media.bucket
 }
 

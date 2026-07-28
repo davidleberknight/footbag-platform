@@ -5306,6 +5306,16 @@ export const account = {
     WHERE id = ? AND personal_data_purged_at IS NULL AND is_deceased = 0
   `); },
 
+  // Deliverability of the exact mailbox an outbox enqueue is about to write
+  // to. Address-keyed rather than member-keyed: bounce/complaint state is a
+  // property of the mailbox, and some flows deliberately write to an address
+  // that is not the recipient member's login email.
+  get emailStatusByNormalizedLoginEmail() { return db.prepare(`
+    SELECT id, email_status
+    FROM members_active
+    WHERE login_email_normalized = ?
+  `); },
+
   get listAdminMemberIds() { return db.prepare(`
     SELECT id FROM members_active
     WHERE is_admin = 1
@@ -6033,10 +6043,41 @@ export const outbox = {
     WHERE id = ?
   `); },
 
+  // A failed attempt goes back to 'pending' with a scheduled_for delay so
+  // retries back off instead of burning the whole attempt budget in one
+  // burst against a provider that is refusing everything.
   get markFailedRetry() { return db.prepare(`
     UPDATE outbox_emails
     SET status = 'pending',
         retry_count = retry_count + 1,
+        last_error = ?,
+        scheduled_for = ?,
+        updated_at = ?,
+        updated_by = 'system',
+        version = version + 1
+    WHERE id = ?
+  `); },
+
+  // Provider throttling and quota exhaustion are pressure, not a verdict on
+  // this email: the row waits out the delay WITHOUT consuming one of its
+  // limited attempts, so a send burst cannot dead-letter real mail.
+  get markThrottledRetry() { return db.prepare(`
+    UPDATE outbox_emails
+    SET status = 'pending',
+        last_error = ?,
+        scheduled_for = ?,
+        updated_at = ?,
+        updated_by = 'system',
+        version = version + 1
+    WHERE id = ?
+  `); },
+
+  // An ambiguous outcome (the provider may or may not have delivered) must
+  // not silently auto-retry: SES has no idempotency token, so a retry can
+  // deliver the same email twice. The row parks for an admin to resolve.
+  get markManualReview() { return db.prepare(`
+    UPDATE outbox_emails
+    SET status = 'manual_review',
         last_error = ?,
         updated_at = ?,
         updated_by = 'system',
@@ -6055,15 +6096,14 @@ export const outbox = {
     WHERE id = ?
   `); },
 
-  // Crash recovery: a worker killed between markSending and markSent /
-  // markFailedRetry leaves the row 'sending' forever, and selectPendingBatch
-  // reads 'pending' only, so the email would silently never send. Rows whose
-  // send attempt started before the lease threshold go back to 'pending'
-  // with a retry bump so the next queue pass re-claims them.
+  // Crash recovery: a worker killed between markSending and markSent leaves
+  // the row 'sending' forever, and selectPendingBatch reads 'pending' only.
+  // A stranded row's true outcome is unknowable (the crash may have happened
+  // after a successful provider send), so it parks for manual review rather
+  // than silently retrying into a possible duplicate delivery.
   get reapStaleSending() { return db.prepare(`
     UPDATE outbox_emails
-    SET status = 'pending',
-        retry_count = retry_count + 1,
+    SET status = 'manual_review',
         last_error = 'stale_sending_reaped',
         updated_at = ?,
         updated_by = 'system',

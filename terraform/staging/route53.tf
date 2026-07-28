@@ -1,11 +1,9 @@
 # =============================================================================
-# Route 53 DNS Records — DEFERRED for initial test deployment.
+# Route 53 DNS Records — permanently unused on staging, by design.
 #
-# These records point the custom domain at the CloudFront distribution.
-# Commented out while the deployment uses the CloudFront default
-# *.cloudfront.net URL with no custom domain.
-#
-# To activate: see activation checklist in acm.tf.
+# Staging serves on its unpublished default *.cloudfront.net URL and never
+# attaches a custom domain; the production tree owns the real records. This
+# file stays as the commented reference shape only (see acm.tf).
 # =============================================================================
 
 # resource "aws_route53_record" "apex_a" {

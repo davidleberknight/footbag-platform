@@ -111,6 +111,16 @@ let stubSingleton: StubSesAdapter | null = null;
 export function getSesAdapter(): SesAdapter {
   if (singleton) return singleton;
   if (config.sesAdapter === 'live') {
+    // The Vitest runner must never resolve the live sender through the
+    // application path: a test that reached this branch could deliver real
+    // mail to a real mailbox. The operator-run staging smoke tier exercises
+    // real SES deliberately and constructs createLiveSesAdapter directly,
+    // so it never passes through this accessor.
+    if (config.isTestRunner) {
+      throw new Error(
+        'getSesAdapter() refuses SES_ADAPTER=live under the Vitest runner; a test must use the stub adapter or inject a double',
+      );
+    }
     if (!config.sesFromIdentity) {
       throw new Error('SES_FROM_IDENTITY is required when SES_ADAPTER=live');
     }
@@ -128,6 +138,16 @@ export function getSesAdapter(): SesAdapter {
 /** Exposes the in-memory stub adapter for test inspection. Null unless SES_ADAPTER=stub. */
 export function getStubSesAdapterForTests(): StubSesAdapter | null {
   return stubSingleton;
+}
+
+/**
+ * Installs a double in place of the resolved adapter. A suite that must run
+ * with SES_ADAPTER=live for the config-gated rendering (the simulated-email
+ * card hides under the live adapter) injects a double here, because the
+ * accessor refuses to construct the real live sender under the test runner.
+ */
+export function setSesAdapterForTests(adapter: SesAdapter): void {
+  singleton = adapter;
 }
 
 export function resetSesAdapterForTests(): void {

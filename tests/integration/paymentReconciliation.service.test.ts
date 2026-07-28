@@ -114,6 +114,19 @@ describe('pass 1: one-time payments against the provider ledger', () => {
     expect(issueTypes()).toEqual(['provider_payment_missing_locally']);
   });
 
+  it('skips an invoice-linked provider intent: subscription renewals settle by invoice and are compared there', async () => {
+    // A renewal's auto-created intent can never match a local row (local
+    // subscription rows store no intent id), so reporting it here would
+    // raise one unresolvable issue per renewal on every nightly pass.
+    const adapter = await stub();
+    adapter.setLedgerPaymentIntent({
+      id: 'pi_renewal_cycle', amountCents: 2500, currency: 'USD', status: 'succeeded',
+      createdAt: IN_WINDOW, invoiceId: 'in_renewal_1',
+    });
+    const result = await (await svc()).runReconciliation({ now: NOW });
+    expect(result.issuesRaised).toBe(0);
+  });
+
   it('ignores an unsettled provider intent, which is an abandoned checkout rather than a gap', async () => {
     const adapter = await stub();
     adapter.setLedgerPaymentIntent({

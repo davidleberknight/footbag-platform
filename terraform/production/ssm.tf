@@ -181,6 +181,41 @@ resource "aws_ssm_parameter" "stripe_secret_key" {
   lifecycle { ignore_changes = [value] }
 }
 
+# ── Stripe webhook signing secret (operator-supplied) ────────────────────────
+# Same shell-with-placeholder pattern. The deploy sync writes the value into
+# the host env so the secret is never hand-pasted onto a host; while the
+# value is the TODO placeholder the sync clears the env var instead, which a
+# live-payment boot refuses loudly. The _previous twin holds the outgoing
+# secret during a Stripe secret roll (Stripe signs with both for the roll
+# window) and stays on the placeholder outside one.
+resource "aws_ssm_parameter" "stripe_webhook_secret" {
+  name   = "${local.ssm_prefix}/secrets/stripe_webhook_secret"
+  type   = "SecureString"
+  key_id = aws_kms_alias.main.name
+  value  = "TODO-set-via-cli-after-apply"
+  lifecycle { ignore_changes = [value] }
+}
+
+resource "aws_ssm_parameter" "stripe_webhook_secret_previous" {
+  name   = "${local.ssm_prefix}/secrets/stripe_webhook_secret_previous"
+  type   = "SecureString"
+  key_id = aws_kms_alias.main.name
+  value  = "TODO-set-via-cli-after-apply"
+  lifecycle { ignore_changes = [value] }
+}
+
+# ── Cloudflare Turnstile secret key (operator-supplied) ──────────────────────
+# Same shell-with-placeholder pattern. The production boot mandates the live
+# CAPTCHA adapter, whose server-side verification needs this secret; the
+# operator supplies the value from the Cloudflare dashboard via put-parameter.
+resource "aws_ssm_parameter" "turnstile_secret_key" {
+  name   = "${local.ssm_prefix}/secrets/turnstile_secret_key"
+  type   = "SecureString"
+  key_id = aws_kms_alias.main.name
+  value  = "TODO-set-via-cli-after-apply"
+  lifecycle { ignore_changes = [value] }
+}
+
 # ── SES (placeholder — email deferred) ───────────────────────────────────────
 # resource "aws_ssm_parameter" "ses_sender" {
 #   name   = "${local.ssm_prefix}/ses/sender_address"

@@ -106,6 +106,11 @@ variable "operator_cidrs" {
     To find your current public IP: curl -s https://checkip.amazonaws.com
   EOT
   type        = list(string)
+
+  validation {
+    condition     = length(var.operator_cidrs) > 0 && alltrue([for c in var.operator_cidrs : c != ""])
+    error_message = "operator_cidrs must list at least one non-empty CIDR; an empty entry produces an invalid Lightsail firewall rule that fails at apply."
+  }
 }
 
 # ── CloudFront bootstrap ──────────────────────────────────────────────────────
@@ -126,6 +131,11 @@ variable "lightsail_origin_dns" {
   EOT
   type        = string
   default     = ""
+
+  validation {
+    condition     = !var.enable_cloudfront || (var.lightsail_origin_dns != "" && !startswith(var.lightsail_origin_dns, "TODO"))
+    error_message = "lightsail_origin_dns must be a real resolvable hostname for the CloudFront custom origin when enable_cloudfront is true; a TODO- placeholder is rejected."
+  }
 }
 
 variable "enable_cloudfront" {

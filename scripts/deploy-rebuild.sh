@@ -106,6 +106,18 @@ case "$REMOTE" in
     ;;
 esac
 
+# A production database replacement enters only through the wrapper's typed
+# REPLACE PRODUCTION DB confirmation, which threads this ack through the
+# environment. A direct invocation of this leaf with piped stdin must not
+# bypass that confirmation (the host-side guards still fire either way).
+if [[ "$FOOTBAG_ENV" == "production" && "${FOOTBAG_PROD_DB_REPLACE_ACK:-}" != "1" ]]; then
+  echo "ERROR: production database replacement requires the deploy_to_aws.sh confirmation." >&2
+  echo "       Run: bash deploy_to_aws.sh — it asks for the typed confirmation and threads" >&2
+  echo "       FOOTBAG_PROD_DB_REPLACE_ACK=1 through to this leaf (scripted runs may set" >&2
+  echo "       the variable deliberately)." >&2
+  exit 1
+fi
+
 # KEEP_MEDIA is threaded by the orchestrator (yes = skip S3 wipe; no = wipe).
 # Unset on staging = auto-wipe the S3 media bucket. On non-staging the script
 # refuses without KEEP_MEDIA=yes; operator must opt out explicitly. Production

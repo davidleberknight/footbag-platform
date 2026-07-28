@@ -604,7 +604,9 @@ CREATE TABLE mailing_lists (
 
 -- Transactional email send queue (outbox pattern). All outbound emails are written
 -- here first; a background worker picks up pending rows, delivers them, and updates
--- status. Supports retry with dead-lettering and an admin pause toggle.
+-- status. Supports backoff retry with dead-lettering, a manual-review parking
+-- status for ambiguous send outcomes (the provider may or may not have
+-- delivered, so an automatic retry could duplicate), and an admin pause toggle.
 -- body_text for voting confirmation emails contains a plaintext receipt token that
 -- MUST be scrubbed by the sender worker after successful delivery (see APP-019).
 -- At least one of recipient_email, recipient_member_id, or mailing_list_id
@@ -633,7 +635,7 @@ CREATE TABLE outbox_emails (
   template_key TEXT,
 
   status TEXT NOT NULL DEFAULT 'pending'
-    CHECK (status IN ('pending','sending','sent','failed','dead_letter')),
+    CHECK (status IN ('pending','sending','sent','failed','dead_letter','manual_review')),
   retry_count     INTEGER NOT NULL DEFAULT 0,
   last_error      TEXT,
   last_attempt_at TEXT,

@@ -637,6 +637,117 @@ describe('deploy-rebuild-remote.sh log-level sync', () => {
   });
 });
 
+describe('deploy-code-remote.sh log-level sync', () => {
+  // The code-only half must carry the same sync: without it, a code-only
+  // deploy after an SSM log-level change leaves the host at a stale level,
+  // and production's warn floor decides whether the metric filters see
+  // anything at all.
+  const content = fs.readFileSync(
+    path.join(REPO_ROOT, 'scripts/internal/deploy-code-remote.sh'),
+    'utf8',
+  );
+
+  it('fetches the log level from the environment app parameter, undecrypted', () => {
+    expect(content).toMatch(
+      /ssm_log_level_param="\/footbag\/\$\{FOOTBAG_ENV_VAL\}\/app\/log_level"/,
+    );
+    const fetchBlock = content.slice(
+      content.indexOf('LOG_LEVEL_VAL=$('),
+      content.indexOf('if [[ ! "$LOG_LEVEL_VAL"'),
+    );
+    expect(fetchBlock).toMatch(/aws ssm get-parameter/);
+    expect(fetchBlock).toMatch(/--name "\$ssm_log_level_param"/);
+    expect(fetchBlock).not.toMatch(/--with-decryption/);
+  });
+
+  it('refuses a value the runtime would not understand', () => {
+    expect(content).toMatch(/\^\(error\|warn\|info\|debug\)\$/);
+  });
+
+  it('writes the value into the host env file through the restricted-temp swap', () => {
+    const writeBlock = content.slice(
+      content.indexOf("grep -v '^LOG_LEVEL=' \"$ENV_PATH\""),
+    );
+    expect(writeBlock).toMatch(/printf 'LOG_LEVEL=%s\\n' "\$LOG_LEVEL_VAL" >> "\$env_tmp"/);
+    expect(writeBlock).toMatch(/mv "\$env_tmp" "\$ENV_PATH"/);
+    expect(writeBlock).toMatch(/chmod 600 "\$ENV_PATH"/);
+  });
+});
+
+describe('Stripe webhook-secret sync from Parameter Store (both remote halves)', () => {
+  // The webhook signing secrets reach the host env only through the deploy
+  // sync, never by hand-paste. A placeholder value clears the env line; a
+  // stub-prefixed value on production is refused outright.
+  const halves = [
+    'scripts/internal/deploy-rebuild-remote.sh',
+    'scripts/internal/deploy-code-remote.sh',
+  ].map((p) => ({
+    file: p,
+    content: fs.readFileSync(path.join(REPO_ROOT, p), 'utf8'),
+  }));
+
+  it.each(halves)('$file syncs both webhook secrets on production only', ({ content }) => {
+    expect(content).toMatch(/sync_stripe_webhook_secret STRIPE_WEBHOOK_SECRET stripe_webhook_secret/);
+    expect(content).toMatch(
+      /sync_stripe_webhook_secret STRIPE_WEBHOOK_SECRET_PREVIOUS stripe_webhook_secret_previous/,
+    );
+    // The sync lives inside the production-only derivation block.
+    const gate = content.indexOf('if [[ "$FOOTBAG_ENV_VAL" == "production" ]]; then');
+    const sync = content.indexOf('sync_stripe_webhook_secret()');
+    expect(gate).toBeGreaterThan(-1);
+    expect(sync).toBeGreaterThan(gate);
+  });
+
+  it.each(halves)('$file refuses a stub-prefixed secret and clears a placeholder', ({ content }) => {
+    expect(content).toMatch(/whsec_stub\* \]\]/);
+    expect(content).toMatch(/TODO-\* \]\]; then value=""/);
+  });
+});
+
+describe('production database-replacement ack threading', () => {
+  // The typed REPLACE PRODUCTION DB confirmation lives in the wrapper; the
+  // leaf refuses a production run without the threaded ack, so a direct leaf
+  // invocation with piped stdin cannot bypass the confirmation.
+  it('the wrapper exports the ack only after the confirmation path', () => {
+    const wrapper = fs.readFileSync(path.join(REPO_ROOT, 'deploy_to_aws.sh'), 'utf8');
+    expect(wrapper).toMatch(/export FOOTBAG_PROD_DB_REPLACE_ACK=1/);
+  });
+
+  it('the leaf refuses FOOTBAG_ENV=production without the ack', () => {
+    const leaf = fs.readFileSync(
+      path.join(REPO_ROOT, 'scripts/deploy-rebuild.sh'),
+      'utf8',
+    );
+    expect(leaf).toMatch(
+      /"\$FOOTBAG_ENV" == "production" && "\$\{FOOTBAG_PROD_DB_REPLACE_ACK:-\}" != "1"/,
+    );
+    expect(leaf).toMatch(/production database replacement requires the deploy_to_aws\.sh confirmation/);
+  });
+});
+
+describe('deploy-rebuild-remote.sh guard handshake', () => {
+  // The destructive remote half must never run without the guard chain the
+  // caller prepends into the same shell stream; the production-live guard
+  // sets the handshake as its last act.
+  it('the guard sets the handshake after its checks', () => {
+    const guard = fs.readFileSync(
+      path.join(REPO_ROOT, 'scripts/internal/deploy-rebuild-production-live-guard.sh'),
+      'utf8',
+    );
+    expect(guard.trimEnd()).toMatch(/PROD_LIVE_GUARD_RAN=1$/);
+  });
+
+  it('a direct invocation of the remote half refuses before touching anything', () => {
+    const res = spawnSync(
+      'bash',
+      [path.join(REPO_ROOT, 'scripts/internal/deploy-rebuild-remote.sh')],
+      { encoding: 'utf8', env: { ...process.env, PROD_LIVE_GUARD_RAN: '' } },
+    );
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain('the deploy guards did not run in this shell');
+  });
+});
+
 describe('arming-switch sync and production adapter derivation (both remote halves)', () => {
   // The arming switches declare whether a real-world side (payments, email)
   // is armed; every deploy makes the declared SSM value the running value,

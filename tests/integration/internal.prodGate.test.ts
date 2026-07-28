@@ -22,16 +22,17 @@ import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/
 const { dbPath } = setTestEnv('3434');
 
 // A full, valid FOOTBAG_ENV=production baseline (mirrors devRoutes.prodGate).
-// JWT_SIGNER=local and the stub adapters keep boot off AWS; SES_ADAPTER=live
-// is required under prod and inits lazily (no network at boot).
-// JWT_LOCAL_KEYPAIR_PATH is intentionally NOT set here — it is frozen
-// per-worker by tests/setup-env.ts.
+// Production mandates JWT_SIGNER=kms; the signer inits lazily and no case in
+// this file signs or verifies a session, so the fake key ARN never reaches
+// AWS. SES_ADAPTER=live is required under prod and inits lazily too (no
+// network at boot).
 const PRIOR_FOOTBAG_ENV = process.env.FOOTBAG_ENV;
 const PRIOR_NODE_ENV = process.env.NODE_ENV;
 process.env.NODE_ENV                  = 'production';
 process.env.FOOTBAG_ENV               = 'production';
 process.env.SESSION_SECRET            = 'a'.repeat(48); // prod rejects the short test default
-process.env.JWT_SIGNER                = 'local';
+process.env.JWT_SIGNER                = 'kms';
+process.env.JWT_KMS_KEY_ID            = 'arn:aws:kms:us-east-1:000000000000:key/abcd-efgh';
 process.env.SES_ADAPTER               = 'live';
 process.env.SES_FROM_IDENTITY         = 'noreply@test.example.com';
 process.env.AWS_REGION                = 'us-east-1';

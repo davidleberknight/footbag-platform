@@ -129,6 +129,9 @@ describe('OperationsPlatformService.runEmailWorker', () => {
   // registration impossible to diagnose without hand-reading the database.
 
   const ALLOWED_META_KEYS_SUCCESS = new Set(['outboxId', 'memberId', 'deliveryResult']);
+  // The retrying line additionally carries its computed backoff delay; the
+  // dead-letter line has no next attempt to describe.
+  const ALLOWED_META_KEYS_RETRYING = new Set(['outboxId', 'memberId', 'deliveryResult', 'attemptCount', 'errorClass', 'retryDelaySeconds']);
   const ALLOWED_META_KEYS_FAILURE = new Set(['outboxId', 'memberId', 'deliveryResult', 'attemptCount', 'errorClass']);
 
   it('logs outbox sent with allowlisted metadata on success', async () => {
@@ -181,7 +184,7 @@ describe('OperationsPlatformService.runEmailWorker', () => {
     expect(m.deliveryResult).toBe('retrying');
     expect(m.attemptCount).toBe(1);
     expect(m.errorClass).toBe('TransientSendError');
-    expect(new Set(Object.keys(m))).toEqual(ALLOWED_META_KEYS_FAILURE);
+    expect(new Set(Object.keys(m))).toEqual(ALLOWED_META_KEYS_RETRYING);
   });
 
   it('logs outbox dead-letter with allowlisted metadata when retries exhausted', async () => {

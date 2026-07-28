@@ -169,7 +169,12 @@ resource "aws_cloudfront_distribution" "main" {
   default_root_object = ""
   price_class         = "PriceClass_100" # US + Europe — adjust for global reach
 
-  aliases = [var.domain_name, "www.${var.domain_name}"]
+  # preview.<domain> is the temporary pre-cutover platform hostname: it lets
+  # the operator exercise the real distribution before the apex flip. The
+  # alias and its certificate SAN exist from first issuance (a SAN added
+  # later forces a certificate replacement); the DNS record itself is gated
+  # separately (enable_preview_record) and is removed at cutover.
+  aliases = [var.domain_name, "www.${var.domain_name}", "preview.${var.domain_name}"]
 
   # ── Origin: Lightsail nginx ───────────────────────────────────────────────
   # CloudFront requires a resolvable DNS hostname; raw IPs are not supported.

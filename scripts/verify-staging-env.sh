@@ -165,7 +165,7 @@ else
   LOCAL_PID=$$
   TMP_REMOTE="/tmp/footbag-env-verify-${LOCAL_PID}.env"
   cleanup_remote() {
-    ssh -o BatchMode=yes "$SSH_ALIAS" "rm -f $TMP_REMOTE" 2>/dev/null || true
+    ssh -o BatchMode=yes "$SSH_ALIAS" "shred -u $TMP_REMOTE" 2>/dev/null || true
   }
   trap cleanup_remote EXIT INT TERM
 

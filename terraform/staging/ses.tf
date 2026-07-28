@@ -18,6 +18,14 @@ variable "ses_sender_identity" {
     domain (recorded in local operator notes, not committed).
   EOT
   type        = string
+
+  # Reject a copied placeholder. Without this, an operator creates a SES
+  # identity AWS will never verify, and the failure only surfaces when
+  # outbound mail tries to use it.
+  validation {
+    condition     = !startswith(var.ses_sender_identity, "TODO-") && var.ses_sender_identity != ""
+    error_message = "ses_sender_identity must be a real verified sender address; a TODO- placeholder is rejected."
+  }
 }
 
 resource "aws_ses_email_identity" "sender" {

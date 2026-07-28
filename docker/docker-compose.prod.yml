@@ -103,7 +103,10 @@ services:
       # secrets through this adapter. FOOTBAG_ENV derives the SSM parameter
       # prefix (/footbag/{env}/secrets/...).
       SECRETS_ADAPTER: ${SECRETS_ADAPTER}
-      FOOTBAG_ENV: ${FOOTBAG_ENV}
+      # Fail-closed rather than empty: every FOOTBAG_ENV-keyed production
+      # mandate in env.ts silently skips when the var is missing, and the
+      # base file's dev default would mask a host env that lost it.
+      FOOTBAG_ENV: ${FOOTBAG_ENV:?must be set in /srv/footbag/env (the deploy writes it; env.ts mandates are keyed on it)}
       # Deliberately required rather than defaulted: the base file's dev default
       # would silently override the value the deploy syncs from Parameter Store,
       # and a host running at the wrong verbosity is either drowning the log
@@ -226,7 +229,10 @@ services:
       # secrets through this adapter. FOOTBAG_ENV derives the SSM parameter
       # prefix (/footbag/{env}/secrets/...).
       SECRETS_ADAPTER: ${SECRETS_ADAPTER}
-      FOOTBAG_ENV: ${FOOTBAG_ENV}
+      # Fail-closed rather than empty: every FOOTBAG_ENV-keyed production
+      # mandate in env.ts silently skips when the var is missing, and the
+      # base file's dev default would mask a host env that lost it.
+      FOOTBAG_ENV: ${FOOTBAG_ENV:?must be set in /srv/footbag/env (the deploy writes it; env.ts mandates are keyed on it)}
       # Deliberately required rather than defaulted: the base file's dev default
       # would silently override the value the deploy syncs from Parameter Store,
       # and a host running at the wrong verbosity is either drowning the log

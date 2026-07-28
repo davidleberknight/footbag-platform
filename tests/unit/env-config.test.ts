@@ -45,6 +45,10 @@ function baselineRequired(): void {
   // override them.
   process.env.PAYMENTS_ARMED = 'armed';
   process.env.EMAIL_SEND_ARMED = 'armed';
+  // Mandatory-explicit under prod-mode boots like the sibling adapter
+  // selectors; stub is valid everywhere except FOOTBAG_ENV=production.
+  // The dedicated default/unset cases delete it.
+  process.env.CAPTCHA_ADAPTER = 'stub';
 }
 
 function clearAwsWiring(): void {
@@ -168,15 +172,16 @@ describe('env config: dev defaults apply when NODE_ENV is not production', () =>
     expect(config.turnstileSiteKey).toBe('0xSITEKEY');
   });
 
-  it('throws when CAPTCHA_ADAPTER defaults to stub under FOOTBAG_ENV=production', async () => {
+  it('throws when CAPTCHA_ADAPTER is stub under FOOTBAG_ENV=production', async () => {
     // The stub answers "you are human" for every request, so a production
-    // boot that forgot CAPTCHA_ADAPTER=live must fail at startup, not run
-    // login and registration with no CAPTCHA.
+    // boot carrying the stub must fail at startup, not run login and
+    // registration with no CAPTCHA.
     baselineRequired();
     clearAwsWiring();
     process.env.NODE_ENV = 'production';
     process.env.FOOTBAG_ENV = 'production';
-    process.env.JWT_SIGNER = 'local';
+    process.env.JWT_SIGNER = 'kms';
+    process.env.JWT_KMS_KEY_ID = 'arn:aws:kms:us-east-1:000000000000:key/abcd-efgh';
     process.env.SES_ADAPTER = 'live';
     process.env.SES_FROM_IDENTITY = 'noreply@test.example.com';
     process.env.AWS_REGION = 'us-east-1';
@@ -187,13 +192,13 @@ describe('env config: dev defaults apply when NODE_ENV is not production', () =>
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
     process.env.PAYMENT_ADAPTER = 'live';
     process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test_live_value';
-    delete process.env.CAPTCHA_ADAPTER;
+    process.env.CAPTCHA_ADAPTER = 'stub';
     await expect(import('../../src/config/env')).rejects.toThrow(
       /CAPTCHA_ADAPTER must be 'live' when FOOTBAG_ENV=production/,
     );
   });
 
-  it('accepts the captcha stub under FOOTBAG_ENV=staging (prod-mode)', async () => {
+  it('accepts an explicit captcha stub under FOOTBAG_ENV=staging (prod-mode)', async () => {
     // Staging runs prod-mode for hardening parity but stays on the stub by
     // design; the production CAPTCHA gate must not fire there.
     baselineRequired();
@@ -209,7 +214,7 @@ describe('env config: dev defaults apply when NODE_ENV is not production', () =>
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
     process.env.PAYMENT_ADAPTER = 'stub';
     process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_staging_generated_value';
-    delete process.env.CAPTCHA_ADAPTER;
+    process.env.CAPTCHA_ADAPTER = 'stub';
     const { config } = await import('../../src/config/env');
     expect(config.captchaAdapter).toBe('stub');
   });
@@ -318,7 +323,9 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     clearAwsWiring();
     process.env.NODE_ENV = 'production';
     process.env.FOOTBAG_ENV = 'production';
-    process.env.JWT_SIGNER = 'local';
+    process.env.JWT_SIGNER = 'kms';
+    process.env.JWT_KMS_KEY_ID = 'arn:aws:kms:us-east-1:000000000000:key/abcd-efgh';
+    process.env.AWS_REGION = 'us-east-1';
     process.env.SES_ADAPTER = 'stub';
     process.env.SAFE_BROWSING_ADAPTER = 'stub';
     process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
@@ -592,6 +599,7 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.SAFE_BROWSING_ADAPTER = 'stub';
     process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
     process.env.SECRETS_ADAPTER = 'live';
+    process.env.AWS_REGION = 'us-east-1';
     process.env.FOOTBAG_ENV = 'staging';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
@@ -660,7 +668,8 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     baselineRequired();
     clearAwsWiring();
     process.env.NODE_ENV = 'production';
-    process.env.JWT_SIGNER = 'local';
+    process.env.JWT_SIGNER = 'kms';
+    process.env.JWT_KMS_KEY_ID = 'arn:aws:kms:us-east-1:000000000000:key/abcd-efgh';
     process.env.SES_ADAPTER = 'live';
     process.env.SES_FROM_IDENTITY = 'noreply@test.example.com';
     process.env.AWS_REGION = 'us-east-1';
@@ -760,7 +769,8 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     baselineRequired();
     clearAwsWiring();
     process.env.NODE_ENV = 'production';
-    process.env.JWT_SIGNER = 'local';
+    process.env.JWT_SIGNER = 'kms';
+    process.env.JWT_KMS_KEY_ID = 'arn:aws:kms:us-east-1:000000000000:key/abcd-efgh';
     process.env.SES_ADAPTER = 'live';
     process.env.SES_FROM_IDENTITY = 'noreply@test.example.com';
     process.env.AWS_REGION = 'us-east-1';
@@ -780,7 +790,8 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     baselineRequired();
     clearAwsWiring();
     process.env.NODE_ENV = 'production';
-    process.env.JWT_SIGNER = 'local';
+    process.env.JWT_SIGNER = 'kms';
+    process.env.JWT_KMS_KEY_ID = 'arn:aws:kms:us-east-1:000000000000:key/abcd-efgh';
     process.env.SES_ADAPTER = 'live';
     process.env.SES_FROM_IDENTITY = 'noreply@test.example.com';
     process.env.AWS_REGION = 'us-east-1';
@@ -801,7 +812,8 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     baselineRequired();
     clearAwsWiring();
     process.env.NODE_ENV = 'production';
-    process.env.JWT_SIGNER = 'local';
+    process.env.JWT_SIGNER = 'kms';
+    process.env.JWT_KMS_KEY_ID = 'arn:aws:kms:us-east-1:000000000000:key/abcd-efgh';
     process.env.SES_ADAPTER = 'live';
     process.env.SES_FROM_IDENTITY = 'noreply@test.example.com';
     process.env.AWS_REGION = 'us-east-1';
@@ -826,7 +838,8 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     baselineRequired();
     clearAwsWiring();
     process.env.NODE_ENV = 'production';
-    process.env.JWT_SIGNER = 'local';
+    process.env.JWT_SIGNER = 'kms';
+    process.env.JWT_KMS_KEY_ID = 'arn:aws:kms:us-east-1:000000000000:key/abcd-efgh';
     process.env.SES_ADAPTER = 'live';
     process.env.SES_FROM_IDENTITY = 'noreply@test.example.com';
     process.env.AWS_REGION = 'us-east-1';
@@ -866,7 +879,8 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     baselineRequired();
     clearAwsWiring();
     process.env.NODE_ENV = 'production';
-    process.env.JWT_SIGNER = 'local';
+    process.env.JWT_SIGNER = 'kms';
+    process.env.JWT_KMS_KEY_ID = 'arn:aws:kms:us-east-1:000000000000:key/abcd-efgh';
     process.env.SES_ADAPTER = 'live';
     process.env.SES_FROM_IDENTITY = 'noreply@test.example.com';
     process.env.AWS_REGION = 'us-east-1';
@@ -932,7 +946,8 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     baselineRequired();
     clearAwsWiring();
     process.env.NODE_ENV = 'production';
-    process.env.JWT_SIGNER = 'local';
+    process.env.JWT_SIGNER = 'kms';
+    process.env.JWT_KMS_KEY_ID = 'arn:aws:kms:us-east-1:000000000000:key/abcd-efgh';
     process.env.SES_ADAPTER = 'live';
     process.env.SES_FROM_IDENTITY = 'noreply@test.example.com';
     process.env.AWS_REGION = 'us-east-1';
@@ -959,6 +974,7 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.SAFE_BROWSING_ADAPTER = 'stub';
     process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
     process.env.SECRETS_ADAPTER = 'live';
+    process.env.AWS_REGION = 'us-east-1';
     process.env.FOOTBAG_ENV = 'staging';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
@@ -979,7 +995,8 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     baselineRequired();
     clearAwsWiring();
     process.env.NODE_ENV = 'production';
-    process.env.JWT_SIGNER = 'local';
+    process.env.JWT_SIGNER = 'kms';
+    process.env.JWT_KMS_KEY_ID = 'arn:aws:kms:us-east-1:000000000000:key/abcd-efgh';
     process.env.SES_ADAPTER = 'live';
     process.env.SES_FROM_IDENTITY = 'noreply@test.example.com';
     process.env.AWS_REGION = 'us-east-1';
@@ -1006,6 +1023,7 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.SAFE_BROWSING_ADAPTER = 'stub';
     process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
     process.env.SECRETS_ADAPTER = 'live';
+    process.env.AWS_REGION = 'us-east-1';
     process.env.FOOTBAG_ENV = 'staging';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
@@ -1020,7 +1038,8 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     baselineRequired();
     clearAwsWiring();
     process.env.NODE_ENV = 'production';
-    process.env.JWT_SIGNER = 'local';
+    process.env.JWT_SIGNER = 'kms';
+    process.env.JWT_KMS_KEY_ID = 'arn:aws:kms:us-east-1:000000000000:key/abcd-efgh';
     process.env.SES_ADAPTER = 'live';
     process.env.SES_FROM_IDENTITY = 'noreply@test.example.com';
     process.env.AWS_REGION = 'us-east-1';
@@ -2039,7 +2058,8 @@ describe('env config: arming switches (EMAIL_SEND_ARMED / PAYMENTS_ARMED)', () =
     baselineRequired();
     clearAwsWiring();
     process.env.NODE_ENV = 'production';
-    process.env.JWT_SIGNER = 'local';
+    process.env.JWT_SIGNER = 'kms';
+    process.env.JWT_KMS_KEY_ID = 'arn:aws:kms:us-east-1:000000000000:key/abcd-efgh';
     process.env.AWS_REGION = 'us-east-1';
     process.env.SAFE_BROWSING_ADAPTER = 'stub';
     process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
@@ -2233,6 +2253,129 @@ describe('env config: arming switches (EMAIL_SEND_ARMED / PAYMENTS_ARMED)', () =
     process.env.STRIPE_WEBHOOK_SECRET = 'whsec_live_realvalue';
     await expect(import('../../src/config/env')).rejects.toThrow(
       /PAYMENT_ADAPTER must be 'stub' when FOOTBAG_ENV=development \(got 'live'\)/,
+    );
+  });
+});
+
+describe('env config: prod-mode deployment-env declaration and hardening mandates', () => {
+  let snap: EnvSnapshot;
+  beforeEach(() => {
+    snap = snapshotEnv();
+    vi.resetModules();
+  });
+  afterEach(() => restoreEnv(snap));
+
+  // A fully explicit prod-mode boot on stub adapters with FOOTBAG_ENV left
+  // unset: the bare-test-boot shape. Cases add or delete the one var whose
+  // mandate they exercise.
+  function explicitProdStubWiring(): void {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'production';
+    process.env.JWT_SIGNER = 'local';
+    process.env.SES_ADAPTER = 'stub';
+    process.env.SAFE_BROWSING_ADAPTER = 'stub';
+    process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
+    process.env.SECRETS_ADAPTER = 'stub';
+    process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
+    process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    process.env.PAYMENT_ADAPTER = 'stub';
+  }
+
+  it('requires FOOTBAG_ENV on a prod-mode boot outside the Vitest runner', async () => {
+    explicitProdStubWiring();
+    // Outside the runner (VITEST unset) a prod-mode boot must declare its
+    // deployment environment: every FOOTBAG_ENV-keyed production mandate
+    // silently skips without it.
+    delete process.env.VITEST;
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /FOOTBAG_ENV must be set explicitly when NODE_ENV=production/,
+    );
+  });
+
+  it('keeps bare test boots bootable: FOOTBAG_ENV may stay unset under the Vitest runner', async () => {
+    explicitProdStubWiring();
+    expect(process.env.VITEST).toBeTruthy();
+    const { config } = await import('../../src/config/env');
+    expect(config.footbagEnv).toBeUndefined();
+  });
+
+  it('requires CAPTCHA_ADAPTER to be set explicitly under a prod-mode boot', async () => {
+    explicitProdStubWiring();
+    delete process.env.CAPTCHA_ADAPTER;
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /CAPTCHA_ADAPTER must be set explicitly in production \(no default\)/,
+    );
+  });
+
+  it("requires JWT_SIGNER='kms' under FOOTBAG_ENV=production", async () => {
+    explicitProdStubWiring();
+    process.env.FOOTBAG_ENV = 'production';
+    process.env.JWT_SIGNER = 'local';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /JWT_SIGNER must be 'kms' when FOOTBAG_ENV=production/,
+    );
+  });
+
+  it('requires AWS_REGION when SECRETS_ADAPTER=live alone selects an AWS backend', async () => {
+    explicitProdStubWiring();
+    process.env.SECRETS_ADAPTER = 'live';
+    process.env.FOOTBAG_ENV = 'staging';
+    process.env.CAPTCHA_ADAPTER = 'stub';
+    process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_staging_generated_value';
+    delete process.env.AWS_REGION;
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /AWS_REGION is required when JWT_SIGNER=kms, SES_ADAPTER=live, SECRETS_ADAPTER=live, or MEDIA_STORAGE_ADAPTER=s3/,
+    );
+  });
+
+  it('refuses the boolean TRUST_PROXY forms at boot', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.TRUST_PROXY = 'true';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /TRUST_PROXY must be an exact integer hop count or an address-range list/,
+    );
+
+    vi.resetModules();
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.TRUST_PROXY = 'false';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /TRUST_PROXY must be an exact integer hop count or an address-range list/,
+    );
+  });
+
+  it('trims outer whitespace from selector values instead of refusing the boot', async () => {
+    // A hand-edited host env file pasted with CRLF line endings must not
+    // refuse an otherwise-correct configuration.
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.SES_ADAPTER = 'stub\r';
+    process.env.EMAIL_SEND_ARMED = ' armed ';
+    const { config } = await import('../../src/config/env');
+    expect(config.sesAdapter).toBe('stub');
+    expect(config.emailSendArmed).toBe('armed');
+  });
+
+  it('treats a whitespace-only selector value as unset', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.CAPTCHA_ADAPTER = '   ';
+    const { config } = await import('../../src/config/env');
+    expect(config.captchaAdapter).toBe('stub');
+  });
+
+  it('trims NODE_ENV so a CRLF-pasted production value still hardens the boot', async () => {
+    explicitProdStubWiring();
+    process.env.NODE_ENV = 'production\n';
+    delete process.env.CAPTCHA_ADAPTER;
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /CAPTCHA_ADAPTER must be set explicitly in production \(no default\)/,
     );
   });
 });

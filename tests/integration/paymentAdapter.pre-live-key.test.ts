@@ -9,7 +9,7 @@
  * The config singleton freezes at module load, so this file boots a
  * production-shaped process.env before importing the adapter.
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 process.env.NODE_ENV = 'production';
 process.env.FOOTBAG_ENV = 'production';
@@ -20,7 +20,8 @@ process.env.PUBLIC_BASE_URL = 'https://footbag.org';
 process.env.SESSION_SECRET = 'a'.repeat(48);
 process.env.INTERNAL_EVENT_SECRET = 'c'.repeat(48);
 process.env.SES_FEEDBACK_WEBHOOK_KEY = 'b'.repeat(48);
-process.env.JWT_SIGNER = 'local';
+process.env.JWT_SIGNER = 'kms'; // production mandates the KMS signer; lazy init, nothing here signs a session
+process.env.JWT_KMS_KEY_ID = 'arn:aws:kms:us-east-1:000000000000:key/abcd-efgh';
 process.env.SES_ADAPTER = 'live';
 process.env.SES_FROM_IDENTITY = 'noreply@test.example.com';
 process.env.EMAIL_SEND_ARMED = 'armed';
@@ -142,6 +143,50 @@ describe('pre-live test-key admission through the live adapter', () => {
     secrets.setSecret(MARKER_NAME, 'true');
     const result = await adapter.createCheckoutSession(CHECKOUT_OPTS);
     expect(result.sessionId).toBe('cs_prelive_1');
+    expect(factoryCalls()).toBe(1);
+  });
+
+  it('accepts a marker value carrying stray whitespace as pre-live (trimmed compare)', async () => {
+    const { adapter, factoryCalls } = makeAdapter('sk_test_prelive_fake', 'false\n');
+    const result = await adapter.createCheckoutSession(CHECKOUT_OPTS);
+    expect(result.sessionId).toBe('cs_prelive_1');
+    expect(factoryCalls()).toBe(1);
+  });
+});
+
+describe('cached-client expiry across the go-live key swap', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('a test-mode client expires and picks up a swapped live key without a restart', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-01T00:00:00.000Z'));
+    const { adapter, secrets, factoryCalls } = makeAdapter('sk_test_prelive_fake', 'false');
+
+    await adapter.createCheckoutSession(CHECKOUT_OPTS);
+    expect(factoryCalls()).toBe(1);
+    // Within the expiry interval the client is reused.
+    await adapter.createCheckoutSession(CHECKOUT_OPTS);
+    expect(factoryCalls()).toBe(1);
+
+    // The go-live arming step swaps the SSM value to the live key. A
+    // permanently cached test client would keep completing checkouts against
+    // Stripe test mode; after the expiry interval the adapter re-resolves.
+    secrets.setSecret('stripe_secret_key', 'sk_live_after_arming_fake');
+    vi.setSystemTime(new Date('2026-07-01T00:02:00.000Z'));
+    await adapter.createCheckoutSession(CHECKOUT_OPTS);
+    expect(factoryCalls()).toBe(2);
+  });
+
+  it('a live-key client stays cached across the same interval (no extra secret reads)', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-01T00:00:00.000Z'));
+    const { adapter, factoryCalls } = makeAdapter('sk_live_prelive_fake');
+
+    await adapter.createCheckoutSession(CHECKOUT_OPTS);
+    vi.setSystemTime(new Date('2026-07-01T01:00:00.000Z'));
+    await adapter.createCheckoutSession(CHECKOUT_OPTS);
     expect(factoryCalls()).toBe(1);
   });
 });

@@ -19,6 +19,11 @@
  * Bodies are plain text: the SES transport sends them as a text part, so an
  * interpolated member-supplied value cannot inject mail headers, and a
  * newline in a value only adds body lines.
+ *
+ * Deliverability: a best-effort send whose target mailbox has a non-ok
+ * email_status is suppressed at the outbox enqueue (the transport owns that
+ * gate); `strict` sends bypass it, because they are member-initiated
+ * security signals where non-delivery is its own risk.
  */
 import {
   getCommunicationService,

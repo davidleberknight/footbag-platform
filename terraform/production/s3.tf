@@ -193,17 +193,23 @@ resource "aws_s3_bucket_replication_configuration" "media" {
 # ── CORS for direct browser PUT (DD §6.8) ────────────────────────────────────
 # Admin browser loaded from the CloudFront URL PUTs source video and poster
 # bytes directly to this bucket via presigned URLs. AllowedHeaders=* covers
-# Content-Type (signed) plus AWS-SDK-emitted x-amz-* headers. Production
-# pulls the canonical origin from var.domain_name when set; without a domain
-# attached, this resource is skipped (production has no traffic yet).
+# Content-Type (signed) plus AWS-SDK-emitted x-amz-* headers. Gated on
+# enable_cloudfront exactly like staging: before the distribution exists
+# there is no public origin to cross from, and once it does, the CORS origin
+# must exist even while the platform still serves only on the default
+# cloudfront.net name (var.domain_name serves nothing pre-cutover).
 
 resource "aws_s3_bucket_cors_configuration" "media" {
-  count  = var.domain_name != "" ? 1 : 0
+  count  = var.enable_cloudfront ? 1 : 0
   bucket = aws_s3_bucket.media.id
 
   cors_rule {
     allowed_methods = ["PUT"]
-    allowed_origins = ["https://${var.domain_name}"]
+    allowed_origins = [
+      var.domain_name != ""
+      ? "https://${var.domain_name}"
+      : "https://${aws_cloudfront_distribution.main[0].domain_name}",
+    ]
     allowed_headers = ["*"]
     expose_headers  = ["ETag"]
     max_age_seconds = 3000

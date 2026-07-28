@@ -169,8 +169,9 @@ export interface AppConfig {
   // production falls back to the named IP ranges, which fail closed: the
   // trust walk stops at CloudFront's public edge address, so req.ip becomes
   // the edge IP and per-IP rate limiting coarsens to per-edge buckets.
-  // Outside production: 0 unless overridden.
-  trustProxy: number | boolean | string;
+  // Outside production: 0 unless overridden. The boolean form is refused at
+  // boot (it would trust every forwarded hop).
+  trustProxy: number | string;
   // Test-only password-hashing cost switch. When true, hashPassword() uses a
   // cheap argon2 profile so the suite does not run memory-hard hashing across
   // ~20 parallel forks (which oversubscribes RAM/threads and times out
@@ -218,6 +219,10 @@ export interface AppConfig {
   // Boot-time guard refuses production start with this var set; an env
   // injection in production must not be able to forge readiness state.
   testMemoryPercent: number | null | undefined;
+  // True when the process runs inside the Vitest test runner. The live SES
+  // and payment adapter accessors refuse to resolve while it is set, so no
+  // test driving the application path can send real mail or move real money.
+  isTestRunner: boolean;
 }
 
 function requireEnv(name: string): string {
@@ -228,6 +233,18 @@ function requireEnv(name: string): string {
   return value;
 }
 
+// Enum-valued selector vars are compared against exact literals, so a trailing
+// newline or space from a hand-edited host env file (a CRLF paste is the common
+// case) would refuse an otherwise-correct boot. Outer whitespace is never
+// significant in these values; strip it before comparing, and treat a
+// whitespace-only value as unset.
+function trimmedEnv(name: string): string | undefined {
+  const value = process.env[name];
+  if (value === undefined) return undefined;
+  const trimmed = value.trim();
+  return trimmed === '' ? undefined : trimmed;
+}
+
 function loadConfig(): AppConfig {
   const rawPort = requireEnv('PORT');
   const port = parseInt(rawPort, 10);
@@ -235,10 +252,10 @@ function loadConfig(): AppConfig {
     throw new Error(`PORT must be a valid integer between 1 and 65535, got: ${rawPort}`);
   }
 
-  const nodeEnv = requireEnv('NODE_ENV');
+  const nodeEnv = requireEnv('NODE_ENV').trim();
   const isProd = nodeEnv === 'production';
 
-  const rawJwtSigner = process.env.JWT_SIGNER;
+  const rawJwtSigner = trimmedEnv('JWT_SIGNER');
   let jwtSigner: 'kms' | 'local';
   if (rawJwtSigner === 'kms' || rawJwtSigner === 'local') {
     jwtSigner = rawJwtSigner;
@@ -258,7 +275,7 @@ function loadConfig(): AppConfig {
   const jwtLocalKeypairPath =
     process.env.JWT_LOCAL_KEYPAIR_PATH || 'database/dev-jwt-keypair.pem';
 
-  const rawSesAdapter = process.env.SES_ADAPTER;
+  const rawSesAdapter = trimmedEnv('SES_ADAPTER');
   let sesAdapter: 'live' | 'stub';
   if (rawSesAdapter === 'live' || rawSesAdapter === 'stub') {
     sesAdapter = rawSesAdapter;
@@ -275,7 +292,7 @@ function loadConfig(): AppConfig {
     throw new Error('SES_FROM_IDENTITY is required when SES_ADAPTER=live');
   }
 
-  const rawSafeBrowsingAdapter = process.env.SAFE_BROWSING_ADAPTER;
+  const rawSafeBrowsingAdapter = trimmedEnv('SAFE_BROWSING_ADAPTER');
   let safeBrowsingAdapter: 'live' | 'stub';
   if (rawSafeBrowsingAdapter === 'live' || rawSafeBrowsingAdapter === 'stub') {
     safeBrowsingAdapter = rawSafeBrowsingAdapter;
@@ -289,7 +306,7 @@ function loadConfig(): AppConfig {
     safeBrowsingAdapter = 'stub';
   }
 
-  const rawCaptchaAdapter = process.env.CAPTCHA_ADAPTER;
+  const rawCaptchaAdapter = trimmedEnv('CAPTCHA_ADAPTER');
   let captchaAdapter: 'live' | 'stub';
   if (rawCaptchaAdapter === 'live' || rawCaptchaAdapter === 'stub') {
     captchaAdapter = rawCaptchaAdapter;
@@ -297,12 +314,18 @@ function loadConfig(): AppConfig {
     throw new Error(
       `CAPTCHA_ADAPTER must be 'live' or 'stub', got: ${rawCaptchaAdapter}`,
     );
+  } else if (isProd) {
+    // Mandatory-explicit under prod-mode boots, like the sibling adapter
+    // selectors: a silent stub default on a production host would answer
+    // "you are human" to every request, leaving only the in-process rate
+    // limiter against credential stuffing. Staging declares stub
+    // deliberately (the compose passthrough supplies it); production
+    // declares live, enforced by the FOOTBAG_ENV=production gate further
+    // down after footbagEnv is derived.
+    throw new Error('CAPTCHA_ADAPTER must be set explicitly in production (no default)');
   } else {
-    // Default off (stub) for dev and staging: both run the stub ("you are
-    // human"), and staging must stay on it even though it runs prod-mode.
-    // Production requires the real Turnstile: a FOOTBAG_ENV=production boot
-    // with the stub fails fast at the production CAPTCHA gate further down,
-    // after footbagEnv is derived.
+    // Default off (stub) below prod-mode: dev and test run the stub
+    // ("you are human").
     captchaAdapter = 'stub';
   }
   const turnstileSiteKey = process.env.TURNSTILE_SITE_KEY ?? null;
@@ -310,7 +333,7 @@ function loadConfig(): AppConfig {
     throw new Error('TURNSTILE_SITE_KEY is required when CAPTCHA_ADAPTER=live');
   }
 
-  const rawSecretsAdapter = process.env.SECRETS_ADAPTER;
+  const rawSecretsAdapter = trimmedEnv('SECRETS_ADAPTER');
   let secretsAdapter: 'live' | 'stub' | 'local';
   if (
     rawSecretsAdapter === 'live' ||
@@ -328,7 +351,7 @@ function loadConfig(): AppConfig {
     secretsAdapter = 'local';
   }
 
-  const rawFootbagEnv = process.env.FOOTBAG_ENV;
+  const rawFootbagEnv = trimmedEnv('FOOTBAG_ENV');
   let footbagEnv: 'staging' | 'production' | 'development' | undefined;
   if (
     rawFootbagEnv === 'staging' ||
@@ -363,6 +386,30 @@ function loadConfig(): AppConfig {
     );
   }
 
+  // The reverse direction: a real prod-mode boot must declare which deployment
+  // environment it is. Every FOOTBAG_ENV-keyed production mandate (the live
+  // CAPTCHA gate, arming/adapter coherence, the live-SDK refusals below)
+  // silently skips when footbagEnv is undefined, so a hand-run production boot
+  // that forgot the var would come up with stub protections and zero arming
+  // checks. The Vitest carve-out keeps bare test boots bootable: the suite
+  // pins NODE_ENV=production for hardening parity without simulating any
+  // deployment, the same shape as the FOOTBAG_CHEAP_PASSWORD_HASH test-only
+  // switch below.
+  if (isProd && !footbagEnv && !process.env.VITEST) {
+    throw new Error(
+      "FOOTBAG_ENV must be set explicitly when NODE_ENV=production ('staging', 'production', or 'development'); the deploy sync writes it into /srv/footbag/env, and without it every FOOTBAG_ENV-keyed production mandate silently skips",
+    );
+  }
+
+  // The session-signing key must be the non-exportable KMS key in production:
+  // the 'local' backend signs with an on-disk PEM, which silently replaces the
+  // key-never-leaves-KMS threat model with a file an attacker could read.
+  if (footbagEnv === 'production' && jwtSigner !== 'kms') {
+    throw new Error(
+      `JWT_SIGNER must be 'kms' when FOOTBAG_ENV=production (got '${jwtSigner}'); the local PEM signer replaces the non-exportable KMS signing key`,
+    );
+  }
+
   // Arming switches: one per real-world side effect (outbound email,
   // payments). 'dark' keeps the side on its stub adapter in production,
   // staging-like, so the full flows run with no mail delivered and no money
@@ -371,7 +418,7 @@ function loadConfig(): AppConfig {
   // below make a flag/adapter mismatch a boot failure rather than a silent
   // surprise. Inert below production, where the stub mandates apply
   // regardless of the flag values.
-  const rawEmailSendArmed = process.env.EMAIL_SEND_ARMED;
+  const rawEmailSendArmed = trimmedEnv('EMAIL_SEND_ARMED');
   let emailSendArmed: 'armed' | 'dark';
   if (rawEmailSendArmed === 'armed' || rawEmailSendArmed === 'dark') {
     emailSendArmed = rawEmailSendArmed;
@@ -383,7 +430,7 @@ function loadConfig(): AppConfig {
     emailSendArmed = 'armed';
   }
 
-  const rawPaymentsArmed = process.env.PAYMENTS_ARMED;
+  const rawPaymentsArmed = trimmedEnv('PAYMENTS_ARMED');
   let paymentsArmed: 'armed' | 'dark';
   if (rawPaymentsArmed === 'armed' || rawPaymentsArmed === 'dark') {
     paymentsArmed = rawPaymentsArmed;
@@ -470,7 +517,7 @@ function loadConfig(): AppConfig {
 
   const ssmPrefix = footbagEnv ? `/footbag/${footbagEnv}` : undefined;
 
-  const rawHttpReachability = process.env.HTTP_REACHABILITY_ADAPTER;
+  const rawHttpReachability = trimmedEnv('HTTP_REACHABILITY_ADAPTER');
   let httpReachabilityAdapter: 'live' | 'stub' | 'disabled';
   if (
     rawHttpReachability === 'live' ||
@@ -490,9 +537,9 @@ function loadConfig(): AppConfig {
     httpReachabilityAdapter = 'stub';
   }
 
-  const rawAllowCuratedSidecar = process.env.ALLOW_CURATED_SIDECAR_WRITES;
+  const rawAllowCuratedSidecar = trimmedEnv('ALLOW_CURATED_SIDECAR_WRITES');
   let allowCuratedSidecarWrites: boolean;
-  if (rawAllowCuratedSidecar === undefined || rawAllowCuratedSidecar === '') {
+  if (rawAllowCuratedSidecar === undefined) {
     allowCuratedSidecarWrites = nodeEnv === 'development';
   } else if (rawAllowCuratedSidecar === '1' || rawAllowCuratedSidecar === 'true') {
     allowCuratedSidecarWrites = true;
@@ -539,7 +586,7 @@ function loadConfig(): AppConfig {
     imageProcessorUrl = 'http://localhost:4001';
   }
 
-  const rawMediaStorage = process.env.MEDIA_STORAGE_ADAPTER;
+  const rawMediaStorage = trimmedEnv('MEDIA_STORAGE_ADAPTER');
   let mediaStorageAdapter: 's3' | 'local';
   if (rawMediaStorage === 's3' || rawMediaStorage === 'local') {
     mediaStorageAdapter = rawMediaStorage;
@@ -565,15 +612,16 @@ function loadConfig(): AppConfig {
   if (
     (jwtSigner === 'kms' ||
       sesAdapter === 'live' ||
+      secretsAdapter === 'live' ||
       mediaStorageAdapter === 's3') &&
     !awsRegion
   ) {
     throw new Error(
-      'AWS_REGION is required when JWT_SIGNER=kms, SES_ADAPTER=live, or MEDIA_STORAGE_ADAPTER=s3',
+      'AWS_REGION is required when JWT_SIGNER=kms, SES_ADAPTER=live, SECRETS_ADAPTER=live, or MEDIA_STORAGE_ADAPTER=s3',
     );
   }
 
-  const rawPaymentAdapter = process.env.PAYMENT_ADAPTER;
+  const rawPaymentAdapter = trimmedEnv('PAYMENT_ADAPTER');
   let paymentAdapter: 'live' | 'stub';
   if (rawPaymentAdapter === 'live' || rawPaymentAdapter === 'stub') {
     paymentAdapter = rawPaymentAdapter;
@@ -612,10 +660,11 @@ function loadConfig(): AppConfig {
     );
   }
 
-  // Current: the Stripe webhook signing secret is read from the host env file,
-  // pasted in by hand. Target: resolve it from AWS Parameter Store at startup
-  // like the other secrets; the Parameter Store entry, the server's read grant,
-  // and the deploy wiring are not built yet.
+  // The Stripe webhook signing secret reaches the host env file from its
+  // Parameter Store shell via the deploy sync (both deploy halves): a real
+  // parameter value is authoritative on every deploy, and while the
+  // parameter still holds its bootstrap placeholder the sync leaves the
+  // script-installed host value in place.
   const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET || undefined;
   if (paymentAdapter === 'live' && !stripeWebhookSecret) {
     throw new Error(
@@ -742,14 +791,20 @@ function loadConfig(): AppConfig {
   // falls back to the named ranges, which fail closed: the trust walk stops
   // at CloudFront's public edge address, so req.ip becomes the edge IP and
   // rate limiting coarsens to per-edge buckets rather than refusing to boot.
-  const rawTrustProxy = process.env.TRUST_PROXY;
-  let trustProxy: number | boolean | string;
-  if (rawTrustProxy === undefined || rawTrustProxy === '') {
+  const rawTrustProxy = trimmedEnv('TRUST_PROXY');
+  let trustProxy: number | string;
+  if (rawTrustProxy === undefined) {
     trustProxy = isProd ? 'loopback, linklocal, uniquelocal' : 0;
   } else if (/^\d+$/.test(rawTrustProxy)) {
     trustProxy = parseInt(rawTrustProxy, 10);
   } else if (rawTrustProxy === 'true' || rawTrustProxy === 'false') {
-    trustProxy = rawTrustProxy === 'true';
+    // The boolean form is refused at boot: TRUST_PROXY=true makes Express
+    // trust the entire X-Forwarded-For chain, so any client that reaches the
+    // app with a forged header controls its own req.ip and defeats per-IP
+    // rate limiting the moment origin enforcement fails open.
+    throw new Error(
+      `TRUST_PROXY must be an exact integer hop count or an address-range list, got: ${rawTrustProxy}. The boolean form trusts every forwarded hop and would honor a spoofed X-Forwarded-For`,
+    );
   } else {
     trustProxy = rawTrustProxy;
   }
@@ -805,9 +860,9 @@ function loadConfig(): AppConfig {
     );
   }
 
-  const rawArchiveCookieSigner = process.env.ARCHIVE_COOKIE_SIGNER;
+  const rawArchiveCookieSigner = trimmedEnv('ARCHIVE_COOKIE_SIGNER');
   let archiveCookieSigner: 'ssm' | 'local' | null;
-  if (rawArchiveCookieSigner === undefined || rawArchiveCookieSigner === '') {
+  if (rawArchiveCookieSigner === undefined) {
     archiveCookieSigner = null;
   } else if (rawArchiveCookieSigner === 'ssm' || rawArchiveCookieSigner === 'local') {
     archiveCookieSigner = rawArchiveCookieSigner;
@@ -839,9 +894,9 @@ function loadConfig(): AppConfig {
   const archiveSigningKeyPath =
     process.env.ARCHIVE_SIGNING_KEY_PATH || 'database/dev-archive-signing-key.pem';
 
-  const rawArchiveLoginRedirect = process.env.ARCHIVE_LOGIN_REDIRECT;
+  const rawArchiveLoginRedirect = trimmedEnv('ARCHIVE_LOGIN_REDIRECT');
   let archiveLoginRedirect: boolean;
-  if (rawArchiveLoginRedirect === undefined || rawArchiveLoginRedirect === '') {
+  if (rawArchiveLoginRedirect === undefined) {
     archiveLoginRedirect = false;
   } else if (rawArchiveLoginRedirect === '1' || rawArchiveLoginRedirect === 'true') {
     archiveLoginRedirect = true;
@@ -857,8 +912,9 @@ function loadConfig(): AppConfig {
     port,
     nodeEnv,
     // Development defaults to debug so a local run shows the full picture
-    // (including the per-cycle outbox heartbeat); staging and production stay at
-    // info to match the production log convention.
+    // (including the per-cycle outbox heartbeat). Deployed hosts never reach
+    // this fallback: the deploy syncs LOG_LEVEL from the SSM parameter
+    // (staging runs info, production runs warn).
     logLevel: process.env.LOG_LEVEL ?? (footbagEnv === 'development' ? 'debug' : 'info'),
     dbPath: requireEnv('FOOTBAG_DB_PATH'),
     publicBaseUrl: requireEnv('PUBLIC_BASE_URL'),
@@ -869,6 +925,7 @@ function loadConfig(): AppConfig {
     archiveSigningKeyPath,
     archiveCookieDomain,
     sessionSecret,
+    isTestRunner: Boolean(process.env.VITEST),
     mediaDir: process.env.FOOTBAG_MEDIA_DIR || './s3-adapter-local',
     curatedMediaDir: process.env.FOOTBAG_CURATED_MEDIA_DIR || './.curated-build',
     jwtSigner,

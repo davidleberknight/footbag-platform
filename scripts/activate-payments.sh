@@ -271,7 +271,7 @@ fi
 if [[ "$MODE" == "activate" && -z "$ENV_FILE_OVERRIDE" ]]; then
   umask 077
   KEY_TMP="$(mktemp /tmp/footbag-stripe-key.XXXXXX)"
-  trap 'rm -f "$KEY_TMP"' EXIT INT TERM
+  trap 'shred -u "$KEY_TMP" 2>/dev/null || true' EXIT INT TERM
   printf '%s' "$STRIPE_KEY" > "$KEY_TMP"
   echo ""
   echo "Storing the key in SSM ($SSM_PARAM)..."
@@ -282,7 +282,7 @@ if [[ "$MODE" == "activate" && -z "$ENV_FILE_OVERRIDE" ]]; then
     --key-id "$KMS_ALIAS" \
     --overwrite \
     --profile "$AWS_PROFILE_ARG" >/dev/null
-  rm -f "$KEY_TMP"
+  shred -u "$KEY_TMP"
   echo "Stored."
 fi
 
@@ -327,8 +327,8 @@ else
   LOCAL_PID=$$
   TMP_REMOTE="/tmp/footbag-env-activate-${LOCAL_PID}.env"
   cleanup_remote() {
-    ssh -o BatchMode=yes "$SSH_ALIAS" "rm -f $TMP_REMOTE" 2>/dev/null || true
-    rm -f "${KEY_TMP:-}" "${OLD_LOCAL:-}" "${NEW_LOCAL:-}" 2>/dev/null || true
+    ssh -o BatchMode=yes "$SSH_ALIAS" "shred -u $TMP_REMOTE" 2>/dev/null || true
+    shred -u "${KEY_TMP:-}" "${OLD_LOCAL:-}" "${NEW_LOCAL:-}" 2>/dev/null || true
   }
   trap cleanup_remote EXIT INT TERM
 
@@ -472,7 +472,7 @@ echo ""
 # -----------------------------------------------------------------------------
 if [[ -n "$ENV_FILE_OVERRIDE" ]]; then
   cp "$NEW_LOCAL" "$ENV_FILE_OVERRIDE"
-  rm -f "$NEW_LOCAL"
+  shred -u "$NEW_LOCAL"
   GATE_FILE="$ENV_FILE_OVERRIDE"
 else
   printf "Push this change to %s on %s? (yes/no): " "$HOST_ENV_PATH" "$SSH_ALIAS"

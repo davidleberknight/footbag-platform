@@ -46,6 +46,7 @@ process.env.AWS_REGION                = 'us-east-1';
 process.env.SAFE_BROWSING_ADAPTER     = 'stub';
 process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
 process.env.SECRETS_ADAPTER           = 'stub';
+process.env.CAPTCHA_ADAPTER           = 'stub'; // mandatory-explicit under prod-mode boots; staging runs the stub by design
 process.env.IMAGE_PROCESSOR_URL       = 'http://image:4000';
 process.env.MEDIA_STORAGE_ADAPTER     = 'local';
 process.env.PAYMENT_ADAPTER           = 'stub';

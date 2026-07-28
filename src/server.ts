@@ -6,6 +6,7 @@ import { logger } from './config/logger';
 import { createApp } from './app';
 import { checkpointAndCloseDatabase } from './db/db';
 import { initCloudFrontSigningAdapter } from './adapters/cloudFrontSigningAdapter';
+import { initJwtSigningAdapter } from './adapters/jwtSigningAdapter';
 
 const app = createApp();
 
@@ -53,13 +54,17 @@ async function probeImageWorkerForDev(): Promise<void> {
 // proxy depends on, so the proxy never starts and the site 504s. Seeded rows
 // render as-is until a separate, non-boot verification path stamps a
 // quarantine_reason; the public read hides only rows that carry one.
-// The archive cookie signer preloads its private key BEFORE the server
-// accepts requests: cookie issuance inside issueSessionCookie is synchronous,
-// so the key must already be in memory when the first login arrives. A failed
-// preload refuses to start rather than serving members whose logins silently
-// grant no archive access. No-op where no signer is configured.
+// Two signing backends preload BEFORE the server accepts requests, and a
+// failed preload refuses to start rather than reporting healthy while every
+// login fails:
+//   - The archive cookie signer loads its private key: cookie issuance inside
+//     issueSessionCookie is synchronous, so the key must already be in memory
+//     when the first login arrives. No-op where no signer is configured.
+//   - The session-JWT signer makes its first KMS call (GetPublicKey): the
+//     adapter is otherwise lazy, so broken KMS wiring would surface only at
+//     the first login. No-op for the local signer.
 let server: ReturnType<typeof app.listen> | undefined;
-initCloudFrontSigningAdapter()
+Promise.all([initCloudFrontSigningAdapter(), initJwtSigningAdapter()])
   .then(() => {
     server = app.listen(config.port, () => {
       logger.info('server started', {
@@ -72,7 +77,7 @@ initCloudFrontSigningAdapter()
     });
   })
   .catch((err: unknown) => {
-    logger.error('archive cookie signer preload failed; refusing to start', {
+    logger.error('signing backend preload failed; refusing to start', {
       error: err instanceof Error ? err.message : String(err),
     });
     process.exit(1);

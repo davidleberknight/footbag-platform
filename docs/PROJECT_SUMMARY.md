@@ -627,7 +627,7 @@ Benefits Gained: Zero antivirus maintenance, Standardized image quality, Simple 
 
 ## 6.3 Additional Security Protections
 
-**CSRF Protection:** The application uses SameSite=Lax cookies, strict HTTP verb discipline (no state change over GET), and Origin-header pinning on state-changing requests, rather than synchronizer CSRF tokens. SameSite=Lax prevents cookies from being sent with cross-site POSTs; Origin-header pinning blocks same-site subdomain POSTs from the legacy archive subdomain, which shares the session cookie via `Domain=.footbag.org`.
+**CSRF Protection:** The application uses SameSite=Lax cookies, strict HTTP verb discipline (no state change over GET), and Origin-header pinning on state-changing requests, rather than synchronizer CSRF tokens. SameSite=Lax prevents cookies from being sent with cross-site POSTs; Origin-header pinning blocks same-site subdomain POSTs from the legacy archive subdomain, which is same-site with the platform whatever the session cookie's scope.
 
 **Content Security Policy:** The platform implements Content Security Policy headers restricting which sources can load scripts, styles, and resources. This prevents cross-site scripting attacks by rendering injected malicious code inert even if input validation were bypassed.
 

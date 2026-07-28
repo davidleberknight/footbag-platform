@@ -31,6 +31,12 @@ export interface JwtSigningAdapter {
     ttlSeconds?: number,
   ): Promise<string>;
   verifyJwt(token: string): Promise<JwtClaims | null>;
+  /**
+   * Makes the adapter's first backend call eagerly so a boot can fail fast.
+   * Present only where a remote backend exists (KMS); the local signer reads
+   * its keypair from disk at construction and needs no preload.
+   */
+  preloadPublicKey?(): Promise<void>;
 }
 
 // Fallback for calls that omit ttlSeconds. `src/services/jwtService.ts` is
@@ -200,6 +206,9 @@ export function createKmsJwtAdapter(opts: {
 
   return {
     kid,
+    async preloadPublicKey() {
+      await publicKeyPem();
+    },
     async signJwt(claims, ttlSeconds = DEFAULT_TTL_SECONDS) {
       const now = Math.floor(Date.now() / 1000);
       const full: JwtClaims = { ...claims, iat: now, exp: now + ttlSeconds };
@@ -256,6 +265,19 @@ export function getJwtSigningAdapter(): JwtSigningAdapter {
     singleton = createLocalJwtAdapter({ keypairPath: config.jwtLocalKeypairPath });
   }
   return singleton;
+}
+
+/**
+ * Boot-time preload for the KMS-backed session signer. The signer otherwise
+ * makes its first AWS call at the first login, so a container with broken
+ * KMS wiring reports healthy while every login fails; the preload forces a
+ * GetPublicKey before the server accepts requests, and the caller refuses to
+ * start on failure. No-op for the local signer, which reads its keypair from
+ * disk at construction.
+ */
+export async function initJwtSigningAdapter(): Promise<void> {
+  const adapter = getJwtSigningAdapter();
+  await adapter.preloadPublicKey?.();
 }
 
 export function resetJwtSigningAdapterForTests(): void {

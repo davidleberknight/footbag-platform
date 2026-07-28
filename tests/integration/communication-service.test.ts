@@ -201,6 +201,87 @@ describe('enqueueEmailOrFail', () => {
   });
 });
 
+describe('enqueueEmail mailbox suppression', () => {
+  function seedMemberWithStatus(email: string, status: 'ok' | 'bounced' | 'complained' | 'suppressed'): string {
+    const db = new BetterSqlite3(dbPath);
+    const memberId = insertMember(db, { login_email: email, email_status: status });
+    db.close();
+    return memberId;
+  }
+
+  function outboxCount(): number {
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const row = db.prepare('SELECT COUNT(*) AS n FROM outbox_emails').get() as { n: number };
+    db.close();
+    return row.n;
+  }
+
+  it('suppresses a best-effort send to a bounced member mailbox (no row written)', () => {
+    const memberId = seedMemberWithStatus('bounced-mailbox@example.com', 'bounced');
+    const svc = createCommunicationService(createStubSesAdapter());
+    const res = svc.enqueueEmail({
+      recipientEmail: 'bounced-mailbox@example.com',
+      recipientMemberId: memberId,
+      subject: 'Hi',
+      bodyText: 'b',
+    });
+    expect(res).toEqual({ id: null, status: 'suppressed' });
+    expect(outboxCount()).toBe(0);
+  });
+
+  it('matches the mailbox case-insensitively (normalized lookup)', () => {
+    seedMemberWithStatus('cased-mailbox@example.com', 'complained');
+    const svc = createCommunicationService(createStubSesAdapter());
+    const res = svc.enqueueEmail({
+      recipientEmail: 'Cased-Mailbox@Example.com',
+      subject: 'Hi',
+      bodyText: 'b',
+    });
+    expect(res.status).toBe('suppressed');
+    expect(outboxCount()).toBe(0);
+  });
+
+  it('enqueues normally when the mailbox status is ok', () => {
+    const memberId = seedMemberWithStatus('healthy-mailbox@example.com', 'ok');
+    const svc = createCommunicationService(createStubSesAdapter());
+    const res = svc.enqueueEmail({
+      recipientEmail: 'healthy-mailbox@example.com',
+      recipientMemberId: memberId,
+      subject: 'Hi',
+      bodyText: 'b',
+    });
+    expect(res.status).toBe('enqueued');
+  });
+
+  it('enqueues to an address that is no member mailbox, whatever the stamped member id says', () => {
+    // The legacy-claim and mailbox-link confirmations deliberately write to
+    // an address that is not the member's login email; the gate is keyed on
+    // the mailbox being written to, never on the stamped member id.
+    const memberId = seedMemberWithStatus('bounced-owner@example.com', 'bounced');
+    const svc = createCommunicationService(createStubSesAdapter());
+    const res = svc.enqueueEmail({
+      recipientEmail: 'their-old-legacy-address@example.org',
+      recipientMemberId: memberId,
+      subject: 'Hi',
+      bodyText: 'b',
+    });
+    expect(res.status).toBe('enqueued');
+  });
+
+  it('strict sends bypass suppression (a security signal still goes out)', () => {
+    const memberId = seedMemberWithStatus('bounced-strict@example.com', 'bounced');
+    const svc = createCommunicationService(createStubSesAdapter());
+    const res = svc.enqueueEmailOrFail({
+      recipientEmail: 'bounced-strict@example.com',
+      recipientMemberId: memberId,
+      subject: 'Reset your password',
+      bodyText: 'b',
+    });
+    expect(res.status).toBe('enqueued');
+    expect(outboxCount()).toBe(1);
+  });
+});
+
 describe('processSendQueue', () => {
   it('drains pending → sent via adapter', async () => {
     const stub = createStubSesAdapter();
@@ -236,28 +317,31 @@ describe('processSendQueue', () => {
     expect(row.subject).toBe('Reset link');
   });
 
-  it('reaps a crash-stranded sending row back to pending and delivers it on the same pass', async () => {
+  it('parks a crash-stranded sending row for manual review (its outcome is unknowable)', async () => {
+    expectLoggedError('outbox stale sending rows parked for manual review');
     const stub = createStubSesAdapter();
     const svc = createCommunicationService(stub);
     const { id } = svc.enqueueEmail({
       recipientEmail: 'stranded@example.com', subject: 'Hi', bodyText: 'b',
     });
     // Simulate a worker killed between markSending and markSent: the row sits
-    // in 'sending' with a stale last_attempt_at, invisible to the pending batch.
+    // in 'sending' with a stale last_attempt_at, invisible to the pending
+    // batch. The crash may have happened after a successful provider send, so
+    // an automatic retry could deliver the same email twice.
     const db = new BetterSqlite3(dbPath);
     db.prepare(`
       UPDATE outbox_emails
       SET status = 'sending', last_attempt_at = '2020-01-01T00:00:00.000Z'
       WHERE id = ?
-    `).run(id);
+    `).run(id!);
     db.close();
 
     const res = await svc.processSendQueue();
-    expect(res.sent).toBe(1);
-    const row = readRow(id);
-    expect(row.status).toBe('sent');
-    // The reap counts as a retry so a repeatedly-stranded row is visible.
-    expect(row.retry_count).toBe(1);
+    expect(res.sent).toBe(0);
+    expect(res.manualReview).toBe(1);
+    const row = readRow(id!);
+    expect(row.status).toBe('manual_review');
+    expect(row.last_error).toBe('stale_sending_reaped');
   });
 
   it('does not reap a sending row inside its lease (an in-flight attempt keeps its claim)', async () => {
@@ -279,41 +363,105 @@ describe('processSendQueue', () => {
     expect(readRow(id).status).toBe('sending');
   });
 
-  it('transient failure stays pending, increments retry_count, records last_error', async () => {
+  it('definitive failure backs off: stays pending with a future scheduled_for and a retry bump', async () => {
     const stub = createStubSesAdapter();
     const svc = createCommunicationService(stub);
     const { id } = svc.enqueueEmail({
       recipientEmail: 'a@example.com', subject: 'Hi', bodyText: 'b',
     });
+    const before = new Date().toISOString();
     stub.failNext(new Error('boom'));
     const res = await svc.processSendQueue();
     expect(res.failed).toBe(1);
-    const row = readRow(id);
+    const row = readRow(id!);
     expect(row.status).toBe('pending');
     expect(row.retry_count).toBe(1);
     expect(row.last_error).toBe('boom');
+    // First-failure backoff defers the row; it must not be claimable again
+    // in the same instant (ISO strings compare lexically).
+    expect(String(row.scheduled_for) > before).toBe(true);
+
+    const secondPass = await svc.processSendQueue();
+    expect(secondPass.claimed).toBe(0);
+    expect(readRow(id!).status).toBe('pending');
   });
 
-  it('moves to dead_letter on last allowed retry', async () => {
+  it('moves to dead_letter when a definitive failure exhausts the attempt budget', async () => {
     expectLoggedError('outbox dead-letter');
-    // outbox_max_retry_attempts default is 5; fail 5 times in a row.
+    // outbox_max_retry_attempts default is 5; seed the row at the last
+    // allowed attempt so one more definitive failure dead-letters it.
     const stub = createStubSesAdapter();
     const svc = createCommunicationService(stub);
     const { id } = svc.enqueueEmail({
       recipientEmail: 'a@example.com', subject: 'Hi', bodyText: 'b',
     });
-    for (let i = 0; i < 5; i++) {
-      stub.failNext(new Error(`attempt-${i + 1}`));
-      // eslint-disable-next-line no-await-in-loop
-      await svc.processSendQueue();
-    }
-    const row = readRow(id);
+    const db = new BetterSqlite3(dbPath);
+    db.prepare('UPDATE outbox_emails SET retry_count = 4 WHERE id = ?').run(id!);
+    db.close();
+    stub.failNext(new Error('final-attempt'));
+    const res = await svc.processSendQueue();
+    expect(res.deadLettered).toBe(1);
+    const row = readRow(id!);
     expect(row.status).toBe('dead_letter');
     expect(row.retry_count).toBe(5);
     // Dead-lettered rows RETAIN body_text for manual recovery; only a
     // successful send scrubs it. A copy of the markSent scrub into
     // markDeadLetter would silently destroy the recovery payload.
     expect(row.body_text).toBe('b');
+  });
+
+  it('provider throttling waits out a delay without consuming an attempt', async () => {
+    const stub = createStubSesAdapter();
+    const svc = createCommunicationService(stub);
+    const { id } = svc.enqueueEmail({
+      recipientEmail: 'a@example.com', subject: 'Hi', bodyText: 'b',
+    });
+    const throttle = new Error('Rate exceeded');
+    throttle.name = 'ThrottlingException';
+    const before = new Date().toISOString();
+    stub.failNext(throttle);
+    const res = await svc.processSendQueue();
+    expect(res.failed).toBe(1);
+    const row = readRow(id!);
+    expect(row.status).toBe('pending');
+    // The attempt budget is untouched: throttling is provider pressure, not
+    // a verdict on this email, so a quota burst cannot dead-letter it.
+    expect(row.retry_count).toBe(0);
+    expect(String(row.scheduled_for) > before).toBe(true);
+  });
+
+  it('a daily-quota failure is treated as throttling, not a definitive failure', async () => {
+    const stub = createStubSesAdapter();
+    const svc = createCommunicationService(stub);
+    const { id } = svc.enqueueEmail({
+      recipientEmail: 'a@example.com', subject: 'Hi', bodyText: 'b',
+    });
+    stub.failNext(new Error('Daily message quota exceeded'));
+    await svc.processSendQueue();
+    const row = readRow(id!);
+    expect(row.status).toBe('pending');
+    expect(row.retry_count).toBe(0);
+  });
+
+  it('an ambiguous outcome (timeout mid-call) parks for manual review instead of retrying', async () => {
+    expectLoggedError('outbox ambiguous send outcome');
+    const stub = createStubSesAdapter();
+    const svc = createCommunicationService(stub);
+    const { id } = svc.enqueueEmail({
+      recipientEmail: 'a@example.com', subject: 'Hi', bodyText: 'b',
+    });
+    const timeout = new Error('socket hang up') as Error & { code: string };
+    timeout.code = 'ECONNRESET';
+    stub.failNext(timeout);
+    const res = await svc.processSendQueue();
+    expect(res.manualReview).toBe(1);
+    const row = readRow(id!);
+    expect(row.status).toBe('manual_review');
+    // No automatic path resumes a manual_review row: the provider send has
+    // no idempotency token, so only an admin decision may re-send it.
+    const again = await svc.processSendQueue();
+    expect(again.claimed).toBe(0);
+    expect(readRow(id!).status).toBe('manual_review');
   });
 
   it('respects admin pause (email_outbox_paused=1)', async () => {
@@ -353,7 +501,8 @@ describe('processSendQueue', () => {
     db2.close();
   });
 
-  it('does not reap stranded sending rows while paused; reaps them on unpause', async () => {
+  it('does not reap stranded sending rows while paused; parks them on unpause', async () => {
+    expectLoggedError('outbox stale sending rows parked for manual review');
     const stub = createStubSesAdapter();
     const svc = createCommunicationService(stub);
     const { id } = svc.enqueueEmail({
@@ -364,7 +513,7 @@ describe('processSendQueue', () => {
     let db = new BetterSqlite3(dbPath);
     db.prepare(`
       UPDATE outbox_emails SET status = 'sending', last_attempt_at = '2020-01-01T00:00:00.000Z' WHERE id = ?
-    `).run(id);
+    `).run(id!);
     db.prepare(`
       INSERT INTO system_config
         (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
@@ -376,9 +525,10 @@ describe('processSendQueue', () => {
     expect(paused.paused).toBe(true);
     // The pause check returns before the stale-sending reap, so the stranded
     // row keeps its (now invisible) 'sending' state instead of being lost.
-    expect(readRow(id).status).toBe('sending');
+    expect(readRow(id!).status).toBe('sending');
 
-    // Unpause: the next drain reaps the stranded row and delivers it.
+    // Unpause: the next drain parks the stranded row for manual review (its
+    // outcome is unknowable, so it is never silently re-sent).
     db = new BetterSqlite3(dbPath);
     db.prepare(`
       INSERT INTO system_config
@@ -388,8 +538,8 @@ describe('processSendQueue', () => {
     db.close();
 
     const drained = await svc.processSendQueue();
-    expect(drained.sent).toBe(1);
-    expect(readRow(id).status).toBe('sent');
+    expect(drained.manualReview).toBe(1);
+    expect(readRow(id!).status).toBe('manual_review');
   });
 
   it('respects scheduled_for (future rows not claimed)', async () => {

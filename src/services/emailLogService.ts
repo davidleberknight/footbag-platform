@@ -28,7 +28,7 @@ import { emailTemplateClassification, listEmailTemplateKeys } from './emailServi
 import type { PageViewModel } from '../types/page';
 
 const PAGE_SIZE = 50;
-const STATUS_OPTIONS = ['pending', 'sending', 'sent', 'failed', 'dead_letter'] as const;
+const STATUS_OPTIONS = ['pending', 'sending', 'sent', 'failed', 'dead_letter', 'manual_review'] as const;
 
 export interface EmailLogQuery {
   recipient?: string | null;

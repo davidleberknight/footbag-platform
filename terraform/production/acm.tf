@@ -8,7 +8,11 @@ resource "aws_acm_certificate" "main" {
   domain_name       = var.domain_name
   validation_method = "DNS"
 
-  subject_alternative_names = ["www.${var.domain_name}"]
+  # preview.<domain> rides the certificate from first issuance: ACM replaces
+  # the whole certificate when a SAN is added later, so the temporary
+  # pre-cutover hostname is baked in even though its DNS record is gated off
+  # until the zone move.
+  subject_alternative_names = ["www.${var.domain_name}", "preview.${var.domain_name}"]
 
   lifecycle {
     create_before_destroy = true

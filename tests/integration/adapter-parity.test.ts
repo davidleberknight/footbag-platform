@@ -211,6 +211,27 @@ describe('adapter-parity: JwtSigningAdapter (Local vs. KMS wire format)', () => 
     }
   });
 
+  it('the KMS adapter preloads its public key eagerly; the local adapter needs none', async () => {
+    // The boot preload makes the first backend call before the server accepts
+    // requests, so broken KMS wiring refuses the boot instead of failing
+    // every login behind a healthy-looking container.
+    const { local, kms } = makePair();
+    expect(local.preloadPublicKey).toBeUndefined();
+    await expect(kms.preloadPublicKey!()).resolves.toBeUndefined();
+  });
+
+  it('a failed KMS preload rejects, so the boot can refuse to start', async () => {
+    const kms = createKmsJwtAdapter({
+      keyId: 'arn:aws:kms:us-east-1:000000000000:key/parity-test',
+      kmsClient: {
+        send: async () => {
+          throw new Error('kms unreachable');
+        },
+      } as never,
+    });
+    await expect(kms.preloadPublicKey!()).rejects.toThrow('kms unreachable');
+  });
+
   it('both emit headers with alg=RS256, typ=JWT, non-empty kid', async () => {
     const { local, kms } = makePair();
     const claims = { sub: 'm-1', passwordVersion: 1 };

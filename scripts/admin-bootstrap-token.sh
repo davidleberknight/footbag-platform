@@ -99,7 +99,7 @@ case "$ACTION" in
     TOKEN="$(openssl rand -hex 32)"
     TMP_JSON="$(mktemp)"
     chmod 600 "$TMP_JSON"
-    trap 'rm -f "$TMP_JSON"' EXIT
+    trap 'shred -u "$TMP_JSON" 2>/dev/null || true' EXIT
     printf '{"Name":"%s","Type":"SecureString","Value":"%s"}\n' \
       "$PARAM_NAME" "$TOKEN" > "$TMP_JSON"
     aws ssm put-parameter --cli-input-json "file://${TMP_JSON}" "${AWS_ARGS[@]}" >/dev/null

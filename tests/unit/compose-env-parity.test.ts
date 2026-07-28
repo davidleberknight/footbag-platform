@@ -327,10 +327,8 @@ describe('compose ↔ env.ts parity (dev: docker-compose.yml alone)', () => {
     const compose = loadCompose('docker/docker-compose.yml');
     // worker imports the same src/config/env.ts as web; dev compose runs it
     // under NODE_ENV=production, so it needs the same prod-mode passthroughs.
-    // Worker compose env block lacks PORT (worker doesn't bind one); env.ts
-    // still requires PORT to be present, so any test must supply a benign
-    // PORT default. The fix on the compose side is to declare PORT in the
-    // worker environment block.
+    // The worker binds no public port, but env.ts requires PORT, so the
+    // worker environment block declares a benign one.
     const env = resolveServiceEnv(compose.services.worker, DEV_FIXTURE);
     await expect(loadEnvWith(env)).resolves.toBeUndefined();
   });

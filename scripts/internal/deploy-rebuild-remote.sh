@@ -12,6 +12,17 @@
 
 set -euo pipefail
 
+# This body is destructive and must never run without the guard chain that
+# the caller prepends into the same shell stream. The production-live guard
+# sets this handshake as its last act; a direct invocation of this file (a
+# refactor mistake or a hand-run copy) has no guard and refuses here.
+if [[ "${PROD_LIVE_GUARD_RAN:-}" != "1" ]]; then
+  echo "ERROR: the deploy guards did not run in this shell. This remote half must be" >&2
+  echo "       streamed by scripts/deploy-rebuild.sh with its guard scripts prepended;" >&2
+  echo "       direct invocation is refused." >&2
+  exit 1
+fi
+
 LIVE_DIR=/srv/footbag
 ENV_PATH=/srv/footbag/env
 RELEASE_DIR=/home/footbag/footbag-release
@@ -569,6 +580,52 @@ if [[ "$FOOTBAG_ENV_VAL" == "production" ]]; then
     echo "    Seeding a generated STRIPE_WEBHOOK_SECRET_STUB into env file (dark payments; preserved if already set)..."
     printf 'STRIPE_WEBHOOK_SECRET_STUB=whsec_stub_%s\n' "$(openssl rand -hex 24)" >> "$ENV_PATH"
   fi
+
+  # Sync the Stripe webhook signing secrets from Parameter Store. A real
+  # value in the parameter is authoritative and overwrites the host line on
+  # every deploy, so the secret is never hand-pasted onto a host; while the
+  # parameter still holds its bootstrap placeholder (or is unreadable) the
+  # sync leaves any existing host value untouched, so a value installed by
+  # the payments activation or rotation script survives deploys until the
+  # parameter carries the real secret. The _previous twin carries the
+  # outgoing secret during a Stripe secret roll.
+  sync_stripe_webhook_secret() {
+    local env_key="$1" param_suffix="$2"
+    local param="/footbag/${FOOTBAG_ENV_VAL}/secrets/${param_suffix}"
+    local value
+    echo "    Syncing ${env_key} from ${param} ..."
+    value=$(
+      AWS_PROFILE="$AWS_PROFILE_VAL" aws ssm get-parameter \
+        --region "$AWS_REGION_VAL" \
+        --name "$param" \
+        --with-decryption \
+        --query 'Parameter.Value' \
+        --output text 2>/dev/null
+    ) || value=""
+    if [[ "$value" == TODO-* ]]; then value=""; fi
+    if [[ -z "$value" ]]; then
+      echo "    ${param} still the placeholder or unreadable; leaving any existing ${env_key} in place."
+      return 0
+    fi
+    if [[ "$value" != whsec_* ]]; then
+      echo "ERROR: SSM $param does not look like a Stripe webhook signing secret (whsec_...)." >&2
+      exit 1
+    fi
+    if [[ "$value" == whsec_stub* ]]; then
+      echo "ERROR: SSM $param carries a stub-prefixed secret; production must hold a real Stripe endpoint secret." >&2
+      exit 1
+    fi
+    env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
+    chmod 600 "$env_tmp"
+    chown root:root "$env_tmp"
+    grep -v "^${env_key}=" "$ENV_PATH" > "$env_tmp" || true
+    printf '%s=%s\n' "$env_key" "$value" >> "$env_tmp"
+    mv "$env_tmp" "$ENV_PATH"
+    chmod 600 "$ENV_PATH"
+    chown root:root "$ENV_PATH"
+  }
+  sync_stripe_webhook_secret STRIPE_WEBHOOK_SECRET stripe_webhook_secret
+  sync_stripe_webhook_secret STRIPE_WEBHOOK_SECRET_PREVIOUS stripe_webhook_secret_previous
 fi
 
 # Sync ARCHIVE_URL the same way, from the parameter Terraform writes when the

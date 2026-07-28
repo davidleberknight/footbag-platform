@@ -39,6 +39,19 @@ beforeAll(async () => {
   });
   db.close();
   createApp = await importApp();
+  // SES_ADAPTER=live is what turns the simulated-email card off, but the
+  // accessor refuses to construct the real live sender under the test runner
+  // (no test may send real mail), so install a double that fulfils sends
+  // without any provider. Dynamic import: a static one would hoist above the
+  // env assignments and freeze config before SES_ADAPTER=live lands.
+  const { setSesAdapterForTests } = await import('../../src/adapters/sesAdapter');
+  setSesAdapterForTests({
+    sendEmail: async () => ({
+      messageId: 'anti-enum-double-message',
+      deliveredAt: '2026-01-01T00:00:00.000Z',
+    }),
+    captureCurrentMessageIndex: () => null,
+  });
 });
 
 afterAll(() => cleanupTestDb(dbPath));

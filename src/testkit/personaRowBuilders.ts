@@ -75,6 +75,7 @@ export interface MemberOverrides {
   searchable?: 0 | 1;
   password_version?: number;
   stripe_customer_id?: string | null;
+  email_status?: 'ok' | 'bounced' | 'complained' | 'suppressed';
 }
 
 export function insertMember(db: BetterSqlite3.Database, o: MemberOverrides = {}): string {
@@ -111,7 +112,7 @@ export function insertMember(db: BetterSqlite3.Database, o: MemberOverrides = {}
   db.prepare(`
     INSERT INTO members (
       id, slug,
-      login_email, login_email_normalized, email_verified_at,
+      login_email, login_email_normalized, email_verified_at, email_status,
       password_hash, password_changed_at, password_version,
       real_name, display_name, display_name_normalized,
       bio, birth_date, city, country,
@@ -121,10 +122,10 @@ export function insertMember(db: BetterSqlite3.Database, o: MemberOverrides = {}
       show_competitive_results, show_first_competition_year, gender, show_gender, legacy_member_id, historical_person_id, first_competition_year,
       stripe_customer_id,
       created_at, created_by, updated_at, updated_by, version
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
   `).run(
     id, slug,
-    email, emailNormalized, emailVerifiedAt,
+    email, emailNormalized, emailVerifiedAt, o.email_status ?? 'ok',
     passwordHash, passwordChanged, o.password_version ?? 1,
     name, display, display.toLowerCase(),
     o.bio ?? '', o.birth_date ?? null, o.city === null ? null : (o.city ?? 'Testville'), o.country === null ? null : (o.country ?? 'US'),

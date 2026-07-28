@@ -1,11 +1,11 @@
 # =============================================================================
-# ACM Certificate — DEFERRED for initial test deployment.
+# ACM Certificate — permanently unused on staging, by design.
 #
-# This file provisions a custom-domain TLS certificate in us-east-1 for use
-# with CloudFront, validated via Route 53 DNS. It is commented out while the
-# deployment uses the CloudFront default *.cloudfront.net URL.
+# Staging serves on its unpublished default *.cloudfront.net URL and never
+# attaches a custom domain; the production tree owns the real-domain
+# certificate. This file stays as the commented reference shape only.
 #
-# To activate:
+# If staging ever did attach a domain:
 #   1. Uncomment this file
 #   2. Uncomment route53.tf
 #   3. Uncomment the aliases block in cloudfront.tf

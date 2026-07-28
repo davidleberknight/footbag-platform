@@ -71,6 +71,44 @@ resource "aws_route53_record" "www_aaaa" {
   }
 }
 
+# preview.<domain> is the temporary pre-cutover platform hostname: it points
+# the operator at the real distribution for the pre-cutover exercises while
+# the apex and www still serve the legacy site. Verified against the live
+# zone before creation (the name must have no record of any type there) and
+# removed at cutover. Gated separately from the apex flip so it can exist
+# through the whole pre-cutover window.
+variable "enable_preview_record" {
+  description = "Create the preview.<domain> alias records to CloudFront for the pre-cutover exercises. On after the zone move once the name is re-verified absent from the zone snapshot; removed at cutover."
+  type        = bool
+  default     = false
+}
+
+resource "aws_route53_record" "preview_a" {
+  count   = var.enable_cloudfront && var.enable_preview_record ? 1 : 0
+  zone_id = var.route53_zone_id
+  name    = "preview.${var.domain_name}"
+  type    = "A"
+
+  alias {
+    name                   = aws_cloudfront_distribution.main[0].domain_name
+    zone_id                = aws_cloudfront_distribution.main[0].hosted_zone_id
+    evaluate_target_health = false
+  }
+}
+
+resource "aws_route53_record" "preview_aaaa" {
+  count   = var.enable_cloudfront && var.enable_preview_record ? 1 : 0
+  zone_id = var.route53_zone_id
+  name    = "preview.${var.domain_name}"
+  type    = "AAAA"
+
+  alias {
+    name                   = aws_cloudfront_distribution.main[0].domain_name
+    zone_id                = aws_cloudfront_distribution.main[0].hosted_zone_id
+    evaluate_target_health = false
+  }
+}
+
 # CAA constrains TLS certificate issuance to Amazon's certificate authority (the
 # one ACM uses), so no other CA can issue a certificate for footbag.org or its
 # subdomains. A CAA at the apex is inherited by www and archive. It lands with
