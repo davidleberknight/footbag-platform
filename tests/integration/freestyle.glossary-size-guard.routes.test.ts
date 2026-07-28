@@ -53,6 +53,13 @@
  *                  compressed to one line each. Ceiling raised to 330,000, about
  *                  7,000 bytes of headroom for a further compact addition. The
  *                  guard still fails on unexplained growth beyond that.
+ *   328,802 bytes  the dictionary grown to 975 active tricks / 33 modifiers /
+ *                  406 displayed aliases (promotion waves and alias backfills
+ *                  since the prior baseline; no new glossary sections). Ceiling
+ *                  unchanged at 330,000, leaving about 1,200 bytes (~0.4%) of
+ *                  headroom: the next glossary addition of any size will trip
+ *                  the guard and must raise the ceiling with its own explained
+ *                  baseline entry.
  */
 import { readFileSync } from 'fs';
 import path from 'path';
@@ -75,7 +82,7 @@ const { dbPath } = setTestEnv('3565');
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
 // Ceiling set with modest documented headroom above the representative render
-// (currently 323,020 bytes). See the baseline history in the file header.
+// (currently 328,802 bytes). See the baseline history in the file header.
 const CEILING = 330_000;
 
 interface Snapshot {
