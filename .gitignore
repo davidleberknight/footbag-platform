@@ -7,6 +7,10 @@
 # Local symlink into the operator's footbag.org mirror checkout (machine-specific)
 /footbag.org
 
+# Local symlinks into sibling repo checkouts (machine-specific)
+/footbag_legacy_repo
+/footbag_private_repo
+
 #=========================
 # Legacy migration data (keep code, ignore generated/mirrored data)
 # =========================
