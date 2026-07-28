@@ -34,10 +34,38 @@ ses_dmarc_rua_email = "dmarc-reports@footbag.org"
 
 # Every apex TXT string other than the SPF record ses.tf builds. Route 53
 # stores one TXT record set per name, so anything left out of this list is
-# destroyed when the apex TXT record applies. Read the live zone before the
-# apex records go in and list what is already there, for example:
+# destroyed when the apex TXT record applies, and a provider's domain
+# verification token is exactly the kind of string that lives there: destroying
+# it withdraws the proof of ownership that provider's own account recovery
+# rests on. Read the live zone before the apex records go in and list what is
+# already there, for example:
 #   apex_txt_records = ["google-site-verification=<token>"]
+# The empty list below is a placeholder and fails the apply on purpose.
 apex_txt_records = []
+
+# ── Legacy answers carried through the transition ────────────────────────────
+# The zone moves to Route 53 well before anything switches, so Terraform has to
+# serve the previous host's answers faithfully from the moment delegation lands.
+# Each record that changes later declares both states and picks between them on
+# a flag, which is what makes every switch a planned Terraform change instead of
+# a console edit racing an apply.
+#
+# Read all three values from the fresh zone snapshot, not from memory. Turn the
+# flag on at the zone move and leave it on until the legacy records are removed
+# at post-cutover cleanup: the MX and apex TXT count on it too, so clearing it
+# while legacy mail is still a rollback target turns a mail-flag revert into a
+# deletion of those records rather than a restore.
+enable_legacy_mirror_records = false
+legacy_apex_ipv4             = ""
+legacy_apex_spf              = ""
+legacy_mx_records            = []
+
+# Workspace DKIM public key for the google selector, generated in the Workspace
+# admin console. The key cannot be generated until Gmail has served the domain
+# for a day or more, so this stays empty when the MX first moves and is filled
+# in afterwards. A 2048-bit key exceeds the single-string TXT limit, so supply
+# it pre-split in quoted segments.
+google_dkim_txt = ""
 
 # CIDR ranges permitted to SSH into the production Lightsail instance.
 operator_cidrs = ["TODO-your-public-ip/32"]

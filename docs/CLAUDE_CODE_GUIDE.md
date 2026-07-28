@@ -49,7 +49,7 @@ The first premise in practice: the always-loaded layer is a table of contents, a
 
 ## 3. Path-Scoped Rules: Where Coding Conventions Live
 
-Rules are the workhorse of the harness: nearly every line of code Claude writes here is governed by one. `.claude/rules/` holds a convention file per application layer: controllers, services, views, templates, the database layer, database write safety, adapters, tests, code comments, and secret handling in scripts — plus `private-repo.md` for the authorized-only private operations checkout. Each carries a `paths:` glob, so it attaches exactly when a file in its layer is opened and costs no context before that.
+Rules are the workhorse of the harness: nearly every line of code Claude writes here is governed by one. `.claude/rules/` holds a convention file per application layer: controllers, services, views, templates, the database layer, database write safety, adapters, tests, code comments, secret handling in scripts, and the infrastructure trees (Terraform and the production service units) — plus `private-repo.md` for the authorized-only private operations checkout. Each carries a `paths:` glob, so it attaches exactly when a file in its layer is opened and costs no context before that.
 
 This is what keeps the root `CLAUDE.md` small without losing precision: the always-loaded file states process and non-negotiables, and the per-layer detail lives in the rule that loads only when that kind of code is being touched. When needed, the convention arrives verbatim, not paraphrased from the agent's memory of a long system prompt.
 
@@ -186,7 +186,7 @@ Precedence across all three is `deny > ask > allow`: a `deny` at any scope wins,
 |---|---|---|
 | root `CLAUDE.md` | process, the three orders, non-negotiable rules | always |
 | nested `CLAUDE.md` | subtree-specific orientation | when a subtree file is opened |
-| `.claude/rules/*.md` | per-path coding conventions (controllers, services, views, db, adapters, tests, comments, secrets) | when a matching file is Read/Edited |
+| `.claude/rules/*.md` | per-path coding conventions (controllers, services, views, db, adapters, tests, comments, secrets, infrastructure) | when a matching file is Read/Edited |
 | `.claude/skills/*` | repeatable playbooks (add a public page, run a review, sync docs) | when invoked |
 | `.claude/hooks/*` | deterministic guardrails that block, not advise | on the matching tool call |
 | `.claude/agents/*` | read-only subagents that isolate context (`auditor`, `researcher`) | when spawned |

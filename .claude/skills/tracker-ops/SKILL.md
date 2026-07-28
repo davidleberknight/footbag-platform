@@ -1,6 +1,6 @@
 ---
 name: tracker-ops
-description: Use when reading, filing, triaging, updating, or drafting issues in the maintainers' private tracker, checking whether work is in scope or already tracked, drafting files in the private operations checkout (footbag_private_repo), or consulting the private ops docs. Claude reads and drafts; git writes stay human-run, and Claude runs a tracker gh mutation only when specifically asked, each gated by the approval prompt. Degrades to a one-line note when the tracker is not wired on this machine.
+description: Use when reading, filing, triaging, updating, or drafting issues in the maintainers' private tracker, checking whether work is in scope or already tracked, drafting files in the private operations checkout (footbag_private_repo), or consulting the private ops docs. Claude reads and drafts; git writes stay human-run, and Claude runs tracker gh mutations after asking, each also gated by the approval prompt. Degrades to a one-line note when the tracker is not wired on this machine.
 ---
 
 # Tracker operations
@@ -8,8 +8,8 @@ description: Use when reading, filing, triaging, updating, or drafting issues in
 The maintainers' private tracker (GitHub Issues on the private operations
 repository) is the sole authority for active work, current scope, defects, and
 accepted implementation deviations. Claude reads it freely and drafts issue bodies,
-files, and exact commands; by default a human runs every mutation, with the
-specific-request exception in Mutations below.
+files, and exact commands, and runs tracker mutations itself once the human has
+agreed to the specific change, per Mutations below. Git writes stay human-run.
 
 ## Wiring and polite degradation
 
@@ -92,24 +92,23 @@ Single home for turning an approved `BUGS.md` finding into an issue; the `bug-hu
 hunt's findings, draft one issue per confirmed finding: an issue body meeting the issue-body
 standard above, plus the exact `gh issue create -R "$FOOTBAG_PRIVATE_REPO" --title "..."
 --label <lane> --label bug --body "..."` (the finding's lane, plus other markers as they
-apply). By default the human runs it; when the human specifically asks Claude to file or
-revise the issues, Claude runs it under the mutation policy above (the per-command approval
-prompt is the human's sign-off). `BUGS.md` is the local scratch sink; a finding leaves it
+apply). Claude runs it under the mutation policy above once the human has agreed to the
+set: ask once, listing each issue's title and lane, rather than one question per issue.
+`BUGS.md` is the local scratch sink; a finding leaves it
 when its issue is filed or its fix lands. When the tracker is not wired, skip drafting with
 the one-line degradation note above.
 
-## Mutations: drafted always, run only when asked and approved
+## Mutations: prepared always, run after asking
 
-Every mutation (`gh issue create/edit/close/comment/pin`, any `gh api` write, any git
-write in the private checkout) is first prepared as an exact command. Claude never mutates
-the tracker unprompted or as a side effect. Then:
+Every mutation (`gh issue create/edit/close/comment/pin`, any `gh api` write) is first
+prepared as an exact command. Claude never mutates the tracker unprompted or as a side
+effect. Then:
 
-- **Default:** the human runs the command; Claude prepares it and stops.
-- **On specific request:** when the human specifically asks Claude to run a named tracker
-  mutation (file, edit, comment, close), Claude runs the `gh` command itself. The harness
-  prompts on every mutating form, and that per-command prompt is the human's approval —
-  surface the exact command and let the prompt gate it; never suppress, auto-approve, or
-  batch past it.
+- **Ask, then run.** Surface the exact command, state plainly what it will change, ask,
+  and run it once the human agrees. Asking is the sign-off; the harness prompt that
+  follows is a second gate on the same decision, never a substitute for having asked.
+- **Ask once per batch.** When a pass produces several issues, ask once for the whole
+  set, listing each title and lane, rather than one question per issue.
 - **Failsafe:** if a mutating `gh` form somehow runs with no approval prompt appearing (a
   stray machine-local allow in `settings.local.json`), stop and report it as a config gap.
   Silent execution is never approval; the prompt is what turns "asked" into "approved".

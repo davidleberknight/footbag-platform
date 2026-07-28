@@ -6,6 +6,12 @@
 # would; anything the scanner reports outside this list is a real finding.
 #
 # A prose comment describing address-keyed bounce and complaint state. The
-# generic-api-key rule read "member-keyed: bounce/complaint" as a key being
-# assigned a high-entropy value. No credential was ever present.
+# generic-api-key rule read the label-then-phrase shape of that sentence as a
+# key being assigned a high-entropy value. No credential was ever present.
 017c323b905e0d0dba62eec8e0502767b9cbc0e1:src/db/db.ts:generic-api-key:5310
+#
+# The entry above was once explained by quoting the flagged phrase verbatim, so
+# the same rule fired a second time on this file's own comment. Explanations
+# here paraphrase instead of quoting, to keep the allowlist from seeding new
+# findings.
+e7eb26a66945672e8c60d22667eb9b3375b59d70:.gitleaksignore:generic-api-key:9

@@ -170,10 +170,12 @@ function collectPublicPaths(): string[] {
 
 export const siteMetaService = {
   buildRobotsTxt(): string {
-    if (config.footbagEnv === 'production') {
+    if (config.searchIndexable) {
       return ['User-agent: *', 'Allow: /', '', `Sitemap: ${baseUrl()}/sitemap.xml`, ''].join('\n');
     }
-    // Staging and development: keep the whole environment out of every index.
+    // Anything that is not the canonical public site keeps its whole URL space
+    // out of every index: staging, development, and the temporary pre-cutover
+    // hostname the production build also answers on.
     return ['User-agent: *', 'Disallow: /', ''].join('\n');
   },
 

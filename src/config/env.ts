@@ -18,6 +18,11 @@ export interface AppConfig {
   logLevel: string;
   dbPath: string;
   publicBaseUrl: string;
+  // True when this deployment answers on the canonical public host and its
+  // pages belong in search indexes. False for every non-production environment
+  // and for the temporary pre-cutover preview hostname, which serves the same
+  // production build under a name that is withdrawn at cutover.
+  searchIndexable: boolean;
   // Base URL of the members-only legacy archive (the preserved original
   // footbag.org, served by its own CloudFront distribution). The landing page
   // is the ONLY archive URL the platform ever emits; the mirror's interior
@@ -908,6 +913,19 @@ function loadConfig(): AppConfig {
     );
   }
 
+  // The production build serves the canonical host and, before the cutover, a
+  // temporary preview hostname as well. Only the canonical host belongs in a
+  // search index: the preview name is withdrawn once the canonical host takes
+  // over, so anything indexed under it becomes a result that no longer
+  // resolves. The edge does not forward the viewer's Host header to the origin,
+  // so the request cannot answer which name was used; the base URL this
+  // deployment is configured to speak for can. Requiring the canonical host
+  // rather than excluding known temporary ones keeps an unexpected hostname out
+  // of the index instead of into it.
+  const publicBaseUrl = requireEnv('PUBLIC_BASE_URL');
+  const searchIndexable =
+    footbagEnv === 'production' && new URL(publicBaseUrl).hostname.startsWith('www.');
+
   return {
     port,
     nodeEnv,
@@ -917,7 +935,8 @@ function loadConfig(): AppConfig {
     // (staging runs info, production runs warn).
     logLevel: process.env.LOG_LEVEL ?? (footbagEnv === 'development' ? 'debug' : 'info'),
     dbPath: requireEnv('FOOTBAG_DB_PATH'),
-    publicBaseUrl: requireEnv('PUBLIC_BASE_URL'),
+    publicBaseUrl,
+    searchIndexable,
     archiveUrl: process.env.ARCHIVE_URL || null,
     archiveLoginRedirect,
     archiveCookieSigner,

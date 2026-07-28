@@ -229,27 +229,52 @@ resource "aws_route53_record" "ses_mail_from_spf" {
 #
 # This resource owns the whole apex TXT record set, because Route 53 stores one
 # set per name and type. Every other apex TXT string in the zone must therefore
-# be listed in var.apex_txt_records, or applying this record destroys it. When
-# the zone already carries an apex TXT set, read its strings into that variable
-# and import the record into this resource; allow_overwrite is deliberately
-# left at its default so an unimported record fails the apply loudly instead of
-# being silently replaced.
+# be listed in var.apex_txt_records, or applying this record destroys it. Those
+# strings are not decoration: a provider's domain-verification token lives there,
+# and destroying it withdraws the proof of ownership the provider's own account
+# recovery rests on. That is why an empty list is rejected below rather than
+# treated as "no extra strings".
+#
+# Like the apex address and the MX, this record owns both of its states: the
+# legacy host's SPF from the zone move, the platform's from email day. Declaring
+# only the second means the first is applied by hand, and the flip then collides
+# with it, because allow_overwrite stays at its default so an unimported record
+# fails the apply loudly instead of being silently replaced. That collision would
+# land inside the mail-cutover window, which is the worst place to discover it.
+
+variable "legacy_apex_spf" {
+  description = "Apex SPF string the previous mail host published, read from the fresh zone snapshot and carried through the zone-move window so outbound authorisation is unchanged until email day. Set in tfvars while enable_legacy_mirror_records is on."
+  type        = string
+  default     = ""
+}
 
 resource "aws_route53_record" "spf" {
-  count   = var.ses_enable_mail_records ? 1 : 0
+  count   = var.ses_enable_mail_records || var.enable_legacy_mirror_records ? 1 : 0
   zone_id = var.route53_zone_id
   name    = var.domain_name
   type    = "TXT"
   ttl     = 600
   records = concat(
-    ["v=spf1 include:amazonses.com include:_spf.google.com ~all"],
+    [var.ses_enable_mail_records ? "v=spf1 include:amazonses.com include:_spf.google.com ~all" : var.legacy_apex_spf],
     var.apex_txt_records,
   )
 
   lifecycle {
+    # Guarded by the mail-records flag: through the zone-move window this record
+    # carries the legacy SPF, which needs no SES domain identity behind it.
     precondition {
-      condition     = var.ses_enable_domain_auth
+      condition     = !var.ses_enable_mail_records || var.ses_enable_domain_auth
       error_message = "ses_enable_mail_records requires ses_enable_domain_auth: publishing the apex SPF without the DKIM records leaves outbound mail authorised by SPF alone."
+    }
+
+    precondition {
+      condition     = var.ses_enable_mail_records || var.legacy_apex_spf != ""
+      error_message = "legacy_apex_spf must be set from the fresh zone snapshot while the previous host still sends for the domain, or its senders lose SPF authorisation the moment delegation moves to Route 53."
+    }
+
+    precondition {
+      condition     = length(var.apex_txt_records) > 0
+      error_message = "apex_txt_records must list every apex TXT string other than the SPF record this file builds, read from the fresh zone snapshot. An empty list destroys the provider domain-verification tokens that share the apex TXT record set."
     }
   }
 }
@@ -280,6 +305,58 @@ resource "aws_route53_record" "dmarc" {
       error_message = "ses_dmarc_rua_email must be set to a real mailbox before enabling SES domain auth, so DMARC aggregate reports have a destination."
     }
   }
+}
+
+# ── Inbound mail: Google Workspace ───────────────────────────────────────────
+# The apex MX and the Workspace DKIM key are not SES records, but they land on
+# the same day as the apex SPF and DMARC and share their flag: publishing them
+# earlier would divert inbound mail before every active address is provisioned
+# on Google, and inbound arriving at a mailbox that does not exist is lost
+# silently. A single MX is deliberate -- no backup pointing at the retiring host,
+# which stops accepting mail at cutover.
+
+variable "legacy_mx_records" {
+  description = "MX set the legacy mail host answers with, read from the fresh zone snapshot and carried through the zone-move window so inbound mail is unchanged until email day. Set in tfvars while enable_legacy_mirror_records is on."
+  type        = list(string)
+  default     = []
+}
+
+# Like the apex and www records, this one owns both states: the legacy host's MX
+# from the zone move, the Google MX from email day. Declaring only the second
+# would collide with the mirrored legacy record on the day inbound moves, since
+# allow_overwrite stays at its default.
+resource "aws_route53_record" "mx" {
+  count   = var.ses_enable_mail_records || var.enable_legacy_mirror_records ? 1 : 0
+  zone_id = var.route53_zone_id
+  name    = var.domain_name
+  type    = "MX"
+  ttl     = 3600
+  records = var.ses_enable_mail_records ? ["1 smtp.google.com"] : var.legacy_mx_records
+
+  lifecycle {
+    precondition {
+      condition     = var.ses_enable_mail_records || length(var.legacy_mx_records) > 0
+      error_message = "legacy_mx_records must be set from the fresh zone snapshot while the legacy host still receives mail, or inbound mail stops the moment delegation moves to Route 53."
+    }
+  }
+}
+
+variable "google_dkim_txt" {
+  description = "Workspace DKIM public key for the google selector, generated in the Workspace admin console. The key cannot be generated until Gmail has served the domain for 24 to 72 hours, so this stays empty when the MX first moves and is filled in afterwards. A 2048-bit key exceeds the 255-character limit on one TXT string, so supply it pre-split in quoted segments (\"v=DKIM1; k=rsa; p=first\" \"rest\")."
+  type        = string
+  default     = ""
+}
+
+# Gated on a non-empty key as well as the flag, because the key only exists once
+# Gmail has been serving the domain for a day or more: mail day publishes the MX
+# with no signature, and this record follows when the console can generate it.
+resource "aws_route53_record" "google_dkim" {
+  count   = var.ses_enable_mail_records && var.google_dkim_txt != "" ? 1 : 0
+  zone_id = var.route53_zone_id
+  name    = "google._domainkey.${var.domain_name}"
+  type    = "TXT"
+  ttl     = 3600
+  records = [var.google_dkim_txt]
 }
 
 # =============================================================================

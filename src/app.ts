@@ -113,12 +113,15 @@ export function createApp(): express.Application {
     referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
   }));
 
-  // Keep every non-production environment out of search indexes. Staging and
-  // development must never have their content indexed even if a URL leaks, so
-  // every response carries a noindex directive. Production omits the header so
-  // public pages are indexable; private production pages are handled per-response
+  // Keep everything that is not the canonical public site out of search
+  // indexes. Staging and development must never have their content indexed even
+  // if a URL leaks, and the production build also answers on a temporary
+  // pre-cutover hostname that is withdrawn once the canonical host takes over,
+  // so indexing it would leave search results pointing at a name that no longer
+  // resolves. The canonical site omits the header so public pages are
+  // indexable; private production pages are handled per-response
   // (authenticated) and per-page (thin auth pages) below and in the layout.
-  if (config.footbagEnv !== 'production') {
+  if (!config.searchIndexable) {
     app.use((_req, res, next) => {
       res.setHeader('X-Robots-Tag', 'noindex, nofollow');
       next();

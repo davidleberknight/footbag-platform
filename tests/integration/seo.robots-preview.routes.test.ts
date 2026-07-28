@@ -1,29 +1,29 @@
 /**
- * Crawl policy for robots.txt on the canonical public host.
+ * Crawl policy for robots.txt on the temporary pre-cutover hostname.
  *
- * On the canonical host robots.txt allows every crawler and advertises the
- * sitemap; private content is kept out of search by per-response noindex
- * headers and per-page noindex meta, never by Disallow lines here. This file
- * boots a complete production-mode configuration AND points the public base URL
- * at the canonical host, because indexability follows the host a deployment is
- * configured to speak for rather than the environment name alone. The
- * disallow-all posture for staging and development is pinned in
- * seo.routes.test.ts, and the same posture for the temporary pre-cutover
- * hostname is pinned in seo.robots-preview.routes.test.ts.
+ * Before the canonical host takes over, the production build also answers on a
+ * temporary preview hostname so the platform can be exercised end to end while
+ * the old site is still live. That name is withdrawn at cutover, so anything a
+ * crawler indexed under it would become a search result that no longer
+ * resolves. The environment discriminator cannot catch this on its own, because
+ * the environment genuinely is production; the edge does not forward the
+ * viewer's Host header to the origin either, so the host a deployment is
+ * configured to speak for is the signal. This file boots the same complete
+ * production configuration as the canonical-host suite and changes only the
+ * public base URL, which is exactly the difference that must flip the policy.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
 
-const { dbPath } = setTestEnv('3081');
+const { dbPath } = setTestEnv('3107');
 
-// The canonical public host, overriding the fixture's loopback default: a
-// production build answering on any other name is deliberately not indexable.
-const ORIGIN = 'https://www.footbag.org';
+// The temporary pre-cutover host, overriding the fixture's loopback default.
+const ORIGIN = 'https://preview.footbag.org';
 process.env.PUBLIC_BASE_URL = ORIGIN;
 
-// Complete production wiring (mirrors the env-config success case) plus
-// FOOTBAG_ENV=production. Adapters that would otherwise reach AWS stay on the
-// stub/local implementations; only the env discriminator matters here.
+// Identical production wiring to the canonical-host suite. Adapters that would
+// otherwise reach AWS stay on the stub/local implementations; only the public
+// base URL differs, so any behaviour change here is attributable to it alone.
 process.env.NODE_ENV = 'production';
 process.env.FOOTBAG_ENV = 'production';
 process.env.SESSION_SECRET = 'a'.repeat(48);
@@ -52,22 +52,23 @@ beforeAll(async () => {
   const db = createTestDb(dbPath);
   db.close();
   const cfg = await import('../../src/config/env');
+  // The environment really is production; only the host makes it unindexable.
   expect(cfg.config.footbagEnv).toBe('production');
-  expect(cfg.config.searchIndexable).toBe(true);
+  expect(cfg.config.searchIndexable).toBe(false);
   siteMetaService = (await import('../../src/services/siteMetaService')).siteMetaService;
 });
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('robots.txt — canonical host policy', () => {
-  it('allows every crawler', () => {
+describe('robots.txt — pre-cutover hostname policy', () => {
+  it('keeps the whole URL space out of every index', () => {
     const txt = siteMetaService.buildRobotsTxt();
     expect(txt).toContain('User-agent: *');
-    expect(txt).toContain('Allow: /');
-    expect(txt).not.toContain('Disallow:');
+    expect(txt).toContain('Disallow: /');
+    expect(txt).not.toContain('Allow: /');
   });
 
-  it('advertises the sitemap at an absolute canonical URL', () => {
-    expect(siteMetaService.buildRobotsTxt()).toContain(`Sitemap: ${ORIGIN}/sitemap.xml`);
+  it('advertises no sitemap, so the temporary host is never submitted for crawling', () => {
+    expect(siteMetaService.buildRobotsTxt()).not.toContain('Sitemap:');
   });
 });
