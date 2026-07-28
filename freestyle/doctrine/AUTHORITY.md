@@ -44,6 +44,14 @@ number do not all agree, they are reconciled in this order:
    or in `OPERATOR_WEIGHT_DIVERGENCE_POLICY` / `DOCTRINE_DIVERGENCE_REGISTRY`
    (cohort and per-trick cases). Frequency is evidence, never authority.
 
+The same selective-incorporation rule governs every ontology-coupled field: an
+outside corpus (FootbagMoves, PassBack, footbag.org) may contribute observational
+volume, alias tradition, and per-trick operational notation, but its structural
+decomposition, family placement, and ADD claims are never adopted without
+independent adjudication under canonical doctrine; an external label that
+conflicts with a canonical decomposition becomes a folk alias, never a
+replacement.
+
 ## Known duplications still to consolidate
 
 These concepts are currently authored in more than one place. The authoritative

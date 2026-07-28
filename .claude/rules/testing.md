@@ -59,6 +59,7 @@ For every schema change or factory change:
 
 - The factory inserts a row that satisfies all NOT NULL / CHECK / FK constraints.
 - The factory's auto-creation of dependent rows (e.g. `legacy_members` stub on passing `legacy_member_id`) is exercised by a test that proves the dependent row appears.
+- The factory applies the same value normalization as the production write path (lowercasing, trimming, stored-form invariants). After changing such an invariant, run the full integration suite, not only the touched files: factories are shared, so regressions surface in other files' tests.
 
 ## Adversarial testing
 
