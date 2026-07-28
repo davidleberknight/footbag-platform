@@ -87,6 +87,34 @@ partition them into buckets and resolve the mechanical ones first:
 
 ---
 
+## Merges that need no patch at all
+
+Two duplicate shapes resolve with a single alias row and nothing else. Reach for the
+checklist above only when both sides are canonical rows carried by the identity lock.
+
+- **A provisional stub duplicating a canonical person.** Rows whose person id begins
+  `master_person::` are built from the legacy club and membership rosters, not from the
+  lock, and the enrichment loader deletes and rebuilds the whole provisional cohort every
+  run. A truth-file patch is therefore impossible and a hand-deleted row returns on the
+  next run. One alias row pointing the stub's spelling at the canonical person suppresses
+  it three steps upstream: the provisional master build never mints it, the reconciler
+  routes it to the canonical person, and the persons-master build drops it again as
+  defence in depth. Re-run the provisional and persons phases plus the enrichment load,
+  and the stub is gone at source.
+
+- **A canonical row generated from the result stream.** A person row that exists only
+  because a result spelled the name differently is regenerated from the results on every
+  export, so an alias row is enough: the historical export resolves the spelling to the
+  surviving person, the duplicate stops being generated, and its placements re-attribute
+  in the same pass. Verify by rebuilding and confirming the row is absent from
+  `out/canonical/persons.csv` before running QC, because the alias-duplicate gate fails
+  hard if the row survives alongside the alias.
+
+Both shapes still need the alias to be right. A wrong alias merges two real people, and
+neither leaves the audit trail a patch tool does.
+
+---
+
 ## HoF-only stub rows
 
 When a Hall-of-Fame honoree has no competition placements, add a PT stub via

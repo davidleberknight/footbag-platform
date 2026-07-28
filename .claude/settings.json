@@ -47,6 +47,10 @@
       "Bash(bash scripts/ci/assert_conventions.sh)",
       "Bash(bash scripts/e2e/reclaim-e2e-ports.sh)",
       "Bash(bash footbag_private_repo/track-issues.sh:*)",
+      "Bash(gh issue edit -R \"$FOOTBAG_PRIVATE_REPO\":*)",
+      "Bash(gh issue comment -R \"$FOOTBAG_PRIVATE_REPO\":*)",
+      "Bash(gh issue close -R \"$FOOTBAG_PRIVATE_REPO\":*)",
+      "Bash(gh issue reopen -R \"$FOOTBAG_PRIVATE_REPO\":*)",
       "Bash(whois footbag.org)",
       "Bash(dig +short footbag.org NS)",
       "Bash(dig +short footbag.org MX)",
@@ -85,6 +89,7 @@
       "mcp__playwright__browser_close"
     ],
     "ask": [
+      "Bash(gh issue create:*)",
       "Bash(aws:*)",
       "Bash(terraform:*)",
       "Bash(bash scripts/test-smoke.sh:*)",
@@ -237,6 +242,8 @@
       "Bash(git stash drop*)",
       "Bash(git stash clear*)",
       "Bash(git worktree remove*)",
+      "Bash(gh issue delete:*)",
+      "Bash(gh repo delete:*)",
       "Bash(git add*)",
       "Bash(git commit*)",
       "Bash(git push*)",

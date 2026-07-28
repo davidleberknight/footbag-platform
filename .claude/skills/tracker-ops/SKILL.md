@@ -1,6 +1,6 @@
 ---
 name: tracker-ops
-description: Use when reading, filing, triaging, updating, or drafting issues in the maintainers' private tracker, checking whether work is in scope or already tracked, drafting files in the private operations checkout (footbag_private_repo), or consulting the private ops docs. Claude reads and drafts; git writes stay human-run, and Claude runs tracker gh mutations after asking, each also gated by the approval prompt. Degrades to a one-line note when the tracker is not wired on this machine.
+description: Use when reading, filing, triaging, updating, or drafting issues in the maintainers' private tracker, checking whether work is in scope or already tracked, drafting files in the private operations checkout (footbag_private_repo), or consulting the private ops docs. Claude reads and drafts; git writes stay human-run, and Claude runs tracker gh mutations itself once the human has agreed to the set, without pausing again between the commands in it. Degrades to a one-line note when the tracker is not wired on this machine.
 ---
 
 # Tracker operations
@@ -98,20 +98,31 @@ set: ask once, listing each issue's title and lane, rather than one question per
 when its issue is filed or its fix lands. When the tracker is not wired, skip drafting with
 the one-line degradation note above.
 
-## Mutations: prepared always, run after asking
+## Mutations: prepared always, one ask per batch
 
 Every mutation (`gh issue create/edit/close/comment/pin`, any `gh api` write) is first
 prepared as an exact command. Claude never mutates the tracker unprompted or as a side
 effect. Then:
 
-- **Ask, then run.** Surface the exact command, state plainly what it will change, ask,
-  and run it once the human agrees. Asking is the sign-off; the harness prompt that
-  follows is a second gate on the same decision, never a substitute for having asked.
-- **Ask once per batch.** When a pass produces several issues, ask once for the whole
-  set, listing each title and lane, rather than one question per issue.
-- **Failsafe:** if a mutating `gh` form somehow runs with no approval prompt appearing (a
-  stray machine-local allow in `settings.local.json`), stop and report it as a config gap.
-  Silent execution is never approval; the prompt is what turns "asked" into "approved".
+- **Ask once, per batch.** One question covers the whole set of changes that carries out
+  one decision: state plainly what each command will change, ask once, and run the lot
+  once the human agrees. Never one question per issue, and never a second question for
+  the same decision.
+- **A directive is the agreement.** When the human says what to do to a card ("rewrite
+  it", "close it", "reassign it", "revise it for that"), that is the sign-off for every
+  command implementing it, including the accompanying comment and the follow-through on
+  the cards it merges into or from. Prepare the commands, say what they do, and run them.
+- **The batch is then settled.** Run every command in an agreed batch straight through:
+  never pause between them for confirmation, never restate the remaining ones as a fresh
+  question, and never read a permission prompt as a question to answer in prose.
+- **Retitle, rewrite, reassign, relabel, comment, close and reopen never prompt at the
+  tool layer.** They are allowed in the committed settings, scoped to the private tracker
+  by an exact repo-flag prefix, which is why every mutating command writes the repo flag
+  first: `gh issue edit -R "$FOOTBAG_PRIVATE_REPO" <number> …`. Put the flag anywhere else
+  and the rule stops matching and the prompt returns.
+- **The floor that does not move.** No mutation without the human's decision behind it;
+  no bulk mutation; no issue deletion (denied outright); no invented label or assignee;
+  and a new card only on the human's explicit ask, which still prompts by design.
 
 Git writes in the private checkout stay human-run (`private-repo.md`).
 

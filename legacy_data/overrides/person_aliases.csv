@@ -2730,7 +2730,7 @@ Mark Hunsbuger,6f08080b-9aad-54de-afc5-1c6e553f6a6e,Mark Hunsburger,verified,typ
 Markus Kaspzac,9c8376c9-68ea-572f-abe2-822871cf0e7b,Markus Kapszak,verified,typo
 Martin Sldek,4aacc030-1054-5a9e-82e9-96a8e7887435,Martin Sladek,verified,encoding
 Nicolas de Zeuuw,24331263-e0d9-5d89-be90-7558ae1a3db6,Nicolas De Zeeuw,verified,typo
-Dave Hillis,5cb79fb4-ab20-558f-b4a2-e7206c9f22df,Dave Hill,verified,typo
+David Hillis,ece5d70c-5b61-5d08-aa25-aeda95b1cca2,Dave Hillis,verified,legacy club roster and event listing spelling of his own given name
 Eric Bartholoman,f02efc5b-3ae1-5979-a64f-a6f211b846d7,Eric Bartholomay,verified,typo
 Eric "Bart" Bartholoman,f02efc5b-3ae1-5979-a64f-a6f211b846d7,Eric Bartholomay,verified,nickname_variant
 Gary Laut,66a5ee0b-abd2-5b24-9d53-5c4f6e3fee14,Gary Lautt,verified,typo
@@ -2757,3 +2757,19 @@ Phillip Morrison,a14941cc-db4f-5c2f-8c0f-55db2c0ba7e1,Philip Morrison,verified,B
 Arek Dzudzinski,6513b145-8a4a-556a-a04f-981d95db2d70,Arkadiusz Dudzinski,verified,"BAP roster name variant (typo+nickname Arek=Arkadiusz, Dzu->Du)"
 Tina Aberli,6c84f5b5-7da4-5b72-bdd7-453421a3c3d8,Tina Aeberli,verified,BAP roster name variant (typo Aberli->Aeberli)
 Sebastien Duschesne,6dd904b7-11c6-5d62-af34-dad61040e67e,Sebastien Duchesne,verified,BAP roster name variant (typo Duschesne->Duchesne)
+Jane Wievesiek-Sellman,801fa576-839d-5805-89ba-80a29536b16a,Jane Wievisick Sellman,verified,Hall of Fame reference year page spelling
+Beeal Bethurum,67af5b3f-6e16-530a-8841-409debf11fb0,Bill Bethurum,verified,Hall of Fame reference year page typo (Beeal->Bill)
+William Bethurum,67af5b3f-6e16-530a-8841-409debf11fb0,Bill Bethurum,verified,Hall of Fame group roster full given-name form
+Jane Jones-Zerbe,36a366ac-f423-517c-9451-cf5900cd009a,Jane Zerbe,verified,Hall of Fame reference year page name form
+Lori Conover,77f0f32d-98bf-5742-8228-4e06ac07bd9d,Lori Jean Conover,verified,Hall of Fame group roster short form
+Torben Wigger Hansen,f38e2f8e-cba6-5fff-8b20-90791fd0d794,Torbin Wigger,verified,Hall of Fame group roster full surname form
+Eliot Piltz,1685a8aa-0446-562c-bfe0-186e50c8c93b,Eliot Piltz Galán,verified,Hall of Fame group roster short form
+V�clav Klouda,98ce4e04-05ca-56ca-b8c6-83f51c164c89,Vaclav Klouda,verified,Hall of Fame group roster spelling whose accented letter the legacy site served already broken
+Amy Westburg,7d915cea-c796-5579-830e-2c5e53e4ac44,Amy Westberg,verified,Hall of Fame roster spelling variant (Westburg->Westberg)
+Cheryl Aubin Hughes,cfcef53f-670c-5721-b206-1ebe7d63987c,Cheryl Hughes,verified,Hall of Fame roster three-part name form
+David Leberknight,63cda333-9780-5bb4-a4f1-7618bf7fe937,Dave Leberknight,verified,Hall of Fame site full given-name form
+Heather Squires Thomas,e41184d4-ed7c-53d0-a3be-6b1e92fa5279,Heather Thomas,verified,Hall of Fame roster three-part name form
+Christopher M. Siebert,bd1ac97c-6c20-5bcd-9fbd-f5279f4c22bf,Chris Siebert,verified,legacy club roster full legal name for the same Hall of Fame honoree
+Garry H. Gaman,2105e067-8f7a-58ca-a28e-df00cf215a4f,Garry Gamon,verified,legacy club roster full legal name for the same Hall of Fame honoree
+Kenneth D. Hamric,3991f932-86d6-54ae-8e43-9f7e651142cf,Ken Hamric,verified,legacy club roster full legal name for the same Hall of Fame honoree
+David Hill,5cb79fb4-ab20-558f-b4a2-e7206c9f22df,Dave Hill,verified,Hall of Fame roster spelling of the same net player; merges away the single-result duplicate

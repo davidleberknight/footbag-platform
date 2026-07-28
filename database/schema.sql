@@ -980,12 +980,7 @@ CREATE TABLE stripe_events (
   -- Stripe event creation time as ISO-8601 UTC text (converted from Stripe Unix epoch at write time).
   -- Use strftime('%Y-%m-%dT%H:%M:%fZ', stripe_event.created, 'unixepoch') when writing.
   stripe_created    TEXT NOT NULL,
-  processed_at      TEXT NOT NULL,
-  processing_status TEXT NOT NULL DEFAULT 'processed'
-    CHECK (processing_status IN ('processed','failed')),
-  -- Number of processing attempts for this event. Incremented on each retry.
-  attempts  INTEGER NOT NULL DEFAULT 1,
-  last_error TEXT
+  processed_at      TEXT NOT NULL
 );
 
 CREATE INDEX idx_stripe_events_created ON stripe_events(stripe_created);

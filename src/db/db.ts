@@ -9732,16 +9732,8 @@ export const stripeEvents = {
   // received-event trail.
   get insertEventOrIgnore() { return db.prepare(`
     INSERT OR IGNORE INTO stripe_events
-      (event_id, created_at, event_type, stripe_created, processed_at, processing_status, attempts)
-    VALUES (?, ?, ?, ?, ?, 'processed', 1)
-  `); },
-
-  get markFailed() { return db.prepare(`
-    UPDATE stripe_events
-    SET processing_status = 'failed',
-        attempts          = attempts + 1,
-        last_error        = ?
-    WHERE event_id = ?
+      (event_id, created_at, event_type, stripe_created, processed_at)
+    VALUES (?, ?, ?, ?, ?)
   `); },
 
   get findByEventId() { return db.prepare(`

@@ -197,8 +197,9 @@ describe('payment workflow (stub adapter, Stripe-flow mirror)', () => {
       const stripeEvent = testDb.prepare(
         'SELECT * FROM stripe_events WHERE event_id = ?',
       ).get(eventId) as Record<string, unknown>;
-      expect(stripeEvent.processing_status).toBe('processed');
-      expect(stripeEvent.attempts).toBe(1);
+      expect(stripeEvent).toBeDefined();
+      expect(typeof stripeEvent.processed_at).toBe('string');
+      expect(stripeEvent.processed_at).not.toBe('');
     } finally {
       testDb.close();
     }

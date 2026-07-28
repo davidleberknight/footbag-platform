@@ -102,6 +102,7 @@ committed as the curated, seed, and identity inputs below.
 | `inputs/name_variants.csv` | committed | `load_name_variants_seed.py` | name-variant pairs (generated; only HIGH rows load) |
 | `inputs/identity_lock/*.csv` | committed (older `Persons_Truth_Final_v*` / `Placements_ByPerson_v*` snapshots are gitignored; the latest of each is whitelisted) | `pipeline/identity/build_name_variants.py` | frozen identity lock (patch-toolchain only) |
 | `inputs/bap_data_updated.csv` | committed | `build_name_variants.py` | Big-Add-Posse honor names |
+| `inputs/hof.csv`, `inputs/fbhof_data_updated.csv`, `inputs/hof_site_year_evidence.csv` | committed | `export_historical_csvs.py`, `extract_legacy_honors.py`, `26_qc_hof_coverage.py`, `build_hof_dossier.py` | Hall of Fame roster with resolved person ids and induction years, the live-roster name snapshot, and the years read from the Hall of Fame site with the sentence each came from |
 | `inputs/canonical_discipline_fixes.csv` | committed | canonical pipeline | discipline-name corrections |
 | `inputs/consecutives_records.csv`, `inputs/curated/**/*.csv` | committed | workbook, canonical | curated pre-1997 sources and records |
 | `overrides/*.csv` | committed | `build_name_variants.py`, canonical pipeline | curated person and event overrides |
@@ -259,6 +260,13 @@ Detects duplicate persons caused by alias drift. See
 #### `legacy_data/pipeline/qc/check_name_variants.py`
 Structural QC for `inputs/name_variants.csv`. Runs inside `run_qc.py`.
 
+#### `legacy_data/event_results/scripts/26_qc_hof_coverage.py`
+Hall of Fame coverage. Every honoree carrying a person id must exist in
+`historical_persons` with the honor flag set and no split-identity twin, because
+the honor grants a membership tier when a member claims the identity. Runs inside
+`run_qc.py` as a hard check, and reads the database, so it reports a skip rather
+than a failure when none has been loaded.
+
 #### `legacy_data/pipeline/event_comparison_viewerV13.py`
 Builds `out/event_comparison_viewer_v13.html` for visual QC.
 
@@ -311,6 +319,18 @@ standalone use after a mirror refresh.
 |--------|--------|----------------|
 | `legacy_data/scripts/extract_clubs.py` | `seed/clubs.csv` | skips if output CSV is newer than this script |
 | `legacy_data/scripts/extract_club_members.py` | `seed/club_members.csv` | skips if output CSV is newer than this script |
+| `legacy_data/scripts/extract_hof_mirror.py` | `out/hof/hof_year_pages.csv`, `out/hof/hof_group_roster.csv` | skips if both outputs are newer than this script |
+
+### Level 7b, Hall of Fame sources and merge
+
+Not part of any pipeline run. `capture_hof_site.py` fetches a public site and is
+deliberately opt-in; `build_hof_dossier.py` reads only committed inputs and the
+extracts above, and never writes the curated roster or the alias registry.
+
+| Script | Output | Notes |
+|--------|--------|-------|
+| `legacy_data/scripts/capture_hof_site.py` | `out/hof/site_capture/`, `out/hof/hof_site_members.csv`, `inputs/hof_site_year_evidence.csv` | fetches footbaghalloffame.net; `--from-capture` re-parses the saved pages without fetching |
+| `legacy_data/scripts/build_hof_dossier.py` | `out/hof/hof_dossier.{json,csv}`, and the conflicts, year proposals, gaps and name-variant candidates beside them | merges all five sources through `AliasResolver`; the dossier's kept copy lives in the maintainers' private operations repository |
 
 ### Level 8, mirror creation (rare)
 

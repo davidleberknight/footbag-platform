@@ -98,10 +98,26 @@ def main() -> int:
         default=str(DEFAULT_HOF),
         help="Path to hof.csv (default: legacy_data/inputs/hof.csv)",
     )
+    ap.add_argument(
+        "--skip-when-db-absent",
+        action="store_true",
+        help="Report a skip instead of an error when no database exists. The "
+        "gate chain runs before the seed is loaded and on checkouts that never "
+        "load one, where a missing database is normal rather than a fault; an "
+        "operator running this directly wants the error.",
+    )
     args = ap.parse_args()
 
     db_path = Path(args.db)
     if not db_path.exists():
+        if args.skip_when_db_absent:
+            print(
+                f"SKIP: no platform database at {db_path}, so Hall of Fame coverage "
+                f"cannot be checked. Load the seed with "
+                f"legacy_data/event_results/scripts/08_load_mvfp_seed_full_to_sqlite.py "
+                f"and re-run this check."
+            )
+            return 0
         print(f"ERROR: DB not found: {db_path}", file=sys.stderr)
         return 2
     hof_path = Path(args.hof_csv)

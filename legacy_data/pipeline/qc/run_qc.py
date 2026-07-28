@@ -127,6 +127,20 @@ OPTIONAL_CHECKS = [
         "severity": "hard",
         "needs_workbook": False,
     },
+    # Hall of Fame coverage. Every curated honoree carrying a person_id must
+    # exist in historical_persons with the honor flag set and no split-identity
+    # twin. Severity=hard: the honor grants a membership tier when a member
+    # claims the identity, so an honoree who stops resolving is a member-facing
+    # defect, and the check reports zero hard failures on current data.
+    # Self-skips when no database has been loaded, which is normal on a fresh
+    # checkout and while the gate runs ahead of the seed load.
+    {
+        "name": "hof_coverage",
+        "path": "event_results/scripts/26_qc_hof_coverage.py",
+        "severity": "hard",
+        "needs_workbook": False,
+        "args": ["--skip-when-db-absent"],
+    },
 ]
 
 NON_PERSON_PATTERNS = [

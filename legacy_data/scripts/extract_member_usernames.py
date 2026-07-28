@@ -7,9 +7,10 @@ username displayed on the legacy site's club-member listings, the same string
 that appears as the URL slug in /members/profile/<id>/<username>/.
 
 This script aggregates the (mirror_member_id, alias) pairs across all club
-listings, deduplicates, and writes a deterministic mapping. The standalone
-/members/profile/<id>/index.html pages are NOT crawled in bulk in this mirror,
-so club listings are the authoritative source.
+listings, deduplicates, and writes a deterministic mapping. Club listings are
+this script's only source; the authoritative handle for every member is the
+legacy database dump's MemberAlias column, which the member export loads
+directly.
 
 Output:
   legacy_data/out/member_id_enrichment/legacy_user_id_map.csv

@@ -471,7 +471,7 @@ strftime('%Y-%m-%dT%H:%M:%fZ', stripe_event.created, 'unixepoch')
 ```
 
 #### Stripe event deduplication
-`stripe_events` deduplicates all incoming webhook events by `event_id` (Stripe's globally unique event ID), regardless of payment model. The row is claimed inside the same transaction as the state change it guards, so a handler that throws rolls the claim back and leaves no row: a redelivery then re-runs cleanly rather than being mistaken for a duplicate. A row therefore exists only for an event that was processed, and `processing_status` is always `'processed'`. The `'failed'` value the CHECK permits, together with the `attempts` and `last_error` columns, is unreachable under this design and is retained only because removing a column from a payments table earns nothing.
+`stripe_events` deduplicates all incoming webhook events by `event_id` (Stripe's globally unique event ID), regardless of payment model. The row is claimed inside the same transaction as the state change it guards, so a handler that throws rolls the claim back and leaves no row: a redelivery then re-runs cleanly rather than being mistaken for a duplicate. A row therefore exists only for an event that was processed, and the table records just the event's identity, type, Stripe creation time, and the moment it was processed. Delivery failures are counted from the structured `webhook.delivery_failed` log line the webhook controller emits, which feeds a CloudWatch metric filter.
 
 #### Recurring subscriptions view
 - `recurring_donation_subscriptions_active`: `WHERE status <> 'canceled'`. Use for active-subscription queries.
