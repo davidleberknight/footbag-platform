@@ -263,3 +263,8 @@ tricks-mosaic-clips/
 # Durable working log for the cross-session tracker issue review. Summarizes
 # private-tracker content, so it stays local and is never committed.
 /issue_review.md
+
+# An unrelated client website that happens to sit here on this machine. It holds
+# another business's private domain, mail and deployment notes, and a personal
+# photograph, none of which belong in this repository's history.
+/Raych/

@@ -857,8 +857,19 @@ def print_verification_stats(records: list[dict]) -> None:
         pct_present = ((total - missing) / total) * 100
         print(f"  {field:20s}: {pct_present:5.1f}% present ({total - missing}/{total})")
 
-    # Year distribution
-    years = [r["year"] for r in records if r.get("year")]
+    # Year distribution. A parsed year reaches here as an int, a float or a
+    # string depending on the source page, and the gap check below compares
+    # whole years, so coerce once and drop anything that is not a year rather
+    # than letting one odd value stop the whole parse.
+    years = []
+    for r in records:
+        raw = r.get("year")
+        if not raw:
+            continue
+        try:
+            years.append(int(float(raw)))
+        except (TypeError, ValueError):
+            continue
     if years:
         min_year, max_year = min(years), max(years)
         print(f"\nYear range: {min_year} - {max_year}")

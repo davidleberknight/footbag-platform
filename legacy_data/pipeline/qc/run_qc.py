@@ -114,6 +114,22 @@ OPTIONAL_CHECKS = [
         "severity": "warn",
         "needs_workbook": True,
     },
+    # Character-loss duplicate persons in the frozen identity lock. Reports a
+    # person carrying no player ids and no legacy account link whose name is a
+    # short deletion of another person's name — the shape a dropped accented
+    # letter produces, which splits a real player's record into a copy nobody
+    # can claim. Severity=warn: a dropped diacritic is not mechanically
+    # distinguishable from a genuine difference between two people, because the
+    # surviving names are themselves often already transliterated, so every pair
+    # needs a human ruling and a blocking gate would stop the pipeline on
+    # questions only a person can answer. Ruled pairs are suppressed through
+    # overrides/identity_review_queue.csv.
+    {
+        "name": "character_loss_pairs",
+        "path": "pipeline/qc/check_character_loss_pairs.py",
+        "severity": "warn",
+        "needs_workbook": False,
+    },
     # Committed seed text hygiene. A seed CSV is an input the production load
     # consumes, so encoding damage in one reaches members. Detects double-encoded
     # values and undecoded HTML numeric character references, both decidable
