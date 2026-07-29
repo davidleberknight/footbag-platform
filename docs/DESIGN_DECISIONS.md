@@ -3935,7 +3935,6 @@ Requirements:
 
 - Every GitHub Actions workflow declares a top-level `permissions: { contents: read }` and elevates per-job only where required (e.g. `security-events: write` for the CodeQL job). Default-write tokens are not used.
 - GitHub Actions are pinned by commit SHA (`actions/checkout@<sha>`), not by floating tag or major version. SHA bumps land via reviewed PRs; no action runs at a mutable reference.
-- No automated dependency-update bot runs against the repo; dependency versions are reviewed and bumped manually.
 - The `main` branch is protected with required reviews, required CI checks, and a force-push prohibition. Secret scanning and push protection are enabled at the repo level.
 - Project MCP server entries (`.mcp.json`) pin server packages to a specific version, not `@latest`. A version bump is a reviewed PR, not a transparent upstream change.
 - Security-critical npm dependencies (`argon2`, `helmet`, `marked`, `better-sqlite3`, `express`) are pinned exactly in `package.json` (no `^` or `~`). The lockfile is the canonical source for transitive versions.
@@ -4082,6 +4081,42 @@ Impact:
 - Operators who maintain SSH config across multiple projects can keep all alias names project-prefixed without conflict.
 
 - Defense-in-depth allowlists at each deploy entry point catch operator typos (`footbag-prod`, `footbag-prd`) before any destructive action. The allowlist is the canonical enforcement mechanism for SSH alias and `DEPLOY_TARGET` shape.
+
+## 7.8 Security Patching
+
+Decision:
+
+Patching is a reviewed human action on every surface: dependencies, pinned GitHub Actions, host operating-system packages, and container base images. Automated detection is wanted; automated version bumping is not. The cadence and the per-surface procedure live in DEVOPS_GUIDE.md (private GitHub repo), "Routine Security and Platform Operations".
+
+Rationale:
+
+- A bot that opens version bumps replaces a deliberate review step with an unreviewed upstream change, which is the opposite of why dependencies are pinned at all.
+
+- Detection and application separate cleanly: learning that a patch is needed carries no risk, applying one does. Only the second half needs a human, so only the second half is manual.
+
+- A vulnerable dependency announces itself through a published advisory. A dependency that has merely aged out announces nothing, and stays invisible until the platform it runs on is withdrawn. The two need different instruments, and covering only the first leaves the failure that actually arrives unwatched.
+
+Requirements:
+
+- Dependency versions are reviewed and bumped by hand. No bot opens or merges a version bump.
+
+- Repository-level vulnerability alerting is enabled, so the maintainer is notified when a dependency carries a published advisory.
+
+- The dependency audit fails CI at moderate severity and above, and the pull-request dependency review inspects what each change introduces.
+
+- A scheduled check reports any pinned GitHub Action that has fallen behind its current release. It reports only and never edits a workflow. An action left on a withdrawn runtime raises no advisory, so this is the only instrument that sees that class of drift.
+
+- Host operating-system packages and container base images are patched on the documented operational cadence, with the health endpoints and logs verified after any restart.
+
+Trade-offs:
+
+- Bumping by hand is slower than merging a generated pull request. The project accepts the delay in exchange for every dependency change being read by a person before it lands.
+
+Impact:
+
+- Patching is System Administrator work and the user stories assign it there.
+
+- The scheduled staleness check fails its own run when a pin is behind, which is the notification channel. It never blocks an ordinary build, because it depends on the network and an outage must not fail unrelated work.
 
 # 8. Logging, Monitoring & Abuse Prevention
 
