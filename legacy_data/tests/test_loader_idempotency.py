@@ -1354,6 +1354,95 @@ def test_mvfp_loader_aborts_on_removed_referenced_person(tmp_path: Path) -> None
     assert _fk_violations(db) == []
 
 
+def _set_hand_set_person_values(db: Path, assignments: dict) -> None:
+    """Write the columns no seed file carries and the canonical loader never
+    writes, standing in for an administrator setting them by hand."""
+    conn = sqlite3.connect(db)
+    try:
+        for pid, columns in assignments.items():
+            for column, value in columns.items():
+                conn.execute(
+                    f"UPDATE historical_persons SET {column} = ? WHERE person_id = ?",
+                    (value, pid),
+                )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def test_mvfp_loader_aborts_on_removed_person_with_hand_set_values(tmp_path: Path) -> None:
+    """A canonical person that drops out of the seed and is referenced nowhere, but
+    carries a value no seed file holds, makes the loader abort before any mutation,
+    naming each person and the value it would otherwise have dropped, and leaves
+    every fingerprint unchanged. The deceased flag is the case that reaches members:
+    it is what closes a historical record to self-claiming."""
+    db = make_db(tmp_path)
+    v1 = build_doubles_seed(tmp_path / "seed_v1")
+    assert run(_mvfp_loader_args(db, v1)).returncode == 0
+    _set_hand_set_person_values(db, {
+        DBL_PID_A: {"is_deceased": 1},
+        DBL_PID_B: {"notes": "memorial handling requested"},
+    })
+
+    watched = ("historical_persons", "events", "event_result_entry_participants")
+    before = {t: count(db, t) for t in watched}
+    v2 = build_mvfp_seed(tmp_path / "seed_v2")  # drops A and B
+    r = run(_mvfp_loader_args(db, v2))
+    assert r.returncode != 0, "loader must abort on a removed person carrying hand-set values"
+    out = r.stdout + r.stderr
+    assert "carry hand-set values" in out, f"missing guard message.\n{out}"
+    assert DBL_PID_A in out and "is_deceased" in out, "abort must name the deceased record"
+    assert DBL_PID_B in out and "notes" in out, "abort must name the annotated record"
+    after = {t: count(db, t) for t in watched}
+    assert before == after, f"aborted reseed mutated state: {before} -> {after}"
+    assert _person_field(db, DBL_PID_A, "is_deceased") == 1
+    assert _fk_violations(db) == []
+
+
+def test_mvfp_loader_deceased_flag_survives_seed_drop_and_return(tmp_path: Path) -> None:
+    """The durability contract end to end: a hand-set deceased flag survives the
+    person leaving the seed and coming back. The reseed that would have deleted the
+    person refuses, and once the person is back in the seed the reseed succeeds with
+    the flag still set."""
+    db = make_db(tmp_path)
+    v1 = build_doubles_seed(tmp_path / "seed_v1")
+    loader_v1 = _mvfp_loader_args(db, v1)
+    assert run(loader_v1).returncode == 0
+    _set_hand_set_person_values(db, {DBL_PID_A: {"is_deceased": 1}})
+
+    v2 = build_mvfp_seed(tmp_path / "seed_v2")  # drops A
+    assert run(_mvfp_loader_args(db, v2)).returncode != 0
+    assert DBL_PID_A in _canonical_person_ids(db), "aborted reseed must leave the person in place"
+
+    r = run(loader_v1)  # the person is back in the seed
+    assert r.returncode == 0, f"reseed failed with the person restored.\n{r.stdout}\n{r.stderr}"
+    assert DBL_PID_A in _canonical_person_ids(db)
+    assert _person_field(db, DBL_PID_A, "is_deceased") == 1, (
+        "deceased flag lost across a seed drop-and-return"
+    )
+    assert _fk_violations(db) == []
+
+
+def test_mvfp_loader_deletes_removed_person_with_blank_hand_set_columns(tmp_path: Path) -> None:
+    """Blank is not a hand-set value. A removed person whose administrator columns
+    hold the default flag, an empty note and whitespace-only aliases is still
+    deleted, so the guard cannot freeze ordinary reconciliation."""
+    db = make_db(tmp_path)
+    v1 = build_doubles_seed(tmp_path / "seed_v1")
+    assert run(_mvfp_loader_args(db, v1)).returncode == 0
+    _set_hand_set_person_values(db, {
+        DBL_PID_A: {"is_deceased": 0, "notes": "", "aliases": "   "},
+        DBL_PID_B: {"source": ""},
+    })
+
+    v2 = build_mvfp_seed(tmp_path / "seed_v2")  # drops A and B
+    r = run(_mvfp_loader_args(db, v2))
+    assert r.returncode == 0, f"{r.stdout}\n{r.stderr}"
+    remaining = _canonical_person_ids(db)
+    assert DBL_PID_A not in remaining and DBL_PID_B not in remaining
+    assert _fk_violations(db) == []
+
+
 def test_mvfp_loader_upsert_preserves_curated_team(tmp_path: Path) -> None:
     """The essential #200 case: a curated net team whose two members are canonical
     persons survives a normal reseed while those persons remain in the seed. The

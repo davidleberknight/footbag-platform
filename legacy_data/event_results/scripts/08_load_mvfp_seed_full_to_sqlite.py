@@ -97,7 +97,8 @@ def map_event_status(seed_status: str, start_date: str, end_date: str) -> tuple[
 # Canonical historical_persons columns loader 08 owns and refreshes from the seed.
 # Every other column (aliases, is_deceased, notes, source) is written by
 # enrichment, curation, or the identity-patch toolchain, so the reseed upsert
-# leaves those untouched on a row that already exists.
+# leaves those untouched on a row that already exists, and the reconciling delete
+# refuses to remove a row carrying one rather than dropping the value silently.
 SEED_PERSON_OWNED_COLUMNS = (
     "person_name", "legacy_member_id", "country", "first_year", "last_year",
     "event_count", "placement_count", "bap_member", "bap_nickname",
@@ -106,6 +107,14 @@ SEED_PERSON_OWNED_COLUMNS = (
     "freestyle_diversity_ratio", "signature_trick_1", "signature_trick_2",
     "signature_trick_3", "source_scope",
 )
+
+# The historical_persons columns set by hand, which no seed file carries and this
+# loader never writes. Each holds a decision a reseed cannot reproduce, so a
+# canonical person carrying one is never deleted for having dropped out of the
+# seed: is_deceased closes a historical record to self-claiming, and returning the
+# person on a later run without it would re-open a record an administrator
+# deliberately closed.
+ADMINISTRATOR_OWNED_COLUMNS = ("is_deceased", "aliases", "notes", "source")
 
 # Human-readable owner of each table that can hold a foreign key to
 # historical_persons, used in the removed-person abort report. A table not listed
@@ -172,6 +181,50 @@ def references_to_removed_persons(
     return hits
 
 
+def administrator_values_on_removed_persons(
+    conn, removed_ids: set[str]
+) -> dict[str, tuple[str, list[tuple[str, str]]]]:
+    """Map each removed person_id carrying a hand-set value to that person's name
+    and the (column, value) pairs it holds, for the removed-person abort report. An
+    empty removed set is a no-op. The removed ids are staged in a temp table so the
+    check stays within SQLite's bound-parameter limit even for a large reseed. The
+    deceased flag counts only when set, since its default asserts nothing; the text
+    columns count only when non-empty. Long values are truncated so one verbose
+    note cannot swamp the report.
+    """
+    hits: dict[str, tuple[str, list[tuple[str, str]]]] = {}
+    if not removed_ids:
+        return hits
+    columns = ", ".join(ADMINISTRATOR_OWNED_COLUMNS)
+    conn.execute("CREATE TEMP TABLE _admin_value_person_ids (person_id TEXT PRIMARY KEY)")
+    try:
+        conn.executemany(
+            "INSERT OR IGNORE INTO _admin_value_person_ids VALUES (?)",
+            [(pid,) for pid in removed_ids],
+        )
+        rows = conn.execute(
+            f"SELECT p.person_id, p.person_name, {columns} FROM historical_persons p "
+            "JOIN _admin_value_person_ids x ON x.person_id = p.person_id"
+        ).fetchall()
+    finally:
+        conn.execute("DROP TABLE _admin_value_person_ids")
+    for row in rows:
+        carried: list[tuple[str, str]] = []
+        for column in ADMINISTRATOR_OWNED_COLUMNS:
+            value = row[column]
+            if column == "is_deceased":
+                if value:
+                    carried.append((column, "1"))
+                continue
+            text = (value or "").strip()
+            if not text:
+                continue
+            carried.append((column, f"{text[:60]}..." if len(text) > 60 else text))
+        if carried:
+            hits[row["person_id"]] = (row["person_name"], carried)
+    return hits
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--db", default="database/footbag.db")
@@ -223,9 +276,10 @@ def main() -> None:
     #      foreign keys to it; deleting a person just to refresh its loader-owned
     #      columns would strand those references even though the same id returns
     #      moments later. A canonical person that has dropped out of the seed is
-    #      deleted only when nothing references it; a removed-but-referenced
-    #      person aborts the reseed. net_team teardown and curated-team
-    #      preservation stay solely with the net-team loader.
+    #      deleted only when nothing references it and it carries no hand-set
+    #      value; a removed person failing either check aborts the reseed.
+    #      net_team teardown and curated-team preservation stay solely with the
+    #      net-team loader.
     #   3. The upsert binds legacy_member_id -> legacy_members for rows that carry
     #      a member id. The member seed runs before this loader in every path that
     #      invokes it, so those parent rows exist when the bind happens.
@@ -348,11 +402,11 @@ def main() -> None:
         # guarded reconciling delete. There is no blanket wipe-and-reinsert of
         # the canonical population: rows are matched and updated by stable
         # person_id. Rows the incoming seed no longer carries ARE deleted, but
-        # only after the guard below proves nothing outside this loader still
-        # references them; a live reference aborts the whole load instead. See
-        # the reseed-safety note at the top of main() for why stranding an app /
-        # enrichment / freestyle / net-team reference to a stable person_id is
-        # the outcome that must never happen.
+        # only after the two guards below prove that nothing outside this loader
+        # still references them and that they carry no hand-set value; either one
+        # aborts the whole load instead. See the reseed-safety note at the top of
+        # main() for why stranding an app / enrichment / freestyle / net-team
+        # reference to a stable person_id is the outcome that must never happen.
         # ------------------------------------------------------------------
         fx_person_id = stable_id("person", "footbag-hacky")
         seed_person_ids = {
@@ -393,14 +447,35 @@ def main() -> None:
                 "loader / patch toolchain first:\n" + "\n".join(report)
             )
 
+        # Guard: refuse to delete a removed canonical person that carries a
+        # hand-set value. No seed file holds these columns, so the delete would
+        # drop the value with nothing recording it and a later reseed would return
+        # the person without it. The deceased flag is the one that reaches members:
+        # it is what closes a historical record to self-claiming, so losing it
+        # re-opens a record an administrator deliberately closed.
+        carrying = administrator_values_on_removed_persons(conn, removed_ids)
+        if carrying:
+            report = []
+            for pid in sorted(carrying):
+                person_name, carried = carrying[pid]
+                values = ", ".join(f"{column}={value!r}" for column, value in carried)
+                report.append(f"    {pid}  {person_name}  <- {values}")
+            raise SystemExit(
+                f"08 aborted: {len(carrying)} canonical person(s) absent from the seed "
+                "carry hand-set values this loader cannot reproduce. Deleting them "
+                "would drop those values with nothing recording them, so the reseed "
+                "refuses. Restore these persons to the seed, or clear the values "
+                "deliberately first:\n" + "\n".join(report)
+            )
+
         # Pre-upsert id set (any scope) so an insert can be told from an in-place
         # update for honest reporting.
         all_existing_ids = {
             r[0] for r in conn.execute("SELECT person_id FROM historical_persons")
         }
 
-        # Every blocked id aborted above, so all remaining removed ids are
-        # unreferenced and safe to delete.
+        # Both guards abort above, so every remaining removed id is unreferenced,
+        # carries no hand-set value, and is safe to delete.
         removed_unreferenced = sorted(removed_ids)
         persons_removed = 0
         if removed_unreferenced:

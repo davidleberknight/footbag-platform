@@ -844,7 +844,7 @@ Attendance never changes membership tier. For Tier 1, Tier 2, or Tier 3 attendee
 
 #### Historical imported people
 
-`historical_persons` stores imported read-only archival identity records sourced from event-data (competition results) and, going forward, mirror club-roster extraction. Rows are never deleted. A row may or may not correspond to a current `members` row and may or may not carry a `legacy_member_id` (populated only when the source data named the legacy account).
+`historical_persons` stores imported read-only archival identity records sourced from event-data (competition results) and, going forward, mirror club-roster extraction. The application never deletes a row; the canonical reseed deletes a person that has dropped out of the incoming seed, and only when nothing references it and it carries no administrator-set value. A row may or may not correspond to a current `members` row and may or may not carry a `legacy_member_id` (populated only when the source data named the legacy account).
 
 `historical_persons.is_deceased` (`INTEGER NOT NULL DEFAULT 0`) is an admin-settable, affirmative-only flag (its presence marks a person recognized as deceased; its absence asserts nothing). It is independent of `members.is_deceased`; `A_Mark_Member_Deceased` cascades to it when the member has a linked `historical_person_id`. It is consumed only to suppress the direct historical-record claim CTA (a living member cannot self-claim a deceased person's identity); no public memorial display is driven by it (deferred to a future story).
 
