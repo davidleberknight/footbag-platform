@@ -17,6 +17,10 @@
 import 'dotenv/config';
 import path from 'node:path';
 import { readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
+// Shape-only rules, safe to import here: this module reads no config and makes no
+// network call, unlike the full validator, which the pure core below must stay
+// loadable without.
+import { structuralUrlRejection } from '../src/lib/externalUrlShape';
 
 const GALLERY_VERDICTS_FILE = 'url_verdicts.json';
 
@@ -36,12 +40,23 @@ function hasVerdict(v: UrlVerdict | undefined): v is UrlVerdict {
 }
 
 // Verify a single URL unless a usable prior verdict for the SAME url exists.
+//
+// Shape decides first, ahead of any stored verdict and without a network call.
+// The store exists to avoid repeating a lookup, not to let a URL keep a pass the
+// current rules would not give it: tightening a shape rule has to reach the rows
+// already stamped, or the tightening changes nothing until someone remembers to
+// force a re-run. Quarantining here rather than re-asking the validator also
+// spares a lookup for an address that could never have resolved anyway.
 async function decide(
   url: string,
   prev: UrlVerdict | undefined,
   validate: ValidateFn,
   now: () => string,
 ): Promise<{ verdict: UrlVerdict; kept: boolean }> {
+  const refusedByShape = structuralUrlRejection(url);
+  if (refusedByShape) {
+    return { verdict: { validated_at: null, quarantine_reason: refusedByShape }, kept: false };
+  }
   if (hasVerdict(prev)) return { verdict: prev, kept: true };
   let res: { valid: boolean; error?: string };
   try {
@@ -254,6 +269,31 @@ async function main(): Promise<number> {
   const { validateExternalUrl } = await import('../src/lib/externalUrlValidator');
   const validate: ValidateFn = (url) => validateExternalUrl(url);
   const nowIso = (): string => new Date().toISOString();
+
+  // A verdict is worth no more than the adapters that produced it, and the
+  // development defaults produce nothing worth committing: the stub Safe Browsing
+  // adapter calls every URL safe apart from one canonical test address, and a
+  // disabled reachability adapter calls every URL reachable. Recording those as
+  // verdicts would put a safety judgement nobody made into a committed file, and
+  // that is worse than leaving a URL unverified: an unverified URL is correctly
+  // hidden on the public page, while a stamped one is shown.
+  //
+  // Reachability is reported rather than required, because a verdict without it
+  // is weaker but still honest about threats; Safe Browsing is the load-bearing
+  // one, so a stub there refuses the write.
+  const { config } = await import('../src/config/env');
+  console.log(
+    `verify-seed-urls: safeBrowsing=${config.safeBrowsingAdapter}, ` +
+    `reachability=${config.httpReachabilityAdapter}`,
+  );
+  if (config.safeBrowsingAdapter !== 'live' && !dryRun) {
+    console.error(
+      `verify-seed-urls refused to write: SAFE_BROWSING_ADAPTER is '${config.safeBrowsingAdapter}', ` +
+      'so every verdict would be a stub answer rather than a real one. Set it to live with a key ' +
+      'available, or pass --dry-run to see what would change without recording it.',
+    );
+    return 1;
+  }
 
   if (doClubs) {
     if (!existsSync(clubsCsv)) {

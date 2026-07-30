@@ -61,6 +61,42 @@ describe('verify-seed-urls: club verdict core', () => {
     expect(out[0]!.verdict.validated_at).toBe('2020-01-01T00:00:00.000Z');
   });
 
+  it('re-decides a stored pass that shape alone now refuses', async () => {
+    // The stored-verdict shortcut exists to avoid repeating a network lookup, not
+    // to let a URL keep a pass the current rules would not give it. Four club
+    // URLs that are prose rather than addresses were stamped verified before the
+    // host rule existed, and stayed live on public pages because every ordinary
+    // re-run honoured the stamp. Tightening a shape rule has to reach the rows
+    // already stamped, without an operator remembering to force anything.
+    const prior = new Map([
+      ['a', { url: 'http://Coming', verdict: { validated_at: '2026-06-11T22:10:17.666Z', quarantine_reason: null } as UrlVerdict }],
+    ]);
+    const { out, stats } = await computeClubVerdicts(
+      [{ key: 'a', url: 'http://Coming' }],
+      prior,
+      stubValidate,
+      now,
+    );
+    expect(stats).toEqual({ verified: 0, quarantined: 1, kept: 0 });
+    expect(out[0]!.verdict).toEqual({
+      validated_at: null,
+      quarantine_reason: 'URL needs a full website address, such as example.com.',
+    });
+  });
+
+  it('still honours a stored verdict for a URL shape accepts, so the lookup is not repeated', async () => {
+    const prior = new Map([
+      ['a', { url: VALID, verdict: { validated_at: '2020-01-01T00:00:00.000Z', quarantine_reason: null } as UrlVerdict }],
+    ]);
+    const { stats } = await computeClubVerdicts(
+      [{ key: 'a', url: VALID }],
+      prior,
+      failIfCalled,
+      now,
+    );
+    expect(stats).toEqual({ verified: 0, quarantined: 0, kept: 1 });
+  });
+
   it('re-verifies when the URL changed', async () => {
     const prior = new Map([
       ['a', { url: 'https://old.example/', verdict: { validated_at: '2020-01-01T00:00:00.000Z', quarantine_reason: null } as UrlVerdict }],

@@ -13,6 +13,9 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT / "legacy_data"))
 from pipeline.identity.alias_resolver import normalize_name  # noqa: E402
 
+sys.path.insert(0, str(REPO_ROOT / "legacy_data" / "scripts"))
+from club_curation import load_club_duplicate_pairs  # noqa: E402
+
 CLUBS_CSV = REPO_ROOT / "legacy_data" / "seed" / "clubs.csv"
 CLUB_MEMBERS_CSV = REPO_ROOT / "legacy_data" / "seed" / "club_members.csv"
 PERSON_UNIVERSE_CSV = REPO_ROOT / "legacy_data" / "clubs" / "out" / "persons_enriched_for_clubs.csv"
@@ -67,27 +70,21 @@ HOST_CLUB_ALIASES = {
 def load_club_duplicate_overrides(path: Path = DUPLICATE_OVERRIDES_CSV) -> set[str]:
     """Curator-authoritative drop set for duplicate-club adjudication.
 
-    Reads ``legacy_data/overrides/club_duplicates.csv`` (schema:
-    ``keep_legacy_key,drop_legacy_key,reason``) and returns the set of
-    ``drop_legacy_key`` values. The ``keep_legacy_key`` column is not
-    consumed by the pipeline — it documents the canonical winner for
-    curator audit only. Missing file → empty set (graceful default).
+    Returns the retired keys from ``legacy_data/overrides/club_duplicates.csv``.
+    The kept key is consumed elsewhere — the affiliation builder and the cutover
+    both merge onto it — so the file's two key columns are equally load-bearing
+    across the pipeline even though only the retired side matters here.
 
-    The override targets only mirror-derived duplicates where two
-    ``seed/clubs.csv`` rows represent the same real-world club. The
-    extractor (``scripts/extract_clubs.py``) and ``seed/clubs.csv`` are
-    intentionally unchanged; the override sits above mirror data as the
-    editorial dedup layer, mirroring how ``overrides/person_aliases.csv``
-    relates to mirror-derived person records.
+    Parsing lives in the shared club-curation module, which requires a row to
+    carry both keys before it retires anything: a half-written row adjudicates
+    nothing, and this reader previously honoured one that named no winner.
+
+    The override targets mirror-derived duplicates where two ``seed/clubs.csv``
+    rows represent the same real-world club, sitting above mirror data as the
+    editorial dedup layer, mirroring how ``overrides/person_aliases.csv`` relates
+    to mirror-derived person records.
     """
-    if not path.exists():
-        return set()
-    overrides_df = pd.read_csv(path, dtype=str).fillna("")
-    return {
-        k.strip()
-        for k in overrides_df.get("drop_legacy_key", pd.Series([], dtype=str))
-        if k.strip()
-    }
+    return set(load_club_duplicate_pairs(path))
 
 
 def apply_club_duplicate_overrides(

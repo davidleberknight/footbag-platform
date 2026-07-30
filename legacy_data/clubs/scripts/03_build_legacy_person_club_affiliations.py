@@ -8,6 +8,9 @@ import pandas as pd
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
 # Make pipeline.identity importable when this script is run directly.
+sys.path.insert(0, str(REPO_ROOT / "legacy_data" / "scripts"))
+from club_curation import load_club_duplicate_pairs  # noqa: E402
+
 sys.path.insert(0, str(REPO_ROOT / "legacy_data"))
 from pipeline.identity.alias_resolver import normalize_name  # noqa: E402
 
@@ -63,16 +66,16 @@ def load_duplicate_keep_map(path: Path = DUPLICATE_OVERRIDES_CSV) -> dict[str, s
     """drop_club_key -> keep_club_key from overrides/club_duplicates.csv.
 
     The curator-authoritative duplicate adjudication: a dropped club's roster is
-    absorbed by its keep club rather than discarded. Keys are normalized to match
-    the affiliation club_key. Missing file -> empty map.
+    absorbed by its keep club rather than discarded.
+
+    Parsing lives in the shared club-curation module, so every reader of the file
+    honours the same ruling. The keys are then normalized here, because they are
+    matched against an affiliation's club_key which carries the same treatment;
+    that normalization is this caller's concern, not the file's.
     """
-    if not path.exists():
-        return {}
-    df = pd.read_csv(path, dtype=str).fillna("")
     keep_map: dict[str, str] = {}
-    for _, r in df.iterrows():
-        drop = norm_text(r.get("drop_legacy_key", ""))
-        keep = norm_text(r.get("keep_legacy_key", ""))
+    for drop_raw, keep_raw in load_club_duplicate_pairs(path).items():
+        drop, keep = norm_text(drop_raw), norm_text(keep_raw)
         if drop and keep:
             keep_map[drop] = keep
     return keep_map

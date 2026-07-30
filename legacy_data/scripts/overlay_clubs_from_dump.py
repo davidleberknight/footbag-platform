@@ -36,7 +36,6 @@ from __future__ import annotations
 
 import argparse
 import csv
-import html
 import os
 import re
 import sys
@@ -56,6 +55,12 @@ from _dump_parser import (  # noqa: E402
     resolve_dump_root,
 )
 from extract_clubs import _scrub_description_pii  # noqa: E402
+from club_curation import (  # noqa: E402
+    SEED_FIELDNAMES,
+    clean_club_text,
+    decode_numeric_entities,
+    load_club_text_corrections,
+)
 
 
 def _dump_clubs_columns(sql: str) -> list[str]:
@@ -76,25 +81,14 @@ def _dump_clubs_columns(sql: str) -> list[str]:
 
 DEFAULT_SEED = REPO_ROOT / "legacy_data" / "seed" / "clubs.csv"
 
-# Per-row text corrections for damage no general rule can repair. Keyed by club
-# key and field, each carrying the curator's reason, in the same shape as the
-# other club overrides.
+# Per-row text corrections no general rule can make: text the legacy database
+# mangled beyond what a decoder can recover, and a source spelling normalised to
+# the canonical name of the thing it names, such as a region recorded as a postal
+# abbreviation or misspelled. Keyed by club key and field, each carrying the
+# curator's reason, in the same shape as the other club overrides.
 TEXT_CORRECTIONS_CSV = REPO_ROOT / "legacy_data" / "overrides" / "club_text_corrections.csv"
 
-_NUMERIC_ENTITY_RE = re.compile(r"&#(?:[0-9]{1,7}|[xX][0-9a-fA-F]{1,6});")
-
-FIELDNAMES = [
-    "legacy_club_key",
-    "name",
-    "city",
-    "region",
-    "country",
-    "contact_member_id",
-    "external_url",
-    "description",
-    "created",
-    "last_updated",
-]
+FIELDNAMES = SEED_FIELDNAMES
 
 # Never carried into the public-repo seed, per the same credential-exclusion rule
 # the member export follows.
@@ -117,32 +111,16 @@ def _epoch_to_datetime_text(raw: str | None) -> str:
 
 
 def _decode_numeric_entities(text: str) -> str:
-    """Turn HTML numeric character references back into the characters they
-    stand for. Several legacy club records store non-Latin text this way, which
-    would otherwise reach members as literal `&#261;` runs.
-
-    Only numeric references are decoded, never named ones: a numeric reference
-    always denotes a single character, whereas the named set is where markup
-    would be reconstituted from escaped text."""
-    if not text or "&#" not in text:
-        return text
-    return _NUMERIC_ENTITY_RE.sub(lambda m: html.unescape(m.group(0)), text)
+    """Numeric-entity decoding, shared with the mirror extractor through the
+    club-curation module so a curated value decodes the same either way."""
+    return decode_numeric_entities(text)
 
 
 def _clean(text: str | None) -> str:
-    """Trim, restore any numerically-escaped characters, and settle line endings
-    to LF.
-
-    Decoding happens at this boundary so every consumer of a dump value sees real
-    characters, including the description scrubber, which could not recognise an
-    address or phone number still hidden behind escapes. Line endings are settled
-    here too: the legacy dump escapes its multi-line text with carriage returns,
-    and the seed dialect is LF, so a value carrying CRLF would otherwise make the
-    written bytes depend on how the checkout normalises them."""
-    if text is None:
-        return ""
-    cleaned = _decode_numeric_entities(str(text).strip())
-    return cleaned.replace("\r\n", "\n").replace("\r", "\n")
+    """Trim, decode numeric escapes, and settle line endings to LF. Shared with the
+    mirror extractor through the club-curation module, so a curated correction is
+    decoded identically whichever producer applies it."""
+    return clean_club_text(text)
 
 
 def _prefer(primary: str | None, fallback: str | None) -> str:
@@ -185,23 +163,10 @@ def _prefer_undamaged(primary: str | None, fallback: str | None) -> str:
 
 
 def load_text_corrections(path: Path = TEXT_CORRECTIONS_CSV) -> dict[tuple[str, str], str]:
-    """Curator-authoritative per-row text corrections, as {(club_key, field):
-    corrected_value}. The reason column documents the WHY for audit and does not
-    drive behaviour. Missing file means no corrections."""
-    if not path.exists():
-        return {}
-    out: dict[tuple[str, str], str] = {}
-    with path.open(newline="", encoding="utf-8") as fh:
-        for row in csv.DictReader(fh):
-            key = _clean(row.get("club_key"))
-            field = _clean(row.get("field"))
-            if not key or field not in FIELDNAMES:
-                raise SystemExit(
-                    "overlay_clubs aborted: club_text_corrections.csv row has a "
-                    f"blank club_key or a field outside the seed columns: {row!r}"
-                )
-            out[(key, field)] = _clean(row.get("corrected_value"))
-    return out
+    """Curator-authoritative per-row text corrections. Parsing lives in the shared
+    club-curation module, because the mirror extractor applies the same file and a
+    second copy of the parsing is how one reader drifts from another."""
+    return load_club_text_corrections(path)
 
 
 def dump_row_to_seed_row(rec: dict, corrections: dict[tuple[str, str], str] | None = None) -> dict:

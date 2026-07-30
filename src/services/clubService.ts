@@ -138,6 +138,37 @@ function slugifyRegion(region: string): string {
   return region.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
 }
 
+// Legacy club regions are free text, so one physical region arrives spelled
+// several ways: an extra internal space, a hyphen where a space belongs, an
+// accented or a plain vowel. Grouping on the raw string splits one region into
+// several sections, and two spellings that slug identically collide onto the
+// same anchor id, which sends a region link to the wrong section. This fold is
+// the grouping key only. Stored values stay exactly as the legacy database
+// holds them, because the seed is the record of what the source said.
+function foldRegion(region: string): string {
+  return region
+    .normalize('NFKD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+// The heading shows the spelling most of the region's clubs use, so one mistyped
+// row cannot rename the whole section. A tie goes to the spelling the fold had to
+// change least, which prefers a single-spaced form over a doubled-space one, and
+// any remaining tie is broken by codepoint so the heading never depends on the
+// order rows came back in.
+function dominantRegionLabel(labelCounts: Map<string, number>): string {
+  const foldNoise = (label: string): number => label.length - foldRegion(label).length;
+  return [...labelCounts.entries()].sort(
+    (a, b) =>
+      b[1] - a[1] ||
+      foldNoise(a[0]) - foldNoise(b[0]) ||
+      (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0),
+  )[0][0];
+}
+
 // Serialize a value for embedding in a <script type="application/json"> island.
 // JSON.stringify leaves '<', '>', and '&' raw, so a DB-sourced string such as a
 // club country containing "</script>" would terminate the island and inject
@@ -1019,24 +1050,34 @@ export class ClubService {
       // Only group by region when ALL clubs have a named region and 2+ distinct
       // named regions exist. If any club lacks a region, use a single flat group.
       const allHaveRegion = matchedRows.every((r) => r.region);
-      const distinctNamedRegions = new Set(matchedRows.map((r) => r.region).filter(Boolean));
+      const distinctNamedRegions = new Set(
+        matchedRows.filter((r) => r.region).map((r) => foldRegion(r.region!)),
+      );
       const useRegions = allHaveRegion && distinctNamedRegions.size > 1;
 
       let regions: RegionGroup[];
       if (useRegions) {
-        const regionMap = new Map<string, PublicClubSummary[]>();
+        // One bucket per physical region, keyed by the folded spelling, so
+        // variant spellings of one region land in a single section under a
+        // single anchor instead of fragmenting or colliding.
+        const buckets = new Map<string, { labelCounts: Map<string, number>; clubs: PublicClubSummary[] }>();
         for (const row of matchedRows) {
-          const key = row.region!;
-          if (!regionMap.has(key)) regionMap.set(key, []);
-          regionMap.get(key)!.push(buildSummary(row));
+          const key = foldRegion(row.region!);
+          let bucket = buckets.get(key);
+          if (!bucket) {
+            bucket = { labelCounts: new Map(), clubs: [] };
+            buckets.set(key, bucket);
+          }
+          bucket.labelCounts.set(row.region!, (bucket.labelCounts.get(row.region!) ?? 0) + 1);
+          bucket.clubs.push(buildSummary(row));
         }
-        regions = [...regionMap.keys()]
-          .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
-          .map((region) => ({
-            region,
-            regionSlug: slugifyRegion(region),
-            clubs: regionMap.get(region)!.sort(byClubDiscovery),
-          }));
+        regions = [...buckets.entries()]
+          .map(([key, bucket]) => ({
+            region: dominantRegionLabel(bucket.labelCounts),
+            regionSlug: slugifyRegion(key),
+            clubs: bucket.clubs.sort(byClubDiscovery),
+          }))
+          .sort((a, b) => a.region.localeCompare(b.region, undefined, { sensitivity: 'base' }));
       } else {
         regions = [{
           region: null,

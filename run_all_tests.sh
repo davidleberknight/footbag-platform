@@ -629,18 +629,29 @@ gate_audit() {
 # byte-for-byte untouched. Any change to this invocation must preserve that
 # (verify with the fingerprint guard).
 gate_python_pipeline() {
-  # Prefer the project venv: system python3 may lack pytest and the pipeline
-  # deps, and a workstation with the venv provisioned should run this gate,
-  # not SKIP it.
+  # This gate provisions what it needs rather than skipping. A fresh clone used to
+  # skip it on one quiet line, so several hundred pipeline tests silently did not
+  # run and the operator had no signal that local coverage was smaller than CI's.
+  # The dependency set is the same file CI's pytest job installs, so local and CI
+  # agree; a venv that already imports pytest is left exactly as it is, because
+  # reinstalling into a working environment could downgrade a maintainer's tools.
   local py=python3
   if [ -x scripts/.venv/bin/python ] && scripts/.venv/bin/python -c "import pytest" >/dev/null 2>&1; then
     py=scripts/.venv/bin/python
   elif ! command -v python3 >/dev/null 2>&1; then
     echo "  python3 absent — skipping."
     return 77
-  elif ! python3 -c "import pytest" >/dev/null 2>&1; then
-    echo "  pytest not importable — skipping (pip install pytest into scripts/.venv or system python3 to enable)."
-    return 77
+  else
+    echo "  provisioning scripts/.venv (pytest absent)..."
+    if [ ! -x scripts/.venv/bin/python ] && ! python3 -m venv scripts/.venv; then
+      echo "  could not create scripts/.venv — skipping (install the python3 venv module to enable)."
+      return 77
+    fi
+    if ! scripts/.venv/bin/pip install --quiet -r legacy_data/requirements.txt; then
+      echo "  could not install legacy_data/requirements.txt — skipping."
+      return 77
+    fi
+    py=scripts/.venv/bin/python
   fi
   PYTHONPYCACHEPREFIX="${LOG_DIR}/pytest-pycache" "$py" -m pytest legacy_data/tests/ legacy_data/legacy_mirror/tests/ -q -p no:cacheprovider
 }

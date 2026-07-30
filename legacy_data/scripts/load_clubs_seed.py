@@ -5,6 +5,10 @@ Inserts one tags row (is_standard=1, standard_type='club') and one clubs row
 per CSV entry. Skips on conflict (idempotent). Reads DB path from
 FOOTBAG_DB_PATH env var, defaulting to ./database/footbag.db.
 
+A seed row whose legacy key the curator retired in overrides/club_duplicates.csv
+creates no club, so a duplicate adjudicated once is suppressed on every path that
+reads that file.
+
 Hashtag algorithm — #club_{slug}, city-first cascade:
   1. #club_{city_slug}
   2. #club_{country_slug}_{city_slug}
@@ -37,6 +41,7 @@ from pathlib import Path
 # subprocess, or spec-loaded by a test (importlib does not add the script's dir).
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _seed_env_guard import refuse_if_deployed_target
+from club_curation import load_club_duplicate_pairs
 
 CSV_PATH = Path(__file__).parent.parent / "seed" / "clubs.csv"
 # URL safety verdicts produced at data-prep time by `npm run verify:seed-urls`.
@@ -44,6 +49,10 @@ CSV_PATH = Path(__file__).parent.parent / "seed" / "clubs.csv"
 # a club URL with no verdict stays NULL and is hidden by the public read until it
 # is verified.
 VERDICTS_PATH = Path(__file__).parent.parent / "seed" / "clubs_url_verdicts.csv"
+# Curator adjudication of duplicate club rows. Read here rather than restated,
+# so a pair declared once suppresses the dropped row everywhere: this loader, the
+# candidate classifier and the pre-populated-club cutover all read this one file.
+DUPLICATE_OVERRIDES_PATH = Path(__file__).parent.parent / "overrides" / "club_duplicates.csv"
 
 
 def now_iso() -> str:
@@ -114,13 +123,12 @@ def extract_primary_city(city: str) -> str:
     return parts[0].strip() if parts else ''
 
 
-# Confirmed duplicate pairs: entry B -> entry A (keep A, merge B into A).
-KNOWN_DUPLICATES: dict[str, str] = {
-    '1488489195': '1042652245',   # Les Pieds a Gilles, Lausanne
-    'zion-fr':    '944090321',    # RNH Footbag, Paris
-    '1422386831': 'memphis',      # Memphis Footworks
-    '1320083231': '1379698765',   # Penn State Footbag Club
-}
+def load_duplicate_drop_keys(path: Path = DUPLICATE_OVERRIDES_PATH) -> set[str]:
+    """Legacy club keys the curator retired as duplicates, so this loader creates
+    no club for them. Only the retired side matters here, because the kept club
+    loads from its own seed row. Parsing lives in the shared club-curation module.
+    """
+    return set(load_club_duplicate_pairs(path))
 
 
 def make_tag_normalized(name: str, country: str, city: str, seen: set[str]) -> str:
@@ -190,6 +198,7 @@ def main() -> None:
     )
     ap.add_argument("--clubs-csv", default=str(CSV_PATH))
     ap.add_argument("--verdicts-csv", default=str(VERDICTS_PATH))
+    ap.add_argument("--duplicates-csv", default=str(DUPLICATE_OVERRIDES_PATH))
     args = ap.parse_args()
 
     refuse_if_deployed_target(args.db)
@@ -219,6 +228,7 @@ def main() -> None:
 
     rows = load_csv(clubs_csv)
     verdicts = load_verdicts(verdicts_csv)
+    duplicate_drop_keys = load_duplicate_drop_keys(Path(args.duplicates_csv))
     ts = now_iso()
 
     con = sqlite3.connect(db_path)
@@ -241,14 +251,18 @@ def main() -> None:
 
     inserted_tags = 0
     inserted_clubs = 0
-    skipped = 0
+    # Two different reasons a seed row creates no club, kept apart so the counts
+    # stay honest: the curator retired the row as a duplicate, or the club was
+    # already in the database from an earlier run.
+    skipped_duplicates = 0
+    skipped_present = 0
     stamped_verdicts = 0
 
     with con:
         for row in rows:
             key = row["legacy_club_key"]
-            if key in KNOWN_DUPLICATES:
-                skipped += 1
+            if key in duplicate_drop_keys:
+                skipped_duplicates += 1
                 continue
             name = row["name"]
 
@@ -317,7 +331,7 @@ def main() -> None:
             if cur.rowcount:
                 inserted_clubs += 1
             else:
-                skipped += 1
+                skipped_present += 1
 
     # Resolve events.host_club_id from canonical events.csv host_club text.
     # Step 08 inserts events with host_club_id=NULL; clubs are in the DB now,
@@ -369,7 +383,8 @@ def main() -> None:
 
     print(
         f"Done. tags inserted: {inserted_tags}, clubs inserted: {inserted_clubs}, "
-        f"clubs skipped (already present): {skipped}, "
+        f"clubs skipped (retired as duplicate): {skipped_duplicates}, "
+        f"clubs skipped (already present): {skipped_present}, "
         f"url verdicts stamped: {stamped_verdicts}."
     )
 

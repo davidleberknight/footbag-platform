@@ -170,6 +170,46 @@ describe('validateExternalUrl', () => {
     });
   });
 
+  describe('host must be a full website address', () => {
+    // A public website's host always carries a dot. A single label is either an
+    // intranet name or prose typed into a website field, and nothing downstream
+    // rejects it: an unresolvable host is deliberately allowed through, and the
+    // reachability probe is optional, so these once reached public club pages as
+    // live links.
+    it.each([
+      ['a word typed into the website field', 'http://Coming'],
+      ['a Spanish greeting', 'http://Bienvenidos'],
+      ['a label with a stray port colon', 'http://e-mail:'],
+      ['a bare hyphen', 'http://-'],
+      ['a plain single label', 'https://intranet'],
+      ['a single label with a path', 'https://wiki/start'],
+      ['a single label with a port', 'https://server:8080'],
+    ])('rejects %s', async (_label, input) => {
+      const result = await validateExternalUrl(input, makeStubs());
+      expect(result.valid).toBe(false);
+      expect(result.normalizedUrl).toBeNull();
+      expect(result.error).toBe('URL needs a full website address, such as example.com.');
+    });
+
+    it.each([
+      ['an ordinary host', 'https://example.com'],
+      ['a subdomain', 'https://www.club.example.com/page'],
+      ['a host with a port', 'https://example.com:8443/x'],
+      ['a fully qualified host with a trailing dot', 'https://example.com./'],
+      ['an internationalised host, which arrives punycoded', 'https://münchen.example/'],
+    ])('still accepts %s', async (_label, input) => {
+      const result = await validateExternalUrl(input, makeStubs());
+      expect(result.valid).toBe(true);
+      expect(result.normalizedUrl).not.toBeNull();
+    });
+
+    it('leaves a dotless IPv6 literal to the address guards, which say something else', async () => {
+      const result = await validateExternalUrl('http://[::1]/', makeStubs());
+      expect(result.valid).toBe(false);
+      expect(result.error).toBe('This URL is not allowed.');
+    });
+  });
+
   describe('length cap', () => {
     it('accepts exactly 2048 characters', async () => {
       const url = 'https://example.com/' + 'a'.repeat(2048 - 'https://example.com/'.length);

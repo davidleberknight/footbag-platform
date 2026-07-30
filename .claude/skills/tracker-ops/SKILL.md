@@ -91,9 +91,10 @@ Single home for turning an approved `BUGS.md` finding into an issue; the `bug-hu
 `freestyle-bug-hunt` skills cite this rather than restating it. After the human approves a
 hunt's findings, draft one issue per confirmed finding: an issue body meeting the issue-body
 standard above, plus the exact `gh issue create -R "$FOOTBAG_PRIVATE_REPO" --title "..."
---label <lane> --label bug --body "..."` (the finding's lane, plus other markers as they
-apply). Claude runs it under the mutation policy above once the human has agreed to the
-set: ask once, listing each issue's title and lane, rather than one question per issue.
+--label <lane> --label bug --assignee <handle> --body "..."` (the finding's lane, plus other
+markers as they apply). Claude runs it under the mutation policy above once the human has
+agreed to the set: ask once, listing each issue's title, lane and proposed owner, rather than
+one question per issue.
 `BUGS.md` is the local scratch sink; a finding leaves it
 when its issue is filed or its fix lands. When the tracker is not wired, skip drafting with
 the one-line degradation note above.
@@ -120,6 +121,12 @@ effect. Then:
   by an exact repo-flag prefix, which is why every mutating command writes the repo flag
   first: `gh issue edit -R "$FOOTBAG_PRIVATE_REPO" <number> …`. Put the flag anywhere else
   and the rule stops matching and the prompt returns.
+- **Every new card names its owner, and the human confirms it.** A `gh issue create` without
+  `--assignee` is not run: an unowned card is invisible to every per-person read and accrues
+  silently against the milestone. The owner is never inferred and filed silently, not even
+  when the lane makes it obvious. Put the proposed owner beside each card in the one batch
+  ask that already covers the set, so a run of cards costs one question rather than one per
+  card.
 - **The floor that does not move.** No mutation without the human's decision behind it;
   no bulk mutation; no issue deletion (denied outright); no invented label or assignee;
   and a new card only on the human's explicit ask, which still prompts by design.

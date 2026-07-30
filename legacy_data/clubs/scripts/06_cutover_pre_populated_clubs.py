@@ -48,6 +48,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts" / "lib"))
 from db_cutover_guard import assert_maintainer_db_target  # noqa: E402
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
+from club_curation import load_club_duplicate_pairs  # noqa: E402
+
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 LEGACY_DATA_ROOT = SCRIPT_DIR.parent.parent  # legacy_data/
@@ -59,24 +62,13 @@ DUPLICATE_OVERRIDES_CSV = LEGACY_DATA_ROOT / "overrides" / "club_duplicates.csv"
 
 
 def load_duplicate_canonical_map(path: Path = DUPLICATE_OVERRIDES_CSV) -> dict[str, str]:
-    """Confirmed duplicate pairs as drop_legacy_key -> keep_legacy_key (merge
-    the duplicate into the canonical row). Single curator-authoritative source:
-    overrides/club_duplicates.csv (schema: keep_legacy_key,drop_legacy_key,
-    reason), the same file the §10.1 classifier reads to suppress
-    bootstrap_eligible on the dropped key. Missing file -> empty map (no
-    merges). Declaring a duplicate once here means both the classifier and this
-    cutover honour the same source rather than a second hardcoded list.
+    """Confirmed duplicate pairs as retired key -> kept key, so a merge points at
+    the canonical club. Parsing lives in the shared club-curation module: the
+    classifier, the affiliation builder, this cutover and the seed loader all read
+    the one curated file, and a second copy of the parsing is how one of them
+    drifts from the ruling the others honour.
     """
-    if not path.exists():
-        return {}
-    out: dict[str, str] = {}
-    with path.open(newline="", encoding="utf-8") as f:
-        for row in csv.DictReader(f):
-            drop = (row.get("drop_legacy_key") or "").strip()
-            keep = (row.get("keep_legacy_key") or "").strip()
-            if drop and keep:
-                out[drop] = keep
-    return out
+    return load_club_duplicate_pairs(path)
 
 
 def load_url_verdicts(path: Path = VERDICTS_CSV) -> dict[str, dict[str, str | None]]:

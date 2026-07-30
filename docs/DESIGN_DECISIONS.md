@@ -75,6 +75,8 @@ Current implementation status and accepted temporary deviations are tracked in t
   - [5.5 Canonical Email Addresses](#55-canonical-email-addresses)
   - [5.6 Dev and Staging Email Preview](#56-dev-and-staging-email-preview)
   - [5.7 Adapter contract parity for security-sensitive paths](#57-adapter-contract-parity-for-security-sensitive-paths)
+  - [5.8 Production Arming Switches](#58-production-arming-switches)
+  - [5.9 Member Action Sources](#59-member-action-sources)
 - [6. External Services and Integrations](#6-external-services-and-integrations)
   - [6.1 Stripe Payments](#61-stripe-payments)
   - [6.2 CloudFront CDN](#62-cloudfront-cdn)
@@ -3055,6 +3057,62 @@ Impact:
 - Both deploy paths sync the switches on every deploy and refuse to proceed when the parameters are missing.
 
 - The pre-cutover Stripe test-mode exercise runs on a production whose payment side holds a test-mode key while the production-live marker reads pre-live; the key-match guard refuses a test key permanently once the marker flips at go-live.
+
+## 5.9 Member Action Sources
+
+Decision:
+
+Member obligations are derived when a page is drawn, never stored. Each domain that can be waiting on a member implements one source role, returning the items it currently holds for that member. An aggregating service asks every source and hands back one ordered collection that both the member's action block and the cross-page banner read. Nothing is published, queued, or persisted on the dashboard's behalf.
+
+Rationale:
+
+- Several obligations are dates passing or absences rather than occurrences. Active Player status lapsing, a vote closing, and routine music missing before its deadline have nothing to announce, so a push design would need a scheduled sweep to manufacture events out of the same reads a page draw already performs.
+
+- A stored notification is a second truth standing beside the real record, and every way an obligation can end would need its own delete: a payment collected, a vote closed, a message answered, a tier upgraded. A derived item cannot go stale and clears when the record changes, with no dismissal step.
+
+- Only the domain raising an obligation knows its deadline and what makes it urgent, so urgency is decided at the source rather than by a central policy edited for every new producer.
+
+- The block and the banner present the same obligations at different densities, so one item shape and one ordered collection serve both, and a source needs no knowledge of which surfaces exist.
+
+Requirements:
+
+- The source role is a single method: given a member, return the items currently held for them. Implementations live in the domain that owns the obligation, never beside the aggregator.
+
+- An item carries kind, urgency, headline, an optional non-private detail line, its options, and an optional deadline. It carries no free-form body, so private content cannot reach either surface.
+
+- Urgency is one of two values and is chosen through named construction rather than by assigning a value, so the rule has one home.
+
+- An option is either navigation or a submitted action, fixed when it is built, so no template decides it.
+
+- The collection orders itself on construction, urgent first, then soonest deadline, then source order, and answers whether it is empty and whether anything urgent is held. Ordering and grouping live nowhere else.
+
+- The aggregating service holds no SQL and assigns no urgency; each source reads through its own domain's service.
+
+- A source whose obligation can be declined records that decline in its own domain, so the item stops being returned. The dashboard holds no dismissal state of its own.
+
+- The banner renders from the site layout, driven by a request-scoped value.
+
+Trade-offs:
+
+- Every source runs on each authenticated page draw, because the banner must know whether anything urgent is held. If that cost grows, the answer is to remember the result for the life of a request, not to begin storing notifications.
+
+- The page a member lands on at login depends on every source, so a slow or failing source degrades it.
+
+- Urgency decided per domain has no central arbiter, so two domains can weigh comparable obligations differently.
+
+Alternatives considered:
+
+Publishing obligations onto a stored notification list. Rejected: it doubles the truth about every obligation, needs a delete path for each of the many ways one can end, and still needs a scheduled sweep for the producers that have no event to publish in the first place.
+
+Routing the banner through the page hero's optional notice field. Rejected: that field is per-page state scoped to the hero, so a member-wide obligation would sit inside each page's own hero and collide with any page setting a notice of its own.
+
+Impact:
+
+- A new obligation is one class implementing one role inside the owning domain, plus one line where the sources are composed. Nothing central changes.
+
+- An obligation that can be declined cannot ship until its own domain can record the decline.
+
+- The site layout gains one banner slot, and the hero notice field stays per-page state.
 
 ## 6.1 Stripe Payments
 

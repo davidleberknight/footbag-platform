@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
 import { slugifyForTag } from '../../src/services/slugify';
 
 /**
@@ -70,12 +72,30 @@ function makeTagNormalized(
   return `${base}_${suffix}`;
 }
 
-const KNOWN_DUPLICATES: Record<string, string> = {
-  '1488489195': '1042652245',
-  'zion-fr':    '944090321',
-  '1422386831': 'memphis',
-  '1320083231': '1379698765',
-};
+const REPO_ROOT = path.resolve(__dirname, '..', '..');
+const DUPLICATE_OVERRIDES = path.join(
+  REPO_ROOT, 'legacy_data', 'overrides', 'club_duplicates.csv',
+);
+
+// The curator's duplicate adjudication is read here rather than restated. A
+// second copy of it is exactly how a pair declared once fails to reach a loader:
+// the retired Caracas club stayed publicly listed because a loader carried its
+// own hardcoded list that never gained that pair.
+function loadDuplicatePairs(): Array<{ keep: string; drop: string }> {
+  const [, ...lines] = fs.readFileSync(DUPLICATE_OVERRIDES, 'utf8').split('\n');
+  const pairs: Array<{ keep: string; drop: string }> = [];
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    // The two keys are the leading fields and never contain a comma, so the
+    // quoted reason that follows them needs no CSV parser here.
+    const [keep, drop] = line.split(',');
+    if (keep?.trim() && drop?.trim()) pairs.push({ keep: keep.trim(), drop: drop.trim() });
+  }
+  return pairs;
+}
+
+const DUPLICATE_PAIRS = loadDuplicatePairs();
+const DROPPED_KEYS = new Set(DUPLICATE_PAIRS.map((p) => p.drop));
 
 const SLUG_PATTERN = /^[a-z0-9][a-z0-9_]*[a-z0-9]$/;
 
@@ -214,23 +234,23 @@ describe('slug format validation', () => {
   });
 });
 
-describe('known duplicate merges', () => {
-  it('4 duplicate pairs are defined', () => {
-    expect(Object.keys(KNOWN_DUPLICATES)).toHaveLength(4);
+describe('curator duplicate adjudication', () => {
+  it('the override file declares at least one pair, so the readers have something to honour', () => {
+    expect(DUPLICATE_PAIRS.length).toBeGreaterThan(0);
   });
 
-  it('each duplicate B key maps to a different A key', () => {
-    const aKeys = new Set(Object.values(KNOWN_DUPLICATES));
-    expect(aKeys.size).toBe(4);
+  it('every retired key is retired exactly once', () => {
+    expect(DROPPED_KEYS.size).toBe(DUPLICATE_PAIRS.length);
   });
 
-  it('no B key appears as an A key (no circular references)', () => {
-    for (const bKey of Object.keys(KNOWN_DUPLICATES)) {
-      expect(Object.values(KNOWN_DUPLICATES)).not.toContain(bKey);
+  it('no retired key is also a kept key, so no merge chains or cycles exist', () => {
+    const keptKeys = new Set(DUPLICATE_PAIRS.map((p) => p.keep));
+    for (const dropped of DROPPED_KEYS) {
+      expect(keptKeys).not.toContain(dropped);
     }
   });
 
-  it('duplicate B keys are skipped during slug generation', () => {
+  it('a retired key never yields a club tag, so the kept row keeps the city slug', () => {
     const seen = new Set<string>();
     const clubs = [
       { key: '1042652245', name: 'Les Pieds a Gilles', country: 'Switzerland', city: 'Lausanne' },
@@ -241,12 +261,12 @@ describe('known duplicate merges', () => {
 
     const generatedTags: string[] = [];
     for (const club of clubs) {
-      if (club.key in KNOWN_DUPLICATES) continue;
+      if (DROPPED_KEYS.has(club.key)) continue;
       const tag = makeTagNormalized(club.name, club.country, club.city, seen);
       seen.add(tag);
       generatedTags.push(tag);
     }
 
-    expect(generatedTags).toHaveLength(2);
+    expect(generatedTags).toEqual(['#club_lausanne', '#club_paris']);
   });
 });

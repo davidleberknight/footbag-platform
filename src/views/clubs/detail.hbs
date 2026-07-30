@@ -22,8 +22,7 @@
     <dl class="club-detail-meta">
       <dt>Location</dt>
       <dd>
-        {{content.club.city}}{{#if content.club.region}}, {{content.club.region}}{{/if}},
-        {{content.club.country}}
+        {{formatLocation content.club.city content.club.region content.club.country}}
       </dd>
       {{#if content.club.externalUrl}}
       <dt>Website</dt>

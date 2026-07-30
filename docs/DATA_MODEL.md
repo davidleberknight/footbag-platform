@@ -1328,7 +1328,7 @@ Permanent operational state for the per-member onboarding wizard (`MemberOnboard
 - **`in_progress_paused`**: the task is mid-flow and the member detoured to another story (for example, `M_Join_Club` or `M_Create_Club` from the `club_affiliations` step). The dashboard task widget surfaces "Resume onboarding" while the row is in this state, and the wizard re-renders the same card on return.
 - **Per-member unique**: `UNIQUE(member_id, task_type)` so the same task is not duplicated for one member.
 - **Catalog evolution**: adding a new task type extends the `task_type` CHECK; existing rows are unaffected and the wizard renders the new task at its catalog position.
-- **Applicability is server-determined**: `not_applicable` is written by the service when the underlying eligibility fails (e.g. no plausible legacy match for `legacy_claim`). Client cannot bypass.
+- **`not_applicable`**: the wizard's tasks are universal, so a task is never marked inapplicable on eligibility grounds, and applicability is not recomputed per member.
 - **Skipped is not blocking**: a `skipped` row does not gate sign-in. The member's dashboard surfaces all rows whose state is `pending` or `skipped`; completing transitions to `completed` and removes from the widget.
 - **Audit trail**: every state transition emits an `audit_entries` row owned by the wizard service; see DATA_MODEL §4 audit_entries subsection for the `action_type` catalog.
 

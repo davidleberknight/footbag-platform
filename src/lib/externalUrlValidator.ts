@@ -16,6 +16,7 @@
 
 import { lookup as dnsLookup } from 'node:dns/promises';
 import { isLiteralIp, isBlockedIp, stripIpv6Brackets } from './ipBlocklist';
+import { structuralUrlRejection as rejectByShape } from './externalUrlShape';
 import {
   getSafeBrowsingAdapter,
   type SafeBrowsingAdapter,
@@ -25,8 +26,10 @@ import {
   type HttpReachabilityAdapter,
 } from '../adapters/httpReachabilityAdapter';
 
-const MAX_URL_LENGTH = 2048;
-const ALLOWED_SCHEMES: ReadonlySet<string> = new Set(['http:', 'https:']);
+// Shape-only rejections live in their own module so the seed-URL verification
+// pass can apply the same rules without loading this file's adapters, which read
+// deploy config at import time. Re-exported so callers keep one import site.
+export { structuralUrlRejection } from './externalUrlShape';
 
 export interface ValidatedExternalUrl {
   valid: boolean;
@@ -60,50 +63,11 @@ export async function validateExternalUrl(
   if (trimmed.length === 0) {
     return { valid: true, normalizedUrl: null };
   }
-  if (trimmed.length > MAX_URL_LENGTH) {
-    return {
-      valid: false,
-      normalizedUrl: null,
-      error: `URL exceeds the maximum length of ${MAX_URL_LENGTH} characters.`,
-    };
+  const structural = rejectByShape(trimmed);
+  if (structural) {
+    return { valid: false, normalizedUrl: null, error: structural };
   }
-  let parsed: URL;
-  try {
-    parsed = new URL(trimmed);
-  } catch {
-    return {
-      valid: false,
-      normalizedUrl: null,
-      error: 'Invalid URL format.',
-    };
-  }
-  if (!ALLOWED_SCHEMES.has(parsed.protocol)) {
-    return {
-      valid: false,
-      normalizedUrl: null,
-      error: 'This URL appears to use a disallowed protocol.',
-    };
-  }
-
-  // Reject a malformed or repeated scheme and an incomplete scheme with no host.
-  // The WHATWG parser slips both past the allowlist above: a double scheme like
-  // "http://https://host" parses with the literal host "https", and a bare
-  // "https:" (or "https://") parses with an empty host.
-  if (!parsed.hostname) {
-    return {
-      valid: false,
-      normalizedUrl: null,
-      error: 'URL is missing a host.',
-    };
-  }
-  if (parsed.hostname === 'http' || parsed.hostname === 'https'
-      || /^https?:\/\/https?:\/\//i.test(trimmed)) {
-    return {
-      valid: false,
-      normalizedUrl: null,
-      error: 'URL has a malformed or repeated scheme.',
-    };
-  }
+  const parsed = new URL(trimmed);
 
   // SSRF guard, layer 1: hostname is a literal IP in a blocked range. The
   // WHATWG URL parser keeps brackets around IPv6 hostnames (hostname for

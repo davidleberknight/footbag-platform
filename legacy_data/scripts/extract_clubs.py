@@ -21,23 +21,20 @@ import sys
 from pathlib import Path
 from bs4 import BeautifulSoup
 
+# Resolve the sibling helper whether this file is run as a script or imported.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from club_curation import (  # noqa: E402
+    SEED_FIELDNAMES,
+    apply_club_text_corrections,
+    load_club_text_corrections,
+)
+
 MIRROR_ROOT = Path(__file__).parent.parent.parent / "footbag_legacy_mirror" / "www.footbag.org"
 CLUBS_SHOW_DIR = MIRROR_ROOT / "clubs" / "show"
 OUTPUT_DIR = Path(__file__).parent.parent / "seed"
 OUTPUT_CSV = OUTPUT_DIR / "clubs.csv"
 
-FIELDNAMES = [
-    "legacy_club_key",
-    "name",
-    "city",
-    "region",
-    "country",
-    "contact_member_id",
-    "external_url",
-    "description",
-    "created",
-    "last_updated",
-]
+FIELDNAMES = SEED_FIELDNAMES
 
 
 _EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
@@ -245,6 +242,17 @@ def main():
     rows = []
     skipped = 0
 
+    # The mirror preserves what the legacy application stored, damage included: a
+    # region typed through the wrong codepage, a postal abbreviation where the
+    # region's name belongs, and a website field holding prose that the legacy form
+    # turned into a link. This extractor copies faithfully, so the curator's
+    # corrections are applied here, on the way out. Applying them only in the
+    # dump-reconciliation step left the repair depending on a machine-local input
+    # that is optional by design, so a re-extract on a checkout without the dump
+    # silently restored every one of those values.
+    corrections = load_club_text_corrections()
+    corrected_rows = 0
+
     for club_dir in sorted(CLUBS_SHOW_DIR.iterdir()):
         index = club_dir / "index.html"
         if not index.is_file():
@@ -254,6 +262,10 @@ def main():
         if row is None:
             skipped += 1
         else:
+            before = dict(row)
+            apply_club_text_corrections(row, legacy_club_key, corrections)
+            if row != before:
+                corrected_rows += 1
             rows.append(row)
 
     # Refuse to shrink the seed. A mirror reduced to a fraction of its clubs
@@ -278,7 +290,10 @@ def main():
         writer.writeheader()
         writer.writerows(rows)
 
-    print(f"Wrote {len(rows)} clubs to {OUTPUT_CSV} ({skipped} skipped).")
+    print(
+        f"Wrote {len(rows)} clubs to {OUTPUT_CSV} ({skipped} skipped, "
+        f"{corrected_rows} repaired from curated corrections)."
+    )
 
 
 if __name__ == "__main__":

@@ -199,7 +199,7 @@ Visual aids for understanding the system design. Six diagrams cover production i
 │    (no IP address stored — privacy-safe audit log policy)           │
 └─────────────────────────────────────────────────────────────────────┘
 
-  Browser: 302 → /dashboard   +   session cookie set
+  Browser: 303 → /members/{slug}   +   session cookie set
 
 ════════════════════  AUTHENTICATED REQUEST FLOW  ═════════════════════
 
