@@ -159,6 +159,15 @@ describe('GET /records', () => {
     expect(res.text).not.toContain('1998-03-21/1998-03-22');
   });
 
+  it('renders a legacy slash date unambiguously, so the table has one date convention', async () => {
+    const app = createApp();
+    const res = await request(app).get('/records');
+    // The singles WR is stored as "14/6/1997", which a reader cannot tell from a
+    // month-first date; the page states the month instead.
+    expect(res.text).toContain('14 June 1997');
+    expect(res.text).not.toContain('14/6/1997');
+  });
+
   it('shows Highest Official Scores section', async () => {
     const app = createApp();
     const res = await request(app).get('/records');

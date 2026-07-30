@@ -83,10 +83,30 @@ describe('formatDateRange', () => {
     expect(formatDateRange('2001-07-04/2001-07-04')).toBe('4 July 2001');
   });
 
-  it('leaves a legacy day/month/year string unchanged rather than mis-parsing it', () => {
-    // "14/6/1997" is a single legacy date, not an ISO range; a presentation
-    // pass must not degrade it (e.g. to "14").
-    expect(formatDateRange('14/6/1997')).toBe('14/6/1997');
+  it('renders a legacy day-first slash date in the same style as an ISO date', () => {
+    // A day above twelve can only be a day, which is what proves the stored
+    // format puts the day first.
+    expect(formatDateRange('14/6/1997')).toBe('14 June 1997');
+    expect(formatDateRange('18/4/1998')).toBe('18 April 1998');
+    expect(formatDateRange('28/7/1987')).toBe('28 July 1987');
+  });
+
+  it('reads an all-small legacy slash date day-first too, so the table has one convention', () => {
+    // Both numbers could be either part; the format is settled for the whole
+    // set by the values that can only be read one way.
+    expect(formatDateRange('3/4/1993')).toBe('3 April 1993');
+    expect(formatDateRange('10/3/1995')).toBe('10 March 1995');
+  });
+
+  it('passes through a slash value whose day or month cannot exist', () => {
+    // Dropping the impossible part would present a guess as a date.
+    expect(formatDateRange('18/13/1998')).toBe('18/13/1998');
+    expect(formatDateRange('32/1/1998')).toBe('32/1/1998');
+    expect(formatDateRange('0/4/1998')).toBe('0/4/1998');
+  });
+
+  it('leaves a two-digit-year slash date alone, since its century is unknowable', () => {
+    expect(formatDateRange('14/6/97')).toBe('14/6/97');
   });
 
   it('leaves any other unrecognized value unchanged', () => {

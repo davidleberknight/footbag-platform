@@ -26,6 +26,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from club_curation import (  # noqa: E402
     SEED_FIELDNAMES,
     apply_club_text_corrections,
+    blank_location_placeholder,
     load_club_text_corrections,
 )
 
@@ -128,6 +129,8 @@ def extract_club(html_path, legacy_club_key):
     location_tag = soup.select_one("div.clubsLocationHeader")
     location_text = location_tag.get_text(strip=True) if location_tag else ""
     city, region, country = parse_location(location_text) if location_text else ("", "", "")
+    city = blank_location_placeholder(city)
+    region = blank_location_placeholder(region)
 
     if not country:
         return None

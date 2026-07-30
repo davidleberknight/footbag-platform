@@ -57,6 +57,7 @@ from _dump_parser import (  # noqa: E402
 from extract_clubs import _scrub_description_pii  # noqa: E402
 from club_curation import (  # noqa: E402
     SEED_FIELDNAMES,
+    blank_location_placeholder,
     clean_club_text,
     decode_numeric_entities,
     load_club_text_corrections,
@@ -184,8 +185,8 @@ def dump_row_to_seed_row(rec: dict, corrections: dict[tuple[str, str], str] | No
     row = {
         "legacy_club_key": club_id,
         "name": _prefer_undamaged(rec.get("ClubNameUnicode"), rec.get("Name")),
-        "city": _clean(rec.get("City")),
-        "region": _clean(rec.get("State")),
+        "city": blank_location_placeholder(rec.get("City")),
+        "region": blank_location_placeholder(rec.get("State")),
         "country": _clean(rec.get("Country")),
         "contact_member_id": "",
         "external_url": url,

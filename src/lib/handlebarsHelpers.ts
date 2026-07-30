@@ -37,6 +37,13 @@ export function formatDate(iso: string): string {
 const ISO_FULL_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const ISO_ANY_PRECISION = /^\d{4}(-\d{2}){0,2}$/;
 
+// A legacy slash date, day first: "18/4/1998". The four-digit year anchors the
+// match so a two-digit-year string, whose century nobody can supply, is left
+// alone. Day-first is not a guess about the locale: among the stored values
+// five put a number above twelve first and none puts one above twelve second,
+// so month-first is impossible for the set.
+const LEGACY_DAY_FIRST_DATE = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
+
 /**
  * Render a single date, or a '/'-delimited two-date range, for display. A lone
  * ISO date ("YYYY", "YYYY-MM", "YYYY-MM-DD") is formatted exactly as formatDate.
@@ -46,13 +53,30 @@ const ISO_ANY_PRECISION = /^\d{4}(-\d{2}){0,2}$/;
  * ("21 March - 5 April 1998"); a cross-year range shows both full dates joined
  * by an en dash.
  *
- * Anything the formatter does not recognize as an ISO date or ISO range,
- * including legacy day/month/year strings such as "14/6/1997", is returned
- * unchanged so a presentation pass never mis-parses or degrades a stored value.
- * Source values are preserved upstream; this is presentation only.
+ * A legacy day-first slash date ("18/4/1998") renders in the same style as the
+ * ISO forms, so one table cannot show two date conventions and leave a reader
+ * guessing whether the first number is the day or the month.
+ *
+ * Anything else the formatter does not recognize is returned unchanged so a
+ * presentation pass never mis-parses or degrades a stored value. Source values
+ * are preserved upstream; this is presentation only.
  */
 export function formatDateRange(value: string): string {
   const raw = String(value).trim();
+
+  const legacy = LEGACY_DAY_FIRST_DATE.exec(raw);
+  if (legacy) {
+    const day = parseInt(legacy[1], 10);
+    const month = parseInt(legacy[2], 10);
+    // An impossible day or month means the value is not the format it looks
+    // like, and formatDate would answer by dropping the offending part rather
+    // than refusing, so it passes through whole instead of losing a component.
+    if (day >= 1 && day <= 31 && month >= 1 && month <= 12) {
+      return `${day} ${MONTHS[month - 1]} ${legacy[3]}`;
+    }
+    return raw;
+  }
+
   const slash = raw.indexOf('/');
   if (slash < 0) {
     return ISO_ANY_PRECISION.test(raw) ? formatDate(raw) : raw;

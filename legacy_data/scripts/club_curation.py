@@ -78,6 +78,23 @@ def clean_club_text(text: str | None) -> str:
     return cleaned.replace("\r\n", "\n").replace("\r", "\n")
 
 
+def blank_location_placeholder(text: str | None) -> str:
+    """Drop a legacy empty marker from a location field, keeping every real value.
+
+    The legacy club form stored an unset region as the word "none" rather than as
+    nothing, so the marker is data-shaped: it survives every decode intact and
+    reads as a place name to everything downstream, which is how it reached the
+    published location line as "Itabashi-ku, Tokyo, none, Japan". A blank region is
+    what the site already renders correctly, so the marker becomes blank here.
+
+    Only a value that is the whole field is dropped, because "none" inside a longer
+    string is ordinary text. Shared, because both seed producers set these fields
+    and a marker cleared in only one of them returns whenever the other runs.
+    """
+    cleaned = clean_club_text(text)
+    return "" if cleaned.strip().lower() == "none" else cleaned
+
+
 def load_club_duplicate_pairs(path: Path = CLUB_DUPLICATES_CSV) -> dict[str, str]:
     """Confirmed duplicate clubs as retired key -> kept key.
 
