@@ -98,6 +98,21 @@ describe('video-facade (click-to-play)', () => {
     expect(players[0].hasAttribute('playsinline')).toBe(true);
   });
 
+  // The facade anchor carries the only description of what the clip shows, and
+  // the swap replaces that anchor, so the player must inherit its name or the
+  // control becomes an unlabelled box for anyone not looking at the picture.
+  it('carries the facade label onto the native player it mounts', () => {
+    const f = makeFacade({
+      id: 'f1',
+      platform: 's3',
+      videoSrc: 'https://cdn.example.com/clip.mp4',
+    });
+    f.click();
+    expect(activePlayers()[0].getAttribute('aria-label')).toBe(
+      'Play video f1',
+    );
+  });
+
   it('activating a second facade tears the first one down (single-active-player)', () => {
     const f1 = makeFacade({
       id: 'f1',

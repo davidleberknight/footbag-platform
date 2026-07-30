@@ -507,6 +507,17 @@ describe('GET /freestyle — two-band landing', () => {
     expect(res.text).toContain('playsinline');
   });
 
+  // The demo clip starts on its own and loops forever, so the visitor needs a
+  // way to stop it; the native controls are that mechanism. Both surfaces draw
+  // the same clip, so both carry the obligation.
+  it('gives the looping demo clip controls on the landing and start pages', async () => {
+    const landing = await request(createApp()).get('/freestyle');
+    expect(landing.text).toMatch(/<video[^>]*\bautoplay\b[^>]*\bcontrols\b/);
+
+    const start = await request(createApp()).get('/freestyle/start');
+    expect(start.text).toMatch(/<video[^>]*\bautoplay\b[^>]*\bcontrols\b/);
+  });
+
   // ── Removed surfaces — must not regress back onto the landing ────────────
   it('does not render the retired Get Started tiles', async () => {
     const res = await request(createApp()).get('/freestyle');

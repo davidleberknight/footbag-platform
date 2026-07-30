@@ -28,7 +28,7 @@
     {{/each}}
     {{#if demoVideo}}
     <figure class="demo-video">
-      <video autoplay loop muted playsinline preload="metadata">
+      <video controls loop muted playsinline preload="metadata">
         <source src="{{demoVideo.webmUrl}}" type="video/webm">
         <p>{{demoVideo.caption}}</p>
       </video>

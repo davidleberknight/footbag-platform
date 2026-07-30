@@ -697,9 +697,19 @@ describe('GET /sideline', () => {
     expect(res.text).toContain('/video/sideline/foursquare.webm');
     expect(res.text).toContain('/video/sideline/golf.webm');
     expect(res.text).toContain('type="video/webm"');
-    expect(res.text).toContain('autoplay');
     expect(res.text).toContain('playsinline');
     expect(res.text).toContain('muted');
+  });
+
+  // The page carries several demo clips at once, so none of them may start on
+  // its own: three simultaneous autoplaying videos would pull megabytes of
+  // footage on every page load and give the visitor no way to stop the motion.
+  it('leaves every demo clip click-to-play with its own controls', async () => {
+    const app = createApp();
+    const res = await request(app).get('/sideline');
+    expect(res.text).not.toContain('autoplay');
+    expect(res.text).toMatch(/<video[^>]*\bcontrols\b/);
+    expect(res.text).toContain('preload="metadata"');
   });
 
   it('links 2-Square and 4-Square to internal MD-backed rule pages', async () => {

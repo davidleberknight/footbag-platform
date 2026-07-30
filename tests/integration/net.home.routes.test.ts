@@ -239,6 +239,13 @@ describe('GET /net — portal landing sections', () => {
     expect(res.text).not.toContain('type="video/webm"');
   });
 
+  // The clip starts on its own and loops forever, so the visitor needs a way to
+  // stop it; the native controls are that mechanism.
+  it('gives the looping demo clip controls', async () => {
+    const res = await request(createApp()).get('/net');
+    expect(res.text).toMatch(/<video[^>]*\bautoplay\b[^>]*\bcontrols\b/);
+  });
+
   it('renders Competition Formats with Singles and Doubles cards', async () => {
     const app = createApp();
     const res = await request(app).get('/net');

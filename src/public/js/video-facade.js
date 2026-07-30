@@ -28,9 +28,10 @@
     return iframe;
   }
 
-  function buildVideo(src, masked) {
+  function buildVideo(src, masked, label) {
     var video = document.createElement('video');
     video.setAttribute('src', src);
+    video.setAttribute('aria-label', label || 'Video player');
     video.setAttribute('controls', '');
     video.setAttribute('autoplay', '');
     video.setAttribute('playsinline', '');
@@ -93,7 +94,7 @@
       replacement = buildIframe(vimeoSrc, label);
     } else if (platform === 's3') {
       if (!videoSrc) return;
-      replacement = buildVideo(videoSrc, !!facade.closest('.caption-mask-frame'));
+      replacement = buildVideo(videoSrc, !!facade.closest('.caption-mask-frame'), label);
     } else {
       return;
     }
