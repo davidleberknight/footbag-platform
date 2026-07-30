@@ -85,15 +85,9 @@ variable "ssh_public_key" {
 # ── Notifications ─────────────────────────────────────────────────────────────
 
 variable "alarm_email" {
-  description = "Email address for CloudWatch alarm notifications. # TODO: fill in."
+  description = "Email address for CloudWatch alarm SNS notifications. This is the AWS account's own operations mailbox, which doubles as the account-recovery identity, so it is vault-governed credential material rather than an ordinary contact address: it is set from the gitignored secrets file, never from a committed one, and never appears in plan output."
   type        = string
-}
-
-# ── State bucket ──────────────────────────────────────────────────────────────
-
-variable "state_bucket_suffix" {
-  description = "Unique suffix used in the state bucket name. Must match backend.tf."
-  type        = string
+  sensitive   = true
 }
 
 # ── Operator access ───────────────────────────────────────────────────────────

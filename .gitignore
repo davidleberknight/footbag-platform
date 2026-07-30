@@ -131,6 +131,16 @@ tests/coverage/
 .terraform/
 *.tfstate
 *.tfstate.*
+
+# Terraform variable values live in the maintainers' private operations
+# checkout, because operator_cidrs carries operator IP ranges and gitignored
+# only keeps a file out of the history, not out of reach of a stray `git add`
+# here. On a wired machine each of these paths is a symlink to the private copy,
+# so Terraform loads its values from the working directory as it always has;
+# ignoring the paths keeps the values from ever becoming committable here again.
+# The sensitive half of each environment's values sits in a companion
+# secrets.auto.tfvars, which is gitignored in the private checkout too and whose
+# canonical copy is the vault.
 *.tfvars
 *.tfvars.json
 !*.tfvars.example
@@ -246,6 +256,23 @@ legacy_data/reports/
 /out/
 legacy_data/freestyle_reconciliation/import_qc_report.md
 tricks-mosaic-clips/
+
+# Authenticated group and vote scraper output. The group captures carry member
+# personal data (roster names, profile ids, group membership); the vote captures
+# carry per-vote metadata and per-option totals, not individual ballots. The
+# canonical home for all of it is the private ops repo, and the pipeline reaches
+# the two group files here by canonical-named symlinks, so these paths can exist
+# in a wired checkout and must never become committable.
+legacy_data/group_files.csv
+legacy_data/group_files/
+legacy_data/group_files_*.csv
+legacy_data/group_members.csv
+legacy_data/group_settings.csv
+legacy_data/member_groups.csv
+legacy_data/vote_results.csv
+legacy_data/vote_result_options.csv
+legacy_data/debug_*.html
+legacy_data/save_scrape
 
 # Working notes, planning documents, handovers and operator runbooks live in the
 # maintainers' private operations checkout and are gitignored there, not here.

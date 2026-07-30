@@ -10,6 +10,10 @@
 #   # terminal first with `npm run compose:dev` (auto-teardown on Ctrl+C):
 #   BASE_URL=http://localhost ./scripts/smoke-local.sh
 #
+#   # Against a real origin, which refuses requests that do not carry the
+#   # CDN-injected shared secret. Without it every check comes back refused:
+#   X_ORIGIN_VERIFY_SECRET=... BASE_URL=http://<origin> ./scripts/smoke-local.sh
+#
 # Exits 0 if all checks pass, 1 if any fail.
 
 set -euo pipefail
@@ -22,13 +26,27 @@ BASE_URL="${BASE_URL%/}"
 PASS=0
 FAIL=0
 
+# A real origin rejects any request that does not carry the shared secret the CDN
+# injects, so checks run against one need that header or every result is a refusal
+# that looks like an outage. The value goes into a private config file rather than
+# onto the command line, because a command line is readable by every account on the
+# host. Absent the variable this is inert, which is the development case.
+CURL_OPTS=()
+if [ -n "${X_ORIGIN_VERIFY_SECRET:-}" ]; then
+  ORIGIN_VERIFY_CONFIG=$(umask 077 && mktemp)
+  trap 'rm -f "${ORIGIN_VERIFY_CONFIG}"' EXIT INT TERM
+  printf 'header = "X-Origin-Verify: %s"\n' "${X_ORIGIN_VERIFY_SECRET}" > "${ORIGIN_VERIFY_CONFIG}"
+  CURL_OPTS=(--config "${ORIGIN_VERIFY_CONFIG}")
+fi
+
 check() {
   local label="$1"
   local expected="$2"
   local url="$3"
 
   local actual
-  actual=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "${BASE_URL}${url}")
+  actual=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 \
+    ${CURL_OPTS[@]+"${CURL_OPTS[@]}"} "${BASE_URL}${url}")
 
   if [ "$actual" = "$expected" ]; then
     echo "  ✓  ${label} (${actual})"

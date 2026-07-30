@@ -18,8 +18,6 @@ ssh_public_key = "ssh-ed25519 AAAAC3Nza... TODO-your-production-deploy-key"
 
 alarm_email = "TODO-ops-alert@footbag.org"
 
-state_bucket_suffix = "a1b2c3d4e5"            # Matches the suffix used in terraform/shared/terraform.tfvars
-
 # Operator-supplied; verification happens via the SES email loop after apply.
 # Real verified address (e.g. noreply@footbag.org). The TODO- prefix is
 # rejected by ses_sender_identity's variable validation in ses.tf.
@@ -74,6 +72,35 @@ operator_cidrs = ["TODO-your-public-ip/32"]
 # For production: a real A record pointing to the Lightsail static IP
 # (e.g. origin.footbag.org). Do NOT use nip.io in production.
 lightsail_origin_dns = "TODO-origin.footbag.org"
+
+# ── Cutover gates ─────────────────────────────────────────────────────────────
+# The four switches that decide what the public sees, listed here because they
+# default to false in the variable declarations and are otherwise invisible to
+# an operator working from this file.
+#
+# enable_cloudfront is the master gate for the distribution, its ACM certificate
+# and the certificate's DNS validation records. False for the first apply; true
+# on the second, once route53_zone_id names a zone Route 53 actually serves and
+# lightsail_origin_dns resolves.
+#
+# enable_preview_record creates the preview.<domain> alias records for the
+# pre-cutover exercises. The name already rides the certificate from its first
+# issuance and already sits in the distribution's alias list, so this flag alone
+# decides whether it resolves. On any time after the zone move, once the name is
+# re-verified absent from the zone snapshot; removed at cutover.
+#
+# enable_apex_alias_records moves the apex and www off the mirrored legacy values
+# and onto the distribution. Stays false through the zone move, so those names
+# keep answering with the legacy host's values, and flips at the write-freeze.
+#
+# enable_planned_maintenance serves the maintenance page for every request. It
+# flips true paired with the apex alias flip, so the distribution serves the
+# migration page from that moment; going live is this one turning false again,
+# not a DNS change.
+enable_cloudfront          = false
+enable_preview_record      = false
+enable_apex_alias_records  = false
+enable_planned_maintenance = false
 
 # ── Phased-apply feature gates ────────────────────────────────────────────────
 # Pass 1 (first apply): both false. Pass 2: enable_cwagent_alarms = true

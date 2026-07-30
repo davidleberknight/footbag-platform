@@ -71,15 +71,9 @@ variable "ssh_public_key" {
 }
 
 variable "alarm_email" {
-  description = "Email address for CloudWatch alarm SNS notifications"
+  description = "Email address for CloudWatch alarm SNS notifications. This is the AWS account's own operations mailbox, which doubles as the account-recovery identity, so it is vault-governed credential material rather than an ordinary contact address: it is set from the gitignored secrets file, never from a committed one, and never appears in plan output."
   type        = string
-  # TODO: Set to ops alert address
-}
-
-variable "state_bucket_suffix" {
-  description = "Unique suffix appended to the Terraform state bucket name"
-  type        = string
-  # TODO: Must match the suffix used when provisioning terraform/shared
+  sensitive   = true
 }
 
 variable "operator_cidrs" {

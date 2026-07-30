@@ -92,6 +92,24 @@ and its description; `terraform.tfvars.example` carries a placeholder. A
 validation block or a `lifecycle { precondition }` rejects the placeholder rather
 than letting a TODO reach an apply.
 
+The values file itself is not held in this repository. Each environment's
+`terraform.tfvars` lives in the maintainers' private operations checkout and is
+reached from `terraform/<environment>/` by a gitignored symlink, because the
+values carry operator CIDR ranges and gitignored keeps a file out of the history
+but not out of reach of an accidental commit here. Never create a real
+`terraform.tfvars` in this tree; add the value to the private file the symlink
+points at.
+
+A variable whose declaration says `sensitive = true` is excluded from that file
+and from every repository. Its value goes in the companion `secrets.auto.tfvars`,
+reached by the same symlink convention and gitignored on both sides, with the
+credential vault holding the canonical copy. Mark a variable `sensitive`
+whenever the vault governs its value, so this routing catches it: the alarm
+mailbox is marked that way because it is the AWS account-recovery identity, not
+because an email address is inherently secret. Terraform auto-loads that
+filename, so a sensitive value never has to be passed as a command-line
+argument, which would expose it to every account on the host.
+
 ## Verify without applying
 
 `terraform validate` and `terraform fmt -check` are the checks to run, after

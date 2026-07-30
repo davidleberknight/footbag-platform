@@ -21,9 +21,6 @@ ssh_public_key         = "TODO-ssh-ed25519 AAAA..."
 # Notifications
 alarm_email = "TODO-ops@example.com"
 
-# State bucket (must match backend.tf)
-state_bucket_suffix = "TODO-set-unique-suffix"
-
 # ── Operator SSH access ───────────────────────────────────────────────────────
 # Restrict SSH to your operator IP(s) only. Do not use 0.0.0.0/0.
 # To find your current public IP: curl -s https://checkip.amazonaws.com
