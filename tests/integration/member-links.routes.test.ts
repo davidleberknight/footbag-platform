@@ -32,7 +32,7 @@ const VIEWER_ID    = 'mlink-viewer';
 const VIEWER_SLUG  = 'mlink_viewer';
 
 function cookie(memberId: string): string {
-  return `footbag_session=${createTestSessionJwt({ memberId })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId })}`;
 }
 
 let _seq = 0;

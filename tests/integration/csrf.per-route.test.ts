@@ -42,7 +42,7 @@ beforeAll(async () => {
   });
   db.close();
   createApp = await importApp();
-  authCookie = `footbag_session=${createTestSessionJwt({ memberId: MEMBER_ID })}`;
+  authCookie = `__Host-footbag_session=${createTestSessionJwt({ memberId: MEMBER_ID })}`;
 });
 
 afterAll(() => cleanupTestDb(dbPath));

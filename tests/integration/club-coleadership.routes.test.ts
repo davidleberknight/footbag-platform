@@ -47,7 +47,7 @@ afterAll(() => {
   cleanupTestDb(dbPath);
 });
 
-const cookieFor = (memberId: string) => `footbag_session=${createTestSessionJwt({ memberId })}`;
+const cookieFor = (memberId: string) => `__Host-footbag_session=${createTestSessionJwt({ memberId })}`;
 
 let _n = 0;
 function seedClub(): { clubId: string; clubKey: string } {

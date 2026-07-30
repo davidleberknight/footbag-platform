@@ -28,7 +28,7 @@ const ADMIN_ID = 'aaaaaaaa-0000-0000-0000-00000000et01';
 const MEMBER_ID = 'bbbbbbbb-0000-0000-0000-00000000et02';
 
 function cookieFor(memberId: string, role: 'admin' | 'member'): string {
-  return `footbag_session=${createTestSessionJwt({ memberId, role })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId, role })}`;
 }
 const admin = () => cookieFor(ADMIN_ID, 'admin');
 

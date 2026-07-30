@@ -19,10 +19,10 @@ const ARCHIVED_ID  = 'cand-archived-001';
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
 function adminCookie(): string {
-  return `footbag_session=${createTestSessionJwt({ memberId: ADMIN_ID, role: 'admin' })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: ADMIN_ID, role: 'admin' })}`;
 }
 function memberCookie(): string {
-  return `footbag_session=${createTestSessionJwt({ memberId: MEMBER_ID, role: 'member' })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: MEMBER_ID, role: 'member' })}`;
 }
 
 beforeAll(async () => {

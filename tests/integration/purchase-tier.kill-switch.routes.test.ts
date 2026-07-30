@@ -14,7 +14,7 @@ const MEMBER_SLUG = 'killswitch-buyer';
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
 function memberCookie(memberId: string = MEMBER_ID): string {
-  return `footbag_session=${createTestSessionJwt({ memberId, role: 'member' })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId, role: 'member' })}`;
 }
 
 // The kill-switch is a runtime config toggle. system_config is append-only

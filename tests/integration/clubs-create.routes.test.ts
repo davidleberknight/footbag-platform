@@ -56,7 +56,7 @@ const WQ_ID           = 'cc-wq';
 const WQ_SLUG         = 'cc_wq';
 
 function authCookie(memberId: string): string {
-  return `footbag_session=${createTestSessionJwt({ memberId })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId })}`;
 }
 
 function formData(overrides: Record<string, string> = {}): string {

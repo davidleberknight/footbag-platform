@@ -37,10 +37,10 @@ const GALLERY_A = 'gallery_test_alpha';
 const GALLERY_B = 'gallery_test_beta';
 
 function adminCookie(): string {
-  return `footbag_session=${createTestSessionJwt({ memberId: ADMIN_ID, role: 'admin' })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: ADMIN_ID, role: 'admin' })}`;
 }
 function memberCookie(): string {
-  return `footbag_session=${createTestSessionJwt({ memberId: MEMBER_ID, role: 'member' })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: MEMBER_ID, role: 'member' })}`;
 }
 
 function seedGalleryRow(

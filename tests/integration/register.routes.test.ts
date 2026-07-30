@@ -91,7 +91,7 @@ describe('GET /register', () => {
 
   it('redirects authenticated user to own profile', async () => {
     const app = createApp();
-    const cookie = `footbag_session=${createTestSessionJwt({ memberId: 'member-existing-001' })}`;
+    const cookie = `__Host-footbag_session=${createTestSessionJwt({ memberId: 'member-existing-001' })}`;
     const res = await request(app).get('/register').set('Cookie', cookie);
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/members/existing_user');
@@ -115,7 +115,7 @@ describe('POST /register', () => {
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/register/check-email');
     const cookies = res.headers['set-cookie'] as string[] | undefined;
-    expect(cookies?.some((c) => c.startsWith('footbag_session='))).toBeFalsy();
+    expect(cookies?.some((c) => c.startsWith('__Host-footbag_session='))).toBeFalsy();
 
     // The registered branch MUST insert a members row AND enqueue an
     // outbox_emails row. Anti-enumeration keeps the HTTP response identical

@@ -88,7 +88,7 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-const cookieFor = (id: string) => `footbag_session=${createTestSessionJwt({ memberId: id })}`;
+const cookieFor = (id: string) => `__Host-footbag_session=${createTestSessionJwt({ memberId: id })}`;
 
 describe('M_View_Profile — club + media on the public profile', () => {
   it('shows the member club affiliation to an authenticated viewer', async () => {

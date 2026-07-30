@@ -35,7 +35,7 @@ afterAll(() => {
   cleanupTestDb(dbPath);
 });
 
-const cookieFor = (id: string) => `footbag_session=${createTestSessionJwt({ memberId: id })}`;
+const cookieFor = (id: string) => `__Host-footbag_session=${createTestSessionJwt({ memberId: id })}`;
 
 let _n = 0;
 function tier1Member(idStub: string): { id: string; slug: string } {

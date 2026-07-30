@@ -30,7 +30,8 @@
  */
 import { test, expect } from '@playwright/test';
 import sharp from 'sharp';
-import { seedTier1Member, personaToPlaywrightCookies } from '../fixtures/personas';
+import { seedTier1Member } from '../fixtures/personas';
+import { authenticateContext } from './helpers/wizard-auth';
 import { insertPersonaNamedGallery, completeOnboarding } from '../../src/testkit/personaRowBuilders';
 import { insertFreestyleTrick } from '../fixtures/factories';
 import { openLiveDb } from './helpers/liveDb';
@@ -41,7 +42,7 @@ test('Tier-1 member uploads avatar end-to-end against real image worker', { tag:
   db.close();
 
   const context = await browser.newContext();
-  await context.addCookies(personaToPlaywrightCookies(persona, { domain: new URL(baseURL!).hostname }));
+  await authenticateContext(context, baseURL!, persona);
 
   const page = await context.newPage();
   await page.goto(`/members/${persona.slug}/edit`);
@@ -91,7 +92,7 @@ test('Tier-1 member uploads a photo into their named gallery end-to-end', { tag:
   db.close();
 
   const context = await browser.newContext();
-  await context.addCookies(personaToPlaywrightCookies(persona, { domain: new URL(baseURL!).hostname }));
+  await authenticateContext(context, baseURL!, persona);
   const page = await context.newPage();
 
   // A fresh deploy seeds the gallery container only, never the media, so the
@@ -200,7 +201,7 @@ test('Authenticated owner can render their own edit page', { tag: ['@smoke'] }, 
   db.close();
 
   const context = await browser.newContext();
-  await context.addCookies(personaToPlaywrightCookies(persona, { domain: new URL(baseURL!).hostname }));
+  await authenticateContext(context, baseURL!, persona);
 
   const page = await context.newPage();
   const res = await page.goto(`/members/${persona.slug}/edit`);

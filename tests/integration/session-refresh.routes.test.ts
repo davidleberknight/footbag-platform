@@ -29,7 +29,7 @@ afterAll(() => cleanupTestDb(dbPath));
 function sessionCookies(res: { headers: Record<string, unknown> }): string[] {
   const raw = res.headers['set-cookie'];
   const arr = Array.isArray(raw) ? raw : raw ? [String(raw)] : [];
-  return arr.filter((c) => c.startsWith('footbag_session='));
+  return arr.filter((c) => c.startsWith('__Host-footbag_session='));
 }
 
 describe('sliding-session refresh window', () => {
@@ -38,7 +38,7 @@ describe('sliding-session refresh window', () => {
     const nearExpiry = createTestSessionJwt({ memberId: 'mem-refresh', ttlSeconds: 60 * 60 });
     const res = await request(createApp())
       .get('/members/mem_refresh')
-      .set('Cookie', `footbag_session=${nearExpiry}`);
+      .set('Cookie', `__Host-footbag_session=${nearExpiry}`);
     expect(res.status).toBe(200);
     const cookies = sessionCookies(res);
     expect(cookies).toHaveLength(1);
@@ -52,7 +52,7 @@ describe('sliding-session refresh window', () => {
     const fresh = createTestSessionJwt({ memberId: 'mem-refresh', ttlSeconds: 24 * 60 * 60 });
     const res = await request(createApp())
       .get('/members/mem_refresh')
-      .set('Cookie', `footbag_session=${fresh}`);
+      .set('Cookie', `__Host-footbag_session=${fresh}`);
     expect(res.status).toBe(200);
     expect(sessionCookies(res)).toHaveLength(0);
   });
@@ -61,7 +61,7 @@ describe('sliding-session refresh window', () => {
     const expired = createTestSessionJwt({ memberId: 'mem-refresh', ttlSeconds: -60 });
     const res = await request(createApp())
       .get('/members/mem_refresh')
-      .set('Cookie', `footbag_session=${expired}`);
+      .set('Cookie', `__Host-footbag_session=${expired}`);
     expect([302, 303]).toContain(res.status);
     expect(sessionCookies(res)).toHaveLength(0);
   });

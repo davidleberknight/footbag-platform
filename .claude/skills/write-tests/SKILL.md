@@ -122,7 +122,7 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 function authCookie(): string {
-  return `footbag_session=${createTestSessionJwt({ memberId: 'test-001', role: 'member' })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: 'test-001', role: 'member' })}`;
 }
 
 describe('GET /events', () => {

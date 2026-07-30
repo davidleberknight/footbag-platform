@@ -18,13 +18,13 @@ const OTHER_ID    = 'wq_member_002';
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
 function adminCookie(): string {
-  return `footbag_session=${createTestSessionJwt({ memberId: ADMIN_ID, role: 'admin' })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: ADMIN_ID, role: 'admin' })}`;
 }
 function admin2Cookie(): string {
-  return `footbag_session=${createTestSessionJwt({ memberId: ADMIN2_ID, role: 'admin' })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: ADMIN2_ID, role: 'admin' })}`;
 }
 function memberCookie(): string {
-  return `footbag_session=${createTestSessionJwt({ memberId: MEMBER_ID })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: MEMBER_ID })}`;
 }
 
 beforeAll(async () => {
@@ -56,7 +56,7 @@ async function postOneOpenRequest(app: import('express').Express, memberId: stri
   // Submit via the public form to get a real queue row + audit row.
   await request(app)
     .post(`/members/${memberSlug}/contact-admin`)
-    .set('Cookie', `footbag_session=${createTestSessionJwt({ memberId })}`)
+    .set('Cookie', `__Host-footbag_session=${createTestSessionJwt({ memberId })}`)
     .type('form')
     .send({ category: 'display_name_correction', message: 'please fix my name' });
   const db = new BetterSqlite3(dbPath);

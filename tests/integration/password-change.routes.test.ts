@@ -20,7 +20,7 @@ const OLD_PASSWORD = 'OldPassword!1';
 const NEW_PASSWORD = 'NewPassword!2';
 
 function ownCookie(passwordVersion = 1): string {
-  return `footbag_session=${createTestSessionJwt({ memberId: OWN_ID, passwordVersion })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: OWN_ID, passwordVersion })}`;
 }
 
 beforeAll(async () => {
@@ -90,7 +90,7 @@ describe('POST /members/:slug/edit/password', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('Your password has been changed');
     const cookies = res.headers['set-cookie'] as string[] | undefined;
-    expect(cookies?.some((c) => c.startsWith('footbag_session='))).toBe(true);
+    expect(cookies?.some((c) => c.startsWith('__Host-footbag_session='))).toBe(true);
 
     // Verify DB state: password_version incremented.
     const db2 = new BetterSqlite3(dbPath, { readonly: true });
@@ -308,12 +308,12 @@ describe('POST /members/:slug/edit/password — session reissue failure', () => 
     expect(res.text).toContain('could not re-issue your session');
     expect(res.text).toContain('Forgot password');
 
-    // A3: no Set-Cookie issuing a fresh footbag_session. (A clear-cookie
+    // A3: no Set-Cookie issuing a fresh session cookie. (A clear-cookie
     // header with Max-Age=0 would be acceptable; this test asserts no
     // newly-valid session cookie was issued.)
     const cookies = res.headers['set-cookie'] as string[] | undefined;
     const sessionCookieIssued = cookies?.some((c) =>
-      c.startsWith('footbag_session=') &&
+      c.startsWith('__Host-footbag_session=') &&
       !c.match(/Max-Age=0|Expires=Thu, 01 Jan 1970/i),
     );
     expect(sessionCookieIssued).toBeFalsy();
@@ -393,10 +393,10 @@ describe('POST /members/:slug/edit/password — confirmation-email enqueue failu
     expect(res.text).toContain('could not enqueue the confirmation email');
     expect(res.text).toContain('Forgot password');
 
-    // A4: no Set-Cookie issuing a fresh footbag_session.
+    // A4: no Set-Cookie issuing a fresh session cookie.
     const cookies = res.headers['set-cookie'] as string[] | undefined;
     const sessionCookieIssued = cookies?.some((c) =>
-      c.startsWith('footbag_session=') &&
+      c.startsWith('__Host-footbag_session=') &&
       !c.match(/Max-Age=0|Expires=Thu, 01 Jan 1970/i),
     );
     expect(sessionCookieIssued).toBeFalsy();

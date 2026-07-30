@@ -50,10 +50,10 @@ const ADMIN_A = 'member-async-admin-a';
 const ADMIN_B = 'member-async-admin-b';
 
 function adminACookie(): string {
-  return `footbag_session=${createTestSessionJwt({ memberId: ADMIN_A, role: 'admin' })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: ADMIN_A, role: 'admin' })}`;
 }
 function adminBCookie(): string {
-  return `footbag_session=${createTestSessionJwt({ memberId: ADMIN_B, role: 'admin' })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: ADMIN_B, role: 'admin' })}`;
 }
 
 beforeAll(async () => {

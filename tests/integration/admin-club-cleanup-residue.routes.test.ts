@@ -39,10 +39,10 @@ const aff: Record<string, string> = {};
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
 function adminCookie(): string {
-  return `footbag_session=${createTestSessionJwt({ memberId: ADMIN_ID, role: 'admin' })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: ADMIN_ID, role: 'admin' })}`;
 }
 function memberCookie(): string {
-  return `footbag_session=${createTestSessionJwt({ memberId: MEMBER_ID, role: 'member' })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: MEMBER_ID, role: 'member' })}`;
 }
 function readStatus(affId: string): string {
   const db = new BetterSqlite3(dbPath);

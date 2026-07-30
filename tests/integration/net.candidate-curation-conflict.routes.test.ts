@@ -24,7 +24,7 @@ const { dbPath } = setTestEnv('3171');
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
 const VIEWER_ID    = 'viewer-net-curation-conflict';
-const COOKIE       = `footbag_session=${createTestSessionJwt({ memberId: VIEWER_ID })}`;
+const COOKIE       = `__Host-footbag_session=${createTestSessionJwt({ memberId: VIEWER_ID })}`;
 const CURATED_CAND = 'cand-already-curated';
 
 function internalPost(app: ReturnType<typeof createApp>, path: string) {

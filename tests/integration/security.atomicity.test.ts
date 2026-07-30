@@ -29,7 +29,7 @@ const MEMBER_PASSWORD = 'OrigPass!1';
 const LEGACY_ID       = 'atomic-legacy-001';
 
 function ownCookie(): string {
-  return `footbag_session=${createTestSessionJwt({ memberId: MEMBER_ID })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: MEMBER_ID })}`;
 }
 
 function readMember(): Record<string, unknown> {
@@ -64,7 +64,7 @@ function claimTokenFromOutbox(claimingMemberId: string): string {
 }
 
 async function issueClaimToken(memberId: string, identifier: string): Promise<string> {
-  const cookie = `footbag_session=${createTestSessionJwt({ memberId })}`;
+  const cookie = `__Host-footbag_session=${createTestSessionJwt({ memberId })}`;
   const postRes = await request(createApp())
     .post('/register/wizard/legacy_claim/find').set('Cookie', cookie).type('form')
     .send({ identifier });
@@ -162,7 +162,7 @@ describe('claimLegacyAccount — two-actor race', () => {
   const MEMBER_B_SLUG = 'atomic_member_b';
 
   function cookieB(): string {
-    return `footbag_session=${createTestSessionJwt({ memberId: MEMBER_B_ID })}`;
+    return `__Host-footbag_session=${createTestSessionJwt({ memberId: MEMBER_B_ID })}`;
   }
 
   function readMemberB(): Record<string, unknown> {
@@ -381,7 +381,7 @@ describe('claimHistoricalPersonInTx / consumeAndClaimLegacyInTx — outer-rollba
   const FRESH_LEGACY_ID = 'atomic-fresh-legacy-001';
 
   function freshCookie(): string {
-    return `footbag_session=${createTestSessionJwt({ memberId: FRESH_MEMBER_ID })}`;
+    return `__Host-footbag_session=${createTestSessionJwt({ memberId: FRESH_MEMBER_ID })}`;
   }
 
   beforeAll(async () => {
@@ -510,7 +510,7 @@ describe('consumeAndClaimLegacy — wrong-account guard', () => {
 
   it('member B submitting A\'s token is rejected; merge is not performed; token can still be consumed by A', async () => {
     const agentReq = request.agent(createApp());
-    const aCookie = `footbag_session=${createTestSessionJwt({ memberId: A_MEMBER })}`;
+    const aCookie = `__Host-footbag_session=${createTestSessionJwt({ memberId: A_MEMBER })}`;
     const postRes = await agentReq
       .post('/register/wizard/legacy_claim/find')
       .set('Cookie', aCookie)

@@ -49,11 +49,11 @@ afterAll(() => {
 });
 
 function cookieFor(memberId: string): string {
-  return `footbag_session=${createTestSessionJwt({ memberId })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId })}`;
 }
 
 function adminCookie(): string {
-  return `footbag_session=${createTestSessionJwt({ memberId: ADMIN_ID, role: 'admin' })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: ADMIN_ID, role: 'admin' })}`;
 }
 
 function memberBirthDate(memberId: string): string | null {

@@ -44,7 +44,7 @@ afterAll(() => {
 });
 
 function cookieFor(memberId: string): string {
-  return `footbag_session=${createTestSessionJwt({ memberId })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId })}`;
 }
 
 // The out-of-wizard historical-person claim surface is reached only after

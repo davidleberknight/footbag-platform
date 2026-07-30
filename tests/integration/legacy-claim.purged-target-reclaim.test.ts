@@ -68,7 +68,7 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 function cookie(memberId: string): string {
-  return `footbag_session=${createTestSessionJwt({ memberId })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId })}`;
 }
 
 function readDb(): BetterSqlite3.Database {

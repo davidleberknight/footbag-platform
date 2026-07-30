@@ -56,7 +56,7 @@ describe('GET /archive — login-gated hop to the archive landing page', () => {
     const jwt = createTestSessionJwt({ memberId: 'mem-archive', ttlSeconds: 24 * 60 * 60 });
     const res = await request(createApp())
       .get('/archive')
-      .set('Cookie', `footbag_session=${jwt}`);
+      .set('Cookie', `__Host-footbag_session=${jwt}`);
     expect(res.status).toBe(302);
     // Exactly the landing page: no interior path, no query, nothing derived
     // from request input may reach the redirect target.
@@ -67,7 +67,7 @@ describe('GET /archive — login-gated hop to the archive landing page', () => {
     const jwt = createTestSessionJwt({ memberId: 'mem-archive', ttlSeconds: 24 * 60 * 60 });
     const res = await request(createApp())
       .get('/archive?path=/clubs/evil&redirect=https://attacker.example')
-      .set('Cookie', `footbag_session=${jwt}`);
+      .set('Cookie', `__Host-footbag_session=${jwt}`);
     expect(res.status).toBe(302);
     expect(res.headers['location']).toBe('https://archive.example.test');
   });

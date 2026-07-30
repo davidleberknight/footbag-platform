@@ -88,8 +88,8 @@ function isLoginRedirect(res: { status: number; headers: Record<string, unknown>
 }
 
 function sessionCookieFrom(setCookie: string[] | undefined): string {
-  const entry = (setCookie ?? []).find((c) => c.startsWith('footbag_session='));
-  if (!entry) throw new Error('no footbag_session cookie issued');
+  const entry = (setCookie ?? []).find((c) => c.startsWith('__Host-footbag_session='));
+  if (!entry) throw new Error('no session cookie issued');
   return entry.split(';')[0];
 }
 

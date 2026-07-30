@@ -255,7 +255,7 @@ describe('manual claim form — non-revealing on ambiguous email', () => {
   it('renders the SAME "sent" banner as a match or miss (no leak of ambiguity)', async () => {
     // The legacy-claim resolving actions run only once personal details are on
     // file, so complete that step before exercising the manual search.
-    const cookie = `footbag_session=${createTestSessionJwt({ memberId: MEM_AMBIG })}`;
+    const cookie = `__Host-footbag_session=${createTestSessionJwt({ memberId: MEM_AMBIG })}`;
     const agent = request.agent(createApp());
     await agent
       .post('/register/wizard/personal_details/submit')
@@ -277,7 +277,7 @@ describe('manual claim form — non-revealing on ambiguous email', () => {
   });
 
   it('does NOT render the confirm page on ambiguous email', async () => {
-    const cookie = `footbag_session=${createTestSessionJwt({ memberId: MEM_AMBIG })}`;
+    const cookie = `__Host-footbag_session=${createTestSessionJwt({ memberId: MEM_AMBIG })}`;
     const res = await request(createApp())
       .post('/register/wizard/legacy_claim/find')
       .set('Cookie', cookie)
@@ -308,7 +308,7 @@ describe('no-write invariant — no legacy_members or members row changes during
       const token = issueVerifyToken(id);
       await request(app).get(`/verify/${token}`);
     }
-    const cookie = `footbag_session=${createTestSessionJwt({ memberId: MEM_AMBIG })}`;
+    const cookie = `__Host-footbag_session=${createTestSessionJwt({ memberId: MEM_AMBIG })}`;
     await request(app).post('/register/wizard/legacy_claim/find').set('Cookie', cookie)
       .type('form').send({ identifier: AMBIG_EMAIL });
 

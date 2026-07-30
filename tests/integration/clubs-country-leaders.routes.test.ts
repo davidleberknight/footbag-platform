@@ -36,7 +36,7 @@ const { dbPath } = setTestEnv('3093');
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
 function authCookie(): string {
-  return `footbag_session=${createTestSessionJwt({ memberId: 'country-test-user', role: 'member' })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: 'country-test-user', role: 'member' })}`;
 }
 
 // Five clubs in USA exercising every cardinality:

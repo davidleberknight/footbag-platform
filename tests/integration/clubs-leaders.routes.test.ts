@@ -39,7 +39,7 @@ const { dbPath } = setTestEnv('3092');
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
 function authCookie(): string {
-  return `footbag_session=${createTestSessionJwt({ memberId: 'leaders-test-user', role: 'member' })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: 'leaders-test-user', role: 'member' })}`;
 }
 
 const CLUB_TAG_NORMALIZED = '#club_test_leaders';

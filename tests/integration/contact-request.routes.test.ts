@@ -16,11 +16,11 @@ const ADMIN_SUBSCRIBER_ID = 'admin_alerts_subscriber_1';
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
 function ownerCookie(): string {
-  return `footbag_session=${createTestSessionJwt({ memberId: OWNER_ID })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: OWNER_ID })}`;
 }
 
 function strangerCookie(): string {
-  return `footbag_session=${createTestSessionJwt({ memberId: STRANGER_ID })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: STRANGER_ID })}`;
 }
 
 beforeAll(async () => {

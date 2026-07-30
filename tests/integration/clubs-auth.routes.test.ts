@@ -39,7 +39,7 @@ process.env.SESSION_SECRET           = 'test-secret-clubs-auth';
 let createApp: typeof import('../../src/app').createApp;
 
 function authCookie(): string {
-  return `footbag_session=${createTestSessionJwt({ memberId: 'test-user', role: 'admin' })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: 'test-user', role: 'admin' })}`;
 }
 
 beforeAll(async () => {

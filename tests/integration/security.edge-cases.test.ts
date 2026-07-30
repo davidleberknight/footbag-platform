@@ -24,7 +24,7 @@ const MEMBER_EMAIL    = 'edge@example.com';
 const MEMBER_PASSWORD = 'OrigPass!1';
 
 function ownCookie(): string {
-  return `footbag_session=${createTestSessionJwt({ memberId: MEMBER_ID })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: MEMBER_ID })}`;
 }
 
 beforeAll(async () => {

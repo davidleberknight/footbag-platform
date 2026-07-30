@@ -32,7 +32,7 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 function cookie(): string {
-  return `footbag_session=${createTestSessionJwt({ memberId: 'rl-claimer' })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: 'rl-claimer' })}`;
 }
 
 describe('POST /admin/bootstrap-claim — IP rate limiting', () => {

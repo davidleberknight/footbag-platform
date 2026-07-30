@@ -32,10 +32,10 @@ afterAll(() => {
 });
 
 function cookieFor(memberId: string): string {
-  return `footbag_session=${createTestSessionJwt({ memberId })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId })}`;
 }
 function adminCookie(): string {
-  return `footbag_session=${createTestSessionJwt({ memberId: 'admin-lh', role: 'admin' })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: 'admin-lh', role: 'admin' })}`;
 }
 
 function openItems(memberId: string): Array<Record<string, unknown>> {

@@ -54,11 +54,11 @@ const OTHER_ID    = 'avatar-test-other-001';
 const OTHER_SLUG  = 'avatar_other';
 
 function ownCookie(): string {
-  return `footbag_session=${createTestSessionJwt({ memberId: OWN_ID })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: OWN_ID })}`;
 }
 
 function otherCookie(): string {
-  return `footbag_session=${createTestSessionJwt({ memberId: OTHER_ID })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: OTHER_ID })}`;
 }
 
 beforeAll(async () => {

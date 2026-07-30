@@ -51,7 +51,7 @@ function seedMember(): string {
   return id;
 }
 function cookieFor(memberId: string): string {
-  return `footbag_session=${createTestSessionJwt({ memberId })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId })}`;
 }
 function clubStatus(clubId: string): string {
   return (db.prepare('SELECT status FROM clubs WHERE id = ?').get(clubId) as { status: string }).status;

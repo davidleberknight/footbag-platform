@@ -25,7 +25,7 @@ const MEMBER_ID   = 'edit-val-001';
 const MEMBER_SLUG = 'edit_validator';
 
 function ownCookie(): string {
-  return `footbag_session=${createTestSessionJwt({ memberId: MEMBER_ID })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: MEMBER_ID })}`;
 }
 
 /** Read the member row directly from the test DB to verify persisted values. */

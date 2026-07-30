@@ -160,7 +160,7 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-const cookieFor = (id: string) => `footbag_session=${createTestSessionJwt({ memberId: id })}`;
+const cookieFor = (id: string) => `__Host-footbag_session=${createTestSessionJwt({ memberId: id })}`;
 const PROFILE_HREF = `href="/members/${MEMBER_SLUG}"`;
 
 describe('member-uploaded media surfaces', () => {

@@ -56,6 +56,11 @@ import { createTestSessionJwt } from '../fixtures/factories';
 import { assertSecureSessionCookie } from '../fixtures/assertSecureSessionCookie';
 
 function validAuthCookie(): string {
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: 'test-user', role: 'admin' })}`;
+}
+
+// A session presented under the bare name, which the application never reads.
+function unprefixedAuthCookie(): string {
   return `footbag_session=${createTestSessionJwt({ memberId: 'test-user', role: 'admin' })}`;
 }
 
@@ -1090,7 +1095,7 @@ describe('POST /login', () => {
     const cookies: string[] = Array.isArray(res.headers['set-cookie'])
       ? res.headers['set-cookie']
       : [res.headers['set-cookie']];
-    expect(cookies.some((c: string) => c.startsWith('footbag_session='))).toBe(true);
+    expect(cookies.some((c: string) => c.startsWith('__Host-footbag_session='))).toBe(true);
     assertSecureSessionCookie(res.headers['set-cookie']);
   });
 
@@ -1115,6 +1120,54 @@ describe('POST /login', () => {
   });
 });
 
+// ── Auth: the session cookie's host-prefixed name ─────────────────────────────
+//
+// The session cookie is named with the `__Host-` prefix on every transport, and
+// only that name is ever read. The prefix is enforced by the browser, which
+// discards a cookie so named unless it is Secure, carries no Domain and is
+// rooted at "/", and that is what stops another host on the same registrable
+// domain from setting a cookie of this name that shadows the real session.
+// Reading the bare name as a fallback would hand that shadowing cookie the
+// acceptance the prefix exists to deny, so the bare name is ignored outright.
+
+describe('session cookie host-prefixed name', () => {
+  it('issues the session cookie under the prefixed name with the attributes the prefix requires', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .post('/login')
+      .send(`email=footbag&password=${encodeURIComponent(process.env.STUB_PASSWORD!)}`)
+      .set('Content-Type', 'application/x-www-form-urlencoded');
+    expect(res.status).toBe(303);
+    assertSecureSessionCookie(res.headers['set-cookie']);
+  });
+
+  it('ignores a session presented under the bare cookie name', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .get('/login')
+      .set('Cookie', unprefixedAuthCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('name="password"');
+  });
+
+  it('clears the prefixed cookie with attributes matching the ones it was set with', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .post('/logout')
+      .set('Cookie', validAuthCookie());
+    expect(res.status).toBe(303);
+    const cookies: string[] = Array.isArray(res.headers['set-cookie'])
+      ? res.headers['set-cookie']
+      : [res.headers['set-cookie'] ?? ''];
+    const cleared = cookies.find((c: string) => c.startsWith('__Host-footbag_session='));
+    expect(cleared).toBeDefined();
+    expect(cleared).toMatch(/Max-Age=0|Expires=Thu, 01 Jan 1970/i);
+    expect(cleared).toMatch(/;\s*Secure\b/i);
+    expect(cleared).toMatch(/;\s*Path=\/(;|$)/i);
+    expect(cleared).not.toMatch(/;\s*Domain=/i);
+  });
+});
+
 // ── Auth: POST /logout ─────────────────────────────────────────────────────────
 
 describe('POST /logout', () => {
@@ -1128,7 +1181,7 @@ describe('POST /logout', () => {
     const cookies: string[] = Array.isArray(res.headers['set-cookie'])
       ? res.headers['set-cookie']
       : [res.headers['set-cookie'] ?? ''];
-    const sessionCookie = cookies.find((c: string) => c.startsWith('footbag_session='));
+    const sessionCookie = cookies.find((c: string) => c.startsWith('__Host-footbag_session='));
     expect(sessionCookie).toBeDefined();
     expect(sessionCookie).toMatch(/Max-Age=0|Expires=Thu, 01 Jan 1970/i);
   });

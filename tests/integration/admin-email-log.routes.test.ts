@@ -15,10 +15,10 @@ const MEMBER_SLUG = 'el_member_one';
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
 function adminCookie(): string {
-  return `footbag_session=${createTestSessionJwt({ memberId: ADMIN_ID, role: 'admin' })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: ADMIN_ID, role: 'admin' })}`;
 }
 function memberCookie(): string {
-  return `footbag_session=${createTestSessionJwt({ memberId: MEMBER_ID })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: MEMBER_ID })}`;
 }
 
 function withDb<T>(fn: (db: BetterSqlite3.Database) => T): T {

@@ -67,13 +67,13 @@ const SYSTEM_ID   = 'member_footbag_hacky_mg_test';
 let CURATED_TMP_ROOT: string;
 
 function ownerCookie(): string {
-  return `footbag_session=${createTestSessionJwt({ memberId: OWNER_ID, role: 'member' })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: OWNER_ID, role: 'member' })}`;
 }
 function otherCookie(): string {
-  return `footbag_session=${createTestSessionJwt({ memberId: OTHER_ID, role: 'member' })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: OTHER_ID, role: 'member' })}`;
 }
 function adminCookie(): string {
-  return `footbag_session=${createTestSessionJwt({ memberId: ADMIN_ID, role: 'admin' })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: ADMIN_ID, role: 'admin' })}`;
 }
 
 beforeAll(async () => {

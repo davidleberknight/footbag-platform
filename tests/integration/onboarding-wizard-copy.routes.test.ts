@@ -50,11 +50,11 @@ afterAll(() => {
 });
 
 function cookie(): string {
-  return `footbag_session=${createTestSessionJwt({ memberId: 'copy-member' })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: 'copy-member' })}`;
 }
 
 function pendingDetailsCookie(): string {
-  return `footbag_session=${createTestSessionJwt({ memberId: 'copy-pd-member' })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: 'copy-pd-member' })}`;
 }
 
 describe('legacy-claim matching microcopy', () => {

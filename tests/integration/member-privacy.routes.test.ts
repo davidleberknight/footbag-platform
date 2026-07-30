@@ -32,7 +32,7 @@ const DECEASED_EMAIL    = 'deceased@example.com';
 const DECEASED_PASSWORD = 'DeceasedPass1!';
 
 function viewerCookie(): string {
-  return `footbag_session=${createTestSessionJwt({ memberId: VIEWER_ID })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: VIEWER_ID })}`;
 }
 
 beforeAll(async () => {

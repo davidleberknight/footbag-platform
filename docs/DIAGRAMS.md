@@ -188,7 +188,7 @@ Visual aids for understanding the system design. Six diagrams cover production i
 │    exp:             1234654290,    // +24 hours                     │
 │  }                                                                  │
 │                                                                     │
-│  Set-Cookie: footbag_session=<JWT>                                  │
+│  Set-Cookie: __Host-footbag_session=<JWT>                           │
 │    HttpOnly · Secure · SameSite=Lax · Max-Age: 86400                │
 └─────────────────────────────────────────────────────────────────────┘
   ↓
@@ -203,7 +203,7 @@ Visual aids for understanding the system design. Six diagrams cover production i
 
 ════════════════════  AUTHENTICATED REQUEST FLOW  ═════════════════════
 
-  Browser:  GET /events/123   Cookie: footbag_session=<JWT>
+  Browser:  GET /events/123   Cookie: __Host-footbag_session=<JWT>
   ↓
 ┌─────────────────────────────────────────────────────────────────────┐
 │  web Controller  (runs on every protected route)                    │
@@ -384,7 +384,7 @@ Visual aids for understanding the system design. Six diagrams cover production i
 ════════  WRITE PATH  (e.g.  POST /events/123 — update event)  ════════
 
   Browser:  POST /events/123  { title, description, expectedVersion: 5 }
-  Cookie:   footbag_session=<JWT>  |  SameSite=Lax + Origin pin block CSRF
+  Cookie:   __Host-footbag_session=<JWT>  |  SameSite=Lax + Origin pin block CSRF
   ↓
 ┌─────────────────────────────────────────────────────────────────────┐
 │  CloudFront → nginx → web container                                 │

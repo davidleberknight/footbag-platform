@@ -48,7 +48,7 @@ afterAll(() => {
 });
 
 function sessionCookie(setCookie: string[] | undefined): string | undefined {
-  return (setCookie ?? []).find((c) => c.startsWith('footbag_session='));
+  return (setCookie ?? []).find((c) => c.startsWith('__Host-footbag_session='));
 }
 
 describe('GET /dev/login', () => {

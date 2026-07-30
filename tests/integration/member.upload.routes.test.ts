@@ -58,13 +58,13 @@ let resetVideoUrlVerifierForTests: () => void;
 let resetRateLimitForTests: () => void;
 
 function ownerCookie(): string {
-  return `footbag_session=${createTestSessionJwt({ memberId: OWNER_ID, role: 'member' })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: OWNER_ID, role: 'member' })}`;
 }
 function otherCookie(): string {
-  return `footbag_session=${createTestSessionJwt({ memberId: OTHER_ID, role: 'member' })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: OTHER_ID, role: 'member' })}`;
 }
 function adminCookie(): string {
-  return `footbag_session=${createTestSessionJwt({ memberId: ADMIN_ID, role: 'admin' })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: ADMIN_ID, role: 'admin' })}`;
 }
 
 async function makeJpeg(): Promise<Buffer> {

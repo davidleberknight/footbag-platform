@@ -51,7 +51,7 @@ describe('CSRF — SameSite cookie attribute', () => {
       .send({ email: MEMBER_EMAIL, password: MEMBER_PASSWORD });
     expect(res.status).toBe(303);
     const cookies = res.headers['set-cookie'] as string[] | undefined;
-    const session = cookies?.find((c) => c.startsWith('footbag_session='));
+    const session = cookies?.find((c) => c.startsWith('__Host-footbag_session='));
     expect(session).toBeDefined();
     expect(session!).toMatch(/SameSite=Lax/i);
     expect(session!).toMatch(/HttpOnly/i);
@@ -66,7 +66,7 @@ describe('CSRF — SameSite cookie attribute', () => {
       .send({ email: MEMBER_EMAIL, password: MEMBER_PASSWORD });
     expect(res.status).toBe(303);
     const cookies = res.headers['set-cookie'] as string[] | undefined;
-    const session = cookies?.find((c) => c.startsWith('footbag_session='));
+    const session = cookies?.find((c) => c.startsWith('__Host-footbag_session='));
     expect(session).toBeDefined();
     expect(session!).toMatch(/Secure/i);
     expect(session!).toMatch(/SameSite=Lax/i);
@@ -87,7 +87,7 @@ describe('CSRF — SameSite cookie attribute', () => {
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/register/check-email');
     const cookies = res.headers['set-cookie'] as string[] | undefined;
-    expect(cookies?.some((c) => c.startsWith('footbag_session='))).toBeFalsy();
+    expect(cookies?.some((c) => c.startsWith('__Host-footbag_session='))).toBeFalsy();
   });
 });
 
@@ -121,7 +121,7 @@ describe('CSRF — verb discipline', () => {
       .type('form')
       .send({ email: MEMBER_EMAIL, password: MEMBER_PASSWORD });
     const cookies = loginRes.headers['set-cookie'] as string[];
-    const sessionCookie = cookies.find((c) => c.startsWith('footbag_session='))!
+    const sessionCookie = cookies.find((c) => c.startsWith('__Host-footbag_session='))!
       .split(';')[0];
 
     // GET /logout renders a bridge page that auto-submits POST /logout, but

@@ -63,11 +63,11 @@ const ADMIN_EMAIL    = 'outbox-admin@example.com';
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
 function submitterCookie(): string {
-  return `footbag_session=${createTestSessionJwt({ memberId: SUBMITTER_ID })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: SUBMITTER_ID })}`;
 }
 
 function adminCookie(): string {
-  return `footbag_session=${createTestSessionJwt({ memberId: ADMIN_ID, role: 'admin' })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: ADMIN_ID, role: 'admin' })}`;
 }
 
 beforeAll(async () => {

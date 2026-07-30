@@ -77,7 +77,7 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 function cookieFor(memberId: string): string {
-  return `footbag_session=${createTestSessionJwt({ memberId })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId })}`;
 }
 
 const SLUG_BY_ID: Record<string, string> = {

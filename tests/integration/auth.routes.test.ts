@@ -88,7 +88,7 @@ describe('POST /login — DB-backed auth', () => {
       .send({ email: TEST_MEMBER_EMAIL, password: TEST_PASSWORD });
 
     expect(res.status).toBe(303);
-    const cookie = (res.headers['set-cookie'] as string[])?.find((c) => c.startsWith('footbag_session='));
+    const cookie = (res.headers['set-cookie'] as string[])?.find((c) => c.startsWith('__Host-footbag_session='));
     expect(cookie).toBeTruthy();
   });
 
@@ -99,7 +99,7 @@ describe('POST /login — DB-backed auth', () => {
       .send({ email: 'footbag', password: FOOTBAG_PASSWORD });
 
     expect(res.status).toBe(303);
-    const cookie = (res.headers['set-cookie'] as string[])?.find((c) => c.startsWith('footbag_session='));
+    const cookie = (res.headers['set-cookie'] as string[])?.find((c) => c.startsWith('__Host-footbag_session='));
     expect(cookie).toBeTruthy();
   });
 

@@ -16,7 +16,7 @@
  * matching Origin on mutations, which would defeat the negative case this
  * helper is designed to drive.
  *
- * When `opts.cookie` is supplied (a valid `footbag_session=...` cookie),
+ * When `opts.cookie` is supplied (a valid `__Host-footbag_session=...` cookie),
  * the helper proves that the perimeter rejects EVEN authenticated requests.
  * Without that, a regression that mounted a route outside the perimeter
  * could be masked by `requireAuth`'s 302-to-login on routes behind the
@@ -46,7 +46,7 @@ export async function expectCsrfReject(
   //   1. mismatched Origin (attacker page that DOES send Origin)
   //   2. no Origin AND no Referer (stripped-headers client)
   // Both must produce a 403 with the forbidden-page body, and neither
-  // may issue a footbag_session cookie (which would prove a controller ran).
+  // may issue a __Host-footbag_session cookie (which would prove a controller ran).
   const headerVariants: Array<{ label: string; headers: Record<string, string> }> = [
     { label: 'mismatched Origin', headers: { Origin: ATTACKER_ORIGIN } },
     { label: 'no Origin, no Referer', headers: {} },
@@ -67,7 +67,7 @@ export async function expectCsrfReject(
     expect(res.text, `${tag}: 403 body did not match /Forbidden/i`).toMatch(/Forbidden/i);
 
     const setCookies = (res.headers['set-cookie'] as string[] | undefined) ?? [];
-    const sessionIssued = setCookies.some((c) => c.startsWith('footbag_session='));
-    expect(sessionIssued, `${tag}: footbag_session issued despite CSRF reject`).toBe(false);
+    const sessionIssued = setCookies.some((c) => c.startsWith('__Host-footbag_session='));
+    expect(sessionIssued, `${tag}: __Host-footbag_session issued despite CSRF reject`).toBe(false);
   }
 }

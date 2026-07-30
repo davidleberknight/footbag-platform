@@ -25,8 +25,8 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 
 const MEMBER_ID = 'member-internal-gate';
 const ADMIN_ID  = 'admin-internal-gate';
-const MEMBER_COOKIE = `footbag_session=${createTestSessionJwt({ memberId: MEMBER_ID })}`;
-const ADMIN_COOKIE  = `footbag_session=${createTestSessionJwt({ memberId: ADMIN_ID })}`;
+const MEMBER_COOKIE = `__Host-footbag_session=${createTestSessionJwt({ memberId: MEMBER_ID })}`;
+const ADMIN_COOKIE  = `__Host-footbag_session=${createTestSessionJwt({ memberId: ADMIN_ID })}`;
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);

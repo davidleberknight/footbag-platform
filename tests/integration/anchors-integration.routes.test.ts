@@ -45,7 +45,7 @@ afterAll(() => {
 });
 
 function cookieFor(memberId: string): string {
-  return `footbag_session=${createTestSessionJwt({ memberId })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId })}`;
 }
 
 function declareOldEmail(memberId: string, email: string): void {

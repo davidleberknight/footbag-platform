@@ -22,13 +22,13 @@ function decodeJwtPayload(token: string): Record<string, unknown> {
   return JSON.parse(payload);
 }
 
-/** Extract a Set-Cookie footbag_session value from a supertest response. */
+/** Extract the Set-Cookie session value from a supertest response. */
 function extractSessionCookie(res: { headers: Record<string, unknown> }): string {
   const cookies = res.headers['set-cookie'] as string[] | undefined;
-  const cookie = cookies?.find((c) => c.startsWith('footbag_session='));
-  if (!cookie) throw new Error('expected footbag_session Set-Cookie header');
-  const match = cookie.match(/^footbag_session=([^;]+)/);
-  if (!match) throw new Error('malformed footbag_session cookie');
+  const cookie = cookies?.find((c) => c.startsWith('__Host-footbag_session='));
+  if (!cookie) throw new Error('expected a session Set-Cookie header');
+  const match = cookie.match(/^__Host-footbag_session=([^;]+)/);
+  if (!match) throw new Error('malformed session cookie');
   return match[1];
 }
 
@@ -66,7 +66,7 @@ describe('session edge cases — malformed JWT cookies', () => {
     const app = createApp();
     const res = await request(app)
       .get(PROTECTED_ROUTE)
-      .set('Cookie', 'footbag_session=garbage');
+      .set('Cookie', '__Host-footbag_session=garbage');
     expectUnauthenticated(res);
   });
 
@@ -74,7 +74,7 @@ describe('session edge cases — malformed JWT cookies', () => {
     const app = createApp();
     const res = await request(app)
       .get(PROTECTED_ROUTE)
-      .set('Cookie', 'footbag_session=');
+      .set('Cookie', '__Host-footbag_session=');
     expectUnauthenticated(res);
   });
 
@@ -82,7 +82,7 @@ describe('session edge cases — malformed JWT cookies', () => {
     const app = createApp();
     const res = await request(app)
       .get(PROTECTED_ROUTE)
-      .set('Cookie', 'footbag_session=aaa.bbb');
+      .set('Cookie', '__Host-footbag_session=aaa.bbb');
     expectUnauthenticated(res);
   });
 
@@ -92,7 +92,7 @@ describe('session edge cases — malformed JWT cookies', () => {
     const app = createApp();
     const res = await request(app)
       .get(PROTECTED_ROUTE)
-      .set('Cookie', `footbag_session=${junk}.${junk}.${junk}`);
+      .set('Cookie', `__Host-footbag_session=${junk}.${junk}.${junk}`);
     expectUnauthenticated(res);
   });
 });
@@ -112,7 +112,7 @@ describe('session edge cases — tampered JWTs', () => {
     const app = createApp();
     const res = await request(app)
       .get(PROTECTED_ROUTE)
-      .set('Cookie', `footbag_session=${parts[0]}.${parts[1]}.${tamperedSig}`);
+      .set('Cookie', `__Host-footbag_session=${parts[0]}.${parts[1]}.${tamperedSig}`);
     expectUnauthenticated(res);
   });
 
@@ -125,7 +125,7 @@ describe('session edge cases — tampered JWTs', () => {
     const app = createApp();
     const res = await request(app)
       .get(PROTECTED_ROUTE)
-      .set('Cookie', `footbag_session=${parts[0]}.${hackerPayload}.${parts[2]}`);
+      .set('Cookie', `__Host-footbag_session=${parts[0]}.${hackerPayload}.${parts[2]}`);
     expectUnauthenticated(res);
   });
 });
@@ -140,7 +140,7 @@ describe('session edge cases — expired JWT', () => {
     const app = createApp();
     const res = await request(app)
       .get(PROTECTED_ROUTE)
-      .set('Cookie', `footbag_session=${expiredToken}`);
+      .set('Cookie', `__Host-footbag_session=${expiredToken}`);
     expectUnauthenticated(res);
   });
 });
@@ -152,7 +152,7 @@ describe('session edge cases — stale passwordVersion', () => {
     const app = createApp();
     const res = await request(app)
       .get(PROTECTED_ROUTE)
-      .set('Cookie', `footbag_session=${staleToken}`);
+      .set('Cookie', `__Host-footbag_session=${staleToken}`);
     expectUnauthenticated(res);
   });
 });
@@ -163,7 +163,7 @@ describe('session edge cases — unknown sub', () => {
     const app = createApp();
     const res = await request(app)
       .get(PROTECTED_ROUTE)
-      .set('Cookie', `footbag_session=${orphanToken}`);
+      .set('Cookie', `__Host-footbag_session=${orphanToken}`);
     expectUnauthenticated(res);
   });
 
@@ -175,7 +175,7 @@ describe('session edge cases — unknown sub', () => {
     // the unknown slug (the important thing is no 500).
     const res = await request(app)
       .get('/members/ghost_user')
-      .set('Cookie', `footbag_session=${orphanToken}`);
+      .set('Cookie', `__Host-footbag_session=${orphanToken}`);
     expect(res.status).toBe(404);
   });
 });
@@ -208,7 +208,7 @@ describe('session edge cases — unverified email', () => {
     const app = createApp();
     const res = await request(app)
       .get(PROTECTED_ROUTE)
-      .set('Cookie', `footbag_session=${token}`);
+      .set('Cookie', `__Host-footbag_session=${token}`);
     expectUnauthenticated(res);
   });
 });
@@ -260,7 +260,7 @@ describe('session edge cases — authz role is derived from DB, not JWT claims',
     const app = createApp();
     const res = await request(app)
       .post(`/members/${NON_ADMIN_SLUG}/edit/password`)
-      .set('Cookie', `footbag_session=${stolenAdminToken}`)
+      .set('Cookie', `__Host-footbag_session=${stolenAdminToken}`)
       .type('form')
       .send({
         oldPassword: OLD_PASSWORD,
@@ -291,7 +291,7 @@ describe('session edge cases — authz role is derived from DB, not JWT claims',
     const app = createApp();
     const res = await request(app)
       .post(`/members/${ADMIN_SLUG}/edit/password`)
-      .set('Cookie', `footbag_session=${downgradedToken}`)
+      .set('Cookie', `__Host-footbag_session=${downgradedToken}`)
       .type('form')
       .send({
         oldPassword: OLD_PASSWORD,
@@ -334,7 +334,7 @@ describe('session edge cases — deceased member', () => {
     const app = createApp();
     const res = await request(app)
       .get(PROTECTED_ROUTE)
-      .set('Cookie', `footbag_session=${token}`);
+      .set('Cookie', `__Host-footbag_session=${token}`);
     expectUnauthenticated(res);
   });
 });

@@ -22,8 +22,8 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 
 const MEMBER_ID = 'member-ev-workbench';
 const ADMIN_ID  = 'admin-ev-workbench';
-const MEMBER_COOKIE = `footbag_session=${createTestSessionJwt({ memberId: MEMBER_ID })}`;
-const ADMIN_COOKIE  = `footbag_session=${createTestSessionJwt({ memberId: ADMIN_ID })}`;
+const MEMBER_COOKIE = `__Host-footbag_session=${createTestSessionJwt({ memberId: MEMBER_ID })}`;
+const ADMIN_COOKIE  = `__Host-footbag_session=${createTestSessionJwt({ memberId: ADMIN_ID })}`;
 const PATH = '/admin/freestyle/emerging-vocabulary';
 const LEGACY_PATH = '/internal/freestyle/emerging-vocabulary';
 

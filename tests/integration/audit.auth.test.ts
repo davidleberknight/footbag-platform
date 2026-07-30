@@ -26,7 +26,7 @@ const OLD_PASSWORD  = 'AuditOld!1';
 const NEW_PASSWORD  = 'AuditNew!2';
 
 function ownCookie(passwordVersion = 1): string {
-  return `footbag_session=${createTestSessionJwt({ memberId: OWN_ID, passwordVersion })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: OWN_ID, passwordVersion })}`;
 }
 
 interface AuditRow {

@@ -21,7 +21,7 @@ const CAPPED_ID = `member_persona_${CAPPED}`;
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
 function cookie(memberId: string): string {
-  return `footbag_session=${createTestSessionJwt({ memberId, ttlSeconds: 24 * 60 * 60 })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId, ttlSeconds: 24 * 60 * 60 })}`;
 }
 
 function createClub(memberId: string, body: Record<string, string>) {

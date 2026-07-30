@@ -29,7 +29,7 @@ afterAll(() => {
   cleanupTestDb(dbPath);
 });
 
-const adminCookie = () => `footbag_session=${createTestSessionJwt({ memberId: 'acl-admin', role: 'admin' })}`;
+const adminCookie = () => `__Host-footbag_session=${createTestSessionJwt({ memberId: 'acl-admin', role: 'admin' })}`;
 
 let _n = 0;
 function seedClub(): string {
@@ -53,7 +53,7 @@ describe('access', () => {
     const member = seedMember();
     const res = await request(createApp())
       .get('/admin/clubs/leadership')
-      .set('Cookie', `footbag_session=${createTestSessionJwt({ memberId: member })}`);
+      .set('Cookie', `__Host-footbag_session=${createTestSessionJwt({ memberId: member })}`);
     expect([403, 404]).toContain(res.status);
   });
 });

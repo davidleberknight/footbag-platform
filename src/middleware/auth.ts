@@ -4,7 +4,27 @@ import { getJwtSigningAdapter } from '../adapters/jwtSigningAdapter';
 import { createSessionJwt } from '../services/jwtService';
 import { issueSessionCookie } from '../lib/sessionCookie';
 
-export const SESSION_COOKIE_NAME = 'footbag_session';
+/**
+ * The `__Host-` prefix is enforced by the browser rather than by the server: a
+ * cookie so named is discarded unless it carries Secure, carries no Domain
+ * attribute, and has Path=/. That is the protection host-only scope cannot
+ * supply on its own, because cookie scope is evaluated against a request's
+ * destination host and not against whoever set the cookie, and because the
+ * Cookie request header carries only name and value, so the application cannot
+ * tell a cookie it set from one another host planted. Without the prefix, any
+ * other footbag.org name, including one still served by another operator, can
+ * set a parent-domain cookie of this name that shadows the real session and
+ * silently substitutes its own identity for the member's.
+ *
+ * The name is unconditional, and only this name is ever read. Browsers exempt
+ * localhost from the HTTPS requirement for Secure cookies, so the prefixed name
+ * works in local development as well, and there is no transport on which a
+ * second name would be needed. Deciding the name from the request or the
+ * environment would be fail-open: the moment that signal was lost the
+ * application would silently accept the shadowing cookie again.
+ */
+export const SESSION_COOKIE_NAME = '__Host-footbag_session';
+
 export const SESSION_COOKIE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 export interface SessionUser {

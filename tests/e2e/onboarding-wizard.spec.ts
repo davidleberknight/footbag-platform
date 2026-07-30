@@ -8,6 +8,7 @@
  * Kept deliberately lightweight: only checks that genuinely need a real
  * browser belong here; everything else lives in the integration suite.
  */
+import { randomBytes } from 'node:crypto';
 import { test, expect } from '@playwright/test';
 import {
   seedBrandNewPlayer,
@@ -30,8 +31,17 @@ test('post-verify: register -> check-email -> click verify link -> lands on wiza
   const registerPage = new RegisterPage(page);
 
   await registerPage.goto();
+  // The surname varies per run, in letters only. Registration derives a
+  // permanent profile URL from the name, so a fixed name means a fixed URL and
+  // any second registration of it against the same database is refused for a URL
+  // already taken, failing on a collision rather than on anything this test is
+  // about. Letters only because a legal name may not contain digits, so a
+  // numeric stamp is rejected by validation before the flow even starts.
+  const surname = `Newbie${Array.from(randomBytes(6))
+    .map((b) => String.fromCharCode(97 + (b % 26)))
+    .join('')}`;
   await registerPage.fillRegistration({
-    realName: 'Test Newbie',
+    realName: `Test ${surname}`,
     email,
     password: 'e2e-test-password-123',
   });

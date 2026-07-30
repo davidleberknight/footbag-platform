@@ -210,7 +210,7 @@ describe('POST /password/reset/:token', () => {
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe(`/members/${MEMBER_SLUG}`);
     const cookies = res.headers['set-cookie'] as string[] | undefined;
-    expect(cookies?.some((c) => c.startsWith('footbag_session='))).toBe(true);
+    expect(cookies?.some((c) => c.startsWith('__Host-footbag_session='))).toBe(true);
     assertSecureSessionCookie(res.headers['set-cookie']);
     // A response that establishes a session must not be cacheable.
     expect(res.headers['cache-control']).toMatch(/no-store/);
@@ -266,7 +266,7 @@ describe('POST /password/reset/:token', () => {
       expect(res.status).toBe(422);
       expect(res.text).toContain('invalid, expired, or already used');
       const cookies = res.headers['set-cookie'] as string[] | undefined;
-      expect(cookies?.some((c) => c.startsWith('footbag_session='))).toBeFalsy();
+      expect(cookies?.some((c) => c.startsWith('__Host-footbag_session='))).toBeFalsy();
       const ro = new BetterSqlite3(dbPath, { readonly: true });
       const row = ro.prepare('SELECT password_version FROM members WHERE id=?').get(MEMBER_ID) as
         | { password_version: number }
@@ -317,7 +317,7 @@ describe('POST /password/reset/:token', () => {
       newPassword: NEW_PASSWORD, confirmPassword: NEW_PASSWORD,
     });
     // A JWT minted against the pre-reset passwordVersion=1 is no longer valid.
-    const stale = `footbag_session=${createTestSessionJwt({ memberId: MEMBER_ID, passwordVersion: 1 })}`;
+    const stale = `__Host-footbag_session=${createTestSessionJwt({ memberId: MEMBER_ID, passwordVersion: 1 })}`;
     const r = await request(app).get(`/members/${MEMBER_SLUG}/edit`).set('Cookie', stale);
     expect(r.status).toBe(302);
     expect(r.headers.location).toContain('/login');
@@ -437,7 +437,7 @@ describe('POST /password/reset/:token — session reissue failure', () => {
 
     const cookies = res.headers['set-cookie'] as string[] | undefined;
     const sessionCookieIssued = cookies?.some((c) =>
-      c.startsWith('footbag_session=') &&
+      c.startsWith('__Host-footbag_session=') &&
       !c.match(/Max-Age=0|Expires=Thu, 01 Jan 1970/i),
     );
     expect(sessionCookieIssued).toBeFalsy();
@@ -543,7 +543,7 @@ describe('POST /password/reset/:token — confirmation-email enqueue failure', (
 describe('Confirmation email for in-profile password change', () => {
   it('POST /members/:slug/edit/password enqueues a confirmation email', async () => {
     const app = createApp();
-    const cookie = `footbag_session=${createTestSessionJwt({ memberId: MEMBER_ID, passwordVersion: 1 })}`;
+    const cookie = `__Host-footbag_session=${createTestSessionJwt({ memberId: MEMBER_ID, passwordVersion: 1 })}`;
     const res = await request(app)
       .post(`/members/${MEMBER_SLUG}/edit/password`)
       .set('Cookie', cookie)

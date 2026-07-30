@@ -35,7 +35,7 @@ afterAll(() => {
   cleanupTestDb(dbPath);
 });
 
-const adminCookie = () => `footbag_session=${createTestSessionJwt({ memberId: ADMIN_ID, role: 'admin' })}`;
+const adminCookie = () => `__Host-footbag_session=${createTestSessionJwt({ memberId: ADMIN_ID, role: 'admin' })}`;
 
 describe('POST /admin/club-cleanup/:clubId/contact-members', () => {
   it('emails the club\'s current members and audit-logs the send; the club stays leaderless', async () => {
@@ -89,7 +89,7 @@ describe('POST /admin/club-cleanup/:clubId/contact-members', () => {
     const memberId = insertMember(db, { id: 'ccm-nonadmin', slug: 'ccm_nonadmin' });
     const res = await request(createApp())
       .post(`/admin/club-cleanup/${CLUB_ID}/contact-members`)
-      .set('Cookie', `footbag_session=${createTestSessionJwt({ memberId })}`)
+      .set('Cookie', `__Host-footbag_session=${createTestSessionJwt({ memberId })}`)
       .type('form')
       .send({});
     expect([403, 404]).toContain(res.status);

@@ -30,12 +30,12 @@ const HOUR = 60 * 60;
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
 function cookieFor(ttlSeconds: number): string {
-  return `footbag_session=${createTestSessionJwt({ memberId: MEMBER_ID, ttlSeconds })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: MEMBER_ID, ttlSeconds })}`;
 }
 
 function sessionSetCookie(res: { headers: Record<string, unknown> }): string | undefined {
   const raw = res.headers['set-cookie'] as string[] | undefined;
-  return (raw ?? []).find((c) => c.startsWith('footbag_session='));
+  return (raw ?? []).find((c) => c.startsWith('__Host-footbag_session='));
 }
 
 beforeAll(async () => {

@@ -7,7 +7,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import BetterSqlite3 from 'better-sqlite3';
 import type { Browser, BrowserContext } from '@playwright/test';
-import { personaToPlaywrightCookies, type Persona } from '../../fixtures/personas';
+import { personaSwitchPath, type Persona } from '../../fixtures/personas';
 
 const DB_PATH_FILE = path.join(process.env.TMPDIR ?? '/tmp', 'footbag-e2e-db-path');
 
@@ -22,13 +22,31 @@ export function openLiveDb(): BetterSqlite3.Database {
   return db;
 }
 
+/**
+ * Make an existing context authenticated as the persona by having the
+ * application mint the session cookie. The request context shares the browser
+ * context's cookie jar, so the issued cookie applies to every page opened from
+ * it afterwards.
+ */
+export async function authenticateContext(
+  context: BrowserContext,
+  baseURL: string,
+  persona: Persona,
+): Promise<void> {
+  const res = await context.request.get(`${baseURL}${personaSwitchPath(persona)}`);
+  if (!res.ok()) {
+    throw new Error(
+      `persona switch failed for '${persona.slug}': HTTP ${res.status()}`,
+    );
+  }
+}
+
 export async function createAuthenticatedContext(
   browser: Browser,
   baseURL: string,
   persona: Persona,
 ): Promise<BrowserContext> {
   const context = await browser.newContext();
-  const domain = new URL(baseURL).hostname;
-  await context.addCookies(personaToPlaywrightCookies(persona, { domain }));
+  await authenticateContext(context, baseURL, persona);
   return context;
 }

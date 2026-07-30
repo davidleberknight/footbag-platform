@@ -360,7 +360,7 @@ async function crawlAs(
 function sessionCookieFrom(setCookie: string[] | string | undefined): string | null {
   const cookies = Array.isArray(setCookie) ? setCookie : setCookie ? [setCookie] : [];
   for (const c of cookies) {
-    const m = /^footbag_session=[^;]+/.exec(c);
+    const m = /^__Host-footbag_session=[^;]+/.exec(c);
     if (m) return m[0];
   }
   return null;
@@ -388,13 +388,13 @@ describe('route wiring crawl', () => {
   }, 120_000);
 
   it('authenticated member: every rendered link and form target resolves; no template artifacts', async () => {
-    const cookie = `footbag_session=${createTestSessionJwt({ memberId: MEMBER_ID })}`;
+    const cookie = `__Host-footbag_session=${createTestSessionJwt({ memberId: MEMBER_ID })}`;
     const { failures } = await crawlAs('member', cookie);
     expect(failures).toEqual([]);
   }, 120_000);
 
   it('admin: every rendered link and form target resolves; no template artifacts', async () => {
-    const cookie = `footbag_session=${createTestSessionJwt({ memberId: ADMIN_ID, role: 'admin' })}`;
+    const cookie = `__Host-footbag_session=${createTestSessionJwt({ memberId: ADMIN_ID, role: 'admin' })}`;
     const { failures, visited } = await crawlAs('admin', cookie);
     expect(failures).toEqual([]);
     // The operator QC pages are admin-gated and linked from no crawled page, so

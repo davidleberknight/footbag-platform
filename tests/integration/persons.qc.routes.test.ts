@@ -28,7 +28,7 @@ const { dbPath } = setTestEnv('3115');
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
 const VIEWER_ID = 'viewer-persons-qc';
-const COOKIE = `footbag_session=${createTestSessionJwt({ memberId: VIEWER_ID })}`;
+const COOKIE = `__Host-footbag_session=${createTestSessionJwt({ memberId: VIEWER_ID })}`;
 
 function internalGet(app: ReturnType<typeof createApp>, path: string) {
   return request(app).get(path).set('Cookie', COOKIE);

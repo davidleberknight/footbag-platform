@@ -39,7 +39,7 @@ afterAll(() => {
 });
 
 function cookieFor(memberId: string): string {
-  return `footbag_session=${createTestSessionJwt({ memberId })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId })}`;
 }
 
 function stagedRows(memberId: string): Array<Record<string, unknown>> {

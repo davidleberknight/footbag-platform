@@ -127,7 +127,7 @@ describe('GET /verify/:token', () => {
     // Post-verify landing is the first outstanding onboarding task.
     expect(res.headers.location).toBe('/register/wizard/personal_details');
     const cookies = res.headers['set-cookie'] as string[] | undefined;
-    expect(cookies?.some((c) => c.startsWith('footbag_session='))).toBe(true);
+    expect(cookies?.some((c) => c.startsWith('__Host-footbag_session='))).toBe(true);
     assertSecureSessionCookie(res.headers['set-cookie']);
     // A response that establishes a session must not be cacheable.
     expect(res.headers['cache-control']).toMatch(/no-store/);
@@ -252,7 +252,7 @@ describe('GET /verify/:token — session reissue failure', () => {
 
     const cookies = res.headers['set-cookie'] as string[] | undefined;
     const sessionCookieIssued = cookies?.some((c) =>
-      c.startsWith('footbag_session=') &&
+      c.startsWith('__Host-footbag_session=') &&
       !c.match(/Max-Age=0|Expires=Thu, 01 Jan 1970/i),
     );
     expect(sessionCookieIssued).toBeFalsy();
@@ -562,7 +562,7 @@ describe('Authenticated member search excludes unverified rows', () => {
       confirmPassword: 'verifypass!1',
     });
 
-    const cookie = `footbag_session=${createTestSessionJwt({ memberId: 'verify-searcher' })}`;
+    const cookie = `__Host-footbag_session=${createTestSessionJwt({ memberId: 'verify-searcher' })}`;
     const res = await request(app).get('/members/verify_searcher?q=Shadow').set('Cookie', cookie);
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('Shadow Figure');

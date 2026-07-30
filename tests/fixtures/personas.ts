@@ -33,7 +33,7 @@ export type PersonaTier = 'tier0' | 'tier1' | 'tier2' | 'tier3';
 export interface Persona {
   memberId: string;
   slug: string;
-  cookieHeader: string;        // 'footbag_session=<jwt>'
+  cookieHeader: string;        // '__Host-footbag_session=<jwt>'
   tier: PersonaTier;
   isAdmin: boolean;
   legacyMemberId?: string;     // set for unlinkedHp + linked-HP personas
@@ -45,7 +45,7 @@ function rand(): string {
 }
 
 function cookieFor(memberId: string, role: 'admin' | 'member'): string {
-  return `footbag_session=${createTestSessionJwt({ memberId, role })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId, role })}`;
 }
 
 /**
@@ -300,19 +300,15 @@ export function seedMemberMidWizard(
  * context.addCookies expects. Useful when wiring a persona into a
  * Playwright browser context.
  */
-export function personaToPlaywrightCookies(
-  persona: Persona,
-  opts: { domain: string; path?: string },
-): Array<{ name: string; value: string; domain: string; path: string; httpOnly: boolean; sameSite: 'Lax' }> {
-  const [name, value] = persona.cookieHeader.split('=', 2);
-  return [
-    {
-      name,
-      value,
-      domain: opts.domain,
-      path: opts.path ?? '/',
-      httpOnly: true,
-      sameSite: 'Lax',
-    },
-  ];
+/**
+ * The persona-switch URL that makes a browser context authenticated as this
+ * persona. Browser tests call it rather than injecting the cookie themselves:
+ * the session cookie carries the `__Host-` name prefix, which a browser will
+ * only accept on a cookie it received over a real response, so hand-injecting
+ * one through the automation protocol is refused outright. Asking the
+ * application to mint it is also the more faithful path, since it exercises the
+ * same issue code every real login runs.
+ */
+export function personaSwitchPath(persona: Persona): string {
+  return `/dev/switch?as=${encodeURIComponent(persona.slug)}`;
 }

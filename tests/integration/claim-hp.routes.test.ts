@@ -68,10 +68,10 @@ const LM_TAKEN_OWNER_ID = 'hpc-lmtakenowner';
 const HP_DECEASED  = 'hp-deceased-001';
 
 function claimerCookie(): string {
-  return `footbag_session=${createTestSessionJwt({ memberId: CLAIMER_ID })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: CLAIMER_ID })}`;
 }
 function otherCookie(): string {
-  return `footbag_session=${createTestSessionJwt({ memberId: OTHER_ID })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: OTHER_ID })}`;
 }
 
 beforeAll(async () => {
@@ -272,7 +272,7 @@ describe('claiming is closed once onboarding is complete (wizard-bounded)', () =
     completeOnboarding(testDb, id);
     const res = await request(createApp())
       .get(`/history/${HP_NO_LEGACY}/claim`)
-      .set('Cookie', `footbag_session=${createTestSessionJwt({ memberId: id })}`);
+      .set('Cookie', `__Host-footbag_session=${createTestSessionJwt({ memberId: id })}`);
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/members/hpc_completed_get/contact-admin?category=identity_link_issue');
   });
@@ -285,7 +285,7 @@ describe('claiming is closed once onboarding is complete (wizard-bounded)', () =
     completeOnboarding(testDb, id);
     const res = await request(createApp())
       .post(`/history/${HP_NO_LEGACY}/claim/confirm`)
-      .set('Cookie', `footbag_session=${createTestSessionJwt({ memberId: id })}`)
+      .set('Cookie', `__Host-footbag_session=${createTestSessionJwt({ memberId: id })}`)
       .type('form').send({});
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/members/hpc_completed_post/contact-admin?category=identity_link_issue');
@@ -354,7 +354,7 @@ describe('POST /history/:personId/claim/confirm — scenario E (HP + unclaimed l
       birth_date: '1980-01-01',
     });
     insertOnboardingTask(testDb, scenarioEClaimerId, 'personal_details', 'completed');
-    const scenarioECookie = `footbag_session=${createTestSessionJwt({ memberId: scenarioEClaimerId })}`;
+    const scenarioECookie = `__Host-footbag_session=${createTestSessionJwt({ memberId: scenarioEClaimerId })}`;
 
     const app = createApp();
     const res = await request(app)
@@ -430,7 +430,7 @@ describe('POST /history/:personId/claim/confirm — adversarial', () => {
       birth_date: '1980-01-01',
     });
     insertOnboardingTask(testDb, secondClaimerId, 'personal_details', 'completed');
-    const secondCookie = `footbag_session=${createTestSessionJwt({ memberId: secondClaimerId })}`;
+    const secondCookie = `__Host-footbag_session=${createTestSessionJwt({ memberId: secondClaimerId })}`;
     const app = createApp();
     const res = await request(app)
       .post(`/history/${HP_NO_LEGACY}/claim/confirm`)
@@ -465,7 +465,7 @@ describe('POST /history/:personId/claim/confirm — adversarial', () => {
       birth_date: '1980-01-01',
     });
     insertOnboardingTask(testDb, freshClaimerId, 'personal_details', 'completed');
-    const cookie = `footbag_session=${createTestSessionJwt({ memberId: freshClaimerId })}`;
+    const cookie = `__Host-footbag_session=${createTestSessionJwt({ memberId: freshClaimerId })}`;
     const app = createApp();
     const res = await request(app)
       .post(`/history/${deceasedAdvHp}/claim/confirm`)
@@ -505,7 +505,7 @@ describe('claim of a record held by a deceased contact-scrubbed member', () => {
       slug: 'hpc_dec_claimant_get', real_name: 'Casey Mockingbird', display_name: 'Casey Mockingbird',
       login_email: 'hpc-dec-get@example.com',
     });
-    const cookie = `footbag_session=${createTestSessionJwt({ memberId: claimantId })}`;
+    const cookie = `__Host-footbag_session=${createTestSessionJwt({ memberId: claimantId })}`;
     const app = createApp();
     const res = await request(app).get(`/history/${heldHp}/claim`).set('Cookie', cookie);
     expect(res.status).toBe(200);
@@ -522,7 +522,7 @@ describe('claim of a record held by a deceased contact-scrubbed member', () => {
       birth_date: '1980-01-01',
     });
     insertOnboardingTask(testDb, claimantId, 'personal_details', 'completed');
-    const cookie = `footbag_session=${createTestSessionJwt({ memberId: claimantId })}`;
+    const cookie = `__Host-footbag_session=${createTestSessionJwt({ memberId: claimantId })}`;
     const app = createApp();
     const res = await request(app)
       .post(`/history/${heldHp}/claim/confirm`)
@@ -547,7 +547,7 @@ describe('GET /history/:personId/claim — rate limiting', () => {
       birth_date: '1980-01-01',
     });
     insertOnboardingTask(testDb, lookerId, 'personal_details', 'completed');
-    const cookie = `footbag_session=${createTestSessionJwt({ memberId: lookerId })}`;
+    const cookie = `__Host-footbag_session=${createTestSessionJwt({ memberId: lookerId })}`;
 
     const get = () =>
       request(app).get(`/history/${HP_NO_LEGACY}/claim`).set('Cookie', cookie);

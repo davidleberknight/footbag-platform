@@ -62,10 +62,10 @@ describe('session issue with an archive cookie signer configured', () => {
     const nearExpiry = createTestSessionJwt({ memberId: 'mem-arch-cookie', ttlSeconds: 60 * 60 });
     const res = await request(createApp())
       .get('/members/mem_arch_cookie')
-      .set('Cookie', `footbag_session=${nearExpiry}`);
+      .set('Cookie', `__Host-footbag_session=${nearExpiry}`);
     expect(res.status).toBe(200);
     const cookies = setCookies(res);
-    expect(cookies.filter((c) => c.startsWith('footbag_session='))).toHaveLength(1);
+    expect(cookies.filter((c) => c.startsWith('__Host-footbag_session='))).toHaveLength(1);
     for (const name of ARCHIVE_COOKIE_NAMES) {
       const cookie = cookies.find((c) => c.startsWith(`${name}=`));
       expect(cookie, name).toBeDefined();
@@ -75,7 +75,7 @@ describe('session issue with an archive cookie signer configured', () => {
       expect(cookie).toMatch(/Max-Age=86400/);
     }
     // The session cookie itself stays host-only: no Domain attribute.
-    const session = cookies.find((c) => c.startsWith('footbag_session='))!;
+    const session = cookies.find((c) => c.startsWith('__Host-footbag_session='))!;
     expect(session).not.toContain('Domain=');
   });
 
@@ -83,7 +83,7 @@ describe('session issue with an archive cookie signer configured', () => {
     const nearExpiry = createTestSessionJwt({ memberId: 'mem-arch-cookie', ttlSeconds: 60 * 60 });
     const res = await request(createApp())
       .get('/members/mem_arch_cookie')
-      .set('Cookie', `footbag_session=${nearExpiry}`);
+      .set('Cookie', `__Host-footbag_session=${nearExpiry}`);
     const policyCookie = setCookies(res).find((c) => c.startsWith('CloudFront-Policy='))!;
     const value = policyCookie.split(';')[0].split('=').slice(1).join('=');
     const base64 = value.replace(/-/g, '+').replace(/_/g, '=').replace(/~/g, '/');
@@ -99,10 +99,10 @@ describe('session issue with an archive cookie signer configured', () => {
     const fresh = createTestSessionJwt({ memberId: 'mem-arch-cookie', ttlSeconds: 24 * 60 * 60 });
     const res = await request(createApp())
       .get('/members/mem_arch_cookie')
-      .set('Cookie', `footbag_session=${fresh}`);
+      .set('Cookie', `__Host-footbag_session=${fresh}`);
     expect(res.status).toBe(200);
     const cookies = setCookies(res);
-    expect(cookies.filter((c) => c.startsWith('footbag_session='))).toHaveLength(0);
+    expect(cookies.filter((c) => c.startsWith('__Host-footbag_session='))).toHaveLength(0);
     for (const name of ARCHIVE_COOKIE_NAMES) {
       expect(cookies.find((c) => c.startsWith(`${name}=`)), name).toBeUndefined();
     }
@@ -112,10 +112,10 @@ describe('session issue with an archive cookie signer configured', () => {
     const jwt = createTestSessionJwt({ memberId: 'mem-arch-cookie', ttlSeconds: 24 * 60 * 60 });
     const res = await request(createApp())
       .post('/logout')
-      .set('Cookie', `footbag_session=${jwt}`);
+      .set('Cookie', `__Host-footbag_session=${jwt}`);
     expect(res.status).toBe(303);
     const cookies = setCookies(res);
-    const session = cookies.find((c) => c.startsWith('footbag_session='));
+    const session = cookies.find((c) => c.startsWith('__Host-footbag_session='));
     expect(session).toBeDefined();
     expect(session).toMatch(/Max-Age=0|Expires=Thu, 01 Jan 1970/i);
     for (const name of ARCHIVE_COOKIE_NAMES) {

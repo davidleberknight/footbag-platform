@@ -44,7 +44,7 @@ const EXECUTABLE_FRAGMENTS = [
 ];
 
 function ownCookie(): string {
-  return `footbag_session=${createTestSessionJwt({ memberId: MEMBER_ID })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: MEMBER_ID })}`;
 }
 
 beforeAll(async () => {

@@ -80,7 +80,7 @@ describe.skipIf(!INVOKED)('real-claim crawl', () => {
     slug = match[1];
 
     const set = (built.headers['set-cookie'] ?? []) as string[];
-    const entry = set.find((c) => c.startsWith('footbag_session='));
+    const entry = set.find((c) => c.startsWith('__Host-footbag_session='));
     if (!entry) throw new Error('real-claim crawl: build-claim issued no session cookie');
     cookie = entry.split(';')[0];
   });

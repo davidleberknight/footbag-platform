@@ -15,6 +15,12 @@
  * boundary. Clearing removes ALL FOUR with matching attributes: a signed-out
  * member on a shared machine must not retain working archive access for the
  * rest of the policy lifetime.
+ *
+ * The session cookie always carries Secure and the browser-enforced `__Host-`
+ * name prefix, on every transport, for the reasons recorded beside the name
+ * constant. The archive's signed cookies keep a Secure attribute derived from
+ * the request instead: they are scoped to the parent domain, so their delivery
+ * depends on the transport of the host presenting them rather than on this one.
  */
 import { Request, Response } from 'express';
 import {
@@ -42,11 +48,16 @@ export function issueSessionCookie(
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
   res.setHeader('Pragma', 'no-cache');
   const secure = isSecureRequest(req);
+  // Secure is unconditional and the path is stated rather than left to the
+  // framework default, because a browser accepts the `__Host-` name only on a
+  // Secure cookie whose path is exactly "/". Unconditional also means no signal
+  // exists whose loss could quietly downgrade the session cookie.
   res.cookie(SESSION_COOKIE_NAME, cookieValue, {
+    path: '/',
     httpOnly: true,
     sameSite: 'lax',
     maxAge: SESSION_COOKIE_MAX_AGE_MS,
-    secure,
+    secure: true,
   });
 
   const signer = getCloudFrontSigningAdapter();
@@ -83,7 +94,7 @@ export function clearSessionCookie(res: Response, req: Request): void {
     path: '/',
     httpOnly: true,
     sameSite: 'lax',
-    secure,
+    secure: true,
   });
   if (config.archiveCookieSigner && config.archiveUrl) {
     const archiveOpts = {

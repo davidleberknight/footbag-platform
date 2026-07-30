@@ -17,7 +17,7 @@ const SEARCHER_ID   = 'member-searcher-001';
 const SEARCHER_SLUG = 'searcher_user';
 
 function searcherCookie(): string {
-  return `footbag_session=${createTestSessionJwt({ memberId: SEARCHER_ID })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: SEARCHER_ID })}`;
 }
 
 let createApp: Awaited<ReturnType<typeof importApp>>;

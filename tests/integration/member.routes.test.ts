@@ -49,15 +49,15 @@ const LINKED_ID   = 'member-profile-test-linked';
 const LINKED_SLUG = 'linked_member';
 
 function ownCookie(): string {
-  return `footbag_session=${createTestSessionJwt({ memberId: OWN_ID })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: OWN_ID })}`;
 }
 
 function otherCookie(): string {
-  return `footbag_session=${createTestSessionJwt({ memberId: OTHER_ID })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: OTHER_ID })}`;
 }
 
 function linkedCookie(): string {
-  return `footbag_session=${createTestSessionJwt({ memberId: LINKED_ID })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: LINKED_ID })}`;
 }
 
 beforeAll(async () => {

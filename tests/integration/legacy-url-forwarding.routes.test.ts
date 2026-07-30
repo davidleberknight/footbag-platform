@@ -103,7 +103,7 @@ describe('stored-sample replay', () => {
   it('the unclaimed soft landing shows the display name and claim CTA to signed-in visitors', async () => {
     const res = await request(createApp())
       .get('/members/profile/LM-2002')
-      .set('Cookie', `footbag_session=${createTestSessionJwt({ memberId: 'mem-viewer' })}`);
+      .set('Cookie', `__Host-footbag_session=${createTestSessionJwt({ memberId: 'mem-viewer' })}`);
     expect(res.status).toBe(200);
     expect(res.text).toContain('Unclaimed Person');
     expect(res.text).toContain('Claim Your footbag.org History');

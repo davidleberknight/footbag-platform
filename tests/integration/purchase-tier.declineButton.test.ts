@@ -27,7 +27,7 @@ const OTHER_SLUG = 'decline-imposter';
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
 function memberCookie(memberId: string = MEMBER_ID): string {
-  return `footbag_session=${createTestSessionJwt({ memberId, role: 'member' })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId, role: 'member' })}`;
 }
 
 async function startPurchase(slug: string, memberId: string): Promise<string> {

@@ -42,7 +42,7 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 function authCookie(): string {
-  return `footbag_session=${createTestSessionJwt({ memberId: 'seo-member-1', role: 'member' })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: 'seo-member-1', role: 'member' })}`;
 }
 
 describe('GET /robots.txt (non-production)', () => {

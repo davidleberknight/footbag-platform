@@ -22,7 +22,7 @@ const CAND_ID   = 'claims-cand-001';
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
 function cookieFor(memberId: string, role: 'admin' | 'member' = 'admin'): string {
-  return `footbag_session=${createTestSessionJwt({ memberId, role })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId, role })}`;
 }
 
 function countClaims(itemType: string, itemId: string): number {

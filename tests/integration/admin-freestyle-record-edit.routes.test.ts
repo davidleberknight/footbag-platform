@@ -29,7 +29,7 @@ const PERSONA_ADMIN_ID = 'member_persona_fse_rec';
 const PERSON_ID = 'hp-record-holder';
 
 function cookieFor(memberId: string, role: 'admin' | 'member'): string {
-  return `footbag_session=${createTestSessionJwt({ memberId, role })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId, role })}`;
 }
 const admin = () => cookieFor(ADMIN_ID, 'admin');
 

@@ -50,7 +50,7 @@ const TIER0_ID    = 'member-mme-tier0-001';
 const TIER0_SLUG  = 'mme_tier0';
 
 function cookieFor(memberId: string): string {
-  return `footbag_session=${createTestSessionJwt({ memberId, role: 'member' })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId, role: 'member' })}`;
 }
 
 function findMediaTags(mediaId: string): string[] {

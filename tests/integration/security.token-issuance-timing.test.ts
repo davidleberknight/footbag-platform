@@ -68,7 +68,7 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 function claimCookie(): string {
-  return `footbag_session=${createTestSessionJwt({ memberId: CLAIM_MEMBER })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: CLAIM_MEMBER })}`;
 }
 
 async function timePasswordForgot(email: string): Promise<number> {

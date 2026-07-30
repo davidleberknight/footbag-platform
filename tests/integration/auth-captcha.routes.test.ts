@@ -38,7 +38,7 @@ function memberByEmail(email: string): Record<string, unknown> | undefined {
 function sessionCookies(res: { headers: Record<string, unknown> }): string[] {
   const raw = res.headers['set-cookie'];
   const list = Array.isArray(raw) ? raw : raw ? [String(raw)] : [];
-  return list.filter((c) => String(c).startsWith('footbag_session='));
+  return list.filter((c) => String(c).startsWith('__Host-footbag_session='));
 }
 
 // Imported lazily inside each test: a top-level import of captchaAdapter would

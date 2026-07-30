@@ -19,7 +19,7 @@ const SEARCHER_ID   = 'ip-searcher-001';
 const SEARCHER_SLUG = 'ip_searcher';
 
 function searcherCookie(): string {
-  return `footbag_session=${createTestSessionJwt({ memberId: SEARCHER_ID })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: SEARCHER_ID })}`;
 }
 
 let createApp: Awaited<ReturnType<typeof importApp>>;

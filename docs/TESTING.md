@@ -390,7 +390,7 @@ Authenticated Playwright artifacts contain potentially sensitive material (sessi
 
 ### 6.5 Auth pattern for E2E
 
-Lightweight integration with auth uses the existing `tests/fixtures/personas.ts` helper, which composes a member, tier grant, historical-person link, and JWT into a `Persona` and exports the cookies via `context.addCookies()`. Local e2e can also obtain a real session cookie from the persona-switch route (`GET /dev/switch?as=<slug>`, active in development and staging, §7.5.1), never a fresh login chain that depends on receiving an email.
+Lightweight integration with auth uses the existing `tests/fixtures/personas.ts` helper, which composes a member, tier grant, historical-person link, and JWT into a `Persona`. A browser context is authenticated by having the application issue the session cookie, through the persona-switch route (`GET /dev/switch?as=<slug>`, active in development and staging, §7.5.1), never by injecting the cookie with `context.addCookies()` and never through a fresh login chain that depends on receiving an email. Injection is not available: the session cookie's `__Host-` name prefix means a browser accepts it only on a cookie it received in a real response, so a hand-injected one is refused outright.
 
 ---
 

@@ -117,7 +117,7 @@ function uid(): string {
 // ── Session JWT helper ──────────────────────────────────────────────────────
 //
 // Mints a JWT using the same LocalJwtAdapter keypair the app middleware verifies
-// against. Tests that set `.set('Cookie', 'footbag_session=...')` should call
+// against. Tests that set `.set('Cookie', '__Host-footbag_session=...')` should call
 // this helper with the member's id + role + password_version.
 //
 // The target member row must already exist in the test DB: the middleware

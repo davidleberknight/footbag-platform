@@ -54,7 +54,7 @@ const NON_OWNER: TierFixture = {
 };
 
 function cookieFor(memberId: string): string {
-  return `footbag_session=${createTestSessionJwt({ memberId, role: 'member' })}`;
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId, role: 'member' })}`;
 }
 
 beforeAll(async () => {

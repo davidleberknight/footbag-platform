@@ -40,7 +40,7 @@ afterAll(() => {
   cleanupTestDb(dbPath);
 });
 
-const cookieFor = (id: string) => `footbag_session=${createTestSessionJwt({ memberId: id })}`;
+const cookieFor = (id: string) => `__Host-footbag_session=${createTestSessionJwt({ memberId: id })}`;
 
 // City and country are mandatory profile fields; the pre-filled edit form always
 // carries them, so the helper supplies valid values by default while these cases
