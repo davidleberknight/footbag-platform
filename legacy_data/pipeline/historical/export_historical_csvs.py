@@ -531,8 +531,11 @@ stage2_rows = [r for r in stage2_rows if str(r["event_id"]) not in DROP_EVENT_ID
 # Optional exact overrides by legacy event_id
 # Use this for one-off cases where you want to pin the final canonical event_key.
 EVENT_KEY_OVERRIDES_BY_ID = {
-    # "941418343": "event_1999_worlds_palo_alto",
-    # "1487797845": "event_2012_eurochamp_prague",
+    # Keys here are the canonical unprefixed form the generator below emits,
+    # "<year>_<series>[_<place>]", matching the committed canonical output. The
+    # "event_" prefix belongs to the platform's public route, not to this column.
+    # "941418343": "1999_worlds_palo_alto",
+    # "1487797845": "2012_eurochamp_prague",
 }
 
 # Optional recurring-series overrides by normalized event-name pattern.

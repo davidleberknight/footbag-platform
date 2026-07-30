@@ -5,7 +5,11 @@
 
 # ── Stage 1: Builder ─────────────────────────────────────────────────────────
 # Full dev deps needed to compile TypeScript and build better-sqlite3 native.
-FROM node:22-alpine AS builder
+# Both stages pin the identical base digest: the runtime stage reuses the native
+# addons compiled here, so a different base could pair musl binaries with a
+# mismatched C library. A floating tag would also let a hijacked upstream tag
+# replace the base layer between rebuilds.
+FROM node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32 AS builder
 
 WORKDIR /app
 
@@ -21,20 +25,24 @@ COPY tsconfig.json ./
 COPY src ./src
 RUN npm run build
 
+# Reduce the installed tree to production dependencies while still in the stage
+# that owns the toolchain, so the runtime image can take the compiled addons as
+# they are and needs no compiler of its own. Lifecycle scripts stay off: the
+# native addons are already built, and re-running them here would be the only
+# way this step could rebuild against a different target.
+RUN npm prune --omit=dev --ignore-scripts
+
 
 # ── Stage 2: Runtime ─────────────────────────────────────────────────────────
 # Lean image with only production dependencies.
-FROM node:22-alpine AS runtime
+FROM node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32 AS runtime
 
 WORKDIR /app
 
-# Build tools needed to rebuild better-sqlite3 native addon for this image's
-# musl libc target (prebuilt binaries target glibc and won't work on Alpine).
-RUN apk add --no-cache python3 make g++
-
-# Install production deps (triggers better-sqlite3 native rebuild for Alpine)
+# Production dependencies arrive prebuilt from the builder stage, so this image
+# carries no compiler, header, or build-script machinery for an intruder to use.
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
+COPY --from=builder /app/node_modules ./node_modules
 
 # Copy compiled JS from builder stage
 COPY --from=builder /app/dist ./dist
@@ -78,6 +86,13 @@ ENV NODE_ENV=production
 ENV PORT=3000
 
 EXPOSE 3000
+
+# Drop to the base image's unprivileged account for everything the running
+# process does. Root is reserved for the build-time steps above, which is why
+# this sits after the last package install and file copy: the application reads
+# its own tree and writes only to mounted volumes and the temp directory, so it
+# never needs to own anything inside the image.
+USER node
 
 # Healthcheck so compose and container runtimes can detect unresponsive containers
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \

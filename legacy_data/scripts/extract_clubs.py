@@ -27,6 +27,7 @@ from club_curation import (  # noqa: E402
     SEED_FIELDNAMES,
     apply_club_text_corrections,
     blank_location_placeholder,
+    repair_doubled_url_scheme,
     load_club_text_corrections,
 )
 
@@ -171,7 +172,7 @@ def extract_club(html_path, legacy_club_key):
         href = url_link.get("href", "").strip()
         # Skip relative/internal links
         if href.startswith("http://") or href.startswith("https://"):
-            external_url = href
+            external_url = repair_doubled_url_scheme(href)
 
     # Description
     description = ""
@@ -207,28 +208,9 @@ def extract_club(html_path, legacy_club_key):
     }
 
 
-def _existing_row_count(path):
-    """Count the data rows already in the output CSV (0 if absent or empty).
-
-    Parsed with csv, not line counting, because a club description can carry
-    embedded newlines that would inflate a naive line count.
-    """
-    if not path.exists():
-        return 0
-    with open(path, newline="", encoding="utf-8") as f:
-        return max(0, sum(1 for _ in csv.reader(f)) - 1)
-
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--allow-shrink",
-        action="store_true",
-        help="Permit overwriting the seed when the extraction yields fewer "
-        "clubs than the existing seed (e.g. genuine club removals). Without "
-        "this, a smaller extraction is refused as a likely incomplete mirror.",
-    )
-    args = parser.parse_args()
+    parser.parse_args()
 
     if not CLUBS_SHOW_DIR.is_dir():
         print(f"ERROR: mirror not found at {CLUBS_SHOW_DIR}", file=sys.stderr)
@@ -271,23 +253,16 @@ def main():
                 corrected_rows += 1
             rows.append(row)
 
-    # Refuse to shrink the seed. A mirror reduced to a fraction of its clubs
-    # (e.g. a depleted or partially-synced clubs/show tree) would otherwise
-    # silently overwrite a complete seed with a tiny one, stranding every
-    # downstream club step on the missing rows. A genuine reduction is opted
-    # into with --allow-shrink.
-    existing = _existing_row_count(OUTPUT_CSV)
-    if len(rows) < existing and not args.allow_shrink:
-        print(
-            f"ERROR: extracted {len(rows)} clubs but {OUTPUT_CSV} already holds "
-            f"{existing}. The mirror at {CLUBS_SHOW_DIR} is almost certainly "
-            f"incomplete; refusing to overwrite the larger seed. Restore the "
-            f"full clubs/show mirror and re-run, or pass --allow-shrink if the "
-            f"reduction is intentional.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
+    # The don't-shrink-the-seed invariant is enforced across the whole of the
+    # mirror-extraction phase, not here. This extractor can only see the clubs
+    # the legacy site still serves as active; every club whose contact stopped
+    # checking in renders as a defunct-listing page that carries no record to
+    # extract, and an id that was never valid renders as a not-found page. The
+    # dump overlay that runs immediately after restores the approved clubs the
+    # mirror no longer serves, and only its output is comparable to the
+    # committed seed. Comparing this intermediate count against that seed
+    # rejected every healthy run, because a mirror alone has never reproduced a
+    # dump-enriched seed and is not supposed to.
     with open(OUTPUT_CSV, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=FIELDNAMES)
         writer.writeheader()

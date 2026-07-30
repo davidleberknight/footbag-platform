@@ -225,7 +225,9 @@ fi
 # One-shot migration: directory-mount DB layout
 if grep -q '^FOOTBAG_DB_PATH=/srv/footbag/footbag.db$' "$ENV_PATH"; then
   echo "    Migrating env file to directory-mount DB layout..."
-  sed -i.bak \
+  # In place, with no backup copy: the sed default would leave a full plaintext
+  # copy of the previous env file, secrets and all, sitting beside it forever.
+  sed -i \
     -e 's|^FOOTBAG_DB_PATH=/srv/footbag/footbag.db$|FOOTBAG_DB_PATH=/srv/footbag/db/footbag.db|' \
     "$ENV_PATH"
   if ! grep -q '^FOOTBAG_DB_DIR=' "$ENV_PATH"; then

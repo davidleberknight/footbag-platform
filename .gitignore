@@ -264,6 +264,11 @@ tricks-mosaic-clips/
 # private-tracker content, so it stays local and is never committed.
 /issue_review.md
 
+# Working plan and operator runbook for the container hardening batch. Carries
+# production hostnames and AWS console steps, so it stays local; deleted when
+# the batch is done rather than kept.
+/hardening_plan.md
+
 # An unrelated client website that happens to sit here on this machine. It holds
 # another business's private domain, mail and deployment notes, and a personal
 # photograph, none of which belong in this repository's history.

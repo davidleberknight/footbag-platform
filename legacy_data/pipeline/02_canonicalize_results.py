@@ -3561,11 +3561,16 @@ def read_stage1_csv(csv_path: Path) -> list[dict]:
             for key, val in row.items():
                 if isinstance(val, str) and val.strip().lower() in _NAN_STRINGS:
                     row[key] = ""
-            # Convert year to int if present
+            # Convert year to int if present. Parsed through float first: the
+            # stage-1 writer emits the year in decimal form ("2001.0"), which
+            # int() rejects outright, so a direct conversion silently emptied the
+            # year on almost every event. A blank, a sentinel, or genuinely
+            # unparseable text still lands as None, which is the honest answer
+            # for an event whose year the source never stated.
             if row.get("year"):
                 try:
-                    row["year"] = int(row["year"])
-                except ValueError:
+                    row["year"] = int(float(row["year"]))
+                except (TypeError, ValueError):
                     row["year"] = None
             else:
                 row["year"] = None

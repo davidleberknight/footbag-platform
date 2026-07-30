@@ -11,10 +11,10 @@
  * (Hall-of-Fame or paid history), so co-lead eligibility follows the real data.
  *
  * Parameterized by legacy_member_id and nothing else, and carries no person-specific
- * literal: the account registers under the record's own real name (read from
- * legacy_members at build time, never hardcoded), so its profile slug is derived from
- * that name exactly as a genuine registration derives it and claiming lands on the real
- * person's profile. Only the login address is synthetic (a test-persona address, never a
+ * literal: the account registers under the record's own name (read at build time from
+ * the legacy record and its canonical historical person, never hardcoded), so its
+ * profile slug is derived from that name exactly as a genuine registration derives it
+ * and claiming lands on the real person's profile. Only the login address is synthetic (a test-persona address, never a
  * real mailbox) and it is only the account's login email, never an identity key — the
  * journey links the legacy record by its id, not by an email match, so no real mailbox
  * and no real personal email is involved.
@@ -67,6 +67,22 @@ const bioFor = (): string =>
   'than a seeded fixture, so the team can verify that migrated real-world data ' +
   'renders and behaves correctly across the site.';
 
+/**
+ * A target this builder will not act on, as distinct from an internal fault.
+ * The two are worth separating because the caller can do something about a bad
+ * target and nothing about a fault: the route turns a refusal into a status and
+ * a message naming the record, so an operator who asked for an unusable record
+ * is told which one and why instead of reading a server failure.
+ */
+export type RealClaimRefusalKind = 'no_record' | 'no_usable_name';
+
+export class RealClaimRefusedError extends Error {
+  constructor(readonly kind: RealClaimRefusalKind, message: string) {
+    super(message);
+    this.name = 'RealClaimRefusedError';
+  }
+}
+
 export interface BuildRealClaimResult {
   memberId: string;
   slug: string;
@@ -82,11 +98,31 @@ export async function buildRealClaimJourney(legacyMemberId: string): Promise<Bui
   // The target must be a real, unclaimed legacy record. Refuse a missing id (no
   // such record loaded) or an already-claimed one (claiming it again would fail
   // partway and leave a half-built account).
+  //
+  // The record's name comes from whichever source the loaded dataset carries, in
+  // the same order the application itself resolves a legacy record's name. A
+  // dataset built from the legacy member export fills real_name; a mirror-derived
+  // one leaves that column NULL and carries the person's name on the canonical
+  // historical-person row and the mirror roster row instead. Consulting all three
+  // keeps the journey working on either dataset.
   const record = db
-    .prepare('SELECT real_name, claimed_by_member_id FROM legacy_members WHERE legacy_member_id = ?')
-    .get(id) as { real_name: string | null; claimed_by_member_id: string | null } | undefined;
+    .prepare(`
+      SELECT
+        COALESCE(
+          NULLIF(TRIM(lm.real_name), ''),
+          NULLIF(TRIM(hp.person_name), ''),
+          NULLIF(TRIM(lm.display_name), '')
+        )                       AS record_name,
+        lm.claimed_by_member_id AS claimed_by_member_id
+      FROM legacy_members AS lm
+      LEFT JOIN historical_persons AS hp
+        ON hp.legacy_member_id = lm.legacy_member_id
+      WHERE lm.legacy_member_id = ?
+    `)
+    .get(id) as { record_name: string | null; claimed_by_member_id: string | null } | undefined;
   if (!record) {
-    throw new Error(
+    throw new RealClaimRefusedError(
+      'no_record',
       `buildRealClaimJourney: no legacy_members row for id ${id}; the journey needs a loaded real dataset with a claimable record.`,
     );
   }
@@ -94,15 +130,16 @@ export async function buildRealClaimJourney(legacyMemberId: string): Promise<Bui
     throw new Error(`buildRealClaimJourney: legacy record ${id} is already claimed; choose an unclaimed record.`);
   }
 
-  // Register under the record's own real name, so registration derives the profile
+  // Register under the record's own name, so registration derives the profile
   // slug from that name the way it does for a real member (dave_leberknight from
   // "Dave Leberknight") and claiming lands on the real person's profile. A record
   // with no registration-valid name (a bare collision stub) cannot register, so
   // refuse it with a clear error rather than a cryptic downstream validation throw.
-  const realName = (record.real_name ?? '').trim();
+  const realName = (record.record_name ?? '').trim();
   if (realName.split(/\s+/).filter(Boolean).length < 2 || /\d/.test(realName)) {
-    throw new Error(
-      `buildRealClaimJourney: legacy record ${id} has no registration-valid real name (${JSON.stringify(record.real_name)}); choose a record that carries a full name.`,
+    throw new RealClaimRefusedError(
+      'no_usable_name',
+      `buildRealClaimJourney: legacy record ${id} carries no registration-valid name (${JSON.stringify(record.record_name)}); choose a record that carries a full name.`,
     );
   }
   const email = realClaimEmail(id);
@@ -221,7 +258,10 @@ export async function ensureRealClaimMember(legacyMemberId: string): Promise<{ m
     .prepare('SELECT claimed_by_member_id FROM legacy_members WHERE legacy_member_id = ?')
     .get(id) as { claimed_by_member_id: string | null } | undefined;
   if (!record) {
-    throw new Error(`ensureRealClaimMember: no legacy_members row for id ${id}; load the real dataset first.`);
+    throw new RealClaimRefusedError(
+      'no_record',
+      `ensureRealClaimMember: no legacy_members row for id ${id}; load the real dataset first.`,
+    );
   }
   if (record.claimed_by_member_id != null) {
     return { memberId: record.claimed_by_member_id };

@@ -78,10 +78,20 @@ services:
       # Media uploads (avatars, photos). Persisted on host across deploys.
       - ${FOOTBAG_MEDIA_DIR:-/srv/footbag/media}:/app/s3-adapter-local:rw
       # AWS config/credentials for the source-profile -> assumed-role chain.
-      # Root-owned on the host (0600); mounted read-only. Runtime reads
-      # AWS_PROFILE from the environment and resolves it via sts:AssumeRole.
-      - /root/.aws:/root/.aws:ro
+      # Root-owned on the host and readable only by the credential group
+      # (0640), mounted read-only. Runtime reads AWS_PROFILE from the
+      # environment and resolves it via sts:AssumeRole.
+      - /root/.aws:/aws-config:ro
+    # The container runs unprivileged and cannot traverse root's home, so it
+    # joins the group that owns the credential files. This one supplementary
+    # group is the container's entire additional reach on the host.
+    group_add:
+      - "1500"
     environment:
+      # The SDK cannot find the files by home directory any more: the running
+      # account is no longer root, so name them outright.
+      AWS_SHARED_CREDENTIALS_FILE: /aws-config/credentials
+      AWS_CONFIG_FILE: /aws-config/config
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL}
       # Exact X-Forwarded-For hop count of the chain in front of the app,
       # set per host in /srv/footbag/env: staging (CloudFront -> nginx) 2;
@@ -212,8 +222,17 @@ services:
       # AWS config/credentials for the email-outbox worker: read-only
       # source-profile keys at /root/.aws plus the AssumeRole chain to the
       # runtime role. Matches the web-service mount above.
-      - /root/.aws:/root/.aws:ro
+      - /root/.aws:/aws-config:ro
+    # The container runs unprivileged and cannot traverse root's home, so it
+    # joins the group that owns the credential files. This one supplementary
+    # group is the container's entire additional reach on the host.
+    group_add:
+      - "1500"
     environment:
+      # The SDK cannot find the files by home directory any more: the running
+      # account is no longer root, so name them outright.
+      AWS_SHARED_CREDENTIALS_FILE: /aws-config/credentials
+      AWS_CONFIG_FILE: /aws-config/config
       PORT: "3000"
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL}
       SESSION_SECRET: ${SESSION_SECRET}

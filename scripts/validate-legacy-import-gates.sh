@@ -149,9 +149,13 @@ echo "validate-legacy-import-gates: ${fail} gate(s) FAILED" >&2
 # fail there for want of data, not a data defect. Report that provenance with a
 # distinct exit status so an orchestrator running against a dev seed can choose
 # to skip these gates, while a consumer that blocks on any non-zero (the
-# pre-cutover checklist) still stops. One non-mirror row means the authoritative
-# load has begun, and the ordinary failure status stands.
-authoritative=$(q "SELECT COUNT(*) FROM legacy_members WHERE import_source IS NOT NULL AND import_source <> 'mirror';")
+# pre-cutover checklist) still stops. The export stamps its own provenance value
+# on every row it writes, so one such row means the authoritative load has begun
+# and the ordinary failure status stands. The test keys on that value rather than
+# on "anything but mirror" because the seeded persona catalog and the collision
+# stub also carry non-mirror provenance, and a dev seed carrying them would
+# otherwise be mistaken for a real load.
+authoritative=$(q "SELECT COUNT(*) FROM legacy_members WHERE import_source = 'legacy_site_data';")
 if [[ "${authoritative}" -eq 0 ]]; then
   exit 78
 fi

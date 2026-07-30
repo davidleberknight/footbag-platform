@@ -74,8 +74,36 @@ http {
 
         # Direct-to-origin probes lack the CloudFront-injected secret header.
         # Reject silently (444). In dev both sides are empty; check passes.
-        if ($http_x_origin_verify != "${X_ORIGIN_VERIFY_SECRET}") {
+        #
+        # Written as deny-by-default with named exemptions rather than a single
+        # negated test, because this runs in the server rewrite phase, before
+        # any location is chosen: a location cannot opt itself out of a bare
+        # `return 444` here, so the exemption has to be made at this level. A
+        # new location added later inherits the block automatically and has to
+        # be exempted deliberately, which is the safe direction for the mistake
+        # to fall.
+        set $origin_gate_block 1;
+        if ($http_x_origin_verify = "${X_ORIGIN_VERIFY_SECRET}") {
+            set $origin_gate_block 0;
+        }
+        # The container liveness probe is the one exemption: nginx answers it
+        # itself without proxying, it reveals nothing but that nginx is running,
+        # and it is only reachable from inside the compose network. Exempting it
+        # avoids the alternative of handing the probe the shared secret, which
+        # would put that secret in a process command line for anyone reading the
+        # host's process list.
+        if ($uri = "/nginx-healthz") {
+            set $origin_gate_block 0;
+        }
+        if ($origin_gate_block) {
             return 444;
+        }
+
+        # ── Container liveness (answered locally, never proxied) ───────────
+        location = /nginx-healthz {
+            access_log off;
+            default_type text/plain;
+            return 200 "ok\n";
         }
 
         # ── Health probes (pass through, no buffering) ─────────────────────

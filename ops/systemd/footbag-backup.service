@@ -24,3 +24,33 @@ Type=oneshot
 WorkingDirectory=/srv/footbag
 EnvironmentFile=/srv/footbag/env
 ExecStart=/usr/bin/env bash scripts/backup-db.sh
+
+# Sandboxing. Unlike the stack unit, this one runs a real workload rather than
+# a client for a daemon, so it can be confined properly: it reads one database,
+# writes two small state files beside it, and uploads a snapshot.
+#
+# The whole file system is read-only apart from the database directory. That
+# directory has to be writable, not merely readable: the backup checkpoints the
+# write-ahead log into the main database file before snapshotting it, and it
+# records the last-success timestamp and the consecutive-failure count there.
+# The path is written out literally rather than following the environment
+# variable the script accepts, so the sandbox and the script cannot drift apart
+# silently; if that variable is ever repointed, this line moves with it.
+ProtectSystem=strict
+ReadWritePaths=/srv/footbag/db
+
+# The snapshot and its compressed copy are built in a temporary directory, and
+# a private one keeps the intermediate database copy out of the host's shared
+# temp space where any other process could read it.
+PrivateTmp=yes
+
+# Home directories are readable but not writable: the AWS credential chain
+# lives under root's home and has to be read to assume the upload role. The one
+# exception is the credential cache the AWS client writes when it assumes that
+# role; without it the run fails on an unwritable cache rather than anything to
+# do with the backup itself. The leading dash tolerates its absence on a host
+# where the client has not cached anything yet.
+ProtectHome=read-only
+ReadWritePaths=-/root/.aws/cli
+
+NoNewPrivileges=yes

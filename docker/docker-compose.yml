@@ -33,7 +33,10 @@ services:
   # script uses `sed` (built into Alpine) instead of `envsubst` (which would
   # require adding the gettext package and re-introducing a custom build).
   nginx:
-    image: nginx:1.25-alpine
+    # Pinned by digest so a hijacked or re-pushed upstream tag cannot replace
+    # this layer between rebuilds. The tag beside it is for humans; the digest
+    # is what is fetched. Re-pin deliberately when patching, never by floating.
+    image: nginx:1.29-alpine@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de
     ports:
       - "80:80"
     environment:
@@ -42,10 +45,37 @@ services:
     volumes:
       - ./nginx/nginx.conf.template:/etc/nginx/nginx.conf.template:ro
       - ./nginx/40-render-nginx-conf.sh:/docker-entrypoint.d/40-render-nginx-conf.sh:ro
+    security_opt:
+      - no-new-privileges:true
+    # The stock nginx image keeps a root master that spawns unprivileged
+    # workers, so unlike the application containers it cannot simply run as a
+    # non-root user. Drop everything and re-add only what that model needs:
+    #   CHOWN, SETGID, SETUID  the master hands the worker processes to the
+    #                          unprivileged nginx account at startup
+    #   NET_BIND_SERVICE       binding port 80, which is privileged
+    #   KILL                   the master signals its own workers on reload and
+    #                          on shutdown, and they run under a different
+    #                          account, which the kernel treats as privileged
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+      - NET_BIND_SERVICE
+      - KILL
     depends_on:
       web:
         condition: service_healthy
     restart: unless-stopped
+    # Answered by nginx itself and exempt from the origin-verify gate, so the
+    # probe never needs the shared secret on its command line.
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/nginx-healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   # ── Node.js web application ───────────────────────────────────────────────
   web:
@@ -77,6 +107,12 @@ services:
       SESSION_SECRET: ${SESSION_SECRET}
       IMAGE_PROCESSOR_URL: http://image:4000
       JWT_SIGNER: ${JWT_SIGNER:-local}
+      # The local signer writes its keypair on first boot when the file is
+      # absent. Point it inside the mounted database directory: the container
+      # process is unprivileged and cannot create anything in the image's own
+      # filesystem, and this is where a non-container dev run already keeps the
+      # file, so both ways of running dev share one keypair.
+      JWT_LOCAL_KEYPAIR_PATH: ${JWT_LOCAL_KEYPAIR_PATH:-/app/db/dev-jwt-keypair.pem}
       JWT_KMS_KEY_ID: ${JWT_KMS_KEY_ID:-}
       SES_ADAPTER: ${SES_ADAPTER:-stub}
       SES_FROM_IDENTITY: ${SES_FROM_IDENTITY:-}
@@ -134,6 +170,12 @@ services:
       # (avatars, member uploads, and curated media seeded for local rendering).
       # Dev-only; never shipped to S3.
       - ../s3-adapter-local:/app/s3-adapter-local:rw
+    security_opt:
+      - no-new-privileges:true
+    # The image runs as an unprivileged account and binds only an unprivileged
+    # port, so it needs no kernel capabilities at all.
+    cap_drop:
+      - ALL
     depends_on:
       image:
         condition: service_healthy
@@ -164,6 +206,13 @@ services:
       IMAGE_MAX_CONCURRENT: "2"
       LOG_LEVEL: ${LOG_LEVEL:-info}
       INTERNAL_EVENT_SECRET: ${INTERNAL_EVENT_SECRET:?set in .env or launch via npm run compose:dev (worker<->web auth)}
+    security_opt:
+      - no-new-privileges:true
+    # This container decodes untrusted media through ffmpeg and sharp, so it is
+    # the one where a dropped capability matters most. It runs unprivileged,
+    # binds an unprivileged port, and holds no credentials.
+    cap_drop:
+      - ALL
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:4000/health"]
@@ -195,6 +244,12 @@ services:
       SESSION_SECRET: ${SESSION_SECRET}
       IMAGE_PROCESSOR_URL: http://image:4000
       JWT_SIGNER: ${JWT_SIGNER:-local}
+      # The local signer writes its keypair on first boot when the file is
+      # absent. Point it inside the mounted database directory: the container
+      # process is unprivileged and cannot create anything in the image's own
+      # filesystem, and this is where a non-container dev run already keeps the
+      # file, so both ways of running dev share one keypair.
+      JWT_LOCAL_KEYPAIR_PATH: ${JWT_LOCAL_KEYPAIR_PATH:-/app/db/dev-jwt-keypair.pem}
       JWT_KMS_KEY_ID: ${JWT_KMS_KEY_ID:-}
       SES_ADAPTER: ${SES_ADAPTER:-stub}
       SES_FROM_IDENTITY: ${SES_FROM_IDENTITY:-}
@@ -232,6 +287,12 @@ services:
     volumes:
       # Directory bind mount — must match web so WAL/SHM sidecars are shared.
       - ../database:/app/db:rw
+    security_opt:
+      - no-new-privileges:true
+    # The image runs as an unprivileged account and binds only an unprivileged
+    # port, so it needs no kernel capabilities at all.
+    cap_drop:
+      - ALL
     restart: unless-stopped
     # Worker exposes GET /health on workerInternalPort (default 3100) from
     # transcodeWorker.ts. Probes the same endpoint the web container uses

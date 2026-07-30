@@ -61,6 +61,7 @@ from club_curation import (  # noqa: E402
     clean_club_text,
     decode_numeric_entities,
     load_club_text_corrections,
+    repair_doubled_url_scheme,
 )
 
 
@@ -181,6 +182,7 @@ def dump_row_to_seed_row(rec: dict, corrections: dict[tuple[str, str], str] | No
     url = _clean(rec.get("URL"))
     if not (url.startswith("http://") or url.startswith("https://")):
         url = ""  # match the mirror extractor: only absolute http(s) URLs are kept
+    url = repair_doubled_url_scheme(url)
     club_id = _clean(rec.get("ClubID"))
     row = {
         "legacy_club_key": club_id,

@@ -1,0 +1,12 @@
+# Build-context allowlist. The build context is the repository root, which holds
+# the real .env, the working database, the legacy-data tree, and node_modules --
+# gigabytes of material no image needs, and credentials no image may see. Ignore
+# everything, then re-admit only the paths the Dockerfiles actually COPY, so a
+# new file at the repo root cannot silently enter a build context.
+*
+
+!package.json
+!package-lock.json
+!tsconfig.json
+!src
+!ifpa

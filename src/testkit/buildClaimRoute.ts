@@ -23,7 +23,7 @@ import { createSessionJwt } from '../services/jwtService';
 import { issueSessionCookie } from '../lib/sessionCookie';
 import { appendAuditEntry } from '../services/auditService';
 import { PERSONA_SWITCH_AUDIT_ACTION_TYPE } from './personaFactory';
-import { ensureRealClaimMember } from './realClaimJourney';
+import { ensureRealClaimMember, RealClaimRefusedError } from './realClaimJourney';
 
 interface SessionMemberRow {
   id: string;
@@ -78,6 +78,14 @@ export async function getDevBuildClaim(
 
     res.redirect(302, `/members/${row.slug}`);
   } catch (err) {
+    // A refused target is the caller's to correct, so answer it directly with the
+    // builder's own explanation instead of letting it read as a server fault: a
+    // record the dataset does not hold is a not-found, and one it holds but cannot
+    // register under is a conflict between the request and the loaded data.
+    if (err instanceof RealClaimRefusedError) {
+      res.status(err.kind === 'no_record' ? 404 : 409).send(err.message);
+      return;
+    }
     next(err);
   }
 }

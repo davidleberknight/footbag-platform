@@ -243,6 +243,21 @@ run_csv_only_canonical_bootstrap_and_qc() {
     echo ""
 }
 
+# Count data rows in the club seed, 0 when it is absent. Parsed as CSV rather
+# than counted as lines because a club description can carry embedded newlines,
+# which makes a line count read far higher than the number of clubs.
+_clubs_seed_row_count() {
+    python - <<'PY'
+import csv, pathlib
+p = pathlib.Path("seed/clubs.csv")
+if not p.exists():
+    print(0)
+else:
+    with p.open(newline="", encoding="utf-8") as f:
+        print(max(0, sum(1 for _ in csv.reader(f)) - 1))
+PY
+}
+
 # =============================================================================
 # PHASE B — Mirror extraction (clubs + club_members seed CSVs)
 #
@@ -259,6 +274,16 @@ run_phase_b_mirror_extract() {
     echo "╔══════════════════════════════════════════════════════╗"
     echo "║  PHASE B: MIRROR EXTRACTION                          ║"
     echo "╚══════════════════════════════════════════════════════╝"
+    # The club seed must never come out of this phase smaller than it went in.
+    # The check spans both steps below rather than living inside either one,
+    # because neither produces a comparable number on its own: the extractor
+    # sees only the clubs the legacy site still serves as active, and the
+    # overlay adds back the approved clubs it no longer serves. Only the pair's
+    # combined output is comparable to the committed seed, so the count is taken
+    # before the first step and tested after the last.
+    local clubs_before clubs_after
+    clubs_before="$(_clubs_seed_row_count)"
+
     python scripts/extract_clubs.py
     # Reconcile the mirror-extracted seed against the authoritative approved-club
     # universe from the legacy clubs dump: preserve the mirror-enriched rows,
@@ -267,6 +292,23 @@ run_phase_b_mirror_extract() {
     # clubs' URLs are verified, and before the classifier so it sees the full
     # universe. A clean no-op when the machine-local dump is absent.
     python scripts/overlay_clubs_from_dump.py
+
+    clubs_after="$(_clubs_seed_row_count)"
+    if (( clubs_after < clubs_before )) && [[ "${ALLOW_CLUB_SEED_SHRINK:-0}" != "1" ]]; then
+        echo "" >&2
+        echo "ERROR: the club seed shrank across mirror extraction: ${clubs_before} rows before, ${clubs_after} after." >&2
+        echo "       seed/clubs.csv has NOT been left in a good state and the run is stopping here." >&2
+        echo "" >&2
+        echo "       The usual cause is that the approved-club dump was unavailable, which makes" >&2
+        echo "       scripts/overlay_clubs_from_dump.py a no-op and leaves only the clubs the mirror" >&2
+        echo "       still serves as active. That dump is machine-local, reached through the" >&2
+        echo "       footbag_legacy_repo symlink; confirm it resolves and holds the clubs module." >&2
+        echo "       The other cause is a genuinely depleted clubs/show mirror." >&2
+        echo "" >&2
+        echo "       Re-run ./run_pipeline.sh once the dump or the mirror is in place. If the" >&2
+        echo "       reduction is real and intended, re-run with ALLOW_CLUB_SEED_SHRINK=1." >&2
+        exit 1
+    fi
     python scripts/extract_club_members.py
     python scripts/extract_member_usernames.py
     # Stamp URL safety verdicts for club URLs at data-prep time, so the deployed
@@ -275,7 +317,24 @@ run_phase_b_mirror_extract() {
     # so a normal soup-to-nuts run stays callout-free; only genuinely new or
     # changed URLs are checked here. Real Safe Browsing verdicts require the live
     # adapter configured in this environment.
-    ( cd "${REPO_ROOT}" && npm run --silent verify:seed-urls -- --clubs-only )
+    #
+    # Without that live adapter the verifier refuses to record anything, because
+    # every verdict would be an invented answer that then ships as though a real
+    # check had happened. That refusal is right, and on a production data-prep
+    # run it must stop everything. On a workstation running the stub it would
+    # instead halt every rebuild that touches a club URL, for a step whose whole
+    # output is advisory: an unstamped URL is simply hidden on the public read,
+    # so the cost of skipping is that club links do not render, not that anything
+    # is wrong. So report what a real run would do, say plainly what is deferred,
+    # and continue.
+    if [[ "${SAFE_BROWSING_ADAPTER:-stub}" == "live" ]]; then
+        ( cd "${REPO_ROOT}" && npm run --silent verify:seed-urls -- --clubs-only )
+    else
+        echo "── Club URL verdicts: skipped (Safe Browsing adapter is not live) ────"
+        ( cd "${REPO_ROOT}" && npm run --silent verify:seed-urls -- --clubs-only --dry-run ) || true
+        echo "   Nothing was recorded. Club links without a stored verdict stay hidden"
+        echo "   on the public read until a run with the live adapter stamps them."
+    fi
     echo ""
 }
 

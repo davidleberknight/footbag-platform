@@ -343,6 +343,19 @@ resource "aws_cloudfront_distribution" "main" {
   }
 
   # ── Custom error: serve maintenance page on 5xx ──────────────────────────
+  # All four origin-failure statuses are covered, so a visitor never meets a
+  # raw CloudFront error page: 500 when the origin returns an unhandled server
+  # error, 502 and 503 when it is unreachable or refusing, and 504 when it stops
+  # answering in time. Leaving any of them out means that failure mode alone
+  # shows unbranded text naming the CDN, which reads as the whole site being
+  # broken rather than briefly unavailable.
+  custom_error_response {
+    error_code            = 500
+    response_code         = 503
+    response_page_path    = "/maintenance.html"
+    error_caching_min_ttl = 10
+  }
+
   custom_error_response {
     error_code            = 502
     response_code         = 503
@@ -352,6 +365,13 @@ resource "aws_cloudfront_distribution" "main" {
 
   custom_error_response {
     error_code            = 503
+    response_code         = 503
+    response_page_path    = "/maintenance.html"
+    error_caching_min_ttl = 10
+  }
+
+  custom_error_response {
+    error_code            = 504
     response_code         = 503
     response_page_path    = "/maintenance.html"
     error_caching_min_ttl = 10

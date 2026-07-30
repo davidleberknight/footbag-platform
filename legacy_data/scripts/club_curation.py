@@ -95,6 +95,29 @@ def blank_location_placeholder(text: str | None) -> str:
     return "" if cleaned.strip().lower() == "none" else cleaned
 
 
+def repair_doubled_url_scheme(url: str | None) -> str:
+    """Strip a redundant scheme the legacy form prepended to an already-absolute URL.
+
+    A club contact who typed a full web address into the legacy club form got it
+    stored with another "http://" in front, producing "http://https://example.org".
+    The legacy database is read-only, so the damage cannot be corrected at source,
+    and the mirror faithfully reproduces it because the page's link really does say
+    that. Left alone the value is not a working address at all: it names a host of
+    "https", so the link is dead wherever it is published.
+
+    Only a scheme immediately followed by another scheme is removed, and the inner
+    one is kept, because it is what the person actually typed. A URL with one
+    scheme, or with the word "http" anywhere else in it, is returned untouched.
+
+    Shared, because both seed producers emit this column and a repair applied in
+    only one of them comes back the moment the other runs.
+    """
+    cleaned = clean_club_text(url)
+    if not cleaned:
+        return ""
+    return re.sub(r"^\s*https?://(?=https?://)", "", cleaned, count=1).strip()
+
+
 def load_club_duplicate_pairs(path: Path = CLUB_DUPLICATES_CSV) -> dict[str, str]:
     """Confirmed duplicate clubs as retired key -> kept key.
 

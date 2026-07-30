@@ -244,8 +244,12 @@ export interface LegacyMemberOverrides {
 
 export function insertLegacyMember(db: BetterSqlite3.Database, o: LegacyMemberOverrides = {}): string {
   const legacyId = o.legacy_member_id ?? `legmem-${uid()}`;
-  const name     = o.real_name        ?? 'Legacy Member';
-  const display  = o.display_name     ?? name;
+  // An explicit null real_name is a genuine imported shape, not an omission: a
+  // mirror-derived import carries the roster display name and leaves the legal
+  // name unset until the member export supersedes it, so the factory has to be
+  // able to build that row rather than silently substituting a name.
+  const name     = o.real_name === undefined ? 'Legacy Member' : o.real_name;
+  const display  = o.display_name ?? name ?? 'Legacy Member';
   // Upsert: an earlier insertHistoricalPerson or insertMember may have
   // auto-created a stub legacy_members row; replace with this fuller row.
   db.prepare(`

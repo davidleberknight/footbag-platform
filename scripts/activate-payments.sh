@@ -11,9 +11,11 @@
 #      endpoint in the Stripe Dashboard and copying its whsec_... signing
 #      secret, which is then prompted silently.
 #   3. Rewrite /srv/footbag/env on the host: STRIPE_WEBHOOK_SECRET=<value>,
-#      replace-or-append with duplicate assignments collapsed. The previous
-#      env file is kept as a .bak on the host, and a secret-masked diff is
-#      shown for confirmation before the push. PAYMENT_ADAPTER is never
+#      replace-or-append with duplicate assignments collapsed. A secret-masked
+#      diff is shown for confirmation before the push, and no backup copy is
+#      left on the host: the deploy rebuilds that file from the parameter
+#      store, so undoing an activation means restoring the previous parameter
+#      value and deploying. PAYMENT_ADAPTER is never
 #      written here: the deploy derives it from the SSM payments arming flag
 #      (armed -> live, dark -> stub), so activation provisions credentials and
 #      arming is the separate Terraform step (tfvars flip + apply + deploy).
@@ -168,7 +170,7 @@ if (( DRY_RUN )); then
       echo "  4. Stage $HOST_ENV_PATH down from $SSH_ALIAS (ssh -t + sudo install)"
       echo "  5. Rewrite STRIPE_WEBHOOK_SECRET=... (requires SECRETS_ADAPTER=live; the deploy"
       echo "     derives PAYMENT_ADAPTER from the arming flag, so it is not written here)"
-      echo "  6. Show a secret-masked diff, confirm, push back (.bak kept on host)"
+      echo "  6. Show a secret-masked diff, confirm, push back (no .bak left on host)"
       echo "  7. Run the PAYMENTS-BOOT gate against the updated file"
       echo "  8. Print the deploy (./deploy_to_aws.sh) and checkout+refund verification steps"
       echo ""
@@ -488,8 +490,15 @@ else
     echo "ERROR: failed to copy the rewritten env file to $SSH_ALIAS." >&2
     exit 1
   fi
-  echo "Installing the rewritten env file via sudo (a .bak of the previous file is kept)..."
-  if ! ssh -t "$SSH_ALIAS" "sudo bash -c 'cp -p $HOST_ENV_PATH $HOST_ENV_PATH.bak && install -m 0600 -o root -g root $TMP_REMOTE $HOST_ENV_PATH'"; then
+  # No backup copy is left behind. The only value this script writes is the
+  # Stripe webhook signing secret, and the deploy rebuilds the host env file
+  # from the parameter store on every run, so a backup here would be a second,
+  # staler copy of a file that is already fully re-derivable, holding the whole
+  # secret set at rest for as long as nobody remembered to delete it. To undo a
+  # bad activation, put the previous value back in the parameter store and
+  # deploy.
+  echo "Installing the rewritten env file via sudo..."
+  if ! ssh -t "$SSH_ALIAS" "sudo bash -c 'install -m 0600 -o root -g root $TMP_REMOTE $HOST_ENV_PATH'"; then
     echo "ERROR: failed to install the rewritten env file on $SSH_ALIAS." >&2
     exit 1
   fi

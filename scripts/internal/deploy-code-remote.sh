@@ -279,6 +279,58 @@ rsync -a --delete \
   "$RELEASE_DIR/" "$LIVE_DIR/"
 chown -R root:root "$LIVE_DIR"
 
+# Runtime-user migration. The containers run as an unprivileged account
+# (uid 1000, the base image's own user) rather than as root, so the two places
+# they write and the credential files they read all have to be reachable by
+# that account. Every step is idempotent: this runs on every deploy and is a
+# no-op once the host is already in the target shape.
+#
+# The credential files stay owned by root and stay off-limits to the host at
+# large. A dedicated group is the narrow opening: only that group can read
+# them, only the containers are in it, and no operator account gains access by
+# being an operator. Group-read is the standard arrangement when a root-managed
+# file must be read by an unprivileged service, and the alternative of giving
+# the files to the service account outright would let a compromised container
+# rewrite the credentials it authenticates with.
+echo "==> Applying runtime-user ownership (containers run unprivileged)..."
+readonly APP_UID=1000
+readonly AWSCREDS_GROUP=awscreds
+readonly AWSCREDS_GID=1500
+
+if ! getent group "$AWSCREDS_GROUP" >/dev/null 2>&1; then
+  echo "    Creating group $AWSCREDS_GROUP (gid $AWSCREDS_GID)"
+  groupadd --gid "$AWSCREDS_GID" "$AWSCREDS_GROUP"
+fi
+# A pre-existing group under this name with a different id would leave the
+# container's supplementary group pointing at the wrong thing, and the failure
+# would look like unreadable credentials rather than a numbering mismatch.
+_actual_gid="$(getent group "$AWSCREDS_GROUP" | cut -d: -f3)"
+if [[ "$_actual_gid" != "$AWSCREDS_GID" ]]; then
+  echo "ERROR: group $AWSCREDS_GROUP has gid $_actual_gid, expected $AWSCREDS_GID." >&2
+  echo "       The compose files add the containers to gid $AWSCREDS_GID; reconcile before deploying." >&2
+  exit 1
+fi
+
+if [[ -d /root/.aws ]]; then
+  chgrp "$AWSCREDS_GROUP" /root/.aws
+  chmod 0750 /root/.aws
+  for _f in /root/.aws/credentials /root/.aws/config; do
+    if [[ -f "$_f" ]]; then
+      chown root:"$AWSCREDS_GROUP" "$_f"
+      chmod 0640 "$_f"
+    fi
+  done
+fi
+
+# The database directory holds the SQLite file plus its write-ahead log and
+# shared-memory sidecars; all three must belong to the running account or the
+# first write fails. The media directory is the local storage-adapter backing.
+for _d in "${FOOTBAG_DB_DIR:-/srv/footbag/db}" "${FOOTBAG_MEDIA_DIR:-/srv/footbag/media}"; do
+  if [[ -d "$_d" ]]; then
+    chown -R "$APP_UID":"$APP_UID" "$_d"
+  fi
+done
+
 # Apply the committed per-environment container sizing now that the release
 # tree (and docker/env/<env>.env) is in place, before the service restart.
 seed_container_sizing
@@ -661,9 +713,25 @@ if [[ "$FOOTBAG_ENV" == "development" || "$FOOTBAG_ENV" == "staging" ]]; then
   chown root:root "$ENV_PATH"
 fi
 
-echo "==> Reinstalling systemd service unit..."
+echo "==> Reinstalling systemd service units..."
 cp "$LIVE_DIR/ops/systemd/footbag.service" /etc/systemd/system/
+# The backup unit and its timer ship in the same release tree and carry their
+# own sandboxing, so they are reinstalled here too. Previously only the main
+# unit was refreshed, which left a changed backup unit sitting unapplied on the
+# host until someone remembered to copy it by hand.
+if [[ -f "$LIVE_DIR/ops/systemd/footbag-backup.service" ]]; then
+  cp "$LIVE_DIR/ops/systemd/footbag-backup.service" /etc/systemd/system/
+fi
+if [[ -f "$LIVE_DIR/ops/systemd/footbag-backup.timer" ]]; then
+  cp "$LIVE_DIR/ops/systemd/footbag-backup.timer" /etc/systemd/system/
+fi
 systemctl daemon-reload
+# Only restart the timer if it was already enabled: installing the backup timer
+# for the first time is a deliberate operator step with its own procedure, not
+# something a code deploy should switch on.
+if systemctl is-enabled --quiet footbag-backup.timer 2>/dev/null; then
+  systemctl restart footbag-backup.timer
+fi
 
 # No host-side image build: the workstation builds + ships images via
 # docker save | docker load before this remote-half runs. The systemd unit
@@ -679,12 +747,20 @@ systemctl restart footbag
 # has a 15s start_period. A bare `sleep 3` reports success while the stack
 # may still be 502/503 to traffic for another 12+ seconds, which then causes
 # the workstation-side smoke check to false-fail. Poll up to ~20s for
-# systemd-active AND /health/ready returning 2xx, matching the pattern in
-# deploy-rebuild-remote.sh.
+# systemd-active AND the app reporting ready.
+#
+# The probe runs inside the web container rather than against the origin from
+# the host: nginx rejects any request that does not carry the shared
+# origin-verify header, and a host-side probe has no way to send it that would
+# not also put the secret in a command line for anyone reading the process
+# list. Asking the app directly skips the perimeter and answers the question
+# the poll is actually asking, which is whether the application is ready.
 _stack_healthy=0
 for _i in 1 2 3 4 5 6 7 8 9 10; do
   if systemctl is-active --quiet footbag.service \
-     && curl -sf -o /dev/null --max-time 3 http://localhost/health/ready; then
+     && docker compose --env-file /srv/footbag/env \
+          -f docker/docker-compose.yml -f docker/docker-compose.prod.yml \
+          exec -T web wget -qO- --timeout=3 http://localhost:3000/health/ready >/dev/null 2>&1; then
     _stack_healthy=1
     break
   fi

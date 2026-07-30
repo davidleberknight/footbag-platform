@@ -51,4 +51,36 @@ describe('real-claim builder registration', () => {
     // validateSlug requires the slug to contain the surname; a numeric-id slug did not.
     expect(row?.slug).toContain('claimant');
   });
+
+  it('registers a record whose legal name is unset, using the name the import does carry', async () => {
+    // A mirror-derived import carries the person on the canonical historical-person
+    // row and the roster display name, and leaves the legal name unset. The builder
+    // has to register such a record rather than refuse it, or no real record is
+    // claimable on a dataset built without the member export.
+    const { insertLegacyMember, insertHistoricalPerson } = await import('../fixtures/factories');
+    const { buildRealClaimJourney } = await import('../../src/testkit/realClaimJourney');
+    const { slugify } = await import('../../src/services/slugify');
+    const { db } = await import('../../src/db/db');
+
+    const personName = 'Rostered Honoree';
+    insertHistoricalPerson(db, { legacy_member_id: '900002', person_name: personName });
+    // Overwrite the stub the historical person auto-created, so the record matches
+    // an import that never supplied a legal name.
+    insertLegacyMember(db, {
+      legacy_member_id: '900002',
+      real_name: null,
+      display_name: personName,
+      import_source: 'mirror',
+    });
+
+    const built = await buildRealClaimJourney('900002');
+    expect(built.claimedLegacy).toBe(true);
+    expect(built.slug).toBe(slugify(personName));
+
+    const row = db
+      .prepare('SELECT display_name, slug FROM members WHERE login_email = ?')
+      .get('real_claim_900002@personas.test') as { display_name: string; slug: string } | undefined;
+    expect(row?.display_name).toBe(personName);
+    expect(row?.slug).toBe(slugify(personName));
+  });
 });

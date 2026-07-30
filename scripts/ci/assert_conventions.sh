@@ -679,6 +679,10 @@ echo "[conventions] check: GitHub Actions SHA-pinning (delegated)"
 if ! bash scripts/ci/check_action_pinning.sh; then
   violations=$((violations + 1))
 fi
+echo "[conventions] check: container hardening (delegated)"
+if ! bash scripts/ci/check_dockerfile_hardening.sh; then
+  violations=$((violations + 1))
+fi
 
 echo "[conventions] check: live external fetch in pipeline scripts (delegated)"
 if ! bash scripts/ci/check_no_live_pipeline_fetch.sh; then

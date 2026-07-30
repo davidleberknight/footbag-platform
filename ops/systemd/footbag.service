@@ -19,6 +19,14 @@ After=docker.service network-online.target
 Requires=docker.service
 Wants=network-online.target
 
+# Start-rate limit: if the unit is started five times inside five minutes,
+# systemd refuses further attempts until the window clears. On a single small
+# instance a start loop is worse than an outage, because each attempt pulls the
+# whole compose stack up and can exhaust memory before anyone can log in to
+# stop it. The refusal is the recovery window.
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
 [Service]
 Type=oneshot
 RemainAfterExit=yes
@@ -78,6 +86,22 @@ ExecReload=/usr/bin/docker compose \
 RestartSec=10s
 TimeoutStartSec=120s
 TimeoutStopSec=60s
+
+# Sandboxing, kept to what is meaningful for this unit's actual job. What runs
+# here is the compose command line, not the application: the containers are
+# started by the Docker daemon and inherit nothing from this unit, so their
+# confinement lives in the compose files (dropped capabilities, no privilege
+# escalation, unprivileged users) rather than here.
+#
+# NoNewPrivileges and PrivateTmp still earn their place: they cost nothing and
+# they bound what the compose client itself can do.
+#
+# ProtectSystem=strict is deliberately absent, for two independent reasons.
+# Talking to the Docker daemon means writing to its socket, which a read-only
+# system tree forbids; and the stop path runs the backup script, which writes
+# the database directory. Either alone would rule it out.
+NoNewPrivileges=yes
+PrivateTmp=yes
 
 [Install]
 WantedBy=multi-user.target

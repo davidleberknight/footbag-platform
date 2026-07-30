@@ -26,6 +26,10 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
+  const { insertLegacyMember } = await import('../fixtures/factories');
+  // A record the dataset holds but cannot register under: one name word, and no
+  // canonical historical person to supply a fuller one.
+  insertLegacyMember(db, { legacy_member_id: '900101', real_name: null, display_name: 'Solo' });
   db.close();
   createApp = await importApp();
 });
@@ -57,6 +61,20 @@ describe('GET /dev/build-claim — request-shape guards', () => {
       .get(`/dev/build-claim?as=${'x'.repeat(65)}`)
       .redirects(0);
     expect(res.status).toBe(400);
+    expect(res.headers['set-cookie']).toBeUndefined();
+  });
+
+  it('404s a well-formed id the loaded dataset does not hold, naming the record', async () => {
+    const res = await request(createApp()).get('/dev/build-claim?as=900999').redirects(0);
+    expect(res.status).toBe(404);
+    expect(res.text).toContain('900999');
+    expect(res.headers['set-cookie']).toBeUndefined();
+  });
+
+  it('409s a record that cannot be registered under its own name, naming the record', async () => {
+    const res = await request(createApp()).get('/dev/build-claim?as=900101').redirects(0);
+    expect(res.status).toBe(409);
+    expect(res.text).toContain('900101');
     expect(res.headers['set-cookie']).toBeUndefined();
   });
 });
