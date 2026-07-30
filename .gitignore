@@ -226,3 +226,18 @@ legacy_data/reports/
 /out/
 legacy_data/freestyle_reconciliation/import_qc_report.md
 tricks-mosaic-clips/
+
+# Group/vote scraper working data: raw captures from the authenticated group and
+# vote scrapers (member roster, group membership, group files, ballot data).
+# Never commit; canonical home is the private ops repo.
+legacy_data/group_files.csv
+legacy_data/group_files/
+legacy_data/group_files_*.csv
+legacy_data/group_members.csv
+legacy_data/group_settings.csv
+legacy_data/member_groups.csv
+legacy_data/vote_results.csv
+legacy_data/vote_result_options.csv
+legacy_data/debug_*.html
+legacy_data/save_scrape
+legacy_data/.vent/
