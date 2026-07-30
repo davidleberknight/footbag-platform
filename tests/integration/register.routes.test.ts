@@ -409,6 +409,89 @@ describe('POST /register', () => {
     expect(res.text).toContain('must not mix letters from different scripts');
   });
 
+  // Reserved-name protection: a name may not claim a role or an official
+  // position the registrant does not hold. Whole words only, so a real surname
+  // that merely contains one still registers.
+  it('real name claiming an official position → 422', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .post('/register')
+      .type('form')
+      .send({
+        realName: 'Footbag Official',
+        email: 'roleclaim@example.com',
+        password: 'securepass123',
+        confirmPassword: 'securepass123',
+      });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('must not include a word reserved');
+  });
+
+  it('display name claiming a role → 422', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .post('/register')
+      .type('form')
+      .send({
+        realName: 'Bob Smith',
+        displayName: 'Admin Smith',
+        email: 'displayroleclaim@example.com',
+        password: 'securepass123',
+        confirmPassword: 'securepass123',
+      });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('must not include a word reserved');
+  });
+
+  it('display name spelling a role with digits → 422', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .post('/register')
+      .type('form')
+      .send({
+        // Digits are refused in a real name, so the substituted spelling can
+        // only arrive through the display name.
+        realName: 'Bob Smith',
+        displayName: 'Adm1n Smith',
+        email: 'substitutedroleclaim@example.com',
+        password: 'securepass123',
+        confirmPassword: 'securepass123',
+      });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('must not include a word reserved');
+  });
+
+  it('custom profile URL claiming an official position → 422', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .post('/register')
+      .type('form')
+      .send({
+        realName: 'Bob Smith',
+        slug: 'ifpa_official_smith',
+        email: 'slugroleclaim@example.com',
+        password: 'securepass123',
+        confirmPassword: 'securepass123',
+      });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('must not include a word reserved');
+  });
+
+  it('surname containing a reserved word as a substring registers', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .post('/register')
+      .type('form')
+      .send({
+        realName: 'Ana Stafford',
+        email: 'stafford@example.com',
+        password: 'securepass123',
+        confirmPassword: 'securepass123',
+      });
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/register/check-email');
+  });
+
   it('accented single-script name registers and is stored NFC-normalized', async () => {
     const app = createApp();
     const res = await request(app)
@@ -598,7 +681,9 @@ describe('POST /register — initial-admin bootstrap', () => {
         .post('/register')
         .type('form')
         .send({
-          realName: 'Bootstrap Admin',
+          // The allowlist file is what grants the role here; a name claiming it
+          // is refused at validation and would never reach the grant.
+          realName: 'Bootstrap Bootlace',
           email: 'bootstrap-admin@example.com',
           password: 'securepass123',
           confirmPassword: 'securepass123',

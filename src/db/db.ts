@@ -8925,32 +8925,41 @@ export const workQueue = {
     ORDER BY wq.queue_category, wq.opened_at
   `); },
 
-  // Claim an open, unclaimed item: stamp the claiming admin. The unclaimed guard
-  // makes a second concurrent claim a no-op (zero rows changed), so exactly one
-  // admin wins.
+  // Claim an open item: stamp the claiming admin. A claim is a coordination
+  // signal with a shelf life, not a lock, so an item whose claim has gone stale
+  // is claimable again; otherwise one admin claiming and walking away would
+  // silence the item for everyone forever. Two admins claiming at once still
+  // resolve to exactly one winner, because the loser changes zero rows.
+  // Params: (adminId, nowIso, nowIso, adminId, itemId, staleCutoffIso).
   get claimItem() { return db.prepare(`
     UPDATE work_queue_items
     SET claimed_by_member_id = ?, claimed_at = ?, updated_at = ?, updated_by = ?, version = version + 1
-    WHERE id = ? AND status = 'open' AND claimed_by_member_id IS NULL
+    WHERE id = ? AND status = 'open'
+      AND (claimed_by_member_id IS NULL OR claimed_at < ?)
   `); },
 
   // All open items with their claim state, for building each administrator's
   // digest. The service filters out the urgent task types (they are emailed per
-  // event) and, per administrator, the items another administrator has claimed.
+  // event) and, per administrator, the items another administrator holds a live
+  // claim on; `claimed_at` is returned so a stale claim stops suppressing.
   get listOpenForDigest() { return db.prepare(`
-    SELECT id, queue_category, task_type, entity_id, opened_at, claimed_by_member_id
+    SELECT id, queue_category, task_type, entity_id, opened_at, claimed_by_member_id, claimed_at
     FROM work_queue_items
     WHERE status = 'open'
     ORDER BY opened_at
   `); },
 
-  // Open, still-unclaimed items older than the stale cutoff, for the one-time
-  // escalation email. The service filters out urgent task types and relies on
-  // the per-item outbox idempotency key so each item escalates only once.
-  get listStaleUnclaimedForEscalation() { return db.prepare(`
+  // Open items older than the stale cutoff and not under a live claim, for the
+  // one-time escalation email. An item whose claim has itself gone stale is
+  // eligible again, so a forgotten claim cannot suppress escalation forever.
+  // The service filters out urgent task types and relies on the per-item outbox
+  // idempotency key so each item escalates only once.
+  // Params: (openedBeforeIso, claimStaleBeforeIso).
+  get listStaleForEscalation() { return db.prepare(`
     SELECT id, task_type, entity_id, opened_at
     FROM work_queue_items
-    WHERE status = 'open' AND claimed_by_member_id IS NULL AND opened_at < ?
+    WHERE status = 'open' AND opened_at < ?
+      AND (claimed_by_member_id IS NULL OR claimed_at < ?)
     ORDER BY opened_at
   `); },
 

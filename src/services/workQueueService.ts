@@ -74,6 +74,26 @@ interface DigestRow {
   entity_id: string;
   opened_at: string;
   claimed_by_member_id: string | null;
+  claimed_at: string | null;
+}
+
+/**
+ * The moment before which a claim no longer counts as held. A claim is a
+ * coordination signal saying someone is on it, not a lock: it drops the item
+ * from every other administrator's digest and out of the escalation sweep, so
+ * a claim that outlives the administrator's attention would silence the item
+ * for everyone permanently. It expires on the same measure the queue already
+ * uses for an item going stale, so there is one notion of staleness rather
+ * than two.
+ */
+export function claimStaleCutoffIso(nowMs: number = Date.now()): string {
+  const days = readIntConfig('admin_queue_stale_escalation_days', 3);
+  return new Date(nowMs - days * 24 * 60 * 60 * 1000).toISOString();
+}
+
+/** A claim counts only while it is younger than the staleness cutoff. */
+export function claimIsLive(claimedAt: string | null, staleCutoffIso: string): boolean {
+  return claimedAt !== null && claimedAt >= staleCutoffIso;
 }
 
 interface AdminSubscriberRow {
@@ -117,14 +137,16 @@ export const workQueueService = {
     return { id };
   },
 
-  /** Claim an open, unclaimed item for the given administrator. A second claim
-   *  of the same item (already claimed, or no longer open) is a no-op. */
+  /** Claim an open item for the given administrator. A second claim while
+   *  another administrator's claim is still live (or the item is closed) is a
+   *  no-op; an item whose claim has gone stale is claimable again. */
   claim(input: { queueItemId: string; adminMemberId: string }): {
     status: 'claimed' | 'already_claimed_or_closed';
   } {
     const nowIso = new Date().toISOString();
     const res = workQueue.claimItem.run(
       input.adminMemberId, nowIso, nowIso, input.adminMemberId, input.queueItemId,
+      claimStaleCutoffIso(),
     );
     return { status: res.changes > 0 ? 'claimed' : 'already_claimed_or_closed' };
   },
@@ -141,13 +163,16 @@ export const workQueueService = {
     const admins = mailingListSubscriptions.listActiveSubscribersBySlug.all('admin-alerts') as AdminSubscriberRow[];
     const queueUrl = adminQueueUrl();
     const dateStamp = new Date().toISOString().slice(0, 10);
+    const staleCutoffIso = claimStaleCutoffIso();
     let sent = 0;
     for (const admin of admins) {
-      // An item another administrator has claimed drops out of this
-      // administrator's digest; unclaimed items and this administrator's own
-      // claimed items stay.
+      // An item under another administrator's live claim drops out of this
+      // administrator's digest; unclaimed items, this administrator's own
+      // claimed items, and items whose claim has gone stale all stay, so a
+      // forgotten claim cannot hide an item from everyone indefinitely.
       const forAdmin = routine.filter(
-        (i) => i.claimed_by_member_id === null || i.claimed_by_member_id === admin.member_id,
+        (i) => !claimIsLive(i.claimed_at, staleCutoffIso)
+          || i.claimed_by_member_id === admin.member_id,
       );
       if (forAdmin.length === 0) continue;
       const itemLines = forAdmin
@@ -172,13 +197,15 @@ export const workQueueService = {
     return { admins: admins.length, sent, openRoutineItems: routine.length };
   },
 
-  /** Scheduled pass: for each open, unclaimed routine item older than the stale
-   *  threshold, escalate once with a single email to admin-alerts. The per-item
-   *  outbox idempotency key makes each item escalate exactly once. */
+  /** Scheduled pass: for each open routine item older than the stale threshold
+   *  and not under a live claim, escalate once with a single email to
+   *  admin-alerts. An item whose own claim has gone stale is eligible again, so
+   *  a forgotten claim cannot suppress escalation forever. The per-item outbox
+   *  idempotency key makes each item escalate exactly once. */
   escalateStaleQueueItems(): { escalated: number } {
     const cutoffDays = readIntConfig('admin_queue_stale_escalation_days', 3);
     const cutoffIso = new Date(Date.now() - cutoffDays * 86_400_000).toISOString();
-    const stale = workQueue.listStaleUnclaimedForEscalation.all(cutoffIso) as StaleRow[];
+    const stale = workQueue.listStaleForEscalation.all(cutoffIso, claimStaleCutoffIso()) as StaleRow[];
     const queueUrl = adminQueueUrl();
     let escalated = 0;
     for (const item of stale) {

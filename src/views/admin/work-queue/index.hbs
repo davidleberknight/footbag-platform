@@ -58,6 +58,11 @@
 
           {{#if isClaimed}}
             <p class="card-meta">{{#if claimedByMe}}Claimed by you.{{else}}Claimed by {{claimedByName}}.{{/if}}</p>
+          {{else if lapsedClaimByName}}
+            <p class="card-meta">{{lapsedClaimByName}} claimed this earlier and has not closed it. It is open to anyone again.</p>
+            <form method="POST" action="/admin/work-queue/{{id}}/claim" class="form-block">
+              <button type="submit" class="btn btn-outline btn-sm">Claim</button>
+            </form>
           {{else}}
             <form method="POST" action="/admin/work-queue/{{id}}/claim" class="form-block">
               <button type="submit" class="btn btn-outline btn-sm">Claim</button>
@@ -112,7 +117,7 @@
                 <label for="review_note_{{id}}">Review note (optional)</label>
                 <textarea id="review_note_{{id}}" name="note" rows="2" maxlength="500" placeholder="Internal note; not sent to the member"></textarea>
               </div>
-              <p class="card-meta">Linking is not reverted here. To undo a wrong link, open a member link-help dispute and use the revert action.</p>
+              {{#if reviewHint}}<p class="card-meta">{{reviewHint}}</p>{{/if}}
               <button type="submit" class="btn btn-outline btn-sm">Mark Reviewed</button>
             </form>
           {{else if isReconciliationItem}}

@@ -574,29 +574,28 @@ Impact:
 
 Decision:
 
-Internal-only code (operator, maintainer, and QC tools that are not reachable from public navigation and are gated by role) lives under dedicated subtrees at `src/internal-<purpose>/**` with matching view trees at `src/views/internal-<purpose>/**`. It is kept separate from the permanent product surface in `src/services/**`, `src/controllers/**`, and `src/views/**`. `src/internal-admin/**` is present in every environment (dev, staging, production): its separation is role-based, not environment-based. `src/internal-qc/**` is dev- and staging-only: it is temporary tooling that retires before go-live (the QC-subsystem retirement gate in `docs/MIGRATION_PLAN.md`), and a production deployment never carries it. Both separations are orthogonal to the dev/staging/production adapter parity model defined in §1.9 and §5.3.
+Temporary internal tooling lives under a dedicated subtree at `src/internal-<purpose>/**` with a matching view tree at `src/views/internal-<purpose>/**`, kept separate from the permanent product surface in `src/services/**`, `src/controllers/**`, and `src/views/**`. `src/internal-qc/**` is the one such subtree: dev- and staging-only historical-data QC tooling that retires before go-live (the QC-subsystem retirement gate in `docs/MIGRATION_PLAN.md`), which a production deployment never carries. Permanent role-gated admin tooling is product code and lives in the ordinary trees under the established `admin` naming, separated from member-facing surfaces by the admin authorization gate rather than by file location. The separation is orthogonal to the dev/staging/production adapter parity model defined in §1.9 and §5.3.
 
-Internal-only subtrees:
+Internal-only subtree:
 
 - `src/internal-qc/{controllers,services}/**`: historical-data QC tooling (net team corrections, persons data-quality review). Every file in this subtree carries the banner `// ---- QC-only (delete with pipeline-qc subsystem) ----` so the retirement scope is mechanically greppable at retirement time.
-- `src/internal-admin/**`: role-gated admin tooling covering work queue, audit viewer, alarm management, and config writes. Follows the same subtree convention without the QC deletion banner.
 
 Rationale:
 
 - A distinct subtree signals at a glance whether code serves the public product or serves operator/maintainer needs. Nothing in `src/services/` or `src/controllers/` is silently QC-only.
 - The QC-only banner on every source file makes the "delete with pipeline-qc subsystem" scope mechanically greppable at retirement time.
 - Keeping internal-only code out of `src/services/` keeps the permanent product service surface free of internal-only tooling. Internal-only code is documented in its relevant runbook.
-- Role-based separation is orthogonal to environment-based adapter parity: dev, staging, and production differ only at the `<Purpose>Adapter` seam (§5.3). Internal-admin surfaces exist in every environment and are gated by auth role; internal-qc surfaces are additionally excluded from production because the QC subsystem is temporary and retires before go-live.
+- Admin tooling is permanent product code and is separated by authorization, not by file location: it exists in every environment and is reachable only through the admin gate, which a subtree boundary would restate without enforcing. QC tooling is separated by subtree because it is excluded from production and deleted wholesale at retirement, which a file-location boundary makes mechanical.
 
 Trade-offs:
 
 - Two parallel subtree roots (permanent product vs internal-only) to maintain. Minor, and is the point of the separation.
-- A tool transitioning in or out of the QC lifecycle requires renaming its subtree (for example, migrating a tool from `src/internal-qc/` to `src/internal-admin/` if it survives QC retirement). Acceptable: it is a deliberate lifecycle transition and should not be silent.
+- A QC tool that survives retirement moves out of the subtree and into the ordinary trees. Acceptable: it is a deliberate lifecycle transition and should not be silent.
 
 Impact:
 
-- The historical-data QC subsystem lives entirely under `src/internal-qc/`; role-gated admin tooling lives under `src/internal-admin/`.
-- `src/services/`, `src/controllers/`, `src/views/` hold permanent product code only. New internal-only code must land under the appropriate `src/internal-<purpose>/**` subtree on first commit. Do not merge an internal-only addition into the main trees with intent to move later.
+- The historical-data QC subsystem lives entirely under `src/internal-qc/`. Role-gated admin tooling lives in the ordinary trees, named `admin<Surface>Controller`, `admin<Surface>Service`, and `src/views/admin/<surface>/`.
+- New QC code must land under `src/internal-qc/**` on first commit. Do not merge a QC addition into the main trees with intent to move later.
 - Integration tests for internal-only routes continue to live in `tests/integration/` alongside other route tests. Test-file paths do not mirror the src-layer separation today; if a convention for that is adopted later, it is a test-layout decision, not a change to this rule.
 - Internal-only subtrees are not part of the permanent product service surface; permanent product services are, and the high-stakes write-path ones carry the file-header JSDoc convention.
 
@@ -2050,12 +2049,12 @@ Impact:
 
 Decision:
 
-Display names are restricted to prevent impersonation and spoofing via visually similar characters from different scripts. The validator runs at registration, where a member's display name is set and fixed.
+Display names are restricted to prevent impersonation and spoofing via visually similar characters from different scripts. The validator runs at registration, where a member's display name is set and fixed. The same restrictions run on the full legal name, since a blank display name is taken from it, and the reserved-word rule also runs on a member-chosen profile URL, which is a public address as well as public attribution.
 
 Restrictions enforced:
 
 1. Single-script requirement: characters primarily from one Unicode script (all Latin, all Cyrillic, all CJK, etc.). Allowed mixing: primary script plus the Common and Inherited script categories (spaces, digits, basic punctuation). Forbidden mixing: Latin and Cyrillic, Latin and Greek, and other cross-script combinations.
-2. Reserved name protection: reject names matching reserved words case-insensitively. The reserved set includes role-claim words ("admin", "administrator", "system", "support", "moderator", "staff") and platform-claim words ("IFPA", "footbag", "official"). Common substitutions are checked (`adm1n`, `supp0rt`, `m0derator`).
+2. Reserved name protection: reject a name one of whose own words is a reserved word. Words separate on whitespace and on the punctuation that joins name parts, and each is compared case-insensitively with accents and digit-for-letter substitutions folded away, so `adm1n` and `Supp0rt` are caught while a longer name that merely contains a reserved word, such as the surname Stafford, is accepted. The reserved set includes role-claim words ("admin", "administrator", "system", "support", "moderator", "staff") and platform-claim words ("IFPA", "footbag", "official").
 3. Invisible character prohibition: reject names containing zero-width characters (U+200B, U+200C, U+200D), bidirectional formatting (U+202A through U+202E, U+2066 through U+2069), and the byte-order mark (U+FEFF).
 4. Length: minimum 2 characters, maximum 64 characters, measured after normalization.
 

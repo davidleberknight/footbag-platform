@@ -158,7 +158,7 @@ function normalizeEmail(email: string): string {
 }
 
 import { slugify } from './slugify';
-import { extractSurname, stripAccents, surnameKey } from './nameUtils';
+import { extractSurname, matchReservedNameWord, stripAccents, surnameKey } from './nameUtils';
 
 /**
  * Generate a unique slug. Appends _2, _3, etc. on conflict.
@@ -646,13 +646,20 @@ function isSingleAllowedScript(scripts: Set<string>): boolean {
 
 /**
  * Reject the homograph / spoofing vectors an attacker uses to mimic another
- * member's name. Runs on the NFC-normalized name.
+ * member's name, and the role claims that mimic the platform itself. Runs on
+ * the NFC-normalized name.
+ * - A reserved word carried as one of the name's own words claims a position the
+ *   registrant does not hold ("Footbag Official", "IFPA Support"). Checked first,
+ *   because it is the only one of the three a plain ASCII name can trip.
  * - `\p{C}` covers control, format (zero-width joiners, bidi overrides, BOM),
  *   surrogate, private-use, and unassigned code points; none appear in a real name.
  * - The mixed-script rule rejects letters drawn from more than one script (a
  *   Cyrillic 'а' hidden inside a Latin name).
  */
 function assertSafeNameCharacters(name: string, label: string): void {
+  if (matchReservedNameWord(name)) {
+    throw new ValidationError(`${label} must not include a word reserved for official IFPA and site roles.`);
+  }
   if (/\p{C}/u.test(name)) {
     throw new ValidationError(`${label} must not contain invisible or control characters.`);
   }
@@ -674,6 +681,12 @@ function validateSlug(slug: string, realName: string): void {
   }
   if (!SLUG_PATTERN.test(slug)) {
     throw new ValidationError('Profile URL must contain only lowercase letters, numbers, and underscores.');
+  }
+  // A member-chosen URL is free text that need only carry the surname, so it can
+  // claim a role the name itself is refused for; an auto-generated one derives
+  // from the already-checked display name and never reaches this.
+  if (matchReservedNameWord(slug)) {
+    throw new ValidationError('Profile URL must not include a word reserved for official IFPA and site roles.');
   }
   const surname = surnameKey(realName);
   if (surname && !slug.includes(surname)) {

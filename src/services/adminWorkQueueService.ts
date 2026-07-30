@@ -62,7 +62,7 @@ import { workQueue, account, transaction } from '../db/db';
 import { enforceWorkQueueResolveLimit } from './identityAccessService';
 import { appendAuditEntry } from './auditService';
 import { emailService } from './emailService';
-import { workQueueService } from './workQueueService';
+import { workQueueService, claimIsLive, claimStaleCutoffIso } from './workQueueService';
 import { recordOperationalError } from './operationalErrors';
 import { NotFoundError, RateLimitedError, ValidationError } from './serviceErrors';
 import { PageViewModel } from '../types/page';
@@ -191,6 +191,7 @@ export interface ContactRequestRow {
   detailText: string | null;
   claimedByMemberId: string | null;
   claimedByName: string | null;
+  claimedAt: string | null;
 }
 
 function validateCategory(c: unknown): ContactCategory {
@@ -246,9 +247,25 @@ const WORK_QUEUE_TASK_TYPE_LABELS: Record<string, string> = {
 // Internal-review items an admin closes with a dismissal (no member reply, no
 // email), distinct from the contact-request resolve path. The generic resolve
 // form does not apply to these; the page renders a dismiss control instead.
-const DISMISSIBLE_REVIEW_TASK_TYPES: ReadonlySet<string> = new Set([
-  'claim_dob_mismatch_review',
+// Each type names the audit event its dismissal records, because the ledger is
+// append-only: a shared event name would file one type's review under another's
+// and the wrong entry could never be corrected.
+const DISMISSIBLE_REVIEW_AUDIT: ReadonlyMap<string, { actionType: string; category: string; reasonText: string; hint: string }> = new Map([
+  ['claim_dob_mismatch_review', {
+    actionType: 'legacy.dob_conflict_reviewed',
+    category:   'identity',
+    reasonText: 'Birth-date conflict reviewed and dismissed.',
+    hint:       'Linking is not reverted here. To undo a wrong link, open a member link-help dispute and use the revert action.',
+  }],
+  ['auto_link_match', {
+    actionType: 'legacy.auto_link_match_reviewed',
+    category:   'identity',
+    reasonText: 'Low-confidence auto-link match reviewed; no link applied.',
+    hint:       'No link was applied, so there is nothing to undo. To link this member, use the member link-help path.',
+  }],
 ]);
+
+const DISMISSIBLE_REVIEW_TASK_TYPES: ReadonlySet<string> = new Set(DISMISSIBLE_REVIEW_AUDIT.keys());
 
 export interface WorkQueueViewItem {
   id: string;
@@ -273,9 +290,13 @@ export interface WorkQueueViewItem {
   /** Member link-help requests render structured payload + approve/reject
    * forms instead of the generic resolve form. */
   isLinkHelpRequest: boolean;
-  /** Internal-review flags (birth-date conflict) render a dismiss control
-   * instead of the generic resolve form, which does not apply to them. */
+  /** Internal-review flags (birth-date conflict, low-confidence auto-link
+   * match) render a dismiss control instead of the generic resolve form, which
+   * does not apply to them. */
   isReviewFlag: boolean;
+  /** What dismissing this review type does and does not undo, worded per type
+   * because the two say opposite things about an applied link. */
+  reviewHint: string | null;
   /** A reconciliation discrepancy is resolved on the reconciliation page, not
    *  here; its card links there instead of rendering the resolve form. */
   isReconciliationItem: boolean;
@@ -291,6 +312,10 @@ export interface WorkQueueViewItem {
   isClaimed: boolean;
   claimedByMe: boolean;
   claimedByName: string | null;
+  /** Who held a claim that has since lapsed, so the card can say the item is
+   *  free again without losing who last looked at it. Null when the claim is
+   *  live or the item was never claimed. */
+  lapsedClaimByName: string | null;
   linkHelp: {
     statement: string;
     claimedLegacyUsername: string | null;
@@ -358,7 +383,9 @@ function shapeWorkQueueItem(raw: ContactRequestRow, viewingAdminId: string): Wor
   const isReconciliationItem = raw.taskType === 'reconciliation_discrepancy';
   const isPaymentsResolvable = PAYMENTS_RESOLVABLE_TASK_TYPES.has(raw.taskType);
   const isContactRequest = raw.taskType === TASK_TYPE;
-  const isClaimed = raw.claimedByMemberId !== null;
+  // A claim expires, so an item whose holder never came back is offered to
+  // everyone again rather than sitting silently under a name.
+  const isClaimed = claimIsLive(raw.claimedAt, claimStaleCutoffIso());
 
   // The resolve form applies to contact requests and the system-raised payments
   // tasks; link-help, review flags, and reconciliation twins each have their own
@@ -394,6 +421,7 @@ function shapeWorkQueueItem(raw: ContactRequestRow, viewingAdminId: string): Wor
     decisionLabels,
     isLinkHelpRequest,
     isReviewFlag,
+    reviewHint: DISMISSIBLE_REVIEW_AUDIT.get(raw.taskType)?.hint ?? null,
     isReconciliationItem,
     showResolveForm,
     resolutionNotePlaceholder: isContactRequest
@@ -402,6 +430,9 @@ function shapeWorkQueueItem(raw: ContactRequestRow, viewingAdminId: string): Wor
     isClaimed,
     claimedByMe: isClaimed && raw.claimedByMemberId === viewingAdminId,
     claimedByName: raw.claimedByName,
+    // A lapsed claim still names who had it, so the next administrator can ask
+    // rather than duplicating work already done.
+    lapsedClaimByName: !isClaimed && raw.claimedByName !== null ? raw.claimedByName : null,
     linkHelp: isLinkHelpRequest ? parseLinkHelpPayload(raw.reasonText) : null,
   };
 }
@@ -677,6 +708,7 @@ export const adminWorkQueueService = {
       detail_text: string | null;
       claimed_by_member_id: string | null;
       claimed_by_name: string | null;
+      claimed_at: string | null;
     }>;
     return rows.map((r) => {
       // Entity-display lookup belongs in the service (db.ts is the only SQL
@@ -706,6 +738,7 @@ export const adminWorkQueueService = {
         detailText: r.detail_text,
         claimedByMemberId: r.claimed_by_member_id,
         claimedByName: r.claimed_by_name,
+        claimedAt: r.claimed_at,
       };
     });
   },
@@ -817,14 +850,15 @@ export const adminWorkQueueService = {
       if (result.changes === 0) {
         throw new NotFoundError(`Open review item not found: ${input.queueItemId}`);
       }
+      const auditFor = DISMISSIBLE_REVIEW_AUDIT.get(row.task_type)!;
       appendAuditEntry({
-        actionType:    'legacy.dob_conflict_reviewed',
-        category:      'identity',
+        actionType:    auditFor.actionType,
+        category:      auditFor.category,
         actorType:     'admin',
         actorMemberId: input.adminMemberId,
         entityType:    row.entity_type,
         entityId:      row.entity_id,
-        reasonText:    'Birth-date conflict reviewed and dismissed.',
+        reasonText:    auditFor.reasonText,
         metadata:      { queue_item_id: input.queueItemId, note },
       });
     });

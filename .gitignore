@@ -84,7 +84,6 @@ s3-adapter-local/
 # Databases (local/dev/generated)
 # =========================
 *.db
-*.db.bak
 *.db.bak*
 *.sqlite
 *.sqlite3
@@ -132,7 +131,6 @@ tests/coverage/
 .terraform/
 *.tfstate
 *.tfstate.*
-crash.log
 *.tfvars
 *.tfvars.json
 !*.tfvars.example
@@ -219,7 +217,6 @@ legacy_data/inputs/identity_lock/Persons_Truth_Final_v*.csv
 !legacy_data/inputs/identity_lock/Persons_Truth_Final_v52.csv
 legacy_data/out/
 legacy_data/event_results/seed/
-database/footbag.db
 legacy_data/Footbag_Results_Canonical.xlsx
 *.zip
 *.lnk
@@ -242,16 +239,6 @@ mockups/
 database/*.bak.*
 legacy_data/reports/
 
-# Local working planning doc (never commit)
-/PLANNING.md
-
-# Retired freestyle planning surfaces (local historical and working records
-# only). One root file carries both retired lineages: the freestyle
-# reconciliation/remediation report and the Freestyle Closure Plan that
-# replaced it in place at the same path. The single tracked authority for
-# active freestyle work is the maintainers' private tracker.
-/freestyle_remediation_report.md
-
 # Per-session commit handoff script (staged-and-handed-off, never committed)
 /commit.sh
 
@@ -260,14 +247,12 @@ legacy_data/reports/
 legacy_data/freestyle_reconciliation/import_qc_report.md
 tricks-mosaic-clips/
 
-# Durable working log for the cross-session tracker issue review. Summarizes
-# private-tracker content, so it stays local and is never committed.
-/issue_review.md
-
-# Working plan and operator runbook for the container hardening batch. Carries
-# production hostnames and AWS console steps, so it stays local; deleted when
-# the batch is done rather than kept.
-/hardening_plan.md
+# Working notes, planning documents, handovers and operator runbooks live in the
+# maintainers' private operations checkout and are gitignored there, not here.
+# Keeping them out of this checkout entirely means tracker content, production
+# hostnames and console steps are never one `git add` away from a public commit.
+# Look for them beside the private ops docs; the cross-session tracker issue
+# review and the container-hardening runbook are both there.
 
 # An unrelated client website that happens to sit here on this machine. It holds
 # another business's private domain, mail and deployment notes, and a personal

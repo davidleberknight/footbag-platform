@@ -7,10 +7,10 @@
  *   - The admin edit surface for one row: rendering its editable fields and saving
  *     edits, keyed on the row's stable surrogate id (not its mutable display
  *     position).
+ *   - Adding a row and removing one, the removal a hard delete by that same id.
  *
  * Does not own:
  *   - The public records pages (RecordsService is public, read-only).
- *   - Adding or removing rows (a later slice; remove will be a hard delete by id).
  *
  * Write discipline: updateRow validates the submitted fields (section, subsection,
  * and division required; score and rank each empty or a whole number; the display

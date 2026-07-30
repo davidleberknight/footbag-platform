@@ -774,3 +774,185 @@ describe('POST /admin/work-queue/:id/resolve — payments tasks', () => {
     expect(res.text).not.toContain(`action="/admin/work-queue/${reconId}/resolve"`);
   });
 });
+
+// A claim says an administrator is handling an item: it drops the item from
+// every other administrator's digest and out of the escalation sweep. That
+// makes it a coordination signal with a shelf life, not a lock. A claim that
+// outlives the administrator's attention must lapse, or one person claiming an
+// item and never returning silences it for everyone permanently.
+describe('work-queue claims lapse', () => {
+  async function seedClaimedItem(claimedAtIso: string, claimerId: string): Promise<string> {
+    const { workQueueService } = await import('../../src/services/workQueueService');
+    const { id } = workQueueService.enqueue({
+      actorId: 'system',
+      queueCategory: 'membership',
+      taskType: 'auto_link_match',
+      entityType: 'member',
+      entityId: MEMBER_ID,
+      priority: 5,
+      reasonText: 'seeded for claim expiry',
+      detailText: null,
+    });
+    const db = new BetterSqlite3(dbPath);
+    db.prepare(
+      `UPDATE work_queue_items SET claimed_by_member_id = ?, claimed_at = ? WHERE id = ?`,
+    ).run(claimerId, claimedAtIso, id);
+    db.close();
+    return id;
+  }
+
+  const LONG_AGO = '2020-01-01T00:00:00.000Z';
+
+  it('a fresh claim by another admin holds the item and offers no Claim control', async () => {
+    const app = createApp();
+    const id = await seedClaimedItem(new Date().toISOString(), ADMIN2_ID);
+    const res = await request(app).get('/admin/work-queue').set('Cookie', adminCookie());
+    expect(res.text).toContain('Claimed by WQ Admin Two');
+    expect(res.text).not.toContain(`action="/admin/work-queue/${id}/claim"`);
+  });
+
+  it('a lapsed claim frees the item, names who had it, and offers Claim again', async () => {
+    const app = createApp();
+    const id = await seedClaimedItem(LONG_AGO, ADMIN2_ID);
+    const res = await request(app).get('/admin/work-queue').set('Cookie', adminCookie());
+    expect(res.text).toContain('claimed this earlier and has not closed it');
+    expect(res.text).toContain(`action="/admin/work-queue/${id}/claim"`);
+  });
+
+  it('another administrator can take over an item whose claim has lapsed', async () => {
+    const app = createApp();
+    const id = await seedClaimedItem(LONG_AGO, ADMIN2_ID);
+    const res = await request(app)
+      .post(`/admin/work-queue/${id}/claim`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({});
+    expect(res.status).toBe(303);
+
+    const db = new BetterSqlite3(dbPath);
+    const row = db
+      .prepare('SELECT claimed_by_member_id FROM work_queue_items WHERE id = ?')
+      .get(id) as { claimed_by_member_id: string };
+    db.close();
+    expect(row.claimed_by_member_id).toBe(ADMIN_ID);
+  });
+
+  it('a live claim by another administrator still cannot be stolen', async () => {
+    const app = createApp();
+    const id = await seedClaimedItem(new Date().toISOString(), ADMIN2_ID);
+    await request(app)
+      .post(`/admin/work-queue/${id}/claim`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({});
+
+    const db = new BetterSqlite3(dbPath);
+    const row = db
+      .prepare('SELECT claimed_by_member_id FROM work_queue_items WHERE id = ?')
+      .get(id) as { claimed_by_member_id: string };
+    db.close();
+    expect(row.claimed_by_member_id).toBe(ADMIN2_ID);
+  });
+
+  it('an item under a lapsed claim becomes eligible for stale escalation again', async () => {
+    await seedClaimedItem(LONG_AGO, ADMIN2_ID);
+    const { workQueue } = await import('../../src/db/db');
+    const rows = workQueue.listStaleForEscalation.all(
+      new Date().toISOString(),
+      new Date().toISOString(),
+    ) as Array<{ id: string }>;
+    expect(rows.length).toBeGreaterThan(0);
+  });
+});
+
+// A low-confidence auto-link classification reaches the queue for an
+// administrator to settle by hand. Like the birth-date conflict it is an
+// internal review with no member reply, so it closes with a dismissal; unlike
+// it, no link was ever applied, so the two must not share an audit event or a
+// hint. Every enqueued task type owes the administrator a way to close it: an
+// item with no control can never leave the queue.
+describe('POST /admin/work-queue/:id/dismiss — low-confidence auto-link match', () => {
+  async function seedAutoLinkMatch(memberId: string): Promise<string> {
+    const { workQueueService } = await import('../../src/services/workQueueService');
+    const { id } = workQueueService.enqueue({
+      actorId: 'system',
+      queueCategory: 'membership',
+      taskType: 'auto_link_match',
+      entityType: 'member',
+      entityId: memberId,
+      priority: 5,
+      reasonText: 'Batch auto-link match (low)',
+      detailText: null,
+    });
+    return id;
+  }
+
+  function auditCount(actionType: string, entityId: string): number {
+    const db = new BetterSqlite3(dbPath);
+    try {
+      return (db
+        .prepare('SELECT COUNT(*) AS c FROM audit_entries WHERE action_type = ? AND entity_id = ?')
+        .get(actionType, entityId) as { c: number }).c;
+    } finally {
+      db.close();
+    }
+  }
+
+  it('renders a dismissal control the administrator can act on', async () => {
+    const app = createApp();
+    const queueId = await seedAutoLinkMatch(MEMBER_ID);
+    const res = await request(app).get('/admin/work-queue').set('Cookie', adminCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Auto-link match');
+    expect(res.text).toContain(`action="/admin/work-queue/${queueId}/dismiss"`);
+  });
+
+  it('dismissal resolves the row and records an auto-link review, not a birth-date one', async () => {
+    const app = createApp();
+    const queueId = await seedAutoLinkMatch(MEMBER_ID);
+    const res = await request(app)
+      .post(`/admin/work-queue/${queueId}/dismiss`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ note: 'no plausible legacy account for this member' });
+    expect(res.status).toBe(303);
+
+    const db = new BetterSqlite3(dbPath);
+    const row = db
+      .prepare('SELECT status, resolved_by_member_id FROM work_queue_items WHERE id = ?')
+      .get(queueId) as { status: string; resolved_by_member_id: string } | undefined;
+    db.close();
+    expect(row?.status).not.toBe('open');
+    expect(row?.resolved_by_member_id).toBe(ADMIN_ID);
+
+    expect(auditCount('legacy.auto_link_match_reviewed', MEMBER_ID)).toBe(1);
+    expect(auditCount('legacy.dob_conflict_reviewed', MEMBER_ID)).toBe(0);
+  });
+
+  it('its hint does not offer to undo a link, because none was applied', async () => {
+    const app = createApp();
+    await seedAutoLinkMatch(OTHER_ID);
+    const res = await request(app).get('/admin/work-queue').set('Cookie', adminCookie());
+    expect(res.text).toContain('No link was applied');
+    expect(res.text).not.toContain('Linking is not reverted here');
+  });
+
+  it('no member email is sent when a review item is dismissed', async () => {
+    const app = createApp();
+    const db0 = new BetterSqlite3(dbPath);
+    const before = (db0.prepare('SELECT COUNT(*) AS c FROM outbox_emails').get() as { c: number }).c;
+    db0.close();
+
+    const queueId = await seedAutoLinkMatch(MEMBER_ID);
+    await request(app)
+      .post(`/admin/work-queue/${queueId}/dismiss`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ note: 'reviewed' });
+
+    const db1 = new BetterSqlite3(dbPath);
+    const after = (db1.prepare('SELECT COUNT(*) AS c FROM outbox_emails').get() as { c: number }).c;
+    db1.close();
+    expect(after).toBe(before);
+  });
+});
