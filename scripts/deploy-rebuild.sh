@@ -388,9 +388,20 @@ fi
 # env var for the permanent dev/staging register-allowlist bootstrap; the remote
 # half refuses to write the value on production hosts. Same parsing rules as
 # src/dev-bootstrap/runtime.ts.
+#
+# Not read at all when the target is production. Production has its own
+# first-admin path, a single-use SSM token claimed after the deploy, so the
+# value has no legitimate use there. Reading it anyway made a production deploy
+# depend on whether this particular workstation happens to hold the file: the
+# remote half refused, correctly, and told the operator to empty a local file
+# before retrying. The refusal stays as the backstop; the wrapper simply stops
+# sending something production must never accept.
 INITIAL_ADMIN_EMAILS_CSV=""
 LOCAL_ADMIN_FILE="$REPO_ROOT/.local/initial-admins.txt"
-if [[ -f "$LOCAL_ADMIN_FILE" ]]; then
+if [[ "$REMOTE" == "footbag-production" ]]; then
+  LOCAL_ADMIN_FILE=""
+fi
+if [[ -n "$LOCAL_ADMIN_FILE" && -f "$LOCAL_ADMIN_FILE" ]]; then
   INITIAL_ADMIN_EMAILS_CSV=$(awk '
     {
       sub(/#.*$/, "")

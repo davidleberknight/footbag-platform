@@ -41,6 +41,7 @@ set -euo pipefail
 TARGET="staging"
 SSH_ALIAS=""
 KEYS_FILE=""
+KEEP_KEYS="no"
 
 usage() {
   cat <<'EOF'
@@ -48,10 +49,13 @@ Usage: < <operator credential file> bash scripts/install-host-credentials.sh --t
 
   --target <staging|production>   deployed environment to install onto
   --ssh-alias <name>              override the default footbag-<target> alias
+  --keep-keys                     do not shred the keys file after installing
+                                  (for installing one key onto several hosts)
   <keys-file>                     JSON from `aws iam create-access-key` for
                                   the footbag-<target>-source-profile user
 
 Reads the host sudo password from stdin (line 1).
+Shreds the keys file on success unless --keep-keys is given.
 EOF
 }
 
@@ -64,6 +68,9 @@ while [[ $# -gt 0 ]]; do
     --ssh-alias)
       SSH_ALIAS="${2:-}"
       shift 2 || { echo "ERROR: --ssh-alias requires an argument" >&2; exit 2; }
+      ;;
+    --keep-keys)
+      KEEP_KEYS="yes"; shift
       ;;
     -h|--help)
       usage; exit 0
@@ -149,6 +156,18 @@ echo "== writing credential files via cat-pipe =="
   cat "$REMOTE_HALF"
 } | ssh "${SSH_OPTS[@]}" "$SSH_ALIAS" 'sudo -S -p "" bash'
 
-echo
-echo "Credential chain installed on $TARGET."
-echo "Now shred the keys file:  shred -u $KEYS_FILE"
+# Destroy the local copy here rather than telling the operator to. A cleanup
+# step a human has to remember is a cleanup step that eventually does not
+# happen, and what gets left behind is a live credential in a world-readable
+# directory. The secret is already installed and vaulted by this point, so the
+# file has no remaining purpose. --keep-keys exists only for the rotation case
+# where the same file installs onto more than one host in sequence.
+if [[ "$KEEP_KEYS" == "yes" ]]; then
+  echo
+  echo "Credential chain installed on $TARGET."
+  echo "Keys file retained at operator request; destroy it when done:  shred -u $KEYS_FILE"
+else
+  shred -u "$KEYS_FILE" 2>/dev/null || rm -f "$KEYS_FILE"
+  echo
+  echo "Credential chain installed on $TARGET; the local keys file has been shredded."
+fi

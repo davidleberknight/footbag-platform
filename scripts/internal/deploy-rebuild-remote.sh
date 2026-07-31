@@ -310,6 +310,20 @@ fi
 # hand-owned: the arming-switch sync later in this script writes SES_ADAPTER
 # from the declared flag (armed -> live, dark -> stub).
 FOOTBAG_ENV_VAL=$(require_env FOOTBAG_ENV)
+
+# The media bucket name is seeded alongside the adapter above, and needs the
+# environment name, so it lands here rather than beside it. Seeding the adapter
+# without the bucket guarantees a boot failure: the application refuses to start
+# with the S3 adapter selected and no bucket named, so an operator who has not
+# hand-written this line gets a crash-looping stack on a host that is otherwise
+# correctly configured. The name is derived rather than looked up, because every
+# environment's media bucket is footbag-<environment>-media by construction; an
+# operator pointing at a different bucket writes the line themselves and this
+# leaves it alone.
+if ! grep -q '^MEDIA_STORAGE_S3_BUCKET=' "$ENV_PATH"; then
+  echo "    Seeding MEDIA_STORAGE_S3_BUCKET=footbag-${FOOTBAG_ENV_VAL}-media into env file..."
+  printf 'MEDIA_STORAGE_S3_BUCKET=footbag-%s-media\n' "$FOOTBAG_ENV_VAL" >> "$ENV_PATH"
+fi
 if [[ "$FOOTBAG_ENV_VAL" == "staging" || "$FOOTBAG_ENV_VAL" == "development" ]]; then
   echo "    Reconciling SES_ADAPTER=stub into env file (FOOTBAG_ENV=$FOOTBAG_ENV_VAL; non-production must not send real mail)..."
   env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
@@ -361,7 +375,15 @@ PUBLIC_BASE_URL_VAL=$(require_env PUBLIC_BASE_URL)
 # SESSION_SECRET= line ahead of time.
 JWT_SIGNER_VAL=$(require_env JWT_SIGNER)
 JWT_KMS_KEY_ID_VAL=$(require_env JWT_KMS_KEY_ID)
-SES_ADAPTER_VAL=$(require_env SES_ADAPTER)
+# SES_ADAPTER is deliberately NOT required here. No environment hand-owns it:
+# staging and development have it written a few lines above, and production
+# derives it from the arming switches further down, which needs the AWS profile
+# resolved first and so cannot run any earlier. Requiring it at this point
+# therefore asks for a value this script is itself about to write, which a
+# first-ever production deploy cannot satisfy — the env file has no SES_ADAPTER
+# line yet, and the deploy refuses before reaching the code that would add it.
+# The end state is asserted after the derivation instead, which is the thing
+# actually worth guaranteeing.
 SES_FROM_IDENTITY_VAL=$(require_env SES_FROM_IDENTITY)
 AWS_REGION_VAL=$(require_env AWS_REGION)
 AWS_PROFILE_VAL=$(require_env AWS_PROFILE)
@@ -590,6 +612,16 @@ if [[ "$FOOTBAG_ENV_VAL" == "production" ]]; then
   mv "$env_tmp" "$ENV_PATH"
   chmod 600 "$ENV_PATH"
   chown root:root "$ENV_PATH"
+  # Assert the end state now that every writer has run. The application refuses
+  # to boot without this, so catching an absent value here fails the deploy with
+  # a clear cause rather than leaving the stack crash-looping on the host.
+  if ! grep -q '^SES_ADAPTER=' "$ENV_PATH"; then
+    echo "ERROR: SES_ADAPTER is absent from $ENV_PATH after the arming-switch derivation." >&2
+    echo "       The derivation above writes it from app/email_send_armed; if it is missing," >&2
+    echo "       that write did not happen and the application will refuse to boot." >&2
+    exit 1
+  fi
+
   if [[ "$PAYMENT_ADAPTER_DERIVED" == "stub" ]] && ! grep -q '^STRIPE_WEBHOOK_SECRET_STUB=' "$ENV_PATH"; then
     echo "    Seeding a generated STRIPE_WEBHOOK_SECRET_STUB into env file (dark payments; preserved if already set)..."
     printf 'STRIPE_WEBHOOK_SECRET_STUB=whsec_stub_%s\n' "$(openssl rand -hex 24)" >> "$ENV_PATH"
