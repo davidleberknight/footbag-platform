@@ -13,8 +13,10 @@ absent; under a Pillow interpreter without pytest it runs its own checks via
 __main__.
     python legacy_data/legacy_mirror/tests/test_regenerate_gallery_thumbnails.py
 """
+import atexit
 import importlib.util
 import os
+import shutil
 import sys
 import tempfile
 from pathlib import Path
@@ -39,7 +41,18 @@ BASE = "http://www.footbag.org/media"
 # ── helpers ──────────────────────────────────────────────────────────────────
 
 def _scratch():
-    return tempfile.mkdtemp(prefix="footbag-thumbtest-")
+    """Temp directory for one test, removed when the run ends.
+
+    Registered for teardown rather than left behind: this helper is called once
+    per test, so an unregistered mkdtemp leaks a directory on every run and the
+    leak is invisible until someone looks at the temp filesystem. Cleanup is
+    best-effort by design; a crashed interpreter that skips it leaves a
+    directory rather than failing a test, which is the right trade for scratch
+    space.
+    """
+    path = tempfile.mkdtemp(prefix="footbag-thumbtest-")
+    atexit.register(shutil.rmtree, path, True)
+    return path
 
 
 def _dump(rows):
