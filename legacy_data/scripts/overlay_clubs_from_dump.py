@@ -92,6 +92,29 @@ TEXT_CORRECTIONS_CSV = REPO_ROOT / "legacy_data" / "overrides" / "club_text_corr
 
 FIELDNAMES = SEED_FIELDNAMES
 
+# Exit statuses, matching the sibling seed producers so a caller reads the same
+# number for the same class of problem across the club chain. A reconciliation,
+# validation or publication failure exits 1, which the existing SystemExit paths
+# below already produce.
+EXIT_INVALID_INVOCATION = 2
+EXIT_MISSING_PREREQUISITE = 3
+
+
+def dump_problem(path: Path) -> str | None:
+    """Why this dump cannot be read, or None when it can.
+
+    Read-only, and run before the seed is opened, so a prerequisite failure
+    cannot leave the seed touched.
+    """
+    if not path.exists():
+        return f"{path} (not found)"
+    if not path.is_file():
+        return f"{path} (not a regular file)"
+    if not os.access(path, os.R_OK):
+        return f"{path} (not readable)"
+    return None
+
+
 # Never carried into the public-repo seed, per the same credential-exclusion rule
 # the member export follows.
 CREDENTIAL_DUMP_COLUMNS = {"Password"}
@@ -313,22 +336,51 @@ def main() -> None:
                     help="Path to seed/clubs.csv to reconcile and rewrite.")
     ap.add_argument("--dump", default=None,
                     help="Path to the clubs mysqldump (default: the resolved "
-                         "legacy dump's clubs/backups/latest.sql).")
+                         "legacy dump's clubs/backups/latest.sql). Naming a dump "
+                         "makes it a requirement: an unusable one is an error, "
+                         "never a silent no-op.")
+    ap.add_argument("--require-dump", action="store_true",
+                    help="Fail when no dump can be resolved, instead of treating "
+                         "an absent machine-local dump as a supported no-op. For "
+                         "a run whose whole purpose is the reconciliation.")
     args = ap.parse_args()
 
     seed_path = Path(args.seed)
+    if seed_path.exists() and not seed_path.is_file():
+        print(f"ERROR: --seed is not a regular file: {seed_path}", file=sys.stderr)
+        sys.exit(EXIT_INVALID_INVOCATION)
 
+    # An explicitly named dump is a stated prerequisite. Absence there is an
+    # operator error, not a supported configuration, and reporting it as a clean
+    # no-op is how a run that reconciled nothing passes for one that did.
     if args.dump:
+        problem = dump_problem(Path(args.dump))
+        if problem:
+            print(f"ERROR: the requested clubs dump is unusable: {problem}", file=sys.stderr)
+            print("       --dump names a required input; nothing was read or written.",
+                  file=sys.stderr)
+            sys.exit(EXIT_MISSING_PREREQUISITE)
         dump_path = Path(args.dump)
     else:
         root = resolve_dump_root()
-        dump_path = module_dump_path(root, "clubs") if root else None
-
-    # Graceful degradation: an unavailable machine-local dump is a clean no-op.
-    if dump_path is None or not dump_path.exists():
-        print("Authoritative club reconciliation skipped: the machine-local clubs "
-              "dump is unavailable. Downstream runs on the existing seed.")
-        return
+        resolved = module_dump_path(root, "clubs") if root else None
+        problem = "no machine-local dump is configured" if resolved is None \
+            else dump_problem(resolved)
+        if problem:
+            # The machine-local dump is optional by design: a checkout without it
+            # is supported, and the orchestrator relies on that. A caller that
+            # needs the reconciliation to have happened asks for --require-dump
+            # rather than reading success as proof.
+            if args.require_dump:
+                print(f"ERROR: no usable clubs dump: {problem}", file=sys.stderr)
+                print("       --require-dump was given; nothing was read or written.",
+                      file=sys.stderr)
+                sys.exit(EXIT_MISSING_PREREQUISITE)
+            print("Authoritative club reconciliation skipped: the machine-local clubs "
+                  f"dump is unavailable ({problem}). No reconciliation was performed "
+                  "and downstream runs on the existing seed.")
+            return
+        dump_path = resolved
 
     # The dump is UTF-8. Replacement rather than strict so a single bad byte
     # cannot abort the whole reconciliation, matching the member-dump readers.
