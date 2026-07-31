@@ -3,7 +3,9 @@
 
 Walks all clubs/show/*/showmembers/index.html pages under the mirror, parses
 member rows, and writes a CSV. Idempotent: skips if the output CSV is newer
-than this script.
+than this script, which --force overrides. --out-dir sends the CSV somewhere
+other than the committed seed directory, which is what a run comparing fresh
+output against the committed copy needs.
 
 The legacy_club_key used here is the directory name under clubs/show/ (numeric
 or slug), matching the key produced by extract_clubs.py so the two CSVs join
@@ -13,6 +15,7 @@ Output columns:
   legacy_club_key, mirror_member_id, display_name, alias
 """
 
+import argparse
 import csv
 import re
 import sys
@@ -20,11 +23,24 @@ from pathlib import Path
 
 from bs4 import BeautifulSoup
 
+# Resolve the sibling helper whether this file is run as a script or imported.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from extractor_output import (  # noqa: E402
+    EXIT_INVALID_OUTPUT,
+    OutputDestinationError,
+    add_output_arguments,
+    decide_regeneration,
+    prepare_output_target,
+    resolve_output_dir,
+    skip_exit_code,
+)
+
 MIRROR_ROOT = Path(__file__).parent.parent.parent / "footbag_legacy_mirror" / "www.footbag.org"
 CLUBS_SHOW_DIR = MIRROR_ROOT / "clubs" / "show"
 CLUBS_CLUBID_DIR = MIRROR_ROOT / "clubs"
 OUTPUT_DIR = Path(__file__).parent.parent / "seed"
-OUTPUT_CSV = OUTPUT_DIR / "club_members.csv"
+OUTPUT_FILENAME = "club_members.csv"
+OUTPUT_CSV = OUTPUT_DIR / OUTPUT_FILENAME
 
 FIELDNAMES = ["legacy_club_key", "mirror_member_id", "display_name", "alias"]
 
@@ -73,16 +89,35 @@ def parse_showmembers(html_path: Path, legacy_club_key: str) -> list[dict]:
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    add_output_arguments(parser)
+    args = parser.parse_args()
+
     if not CLUBS_SHOW_DIR.is_dir():
         print(f"ERROR: mirror not found at {CLUBS_SHOW_DIR}", file=sys.stderr)
         sys.exit(1)
 
-    script_mtime = Path(__file__).stat().st_mtime
-    if OUTPUT_CSV.exists() and OUTPUT_CSV.stat().st_mtime > script_mtime:
-        print(f"club_members.csv is up to date, skipping. ({OUTPUT_CSV})")
-        return
+    output_dir, redirected = resolve_output_dir(args.out_dir, OUTPUT_DIR)
+    try:
+        output_csv = prepare_output_target(output_dir, OUTPUT_FILENAME)
+    except OutputDestinationError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        sys.exit(EXIT_INVALID_OUTPUT)
 
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    if redirected:
+        print(f"Output redirected to {output_csv}")
+
+    generate, reason = decide_regeneration(output_csv, __file__, args.force)
+    if not generate:
+        print(f"SKIPPED, generated nothing: {reason}. ({output_csv})")
+        if redirected:
+            print(
+                "ERROR: a redirected run that skips writes no file at the "
+                "requested location, so its result cannot stand in for a "
+                "regenerated one. Pass --force.",
+                file=sys.stderr,
+            )
+        sys.exit(skip_exit_code(redirected))
 
     all_rows = []
     clubs_processed = 0
@@ -99,14 +134,15 @@ def main():
         all_rows.extend(rows)
         clubs_processed += 1
 
-    with open(OUTPUT_CSV, "w", newline="", encoding="utf-8") as f:
+    with open(output_csv, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=FIELDNAMES)
         writer.writeheader()
         writer.writerows(all_rows)
 
     print(
-        f"Wrote {len(all_rows)} member rows from {clubs_processed} clubs "
-        f"to {OUTPUT_CSV} ({clubs_skipped} club dirs had no showmembers page)."
+        f"GENERATED ({reason}): wrote {len(all_rows)} member rows from "
+        f"{clubs_processed} clubs to {output_csv} "
+        f"({clubs_skipped} club dirs had no showmembers page)."
     )
 
 
