@@ -3,7 +3,9 @@
 
 Walks all clubs/show/*/index.html pages under the mirror, parses club fields,
 and writes a CSV. Idempotent: skips if the output CSV already exists and is
-newer than this script.
+newer than this script, which --force overrides. --out-dir sends the CSV
+somewhere other than the committed seed directory, which is what a run
+comparing fresh output against the committed copy needs.
 
 Output columns:
   legacy_club_key, name, city, region, country, contact_member_id,
@@ -30,11 +32,21 @@ from club_curation import (  # noqa: E402
     repair_doubled_url_scheme,
     load_club_text_corrections,
 )
+from extractor_output import (  # noqa: E402
+    EXIT_INVALID_OUTPUT,
+    OutputDestinationError,
+    add_output_arguments,
+    decide_regeneration,
+    prepare_output_target,
+    resolve_output_dir,
+    skip_exit_code,
+)
 
 MIRROR_ROOT = Path(__file__).parent.parent.parent / "footbag_legacy_mirror" / "www.footbag.org"
 CLUBS_SHOW_DIR = MIRROR_ROOT / "clubs" / "show"
 OUTPUT_DIR = Path(__file__).parent.parent / "seed"
-OUTPUT_CSV = OUTPUT_DIR / "clubs.csv"
+OUTPUT_FILENAME = "clubs.csv"
+OUTPUT_CSV = OUTPUT_DIR / OUTPUT_FILENAME
 
 FIELDNAMES = SEED_FIELDNAMES
 
@@ -210,19 +222,34 @@ def extract_club(html_path, legacy_club_key):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.parse_args()
+    add_output_arguments(parser)
+    args = parser.parse_args()
 
     if not CLUBS_SHOW_DIR.is_dir():
         print(f"ERROR: mirror not found at {CLUBS_SHOW_DIR}", file=sys.stderr)
         sys.exit(1)
 
-    # Idempotent: skip if CSV is newer than this script
-    script_mtime = Path(__file__).stat().st_mtime
-    if OUTPUT_CSV.exists() and OUTPUT_CSV.stat().st_mtime > script_mtime:
-        print(f"clubs.csv is up to date, skipping. ({OUTPUT_CSV})")
-        return
+    output_dir, redirected = resolve_output_dir(args.out_dir, OUTPUT_DIR)
+    try:
+        output_csv = prepare_output_target(output_dir, OUTPUT_FILENAME)
+    except OutputDestinationError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        sys.exit(EXIT_INVALID_OUTPUT)
 
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    if redirected:
+        print(f"Output redirected to {output_csv}")
+
+    generate, reason = decide_regeneration(output_csv, __file__, args.force)
+    if not generate:
+        print(f"SKIPPED, generated nothing: {reason}. ({output_csv})")
+        if redirected:
+            print(
+                "ERROR: a redirected run that skips writes no file at the "
+                "requested location, so its result cannot stand in for a "
+                "regenerated one. Pass --force.",
+                file=sys.stderr,
+            )
+        sys.exit(skip_exit_code(redirected))
 
     rows = []
     skipped = 0
@@ -263,14 +290,14 @@ def main():
     # committed seed. Comparing this intermediate count against that seed
     # rejected every healthy run, because a mirror alone has never reproduced a
     # dump-enriched seed and is not supposed to.
-    with open(OUTPUT_CSV, "w", newline="", encoding="utf-8") as f:
+    with open(output_csv, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=FIELDNAMES)
         writer.writeheader()
         writer.writerows(rows)
 
     print(
-        f"Wrote {len(rows)} clubs to {OUTPUT_CSV} ({skipped} skipped, "
-        f"{corrected_rows} repaired from curated corrections)."
+        f"GENERATED ({reason}): wrote {len(rows)} clubs to {output_csv} "
+        f"({skipped} skipped, {corrected_rows} repaired from curated corrections)."
     )
 
 
