@@ -28,6 +28,8 @@ import {
   renameSync,
   unlinkSync,
   mkdirSync,
+  accessSync,
+  constants as fsConstants,
 } from 'node:fs';
 // Shape-only rules, safe to import here: this module reads no config and makes no
 // network call, unlike the full validator, which the pure core below must stay
@@ -57,6 +59,9 @@ Options:
   --galleries-only          Process the gallery sidecars only.
   --dry-run                 Compute verdicts and report, writing nothing.
                             Still performs live validation.
+  --clubs-seed FILE         Read club rows from FILE instead of the default
+                            legacy_data/seed/clubs.csv. Selects the input only;
+                            it does not move any verdict output.
   --clubs-verdicts FILE     Read and write the club verdicts at FILE instead of
                             the committed default.
   --gallery-verdicts FILE   Read and write the gallery verdicts at FILE instead
@@ -312,6 +317,7 @@ export interface RunPlan {
   galleriesDir: string;
   galleryVerdicts: string;
   redirected: boolean;
+  clubsSeedSelected: boolean;
 }
 
 export type ParseResult =
@@ -327,6 +333,7 @@ export function parseArgs(argv: string[], repoRoot: string): ParseResult {
   let dryRun = false;
   let clubsFlag: string | null = null;
   let galleryFlag: string | null = null;
+  let clubsSeedFlag: string | null = null;
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]!;
@@ -334,12 +341,13 @@ export function parseArgs(argv: string[], repoRoot: string): ParseResult {
     else if (arg === '--dry-run') dryRun = true;
     else if (arg === '--clubs-only') clubsOnly = true;
     else if (arg === '--galleries-only') galleriesOnly = true;
-    else if (arg === '--clubs-verdicts' || arg === '--gallery-verdicts') {
+    else if (arg === '--clubs-verdicts' || arg === '--gallery-verdicts' || arg === '--clubs-seed') {
       const value = argv[++i];
       if (value === undefined || value.startsWith('--')) {
         return { ok: false, message: `${arg} needs a file path` };
       }
       if (arg === '--clubs-verdicts') clubsFlag = value;
+      else if (arg === '--clubs-seed') clubsSeedFlag = value;
       else galleryFlag = value;
     } else {
       return { ok: false, message: `unknown argument: ${arg}` };
@@ -360,6 +368,9 @@ export function parseArgs(argv: string[], repoRoot: string): ParseResult {
 
   if (!doClubs && clubsFlag !== null) {
     return { ok: false, message: '--clubs-verdicts was given but clubs are not being processed' };
+  }
+  if (!doClubs && clubsSeedFlag !== null) {
+    return { ok: false, message: '--clubs-seed was given but clubs are not being processed' };
   }
   if (!doGalleries && galleryFlag !== null) {
     return { ok: false, message: '--gallery-verdicts was given but galleries are not being processed' };
@@ -398,16 +409,43 @@ export function parseArgs(argv: string[], repoRoot: string): ParseResult {
       doClubs,
       doGalleries,
       dryRun,
-      clubsCsv: path.join(repoRoot, 'legacy_data', 'seed', 'clubs.csv'),
+      // The input selection is independent of the output redirect: choosing a
+      // clubs file to read says nothing about where its verdicts are published.
+      clubsCsv: clubsSeedFlag === null
+        ? path.join(repoRoot, 'legacy_data', 'seed', 'clubs.csv')
+        : path.resolve(clubsSeedFlag),
       clubsVerdicts,
       galleriesDir,
       galleryVerdicts,
       redirected: clubsFlag !== null || galleryFlag !== null,
+      clubsSeedSelected: clubsSeedFlag !== null,
     },
   };
 }
 
 // ── destination checks and publication ────────────────────────────────────────
+
+// Read-only. An input that exists but cannot serve as an input is a missing
+// prerequisite, not a destination problem: the two call for opposite fixes, and
+// conflating them sends an operator to the wrong end of the pipeline.
+export function inputProblem(target: string, kind: 'file' | 'directory'): string | null {
+  if (!existsSync(target)) return `${target} (not found)`;
+  let stat;
+  try {
+    stat = statSync(target);
+  } catch (err) {
+    const reason = (err as NodeJS.ErrnoException).code ?? 'unreadable';
+    return `${target} (${reason})`;
+  }
+  if (kind === 'file' && !stat.isFile()) return `${target} (not a regular file)`;
+  if (kind === 'directory' && !stat.isDirectory()) return `${target} (not a directory)`;
+  try {
+    accessSync(target, fsConstants.R_OK);
+  } catch {
+    return `${target} (not readable)`;
+  }
+  return null;
+}
 
 // Read-only, so a dry run can use it without a write probe.
 export function destinationProblem(target: string): string | null {
@@ -528,10 +566,16 @@ export async function run(
   // Prerequisites for the selected mode, reported together so one
   // misconfiguration costs one run rather than several.
   const missing: string[] = [];
-  if (plan.doClubs && !existsSync(plan.clubsCsv)) missing.push(plan.clubsCsv);
-  if (plan.doGalleries && !existsSync(plan.galleriesDir)) missing.push(plan.galleriesDir);
+  if (plan.doClubs) {
+    const problem = inputProblem(plan.clubsCsv, 'file');
+    if (problem) missing.push(problem);
+  }
+  if (plan.doGalleries) {
+    const problem = inputProblem(plan.galleriesDir, 'directory');
+    if (problem) missing.push(problem);
+  }
   if (missing.length > 0) {
-    logError(`verify-seed-urls: ${missing.length} required input(s) missing:`);
+    logError(`verify-seed-urls: ${missing.length} required input(s) unusable:`);
     for (const p of missing) logError(`  ${p}`);
     logError(
       'The club seed comes from legacy_data/scripts/extract_clubs.py; the gallery ' +
@@ -539,6 +583,7 @@ export async function run(
     );
     return EXIT_MISSING_PREREQUISITE;
   }
+  if (plan.clubsSeedSelected) log(`clubs input <- ${plan.clubsCsv}`);
 
   // Destinations are checked read-only, before any validator exists, so an
   // unusable path never costs a network call.

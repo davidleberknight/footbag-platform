@@ -305,7 +305,7 @@ describe('verify-seed-urls: prerequisites', () => {
     const c = capture();
     expect(await run([], fx.root, c.deps)).toBe(EXIT_MISSING_PREREQUISITE);
     const err = c.err.join('\n');
-    expect(err).toContain('2 required input(s) missing');
+    expect(err).toContain('2 required input(s) unusable');
     expect(err).toContain('clubs.csv');
     expect(err).toContain(path.join('curated', 'galleries'));
   });
@@ -495,6 +495,326 @@ describe('verify-seed-urls: publication', () => {
     expect(await run(['--clubs-only'], fx.root, deps())).toBe(EXIT_OK);
 
     expect(readFileSync(stale, 'utf8')).toBe('STALE\n');
+  });
+});
+
+// ── selected clubs input ─────────────────────────────────────────────────────
+//
+// --clubs-seed chooses which club rows are read. It is deliberately independent
+// of --clubs-verdicts, which chooses where the verdicts are cached and
+// published: a run may select either, both, or neither.
+
+/** A seed file whose single club differs from the fixture's, for fall-back proofs. */
+function altSeed(root: string, name = 'alt-clubs.csv'): string {
+  const file = path.join(root, name);
+  writeFileSync(
+    file,
+    'legacy_club_key,name,external_url\n' +
+    '9001,Selected Club,https://example.org/selected\n',
+  );
+  return file;
+}
+
+describe('verify-seed-urls: selected clubs input', () => {
+  it('advertises the flag in the help text', async () => {
+    const fx = makeRepo();
+    const c = capture();
+    expect(await run(['--help'], fx.root, c.deps)).toBe(EXIT_OK);
+    expect(c.out.join('\n')).toContain('--clubs-seed FILE');
+  });
+
+  it('still resolves the committed clubs path when the flag is absent', async () => {
+    const fx = makeRepo();
+    const c = capture();
+    expect(await run(['--clubs-only'], fx.root, c.deps)).toBe(EXIT_OK);
+    expect(c.seen.sort()).toEqual([
+      'https://example.org/harbour',
+      'https://example.org/riverside',
+    ]);
+    expect(c.out.join('\n')).not.toContain('clubs input <-');
+  });
+
+  it('reads the selected file in clubs-only mode and reports the resolved path', async () => {
+    const fx = makeRepo();
+    const selected = altSeed(fx.root);
+    const c = capture();
+
+    expect(await run(['--clubs-only', '--clubs-seed', selected], fx.root, c.deps)).toBe(EXIT_OK);
+
+    expect(c.seen).toEqual(['https://example.org/selected']);
+    expect(c.out.join('\n')).toContain(`clubs input <- ${selected}`);
+    expect(readFileSync(fx.clubsVerdicts, 'utf8')).toContain('9001');
+  });
+
+  it('is accepted in default two-output mode', async () => {
+    const fx = makeRepo();
+    const selected = altSeed(fx.root);
+    const c = capture();
+
+    expect(await run(['--clubs-seed', selected], fx.root, c.deps)).toBe(EXIT_OK);
+
+    expect(readFileSync(fx.clubsVerdicts, 'utf8')).toContain('9001');
+    expect(existsSync(fx.galleryVerdicts)).toBe(true);
+  });
+
+  it('is rejected in galleries-only mode before the validator is built', async () => {
+    const fx = makeRepo();
+    const selected = altSeed(fx.root);
+    let built = false;
+    const c = capture();
+    const code = await run(['--galleries-only', '--clubs-seed', selected], fx.root, {
+      now: () => FIXED_NOW,
+      log: c.deps.log,
+      logError: c.deps.logError,
+      createValidator: async () => {
+        built = true;
+        throw new Error('should never be reached');
+      },
+    });
+    expect(code).toBe(EXIT_INVALID_INVOCATION);
+    expect(built).toBe(false);
+    expect(c.err.join('\n')).toContain('clubs are not being processed');
+  });
+
+  it('rejects the flag with no value', async () => {
+    const fx = makeRepo();
+    expect(await run(['--clubs-only', '--clubs-seed'], fx.root, deps()))
+      .toBe(EXIT_INVALID_INVOCATION);
+    expect(await run(['--clubs-seed', '--dry-run'], fx.root, deps()))
+      .toBe(EXIT_INVALID_INVOCATION);
+  });
+
+  it('resolves a relative selected path against the working directory', async () => {
+    const fx = makeRepo();
+    const workdir = path.join(fx.root, 'workdir');
+    mkdirSync(workdir);
+    const selected = altSeed(workdir, 'rel-clubs.csv');
+    const previous = process.cwd();
+    process.chdir(workdir);
+    try {
+      const c = capture();
+      expect(await run(['--clubs-only', '--clubs-seed', 'rel-clubs.csv'], fx.root, c.deps))
+        .toBe(EXIT_OK);
+      expect(c.out.join('\n')).toContain(`clubs input <- ${selected}`);
+      expect(c.seen).toEqual(['https://example.org/selected']);
+    } finally {
+      process.chdir(previous);
+    }
+  });
+});
+
+describe('verify-seed-urls: selected clubs input failures', () => {
+  it('exits 3 when the selected file does not exist', async () => {
+    const fx = makeRepo();
+    const absent = path.join(fx.root, 'no-such-clubs.csv');
+    const c = capture();
+    expect(await run(['--clubs-only', '--clubs-seed', absent], fx.root, c.deps))
+      .toBe(EXIT_MISSING_PREREQUISITE);
+    expect(c.err.join('\n')).toContain(`${absent} (not found)`);
+    // The default seed is never consulted as a fall-back.
+    expect(c.err.join('\n')).not.toContain(path.join('legacy_data', 'seed', 'clubs.csv'));
+  });
+
+  it('exits 3 when the selected path is a directory', async () => {
+    const fx = makeRepo();
+    const asDir = path.join(fx.root, 'clubs-dir');
+    mkdirSync(asDir);
+    const c = capture();
+    expect(await run(['--clubs-only', '--clubs-seed', asDir], fx.root, c.deps))
+      .toBe(EXIT_MISSING_PREREQUISITE);
+    expect(c.err.join('\n')).toContain('(not a regular file)');
+  });
+
+  it('exits 3 when the selected file is unreadable', async () => {
+    const fx = makeRepo();
+    const selected = altSeed(fx.root);
+    chmodSync(selected, 0o000);
+    try {
+      const c = capture();
+      const code = await run(['--clubs-only', '--clubs-seed', selected], fx.root, c.deps);
+      expect(code).toBe(EXIT_MISSING_PREREQUISITE);
+      expect(c.err.join('\n')).toContain('(not readable)');
+    } finally {
+      chmodSync(selected, 0o600);
+    }
+  });
+
+  it('builds no validator and mutates nothing when the selected input is unusable', async () => {
+    const fx = makeRepo();
+    const absent = path.join(fx.root, 'no-such-clubs.csv');
+    const scratch = path.join(fx.root, 'scratch');
+    let built = false;
+    const code = await run(
+      ['--clubs-only', '--clubs-seed', absent, '--clubs-verdicts', path.join(scratch, 'v.csv')],
+      fx.root,
+      {
+        now: () => FIXED_NOW,
+        log: () => {},
+        logError: () => {},
+        createValidator: async () => {
+          built = true;
+          throw new Error('should never be reached');
+        },
+      },
+    );
+    expect(code).toBe(EXIT_MISSING_PREREQUISITE);
+    expect(built).toBe(false);
+    expect(existsSync(scratch)).toBe(false);
+    expect(existsSync(fx.clubsVerdicts)).toBe(false);
+  });
+});
+
+describe('verify-seed-urls: input and output selection are independent', () => {
+  it('--clubs-seed alone leaves the verdict output at its committed path', async () => {
+    const fx = makeRepo();
+    const selected = altSeed(fx.root);
+    expect(await run(['--clubs-only', '--clubs-seed', selected], fx.root, deps())).toBe(EXIT_OK);
+    expect(existsSync(fx.clubsVerdicts)).toBe(true);
+    expect(readFileSync(fx.clubsVerdicts, 'utf8')).toContain('9001');
+  });
+
+  it('--clubs-verdicts alone leaves the clubs input at its committed path', async () => {
+    const fx = makeRepo();
+    const redirected = path.join(fx.root, 'scratch', 'v.csv');
+    const c = capture();
+    expect(await run(['--clubs-only', '--clubs-verdicts', redirected], fx.root, c.deps))
+      .toBe(EXIT_OK);
+    expect(c.seen.sort()).toEqual([
+      'https://example.org/harbour',
+      'https://example.org/riverside',
+    ]);
+    expect(c.out.join('\n')).not.toContain('clubs input <-');
+  });
+
+  it('uses each flag for its own purpose when both are given', async () => {
+    const fx = makeRepo();
+    const selected = altSeed(fx.root);
+    const redirected = path.join(fx.root, 'scratch', 'v.csv');
+    const c = capture();
+
+    expect(await run(
+      ['--clubs-only', '--clubs-seed', selected, '--clubs-verdicts', redirected],
+      fx.root, c.deps,
+    )).toBe(EXIT_OK);
+
+    expect(c.seen).toEqual(['https://example.org/selected']);
+    expect(readFileSync(redirected, 'utf8')).toContain('9001');
+    expect(existsSync(fx.clubsVerdicts)).toBe(false);
+  });
+});
+
+describe('verify-seed-urls: no fall-back to the committed seed', () => {
+  it('reads only the selected input and leaves the committed pair byte-identical', async () => {
+    const fx = makeRepo();
+    // The committed layout carries its own clubs and its own prior verdicts.
+    mkdirSync(path.dirname(fx.clubsVerdicts), { recursive: true });
+    writeFileSync(
+      fx.clubsVerdicts,
+      'legacy_club_key,external_url,validated_at,quarantine_reason\n' +
+      '1001,https://example.org/riverside,1999-01-01T00:00:00.000Z,\n',
+    );
+    const seedBefore = readFileSync(path.join(fx.root, 'legacy_data', 'seed', 'clubs.csv'), 'utf8');
+    const verdictsBefore = readFileSync(fx.clubsVerdicts, 'utf8');
+
+    const selected = altSeed(fx.root);
+    const redirected = path.join(fx.root, 'scratch', 'v.csv');
+    const c = capture();
+
+    expect(await run(
+      ['--clubs-only', '--clubs-seed', selected, '--clubs-verdicts', redirected],
+      fx.root, c.deps,
+    )).toBe(EXIT_OK);
+
+    const produced = readFileSync(redirected, 'utf8');
+    // Only the selected club and URL reached the output.
+    expect(produced).toContain('9001');
+    expect(produced).toContain('https://example.org/selected');
+    expect(produced).not.toContain('1001');
+    expect(produced).not.toContain('riverside');
+    // The default club was never looked up.
+    expect(c.seen).toEqual(['https://example.org/selected']);
+    // Both committed files are untouched.
+    expect(readFileSync(path.join(fx.root, 'legacy_data', 'seed', 'clubs.csv'), 'utf8'))
+      .toBe(seedBefore);
+    expect(readFileSync(fx.clubsVerdicts, 'utf8')).toBe(verdictsBefore);
+  });
+
+  it('lets the redirected cache suppress a lookup for the selected input', async () => {
+    const fx = makeRepo();
+    const selected = altSeed(fx.root);
+    const redirected = path.join(fx.root, 'scratch', 'v.csv');
+    mkdirSync(path.dirname(redirected), { recursive: true });
+    writeFileSync(
+      redirected,
+      'legacy_club_key,external_url,validated_at,quarantine_reason\n' +
+      '9001,https://example.org/selected,2020-05-05T00:00:00.000Z,\n',
+    );
+    const c = capture();
+
+    expect(await run(
+      ['--clubs-only', '--clubs-seed', selected, '--clubs-verdicts', redirected],
+      fx.root, c.deps,
+    )).toBe(EXIT_OK);
+
+    expect(c.seen).toEqual([]);
+    expect(readFileSync(redirected, 'utf8')).toContain('2020-05-05T00:00:00.000Z');
+  });
+
+  it('does not let the committed cache suppress a redirected run', async () => {
+    const fx = makeRepo();
+    const selected = altSeed(fx.root);
+    mkdirSync(path.dirname(fx.clubsVerdicts), { recursive: true });
+    writeFileSync(
+      fx.clubsVerdicts,
+      'legacy_club_key,external_url,validated_at,quarantine_reason\n' +
+      '9001,https://example.org/selected,1999-01-01T00:00:00.000Z,\n',
+    );
+    const redirected = path.join(fx.root, 'scratch', 'v.csv');
+    const c = capture();
+
+    expect(await run(
+      ['--clubs-only', '--clubs-seed', selected, '--clubs-verdicts', redirected],
+      fx.root, c.deps,
+    )).toBe(EXIT_OK);
+
+    expect(c.seen).toEqual(['https://example.org/selected']);
+    const produced = readFileSync(redirected, 'utf8');
+    expect(produced).toContain(FIXED_NOW);
+    expect(produced).not.toContain('1999-01-01');
+  });
+
+  it('stamps the injected clock and repeats byte-identically', async () => {
+    const first = makeRepo();
+    const second = makeRepo();
+    const firstOut = path.join(first.root, 'scratch', 'v.csv');
+    const secondOut = path.join(second.root, 'scratch', 'v.csv');
+
+    const args = (seed: string, out: string): string[] =>
+      ['--clubs-only', '--clubs-seed', seed, '--clubs-verdicts', out];
+
+    expect(await run(args(altSeed(first.root), firstOut), first.root, deps())).toBe(EXIT_OK);
+    expect(await run(args(altSeed(second.root), secondOut), second.root, deps())).toBe(EXIT_OK);
+
+    expect(readFileSync(firstOut, 'utf8')).toContain(FIXED_NOW);
+    expect(readFileSync(firstOut, 'utf8')).toBe(readFileSync(secondOut, 'utf8'));
+  });
+
+  it('works under --dry-run with zero filesystem mutation', async () => {
+    const fx = makeRepo();
+    const selected = altSeed(fx.root);
+    const scratch = path.join(fx.root, 'scratch');
+    const c = capture();
+
+    expect(await run(
+      ['--clubs-only', '--dry-run', '--clubs-seed', selected,
+       '--clubs-verdicts', path.join(scratch, 'v.csv')],
+      fx.root, c.deps,
+    )).toBe(EXIT_OK);
+
+    expect(c.seen).toEqual(['https://example.org/selected']);
+    expect(existsSync(scratch)).toBe(false);
+    expect(existsSync(fx.clubsVerdicts)).toBe(false);
+    expect(c.out.join('\n')).toContain('dry-run, not written');
   });
 });
 
