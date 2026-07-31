@@ -485,6 +485,29 @@ describe('redirected club chain: failure sequencing', () => {
     expectCommittedUnchanged(before, committedState());
   });
 
+  it('fails the chain mechanically when the overlay dump is missing', async () => {
+    // The overlay used to report an unavailable dump as a clean no-op at exit 0,
+    // so a chain could only catch it by reading stdout. It now exits 3, which the
+    // chain observes as a status rather than a string.
+    const before = committedState();
+    const chain = makeChain();
+    rmSync(chain.dumpPath);
+
+    const result = await runChain(chain);
+
+    expect(result.results.extract_clubs!.status).toBe(0);
+    expect(result.results.overlay!.status).toBe(3);
+    expect(result.invoked).toEqual(['extract_clubs', 'overlay']);
+    expect(result.verifierExit).toBeNull();
+    expect(result.results.overlay!.stdout).not.toContain('Authoritative club reconciliation:');
+    expect(existsSync(chain.membersCsv)).toBe(false);
+    expect(existsSync(chain.verdictsCsv)).toBe(false);
+    // The seed the extractor produced is left exactly as stage 1 wrote it.
+    expect(result.snapshots.overlay!).toBe(result.snapshots.extract_clubs!);
+    expect(scratchLeftovers(chain.scratchSeed)).toEqual([]);
+    expectCommittedUnchanged(before, committedState());
+  });
+
   it('does not run stage 4 when stage 3 fails', async () => {
     const before = committedState();
     const chain = makeChain();

@@ -13,6 +13,7 @@ Run from repo root:
     python -m pytest legacy_data/tests/test_overlay_clubs_from_dump.py -v
 """
 import csv
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -73,6 +74,19 @@ def _seed_row(key, **kw) -> dict:
     base["legacy_club_key"] = key
     base.update(kw)
     return base
+
+
+def _env_without_dump(tmp_path: Path) -> dict[str, str]:
+    """An environment whose legacy-dump root exists but holds no clubs dump.
+
+    Pointing at an empty directory rather than unsetting the variable keeps the
+    no-dump cases deterministic: a developer machine that happens to carry the
+    real dump would otherwise resolve it through the repo-root symlink and take a
+    different path than CI.
+    """
+    root = tmp_path / "empty-dump-root"
+    root.mkdir(exist_ok=True)
+    return {**os.environ, "FOOTBAG_LEGACY_REPO": str(root)}
 
 
 def _run(seed: Path, dump: Path | None) -> subprocess.CompletedProcess:
@@ -239,13 +253,190 @@ def test_credential_field_never_emitted(tmp_path: Path) -> None:
     assert "password" not in [c.lower() for c in SEED_HEADER]
 
 
-def test_missing_dump_is_clean_noop(tmp_path: Path) -> None:
+def test_explicitly_named_missing_dump_is_a_prerequisite_failure(tmp_path: Path) -> None:
+    # Naming a dump states it is required. Reporting its absence as a clean no-op
+    # let a run that reconciled nothing pass for one that did, which is the whole
+    # reason a caller cannot trust exit 0 alone.
     seed = _write_seed(tmp_path / "clubs.csv", [_seed_row("a", name="Kept")])
     before = seed.read_bytes()
+    before_mtime = seed.stat().st_mtime_ns
+    absent = tmp_path / "does-not-exist.sql"
+
+    r = _run(seed, absent)
+
+    assert r.returncode == 3, r.stderr
+    assert str(absent) in r.stderr
+    assert "not found" in r.stderr
+    assert "Authoritative club reconciliation:" not in r.stdout
+    assert seed.read_bytes() == before, "a prerequisite failure must not touch the seed"
+    assert seed.stat().st_mtime_ns == before_mtime
+    assert list(tmp_path.glob("*.tmp")) == []
+
+
+def test_explicit_dump_that_is_a_directory_is_a_prerequisite_failure(tmp_path: Path) -> None:
+    seed = _write_seed(tmp_path / "clubs.csv", [_seed_row("a", name="Kept")])
+    before = seed.read_bytes()
+    as_dir = tmp_path / "dump-dir"
+    as_dir.mkdir()
+
+    r = _run(seed, as_dir)
+
+    assert r.returncode == 3, r.stderr
+    assert "not a regular file" in r.stderr
+    assert seed.read_bytes() == before
+    assert list(tmp_path.glob("*.tmp")) == []
+
+
+def test_explicit_unreadable_dump_is_a_prerequisite_failure(tmp_path: Path) -> None:
+    seed = _write_seed(tmp_path / "clubs.csv", [_seed_row("a", name="Kept")])
+    before = seed.read_bytes()
+    dump = _write(tmp_path / "dump.sql", _dump(
+        _row(1, "a", "Kept", "Kept", "C", "S", "USA", "", 0, 0, "PW", "", ""),
+    ))
+    dump.chmod(0o000)
+    try:
+        r = _run(seed, dump)
+        assert r.returncode == 3, r.stderr
+        assert "not readable" in r.stderr
+        assert seed.read_bytes() == before
+    finally:
+        dump.chmod(0o600)
+
+
+def test_prerequisite_failure_precedes_seed_parsing(tmp_path: Path) -> None:
+    # A seed that would abort the reconciliation if it were ever parsed. The dump
+    # check has to come first, so the run fails on the dump rather than the seed.
+    seed = tmp_path / "clubs.csv"
+    seed.write_text("this is not a valid clubs seed at all\n", encoding="utf-8")
+    before = seed.read_bytes()
+
     r = _run(seed, tmp_path / "does-not-exist.sql")
+
+    assert r.returncode == 3, r.stderr
+    assert "unusable" in r.stderr
+    assert seed.read_bytes() == before
+
+
+def test_absent_machine_local_dump_remains_a_supported_no_op(tmp_path: Path) -> None:
+    # No --dump and no configured machine-local dump: the documented optional
+    # configuration the orchestrator relies on. Still exit 0, and still explicit
+    # that no reconciliation happened.
+    seed = _write_seed(tmp_path / "clubs.csv", [_seed_row("a", name="Kept")])
+    before = seed.read_bytes()
+
+    r = subprocess.run(
+        [sys.executable, TOOL, "--seed", str(seed)],
+        cwd=str(REPO_ROOT), capture_output=True, text=True, env=_env_without_dump(tmp_path),
+    )
+
     assert r.returncode == 0, r.stderr
-    assert "skipped" in (r.stdout + r.stderr).lower()
-    assert seed.read_bytes() == before, "missing dump must not touch the seed"
+    assert "skipped" in r.stdout.lower()
+    assert "No reconciliation was performed" in r.stdout
+    assert "Authoritative club reconciliation:" not in r.stdout
+    assert seed.read_bytes() == before
+
+
+def test_require_dump_turns_the_optional_no_op_into_a_failure(tmp_path: Path) -> None:
+    seed = _write_seed(tmp_path / "clubs.csv", [_seed_row("a", name="Kept")])
+    before = seed.read_bytes()
+
+    r = subprocess.run(
+        [sys.executable, TOOL, "--seed", str(seed), "--require-dump"],
+        cwd=str(REPO_ROOT), capture_output=True, text=True, env=_env_without_dump(tmp_path),
+    )
+
+    assert r.returncode == 3, r.stderr
+    assert "--require-dump" in r.stderr
+    assert "Authoritative club reconciliation:" not in r.stdout
+    assert seed.read_bytes() == before
+
+
+def test_require_dump_alongside_an_explicit_dump_stays_strict(tmp_path: Path) -> None:
+    # The two flags together must never be weaker than --dump alone. A usable
+    # explicit dump still reconciles; a missing one still fails closed.
+    seed = _write_seed(tmp_path / "clubs.csv", [_seed_row("a", name="Kept")])
+    dump = _write(tmp_path / "dump.sql", _dump(
+        _row(1, "a", "Kept", "Kept", "C", "S", "USA", "", 0, 0, "PW", "", ""),
+    ))
+
+    ok = subprocess.run(
+        [sys.executable, TOOL, "--seed", str(seed), "--dump", str(dump), "--require-dump"],
+        cwd=str(REPO_ROOT), capture_output=True, text=True,
+    )
+    assert ok.returncode == 0, ok.stderr
+    assert "Authoritative club reconciliation:" in ok.stdout
+
+    before = seed.read_bytes()
+    missing = subprocess.run(
+        [sys.executable, TOOL, "--seed", str(seed),
+         "--dump", str(tmp_path / "gone.sql"), "--require-dump"],
+        cwd=str(REPO_ROOT), capture_output=True, text=True,
+    )
+    assert missing.returncode == 3, missing.stderr
+    assert "Authoritative club reconciliation:" not in missing.stdout
+    assert seed.read_bytes() == before
+
+
+def test_flags_missing_their_values_are_rejected(tmp_path: Path) -> None:
+    seed = _write_seed(tmp_path / "clubs.csv", [_seed_row("a", name="Kept")])
+    before = seed.read_bytes()
+
+    for argv in (
+        [TOOL, "--seed", str(seed), "--dump"],
+        [TOOL, "--seed"],
+        [TOOL, "--seed", str(seed), "--not-a-flag"],
+    ):
+        r = subprocess.run([sys.executable, *argv], cwd=str(REPO_ROOT),
+                           capture_output=True, text=True)
+        assert r.returncode != 0, f"{argv} must be rejected"
+        assert "Authoritative club reconciliation:" not in r.stdout
+    assert seed.read_bytes() == before
+
+
+def test_help_exits_zero_and_touches_nothing(tmp_path: Path) -> None:
+    seed = _write_seed(tmp_path / "clubs.csv", [_seed_row("a", name="Kept")])
+    before = seed.read_bytes()
+
+    r = subprocess.run([sys.executable, TOOL, "--help"], cwd=str(REPO_ROOT),
+                       capture_output=True, text=True)
+
+    assert r.returncode == 0, r.stderr
+    assert "--require-dump" in r.stdout
+    assert "--dump" in r.stdout
+    assert seed.read_bytes() == before
+
+
+def test_seed_that_is_a_directory_is_an_invalid_invocation(tmp_path: Path) -> None:
+    as_dir = tmp_path / "clubs.csv"
+    as_dir.mkdir()
+    dump = _write(tmp_path / "dump.sql", _dump(
+        _row(1, "a", "Kept", "Kept", "C", "S", "USA", "", 0, 0, "PW", "", ""),
+    ))
+
+    r = _run(as_dir, dump)
+
+    assert r.returncode == 2, r.stderr
+    assert "not a regular file" in r.stderr
+
+
+def test_valid_dump_with_no_byte_change_still_reports_reconciliation(tmp_path: Path) -> None:
+    # A legitimate no-change result is a successful reconciliation, and must not
+    # read like the skip path: the marker has to be present either way.
+    seed = _write_seed(tmp_path / "clubs.csv", [_seed_row("a", name="Kept")])
+    dump = _write(tmp_path / "dump.sql", _dump(
+        _row(1, "a", "Kept", "Kept", "C", "S", "USA", "", 0, 0, "PW", "", ""),
+    ))
+
+    first = _run(seed, dump)
+    assert first.returncode == 0, first.stderr
+    after_first = seed.read_bytes()
+
+    second = _run(seed, dump)
+
+    assert second.returncode == 0, second.stderr
+    assert "Authoritative club reconciliation:" in second.stdout
+    assert "skipped" not in second.stdout.lower()
+    assert seed.read_bytes() == after_first
 
 
 def test_invalid_present_dump_fails_closed(tmp_path: Path) -> None:
