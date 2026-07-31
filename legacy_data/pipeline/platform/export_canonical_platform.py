@@ -41,10 +41,17 @@ Processing order
 14.  Sort persons alphabetically by person_name
 15.  Write canonical_input/
 
+The five outputs are one set: they are generated to temporary files inside the
+destination and the targets replaced only once all five are complete, so a
+failure leaves the previous set whole. --out-dir moves the whole set elsewhere,
+which is what a run comparing fresh output against the committed copy needs.
+
 Run:
     python pipeline/platform/export_canonical_platform.py
+    python pipeline/platform/export_canonical_platform.py --out-dir /tmp/compare
 """
 
+import argparse
 import csv
 import re
 import sys
@@ -55,6 +62,22 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from pipeline.identity.alias_resolver import AliasResolver
 
+# Resolve the sibling helper whether this file is run as a script or imported.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from output_set import (  # noqa: E402
+    EXIT_GENERATION_FAILURE,
+    EXIT_INVALID_OUTPUT,
+    EXIT_MISSING_INTERMEDIATES,
+    OutputDestinationError,
+    OutputSetPublisher,
+    PublicationError,
+    UnrecoveredPublicationError,
+    add_output_argument,
+    missing_inputs,
+    resolve_output_dir,
+    validate_destination,
+)
+
 ROOT         = Path(__file__).resolve().parents[2]
 CANONICAL    = ROOT / "out" / "canonical"
 CANONICAL_IN = ROOT / "event_results" / "canonical_input"
@@ -62,6 +85,17 @@ LOCK_DIR     = ROOT / "inputs" / "identity_lock"
 HOF_CSV      = ROOT / "inputs" / "hof.csv"
 DISPLAY_NAMES_CSV    = LOCK_DIR / "Person_Display_Names_v1.csv"
 MEMBER_ID_SUPPLEMENT = LOCK_DIR / "member_id_supplement.csv"
+
+# The five files are one output set, published together or not at all. This is
+# both the generation order and the replacement order, and it is also the list
+# of required inputs under out/canonical, which carry the same names.
+OUTPUT_FILENAMES = [
+    "events.csv",
+    "event_disciplines.csv",
+    "event_results.csv",
+    "event_result_participants.csv",
+    "persons.csv",
+]
 
 csv.field_size_limit(10 * 1024 * 1024)
 
@@ -260,7 +294,46 @@ def maybe_title_case(name: str) -> str:
 # ── Main ───────────────────────────────────────────────────────────────────────
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    add_output_argument(parser)
+    args = parser.parse_args()
+
     print("export_canonical_platform: out/canonical/ → canonical_input/\n")
+
+    # ── 0. Preflight ───────────────────────────────────────────────────────────
+    # The destination and the required intermediates are both settled before a
+    # single byte is generated, so a run either produces the whole set or leaves
+    # the previous one exactly as it found it.
+    output_dir, redirected = resolve_output_dir(args.out_dir, CANONICAL_IN)
+
+    # Inputs are checked before the destination, so a run with nothing to export
+    # from leaves the destination completely untouched rather than creating a
+    # directory or a probe file on its way to failing.
+    absent = missing_inputs(CANONICAL / name for name in OUTPUT_FILENAMES)
+    if absent:
+        print(
+            f"ERROR: {len(absent)} required canonical intermediate(s) missing:",
+            file=sys.stderr,
+        )
+        for path in absent:
+            print(f"  {path}", file=sys.stderr)
+        print(
+            "\nThese are produced by pipeline/02_canonicalize_results.py in the "
+            "mirror backbone.\nFrom legacy_data/, run ./run_pipeline.sh "
+            "canonical_only to rebuild them from the mirror, or\n"
+            "./run_pipeline.sh csv_only to bootstrap them from the committed "
+            "canonical_input snapshot.",
+            file=sys.stderr,
+        )
+        sys.exit(EXIT_MISSING_INTERMEDIATES)
+
+    try:
+        validate_destination(output_dir, OUTPUT_FILENAMES)
+    except OutputDestinationError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        sys.exit(EXIT_INVALID_OUTPUT)
+    if redirected:
+        print(f"Output redirected to {output_dir}\n")
 
     # ── 1. Load ────────────────────────────────────────────────────────────────
     pt51             = load_pt51()
@@ -828,16 +901,42 @@ def main() -> None:
     persons.sort(key=lambda p: (p.get("person_name", "").lower(), p.get("person_id", "")))
 
     # ── 15. Write ──────────────────────────────────────────────────────────────
-    write_csv(CANONICAL_IN / "events.csv",                    ev_fields,       events)
-    write_csv(CANONICAL_IN / "event_disciplines.csv",         disc_fields,     disciplines)
-    write_csv(CANONICAL_IN / "event_results.csv",             res_fields,      results)
-    write_csv(CANONICAL_IN / "event_result_participants.csv", part_fields,     participants)
-    write_csv(CANONICAL_IN / "persons.csv",                   out_pers_fields, persons)
+    # Every file is generated under a temporary name inside the destination and
+    # the targets are replaced only once all five are complete, so a failure part
+    # way through leaves the previous set whole rather than half replaced.
+    try:
+        with OutputSetPublisher(output_dir, OUTPUT_FILENAMES) as publisher:
+            write_csv(publisher.staged_path("events.csv"),                    ev_fields,       events)
+            write_csv(publisher.staged_path("event_disciplines.csv"),         disc_fields,     disciplines)
+            write_csv(publisher.staged_path("event_results.csv"),             res_fields,      results)
+            write_csv(publisher.staged_path("event_result_participants.csv"), part_fields,     participants)
+            write_csv(publisher.staged_path("persons.csv"),                   out_pers_fields, persons)
+            publisher.publish()
+    except UnrecoveredPublicationError as exc:
+        # The one case where the set on disk is genuinely inconsistent. Say so
+        # plainly and name everything an operator needs, rather than reporting a
+        # generic failure that reads as though the previous set survived.
+        print(f"\nCRITICAL: {exc}", file=sys.stderr)
+        print(
+            "The output set is INCONSISTENT. These targets could not be restored:",
+            file=sys.stderr,
+        )
+        for path in exc.unrecovered:
+            print(f"  {path}", file=sys.stderr)
+        if exc.retained:
+            print("Recovery copies kept for manual restoration:", file=sys.stderr)
+            for path in exc.retained:
+                print(f"  {path}", file=sys.stderr)
+        sys.exit(EXIT_GENERATION_FAILURE)
+    except (PublicationError, OSError) as exc:
+        print(f"\nERROR: the output set was not published: {exc}", file=sys.stderr)
+        print("The previous set is unchanged.", file=sys.stderr)
+        sys.exit(EXIT_GENERATION_FAILURE)
 
     n_still_unresolved = sum(
         1 for r in participants if not r.get("person_id", "").strip()
     )
-    print(f"\nOutput → {CANONICAL_IN}:")
+    print(f"\nOutput → {output_dir}:")
     print(f"  events:       {len(events):>7,}")
     print(f"  disciplines:  {len(disciplines):>7,}")
     print(f"  results:      {len(results):>7,}")
