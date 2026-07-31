@@ -28,6 +28,18 @@ ENV_PATH=/srv/footbag/env
 RELEASE_DIR=/home/footbag/footbag-release
 NEW_DB="$RELEASE_DIR/database/footbag.db"
 
+# The account the application containers run as. It has to match the image's
+# runtime user, or the runtime directories end up owned by someone the
+# container cannot write as.
+readonly APP_UID=1000
+
+# The group that owns the AWS credential files. The containers run unprivileged
+# and reach the credentials by joining this group, so its numeric id has to
+# match the one the compose files add. Host state, not repository state, so a
+# rebuilt host has none until a deploy creates it.
+readonly AWSCREDS_GROUP=awscreds
+readonly AWSCREDS_GID=1500
+
 require_path() {
   local label="$1"
   local path="$2"
@@ -818,6 +830,53 @@ rm -f "$DB_PATH" "${DB_PATH}-wal" "${DB_PATH}-shm"
 install -o root -g root -m 600 "$NEW_DB" "$DB_PATH"
 chown -R root:root "$LIVE_DIR"
 
+# The release tree is root-owned so the running account cannot rewrite its own
+# code, but the recursive chown above also sweeps the runtime directories, and
+# those have to belong to the account inside the container: the containers run
+# as a non-root user, and SQLite creates its write-ahead log and shared-memory
+# sidecars beside the database file, so both the file and its directory must be
+# writable by that account or the first open fails outright. The media
+# directory is the local storage adapter's backing and has the same
+# requirement. Ownership is restored after the sweep rather than set on the
+# install above, because the sweep would otherwise undo it.
+for _runtime_dir in "$(dirname "$DB_PATH")" "${FOOTBAG_MEDIA_DIR:-/srv/footbag/media}"; do
+  if [[ -d "$_runtime_dir" ]]; then
+    chown -R "$APP_UID":"$APP_UID" "$_runtime_dir"
+  fi
+done
+
+# The AWS credential files stay owned by root and become readable by a dedicated
+# group the containers join, rather than being handed to the service account
+# outright: a compromised container could otherwise rewrite the credentials it
+# authenticates with. Without this the containers cannot read them, and the SDK
+# quietly falls back to instance metadata and runs as the platform's own
+# instance role, which is a different identity with different permissions and
+# fails much later and less clearly than a missing file would.
+if ! getent group "$AWSCREDS_GROUP" >/dev/null 2>&1; then
+  echo "    Creating group $AWSCREDS_GROUP (gid $AWSCREDS_GID)"
+  groupadd --gid "$AWSCREDS_GID" "$AWSCREDS_GROUP"
+fi
+# A pre-existing group under this name with a different id would leave the
+# container's supplementary group pointing at the wrong thing, and the failure
+# would look like unreadable credentials rather than a numbering mismatch.
+_actual_gid="$(getent group "$AWSCREDS_GROUP" | cut -d: -f3)"
+if [[ "$_actual_gid" != "$AWSCREDS_GID" ]]; then
+  echo "ERROR: group $AWSCREDS_GROUP has gid $_actual_gid, expected $AWSCREDS_GID." >&2
+  echo "       The compose files add the containers to gid $AWSCREDS_GID; reconcile before deploying." >&2
+  exit 1
+fi
+
+if [[ -d /root/.aws ]]; then
+  chgrp "$AWSCREDS_GROUP" /root/.aws
+  chmod 0750 /root/.aws
+  for _f in /root/.aws/credentials /root/.aws/config; do
+    if [[ -f "$_f" ]]; then
+      chown root:"$AWSCREDS_GROUP" "$_f"
+      chmod 0640 "$_f"
+    fi
+  done
+fi
+
 # Apply the committed per-environment container sizing now that the release
 # tree (and docker/env/<env>.env) is in place, before the service restart.
 seed_container_sizing
@@ -898,9 +957,29 @@ if ! systemctl restart footbag; then
   exit 1
 fi
 
-sleep 3
-if ! systemctl is-active --quiet footbag.service; then
-  echo "    ERROR: footbag.service is not active after restart. Dumping diagnostics..." >&2
+# A restart returns as soon as compose has spawned the containers, so a
+# container that exits immediately on a startup fault still leaves the unit
+# looking active. Checking only that leaves the deploy reporting success for a
+# stack that serves nothing, and the failure then surfaces as gateway timeouts
+# to visitors instead of as a failed deploy. Poll until the application itself
+# answers ready.
+#
+# The probe runs inside the web container rather than against the origin from
+# the host: nginx refuses any request that does not carry the shared
+# origin-verify header, and sending it from the host would put that secret into
+# a command line every account on the box can read. Asking the application
+# directly answers the question the poll is actually asking.
+_stack_healthy=0
+for _i in 1 2 3 4 5 6 7 8 9 10; do
+  if systemctl is-active --quiet footbag.service \
+     && compose_cmd exec -T web wget -qO- --timeout=3 http://localhost:3000/health/ready >/dev/null 2>&1; then
+    _stack_healthy=1
+    break
+  fi
+  sleep 2
+done
+if (( _stack_healthy == 0 )); then
+  echo "    ERROR: stack did not reach a ready state within ~20s after restart. Dumping diagnostics..." >&2
   dump_diagnostics
   exit 1
 fi

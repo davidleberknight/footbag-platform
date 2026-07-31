@@ -150,6 +150,18 @@ resource "aws_ssm_parameter" "stripe_secret_key" {
   lifecycle { ignore_changes = [value] }
 }
 
+# ── Production-only parameters, intentionally absent here ────────────────────
+# Four parameters exist in production and not in staging, by design, so the
+# divergence is asserted rather than silent:
+#   - the go-live marker: it gates full-refresh deploys and test keys once
+#     production goes live, and there is no equivalent moment in staging.
+#   - the Turnstile secret key: the production boot mandates the live CAPTCHA
+#     adapter, whose server-side verification needs the secret; staging's
+#     captcha does not resolve through Parameter Store.
+#   - the Stripe webhook secret and its previous-value slot, which exist to
+#     carry a zero-downtime signing-secret rotation. Staging never reaches
+#     Stripe, so it receives no webhooks and has no secret to rotate.
+
 # ── SES (placeholder — email deferred) ───────────────────────────────────────
 # resource "aws_ssm_parameter" "ses_sender" {
 #   name   = "${local.ssm_prefix}/ses/sender_address"

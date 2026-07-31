@@ -467,7 +467,10 @@ resource "aws_cloudwatch_metric_alarm" "cutover_zero_logins" {
 # silently failing (e.g. a validation CNAME removed from the webmaster zone).
 
 resource "aws_cloudwatch_metric_alarm" "acm_cert_expiry" {
-  count               = var.enable_cloudfront ? 1 : 0
+  # Follows the certificate, not the distribution: with the custom domain off
+  # there is no issued certificate to watch, and the alarm would sit in
+  # INSUFFICIENT_DATA teaching operators to ignore it.
+  count               = var.enable_platform_custom_domain ? 1 : 0
   provider            = aws.us_east_1
   alarm_name          = "${local.prefix}-acm-cert-expiry"
   comparison_operator = "LessThanThreshold"
@@ -491,13 +494,16 @@ resource "aws_cloudwatch_metric_alarm" "acm_cert_expiry" {
 # alarm lives in us-east-1, so it gets a sibling topic with the same email
 # subscription.
 resource "aws_sns_topic" "alarms_us_east_1" {
-  count    = var.enable_cloudfront ? 1 : 0
+  # Follows the certificate alarm it exists for, not the distribution.
+  # Creating it earlier would mean an empty topic and a subscription
+  # confirmation email for something that never publishes.
+  count    = var.enable_platform_custom_domain ? 1 : 0
   provider = aws.us_east_1
   name     = "${local.prefix}-alarms-use1"
 }
 
 resource "aws_sns_topic_subscription" "alarm_email_us_east_1" {
-  count     = var.enable_cloudfront ? 1 : 0
+  count     = var.enable_platform_custom_domain ? 1 : 0
   provider  = aws.us_east_1
   topic_arn = aws_sns_topic.alarms_us_east_1[0].arn
   protocol  = "email"

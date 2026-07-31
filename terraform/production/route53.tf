@@ -21,7 +21,7 @@
 locals {
   # True once the apex and www point at the distribution; false through the
   # zone-move window, while they still answer with the legacy host's values.
-  apex_alias_mode = var.enable_cloudfront && var.enable_apex_alias_records
+  apex_alias_mode = var.enable_platform_custom_domain && var.enable_apex_alias_records
 }
 
 variable "enable_apex_alias_records" {
@@ -137,7 +137,7 @@ variable "enable_preview_record" {
 }
 
 resource "aws_route53_record" "preview_a" {
-  count   = var.enable_cloudfront && var.enable_preview_record ? 1 : 0
+  count   = var.enable_platform_custom_domain && var.enable_preview_record ? 1 : 0
   zone_id = var.route53_zone_id
   name    = "preview.${var.domain_name}"
   type    = "A"
@@ -150,7 +150,7 @@ resource "aws_route53_record" "preview_a" {
 }
 
 resource "aws_route53_record" "preview_aaaa" {
-  count   = var.enable_cloudfront && var.enable_preview_record ? 1 : 0
+  count   = var.enable_platform_custom_domain && var.enable_preview_record ? 1 : 0
   zone_id = var.route53_zone_id
   name    = "preview.${var.domain_name}"
   type    = "AAAA"

@@ -252,24 +252,29 @@ describe('deploy_to_aws.sh wrapper', () => {
   );
 
   it.skipIf(!HAS_DOCKER)(
-    '-k against footbag-production skips the DB-replace gate (code-only never touches DB)',
+    'code-only against production never trips the database-replace gate',
     () => {
-      // -k mode does not touch the DB, so the production hard-confirm gate
-      // does not fire. The deploy proceeds past the gate and fails later
-      // on SSH alias resolution (no footbag-production alias on test runners).
+      // The gate fires on modes that replace the host database; a code-only
+      // deploy touches no data and must pass straight through it.
+      //
+      // Asserted in dry-run so the check stays inside the wrapper's own
+      // decision logic. Driving a real deploy to observe the same thing makes
+      // the result depend on whether the target host happens to be reachable
+      // from the machine running the suite, which is a property of the machine
+      // rather than of the code.
       const tmpFile = path.join(os.tmpdir(), `op-prod-k-${Date.now()}.txt`);
       fs.writeFileSync(tmpFile, 'fake-password\n', { mode: 0o600 });
       try {
-        const r = run('bash', ['deploy_to_aws.sh', '-k'], {
+        const r = run('bash', ['deploy_to_aws.sh', '-kny'], {
           env: {
             AWS_OPERATOR_FILE: tmpFile,
             DEPLOY_TARGET: 'footbag-production',
           },
         });
-        // Exits 1 from the SSH alias / docker preflight, not from the gate.
-        expect(r.status).toBe(1);
         const combined = (r.stderr ?? '') + (r.stdout ?? '');
         expect(combined).not.toMatch(/PRODUCTION DB-TOUCHING DEPLOY/);
+        expect(combined).toMatch(/rebuild local DB:\s+no/);
+        expect(combined).toMatch(/replace staging:\s+no/);
       } finally {
         fs.unlinkSync(tmpFile);
       }

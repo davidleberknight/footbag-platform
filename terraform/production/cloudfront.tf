@@ -169,12 +169,20 @@ resource "aws_cloudfront_distribution" "main" {
   default_root_object = ""
   price_class         = "PriceClass_100" # US + Europe — adjust for global reach
 
-  # preview.<domain> is the temporary pre-cutover platform hostname: it lets
-  # the operator exercise the real distribution before the apex flip. The
-  # alias and its certificate SAN exist from first issuance (a SAN added
-  # later forces a certificate replacement); the DNS record itself is gated
-  # separately (enable_preview_record) and is removed at cutover.
-  aliases = [var.domain_name, "www.${var.domain_name}", "preview.${var.domain_name}"]
+  # Aliases arrive only with the custom domain. Until then the distribution
+  # answers on its own cloudfront.net name under the default certificate, which
+  # is what lets production exist and be exercised before the zone move: an
+  # alias needs a matching certificate, and that certificate cannot validate
+  # until Route 53 serves the zone.
+  #
+  # preview.<domain> is the temporary pre-cutover platform hostname: it lets the
+  # operator exercise the real distribution before the apex flip. The alias and
+  # its certificate SAN exist from the certificate's first issuance, because ACM
+  # replaces the whole certificate when a SAN is added later; the DNS record
+  # itself is gated separately and is removed at cutover.
+  aliases = var.enable_platform_custom_domain ? [
+    var.domain_name, "www.${var.domain_name}", "preview.${var.domain_name}"
+  ] : []
 
   # ── Origin: Lightsail nginx ───────────────────────────────────────────────
   # CloudFront requires a resolvable DNS hostname; raw IPs are not supported.
@@ -393,10 +401,24 @@ resource "aws_cloudfront_distribution" "main" {
   }
 
   # ── TLS ──────────────────────────────────────────────────────────────────
-  viewer_certificate {
-    acm_certificate_arn      = aws_acm_certificate_validation.main[0].certificate_arn
-    ssl_support_method       = "sni-only"
-    minimum_protocol_version = "TLSv1.2_2021"
+  # Two shapes, one block: the issued certificate once the custom domain is on,
+  # CloudFront's own certificate before that. The default certificate serves
+  # only the distribution's cloudfront.net name, which is exactly the reach a
+  # pre-cutover production is meant to have.
+  dynamic "viewer_certificate" {
+    for_each = var.enable_platform_custom_domain ? [1] : []
+    content {
+      acm_certificate_arn      = aws_acm_certificate_validation.main[0].certificate_arn
+      ssl_support_method       = "sni-only"
+      minimum_protocol_version = "TLSv1.2_2021"
+    }
+  }
+
+  dynamic "viewer_certificate" {
+    for_each = var.enable_platform_custom_domain ? [] : [1]
+    content {
+      cloudfront_default_certificate = true
+    }
   }
 
   restrictions {

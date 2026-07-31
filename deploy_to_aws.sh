@@ -404,6 +404,20 @@ if [[ ! -r "$AWS_OPERATOR_FILE" ]]; then
   exit 1
 fi
 
+# The file holds a host sudo password, so anything readable beyond its owner is
+# an exposure rather than an inconvenience: every account on the workstation can
+# read it, and nothing else in the chain would notice. The requirement is
+# already the documented one; this refuses rather than trusting it, because a
+# wrong mode is silent and can persist for months. Generic message: never print
+# the resolved path.
+_cred_mode=$(stat -c '%a' "$AWS_OPERATOR_FILE" 2>/dev/null || echo "")
+if [[ "$_cred_mode" != "600" && "$_cred_mode" != "400" ]]; then
+  echo "ERROR: operator credential file has mode ${_cred_mode:-unknown}; expected 600 (or 400)." >&2
+  echo "Recommendation: restrict it to its owner, then rotate the password it holds," >&2
+  echo "                since a readable file must be assumed to have been read." >&2
+  exit 1
+fi
+
 # Code-only schema-sync (the bare default, or -k). A code-only deploy ships new
 # TS but does NOT reapply schema.sql on the host, so code that depends on a
 # table or column not yet on the host crashes at runtime. There is no in-place

@@ -28,17 +28,17 @@ variable "domain_name" {
 }
 
 variable "route53_zone_id" {
-  description = "Route 53 hosted zone ID for domain_name. Required only when enable_cloudfront is true."
+  description = "Route 53 hosted zone ID for domain_name. Required only when enable_platform_custom_domain is true."
   type        = string
   default     = ""
 
-  # When enable_cloudfront is true the ACM certificate (acm.tf) validates via a
-  # Route53 DNS record, so an empty or wrong zone id makes that apply hang ~15
-  # minutes on certificate validation before failing. Fail fast instead. In the
-  # first pass (enable_cloudfront = false) no zone is created or needed.
+  # The certificate validates via a Route53 DNS record, so an empty or wrong
+  # zone id makes that apply hang ~15 minutes on certificate validation before
+  # failing. Fail fast instead. A distribution without the custom domain needs
+  # no zone at all: it answers on its own cloudfront.net name.
   validation {
-    condition     = !var.enable_cloudfront || var.route53_zone_id != ""
-    error_message = "route53_zone_id is required when enable_cloudfront is true: the referenced Route 53 hosted zone must exist so the ACM validation records can be written, or the apply hangs on certificate validation. Delegation is not required pre-cutover; the webmaster mirrors the validation CNAMEs into the authoritative zone."
+    condition     = !var.enable_platform_custom_domain || var.route53_zone_id != ""
+    error_message = "route53_zone_id is required when enable_platform_custom_domain is true: the referenced Route 53 hosted zone must exist so the ACM validation records can be written, or the apply hangs on certificate validation. Delegation is not required pre-cutover; the webmaster mirrors the validation CNAMEs into the authoritative zone."
   }
 
   # The archive's custom-domain half (archive.tf) carries its own certificate
@@ -108,13 +108,34 @@ variable "lightsail_origin_dns" {
 
 variable "enable_cloudfront" {
   description = <<-EOT
-    Controls whether the CloudFront distribution, its ACM certificate, the
-    Route53 apex/www alias records, and the CloudFront-dependent alarms are
-    created. Set to false for the first apply pass (Lightsail plus base infra
-    only, with no domain, delegated zone, or ACM dependency). After the
-    footbag.org zone is delegated to this account and a real origin A record
-    exists, set route53_zone_id and lightsail_origin_dns and set this to true
-    for the second apply pass.
+    Creates the CloudFront distribution and the CloudFront-dependent alarms.
+    On its own the distribution answers only on its own cloudfront.net name
+    under CloudFront's default certificate, which needs no domain, no hosted
+    zone and no certificate, so it can be applied as soon as a resolvable
+    origin hostname exists. The custom domain is a separate flag below.
+    False for the first apply pass (Lightsail plus base infra only).
+  EOT
+  type        = bool
+  default     = false
+}
+
+variable "enable_platform_custom_domain" {
+  description = <<-EOT
+    Serves the platform at the apex, www and preview names: the ACM
+    certificate and its validation records, the distribution's aliases, and
+    the apex/www/preview DNS records. Requires enable_cloudfront,
+    domain_name and route53_zone_id.
+
+    Turn it on only once the zone is authoritative on Route 53, which follows
+    the registrar handover. The certificate validates through a record in that
+    zone, so enabling it earlier hangs the apply on validation for about
+    fifteen minutes and then fails.
+
+    Off, the distribution is reachable only at its unpublished cloudfront.net
+    address. That is deliberate: it lets production exist and be exercised
+    before the domain moves, and it keeps the platform out of search results,
+    because the application marks itself indexable only when its configured
+    base URL is the canonical www host.
   EOT
   type        = bool
   default     = false

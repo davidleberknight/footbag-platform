@@ -186,7 +186,15 @@ fi
 
 if [[ "$SKIP_TESTS" != "yes" ]]; then
   echo "==> Running local test preflight..."
-  npm test
+  # Run the suite with this deploy's own environment cleared. The deploy exports
+  # the target and, once the operator has typed the production confirmation, the
+  # acknowledgement that threads it to the leaf. A child process inherits both,
+  # and the tests that assert the defaults -- that a target defaults to staging,
+  # and that a production database replacement refuses without an interactive
+  # confirmation -- then observe this deploy's state instead of the default and
+  # fail. That made a production data deploy unable to pass its own preflight,
+  # while staging passed because it sets neither to a value the suite objects to.
+  env -u DEPLOY_TARGET -u FOOTBAG_PROD_DB_REPLACE_ACK npm test
 else
   echo "==> Skipping local npm test preflight (SKIP_TESTS=yes)"
 fi
