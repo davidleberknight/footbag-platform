@@ -1,0 +1,154 @@
+#!/usr/bin/env bash
+# install-host-credentials.sh
+#
+# Installs the AWS credential chain on a deployed host: the source-profile
+# access key plus the runtime profile that assumes the application's runtime
+# role. Idempotent; safe to re-run, and re-running is how a key is rotated.
+#
+# Without this the host cannot reach Parameter Store, and a deploy transfers
+# images and then refuses at the go-live-marker guard, because that guard reads
+# the marker to confirm the environment is pre-live and fails closed when it
+# cannot read it at all. The message names the marker, so the failure reads like
+# an infrastructure problem when the cause is a missing credential file.
+#
+# Wire pattern, matching install-cwagent-*.sh: the sudo password arrives on
+# stdin, the access key is read from a file, and both are emitted into the same
+# pipe as shell-quoted assignments ahead of the remote body. Nothing secret ever
+# reaches a process's argument list, where `ps -ef` would expose it to any
+# account on either machine.
+#
+# Prerequisites:
+#   - terraform applied for the target environment (creates the source-profile
+#     user, the runtime role, and the logs-publisher role)
+#   - an access key issued for footbag-<target>-source-profile, saved to a file:
+#       umask 077
+#       aws iam create-access-key \
+#         --user-name footbag-production-source-profile > /tmp/prod-sp-keys.json
+#   - that key recorded in the vault before it is installed anywhere
+#   - jq available locally
+#
+# Usage:
+#   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt \
+#     bash scripts/install-host-credentials.sh --target production /tmp/prod-sp-keys.json
+#
+#   Then shred the keys file:  shred -u /tmp/prod-sp-keys.json
+#
+# The logs-publisher profile is not installed here. The deploy owns that stanza
+# and appends it itself, so this script never competes with it.
+
+set -euo pipefail
+
+TARGET="staging"
+SSH_ALIAS=""
+KEYS_FILE=""
+
+usage() {
+  cat <<'EOF'
+Usage: < <operator credential file> bash scripts/install-host-credentials.sh --target <env> <keys-file>
+
+  --target <staging|production>   deployed environment to install onto
+  --ssh-alias <name>              override the default footbag-<target> alias
+  <keys-file>                     JSON from `aws iam create-access-key` for
+                                  the footbag-<target>-source-profile user
+
+Reads the host sudo password from stdin (line 1).
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --target)
+      TARGET="${2:-}"
+      shift 2 || { echo "ERROR: --target requires an argument" >&2; exit 2; }
+      ;;
+    --ssh-alias)
+      SSH_ALIAS="${2:-}"
+      shift 2 || { echo "ERROR: --ssh-alias requires an argument" >&2; exit 2; }
+      ;;
+    -h|--help)
+      usage; exit 0
+      ;;
+    -*)
+      echo "ERROR: unknown flag '$1'" >&2; usage >&2; exit 2
+      ;;
+    *)
+      KEYS_FILE="$1"; shift
+      ;;
+  esac
+done
+
+case "$TARGET" in
+  staging|production) ;;
+  *)
+    echo "ERROR: --target must be 'staging' or 'production' (got '$TARGET')" >&2
+    exit 2
+    ;;
+esac
+
+[[ -n "$SSH_ALIAS" ]] || SSH_ALIAS="footbag-$TARGET"
+
+if [[ -t 0 ]]; then
+  echo "ERROR: must receive the host sudo password on stdin." >&2
+  echo "       Run via: < <operator credential file> bash scripts/install-host-credentials.sh --target $TARGET <keys-file>" >&2
+  echo "" >&2
+  usage >&2
+  exit 1
+fi
+
+[[ -n "$KEYS_FILE" ]] || { echo "ERROR: a keys file is required" >&2; usage >&2; exit 2; }
+[[ -r "$KEYS_FILE" ]] || { echo "ERROR: cannot read keys file: $KEYS_FILE" >&2; exit 1; }
+command -v jq >/dev/null || { echo "ERROR: jq is required locally" >&2; exit 1; }
+
+# Reject a world-readable keys file. The instructions above call for `umask 077`
+# before create-access-key; this catches the case where it was missed and the
+# file was written with the default mode. The window between issuing the key and
+# shredding the file is when a co-tenant on a shared workstation could read it.
+KEYS_PERMS=$(stat -c '%a' "$KEYS_FILE")
+if [[ "$KEYS_PERMS" != "600" && "$KEYS_PERMS" != "400" ]]; then
+  echo "ERROR: $KEYS_FILE has mode $KEYS_PERMS; expected 600 (or 400)." >&2
+  echo "       Re-create it with:  umask 077; aws iam create-access-key ... > $KEYS_FILE" >&2
+  echo "       Then shred the current file, and treat the key it holds as exposed." >&2
+  exit 1
+fi
+
+AKID=$(jq -r '.AccessKey.AccessKeyId // empty' "$KEYS_FILE")
+SAK=$(jq -r '.AccessKey.SecretAccessKey // empty' "$KEYS_FILE")
+if [[ -z "$AKID" || -z "$SAK" ]]; then
+  echo "ERROR: $KEYS_FILE does not contain .AccessKey.AccessKeyId / .SecretAccessKey" >&2
+  exit 1
+fi
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REMOTE_HALF="${SCRIPT_DIR}/internal/install-host-credentials-remote.sh"
+[[ -r "$REMOTE_HALF" ]] || { echo "ERROR: missing remote half: $REMOTE_HALF" >&2; exit 1; }
+
+AWS_REGION_VAL="${AWS_REGION:-us-east-1}"
+
+SSH_OPTS=(-o "StrictHostKeyChecking=accept-new" -o "ConnectTimeout=10" -o "ServerAliveInterval=30")
+
+echo "== installing AWS credential chain on $TARGET (ssh alias: $SSH_ALIAS) =="
+ssh "${SSH_OPTS[@]}" "$SSH_ALIAS" "echo '    SSH OK'" </dev/null
+
+# The account id is read through the operator's own credentials rather than
+# hardcoded, so the script works against any account without editing.
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+[[ -n "$ACCOUNT_ID" ]] || { echo "ERROR: could not resolve the AWS account id locally" >&2; exit 1; }
+
+echo "== writing credential files via cat-pipe =="
+# cat reads our stdin (the sudo password line). printf emits shell-quoted
+# assignments so the remote bash binds them before running the body. The
+# combined stream reaches remote sudo -S, which consumes the password line and
+# leaves the rest for bash.
+{
+  cat
+  printf 'AKID=%q\n' "$AKID"
+  printf 'SAK=%q\n' "$SAK"
+  printf 'ACCOUNT_ID=%q\n' "$ACCOUNT_ID"
+  printf 'TARGET_ENV=%q\n' "$TARGET"
+  printf 'AWS_REGION_VAL=%q\n' "$AWS_REGION_VAL"
+  cat "$REMOTE_HALF"
+} | ssh "${SSH_OPTS[@]}" "$SSH_ALIAS" 'sudo -S -p "" bash'
+
+echo
+echo "Credential chain installed on $TARGET."
+echo "Now shred the keys file:  shred -u $KEYS_FILE"

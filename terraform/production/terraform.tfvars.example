@@ -97,10 +97,11 @@ lightsail_origin_dns = "TODO-origin.footbag.org"
 # flips true paired with the apex alias flip, so the distribution serves the
 # migration page from that moment; going live is this one turning false again,
 # not a DNS change.
-enable_cloudfront          = false
-enable_preview_record      = false
-enable_apex_alias_records  = false
-enable_planned_maintenance = false
+enable_cloudfront             = false
+enable_platform_custom_domain = false
+enable_preview_record         = false
+enable_apex_alias_records     = false
+enable_planned_maintenance    = false
 
 # ── Phased-apply feature gates ────────────────────────────────────────────────
 # Pass 1 (first apply): both false. Pass 2: enable_cwagent_alarms = true

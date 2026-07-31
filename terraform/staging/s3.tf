@@ -16,7 +16,10 @@ locals {
 }
 
 # ── Helper: private bucket baseline ──────────────────────────────────────────
-# Applied to all buckets except maintenance (which needs CloudFront OAC access)
+# Applied to every bucket, maintenance included. OAC reads through a bucket
+# policy scoped to the distribution's ARN, which a public-access block does not
+# interfere with, so serving a bucket through CloudFront is no reason to leave
+# it unblocked.
 
 resource "aws_s3_bucket" "media" {
   bucket = local.buckets.media
@@ -106,6 +109,14 @@ resource "aws_s3_bucket_public_access_block" "snapshots" {
 
 resource "aws_s3_bucket_public_access_block" "dr" {
   bucket                  = aws_s3_bucket.dr.id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_public_access_block" "maintenance" {
+  bucket                  = aws_s3_bucket.maintenance.id
   block_public_acls       = true
   block_public_policy     = true
   ignore_public_acls      = true

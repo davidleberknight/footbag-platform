@@ -18,8 +18,8 @@ output "cloudfront_distribution_id" {
 }
 
 output "acm_certificate_arn" {
-  description = "ARN of the ACM certificate attached to CloudFront"
-  value       = var.enable_cloudfront ? aws_acm_certificate_validation.main[0].certificate_arn : null
+  description = "ARN of the ACM certificate attached to CloudFront; null until the custom domain is enabled, since a distribution on its own cloudfront.net name uses CloudFront's certificate and issues none."
+  value       = var.enable_platform_custom_domain ? aws_acm_certificate_validation.main[0].certificate_arn : null
 }
 
 output "snapshots_bucket_name" {
