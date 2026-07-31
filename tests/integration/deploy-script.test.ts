@@ -269,12 +269,22 @@ describe('deploy_to_aws.sh wrapper', () => {
           env: {
             AWS_OPERATOR_FILE: tmpFile,
             DEPLOY_TARGET: 'footbag-production',
+            // A code-only deploy compares the deployed schema against
+            // database/schema.sql, and reads the deployed one by opening a
+            // real SSH session to the target. A test must never contact a
+            // live host, so the wrapper's own skip switch turns that probe
+            // off. On a workstation whose ~/.ssh/config resolves the alias,
+            // omitting this reaches the running production server.
+            FOOTBAG_SKIP_SCHEMA_DRIFT_CHECK: '1',
           },
         });
         const combined = (r.stderr ?? '') + (r.stdout ?? '');
+        // The gate runs before the wrapper resolves the deploy alias, so this
+        // holds on any machine, with or without a 'footbag-production' stanza
+        // in ~/.ssh/config. The deploy plan printed further downstream is
+        // deliberately not asserted here: reaching it requires a configured
+        // alias, which is a property of the machine rather than of the code.
         expect(combined).not.toMatch(/PRODUCTION DB-TOUCHING DEPLOY/);
-        expect(combined).toMatch(/rebuild local DB:\s+no/);
-        expect(combined).toMatch(/replace staging:\s+no/);
       } finally {
         fs.unlinkSync(tmpFile);
       }
