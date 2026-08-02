@@ -51,6 +51,8 @@
 #   --mirror-root <path>       Override the mirror root location.
 #   --allow-unsanitized <n>    Proceed only if exactly n media files lack
 #                              their sidecar (the refusal lists them).
+#   --allow-unknown-types <n>  Proceed only if exactly n files are of types
+#                              nothing scans (the refusal lists them).
 #   --verify-edge              Post-publish signed-cookie fetch through the
 #                              distribution.
 #   --signing-key <pem>        Private key for --verify-edge
@@ -65,6 +67,7 @@ APPLY=0
 AWS_PROFILE_ARG=""
 MIRROR_ROOT="${REPO_ROOT}/legacy_data/legacy_mirror/mirror_footbag_org"
 ALLOW_UNSANITIZED=""
+ALLOW_UNKNOWN_TYPES=""
 VERIFY_EDGE=0
 SIGNING_KEY="${HOME}/AWS/archive-signing-key.pem"
 
@@ -91,6 +94,10 @@ while [[ $# -gt 0 ]]; do
     --allow-unsanitized)
       ALLOW_UNSANITIZED="${2:-}"
       shift 2 || { echo "ERROR: --allow-unsanitized requires an argument" >&2; exit 2; }
+      ;;
+    --allow-unknown-types)
+      ALLOW_UNKNOWN_TYPES="${2:-}"
+      shift 2 || { echo "ERROR: --allow-unknown-types requires an argument" >&2; exit 2; }
       ;;
     --verify-edge) VERIFY_EDGE=1; shift ;;
     --signing-key)
@@ -183,6 +190,39 @@ if [[ "$UNSANITIZED_COUNT" -gt 0 && "$ALLOW_UNSANITIZED" != "$UNSANITIZED_COUNT"
 fi
 if [[ "$UNSANITIZED_COUNT" -gt 0 ]]; then
   echo "Proceeding with ${UNSANITIZED_COUNT} operator-accepted unsanitized media files."
+fi
+
+# ---- 3a. Unrecognized file types ---------------------------------------------
+#
+# The two checks above know only about media. A file type in neither list is
+# invisible to both, and to the crawler's re-encode as well: it is downloaded
+# whole, never scanned, never marked, and published without anything having
+# looked inside it. That is how a macro-enabled spreadsheet template and a
+# 100 MB multi-part archive came to sit in a capture. The re-encode invariant
+# exists for exactly those file classes, so anything outside the set below is
+# named and refused rather than shipped quietly.
+#
+# The set is what the archive is made of: pages, the two image formats and the
+# one video format the crawler converts to, stylesheets and their fonts,
+# published documents, calendar exports and favicons.
+KNOWN_LIST="${WORK_DIR}/unknown_types.txt"
+find "$WWW_ROOT" -type f \
+  ! -iname '*.html' ! -iname '*.htm' ! -iname '*.jpg' ! -iname '*.gif' \
+  ! -iname '*.mp4' ! -iname '*.css' ! -iname '*.pdf' ! -iname '*.ics' \
+  ! -iname '*.ttf' ! -iname '*.eot' ! -iname '*.woff' ! -iname '*.woff2' \
+  ! -iname '*.ico' ! -iname '*.sanitized' \
+  > "$KNOWN_LIST" || true
+UNKNOWN_COUNT="$(wc -l < "$KNOWN_LIST")"
+if [[ "$UNKNOWN_COUNT" -gt 0 && "$ALLOW_UNKNOWN_TYPES" != "$UNKNOWN_COUNT" ]]; then
+  echo "REFUSING: ${UNKNOWN_COUNT} files of types nothing has scanned." >&2
+  echo "Neither the crawler's re-encode nor the checks above look at these." >&2
+  echo "Read the list, then re-run with --allow-unknown-types ${UNKNOWN_COUNT}" >&2
+  echo "to accept exactly these:" >&2
+  cat "$KNOWN_LIST" >&2
+  exit 1
+fi
+if [[ "$UNKNOWN_COUNT" -gt 0 ]]; then
+  echo "Proceeding with ${UNKNOWN_COUNT} operator-accepted files of unscanned types."
 fi
 
 # ---- 3b. Static-archive sanitization gate ------------------------------------

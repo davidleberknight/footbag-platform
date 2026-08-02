@@ -252,3 +252,47 @@ def test_every_form_on_a_page_goes():
     assert mirror_script.strip_dead_forms(soup) == 2
     assert soup.find('form') is None
     assert 'Between' in soup.get_text()
+
+
+# The link rewriter removes elements while it walks them. When it then reads a
+# second attribute off one it has just removed, the read raises, the rewrite is
+# abandoned for the whole page, and the page is written exactly as the legacy
+# site served it: forms, scripts and off-site links all intact, and none of the
+# sanitization the archive depends on applied. The page looks captured and is
+# not sanitized, which is the worst shape a failure can take here, because
+# nothing downstream can tell the difference.
+
+def test_a_page_whose_rewrite_hits_a_removed_element_is_still_sanitized():
+    # The shape that produced it: a gallery page embedding a video hosted on
+    # the media subdomain. A <source> is read for both src and srcset, and
+    # handling src removes the whole video element, so reading srcset lands on
+    # what is already gone.
+    html = (
+        '<html><body>'
+        '<video autoplay="" controls="" preload="auto" width="640" height="480">'
+        '<source src="http://video.footbag.org/freestyle/spinning-osis-eric.mov" '
+        'type="video/mov"/>'
+        '</video>'
+        '<form action="/cgi-bin/search"><input name="q"/></form>'
+        '<script src="/global/global.js"></script>'
+        '<p>Gallery entry</p>'
+        '</body></html>')
+
+    out = mirror_script.rewrite_links(html, 'http://www.footbag.org/gallery/show/638')
+
+    assert out != html, 'the rewrite was abandoned and the raw page kept'
+    sanitized = BeautifulSoup(out, 'html.parser')
+    assert sanitized.find('form') is None
+    assert sanitized.find('script') is None
+    assert 'Gallery entry' in sanitized.get_text()
+
+
+def test_reading_an_attribute_off_a_removed_element_is_skipped_not_fatal():
+    soup = BeautifulSoup('<video src="a.mp4" poster="b.jpg"></video>', 'html.parser')
+    element = soup.find('video')
+    element.decompose()
+    # The guard has to recognize a removed element. Asking whether it still
+    # answers to .get does not: a removed tag does, and then answers with a
+    # failure that costs the page its whole rewrite.
+    assert hasattr(element, 'get')
+    assert mirror_script._already_removed(element)
