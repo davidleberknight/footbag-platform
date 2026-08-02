@@ -204,3 +204,51 @@ def test_outbound_links_are_not_this_pass_concern(tmp_path, monkeypatch):
         encoding='utf-8')
     mirror_script.neutralize_dead_internal_links()
     assert 'https://example.com/x' in (www / 'index.html').read_text(encoding='utf-8')
+
+
+# A static archive has no backend, so every captured form is a control that
+# cannot work. The whole form goes rather than just its action: removing only the
+# action leaves a submit button that silently reloads the page.
+
+def test_a_form_is_removed_whole():
+    soup = BeautifulSoup(
+        '<html><body><h1>Move list</h1>'
+        '<form method="GET"><input name="q"/><input type="submit" value="Search"/></form>'
+        '<p>Kept</p></body></html>', 'html.parser')
+    removed = mirror_script.strip_dead_forms(soup)
+    assert removed == 1
+    assert soup.find('form') is None
+    assert soup.find('input') is None
+    text = soup.get_text(' ', strip=True)
+    assert 'Move list' in text and 'Kept' in text
+
+
+def test_removing_the_form_takes_its_offsite_link_with_it():
+    # The site-search box wraps the Google logo. Order matters: forms are removed
+    # before outbound links are flattened, or the destination is printed as text
+    # inside a form that is then deleted, leaving a bare URL on the page.
+    page = ('<html><body><form method="GET">'
+            '<a href="http://www.google.com/"><img src="/logo.gif"/></a>'
+            '<input name="q"/></form><p>Content</p></body></html>')
+    soup = BeautifulSoup(page, 'html.parser')
+    mirror_script.strip_dead_forms(soup)
+    mirror_script.neutralize_outbound_links(soup, PAGE)
+    text = soup.get_text(' ', strip=True)
+    assert 'google.com' not in text
+    assert 'Content' in text
+
+
+def test_a_page_with_no_form_is_untouched():
+    soup = BeautifulSoup('<html><body><p>Ordinary</p></body></html>', 'html.parser')
+    assert mirror_script.strip_dead_forms(soup) == 0
+    assert 'Ordinary' in soup.get_text()
+
+
+def test_every_form_on_a_page_goes():
+    soup = BeautifulSoup(
+        '<html><body><form id="a"><input/></form><p>Between</p>'
+        '<form id="b"><select><option>x</option></select></form></body></html>',
+        'html.parser')
+    assert mirror_script.strip_dead_forms(soup) == 2
+    assert soup.find('form') is None
+    assert 'Between' in soup.get_text()

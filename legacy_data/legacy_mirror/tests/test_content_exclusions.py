@@ -389,6 +389,127 @@ def test_sweep_without_an_address_cannot_remove_account_pages(monkeypatch, tree)
     assert carrier.exists()
 
 
+# The sign-in address is only one of the owner's details the legacy site holds.
+# A member who registered years ago under another e-mail address, and gave a
+# postal address at the same time, has both echoed back by the registration and
+# summary surfaces. Those values reach the archive untouched unless they are
+# supplied too, so the guard takes a list and the sign-in address is simply its
+# first entry.
+
+OTHER_ADDRESS = 'old-address@example.net'
+POSTAL_LINE = '17 Example Street'
+
+
+@pytest.fixture
+def account_with_extras(monkeypatch):
+    monkeypatch.setattr(mirror_script, 'ACCOUNT_EMAIL', ACCOUNT_ADDRESS)
+    monkeypatch.setattr(mirror_script, 'ACCOUNT_REDACTIONS',
+                        [OTHER_ADDRESS, POSTAL_LINE])
+
+
+def test_a_supplied_value_is_matched_though_it_is_not_the_sign_in_address(
+        account_with_extras):
+    assert mirror_script.page_carries_account_identity(
+        f'<p>{OTHER_ADDRESS}</p>'.encode())
+
+
+def test_a_postal_address_wrapped_by_the_template_still_matches(
+        account_with_extras):
+    # The legacy summary wraps the address across a line break, so the literal
+    # bytes never appear in the order they were typed.
+    assert mirror_script.page_carries_account_identity(
+        b'<td>17 Example\n   Street</td>')
+    assert mirror_script.page_carries_account_identity(
+        b'<td>17 Example<br/>Street</td>')
+
+
+def test_redaction_removes_every_supplied_value_in_one_pass(
+        account_with_extras):
+    out = mirror_script.redact_account_identity(
+        f'<p>{ACCOUNT_ADDRESS} {OTHER_ADDRESS} {POSTAL_LINE}</p>')
+    assert ACCOUNT_ADDRESS not in out
+    assert OTHER_ADDRESS not in out
+    assert POSTAL_LINE not in out
+    assert out.count('[address removed from the archive]') == 3
+
+
+def test_redaction_does_not_eat_the_markup_around_a_multi_word_value(
+        account_with_extras):
+    # A matcher allowed to span arbitrary tags would take the cell boundaries
+    # with it and hand back broken HTML to remove one address.
+    out = mirror_script.redact_account_identity(
+        f'<tr><td>{POSTAL_LINE}</td><td>Tauranga</td></tr>')
+    assert out.startswith('<tr><td>')
+    assert out.endswith('</td><td>Tauranga</td></tr>')
+    assert POSTAL_LINE not in out
+
+
+def test_an_ordinary_page_still_does_not_match_when_extras_are_supplied(
+        account_with_extras):
+    assert not mirror_script.page_carries_account_identity(
+        b'<p>Results from the 1998 championships in Tauranga</p>')
+
+
+def test_save_redacts_a_supplied_value_and_keeps_the_page(
+        account_with_extras, tree):
+    url = 'http://www.footbag.org/registration/playersummary'
+    mirror_script.save_content(
+        url,
+        f'<html><body><h1>Registration</h1><p>{OTHER_ADDRESS}</p>'
+        f'<p>{POSTAL_LINE}</p></body></html>',
+        is_html=True)
+    body = (tree / 'registration/playersummary/index.html').read_text(
+        encoding='utf-8')
+    assert OTHER_ADDRESS not in body
+    assert POSTAL_LINE not in body
+    assert 'Registration' in body
+
+
+def test_sweep_removes_a_page_carrying_only_a_supplied_value(
+        account_with_extras, tree):
+    carrier = _touch(tree, 'registration/playersummary/index.html',
+                     f'<html><body>{POSTAL_LINE}</body></html>'.encode())
+    kept = _touch(tree, 'events/show/1/index.html',
+                  b'<html><body>Spring Classic</body></html>')
+    assert mirror_script.apply_exclusions_sweep() == 1
+    assert not carrier.exists()
+    assert kept.exists()
+
+
+def test_sweep_reports_how_many_values_it_matched_but_never_a_value(
+        account_with_extras, tree, caplog):
+    _touch(tree, 'registration/playersummary/index.html',
+           f'<html><body>{POSTAL_LINE}</body></html>'.encode())
+    with caplog.at_level('INFO'):
+        mirror_script.apply_exclusions_sweep()
+    logged = '\n'.join(record.getMessage() for record in caplog.records)
+    assert '3 value(s)' in logged
+    assert POSTAL_LINE not in logged
+    assert OTHER_ADDRESS not in logged
+    assert ACCOUNT_ADDRESS not in logged
+
+
+def test_supplied_values_are_read_one_per_line_with_comments_ignored():
+    # A postal address keeps its internal spaces, so the separator is the line,
+    # not whitespace.
+    values = mirror_script.parse_redaction_values(
+        '# the address the site still holds\n'
+        f'{OTHER_ADDRESS}\n'
+        '\n'
+        f'   {POSTAL_LINE}   \n')
+    assert values == [OTHER_ADDRESS, POSTAL_LINE]
+
+
+def test_no_supplied_values_leaves_the_guard_on_the_sign_in_address_alone(
+        monkeypatch):
+    monkeypatch.setattr(mirror_script, 'ACCOUNT_EMAIL', ACCOUNT_ADDRESS)
+    monkeypatch.setattr(mirror_script, 'ACCOUNT_REDACTIONS', [])
+    assert mirror_script.page_carries_account_identity(
+        f'<p>{ACCOUNT_ADDRESS}</p>'.encode())
+    assert not mirror_script.page_carries_account_identity(
+        f'<p>{OTHER_ADDRESS}</p>'.encode())
+
+
 def test_crawl_run_enforces_the_exclusions_before_generating_pages(
         monkeypatch, tmp_path, account, tree):
     # The scrub is part of a normal crawl, not a separate command an operator

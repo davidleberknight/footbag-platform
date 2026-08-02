@@ -155,8 +155,13 @@ def test_notice_replaces_the_dashboard_on_every_member_area_page(env):
         assert 'someone@example.com' not in after
         assert 'ID: 11985' not in after
         assert 'Find other members' not in after
-        assert 'member search is disabled' in after
-        assert 'legacy id you can type it into the url' in after
+        # Says plainly that the archive is static, that sign-in and search are
+        # gone, how a member page is still reachable, and where current members
+        # actually live.
+        assert 'static snapshot of the legacy footbag.org' in after
+        assert 'member sign-in and member search do not work here' in after
+        assert '/members/profile/11983' in after
+        assert mirror_script.LIVE_SITE_URL in after
 
 
 def test_notice_leaves_surrounding_page_chrome_byte_identical(env):

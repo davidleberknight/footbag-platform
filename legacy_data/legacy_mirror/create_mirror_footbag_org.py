@@ -69,6 +69,15 @@ Notes
   unsafe (visible in shell history / process listings). The password is never
   logged, printed, or written to any command, progress file, exception message,
   or report.
+- The crawling account owner's personal details are read from the
+  FOOTBAG_MIRROR_REDACT environment variable, one value per line, blank lines
+  and '#' comments ignored. The sign-in address is covered automatically; this
+  is for the ones it cannot reach, a second e-mail address the legacy site
+  still holds and the postal address the registration surfaces render. Every
+  value is removed from captured pages and, like the password, is never logged,
+  printed, or written to any progress file or report; only how many were
+  supplied is. Give a value specific enough to be personal: a full street line,
+  not a bare town name that legitimate archive content also uses.
 
 Video handling (videos are SKIPPED by default; pass '--process-videos' to include them)
 - The primary archival crawl runs WITHOUT video binaries: the video corpus is
@@ -135,6 +144,15 @@ PASSWORD = None # resolved at runtime from the environment or a secure prompt
 # an archive every member can read. Matching the address against captured bytes
 # is the guard that does not depend on anyone having thought of the surface.
 ACCOUNT_EMAIL = None
+# The rest of the crawling account owner's personal details, which the sign-in
+# address alone cannot cover: a second or third e-mail address the legacy site
+# holds for them, and their postal address. The legacy registration and summary
+# surfaces render whichever one the member typed years ago, so a guard keyed on
+# the address used to sign in today misses them entirely. Supplied at runtime,
+# one value per line, never committed and never placed in argv, where a process
+# listing would expose exactly the personal data being removed.
+ACCOUNT_REDACTIONS = []
+REDACTIONS_ENV_VAR = 'FOOTBAG_MIRROR_REDACT'
 # The member password is read from this environment variable when set, so it
 # never has to appear in argv (where ps and shell history expose it).
 PASSWORD_ENV_VAR = 'FOOTBAG_MIRROR_PASSWORD'
@@ -338,6 +356,20 @@ def parse_args():
             f"in {SKIPPED_VIDEO_MANIFEST} by earlier skip-mode crawls, then "
             "rewrite the referring pages to link the local mp4 files. Each "
             "record's outcome is written back to the manifest."
+        )
+    )
+    parser.add_argument(
+        "--seed-videos-from",
+        dest="seed_videos_from",
+        metavar="DIR",
+        default=None,
+        help=(
+            "With --video-backfill: an earlier capture's mirror root whose "
+            "already re-encoded videos are taken instead of downloaded again. "
+            "Each .mp4 carrying its .sanitized sidecar is hardlinked (copied "
+            "across filesystems) to the same path in this capture, so the "
+            "backfill fetches only what that capture does not already hold. "
+            "Nothing this capture already has is overwritten."
         )
     )
     parser.add_argument(
@@ -1225,24 +1257,58 @@ def is_excluded_url(url):
         path = path.rsplit('/', 1)[0]
     return False
 
+def parse_redaction_values(raw):
+    # One personal detail per line, so a postal address keeps its internal
+    # spaces rather than being split on them. Blank lines and '#' comments are
+    # allowed because the operator keeps this list by hand and needs to say
+    # what each value is for.
+    return [line.strip() for line in (raw or '').splitlines()
+            if line.strip() and not line.strip().startswith('#')]
+
+
+_IDENTITY_CACHE = (None, [])
+
+
+def _identity_patterns():
+    # One matcher per personal detail that must not reach the archive: the
+    # address signed in with, plus every value supplied at runtime. Compiled
+    # once and rebuilt only when the set changes, because the sweep runs this
+    # against every page of a fifty-thousand-page tree.
+    #
+    # Whitespace inside a value matches any run of spaces, a non-breaking
+    # space, or a line break, so a postal address the legacy template wrapped
+    # mid-line still matches. Deliberately NOT any tag: a matcher that spanned
+    # arbitrary markup would delete the tags between the halves of a value when
+    # it redacts, and hand back broken HTML to remove one address.
+    global _IDENTITY_CACHE
+    needles = tuple(n for n in [ACCOUNT_EMAIL, *ACCOUNT_REDACTIONS] if n)
+    if _IDENTITY_CACHE[0] != needles:
+        gap = r'(?:\s|&nbsp;|<br\s*/?>)+'
+        _IDENTITY_CACHE = (needles, [
+            re.compile(gap.join(re.escape(part) for part in needle.split()),
+                       re.IGNORECASE)
+            for needle in needles])
+    return _IDENTITY_CACHE[1]
+
+
 def page_carries_account_identity(content):
-    # True when captured bytes render the crawling account's own e-mail address.
-    # Case-insensitive because the legacy templates echo an address back in
-    # whatever case it was typed in, and a mixed-case copy is the same leak.
-    if not ACCOUNT_EMAIL:
+    # True when captured bytes render any personal detail belonging to the
+    # account's owner. Case-insensitive because the legacy templates echo a
+    # value back in whatever case it was typed in, and a mixed-case copy is the
+    # same leak.
+    patterns = _identity_patterns()
+    if not patterns:
         return False
-    blob = content if isinstance(content, bytes) else str(content).encode('utf-8', 'ignore')
-    return ACCOUNT_EMAIL.lower().encode('utf-8') in blob.lower()
+    text = (content.decode('utf-8', 'ignore') if isinstance(content, bytes)
+            else str(content))
+    return any(pattern.search(text) for pattern in patterns)
 
 
 def redact_account_identity(text):
-    # Replace the crawling account's address with a visible marker, keeping the
-    # page. Case-insensitive because the legacy templates echo an address back
-    # in whatever case it was typed, and a mixed-case copy is the same leak.
-    if not ACCOUNT_EMAIL:
-        return text
-    return re.sub(re.escape(ACCOUNT_EMAIL), '[address removed from the archive]',
-                  text, flags=re.IGNORECASE)
+    # Replace each personal detail with a visible marker, keeping the page.
+    for pattern in _identity_patterns():
+        text = pattern.sub('[address removed from the archive]', text)
+    return text
 
 
 def _excluded_disk_candidates(entry):
@@ -1299,7 +1365,7 @@ def apply_exclusions_sweep(dry_run=False):
     # contact details. This is also the backstop for the several page-writing
     # paths that do not funnel through the save-time refusal.
     account_removed = 0
-    if ACCOUNT_EMAIL:
+    if _identity_patterns():
         seen = {str(p) for p in removed}
         pages = (p for p in root.rglob('*')
                  if p.suffix.lower() in ('.html', '.htm'))
@@ -1355,8 +1421,10 @@ def apply_exclusions_sweep(dry_run=False):
 
     verb = "would remove" if dry_run else "removed"
     logging.info(f"Exclusion sweep: {verb} {len(removed)} files "
-                 f"({account_removed} carrying the crawling account's own "
-                 f"address), pruned {state_pruned} state entries "
+                 f"({account_removed} carrying a personal detail of the "
+                 f"crawling account's owner, matched against "
+                 f"{len(_identity_patterns())} value(s)), pruned "
+                 f"{state_pruned} state entries "
                  f"({len(CONTENT_EXCLUSIONS)} exclusion entries)")
     if not ACCOUNT_EMAIL:
         logging.warning(
@@ -1662,20 +1730,6 @@ def canonicalize_cross_published(url):
         return urlunparse(p._replace(netloc=WWW_HOST))
     return url
 
-
-def inject_as_of_note(html):
-    soup = BeautifulSoup(html, 'html.parser')
-    note = soup.new_tag('p')
-    note.string = f"(Local Mirror created on {datetime.now().strftime('%-d %B %Y')})"
-    note['style'] = 'font-style: italic; color: gray;'
-    if soup.body:
-        soup.body.insert(0, note)
-    return str(soup)
-
-def should_inject_as_of_note(url: str) -> bool:
-    parsed = urlparse(url)
-    path = parsed.path.rstrip('/')
-    return path in ['', '/', '/index.html', '/news/list', '/events/list']
 
 def create_news_list_redirector():
     # Create /news/list/index.html → list_<current>/index.html
@@ -2775,6 +2829,35 @@ def _already_removed(element):
     return element.attrs is None or getattr(element, 'decomposed', False)
 
 
+def strip_dead_forms(soup):
+    # A static archive has no backend, so every form on every page is a control
+    # that cannot work: the site search, the language selector, the club join and
+    # member opt-out forms, the poll ballots, the "add a tip" boxes. Leaving them
+    # renders a page that looks interactive and does nothing when used, which is
+    # worse than not offering the control at all.
+    #
+    # The whole form goes, not just its action. Removing only the action leaves a
+    # submit button that silently reloads the page, and it leaves behind the
+    # destination text that outbound neutralization writes where an off-site
+    # action used to be — which is how a bare "http://www.google.com/" ended up
+    # printed above the search box on every page of the previous capture.
+    #
+    # Measured before this was written, against the previous capture: of the
+    # forms on 25,997 pages, all but 32 enclose under 300 characters, and no page
+    # is left without text. What the largest ones enclose is either the form's own
+    # instructions, or content preserved elsewhere — a move description that the
+    # move's own page carries, and poll questions, options and tallies that the
+    # extracted poll tables hold in full.
+    removed = 0
+    for form in list(soup.find_all('form')):
+        if _already_removed(form):
+            continue
+        form.insert_before(Comment("Mirror: form removed, no backend in a static archive"))
+        form.decompose()
+        removed += 1
+    return removed
+
+
 def strip_javascript(soup):
     # A frozen archive runs no script. Almost none of the captured script works
     # anyway: the site-wide file's entry point is an empty function, no page
@@ -2962,9 +3045,18 @@ def rewrite_links(html, page_url):
         contact_blocks = scrub_account_contact_block(soup)
         admin_fields = scrub_elevated_entitlement_content(soup)
         charset_added = ensure_charset_declaration(soup)
+        # Forms go before outbound neutralization, not after. A form's contents
+        # include its own off-site links — the site-search box wraps the Google
+        # logo — and flattening those first leaves their destination printed as
+        # text inside a form that is about to be deleted anyway, which is how a
+        # bare "http://www.google.com/" came to sit above the search box on every
+        # page. Removing the form first means there is nothing left to flatten.
+        forms = strip_dead_forms(soup)
         scripts = strip_javascript(soup)
         outbound_deleted, outbound_text, offsite_actions = neutralize_outbound_links(
             soup, page_url)
+        mirror_state.stats['dead_forms_removed'] = (
+            mirror_state.stats.get('dead_forms_removed', 0) + forms)
         mirror_state.stats['admin_only_fields_removed'] += admin_fields
         mirror_state.stats['account_contact_blocks_removed'] = (
             mirror_state.stats.get('account_contact_blocks_removed', 0) + contact_blocks)
@@ -3996,6 +4088,9 @@ def print_stats():
     print(f"Magic-byte failures: {s.get('magic_byte_failures', 0):,}")
     print("-- static-archive sanitization --")
     print(f"Admin-only fields removed: {s.get('admin_only_fields_removed', 0):,}")
+    print(f"Account contact blocks removed: {s.get('account_contact_blocks_removed', 0):,}")
+    print(f"Account addresses redacted: {s.get('account_addresses_redacted', 0):,}")
+    print(f"Dead forms removed: {s.get('dead_forms_removed', 0):,}")
     print(f"Scripts and handlers removed: {s.get('scripts_and_handlers_removed', 0):,}")
     print(f"Charset declarations added: {s.get('charset_declarations_added', 0):,}")
     print(f"Outbound links made text: {s.get('outbound_links_made_text', 0):,}")
@@ -4052,21 +4147,27 @@ def verify_authenticated_session():
 # a native-looking card on the homepage pointing at the directory.
 
 ARCHIVE_DIRECTORY_FILENAME = 'archive-directory.html'
-ARCHIVE_INDEX_DIRNAME = 'archive-index'
 DIRECTORY_CARD_MARKER = 'mirror-archive-directory-card'
-ABOUT_CARD_MARKER = 'mirror-archive-about-card'
-INDEX_PAGE_SIZE = 1000
 
 # One row per browsable area: (slug, heading, seed list, sort-by-label). The
 # browse index for an area lists every seed item whose capture file exists;
 # areas whose seed ids are chronological (news, events) keep seed order.
+#
+# Three seeded classes are deliberately absent, and must stay absent:
+#
+#   members   An alphabetical list of every profile nothing links is a member
+#             directory, which is exactly the surface the crawl's exclusion list
+#             deletes on purpose. The member-area notice tells a reader that
+#             profiles are reachable by id and from club, event and gallery
+#             pages; rebuilding the directory here would contradict it.
+#   moves     Every moves seed is a second URL form for a page already captured
+#             and linked under its other form, so listing them lists duplicates.
+#   news      The year-list pages chain backwards from the current year and
+#             reach every article, so no news page is unreachable.
 ARCHIVE_AREAS = [
-    ('news', 'News', 'news.txt', False),
     ('events', 'Events', 'events.txt', False),
     ('clubs', 'Clubs', 'clubs.txt', True),
     ('gallery', 'Gallery sets', 'gallery.txt', True),
-    ('members', 'Member profiles', 'members.txt', True),
-    ('moves', 'Moves', 'moves.txt', True),
     ('faq', 'FAQ', 'faq.txt', True),
     ('rules', 'Rulebook chapters', 'rules.txt', False),
     ('polls', 'Polls', 'polls.txt', False),
@@ -4078,6 +4179,33 @@ _TITLE_RE = re.compile(rb'<title[^>]*>(.*?)</title>', re.IGNORECASE | re.DOTALL)
 
 def _www_root():
     return os.path.join(MIRROR_DIR, 'www.footbag.org')
+
+
+ARCHIVE_BANNER_MARKER = 'mirror-archive-banner'
+LIVE_SITE_URL = 'https://www.footbag.org'
+
+# The banner sits above the captured page's own header, so it is styled to read
+# as a masthead strip in the legacy palette rather than as a browser warning.
+# Inline, because the pages it lands on sit at every depth of the tree and an
+# external stylesheet would need a relative path computed per page; inline also
+# survives a page whose own stylesheet never captured.
+_BANNER_STYLE = (
+    'font-family:Verdana,Arial,sans-serif;font-size:8pt;line-height:1.5;'
+    'background:#f4f4f4;border-bottom:1px solid #999;color:#333;'
+    'padding:6px 10px;margin:0'
+)
+
+
+def _banner_html(captured_on):
+    return (
+        f'<div id="{ARCHIVE_BANNER_MARKER}" style="{_BANNER_STYLE}">'
+        f'<b>footbag.org archive</b> &mdash; page captured {captured_on}.<br>'
+        'A static, read-only snapshot of the legacy footbag.org, preserved by '
+        'the IFPA. Sign-in, search and forms are gone, videos are MP4, and links '
+        'to other sites appear as plain text.<br>'
+        f'Live site: <a href="{LIVE_SITE_URL}">www.footbag.org</a>'
+        '</div>'
+    )
 
 
 def _page_label(filepath, fallback):
@@ -4120,12 +4248,56 @@ def _archive_page(title, body_html):
     )
 
 
-def generate_browse_indexes(seeds_dir=None):
-    # One complete, paginated index per area, listing every seed item whose
-    # capture exists on disk. Whole-file overwrites: regenerating after a
-    # longer crawl only ever adds rows.
+def _worlds_year(name):
+    m = re.fullmatch(r'worlds(\d{2,4})', name)
+    if not m:
+        return None
+    year = int(m.group(1))
+    return year + 1900 if year < 100 else year
+
+
+def _linked_targets(www_root, exclude):
+    """Every file some captured page links to, as absolute paths.
+
+    Built from the tree itself rather than from the crawl's link graph, because
+    what matters is what a reader can actually click from a page that is on
+    disk. `exclude` keeps the generated listing out of its own input: without
+    that, regenerating would see the listing's own links, conclude every page it
+    lists is now reachable, and produce an empty page next time.
+    """
+    excluded = {str(Path(p).resolve()) for p in exclude}
+    linked = set()
+    for page in www_root.rglob('*'):
+        if page.suffix.lower() not in ('.html', '.htm') or not page.is_file():
+            continue
+        if str(page.resolve()) in excluded:
+            continue
+        try:
+            blob = page.read_bytes()
+        except OSError:
+            continue
+        for raw in _LOCAL_REF_RE.findall(blob):
+            ref = raw.decode('utf-8', errors='replace')
+            if ref.startswith(('#', 'http:', 'https:', 'mailto:', 'javascript:', 'data:')):
+                continue
+            target = unquote(urlparse(ref).path)
+            if not target:
+                continue
+            resolved = os.path.normpath(os.path.join(str(page.parent), target))
+            if resolved.startswith(str(www_root)):
+                linked.add(resolved)
+    return linked
+
+
+def _unlinked_seed_entries(seeds_dir, linked):
+    """Per area, the captured seed pages that nothing else in the archive links.
+
+    Listing everything a seed class holds would restate content browsing already
+    reaches and bury the few genuinely unreachable pages among thousands of
+    ordinary ones. What is worth a listing is precisely what has no other way in.
+    """
     seeds_dir = Path(seeds_dir or SEEDS_DIR)
-    results = {}
+    out = {}
     for slug, heading, seed_name, sort_by_label in ARCHIVE_AREAS:
         seed_file = seeds_dir / seed_name
         if not seed_file.is_file():
@@ -4141,72 +4313,42 @@ def generate_browse_indexes(seeds_dir=None):
                 continue
             if not target or not os.path.exists(target):
                 continue
+            if os.path.normpath(target) in linked:
+                continue
             tail = [s for s in urlparse(url).path.split('/') if s]
             entries.append((target, _page_label(target, tail[-1] if tail else url)))
         if not entries:
             continue
         if sort_by_label:
             entries.sort(key=lambda e: e[1].casefold())
-        index_dir = os.path.join(_www_root(), ARCHIVE_INDEX_DIRNAME, slug)
-        os.makedirs(index_dir, exist_ok=True)
-        pages = [entries[i:i + INDEX_PAGE_SIZE]
-                 for i in range(0, len(entries), INDEX_PAGE_SIZE)]
-
-        def page_file(num):
-            return 'index.html' if num == 1 else f'page{num}.html'
-
-        for num, page_entries in enumerate(pages, start=1):
-            page_path = os.path.join(index_dir, page_file(num))
-            nav = ''
-            if len(pages) > 1:
-                links = ' '.join(
-                    f'<b>{n}</b>' if n == num else f'<a href="{page_file(n)}">{n}</a>'
-                    for n in range(1, len(pages) + 1))
-                nav = f'<p class="pagenav">Pages: {links}</p>\n'
-            items = '\n'.join(
-                f'<li><a href="{calculate_relative_path(page_path, target)}">'
-                f'{label}</a></li>'
-                for target, label in page_entries)
-            body = (
-                f'<h1>{heading} — complete archive index</h1>\n'
-                f'<p class="count">{len(entries)} captured pages'
-                f'{f", {len(pages)} index pages" if len(pages) > 1 else ""}.</p>\n'
-                f'<p><a href="../../{ARCHIVE_DIRECTORY_FILENAME}">'
-                'Back to the Archive Directory</a></p>\n'
-                f'{nav}<ul>\n{items}\n</ul>\n{nav}'
-            )
-            _atomic_write_text(page_path, _archive_page(
-                f'{heading} — footbag.org archive index', body))
-        results[slug] = (heading, len(entries))
-        logging.info(f"Archive index generated: {slug} ({len(entries)} entries)")
-    return results
+        out[slug] = (heading, entries)
+    return out
 
 
-def _worlds_year(name):
-    m = re.fullmatch(r'worlds(\d{2,4})', name)
-    if not m:
-        return None
-    year = int(m.group(1))
-    return year + 1900 if year < 100 else year
-
-
-def generate_archive_directory(index_counts):
-    # The one human hub: content areas by TOPIC (never by disk layout), the
-    # World Championships across BOTH trees interleaved chronologically, and
-    # every other microsite. Only links whose target file exists are emitted.
+def generate_archive_directory(seeds_dir=None):
+    # One page listing what nothing else in the archive links to, plus the
+    # microsites and championship sites, which are whole sites the main
+    # navigation never reached. Content areas by TOPIC, never by disk layout;
+    # the World Championships across BOTH trees interleaved chronologically; and
+    # only links whose target file exists.
     www = _www_root()
+    www_path = Path(www)
     sections = []
 
-    area_rows = []
+    listing_path = os.path.join(www, ARCHIVE_DIRECTORY_FILENAME)
+    linked = _linked_targets(www_path, exclude=[listing_path])
+    areas = _unlinked_seed_entries(seeds_dir, linked)
+
     for slug, heading, _seed, _sort in ARCHIVE_AREAS:
-        if slug not in index_counts:
+        if slug not in areas:
             continue
-        _heading, count = index_counts[slug]
-        area_rows.append(
-            f'<li><a href="{ARCHIVE_INDEX_DIRNAME}/{slug}/index.html">{heading}</a>'
-            f' <span class="count">({count} pages)</span></li>')
-    if area_rows:
-        sections.append('<h2>Browse by area</h2>\n<ul>\n' + '\n'.join(area_rows) + '\n</ul>')
+        heading_text, entries = areas[slug]
+        rows = '\n'.join(
+            f'<li><a href="{calculate_relative_path(listing_path, target)}">{label}</a></li>'
+            for target, label in entries)
+        sections.append(
+            f'<h2>{heading_text}</h2>\n'
+            f'<p class="count">{len(entries)} page(s).</p>\n<ul>\n{rows}\n</ul>')
 
     # Rank 0 = www tree, 1 = vhost tree: a year captured in both trees (a
     # cross-published championship stored twice) gets ONE row, the www copy.
@@ -4248,19 +4390,22 @@ def generate_archive_directory(index_counts):
     if wikis:
         sections.append('<h2>Reference</h2>\n<ul>\n' + '\n'.join(wikis) + '\n</ul>')
 
+    listed = sum(len(entries) for _heading, entries in areas.values())
     body = (
-        '<h1>The footbag.org Archive Directory</h1>\n'
-        '<p>Every page preserved in this archive is reachable from here: the '
-        'complete per-area indexes below include content the original site '
-        'never linked from its own menus.</p>\n'
-        '<p><a href="index.html">Back to the archive home page</a></p>\n'
+        '<h1>Pages the old site never linked from its own menus</h1>\n'
+        '<p>These pages were captured, but nothing else in this archive points '
+        'at them, so browsing normally will never reach them. Everything the old '
+        'site did link is reachable by browsing from the home page.</p>\n'
+        '<p><a href="index.html">Back to the home page</a></p>\n'
         + '\n'.join(sections)
     )
-    path = os.path.join(www, ARCHIVE_DIRECTORY_FILENAME)
     os.makedirs(www, exist_ok=True)
-    _atomic_write_text(path, _archive_page('footbag.org Archive Directory', body))
-    logging.info(f"Archive Directory generated: {path}")
-    return path
+    _atomic_write_text(listing_path,
+                       _archive_page('Pages not linked from the old menus', body))
+    logging.info(
+        f"Unlinked-pages listing generated: {listed} page(s) across "
+        f"{len(areas)} area(s), {len(sections)} section(s) -> {listing_path}")
+    return listing_path
 
 
 def insert_homepage_directory_card():
@@ -4279,13 +4424,13 @@ def insert_homepage_directory_card():
     card = (
         f'\n<!-- {DIRECTORY_CARD_MARKER} -->\n'
         '<div class="indexEvents">\n'
-        '<h2>Complete Archive</h2>\n'
+        '<h2>More Archived Pages</h2>\n'
         '<div class="indexEventsIndent">\n'
         f'<div class="newsHeadline"><a href="{ARCHIVE_DIRECTORY_FILENAME}">'
-        'Browse the complete footbag.org archive</a></div>\n'
-        '<div class="newsDetails">News, events, clubs, gallery sets, member '
-        'profiles, moves, rules, FAQ, polls, rankings, and the World '
-        'Championships sites — every preserved page, in one directory.</div>\n'
+        'Pages the old site never linked from its own menus</a></div>\n'
+        '<div class="newsDetails">Event, club, gallery, rules, poll, ranking and '
+        'FAQ pages that were reachable only by direct link, plus the World '
+        'Championships sites and microsites.</div>\n'
         '</div>\n'
         '</div>\n'
     )
@@ -4297,49 +4442,6 @@ def insert_homepage_directory_card():
             logging.info("Archive-directory card inserted on the homepage")
             return True
     logging.warning("No insertion anchor found on the homepage; card not inserted")
-    return False
-
-
-def insert_homepage_about_card():
-    # A reader landing on the archive homepage must learn immediately what this
-    # site is: a frozen snapshot, not the live footbag.org. Same mechanics as
-    # the directory card: native block classes, marker-guarded so repeated
-    # end-of-crawl runs never insert it twice, string insertion so the rest of
-    # the homepage stays byte-identical.
-    homepage = os.path.join(_www_root(), 'index.html')
-    if not os.path.exists(homepage):
-        logging.warning("Homepage not captured yet; archive about card not inserted")
-        return False
-    html = Path(homepage).read_text(encoding='utf-8', errors='replace')
-    if ABOUT_CARD_MARKER in html:
-        logging.info("Archive about card already on the homepage")
-        return True
-    card = (
-        f'\n<!-- {ABOUT_CARD_MARKER} -->\n'
-        '<div class="indexEvents">\n'
-        '<h2>About This Archive</h2>\n'
-        '<div class="indexEventsIndent">\n'
-        '<div class="newsDetails">This is archive.footbag.org: a frozen, '
-        'read-only snapshot of the original footbag.org, preserved by the '
-        'IFPA. Content reflects the site as captured; nothing here updates.</div>\n'
-        '<div class="newsDetails">Every page is plain HTML and images, and '
-        'every video is a standard MP4. There is no JavaScript, no database, '
-        'and no code that runs &mdash; by design, so the archive stays safe, '
-        'portable, and servable forever.</div>\n'
-        '<div class="newsDetails">Interactive features of the old site '
-        '(sign-in, search, forms) were removed or point nowhere. For anything '
-        'current, visit <a href="https://www.footbag.org/">footbag.org</a>.</div>\n'
-        '</div>\n'
-        '</div>\n'
-    )
-    for anchor in ('<div class="indexNotices">', '</body>'):
-        pos = html.find(anchor)
-        if pos != -1:
-            html = html[:pos] + card + html[pos:]
-            _atomic_write_text(homepage, html)
-            logging.info("Archive about card inserted on the homepage")
-            return True
-    logging.warning("No insertion anchor found on the homepage; about card not inserted")
     return False
 
 
@@ -4397,11 +4499,14 @@ MEMBER_AREA_NOTICE_PAGES = (
 MEMBER_AREA_NOTICE_BODY = (
     f'<div id="MainBody">\n<!-- {MEMBER_AREA_NOTICE_MARKER} -->\n'
     '<div class="membersHome">\n'
-    '<p>This is a static snapshot of the legacy website, and so member search '
-    'is disabled.</p>\n'
-    '<p>Legacy member links are still live for club members, event '
-    'participants and media publishers, or if you know the member&#39;s legacy '
-    'id you can type it into the url.</p>\n'
+    '<h2>Member Area</h2>\n'
+    '<p>This is a static snapshot of the legacy footbag.org, so member sign-in '
+    'and member search do not work here.</p>\n'
+    '<p>Legacy member pages are still here for club members, event participants '
+    'and media publishers. If you know a member&#39;s legacy id you can type it '
+    'into the address bar, for example /members/profile/11983.</p>\n'
+    f'<p>For current members, go to the live site: '
+    f'<a href="{LIVE_SITE_URL}">www.footbag.org</a></p>\n'
     '</div>\n</div>'
 )
 
@@ -4494,6 +4599,104 @@ def _dangling_refs(page, www_root):
     return out
 
 
+def _front_door_pages():
+    """The pages a reader actually arrives on, resolved from the tree itself.
+
+    The homepage, everything its own main navigation links, the vhost root, each
+    championship-microsite and reference-wiki root, and the generated listing
+    page. Derived rather than listed: the navigation is the site's own statement
+    of its front doors, so this follows the capture instead of a hardcoded set
+    that rots the first time a menu changes.
+
+    Deep pages get no banner. Someone reading an event page has already come
+    through one of these, and a strip on all fifty thousand pages is a change to
+    every page of the archive to say something the entry points already said.
+    """
+    www = Path(_www_root())
+    home = www / 'index.html'
+    doors = []
+    if home.is_file():
+        doors.append(home)
+        soup = BeautifulSoup(home.read_text(encoding='utf-8', errors='replace'),
+                             'html.parser')
+        nav = soup.find(id='MainMenu') or soup
+        for anchor in nav.find_all('a', href=True):
+            href = anchor['href'].strip()
+            if not href or href.startswith(('#', 'http:', 'https:', 'mailto:')):
+                continue
+            target = (home.parent / unquote(urlparse(href).path)).resolve()
+            if target.is_file() and target.suffix.lower() in ('.html', '.htm'):
+                doors.append(target)
+    else:
+        logging.warning(
+            "Homepage not captured; the archive banner has no navigation to "
+            "derive its front doors from and lands only on the roots below")
+
+    # Every microsite and per-year championship root, plus the vhost root. These
+    # are entry points in their own right: a reader can arrive at a Worlds site
+    # without passing the archive homepage at all.
+    for candidate in sorted(www.glob('*/index.html')):
+        parent = candidate.parent.name.lower()
+        if parent == 'sites' or _worlds_year(parent) or parent.startswith('reference'):
+            doors.append(candidate)
+    for candidate in sorted(www.glob('sites/*/index.html')):
+        doors.append(candidate)
+
+    listing = www / ARCHIVE_DIRECTORY_FILENAME
+    if listing.is_file():
+        doors.append(listing)
+
+    seen, unique = set(), []
+    for d in doors:
+        key = str(d.resolve())
+        if key not in seen:
+            seen.add(key)
+            unique.append(d)
+    return unique
+
+
+def insert_archive_banner():
+    # What the archive is, said once at every door a reader can come in by: a
+    # frozen snapshot, nothing here updates, the controls are gone, and here is
+    # the live site. Without it a visitor arriving from a search engine or an old
+    # bookmark sees a page that looks live and has no way back.
+    #
+    # Runs at the end of a crawl rather than at capture time because the front
+    # doors are read from the homepage's own navigation, which has to exist on
+    # disk first. Marker-guarded, so a repeated run neither stacks banners nor
+    # rewrites a page it already did.
+    doors = _front_door_pages()
+    added = already = skipped = 0
+    for page in doors:
+        try:
+            raw = page.read_bytes()
+        except OSError:
+            continue
+        # XML stored under an .html name (a feed, a WordPress API response) must
+        # never reach an HTML parser: parsing and re-serializing it would corrupt
+        # the document it is.
+        if raw.lstrip()[:5].lower() == b'<?xml':
+            skipped += 1
+            continue
+        text = raw.decode('utf-8', errors='replace')
+        if ARCHIVE_BANNER_MARKER in text:
+            already += 1
+            continue
+        soup = BeautifulSoup(text, 'html.parser')
+        if soup.body is None:
+            skipped += 1
+            continue
+        captured_on = datetime.fromtimestamp(page.stat().st_mtime).strftime('%-d %B %Y')
+        banner = BeautifulSoup(_banner_html(captured_on), 'html.parser')
+        soup.body.insert(0, banner)
+        _atomic_write_text(str(page), str(soup))
+        added += 1
+    logging.info(
+        f"Archive banner: {added} page(s) banded, {already} already carried it, "
+        f"{skipped} skipped as non-HTML ({len(doors)} front door(s) found)")
+    return added
+
+
 def neutralize_dead_internal_links():
     # Links inside the archive whose target is not there. Some are pages an
     # exclusion ruling removed, some are pages the crawl never reached, some the
@@ -4571,12 +4774,17 @@ def generate_reachability_pages(seeds_dir=None):
     # what is on disk and must not themselves be rewritten afterwards, and the
     # pass has to see the tree as the crawl left it.
     neutralize_dead_internal_links()
-    counts = generate_browse_indexes(seeds_dir)
-    generate_archive_directory(counts)
+    generate_archive_directory(seeds_dir)
     scrub_homepage_member_chrome()
     replace_member_area_with_notice()
+    # The card points at the listing page, so it goes in only after that page
+    # exists on disk. Inserting it earlier would leave the homepage linking
+    # nothing if generation failed, and the pass that turns a dead link into text
+    # has already run by then.
     insert_homepage_directory_card()
-    insert_homepage_about_card()
+    # Last: the banner reads the homepage's navigation to find the front doors,
+    # and lands on the listing page too, so both have to be final first.
+    insert_archive_banner()
 
 
 # ---------- Video backfill: consume the skipped-videos manifest ----------
@@ -4666,13 +4874,66 @@ def _rewrite_referrer_page(referrer_url, page_records):
     return repaired
 
 
-def run_video_backfill():
+def seed_videos_from_capture(seed_root):
+    """Take the already re-encoded videos from an earlier capture of the same site.
+
+    An earlier crawl's mp4 is the same bytes this pass would otherwise spend
+    days downloading and pushing back through ffmpeg. The file lands at the
+    path the download would have written, so the media step's own
+    already-sanitized check finds it and returns without touching the network.
+
+    Only a video carrying its .sanitized sidecar is taken, and the sidecar
+    comes with it: that marker is the crawler's record that the bytes were
+    re-encoded, and the publish step refuses media without one. Hardlinked when
+    both trees share a filesystem, so seeding costs no disk and the file
+    outlives deleting the tree it came from; copied when they do not. A path
+    this capture already holds is never overwritten.
+    """
+    seed_root = Path(seed_root)
+    if not seed_root.is_dir():
+        logging.warning(f"Video seed directory does not exist, seeding skipped: {seed_root}")
+        return {'linked': 0, 'copied': 0, 'present': 0, 'unsanitized': 0}
+    counts = {'linked': 0, 'copied': 0, 'present': 0, 'unsanitized': 0}
+    for source in sorted(seed_root.rglob('*.mp4')):
+        if not source.is_file():
+            continue
+        sidecar = Path(_sanitized_marker_path(str(source)))
+        if not sidecar.is_file():
+            counts['unsanitized'] += 1
+            continue
+        target = Path(MIRROR_DIR) / source.relative_to(seed_root)
+        if target.exists():
+            counts['present'] += 1
+            continue
+        target.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            os.link(source, target)
+            counts['linked'] += 1
+        except OSError:
+            shutil.copy2(source, target)
+            counts['copied'] += 1
+        target_sidecar = Path(_sanitized_marker_path(str(target)))
+        if not target_sidecar.exists():
+            try:
+                os.link(sidecar, target_sidecar)
+            except OSError:
+                target_sidecar.write_bytes(b'')
+    logging.info(
+        f"Video seed from {seed_root}: {counts['linked']} linked, "
+        f"{counts['copied']} copied, {counts['present']} already present, "
+        f"{counts['unsanitized']} skipped for having no sanitization sidecar")
+    return counts
+
+
+def run_video_backfill(seed_from=None):
     # The whole point of this pass is downloading videos, so the module-level
     # skip flag must be off (main() clears it for --video-backfill). Guard the
     # seam: with it on, download_and_process_media would re-skip every record
     # and mark them all failed.
     global SKIP_VIDEOS
     SKIP_VIDEOS = False
+    if seed_from:
+        seed_videos_from_capture(seed_from)
     manifest = _load_skipped_video_manifest()
     mirror_state.skipped_videos = manifest
     logging.info(f"Video backfill: {len(manifest)} recorded videos")
@@ -4717,24 +4978,33 @@ def run_video_backfill():
 
 
 def create_root_index():
+    # A convenience door for someone opening the capture from a local disk, and
+    # nothing more. It sits one level ABOVE the www.footbag.org/ directory, and
+    # the publish script uploads only that directory, so this file never reaches
+    # the archive host and must not describe itself as the archive's front page.
     root_index_path = os.path.join(MIRROR_DIR, 'index.html')
-    
+
     html_content = """<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Footbag.org Mirror</title>
+    <title>footbag.org archive capture — local entry point</title>
     <meta http-equiv="refresh" content="0; url=www.footbag.org/index.html">
 </head>
 <body>
-    <h1>Footbag.org Mirror</h1>
-    <p>Redirecting to main site...</p>
-    <p>If you are not redirected automatically, <a href="www.footbag.org/index.html">click here</a>.</p>
+    <h1>footbag.org archive capture</h1>
+    <p>This page is the local entry point for a capture opened from disk. It is
+       not part of the published archive: publishing uploads the
+       <code>www.footbag.org/</code> directory below, and that directory's own
+       home page is the archive's front page.</p>
+    <p>Opening the capture now:
+       <a href="www.footbag.org/index.html">www.footbag.org/index.html</a></p>
 </body>
 </html>"""
     _atomic_write_text(root_index_path, html_content)
-    logging.info(f"Created root index.html at {root_index_path}")
+    logging.info(f"Local entry point written at {root_index_path} "
+                 f"(not published; the publish step uploads www.footbag.org/ only)")
 
 def _looks_like_login_page_bytes(content):
     """True when an HTML body is the site's login page (session lapsed and the
@@ -5250,7 +5520,7 @@ def crawl(start_urls):
                 filepath = os.path.join(
                     MIRROR_DIR, 'www.footbag.org', 'news', f'list_{current_year}', 'index.html'
                 )
-                rewritten_html = inject_as_of_note(rewrite_links(resp.text, final_url))
+                rewritten_html = rewrite_links(resp.text, final_url)
                 os.makedirs(os.path.dirname(filepath), exist_ok=True)
                 _atomic_write_text(filepath, rewritten_html)
                 mirror_state.stats['bytes_downloaded'] += len(resp.content)  
@@ -5285,7 +5555,7 @@ def crawl(start_urls):
                         elif len(year) == 3:
                             year = f"200{year[-1]}"
                     filepath = os.path.join(MIRROR_DIR, 'www.footbag.org', 'news', f'list_{year}', 'index.html')
-                    rewritten_html = inject_as_of_note(rewrite_links(resp.text, final_url))
+                    rewritten_html = rewrite_links(resp.text, final_url)
                     os.makedirs(os.path.dirname(filepath), exist_ok=True)
                     _atomic_write_text(filepath, rewritten_html)
                     mirror_state.stats['bytes_downloaded'] += len(resp.content)  
@@ -5306,7 +5576,7 @@ def crawl(start_urls):
             try:
                 current_year = str(datetime.now().year)
                 filepath = os.path.join(MIRROR_DIR, 'www.footbag.org', 'events', f'past_year_{current_year}', 'index.html')
-                rewritten_html = inject_as_of_note(rewrite_links(resp.text, final_url))
+                rewritten_html = rewrite_links(resp.text, final_url)
                 os.makedirs(os.path.dirname(filepath), exist_ok=True)
                 _atomic_write_text(filepath, rewritten_html)
                 mirror_state.stats['bytes_downloaded'] += len(resp.content)  
@@ -5328,7 +5598,7 @@ def crawl(start_urls):
             try:
                 current_year = str(datetime.now().year)
                 filepath = os.path.join(MIRROR_DIR, 'www.footbag.org', 'events', f'results_year_{current_year}', 'index.html')
-                rewritten_html = inject_as_of_note(rewrite_links(resp.text, final_url))
+                rewritten_html = rewrite_links(resp.text, final_url)
                 os.makedirs(os.path.dirname(filepath), exist_ok=True)
                 _atomic_write_text(filepath, rewritten_html)
                 mirror_state.stats['bytes_downloaded'] += len(resp.content)  
@@ -5411,8 +5681,6 @@ def crawl(start_urls):
         if is_html:
             try:
                 rewritten_html = rewrite_links(resp.text, final_url)
-                if should_inject_as_of_note(final_url):
-                    rewritten_html = inject_as_of_note(rewritten_html)
 
                 save_content(final_url, rewritten_html, is_html=True)
                 new_links = extract_links(resp.text, final_url) 
@@ -5452,7 +5720,7 @@ def crawl(start_urls):
 
 def main():
     global USERNAME, PASSWORD, LOG_TO_FILE, SKIP_VIDEOS, CONTENT_EXCLUSIONS
-    global ACCOUNT_EMAIL
+    global ACCOUNT_EMAIL, ACCOUNT_REDACTIONS
 
     args = parse_args()
     LOG_TO_FILE = args.log_to_file   # if your parser uses dest="log", change this to: args.log
@@ -5467,6 +5735,15 @@ def main():
             "rendering this account's own profile and contact details cannot "
             "be recognized and will be archived. Pass the account's e-mail "
             "address instead.")
+
+    # The owner's other personal details, one per line. Counted in the log, but
+    # the values themselves are never logged, printed, or written to the
+    # progress file: they are the very data this removes from the archive.
+    ACCOUNT_REDACTIONS = parse_redaction_values(
+        os.environ.get(REDACTIONS_ENV_VAR, ''))
+    if ACCOUNT_REDACTIONS:
+        logging.info(f"Personal-detail scrub: {len(ACCOUNT_REDACTIONS)} extra "
+                     f"value(s) supplied beyond the sign-in address")
 
     # Every mode consumes the exclusion list; every network mode REQUIRES it.
     # The crawl account's entitlement sees committee-scoped content the member
@@ -5579,7 +5856,7 @@ def main():
 
         if args.video_backfill:
             # Consume the manifest and repair referrers; no crawl in this mode.
-            run_video_backfill()
+            run_video_backfill(seed_from=args.seed_videos_from)
             robot_checker.save_cache()
             print_stats()
             logging.info("Video backfill run complete")
