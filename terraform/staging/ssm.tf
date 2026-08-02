@@ -36,15 +36,9 @@ resource "aws_ssm_parameter" "app_email_send_armed" {
   value = var.email_send_armed
 }
 
-resource "aws_ssm_parameter" "app_public_base_url" {
-  name = "${local.ssm_prefix}/app/public_base_url"
-  type = "String"
-  # Set to the CloudFront default URL after first terraform apply.
-  # Run: terraform output cloudfront_domain, then update this value and re-apply.
-  # When a real domain is attached, change to "https://<your-domain>".
-  value = "https://placeholder.cloudfront.net"
-  lifecycle { ignore_changes = [value] }
-}
+# The site's own public address is deliberately not a parameter here either, for
+# the reason the production tree records: nothing reads it, and the running value
+# lives in the host env file.
 
 resource "aws_ssm_parameter" "app_db_path" {
   name  = "${local.ssm_prefix}/app/db_path"

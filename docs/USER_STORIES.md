@@ -280,7 +280,7 @@ Media gallery links appear from club and event pages when content exists (for ex
 
 Content Ownership and Control: Event pages link to galleries showing all photos tagged with that event's hashtag. Member profile pages link to that member's uploaded photos, which may appear in multiple event galleries. The same photo can belong to both the member's personal collection and multiple event/club galleries simultaneously. No duplication. No complex ownership tracking. Just hashtag matching.
 
-Members own their content completely. They can delete photos, videos and named galleries at any time without approval (permanently, no soft delete). A user can nuke an entire named gallery + all media in it in one click (with a UI confirmation given this is permanent). Deletion removes all the content immediately (but requires some minutes to be visibly changed in the UI due to AWS CloudFront CDN caching, and possibly a page refresh click).
+Members own their content completely. They can delete photos, videos and named galleries at any time without approval (permanently, no soft delete). Deleting a named gallery removes the gallery itself, its saved query, and nothing else: the items it displayed stay published and keep appearing wherever else their tags match, because a gallery is a saved tag query rather than a container. Deleting an item is the separate, permanent action. Both deletions ask for confirmation first, since neither can be undone. Item deletion removes the content immediately (but requires some minutes to be visibly changed in the UI due to AWS CloudFront CDN caching, and possibly a page refresh click).
 
 If a member uploads inappropriate content, any member with Tier 1 benefits can flag it, triggering admin review. The admin can delete the content if it violates policies. Deletion is the only removal mechanism, logged as an admin decision with a reason. No shadow banning. No selective visibility. This creates accountability: admins must justify deletions, and members know their content is either fully public or fully removed.
 
@@ -367,7 +367,7 @@ Story: As a visitor, I want to browse the clubs directory by country/state/city 
 
 Success Criteria:
 
-- The system provides a clubs landing view with geographic drill-down navigation (Country, State/Province, City) with club names and member counts.
+- The system provides a clubs landing view with geographic drill-down navigation from country to a country page, which groups clubs by state or province wherever those are recorded, with club names, city labels, and member counts. City is a label on the club row, not a navigation level.
 - Only members can view club member rosters and contact details.
 
 ### V_Browse_Upcoming_Events
@@ -448,7 +448,7 @@ Success Criteria:
 - Every surface that lists an item (gallery grid, item detail, browse results) shows that item's hashtags as clickable tags.
 - Empty state displays "No photos or videos found with this tag" with suggestions of 5 popular tags platform-wide (a teachable moment).
 - Media galleries are pubic, but only logged-in members will see details about the personal information of the member who uploaded the media (uploaded_by).
-- The public hub at `/media` presents a fixed set of collection cards: Browse by hashtag first, the Member galleries card second, then the curated collection cards (Freestyle, Net, Sideline, Related Sports). The Member galleries card is always shown: when no member-owned named gallery exists it renders a "none yet" state with no link, and once at least one exists it links to the member-galleries list page. FH-owned named galleries are reached through the curated collection cards.
+- The public hub at `/media` presents a fixed set of collection cards: Browse by hashtag first, the Member galleries card second, then the curated collection cards (Freestyle, Net, Sideline, Related Sports). The Member galleries card follows the same has-content rule as the other collection cards: it appears once at least one member-owned named gallery exists, linking to the member-galleries list page, and is not shown before then. FH-owned named galleries are reached through the curated collection cards.
 - The member-galleries list page at `/media/member-galleries` lists every member-owned named gallery in chronological order by creation date (oldest first); each entry shows the gallery name, description, item count, and owner attribution linking to the owner's profile. Auto-materialized per-member default galleries (Personal Gallery) are excluded from this list; they remain reachable at their `/media/{gallery_id}` URL for direct sharing.
 - Named-gallery URL bookmarks live at `/media/{gallery_id}` (e.g., `/media/gallery_curated_freestyle_tricks`, `/media/gallery_tricks_of_the_trade`). The `gallery_id` is the slug; the `member_galleries` row anchors a stable URL plus human-readable name, description, owner, and item-ordering preference (`sort_order`). Content membership is computed at request time by tag-AND match against the gallery's `member_gallery_tags` set, minus any item carrying a tag in the gallery's `member_gallery_exclude_tags` set; an item appears iff it carries every criteria tag AND no exclude tag.
 - Item ordering on a named-gallery page is governed by `member_galleries.sort_order` (`upload_desc` default, `upload_asc`, `caption_asc`). Use `caption_asc` for ordered series whose captions encode the position with a zero-padded prefix (e.g. "01 - <title>").
@@ -1471,7 +1471,7 @@ Story: As a member, I can upload photos so that I share visual content.
 
 Success Criteria:
 
-- Upload photos via named gallery interface. For each member, the initial, default photo gallery name is Personal Gallery. Member can rename this, and/or create multiple named galleries to organize photos.
+- Upload photos via named gallery interface. Each member has a Personal Gallery, materialized on first upload, which collects everything they upload. It is not a named gallery: the member cannot rename or delete it, because both its identity and its automatic re-creation key on its fixed name. Members create their own named galleries to organize photos further.
 - JPEG and PNG only; GIF not supported. Animated content should be uploaded to YouTube or Vimeo and embedded via video links.
 - Accepted image dimensions: at least 200×200 pixels, at most 16.8 megapixels (4096×4096 pixels), and an aspect ratio no more extreme than 4:1 (longer side at most 4× the shorter). An image outside these bounds is rejected with a clear inline error naming the limit it missed (too small, too large, or too long and thin), and the form re-renders for retry.
 - Photo processing generates two variants only: Thumbnail (300×300 pixels) and Display (800px width maximum). Both stored as JPEG at 85% quality, sufficient quality for web viewing and sharing. Original uploaded file is discarded after processing,
@@ -1525,7 +1525,7 @@ Success Criteria:
 - Can create named galleries mixing photos and videos.
 - Each gallery can include optional external links that are validated before publication, with clear error messages and a simple retry path if validation fails.
 - Media appears in personal galleries and event galleries via hashtag matching.
-- Personal Gallery is the default per-member named gallery: it collects everything that member uploads, because every member upload automatically carries that member's uploader hashtag (per §1.1 Uploader hashtags) and Personal Gallery's criteria is that tag. Avatars are excluded from every named gallery platform-wide, not only from Personal Gallery.
+- Personal Gallery is the default per-member gallery rather than a named gallery the member manages: it collects everything that member uploads, because every member upload automatically carries that member's uploader hashtag (per §1.1 Uploader hashtags) and Personal Gallery's criteria is that tag. It cannot be renamed or deleted. Avatars are excluded from every named gallery platform-wide, not only from Personal Gallery.
 - Club and Event galleries aggregate both content types by hashtag matching.
 - Video tiles render as click-to-play facades with lazy-loaded thumbnails, so a gallery can mix any number of videos without a performance penalty.
 - Gallery creation and rename controls are only rendered for members with Tier 1 benefits; Tier 0 members without current Active Player status never see gallery creation or rearrangement controls.

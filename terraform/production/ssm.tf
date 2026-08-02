@@ -54,17 +54,11 @@ resource "aws_ssm_parameter" "app_production_live" {
   lifecycle { ignore_changes = [value] }
 }
 
-resource "aws_ssm_parameter" "app_public_base_url" {
-  name = "${local.ssm_prefix}/app/public_base_url"
-  type = "String"
-  # Initial seed value tied to the configured domain. Operators may rotate
-  # the actual URL during a pre-DNS-cutover phase (e.g. point at the
-  # CloudFront placeholder URL) via `aws ssm put-parameter`; the
-  # ignore_changes lifecycle keeps that change durable across re-applies
-  # of Terraform. Matches the staging pattern at terraform/staging/ssm.tf.
-  value = "https://${var.domain_name}"
-  lifecycle { ignore_changes = [value] }
-}
+# The site's own public address is deliberately not a parameter. It is set on the
+# host env file, which the application reads at startup, and the deploy syncs an
+# explicit list of keys from Parameter Store that does not include it. A parameter
+# nothing reads is state that can silently disagree with the running value, and
+# this one did: it was seeded with the bare apex while the canonical host is www.
 
 resource "aws_ssm_parameter" "app_db_path" {
   name = "${local.ssm_prefix}/app/db_path"
