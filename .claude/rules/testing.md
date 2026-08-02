@@ -87,6 +87,7 @@ If an adversarial test reveals a hole, fix it *and* keep the test.
 - **No "tested manually" as a substitute.** Manual verification is for UI/visual checks. Logic is tested by the suite.
 - **No tests that run on the dev DB.** Tests always use `setTestEnv` + `createTestDb` from `tests/fixtures/testDb.ts`.
 - **No test artifacts under the project root.** Temp DBs, WAL sidecars, admin-allowlist files, scratch fixtures — all in `os.tmpdir()` with a `footbag-test-` prefix (the shared `setTestEnv` helper does this). Project-root leaks survive worker timeouts / OOM / WAL races against `afterAll`; `/tmp` leaks the OS cleans.
+- **No unbounded process spawn.** Every synchronous spawn a test makes (`spawnSync`, `execFileSync`, `execSync`) passes the shared bound from `tests/fixtures/spawnGuard.ts`. A synchronous spawn blocks the worker's event loop, and `testTimeout` is a timer on that loop, so it cannot fire while the loop is frozen: a command that never returns parks the worker with no failure reported and no test named, and the suite stops making progress instead of failing. Node's own `timeout` acts beneath the loop and turns that into an ordinary failure; `SIGKILL` rather than the default `SIGTERM`, because a script waiting on input or a lock can ignore a polite signal.
 
 ## Coverage floor
 

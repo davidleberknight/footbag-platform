@@ -6,18 +6,23 @@
 # one because it is regenerated wholesale and would wipe these entries.
 #
 # Why these are excluded. Each is one of three things, and none has archival
-# value. The signed-in dashboard, the join page, the problem-report form and
-# the event registration forms render the crawling account's own private data
-# back to it: its e-mail address on all of them, and on the registration forms
-# its postal address as well, alongside membership tier and tournament history.
-# The member directory result page is one arbitrary search frozen in time,
-# listing dozens of people with the contact details the legacy site showed only
-# to administrators. Everything else is a form whose backend stops existing at
-# shutdown, so its submit button can never do anything.
+# value. The signed-in dashboard, both join pages, the profile editor, the
+# problem-report form, the event registration forms and the player registration
+# summary render the crawling account's own private data back to it: an e-mail
+# address on all of them, and on the registration surfaces the postal address as
+# well, alongside membership tier and tournament history. Note the address they
+# echo is the one the member registered with, which need not be the one being
+# signed in with, so the content guard below is not a substitute for listing
+# them. The member directory result page and the per-event registered-player
+# roster are lists of OTHER people, frozen in time, carrying the contact details
+# the legacy site showed only to administrators. Everything else is a form whose
+# backend stops existing at shutdown, so its submit button can never do anything.
 #
 # The event registration SUMMARIES (registration/regsummary) are a different
 # surface and stay: they are the archival record of who competed, and they
-# carry no account-owned contact data.
+# carry no contact data. Its two neighbours do carry it and go: the per-event
+# roster lists every registered player's e-mail address, and the per-player
+# summary is one account's own registration record, e-mail and address included.
 #
 # What is deliberately NOT here, and must never be added:
 #
@@ -37,18 +42,22 @@
 #                        link to the member area would land nowhere.
 #
 # A second, path-independent guard backs these entries up. Any captured page
-# whose bytes carry the crawling account's e-mail address is refused at save
-# time and removed by the sweep, keyed on the address the operator supplies at
-# runtime rather than on a username hardcoded into a committed file. That is
-# what makes the guarantee hold for a surface nobody thought to list here.
+# whose bytes carry a personal detail of the crawling account's owner is
+# scrubbed at save time and the page removed by the sweep, keyed on values the
+# operator supplies at runtime rather than on anything hardcoded into a
+# committed file: the address signed in with, plus the older addresses the
+# legacy site still holds for that member. That is what makes the guarantee
+# hold for a surface nobody thought to list here.
 #
 # The crawling account's own profile page is a different matter and is NOT
 # removed: it carries the account's alias only, the same public fields every
 # other member profile carries, and no contact details.
 
 feedback/problem
+ifpa/join
 members/account
 members/authorize
+members/editprofile
 members/find
 members/findaccount
 members/findme
@@ -60,4 +69,6 @@ members2/editprofile
 members2/find
 members2/list
 members2/updateprofile
+registration/listevent
+registration/playersummary
 registration/register

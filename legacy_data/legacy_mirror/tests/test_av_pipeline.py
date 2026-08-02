@@ -326,3 +326,88 @@ def test_lower_case_gif_keeps_its_only_copy(tmp_path, monkeypatch):
 
     assert final == str(source)
     assert source.exists()
+
+
+# Seeding a video-backfill pass from an earlier capture of the same site. The
+# videos are the expensive part of an archive crawl by a wide margin, and a
+# previous capture already holds them re-encoded. Taking those bytes has to
+# leave the tree indistinguishable from one that downloaded them, or the
+# publish step's sanitization gate refuses the result.
+
+@pytest.fixture
+def capture(tmp_path, monkeypatch):
+    """An empty current capture and an earlier one to seed it from."""
+    monkeypatch.setattr(mirror_script, 'MIRROR_DIR', str(tmp_path / 'current'))
+    seed = tmp_path / 'earlier'
+    (seed / 'www.footbag.org' / 'media' / '551').mkdir(parents=True)
+    return seed
+
+
+def _seed_video(seed, rel, body=b'mp4-bytes', sanitized=True):
+    path = seed / rel
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(body)
+    if sanitized:
+        Path(str(path) + '.sanitized').touch()
+    return path
+
+
+def test_a_seeded_video_arrives_with_its_sanitization_sidecar(capture):
+    _seed_video(capture, 'www.footbag.org/media/551/vasek.mp4')
+
+    counts = mirror_script.seed_videos_from_capture(capture)
+
+    landed = Path(mirror_script.MIRROR_DIR) / 'www.footbag.org/media/551/vasek.mp4'
+    assert landed.read_bytes() == b'mp4-bytes'
+    assert Path(str(landed) + '.sanitized').exists()
+    assert counts['linked'] + counts['copied'] == 1
+
+
+def test_a_seeded_video_satisfies_the_already_sanitized_check(capture):
+    # The point of seeding: the media step must find the file and return
+    # without a request, which is what makes the backfill skip the download.
+    _seed_video(capture, 'www.footbag.org/media/551/vasek.mp4')
+    mirror_script.seed_videos_from_capture(capture)
+    landed = Path(mirror_script.MIRROR_DIR) / 'www.footbag.org/media/551/vasek.mp4'
+    assert mirror_script._is_already_sanitized(str(landed))
+
+
+def test_a_video_without_a_sidecar_is_left_behind(capture):
+    # No sidecar means the bytes were never re-encoded. Taking them would put
+    # unscanned media into the archive under a marker saying it was scanned.
+    _seed_video(capture, 'www.footbag.org/media/551/raw.mp4', sanitized=False)
+
+    counts = mirror_script.seed_videos_from_capture(capture)
+
+    assert counts['unsanitized'] == 1
+    assert counts['linked'] + counts['copied'] == 0
+    assert not (Path(mirror_script.MIRROR_DIR)
+                / 'www.footbag.org/media/551/raw.mp4').exists()
+
+
+def test_seeding_never_overwrites_what_this_capture_already_holds(capture):
+    _seed_video(capture, 'www.footbag.org/media/551/vasek.mp4', body=b'older')
+    existing = Path(mirror_script.MIRROR_DIR) / 'www.footbag.org/media/551/vasek.mp4'
+    existing.parent.mkdir(parents=True, exist_ok=True)
+    existing.write_bytes(b'this-capture')
+
+    counts = mirror_script.seed_videos_from_capture(capture)
+
+    assert existing.read_bytes() == b'this-capture'
+    assert counts['present'] == 1
+
+
+def test_seeding_is_repeatable(capture):
+    _seed_video(capture, 'www.footbag.org/media/551/vasek.mp4')
+    first = mirror_script.seed_videos_from_capture(capture)
+    second = mirror_script.seed_videos_from_capture(capture)
+    assert first['linked'] + first['copied'] == 1
+    assert second['linked'] + second['copied'] == 0
+    assert second['present'] == 1
+
+
+def test_a_missing_seed_directory_is_reported_rather_than_fatal(capture):
+    # The earlier capture is deleted once its videos have been taken, so a
+    # later re-run of the same command must not abort the whole pass.
+    counts = mirror_script.seed_videos_from_capture(capture.parent / 'gone')
+    assert counts == {'linked': 0, 'copied': 0, 'present': 0, 'unsanitized': 0}
