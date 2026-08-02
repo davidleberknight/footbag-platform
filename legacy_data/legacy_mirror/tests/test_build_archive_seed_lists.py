@@ -224,11 +224,10 @@ def test_members_seeds_valid_profiles_only(repo):
     ]
 
 
-def test_builder_registry_covers_all_ten_seed_classes(repo):
+def test_builder_registry_emits_every_seeded_class(repo):
     assert set(mod.BUILDERS) == {
         "clubs.txt",
         "gallery.txt",
-        "news.txt",
         "polls.txt",
         "rules.txt",
         "ranking.txt",
@@ -237,3 +236,13 @@ def test_builder_registry_covers_all_ten_seed_classes(repo):
         "events.txt",
         "members.txt",
     }
+
+
+def test_news_permalinks_are_not_seeded(repo):
+    # The year-list pages already carry every article's text, so permalinks add
+    # a second URL for content the archive holds, at nearly eighteen thousand
+    # extra live requests against a site being crawled for days. The builder
+    # stays as the derivation record; what must not come back is the class being
+    # emitted into the crawl by default.
+    assert "news.txt" not in mod.BUILDERS
+    assert callable(mod.build_news)

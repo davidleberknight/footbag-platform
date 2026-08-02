@@ -60,15 +60,19 @@ count of exactly which hidden sets and images a past crawl failed to capture is 
 diff against that crawl's capture log, not a fact in the dump, so the seed takes
 the whole hidden-set population and lets dedup do the reconciliation.
 
-### news.txt (17,682 URLs)
+### news permalinks (not seeded)
 
-Every `/news/show/<NewsID>` permalink. The crawl already captured the article
-text through the year-list pages, but not the per-item permalinks, which those
-pages do not link in a form the crawl followed. The permalink is a stable deep
-link worth preserving, so every news item gets one. This is by far the largest
-class: it adds roughly ten times the URLs of all the others combined, so budget
-the final crawl accordingly (or trim the list if only a subset of permalinks
-needs preserving; the article text is not at stake either way).
+Every `/news/show/<NewsID>` permalink was seeded once and no longer is. The
+article text reaches the archive through the year-list pages, ninety-four of
+them, so the permalinks added a second URL for content already held rather than
+any new content. There are nearly eighteen thousand, more than a third of every
+other seed URL combined, and each is a live request against a site being crawled
+for days.
+
+Ruled: keep the articles, drop the duplicate permalinks. `build_news()` remains
+in the builder as the record of how the permalink set is derived, so preserving
+a chosen subset later means calling it and trimming rather than reconstructing
+it, but it is not in the emitted set.
 
 ### polls.txt (11 URLs)
 

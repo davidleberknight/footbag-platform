@@ -10,6 +10,8 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
+
+import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { join } from 'node:path';
 
 const SITE_DIR = join(process.cwd(), 'curated/site');
@@ -17,14 +19,14 @@ const sidecars = readdirSync(SITE_DIR).filter((f) => /^mosaic-.*\.meta\.json$/.t
 const clips = readdirSync(SITE_DIR).filter((f) => /^mosaic-.*\.mp4$/.test(f));
 
 const ffprobeAvailable =
-  spawnSync('ffprobe', ['-version'], { encoding: 'utf8' }).status === 0;
+  spawnSync('ffprobe', ['-version'], { encoding: 'utf8', ...SPAWN_GUARD }).status === 0;
 
 function clipDimensions(mp4: string): { w: number; h: number } | null {
   const r = spawnSync(
     'ffprobe',
     ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height',
       '-of', 'csv=p=0', join(SITE_DIR, mp4)],
-    { encoding: 'utf8' },
+    { encoding: 'utf8', ...SPAWN_GUARD },
   );
   if (r.status !== 0 || !r.stdout) return null;
   const [w, h] = r.stdout.trim().split(',').map(Number);

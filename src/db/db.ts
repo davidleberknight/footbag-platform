@@ -8264,13 +8264,6 @@ export const declaredAnchors = {
     DELETE FROM member_declared_anchors WHERE id = ? AND member_id = ?
   `); },
 
-  // Legacy-URL forwarding lookup: in-flight emails reference
-  // /members/profile/<legacy id> for years after cutover.
-  get findLiveMemberSlugByLegacyId() { return db.prepare(`
-    SELECT slug FROM members_active
-    WHERE legacy_member_id = ?
-  `); },
-
   // Conflict-prompt scan inputs: every claimed identity's display name, so
   // a new registrant's surname can be checked against records that are
   // already taken (same-name collision and impersonation detection).

@@ -74,7 +74,7 @@
  * The profile Media section is delegated to `mediaService.getMemberProfileMedia`.
  */
 import { randomUUID, createHash } from 'crypto';
-import { account, publicPlayers, memberClubAffiliations, memberLinks, clubLeaders, clubs as clubsDb, declaredAnchors, erasureLog, legacyMembers, memberPurge, workQueue, transaction, MemberProfileRow, MemberResultRow, MemberSearchRow, HistoricalPersonSearchRow, IdentityLinksRow, LegacyMemberRow } from '../db/db';
+import { account, publicPlayers, memberClubAffiliations, memberLinks, clubLeaders, clubs as clubsDb, declaredAnchors, erasureLog, legacyMembers, memberPurge, workQueue, transaction, MemberProfileRow, MemberResultRow, MemberSearchRow, HistoricalPersonSearchRow, IdentityLinksRow } from '../db/db';
 import { validateExternalUrl } from '../lib/externalUrlValidator';
 import { validateBirthDate } from '../lib/birthDate';
 import { identityAccessService } from './identityAccessService';
@@ -712,37 +712,9 @@ function scrubDeceasedMemberPII(memberId: string): ScrubDeceasedMemberPIIResult 
   });
 }
 
-export type LegacyMemberProfileResolution =
-  | { status: 'live'; slug: string }
-  | { status: 'claimable'; displayName: string | null }
-  | { status: 'not_routable' };
-
 export const memberService = {
   purgeAccountPII,
   scrubDeceasedMemberPII,
-
-  /**
-   * Legacy-URL forwarding for an in-flight /members/profile/:legacyMemberId
-   * link: resolve the legacy member id to the live member's slug (301 target),
-   * an unclaimed claimable account, or not-routable. Owns the lookups; the
-   * controller maps the result to a redirect or render and gates the display
-   * name on the viewer's auth state.
-   */
-  resolveLegacyMemberProfile(legacyMemberId: string): LegacyMemberProfileResolution {
-    const live = declaredAnchors.findLiveMemberSlugByLegacyId.get(legacyMemberId) as
-      | { slug: string }
-      | undefined;
-    if (live) {
-      return { status: 'live', slug: live.slug };
-    }
-    const legacyRow = legacyMembers.findByLegacyMemberId.get(legacyMemberId) as
-      | LegacyMemberRow
-      | undefined;
-    if (legacyRow && !legacyRow.claimed_by_member_id) {
-      return { status: 'claimable', displayName: legacyRow.display_name ?? legacyRow.real_name };
-    }
-    return { status: 'not_routable' };
-  },
 
   getOwnProfile(
     slug: string,

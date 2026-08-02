@@ -854,7 +854,7 @@ A custom Python-based crawler was developed to capture the complete Footbag.org 
 
 **URL Redirects:**
 
-- The platform never links into the archive's interior: legacy footbag.org URLs resolve to their new-platform equivalent or the friendly legacy-URL 404, and archive content is reached by browsing from the archive landing page.
+- The platform never links into the archive's interior, only to its landing page: legacy footbag.org URLs are served the standard not-found page, and archive content is reached by browsing from there.
 - footbagworldwide.net redirects to footbag.org.
 - The mirror program's `redirect_map.json` is an internal crawl artifact, a legacy-URL to legacy-URL de-duplication map the crawler consumes during link rewriting; it is not a serving-time redirect table.
 

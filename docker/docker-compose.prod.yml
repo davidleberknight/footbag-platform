@@ -126,6 +126,14 @@ services:
       IMAGE_PROCESSOR_URL: ${IMAGE_PROCESSOR_URL:-http://image:4000}
       MEDIA_STORAGE_ADAPTER: ${MEDIA_STORAGE_ADAPTER:?must be set in /srv/footbag/env (deploy scripts seed s3)}
       MEDIA_STORAGE_S3_BUCKET: ${MEDIA_STORAGE_S3_BUCKET:-}
+      # Curator video limits. Forwarded so an operator override in
+      # /srv/footbag/env reaches the process rather than being silently ignored,
+      # and so every container that imports config validates the same encoder
+      # bound against the same caller deadline.
+      VIDEO_MAX_BYTES: ${VIDEO_MAX_BYTES:-}
+      VIDEO_MAX_HEIGHT: ${VIDEO_MAX_HEIGHT:-}
+      FFMPEG_TIMEOUT_SECONDS: ${FFMPEG_TIMEOUT_SECONDS:-}
+      VIDEO_TRANSCODE_TIMEOUT_MS: ${VIDEO_TRANSCODE_TIMEOUT_MS:-}
       PAYMENT_ADAPTER: ${PAYMENT_ADAPTER:?must be set in /srv/footbag/env (the deploy derives it from the SSM app/payments_armed arming flag on production; stub below production)}
       # Arming switches: the deploy syncs both from the SSM app/* parameters
       # and, on production, derives SES_ADAPTER/PAYMENT_ADAPTER from them.
@@ -261,6 +269,14 @@ services:
       IMAGE_PROCESSOR_URL: ${IMAGE_PROCESSOR_URL:-http://image:4000}
       MEDIA_STORAGE_ADAPTER: ${MEDIA_STORAGE_ADAPTER:?must be set in /srv/footbag/env (deploy scripts seed s3)}
       MEDIA_STORAGE_S3_BUCKET: ${MEDIA_STORAGE_S3_BUCKET:-}
+      # Curator video limits. Forwarded so an operator override in
+      # /srv/footbag/env reaches the process rather than being silently ignored,
+      # and so every container that imports config validates the same encoder
+      # bound against the same caller deadline.
+      VIDEO_MAX_BYTES: ${VIDEO_MAX_BYTES:-}
+      VIDEO_MAX_HEIGHT: ${VIDEO_MAX_HEIGHT:-}
+      FFMPEG_TIMEOUT_SECONDS: ${FFMPEG_TIMEOUT_SECONDS:-}
+      VIDEO_TRANSCODE_TIMEOUT_MS: ${VIDEO_TRANSCODE_TIMEOUT_MS:-}
       PAYMENT_ADAPTER: ${PAYMENT_ADAPTER:?must be set in /srv/footbag/env (the deploy derives it from the SSM app/payments_armed arming flag on production; stub below production)}
       # Arming switches: the deploy syncs both from the SSM app/* parameters
       # and, on production, derives SES_ADAPTER/PAYMENT_ADAPTER from them.
@@ -335,11 +351,22 @@ services:
       # Node + libav baseline. On the 256M nano_3_0 image container that
       # combination cgroup-OOMs at frame 0; the staging env file overrides to
       # preset=veryfast, threads=1, rc-lookahead=10 (~50-80M working set).
-      # Production sets none of these, so the empty fallback passes through and
-      # the worker uses the canonical encode quality.
+      # Production sets the preset (see docker/env/production.env): both hosts
+      # have two vCPUs, so at medium the encoder cannot finish a file at the
+      # accepted size limit inside its time budget. Threads and rc-lookahead
+      # stay unset here; the 4GB host does not need staging's memory clamps.
       VIDEO_X264_PRESET: ${VIDEO_X264_PRESET:-}
       VIDEO_X264_THREADS: ${VIDEO_X264_THREADS:-}
       VIDEO_X264_RC_LOOKAHEAD: ${VIDEO_X264_RC_LOOKAHEAD:-}
+      # Encoder time bound, and the caller deadline it must stay under. Both are
+      # forwarded so an operator override in /srv/footbag/env actually reaches
+      # the process, and so the boot check that compares them sees the same two
+      # values here as in web and worker; a container missing one would validate
+      # a different pair and could refuse to start while its siblings ran.
+      FFMPEG_TIMEOUT_SECONDS: ${FFMPEG_TIMEOUT_SECONDS:-}
+      VIDEO_TRANSCODE_TIMEOUT_MS: ${VIDEO_TRANSCODE_TIMEOUT_MS:-}
+      # The height ceiling is applied here, where ffmpeg runs.
+      VIDEO_MAX_HEIGHT: ${VIDEO_MAX_HEIGHT:-}
       # Shared secret used by the image worker to authenticate /process/*
       # callers. Same value as the web<->worker channel; web's adapters set
       # it on the x-internal-secret header.

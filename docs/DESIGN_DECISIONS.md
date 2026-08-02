@@ -3248,7 +3248,7 @@ A static, read-only mirror of key site content (e.g., events, clubs, media galle
 
 Decision:
 
-The legacy footbag.org site is preserved as a static HTML mirror in a dedicated S3 bucket served via CloudFront at archive.footbag.org. Access is restricted to authenticated members of the main platform. The platform links only to the archive's landing page and never constructs URLs into the mirror's interior: the mirror's paths are the legacy site's own URL space, legacy URLs on the platform resolve to their new-platform equivalent or the friendly legacy-URL 404, and the legacy URL space is not preserved. Edge authentication uses CloudFront signed cookies via a trusted-signer key group; the main app issues the signed cookie at session creation and on every session refresh.
+The legacy footbag.org site is preserved as a static HTML mirror in a dedicated S3 bucket served via CloudFront at archive.footbag.org. Access is restricted to authenticated members of the main platform. The platform links only to the archive's landing page and never constructs URLs into the mirror's interior: the mirror's paths are the legacy site's own URL space, and the platform serves every legacy URL its standard not-found page. Edge authentication uses CloudFront signed cookies via a trusted-signer key group; the main app issues the signed cookie at session creation and on every session refresh.
 
 Rationale:
 
@@ -3258,7 +3258,7 @@ Rationale:
 
 - Members-only access protects old member contact information preserved in the archive HTML.
 
-- No legacy URL redirects into the archive. The legacy links real people still follow are served on the platform side: old member-profile links land on the live profile, a claim soft-landing, or the friendly legacy-URL 404, and old club links resolve to the new club page or that same 404, because no interior archive path is derivable from a platform-side key. Link integrity and search-engine equity across the roughly 93,500 mirrored URLs are deliberately traded away rather than carried by a catch-all redirect: legacy content is reachable by browsing the archive from its landing page.
+- The platform serves every legacy URL its standard not-found page and derives no interior archive path from a platform-side key. Link integrity and search-engine equity across the roughly 93,500 mirrored URLs are deliberately traded away rather than carried by redirects: legacy content is reachable by browsing the archive from its landing page.
 
 - Archive HTML uses mp4 video and jpg images, and contains no JavaScript, so the mirror is fully static.
 
@@ -3538,10 +3538,13 @@ Curator-uploaded video (uploaded by the system member account, see §2.8) goes t
     - `-pix_fmt yuv420p`: web-safe pixel format.
     - `-movflags +faststart`: streaming-friendly output.
     - Encoder-quality knobs (CRF, preset, audio bitrate, frame rate) literal at slice; nominal targets parallel the existing mirror program's first-attempt settings (`legacy_data/legacy_mirror/create_mirror_footbag_org.py`).
+    - Every ffmpeg run is time-bounded and the bound is deploy-time config. A malformed input can put the encoder into a loop that consumes a core and produces no output; unbounded, it holds the worker's video slot indefinitely and the media job neither completes nor fails. On expiry the encoder is killed, the temp directory removed, the slot released, and the job marked failed like any other transcode error. The bound is required to be shorter than the HTTP boundary the caller waits on, so the encoder always dies before the caller abandons the request; the inverted ordering is refused at boot.
 
   Operator/admin delivers any reasonable input; platform produces a standardized output with stream selection, metadata, chapters, and codec-level malware all stripped.
 
-- Output: single MP4 rendition (no automatic resolution variants; variant generation for bandwidth-tiered playback is deferred). WebM variant deferred unless browser parity demands it.
+- Output: single MP4 rendition capped at a configured height, defaulting to 1080p, never upscaled, so a source at or below that resolution passes through unscaled and a larger one is reduced. The cap bounds the per-frame encoding cost of an arbitrary upload, which together with the accepted-size limit and the encoder time budget is what keeps the advertised limit honourable on a host whose two vCPUs are shared with the web application. Those three settings are chosen against each other: raising the height ceiling or the accepted size without revisiting the time budget and the encoder preset leaves uploads that fail on the clock rather than at validation. No automatic resolution variants; variant generation for bandwidth-tiered playback is deferred. WebM variant deferred unless browser parity demands it.
+
+- Accepted limitation: the size limit is a byte ceiling, but encoding cost tracks duration and resolution, which relate to byte count only through bitrate. A file at the ceiling encoded at a normal bitrate finishes inside the time budget; the same byte count at a very low bitrate is several times longer in duration and does not. Such an upload fails when the encoder's budget expires rather than at validation, with the encoder killed, the worker slot released, and the job marked failed with the reason stated. This is accepted rather than closed. Rejecting it at validation would require probing duration before acceptance, adding a decode step to the upload path for a case that does not arise in practice; and lowering the byte ceiling far enough to make the pathological shape fit would refuse ordinary short high-bitrate video that transcodes comfortably. The failure is bounded, reported, and reachable only by an upload shape the curator path does not produce.
 
 - Poster image: a companion image goes through the standard Sharp pipeline to produce thumbnail and display variants. Stored alongside the transcoded video.
 

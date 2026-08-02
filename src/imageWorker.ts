@@ -34,10 +34,12 @@ const VALID_X264_PRESETS = new Set([
 
 const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
 const PHOTO_MAX_BYTES = 25 * 1024 * 1024;
-// Worker-side ceiling sits 50 MB above the service-side VIDEO_MAX_BYTES
-// (150 MB) so service-layer validation stays the user-visible source of
-// truth. The worker's higher limit is defense-in-depth, not a separate
-// product cap.
+// Worker-side ceiling sits above the service-side VIDEO_MAX_BYTES so
+// service-layer validation stays the user-visible source of truth. The worker's
+// higher limit is defense-in-depth, not a separate product cap, and it is
+// deliberately not derived from the service value: the worker is a separate
+// process that must reject absurd payloads even if it is ever run against a
+// mismatched configuration.
 const VIDEO_MAX_BYTES_DEFAULT = 200 * 1024 * 1024;
 
 function parseIntEnv(name: string, fallback: number, min: number, max: number): number {

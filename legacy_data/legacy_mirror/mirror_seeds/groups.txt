@@ -1,0 +1,26 @@
+# Group-attached files a public visitor could reach, which earlier crawls missed.
+#
+# Derived from the legacy group-file and committee tables, not authored. A file
+# is listed here only when its group is publicly visible AND the file itself
+# carries no per-file scope. That second condition is the one that matters: the
+# legacy schema scopes an individual file to a single committee independently of
+# whether the group is publicly listed, so a public group holds members-only
+# documents too. Board minutes, financial statements and reimbursement forms all
+# sit in a publicly listed group and were never publicly readable.
+#
+# Of the files earlier identified as belonging to public groups, most carry such
+# a scope and are therefore kept out by the crawl exclusion list. Only these four
+# are unscoped. The two derivations agree exactly: every scoped file is excluded
+# and every unscoped one is not.
+#
+# A row proves a database entry, not that the file still exists. Expect some to
+# 404 and treat that as an ordinary miss.
+#
+# A fourth unscoped file exists, the marketing committee's IFPA_LOGO_EPS.zip, and
+# is deliberately absent. The crawler never captures archive, executable, audio or
+# vector formats, so seeding a .zip only produces a refusal warning on every run.
+# Restoring it means changing that format policy, not this list.
+
+http://www.footbag.org/ifpa/groups/efc/eurologo.gif
+http://www.footbag.org/ifpa/groups/efc/new%20EFC%20logo%20-%20small.jpg
+http://www.footbag.org/ifpa/groups/Event%20Resources/THE%20TEXAS%20FOOTBAG%20LEAGUE%202004%20Nov%20.pdf

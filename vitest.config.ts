@@ -1,24 +1,24 @@
 import { defineConfig } from 'vitest/config';
 import os from 'node:os';
 
-// Vitest's default forks pool runs ~one worker per CPU. On a box where cores
-// far outnumber RAM (e.g. WSL2 reporting 20 host cores against ~8 GB), each
-// fork boots the full app (~270ms module eval) and the concurrent boots
-// oversubscribe memory, stretching beforeAll hooks past the 10s ceiling. Cap
-// forks to memory ONLY when RAM is the bottleneck; CPU-balanced machines and CI
-// keep vitest's default parallelism. ~0.8 GB/fork covers app boot +
-// better-sqlite3 + node heap with headroom.
+// Vitest runs ~one worker per CPU, and each worker boots the whole app graph
+// before its first assertion. On a box where cores far outnumber RAM (e.g. WSL2
+// reporting 20 host cores against ~8 GB) the concurrent boots oversubscribe
+// memory and stretch beforeAll hooks past their ceiling. Cap workers to memory
+// ONLY when RAM is the bottleneck; CPU-balanced machines and CI keep vitest's
+// default parallelism. ~0.8 GB/worker covers app boot + better-sqlite3 + node
+// heap with headroom.
 const cpuCount = os.cpus().length;
-const memForkCap = Math.max(1, Math.floor(os.totalmem() / (0.8 * 1024 ** 3)));
-const ramBound = memForkCap < cpuCount;
+const memWorkerCap = Math.max(1, Math.floor(os.totalmem() / (0.8 * 1024 ** 3)));
+const ramBound = memWorkerCap < cpuCount;
 // A VM that is CPU- or disk-slow but RAM-adequate slips past the memory cap and
 // runs full parallelism, so each worker's cold app-graph compile in beforeAll
 // can blow the hook ceiling. VITEST_MAX_FORKS lets such a box throttle workers
 // without editing config.
-const envForkCap = process.env.VITEST_MAX_FORKS
+const envWorkerCap = process.env.VITEST_MAX_FORKS
   ? Math.max(1, parseInt(process.env.VITEST_MAX_FORKS, 10))
   : null;
-const forkCap = envForkCap ?? (ramBound ? memForkCap : null);
+const workerCap = envWorkerCap ?? (ramBound ? memWorkerCap : null);
 
 export default defineConfig({
   test: {
@@ -30,7 +30,14 @@ export default defineConfig({
     // on a slow laptop that cold transform can exceed half a minute, so the
     // ceiling is generous enough that the import cost is never the failure.
     hookTimeout: 120_000,
-    ...(forkCap ? { pool: 'forks' as const, maxWorkers: forkCap } : {}),
+    // Worker threads rather than child processes. A process pool has to manage
+    // fork lifecycle itself, and a child that dies or never signals ready can
+    // park the whole run with no test executing and no timeout to end it, which
+    // reads as an eternally slow suite rather than a failure. Threads carry no
+    // such lifecycle. Each worker still gets its own module registry, so the
+    // per-file env isolation the integration suites rely on is unchanged.
+    pool: 'threads' as const,
+    ...(workerCap ? { maxWorkers: workerCap } : {}),
     setupFiles: ['./tests/setup-env.ts'],
     // Sweep stale `footbag-test-*` artifacts from os.tmpdir() at session
     // start and end. Per-test afterAll() handles the happy path; this hook

@@ -271,17 +271,43 @@ def test_footbag_domain_tightening_does_not_broaden_fetch_scope():
     assert not mirror_script.is_in_scope('http://evilfootbag.org/x')          # lookalike
 
 
-def test_external_link_stays_live_after_link_rewrite(mirror_env):
-    # A link to a genuine external host is neither relativized into a false local
-    # path nor unwrapped to text: it keeps its live absolute URL (and, being
-    # external, is marked target=_blank).
+def test_external_link_becomes_text_carrying_its_destination(mirror_env):
+    # No link to somebody else's website stays clickable in the archive. The
+    # capture is taken once and never refreshed, so a destination that is fine
+    # on capture day can be an abandoned domain in someone else's hands years
+    # later, and a live link would be the archive vouching for wherever it then
+    # leads. The address is still shown, so a reader can follow it deliberately,
+    # and it is never relativized into a false local path.
     html = ('<html><body>'
             '<a href="http://example.com/some/page">external</a>'
             '</body></html>')
     out = mirror_script.rewrite_links(html, mirror_script.BASE_URL + '/news/show/1')
-    assert 'http://example.com/some/page' in out   # live URL preserved verbatim
-    assert '>external<' in out                      # anchor kept, not unwrapped
-    assert 'target="_blank"' in out                 # external link marked
+    assert 'http://example.com/some/page' in out   # destination still readable
+    assert '<a ' not in out                         # nothing left to click
+    assert 'external' in out                        # the link's own words survive
+
+
+def test_outbound_link_that_was_never_a_url_is_deleted(mirror_env):
+    # Legacy forms accepted anything in a website field, so the capture carries
+    # strings that were never addresses. Showing those as text would be noise;
+    # they go entirely, while the surrounding sentence stays.
+    html = ('<html><body><p>Club site: '
+            '<a href="http://Coming">Coming soon</a> and more text</p></body></html>')
+    out = mirror_script.rewrite_links(html, mirror_script.BASE_URL + '/clubs/show/1')
+    assert 'Coming soon' not in out
+    assert 'http://Coming' not in out
+    assert 'and more text' in out
+
+
+def test_links_inside_the_archive_stay_clickable(mirror_env):
+    # Browsing is the only way legacy content is reachable, so internal
+    # navigation is untouched by the outbound rule.
+    html = ('<html><body>'
+            f'<a href="{mirror_script.BASE_URL}/clubs/index">clubs</a>'
+            '</body></html>')
+    out = mirror_script.rewrite_links(html, mirror_script.BASE_URL + '/news/show/1')
+    assert '<a ' in out
+    assert 'clubs' in out
 
 
 # ── Per-host politeness ──────────────────────────────────────────────────────
@@ -303,3 +329,65 @@ def test_polite_wait_paces_per_host_independently(monkeypatch):
     clock['now'] += mirror_script.DELAY_SECONDS * 2
     mirror_script.polite_wait(BASE + '/d')    # enough time elapsed: no wait
     assert len(sleeps) == 1
+
+
+# WordPress traps apply by path, not by host. The championship microsites and
+# the reference wiki are served under www as well as under the vhost, so a
+# host-scoped rule let the same API endpoints through under www: nearly two
+# thousand of them were captured that way, and because a URL's query is dropped
+# when it becomes a filename, they all overwrote one file each.
+#
+# None of it is content. An oembed response carries a post's title and an embed
+# snippet, never the post; a feed is a subscription endpoint; and ?p= addresses a
+# post its own permalink already stores.
+
+def test_wordpress_api_endpoints_are_refused_under_www(monkeypatch):
+    monkeypatch.setattr(mirror_script, 'RESPECT_ROBOTS_TXT', False)
+    for url in (
+        'http://www.footbag.org/reference2/wp-json/oembed/1.0/embed?url=x',
+        'http://www.footbag.org/worlds2012/feed/',
+        'http://www.footbag.org/worlds2013/comments/feed/',
+        'http://www.footbag.org/worlds2012/2012/04/01/welcome/trackback/',
+    ):
+        assert not mirror_script.is_in_scope(url), url
+
+
+def test_wordpress_id_style_urls_are_refused_under_www(monkeypatch):
+    monkeypatch.setattr(mirror_script, 'RESPECT_ROBOTS_TXT', False)
+    for url in (
+        'http://www.footbag.org/reference2/?p=13',
+        'http://www.footbag.org/worlds2016/?p=272',
+        'http://www.footbag.org/worlds2011/?page_id=7',
+    ):
+        assert not mirror_script.is_in_scope(url), url
+
+
+def test_the_pages_that_hold_the_content_stay_in_scope(monkeypatch):
+    monkeypatch.setattr(mirror_script, 'RESPECT_ROBOTS_TXT', False)
+    for url in (
+        'http://www.footbag.org/reference2/footbag-hall-of-fame/',
+        'http://www.footbag.org/worlds2012/sponsors/',
+        'http://www.footbag.org/worlds2017/2017/07/24/players-booklet/',
+        'http://sites.footbag.org/reference/freestyle/',
+    ):
+        assert mirror_script.is_in_scope(url), url
+
+
+def test_a_media_directory_is_not_mistaken_for_a_date_archive(monkeypatch):
+    # The date-archive rule matches /<segment>/<four digits>/, which on www also
+    # describes a media directory. It stays scoped to the vhost for that reason.
+    monkeypatch.setattr(mirror_script, 'RESPECT_ROBOTS_TXT', False)
+    assert mirror_script.is_in_scope('http://www.footbag.org/media/1338/')
+    assert not mirror_script.is_in_scope('http://sites.footbag.org/worlds2012/2012/')
+
+
+def test_an_id_style_query_deeper_than_a_site_root_is_legacy_pagination(monkeypatch):
+    # 'p' and 'm' name a WordPress post id at a site root and an ordinary
+    # pagination or mode parameter anywhere else. Depth is what tells them apart,
+    # so a legacy page keeps its query rather than being mistaken for a trap.
+    monkeypatch.setattr(mirror_script, 'RESPECT_ROBOTS_TXT', False)
+    assert mirror_script.is_in_scope(
+        'http://www.footbag.org/events/show/1741024635?p=2')
+    assert mirror_script.is_in_scope(
+        'http://www.footbag.org/gallery/showset/58?m=list')
+    assert not mirror_script.is_in_scope('http://www.footbag.org/reference2/?p=13')

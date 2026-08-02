@@ -166,10 +166,29 @@ def media_id_for_item(id_seed: str, *content_paths: Path) -> str:
     return f"media_{sha.hexdigest()[:24]}"
 
 
+# Ceiling on one ffmpeg run, overridable for a slow host or an unusually long
+# source. Ten minutes is far above any legitimate curator transcode.
+FFMPEG_TIMEOUT_SECONDS = int(os.environ.get("FOOTBAG_FFMPEG_TIMEOUT_SECONDS", 10 * 60))
+
+
 def transcode_video(input_path: Path, output_path: Path) -> None:
-    """Re-encode video through ffmpeg with malware-stripping options."""
+    """Re-encode video through ffmpeg with malware-stripping options.
+
+    Time-bounded: a malformed input can put the encoder into a loop that
+    consumes a core and produces nothing, and an unbounded call then hangs the
+    seeding run indefinitely on one file instead of failing it. A curator video
+    is a minute or two of real work, so the ceiling only ever fires on a file
+    that was never going to finish.
+    """
     cmd = ["ffmpeg", "-i", str(input_path), *FFMPEG_OPTS, str(output_path)]
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    try:
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=FFMPEG_TIMEOUT_SECONDS
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(
+            f"ffmpeg timed out after {FFMPEG_TIMEOUT_SECONDS}s for {input_path}"
+        ) from exc
     if result.returncode != 0:
         raise RuntimeError(
             f"ffmpeg failed for {input_path}: exit {result.returncode}\n"

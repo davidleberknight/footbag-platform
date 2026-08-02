@@ -329,8 +329,9 @@ describe('POST /admin/curator/upload — photo', () => {
     const app = createApp();
     // uploadPhoto checks photoBuffer.length before detecting the image type,
     // so a 25 MB + 1 buffer trips the guard without a real large image. The
-    // busboy per-file limit (150 MB, video-sized) lets it through to the
-    // service-layer photo cap.
+    // busboy per-file limit is the video-sized one, well above this, so the
+    // upload reaches the service-layer photo cap rather than being cut off at
+    // the transport.
     const tooBig = Buffer.alloc(25 * 1024 * 1024 + 1, 0);
     const res = await request(app)
       .post('/admin/curator/upload')

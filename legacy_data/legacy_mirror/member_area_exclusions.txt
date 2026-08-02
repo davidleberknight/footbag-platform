@@ -1,0 +1,63 @@
+# Mirror-crawler content exclusions: legacy member-account surfaces.
+# One site-root-relative URL path per line, percent-decoded; an entry matches
+# itself and everything beneath it. Consumed by create_mirror_footbag_org.py
+# --exclusion-list, which is repeatable: pass this list AND the generated
+# committee-scoped one. Hand-maintained, and deliberately separate from that
+# one because it is regenerated wholesale and would wipe these entries.
+#
+# Why these are excluded. Each is one of three things, and none has archival
+# value. The signed-in dashboard, the join page, the problem-report form and
+# the event registration forms render the crawling account's own private data
+# back to it: its e-mail address on all of them, and on the registration forms
+# its postal address as well, alongside membership tier and tournament history.
+# The member directory result page is one arbitrary search frozen in time,
+# listing dozens of people with the contact details the legacy site showed only
+# to administrators. Everything else is a form whose backend stops existing at
+# shutdown, so its submit button can never do anything.
+#
+# The event registration SUMMARIES (registration/regsummary) are a different
+# surface and stay: they are the archival record of who competed, and they
+# carry no account-owned contact data.
+#
+# What is deliberately NOT here, and must never be added:
+#
+#   members/profile      The part of the member section with real archival
+#   members2/profile     value. Kept reachable by id and by links from club,
+#                        roster and gallery pages. Listing bare 'members' or
+#                        'members2' would match these too, via the ancestor
+#                        walk, and destroy every captured profile.
+#
+#   members/html         The member-section stylesheets. Excluding them leaves
+#   members2/html        every surviving member page unstyled.
+#
+#   members/home         These three carry the signed-in dashboard and are
+#   members2/home        replaced in place by the static member-area notice,
+#   members2 (landing)   not deleted. An exclusion entry would make the sweep
+#                        delete that notice on its next run, so the navigation
+#                        link to the member area would land nowhere.
+#
+# A second, path-independent guard backs these entries up. Any captured page
+# whose bytes carry the crawling account's e-mail address is refused at save
+# time and removed by the sweep, keyed on the address the operator supplies at
+# runtime rather than on a username hardcoded into a committed file. That is
+# what makes the guarantee hold for a surface nobody thought to list here.
+#
+# The crawling account's own profile page is a different matter and is NOT
+# removed: it carries the account's alias only, the same public fields every
+# other member profile carries, and no contact details.
+
+feedback/problem
+members/account
+members/authorize
+members/find
+members/findaccount
+members/findme
+members/join
+members/list
+members/requesthelp
+members2/activate
+members2/editprofile
+members2/find
+members2/list
+members2/updateprofile
+registration/register

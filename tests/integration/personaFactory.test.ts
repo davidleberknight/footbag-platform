@@ -12,6 +12,8 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { execSync } from 'node:child_process';
+
+import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { readFileSync } from 'node:fs';
 import * as path from 'node:path';
 import type BetterSqlite3 from 'better-sqlite3';
@@ -275,7 +277,7 @@ describe('persona harness — single-source containment', () => {
       `-F '${TEST_PERSONA_SEED_PASSWORD_LITERAL}' .`;
     let raw = '';
     try {
-      raw = execSync(cmd, { cwd: REPO_ROOT, encoding: 'utf8' });
+      raw = execSync(cmd, { cwd: REPO_ROOT, encoding: 'utf8', ...SPAWN_GUARD });
     } catch (err) {
       const e = err as { status?: number };
       if (e.status !== 1) throw err;

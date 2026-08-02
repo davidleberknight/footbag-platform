@@ -87,6 +87,9 @@ function clearAwsWiring(): void {
   delete process.env.WEB_INTERNAL_URL;
   delete process.env.MEDIA_JOB_LEASE_SECONDS;
   delete process.env.MEDIA_JOB_MAX_RETRIES;
+  delete process.env.FFMPEG_TIMEOUT_SECONDS;
+  delete process.env.VIDEO_MAX_BYTES;
+  delete process.env.VIDEO_MAX_HEIGHT;
   delete process.env.PAYMENT_ADAPTER;
   delete process.env.STRIPE_WEBHOOK_SECRET;
   delete process.env.STRIPE_WEBHOOK_SECRET_PREVIOUS;
@@ -1981,6 +1984,138 @@ describe('env config: GALLERY_MAX_EXTERNAL_LINKS', () => {
     process.env.GALLERY_MAX_EXTERNAL_LINKS = '999';
     await expect(import('../../src/config/env')).rejects.toThrow(
       /GALLERY_MAX_EXTERNAL_LINKS must be between 0 and 100/,
+    );
+  });
+});
+
+describe('env config: VIDEO_MAX_HEIGHT', () => {
+  let snap: EnvSnapshot;
+  beforeEach(() => {
+    snap = snapshotEnv();
+    vi.resetModules();
+  });
+  afterEach(() => restoreEnv(snap));
+
+  it('defaults to 1080', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    const { config } = await import('../../src/config/env');
+    expect(config.videoMaxHeight).toBe(1080);
+  });
+
+  it('honors an operator override down to a cheaper ceiling', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.VIDEO_MAX_HEIGHT = '720';
+    const { config } = await import('../../src/config/env');
+    expect(config.videoMaxHeight).toBe(720);
+  });
+
+  it('rejects an override outside the supported range', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.VIDEO_MAX_HEIGHT = '4320';
+    await expect(import('../../src/config/env')).rejects.toThrow(/VIDEO_MAX_HEIGHT/);
+  });
+});
+
+describe('env config: VIDEO_MAX_BYTES', () => {
+  let snap: EnvSnapshot;
+  beforeEach(() => {
+    snap = snapshotEnv();
+    vi.resetModules();
+  });
+  afterEach(() => restoreEnv(snap));
+
+  it('defaults to a size the encoder can finish inside its time budget', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    const { config } = await import('../../src/config/env');
+    expect(config.videoMaxBytes).toBe(120 * 1024 * 1024);
+  });
+
+  it('honors an operator override', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.VIDEO_MAX_BYTES = String(64 * 1024 * 1024);
+    const { config } = await import('../../src/config/env');
+    expect(config.videoMaxBytes).toBe(64 * 1024 * 1024);
+  });
+
+  it('rejects an override beyond the supported range', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.VIDEO_MAX_BYTES = String(4 * 1024 * 1024 * 1024);
+    await expect(import('../../src/config/env')).rejects.toThrow(/VIDEO_MAX_BYTES/);
+  });
+});
+
+describe('env config: FFMPEG_TIMEOUT_SECONDS', () => {
+  let snap: EnvSnapshot;
+  beforeEach(() => {
+    snap = snapshotEnv();
+    vi.resetModules();
+  });
+  afterEach(() => restoreEnv(snap));
+
+  it('defaults below the HTTP boundary the caller waits on', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    const { config } = await import('../../src/config/env');
+    expect(config.ffmpegTimeoutSeconds).toBe(240);
+    expect(config.ffmpegTimeoutSeconds * 1000).toBeLessThan(
+      config.videoTranscodeTimeoutMs,
+    );
+  });
+
+  it('honors an operator override for a slow host or a long source', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.VIDEO_TRANSCODE_TIMEOUT_MS = '1800000';
+    process.env.FFMPEG_TIMEOUT_SECONDS = '1500';
+    const { config } = await import('../../src/config/env');
+    expect(config.ffmpegTimeoutSeconds).toBe(1500);
+  });
+
+  it('refuses a ceiling at or above the caller deadline', async () => {
+    // Inverted, the caller abandons the request and marks the job failed while
+    // ffmpeg keeps running and keeps the worker's video slot, so later jobs are
+    // refused as busy for reasons nothing reports.
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.VIDEO_TRANSCODE_TIMEOUT_MS = '300000';
+    process.env.FFMPEG_TIMEOUT_SECONDS = '600';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /must be less than VIDEO_TRANSCODE_TIMEOUT_MS/,
+    );
+  });
+
+  it('rejects a non-integer override', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.FFMPEG_TIMEOUT_SECONDS = 'abc';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /FFMPEG_TIMEOUT_SECONDS/,
+    );
+  });
+
+  it('rejects an override low enough to abort legitimate transcodes', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.FFMPEG_TIMEOUT_SECONDS = '5';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /FFMPEG_TIMEOUT_SECONDS/,
     );
   });
 });

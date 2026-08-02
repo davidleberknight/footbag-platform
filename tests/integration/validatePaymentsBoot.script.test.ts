@@ -10,6 +10,8 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
+
+import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -27,6 +29,7 @@ function runGate(envFile: string): RunResult {
     cwd: process.cwd(),
     env: { ...process.env, FOOTBAG_ENV_FILE: envFile },
     encoding: 'utf-8',
+    ...SPAWN_GUARD,
   });
   return {
     exitCode: result.status ?? 1,
