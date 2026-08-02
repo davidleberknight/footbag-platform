@@ -29,6 +29,8 @@ import re
 import sys
 from pathlib import Path
 
+from bs4 import BeautifulSoup
+
 SCRIPT_DIR = Path(__file__).resolve().parent
 CRAWLER = SCRIPT_DIR.parent / 'create_mirror_footbag_org.py'
 
@@ -103,6 +105,18 @@ def read(page):
         return ''
 
 
+def elements(page, name):
+    """The page's real <name> elements.
+
+    Markup inside an HTML comment is not an element: no browser renders it and
+    the crawler's own sanitization, which works on the parsed tree, correctly
+    leaves it alone. The legacy site commented out whole blocks and left them
+    in place, so a check that greps the bytes reports controls that do not
+    exist. Grep first because it is cheap, then parse only what it hits.
+    """
+    return BeautifulSoup(read(page), 'html.parser').find_all(name)
+
+
 def rel(path, root):
     try:
         return str(Path(path).relative_to(root))
@@ -143,21 +157,31 @@ def check_no_forms(report, html_pages, www_root):
     # Every form's backend stops existing at shutdown, so a surviving control
     # is a button that silently does nothing, or worse posts to the live site.
     carriers = [rel(p, www_root) for p in html_pages
-                if not is_xml(p) and re.search(r'<form[\s>]', read(p), re.I)]
+                if not is_xml(p) and re.search(r'<form[\s>]', read(p), re.I)
+                and elements(p, 'form')]
     report.add('no form controls anywhere', carriers)
 
 
 def check_no_javascript(report, html_pages, www_root):
     carriers = [rel(p, www_root) for p in html_pages
-                if not is_xml(p) and re.search(r'<script[\s>]', read(p), re.I)]
+                if not is_xml(p) and re.search(r'<script[\s>]', read(p), re.I)
+                and elements(p, 'script')]
     report.add('no script elements anywhere', carriers)
 
 
 def check_no_credentials(report, html_pages, www_root):
     # The legacy registration form carried the account's password in a hidden
     # input. Form stripping removes it; this is the proof, not the assumption.
-    pattern = re.compile(r'memberpassword|name="password"|type="password"', re.I)
-    carriers = [rel(p, www_root) for p in html_pages if pattern.search(read(p))]
+    hint = re.compile(r'memberpassword|password', re.I)
+    carriers = []
+    for page in html_pages:
+        if not hint.search(read(page)):
+            continue
+        for field in elements(page, 'input'):
+            name = (field.get('name') or '') + ' ' + (field.get('type') or '')
+            if 'password' in name.lower():
+                carriers.append(rel(page, www_root))
+                break
     report.add('no credential field survived', carriers)
 
 
@@ -273,8 +297,17 @@ def check_videos(report, mirror_root, html_pages, www_root):
     # A page still pointing at the live site for its video means the referrer
     # rewrite did not reach it, and the archive links a host that is going away.
     video_exts = '|'.join(ext.lstrip('.') for ext in crawler.VIDEO_EXTENSIONS)
-    absolute = re.compile(r'https?://[^"\'\s>]+\.(?:' + video_exts + r')', re.I)
-    unrelinked = [rel(p, www_root) for p in html_pages if absolute.search(read(p))]
+    absolute = re.compile(r'^https?://[^"\'\s>]+\.(?:' + video_exts + r')$', re.I)
+    unrelinked = []
+    for page in html_pages:
+        if not re.search(r'https?://[^"\'\s>]+\.(?:' + video_exts + r')',
+                         read(page), re.I):
+            continue
+        soup = BeautifulSoup(read(page), 'html.parser')
+        refs = [tag.get('href') or tag.get('src')
+                for tag in soup.find_all(['a', 'source', 'video', 'embed', 'iframe'])]
+        if any(ref and absolute.match(ref) for ref in refs):
+            unrelinked.append(rel(page, www_root))
     report.add('no page still links a video off-site', unrelinked)
 
 

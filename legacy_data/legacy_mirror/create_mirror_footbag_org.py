@@ -468,8 +468,15 @@ FFMPEG_IMAGE_TIMEOUT_SECONDS = int(
 FFMPEG_VIDEO_TIMEOUT_SECONDS = int(
     os.environ.get('FOOTBAG_MIRROR_FFMPEG_VIDEO_TIMEOUT', '1800'))
 
+# A packed archive is unusable in a static capture: a reader cannot open one
+# without fetching every part and unpacking it locally, and nothing re-encodes
+# its contents, so it would publish as bytes no gate has looked inside. The
+# site's are multi-part sets of videos that its own pages already carry as
+# ordinary media. '.zip' and '.exe' were refused from the start; the rest of
+# the class was not, which is how a 100 MB '.part1.rar' came to be downloaded.
 SKIP_EXTENSIONS = [
-    '.zip', '.tar.gz', '.exe', '.dmg', '.asx', '.php', '.sh', '.xml',
+    '.zip', '.tar.gz', '.tar', '.tgz', '.bz2', '.rar', '.7z', '.gz',
+    '.exe', '.dmg', '.msi', '.asx', '.php', '.sh', '.xml',
     '.mp3', '.ogg', '.wav', '.aac', '.m4a',
     '.svg',
 ]
@@ -504,6 +511,7 @@ MEDIA_FORMATS = {
     '.mpeg': ('video/mpeg', True),
     '.flv':  ('video/x-flv', True),
     '.m4v':  ('video/mp4', True),
+    '.m2v':  ('video/mpeg', True),
     '.ogv':  ('video/ogg', True),
     '.jpg':  ('image/jpeg', True),
     '.jpeg': ('image/jpeg', True),
@@ -3211,6 +3219,15 @@ def rewrite_links(html, page_url):
 
         for tag_name, attributes in url_attributes.items():
             for element in soup.find_all(tag_name):
+                # This walk removes elements as it goes, and legacy markup
+                # nests what should be siblings, so one removal can take
+                # elements this same list still holds. Touching one of those
+                # raises, the whole rewrite is abandoned, and the page is saved
+                # exactly as the legacy site served it: forms, scripts and
+                # off-site links all intact. Skipping them is what keeps one
+                # malformed anchor from costing a page its entire sanitization.
+                if _already_removed(element):
+                    continue
 
                 # Special case: remove <a href="/registration/listevent?eid=...">, keep text bold
                 if tag_name == 'a':
@@ -3237,8 +3254,14 @@ def rewrite_links(html, page_url):
                     continue
 
                 for attr_name in attributes:
-                    if not hasattr(element, 'get'):
-                        continue
+                    # Re-checked per attribute, not once per element: a tag
+                    # carrying two URL attributes can be removed while the
+                    # first is handled, and reading the second off what is
+                    # already gone is what abandons the page's whole rewrite.
+                    # A removed tag still answers to hasattr, so asking that
+                    # was never the guard it looked like.
+                    if _already_removed(element):
+                        break
 
                     original_value = element.get(attr_name)
                     if not original_value:

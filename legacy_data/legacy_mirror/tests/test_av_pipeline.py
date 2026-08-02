@@ -246,6 +246,28 @@ def test_svg_url_is_not_in_scope():
     assert not mirror_script.is_in_scope('http://www.footbag.org/icons/logo.svg')
 
 
+def test_packed_archives_are_not_in_scope():
+    # A reader cannot open a multi-part archive in a static capture without
+    # fetching every part and unpacking it locally, and nothing re-encodes what
+    # is inside one, so it would publish as bytes no check has looked into. The
+    # site's are split video sets its own pages already carry as ordinary media.
+    for url in ('http://www.footbag.org/media/1672/roskildeshred.part1.rar',
+                'http://www.footbag.org/media/1/bundle.7z',
+                'http://www.footbag.org/media/1/bundle.zip',
+                'http://www.footbag.org/media/1/bundle.tar',
+                'http://www.footbag.org/media/1/setup.msi'):
+        assert not mirror_script.is_in_scope(url), url
+
+
+def test_a_video_format_the_media_table_missed_is_treated_as_video():
+    # A video format absent from the table is neither skipped for the backfill
+    # nor re-encoded: it lands as raw bytes carrying no sanitization marker,
+    # and the publish gate, which knows only the table, never mentions it.
+    assert '.m2v' in mirror_script.VIDEO_EXTENSIONS
+    assert '.m2v' in mirror_script.CONVERTIBLE_EXTENSIONS
+    assert mirror_script.is_in_scope('http://www.footbag.org/media/581/drills.m2v')
+
+
 def test_sanitized_sidecar_blocks_reencode(tmp_path):
     src = tmp_path / 'photo.jpg'
     _make_jpg(src)
