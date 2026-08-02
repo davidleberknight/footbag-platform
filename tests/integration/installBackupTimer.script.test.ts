@@ -9,6 +9,8 @@
  */
 import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
+
+import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { join } from 'node:path';
 
 const SCRIPT = join(process.cwd(), 'scripts/install-backup-timer.sh');
@@ -23,6 +25,7 @@ function runScript(args: string[]): RunResult {
   const result = spawnSync('bash', [SCRIPT, ...args], {
     cwd: process.cwd(),
     encoding: 'utf-8',
+    ...SPAWN_GUARD,
   });
   return {
     exitCode: result.status ?? 1,

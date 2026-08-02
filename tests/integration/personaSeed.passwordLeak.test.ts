@@ -23,6 +23,8 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { execSync } from 'node:child_process';
+
+import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { readFileSync } from 'node:fs';
 import * as path from 'node:path';
 
@@ -56,7 +58,7 @@ function grepRepoForLiteral(needle: string): string[] {
     `'*.ts' '*.tsx' '*.js' '*.sh' '*.json' '*.hbs' '*.yml' '*.yaml' '*.html'`;
   let raw = '';
   try {
-    raw = execSync(cmd, { cwd: REPO_ROOT, encoding: 'utf8' });
+    raw = execSync(cmd, { cwd: REPO_ROOT, encoding: 'utf8', ...SPAWN_GUARD });
   } catch (err) {
     const e = err as { status?: number; stdout?: string };
     if (e.status === 1) return [];

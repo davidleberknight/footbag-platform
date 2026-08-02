@@ -414,12 +414,16 @@ describe('curatorMediaService.uploadVideo', () => {
     })).rejects.toThrow(/Poster must be a JPEG or PNG/);
   });
 
-  it('rejects oversized video (>150 MB)', async () => {
+  it('rejects a video above the configured maximum', async () => {
     const svc = svcModule.createCuratorMediaService({
       storage: makeStubStorage(), imageProcessor: makeStubImageProcessor(),
       videoTranscoder: fakeTranscoder(),
     });
-    const oversized = Buffer.alloc(151 * 1024 * 1024);
+    // Derived from the limit itself: the ceiling is deploy-time config, sized
+    // so the encoder can finish a file at the limit inside its time budget, so
+    // a literal here would silently stop testing the boundary the moment the
+    // limit moves.
+    const oversized = Buffer.alloc(svcModule.VIDEO_MAX_BYTES + 1024);
     // Valid mp4 magic so size check fires before format check.
     oversized.write('ftyp', 4, 'ascii');
     oversized.write('isom', 8, 'ascii');

@@ -157,6 +157,24 @@ export interface AppConfig {
   // Today every failure is terminal (max=1). Reserved for later work that
   // wants in-process retry on transient S3/ffmpeg blips.
   mediaJobMaxRetries: number;
+  // Output height ceiling for curator video, in pixels. Never upscales, so a
+  // source at or below it passes through unscaled. This is the lever that
+  // bounds per-frame encoding cost: measured on the same source, 1080p costs
+  // about 2.1x what 720p does, which on a two-vCPU host is the difference
+  // between roughly realtime and roughly twice realtime.
+  videoMaxHeight: number;
+  // Largest curator video accepted, in bytes. Sized so the pipeline can
+  // actually transcode a file at the limit within the encoder's time budget on
+  // the production host, rather than advertising a ceiling that fails at the
+  // top of its own range. Raising it without also raising the time budget, or
+  // moving to a faster preset or a bigger worker, reintroduces that mismatch.
+  videoMaxBytes: number;
+  // Ceiling on a single ffmpeg run in the curator transcode pipeline. A
+  // malformed input can put the encoder into a loop that consumes a core and
+  // produces nothing; unbounded, that holds the worker's video slot forever and
+  // the job neither completes nor fails. Raise it on a slow host or for an
+  // unusually long source.
+  ffmpegTimeoutSeconds: number;
   // SSE heartbeat cadence (seconds). The status-page stream from web to admin
   // browser sends a heartbeat event at this interval to keep nginx and
   // CloudFront from idle-killing the connection during long transcodes.
@@ -787,6 +805,26 @@ function loadConfig(): AppConfig {
   }
   const mediaJobLeaseSeconds = parseIntEnv('MEDIA_JOB_LEASE_SECONDS', 1200, 60, 7200);
   const mediaJobMaxRetries = parseIntEnv('MEDIA_JOB_MAX_RETRIES', 1, 1, 10);
+  const videoMaxHeight = parseIntEnv('VIDEO_MAX_HEIGHT', 1080, 240, 2160);
+  const videoMaxBytes = parseIntEnv(
+    'VIDEO_MAX_BYTES',
+    120 * 1024 * 1024,
+    1024 * 1024,
+    1024 * 1024 * 1024,
+  );
+  const ffmpegTimeoutSeconds = parseIntEnv('FFMPEG_TIMEOUT_SECONDS', 240, 30, 7200);
+  // The encoder's ceiling must sit below the HTTP boundary the caller waits on.
+  // Inverted, the caller abandons the request and marks the job failed while
+  // ffmpeg keeps running and keeps holding the worker's video slot, so every
+  // later video job is refused as "worker busy" for reasons nothing reports.
+  if (ffmpegTimeoutSeconds * 1000 >= videoTranscodeTimeoutMs) {
+    throw new Error(
+      `FFMPEG_TIMEOUT_SECONDS (${ffmpegTimeoutSeconds}s) must be less than ` +
+        `VIDEO_TRANSCODE_TIMEOUT_MS (${videoTranscodeTimeoutMs}ms): the encoder ` +
+        'has to be killed before the caller gives up, or it holds the video ' +
+        'worker slot after the job has already been marked failed',
+    );
+  }
   const sseHeartbeatSeconds = parseIntEnv('SSE_HEARTBEAT_SECONDS', 15, 5, 60);
 
   // Hosts set the exact integer hop count of the proxy chain in front of
@@ -981,6 +1019,9 @@ function loadConfig(): AppConfig {
     sesFeedbackWebhookKey,
     mediaJobLeaseSeconds,
     mediaJobMaxRetries,
+    videoMaxHeight,
+    videoMaxBytes,
+    ffmpegTimeoutSeconds,
     sseHeartbeatSeconds,
     initialAdminFile: process.env.FOOTBAG_INITIAL_ADMIN_FILE || '.local/initial-admins.txt',
     trustProxy,

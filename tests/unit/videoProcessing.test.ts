@@ -7,6 +7,8 @@
  */
 import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
+
+import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import {
   buildFfmpegArgs,
   detectVideoFormat,
@@ -14,7 +16,7 @@ import {
 } from '../../src/lib/videoProcessing';
 
 const ffmpegAvailable =
-  spawnSync('ffmpeg', ['-version'], { stdio: 'ignore' }).status === 0;
+  spawnSync('ffmpeg', ['-version'], { stdio: 'ignore', ...SPAWN_GUARD }).status === 0;
 
 describe('detectVideoFormat', () => {
   it('detects mp4 by ftyp atom at offset 4', () => {
@@ -75,6 +77,34 @@ describe('buildFfmpegArgs', () => {
     expect(args[0]).toBe('-i');
     expect(args[1]).toBe('/tmp/in.mp4');
     expect(args[args.length - 1]).toBe('/tmp/out.mp4');
+  });
+
+  it('caps output height without upscaling smaller sources', () => {
+    // Bounds the per-frame encoding cost of an arbitrary upload. Measured on
+    // one source at the same preset, 1080p costs about 2.1x what 720p does and
+    // 4K several times more again, on a host whose two vCPUs are shared with
+    // the web application. min() never upscales, so a source at or below the
+    // ceiling is untouched, and -2 keeps the aspect ratio on an even width,
+    // which libx264 requires with yuv420p chroma subsampling.
+    const args = buildFfmpegArgs('in.mp4', 'out.mp4');
+    const filterIndex = args.indexOf('-vf');
+    expect(filterIndex).toBeGreaterThan(-1);
+    const filter = args[filterIndex + 1];
+    expect(filter).toMatch(/^scale=-2:'min\(\d+,ih\)'$/);
+  });
+
+  it('takes the height ceiling from configuration', () => {
+    const args = buildFfmpegArgs('in.mp4', 'out.mp4', { maxHeight: 720 });
+    expect(args[args.indexOf('-vf') + 1]).toBe("scale=-2:'min(720,ih)'");
+    const taller = buildFfmpegArgs('in.mp4', 'out.mp4', { maxHeight: 1080 });
+    expect(taller[taller.indexOf('-vf') + 1]).toBe("scale=-2:'min(1080,ih)'");
+  });
+
+  it('applies the height cap before the encoder options', () => {
+    // ffmpeg is position-sensitive: a filter placed after the codec selection
+    // does not bind to it.
+    const args = buildFfmpegArgs('in.mp4', 'out.mp4');
+    expect(args.indexOf('-vf')).toBeLessThan(args.indexOf('-c:v'));
   });
 
   it('forces overwrite with -y', () => {
@@ -178,7 +208,7 @@ describe('transcodeCuratorVideo', () => {
             '-y',
             inputPath,
           ],
-          { stdio: 'ignore' },
+          { stdio: 'ignore', ...SPAWN_GUARD },
         );
         expect(synth.status).toBe(0);
 

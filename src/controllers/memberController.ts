@@ -58,6 +58,21 @@ function renderNotFound(res: Response): void {
 }
 
 export const memberController = {
+  /** Gate-before-the-gate for /members/:memberKey/:section. A section this app
+   * does not have is not a protected page, it is no page at all, so it is
+   * answered here with the not-found page before authentication is considered.
+   * Otherwise an unrecognized URL — an old member-profile link out of
+   * pre-cutover mail, a mistyped path — is answered with the sign-in form,
+   * which tells the visitor the page exists and they merely need to log in.
+   * A real section falls through to the ordinary auth and ownership gates. */
+  rejectUnknownSection(req: Request, res: Response, next: NextFunction): void {
+    if (!STUB_SEGMENTS[req.params.section]) {
+      renderNotFound(res);
+      return;
+    }
+    next();
+  },
+
   /** GET /members/:memberKey: own profile, any member profile for an
    * authenticated viewer, or the HoF/BAP public read-only exception for
    * anonymous visitors (others redirect to login). */

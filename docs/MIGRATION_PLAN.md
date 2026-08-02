@@ -66,7 +66,7 @@ These are the decisions of record. Some are settled agreements with the people i
 
 **17.** The legacy webmaster's temporary role ends on milestones, not on a calendar date. The milestone list is coordinated privately (GO_LIVE_PLAN.md, private GitHub repo, "Stakeholder coordination").
 
-**18.** The new platform uses its own URLs; they do not mirror the old site's URLs, and there is no general old-to-new mapping. A bounded set of links that appear in old footbag.org emails are forwarded by explicit handlers that resolve a legacy id or slug to a live record if one exists. An old member-profile link is resolved by its legacy account id: if a live member has claimed that account, the visitor is sent to that member's page; if the account exists but is unclaimed, to a claim landing page; otherwise to a friendly not-found page. An old club link is sent to the club's page if that club still exists, otherwise to the archive. Anything unrecognized shows a friendly not-found page. All other legacy content lives only on the read-only archive site.
+**18.** The new platform uses its own URLs; they do not mirror the old site's URLs, and there is no general old-to-new mapping. No legacy URL is forwarded and the platform carries no redirect handler for one: every legacy URL, including the member-profile and club links that appear in old footbag.org emails, is served the standard not-found page, which tells a visitor arriving from an old link that the link is no longer routable and points them at the new site. All other legacy content lives only on the read-only archive site.
 
 **19.** The internal quality-control subsystem is removed at go-live.
 
@@ -719,22 +719,13 @@ Transfer follows decision, not the other way around: no destination is provided 
 
 The content disposition (what is ultimately kept, redacted, or destroyed) is deferred and does not gate v1. What does gate go-live is the capture: the approved-scope archive is captured and sealed before the list host and the legacy databases shut down.
 
-### 29.12b Legacy URL forwarding for in-flight emails
+### 29.12b Legacy URLs after cutover
 
 Old footbag.org emails (account verification, share-event links) reference legacy URL patterns like `/members/profile/{legacy_member_id}` and `/clubs/{slug}`. After cutover, these emails continue circulating in inboxes for months or years.
 
-Forwarding contract for the production app:
+The platform is not backward compatible with the legacy URL space. No legacy URL pattern is forwarded, and the production app carries no redirect handler for one. Every legacy URL is served the standard not-found page, which tells a visitor arriving from an old link that the link is no longer routable and points them at the new site. The mirror captured roughly 93,500 URLs across twenty-five top-level shapes — news, galleries, events, the legacy moves pages, the per-year Worlds sites and others — and all of that content is reached by browsing the archive from its landing page.
 
-- Member profile patterns: `/members/profile/:legacyMemberId` resolves in three branches: (a) if the legacy ID maps to a non-deleted live member via `members.legacy_member_id`, redirect 301 to the slug-based URL `/members/:slug`; (b) if the legacy ID matches an unclaimed `legacy_members.legacy_member_id`, render a soft-landing page with a generic message ("this link points to a legacy footbag.org account") and a CTA to claim it (authenticated visitors, who may see the account's display name) or to register first (unauthenticated visitors, who are never shown the display name or any other account detail); (c) if the legacy ID matches no row in either table, render the friendly "this legacy account is no longer routable" 404 page. The soft landing in branch (b) preserves the claim funnel for members who follow old links before completing claim.
-- Club patterns: legacy `/clubs/:slug` URLs resolve to the new club page if the slug survived normalization; otherwise to the friendly legacy-URL 404. The platform never links into the archive's interior; archive content is reached by browsing from the archive landing page.
-- Forum patterns: any distinct forum URL pattern identified at archive capture joins the handlers; unknown patterns fall through to the friendly legacy-URL 404 below.
-- Unknown patterns: 404 with a generic legacy-URL message that directs the visitor to footbag.org.
-
-Forwarding is limited to the patterns above, and a redirect is added only where a concrete need requires one. The platform is not backward compatible with the legacy URL space generally: the mirror captured roughly 93,500 URLs across twenty-five top-level shapes — news, galleries, events, the legacy moves pages, the per-year Worlds sites and others — and every one of those returns the friendly legacy-URL 404, with its content reachable inside the archive rather than through a redirect from the live site.
-
-From go-live, `footbag.org` apex and `www` are served entirely by the new platform. There are no retained `*.footbag.org` subdomains. Redirect-handler coverage in the production app must therefore cover every legacy URL pattern that meaningfully forwards to a new destination, validated at test load by replaying a stored sample of legacy URLs against the production app.
-
-Procedure: redirect handlers live in the public router; the sample-replay validation step is part of the test-load checklist.
+From go-live, `footbag.org` apex and `www` are served entirely by the new platform. There are no retained `*.footbag.org` subdomains.
 
 ### 29.13 Curator content seeding
 

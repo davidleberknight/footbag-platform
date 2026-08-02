@@ -162,6 +162,58 @@ def test_stream_stripping_drops_subtitles(tmp_path):
     assert 'video' in out_streams
 
 
+def test_media_conversion_gives_up_rather_than_hanging(tmp_path, monkeypatch):
+    # A malformed legacy image can put ffmpeg into a loop that burns a core and
+    # writes nothing. Unbounded, that stalls a multi-day crawl forever on a
+    # single file. Every conversion is time-bounded and a timeout is handled the
+    # same as any other conversion failure: temp output cleaned up, no exception
+    # escapes, the crawl moves on.
+    src = tmp_path / 'stuck.gif'
+    _make_gif(src, frames=2)
+    temp_output = tmp_path / 'stuck.reenc.gif'
+    temp_output.write_bytes(b'partial')
+
+    calls = {}
+
+    def _hang(cmd, **kwargs):
+        calls['timeout'] = kwargs.get('timeout')
+        raise subprocess.TimeoutExpired(cmd, kwargs.get('timeout'))
+
+    monkeypatch.setattr(mirror_script.subprocess, 'run', _hang)
+
+    assert mirror_script.convert_gif_to_gif(str(src)) is None
+    assert calls['timeout'] is not None, "conversion must pass a timeout to ffmpeg"
+    assert not temp_output.exists(), "partial output must not survive a timeout"
+
+
+def test_every_media_conversion_passes_a_timeout(tmp_path, monkeypatch):
+    # The bound applies to stills and to video alike; an unbounded call anywhere
+    # reintroduces the stall.
+    seen = []
+
+    def _record(cmd, **kwargs):
+        seen.append(kwargs.get('timeout'))
+        raise subprocess.TimeoutExpired(cmd, kwargs.get('timeout'))
+
+    gif = tmp_path / 'a.gif'
+    _make_gif(gif, frames=1)
+
+    jpg = tmp_path / 'a.jpg'
+    subprocess.run([FFMPEG, '-loglevel', 'error', '-f', 'lavfi', '-i',
+                    'color=c=red:s=16x16:d=1', '-frames:v', '1', '-y', str(jpg)],
+                   check=True)
+
+    # Patched only after the fixtures exist: the module under test and this test
+    # share the one stdlib subprocess module, so patching earlier would intercept
+    # the fixture builders too.
+    monkeypatch.setattr(mirror_script.subprocess, 'run', _record)
+    mirror_script.convert_gif_to_gif(str(gif))
+    mirror_script.convert_image_to_jpg(str(jpg))
+
+    assert len(seen) >= 2, f"expected both conversions to be attempted, got {seen}"
+    assert all(t is not None and t > 0 for t in seen), f"unbounded call: {seen}"
+
+
 def test_gif_reencode_preserves_animation_as_gif(tmp_path):
     src = tmp_path / 'animated.gif'
     _make_gif(src, frames=3)
@@ -232,3 +284,45 @@ def test_skipped_media_label_helper():
     assert mirror_script._skipped_media_label('.mp4') is None
     assert mirror_script._skipped_media_label('') is None
     assert mirror_script._skipped_media_label(None) is None
+
+
+# A GIF whose URL carried an upper-case extension re-encodes to a lower-case
+# name, so the sanitized copy and the untouched original become two different
+# files on disk. The original must not survive: nothing links to it, but the
+# publish step uploads the whole tree, which would put unsanitized bytes on the
+# archive host reachable by anyone who guesses the address. The GIF branch was
+# the only conversion branch that never deleted its input, which is why twelve
+# such originals accumulated.
+
+def test_upper_case_gif_leaves_no_unsanitized_original(tmp_path, monkeypatch):
+    source = tmp_path / 'BANNER.GIF'
+    source.write_bytes(b'GIF89a-original-bytes')
+    converted = tmp_path / 'BANNER.gif'
+
+    def fake_convert(path):
+        converted.write_bytes(b'GIF89a-reencoded')
+        return str(converted)
+
+    monkeypatch.setattr(mirror_script, 'convert_gif_to_gif', fake_convert)
+    monkeypatch.setattr(mirror_script, 'mirror_state', mirror_script.MirrorState())
+    final = mirror_script.convert_and_cleanup(str(source), '.GIF')
+
+    assert final == str(converted)
+    assert converted.exists()
+    assert not source.exists()
+
+
+def test_lower_case_gif_keeps_its_only_copy(tmp_path, monkeypatch):
+    source = tmp_path / 'banner.gif'
+    source.write_bytes(b'GIF89a-original-bytes')
+
+    def fake_convert(path):
+        Path(path).write_bytes(b'GIF89a-reencoded')
+        return path
+
+    monkeypatch.setattr(mirror_script, 'convert_gif_to_gif', fake_convert)
+    monkeypatch.setattr(mirror_script, 'mirror_state', mirror_script.MirrorState())
+    final = mirror_script.convert_and_cleanup(str(source), '.gif')
+
+    assert final == str(source)
+    assert source.exists()

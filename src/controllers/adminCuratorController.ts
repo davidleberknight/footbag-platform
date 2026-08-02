@@ -6,6 +6,7 @@ import {
   getDefaultCuratorMediaService,
   PHOTO_MAX_BYTES,
   VIDEO_MAX_BYTES,
+  VIDEO_MAX_MB,
   POSTER_MAX_BYTES,
   isValidCategoryName,
   buildExternalLinkSlots,
@@ -955,7 +956,7 @@ export const adminCuratorController = {
         return;
       }
       if (videoSizeBytes > VIDEO_MAX_BYTES) {
-        res.status(400).json({ error: 'Video is too large. Maximum size is 150 MB.' });
+        res.status(400).json({ error: `Video is too large. Maximum size is ${VIDEO_MAX_MB} MB.` });
         return;
       }
       if (!Number.isInteger(posterSizeBytes) || posterSizeBytes <= 0) {
@@ -1048,7 +1049,7 @@ export const adminCuratorController = {
       // markPendingTranscode so the worker is never dispatched an oversized
       // source.
       if (videoSize > VIDEO_MAX_BYTES) {
-        res.status(413).json({ error: 'Video is too large. Maximum size is 150 MB.' });
+        res.status(413).json({ error: `Video is too large. Maximum size is ${VIDEO_MAX_MB} MB.` });
         return;
       }
       if (posterSize > POSTER_MAX_BYTES) {

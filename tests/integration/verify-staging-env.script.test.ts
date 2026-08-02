@@ -13,6 +13,8 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
+
+import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -77,7 +79,7 @@ function runScript(opts: {
   const result = spawnSync(
     'bash',
     [SCRIPT, '--target', target, '--env-file', opts.envFilePath],
-    { env, encoding: 'utf-8' },
+    { env, encoding: 'utf-8', ...SPAWN_GUARD },
   );
   return {
     exitCode: result.status ?? 1,
@@ -374,6 +376,7 @@ describe('verify-staging-env.sh — CLI / fixture errors', () => {
   it('--target with invalid value → exit 2', () => {
     const result = spawnSync('bash', [SCRIPT, '--target', 'qa'], {
       encoding: 'utf-8',
+      ...SPAWN_GUARD,
     });
     expect(result.status).toBe(2);
   });
@@ -382,7 +385,7 @@ describe('verify-staging-env.sh — CLI / fixture errors', () => {
     const result = spawnSync(
       'bash',
       [SCRIPT, '--target', 'staging', '--env-file', join(tmpDir, 'does-not-exist.env')],
-      { env: { ...process.env, ...TF_ENV }, encoding: 'utf-8' },
+      { env: { ...process.env, ...TF_ENV }, encoding: 'utf-8', ...SPAWN_GUARD },
     );
     expect(result.status).toBe(2);
     expect(result.stderr ?? '').toContain('does not exist');
@@ -400,7 +403,7 @@ describe('verify-staging-env.sh — CLI / fixture errors', () => {
     const result = spawnSync(
       'bash',
       [SCRIPT, '--target', 'staging', '--env-file', envFilePath],
-      { env: sanitisedEnv, encoding: 'utf-8' },
+      { env: sanitisedEnv, encoding: 'utf-8', ...SPAWN_GUARD },
     );
     expect(result.status).toBe(2);
     expect(result.stderr ?? '').toContain('requires TF_JWT_KMS_KEY_ARN');

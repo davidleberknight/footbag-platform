@@ -60,3 +60,147 @@ def test_ordinary_relative_and_move_links_are_kept():
     assert any(u.endswith('/faq/show/5') for u in links)
     assert any(u.endswith('/events/show/chapter.html') for u in links)
     assert any(u.endswith('/newmoves/show/5') for u in links)
+
+
+# Outbound-link neutralization. A link to somebody else's website never stays
+# clickable: the archive is captured once and never refreshed, so a destination
+# verified today can be an abandoned domain re-registered by someone else years
+# later, and a live link would be the archive vouching for wherever it now
+# leads. What the link was SHOWING is archived content and survives, whether
+# that is words or a sponsor's logo; only the clickability goes, and the
+# destination is added in plain text so a reader can still go there
+# deliberately. Links inside the archive stay clickable, because browsing is how
+# legacy content is meant to be reached.
+
+from bs4 import BeautifulSoup
+
+
+def _neutralized(html):
+    soup = BeautifulSoup(html, 'html.parser')
+    counts = mirror_script.neutralize_outbound_links(soup, PAGE)
+    return soup, counts
+
+
+def test_outbound_text_link_becomes_its_words_and_its_destination():
+    soup, (deleted, flattened, _actions) = _neutralized(
+        '<p><a href="http://example.com/x">Example Site</a></p>')
+    assert (deleted, flattened) == (0, 1)
+    assert soup.find('a') is None
+    assert 'Example Site (http://example.com/x)' in soup.get_text()
+
+
+def test_outbound_link_around_a_picture_keeps_the_picture():
+    soup, (_deleted, flattened, _actions) = _neutralized(
+        '<p><a href="http://sponsor.example/"><img src="/logos/sponsor.gif"/></a></p>')
+    assert flattened == 1
+    assert soup.find('a') is None
+    img = soup.find('img')
+    assert img is not None and img['src'] == '/logos/sponsor.gif'
+    assert 'http://sponsor.example/' in soup.get_text()
+
+
+def test_outbound_link_around_words_and_a_picture_keeps_both():
+    soup, _counts = _neutralized(
+        '<p><a href="http://sponsor.example/">'
+        '<img src="/logos/sponsor.gif"/>Our sponsor</a></p>')
+    assert soup.find('a') is None
+    assert soup.find('img') is not None
+    text = soup.get_text()
+    assert 'Our sponsor' in text and 'http://sponsor.example/' in text
+
+
+def test_malformed_outbound_link_is_deleted_outright():
+    soup, (deleted, flattened, _actions) = _neutralized(
+        '<p><a href="http://not a host/x">junk</a></p>')
+    assert (deleted, flattened) == (1, 0)
+    assert soup.find('a') is None
+    assert 'junk' not in soup.get_text()
+
+
+def test_links_inside_the_archive_stay_clickable():
+    soup, (deleted, flattened, _actions) = _neutralized(
+        f'<p><a href="{BASE}/events/list">Events</a></p>')
+    assert (deleted, flattened) == (0, 0)
+    assert soup.find('a') is not None
+
+
+def test_offsite_form_action_is_stripped():
+    soup, (_deleted, _flattened, actions) = _neutralized(
+        '<form action="http://www.google.com/custom"><input name="q"/></form>')
+    assert actions == 1
+    assert not soup.find('form').has_attr('action')
+
+
+# Dead internal links. Once the crawl has drained, a link whose target is not on
+# disk will never resolve: on a static host nothing fixes it later. Some targets
+# are pages an exclusion ruling removed, some the crawl never reached, some the
+# legacy site had already lost. The reader meets the same broken link either way.
+#
+# A link that is only mis-spelled is a different case and must be repaired, not
+# removed: the rulebook index reaches its chapters through a path carrying one
+# '../' too many, and neutralizing those would delete working navigation.
+
+import os as _os
+from pathlib import Path as _Path
+
+
+def _tree(tmp_path, monkeypatch):
+    root = tmp_path / 'mirror_footbag_org'
+    (root / 'www.footbag.org').mkdir(parents=True)
+    monkeypatch.setattr(mirror_script, 'MIRROR_DIR', str(root))
+    return root / 'www.footbag.org'
+
+
+def test_dead_link_becomes_text_and_keeps_its_label(tmp_path, monkeypatch):
+    www = _tree(tmp_path, monkeypatch)
+    (www / 'index.html').write_text(
+        '<html><body><p>To report a problem, please use our '
+        '<a href="feedback/problem/index.html">trouble reporting system</a>.</p>'
+        '</body></html>', encoding='utf-8')
+    mirror_script.neutralize_dead_internal_links()
+    out = (www / 'index.html').read_text(encoding='utf-8')
+    assert '<a href="feedback/problem' not in out
+    assert 'trouble reporting system' in out       # the sentence still reads
+
+
+def test_live_link_is_untouched(tmp_path, monkeypatch):
+    www = _tree(tmp_path, monkeypatch)
+    (www / 'faq').mkdir()
+    (www / 'faq/index.html').write_text('<html><body>faq</body></html>', encoding='utf-8')
+    (www / 'index.html').write_text(
+        '<html><body><a href="faq/index.html">FAQ</a></body></html>', encoding='utf-8')
+    mirror_script.neutralize_dead_internal_links()
+    assert '<a href="faq/index.html">' in (www / 'index.html').read_text(encoding='utf-8')
+
+
+def test_link_with_one_too_many_parent_steps_is_repaired(tmp_path, monkeypatch):
+    www = _tree(tmp_path, monkeypatch)
+    (www / 'rules/chapter/20').mkdir(parents=True)
+    (www / 'rules/chapter/20/index.html').write_text('ch', encoding='utf-8')
+    (www / 'rules/index.html').write_text(
+        '<html><body><a href="../chapter/20/index.html">Chapter 20</a></body></html>',
+        encoding='utf-8')
+    mirror_script.neutralize_dead_internal_links()
+    out = (www / 'rules/index.html').read_text(encoding='utf-8')
+    assert 'href="chapter/20/index.html"' in out    # repaired, not removed
+    assert 'Chapter 20' in out
+
+
+def test_uncaptured_image_reference_is_removed(tmp_path, monkeypatch):
+    www = _tree(tmp_path, monkeypatch)
+    (www / 'index.html').write_text(
+        '<html><body><p>Sponsors</p><img src="logos/gone.gif"/></body></html>',
+        encoding='utf-8')
+    mirror_script.neutralize_dead_internal_links()
+    out = (www / 'index.html').read_text(encoding='utf-8')
+    assert '<img' not in out
+    assert 'Sponsors' in out
+
+
+def test_outbound_links_are_not_this_pass_concern(tmp_path, monkeypatch):
+    www = _tree(tmp_path, monkeypatch)
+    (www / 'index.html').write_text(
+        '<html><body><a href="https://example.com/x">Example</a></body></html>',
+        encoding='utf-8')
+    mirror_script.neutralize_dead_internal_links()
+    assert 'https://example.com/x' in (www / 'index.html').read_text(encoding='utf-8')

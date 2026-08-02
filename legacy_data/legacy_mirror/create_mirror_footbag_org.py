@@ -126,6 +126,15 @@ import shutil
 # ========== CONFIGURATION ==========
 USERNAME = None # '<<YOU>>@footbag.org'
 PASSWORD = None # resolved at runtime from the environment or a secure prompt
+# The crawling account's own e-mail address, taken from the supplied username
+# when that username is an e-mail address, and never committed anywhere. A crawl
+# runs signed in, so the legacy forms arrive pre-filled with this account's own
+# contact details: its e-mail address, and on the event registration forms its
+# postal address too. The committed exclusion list names those surfaces, but a
+# path list can only name what someone thought of, and none of this belongs in
+# an archive every member can read. Matching the address against captured bytes
+# is the guard that does not depend on anyone having thought of the surface.
+ACCOUNT_EMAIL = None
 # The member password is read from this environment variable when set, so it
 # never has to appear in argv (where ps and shell history expose it).
 PASSWORD_ENV_VAR = 'FOOTBAG_MIRROR_PASSWORD'
@@ -205,6 +214,16 @@ START_URLS = [
 # the archival crawl wants all content; --seeds narrows to specific files for a
 # targeted run (e.g. a members-profile-only crawl).
 SEEDS_DIR = str(SCRIPT_DIR / 'mirror_seeds')
+
+# The member-account exclusions always apply, whether or not anyone names them.
+# They are committed beside the crawler, so the path is always right, and their
+# absence is the failure with the worst consequence: a crawl runs signed in, and
+# the account surfaces render that account's own e-mail address and postal
+# address into pages every member of the archive can read. Naming exclusion
+# lists on the command line still works and adds to these; it cannot replace
+# them. The committee-scoped list stays an explicit argument because it lives in
+# a private checkout that is absent on most machines.
+MEMBER_AREA_EXCLUSION_LIST = str(SCRIPT_DIR / 'member_area_exclusions.txt')
 
 DELAY_SECONDS = 0.25 # Polite delay between requests to live site.
 MAX_RETRIES = 1  # Retry only once after failure
@@ -325,17 +344,24 @@ def parse_args():
         "--exclusion-list",
         dest="exclusion_list",
         metavar="PATH",
+        action="append",
         default=None,
         help=(
             "File of site-root-relative URL paths this crawl must never "
             "capture (one per line, '#' comments; an entry matches itself and "
-            "everything beneath it). REQUIRED for every network mode: the "
+            "everything beneath it). Repeatable; the entries of every file "
+            "given are unioned. Repeatable because one of the lists is "
+            "regenerated wholesale from the legacy group backups, so a "
+            "hand-maintained entry added to it would be silently wiped on the "
+            "next regeneration. REQUIRED for every network mode: the "
             "authenticated crawl account sees committee-scoped content an "
             "IFPA ruling keeps out of the member archive, and a crawl without "
-            "the list silently re-captures it. The maintained list lives "
-            "beside the private custody copies of the same content, in the "
-            "maintainers' private operations checkout "
-            "(private-custody/ifpa-group-files/CRAWL_EXCLUSIONS.txt)."
+            "the list silently re-captures it. Two lists are maintained: the "
+            "generated committee-scoped one beside the private custody copies "
+            "of the same content, in the maintainers' private operations "
+            "checkout (private-custody/ifpa-group-files/CRAWL_EXCLUSIONS.txt), "
+            "and the hand-maintained member-account one committed beside this "
+            "script (member_area_exclusions.txt). Pass both."
         ),
     )
     parser.add_argument(
@@ -398,6 +424,18 @@ LOGIN_TARGET = '/members/home'
 MAX_DEPTH = int(os.environ.get('FOOTBAG_MIRROR_MAX_DEPTH', '50')) # stops at very old event/news pages (back to 1975)
 MAX_URLS = int(os.environ.get('FOOTBAG_MIRROR_MAX_URLS', '1000000'))
 MAX_FILE_SIZE = 160 * 1024 * 1024  # 160MB # 167279451 bytes is largest known
+# Every ffmpeg call is bounded. A malformed legacy image can put ffmpeg into a
+# loop that burns a core and writes nothing, and an unbounded call then stalls a
+# multi-day crawl forever on one file rather than failing it and moving on. A
+# still image is a fraction of a second of real work, so a minute is already far
+# beyond any legitimate case; video re-encoding is genuinely slow, so it gets a
+# much longer bound. A timeout is treated exactly like a conversion failure: the
+# temp output is removed and the file is recorded as unconverted.
+FFMPEG_IMAGE_TIMEOUT_SECONDS = int(
+    os.environ.get('FOOTBAG_MIRROR_FFMPEG_IMAGE_TIMEOUT', '60'))
+FFMPEG_VIDEO_TIMEOUT_SECONDS = int(
+    os.environ.get('FOOTBAG_MIRROR_FFMPEG_VIDEO_TIMEOUT', '1800'))
+
 SKIP_EXTENSIONS = [
     '.zip', '.tar.gz', '.exe', '.dmg', '.asx', '.php', '.sh', '.xml',
     '.mp3', '.ogg', '.wav', '.aac', '.m4a',
@@ -500,6 +538,15 @@ class MirrorState:
         self.stats['magic_byte_failures'] = 0
         self.stats['skipped_videos'] = 0
         self.stats['skipped_video_declared_bytes'] = 0
+        self.stats['admin_only_fields_removed'] = 0
+        self.stats['scripts_and_handlers_removed'] = 0
+        self.stats['charset_declarations_added'] = 0
+        self.stats['outbound_links_deleted'] = 0
+        self.stats['outbound_links_made_text'] = 0
+        self.stats['offsite_form_actions_stripped'] = 0
+        self.stats['css_assets_localized'] = 0
+        self.stats['css_assets_queued'] = 0
+        self.stats['css_offsite_refs_dropped'] = 0
         self.session_start = time.time()
         self.duplicate_redirects = {}
 
@@ -1124,16 +1171,31 @@ def is_unsafe_url(url):
         return True
     return False
 
-# Content exclusions: legacy content an IFPA ruling keeps out of the member
-# archive (committee-scoped group files, private-group pages). Distinct from
-# is_unsafe_url, which is mutation/admin safety: these URLs are ordinary
-# readable content that the crawl account's elevated entitlement can see but
-# the member-visible archive must never widen to every member. The list is an
-# operator-supplied file of site-root-relative URL paths (one per line, '#'
-# comments, percent-decoded); an entry matches itself and everything beneath
-# it. The list lives with the private custody copies of the same content, so
-# an authenticated crawl REQUIRES it: crawling without it silently re-captures
-# what the ruling removed.
+# Content exclusions: legacy content the member archive must not carry, in two
+# categories. Committee-scoped group files and private-group pages, which an
+# IFPA ruling keeps out. And the member-account surfaces - the signed-in
+# dashboard, the member directory and its search forms, the join, sign-in,
+# assistance and account-recovery pages - which either show the crawling
+# account's own private data or are forms whose backend does not survive the
+# shutdown. Distinct from is_unsafe_url, which is mutation/admin safety: these
+# URLs are ordinary readable content that the crawl account's elevated
+# entitlement can see but the member-visible archive must never widen to every
+# member.
+#
+# Entries come from one or more operator-supplied files of site-root-relative
+# URL paths (one per line, '#' comments, percent-decoded); an entry matches
+# itself and everything beneath it, so listing a section never catches a
+# sibling whose name merely starts the same way. More than one file is
+# supported because the committee-scoped list is regenerated wholesale from the
+# legacy group backups: a hand-maintained entry added to it would be wiped on
+# the next regeneration, and the crawl after that would quietly re-capture what
+# had been removed.
+#
+# An authenticated crawl REQUIRES the lists: crawling without them silently
+# re-captures everything they exclude. Member profile pages are deliberately
+# NOT excluded - they are the part of the member section with archival value,
+# and the archive keeps them reachable by id and by club, roster and gallery
+# links.
 CONTENT_EXCLUSIONS = frozenset()
 
 def load_content_exclusions(path):
@@ -1162,6 +1224,26 @@ def is_excluded_url(url):
             return False
         path = path.rsplit('/', 1)[0]
     return False
+
+def page_carries_account_identity(content):
+    # True when captured bytes render the crawling account's own e-mail address.
+    # Case-insensitive because the legacy templates echo an address back in
+    # whatever case it was typed in, and a mixed-case copy is the same leak.
+    if not ACCOUNT_EMAIL:
+        return False
+    blob = content if isinstance(content, bytes) else str(content).encode('utf-8', 'ignore')
+    return ACCOUNT_EMAIL.lower().encode('utf-8') in blob.lower()
+
+
+def redact_account_identity(text):
+    # Replace the crawling account's address with a visible marker, keeping the
+    # page. Case-insensitive because the legacy templates echo an address back
+    # in whatever case it was typed, and a mixed-case copy is the same leak.
+    if not ACCOUNT_EMAIL:
+        return text
+    return re.sub(re.escape(ACCOUNT_EMAIL), '[address removed from the archive]',
+                  text, flags=re.IGNORECASE)
+
 
 def _excluded_disk_candidates(entry):
     # Every on-disk artifact an excluded URL path may have produced inside the
@@ -1212,6 +1294,29 @@ def apply_exclusions_sweep(dry_run=False):
                 removed.append(cand)
                 if not dry_run:
                     cand.unlink()
+    # Account-owned pages are found by content, not by path, so a surface the
+    # committed list never named still cannot keep the crawling account's own
+    # contact details. This is also the backstop for the several page-writing
+    # paths that do not funnel through the save-time refusal.
+    account_removed = 0
+    if ACCOUNT_EMAIL:
+        seen = {str(p) for p in removed}
+        pages = (p for p in root.rglob('*')
+                 if p.suffix.lower() in ('.html', '.htm'))
+        for page in sorted(pages):
+            if str(page) in seen or not page.is_file():
+                continue
+            try:
+                blob = page.read_bytes()
+            except OSError:
+                continue
+            if not page_carries_account_identity(blob):
+                continue
+            removed.append(page)
+            account_removed += 1
+            if not dry_run:
+                page.unlink()
+
     if not dry_run:
         for parent in sorted({p.parent for p in removed}, reverse=True):
             while parent != root and parent.is_dir() and not any(parent.iterdir()):
@@ -1249,15 +1354,34 @@ def apply_exclusions_sweep(dry_run=False):
                 mirror_state.write_skipped_video_manifest()
 
     verb = "would remove" if dry_run else "removed"
-    logging.info(f"Exclusion sweep: {verb} {len(removed)} files, "
-                 f"pruned {state_pruned} state entries "
+    logging.info(f"Exclusion sweep: {verb} {len(removed)} files "
+                 f"({account_removed} carrying the crawling account's own "
+                 f"address), pruned {state_pruned} state entries "
                  f"({len(CONTENT_EXCLUSIONS)} exclusion entries)")
+    if not ACCOUNT_EMAIL:
+        logging.warning(
+            "Exclusion sweep ran without an account e-mail address, so pages "
+            "rendering the crawling account's own profile and contact details "
+            "were NOT removed. Re-run passing that account's e-mail address as "
+            "the username argument.")
     for p in sorted(removed_strs):
         print(f"{'DRY-RUN ' if dry_run else ''}remove: {p}")
     return len(removed)
 
 def get_extension(url_or_path):
     return Path(urlparse(url_or_path).path.lower()).suffix
+
+def is_page_critical_asset(url_or_path):
+    # A stylesheet decides whether every page referencing it is readable or a
+    # wall of unstyled text, and a site this size has only a handful of them.
+    # Discovered links otherwise go to the back of a queue holding tens of
+    # thousands of pages, so the styling for the whole archive would be the very
+    # last thing fetched, and an interrupted crawl would leave a tree that
+    # renders as plain text. Stylesheets therefore jump the queue. Images are
+    # deliberately not included: they are numerous, and a missing one costs a
+    # broken thumbnail rather than an unreadable page.
+    return get_extension(url_or_path) == '.css'
+
 
 def is_media_file(url_or_path):
     return get_extension(url_or_path) in MEDIA_FORMATS
@@ -1567,6 +1691,7 @@ def create_news_list_redirector():
     html = f"""<!DOCTYPE html>
 <html>
   <head>
+    <meta charset="utf-8">
     <meta http-equiv="refresh" content="0; url={rel_path}">
     <title>Redirecting</title>
   </head>
@@ -1591,6 +1716,7 @@ def create_events_results_redirector():
     html = f"""<!DOCTYPE html>
 <html>
   <head>
+    <meta charset="utf-8">
     <meta http-equiv="refresh" content="0; url={rel_path}">
     <title>Redirecting</title>
   </head>
@@ -1615,6 +1741,7 @@ def create_events_past_redirector():
     html = f"""<!DOCTYPE html>
 <html>
   <head>
+    <meta charset="utf-8">
     <meta http-equiv="refresh" content="0; url={rel_path}">
     <title>Redirecting</title>
   </head>
@@ -1720,19 +1847,31 @@ def convert_to_mp4(input_filepath):
             '-movflags', 'faststart',
             '-y',
             temp_output
-        ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            timeout=FFMPEG_VIDEO_TIMEOUT_SECONDS)
 
         os.replace(temp_output, output_filepath)
         _write_sanitized_marker(output_filepath)
         mirror_state.stats['video_conversions'] += 1
         return output_filepath
 
-    except subprocess.CalledProcessError as e:
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
         if os.path.exists(temp_output):
             try:
                 os.remove(temp_output)
             except:
                 pass
+        # A timeout and a conversion error mean different things. An error says
+        # the encoder rejected this file's shape, which the conservative second
+        # attempt exists to get around. A timeout says the encoder is not making
+        # progress at all, and retrying only spends the same budget again on the
+        # same pathological input, so a single bad file could hold the crawl for
+        # twice the bound. Retry the error; give up on the timeout.
+        if isinstance(e, subprocess.TimeoutExpired):
+            logging.warning(
+                f"Video conversion exceeded its time budget, not retrying: "
+                f"{input_filepath}")
+            return None
 
     # Second attempt: Conservative settings for extremely old/corrupt videos.
     try:
@@ -1750,7 +1889,8 @@ def convert_to_mp4(input_filepath):
             '-r', '25',  # Force frame rate for problematic videos
             '-y',
             temp_output
-        ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            timeout=FFMPEG_VIDEO_TIMEOUT_SECONDS)
 
         os.replace(temp_output, output_filepath)
         _write_sanitized_marker(output_filepath)
@@ -1758,7 +1898,7 @@ def convert_to_mp4(input_filepath):
         logging.info(f"Successfully converted : {output_filepath}")
         return output_filepath
 
-    except subprocess.CalledProcessError as e:
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
         if os.path.exists(temp_output):
             try:
                 os.remove(temp_output)
@@ -1790,13 +1930,14 @@ def convert_image_to_jpg(filepath):
             '-q:v', '4',  # ~JPEG quality 85 (scale 2-31, lower is better)
             '-y',
             temp_output,
-        ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            timeout=FFMPEG_IMAGE_TIMEOUT_SECONDS)
 
         os.replace(temp_output, output_path)
         _write_sanitized_marker(output_path)
         mirror_state.stats['image_conversions'] += 1
         return output_path
-    except subprocess.CalledProcessError as e:
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
         # Clean up any temp output ffmpeg may have left behind
         try:
             if 'temp_output' in locals() and os.path.exists(temp_output):
@@ -1828,13 +1969,14 @@ def convert_gif_to_gif(filepath):
             '-i', filepath,
             '-y',
             temp_output,
-        ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            timeout=FFMPEG_IMAGE_TIMEOUT_SECONDS)
 
         os.replace(temp_output, output_path)
         _write_sanitized_marker(output_path)
         mirror_state.stats['image_conversions'] += 1
         return output_path
-    except subprocess.CalledProcessError as e:
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
         try:
             if 'temp_output' in locals() and os.path.exists(temp_output):
                 os.remove(temp_output)
@@ -1897,6 +2039,13 @@ def convert_and_cleanup(filepath, ext):
             except OSError:
                 out_size = 0
             mirror_state.stats['media_output_bytes'] += out_size
+            # A source whose extension was upper-case re-encodes to a
+            # lower-case name, so the sanitized copy and the original are two
+            # different files and the original would otherwise be left behind
+            # unsanitized, published, and reachable by anyone who guesses its
+            # address. The call is a no-op when the names match, which is every
+            # already-lower-case GIF.
+            delete_original_file_if_converted(filepath, final, media_type="image")
             return final
         else:
             # Re-encode failed → keep original GIF on disk (do not delete; a
@@ -1935,7 +2084,7 @@ def download_and_process_media(url, session, referrer=None, thumbnail_or_poster=
         logging.info(f"Refusing admin/mutating URL (media): {url}")
         return None
     if is_excluded_url(url):
-        logging.info(f"Refusing excluded content URL (media): {url}")
+        _log_refusal_once('media', url)
         return None
     try:
         if "openVideoWindow" in url:
@@ -2332,7 +2481,7 @@ def resolve_actual_video_url(popup_url):
         logging.info(f"Refusing admin/mutating URL (popup): {popup_url}")
         return None
     if is_excluded_url(popup_url):
-        logging.info(f"Refusing excluded content URL (popup): {popup_url}")
+        _log_refusal_once('popup', popup_url)
         return None
     try:
         # A relative popup path joins against www (only the www gallery emits
@@ -2419,6 +2568,24 @@ def drop_broken_video_element(elem, fallback_text):
         # Fail quietly
         pass
 
+# The meta names and properties whose content attribute genuinely holds a URL,
+# and is therefore worth localizing. Everything else a page puts in a meta is
+# prose or configuration and must be left exactly as written.
+_URL_BEARING_META_KEYS = frozenset({
+    'og:image', 'og:image:url', 'og:image:secure_url', 'og:url', 'og:video',
+    'og:video:url', 'og:audio', 'twitter:image', 'twitter:image:src',
+    'twitter:url', 'msapplication-tileimage', 'thumbnail', 'image_src',
+})
+
+
+def _meta_content_is_url(element):
+    for key in ('property', 'name', 'itemprop'):
+        value = element.get(key)
+        if value and value.strip().lower() in _URL_BEARING_META_KEYS:
+            return True
+    return False
+
+
 def _rewrite_noncapturable_footbag_link(element, attr_name, full_url, current_filepath, soup):
     # A footbag.org host the crawler never contacts (dead media box, mail-only,
     # internal). A target a past crawl already folded into the tree keeps a
@@ -2439,6 +2606,329 @@ def _rewrite_noncapturable_footbag_link(element, attr_name, full_url, current_fi
     else:
         element.insert_before(Comment("Mirror: reference to unarchived legacy host removed"))
     element.decompose()
+
+
+# The legacy templates tag each field they show only to an administrator with a
+# small marker span reading "private" beside the value: a member's home phone
+# number and their home street address. A crawl signed in as an administrator
+# therefore captures contact details no ordinary member could ever see, on
+# member profiles and on the club and event pages that embed the same contact
+# block. The marker is what makes them findable, so the marker is what drives
+# their removal.
+ADMIN_ONLY_FIELD_CLASS = 'admin'
+
+# A guard against a pathological page, not a real bound: the busiest legacy page
+# carries a handful of these, so hitting this ceiling means the markup is not
+# what this pass assumes and stopping beats looping.
+_ADMIN_FIELD_CEILING = 500
+
+
+def scrub_account_contact_block(soup):
+    # The legacy registration pages open with the signed-in member's own contact
+    # block: name, postal address, e-mail address, member id and gender, in a
+    # small table of its own above the content the page is actually for. A crawl
+    # runs signed in, so that is the crawling account's data on every such page.
+    #
+    # Removing the block rather than refusing the page: an event's entrant list
+    # is ordinary archive content and losing it to take out one address is a bad
+    # trade. The block is anchored on its own "update your contact info" link,
+    # not on the address text, so it works whichever account ran the crawl and
+    # keeps working when that account changes.
+    removed = 0
+    for anchor in list(soup.find_all('a')):
+        if _already_removed(anchor):
+            continue
+        if 'update your contact info' not in anchor.get_text(' ', strip=True).lower():
+            continue
+        block = anchor.find_parent('table')
+        # Only a table that is the contact block itself is removed. The labels
+        # are the legacy template's own, and requiring them means a page that
+        # merely links to profile editing from inside a larger table keeps that
+        # table.
+        if block is not None:
+            labels = block.get_text(' ', strip=True).lower()
+            if 'name:' in labels and 'address:' in labels:
+                block.decompose()
+                removed += 1
+                continue
+        anchor.insert_before(Comment("Mirror: account contact link removed"))
+        anchor.decompose()
+        removed += 1
+    return removed
+
+
+def scrub_elevated_entitlement_content(soup):
+    # Everything a signed-in, elevated crawl session can see that an ordinary
+    # member reading the archive must not. Three distinct leaks, one pass:
+    #
+    #   The admin-only contact fields described above. The whole definition
+    #   term or definition holding the marker goes, not just the marker, or the
+    #   phone number and street address would survive their own label. The
+    #   sibling city, region and country entries are ordinary public content
+    #   and stay, which also keeps them readable by the club and person
+    #   extractors downstream.
+    #
+    #   The member-search box embedded on profile pages, which posts to a
+    #   directory that cannot exist on a static host.
+    #
+    #   The language-selector form, whose action carries the crawling account's
+    #   own member id and so stamps that id onto thousands of pages. The
+    #   control is inert in a static archive either way, so dropping the action
+    #   costs nothing and removes the identifier.
+    removed_fields = 0
+    while removed_fields < _ADMIN_FIELD_CEILING:
+        marker = soup.find('span', class_=ADMIN_ONLY_FIELD_CLASS)
+        if marker is None:
+            break
+        holder = marker.find_parent(['dt', 'dd']) or marker
+        holder.decompose()
+        removed_fields += 1
+    if removed_fields >= _ADMIN_FIELD_CEILING:
+        logging.warning(
+            "Admin-only field markers exceeded the expected ceiling on one "
+            "page; the remainder were left in place for inspection")
+
+    for search_box in list(soup.find_all('div', class_='membersProfileSearchBox')):
+        if _already_removed(search_box):
+            continue
+        search_box.decompose()
+
+    # The action is a relative path whose depth varies with where the page
+    # sits, so match the profile segment itself rather than a fixed prefix. No
+    # form action does anything in a static archive, so dropping one that
+    # happens to point at a profile can only remove a dead identifier.
+    for form in list(soup.find_all('form', action=True)):
+        if _already_removed(form):
+            continue
+        if re.search(r'(?:^|/)profile/[^/\s"]+', form.get('action') or ''):
+            del form['action']
+
+    return removed_fields
+
+
+# Served pages declare no character set of their own, so a host that sends none
+# either leaves the browser guessing and falling back to a legacy single-byte
+# encoding. Every accented name in the archive turns to mojibake that way, and
+# the padding on the header link renders as a row of stray capitals exactly
+# where the wordmark belongs. Declaring it in the file means the fix travels
+# with the capture instead of depending on how some future host sets headers.
+def ensure_charset_declaration(soup):
+    # The legacy pages declare their encoding the old way, through an http-equiv
+    # Content-Type meta. Two reasons never to trust that declaration.
+    #
+    # It is wrong by the time it is written: pages are decoded on fetch and
+    # saved as UTF-8, so a page that announced iso-8859-1 now mis-labels its own
+    # bytes, which renders every accented name as mojibake.
+    #
+    # And it does not survive anyway. Link rewriting reads that meta's content
+    # attribute as if it were a URL, sees "text/html", and rewrites it into a
+    # relative path, taking the charset with it. That is why a capture ends up
+    # with tens of thousands of pages carrying a meaningless
+    # content="../text/html/index.html" and no encoding declared at all.
+    #
+    # So the stale declaration is removed and a correct one written in its
+    # place, rather than deferred to.
+    for meta in list(soup.find_all('meta')):
+        if _already_removed(meta):
+            continue
+        if meta.get('http-equiv', '').lower() == 'content-type':
+            meta.decompose()
+
+    for meta in soup.find_all('meta'):
+        if not _already_removed(meta) and meta.has_attr('charset'):
+            return False
+
+    declaration = soup.new_tag('meta')
+    declaration['charset'] = 'utf-8'
+    # A page with no head is a fragment the legacy site served bare. It still
+    # needs the declaration, so it goes at the top of the document instead.
+    head = soup.find('head')
+    if head is not None:
+        head.insert(0, declaration)
+    else:
+        soup.insert(0, declaration)
+    return True
+
+
+# Inline handler attributes left behind once the scripts are gone. Removing the
+# script but keeping the handler leaves a control that looks live and throws
+# when clicked. Named explicitly rather than matched as "starts with on",
+# because that pattern also eats ordinary attributes that merely begin the same
+# way, and silently dropping an attribute is not something a reader would catch.
+_INLINE_HANDLER_ATTRS = frozenset({
+    'onabort', 'onblur', 'onchange', 'onclick', 'oncontextmenu', 'ondblclick',
+    'ondrag', 'ondragend', 'ondragenter', 'ondragleave', 'ondragover',
+    'ondragstart', 'ondrop', 'onerror', 'onfocus', 'oninput', 'onkeydown',
+    'onkeypress', 'onkeyup', 'onload', 'onmousedown', 'onmousemove',
+    'onmouseout', 'onmouseover', 'onmouseup', 'onmousewheel', 'onreset',
+    'onresize', 'onscroll', 'onselect', 'onsubmit', 'onunload',
+})
+
+
+def _already_removed(element):
+    # Legacy markup nests elements that should be siblings, because a void tag
+    # written without its closing slash makes the parser adopt everything after
+    # it as children. Removing one such element therefore removes others that a
+    # find_all list still holds, and touching those raises. Any pass that walks a
+    # collected list and removes as it goes has to skip what a previous removal
+    # already took.
+    return element.attrs is None or getattr(element, 'decomposed', False)
+
+
+def strip_javascript(soup):
+    # A frozen archive runs no script. Almost none of the captured script works
+    # anyway: the site-wide file's entry point is an empty function, no page
+    # calls its other helpers, and the busiest inline handler on the site calls
+    # into a results popup whose file was never captured, so those clicks are
+    # already dead. What remains is third-party ad, analytics and CDN
+    # references that are insecure mixed content and outbound callouts from a
+    # member-only archive, plus decade-old bundles on the per-year event
+    # microsites. Stylesheet links to other hosts go for the same reasons.
+    removed = 0
+    # Commented-out markup first. A comment's contents are TEXT to the parser,
+    # not elements, so a script inside one is invisible to the element sweep
+    # below and survives into the archive. Two shapes carry them: conditional
+    # comments targeting browsers that no longer exist, and scripts an author
+    # simply commented out. Neither executes, but both leave a script tag in the
+    # served bytes, which is the thing the publish gate refuses on, and neither
+    # has any value in a frozen archive.
+    for comment in list(soup.find_all(string=lambda s: isinstance(s, Comment))):
+        text = str(comment).lower()
+        conditional = '[if' in text and '[endif]' in text
+        hides_script = '<script' in text
+        if conditional or hides_script:
+            comment.extract()
+            removed += 1
+
+    for script in list(soup.find_all('script')):
+        if _already_removed(script):
+            continue
+        script.decompose()
+        removed += 1
+    for element in soup.find_all(True):
+        if _already_removed(element):
+            continue
+        for attr in [a for a in element.attrs if a.lower() in _INLINE_HANDLER_ATTRS]:
+            del element[attr]
+            removed += 1
+    for link in list(soup.find_all('link', href=True)):
+        if _already_removed(link):
+            continue
+        href = (link.get('href') or '').strip()
+        if href.startswith('//'):
+            # Protocol-relative: give it a scheme purely so the host check can
+            # read it, without changing what is stored.
+            candidate = 'http:' + href
+        elif href.lower().startswith(('http://', 'https://')):
+            candidate = href
+        else:
+            continue
+        if not is_footbag_domain(candidate):
+            # unwrap, not decompose. A void element written without its closing
+            # slash makes the parser treat everything after it as its children,
+            # so the legacy pages routinely nest a page's real stylesheets inside
+            # an off-site font link. Decomposing the wrapper would destroy those
+            # too and leave the page unstyled; unwrapping removes only the
+            # offending tag and leaves whatever the parser put underneath it.
+            link.unwrap()
+            removed += 1
+    return removed
+
+
+# Mirrors the platform's offline URL-shape rule, which decides the same
+# question about the same destinations without a network call. Kept in step by
+# tests that pin the shapes the platform rejects; the legacy data is full of
+# strings that were never URLs at all.
+_MAX_ARCHIVE_URL_LENGTH = 2048
+_REPEATED_SCHEME = re.compile(r'^https?://https?://', re.IGNORECASE)
+
+
+def outbound_url_is_malformed(url):
+    candidate = (url or '').strip()
+    if not candidate or len(candidate) > _MAX_ARCHIVE_URL_LENGTH:
+        return True
+    if _REPEATED_SCHEME.match(candidate):
+        return True
+    parsed = urlparse(candidate)
+    if parsed.scheme.lower() not in ('http', 'https'):
+        return True
+    host = (parsed.hostname or '').strip().lower()
+    if not host or host in ('http', 'https'):
+        return True
+    # A literal address needs no dot; anything else without one is not a
+    # reachable host, which is what catches the junk the legacy forms accepted.
+    if ':' in host:
+        return False
+    if host.replace('.', '').isdigit():
+        return False
+    return '.' not in host
+
+
+def neutralize_outbound_links(soup, page_url):
+    # No link to somebody else's website stays clickable. The archive is
+    # captured once and never refreshed, so a destination verified today can be
+    # an abandoned domain re-registered by someone else years from now, and a
+    # live link would be the archive vouching for wherever it now leads. A link
+    # whose address was never a URL at all is deleted outright; every other one
+    # keeps whatever it was showing, words or a picture, and gains its
+    # destination in plain text, so a reader still sees where the page pointed
+    # and can go there deliberately. Links inside the archive are untouched:
+    # browsing is how legacy content is meant to be reached.
+    deleted = 0
+    flattened = 0
+    actions_stripped = 0
+    for anchor in list(soup.find_all('a', href=True)):
+        if _already_removed(anchor):
+            continue
+        href = (anchor.get('href') or '').strip()
+        if not href or href.startswith(('#', 'mailto:', 'javascript:')):
+            continue
+        try:
+            abs_url = urljoin(page_url, href)
+        except Exception:
+            continue
+        if not abs_url.lower().startswith(('http://', 'https://')):
+            continue
+        if is_footbag_domain(abs_url):
+            continue
+        if outbound_url_is_malformed(abs_url):
+            anchor.insert_before(Comment("Mirror: malformed outbound link removed"))
+            anchor.decompose()
+            deleted += 1
+            continue
+        anchor.insert_before(Comment("Mirror: outbound link rendered as text"))
+        if anchor.find(True) is not None:
+            # The link wraps markup rather than words, which on these pages
+            # means a sponsor's logo, an event badge, or a social icon.
+            # Discarding it would discard archived artwork and leave a bare web
+            # address where a championship's sponsor board used to be, so the
+            # contents stay exactly where they were; only the clickability goes,
+            # with the destination beside them.
+            anchor.insert_after(NavigableString(f' ({abs_url})'))
+            anchor.unwrap()
+        else:
+            label = anchor.get_text(strip=True)
+            replacement = label if label else abs_url
+            if label and label != abs_url:
+                replacement = f'{label} ({abs_url})'
+            anchor.insert_before(NavigableString(replacement))
+            anchor.decompose()
+        flattened += 1
+
+    # A form posting to another host is an outbound clickable control too, and
+    # the legacy pages carry one on every page in the site-search box. It can
+    # never work from a frozen archive, so the destination comes off rather
+    # than leaving a submit button that quietly sends a reader off-site.
+    for form in list(soup.find_all('form', action=True)):
+        if _already_removed(form):
+            continue
+        action = (form.get('action') or '').strip()
+        if action.lower().startswith(('http://', 'https://')) \
+                and not is_footbag_domain(action):
+            del form['action']
+            actions_stripped += 1
+
+    return deleted, flattened, actions_stripped
 
 
 def rewrite_links(html, page_url):
@@ -2465,6 +2955,38 @@ def rewrite_links(html, page_url):
             if isinstance(trailing, Comment) and 'IndexMember' in trailing:
                 trailing.extract()
             member_chrome.decompose()
+
+        # Static-archive sanitization, reported per page so an operator watching
+        # a crawl sees what is being removed rather than having to trust it.
+        # Silent on a page that needed nothing, which is most of them.
+        contact_blocks = scrub_account_contact_block(soup)
+        admin_fields = scrub_elevated_entitlement_content(soup)
+        charset_added = ensure_charset_declaration(soup)
+        scripts = strip_javascript(soup)
+        outbound_deleted, outbound_text, offsite_actions = neutralize_outbound_links(
+            soup, page_url)
+        mirror_state.stats['admin_only_fields_removed'] += admin_fields
+        mirror_state.stats['account_contact_blocks_removed'] = (
+            mirror_state.stats.get('account_contact_blocks_removed', 0) + contact_blocks)
+        mirror_state.stats['scripts_and_handlers_removed'] += scripts
+        mirror_state.stats['charset_declarations_added'] += 1 if charset_added else 0
+        mirror_state.stats['outbound_links_deleted'] += outbound_deleted
+        mirror_state.stats['outbound_links_made_text'] += outbound_text
+        mirror_state.stats['offsite_form_actions_stripped'] += offsite_actions
+        # Only the exceptional gets a per-page line. Script, charset, plain-text
+        # link and form-action counts come from the site template and are
+        # identical on every page, so per-page they are noise; the periodic
+        # statistics block carries their running totals instead. Admin-only
+        # fields and malformed links are rare and worth seeing where they occur.
+        if admin_fields or outbound_deleted:
+            logging.info(
+                f"Sanitized: {admin_fields} admin-only field(s), "
+                f"{outbound_deleted} malformed link(s) deleted — {page_url}")
+        else:
+            logging.debug(
+                f"Sanitized: {scripts} script/handler(s), {outbound_text} "
+                f"outbound link(s) to text, {offsite_actions} off-site form "
+                f"action(s) stripped — {page_url}")
 
         current_filepath = url_to_filepath(page_url)
         # Track embedded video files to suppress redundant viewer pages
@@ -2609,6 +3131,18 @@ def rewrite_links(html, page_url):
                         element.decompose()
                         logging.debug(f"Removed listevent link but preserved text: {inner_text}")
                         continue  # Skip rest of URL rewriting for this <a> tag
+
+                # A meta's content attribute is only a URL for a few specific
+                # kinds. Rewriting it unconditionally corrupts every other one:
+                # the viewport rule becomes a path and mobile rendering breaks,
+                # the description and keywords become paths, and the
+                # Content-Type declaration loses its charset, which is what
+                # leaves tens of thousands of captured pages with no encoding
+                # declared and every accented name rendered as mojibake. An
+                # allowlist rather than a blocklist, so an unrecognized meta is
+                # left alone rather than mangled.
+                if tag_name == 'meta' and not _meta_content_is_url(element):
+                    continue
 
                 for attr_name in attributes:
                     if not hasattr(element, 'get'):
@@ -3149,6 +3683,65 @@ def rewrite_links(html, page_url):
         logging.error(f"Error rewriting links in {page_url}: {e}")
         return html
 
+# Stylesheets reference images the same way pages do, but link rewriting only
+# ever walked HTML, so an external stylesheet kept whatever absolute address the
+# legacy site wrote. The site wordmark is one of those: a background image
+# addressed at the live host, which resolves today only because that host still
+# answers, is refused as insecure content once the archive is served over TLS,
+# and disappears entirely when the host is switched off. Rewriting stylesheets
+# closes all three, and queueing what they reference is what gets the image into
+# the capture in the first place, since nothing else links to it.
+_CSS_URL_REFERENCE = re.compile(r'url\(\s*([\'"]?)([^)\'"]+)\1\s*\)', re.IGNORECASE)
+
+
+def rewrite_css_asset_urls(css_text, css_filepath, css_url):
+    localized = 0
+    dropped = 0
+    queued = 0
+
+    def _replace(match):
+        nonlocal localized, dropped, queued
+        quote, target = match.group(1), match.group(2).strip()
+        if not target or target.lower().startswith('data:'):
+            return match.group(0)
+        absolute = urljoin(css_url, target)
+        if not absolute.lower().startswith(('http://', 'https://')):
+            return match.group(0)
+        if not is_footbag_domain(absolute):
+            # Another host's asset: a callout the archive must not make.
+            dropped += 1
+            return 'url("")'
+        try:
+            target_path = url_to_filepath(strip_query(absolute))
+        except ValueError:
+            target_path = None
+        if not target_path:
+            dropped += 1
+            return 'url("")'
+        normalized = normalize_url(absolute)
+        if (not os.path.exists(target_path)
+                and is_in_scope(absolute)
+                and normalized not in mirror_state.visited
+                and normalized not in mirror_state.queue):
+            # Front of the queue, like the stylesheet that referenced it. These
+            # are the site's own chrome, the wordmark and the panel backgrounds,
+            # so a stylesheet fetched early but its images fetched last still
+            # leaves every page looking broken for the whole crawl. Nothing else
+            # links them, which is why they need queueing at all.
+            mirror_state.queue.insert(0, absolute)
+            queued += 1
+        localized += 1
+        return f'url({quote}{calculate_relative_path(css_filepath, target_path)}{quote})'
+
+    rewritten = _CSS_URL_REFERENCE.sub(_replace, css_text)
+    if localized or dropped or queued:
+        logging.info(
+            f"Stylesheet rewritten: {localized} asset reference(s) localized, "
+            f"{queued} queued for capture, {dropped} off-site reference(s) "
+            f"dropped - {css_url}")
+    return rewritten, localized, dropped, queued
+
+
 def save_content(url, content, is_html):
     try:
         if re.match(r'^.*/gallery/show/-\d+/?$', url):
@@ -3160,6 +3753,21 @@ def save_content(url, content, is_html):
         if not is_footbag_domain(url):
             logging.info(f"Skipping save of offsite content: {url}")
             return
+
+        # Backstop for the crawling account's own e-mail address surviving the
+        # contact-block scrub in some shape nobody has seen. The address is
+        # redacted from the bytes rather than the page being refused: an
+        # entrant list or an event page is ordinary archive content, and losing
+        # the page to remove one address is the wrong trade. A page that trips
+        # this is a shape the structural scrub does not yet know, so it says so
+        # loudly enough to be worth following up.
+        if is_html and page_carries_account_identity(content):
+            content = redact_account_identity(content)
+            mirror_state.stats['account_addresses_redacted'] = (
+                mirror_state.stats.get('account_addresses_redacted', 0) + 1)
+            logging.warning(
+                f"Redacted the crawling account's address from a page the contact-block "
+                f"scrub did not cover: {url}")
 
         url = normalize_url(url)  
         filepath = url_to_filepath(url)
@@ -3201,6 +3809,7 @@ def save_content(url, content, is_html):
             html = f"""<!DOCTYPE html>
 <html>
   <head>
+    <meta charset="utf-8">
     <meta http-equiv="refresh" content="0; url={rel_path}">
     <title>Redirecting</title>
   </head>
@@ -3244,6 +3853,15 @@ def save_content(url, content, is_html):
         else:
             if is_html:
                 _atomic_write_text(filepath, content)
+            elif filepath.lower().endswith('.css'):
+                stylesheet = (content.decode('utf-8', errors='replace')
+                              if isinstance(content, bytes) else content)
+                stylesheet, localized, dropped, queued = rewrite_css_asset_urls(
+                    stylesheet, filepath, url)
+                mirror_state.stats['css_assets_localized'] += localized
+                mirror_state.stats['css_assets_queued'] += queued
+                mirror_state.stats['css_offsite_refs_dropped'] += dropped
+                _atomic_write_text(filepath, stylesheet)
             else:
                 with open(filepath, 'wb') as f:
                     f.write(content)
@@ -3263,11 +3881,26 @@ def save_content(url, content, is_html):
         logging.error(f" Failed to save {url}: {e}")
         mirror_state.stats['failed_downloads'] += 1
 
+# Refusals are reported once per distinct URL. Several excluded surfaces are
+# linked from the site chrome, so a per-encounter line repeats the same refusal
+# once for every page in the crawl and buries everything else in the log.
+_REFUSALS_ALREADY_LOGGED = set()
+
+
+def _log_refusal_once(kind, url):
+    key = (kind, url)
+    if key in _REFUSALS_ALREADY_LOGGED:
+        logging.debug(f"Refusing excluded content URL ({kind}): {url}")
+        return
+    _REFUSALS_ALREADY_LOGGED.add(key)
+    logging.info(f"Refusing excluded content URL ({kind}, first encounter): {url}")
+
+
 def is_in_scope(url):
     if is_unsafe_url(url):
         return False
     if is_excluded_url(url):
-        logging.info(f"Refusing excluded content URL (scope): {url}")
+        _log_refusal_once('scope', url)
         return False
     parsed = urlparse(url)
     # Only the crawl hosts (www + the WordPress vhost) are fetched. Every other
@@ -3283,21 +3916,41 @@ def is_in_scope(url):
     if segs and segs[0].lower() in RESERVED_HOST_PREFIXES:
         logging.warning(f"Refusing reserved-prefix collision: {url}")
         return False
+    # WordPress crawl traps and non-content endpoints. These apply on EVERY crawl
+    # host, not only the vhost: the championship microsites and the reference
+    # wiki are served under www as well, so a host-scoped rule let the same
+    # endpoints straight through under www and captured thousands of them. The
+    # names are WordPress's own and appear nowhere in the legacy site's own URL
+    # space — checked against the whole crawl, every match sits inside a
+    # microsite — so applying them by path costs no legacy content.
+    #
+    # wp-json, feeds and trackbacks are API and subscription endpoints rather
+    # than pages: an oembed response carries a post's title and an embed snippet,
+    # never the post. ?p= and ?page_id= style ids address a post that its own
+    # permalink already stores, so they only duplicate what is captured, and
+    # because the query is dropped when a URL becomes a filename they all
+    # overwrite one file.
+    lower_segs = {s.lower() for s in segs}
+    if lower_segs & {'wp-json', 'feed', 'trackback'}:
+        return False
+    # The id-style query keys are WordPress's, but their NAMES are ordinary:
+    # 'p' and 'm' are exactly what a legacy page would call a pagination or mode
+    # parameter. Refusing them everywhere would eventually swallow a legacy page
+    # such as /events/show/<id>?p=2. WordPress serves these only from a site
+    # root, and every one of the 429 such URLs this crawl saw has exactly one
+    # path segment, so the depth is what separates the two meanings.
+    if len(segs) == 1 and {k.lower() for k in parse_qs(parsed.query)} & {
+            'p', 'page_id', 'cat', 'm', 'paged', 'attachment_id'}:
+        return False
+
     if parsed.netloc in HOST_TREE_PREFIX:
-        # WordPress crawl traps and non-content endpoints. Date-archive INDEX
-        # pages (/<site>/YYYY[/MM[/DD]]/) multiply URLs without adding content
-        # (a dated permalink with a post slug after the date still passes);
-        # ?p=/?page_id= style ids duplicate every permalink; wp-json, feeds,
-        # and trackbacks are API/subscription endpoints, not archive pages.
-        # Everything they serve is reachable via permalinks and the wp-json-
-        # derived seed lists.
+        # Date-archive INDEX pages (/<site>/YYYY[/MM[/DD]]/) multiply URLs
+        # without adding content; a dated permalink carrying a post slug after
+        # the date still passes. This one stays scoped to the vhost, because the
+        # shape it matches is not unique to WordPress: on www the same pattern
+        # also describes a media directory such as /media/1338/, and widening it
+        # would start refusing media.
         if re.search(r'^/[^/]+/\d{4}(/\d{2}){0,2}/?$', parsed.path):
-            return False
-        lower_segs = {s.lower() for s in segs}
-        if lower_segs & {'wp-json', 'feed', 'trackback'}:
-            return False
-        if {k.lower() for k in parse_qs(parsed.query)} & {
-                'p', 'page_id', 'cat', 'm', 'paged', 'attachment_id'}:
             return False
     path = parsed.path.lower()
     if any(path.endswith(ext) for ext in SKIP_EXTENSIONS):
@@ -3341,6 +3994,16 @@ def print_stats():
         print(f"Skipped video declared bytes: {fmt_bytes(s.get('skipped_video_declared_bytes', 0))}")
     print(f"Image conversions: {s.get('image_conversions', 0):,}")
     print(f"Magic-byte failures: {s.get('magic_byte_failures', 0):,}")
+    print("-- static-archive sanitization --")
+    print(f"Admin-only fields removed: {s.get('admin_only_fields_removed', 0):,}")
+    print(f"Scripts and handlers removed: {s.get('scripts_and_handlers_removed', 0):,}")
+    print(f"Charset declarations added: {s.get('charset_declarations_added', 0):,}")
+    print(f"Outbound links made text: {s.get('outbound_links_made_text', 0):,}")
+    print(f"Malformed outbound links deleted: {s.get('outbound_links_deleted', 0):,}")
+    print(f"Off-site form actions stripped: {s.get('offsite_form_actions_stripped', 0):,}")
+    print(f"Stylesheet assets localized: {s.get('css_assets_localized', 0):,}")
+    print(f"Stylesheet assets queued: {s.get('css_assets_queued', 0):,}")
+    print(f"Stylesheet off-site refs dropped: {s.get('css_offsite_refs_dropped', 0):,}")
     if s.get('skipped_too_large', 0) > 0:
         print(f"Skipped too large: {s.get('skipped_too_large', 0):,}")
     print(f"Regsummaries added: {s.get('regsummary_links_detected', 0):,}")
@@ -3611,6 +4274,7 @@ def insert_homepage_directory_card():
         return False
     html = Path(homepage).read_text(encoding='utf-8', errors='replace')
     if DIRECTORY_CARD_MARKER in html:
+        logging.info("Archive-directory card already on the homepage")
         return True
     card = (
         f'\n<!-- {DIRECTORY_CARD_MARKER} -->\n'
@@ -3648,6 +4312,7 @@ def insert_homepage_about_card():
         return False
     html = Path(homepage).read_text(encoding='utf-8', errors='replace')
     if ABOUT_CARD_MARKER in html:
+        logging.info("Archive about card already on the homepage")
         return True
     card = (
         f'\n<!-- {ABOUT_CARD_MARKER} -->\n'
@@ -3692,6 +4357,7 @@ def scrub_homepage_member_chrome():
     html = Path(homepage).read_text(encoding='utf-8', errors='replace')
     start = html.find('<div id="IndexMember">')
     if start == -1:
+        logging.info("Homepage carries no signed-in member chrome")
         return True
     depth, end = 0, None
     for match in re.finditer(r'<!--.*?-->|<div\b|</div\s*>', html[start:], re.DOTALL):
@@ -3713,10 +4379,202 @@ def scrub_homepage_member_chrome():
     return True
 
 
+MEMBER_AREA_NOTICE_MARKER = 'FOOTBAG-ARCHIVE-MEMBER-AREA-NOTICE'
+
+# The member-area landing pages of both member generations. These are the pages
+# the site navigation's MEMBERS link points at, so they cannot simply be dropped
+# the way the rest of the member-account surfaces are: the link would land
+# nowhere. Their bodies are replaced instead, which is also why they must never
+# appear in an exclusion list - the sweep would delete the replacement.
+MEMBER_AREA_NOTICE_PAGES = (
+    os.path.join('members', 'home', 'index.html'),
+    os.path.join('members2', 'home', 'index.html'),
+    os.path.join('members2', 'index.html'),
+)
+
+# Reuses the legacy page's own body class so the site stylesheet renders this
+# like any other member-area content rather than as an unstyled interruption.
+MEMBER_AREA_NOTICE_BODY = (
+    f'<div id="MainBody">\n<!-- {MEMBER_AREA_NOTICE_MARKER} -->\n'
+    '<div class="membersHome">\n'
+    '<p>This is a static snapshot of the legacy website, and so member search '
+    'is disabled.</p>\n'
+    '<p>Legacy member links are still live for club members, event '
+    'participants and media publishers, or if you know the member&#39;s legacy '
+    'id you can type it into the url.</p>\n'
+    '</div>\n</div>'
+)
+
+
+def replace_member_area_with_notice():
+    # A crawl signed in as a member captures that member's own dashboard: the
+    # welcome line, the nameplate carrying their id, alias, e-mail address,
+    # membership tier and join date, their club, their tournament history,
+    # their galleries, and a member-search form that cannot work on a static
+    # host. None of it belongs in an archive every member can read. The whole
+    # main-body block is replaced with a static notice, leaving the page's
+    # header, breadcrumb, navigation, footer and stylesheet links untouched so
+    # it still looks like the rest of the archive.
+    #
+    # Marker-guarded, so a resumed or repeated end-of-crawl run never stacks
+    # notices; balanced-div surgery skipping HTML comments, so everything
+    # outside the replaced block stays byte-identical.
+    replaced = 0
+    for rel_path in MEMBER_AREA_NOTICE_PAGES:
+        page = os.path.join(_www_root(), rel_path)
+        if not os.path.exists(page):
+            continue
+        html = Path(page).read_text(encoding='utf-8', errors='replace')
+        if MEMBER_AREA_NOTICE_MARKER in html:
+            replaced += 1
+            continue
+        start = html.find('<div id="MainBody">')
+        if start == -1:
+            logging.warning(
+                f"Member-area page has no main-body block, notice not applied: {rel_path}")
+            continue
+        depth, end = 0, None
+        for match in re.finditer(r'<!--.*?-->|<div\b|</div\s*>', html[start:], re.DOTALL):
+            token = match.group(0)
+            if token.startswith('<!--'):
+                continue
+            depth += 1 if token.startswith('<div') else -1
+            if depth == 0:
+                end = start + match.end()
+                break
+        if end is None:
+            logging.warning(
+                f"Member-area main body has no balanced closing div, notice not "
+                f"applied: {rel_path}")
+            continue
+        _atomic_write_text(page, html[:start] + MEMBER_AREA_NOTICE_BODY + html[end:])
+        replaced += 1
+        logging.info(f"Member-area notice applied: {rel_path}")
+    if not replaced:
+        logging.warning(
+            "No member-area page carries the notice; the navigation's members "
+            "link may still lead to a signed-in dashboard")
+    else:
+        logging.info(f"Member-area notice present on {replaced} page(s)")
+    return replaced
+
+
+_LOCAL_REF_RE = re.compile(rb'(?:href|src)="([^"]{1,400})"', re.IGNORECASE)
+
+
+def _dangling_refs(page, www_root):
+    # Every relative reference on the page whose target is not on disk, with the
+    # repaired form where one exists. Cheap byte scan, so the whole tree can be
+    # triaged before anything is parsed.
+    out = []
+    try:
+        blob = page.read_bytes()
+    except OSError:
+        return out
+    for raw in _LOCAL_REF_RE.findall(blob):
+        ref = raw.decode('utf-8', errors='replace')
+        if ref.startswith(('#', 'http:', 'https:', 'mailto:', 'javascript:', 'data:')):
+            continue
+        target = unquote(urlparse(ref).path)
+        if not target:
+            continue
+        resolved = os.path.normpath(os.path.join(str(page.parent), target))
+        if not resolved.startswith(str(www_root)) or os.path.exists(resolved):
+            continue
+        repaired = None
+        # A rewriting bug that put one '../' too many in front of an otherwise
+        # correct path: the rulebook index reaches its chapters this way. These
+        # are repaired rather than neutralized, or the fix would delete working
+        # navigation to remove a link that is only mis-spelled.
+        if ref.startswith('../'):
+            candidate = os.path.normpath(os.path.join(str(page.parent), ref[3:]))
+            if candidate.startswith(str(www_root)) and os.path.exists(candidate):
+                repaired = ref[3:]
+        out.append((ref, repaired))
+    return out
+
+
+def neutralize_dead_internal_links():
+    # Links inside the archive whose target is not there. Some are pages an
+    # exclusion ruling removed, some are pages the crawl never reached, some the
+    # legacy site had already lost. Whatever the cause, a reader meets a link
+    # that goes nowhere, and on a static host nothing will ever fix it.
+    #
+    # This cannot run at capture time: while the queue still has entries, a link
+    # to a page not yet fetched is indistinguishable from a link to a page that
+    # will never exist. Only once the crawl has drained is a missing target
+    # meaningfully missing.
+    #
+    # Two outcomes. A reference that is merely mis-spelled, carrying one '../'
+    # too many, is repaired. A genuinely dead one keeps its visible text and
+    # loses its anchor, the same treatment outbound links already get, so the
+    # page still reads as its author wrote it.
+    www_root = Path(_www_root()).resolve()
+    pages = [p for p in www_root.rglob('*') if p.suffix.lower() in ('.html', '.htm')]
+    repaired = neutralized = images = touched = 0
+
+    for page in pages:
+        refs = _dangling_refs(page, www_root)
+        if not refs:
+            continue
+        dead = {ref for ref, fix in refs if not fix}
+        fixes = {ref: fix for ref, fix in refs if fix}
+        try:
+            soup = BeautifulSoup(page.read_text(encoding='utf-8', errors='replace'),
+                                 'html.parser')
+        except Exception as e:
+            logging.warning(f"Dead-link pass could not parse {page}: {e}")
+            continue
+
+        changed = False
+        for element in list(soup.find_all(['a', 'img'])):
+            if _already_removed(element):
+                continue
+            attr = 'href' if element.name == 'a' else 'src'
+            ref = element.get(attr)
+            if not ref:
+                continue
+            if ref in fixes:
+                element[attr] = fixes[ref]
+                repaired += 1
+                changed = True
+                continue
+            if ref not in dead:
+                continue
+            if element.name == 'img':
+                element.insert_before(Comment("Mirror: image not captured, reference removed"))
+                element.decompose()
+                images += 1
+            else:
+                text = element.get_text(strip=True)
+                element.insert_before(Comment("Mirror: link to a page not in the archive"))
+                if text:
+                    element.insert_before(NavigableString(text))
+                element.decompose()
+                neutralized += 1
+            changed = True
+
+        if changed:
+            _atomic_write_text(str(page), str(soup))
+            touched += 1
+
+    logging.info(
+        f"Dead-link pass: {touched} page(s) rewritten, {repaired} mis-spelled "
+        f"link(s) repaired, {neutralized} dead link(s) turned to text, "
+        f"{images} uncaptured image reference(s) removed "
+        f"({len(pages)} pages scanned)")
+    return touched
+
+
 def generate_reachability_pages(seeds_dir=None):
+    # Dead links are settled first: the generated pages below are written from
+    # what is on disk and must not themselves be rewritten afterwards, and the
+    # pass has to see the tree as the crawl left it.
+    neutralize_dead_internal_links()
     counts = generate_browse_indexes(seeds_dir)
     generate_archive_directory(counts)
     scrub_homepage_member_chrome()
+    replace_member_area_with_notice()
     insert_homepage_directory_card()
     insert_homepage_about_card()
 
@@ -3908,7 +4766,7 @@ def fetch(url):
         logging.info(f"Refusing admin/mutating URL (fetch): {url}")
         return None, None
     if is_excluded_url(url):
-        logging.info(f"Refusing excluded content URL (fetch): {url}")
+        _log_refusal_once('fetch', url)
         return None, None
     attempt = 0
     max_attempts = 1 + MAX_RETRIES  # total attempts = initial + retries
@@ -4341,6 +5199,7 @@ def crawl(start_urls):
                     html = f"""<!DOCTYPE html>
 <html>
   <head>
+    <meta charset="utf-8">
     <meta http-equiv="refresh" content="0; url={rel_path}">
     <title>Redirecting</title>
   </head>
@@ -4570,7 +5429,10 @@ def crawl(start_urls):
                                                           reason='extension')
                         continue
                     if norm_link not in mirror_state.visited and norm_link not in mirror_state.queue:
-                        mirror_state.queue.append(norm_link)
+                        if is_page_critical_asset(norm_link):
+                            mirror_state.queue.insert(0, norm_link)
+                        else:
+                            mirror_state.queue.append(norm_link)
                         mirror_state.url_depth[norm_link] = current_depth + 1
             except Exception as e:
                 logging.error(f"Error processing HTML {final_url}: {e}")
@@ -4590,29 +5452,52 @@ def crawl(start_urls):
 
 def main():
     global USERNAME, PASSWORD, LOG_TO_FILE, SKIP_VIDEOS, CONTENT_EXCLUSIONS
+    global ACCOUNT_EMAIL
 
     args = parse_args()
     LOG_TO_FILE = args.log_to_file   # if your parser uses dest="log", change this to: args.log
+
+    # Every mode, including the network-free sweep, needs the account address to
+    # recognize the pages that render this account's own private data.
+    if args.username and '@' in args.username:
+        ACCOUNT_EMAIL = args.username.strip()
+    elif args.username:
+        logging.warning(
+            "The username given is an alias, not an e-mail address, so pages "
+            "rendering this account's own profile and contact details cannot "
+            "be recognized and will be archived. Pass the account's e-mail "
+            "address instead.")
 
     # Every mode consumes the exclusion list; every network mode REQUIRES it.
     # The crawl account's entitlement sees committee-scoped content the member
     # archive must never serve, so a listless crawl silently re-captures what
     # the ruling removed - hence a hard preflight failure, not a warning.
     if args.exclusion_list:
-        try:
-            CONTENT_EXCLUSIONS = load_content_exclusions(args.exclusion_list)
-        except (OSError, ValueError) as e:
-            sys.exit(f"ERROR: cannot load --exclusion-list: {e}")
+        # The member-account list is prepended, not merely accepted: a command
+        # that names only the committee-scoped list must still exclude the
+        # account surfaces. Duplicate naming is harmless, the entries are a set.
+        paths = [MEMBER_AREA_EXCLUSION_LIST] + [
+            p for p in args.exclusion_list
+            if os.path.abspath(p) != os.path.abspath(MEMBER_AREA_EXCLUSION_LIST)]
+        merged = set()
+        for list_path in paths:
+            try:
+                merged |= load_content_exclusions(list_path)
+            except (OSError, ValueError) as e:
+                sys.exit(f"ERROR: cannot load exclusion list: {e}")
+        CONTENT_EXCLUSIONS = frozenset(merged)
         logging.info(f"Content exclusions loaded: {len(CONTENT_EXCLUSIONS)} "
-                     f"entries from {args.exclusion_list}")
+                     f"entries from {len(paths)} file(s): {', '.join(paths)}")
     elif not args.apply_exclusions_only:
         sys.exit(
-            "ERROR: --exclusion-list is required for any crawl or backfill. "
-            "The maintained list is CRAWL_EXCLUSIONS.txt under "
-            "private-custody/ifpa-group-files/ in the maintainers' private "
-            "operations checkout (repo-root symlink footbag_private_repo). "
-            "It keeps committee-scoped legacy content out of the member "
-            "archive; a crawl without it re-captures that content."
+            "ERROR: --exclusion-list is required for any crawl or backfill:\n"
+            "  --exclusion-list footbag_private_repo/private-custody/"
+            "ifpa-group-files/CRAWL_EXCLUSIONS.txt\n"
+            "That list keeps committee-scoped legacy content out of the member "
+            "archive, and it lives in a private checkout this program cannot "
+            "assume is present, so it must be named. The member-account list "
+            "beside the crawler is applied automatically and needs no flag; "
+            "naming it as well is harmless."
         )
 
     if args.apply_exclusions_only:
@@ -4706,6 +5591,14 @@ def main():
         enqueue_seed_urls(load_seed_urls(seed_paths))
 
         crawl(START_URLS)
+        # Enforce the exclusions on the finished tree before anything reads it.
+        # Fetch-time refusal only governs what THIS run captured; a tree carried
+        # forward from an earlier crawl still holds whatever the list did not
+        # cover then, and publishing is the next thing that happens. Progress is
+        # flushed first because the sweep prunes the on-disk copy, and it runs
+        # before the generated pages so those never link something it removed.
+        mirror_state.save_progress()
+        apply_exclusions_sweep()
         generate_reachability_pages(seed_paths[0] if len(seed_paths) == 1
                                     and Path(seed_paths[0]).is_dir() else SEEDS_DIR)
         create_root_index()

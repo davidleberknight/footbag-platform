@@ -186,11 +186,18 @@ def build_gallery() -> list[str]:
 
 
 def build_news() -> list[str]:
-    """Seed URLs for every news permalink.
+    """Seed URLs for every news permalink. NOT emitted by default; see below.
 
-    The crawl captured the article text through the year-list pages, but not the
-    per-item permalinks, which are linked from nowhere the crawl followed. The
-    permalink is a stable deep-link worth preserving, so every news item gets one.
+    The crawl captures the article text through the year-list pages, so these
+    permalinks duplicate content the archive already holds and add only a second
+    URL per article. There are nearly eighteen thousand of them, more than a
+    third of every seed URL combined, and each one costs a live request against
+    the legacy site during a crawl already measured in days.
+
+    Ruled: the archive keeps the articles and drops the duplicate permalinks, so
+    this class is out of the default build. The builder is kept because it is the
+    only record of how the permalink set is derived, and because preserving a
+    subset later is a matter of calling it and trimming rather than rewriting it.
     """
     dump = _dump_path("news")
     ids: set[str] = set()
@@ -353,10 +360,12 @@ def build_members() -> list[str]:
 # The WordPress vhost seeds are not dump-derivable either (that database lives
 # on the vhost machine, outside the dump set); build_vhost_seed_lists.py
 # enumerates them from the live wp-json API instead.
+# news.txt is deliberately absent: its permalinks duplicate article text the
+# year-list pages already carry, at nearly eighteen thousand extra live requests.
+# build_news() is retained as the derivation record if a subset is ever wanted.
 BUILDERS = {
     "clubs.txt": build_clubs,
     "gallery.txt": build_gallery,
-    "news.txt": build_news,
     "polls.txt": build_polls,
     "rules.txt": build_rules,
     "ranking.txt": build_ranking,

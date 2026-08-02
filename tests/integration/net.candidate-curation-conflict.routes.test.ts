@@ -71,7 +71,7 @@ describe('POST /internal/net/candidates/:id/approve on an already-curated candid
     const res = await internalPost(app, `/internal/net/candidates/${CURATED_CAND}/approve`).send({});
     expect(res.status).toBe(409);
     expect(res.text).toContain('conflicts with the current state');
-    expect(res.text).not.toContain("doesn't exist");
+    expect(res.text).not.toContain('class="error-code">404<');
   });
 });
 
@@ -81,7 +81,7 @@ describe('POST /internal/net/candidates/:id/reject on an already-curated candida
     const res = await internalPost(app, `/internal/net/candidates/${CURATED_CAND}/reject`).send({});
     expect(res.status).toBe(409);
     expect(res.text).toContain('conflicts with the current state');
-    expect(res.text).not.toContain("doesn't exist");
+    expect(res.text).not.toContain('class="error-code">404<');
   });
 });
 
@@ -90,6 +90,6 @@ describe('POST /internal/net/candidates/:id/approve for an unknown candidate', (
     const app = createApp();
     const res = await internalPost(app, '/internal/net/candidates/does-not-exist/approve').send({});
     expect(res.status).toBe(404);
-    expect(res.text).toContain("doesn't exist");
+    expect(res.text).toContain('class="error-code">404<');
   });
 });

@@ -9,6 +9,8 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
+
+import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -25,6 +27,7 @@ function runScript(args: string[]): RunResult {
   const result = spawnSync('bash', [SCRIPT, ...args], {
     cwd: process.cwd(),
     encoding: 'utf-8',
+    ...SPAWN_GUARD,
   });
   return {
     exitCode: result.status ?? 1,

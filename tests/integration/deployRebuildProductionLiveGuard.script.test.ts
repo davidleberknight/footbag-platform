@@ -12,6 +12,8 @@
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
+
+import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import BetterSqlite3 from 'better-sqlite3';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
@@ -77,6 +79,7 @@ function runGuard(overrides: Record<string, string> = {}): {
       DB_PATH: dbPath,
       ...overrides,
     },
+    ...SPAWN_GUARD,
   });
   return { status: res.status, stderr: res.stderr };
 }
@@ -177,6 +180,7 @@ describe('production-live guard: real-member tripwire', () => {
         FAKE_SSM_VALUE: 'false',
         DB_PATH: '',
       },
+      ...SPAWN_GUARD,
     });
     expect(res.status).toBe(1);
     expect(res.stderr).toContain('login-capable non-persona member accounts');

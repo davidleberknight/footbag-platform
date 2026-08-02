@@ -12,6 +12,27 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
+import { config } from '../config/env';
+
+/**
+ * Height cap for the output, expressed so the encoder never upscales: a source
+ * already at or below the ceiling passes through untouched, a taller one is
+ * reduced.
+ *
+ * This is the lever that bounds the per-frame encoding cost of an arbitrary
+ * upload. Measured on one source at the same preset and thread count, 1080p
+ * costs about 2.1x what 720p does and 4K several times more again, on a host
+ * whose two vCPUs are shared with the web application. Without a cap a single
+ * 4K upload dictates the time budget for everything.
+ *
+ * `-2` for width keeps the source aspect ratio and rounds to an even number,
+ * which libx264 requires with yuv420p chroma subsampling. It works for portrait
+ * sources too: a tall video is capped on its height and its width follows.
+ */
+export function buildHeightCapFilter(maxHeight: number): string {
+  return `scale=-2:'min(${maxHeight},ih)'`;
+}
+
 const MP4_MAGIC_OFFSET = 4;
 const MP4_BRAND_FTYP = Buffer.from('ftyp', 'ascii');
 const WEBM_MAGIC = Buffer.from([0x1a, 0x45, 0xdf, 0xa3]);
@@ -33,6 +54,8 @@ export interface VideoTranscodeTuning {
   preset?: string;
   threads?: number;
   rcLookahead?: number;
+  /** Output height ceiling; defaults to the configured value. Never upscales. */
+  maxHeight?: number;
 }
 
 /**
@@ -88,6 +111,7 @@ export function buildFfmpegArgs(
     '-map', '0:a?',
     '-map_metadata', '-1',
     '-map_chapters', '-1',
+    '-vf', buildHeightCapFilter(tuning?.maxHeight ?? config.videoMaxHeight),
     '-c:v', 'libx264',
     ...x264Tuning,
     '-c:a', 'aac',
@@ -134,17 +158,43 @@ export async function transcodeCuratorVideo(
   }
 }
 
-function runFfmpeg(args: string[]): Promise<void> {
+/**
+ * Bounded ffmpeg run. A malformed input can put the encoder into a loop that
+ * consumes a core and produces nothing; unbounded, that holds the worker's
+ * video slot forever and the media job neither completes nor fails. The ceiling
+ * is deploy-time config so a slow host or an unusually long source can raise it.
+ */
+function runFfmpeg(
+  args: string[],
+  timeoutMs: number = config.ffmpegTimeoutSeconds * 1000,
+): Promise<void> {
   return new Promise((resolve, reject) => {
     const proc = spawn('ffmpeg', args, { stdio: ['ignore', 'ignore', 'pipe'] });
     let stderrTail = '';
+    let timedOut = false;
+    // SIGKILL rather than SIGTERM: the failure mode being guarded against is an
+    // encoder stuck in a loop, which is exactly the case that may not honour a
+    // polite signal.
+    const timer = setTimeout(() => {
+      timedOut = true;
+      proc.kill('SIGKILL');
+    }, timeoutMs);
     proc.stderr.on('data', (chunk: Buffer) => {
       stderrTail = (stderrTail + chunk.toString('utf8')).slice(-2000);
     });
-    proc.on('error', reject);
+    proc.on('error', (err) => {
+      clearTimeout(timer);
+      reject(err);
+    });
     proc.on('close', (code) => {
-      if (code === 0) resolve();
-      else reject(new Error(`ffmpeg exited with code ${code}: ${stderrTail}`));
+      clearTimeout(timer);
+      if (timedOut) {
+        reject(new Error(`ffmpeg timed out after ${timeoutMs} ms`));
+      } else if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`ffmpeg exited with code ${code}: ${stderrTail}`));
+      }
     });
   });
 }

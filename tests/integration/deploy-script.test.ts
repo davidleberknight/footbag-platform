@@ -18,6 +18,8 @@
  */
 import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'child_process';
+
+import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -34,10 +36,12 @@ function run(
     env: { ...process.env, ...(opts.env ?? {}) },
     input: opts.input,
     encoding: 'utf-8',
+    ...SPAWN_GUARD,
   });
 }
 
-const HAS_DOCKER = spawnSync('command', ['-v', 'docker'], { shell: true }).status === 0;
+const HAS_DOCKER =
+  spawnSync('command', ['-v', 'docker'], { shell: true, ...SPAWN_GUARD }).status === 0;
 
 // ── deploy_to_aws.sh wrapper ──────────────────────────────────────────────────
 
@@ -224,24 +228,27 @@ describe('deploy_to_aws.sh wrapper', () => {
     'production DB-replace with FOOTBAG_PROD_DB_REPLACE_ACK=1 bypasses the prompt and proceeds past the gate',
     () => {
       // The FOOTBAG_PROD_DB_REPLACE_ACK=1 escape hatch lets scripted deploys
-      // (rare, by design) skip the interactive prompt. The deploy will still
-      // fail downstream on the SSH alias / docker preflight, but the prod
-      // gate itself is past — proven by the absence of the "requires
-      // interactive confirmation" message and presence of the "Confirmed"
-      // log line OR a downstream preflight failure.
+      // (rare, by design) skip the interactive prompt. What is under test is
+      // the gate decision alone, proven by the absence of the "requires
+      // interactive confirmation" message and the presence of the bypass line.
+      //
+      // Driven as a dry run because the flag being exercised is the one that
+      // disarms the production database-replace confirmation. Without it the
+      // only thing left between this test and a real production DB replace is
+      // whichever preflight happens to fail on the machine running the suite,
+      // which is not a safety property at all: on a workstation with the
+      // deploy alias configured and no process holding the local database,
+      // every preflight passes and the deploy proceeds for real.
       const tmpFile = path.join(os.tmpdir(), `op-prod-ack-${Date.now()}.txt`);
       fs.writeFileSync(tmpFile, 'fake-password\n', { mode: 0o600 });
       try {
-        const r = run('bash', ['deploy_to_aws.sh', '--from-csv'], {
+        const r = run('bash', ['deploy_to_aws.sh', '--from-csv', '-n'], {
           env: {
             AWS_OPERATOR_FILE: tmpFile,
             DEPLOY_TARGET: 'footbag-production',
             FOOTBAG_PROD_DB_REPLACE_ACK: '1',
           },
         });
-        // Exit 1 from a downstream preflight (SSH alias resolution against a
-        // non-configured 'footbag-production' alias on test runners).
-        expect(r.status).toBe(1);
         const combined = (r.stderr ?? '') + (r.stdout ?? '');
         expect(combined).toMatch(/skipping interactive confirmation/);
         expect(combined).not.toMatch(/requires interactive confirmation/);
@@ -756,7 +763,7 @@ describe('deploy-rebuild-remote.sh guard handshake', () => {
     const res = spawnSync(
       'bash',
       [path.join(REPO_ROOT, 'scripts/internal/deploy-rebuild-remote.sh')],
-      { encoding: 'utf8', env: { ...process.env, PROD_LIVE_GUARD_RAN: '' } },
+      { encoding: 'utf8', env: { ...process.env, PROD_LIVE_GUARD_RAN: '' }, ...SPAWN_GUARD },
     );
     expect(res.status).toBe(1);
     expect(res.stderr).toContain('the deploy guards did not run in this shell');

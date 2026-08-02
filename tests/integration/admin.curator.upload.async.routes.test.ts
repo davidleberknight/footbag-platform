@@ -614,12 +614,15 @@ describe('POST /admin/curator/upload/finalize', () => {
   it('rejects an uploaded video larger than the per-type max with 413 and never dispatches (the presigned PUT cannot bind size)', async () => {
     const { jobId, videoKey, posterKey } = await signFor(adminACookie());
     writeLocalMediaFile(posterKey);
-    // Sparse file: logical size just over the 150 MB video max without
-    // writing real bytes.
+    // Sparse file: logical size just over the video max without writing real
+    // bytes. Derived from the limit rather than written literally, because the
+    // ceiling is deploy-time config and a literal would stop exercising the
+    // boundary the moment it moves.
+    const { VIDEO_MAX_BYTES } = await import('../../src/services/curatorMediaService');
     const full = path.join(TEST_MEDIA_DIR, videoKey);
     fs.mkdirSync(path.dirname(full), { recursive: true });
     fs.writeFileSync(full, '');
-    fs.truncateSync(full, 150 * 1024 * 1024 + 1);
+    fs.truncateSync(full, VIDEO_MAX_BYTES + 1);
 
     const app = createApp();
     const res = await request(app)

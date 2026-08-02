@@ -12,6 +12,8 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { execFileSync } from 'node:child_process';
+
+import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
 
 const { dbPath } = setTestEnv('3438');
@@ -24,6 +26,7 @@ function gateExitStatus(): number {
     execFileSync('bash', ['scripts/validate-legacy-import-gates.sh'], {
       env: { ...process.env, FOOTBAG_DB_PATH: dbPath },
       stdio: 'pipe',
+      ...SPAWN_GUARD,
     });
     return 0;
   } catch (err) {

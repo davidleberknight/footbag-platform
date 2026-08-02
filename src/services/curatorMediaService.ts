@@ -157,7 +157,9 @@ import { runSqliteRead } from './sqliteRetry';
 import { hashtagDiscoveryService } from './hashtagDiscoveryService';
 
 export const PHOTO_MAX_BYTES = 25 * 1024 * 1024;
-export const VIDEO_MAX_BYTES = 150 * 1024 * 1024;
+export const VIDEO_MAX_BYTES = config.videoMaxBytes;
+/** The limit as the reader sees it, so message and check can never disagree. */
+export const VIDEO_MAX_MB = Math.floor(VIDEO_MAX_BYTES / (1024 * 1024));
 export const POSTER_MAX_BYTES = 25 * 1024 * 1024;
 export const CAPTION_MAX_LEN = 500;
 
@@ -1270,7 +1272,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       const normalizedExternalUrl = await normalizeExternalUrlOrThrow(input.externalUrl);
 
       if (input.videoBuffer.length > VIDEO_MAX_BYTES) {
-        throw new ValidationError('Video is too large. Maximum size is 150 MB.');
+        throw new ValidationError(`Video is too large. Maximum size is ${VIDEO_MAX_MB} MB.`);
       }
       if (input.posterBuffer.length > POSTER_MAX_BYTES) {
         throw new ValidationError('Poster is too large. Maximum size is 25 MB.');

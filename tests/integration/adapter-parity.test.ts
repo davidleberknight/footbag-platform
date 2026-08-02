@@ -85,13 +85,15 @@ import {
 import sharp from 'sharp';
 import { processAvatar } from '../../src/lib/imageProcessing';
 import { spawnSync } from 'node:child_process';
+
+import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import {
   detectVideoFormat,
   transcodeCuratorVideo,
 } from '../../src/lib/videoProcessing';
 
 const ffmpegAvailable =
-  spawnSync('ffmpeg', ['-version'], { stdio: 'ignore' }).status === 0;
+  spawnSync('ffmpeg', ['-version'], { stdio: 'ignore', ...SPAWN_GUARD }).status === 0;
 
 // Shared shared-secret used by the auth header on web↔image-worker IPC.
 const TEST_INTERNAL_SECRET = 'test-internal-event-secret';
@@ -1265,7 +1267,7 @@ describe('adapter-parity: VideoTranscodingAdapter contract', () => {
           '-y',
           outPath,
         ],
-        { stdio: 'ignore' },
+        { stdio: 'ignore', ...SPAWN_GUARD },
       );
       if (r.status !== 0) throw new Error('ffmpeg synth failed');
       return fs.readFileSync(outPath);

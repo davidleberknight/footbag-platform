@@ -185,6 +185,80 @@ if [[ "$UNSANITIZED_COUNT" -gt 0 ]]; then
   echo "Proceeding with ${UNSANITIZED_COUNT} operator-accepted unsanitized media files."
 fi
 
+# ---- 3b. Static-archive sanitization gate ------------------------------------
+#
+# The crawler sanitizes every page it writes, but a tree can predate that work
+# or come from an interrupted run, and none of these defects are visible in a
+# sync listing. Each check names a specific, remembered failure:
+#
+#   Admin-only marker: the legacy templates tag fields shown only to an
+#   administrator. A crawl run under an elevated account captures members' home
+#   phone numbers and street addresses; publishing that exposes them to every
+#   member who can read the archive.
+#   Script tag: a frozen archive runs nothing, and the go-live readiness
+#   statement says the capture carries no JavaScript. Third-party script
+#   references are also insecure content and outbound callouts.
+#   Missing character set: served without one, browsers fall back to a legacy
+#   encoding and every accented name in the archive turns to mojibake.
+#   Absolute legacy-host URL in a stylesheet: resolves only while the old host
+#   still answers, is refused as insecure content over TLS, and breaks for good
+#   at shutdown.
+
+sanitation_fail=0
+report_offenders() {
+  local label="$1" listing="$2"
+  local count
+  count="$(grep -c '' "$listing" || true)"
+  if [[ "$count" -gt 0 ]]; then
+    echo "REFUSING: ${count} file(s) ${label}." >&2
+    head -10 "$listing" >&2
+    [[ "$count" -gt 10 ]] && echo "  ... and $((count - 10)) more" >&2
+    sanitation_fail=1
+  fi
+}
+
+ADMIN_MARKED="${WORK_DIR}/admin_marked.txt"
+grep -rl --include='*.html' 'class="admin"' "$WWW_ROOT" > "$ADMIN_MARKED" 2>/dev/null || true
+report_offenders "still carry admin-only contact fields" "$ADMIN_MARKED"
+
+SCRIPTED="${WORK_DIR}/scripted.txt"
+grep -rliE '<script[ >]' --include='*.html' "$WWW_ROOT" > "$SCRIPTED" 2>/dev/null || true
+report_offenders "still carry a script tag" "$SCRIPTED"
+
+# The charset check applies to HTML. Some captured files are XML stored under a
+# .html name: the microsites' RSS feeds and WordPress JSON endpoints, which the
+# crawler saves at the path their URL gives it. They carry an XML declaration
+# instead of an HTML one and always will, so holding them to the HTML rule would
+# refuse every publish for good, and the advice below would send an operator to
+# re-run a crawler that cannot change them. They are identified by their own
+# first line rather than by path, so a real page can never be waved through.
+XML_UNDER_HTML="${WORK_DIR}/xml_under_html.txt"
+grep -rn --include='*.html' -m1 -E '^<\?xml' "$WWW_ROOT" 2>/dev/null \
+  | grep -F ':1:<?xml' | sed 's/:1:<?xml.*$//' | sort -u > "$XML_UNDER_HTML" || true
+
+NO_CHARSET="${WORK_DIR}/no_charset.txt"
+NO_CHARSET_ALL="${WORK_DIR}/no_charset_all.txt"
+grep -rLi 'charset' --include='*.html' "$WWW_ROOT" > "$NO_CHARSET_ALL" 2>/dev/null || true
+if [[ -s "$XML_UNDER_HTML" ]]; then
+  grep -xvFf "$XML_UNDER_HTML" "$NO_CHARSET_ALL" > "$NO_CHARSET" || true
+  echo "Charset check: $(grep -c '' "$XML_UNDER_HTML") XML file(s) stored under an .html name exempted."
+else
+  cp "$NO_CHARSET_ALL" "$NO_CHARSET"
+fi
+report_offenders "declare no character set" "$NO_CHARSET"
+
+STALE_CSS="${WORK_DIR}/stale_css.txt"
+grep -rl --include='*.css' 'http://www.footbag.org/' "$WWW_ROOT" > "$STALE_CSS" 2>/dev/null || true
+report_offenders "are stylesheets addressing the legacy host" "$STALE_CSS"
+
+if [[ "$sanitation_fail" -ne 0 ]]; then
+  echo "" >&2
+  echo "Re-run the crawler over this tree so its sanitization passes apply, then" >&2
+  echo "publish again. These are not overridable: each one leaks or breaks." >&2
+  exit 1
+fi
+echo "Sanitization gate: no admin-only fields, scripts, missing charsets, or legacy-host stylesheet URLs."
+
 # ---- 4. Totals before --------------------------------------------------------
 
 SRC_COUNT="$(find "$WWW_ROOT" -type f ! -name '*.sanitized' | wc -l)"
