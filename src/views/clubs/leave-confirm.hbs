@@ -1,4 +1,4 @@
-{{! Sole co-leader leave confirmation }}
+{{! Leave-club confirmation; the sole co-leader gets the stronger warning }}
 
 <div class="hero hero-sm">
   <div>
@@ -9,15 +9,23 @@
 <div class="wrapper">
   <section>
 
-    <p class="notice notice-warn" role="alert">You are the only co-leader of {{clubName}}. If you leave, the club will have no member-visible contact until someone steps up.</p>
+    {{#if isSoleCoLeader}}
+      <p class="notice notice-warn" role="alert">You are the only co-leader of {{clubName}}. If you leave, the club will have no member-visible contact until someone steps up.</p>
 
-    <p class="text-muted">You can invite a successor first, or leave and let the club stay leaderless for now.</p>
+      <p class="text-muted">You can invite a successor first, or leave and let the club stay leaderless for now.</p>
+    {{else}}
+      <p class="notice notice-warn" role="alert">Leaving {{clubName}} takes you off its roster.</p>
+
+      <p class="text-muted">You can join again later, though a member may hold only two current clubs at a time, so the place you free up may be taken.</p>
+    {{/if}}
 
     <div class="form-actions">
-      <a href="{{manageCoLeadersHref}}" class="btn btn-primary">Manage Co-leaders</a>
+      {{#if isSoleCoLeader}}
+        <a href="{{manageCoLeadersHref}}" class="btn btn-primary">Manage Co-leaders</a>
+      {{/if}}
       <form method="POST" action="{{leaveHref}}" class="inline-form">
         <input type="hidden" name="confirmed" value="1" />
-        <button type="submit" class="btn btn-outline">Leave Anyway</button>
+        <button type="submit" class="btn btn-outline">{{#if isSoleCoLeader}}Leave Anyway{{else}}Leave Club{{/if}}</button>
       </form>
       <a href="{{cancelHref}}" class="btn btn-outline">Cancel</a>
     </div>

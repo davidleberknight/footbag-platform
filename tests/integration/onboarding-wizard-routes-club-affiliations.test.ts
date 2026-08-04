@@ -552,11 +552,11 @@ describe('POST /register/wizard/club_affiliations/submit — per-card flow', () 
     expect(flashCookie).toBeDefined();
   });
 
-  it('cap hit on the last card still tells the member, on the page they land on', async () => {
-    // The card that carried the notice is gone by the time the member sees a
-    // page again: resolving it completes the step, and the next GET advances
-    // past it. The notice has to survive that hop or the member is never told
-    // their Yes was recorded as a former membership rather than a current club.
+  it('cap hit on the last card is explained on the club step itself, not a step later', async () => {
+    // Resolving the last card completes the step, so without holding the render
+    // the club page never draws again and the member reads what happened to
+    // their Yes on the completion page with no club context around it. The step
+    // draws once more instead, carrying the notice and a way onward.
     const submit = await request(createApp())
       .post('/register/wizard/club_affiliations/submit')
       .set('Cookie', cookieFor(MEMBER_CAP_LAST))
@@ -571,19 +571,23 @@ describe('POST /register/wizard/club_affiliations/submit — per-card flow', () 
 
     const carried = `${cookieFor(MEMBER_CAP_LAST)}; ${flashCookie}`;
 
-    // The club step reconciles itself complete and hands the member onward.
     const afterCard = await request(createApp())
       .get('/register/wizard/club_affiliations')
       .set('Cookie', carried);
-    expect(afterCard.status).toBe(303);
-    expect(afterCard.headers.location).toBe('/register/wizard/complete');
+    expect(afterCard.status).toBe(200);
+    expect(afterCard.text).toContain('two current-club limit');
+    expect(afterCard.text).toContain('Cap Last Third Club');
+    // The spent controls are gone: no card to answer and no no-club exit.
+    expect(afterCard.text).not.toContain('Finish Without a Club');
+    expect(afterCard.text).toContain('Continue');
 
-    const done = await request(createApp())
-      .get('/register/wizard/complete')
-      .set('Cookie', carried);
-    expect(done.status).toBe(200);
-    expect(done.text).toContain('two current-club limit');
-    expect(done.text).toContain('Cap Last Third Club');
+    // The hold lasts exactly one render. With the notice spent, the step
+    // advances as it did before, so nothing is stuck behind a read receipt.
+    const again = await request(createApp())
+      .get('/register/wizard/club_affiliations')
+      .set('Cookie', cookieFor(MEMBER_CAP_LAST));
+    expect(again.status).toBe(303);
+    expect(again.headers.location).toBe('/register/wizard/complete');
   });
 
   it('leadership confirm -> 303 advance; bootstrap_leader claimed; task completed', async () => {

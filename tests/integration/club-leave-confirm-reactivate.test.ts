@@ -1,10 +1,15 @@
 /**
- * Club status completions: sole-co-leader leave warning, deliberate
+ * Club status completions: destructive-action confirmation, deliberate
  * reactivation, and the active-only public directory.
  *
- *   - A member who is the club's only co-leader is warned before leaving and
- *     must confirm; with two co-leaders, or as a plain member, leaving goes
- *     straight through. Leaving leaderless is allowed, never blocked.
+ *   - Leaving a club and standing down as co-leader are both confirmed before
+ *     anything changes. A member can rejoin or volunteer again afterwards, but
+ *     not on demand, since the club may fill its five co-leader slots first. The
+ *     club's only co-leader is additionally warned that the club is left with no
+ *     member-visible contact. Leaving leaderless is allowed, never blocked.
+ *   - A member holding any current affiliation holds exactly one primary, so
+ *     leaving the primary club promotes a single remaining affiliation in the
+ *     same transaction and the leave audit records which club was promoted.
  *   - A co-leader can reactivate an inactive club at any time, audit-logged;
  *     reactivating an already-active club is a no-op.
  *   - Inactive clubs drop out of the public directory but stay reachable by
@@ -67,13 +72,27 @@ function leaderRowCount(memberId: string, clubId: string): number {
     'SELECT COUNT(*) AS c FROM club_leaders WHERE member_id = ? AND club_id = ?',
   ).get(memberId, clubId) as { c: number }).c;
 }
+function isPrimary(memberId: string, clubId: string): number {
+  const row = db.prepare(
+    'SELECT is_primary FROM member_club_affiliations WHERE member_id = ? AND club_id = ?',
+  ).get(memberId, clubId) as { is_primary: number } | undefined;
+  return row?.is_primary ?? -1;
+}
+function lastMemberLeftMetadata(memberId: string): Record<string, unknown> {
+  const row = db.prepare(
+    `SELECT metadata_json FROM audit_entries
+      WHERE actor_member_id = ? AND action_type = 'club.member_left'
+      ORDER BY created_at DESC, id DESC LIMIT 1`,
+  ).get(memberId) as { metadata_json: string } | undefined;
+  return row ? JSON.parse(row.metadata_json) : {};
+}
 function reactivateAudits(clubId: string): Array<{ metadata_json: string }> {
   return db.prepare(
     `SELECT metadata_json FROM audit_entries WHERE entity_id = ? AND action_type = 'club.reactivated'`,
   ).all(clubId) as Array<{ metadata_json: string }>;
 }
 
-describe('leaveClub: sole co-leader confirmation', () => {
+describe('leaveClub: confirmation', () => {
   it('the only co-leader leaving unconfirmed is asked to confirm, and nothing changes yet', () => {
     const memberId = seedMember();
     const clubId = insertClub(db, { name: 'Sole Co-leader Club' });
@@ -81,9 +100,10 @@ describe('leaveClub: sole co-leader confirmation', () => {
     insertClubLeader(db, { club_id: clubId, member_id: memberId });
 
     const result = clubSvc.leaveClub(memberId, clubId);
-    expect(result.branch).toBe('needs_coleader_confirmation');
-    if (result.branch === 'needs_coleader_confirmation') {
+    expect(result.branch).toBe('needs_confirmation');
+    if (result.branch === 'needs_confirmation') {
       expect(result.clubName).toBe('Sole Co-leader Club');
+      expect(result.isSoleCoLeader).toBe(true);
     }
     // Unconfirmed: still a current member and still a co-leader.
     expect(affiliationIsCurrent(memberId, clubId)).toBe(1);
@@ -102,7 +122,7 @@ describe('leaveClub: sole co-leader confirmation', () => {
     expect(leaderRowCount(memberId, clubId)).toBe(0);
   });
 
-  it('a co-leader who is not the only one leaves without a confirmation gate', () => {
+  it('a co-leader who is not the only one is confirmed without the leaderless warning', () => {
     const leaverId = seedMember();
     const otherId = seedMember();
     const clubId = insertClub(db, { name: 'Two Co-leaders Club' });
@@ -110,19 +130,124 @@ describe('leaveClub: sole co-leader confirmation', () => {
     insertClubLeader(db, { club_id: clubId, member_id: leaverId });
     insertClubLeader(db, { club_id: clubId, member_id: otherId });
 
-    const result = clubSvc.leaveClub(leaverId, clubId);
-    expect(result.branch).toBe('left');
+    const asked = clubSvc.leaveClub(leaverId, clubId);
+    expect(asked.branch).toBe('needs_confirmation');
+    if (asked.branch === 'needs_confirmation') expect(asked.isSoleCoLeader).toBe(false);
+    expect(leaderRowCount(leaverId, clubId)).toBe(1);
+
+    expect(clubSvc.leaveClub(leaverId, clubId, { confirmed: true }).branch).toBe('left');
     expect(leaderRowCount(leaverId, clubId)).toBe(0);
     expect(leaderRowCount(otherId, clubId)).toBe(1);
   });
 
-  it('a plain member (not a co-leader) leaves without a confirmation gate', () => {
+  it('a plain member is asked to confirm, and nothing changes until they do', () => {
     const memberId = seedMember();
     const clubId = insertClub(db, { name: 'Plain Member Club' });
     insertMemberClubAffiliation(db, memberId, clubId, { is_primary: 1 });
 
-    const result = clubSvc.leaveClub(memberId, clubId);
-    expect(result.branch).toBe('left');
+    const asked = clubSvc.leaveClub(memberId, clubId);
+    expect(asked.branch).toBe('needs_confirmation');
+    if (asked.branch === 'needs_confirmation') expect(asked.isSoleCoLeader).toBe(false);
+    expect(affiliationIsCurrent(memberId, clubId)).toBe(1);
+
+    expect(clubSvc.leaveClub(memberId, clubId, { confirmed: true }).branch).toBe('left');
+    expect(affiliationIsCurrent(memberId, clubId)).toBe(0);
+  });
+
+  it('a member who is not in the club is told so rather than asked to confirm', () => {
+    const memberId = seedMember();
+    const clubId = insertClub(db, { name: 'Unjoined Club' });
+
+    expect(clubSvc.leaveClub(memberId, clubId).branch).toBe('not_member');
+  });
+});
+
+describe('stepDownFromLeader: confirmation', () => {
+  it('the only co-leader is warned the club goes leaderless, and keeps the role until they confirm', () => {
+    const memberId = seedMember();
+    const clubId = insertClub(db, { name: 'Sole Step Down Club' });
+    insertMemberClubAffiliation(db, memberId, clubId, { is_primary: 1 });
+    insertClubLeader(db, { club_id: clubId, member_id: memberId });
+
+    const asked = clubSvc.stepDownFromLeader(memberId, clubId);
+    expect(asked.branch).toBe('needs_confirmation');
+    if (asked.branch === 'needs_confirmation') {
+      expect(asked.clubName).toBe('Sole Step Down Club');
+      expect(asked.isSoleCoLeader).toBe(true);
+    }
+    expect(leaderRowCount(memberId, clubId)).toBe(1);
+  });
+
+  it('confirming gives up the role and keeps club membership', () => {
+    const memberId = seedMember();
+    const clubId = insertClub(db, { name: 'Confirmed Step Down Club' });
+    insertMemberClubAffiliation(db, memberId, clubId, { is_primary: 1 });
+    insertClubLeader(db, { club_id: clubId, member_id: memberId });
+
+    expect(clubSvc.stepDownFromLeader(memberId, clubId, { confirmed: true }).branch).toBe('stepped_down');
+    expect(leaderRowCount(memberId, clubId)).toBe(0);
+    expect(affiliationIsCurrent(memberId, clubId)).toBe(1);
+  });
+
+  it('one of several co-leaders is confirmed without the leaderless warning', () => {
+    const memberId = seedMember();
+    const otherId = seedMember();
+    const clubId = insertClub(db, { name: 'Shared Step Down Club' });
+    insertMemberClubAffiliation(db, memberId, clubId, { is_primary: 1 });
+    insertClubLeader(db, { club_id: clubId, member_id: memberId });
+    insertClubLeader(db, { club_id: clubId, member_id: otherId });
+
+    const asked = clubSvc.stepDownFromLeader(memberId, clubId);
+    expect(asked.branch).toBe('needs_confirmation');
+    if (asked.branch === 'needs_confirmation') expect(asked.isSoleCoLeader).toBe(false);
+  });
+
+  it('a member who does not co-lead is told so rather than asked to confirm', () => {
+    const memberId = seedMember();
+    const clubId = insertClub(db, { name: 'Not My Club' });
+    insertMemberClubAffiliation(db, memberId, clubId, { is_primary: 1 });
+
+    expect(clubSvc.stepDownFromLeader(memberId, clubId).branch).toBe('not_leader');
+  });
+});
+
+describe('leaveClub: a lone remaining affiliation is primary', () => {
+  it('leaving the primary club promotes the one remaining affiliation and records it', () => {
+    const memberId = seedMember();
+    const primaryId = insertClub(db, { name: 'Promote Primary Club' });
+    const secondaryId = insertClub(db, { name: 'Promote Secondary Club' });
+    insertMemberClubAffiliation(db, memberId, primaryId, { is_primary: 1 });
+    insertMemberClubAffiliation(db, memberId, secondaryId, { is_primary: 0 });
+
+    expect(clubSvc.leaveClub(memberId, primaryId, { confirmed: true }).branch).toBe('left');
+
+    expect(isPrimary(memberId, secondaryId)).toBe(1);
+    expect(lastMemberLeftMetadata(memberId).promoted_primary_club_id).toBe(secondaryId);
+  });
+
+  it('leaving the secondary club leaves the primary designation alone', () => {
+    const memberId = seedMember();
+    const primaryId = insertClub(db, { name: 'Kept Primary Club' });
+    const secondaryId = insertClub(db, { name: 'Dropped Secondary Club' });
+    insertMemberClubAffiliation(db, memberId, primaryId, { is_primary: 1 });
+    insertMemberClubAffiliation(db, memberId, secondaryId, { is_primary: 0 });
+
+    expect(clubSvc.leaveClub(memberId, secondaryId, { confirmed: true }).branch).toBe('left');
+
+    expect(isPrimary(memberId, primaryId)).toBe(1);
+    expect(lastMemberLeftMetadata(memberId).promoted_primary_club_id).toBeNull();
+  });
+
+  it('leaving the only club promotes nothing', () => {
+    const memberId = seedMember();
+    const clubId = insertClub(db, { name: 'Last Club' });
+    insertMemberClubAffiliation(db, memberId, clubId, { is_primary: 1 });
+
+    expect(clubSvc.leaveClub(memberId, clubId, { confirmed: true }).branch).toBe('left');
+
+    expect(affiliationIsCurrent(memberId, clubId)).toBe(0);
+    expect(isPrimary(memberId, clubId)).toBe(0);
+    expect(lastMemberLeftMetadata(memberId).promoted_primary_club_id).toBeNull();
   });
 });
 

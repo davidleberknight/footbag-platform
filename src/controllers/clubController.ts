@@ -180,12 +180,13 @@ export const clubController = {
       const confirmed = req.body?.confirmed === '1';
       const result = clubService.leaveClub(req.user!.userId, clubId, { confirmed });
 
-      if (result.branch === 'needs_coleader_confirmation') {
+      if (result.branch === 'needs_confirmation') {
         const key = encodeURIComponent(req.params.key);
         res.render('clubs/leave-confirm', {
           seo: { title: 'Leave Club' },
           page: { sectionKey: 'clubs', pageKey: 'clubs_leave_confirm', title: `Leave ${result.clubName}` },
           clubName: result.clubName,
+          isSoleCoLeader: result.isSoleCoLeader,
           leaveHref: `/clubs/${key}/leave`,
           manageCoLeadersHref: `/clubs/${key}`,
           cancelHref: `/members/${encodeURIComponent(req.user!.slug)}`,
@@ -196,10 +197,7 @@ export const clubController = {
       if (result.branch === 'not_member') {
         writeFlash(res, req, FLASH_KIND.CLUB_ACTION, 'You are not a member of this club.');
       } else {
-        const msg = result.remainingClubName
-          ? `Left club. ${result.remainingClubName} remains. You can designate it as your primary club.`
-          : 'Left club.';
-        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, msg);
+        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, 'Left club.');
       }
       res.redirect(303, `/members/${encodeURIComponent(req.user!.slug)}`);
     } catch (err) {
@@ -225,7 +223,22 @@ export const clubController = {
   postStepDown(req: Request, res: Response, next: NextFunction): void {
     try {
       const clubId = clubService.resolveClubIdByKey(req.params.key);
-      const result = clubService.stepDownFromLeader(req.user!.userId, clubId);
+      const confirmed = req.body?.confirmed === '1';
+      const result = clubService.stepDownFromLeader(req.user!.userId, clubId, { confirmed });
+
+      if (result.branch === 'needs_confirmation') {
+        const key = encodeURIComponent(req.params.key);
+        res.render('clubs/step-down-confirm', {
+          seo: { title: 'Step Down as Co-leader' },
+          page: { sectionKey: 'clubs', pageKey: 'clubs_step_down_confirm', title: `Step down from ${result.clubName}` },
+          clubName: result.clubName,
+          isSoleCoLeader: result.isSoleCoLeader,
+          stepDownHref: `/clubs/${key}/step-down`,
+          manageCoLeadersHref: `/clubs/${key}`,
+          cancelHref: `/members/${encodeURIComponent(req.user!.slug)}`,
+        });
+        return;
+      }
 
       if (result.branch === 'not_leader') {
         writeFlash(res, req, FLASH_KIND.CLUB_ACTION, 'You are not a co-leader of this club.');

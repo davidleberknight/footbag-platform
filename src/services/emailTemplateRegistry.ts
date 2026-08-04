@@ -98,7 +98,7 @@ export const TEMPLATE_VARIANTS = {
   club_membership_leader_join:     v('confidential', ['leaderName', 'memberName', 'clubName']),
   club_membership_leader_leave:    v('confidential', ['leaderName', 'memberName', 'clubName']),
   club_volunteer_leadership:       v('confidential', ['leaderName', 'joinerName', 'clubName']),
-  club_coleader_invite:            v('confidential', ['inviteeName', 'clubName']),
+  club_coleader_invite:            v('confidential', ['leaderName', 'inviteeName', 'clubName']),
   club_leaderless_contact:         v('confidential', ['memberName', 'clubName']),
   contact_request_resolution:      v('confidential', ['memberName', 'displayDecision', 'note']),
   admin_queue_alert:               v('internal',     ['taskType', 'entityId']),
@@ -258,9 +258,9 @@ const SHAPERS = {
     variant: 'club_volunteer_leadership',
     merge: { leaderName: p.leaderName, joinerName: p.joinerName, clubName: p.clubName },
   }),
-  club_coleader_invite: (p: { inviteeName: string; clubName: string }): ShapedEmail => ({
+  club_coleader_invite: (p: { leaderName: string; inviteeName: string; clubName: string }): ShapedEmail => ({
     variant: 'club_coleader_invite',
-    merge: { inviteeName: p.inviteeName, clubName: p.clubName },
+    merge: { leaderName: p.leaderName, inviteeName: p.inviteeName, clubName: p.clubName },
   }),
   club_leaderless_contact: (p: { memberName: string; clubName: string }): ShapedEmail => ({
     variant: 'club_leaderless_contact',

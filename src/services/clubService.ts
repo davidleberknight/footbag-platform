@@ -65,6 +65,11 @@
  *     never contact-exposed, deduplicated by person id against bootstrap rows
  *     and dropped once a real member claims. This is the permanent leadership
  *     source for those clubs; the legacy dump and mirror are the only such data.
+ *   - A member holding any current club affiliation holds exactly one primary.
+ *     Every path that creates an affiliation makes it primary when the member
+ *     held none, and leaving promotes a single survivor in the same transaction,
+ *     so a lone affiliation is never left designated secondary. Which of two
+ *     affiliations is primary changes only through the member's explicit swap.
  *
  * Persistence:
  *   clubs, clubs_open, clubs_active, clubs_all, club_leaders, club_bootstrap_leaders,
@@ -2098,9 +2103,9 @@ export class ClubService {
     clubId: string,
     opts: { confirmed?: boolean } = {},
   ):
-    | { branch: 'left'; remainingClubName: string | null }
+    | { branch: 'left' }
     | { branch: 'not_member' }
-    | { branch: 'needs_coleader_confirmation'; clubName: string } {
+    | { branch: 'needs_confirmation'; clubName: string; isSoleCoLeader: boolean } {
     const existing = memberClubAffiliations.findCurrentByMemberAndClub.get(actorMemberId, clubId) as
       | { id: string; is_primary: number; version: number } | undefined;
     if (!existing) {
@@ -2112,25 +2117,45 @@ export class ClubService {
     const leadership = clubLeaders.memberInClubLeadership.get(clubId, actorMemberId) as
       | { id: string; role: 'co-leader' } | undefined;
 
-    // The only co-leader is warned before leaving: once they go the club has no
-    // member-visible contact until someone steps up. Leaving is allowed (a
-    // leaderless club is tolerated), but the member confirms first.
-    if (leadership && !opts.confirmed) {
-      const coLeaderCount = (clubLeaders.countByClubId.get(clubId) as { c: number }).c;
-      if (coLeaderCount === 1) {
-        const soleClubRow = clubs.findById.get(clubId) as { club_id: string; name: string } | undefined;
-        return { branch: 'needs_coleader_confirmation', clubName: soleClubRow?.name ?? 'your club' };
-      }
+    // Leaving takes effect at once and takes any leadership with it. Rejoining
+    // is possible, but not guaranteed on the same terms: the co-leader role is
+    // not restored with the affiliation and the club may fill its five slots
+    // first. Too consequential for a single mis-click, so every leave is
+    // confirmed, and the only co-leader is told the stronger consequence, that
+    // the club has no member-visible contact until someone steps up. Leaving is
+    // still allowed either way; a leaderless club is tolerated.
+    if (!opts.confirmed) {
+      const coLeaderCount = leadership
+        ? (clubLeaders.countByClubId.get(clubId) as { c: number }).c
+        : 0;
+      const clubRow = clubs.findById.get(clubId) as { club_id: string; name: string } | undefined;
+      return {
+        branch: 'needs_confirmation',
+        clubName: clubRow?.name ?? 'your club',
+        isSoleCoLeader: leadership != null && coLeaderCount === 1,
+      };
     }
 
     const now = new Date().toISOString();
-    let remainingClubName: string | null = null;
 
     transaction(() => {
       memberClubAffiliations.deactivate.run(now, 'club_service', actorMemberId, clubId);
 
       if (leadership) {
         clubLeaders.removeByMemberAndClub.run(actorMemberId, clubId);
+      }
+
+      // A member holding any current affiliation holds exactly one primary.
+      // Leaving clears the departing row's flag, so a single survivor is
+      // promoted here rather than left designated secondary with no other club
+      // for the designation to mean anything against.
+      const remaining = memberClubAffiliations.listCurrentWithClubName.all(actorMemberId) as
+        Array<{ club_id: string; is_primary: number }>;
+      const promoted = remaining.length === 1 && remaining[0].is_primary === 0
+        ? remaining[0].club_id
+        : null;
+      if (promoted) {
+        memberClubAffiliations.setPrimary.run(now, 'club_service', actorMemberId, promoted);
       }
 
       appendAuditEntry({
@@ -2144,6 +2169,7 @@ export class ClubService {
           club_id: clubId,
           was_primary: existing.is_primary,
           had_leadership: leadership?.role ?? null,
+          promoted_primary_club_id: promoted,
         },
       });
     });
@@ -2159,14 +2185,7 @@ export class ClubService {
       notificationKey: `${existing.id}:v${existing.version + 1}`,
     });
 
-    // Check if the member has a remaining club (for the "designate as primary" prompt).
-    const remaining = memberClubAffiliations.listCurrentWithClubName.all(actorMemberId) as
-      Array<{ club_name: string }>;
-    if (remaining.length === 1) {
-      remainingClubName = remaining[0].club_name;
-    }
-
-    return { branch: 'left', remainingClubName };
+    return { branch: 'left' };
   }
 
   swapPrimaryAffiliation(
@@ -2430,10 +2449,16 @@ export class ClubService {
       return { branch: 'no_email' };
     }
 
+    // The ping reads as one co-leader asking another, so it carries the
+    // inviter's name; an unreadable actor row falls back to the role.
+    const actor = account.findContactInfoById.get(actorMemberId) as
+      | { display_name: string } | undefined;
+
     try {
       emailService.send({
         template: 'club_coleader_invite',
         params: {
+          leaderName: actor?.display_name ?? 'A co-leader',
           inviteeName: invitee.display_name,
           clubName: club.name,
         },
@@ -2470,13 +2495,29 @@ export class ClubService {
   stepDownFromLeader(
     actorMemberId: string,
     clubId: string,
-  ): {
-    branch: 'stepped_down' | 'not_leader';
-  } {
+    opts: { confirmed?: boolean } = {},
+  ):
+    | { branch: 'stepped_down' }
+    | { branch: 'not_leader' }
+    | { branch: 'needs_confirmation'; clubName: string; isSoleCoLeader: boolean } {
     const leadership = clubLeaders.memberInClubLeadership.get(clubId, actorMemberId) as
       | { id: string; role: 'co-leader' } | undefined;
     if (!leadership) {
       return { branch: 'not_leader' };
+    }
+
+    // The member can volunteer again, so this is reversible in principle, but
+    // not on demand: the club may fill its five co-leader slots first. Too
+    // consequential for a single mis-click, so it is confirmed, and the last
+    // co-leader is told the club is left with no member-visible contact.
+    if (!opts.confirmed) {
+      const coLeaderCount = (clubLeaders.countByClubId.get(clubId) as { c: number }).c;
+      const clubRow = clubs.findById.get(clubId) as { club_id: string; name: string } | undefined;
+      return {
+        branch: 'needs_confirmation',
+        clubName: clubRow?.name ?? 'your club',
+        isSoleCoLeader: coLeaderCount === 1,
+      };
     }
 
     transaction(() => {
