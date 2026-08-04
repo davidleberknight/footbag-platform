@@ -1665,6 +1665,14 @@ export const memberClubAffiliations = {
      WHERE member_id = ? AND club_id = ? AND is_current = 0
   `); },
 
+  // Sets one current affiliation primary. swapPrimary flips both rows and so
+  // cannot serve a member left holding a single affiliation.
+  get setPrimary() { return db.prepare(`
+    UPDATE member_club_affiliations
+       SET is_primary = 1, updated_at = ?, updated_by = ?, version = version + 1
+     WHERE member_id = ? AND club_id = ? AND is_current = 1
+  `); },
+
   get swapPrimary() { return db.prepare(`
     UPDATE member_club_affiliations
        SET is_primary = CASE WHEN is_primary = 1 THEN 0 ELSE 1 END,

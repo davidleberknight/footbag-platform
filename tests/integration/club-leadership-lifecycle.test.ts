@@ -218,7 +218,7 @@ describe('join/leave notification emails', () => {
     const memberId = seedMember();
 
     const joined = clubSvc.joinClub(memberId, clubId);
-    const left = clubSvc.leaveClub(memberId, clubId);
+    const left = clubSvc.leaveClub(memberId, clubId, { confirmed: true });
     expect(left.branch).toBe('left');
 
     const memberMail = outboxFor(memberId);
@@ -243,7 +243,7 @@ describe('join/leave notification emails', () => {
 
     const joined = clubSvc.joinClub(memberId, clubId);
     expect(joined.branch).toBe('joined_primary');
-    expect(clubSvc.leaveClub(memberId, clubId).branch).toBe('left');
+    expect(clubSvc.leaveClub(memberId, clubId, { confirmed: true }).branch).toBe('left');
 
     const rejoined = clubSvc.joinClub(memberId, clubId);
     expect(rejoined.branch).toBe('joined_primary');

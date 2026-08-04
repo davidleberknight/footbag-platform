@@ -1,7 +1,7 @@
 {
   "templateKey": "club_coleader_invite",
-  "subjectTemplate": "You're invited to co-lead {clubName}",
-  "bodyTemplate": "Hi {inviteeName},\n\nA co-leader of the footbag club \"{clubName}\" invited you to join its leadership as a co-leader.\n\nCo-leaders share their contact email with other logged-in members and help keep the club's page up to date.\n\nTo accept, log in to your account, open Clubs, find \"{clubName}\", and choose \"Volunteer to co-lead\". You must be a current member of the club with Tier 1 benefits, and a member can co-lead one club at a time.\n\n-- IFPA platform",
+  "subjectTemplate": "Will you co-lead {clubName} with me?",
+  "bodyTemplate": "Hi {inviteeName},\n\n{leaderName} here, a co-leader of the footbag club \"{clubName}\". Will you join me as a co-leader?\n\nTwo things change if you do. Your name appears on the club's page, and your contact email is shown to signed-in members, so anyone looking for the club can reach us. You can also edit the club's details page to keep it current.\n\nTo say yes, log in, open Clubs, find \"{clubName}\", and choose \"Volunteer to co-lead\". You must be a current member of the club with Tier 1 benefits, and a member can co-lead one club at a time.\n\nIf you would rather not, no reply is needed.\n\n-- IFPA platform",
   "piiClassification": "confidential",
   "isEnabled": true
 }

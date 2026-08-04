@@ -14,7 +14,7 @@
             </div>
             <div class="my-clubs-actions">
               <form method="POST" action="{{this.leaveHref}}" class="inline-form">
-                <button type="submit" class="btn-link text-muted fs-sm">Leave Club</button>
+                <button type="submit" class="btn btn-outline">Leave Club</button>
               </form>
               {{#if this.canMarkInactive}}
                 <form method="POST" action="{{this.clubHref}}/mark-inactive" class="inline-form">
@@ -28,7 +28,7 @@
               {{/if}}
               {{#if this.canStepDown}}
                 <form method="POST" action="{{this.clubHref}}/step-down" class="inline-form">
-                  <button type="submit" class="btn-link text-muted fs-sm">Step Down as Co-leader</button>
+                  <button type="submit" class="btn btn-outline">Step Down as Co-leader</button>
                 </form>
               {{/if}}
               {{#if this.canVolunteer}}

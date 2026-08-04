@@ -114,7 +114,7 @@ describe('emailService render-from-DB contract', () => {
 
     const result = email.emailService.send({
       template: 'club_coleader_invite',
-      params: { inviteeName: 'I', clubName: 'C' },
+      params: { leaderName: 'L', inviteeName: 'I', clubName: 'C' },
       recipientEmail: 'stray-target@example.com',
     });
     expect(result.status).toBe('enqueued');

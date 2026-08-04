@@ -57,6 +57,9 @@ interface ClubAffiliationsCardContent {
   // are the step's only exits.
   noClubsHref:     string;
   card:            WizardCard | null;
+  // Set only when the step is already finished and the page is drawing solely
+  // to carry the cap notice; it replaces the card and the no-club exit.
+  continueHref:    string | null;
   cardsTotal:      number;
   cardsRemaining:  number;
   resolvedNotice:  { clubName: string; decision: 'confirm' | 'correct' | 'decline'; message: string } | null;
@@ -226,6 +229,12 @@ function readClubResolvedFlash(
   return null;
 }
 
+// Peek, never consume: the render that follows is the one entitled to clear the
+// flash and show the notice.
+function clubCapHitFlashPending(req: Request): boolean {
+  return readFlash(req)?.kind === FLASH_KIND.WIZARD_CLUB_CAP_HIT;
+}
+
 function readClubCapHitFlash(req: Request, res: Response): { clubName: string } | null {
   const flash = readFlash(req);
   if (!flash) return null;
@@ -259,7 +268,7 @@ function capHitNoticeFrom(
 function renderClubAffiliationsCard(
   req: Request,
   res: Response,
-  opts: { formError?: string | null; statusOverride?: number } = {},
+  opts: { formError?: string | null; statusOverride?: number; continueHref?: string | null } = {},
 ): void {
   const memberId = req.user!.userId;
   const cards = memberOnboardingService.listWizardCardsForMember(memberId);
@@ -289,6 +298,7 @@ function renderClubAffiliationsCard(
       submitHref:     '/register/wizard/club_affiliations/submit',
       noClubsHref:    '/register/wizard/club_affiliations/none',
       card:           cards.length > 0 ? cards[0] : null,
+      continueHref:   opts.continueHref ?? null,
       cardsTotal,
       cardsRemaining,
       resolvedNotice,
@@ -421,14 +431,27 @@ export const memberOnboardingController = {
       // wizard from rendering a search page for an already-linked account
       // or a "no clubs to confirm" empty state for a member who can never
       // have cards.
+      // A cap-hit answer must be read beside the step that produced it. When the
+      // capped club was the member's last card, this GET is where the task
+      // completes, so without holding the render here the club page never draws
+      // again and the explanation surfaces a step later with no card in sight.
+      // The club cards and the no-club exit are spent by then, so the page shows
+      // the notice and a way onward. The completion page keeps the notice for
+      // the case where there is genuinely no further club render.
+      const capAcknowledgement = taskType === 'club_affiliations' && clubCapHitFlashPending(req);
+
       let transitioned = false;
       if (taskType === 'legacy_claim') {
         transitioned = memberOnboardingService.ensureLegacyClaimReflectsState(memberId);
       } else if (taskType === 'club_affiliations') {
         transitioned = memberOnboardingService.ensureClubAffiliationsReflectsState(memberId);
       }
-      if (transitioned) {
+      if (transitioned && !capAcknowledgement) {
         res.redirect(303, nextPendingHref(memberId));
+        return;
+      }
+      if (capAcknowledgement && memberOnboardingService.getTaskState(memberId, taskType) === 'completed') {
+        renderClubAffiliationsCard(req, res, { continueHref: nextPendingHref(memberId) });
         return;
       }
 

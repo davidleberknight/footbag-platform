@@ -76,7 +76,7 @@ const CATALOG: CatalogEntry[] = [
     { params: { leaderName: 'L', joinerName: 'J', clubName: 'C' }, variant: 'club_volunteer_leadership' },
   ] },
   { template: 'club_coleader_invite', services: ['clubService'], samples: [
-    { params: { inviteeName: 'I', clubName: 'C' }, variant: 'club_coleader_invite' },
+    { params: { leaderName: 'L', inviteeName: 'I', clubName: 'C' }, variant: 'club_coleader_invite' },
   ] },
   { template: 'club_leaderless_contact', services: ['clubCleanupService'], samples: [
     { params: { memberName: 'M', clubName: 'C' }, variant: 'club_leaderless_contact' },

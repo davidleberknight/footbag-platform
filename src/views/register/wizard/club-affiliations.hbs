@@ -24,6 +24,12 @@
       <p class="form-notice" role="alert">{{content.formError}}</p>
     {{/if}}
 
+    {{#if content.continueHref}}
+      {{! The capped answer finished this step, so the club cards and the
+          no-club exit are both spent; the member reads what happened to their
+          Yes here and moves on from the same page. }}
+      <p class="mt-6"><a href="{{content.continueHref}}" class="btn btn-primary">Continue</a></p>
+    {{else}}
     {{#if content.card}}
       <p class="mb-4">Please help us to clean up the old club data.</p>
 
@@ -141,6 +147,7 @@
       <form method="POST" action="{{content.noClubsHref}}" class="mt-6">
         <button type="submit" class="btn btn-primary">Finish Without a Club</button>
       </form>
+    {{/if}}
     {{/if}}
 
     <p class="mt-2"><a href="{{content.dashboardHref}}">Back to dashboard</a></p>

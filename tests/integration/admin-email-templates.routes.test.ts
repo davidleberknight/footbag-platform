@@ -56,7 +56,7 @@ function auditRowsFor(key: string): Array<{ action_type: string; actor_member_id
 function validBody(overrides: Record<string, string> = {}): Record<string, string> {
   return {
     subjectTemplate: 'Co-lead {clubName}?',
-    bodyTemplate: 'Hi {inviteeName},\n\nCome co-lead {clubName}.\n\n-- IFPA platform',
+    bodyTemplate: 'Hi {inviteeName},\n\n{leaderName} asks you to come co-lead {clubName}.\n\n-- IFPA platform',
     piiClassification: 'confidential',
     isEnabled: '1',
     ...overrides,
@@ -130,7 +130,7 @@ describe('POST /admin/email-templates/:key/edit', () => {
 
     const after = templateRow('club_coleader_invite');
     expect(after.subject_template).toBe('Co-lead {clubName}?');
-    expect(after.body_template).toContain('Come co-lead {clubName}.');
+    expect(after.body_template).toContain('asks you to come co-lead {clubName}.');
     expect(after.version).toBe(before.version + 1);
     expect(after.updated_by).toBe(ADMIN_ID);
 
@@ -155,7 +155,7 @@ describe('POST /admin/email-templates/:key/edit', () => {
     db.close();
     expect(row.subject).toBe('Co-lead Boulder Footbag?');
     expect(row.body_text).toContain('Hi Renee,');
-    expect(row.body_text).toContain('Come co-lead Boulder Footbag.');
+    expect(row.body_text).toContain('asks you to come co-lead Boulder Footbag.');
   });
 
   it('rejects an unknown merge token with a 422 naming the allowed fields, leaving the row unchanged', async () => {

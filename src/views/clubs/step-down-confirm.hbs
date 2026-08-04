@@ -1,0 +1,29 @@
+{{! Step-down-as-co-leader confirmation; the sole co-leader gets the stronger warning }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+
+    {{#if isSoleCoLeader}}
+      <p class="notice notice-warn" role="alert">You are the only co-leader of {{clubName}}. If you step down, the club will have no member-visible contact until someone steps up.</p>
+    {{else}}
+      <p class="notice notice-warn" role="alert">Stepping down gives up your co-leader role for {{clubName}}.</p>
+    {{/if}}
+
+    <p class="text-muted">You stay a member of the club either way. Taking the role back is not automatic: a club holds at most five co-leaders, so the place you give up may be taken.</p>
+
+    <div class="form-actions">
+      <form method="POST" action="{{stepDownHref}}" class="inline-form">
+        <input type="hidden" name="confirmed" value="1" />
+        <button type="submit" class="btn btn-outline">Step Down</button>
+      </form>
+      <a href="{{cancelHref}}" class="btn btn-outline">Cancel</a>
+    </div>
+
+  </section>
+</div>

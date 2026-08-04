@@ -304,7 +304,16 @@ describe('POST /clubs/:key/step-down', () => {
     insertClubLeader(db, { club_id: clubId, member_id: m });
     insertMemberClubAffiliation(db, m, clubId);
 
-    const res = await request(createApp()).post(`/clubs/${clubKey}/step-down`).set('Cookie', cookieFor(m));
+    const asked = await request(createApp()).post(`/clubs/${clubKey}/step-down`).set('Cookie', cookieFor(m));
+    expect(asked.status).toBe(200);
+    expect(asked.text).toContain('Step Down');
+    expect(leaderRows(clubId)).toHaveLength(1);
+
+    const res = await request(createApp())
+      .post(`/clubs/${clubKey}/step-down`)
+      .set('Cookie', cookieFor(m))
+      .type('form')
+      .send({ confirmed: '1' });
     expect(res.status).toBe(303);
 
     expect(leaderRows(clubId)).toHaveLength(0);
@@ -320,7 +329,11 @@ describe('POST /clubs/:key/step-down', () => {
     insertClubLeader(db, { club_id: clubId, member_id: m });
     insertMemberClubAffiliation(db, m, clubId);
 
-    const res = await request(createApp()).post(`/clubs/${clubKey}/step-down`).set('Cookie', cookieFor(m));
+    const res = await request(createApp())
+      .post(`/clubs/${clubKey}/step-down`)
+      .set('Cookie', cookieFor(m))
+      .type('form')
+      .send({ confirmed: '1' });
     expect(res.status).toBe(303);
     expect(leaderRows(clubId)).toHaveLength(0);
     const club = db.prepare(`SELECT status FROM clubs WHERE id = ?`).get(clubId) as { status: string };
