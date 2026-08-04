@@ -88,17 +88,21 @@ describe('GET /members — removed (no landing page of its own)', () => {
     expect(res.status).toBe(404);
   });
 
-  it('the login visitor entry tells legacy footbag.org users they need a new account', async () => {
-    // Arrivals from the old site must learn up front that old credentials do
-    // not carry over and that historical data is linked during setup. That
-    // guidance now lives on the login visitor entry.
+  it('the login visitor entry names the old-site arrival and the newcomer as equal cases', async () => {
+    // The entry page serves three groups and must not let one of them read as
+    // an afterthought. Arrivals from the old site learn up front that their old
+    // credentials do not carry over and that their history is linked during
+    // setup; a newcomer gets a case of their own with the same weight; and both
+    // are offered the same account-creation route, since there is no other way
+    // in for either.
     const app = createApp();
     const res = await request(app).get('/login');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Had an account on the old footbag.org?');
-    expect(res.text).toContain('create a new account');
-    expect(res.text).toContain('to become a member in the new system');
+    expect(res.text).toContain('create a new account here first to become a member in the new system');
     expect(res.text).toContain('link to your historical data');
+    expect(res.text).toContain('New to IFPA?');
+    expect(res.text).toContain('Create an Account');
   });
 
   it('authenticated → 404 (the route does not exist)', async () => {

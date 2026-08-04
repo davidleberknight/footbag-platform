@@ -50,7 +50,7 @@ Any redirect target derived from `?returnTo=`, `Referer`, or other request input
 
 ## Auth gates
 
-Authentication is checked by middleware (`requireAuth` from `src/middleware/auth.ts`) at the route layer, not in the controller body. Ownership and authorization within an authenticated request (for example, `:memberKey` matches `req.user.slug`) are checked in the controller and return 404 on mismatch (anti-enumeration), not 403.
+Authentication and membership are checked by middleware at the route layer, not in the controller body: `requireAuth` for a signed-in visitor, and `requireMember` for the member-capability routes, which additionally requires onboarding to be complete. Both live in `src/middleware/auth.ts`. Ownership and authorization within an authenticated request (for example, `:memberKey` matches `req.user.slug`) are checked in the controller and return 404 on mismatch (anti-enumeration), not 403.
 
 For anti-enumeration endpoints (login, register, password reset, email verify, claim lookup), the controller does not branch on whether the account exists; it calls the service unconditionally and lets the service run the identical path both ways.
 
@@ -60,4 +60,4 @@ For anti-enumeration endpoints (login, register, password reset, email verify, c
 
 ## Pre-shaped middleware locals
 
-Middleware sets `res.locals.isAdmin`, `res.locals.isAuthenticated`, `res.locals.currentSection`, etc. so templates branch on booleans (`{{#if isAdmin}}`), never on raw enum values (`{{#if (eq role 'admin')}}`). Controllers do not duplicate this shaping.
+Middleware sets `res.locals.isAdmin`, `res.locals.isAuthenticated`, `res.locals.isMember`, `res.locals.currentSection`, etc. so templates branch on booleans (`{{#if isAdmin}}`), never on raw enum values (`{{#if (eq role 'admin')}}`). Controllers do not duplicate this shaping.

@@ -47,6 +47,7 @@ export interface MemberOverrides {
   real_name?: string;
   display_name?: string;
   city?: string | null;
+  region?: string | null;
   country?: string | null;
   password_hash?: string;
   email_verified_at?: string | null;
@@ -76,6 +77,14 @@ export interface MemberOverrides {
   password_version?: number;
   stripe_customer_id?: string | null;
   email_status?: 'ok' | 'bounced' | 'complained' | 'suppressed';
+  /**
+   * Membership is an authorization level: an account is pending until every
+   * onboarding task completes, and only a member reaches member capabilities
+   * or has a profile page. A factory member is therefore a MEMBER by default
+   * (three completed task rows); pass 'none' to build a pending registrant
+   * and seed task states explicitly with insertOnboardingTask.
+   */
+  onboarding?: 'complete' | 'none';
 }
 
 export function insertMember(db: BetterSqlite3.Database, o: MemberOverrides = {}): string {
@@ -115,20 +124,26 @@ export function insertMember(db: BetterSqlite3.Database, o: MemberOverrides = {}
       login_email, login_email_normalized, email_verified_at, email_status,
       password_hash, password_changed_at, password_version,
       real_name, display_name, display_name_normalized,
-      bio, birth_date, city, country,
+      bio, birth_date, city, region, country,
       is_admin, is_system, is_board, is_hof, hof_inducted_year, is_bap, is_deceased, deceased_at, deceased_note,
       searchable,
       deleted_at, deletion_requested_at, deletion_grace_expires_at, personal_data_purged_at,
       show_competitive_results, show_first_competition_year, gender, show_gender, legacy_member_id, historical_person_id, first_competition_year,
       stripe_customer_id,
       created_at, created_by, updated_at, updated_by, version
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
   `).run(
     id, slug,
     email, emailNormalized, emailVerifiedAt, o.email_status ?? 'ok',
     passwordHash, passwordChanged, o.password_version ?? 1,
     name, display, display.toLowerCase(),
-    o.bio ?? '', o.birth_date ?? null, o.city === null ? null : (o.city ?? 'Testville'), o.country === null ? null : (o.country ?? 'US'),
+    // Location defaults are a LEGAL member state under the live rules: the
+    // canonical picker country plus a real state code, since region is
+    // required for the USA. A factory member must satisfy the same
+    // invariants the production write path enforces.
+    o.bio ?? '', o.birth_date ?? null, o.city === null ? null : (o.city ?? 'Testville'),
+    o.region === null ? null : (o.region ?? 'CO'),
+    o.country === null ? null : (o.country ?? 'United States'),
     o.is_admin ?? 0, o.is_system ?? 0, o.is_board ?? 0, o.is_hof ?? 0, o.hof_inducted_year ?? null, o.is_bap ?? 0, o.is_deceased ?? 0, o.deceased_at ?? null, o.deceased_note ?? null,
     o.searchable ?? 1,
     o.deleted_at ?? null, o.deletion_requested_at ?? null, o.deletion_grace_expires_at ?? null, purged,
@@ -136,6 +151,9 @@ export function insertMember(db: BetterSqlite3.Database, o: MemberOverrides = {}
     o.stripe_customer_id ?? null,
     TS, SYS, TS, SYS,
   );
+  if ((o.onboarding ?? 'complete') === 'complete') {
+    completeOnboarding(db, id);
+  }
   return id;
 }
 
@@ -973,7 +991,7 @@ export function createTier3WithUnderlying(
 
 export type OnboardingTaskType = 'personal_details' | 'legacy_claim' | 'club_affiliations';
 export type OnboardingTaskState =
-  'pending' | 'in_progress_paused' | 'skipped' | 'completed' | 'not_applicable';
+  'pending' | 'completed';
 
 /**
  * Insert one member_onboarding_tasks row at an explicit state. completed_at is

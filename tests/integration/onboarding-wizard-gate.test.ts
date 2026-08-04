@@ -1,11 +1,12 @@
 /**
- * Membership-completion gate (requireOnboardingComplete). A verified member is
- * not a full member until the two REQUIRED onboarding tasks are completed:
- * personal_details and the legacy_claim decision. Until then the member is
- * redirected off the member, club, and admin capability surfaces to the wizard.
- * A skipped required task does NOT satisfy the gate (skipping is not a
- * decision). club_affiliations is optional and never gates membership. Once both
- * required tasks are completed the gate is a no-op.
+ * Membership authorization (requireMember). Membership is an authorization
+ * level above authentication: an account is pending from registration until
+ * all three onboarding tasks are completed, and a pending registrant holds a
+ * session but no member authorization. A pending request to any member
+ * capability is routed to its next outstanding wizard task; public browse,
+ * the wizard and its claim affordances, and logout are all a pending
+ * registrant can reach. A pending account also has no profile page for any
+ * non-admin viewer and never appears in member search.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
@@ -35,9 +36,13 @@ function cookieFor(memberId: string): string {
   return `__Host-footbag_session=${createTestSessionJwt({ memberId })}`;
 }
 
-describe('requireOnboardingComplete — membership gate', () => {
-  it('zero task rows: a gated club route redirects to the wizard', async () => {
-    const memberId = insertMember(testDb, { slug: 'gate_zero_rows' });
+function insertPendingMember(slug: string, extra: Parameters<typeof insertMember>[1] = {}): string {
+  return insertMember(testDb, { slug, onboarding: 'none', ...extra });
+}
+
+describe('requireMember — membership authorization gate', () => {
+  it('zero task rows: a member-capability route redirects to the wizard', async () => {
+    const memberId = insertPendingMember('gate_zero_rows');
     const res = await request(createApp())
       .get('/clubs/create')
       .set('Cookie', cookieFor(memberId));
@@ -45,125 +50,213 @@ describe('requireOnboardingComplete — membership gate', () => {
     expect(res.headers.location).toContain('/register/wizard/');
   });
 
-  it('both required tasks completed (club task still pending): gated route passes through', async () => {
-    const memberId = insertMember(testDb, { slug: 'gate_required_done' });
+  it('the club question unanswered on its own still gates: all three tasks are required', async () => {
+    const memberId = insertPendingMember('gate_club_pending');
     insertOnboardingTask(testDb, memberId, 'personal_details', 'completed');
     insertOnboardingTask(testDb, memberId, 'legacy_claim', 'completed');
     insertOnboardingTask(testDb, memberId, 'club_affiliations', 'pending');
     const res = await request(createApp())
       .get('/clubs/create')
       .set('Cookie', cookieFor(memberId));
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/register/wizard/club_affiliations');
+  });
+
+  it('all three tasks answered: the member is authorized and the capability route serves', async () => {
+    const memberId = insertMember(testDb, { slug: 'gate_all_done' });
+    const res = await request(createApp())
+      .get('/clubs/create')
+      .set('Cookie', cookieFor(memberId));
     expect(res.status).not.toBe(303);
   });
 
-  it('personal_details only SKIPPED: still gated (skipping is not completing)', async () => {
-    const memberId = insertMember(testDb, { slug: 'gate_pd_skipped' });
-    insertOnboardingTask(testDb, memberId, 'personal_details', 'skipped');
+  it('personal_details unanswered: still pending, and routed to that task first', async () => {
+    const memberId = insertPendingMember('gate_pd_pending');
+    insertOnboardingTask(testDb, memberId, 'personal_details', 'pending');
     insertOnboardingTask(testDb, memberId, 'legacy_claim', 'completed');
+    insertOnboardingTask(testDb, memberId, 'club_affiliations', 'completed');
     const res = await request(createApp())
       .get('/clubs/create')
       .set('Cookie', cookieFor(memberId));
     expect(res.status).toBe(303);
-    expect(res.headers.location).toContain('/register/wizard/');
+    expect(res.headers.location).toBe('/register/wizard/personal_details');
   });
 
-  it('legacy_claim only SKIPPED: still gated (the legacy decision is required)', async () => {
-    const memberId = insertMember(testDb, { slug: 'gate_lc_skipped' });
+  it('legacy_claim unanswered: still pending, since the legacy decision is required', async () => {
+    const memberId = insertPendingMember('gate_lc_pending');
     insertOnboardingTask(testDb, memberId, 'personal_details', 'completed');
-    insertOnboardingTask(testDb, memberId, 'legacy_claim', 'skipped');
+    insertOnboardingTask(testDb, memberId, 'legacy_claim', 'pending');
+    insertOnboardingTask(testDb, memberId, 'club_affiliations', 'completed');
     const res = await request(createApp())
       .get('/clubs/create')
       .set('Cookie', cookieFor(memberId));
     expect(res.status).toBe(303);
-    expect(res.headers.location).toContain('/register/wizard/');
+    expect(res.headers.location).toBe('/register/wizard/legacy_claim');
   });
 
-  it('personal_details NOT_APPLICABLE: still gated (only completed satisfies the predicate)', async () => {
-    const memberId = insertMember(testDb, { slug: 'gate_pd_na' });
-    insertOnboardingTask(testDb, memberId, 'personal_details', 'not_applicable');
-    insertOnboardingTask(testDb, memberId, 'legacy_claim', 'completed');
-    const res = await request(createApp())
-      .get('/clubs/create')
-      .set('Cookie', cookieFor(memberId));
-    expect(res.status).toBe(303);
-    expect(res.headers.location).toContain('/register/wizard/');
-  });
-
-  it('legacy_claim NOT_APPLICABLE: still gated (only completed satisfies the predicate)', async () => {
-    const memberId = insertMember(testDb, { slug: 'gate_lc_na' });
-    insertOnboardingTask(testDb, memberId, 'personal_details', 'completed');
-    insertOnboardingTask(testDb, memberId, 'legacy_claim', 'not_applicable');
-    const res = await request(createApp())
-      .get('/clubs/create')
-      .set('Cookie', cookieFor(memberId));
-    expect(res.status).toBe(303);
-    expect(res.headers.location).toContain('/register/wizard/');
-  });
-
-  it('not complete but nothing outstanding: redirects to the wizard complete page, never back into a task', async () => {
-    // legacy_claim marked not_applicable leaves the member not-complete yet with
-    // no task pending or paused. The gate must send them to the terminal complete
-    // page, which re-checks and routes onward if needed, rather than to a specific
-    // task that is not outstanding and would immediately redirect again.
-    const memberId = insertMember(testDb, { slug: 'gate_none_outstanding' });
-    insertOnboardingTask(testDb, memberId, 'personal_details', 'completed');
-    insertOnboardingTask(testDb, memberId, 'legacy_claim', 'not_applicable');
-    const res = await request(createApp())
-      .get('/clubs/create')
-      .set('Cookie', cookieFor(memberId));
-    expect(res.status).toBe(303);
-    expect(res.headers.location).toBe('/register/wizard/complete');
-  });
-
-  it('club browse (GET /clubs) stays reachable mid-onboarding', async () => {
-    const memberId = insertMember(testDb, { slug: 'gate_browse_open' });
+  it('club browse (GET /clubs) stays reachable while pending — public browse is not a member capability', async () => {
+    const memberId = insertPendingMember('gate_browse_open');
     const res = await request(createApp())
       .get('/clubs')
       .set('Cookie', cookieFor(memberId));
     expect(res.status).not.toBe(303);
   });
 
-  it('club detail / country browse (GET /clubs/:key) stays reachable mid-onboarding', async () => {
-    // The wizard club wrap-up links members to /clubs/{country}, so the gate
-    // must not fence the single-segment club/country read; fencing it bounces
-    // the member back to the wizard the link came from.
-    const memberId = insertMember(testDb, { slug: 'gate_club_detail' });
+  it('club detail / country browse (GET /clubs/:key) stays reachable while pending', async () => {
+    const memberId = insertPendingMember('gate_club_detail');
     const res = await request(createApp())
       .get('/clubs/some-country-or-club')
       .set('Cookie', cookieFor(memberId));
     expect(res.headers.location ?? '').not.toContain('/register/wizard/');
   });
 
-  it('club create (GET /clubs/create) stays fenced mid-onboarding', async () => {
-    // The single-segment browse exemption must not leak the create capability,
-    // which shares the /clubs/<segment> shape.
-    const memberId = insertMember(testDb, { slug: 'gate_club_create_fenced' });
+  it('donations are a member capability: GET /donate redirects a pending registrant to the wizard', async () => {
+    const memberId = insertPendingMember('gate_donate_fenced');
     const res = await request(createApp())
-      .get('/clubs/create')
+      .get('/donate')
       .set('Cookie', cookieFor(memberId));
     expect(res.status).toBe(303);
     expect(res.headers.location).toContain('/register/wizard/');
   });
 
-  it('own profile stays reachable mid-onboarding (whitelisted)', async () => {
-    const memberId = insertMember(testDb, { slug: 'gate_own_profile' });
+  it('POST /donate is likewise denied to a pending registrant', async () => {
+    const memberId = insertPendingMember('gate_donate_post');
     const res = await request(createApp())
-      .get('/members/gate_own_profile')
-      .set('Cookie', cookieFor(memberId));
-    expect(res.status).not.toBe(303);
+      .post('/donate')
+      .set('Cookie', cookieFor(memberId))
+      .type('form')
+      .send({ amount: '10' });
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toContain('/register/wizard/');
   });
 
-  it('admin work pages use normal admin gating, not the onboarding gate', async () => {
-    // Admin is earned by completing onboarding (a separate go-live mechanism),
-    // so an admin reaching an admin page is already onboarded. The onboarding
-    // gate does not fence the admin work surface: an admin is denied by
-    // requireAdmin (403) when not authorized, never bounced to the wizard.
-    const adminId = insertMember(testDb, { slug: 'gate_admin_normal', is_admin: 1 });
+  it('the payment return pages are member-only: GET /payments/success redirects a pending registrant', async () => {
+    const memberId = insertPendingMember('gate_pay_success');
+    const res = await request(createApp())
+      .get('/payments/success')
+      .set('Cookie', cookieFor(memberId));
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toContain('/register/wizard/');
+  });
+
+  it('profile edit is a member capability: a pending registrant is routed to the wizard', async () => {
+    const memberId = insertPendingMember('gate_edit_fenced');
+    const res = await request(createApp())
+      .get('/members/gate_edit_fenced/edit')
+      .set('Cookie', cookieFor(memberId));
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toContain('/register/wizard/');
+  });
+
+  it('contact-admin is a member capability: a pending registrant is routed to the wizard', async () => {
+    const memberId = insertPendingMember('gate_contact_fenced');
+    const res = await request(createApp())
+      .get('/members/gate_contact_fenced/contact-admin')
+      .set('Cookie', cookieFor(memberId));
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toContain('/register/wizard/');
+  });
+
+  it('the wizard itself stays reachable while pending', async () => {
+    const memberId = insertPendingMember('gate_wizard_open');
+    const res = await request(createApp())
+      .get('/register/wizard/personal_details')
+      .set('Cookie', cookieFor(memberId));
+    expect(res.headers.location ?? '').not.toContain('/login');
+    expect(res.status).toBe(200);
+  });
+
+  it('an admin whose onboarding is incomplete is routed to the wizard, not the admin surface', async () => {
+    // Closes the dev-bootstrap gap: an allowlisted admin created at
+    // registration is still pending until the wizard is done. Admin authority
+    // sits above member authority, never beside it.
+    const adminId = insertPendingMember('gate_admin_pending', { is_admin: 1 });
+    const res = await request(createApp())
+      .get('/admin/work-queue')
+      .set('Cookie', cookieFor(adminId));
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toContain('/register/wizard/');
+  });
+
+  it('an onboarded admin passes the membership gate and is governed by requireAdmin as usual', async () => {
+    const adminId = insertMember(testDb, { slug: 'gate_admin_done', is_admin: 1 });
     const res = await request(createApp())
       .get('/admin/work-queue')
       .set('Cookie', cookieFor(adminId));
     expect(res.headers.location ?? '').not.toContain('/register/wizard/');
     expect(res.status).not.toBe(303);
+  });
+
+  it('membership takes effect on the session the registrant already holds', async () => {
+    // Membership is read from the task rows on every request rather than
+    // carried in the session, so answering the last task opens the member
+    // surfaces immediately. A session that had to be reissued would strand a
+    // registrant who just finished the wizard behind the gate that sent them
+    // there, which is why this is asserted on one unchanged cookie.
+    const memberId = insertPendingMember('gate_same_session');
+    insertOnboardingTask(testDb, memberId, 'personal_details', 'completed');
+    insertOnboardingTask(testDb, memberId, 'legacy_claim', 'completed');
+    insertOnboardingTask(testDb, memberId, 'club_affiliations', 'pending');
+    const cookie = cookieFor(memberId);
+
+    const denied = await request(createApp()).get('/clubs/create').set('Cookie', cookie);
+    expect(denied.status).toBe(303);
+    expect(denied.headers.location).toBe('/register/wizard/club_affiliations');
+
+    await request(createApp())
+      .post('/register/wizard/club_affiliations/none')
+      .set('Cookie', cookie)
+      .type('form')
+      .send({});
+
+    const allowed = await request(createApp()).get('/clubs/create').set('Cookie', cookie);
+    expect(allowed.status).not.toBe(303);
+  });
+});
+
+describe('a pending account has no profile page and is not searchable', () => {
+  it('the pending owner requesting their own profile is routed to their next wizard task', async () => {
+    const memberId = insertPendingMember('pending_own_profile');
+    const res = await request(createApp())
+      .get('/members/pending_own_profile')
+      .set('Cookie', cookieFor(memberId));
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toContain('/register/wizard/');
+  });
+
+  it('a member viewing a pending account gets the same not-found as an unknown slug', async () => {
+    insertPendingMember('pending_target');
+    const viewerId = insertMember(testDb, { slug: 'pending_viewer' });
+    const app = createApp();
+    const pendingRes = await request(app)
+      .get('/members/pending_target')
+      .set('Cookie', cookieFor(viewerId));
+    const unknownRes = await request(app)
+      .get('/members/no_such_slug_at_all')
+      .set('Cookie', cookieFor(viewerId));
+    expect(pendingRes.status).toBe(404);
+    expect(unknownRes.status).toBe(404);
+  });
+
+  it('an admin can still open a pending account profile (operational oversight)', async () => {
+    insertPendingMember('pending_admin_target');
+    const adminId = insertMember(testDb, { slug: 'pending_admin_viewer', is_admin: 1 });
+    const res = await request(createApp())
+      .get('/members/pending_admin_target')
+      .set('Cookie', cookieFor(adminId));
+    expect(res.status).toBe(200);
+  });
+
+  it('members_searchable excludes a pending account and admits it on completion', async () => {
+    const memberId = insertPendingMember('pending_search_probe');
+    const count = () =>
+      (testDb.prepare('SELECT COUNT(*) AS c FROM members_searchable WHERE id = ?')
+        .get(memberId) as { c: number }).c;
+    expect(count()).toBe(0);
+    insertOnboardingTask(testDb, memberId, 'personal_details', 'completed');
+    insertOnboardingTask(testDb, memberId, 'legacy_claim', 'completed');
+    insertOnboardingTask(testDb, memberId, 'club_affiliations', 'completed');
+    expect(count()).toBe(1);
   });
 });
 
@@ -172,7 +265,7 @@ describe('wizard complete page — no false completion on zero task rows', () =>
     // With no task rows materialized, the outstanding set is empty and would read
     // as "all done" — a false completion page while the gate still blocks every
     // capability route. The complete handler must materialize the task list first.
-    const memberId = insertMember(testDb, { slug: 'complete_zero_rows' });
+    const memberId = insertPendingMember('complete_zero_rows');
     const res = await request(createApp())
       .get('/register/wizard/complete')
       .set('Cookie', cookieFor(memberId));

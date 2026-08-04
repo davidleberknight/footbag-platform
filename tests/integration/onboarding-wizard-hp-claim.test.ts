@@ -51,7 +51,7 @@ function cookieFor(memberId: string): string {
 // onboarding completes, so members that exercise it have personal_details on
 // file. Inserts a member with that prerequisite already met.
 function insertMemberReady(dbh: BetterSqlite3.Database, o: Parameters<typeof insertMember>[1] = {}): string {
-  const id = insertMember(dbh, o);
+  const id = insertMember(dbh, { onboarding: 'none', ...o });
   insertOnboardingTask(dbh, id, 'personal_details', 'completed');
   return id;
 }
@@ -364,9 +364,11 @@ describe('member already linked to an HP', () => {
       .send({});
     expect(getMember(memberId)!.historical_person_id).toBe(firstHp);
 
-    // Claiming the first record completes onboarding, so the self-serve claim
-    // surface closes: a second attempt is routed to the admin link-help flow and
-    // the member stays linked to the original record, never switched to another.
+    // Claiming the first record answers the claim step; answering the club
+    // question finishes onboarding, which closes the self-serve claim surface:
+    // a second attempt is routed to the admin link-help flow and the member
+    // stays linked to the original record, never switched to another.
+    insertOnboardingTask(db, memberId, 'club_affiliations', 'completed');
     db.prepare("UPDATE members SET real_name = 'Second Hp' WHERE id = ?").run(memberId);
     const res = await request(createApp())
       .post(`/history/${secondHp}/claim/confirm`)

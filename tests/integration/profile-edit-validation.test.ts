@@ -23,9 +23,15 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 
 const MEMBER_ID   = 'edit-val-001';
 const MEMBER_SLUG = 'edit_validator';
+const LINKED_ID   = 'edit-val-linked';
+const LINKED_SLUG = 'edit_val_linked';
 
 function ownCookie(): string {
   return `__Host-footbag_session=${createTestSessionJwt({ memberId: MEMBER_ID })}`;
+}
+
+function linkedCookie(): string {
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: LINKED_ID })}`;
 }
 
 /** Read the member row directly from the test DB to verify persisted values. */
@@ -46,6 +52,16 @@ beforeAll(async () => {
     first_competition_year: 2000,
     show_competitive_results: 1,
   });
+  // A member holding both identity links, so the claim call-to-action has
+  // nothing left to offer them.
+  insertMember(db, {
+    id: LINKED_ID,
+    slug: LINKED_SLUG,
+    display_name: 'Fully Linked',
+    login_email: 'fullylinked@example.com',
+    legacy_member_id: 'legmem-edit-val-linked',
+    historical_person_id: 'person-edit-val-linked',
+  });
   db.close();
   createApp = await importApp();
   // Fully onboard the member so the completion gate is a no-op: these tests
@@ -56,23 +72,127 @@ beforeAll(async () => {
   onboarding.startTaskList(MEMBER_ID);
   onboarding.completeTask(MEMBER_ID, 'personal_details');
   onboarding.completeTask(MEMBER_ID, 'legacy_claim');
+  onboarding.completeTask(MEMBER_ID, 'club_affiliations');
 });
 
 afterAll(() => cleanupTestDb(dbPath));
 
-// City and country are mandatory profile fields, and the edit form pre-fills
-// them from the stored values, so a genuine save always carries them. These
-// cases exercise other fields, so the helper supplies valid city/country by
-// default; a case that needs to blank them overrides the default explicitly.
+// City and country are mandatory profile fields, and region joins them when the
+// country is the USA or Canada. The edit form pre-fills all of them from the
+// stored values, so a genuine save always carries them. These cases exercise
+// other fields, so the helper supplies a valid location by default; a case that
+// needs to blank part of it overrides the default explicitly.
 function postEdit(fields: Record<string, string>): request.Test {
   return request(createApp())
     .post(`/members/${MEMBER_SLUG}/edit`)
     .set('Cookie', ownCookie())
     .type('form')
-    .send({ city: 'Portland', country: 'USA', ...fields });
+    .send({ city: 'Portland', region: 'OR', country: 'USA', ...fields });
 }
 
+// ── Region required in the USA and Canada ────────────────────────────────────
+
+describe('region requirement by country', () => {
+  it('rejects a blank region for the USA', async () => {
+    const res = await postEdit({ region: '' });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Region or state is required');
+  });
+
+  it('rejects a blank region for Canada', async () => {
+    const res = await postEdit({ region: '', country: 'Canada' });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Region or state is required');
+  });
+
+  it('accepts a blank region for a country that does not need one', async () => {
+    const res = await postEdit({ region: '', country: 'New Zealand' });
+    expect(res.status).toBe(303);
+  });
+
+  it.each(['US', 'U.S.', 'United States', 'United States of America', 'CA', 'CAN'])(
+    'recognises %s as a country whose region is required',
+    async (country) => {
+      const res = await postEdit({ region: '', country });
+      expect(res.status).toBe(422);
+      expect(res.text).toContain('Region or state is required');
+    },
+  );
+});
+
+// ── The official code is the whole vocabulary where a country has one ────────
+
+describe('region must be an official state or province code', () => {
+  function storedRegion(): string | null {
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const row = db.prepare('SELECT region FROM members WHERE slug = ?').get(MEMBER_SLUG) as
+      | { region: string | null }
+      | undefined;
+    db.close();
+    return row?.region ?? null;
+  }
+
+  it('refuses a full state name', async () => {
+    const res = await postEdit({ region: 'Oregon' });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('official two-letter state or province code');
+  });
+
+  it('refuses a code that is not a real state', async () => {
+    const res = await postEdit({ region: 'ZZ' });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('official two-letter state or province code');
+  });
+
+  it('refuses a full province name for Canada', async () => {
+    const res = await postEdit({ region: 'Ontario', country: 'Canada' });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('official two-letter state or province code');
+  });
+
+  it('accepts a Canadian province code', async () => {
+    const res = await postEdit({ region: 'ON', country: 'Canada' });
+    expect(res.status).toBe(303);
+    expect(storedRegion()).toBe('ON');
+  });
+
+  it('accepts a code in any casing and stores the canonical form', async () => {
+    // One place must reach the database under one spelling: this column feeds
+    // the official roster export, which cannot reconcile variants afterwards.
+    const res = await postEdit({ region: 'or' });
+    expect(res.status).toBe(303);
+    expect(storedRegion()).toBe('OR');
+  });
+
+  it('leaves the region free text for a country with no official set', async () => {
+    const res = await postEdit({ region: 'Canterbury', country: 'New Zealand' });
+    expect(res.status).toBe(303);
+    expect(storedRegion()).toBe('Canterbury');
+  });
+});
+
 // ── Legacy-claim anchors removed from Edit Profile ───────────────────────────
+
+describe('Edit Profile offers the claim task while a linkage is missing', () => {
+  it('shows the claim call-to-action to a member holding neither identity link', async () => {
+    // The claim task is the only claim and anchor surface, so this link is how
+    // a member who finished onboarding without claiming reaches it later.
+    const res = await request(createApp())
+      .get(`/members/${MEMBER_SLUG}/edit`)
+      .set('Cookie', ownCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('/register/wizard/legacy_claim');
+    expect(res.text).toContain('Link your legacy account, results, and clubs');
+  });
+
+  it('hides it once the member holds both identity links', async () => {
+    const res = await request(createApp())
+      .get(`/members/${LINKED_SLUG}/edit`)
+      .set('Cookie', linkedCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('/register/wizard/legacy_claim');
+  });
+});
 
 describe('Edit Profile no longer hosts legacy-claim anchors', () => {
   it('does not render the declared-anchor section', async () => {
@@ -327,5 +447,79 @@ describe('profile update writes an audit row', () => {
     // The audit metadata must NOT carry the new PII values.
     expect(row!.metadata_json).not.toContain('Audited bio');
     expect(row!.metadata_json).not.toContain('Auditville');
+  });
+
+  it('names only the fields the save actually changed', async () => {
+    // The row exists to answer which field a member altered. Recording every
+    // editable field on every save answers nothing, so a save that touches one
+    // field must name that field alone.
+    await postEdit({ bio: 'Baseline bio', city: 'Baseville', phone: '555-0001' });
+    const res = await postEdit({ bio: 'Only the bio moved', city: 'Baseville', phone: '555-0001' });
+    expect(res.status).toBe(303);
+
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const row = db.prepare(
+      `SELECT metadata_json FROM audit_entries
+        WHERE action_type = 'member.profile_updated' AND entity_id = ?
+        ORDER BY created_at DESC, id DESC LIMIT 1`,
+    ).get(MEMBER_ID) as { metadata_json: string } | undefined;
+    db.close();
+
+    const meta = JSON.parse(row!.metadata_json) as { fields: string[] };
+    expect(meta.fields).toEqual(['bio']);
+  });
+});
+
+// ── A validation error must not cost the member the rest of the form ─────────
+
+describe('validation re-render preserves the submitted values', () => {
+  it('returns every other field the member typed when one link is invalid', async () => {
+    const res = await postEdit({
+      bio:      'Bio the member rewrote',
+      city:     'Typedville',
+      region:   'WA',
+      phone:    '555-0123',
+      link_label: 'My Site',
+      link_url:   'not-a-valid-url',
+    } as Record<string, string>);
+
+    expect(res.status).toBe(422);
+    // The message names the field that failed...
+    expect(res.text.toLowerCase()).toContain('url');
+    // ...and everything else comes back, rather than reverting to the stored row.
+    expect(res.text).toContain('Bio the member rewrote');
+    expect(res.text).toContain('Typedville');
+    expect(res.text).toContain('555-0123');
+    expect(res.text).toContain('My Site');
+    expect(res.text).toContain('not-a-valid-url');
+  });
+
+  it('keeps the picked country and its region control after a validation error', async () => {
+    const res = await postEdit({ country: 'Canada', region: 'ON', whatsapp: 'not a phone number' });
+    expect(res.status).toBe(422);
+    // Ontario is a Canadian province, so the region picker must have re-rendered
+    // for Canada rather than for the stored country.
+    expect(res.text).toContain('Ontario');
+  });
+});
+
+// ── WhatsApp is a phone number, and is published as a chat link ──────────────
+
+describe('WhatsApp format', () => {
+  it('refuses a value that is not a phone number', async () => {
+    const res = await postEdit({ whatsapp: 'ping me on whatsapp' });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('international phone number');
+  });
+
+  it('refuses a number too short to dial internationally', async () => {
+    const res = await postEdit({ whatsapp: '12345' });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('international phone number');
+  });
+
+  it('accepts an international number written with spaces and punctuation', async () => {
+    const res = await postEdit({ whatsapp: '+1 (555) 010-0200' });
+    expect(res.status).toBe(303);
   });
 });

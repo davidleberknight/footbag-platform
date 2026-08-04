@@ -6,12 +6,15 @@
 
 <div class="wrapper">
   <section>
+    {{! The three arrivals are mutually exclusive. A failed resend must not fall
+        through to the registration-success text: the visitor did not just
+        register, and reading "Registration successful!" under a red error
+        banner tells them the opposite of what happened. }}
     {{#if content.error}}
       <div class="form-error-banner" role="alert">
         {{content.error}}
       </div>
-    {{/if}}
-    {{#if content.resent}}
+    {{else if content.resent}}
       <div class="form-success-banner" role="status">
         If an unverified account exists for that email, a new verification link has been sent.
       </div>

@@ -18,7 +18,7 @@ Every public page (except Home, the one composition-page exception) receives a `
       content: TContent;  // page-specific shape
     }
 
-Middleware also populates `res.locals.isAuthenticated`, `res.locals.isAdmin`, `res.locals.currentSection`, and similar pre-shaped booleans the layout uses.
+Middleware also populates `res.locals.isAuthenticated`, `res.locals.isMember`, `res.locals.isAdmin`, `res.locals.currentSection`, and similar pre-shaped booleans the layout uses.
 
 ## What templates must NOT do
 

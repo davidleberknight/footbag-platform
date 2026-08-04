@@ -62,21 +62,21 @@ beforeAll(async () => {
     is_deceased: 1,
   });
 
-  insertMember(db, {
+  insertMember(db, { onboarding: 'none',
     id: VIEWER_MATCH,
     slug: 'viewer_match',
     real_name: 'Chris Smith',
     display_name: 'Chris Smith',
     login_email: 'match@example.com',
   });
-  insertMember(db, {
+  insertMember(db, { onboarding: 'none',
     id: VIEWER_MISMATCH,
     slug: 'viewer_mismatch',
     real_name: 'Chris Jones',
     display_name: 'Chris Jones',
     login_email: 'mismatch@example.com',
   });
-  insertMember(db, {
+  insertMember(db, { onboarding: 'none',
     id: VIEWER_ALREADY_HP,
     slug: 'viewer_with_hp',
     real_name: 'Chris Smith',
@@ -140,7 +140,7 @@ describe('GET /history/:personId — conditional Claim CTA', () => {
 
   it('authenticated viewer whose declared former surname matches (real name does not): CTA visible', async () => {
     const db = new BetterSqlite3(dbPath);
-    insertMember(db, {
+    insertMember(db, { onboarding: 'none',
       id: 'mem-viewer-former',
       slug: 'viewer_former',
       real_name: 'Chris Jones',
@@ -167,7 +167,7 @@ describe('GET /history/:personId — conditional Claim CTA', () => {
     // is suppressed even though the surname matches.
     const db = new BetterSqlite3(dbPath);
     const id = 'mem-viewer-complete';
-    insertMember(db, {
+    insertMember(db, { onboarding: 'none',
       id,
       slug: 'viewer_complete',
       real_name: 'Chris Smith',
@@ -229,7 +229,7 @@ describe('GET /history/:personId — claimed-record dispatch', () => {
       hof_member: 1,
       country: 'US',
     });
-    insertMember(db, {
+    insertMember(db, { onboarding: 'none',
       id: 'mem-ordinary-claimant',
       slug: 'ordinary_claimant',
       display_name: 'Ordinary Claimant',
@@ -252,7 +252,7 @@ describe('GET /history/:personId — claimed-record dispatch', () => {
       hof_member: 1,
       country: 'US',
     });
-    insertMember(db, {
+    insertMember(db, { onboarding: 'none',
       id: 'mem-hof-claimant',
       slug: 'hof_claimant',
       display_name: 'Hofie Claimant',

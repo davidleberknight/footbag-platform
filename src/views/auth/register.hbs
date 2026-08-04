@@ -17,107 +17,113 @@
     </div>
     {{/if}}
 
-    <p class="text-muted fs-sm mb-4">If you had an account on the old footbag.org, start here. After creating your account, the setup wizard will help you link to your historical data, such as event results, and club affiliation.</p>
+    <p class="mb-4"><strong>Had an account on the old footbag.org?</strong> Start here. After creating your account, the setup wizard will help you link to your historical data, such as event results, club affiliation, and any paid membership tier you held.</p>
 
     {{#if content.error}}
       <p class="form-field-error" role="alert">{{content.error}}</p>
     {{/if}}
 
-    <form method="POST" action="/register" class="login-form">
-      <div class="form-field">
-        <label for="realName">Full legal name</label>
-        <input
-          type="text"
-          id="realName"
-          name="realName"
-          value="{{content.realName}}"
-          maxlength="64"
-          required
-          autocomplete="name"
-        />
-        <small class="form-hint">Your real first and last name, properly capitalized.</small>
-      </div>
-
-      <div class="form-field">
-        <label for="email">Email address</label>
-        <input
-          type="email"
-          id="email"
-          name="email"
-          value="{{content.email}}"
-          required
-          autocomplete="email"
-        />
-      </div>
-
-      <div class="form-field">
-        <label for="password">Password (8 characters minimum)</label>
-        <input
-          type="password"
-          id="password"
-          name="password"
-          minlength="8"
-          maxlength="128"
-          required
-          autocomplete="new-password"
-        />
-      </div>
-
-      <div class="form-field">
-        <label for="confirmPassword">Confirm password</label>
-        <input
-          type="password"
-          id="confirmPassword"
-          name="confirmPassword"
-          minlength="8"
-          maxlength="128"
-          required
-          autocomplete="new-password"
-        />
-      </div>
-
-      <div class="card mb-6">
-        <p class="card-title">Display name</p>
-        <p class="text-muted fs-sm mb-4">How your name appears across the site: on your profile, in search results, on club rosters, and in competition records. If you leave this blank, your full legal name is used.</p>
+    <form method="POST" action="/register" class="login-form register-form">
+      <div class="form-row-2col">
         <div class="form-field">
-          <label for="displayName">Display name</label>
+          <label for="realName">Full legal name</label>
           <input
             type="text"
-            id="displayName"
-            name="displayName"
-            value="{{content.displayName}}"
-            placeholder="Leave blank to use your full name"
+            id="realName"
+            name="realName"
+            value="{{content.realName}}"
             maxlength="64"
-            autocomplete="nickname"
+            required
+            autocomplete="name"
+          />
+          <small class="form-hint">Your real first and last name, properly capitalized.</small>
+        </div>
+
+        <div class="form-field">
+          <label for="email">Email address</label>
+          <input
+            type="email"
+            id="email"
+            name="email"
+            value="{{content.email}}"
+            required
+            autocomplete="email"
           />
         </div>
-        <ul class="text-muted fs-sm mt-2 mb-0">
-          <li>Must include your last name</li>
-          <li>Permanent: cannot be changed after registration</li>
-        </ul>
       </div>
 
-      <div class="card mb-6">
-        <p class="card-title">Profile URL</p>
-        <p class="text-muted fs-sm mb-4">Your permanent address on the site. If you leave this blank, it is generated from your display name (e.g. "jane_doe"). This also becomes your personal media hashtag: #your_slug.</p>
+      <div class="form-row-2col">
         <div class="form-field">
-          <label for="slug">Profile URL</label>
+          <label for="password">Password (8 characters minimum)</label>
           <input
-            type="text"
-            id="slug"
-            name="slug"
-            value="{{content.slug}}"
-            placeholder="Leave blank to generate from display name"
-            maxlength="64"
-            autocomplete="off"
+            type="password"
+            id="password"
+            name="password"
+            minlength="8"
+            maxlength="128"
+            required
+            autocomplete="new-password"
           />
-          <small class="form-hint">footbag.org/members/<strong>your_slug</strong></small>
         </div>
-        <ul class="text-muted fs-sm mt-2 mb-0">
-          <li>Lowercase letters, numbers, and underscores only</li>
-          <li>Must contain your last name</li>
-          <li>Permanent: cannot be changed after registration</li>
-        </ul>
+
+        <div class="form-field">
+          <label for="confirmPassword">Confirm password</label>
+          <input
+            type="password"
+            id="confirmPassword"
+            name="confirmPassword"
+            minlength="8"
+            maxlength="128"
+            required
+            autocomplete="new-password"
+          />
+        </div>
+      </div>
+
+      <div class="card-grid card-grid-2col mb-6">
+        <div class="card">
+          <p class="card-title">Display name</p>
+          <p class="text-muted fs-sm mb-4">How your name appears across the site: on your profile, in search results, on club rosters, and in competition records. If you leave this blank, your full legal name is used.</p>
+          <div class="form-field">
+            <label for="displayName">Display name</label>
+            <input
+              type="text"
+              id="displayName"
+              name="displayName"
+              value="{{content.displayName}}"
+              placeholder="Leave blank to use your full name"
+              maxlength="64"
+              autocomplete="nickname"
+            />
+          </div>
+          <ul class="text-muted fs-sm mt-2 mb-0">
+            <li>Must include your last name</li>
+            <li>Permanent: cannot be changed after registration</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <p class="card-title">Profile URL</p>
+          <p class="text-muted fs-sm mb-4">Your permanent address on the site. If you leave this blank, it is generated from your display name (e.g. "jane_doe"). This also becomes your personal media hashtag: #your_slug.</p>
+          <div class="form-field">
+            <label for="slug">Profile URL</label>
+            <input
+              type="text"
+              id="slug"
+              name="slug"
+              value="{{content.slug}}"
+              placeholder="Leave blank to generate from display name"
+              maxlength="64"
+              autocomplete="off"
+            />
+            <small class="form-hint">footbag.org/members/<strong>your_slug</strong></small>
+          </div>
+          <ul class="text-muted fs-sm mt-2 mb-0">
+            <li>Lowercase letters, numbers, and underscores only</li>
+            <li>Must contain your last name</li>
+            <li>Permanent: cannot be changed after registration</li>
+          </ul>
+        </div>
       </div>
 
       {{> captcha-field content}}

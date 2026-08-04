@@ -2,7 +2,7 @@
  * AP edge-state coverage for hasTier1Benefits.
  *
  * Complementary to active-player.service.test.ts (which covers the AP
- * service contract: applyAttendance / applyVouch / applyClubJoin /
+ * service contract: applyAttendance / applyVouch / applyClubJoinInTx /
  * applyExpiry behaviors, idempotency, no-shorten, rate limits, etc.).
  * This file pins the predicate-side: given a member's full AP ledger
  * (grant / extend / end / expire rows) plus tier, does hasTier1Benefits

@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import Busboy from 'busboy';
+import { nextPendingWizardHref } from '../middleware/auth';
 import { memberService, ProfileEditInput } from '../services/memberService';
 import { AVATAR_MAX_BYTES, getDefaultAvatarService } from '../services/avatarService';
 import { identityAccessService } from '../services/identityAccessService';
@@ -73,13 +74,21 @@ export const memberController = {
     next();
   },
 
-  /** GET /members/:memberKey: own profile, any member profile for an
-   * authenticated viewer, or the HoF/BAP public read-only exception for
-   * anonymous visitors (others redirect to login). */
+  /** GET /members/:memberKey: own profile, any member profile for a
+   * member viewer, or the HoF/BAP public read-only exception for
+   * anonymous visitors (others redirect to login). A profile page exists only
+   * once its owner is a member: a pending registrant is routed to their next
+   * wizard task in place of their own page, and a pending registrant's slug
+   * is not-found for every other viewer (the service returns null for a
+   * pending target, indistinguishable from an unknown slug). */
   getProfile(req: Request, res: Response, next: NextFunction): void {
     const memberKey = req.params.memberKey;
 
     if (isOwnProfile(req)) {
+      if (!req.isMember) {
+        res.redirect(303, nextPendingWizardHref(req.user!.userId));
+        return;
+      }
       try {
         const flash = readFlash(req);
         let profileNotice: string | undefined;
@@ -99,8 +108,13 @@ export const memberController = {
     }
 
     try {
+      // Member enhancement keys off membership, not bare authentication: a
+      // pending registrant reads this page as an anonymous visitor. The admin
+      // flag lets operational surfaces keep linking to a pending account's
+      // profile, which is otherwise not-found for every viewer.
       const publicVm = memberService.getMemberProfilePage(memberKey, {
-        authenticated: req.isAuthenticated,
+        authenticated: req.isMember,
+        admin: req.user?.role === 'admin',
       });
       if (publicVm) {
         res.render('members/public-profile', publicVm);
@@ -137,12 +151,7 @@ export const memberController = {
         avatarSuccess = name ? `Avatar updated: ${name}` : 'Avatar updated.';
         clearFlash(res, req);
       }
-      const vm = memberService.getProfileEditPage(
-        req.params.memberKey,
-        undefined,
-        undefined,
-        avatarSuccess,
-      );
+      const vm = memberService.getProfileEditPage(req.params.memberKey, { avatarSuccess });
       res.render('members/profile-edit', vm);
     } catch (err) {
       if (err instanceof NotFoundError) { renderNotFound(res); return; }
@@ -189,14 +198,16 @@ export const memberController = {
         writeFlash(res, req, FLASH_KIND.PROFILE_UPDATED);
         res.redirect(303, `/members/${memberKey}`);
       } catch (err) {
+        // Both re-renders hand back what was submitted, so the member fixes the
+        // one field the message names without retyping the rest of the form.
         if (err instanceof ValidationError) {
-          const vm = memberService.getProfileEditPage(memberKey, err.message);
+          const vm = memberService.getProfileEditPage(memberKey, { error: err.message, submitted: input });
           res.status(422).render('members/profile-edit', vm);
           return;
         }
         if (err instanceof RateLimitedError) {
           if (err.retryAfterSeconds) res.setHeader('Retry-After', String(err.retryAfterSeconds));
-          const vm = memberService.getProfileEditPage(memberKey, err.message);
+          const vm = memberService.getProfileEditPage(memberKey, { error: err.message, submitted: input });
           res.status(429).render('members/profile-edit', vm);
           return;
         }
@@ -219,7 +230,7 @@ export const memberController = {
     const memberId = req.user!.userId;
 
     const renderError = (msg: string, status = 422) => {
-      const vm = memberService.getProfileEditPage(memberKey, undefined, msg);
+      const vm = memberService.getProfileEditPage(memberKey, { avatarError: msg });
       res.status(status).render('members/profile-edit', vm);
     };
 

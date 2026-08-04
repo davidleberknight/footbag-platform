@@ -1,19 +1,22 @@
 import { Router } from 'express';
 import { netQcController } from '../internal-qc/controllers/netQcController';
 import { personsQcController } from '../internal-qc/controllers/personsQcController';
-import { requireAuth } from '../middleware/auth';
+import { requireMember } from '../middleware/auth';
 import { requireAdmin } from '../middleware/requireAdmin';
 
 /**
  * Internal / operator routes. Not linked from public nav.
- * Gated by requireAuth + requireAdmin: unauthenticated requests redirect
- * to /login, non-admin authenticated requests get 403. State-changing POSTs
+ * Gated by requireMember + requireAdmin: unauthenticated requests redirect to
+ * /login, a pending registrant is routed to their next onboarding task, and a
+ * non-admin member gets 403. Admin authority sits above member authority
+ * rather than beside it, so an operator finishes the wizard before any admin
+ * surface opens, exactly as the /admin router requires. State-changing POSTs
  * affect public Net data and must remain admin-only.
  * Mount point: /internal
  */
 export const internalRouter = Router();
 
-internalRouter.use(requireAuth, requireAdmin);
+internalRouter.use(requireMember, requireAdmin);
 
 // Persons QC + browse
 internalRouter.get('/persons/qc', personsQcController.qcPage);

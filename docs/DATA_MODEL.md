@@ -419,7 +419,7 @@ Emitted values, grouped by namespace:
 - **`auth.*`**: `register`, `register_rate_limited`, `register_notification_failed`, `email_verified`, `login_rate_limited`, `password_change`, `password_change_notification_failed`, `password_reset`, `password_reset_notification_failed`.
 - **`claim.*`**: `legacy_account` (legacy-account claim completed), `historical_person` (direct historical-record claim completed).
 - **`legacy.*`**: `auto_link_candidate_staged`, `auto_link_candidate_confirmed`, `auto_link_candidate_declined`, `auto_link_candidate_expired`, `auto_link_candidate_failed`, `auto_link_reported_incorrect`, `auto_link_revert`, `cross_source_candidate_offered`, `cross_source_candidate_confirmed`, `cross_source_candidate_declined`, `mailbox_link_token_issued`, `mailbox_link_token_consumed`, `mailbox_link_token_expired`, `mailbox_link_email_enqueue_failed`, `registration_conflict_prompted`, `registration_conflict_disputed`, `claim_initiate_notification_failed`, `claim_tier_grant`.
-- **`wizard.*`**: `start`, `task.started`, `task.skipped`, `task.completed`, `task.not_applicable`, `task.detour_paused`, `club_affiliations.confirmed`, `club_affiliations.declined`, `club_affiliations.promoted`.
+- **`wizard.*`**: `start`, `complete`, `task.started`, `task.completed`, `club_affiliations.confirmed`, `club_affiliations.declined`, `club_affiliations.cap_hit`, `club_affiliations.idempotent`, `club_affiliations.promoted`; historical, no current writer: `task.skipped`, `task.not_applicable`, `task.detour_paused`.
 - **`club.*`**: `created`, `member_joined`, `member_left`, `primary_swapped`, `marked_inactive`, `reactivated`, `coleader_stepped_down`, `hashtag_updated`, `active_player_grant_failed`.
 - **`tier.*`**: `purchase_grant`, `legacy_claim_grant`, `governance_set`, `governance_removed`, `auto_link_revert`, `admin_override`.
 - **`payment.*`**: `checkout_started`, `donation_checkout_started`, `succeeded`, `refunded`, `canceled`, `partially_refunded`, `attempt_declined` (a card the bank refused; deliberately not named `*_failed`, which is reserved for platform faults that raise the operator alarm), `payout_rejected`, `queue_item_resolved`, `compliance_anonymize_failed`, `reconciliation_issue_raised`, `reconciliation_issue_resolved`, `recurring_donation_activated`, `recurring_donation_updated`, `recurring_donation_canceled`, `recurring_cancel_requested`, `recurring_charge_succeeded`, `recurring_charge_declined`, `recurring_charge_amount_updated`.
@@ -783,7 +783,7 @@ Two erasure shapes set `personal_data_purged_at` (the credential CHECK requires 
 `ON DELETE SET NULL`: deleting a media item automatically detaches it as the member's avatar without requiring a before-delete trigger.
 
 #### `members_searchable` view
-**The member search endpoint MUST query this view.** It applies five exclusion conditions: soft-deleted, deceased, opted-out (`searchable = 0`), PII-purged, and unverified (`email_verified_at IS NULL`). The `email_verified_at IS NULL` condition is the primary mechanism preventing imported `legacy_members` rows from appearing in search results; `searchable = 0` is defense-in-depth. Do not add extra `WHERE` clauses on top of `members_active` or the bare `members` table for search.
+**The member search endpoint MUST query this view.** It applies six exclusion conditions: soft-deleted, deceased, opted-out (`searchable = 0`), PII-purged, unverified (`email_verified_at IS NULL`), and pending (fewer than three completed `member_onboarding_tasks` rows, so an account still in the onboarding wizard is not yet a member and never appears). The `email_verified_at IS NULL` condition is the primary mechanism preventing imported `legacy_members` rows from appearing in search results; `searchable = 0` is defense-in-depth. Do not add extra `WHERE` clauses on top of `members_active` or the bare `members` table for search.
 
 `searchable = 1` means the member is **eligible for authenticated current-member lookup only**. It does not mean publicly discoverable, publicly contactable, or visible on public historical-person pages. Member search is authenticated Tier 0+, anti-enumeration, and never public.
 
@@ -1206,8 +1206,8 @@ Permanent operational table recording live club membership for members. Written 
 Append-only table recording crowdsourced activity signals for clubs and club candidates. Written only during the onboarding wizard (stages 1A and 1B). One row per member per target per submission.
 
 - `club_id` is nullable. A row is either club-keyed (`club_id` set; feeds the `crowdsource_club_viability` gates) or candidate-keyed (`club_id` NULL; an activity answer about an unpromoted `legacy_club_candidates` row, surfaced on the admin cleanup queue's candidate-flag group). A table CHECK requires candidate-keyed rows to carry `source_entity_type = 'legacy_club_candidate'` with the candidate id in `source_entity_id`. Promoting the candidate stamps the new club id onto its candidate-keyed rows, moving those votes to the live club's gates so a vote never counts on both surfaces.
-- `source_stage` enum: `stage1a_contact`, `stage1b_affiliated`, `club_detail`, `dashboard`. Tracks which surface produced the signal; `club_detail` and `dashboard` are reserved values with no writing surface.
-- `activity_signal` enum: `active`, `not_active`, `not_sure`, `never_heard_of_it`. The `crowdsource_club_viability` predicate uses `active` (S1), `not_active` (S2/S3), ignores `not_sure`, and stores `never_heard_of_it` without feeding the gates. A candidate whose only latest votes are `not_sure` surfaces no flag item: not-sure records no activity evidence.
+- `source_stage` enum: `stage1a_contact`, `stage1b_affiliated`. The onboarding wizard is the only surface that collects activity signals, so the vocabulary admits only its two stages.
+- `activity_signal` enum: `active`, `not_active`. The wizard's activity question offers exactly these two answers, so every recorded signal feeds the `crowdsource_club_viability` predicate: `active` (S1) and `not_active` (S2/S3).
 - `source_entity_type` and `source_entity_id`: traceability to the wizard card. Club-keyed rows carry `legacy_person_club_affiliation` or `club_bootstrap_leader`; candidate-keyed rows carry `legacy_club_candidate` with the candidate id.
 - No `updated_at`/`version`: append-only, except for the promotion stamp on `club_id`. A member who submits again writes a new row; the predicate counts one vote per member, taking the member's latest row per target.
 
@@ -1278,12 +1278,12 @@ Mirror-derived scored person-to-club affiliation suggestions. Each row links a p
 
 - `pending` (schema default): the affiliation is inferred from the mirror and has not been confirmed by anyone. All loader-imported rows from the mirror pipeline arrive in this state.
 - `confirmed_current`: written when a member confirms current affiliation via the wizard (Stage 1A / Stage 1B membership confirmation per `M_Complete_Onboarding_Wizard`), or when an admin manually confirms.
-- `former_only`: the member acknowledges historical affiliation but is no longer involved (Stage 1A path 2, Stage 1B path 2).
+- `former_only`: written in two cases. The member acknowledges historical affiliation but is no longer involved (Stage 1A path 2, Stage 1B path 2); or the member confirmed current affiliation in the wizard while already holding two current clubs, so the cap recorded the Yes as a former membership rather than blocking the answer. The second case keeps the member's answer and its activity signal, and the card resolves.
 - `not_mine`: the member rejects the inferred affiliation (Stage 1B path 4; Stage 1A path 4 escalates to admin).
 - `needs_review`: admin has marked the row for further review.
 - `promoted`: the candidate this row links to has been promoted to a live `clubs` row, and this affiliation has been carried forward to `member_club_affiliations`.
 - `rejected`: admin-rejected suggestion.
-- `superseded`: an admin-resolved duplicate cluster left this row no longer authoritative.
+- `superseded`: the row is no longer the authoritative record of this relationship. Written when an admin resolves a duplicate cluster, and when a member confirms a leadership card for the club this row suggests membership of: the leadership claim writes the affiliation and collects the club's activity signal, so the still-open membership suggestion would ask the same question twice.
 
 Uniqueness is enforced via two partial unique indexes rather than a single UNIQUE constraint, because SQLite treats NULLs as distinct in UNIQUE constraints and a single index would silently allow duplicate rows when `historical_person_id` is NULL.
 
@@ -1322,14 +1322,13 @@ This table is NOT prefixed `legacy_*`. The `legacy_*` prefix in this schema is r
 
 **Table:** `member_onboarding_tasks`
 
-Permanent operational state for the per-member onboarding wizard (`MemberOnboardingService`; `MIGRATION_PLAN.md` §10). Carries one row per (`member_id`, `task_type`) tracking outstanding wizard tasks. The registration flow and the dashboard task widget read and write through the service.
+Permanent operational state for the per-member onboarding wizard (`MemberOnboardingService`; `MIGRATION_PLAN.md` §10). Carries one row per (`member_id`, `task_type`) tracking outstanding wizard tasks. The registration flow reads and writes through the service, and the same rows are the membership authorization state: an account is pending until all three are `completed`.
 
-- **Columns**: `id` PK; `member_id` FK to `members(id)`; `task_type` TEXT with CHECK in (`personal_details`, `legacy_claim`, `club_affiliations`); `state` TEXT with CHECK in (`pending`, `in_progress_paused`, `skipped`, `completed`, `not_applicable`); `created_at`, `updated_at` TEXT timestamps; `completed_at` TEXT nullable. `first_competition_year` and `show_competitive_results` are not valid task types; year input is bundled into `personal_details`.
-- **`in_progress_paused`**: the task is mid-flow and the member detoured to another story (for example, `M_Join_Club` or `M_Create_Club` from the `club_affiliations` step). The dashboard task widget surfaces "Resume onboarding" while the row is in this state, and the wizard re-renders the same card on return.
+- **Columns**: `id` PK; `member_id` FK to `members(id)`; `task_type` TEXT with CHECK in (`personal_details`, `legacy_claim`, `club_affiliations`); `state` TEXT with CHECK in (`pending`, `completed`); `created_at`, `updated_at` TEXT timestamps; `completed_at` TEXT nullable. `first_competition_year` and `show_competitive_results` are not valid task types; year input is bundled into `personal_details`.
+- **Two states**: a task is `pending` until the member answers it, then `completed`. Every exit from a wizard task is an explicit answer, so there is nothing to skip, dismiss, or park mid-flow, and the tasks are universal, so none is ever inapplicable.
 - **Per-member unique**: `UNIQUE(member_id, task_type)` so the same task is not duplicated for one member.
 - **Catalog evolution**: adding a new task type extends the `task_type` CHECK; existing rows are unaffected and the wizard renders the new task at its catalog position.
-- **`not_applicable`**: the wizard's tasks are universal, so a task is never marked inapplicable on eligibility grounds, and applicability is not recomputed per member.
-- **Skipped is not blocking**: a `skipped` row does not gate sign-in. The member's dashboard surfaces all rows whose state is `pending` or `skipped`; completing transitions to `completed` and removes from the widget.
+- **Completion grants membership**: onboarding is complete when all three rows are `completed`, and that transition is what grants member authorization. While any row is `pending` the account is pending: every member capability routes the registrant to the lowest-position outstanding task, and the account has no profile page and does not appear in member search.
 - **Audit trail**: every state transition emits an `audit_entries` row owned by the wizard service; see DATA_MODEL §4 audit_entries subsection for the `action_type` catalog.
 
 ---
@@ -1401,7 +1400,7 @@ These apply a meaningful `WHERE` clause; always understand the filter before usi
 
 | View | Filter | Use case |
 |------|--------|----------|
-| `members_searchable` | `deleted_at IS NULL AND is_deceased = 0 AND searchable = 1 AND personal_data_purged_at IS NULL AND email_verified_at IS NOT NULL` | **Member search endpoint only.** Applies five exclusion conditions; `email_verified_at IS NULL` is the primary guard against imported `legacy_members` rows being surfaced. |
+| `members_searchable` | `deleted_at IS NULL AND is_deceased = 0 AND searchable = 1 AND personal_data_purged_at IS NULL AND email_verified_at IS NOT NULL AND three completed onboarding tasks` | **Member search endpoint only.** Applies six exclusion conditions; `email_verified_at IS NULL` is the primary guard against imported `legacy_members` rows being surfaced. |
 
 ### Admin full-rowset views
 

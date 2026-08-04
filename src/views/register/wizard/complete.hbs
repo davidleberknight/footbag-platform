@@ -6,7 +6,14 @@
 
 <div class="wrapper">
   <section>
-    <p>Your onboarding tasks are handled. Any optional step you skipped is still available from your profile and can be completed later.</p>
+    {{#if content.capHitNotice}}
+      <p class="form-notice" role="status">
+        {{content.capHitNotice.message}}
+        <a href="{{content.capHitNotice.manageClubsHref}}">Manage your clubs</a>
+      </p>
+    {{/if}}
+
+    <p>Your onboarding is complete. Welcome! Your profile is ready to use, and clubs, events, and everything else are open to you.</p>
 
     <p class="mt-2"><a href="{{content.dashboardHref}}" class="btn btn-primary">Continue to Your Profile</a></p>
   </section>

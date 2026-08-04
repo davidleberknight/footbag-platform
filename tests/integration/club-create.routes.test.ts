@@ -35,8 +35,8 @@ const VALID = { city: 'Townsville', country: 'USA', contactEmail: 'organizer@exa
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-  seedPersona(db, { slug: FREE, displayName: 'Free Creator', tier: 'tier1', onboardingComplete: true, coverageNotes: ['club create: unconstrained'] });
-  seedPersona(db, { slug: CAPPED, displayName: 'Capped Creator', tier: 'tier1', onboardingComplete: true, coverageNotes: ['club create: at affiliation cap'] });
+  seedPersona(db, { slug: FREE, displayName: 'Free Creator', tier: 'tier1', coverageNotes: ['club create: unconstrained'] });
+  seedPersona(db, { slug: CAPPED, displayName: 'Capped Creator', tier: 'tier1', coverageNotes: ['club create: at affiliation cap'] });
   // Put the capped creator in two current clubs so a third creation is barred.
   const c1 = insertClub(db, { name: 'Cap Club One', country: 'USA' });
   const c2 = insertClub(db, { name: 'Cap Club Two', country: 'USA' });

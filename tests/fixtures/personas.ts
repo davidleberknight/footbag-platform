@@ -14,6 +14,7 @@
  */
 import BetterSqlite3 from 'better-sqlite3';
 import {
+  insertOnboardingTask,
   insertMember,
   insertLegacyMember,
   insertHistoricalPerson,
@@ -134,11 +135,13 @@ export function seedBrandNewPlayer(
 ): Persona {
   const memberId = `new-${rand()}`;
   const slug = opts.slug ?? `new_${rand()}`;
+  // A brand-new player is a pending registrant walking the wizard, so the
+  // factory's member-by-default onboarding rows are explicitly suppressed.
   createMemberAtTier(db, {
     id: memberId,
     slug,
     tier: 'tier0',
-    memberOverrides: opts.overrides,
+    memberOverrides: { onboarding: 'none', ...opts.overrides },
   });
   return {
     memberId,
@@ -223,11 +226,13 @@ export function seedMemberWithPendingClubAffiliation(
   const legacyMemberId = `LM-CLUB-${rand().toUpperCase()}`;
   const classification = opts.classification ?? 'pre_populate';
 
+  // A pending club affiliation implies a mid-wizard registrant, so the
+  // factory's member-by-default onboarding rows are suppressed.
   createMemberAtTier(db, {
     id: memberId,
     slug,
     tier: 'tier0',
-    memberOverrides: opts.overrides,
+    memberOverrides: { onboarding: 'none', ...opts.overrides },
   });
 
   const personId = insertHistoricalPerson(db, {
@@ -273,19 +278,15 @@ export function seedMemberMidWizard(
 ): Persona {
   const memberId = `mid-${rand()}`;
   const slug = opts.slug ?? `mid_${rand()}`;
+  // Mid-wizard means pending: suppress the factory's member-by-default rows
+  // and seed exactly one completed task.
   createMemberAtTier(db, {
     id: memberId,
     slug,
     tier: 'tier0',
-    memberOverrides: opts.overrides,
+    memberOverrides: { onboarding: 'none', ...opts.overrides },
   });
-  const taskId = `mot-${rand()}`;
-  db.prepare(`
-    INSERT INTO member_onboarding_tasks (
-      id, created_at, created_by, updated_at, updated_by, version,
-      member_id, task_type, state, completed_at
-    ) VALUES (?, ?, ?, ?, ?, 1, ?, 'legacy_claim', 'completed', ?)
-  `).run(taskId, TS, SYS, TS, SYS, memberId, TS);
+  insertOnboardingTask(db, memberId, 'legacy_claim', 'completed');
   return {
     memberId,
     slug,

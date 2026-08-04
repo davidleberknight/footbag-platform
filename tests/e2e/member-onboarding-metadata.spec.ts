@@ -38,7 +38,7 @@ test('personal_details: future year rejected inline', async ({ browser, baseURL 
 
   await wizard.goto('personal_details');
   await page.locator('#city').fill('Portland');
-  await page.locator('#country').fill('US');
+  await wizard.selectCountry('United States', 'OR');
   await page.locator('#birthDate').fill('2000-01-15');
   await wizard.yearInput.fill('2099');
   await wizard.saveButton.click();
@@ -90,7 +90,7 @@ test('GET wizard task after all completed and fully linked -> auto-transitions a
   await ctx.close();
 });
 
-test('keyboard: Tab reaches identifier input, Find button, Skip button', { tag: ['@a11y'] }, async ({ browser, baseURL }) => {
+test('keyboard: Tab reaches identifier input, Find button, continue-without-linking answer', { tag: ['@a11y'] }, async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const persona = seedBrandNewPlayer(db, { slug: `m_kbd_${Date.now()}` });
   completePersonalDetails(db, persona.memberId);
@@ -108,8 +108,8 @@ test('keyboard: Tab reaches identifier input, Find button, Skip button', { tag: 
   const findReachable = await reachByTab(page, 'button:has-text("Find")');
   expect(findReachable).toBe(true);
 
-  const skipReachable = await reachByTab(page, 'button:has-text("Continue Without Linking a Past Account")');
-  expect(skipReachable).toBe(true);
+  const answerReachable = await reachByTab(page, 'button:has-text("Continue Without Linking a Past Account")');
+  expect(answerReachable).toBe(true);
 
   await ctx.close();
 });

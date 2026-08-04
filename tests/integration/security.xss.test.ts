@@ -76,6 +76,7 @@ describe('Bio field — XSS payloads escape on render', () => {
         .send({
           bio: payload,
           city: 'Portland',
+          region: 'OR',
           country: 'USA',
           firstCompetitionYear: '',
           showCompetitiveResults: 'on',

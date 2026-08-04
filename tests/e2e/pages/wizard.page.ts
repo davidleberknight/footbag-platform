@@ -24,18 +24,20 @@ export class WizardPage {
     return this.page.locator('input[name="no_old_account"]');
   }
 
-  // club_affiliations skip control (wrap-up "Skip for Now" or the cards-view
-  // "Skip Remaining Clubs for Now").
-  get skipClubButton() {
-    return this.page.getByRole('button', { name: /Skip (Remaining Clubs )?for Now/i }).first();
+  // club_affiliations explicit no-club answer: the Stage 1 "None of These Are
+  // My Clubs" bulk decline, or the wrap-up "Finish Without a Club". Both
+  // complete the task; there is no skip anywhere in the wizard.
+  get noClubsButton() {
+    return this.page.getByRole('button', { name: /Finish Without a Club/i }).first();
   }
 
-  // The advance/skip control on the current task page: legacy_claim's
-  // continue-without-linking, or club_affiliations' skip. personal_details has
-  // no such control; its required fields must be filled and saved.
-  get skipButton() {
+  // The explicit answer control that completes the current task without a
+  // link or club: legacy_claim's continue-without-linking, or the club task's
+  // no-club answer. personal_details has no such control; its required fields
+  // must be filled and saved.
+  get answerAndAdvanceButton() {
     return this.page
-      .getByRole('button', { name: /Continue Without Linking a Past Account|Skip (Remaining Clubs )?for Now/i })
+      .getByRole('button', { name: /Continue Without Linking a Past Account|Finish Without a Club/i })
       .first();
   }
 
@@ -47,19 +49,20 @@ export class WizardPage {
     return this.page.getByRole('heading', { level: 1 });
   }
 
-  // Advances past the current task using its own control. legacy_claim is
+  // Completes the current task by its explicit answer control. legacy_claim is
   // completed by the continue-without-linking decision, which first requires
-  // checking the never-had-an-old-account attestation; club_affiliations is
-  // skipped. personal_details is required and cannot be advanced this way.
-  async skipCurrentTask(): Promise<void> {
+  // checking the never-had-an-old-account attestation; club_affiliations by
+  // the no-club answer. personal_details is required and cannot be advanced
+  // this way.
+  async answerCurrentTask(): Promise<void> {
     const url = this.page.url();
     if (url.includes('legacy_claim')) {
       await this.noOldAccountCheckbox.check();
       await this.continueWithoutLinkingButton.click();
     } else if (url.includes('club_affiliations')) {
-      await this.skipClubButton.click();
+      await this.noClubsButton.click();
     } else {
-      throw new Error(`skipCurrentTask: current task has no skip/continue control: ${url}`);
+      throw new Error(`answerCurrentTask: current task has no explicit answer control: ${url}`);
     }
     await this.page.waitForURL(/\/register\/wizard\//);
   }
@@ -98,17 +101,28 @@ export class WizardPage {
     await this.page.waitForURL(/\/register\/wizard\//);
   }
 
-  // Fills the personal_details required fields (city, country, birthDate) plus
-  // an optional first-competition year, then saves and waits for the advance.
+  // Fills the personal_details required fields (city, country, region where the
+  // country needs one, birthDate) plus an optional first-competition year, then
+  // saves and waits for the advance.
   async fillPersonalDetailsAndSave(
-    opts: { city?: string; country?: string; birthDate?: string; year?: string } = {},
+    opts: { city?: string; country?: string; region?: string; birthDate?: string; year?: string } = {},
   ): Promise<void> {
     await this.page.locator('#city').fill(opts.city ?? 'Portland');
-    await this.page.locator('#country').fill(opts.country ?? 'US');
+    await this.selectCountry(opts.country ?? 'United States', opts.region ?? 'OR');
     await this.page.locator('#birthDate').fill(opts.birthDate ?? '2000-01-15');
     if (opts.year !== undefined) await this.yearInput.fill(opts.year);
     await this.saveButton.click();
     await this.page.waitForURL(/\/register\/wizard\//);
+  }
+
+  // Country is a picker, and choosing the USA or Canada turns the region field
+  // into a state/province picker the form requires. The region control is
+  // whichever one the server rendered for the country already on file, so this
+  // sets it when it is a picker and leaves a free-text region alone.
+  async selectCountry(country: string, region: string): Promise<void> {
+    await this.page.locator('#country').selectOption({ label: country });
+    const regionSelect = this.page.locator('select#region');
+    if (await regionSelect.count()) await regionSelect.selectOption(region);
   }
 
   // Show competitive results task
@@ -137,10 +151,6 @@ export class WizardPage {
     return this.page.getByRole('button', { name: /Save Answers/i }).first();
   }
 
-  get skipRemainingClubsButton() {
-    return this.page.getByRole('button', { name: /Skip remaining clubs/i });
-  }
-
   get clubProgressText() {
     return this.page.locator('.text-muted.fs-sm').first();
   }
@@ -160,7 +170,7 @@ export class WizardPage {
 
   // Completion page
   get completionMessage() {
-    return this.page.getByText(/onboarding tasks are handled/i);
+    return this.page.getByText(/onboarding is complete/i);
   }
 
   get profileLink() {

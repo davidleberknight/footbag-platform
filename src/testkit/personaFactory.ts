@@ -7,8 +7,9 @@
  * for a Vitest test or seeded into the dev database for a browser session.
  *
  * Supported spec dimensions: tier grant + governance tier3, payment history,
- * onboarding progress (whole-wizard complete or per-task partial/skipped/
- * in-progress state), legacy-claim linkage (linked vs unlinked, optional
+ * onboarding progress (a full member by default, or per-task pending state for
+ * a persona modelling a pending registrant), legacy-claim linkage (linked vs
+ * unlinked, optional
  * legacy_email for the email-equality fast path), graded auto-link confidence
  * (high/medium/low on the single-candidate path), club affiliation + bootstrap
  * leadership, additional plain club memberships (current/former), legacy-club-
@@ -233,6 +234,12 @@ export interface PersonaClubAffiliationSpec {
  */
 export interface PersonaLegacyClubCandidateSpec {
   clubName?: string;
+  /**
+   * City on the candidate (and its mapped club, when one is seeded). The
+   * wizard groups same-city membership suggestions into one single-select
+   * disambiguation card, so two candidates sharing a city model that card.
+   */
+  city?: string;
   /** legacy_club_candidates.classification; default 'onboarding_visible'. */
   classification?: LegacyClubCandidateClassification;
   /** legacy_person_club_affiliations.resolution_status; default 'pending'. */
@@ -330,11 +337,13 @@ export interface PersonaSpec {
    * the authorization matrix (owns a resource of the same type, but not this one).
    */
   negative?: boolean;
-  onboardingComplete?: boolean;
   /**
-   * Per-task onboarding state (partial / skipped / in-progress). Takes
-   * precedence over onboardingComplete when both are set; unlisted tasks are
-   * left absent (the wizard treats a missing row as pending).
+   * Per-task onboarding state, for a persona that models a pending registrant.
+   * Membership is an authorization level, so a persona is a full member unless
+   * this says otherwise: setting it seeds exactly the states listed, an empty
+   * object seeds a fresh signup with no task rows at all, and omitting it
+   * completes onboarding. A task named here but left out of the object is
+   * absent, which the wizard reads as pending.
    */
   onboardingTasks?: Partial<Record<OnboardingTaskType, OnboardingTaskState>>;
   payments?: PersonaPaymentSpec[];
@@ -377,6 +386,13 @@ export interface SeedPersonaOpts {
  * persona exists to test. Both this and the /dev/personas card read from
  * `purpose`, so the card and the profile can never drift.
  */
+// A seeded club carries a complete location for the same reason a seeded member
+// does: the clubs directory groups a country's clubs by state or province, and
+// a region-less row is real data-quality evidence there. Personas that left the
+// region blank made the development database look like it held a location gap
+// the curated club seed does not actually have.
+const PERSONA_CLUB_LOCATION = { region: 'CO', country: 'USA' } as const;
+
 export function composePersonaBio(spec: PersonaSpec): string {
   return spec.purpose
     ? `${TEST_PERSONA_BIO_PREFIX} ${spec.purpose}`
@@ -491,6 +507,12 @@ export function seedPersona(
     display_name: spec.displayName,
     bio: composePersonaBio(spec),
     is_admin: isAdmin as 0 | 1,
+    // Task rows are seeded below from the spec: explicit per-task states for
+    // onboarding personas, completed for everyone else. insertMember must not
+    // pre-seed them, because its completed default would win the
+    // UNIQUE(member_id, task_type) race and turn an intended pending state
+    // into a loud seed failure.
+    onboarding: 'none',
     ...(spec.emailVerified === false ? { email_verified_at: null } : {}),
     ...(spec.isDeceased ? { is_deceased: 1 as const, deceased_at: '2025-06-01T00:00:00.000Z' } : {}),
     ...(spec.honors?.hof ? { is_hof: 1 as const } : {}),
@@ -548,6 +570,12 @@ export function seedPersona(
     });
   }
 
+  // Membership is an authorization level, so a persona is a full member unless
+  // its spec says otherwise: explicit onboardingTasks seed exactly the declared
+  // states (an empty object means a fresh signup with no task rows at all);
+  // every other persona completes onboarding, because a pending account has no
+  // profile page and reaches no member capability, which would invalidate the
+  // persona's own purpose.
   if (spec.onboardingTasks) {
     for (const [taskType, state] of Object.entries(spec.onboardingTasks) as [
       OnboardingTaskType,
@@ -555,7 +583,7 @@ export function seedPersona(
     ][]) {
       insertOnboardingTask(db, memberId, taskType, state);
     }
-  } else if (spec.onboardingComplete) {
+  } else {
     completeOnboarding(db, memberId);
   }
 
@@ -572,7 +600,11 @@ export function seedPersona(
   if (spec.club) {
     // Persona clubs are reachable public pages the route-wiring crawl exercises,
     // so they use ordinary public tags; they keep the 'club-test-' id for teardown.
-    clubId = insertClub(db, { name: spec.club.clubName ?? 'Persona Club', publiclyVisible: true });
+    clubId = insertClub(db, {
+      name: spec.club.clubName ?? 'Persona Club',
+      publiclyVisible: true,
+      ...PERSONA_CLUB_LOCATION,
+    });
     insertMemberClubAffiliation(db, memberId, clubId, {
       is_current: 1,
       source: 'member_self_service',
@@ -609,7 +641,11 @@ export function seedPersona(
   }
 
   for (const c of spec.clubs ?? []) {
-    const cid = insertClub(db, { name: c.clubName ?? 'Persona Club', publiclyVisible: true });
+    const cid = insertClub(db, {
+      name: c.clubName ?? 'Persona Club',
+      publiclyVisible: true,
+      ...PERSONA_CLUB_LOCATION,
+    });
     insertMemberClubAffiliation(db, memberId, cid, {
       is_current: c.current === false ? 0 : 1,
       is_primary: c.primary ? 1 : 0,
@@ -639,11 +675,17 @@ export function seedPersona(
     // resolved card implies a mapped club regardless of the `mapped` flag.
     const needsClub = cand.mapped === true || resolution === 'confirmed_current';
     const mappedClubId = needsClub
-      ? insertClub(db, { name: cand.clubName ?? 'Legacy Club Candidate', publiclyVisible: true })
+      ? insertClub(db, {
+          name: cand.clubName ?? 'Legacy Club Candidate',
+          publiclyVisible: true,
+          ...PERSONA_CLUB_LOCATION,
+          ...(cand.city ? { city: cand.city } : {}),
+        })
       : undefined;
     const candidateId = insertLegacyClubCandidate(db, {
       display_name: cand.clubName ?? 'Legacy Club Candidate',
       classification: cand.classification ?? 'onboarding_visible',
+      ...(cand.city ? { city: cand.city } : {}),
       ...(mappedClubId ? { mapped_club_id: mappedClubId } : {}),
     });
     insertLegacyPersonClubAffiliation(db, {

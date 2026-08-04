@@ -42,7 +42,7 @@ function cookieFor(memberId: string): string {
 // Inserts a member with personal_details already completed, so the legacy-claim
 // step (which runs only after personal details are on file) is reachable.
 function insertMemberReady(dbh: BetterSqlite3.Database, o: Parameters<typeof insertMember>[1] = {}): string {
-  const id = insertMember(dbh, o);
+  const id = insertMember(dbh, { onboarding: 'none', ...o });
   insertOnboardingTask(dbh, id, 'personal_details', 'completed');
   return id;
 }

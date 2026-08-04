@@ -49,7 +49,6 @@ beforeAll(async () => {
     slug: SLUG,
     displayName: 'Reese Ett',
     tier: 'tier0',
-    onboardingComplete: true,
     coverageNotes: ['password-reset token temporal probe'],
   });
   db.close();

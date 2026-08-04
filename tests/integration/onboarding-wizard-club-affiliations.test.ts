@@ -212,10 +212,12 @@ let crossCandidateB = '';
 beforeAll(async () => {
   const db = createTestDb(dbPath);
 
-  // 9-cell matrix: distinct member + club per cell.
+  // 9-cell matrix: distinct member + club per cell. Matrix members are
+  // mid-onboarding (the wizard is where these submissions happen), so the
+  // completion transition the promoted cells assert is genuinely observable.
   for (const cell of MATRIX_CELLS) {
     const memberId = `member-${cell.key}`;
-    insertMember(db, { id: memberId, slug: memberId.replace(/-/g, '_'), login_email: `${memberId}@example.com` });
+    insertMember(db, { id: memberId, slug: memberId.replace(/-/g, '_'), login_email: `${memberId}@example.com`, onboarding: 'none' });
     const clubId = insertClub(db, { name: `Club ${cell.key}` });
     const candidateId = seedCandidate(db, {
       clubId,
@@ -286,6 +288,7 @@ describe('memberOnboardingService.submitClubAffiliationsResponse — 9-cell matr
       const result = svc.submitClubAffiliationsResponse(state.memberId, {
         candidateId: state.candidateId,
         userDecision: cell.userDecision,
+        activitySignal: 'active',
       });
 
       expect(result.branch).toBe(cell.expectedBranch);
@@ -347,6 +350,7 @@ describe('memberOnboardingService.submitClubAffiliationsResponse — multi-membe
     const r1 = svc.submitClubAffiliationsResponse(COHORT_MEMBERS[0], {
       candidateId: cohortCandidateByMember.get(COHORT_MEMBERS[0])!,
       userDecision: 'confirm',
+      activitySignal: 'active',
     });
     expect(r1.branch).toBe('promoted_co_leader');
     expect(r1.actualRole).toBe('co-leader');
@@ -355,6 +359,7 @@ describe('memberOnboardingService.submitClubAffiliationsResponse — multi-membe
       const r = svc.submitClubAffiliationsResponse(mid, {
         candidateId: cohortCandidateByMember.get(mid)!,
         userDecision: 'confirm',
+        activitySignal: 'active',
       });
       expect(r.branch).toBe('promoted_co_leader');
       expect(r.actualRole).toBe('co-leader');
@@ -370,6 +375,7 @@ describe('memberOnboardingService.submitClubAffiliationsResponse — multi-membe
     const r6 = svc.submitClubAffiliationsResponse(COHORT_MEMBERS[5], {
       candidateId: cohortCandidateByMember.get(COHORT_MEMBERS[5])!,
       userDecision: 'confirm',
+      activitySignal: 'active',
     });
     expect(r6.branch).toBe('affiliated_only');
     expect(r6.actualRole).toBeNull();
@@ -390,6 +396,7 @@ describe('memberOnboardingService.submitClubAffiliationsResponse — one-club co
     const a = svc.submitClubAffiliationsResponse(CROSS_CLUB_MEMBER, {
       candidateId: crossCandidateA,
       userDecision: 'confirm',
+      activitySignal: 'active',
     });
     expect(a.branch).toBe('promoted_co_leader');
     expect(a.actualRole).toBe('co-leader');
@@ -399,6 +406,7 @@ describe('memberOnboardingService.submitClubAffiliationsResponse — one-club co
     const b = svc.submitClubAffiliationsResponse(CROSS_CLUB_MEMBER, {
       candidateId: crossCandidateB,
       userDecision: 'confirm',
+      activitySignal: 'active',
     });
     expect(b.branch).toBe('affiliated_only');
     expect(b.actualRole).toBeNull();
@@ -430,6 +438,7 @@ describe('memberOnboardingService.submitClubAffiliationsResponse — idempotency
     const first = svc.submitClubAffiliationsResponse(IDEMPOTENT_MEMBER, {
       candidateId: idempotentCandidateId,
       userDecision: 'confirm',
+      activitySignal: 'active',
     });
     expect(first.branch).toBe('promoted_co_leader');
 
@@ -441,6 +450,7 @@ describe('memberOnboardingService.submitClubAffiliationsResponse — idempotency
     const second = svc.submitClubAffiliationsResponse(IDEMPOTENT_MEMBER, {
       candidateId: idempotentCandidateId,
       userDecision: 'confirm',
+      activitySignal: 'active',
     });
     expect(second.branch).toBe('idempotent');
 
@@ -477,6 +487,7 @@ describe('memberOnboardingService.submitClubAffiliationsResponse — affiliation
     const result = svc.submitClubAffiliationsResponse(memberId, {
       candidateId: candidateY,
       userDecision: 'confirm',
+      activitySignal: 'active',
     });
 
     // Leadership claim succeeded at club Y.
@@ -522,7 +533,31 @@ describe('memberOnboardingService.submitClubAffiliationsResponse — validation'
       svc.submitClubAffiliationsResponse(state.memberId, {
         candidateId: 'cbl-does-not-exist',
         userDecision: 'confirm',
+        activitySignal: 'active',
       }),
     ).toThrow(NotFoundError);
+  });
+
+  it('throws ValidationError when the activity answer is missing — both card answers are required', async () => {
+    const { ValidationError } = await import('../../src/services/serviceErrors');
+    const state = cellState.get('strong_confirm')!;
+    expect(() =>
+      svc.submitClubAffiliationsResponse(state.memberId, {
+        candidateId: state.candidateId,
+        userDecision: 'confirm',
+      }),
+    ).toThrow(ValidationError);
+  });
+
+  it('throws ValidationError on a retired activity value — the schema-wide vocabulary is not accepted', async () => {
+    const { ValidationError } = await import('../../src/services/serviceErrors');
+    const state = cellState.get('strong_confirm')!;
+    expect(() =>
+      svc.submitClubAffiliationsResponse(state.memberId, {
+        candidateId: state.candidateId,
+        userDecision: 'confirm',
+        activitySignal: 'not_sure',
+      }),
+    ).toThrow(ValidationError);
   });
 });

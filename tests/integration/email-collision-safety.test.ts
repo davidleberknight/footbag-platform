@@ -261,7 +261,7 @@ describe('manual claim form — non-revealing on ambiguous email', () => {
       .post('/register/wizard/personal_details/submit')
       .set('Cookie', cookie)
       .type('form')
-      .send({ city: 'Portland', country: 'US', birthDate: '1980-01-01' });
+      .send({ city: 'Portland', region: 'OR', country: 'US', birthDate: '1980-01-01' });
     const postRes = await agent
       .post('/register/wizard/legacy_claim/find')
       .set('Cookie', cookie)

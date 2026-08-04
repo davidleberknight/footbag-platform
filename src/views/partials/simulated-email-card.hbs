@@ -1,7 +1,18 @@
 {{! Simulated email card. Rendered on email-gated pages when the service
-    returns a non-null view-model. One mode: dev (table of captured stub
-    messages), used on dev and staging. Production renders nothing because
-    the service returns null. }}
+    returns a non-null view-model. One mode: dev (the captured stub messages),
+    used on dev and staging. Production renders nothing because the service
+    returns null.
+
+    One block per message rather than a six-column table: a captured message is
+    mostly one long body and one link, which a table squeezes into unreadable
+    columns. The recipient stays on the meta line, because a shared stub buffer
+    can hold several testers' mail and the address is how a reader, and the
+    browser tests, tell the messages apart.
+
+    The action anchor is deliberately plain markup carrying nothing but its href:
+    the production and anti-enumeration suites assert on its exact shape to prove
+    no link leaks where none should, and a decorative class on it would silently
+    turn those negative assertions into ones that can never fail. }}
 
 {{#if (eq mode "dev")}}
 <section class="sec-card sec-card-dev" aria-label="Simulated email (dev)">
@@ -12,35 +23,24 @@
     Restarting the server clears the buffer.
   </p>
   {{#if messages.length}}
-    <div class="records-table-wrap">
-      <table class="records-table records-table-sm sec-table">
-        <thead>
-          <tr>
-            <th>To</th>
-            <th>From</th>
-            <th>Subject</th>
-            <th>Delivered At</th>
-            <th>Link</th>
-            <th>Body</th>
-          </tr>
-        </thead>
-        <tbody>
-          {{#each messages}}
-            <tr>
-              <td>{{to}}</td>
-              <td>{{from}}</td>
-              <td>
-                {{subject}}
-                <div class="sec-msgid">{{messageId}}</div>
-              </td>
-              <td>{{deliveredAt}}</td>
-              <td>{{#if firstUrl}}<a href="{{firstUrl}}">CLICK THIS LINK</a>{{/if}}</td>
-              <td><pre class="sec-body">{{bodyText}}</pre></td>
-            </tr>
-          {{/each}}
-        </tbody>
-      </table>
-    </div>
+    <ul class="sec-msg-list">
+      {{#each messages}}
+        <li class="sec-msg">
+          <div class="sec-msg-head">
+            <span class="sec-msg-subject">{{subject}}</span>
+            {{#if firstUrl}}
+              <span class="sec-msg-action"><a href="{{firstUrl}}">CLICK THIS LINK</a></span>
+            {{/if}}
+          </div>
+          <div class="sec-msg-meta">
+            <span>{{to}}</span>
+            <span>{{deliveredAt}}</span>
+            <span class="sec-msgid">{{messageId}}</span>
+          </div>
+          <pre class="sec-body">{{bodyText}}</pre>
+        </li>
+      {{/each}}
+    </ul>
   {{else}}
     <div class="empty-state">
       No messages sent yet.

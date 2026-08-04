@@ -75,10 +75,9 @@ describe('auth gate: unauthenticated access -> 302 to /login?returnTo=...', () =
     '/register/wizard/legacy_claim/anchors/add',
     '/register/wizard/legacy_claim/anchors/remove',
     '/register/wizard/personal_details/submit',
-    '/register/wizard/personal_details/skip',
     '/register/wizard/club_affiliations/submit',
-    '/register/wizard/club_affiliations/skip',
-    '/register/wizard/legacy_claim/skip',
+    '/register/wizard/club_affiliations/none',
+    '/register/wizard/legacy_claim/continue-without-linking',
   ];
 
   for (const route of postRoutes) {
@@ -108,10 +107,9 @@ describe('CSRF: state-changing wizard POSTs reject missing/mismatched Origin', (
     '/register/wizard/legacy_claim/anchors/add',
     '/register/wizard/legacy_claim/anchors/remove',
     '/register/wizard/personal_details/submit',
-    '/register/wizard/personal_details/skip',
     '/register/wizard/club_affiliations/submit',
-    '/register/wizard/club_affiliations/skip',
-    '/register/wizard/legacy_claim/skip',
+    '/register/wizard/club_affiliations/none',
+    '/register/wizard/legacy_claim/continue-without-linking',
   ];
 
   for (const route of postRoutes) {

@@ -113,6 +113,8 @@ Where those conditions are not met, prefer raw official results, honors, and rec
 
 The `searchable` flag on a member record means **eligible for authenticated current-member lookup only**. It does not mean publicly discoverable, publicly contactable, or visible on historical-person pages.
 
+A pending account is not a member. From registration until every onboarding task is answered, the account holds a session but no member authorization: it has no profile page for any viewer, does not appear in member search, and reaches only what an anonymous visitor reaches. Its absence is indistinguishable from an unknown account, so a pending registration is never enumerable.
+
 **Public historical-person pages** are not search surfaces. They are read-only record pages reachable by direct link or from event result pages.
 
 Public routes must not expose any endpoint that allows enumeration of current members.

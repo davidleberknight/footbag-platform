@@ -28,7 +28,7 @@ let db: BetterSqlite3.Database;
 
 beforeAll(async () => {
   db = createTestDb(dbPath);
-  insertMember(db, {
+  insertMember(db, { onboarding: 'none',
     id: 'copy-member', slug: 'copy_member', login_email: 'copy-member@example.com',
     real_name: 'Copy Member', display_name: 'Copy Member',
   });
@@ -36,9 +36,15 @@ beforeAll(async () => {
   insertOnboardingTask(db, 'copy-member', 'personal_details', 'completed');
   // A separate member with personal details still outstanding, so the
   // personal-details form (and its microcopy) renders instead of redirecting.
-  insertMember(db, {
+  insertMember(db, { onboarding: 'none',
     id: 'copy-pd-member', slug: 'copy_pd_member', login_email: 'copy-pd-member@example.com',
     real_name: 'Copy PD Member', display_name: 'Copy PD Member',
+  });
+  // A second pending member outside the USA and Canada, so the region marker
+  // can be checked in both of its states rather than only one.
+  insertMember(db, { onboarding: 'none',
+    id: 'copy-pd-intl', slug: 'copy_pd_intl', login_email: 'copy-pd-intl@example.com',
+    real_name: 'Copy Intl Member', display_name: 'Copy Intl Member', country: 'New Zealand',
   });
   insertClub(db, { id: 'club-copy-real', name: 'Copy Test Club', country: 'Freedonia', publiclyVisible: true });
   createApp = await importApp();
@@ -75,12 +81,27 @@ describe('legacy-claim matching microcopy', () => {
     expect(res.text).toContain('only you and administrators can see it');
   });
 
-  it('the region field carries the optional marker', async () => {
+  // The marker follows the country: a state or province is part of the address
+  // in some countries and meaningless in others, so the form tells the member
+  // which case they are in instead of stating one rule for everyone.
+  it('the region field is marked required for a member in the USA', async () => {
     const res = await request(createApp())
       .get('/register/wizard/personal_details')
       .set('Cookie', pendingDetailsCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toMatch(/Region \/ State <span class="text-muted">\(optional\)<\/span>/);
+    expect(res.text).toMatch(/Region \/ State\s*<span class="fw-600">\(required\)<\/span>/);
+    // A US member is offered the state list rather than a free-text box.
+    expect(res.text).toContain('Select your state or province');
+    expect(res.text).toContain('>Oregon<');
+  });
+
+  it('the region field is marked optional for a member outside the USA and Canada', async () => {
+    const res = await request(createApp())
+      .get('/register/wizard/personal_details')
+      .set('Cookie', `__Host-footbag_session=${createTestSessionJwt({ memberId: 'copy-pd-intl' })}`);
+    expect(res.status).toBe(200);
+    expect(res.text).toMatch(/Region \/ State\s*<span class="text-muted">\(optional\)<\/span>/);
+    expect(res.text).not.toContain('Select your state or province');
   });
 });
 

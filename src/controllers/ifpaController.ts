@@ -7,7 +7,9 @@ export const ifpaController = {
   /** GET /ifpa */
   index(req: Request, res: Response, next: NextFunction): void {
     try {
-      const vm = ifpaService.getIfpaIndexPage({ isAuthenticated: req.isAuthenticated });
+      // Member enhancement keys off membership, not bare authentication: a
+      // pending registrant reads this page as an anonymous visitor.
+      const vm = ifpaService.getIfpaIndexPage({ isAuthenticated: req.isMember });
       res.render('ifpa/index', vm);
     } catch (err) {
       handleControllerError(err, res, next, 'ifpa controller');

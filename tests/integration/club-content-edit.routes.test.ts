@@ -16,16 +16,6 @@ const { dbPath } = setTestEnv('3080');
 let createApp: Awaited<ReturnType<typeof importApp>>;
 let db: BetterSqlite3.Database;
 
-function settleOnboarding(memberId: string): void {
-  for (const [i, taskType] of ['personal_details', 'legacy_claim', 'club_affiliations'].entries()) {
-    db.prepare(`
-      INSERT INTO member_onboarding_tasks
-        (id, created_at, created_by, updated_at, updated_by, member_id, task_type, state, completed_at)
-      VALUES (?, '2026-01-01T00:00:00.000Z', 'test', '2026-01-01T00:00:00.000Z', 'test', ?, ?, 'completed', '2026-01-01T00:00:00.000Z')
-    `).run(`ccl-mot-${memberId}-${i}`, memberId, taskType);
-  }
-}
-
 beforeAll(async () => {
   db = createTestDb(dbPath);
   createApp = await importApp();
@@ -55,8 +45,6 @@ function seedClubWithLeader(): { clubId: string; clubKey: string; leaderId: stri
     INSERT INTO club_leaders (id, created_at, created_by, updated_at, updated_by, club_id, member_id, role, added_at)
     VALUES (?, '2026-01-01T00:00:00.000Z', 'test', '2026-01-01T00:00:00.000Z', 'test', ?, ?, 'co-leader', '2026-01-01T00:00:00.000Z')
   `).run(`ccl-cl-${_n}`, clubId, leaderId);
-  settleOnboarding(leaderId);
-  settleOnboarding(memberId);
   return { clubId, clubKey: `club_ccl_${_n}`, leaderId, memberId };
 }
 

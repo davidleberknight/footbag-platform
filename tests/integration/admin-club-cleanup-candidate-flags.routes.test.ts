@@ -54,12 +54,11 @@ beforeAll(async () => {
   insertCandidateFlag(db, VOTER_ID, FLAGGED_CAND, 'not_active');
 
   insertLegacyClubCandidate(db, { id: DISMISS_CAND, display_name: 'Dismissable Candidate', classification: 'dormant' });
-  insertCandidateFlag(db, VOTER_ID, DISMISS_CAND, 'never_heard_of_it');
+  insertCandidateFlag(db, VOTER_ID, DISMISS_CAND, 'not_active');
 
-  // A candidate whose only vote is "not sure" carries no activity evidence
-  // and never surfaces in the flag group.
-  insertLegacyClubCandidate(db, { id: NOTSURE_CAND, display_name: 'Not Sure Candidate', classification: 'onboarding_visible' });
-  insertCandidateFlag(db, VOTER_ID, NOTSURE_CAND, 'not_sure');
+  // A candidate with no signal rows at all carries no activity evidence and
+  // never surfaces in the flag group.
+  insertLegacyClubCandidate(db, { id: NOTSURE_CAND, display_name: 'Unflagged Candidate', classification: 'onboarding_visible' });
 
   db.close();
   createApp = await importApp();
@@ -88,7 +87,7 @@ describe('candidate-flag group rendering', () => {
     expect(member.status).toBe(403);
   });
 
-  it('renders flagged candidates with signal counts and negative-voter names; not-sure-only candidates stay hidden', async () => {
+  it('renders flagged candidates with signal counts and negative-voter names; unflagged candidates stay out of the flag group', async () => {
     const res = await request(createApp())
       .get('/admin/club-cleanup')
       .set('Cookie', adminCookie());
@@ -97,13 +96,12 @@ describe('candidate-flag group rendering', () => {
     expect(res.text).toContain('Main Flagged Candidate');
     expect(res.text).toContain('inactive per: Flag Voter');
     expect(res.text).toContain('Dismissable Candidate');
-    expect(res.text).toContain('never heard of it per: Flag Voter');
-    // The not-sure-only candidate still lists as promotable, but carries no
+    // The signal-less candidate still lists as promotable, but carries no
     // flag item: with the queue narrowed to the flag group it disappears.
     const flagsOnly = await request(createApp())
       .get('/admin/club-cleanup?category=candidate_flag')
       .set('Cookie', adminCookie());
-    expect(flagsOnly.text).not.toContain('Not Sure Candidate');
+    expect(flagsOnly.text).not.toContain('Unflagged Candidate');
     expect(flagsOnly.text).toContain('Main Flagged Candidate');
   });
 

@@ -187,7 +187,9 @@ describe('canonical persona catalog', () => {
     const payN = db.prepare(`SELECT COUNT(*) AS n FROM payments WHERE member_id = ?`);
     const mlN = db.prepare(`SELECT COUNT(*) AS n FROM mailing_list_subscriptions WHERE member_id = ?`);
     const affN = db.prepare(`SELECT COUNT(*) AS n FROM member_club_affiliations WHERE member_id = ?`);
-    const onbN = db.prepare(`SELECT COUNT(*) AS n FROM member_onboarding_tasks WHERE member_id = ?`);
+    const onbCompletedN = db.prepare(
+      `SELECT COUNT(*) AS n FROM member_onboarding_tasks WHERE member_id = ? AND state = 'completed'`,
+    );
     const onbStateOf = db.prepare(`SELECT state FROM member_onboarding_tasks WHERE member_id = ? AND task_type = ?`);
     type MemberRow = {
       display_name: string;
@@ -262,8 +264,12 @@ describe('canonical persona catalog', () => {
           const row = onbStateOf.get(id, taskType) as { state: string } | undefined;
           expect(row?.state, `${spec.slug} ${taskType} state`).toBe(wantState);
         }
-      } else if (spec.onboardingComplete) {
-        expect(countN(onbN, id), `${spec.slug} onboarding rows`).toBeGreaterThan(0);
+      } else {
+        // Membership is an authorization level, so a persona that declares no
+        // per-task state is a full member: all three tasks completed. A persona
+        // silently seeded short of that would have no profile page and reach no
+        // member capability, which would void whatever it exists to test.
+        expect(countN(onbCompletedN, id), `${spec.slug} completed onboarding rows`).toBe(3);
       }
     }
   });

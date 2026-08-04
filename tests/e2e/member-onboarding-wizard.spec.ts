@@ -1,7 +1,8 @@
 /**
- * Core onboarding wizard flow: task sequencing, skip/advance,
- * form submission with DB verification, reload resilience,
- * anti-enumeration, and completion page.
+ * Core onboarding wizard flow: task sequencing, the explicit answer that
+ * completes a task and advances, form submission with DB verification, reload
+ * resilience, anti-enumeration, and the completion page. Every task is
+ * required; the only way past one is to answer it.
  */
 import { test, expect } from '@playwright/test';
 import { openLiveDb, createAuthenticatedContext } from './helpers/wizard-auth';
@@ -28,7 +29,7 @@ test('brand-new player sees legacy_claim with search form, no candidate cards, s
   await expect(wizard.heading).toBeVisible();
   await expect(wizard.identifierInput).toBeVisible();
   await expect(wizard.findButton).toBeVisible();
-  await expect(wizard.skipButton).toBeVisible();
+  await expect(wizard.continueWithoutLinkingButton).toBeVisible();
 
   const body = await page.textContent('body');
   expect(body).not.toMatch(/we found|match found|candidate/i);
@@ -38,7 +39,7 @@ test('brand-new player sees legacy_claim with search form, no candidate cards, s
 
 test('legacy_claim continue without linking: completes the task, advances', async ({ browser, baseURL }) => {
   const db = openLiveDb();
-  const persona = seedBrandNewPlayer(db, { slug: `w_skip_${Date.now()}` });
+  const persona = seedBrandNewPlayer(db, { slug: `w_cwl_${Date.now()}` });
   const { memberId } = persona;
   completePersonalDetails(db, memberId);
   db.close();
@@ -48,7 +49,7 @@ test('legacy_claim continue without linking: completes the task, advances', asyn
   const wizard = new WizardPage(page);
 
   await wizard.goto('legacy_claim');
-  await wizard.skipCurrentTask();
+  await wizard.answerCurrentTask();
 
   await expect(wizard.heading).toBeVisible();
   expect(page.url()).not.toContain('legacy_claim');
@@ -126,7 +127,7 @@ test('personal_details: valid year saves to DB', async ({ browser, baseURL }) =>
 
   await wizard.goto('personal_details');
   await page.locator('#city').fill('Portland');
-  await page.locator('#country').fill('US');
+  await wizard.selectCountry('United States', 'OR');
   await page.locator('#birthDate').fill('2000-01-15');
   await wizard.submitYear('2005');
 
@@ -180,7 +181,7 @@ test('personal_details: empty year accepted, clears field', async ({ browser, ba
 
   await wizard.goto('personal_details');
   await page.locator('#city').fill('Portland');
-  await page.locator('#country').fill('US');
+  await wizard.selectCountry('United States', 'OR');
   await page.locator('#birthDate').fill('2000-01-15');
   await wizard.yearInput.fill('');
   await wizard.saveButton.click();
@@ -205,14 +206,13 @@ test('completion page: text correct, profile link works', async ({ browser, base
   const page = await ctx.newPage();
   const wizard = new WizardPage(page);
 
-  // Reach completion by handling each task in order: personal_details is
-  // required (fill and save), legacy_claim is completed by the
-  // continue-without-linking decision, and the optional club_affiliations is
-  // skipped.
+  // Reach completion by answering each task in order: personal_details is
+  // filled and saved, legacy_claim is answered by the continue-without-linking
+  // decision, and club_affiliations by the explicit no-club answer.
   await wizard.goto('personal_details');
   await wizard.fillPersonalDetailsAndSave();
-  await wizard.skipCurrentTask();
-  await wizard.skipCurrentTask();
+  await wizard.answerCurrentTask();
+  await wizard.answerCurrentTask();
   await page.waitForURL(/\/register\/wizard\/complete/);
 
   await expect(wizard.completionMessage).toBeVisible();
@@ -223,7 +223,7 @@ test('completion page: text correct, profile link works', async ({ browser, base
   await ctx.close();
 });
 
-test('handle all three tasks end-to-end -> completion -> profile', async ({ browser, baseURL }) => {
+test('answer all three tasks end-to-end -> every task completed', async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const persona = seedBrandNewPlayer(db, { slug: `w_all_${Date.now()}` });
   db.close();
@@ -234,18 +234,18 @@ test('handle all three tasks end-to-end -> completion -> profile', async ({ brow
 
   await wizard.goto('personal_details');
   await wizard.fillPersonalDetailsAndSave();
-  await wizard.skipCurrentTask();
-  await wizard.skipCurrentTask();
+  await wizard.answerCurrentTask();
+  await wizard.answerCurrentTask();
   await page.waitForURL(/\/register\/wizard\/complete/);
 
   await expect(wizard.completionMessage).toBeVisible();
 
-  // The two required tasks reach completed (personal_details saved,
-  // legacy_claim continued without linking); the optional club task is skipped.
+  // Onboarding is complete only when all three tasks are completed, so an
+  // answered task in any other state would leave the member fenced out.
   const db2 = openLiveDb();
   expect(getTaskState(db2, persona.memberId, 'personal_details')).toBe('completed');
   expect(getTaskState(db2, persona.memberId, 'legacy_claim')).toBe('completed');
-  expect(getTaskState(db2, persona.memberId, 'club_affiliations')).toBe('skipped');
+  expect(getTaskState(db2, persona.memberId, 'club_affiliations')).toBe('completed');
   db2.close();
 
   await ctx.close();
@@ -262,8 +262,7 @@ test('browser reload mid-wizard preserves state', async ({ browser, baseURL }) =
   const wizard = new WizardPage(page);
 
   await wizard.goto('legacy_claim');
-  await wizard.skipCurrentTask();
-  await page.waitForURL(/\/register\/wizard\//);
+  await wizard.answerCurrentTask();
 
   const urlBeforeReload = page.url();
   await page.reload();

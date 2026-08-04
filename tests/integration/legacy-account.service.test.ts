@@ -219,7 +219,7 @@ describe('claimLegacyAccount', () => {
     expect(m.legacy_member_id).toBe(LEGACY_WITH_HP);
     expect(m.historical_person_id).toBe(HP_PERSON_ID);
     expect(m.is_hof).toBe(1); // OR-merged from legacy.
-    expect(m.country).toBe('US'); // factory default 'US' is non-empty, fill-if-empty leaves it alone.
+    expect(m.country).toBe('United States'); // the member's own non-empty country; fill-if-empty leaves it alone.
     expect(m.bio).toBe('A competing legend.'); // member bio defaulted to '', so legacy fills it.
   });
 

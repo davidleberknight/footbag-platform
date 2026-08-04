@@ -79,11 +79,22 @@ describe('persona switch + authenticated page crawl', () => {
       const home = await request(createApp()).get('/').set('Cookie', cookie);
       expect(home.status, `${spec.slug} home`).toBeLessThan(400);
 
-      // The persona reaches its own profile edit page (requireAuth, owner-only),
+      // The persona reaches its own profile edit page (member-only, owner-only),
       // proving the cookie verifies as a real session for this exact persona
-      // rather than redirecting to /login.
+      // rather than redirecting to /login. A pending persona (an onboarding
+      // spec that leaves any task short of completed) is instead routed to its
+      // next wizard task, which equally proves the session resolved.
+      const isPending =
+        spec.onboardingTasks !== undefined &&
+        !(['personal_details', 'legacy_claim', 'club_affiliations'] as const)
+          .every((t) => spec.onboardingTasks?.[t] === 'completed');
       const edit = await request(createApp()).get(`/members/${spec.slug}/edit`).set('Cookie', cookie);
-      expect(edit.status, `${spec.slug} edit`).toBe(200);
+      if (isPending) {
+        expect(edit.status, `${spec.slug} edit (pending → wizard)`).toBe(303);
+        expect(edit.headers.location, `${spec.slug} edit target`).toContain('/register/wizard/');
+      } else {
+        expect(edit.status, `${spec.slug} edit`).toBe(200);
+      }
 
       // The member-galleries surface renders for the authenticated persona.
       const galleries = await request(createApp()).get('/media/member-galleries').set('Cookie', cookie);

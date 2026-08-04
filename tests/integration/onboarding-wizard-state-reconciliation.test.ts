@@ -44,10 +44,13 @@ function getTaskState(memberId: string, taskType: string): string | null {
   return row?.state ?? null;
 }
 
-describe('A1: profile-edit save gates the personal_details task on the mandatory fields', () => {
-  it('does not complete personal_details when the saved profile blanks city and country', async () => {
+describe('A1: profile edit is a member capability, so it can never complete an onboarding task', () => {
+  it('a pending registrant posting a profile edit is routed to the wizard and the task state is untouched', async () => {
+    // The wizard's personal_details step is the only writer of the required
+    // fields while pending; the profile-edit surface requires membership, so
+    // there is no back door that completes the task from outside the wizard.
     const stamp = Date.now();
-    const memberId = insertMember(testDb, {
+    const memberId = insertMember(testDb, { onboarding: 'none',
       slug: `state_a1n_${stamp}`,
       login_email: `state-a1n-${stamp}@example.com`,
       real_name:   'A One',
@@ -61,49 +64,20 @@ describe('A1: profile-edit save gates the personal_details task on the mandatory
       .set('Cookie', cookieFor(memberId))
       .type('form')
       .send({
-        bio: '', city: '', region: '', country: '', phone: '', emailVisibility: 'private',
-        firstCompetitionYear: '1992',
-        showCompetitiveResults: '1',
-      });
-    // City and country are mandatory, so a blank-mandatory-field save is rejected
-    // outright rather than silently completing an incomplete profile.
-    expect(res.status).toBe(422);
-
-    // A rejected save must not flip the required onboarding task to completed, or
-    // a member becomes a full member with city and country missing.
-    expect(getTaskState(memberId, 'personal_details')).toBe('pending');
-  });
-
-  it('completes personal_details when city and country are saved and a date of birth is on file', async () => {
-    const stamp = Date.now();
-    const memberId = insertMember(testDb, {
-      slug: `state_a1y_${stamp}`,
-      login_email: `state-a1y-${stamp}@example.com`,
-      real_name:   'A One',
-      birth_date:  '1990-05-15',
-    });
-    svc.startTaskList(memberId);
-    expect(getTaskState(memberId, 'personal_details')).toBe('pending');
-
-    const res = await request(createApp())
-      .post(`/members/state_a1y_${stamp}/edit`)
-      .set('Cookie', cookieFor(memberId))
-      .type('form')
-      .send({
-        bio: '', city: 'Portland', region: '', country: 'US', phone: '', emailVisibility: 'private',
+        bio: '', city: 'Portland', region: 'OR', country: 'US', phone: '', emailVisibility: 'private',
         firstCompetitionYear: '1992',
         showCompetitiveResults: '1',
       });
     expect(res.status).toBe(303);
-
-    expect(getTaskState(memberId, 'personal_details')).toBe('completed');
+    expect(res.headers.location).toContain('/register/wizard/');
+    expect(getTaskState(memberId, 'personal_details')).toBe('pending');
   });
 });
 
 describe('A2: out-of-wizard HP claim completes the legacy_claim task', () => {
   it('POST /history/:personId/claim/confirm transitions legacy_claim to completed in the same transaction as the claim', async () => {
     const stamp = Date.now();
-    const memberId = insertMember(testDb, {
+    const memberId = insertMember(testDb, { onboarding: 'none',
       slug: `state_a2_${stamp}`,
       login_email: `state-a2-${stamp}@example.com`,
       real_name:   'Foo Bar',
@@ -129,7 +103,7 @@ describe('A2: out-of-wizard HP claim completes the legacy_claim task', () => {
 describe('A5 + L5: wizard GETs reconcile task state with underlying reality', () => {
   it('GET /register/wizard/club_affiliations stays pending and renders the wrap-up landing for a member with no possible cards', async () => {
     const stamp = Date.now();
-    const memberId = insertMember(testDb, {
+    const memberId = insertMember(testDb, { onboarding: 'none',
       slug: `state_a5_${stamp}`,
       login_email: `state-a5-${stamp}@example.com`,
     });
@@ -141,16 +115,26 @@ describe('A5 + L5: wizard GETs reconcile task state with underlying reality', ()
       .get('/register/wizard/club_affiliations')
       .set('Cookie', cookieFor(memberId));
     // club_affiliations is universal: a member with no possible cards reaches
-    // the find-or-create-your-club wrap-up landing rather than being skipped.
+    // the wrap-up landing, which renders and waits for the explicit no-club
+    // answer rather than completing on the render.
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Find or create your club');
+    expect(res.text).toContain('Clubs come after onboarding');
+    expect(res.text).toContain('Finish Without a Club');
+    expect(getTaskState(memberId, 'club_affiliations')).toBe('pending');
+
+    // Rendering the landing a second time still transitions nothing: only the
+    // explicit answer completes the task.
+    const again = await request(createApp())
+      .get('/register/wizard/club_affiliations')
+      .set('Cookie', cookieFor(memberId));
+    expect(again.status).toBe(200);
     expect(getTaskState(memberId, 'club_affiliations')).toBe('pending');
   });
 
   it('GET /register/wizard/legacy_claim auto-transitions to completed when historical_person_id is set', async () => {
     const stamp = Date.now();
     const personId = insertHistoricalPerson(testDb, { person_name: 'L Five' });
-    const memberId = insertMember(testDb, {
+    const memberId = insertMember(testDb, { onboarding: 'none',
       slug: `state_l5_${stamp}`,
       login_email: `state-l5-${stamp}@example.com`,
       real_name:   'L Five',
@@ -176,7 +160,7 @@ describe('A5 + L5: wizard GETs reconcile task state with underlying reality', ()
 describe('/register/wizard/complete does not lie about progress', () => {
   it('GET /register/wizard/complete redirects to the next pending task when tasks remain', async () => {
     const stamp = Date.now();
-    const memberId = insertMember(testDb, {
+    const memberId = insertMember(testDb, { onboarding: 'none',
       slug: `state_b2_${stamp}`,
       login_email: `state-b2-${stamp}@example.com`,
     });
@@ -190,29 +174,48 @@ describe('/register/wizard/complete does not lie about progress', () => {
     expect(res.headers.location).not.toBe('/register/wizard/complete');
   });
 
-  it('GET /register/wizard/complete renders the completion page when no pending tasks remain', async () => {
+  it('GET /register/wizard/complete renders the completion page once all three tasks are answered', async () => {
     const stamp = Date.now();
-    const memberId = insertMember(testDb, {
+    const memberId = insertMember(testDb, { onboarding: 'none',
       slug: `state_b2_done_${stamp}`,
       login_email: `state-b2-done-${stamp}@example.com`,
     });
     svc.startTaskList(memberId);
     svc.completeTask(memberId, 'personal_details');
     svc.completeTask(memberId, 'legacy_claim');
-    svc.markTaskNotApplicable(memberId, 'club_affiliations');
+    svc.completeTask(memberId, 'club_affiliations');
 
     const res = await request(createApp())
       .get('/register/wizard/complete')
       .set('Cookie', cookieFor(memberId));
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Your onboarding tasks are handled');
+    expect(res.text).toContain('Your onboarding is complete');
+  });
+
+  it('GET /register/wizard/complete routes a member whose club question is still open back to it', async () => {
+    const stamp = Date.now();
+    const memberId = insertMember(testDb, { onboarding: 'none',
+      slug: `state_b2_club_open_${stamp}`,
+      login_email: `state-b2-club-open-${stamp}@example.com`,
+    });
+    svc.startTaskList(memberId);
+    svc.completeTask(memberId, 'personal_details');
+    svc.completeTask(memberId, 'legacy_claim');
+
+    // Both identity steps are answered but the club question is not, so the
+    // page must not claim the member is done while the gate still fences them.
+    const res = await request(createApp())
+      .get('/register/wizard/complete')
+      .set('Cookie', cookieFor(memberId));
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/register/wizard/club_affiliations');
   });
 });
 
-describe('A6 + A7: skipped tasks land in the skipped bucket, not the in-sequence advance set', () => {
-  it('nextTaskAfter (via skip-and-advance) does not loop the wizard back into a skipped task', async () => {
+describe('answering a task advances the wizard, never back into a resolved one', () => {
+  it('each explicit answer advances to the next task, and the last lands on the completion page', async () => {
     const stamp = Date.now();
-    const memberId = insertMember(testDb, {
+    const memberId = insertMember(testDb, { onboarding: 'none',
       slug: `state_a6_${stamp}`,
       login_email: `state-a6-${stamp}@example.com`,
       birth_date:  '1980-01-01',
@@ -226,84 +229,57 @@ describe('A6 + A7: skipped tasks land in the skipped bucket, not the in-sequence
     // attestation that the member never held an old-site account; it completes
     // legacy_claim and advances to the club step.
     const r1 = await request(createApp())
-      .post('/register/wizard/legacy_claim/skip')
+      .post('/register/wizard/legacy_claim/continue-without-linking')
       .set('Cookie', cookie).type('form').send({ no_old_account: '1' });
     expect(r1.headers.location).toBe('/register/wizard/club_affiliations');
 
     const r2 = await request(createApp())
-      .post('/register/wizard/club_affiliations/skip')
+      .post('/register/wizard/club_affiliations/none')
       .set('Cookie', cookie).type('form').send({});
-    // Skipping the last remaining task advances to the completion page, never
+    // Answering the last remaining task advances to the completion page, never
     // back into an already-resolved task.
     expect(r2.headers.location).toBe('/register/wizard/complete');
+    expect(getTaskState(memberId, 'club_affiliations')).toBe('completed');
   });
 
-  it('getDashboardTaskWidget puts skipped rows in the skipped bucket (not pending)', () => {
+  it('the club task never resurfaces as outstanding once it is answered', () => {
     const stamp = Date.now();
-    const memberId = insertMember(testDb, {
+    const memberId = insertMember(testDb, { onboarding: 'none',
       slug: `state_a7_${stamp}`,
       login_email: `state-a7-${stamp}@example.com`,
     });
     svc.startTaskList(memberId);
-    svc.skipTask(memberId, 'club_affiliations');
+    svc.completeTask(memberId, 'club_affiliations');
 
-    const widget = svc.getDashboardTaskWidget(memberId);
-    expect(widget.skipped.map((t) => t.taskType)).toContain('club_affiliations');
-    expect(widget.pending.map((t) => t.taskType)).not.toContain('club_affiliations');
-    const skipped = widget.skipped.find((t) => t.taskType === 'club_affiliations')!;
-    expect(skipped.ctaLabel).toBe('Open Task');
+    expect(svc.nextOutstandingTaskType(memberId)).not.toBe('club_affiliations');
   });
 });
 
-describe('C4: dashboard widget hides when nothing is outstanding', () => {
-  it('widget.hasOutstanding is false when every task is completed or not_applicable', () => {
+describe('membership is granted only when all three tasks are completed', () => {
+  it('isOnboardingComplete flips true exactly on the last completion', () => {
     const stamp = Date.now();
-    const memberId = insertMember(testDb, {
+    const memberId = insertMember(testDb, { onboarding: 'none',
       slug: `state_c4_${stamp}`,
       login_email: `state-c4-${stamp}@example.com`,
     });
     svc.startTaskList(memberId);
     svc.completeTask(memberId, 'personal_details');
     svc.completeTask(memberId, 'legacy_claim');
-    svc.markTaskNotApplicable(memberId, 'club_affiliations');
 
-    const widget = svc.getDashboardTaskWidget(memberId);
-    expect(widget.hasOutstanding).toBe(false);
-    const allBuckets = [
-      ...widget.pending, ...widget.paused, ...widget.skipped,
-    ].map((t) => t.taskType);
-    expect(allBuckets).toHaveLength(0);
-  });
-});
+    // The club task is still unanswered, so the account is still pending.
+    expect(svc.isOnboardingComplete(memberId)).toBe(false);
+    expect(svc.nextOutstandingTaskType(memberId)).toBe('club_affiliations');
 
-describe('markTaskNotApplicable guards the always-completable required task', () => {
-  it('refuses to mark personal_details not_applicable; allows legacy_claim and club_affiliations', () => {
-    const stamp = Date.now();
-    const memberId = insertMember(testDb, {
-      slug: `state_na_guard_${stamp}`,
-      login_email: `state-na-guard-${stamp}@example.com`,
-    });
-    svc.startTaskList(memberId);
-
-    // personal_details is always completable by saving its fields, so it must
-    // never be removed from the outstanding set via not_applicable; the call is
-    // refused and the state is untouched.
-    expect(() => svc.markTaskNotApplicable(memberId, 'personal_details')).toThrow();
-    expect(getTaskState(memberId, 'personal_details')).toBe('pending');
-
-    // legacy_claim has a legitimate not_applicable path (no plausible legacy
-    // match) and club_affiliations is optional, so neither is guarded.
-    expect(() => svc.markTaskNotApplicable(memberId, 'legacy_claim')).not.toThrow();
-    expect(getTaskState(memberId, 'legacy_claim')).toBe('not_applicable');
-    expect(() => svc.markTaskNotApplicable(memberId, 'club_affiliations')).not.toThrow();
-    expect(getTaskState(memberId, 'club_affiliations')).toBe('not_applicable');
+    svc.completeTask(memberId, 'club_affiliations');
+    expect(svc.isOnboardingComplete(memberId)).toBe(true);
+    expect(svc.nextOutstandingTaskType(memberId)).toBeNull();
   });
 });
 
 describe('D4: legacy_claim search surfaces the validation message inline', () => {
   it('POST /register/wizard/legacy_claim/find with empty identifier renders the validation message', async () => {
     const stamp = Date.now();
-    const memberId = insertMember(testDb, {
+    const memberId = insertMember(testDb, { onboarding: 'none',
       slug: `state_d4_${stamp}`,
       login_email: `state-d4-${stamp}@example.com`,
       birth_date:  '1980-01-01',

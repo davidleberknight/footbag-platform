@@ -169,6 +169,7 @@ describe('POST /members/:slug/edit — SQL injection in bio', () => {
           bio: payload,
           // Mandatory profile fields; the save must succeed so the bio persists.
           city: 'Portland',
+          region: 'OR',
           country: 'USA',
           firstCompetitionYear: '',
           showCompetitiveResults: 'on',

@@ -38,7 +38,7 @@ function buildLoginViewModel(opts: {
 }): PageViewModel<LoginContent> {
   return {
     seo: { title: 'Login', noindex: true },
-    page: { sectionKey: '', pageKey: 'login', title: 'Member Login', intro: 'Sign in to your IFPA member account.' },
+    page: { sectionKey: '', pageKey: 'login', title: 'Member Login' },
     content: {
       returnTo: opts.returnTo,
       authReason: opts.authReason,

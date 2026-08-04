@@ -325,20 +325,20 @@ describe('clubService.confirmAffiliation — two-current-club cap: second curren
 });
 
 describe('clubService.confirmAffiliation — three-club cap: third current affiliation blocked', () => {
-  it('member with two current clubs, third confirm is a cap hit: row stays pending and actionable, no mca row created', () => {
+  it('member with two current clubs, third confirm records a former membership and creates no current affiliation', () => {
     const result = svc.confirmAffiliation(threeCapAffC, MEMBER_THREE_CAP, 'confirm');
 
-    // At the two-current-club cap the confirm is a no-op cap hit: the resolved
-    // club is reported back for messaging, but no affiliation lands.
+    // At the two-current-club cap no current affiliation lands, but the
+    // resolved club is reported back for messaging.
     expect(result.branch).toBe('cap_hit');
     expect(result.resolvedClubId).toBe(threeCapClubC);
     expect(result.newAffiliationId).toBeNull();
 
-    // The legacy row is left pending (not transitioned, not stamped) so the
-    // member can free a current-club slot and confirm it later.
+    // The member's Yes is true about the past, so it is kept as a former
+    // membership rather than discarded or left hanging as an open question.
     const row = readAffiliation(threeCapAffC);
-    expect(row.resolution_status).toBe('pending');
-    expect(row.resolved_club_id).toBeNull();
+    expect(row.resolution_status).toBe('former_only');
+    expect(row.resolved_club_id).toBe(threeCapClubC);
 
     const affs = readMemberAffiliations(MEMBER_THREE_CAP);
     const currentAffs = affs.filter((a) => a.is_current === 1);

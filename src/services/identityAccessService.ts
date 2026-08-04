@@ -82,6 +82,12 @@
  *     idempotent); a declined pair is never re-staged.
  *   - Every confirmed-claim audit row carries an evidence_strength tag;
  *     name-only evidence tags the declared_anchor_only floor tier.
+ *   - Claim-merge source precedence: the member's own answer beats every
+ *     import, and the curated historical_persons record beats the legacy
+ *     footbag.org dump. Both merge statements are fill-if-empty, so the
+ *     ladder is carried by write order on both claim paths: the historical
+ *     merge always executes before the legacy transfer. Honors OR together
+ *     (MAX) and are order-independent.
  *   - Auto-link revert is idempotent: a second revert returns
  *     `already_reverted` without state change.
  *
@@ -1916,25 +1922,6 @@ function claimLegacyAccountInTxInner(
     throw new ValidationError('This legacy record has already been claimed by another account.');
   }
 
-  legacyClaim.transferLegacyFields.run(
-    row.legacy_member_id,
-    row.legacy_user_id,
-    row.legacy_email,
-    row.bio ?? '',
-    row.birth_date,
-    row.street_address,
-    row.postal_code,
-    row.city,
-    row.region,
-    row.country,
-    row.ifpa_join_date,
-    row.is_hof,
-    row.is_bap,
-    row.first_competition_year,
-    now,
-    requestingMemberId,
-  );
-
   const hp = legacyClaim.findHistoricalPersonByLegacyId.get(row.legacy_member_id) as HistoricalPersonClaimRow | undefined;
 
   // A historical record marked deceased is not self-claimable, and claiming this
@@ -1949,6 +1936,11 @@ function claimLegacyAccountInTxInner(
     throw new ValidationError('The legacy record is no longer available for claim.');
   }
 
+  // Merge precedence: the member's own answer beats every import, and the
+  // curated historical record beats the legacy dump. Both merge statements are
+  // fill-if-empty, so the ladder is enforced by write order: the curated
+  // historical fields land BEFORE the legacy transfer, and a column the member
+  // already filled is never touched by either.
   if (hp) {
     // The link write is WHERE historical_person_id IS NULL; a 0-row result means
     // this member already holds an HP link (e.g. from a prior direct-HP claim
@@ -1968,6 +1960,25 @@ function claimLegacyAccountInTxInner(
       requestingMemberId,
     );
   }
+
+  legacyClaim.transferLegacyFields.run(
+    row.legacy_member_id,
+    row.legacy_user_id,
+    row.legacy_email,
+    row.bio ?? '',
+    row.birth_date,
+    row.street_address,
+    row.postal_code,
+    row.city,
+    row.region,
+    row.country,
+    row.ifpa_join_date,
+    row.is_hof,
+    row.is_bap,
+    row.first_competition_year,
+    now,
+    requestingMemberId,
+  );
 
   // Single tier grant per legacy claim; grants never stack. Maps the legacy
   // standing to a tier: honors (HoF or BAP, from the legacy row or the transitive
@@ -3000,6 +3011,10 @@ function claimHistoricalPersonInTxInner(
   // behind it has no legacy date to compare.
   let dobComparison = 'no_legacy_account';
   let comparedLegacyBirthDate: string | null = null;
+  // Set when the transitive legacy claim should also transfer the legacy
+  // profile fields; the transfer itself runs after the historical-person merge
+  // so the curated source keeps precedence over the legacy dump.
+  let transitiveLegacyRow: LegacyMemberRow | null = null;
 
   // Transitive legacy claim when the HP is back-linked to a legacy account.
   if (hp.legacy_member_id) {
@@ -3030,24 +3045,7 @@ function claimHistoricalPersonInTxInner(
         );
       }
       if (!member.legacy_member_id) {
-        legacyClaim.transferLegacyFields.run(
-          lm.legacy_member_id,
-          lm.legacy_user_id,
-          lm.legacy_email,
-          lm.bio ?? '',
-          lm.birth_date,
-          lm.street_address,
-          lm.postal_code,
-          lm.city,
-          lm.region,
-          lm.country,
-          lm.ifpa_join_date,
-          lm.is_hof,
-          lm.is_bap,
-          lm.first_competition_year,
-          now,
-          requestingMemberId,
-        );
+        transitiveLegacyRow = lm;
       }
     } else if (lm && lm.claimed_by_member_id && lm.claimed_by_member_id !== requestingMemberId) {
       throw new ValidationError(
@@ -3059,7 +3057,11 @@ function claimHistoricalPersonInTxInner(
   // Set the member↔HP link. Partial UNIQUE index enforces one live member per HP.
   legacyMembers.setMemberHistoricalPersonId.run(hp.person_id, now, requestingMemberId);
 
-  // Carry country / HoF / BAP / hof_inducted_year / first_competition_year from HP.
+  // Merge precedence: the member's own answer beats every import, and the
+  // curated historical record beats the legacy dump. Both merge statements are
+  // fill-if-empty, so the ladder is enforced by write order: the curated
+  // historical fields (country / HoF / BAP / hof_inducted_year /
+  // first_competition_year) land BEFORE the transitive legacy transfer.
   legacyClaim.mergeHistoricalPersonFields.run(
     hp.country,
     hp.hof_member,
@@ -3069,6 +3071,27 @@ function claimHistoricalPersonInTxInner(
     now,
     requestingMemberId,
   );
+
+  if (transitiveLegacyRow) {
+    legacyClaim.transferLegacyFields.run(
+      transitiveLegacyRow.legacy_member_id,
+      transitiveLegacyRow.legacy_user_id,
+      transitiveLegacyRow.legacy_email,
+      transitiveLegacyRow.bio ?? '',
+      transitiveLegacyRow.birth_date,
+      transitiveLegacyRow.street_address,
+      transitiveLegacyRow.postal_code,
+      transitiveLegacyRow.city,
+      transitiveLegacyRow.region,
+      transitiveLegacyRow.country,
+      transitiveLegacyRow.ifpa_join_date,
+      transitiveLegacyRow.is_hof,
+      transitiveLegacyRow.is_bap,
+      transitiveLegacyRow.first_competition_year,
+      now,
+      requestingMemberId,
+    );
+  }
 
   // Single tier grant per legacy claim; grants never stack. Direct HP claim
   // takes the same `legacy.claim_tier_grant` reason and the same mapping: honors

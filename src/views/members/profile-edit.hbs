@@ -148,26 +148,38 @@
           </div>
 
           <div class="form-field">
-            <label for="region">Region / State</label>
-            <input
-              type="text"
-              id="region"
-              name="region"
-              value="{{content.region}}"
-              autocomplete="address-level1"
-            />
+            <label for="region">Region / State
+              {{#if content.regionRequired}}<span class="fw-600">(required)</span>
+              {{else}}<span class="text-muted">(optional)</span>{{/if}}
+            </label>
+            {{#if content.regionHasOptions}}
+              <select id="region" name="region" required autocomplete="address-level1">
+                <option value="">Select your state or province</option>
+                {{#each content.regionOptions}}
+                  <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
+                {{/each}}
+              </select>
+            {{else}}
+              <input
+                type="text"
+                id="region"
+                name="region"
+                value="{{content.region}}"
+                autocomplete="address-level1"
+              />
+            {{/if}}
           </div>
         </div>
 
         <div class="form-field">
           <label for="country">Country</label>
-          <input
-            type="text"
-            id="country"
-            name="country"
-            value="{{content.country}}"
-            autocomplete="country-name"
-          />
+          <select id="country" name="country" autocomplete="country-name">
+            <option value="">Select your country</option>
+            {{#each content.countryOptions}}
+              <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
+            {{/each}}
+          </select>
+          <small class="form-hint">Choosing the USA or Canada adds a state or province list to the field above when you save.</small>
         </div>
       </fieldset>
 

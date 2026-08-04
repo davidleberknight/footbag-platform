@@ -132,15 +132,15 @@ describe('seedPersona — composition by dimension', () => {
   it('onboardingTasks spec writes per-task state with completed_at only on completed', () => {
     const p = seedPersona(db, {
       slug: 'fac_onb', displayName: 'Fac Onb', tier: 'tier0',
-      onboardingTasks: { personal_details: 'completed', legacy_claim: 'in_progress_paused', club_affiliations: 'skipped' },
+      onboardingTasks: { personal_details: 'completed', legacy_claim: 'pending', club_affiliations: 'pending' },
       coverageNotes: ['partial wizard'],
     });
     const rows = db.prepare(
       `SELECT task_type, state, completed_at FROM member_onboarding_tasks WHERE member_id = ? ORDER BY task_type`,
     ).all(p.memberId) as { task_type: string; state: string; completed_at: string | null }[];
     expect(rows).toEqual([
-      { task_type: 'club_affiliations', state: 'skipped', completed_at: null },
-      { task_type: 'legacy_claim', state: 'in_progress_paused', completed_at: null },
+      { task_type: 'club_affiliations', state: 'pending', completed_at: null },
+      { task_type: 'legacy_claim', state: 'pending', completed_at: null },
       { task_type: 'personal_details', state: 'completed', completed_at: '2025-01-01T00:00:00.000Z' },
     ]);
   });

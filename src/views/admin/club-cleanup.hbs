@@ -33,6 +33,9 @@
       {{#each content.itemGroups}}
         <details class="cleanup-group">
           <summary>{{this.label}} ({{this.count}})</summary>
+          {{#if this.isOpportunity}}
+            <p class="text-muted fs-sm mt-2">These clubs could use a leader. Leaderless is a tolerated state, not a problem: nothing here needs remediation, and a club leaves this list by itself the moment anyone becomes a co-leader. Demotion is driven only by member-reported inactivity signals, never by this list.</p>
+          {{/if}}
           <form method="POST" action="/admin/club-cleanup/bulk-resolve" class="cleanup-action-form mt-2">
             <input type="hidden" name="group" value="{{this.predicate}}" />
             <select name="action" class="cleanup-action-select">
@@ -80,9 +83,11 @@
                     <form method="POST" action="/admin/club-cleanup/{{this.clubId}}/resolve" class="cleanup-action-form">
                       <input type="hidden" name="predicate" value="{{this.predicate}}" />
                       <select name="action" class="cleanup-action-select">
+                        {{#unless this.isOpportunity}}
                         <option value="demote_inactive">Demote</option>
                         <option value="archive">Archive</option>
                         <option value="dismiss">Dismiss</option>
+                        {{/unless}}
                         <option value="defer_30">Defer 30d</option>
                         <option value="defer_90">Defer 90d</option>
                         <option value="defer_180">Defer 180d</option>

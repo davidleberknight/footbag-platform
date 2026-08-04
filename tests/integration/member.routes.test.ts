@@ -425,7 +425,7 @@ describe('POST /members/:memberKey/edit — save profile', () => {
     const res = await request(app)
       .post(`/members/${OWN_SLUG}/edit`)
       .type('form')
-      .send({ bio: '', city: 'Portland', region: '', country: 'US', phone: '', emailVisibility: 'private' });
+      .send({ bio: '', city: 'Portland', region: 'OR', country: 'US', phone: '', emailVisibility: 'private' });
     expect(res.status).toBe(302);
     expect(res.headers.location).toBe(`/login?returnTo=%2Fmembers%2F${OWN_SLUG}%2Fedit`);
   });
@@ -436,7 +436,7 @@ describe('POST /members/:memberKey/edit — save profile', () => {
       .post(`/members/${OWN_SLUG}/edit`)
       .set('Cookie', otherCookie())
       .type('form')
-      .send({ bio: '', city: 'Portland', region: '', country: 'US', phone: '', emailVisibility: 'private' });
+      .send({ bio: '', city: 'Portland', region: 'OR', country: 'US', phone: '', emailVisibility: 'private' });
     expect(res.status).toBe(404);
   });
 
@@ -461,7 +461,7 @@ describe('POST /members/:memberKey/edit — save profile', () => {
       .send({
         bio:             '',
         city:            'Portland',
-        region:          '',
+        region:          'OR',
         country:         'US',
         phone:           '',
         emailVisibility: 'bad-value',
@@ -516,7 +516,7 @@ describe('POST /members/:memberKey/edit — save profile', () => {
       .post(`/members/${OWN_SLUG}/edit`)
       .set('Cookie', ownCookie())
       .type('form')
-      .send({ bio: '', city: 'Portland', region: '', country: 'US', phone: '', emailVisibility: 'private', gender: 'female' });
+      .send({ bio: '', city: 'Portland', region: 'OR', country: 'US', phone: '', emailVisibility: 'private', gender: 'female' });
     expect(res.status).toBe(303);
     expect(genderOf(OWN_ID)).toBe('female');
   });
@@ -528,7 +528,7 @@ describe('POST /members/:memberKey/edit — save profile', () => {
       .post(`/members/${OWN_SLUG}/edit`)
       .set('Cookie', ownCookie())
       .type('form')
-      .send({ bio: '', city: 'Portland', region: '', country: 'US', phone: '', emailVisibility: 'private' });
+      .send({ bio: '', city: 'Portland', region: 'OR', country: 'US', phone: '', emailVisibility: 'private' });
     expect(res.status).toBe(303);
     expect(genderOf(OWN_ID)).toBe('male');
   });
@@ -540,7 +540,7 @@ describe('POST /members/:memberKey/edit — save profile', () => {
       .post(`/members/${OWN_SLUG}/edit`)
       .set('Cookie', ownCookie())
       .type('form')
-      .send({ bio: '', city: 'Portland', region: '', country: 'US', phone: '', emailVisibility: 'private', gender: 'nonsense' });
+      .send({ bio: '', city: 'Portland', region: 'OR', country: 'US', phone: '', emailVisibility: 'private', gender: 'nonsense' });
     expect(res.status).toBe(303);
     expect(genderOf(OWN_ID)).toBe('undisclosed');
   });
@@ -560,7 +560,7 @@ describe('POST /members/:memberKey/edit — save profile', () => {
     tuneDb.close();
     try {
       const app = createApp();
-      const validBody = { bio: '', city: 'Portland', region: '', country: 'US', phone: '', emailVisibility: 'private' };
+      const validBody = { bio: '', city: 'Portland', region: 'OR', country: 'US', phone: '', emailVisibility: 'private' };
       for (let i = 0; i < 2; i++) {
         const ok = await request(app)
           .post(`/members/${OWN_SLUG}/edit`)
@@ -645,7 +645,7 @@ describe('gender public visibility', () => {
       .post(`/members/${OWN_SLUG}/edit`)
       .set('Cookie', ownCookie())
       .type('form')
-      .send({ bio: '', city: 'Portland', region: '', country: 'US', phone: '', emailVisibility: 'private', gender: 'male', showGender: '1' });
+      .send({ bio: '', city: 'Portland', region: 'OR', country: 'US', phone: '', emailVisibility: 'private', gender: 'male', showGender: '1' });
     expect(res.status).toBe(303);
     const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
     const row = db.prepare('SELECT gender, show_gender FROM members WHERE id = ?').get(OWN_ID) as { gender: string; show_gender: number };

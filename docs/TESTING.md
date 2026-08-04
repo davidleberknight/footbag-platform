@@ -1128,7 +1128,7 @@ A per-story charter names only the cases specific to that story; the cross-cutti
 
 **M_Upload_Photo**, **M_Submit_Video**, and member media edit and delete (dims 1, 2, 3, 5, 13, 16). Owner-only (cross-owner 404), with the Tier-1-benefits gate on write (a Tier-0 member without Active Player is denied). Upload validation: MIME, size, and polyglot rejection, with image and video processing through their adapters. Captions are escaped. Audit on upload, edit, and delete.
 
-**M_Complete_Onboarding_Wizard** (dims 1, 2, 9, 13). Authenticated; a state machine across the personal-details, legacy-claim, and club-affiliation tasks with skip and resume, where the onboarding gate redirects an incomplete member off gated paths. Out-of-order and illegal-step submissions are rejected.
+**M_Complete_Onboarding_Wizard** (dims 1, 2, 9, 13). Authenticated; a state machine across the personal-details, legacy-claim, and club-affiliation tasks, each completed only by a recorded explicit answer, where membership is the authorization level the three answers grant, so a pending registrant is routed to their next outstanding task from every member capability until all three complete. Out-of-order and illegal-step submissions are rejected.
 
 **M_Contact_IFPA_Admin** (dims 1, 3, 5, 8, 13). Authenticated owner; validation and rate-limit on submission; the admin queue receives the request.
 

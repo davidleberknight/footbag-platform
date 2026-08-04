@@ -3,38 +3,46 @@
  *
  * Owns:
  *   - The onboarding task list and its lifecycle: idempotent startTaskList on first wizard GET,
- *     per-task state (pending / in_progress_paused / skipped / completed / not_applicable), and the
- *     sequential advance order that the wizard and the dashboard Resume target both follow.
- *   - The three current tasks: personal_details, legacy_claim, and club_affiliations. personal_details
- *     and legacy_claim are REQUIRED to become a full member and cannot be skipped (the legacy_claim
- *     "nothing to claim" control is the required decision, which completes the task); club_affiliations
- *     is optional. Each renders a single page and resolves via submit (save-and-advance) or, where
- *     allowed, skip. The results-visibility preference (show_competitive_results) is collected within
- *     the personal_details task, not as a separate task.
- *   - The membership-completion predicate isOnboardingComplete (personal_details AND legacy_claim
- *     both completed), consumed by the requireOnboardingComplete gate that fences the member and
- *     club capability surfaces until onboarding is finished.
- *   - The dashboard task widget (getDashboardTaskWidget): one row per outstanding task with a Resume target;
- *     hidden when no outstanding tasks remain.
+ *     per-task state (pending until answered, then completed; there are no other states), and
+ *     the sequential advance order that the wizard and the dashboard widget target both follow.
+ *   - The three tasks: personal_details, legacy_claim, and club_affiliations. ALL THREE are
+ *     required to become a full member, and each completes only by a recorded explicit answer,
+ *     never by a bare page render: personal_details by saving its fields, legacy_claim by the
+ *     claim decision (a claim, or continue-without-linking with the never-had-an-account
+ *     affirmation), and club_affiliations by a written club affiliation or the explicit no-club
+ *     answer, which also declines every remaining suggestion card in the same transaction. The
+ *     club task is optional to fulfil (no club is ever required) but not to answer. There is no
+ *     skip, no dismissal, and no detour; the wizard carries no outward links. The
+ *     results-visibility preference (show_competitive_results) is collected within the
+ *     personal_details task, not as a separate task.
+ *   - The membership-completion predicate isOnboardingComplete (all three tasks completed).
+ *     Membership is an authorization level: an account is pending from registration until the
+ *     predicate turns true, and a pending registrant holds a session but no member
+ *     authorization. The auth middleware derives req.isMember from this predicate and the
+ *     requireMember route guard routes a pending request to its next wizard task, so a pending
+ *     registrant reaches only public browse, the wizard and its claim affordances, and logout.
+ *     A wizard.complete audit row is emitted exactly once, on the transition that makes the
+ *     predicate true.
  *
  * Does not own:
  *   - Legacy-account claim and historical-person matching (IdentityAccessService; the legacy_claim
  *     task delegates to it).
- *   - Member profile field writes (MemberService; e.g. setShowCompetitiveResults).
+ *   - Member profile field writes, which MemberService owns; the wizard's
+ *     personal_details task submits through it rather than writing columns.
  *   - Club promotion and leadership confirmation (ClubService).
  *
  * Serves (all auth-required; an unauthenticated request redirects to /login?returnTo=...):
- *   - GET /register/wizard/:taskType and the per-action sub-paths (the /submit and /skip POSTs, the
- *     club_affiliations /dismiss POST and /detour GET, and the legacy_claim sub-actions). Unknown
- *     :taskType renders 404. GET /register/wizard/complete is the terminal page.
+ *   - GET /register/wizard/:taskType and the per-action sub-paths (the /submit POSTs, the
+ *     club_affiliations /none POST, the legacy_claim /continue-without-linking POST, and the
+ *     legacy_claim sub-actions). Unknown :taskType renders 404. GET /register/wizard/complete is
+ *     the terminal page, rendered only when the completion predicate passes.
  *
  * Required patterns:
  *   - State-changing wizard POSTs follow post-redirect-get: a 303 to the next-task GET or to
  *     /register/wizard/complete on advance; a 303 to the same step with a signed flash cookie for a
  *     transient notice; a 422 re-render on validation error; a 429 with Retry-After on rate-limit.
  *   - The wizard never reveals whether the member has a plausible legacy match beyond the existing
- *     anti-enumeration contract; a task the server determines is not_applicable is simply not
- *     rendered.
+ *     anti-enumeration contract.
  *   - Per-task answers persist on submit; completing a task advances the sequence.
  *   - The personal_details task precedes and gates the legacy_claim task: no resolving
  *     action (confirm, search, token confirm, direct record claim, or the continue-without-
@@ -97,10 +105,15 @@ function normalizeToArray(value: unknown): string[] {
   return [];
 }
 
-type ActivitySignal = 'active' | 'not_active' | 'not_sure' | 'never_heard_of_it';
+type ActivitySignal = 'active' | 'not_active';
 
+// The wizard's activity question offers exactly these two answers: a member
+// answering a club card commits to whether the club is still active, so every
+// answered card feeds the viability gates. The schema CHECK admits the same
+// two values, so a value outside this set arriving in a POST is a tampered or
+// stale request and is refused at the door.
 const VALID_ACTIVITY_SIGNALS: ReadonlySet<string> = new Set([
-  'active', 'not_active', 'not_sure', 'never_heard_of_it',
+  'active', 'not_active',
 ]);
 
 // clubId is null for candidate-keyed flags: activity answers about a club
@@ -142,46 +155,32 @@ export const TASK_CATALOG = [
 ] as const;
 export type OnboardingTaskType = typeof TASK_CATALOG[number];
 
+// Two states, matching the schema CHECK: a task is outstanding until the
+// member answers it. Every exit is an explicit answer, so there is nothing to
+// skip, dismiss, or park.
 export const TASK_STATES = [
   'pending',
-  'in_progress_paused',
-  'skipped',
   'completed',
-  'not_applicable',
 ] as const;
 export type OnboardingTaskState = typeof TASK_STATES[number];
 
-export interface OnboardingTaskView {
-  taskType: OnboardingTaskType;
-  state: OnboardingTaskState;
-  completedAt: string | null;
+// Member-facing notice wording for the club step's transient banners. Shaped
+// here so the controller stays pass-through and the template never branches
+// on a decision code.
+function buildClubCapHitNoticeMessage(clubName: string): string {
+  return `You are at the two current-club limit, so ${clubName} was recorded as a former membership. To make it current, leave one of your current clubs from your profile after onboarding.`;
 }
 
-export interface DashboardTaskItem {
-  taskType: OnboardingTaskType;
-  taskLabel: string;
-  state: OnboardingTaskState;
-  completedAt: string | null;
-  resumeUrl: string | null;
-  targetStory: string | null;
-  sourceCard:  string | null;
-  ctaLabel: string;
-  ctaHref:  string | null;
-  dismissHref: string | null;
+function buildClubResolvedNoticeMessage(
+  decision: 'confirm' | 'correct' | 'decline',
+  clubName: string,
+): string {
+  switch (decision) {
+    case 'confirm': return `Added ${clubName} to your clubs.`;
+    case 'decline': return `Marked ${clubName} as not yours.`;
+    case 'correct': return `Noted that the ${clubName} record needs correction.`;
+  }
 }
-
-export interface DashboardTaskWidget {
-  pending:   DashboardTaskItem[];
-  paused:    DashboardTaskItem[];
-  skipped:   DashboardTaskItem[];
-  hasOutstanding: boolean;
-}
-
-const TASK_LABELS: Record<OnboardingTaskType, string> = {
-  personal_details:         'Personal details',
-  legacy_claim:             'Find your past records and clubs',
-  club_affiliations:        'Club affiliation',
-};
 
 export class NotImplementedError extends ServiceError {
   constructor(message: string, details?: Record<string, unknown>) {
@@ -242,52 +241,40 @@ function transitionTask(
   });
 }
 
-function getTaskWidget(memberId: string): OnboardingTaskView[] {
-  // In-sequence advance set: tasks the wizard should still push the member through.
-  // Excludes `skipped` (the dashboard surfaces those; the live wizard sequence
-  // does not loop the user back into a task they deliberately bypassed).
-  const rows = memberOnboarding.listForMember.all(memberId) as MemberOnboardingTaskRow[];
-  return rows
-    .filter((r) => r.state === 'pending')
-    .map((r) => ({
-      taskType: r.task_type as OnboardingTaskType,
-      state: r.state as OnboardingTaskState,
-      completedAt: r.completed_at,
-    }))
-    .sort((a, b) => TASK_TYPE_INDEX[a.taskType] - TASK_TYPE_INDEX[b.taskType]);
+// A task is outstanding until it is completed. Stated as a predicate rather
+// than an equality so every consumer, the wizard sequence, the gate, the
+// completion page and the dashboard widget, shares one definition of
+// outstanding.
+function isOutstandingState(state: string): boolean {
+  return state !== 'completed';
 }
 
-// The next task to send a still-onboarding member to. Prefers the
-// lowest-index pending task (the active wizard sequence); falls back to the
-// lowest-index `in_progress_paused` task so a member whose tasks are all
-// detour-paused is not redirected to a task that is not actually pending.
-// Returns null only when nothing is outstanding.
+// The next task to send a still-onboarding member to: the lowest-index task
+// not yet completed. Residual non-pending states count as outstanding here so
+// a member carrying one is routed back into the task, where entry repairs the
+// row to pending. Returns null only when nothing is outstanding.
 function nextOutstandingTaskType(memberId: string): OnboardingTaskType | null {
-  const rows = (memberOnboarding.listForMember.all(memberId) as MemberOnboardingTaskRow[])
-    .filter((r) => (r.task_type as OnboardingTaskType) in TASK_TYPE_INDEX);
-  const byIndex = (state: OnboardingTaskState): OnboardingTaskType[] =>
-    rows
-      .filter((r) => r.state === state)
-      .map((r) => r.task_type as OnboardingTaskType)
-      .sort((a, b) => TASK_TYPE_INDEX[a] - TASK_TYPE_INDEX[b]);
-  const pending = byIndex('pending');
-  if (pending.length > 0) return pending[0];
-  const paused = byIndex('in_progress_paused');
-  return paused[0] ?? null;
+  const outstanding = (memberOnboarding.listForMember.all(memberId) as MemberOnboardingTaskRow[])
+    .filter((r) => (r.task_type as OnboardingTaskType) in TASK_TYPE_INDEX)
+    .filter((r) => isOutstandingState(r.state))
+    .map((r) => r.task_type as OnboardingTaskType)
+    .sort((a, b) => TASK_TYPE_INDEX[a] - TASK_TYPE_INDEX[b]);
+  return outstanding[0] ?? null;
 }
 
-// Membership-completion predicate consumed by the requireOnboardingComplete
-// gate. A verified member becomes a full member only after the two required
-// tasks are COMPLETED: personal_details (its required fields populated) and the
-// legacy_claim decision (a claim, or the explicit "nothing to claim"
-// completion). A skipped required task does NOT satisfy this: skipping is not a
-// decision. club_affiliations is optional and never gates membership, so a
-// member who finished both required tasks is complete even while the club task
-// is still pending or detour-paused. Zero task rows (never entered the wizard)
-// reads as incomplete.
+// The membership authorization predicate: the auth middleware derives
+// req.isMember from it, and the requireMember route guard denies every
+// member capability while it is false. An account becomes a member only after
+// ALL THREE tasks are COMPLETED: personal_details (its required fields
+// populated), the legacy_claim decision (a claim, or the explicit "nothing to
+// claim" completion), and the club_affiliations answer (a written club
+// affiliation, or the explicit no-club answer). Only completed satisfies
+// this: a residual skipped, paused, or inapplicable row is unanswered, not
+// done. Zero task rows (never entered the wizard) reads as incomplete.
 function isOnboardingComplete(memberId: string): boolean {
   return getTaskState(memberId, 'personal_details') === 'completed'
-      && getTaskState(memberId, 'legacy_claim') === 'completed';
+      && getTaskState(memberId, 'legacy_claim') === 'completed'
+      && getTaskState(memberId, 'club_affiliations') === 'completed';
 }
 
 // Whether the member still has an outstanding task OTHER than the given one.
@@ -298,7 +285,7 @@ function hasOtherOutstandingTasks(memberId: string, exceptTaskType: OnboardingTa
   return rows.some(
     (r) =>
       (r.task_type as OnboardingTaskType) !== exceptTaskType &&
-      (r.state === 'pending' || r.state === 'in_progress_paused'),
+      isOutstandingState(r.state),
   );
 }
 
@@ -362,50 +349,43 @@ function startTask(memberId: string, taskType: string): void {
   transitionTask(memberId, taskType, 'pending', 'wizard.task.started');
 }
 
-function skipTask(memberId: string, taskType: string): void {
-  transitionTask(memberId, taskType, 'skipped', 'wizard.task.skipped');
-}
-
-function completeTask(memberId: string, taskType: string): void {
-  transitionTask(memberId, taskType, 'completed', 'wizard.task.completed');
-}
-
-function markTaskNotApplicable(memberId: string, taskType: string): void {
-  // personal_details is always completable by saving its required fields, so it
-  // has no not_applicable path and must never be removed from the outstanding
-  // set this way; doing so would leave a member who can never finish onboarding.
-  // legacy_claim may legitimately become not_applicable when there is no
-  // plausible legacy match, and club_affiliations is optional, so both are allowed.
-  if (taskType === 'personal_details') {
-    throw new Error(`personal_details cannot be marked not_applicable`);
-  }
-  transitionTask(memberId, taskType, 'not_applicable', 'wizard.task.not_applicable');
-}
-
 /**
- * Member-initiated permanent dismissal of the optional club task. Unlike a skip
- * (which the dashboard keeps offering to resume), a dismiss marks the task
- * not_applicable so it no longer surfaces. Idempotent, and scoped to the
- * optional club task only.
+ * Complete a task, and when that completion is the one that makes the
+ * membership predicate true, emit the member's single wizard.complete audit
+ * row on the same edge. Computing the edge here, around the transition, covers
+ * every completion path (wizard submits, the claim decision, the reconcilers,
+ * the cross-surface claim) and cannot double-fire: the predicate is false
+ * before at most one completing transition per member and true after it.
  */
-function dismissClubAffiliationsTask(memberId: string): void {
-  const state = getTaskState(memberId, 'club_affiliations');
-  if (state === 'completed' || state === 'not_applicable') return;
-  markTaskNotApplicable(memberId, 'club_affiliations');
+function completeTask(memberId: string, taskType: string): void {
+  const wasComplete = isOnboardingComplete(memberId);
+  transitionTask(memberId, taskType, 'completed', 'wizard.task.completed');
+  if (!wasComplete && isOnboardingComplete(memberId)) {
+    appendAuditEntry({
+      actionType:    'wizard.complete',
+      category:      'onboarding',
+      actorType:     'member',
+      actorMemberId: memberId,
+      entityType:    'member',
+      entityId:      memberId,
+      metadata: { completing_task: taskType },
+    });
+  }
 }
+
 
 /**
  * Cross-service hook: called when a member completes the underlying state of
  * a task outside the wizard surface (profile-edit saving first_competition_year,
  * direct HP claim succeeding, etc.). Idempotent: a no-op for tasks that are
- * already in a terminal state (completed, not_applicable). When called for an
+ * already completed. When called for an
  * unmaterialized task, the task row is created in the target state directly.
  */
 function completeTaskIfOutstanding(memberId: string, taskType: OnboardingTaskType): void {
   const existing = memberOnboarding.findByMemberAndType.get(memberId, taskType) as
     | MemberOnboardingTaskRow
     | undefined;
-  if (existing && (existing.state === 'completed' || existing.state === 'not_applicable')) {
+  if (existing && existing.state === 'completed') {
     return;
   }
   completeTask(memberId, taskType);
@@ -421,7 +401,7 @@ function ensureLegacyClaimReflectsState(memberId: string): boolean {
   const row = memberOnboarding.findByMemberAndType.get(memberId, 'legacy_claim') as
     | MemberOnboardingTaskRow
     | undefined;
-  if (!row || row.state === 'completed' || row.state === 'not_applicable') return false;
+  if (!row || row.state === 'completed') return false;
   const links = account.findLegacyAndHpIdsById.get(memberId) as
     | { legacy_member_id: string | null; historical_person_id: string | null }
     | undefined;
@@ -459,7 +439,7 @@ function ensureClubAffiliationsReflectsState(memberId: string): boolean {
   const row = memberOnboarding.findByMemberAndType.get(memberId, 'club_affiliations') as
     | MemberOnboardingTaskRow
     | undefined;
-  if (!row || row.state === 'completed' || row.state === 'not_applicable') return false;
+  if (!row || row.state === 'completed') return false;
   const cards = listWizardCardsForMember(memberId);
   if (cards.length > 0) return false;
   // No cards left and a current club affiliation in hand: the task's goal
@@ -475,150 +455,46 @@ function ensureClubAffiliationsReflectsState(memberId: string): boolean {
   return false;
 }
 
+// A member's claimed identity is the pair (legacy_member_id,
+// historical_person_id): a claim can link either anchor alone (a competition
+// record with no old-site account links only the historical person), and club
+// suggestion rows may be anchored on either. Every club-card read resolves both
+// anchors and matches a row on whichever one it carries, so a
+// historical-record-only claimant sees the club data attached to their record.
+interface MemberIdentityAnchors {
+  legacy_member_id: string | null;
+  historical_person_id: string | null;
+}
+
+function findIdentityAnchors(memberId: string): MemberIdentityAnchors {
+  const row = account.findLegacyAndHpIdsById.get(memberId) as
+    | MemberIdentityAnchors
+    | undefined;
+  return {
+    legacy_member_id:     row?.legacy_member_id ?? null,
+    historical_person_id: row?.historical_person_id ?? null,
+  };
+}
+
 /**
- * Whether the member ever had legacy club-suggestion material: a linked legacy
- * member id carrying at least one scored person-club affiliation or bootstrap
- * leadership candidate. Drives the wrap-up landing copy: a member with no
- * material is told no legacy club affiliation was found, rather than that their
- * suggestion cards resolved without a club.
+ * Whether the member ever had legacy club-suggestion material: either identity
+ * anchor carrying at least one scored person-club affiliation, or a linked
+ * legacy member id carrying a bootstrap leadership candidate (leadership rows
+ * are legacy-anchored by schema). Drives the wrap-up landing copy: a member
+ * with no material is told no legacy club affiliation was found, rather than
+ * that their suggestion cards resolved without a club.
  */
 function memberHadClubSuggestionMaterial(memberId: string): boolean {
-  const memberRow = account.findLegacyMemberIdById.get(memberId) as
-    | { legacy_member_id: string | null }
-    | undefined;
-  const legacyMemberId = memberRow?.legacy_member_id ?? null;
-  if (!legacyMemberId) return false;
-  const lpca = (legacyPersonClubAffiliations.countByLegacyMember.get(legacyMemberId) as { c: number }).c;
-  const cbl  = (clubBootstrapLeaders.countByLegacyMember.get(legacyMemberId) as { c: number }).c;
+  const anchors = findIdentityAnchors(memberId);
+  if (!anchors.legacy_member_id && !anchors.historical_person_id) return false;
+  const lpca = (legacyPersonClubAffiliations.countByMemberAnchors.get(
+    anchors.legacy_member_id, anchors.legacy_member_id,
+    anchors.historical_person_id, anchors.historical_person_id,
+  ) as { c: number }).c;
+  const cbl = anchors.legacy_member_id
+    ? (clubBootstrapLeaders.countByLegacyMember.get(anchors.legacy_member_id) as { c: number }).c
+    : 0;
   return lpca > 0 || cbl > 0;
-}
-
-/**
- * Move a wizard task into `in_progress_paused` because the member detoured
- * into another flow (e.g. M_Create_Club). The audit row carries the
- * `target_story` (where the member is going) and `source_card` (which wizard
- * card they came from) so the dashboard widget can render a "Resume
- * onboarding" link back to the correct card after the detour resolves.
- *
- * No-op if the task is already in a terminal state (`completed`,
- * `not_applicable`); a completed task cannot be paused.
- */
-function transitionToDetourPaused(
-  memberId: string,
-  taskType: string,
-  targetStory: string,
-  sourceCard: string,
-): void {
-  assertTaskType(taskType);
-  const row = ensureTaskRow(memberId, taskType);
-  if (row.state === 'completed' || row.state === 'not_applicable') {
-    return;
-  }
-  const now = new Date().toISOString();
-  memberOnboarding.updateState.run(
-    'in_progress_paused', null, now, 'onboarding_service', row.id,
-  );
-  appendAuditEntry({
-    actionType:    'wizard.task.detour_paused',
-    category:      'onboarding',
-    actorType:     'member',
-    actorMemberId: memberId,
-    entityType:    'member_onboarding_task',
-    entityId:      row.id,
-    metadata: { task_type: taskType, target_story: targetStory, source_card: sourceCard },
-  });
-}
-
-/**
- * Dashboard task widget: returns a member's onboarding tasks split into
- * pending / paused / completed. Paused entries carry a `resumeUrl`
- * reconstructed from the latest `wizard.task.detour_paused` audit row's
- * metadata (target_story + source_card). The resume url is the wizard entry
- * path for the task (`/register/wizard/{taskType}`) so the wizard controller
- * can route the member back into the in-progress task without the widget
- * needing to know wizard route specifics.
- */
-function getDashboardTaskWidget(memberId: string): DashboardTaskWidget {
-  interface WidgetRow {
-    id: string;
-    member_id: string;
-    task_type: string;
-    state: string;
-    completed_at: string | null;
-    detour_metadata_json: string | null;
-  }
-  const rows = memberOnboarding.listForMemberWithDetourMeta.all(memberId) as WidgetRow[];
-
-  const widget: DashboardTaskWidget = {
-    pending: [], paused: [], skipped: [],
-    hasOutstanding: false,
-  };
-  for (const r of rows) {
-    const taskType = r.task_type as OnboardingTaskType;
-    if (!(taskType in TASK_TYPE_INDEX)) continue;
-    const state = r.state as OnboardingTaskState;
-    if (state === 'not_applicable' || state === 'completed') continue;
-
-    let resumeUrl:   string | null = null;
-    let targetStory: string | null = null;
-    let sourceCard:  string | null = null;
-    if (state === 'in_progress_paused' && r.detour_metadata_json) {
-      try {
-        const meta = JSON.parse(r.detour_metadata_json) as {
-          target_story?: string; source_card?: string;
-        };
-        targetStory = meta.target_story ?? null;
-        sourceCard  = meta.source_card  ?? null;
-      } catch { /* malformed metadata leaves resume context null */ }
-    }
-    if (state === 'in_progress_paused') {
-      resumeUrl = `/register/wizard/${taskType}`;
-    }
-
-    let ctaLabel: string = '';
-    let ctaHref:  string | null = null;
-    if (state === 'in_progress_paused') {
-      ctaLabel = 'Resume Onboarding';
-      ctaHref  = resumeUrl;
-    } else if (state === 'pending') {
-      ctaLabel = 'Continue Onboarding';
-      ctaHref  = `/register/wizard/${taskType}`;
-    } else if (state === 'skipped') {
-      // A skipped task was never started, so "Open" reads truer than "Resume".
-      ctaLabel = 'Open Task';
-      ctaHref  = `/register/wizard/${taskType}`;
-    }
-    const item: DashboardTaskItem = {
-      taskType,
-      taskLabel: TASK_LABELS[taskType],
-      state,
-      completedAt: r.completed_at,
-      resumeUrl,
-      targetStory,
-      sourceCard,
-      ctaLabel,
-      ctaHref,
-      // Only the optional club task can be permanently dismissed from the
-      // dashboard; the required tasks have no dismiss path.
-      dismissHref: taskType === 'club_affiliations'
-        ? '/register/wizard/club_affiliations/dismiss'
-        : null,
-    };
-    if      (state === 'in_progress_paused') widget.paused.push(item);
-    else if (state === 'skipped')            widget.skipped.push(item);
-    else if (state === 'pending')            widget.pending.push(item);
-  }
-
-  // The dashboard lists outstanding tasks in the wizard's task order, the same
-  // order the sequential advance and the completion redirects follow.
-  const sortByDisplayOrder = (a: DashboardTaskItem, b: DashboardTaskItem) =>
-    (TASK_TYPE_INDEX[a.taskType] ?? 99) - (TASK_TYPE_INDEX[b.taskType] ?? 99);
-  widget.pending.sort(sortByDisplayOrder);
-  widget.paused.sort(sortByDisplayOrder);
-  widget.skipped.sort(sortByDisplayOrder);
-  widget.hasOutstanding =
-    widget.pending.length + widget.paused.length + widget.skipped.length > 0;
-  return widget;
 }
 
 // ---------------------------------------------------------------------------
@@ -732,55 +608,92 @@ const SIGNAL_LABELS: Record<WizardSignalType, string> = {
 };
 
 function listWizardCardsForMember(memberId: string): WizardCard[] {
-  const memberRow = account.findLegacyMemberIdById.get(memberId) as
-    | { legacy_member_id: string | null }
-    | undefined;
-  const legacyMemberId = memberRow?.legacy_member_id ?? null;
-  if (!legacyMemberId) return [];
+  const anchors = findIdentityAnchors(memberId);
+  if (!anchors.legacy_member_id && !anchors.historical_person_id) return [];
 
-  const membershipRows = legacyPersonClubAffiliations.listPendingForLegacyMember.all(
-    legacyMemberId,
+  const allMembershipRows = legacyPersonClubAffiliations.listPendingForMemberAnchors.all(
+    anchors.legacy_member_id, anchors.legacy_member_id,
+    anchors.historical_person_id, anchors.historical_person_id,
   ) as WizardMembershipCardRow[];
-  const leadershipRows = clubBootstrapLeaders.listProvisionalForLegacyMember.all(
-    legacyMemberId,
-  ) as WizardLeadershipCardRow[];
+  // Leadership candidates are legacy-anchored by schema (club_bootstrap_leaders
+  // carries no historical-person column), so a historical-record-only claimant
+  // has membership cards but never a leadership card.
+  const leadershipRows = anchors.legacy_member_id
+    ? clubBootstrapLeaders.listProvisionalForLegacyMember.all(
+        anchors.legacy_member_id,
+      ) as WizardLeadershipCardRow[]
+    : [];
 
-  // Group membership rows by city for disambiguation. Single-club cities
-  // produce normal cards; multi-club cities produce a disambiguation card.
-  const cityGroups = new Map<string, WizardMembershipCardRow[]>();
+  // One club, one question: while a leadership card for a club is open, the
+  // membership suggestion about the same club stays off the screen — the
+  // leadership card collects both the relationship and the activity signal.
+  // Confirming leadership supersedes the hidden row in the claim transaction;
+  // declining leaves it pending, so the membership question then surfaces.
+  const leadershipClubIds = new Set(leadershipRows.map((r) => r.club_id));
+  const membershipRows = allMembershipRows.filter(
+    (r) => !r.club_id || !leadershipClubIds.has(r.club_id),
+  );
+
+  // Group membership rows into one disambiguation card per place, so several
+  // suggestions that plausibly describe the same membership are answered once
+  // instead of card by card. The place is city AND country: two clubs in a
+  // Springfield on different continents describe different memberships and are
+  // never grouped. A suggestion whose city the mirror never recorded has no
+  // place to group on and always gets its own card, because folding every
+  // city-less row together would present unrelated clubs as one single-select
+  // question and force the member to disclaim all but one of them.
+  const placeGroups = new Map<string, { city: string; rows: WizardMembershipCardRow[] }>();
+  const placelessRows: WizardMembershipCardRow[] = [];
   for (const r of membershipRows) {
-    const cityKey = (r.club_city || '').toLowerCase();
-    if (!cityGroups.has(cityKey)) cityGroups.set(cityKey, []);
-    cityGroups.get(cityKey)!.push(r);
+    if (!r.club_city) {
+      placelessRows.push(r);
+      continue;
+    }
+    // Keyed as a structured pair rather than a joined string, so no separator
+    // character can collide with one occurring inside a city or country name.
+    const placeKey = JSON.stringify([
+      r.club_city.toLowerCase(),
+      (r.club_country ?? '').toLowerCase(),
+    ]);
+    let group = placeGroups.get(placeKey);
+    if (!group) {
+      group = { city: r.club_city, rows: [] };
+      placeGroups.set(placeKey, group);
+    }
+    group.rows.push(r);
   }
 
-  const memberships: (WizardMembershipCard | WizardDisambiguationCard)[] = [];
-  for (const [, rows] of cityGroups) {
-    if (rows.length === 1) {
-      const r = rows[0];
-      const band = confidenceBandFor(r.confidence_score);
-      memberships.push({
-        kind:                'membership' as const,
-        isMembership:        true as const,
-        isLeadership:        false as const,
-        isDisambiguation:    false as const,
-        questionLabel:       `Were you a member of ${r.club_name}?`,
-        candidateId:         r.affiliation_id,
-        clubId:              r.club_id,
-        clubName:            r.club_name,
-        confidenceBand:      band,
-        confidenceBandLabel: CONFIDENCE_BAND_LABELS[band],
-        clubDescription:     r.club_description || null,
-        clubExternalUrl:     r.club_external_url || null,
-      });
+  const toMembershipCard = (r: WizardMembershipCardRow): WizardMembershipCard => {
+    const band = confidenceBandFor(r.confidence_score);
+    return {
+      kind:                'membership' as const,
+      isMembership:        true as const,
+      isLeadership:        false as const,
+      isDisambiguation:    false as const,
+      questionLabel:       `Were you a member of ${r.club_name}?`,
+      candidateId:         r.affiliation_id,
+      clubId:              r.club_id,
+      clubName:            r.club_name,
+      confidenceBand:      band,
+      confidenceBandLabel: CONFIDENCE_BAND_LABELS[band],
+      clubDescription:     r.club_description || null,
+      clubExternalUrl:     r.club_external_url || null,
+    };
+  };
+
+  const memberships: (WizardMembershipCard | WizardDisambiguationCard)[] =
+    placelessRows.map(toMembershipCard);
+  for (const group of placeGroups.values()) {
+    if (group.rows.length === 1) {
+      memberships.push(toMembershipCard(group.rows[0]));
     } else {
       memberships.push({
         kind: 'disambiguation' as const,
         isMembership: false as const,
         isLeadership: false as const,
         isDisambiguation: true as const,
-        city: rows[0].club_city,
-        clubs: rows.map((r) => {
+        city: group.city,
+        clubs: group.rows.map((r) => {
           const band = confidenceBandFor(r.confidence_score);
           return {
             candidateId:         r.affiliation_id,
@@ -897,10 +810,11 @@ function readSignalsForCandidate(candidateId: string): {
 
 function maybeCompleteClubAffiliationsTask(memberId: string): 'in_progress' | 'completed' {
   // The task is multi-card: completion fires only when the member has no
-  // remaining unresolved cards AND holds a current club affiliation. A
-  // member whose cards all resolved without a confirmed club stays
-  // 'in_progress' so the find-or-create-your-club guidance screen renders
-  // before the task ends (skip from that screen finishes it).
+  // remaining unresolved cards AND holds a current club affiliation, which is
+  // the recorded answer that finishes the step. A member whose cards all
+  // resolved without a confirmed club stays 'in_progress' so the wrap-up
+  // landing renders and waits for the explicit no-club answer, the only other
+  // way the task completes.
   const remaining = listWizardCardsForMember(memberId);
   if (remaining.length > 0) return 'in_progress';
   const current = (memberClubAffiliations.countCurrentByMemberId.get(memberId) as { c: number }).c;
@@ -1094,6 +1008,7 @@ function submitLeadershipResponse(
       club_id:          promote.clubId,
       club_leader_id:   promote.clubLeaderId,
       affiliation_id:   promote.affiliationId,
+      superseded_membership_rows: promote.supersededMembershipRows,
       signal_rows:      rows.length,
     },
   });
@@ -1135,9 +1050,18 @@ function submitClubAffiliationsResponse(
     throw new ValidationError("kind must be one of 'membership', 'leadership'");
   }
 
+  // Both card answers are required. The form marks the activity radios
+  // required, but only this server-side check makes it hold: a tampered or
+  // stale POST without a valid activity answer must not resolve the card
+  // signal-less, because the wizard is the only surface that collects the
+  // club-viability evidence.
   const rawSignal = typeof body.activitySignal === 'string' ? body.activitySignal : null;
-  const activitySignal: ActivitySignal | null =
-    rawSignal && VALID_ACTIVITY_SIGNALS.has(rawSignal) ? rawSignal as ActivitySignal : null;
+  if (!rawSignal || !VALID_ACTIVITY_SIGNALS.has(rawSignal)) {
+    throw new ValidationError(
+      "activitySignal must be one of 'active', 'not_active'",
+    );
+  }
+  const activitySignal = rawSignal as ActivitySignal;
 
   return kindRaw === 'membership'
     ? submitMembershipResponse(memberId, candidateId, userDecision, activitySignal)
@@ -1527,57 +1451,128 @@ function processPersonalDetailsSubmit(
 }
 
 
-function processTaskSkip(
+/**
+ * The legacy-claim continue-without-linking decision: the member states they
+ * never held an old-site account, which COMPLETES the required task. There is
+ * no skip anywhere in the wizard; this is the claim task's explicit negative
+ * answer, gated on the personal-details prerequisite like every other
+ * resolution of the task.
+ */
+function processContinueWithoutLinking(
   memberId: string,
-  taskType: OnboardingTaskType,
   attestedNoOldAccount = false,
 ): WizardActionResult {
-  // personal_details and legacy_claim are required to become a member and
-  // cannot be skipped.
-  if (taskType === 'personal_details') {
-    // Required fields must be saved; a skip request (only reachable by a
-    // tampered POST, since the view offers no skip control) is a no-op that
-    // re-renders the form.
+  if (legacyClaimPrerequisiteUnmet(memberId)) {
     return { kind: 'retry_same', flash: null };
   }
-  if (taskType === 'legacy_claim') {
-    // The legacy decision is required; the wizard's "continue without linking"
-    // control posts here and is the explicit DECISION, which COMPLETES the task
-    // rather than skipping it. Like every other resolution of this task, it does
-    // not run until personal_details is complete.
-    if (legacyClaimPrerequisiteUnmet(memberId)) {
-      return { kind: 'retry_same', flash: null };
-    }
-    // Linking is the expected path; continuing without it is reserved for a
-    // member who never had an old-site account and must affirm that first.
-    if (!attestedNoOldAccount) {
-      return {
-        kind: 'validation_error',
-        formState: null,
-        message: 'To continue without linking, confirm you never had an account on the old footbag.org.',
-      };
-    }
-    // The attestation decides every candidate card the platform staged for this
-    // member: they are stating there is no old-site account to link. Resolve
-    // them in the same transaction that completes the task, so the task can
-    // never finish with a card left open — a completed claim task keeps
-    // rendering while open candidates remain, which would otherwise go on
-    // offering records to someone who just said none of them are theirs.
-    transaction(() => {
-      identityAccessService.declineOpenStagedCandidatesOnAttestationInTx(memberId);
-      completeTask(memberId, 'legacy_claim');
-    });
-    return advanceAfter(memberId, 'legacy_claim');
-  }
-  // A task already resolved (completed or marked not applicable) cannot be
-  // re-opened by a skip: a stray or tampered skip POST is a no-op that leaves
-  // the terminal state intact rather than re-listing the task as outstanding.
-  const state = getTaskState(memberId, taskType);
-  if (state === 'completed' || state === 'not_applicable') {
+  // A completed task cannot be re-decided by a stray or replayed POST.
+  if (getTaskState(memberId, 'legacy_claim') === 'completed') {
     return { kind: 'retry_same', flash: null };
   }
-  skipTask(memberId, taskType);
-  return advanceAfter(memberId, taskType);
+  // Linking is the expected path; continuing without it is reserved for a
+  // member who never had an old-site account and must affirm that first.
+  if (!attestedNoOldAccount) {
+    return {
+      kind: 'validation_error',
+      formState: null,
+      message: 'To continue without linking, confirm you never had an account on the old footbag.org.',
+    };
+  }
+  // The attestation decides every candidate card the platform staged for this
+  // member: they are stating there is no old-site account to link. Resolve
+  // them in the same transaction that completes the task, so the task can
+  // never finish with a card left open — a completed claim task keeps
+  // rendering while open candidates remain, which would otherwise go on
+  // offering records to someone who just said none of them are theirs.
+  transaction(() => {
+    identityAccessService.declineOpenStagedCandidatesOnAttestationInTx(memberId);
+    completeTask(memberId, 'legacy_claim');
+  });
+  return advanceAfter(memberId, 'legacy_claim');
+}
+
+/**
+ * The club task's explicit no-club answer: "none of these are my clubs".
+ * Declines every remaining suggestion card and completes the task in ONE
+ * transaction, mirroring the continue-without-linking attestation, so the
+ * task can never finish with a card left open. Bulk declines record no
+ * activity evidence (like a per-card "Not sure") and carry a bulk marker in
+ * their audit metadata so a considered per-card No stays distinguishable.
+ * Both decline write paths are transaction-free, which is what makes the
+ * single wrapping transaction safe; the confirm/promote branches open their
+ * own transactions and are never reached from here.
+ */
+function processNoClubsAnswer(memberId: string): WizardActionResult {
+  if (prerequisiteTaskFor(memberId, 'club_affiliations')) {
+    // Tampered or out-of-order POST: personal details are not on file yet.
+    return { kind: 'retry_same', flash: null };
+  }
+  if (getTaskState(memberId, 'club_affiliations') === 'completed') {
+    return { kind: 'retry_same', flash: null };
+  }
+
+  // Snapshot the remaining cards outside the transaction; the decline writes
+  // below are the only mutations and they cannot add cards.
+  const remaining = listWizardCardsForMember(memberId);
+  transaction(() => {
+    for (const card of remaining) {
+      if (card.kind === 'membership') {
+        bulkDeclineMembership(memberId, card.candidateId);
+      } else if (card.kind === 'leadership') {
+        bulkDeclineLeadership(memberId, card.candidateId);
+      } else {
+        for (const club of card.clubs) {
+          bulkDeclineMembership(memberId, club.candidateId);
+        }
+      }
+    }
+    completeTask(memberId, 'club_affiliations');
+  });
+  return advanceAfter(memberId, 'club_affiliations');
+}
+
+// The two bulk-decline writers mirror the per-card decline paths exactly
+// (same status transitions, same audit action types) minus the activity
+// signal and the per-card completion probe, plus the bulk marker.
+function bulkDeclineMembership(memberId: string, candidateId: string): void {
+  const result = clubService.confirmAffiliation(candidateId, memberId, 'decline');
+  appendAuditEntry({
+    actionType:    'wizard.club_affiliations.declined',
+    category:      'onboarding',
+    actorType:     'member',
+    actorMemberId: memberId,
+    entityType:    'legacy_person_club_affiliation',
+    entityId:      candidateId,
+    metadata: {
+      kind:             'membership',
+      user_decision:    'decline',
+      activity_signal:  null,
+      confirm_branch:   result.branch,
+      resolved_club_id: result.resolvedClubId,
+      bulk_answer:      true,
+    },
+  });
+}
+
+function bulkDeclineLeadership(memberId: string, candidateId: string): void {
+  const leader = clubBootstrapLeaders.findById.get(candidateId) as
+    | ClubBootstrapLeaderRow
+    | undefined;
+  if (!leader || leader.status !== 'provisional') return;
+  clubBootstrapLeaders.setStatusRejected.run('onboarding_service', candidateId);
+  appendAuditEntry({
+    actionType:    'wizard.club_affiliations.declined',
+    category:      'onboarding',
+    actorType:     'member',
+    actorMemberId: memberId,
+    entityType:    'club_bootstrap_leader',
+    entityId:      candidateId,
+    metadata: {
+      kind:            'leadership',
+      activity_signal: null,
+      bulk_answer:     true,
+    },
+  });
 }
 
 /**
@@ -1623,9 +1618,14 @@ function claimHistoricalPersonAndCompleteTask(
 // Wraps submitClubAffiliationsResponse with:
 //   - body-shape validation (validation_error result on missing kind /
 //     candidateId / userDecision rather than thrown ValidationError)
-//   - F1 anti-enumeration: candidate's legacy_member_id must match the
-//     authenticated member's legacy_member_id; mismatch surfaces as
-//     NotFoundError (controller maps to 404, identical UX to "row missing")
+//   - F1 anti-enumeration: the candidate must belong to the authenticated
+//     member's own claimed identity — its legacy_member_id matches the
+//     member's legacy_member_id, or (membership cards only) its
+//     historical_person_id matches the member's historical_person_id. Each
+//     anchor compares strictly against the member's own same-kind anchor,
+//     never across kinds, so one member's anchor can never resolve another
+//     member's card. Mismatch surfaces as NotFoundError (controller maps to
+//     404, identical UX to "row missing")
 //   - taskState -> WizardActionResult mapping: 'completed' advances to the
 //     next task; 'in_progress' redirects back to GET to render the next
 //     remaining card.
@@ -1638,51 +1638,62 @@ function assertCandidateOwnership(
   candidateId: string,
   kind: 'membership' | 'leadership',
 ): void {
-  const memberRow = account.findLegacyMemberIdById.get(memberId) as
-    | { legacy_member_id: string | null }
-    | undefined;
-  const memberLegacyId = memberRow?.legacy_member_id ?? null;
-  if (!memberLegacyId) {
-    throw new NotFoundError(`Candidate not found: ${candidateId}`);
-  }
-  let candidateLegacyId: string | null = null;
+  const anchors = findIdentityAnchors(memberId);
   if (kind === 'leadership') {
+    // Leadership candidates are legacy-anchored by schema, so only the legacy
+    // anchor can prove ownership.
     const cbl = clubBootstrapLeaders.findById.get(candidateId) as
       | ClubBootstrapLeaderRow
       | undefined;
-    candidateLegacyId = cbl?.legacy_member_id ?? null;
-  } else {
-    const lpca = legacyPersonClubAffiliations.findById.get(candidateId) as
-      | LegacyPersonClubAffiliationRow
-      | undefined;
-    candidateLegacyId = lpca?.legacy_member_id ?? null;
+    const owned =
+      anchors.legacy_member_id !== null &&
+      cbl?.legacy_member_id === anchors.legacy_member_id;
+    if (!owned) {
+      throw new NotFoundError(`Candidate not found: ${candidateId}`);
+    }
+    return;
   }
-  if (!candidateLegacyId || candidateLegacyId !== memberLegacyId) {
+  // Membership cards: owned when EITHER of the row's anchors equals the
+  // member's own same-kind anchor. Anchors never compare across kinds, and a
+  // null on either side never matches, so one member's anchor cannot resolve
+  // another member's card.
+  const lpca = legacyPersonClubAffiliations.findById.get(candidateId) as
+    | LegacyPersonClubAffiliationRow
+    | undefined;
+  const ownedByLegacy =
+    anchors.legacy_member_id !== null &&
+    lpca?.legacy_member_id === anchors.legacy_member_id;
+  const ownedByHistorical =
+    anchors.historical_person_id !== null &&
+    lpca?.historical_person_id === anchors.historical_person_id;
+  if (!ownedByLegacy && !ownedByHistorical) {
     throw new NotFoundError(`Candidate not found: ${candidateId}`);
   }
 }
 
 function submitDisambiguationResponse(
   memberId: string,
-  selectedIds: string[],
+  selectedId: string | null,
   allIds: string[],
 ): ClubAffiliationsResult {
   for (const id of allIds) {
     assertCandidateOwnership(memberId, id, 'membership');
   }
-  const selectedSet = new Set(selectedIds);
-  let anyCapHit = false;
+  // The grouped card resolves which club, if any, the member belonged to: it
+  // declines only the clubs the member did NOT pick and leaves the chosen row
+  // pending, so the next render presents that club's standard card and its
+  // activity question. Confirming here would consume the pending row the
+  // standard card renders from, and the activity signal would never be
+  // collected.
   for (const id of allIds) {
-    const decision = selectedSet.has(id) ? 'confirm' : 'decline';
-    const r = submitMembershipResponse(memberId, id, decision, null);
-    // A confirm that hit the two-current-club cap left the card unresolved.
-    // Carry that up so the wizard surfaces the cap notice instead of telling
-    // the member the club was added.
-    if (decision === 'confirm' && r.branch === 'cap_hit') anyCapHit = true;
+    if (id === selectedId) continue;
+    submitMembershipResponse(memberId, id, 'decline', null);
   }
-  const taskState = maybeCompleteClubAffiliationsTask(memberId);
+  const taskState = selectedId !== null
+    ? ('in_progress' as const)
+    : maybeCompleteClubAffiliationsTask(memberId);
   return {
-    branch:         anyCapHit ? 'cap_hit' : selectedIds.length > 0 ? 'confirmed' : 'declined',
+    branch:         selectedId !== null ? 'confirmed' : 'declined',
     classification: 'none',
     actualRole:     null,
     taskState,
@@ -1724,34 +1735,31 @@ async function processClubAffiliationsSubmit(
     if (allIds.length === 0) {
       return { kind: 'validation_error', formState: null, message: 'allCandidateIds is required' };
     }
+    // Single-select: the grouped card asks which ONE club, if any, the member
+    // belonged to. Two picks would re-group into the same card forever.
+    if (selectedIds.length > 1) {
+      return { kind: 'validation_error', formState: null, message: 'Select at most one club.' };
+    }
+    const selectedId = selectedIds.length === 1 && allIds.includes(selectedIds[0])
+      ? selectedIds[0]
+      : null;
     for (const id of allIds) {
       assertCandidateOwnership(memberId, id, 'membership');
     }
-    for (const id of selectedIds) {
-      if (allIds.includes(id)) await promoteCandidateIfUnmapped(memberId, id);
-    }
-    const result = submitDisambiguationResponse(memberId, selectedIds, allIds);
+    const result = submitDisambiguationResponse(memberId, selectedId, allIds);
     if (result.taskState === 'completed') {
       return advanceAfter(memberId, 'club_affiliations');
     }
-    if (result.branch === 'cap_hit') {
-      // At least one confirmed club could not be added at the two-current-club
-      // cap; the card stays actionable. Surface the cap notice rather than a
-      // "resolved" banner so the member can free a slot.
-      return {
-        kind: 'retry_same',
-        flash: { kind: 'WIZARD_CLUB_CAP_HIT', payload: { clubName: 'the selected club(s)' } },
-      };
+    if (selectedId !== null) {
+      // The chosen club's standard card renders next and collects the
+      // membership confirmation and activity signal; no banner needed.
+      return { kind: 'retry_same', flash: null };
     }
-    const selectedCount = selectedIds.length;
     return {
       kind: 'retry_same',
       flash: {
         kind: 'WIZARD_CLUB_CARD_RESOLVED',
-        payload: {
-          clubName: selectedCount > 0 ? `${selectedCount} club(s)` : 'none',
-          decision: selectedCount > 0 ? 'confirm' : 'decline',
-        },
+        payload: { clubName: 'none', decision: 'decline' },
       },
     };
   }
@@ -1804,16 +1812,18 @@ async function processClubAffiliationsSubmit(
   const clubName = resolvedCard?.clubName ?? 'that club';
 
   const result = submitClubAffiliationsResponse(memberId, body);
-  if (result.taskState === 'completed') {
-    return advanceAfter(memberId, 'club_affiliations');
-  }
   if (result.branch === 'cap_hit') {
-    // At the two-current-club cap the card stays actionable; surface the cap
-    // notice instead of a "resolved" banner so the member can free a slot.
+    // At the two-current-club cap the Yes is recorded as former membership
+    // and the card resolves. Surface the cap notice before any advance so the
+    // member learns how the answer was recorded; the next GET advances via
+    // the reconciler when this was the last card.
     return {
       kind: 'retry_same',
       flash: { kind: 'WIZARD_CLUB_CAP_HIT', payload: { clubName } },
     };
+  }
+  if (result.taskState === 'completed') {
+    return advanceAfter(memberId, 'club_affiliations');
   }
   return {
     kind: 'retry_same',
@@ -1827,8 +1837,11 @@ async function processClubAffiliationsSubmit(
 // ---------------------------------------------------------------------------
 // Club affiliation wrap-up. The wizard asks club questions only about the
 // member's own mirror-suggested affiliations (the card flow above); a member
-// whose cards all resolve without a confirmed club lands on a guidance
-// screen pointing at the clubs browse and create-club surfaces.
+// whose cards all resolve without a confirmed club lands on the wrap-up
+// landing, which explains that clubs are joined or created from the clubs
+// pages after onboarding and waits for the explicit no-club answer. The
+// landing carries no outward links: joining and creating are member
+// capabilities, fenced until onboarding completes.
 // ---------------------------------------------------------------------------
 
 export type ClubAffiliationStage = 'stage1' | 'wrap_up';
@@ -1841,20 +1854,17 @@ export type { ClubAffiliationsBranch, ClubAffiliationsResult };
 
 
 export const memberOnboardingService = {
-  getTaskWidget,
-  getDashboardTaskWidget,
   nextOutstandingTaskType,
   startTaskList,
   startTask,
-  skipTask,
   completeTask,
   completeTaskIfOutstanding,
-  markTaskNotApplicable,
   ensureLegacyClaimReflectsState,
   legacyClaimLinkageIncomplete,
   ensureClubAffiliationsReflectsState,
   memberHadClubSuggestionMaterial,
-  transitionToDetourPaused,
+  buildClubCapHitNoticeMessage,
+  buildClubResolvedNoticeMessage,
   submitTaskResponse,
   submitClubAffiliationsResponse,
   processClubAffiliationsSubmit,
@@ -1865,8 +1875,8 @@ export const memberOnboardingService = {
   processLegacyClaimAutoLinkDecline,
   processCrossSourceLegacyConfirm,
   processLegacyClaimTokenConfirm,
-  processTaskSkip,
-  dismissClubAffiliationsTask,
+  processContinueWithoutLinking,
+  processNoClubsAnswer,
   claimHistoricalPersonAndCompleteTask,
   getTaskState,
   prerequisiteTaskFor,

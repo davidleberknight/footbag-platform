@@ -25,7 +25,9 @@ const TASK_TYPES = [
   'club_affiliations',
 ] as const;
 
-const STATES = ['pending', 'in_progress_paused', 'skipped', 'completed', 'not_applicable'] as const;
+// Two states only: a task is outstanding until the member answers it.
+const STATES = ['pending', 'completed'] as const;
+const REJECTED_STATES = ['in_progress_paused', 'skipped', 'not_applicable', 'bogus'] as const;
 
 const TS = '2026-01-01T00:00:00.000Z';
 
@@ -63,7 +65,9 @@ describe('member_onboarding_tasks schema', () => {
       `footbag-test-mot-${Date.now()}-${Math.random().toString(36).slice(2)}.db`,
     );
     db = createTestDb(dbPath);
-    memberId = insertMember(db);
+    // This suite exercises the raw schema constraints, so the member must
+    // start with no task rows at all.
+    memberId = insertMember(db, { onboarding: 'none' });
   });
 
   afterEach(() => {
@@ -126,6 +130,19 @@ describe('member_onboarding_tasks schema', () => {
     });
   }
 
+  for (const state of REJECTED_STATES) {
+    it(`refuses state "${state}", which the wizard has no way to write`, () => {
+      expect(() => {
+        insertTask(db, {
+          id: `mot-bad-state-${state}`,
+          member_id: memberId,
+          task_type: 'legacy_claim',
+          state,
+        });
+      }).toThrow(/CHECK constraint failed/);
+    });
+  }
+
   it('UNIQUE(member_id, task_type) blocks a duplicate insert', () => {
     insertTask(db, { id: 'mot-dup-1', member_id: memberId, task_type: 'legacy_claim' });
     expect(() => {
@@ -169,5 +186,25 @@ describe('member_onboarding_tasks schema', () => {
         task_type: 'legacy_claim',
       });
     }).toThrow(/FOREIGN KEY constraint failed/);
+  });
+
+  it('the member-search view counts the same number of tasks the catalog defines', () => {
+    // members_searchable excludes a pending account by requiring every task
+    // completed, and it spells that as a literal count. Extending the catalog
+    // without updating the view inverts the predicate: a member who completes
+    // the new task exceeds the count and vanishes from search, while one who
+    // has not yet answered it still matches. Nothing else pins the two
+    // together, so this does.
+    const viewSql = fs.readFileSync(
+      path.join(process.cwd(), 'database', 'schema.sql'),
+      'utf8',
+    );
+    const definition = viewSql.slice(
+      viewSql.indexOf('CREATE VIEW members_searchable'),
+      viewSql.indexOf(';', viewSql.indexOf('CREATE VIEW members_searchable')),
+    );
+    const counted = definition.match(/state = 'completed'\s*\)\s*=\s*(\d+)/);
+    expect(counted, 'members_searchable must gate on a completed-task count').not.toBeNull();
+    expect(Number(counted![1])).toBe(TASK_TYPES.length);
   });
 });

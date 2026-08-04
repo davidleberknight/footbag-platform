@@ -397,12 +397,16 @@ describe('identityAccessService.revertClaimForDispute (queue-item binding)', () 
     const memberId = nextId('mem');
     const legacyId = nextId('legmem');
 
-    // Member defaults leave bio/region/birth_date/address empty (so the claim
-    // copies them) but city='Testville' and country='US' are the member's own
-    // values (so the claim's fill-if-empty leaves them, and the revert must
-    // not clear them).
+    // The member left bio/region/birth_date/address empty (so the claim
+    // copies them) while city='Testville' and country='US' are the member's
+    // own values (so the claim's fill-if-empty leaves them, and the revert
+    // must not clear them). Region and country are explicit because the
+    // factory otherwise seeds a full legal location.
     const db = open();
-    insertMember(db, { id: memberId, login_email: `${memberId}@example.com`, real_name: 'PII Player' });
+    insertMember(db, {
+      id: memberId, login_email: `${memberId}@example.com`, real_name: 'PII Player',
+      region: null, country: 'US',
+    });
     insertLegacyMember(db, {
       legacy_member_id: legacyId,
       real_name: 'PII Player',
