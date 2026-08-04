@@ -143,6 +143,52 @@ describe('claimLegacyAccount — HP-field carry-forward', () => {
     expect(memberRow(memberId).country).toBe('New Zealand');
   });
 
+  it('source precedence: the curated historical country beats the legacy country when the member left it empty', () => {
+    // The merge ladder is member's own answer > curated historical record >
+    // legacy dump. Both writes are fill-if-empty, so precedence is carried by
+    // write order; this pins the order so a reordering regression cannot let
+    // the dirtier legacy source pre-empt the curated value.
+    const { memberId, legacyId } = setupScenario({
+      memberCountry: null,
+      legacyCountry: 'Germany',
+      hpCountry: 'Czech Republic',
+    });
+
+    svc.claimLegacyAccount(memberId, legacyId);
+
+    expect(memberRow(memberId).country).toBe('Czech Republic');
+  });
+
+  it('source precedence: the curated first_competition_year beats the legacy year when the member has none', () => {
+    const { memberId, legacyId } = setupScenario({
+      memberCountry: null,
+      memberFirstCompYear: null,
+      legacyCountry: null,
+      hpCountry: null,
+      hpFirstYear: 1997,
+    });
+    const db = new BetterSqlite3(dbPath);
+    db.prepare('UPDATE legacy_members SET first_competition_year = ? WHERE legacy_member_id = ?')
+      .run(2003, legacyId);
+    db.close();
+
+    svc.claimLegacyAccount(memberId, legacyId);
+
+    expect(memberRow(memberId).first_competition_year).toBe(1997);
+  });
+
+  it("source precedence: the member's own country survives both imports", () => {
+    const { memberId, legacyId } = setupScenario({
+      memberCountry: 'Finland',
+      legacyCountry: 'Germany',
+      hpCountry: 'Czech Republic',
+    });
+
+    svc.claimLegacyAccount(memberId, legacyId);
+
+    expect(memberRow(memberId).country).toBe('Finland');
+  });
+
   it('HP.hof_member=1 propagates to member.is_hof when legacy.is_hof=0', () => {
     const { memberId, legacyId } = setupScenario({
       memberIsHof: 0,

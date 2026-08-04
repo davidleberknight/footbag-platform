@@ -1,16 +1,16 @@
 <div class="hero hero-sm">
   <div>
     <h1>{{page.title}}</h1>
+    <p class="hero-subtitle">Your account is pending until these steps are done. Member features unlock when you finish.</p>
   </div>
 </div>
 
 <div class="wrapper">
   <section>
-    <p>Link your account to your history on the old footbag.org so your past results and clubs show on your profile. Do one of these: pick a suggested match below, add an email or surname you used on the old site to sharpen the matches, or search by your old footbag.org member ID.</p>
-    <p class="text-muted fs-sm">Never had an account on the old footbag.org? Use the Continue Without Linking option below.</p>
+    <p>Link your account to your history on the old footbag.org so your past results show on your profile. Do one of these: pick a suggested match below, add an email or surname you used on the old site to sharpen the matches, or search by your old footbag.org member ID.</p>
 
-    <form method="POST" action="/register/wizard/legacy_claim/skip" class="card card-static mb-4">
-      <p>Linking your old footbag.org history is the expected next step. Only continue without linking if you never had an account on the old site.</p>
+    <form method="POST" action="/register/wizard/legacy_claim/continue-without-linking" class="card card-static mb-4">
+      <p>Only continue without linking if you never had an account on the old site.</p>
       <div class="form-field">
         <label>
           <input type="checkbox" name="no_old_account" value="1" required />
@@ -86,7 +86,7 @@
     {{/if}}
 
     {{#if content.candidates.length}}
-      <h2>Suggested matches</h2>
+      <div class="section-heading"><h2>Suggested matches</h2></div>
       <ul class="candidate-list">
         {{#each content.candidates}}
           <li class="candidate-card">
@@ -146,7 +146,7 @@
       </ul>
     {{/if}}
 
-    <h2>Help us find your record</h2>
+    <div class="section-heading mt-6"><h2>Help us find your record</h2></div>
     <p class="text-muted fs-sm">If you used a different email address or surname on footbag.org, tell us here and we'll look for matching records.</p>
 
     {{#if content.declaredAnchors.length}}
@@ -185,12 +185,12 @@
         <label for="formerSurname">Surname used on the old site</label>
         <input type="text" id="formerSurname" name="anchorValue" placeholder="Your previous last name" required />
         <input type="hidden" name="anchorType" value="former_surname" />
-        <small class="form-hint">If you used a different surname on footbag.org, enter it here to help us find your account.</small>
+        <small class="form-hint">Only a real former surname of yours, such as one you changed on marriage. This site records real names, so a nickname, handle, or alias will not match anything.</small>
       </div>
       <button type="submit" class="btn btn-outline">Add Former Name</button>
     </form>
 
-    <h2 class="mt-6">Search for your old account or competition record</h2>
+    <div class="section-heading mt-6"><h2>Search for your old account or competition record</h2></div>
     <form method="POST" action="/register/wizard/legacy_claim/find" class="login-form">
       <div class="form-field">
         <label for="identifier">Old footbag.org member ID, username, or email, or competition-record ID</label>
@@ -202,7 +202,7 @@
       <button type="submit" class="btn btn-outline">Find</button>
     </form>
 
-    <h2 class="mt-6">Still can't find your records?</h2>
+    <div class="section-heading mt-6"><h2>Still can't find your records?</h2></div>
     <form method="POST" action="/register/wizard/legacy_claim/help-request" class="card card-static mb-4">
       <div class="form-field">
         <label for="helpStatement">Tell an administrator which records you believe are yours</label>

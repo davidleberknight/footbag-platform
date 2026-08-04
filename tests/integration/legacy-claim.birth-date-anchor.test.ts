@@ -119,7 +119,7 @@ function claimFixture(opts: {
 
 describe('personal_details is a prerequisite for the legacy-claim step', () => {
   it('routes an early legacy_claim GET to personal_details, then renders once personal details are on file', async () => {
-    const memberId = insertMember(db, {
+    const memberId = insertMember(db, { onboarding: 'none',
       slug: `slug_${nextId('gate')}`,
       login_email: `${nextId('gate')}@example.com`,
       real_name: 'Gate Landing',
@@ -136,7 +136,7 @@ describe('personal_details is a prerequisite for the legacy-claim step', () => {
       .post('/register/wizard/personal_details/submit')
       .set('Cookie', cookieFor(memberId))
       .type('form')
-      .send({ city: 'Portland', country: 'US', birthDate: '1984-11-13' });
+      .send({ city: 'Portland', region: 'OR', country: 'US', birthDate: '1984-11-13' });
     expect(submit.status).toBe(303);
 
     const after = await request(createApp())
@@ -148,7 +148,7 @@ describe('personal_details is a prerequisite for the legacy-claim step', () => {
   });
 
   it('a manual search does not run until personal_details is completed', async () => {
-    const memberId = insertMember(db, {
+    const memberId = insertMember(db, { onboarding: 'none',
       slug: `slug_${nextId('gate')}`,
       login_email: `${nextId('gate')}@example.com`,
       real_name: 'Gate Search',
@@ -170,7 +170,7 @@ describe('personal_details is a prerequisite for the legacy-claim step', () => {
   });
 
   it('the continue-without-linking decision does not resolve until personal_details is completed', async () => {
-    const memberId = insertMember(db, {
+    const memberId = insertMember(db, { onboarding: 'none',
       slug: `slug_${nextId('gate')}`,
       login_email: `${nextId('gate')}@example.com`,
       real_name: 'Gate Skip',
@@ -178,7 +178,7 @@ describe('personal_details is a prerequisite for the legacy-claim step', () => {
     // Even with the never-had-an-account attestation, the decision does not
     // resolve while personal details are still outstanding.
     const res = await request(createApp())
-      .post('/register/wizard/legacy_claim/skip')
+      .post('/register/wizard/legacy_claim/continue-without-linking')
       .set('Cookie', cookieFor(memberId))
       .type('form')
       .send({ no_old_account: '1' });
@@ -193,7 +193,7 @@ describe('personal_details is a prerequisite for the legacy-claim step', () => {
   });
 
   it('a suggested-match confirmation does not run until personal_details is completed', async () => {
-    const memberId = insertMember(db, {
+    const memberId = insertMember(db, { onboarding: 'none',
       slug: `slug_${nextId('gate')}`,
       login_email: `${nextId('gate')}@example.com`,
       real_name: 'Gate Confirm',
@@ -349,7 +349,7 @@ describe('birth-date disambiguation among tied same-name candidates', () => {
     const stamp = nextId('tied');
     const name = `Pat ${stamp}`;
     const email = `${stamp}@example.com`;
-    const memberId = insertMember(db, {
+    const memberId = insertMember(db, { onboarding: 'none',
       id: `${stamp}_member`,
       slug: `slug_${stamp}`,
       login_email: email,

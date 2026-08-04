@@ -37,7 +37,6 @@ beforeAll(async () => {
     slug: OWNER_SLUG,
     displayName: 'Route Owner',
     tier: 'tier1',
-    onboardingComplete: true,
     honors: { hof: true },
     coverageNotes: ['donation routes owner, holds an honor so the note prefills'],
   });
@@ -45,14 +44,12 @@ beforeAll(async () => {
     slug: OTHER_SLUG,
     displayName: 'Route Other',
     tier: 'tier1',
-    onboardingComplete: true,
     coverageNotes: ['donation routes non-owner, holds no honor'],
   });
   seedPersona(db, {
     slug: CONCURRENT_SLUG,
     displayName: 'Route Concurrent',
     tier: 'tier1',
-    onboardingComplete: true,
     coverageNotes: ['donation routes owner for the simultaneous-cancel check'],
   });
   db.close();

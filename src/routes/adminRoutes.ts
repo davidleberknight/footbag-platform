@@ -13,17 +13,20 @@ import { adminPaymentsController } from '../controllers/adminPaymentsController'
 import { adminEmailTemplateController } from '../controllers/adminEmailTemplateController';
 import { adminFreestyleController } from '../controllers/adminFreestyleController';
 import { emergingVocabController } from '../controllers/emergingVocabController';
-import { requireAuth } from '../middleware/auth';
+import { requireMember } from '../middleware/auth';
 import { requireAdmin } from '../middleware/requireAdmin';
 
 export const adminRouter = Router();
 
 // The single-shot first-admin bootstrap claim sits ABOVE the admin gate:
-// the claimant is by definition not yet an admin, only signed in.
-adminRouter.get('/bootstrap-claim',  requireAuth, adminBootstrapController.getClaim);
-adminRouter.post('/bootstrap-claim', requireAuth, adminBootstrapController.postClaim);
+// the claimant is by definition not yet an admin, only a signed-in member.
+// Membership (onboarding complete) is still required — admin authority sits
+// above member authority, never beside it, so even the bootstrap claimant and
+// a dev-allowlisted admin finish the wizard before any admin surface opens.
+adminRouter.get('/bootstrap-claim',  requireMember, adminBootstrapController.getClaim);
+adminRouter.post('/bootstrap-claim', requireMember, adminBootstrapController.postClaim);
 
-adminRouter.use(requireAuth, requireAdmin);
+adminRouter.use(requireMember, requireAdmin);
 
 adminRouter.get('/', adminController.index);
 adminRouter.get('/admin-roles',               adminAdminRolesController.index);

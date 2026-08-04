@@ -1115,7 +1115,11 @@ export interface WizardMembershipCardRow {
   affiliation_id: string;
   club_id: string | null;
   club_name: string;
-  club_city: string;
+  // Nullable on both sides of the COALESCE: an unmapped candidate has no clubs
+  // row to fall back to, and the candidate's own city and country are optional
+  // because the mirror did not always record them.
+  club_city: string | null;
+  club_country: string | null;
   confidence_score: number | null;
   club_description: string | null;
   club_external_url: string | null;
@@ -1130,21 +1134,27 @@ export const legacyPersonClubAffiliations = {
      WHERE id = ?
   `); },
 
-  // Pending affiliations for a legacy member, joined to the candidate row to
-  // surface club metadata for the wizard card. Candidates without a
-  // mapped_club_id surface from their own candidate fields; a member
-  // confirmation promotes the candidate to a live clubs row before the
-  // affiliation transition. The candidate's unvalidated external_url is
-  // never surfaced (URL validation runs at promotion). Junk-classified
-  // candidates never surface as wizard cards, mirroring the promotion-path
-  // guard.
-  get listPendingForLegacyMember() { return db.prepare(`
+  // Pending affiliations for a member's identity anchors, joined to the
+  // candidate row to surface club metadata for the wizard card. A member's
+  // claimed identity is the pair (legacy_member_id, historical_person_id) and
+  // an affiliation row may be anchored on either, so the filter matches a row
+  // when EITHER anchor equals the member's own same-kind anchor; the explicit
+  // NOT NULL guards keep a member's absent anchor from ever matching a row's
+  // absent anchor. Candidates without a mapped_club_id surface from their own
+  // candidate fields; a member confirmation promotes the candidate to a live
+  // clubs row before the affiliation transition. The candidate's unvalidated
+  // external_url is never surfaced (URL validation runs at promotion).
+  // Junk-classified candidates never surface as wizard cards, mirroring the
+  // promotion-path guard.
+  // Params: legacyMemberId, legacyMemberId, historicalPersonId, historicalPersonId.
+  get listPendingForMemberAnchors() { return db.prepare(`
     SELECT
       lcc.id              AS candidate_id,
       lpca.id             AS affiliation_id,
       lcc.mapped_club_id  AS club_id,
       COALESCE(c.name, lcc.display_name)       AS club_name,
       COALESCE(c.city, lcc.city)               AS club_city,
+      COALESCE(c.country, lcc.country)         AS club_country,
       lpca.confidence_score AS confidence_score,
       COALESCE(c.description, lcc.description) AS club_description,
       c.external_url      AS club_external_url
@@ -1153,7 +1163,8 @@ export const legacyPersonClubAffiliations = {
          ON lcc.id = lpca.legacy_club_candidate_id
       LEFT JOIN clubs AS c
          ON c.id = lcc.mapped_club_id
-     WHERE lpca.legacy_member_id  = ?
+     WHERE ((? IS NOT NULL AND lpca.legacy_member_id = ?)
+         OR (? IS NOT NULL AND lpca.historical_person_id = ?))
        AND lpca.resolution_status = 'pending'
        AND lcc.classification != 'junk'
      ORDER BY COALESCE(c.city, lcc.city) COLLATE NOCASE ASC,
@@ -1162,15 +1173,45 @@ export const legacyPersonClubAffiliations = {
 
   // Any-status count of suggestions the wizard could ever have asked about:
   // distinguishes a member whose membership cards were all resolved (wrap-up
-  // guidance renders) from one who never had any. Junk-candidate rows never
-  // surface as cards, so they do not count as material.
-  get countByLegacyMember() { return db.prepare(`
+  // guidance renders) from one who never had any. Anchored the same way as
+  // listPendingForMemberAnchors (either identity anchor matches, with NOT NULL
+  // guards) so the material check can never disagree with what renders.
+  // Junk-candidate rows never surface as cards, so they do not count as
+  // material.
+  // Params: legacyMemberId, legacyMemberId, historicalPersonId, historicalPersonId.
+  get countByMemberAnchors() { return db.prepare(`
     SELECT COUNT(*) AS c
       FROM legacy_person_club_affiliations AS lpca
       INNER JOIN legacy_club_candidates AS lcc
          ON lcc.id = lpca.legacy_club_candidate_id
-     WHERE lpca.legacy_member_id = ?
+     WHERE ((? IS NOT NULL AND lpca.legacy_member_id = ?)
+         OR (? IS NOT NULL AND lpca.historical_person_id = ?))
        AND lcc.classification != 'junk'
+  `); },
+
+  // Pending -> superseded for a member's membership suggestions about one
+  // club, keyed by either identity anchor. A confirmed leadership claim
+  // already writes the affiliation and collects the club's activity signal,
+  // so a still-open membership card for the same club would ask the member
+  // about that club a second time; superseding it closes the duplicate
+  // question while preserving the row as history. A declined leadership
+  // claim runs no supersede, so the membership question then surfaces
+  // normally. resolved_club_id is stamped so the superseding club is
+  // readable off the row.
+  // Params: clubId, updatedBy, legacyMemberId x2, historicalPersonId x2, clubId.
+  get supersedePendingForClubAndAnchors() { return db.prepare(`
+    UPDATE legacy_person_club_affiliations
+       SET resolution_status = 'superseded',
+           resolved_club_id  = ?,
+           updated_at        = strftime('%Y-%m-%dT%H:%M:%fZ','now'),
+           updated_by        = ?,
+           version           = version + 1
+     WHERE resolution_status = 'pending'
+       AND ((? IS NOT NULL AND legacy_member_id = ?)
+         OR (? IS NOT NULL AND historical_person_id = ?))
+       AND legacy_club_candidate_id IN (
+         SELECT id FROM legacy_club_candidates WHERE mapped_club_id = ?
+       )
   `); },
 
   // Pending -> rejected transition for the 'decline' wizard branch. Guarded
@@ -1258,6 +1299,22 @@ export const legacyPersonClubAffiliations = {
      WHERE legacy_club_candidate_id = ?
        AND resolution_status = 'pending'
        AND id != ?
+  `); },
+
+  // Cap-hit confirm: the member said Yes but already holds two current clubs,
+  // so the Yes is recorded as former membership rather than a current one.
+  // Preserves the historical fact, resolves the card, and never blocks
+  // onboarding on a slot the member cannot free mid-wizard. Guarded by
+  // status='pending' like the sibling transitions.
+  get setResolutionStatusFormerOnly() { return db.prepare(`
+    UPDATE legacy_person_club_affiliations
+       SET resolution_status = 'former_only',
+           resolved_club_id  = ?,
+           updated_at        = strftime('%Y-%m-%dT%H:%M:%fZ','now'),
+           updated_by        = ?,
+           version           = version + 1
+     WHERE id                = ?
+       AND resolution_status = 'pending'
   `); },
 
   // Admin de-list: terminalize a live club's unconfirmed residue. Flips every
@@ -1654,10 +1711,11 @@ export const clubViabilitySignals = {
   `); },
 
   // Counts feeding the G1-G4 viability gates. Signals are collected only
-  // in the onboarding wizard; rows from the retired club-page poll channel
-  // are excluded defensively. Counting is one vote per member: a member's
-  // latest signal for the club wins, so duplicate rows from form re-posts
-  // or changed answers never inflate the thresholds.
+  // in the onboarding wizard, so the filter names the wizard stages
+  // explicitly, and the schema admits only the two answers the wizard's
+  // activity question offers. Counting is one vote per member: a member's
+  // latest signal for the club wins, so duplicate rows from form re-posts or
+  // changed answers never inflate the thresholds.
   get countWizardByClub() { return db.prepare(`
     WITH latest AS (
       SELECT member_id, activity_signal,
@@ -1666,13 +1724,11 @@ export const clubViabilitySignals = {
                ORDER BY created_at DESC, id DESC
              ) AS rn
       FROM club_viability_signals
-      WHERE club_id = ? AND source_stage != 'club_detail'
+      WHERE club_id = ? AND source_stage IN ('stage1a_contact', 'stage1b_affiliated')
     )
     SELECT
       SUM(CASE WHEN activity_signal = 'active' THEN 1 ELSE 0 END)          AS active_count,
       SUM(CASE WHEN activity_signal = 'not_active' THEN 1 ELSE 0 END)      AS not_active_count,
-      SUM(CASE WHEN activity_signal = 'never_heard_of_it' THEN 1 ELSE 0 END) AS never_heard_count,
-      SUM(CASE WHEN activity_signal = 'not_sure' THEN 1 ELSE 0 END)        AS not_sure_count,
       COUNT(*) AS total_count
     FROM latest
     WHERE rn = 1
@@ -1686,7 +1742,7 @@ export const clubViabilitySignals = {
                ORDER BY created_at DESC, id DESC
              ) AS rn
       FROM club_viability_signals
-      WHERE source_stage != 'club_detail'
+      WHERE source_stage IN ('stage1a_contact', 'stage1b_affiliated')
     )
     SELECT
       l.club_id,
@@ -1698,14 +1754,12 @@ export const clubViabilitySignals = {
       c.updated_at    AS club_updated_at,
       SUM(CASE WHEN l.activity_signal = 'active' THEN 1 ELSE 0 END)          AS active_count,
       SUM(CASE WHEN l.activity_signal = 'not_active' THEN 1 ELSE 0 END)      AS not_active_count,
-      SUM(CASE WHEN l.activity_signal = 'never_heard_of_it' THEN 1 ELSE 0 END) AS never_heard_count,
-      SUM(CASE WHEN l.activity_signal = 'not_sure' THEN 1 ELSE 0 END)        AS not_sure_count,
       COUNT(*) AS total_count
     FROM latest AS l
     INNER JOIN clubs AS c ON c.id = l.club_id
     WHERE l.rn = 1
     GROUP BY l.club_id
-    ORDER BY not_active_count DESC, never_heard_count DESC
+    ORDER BY not_active_count DESC
   `); },
 
   // Negative reporters for one club, one vote per member (latest signal
@@ -1720,13 +1774,13 @@ export const clubViabilitySignals = {
                ORDER BY created_at DESC, id DESC
              ) AS rn
       FROM club_viability_signals
-      WHERE club_id = ? AND source_stage != 'club_detail'
+      WHERE club_id = ? AND source_stage IN ('stage1a_contact', 'stage1b_affiliated')
     )
     SELECT m.display_name, l.activity_signal
     FROM latest AS l
     INNER JOIN members AS m ON m.id = l.member_id
-    WHERE l.rn = 1 AND l.activity_signal IN ('not_active', 'never_heard_of_it')
-    ORDER BY l.activity_signal, m.display_name COLLATE NOCASE
+    WHERE l.rn = 1 AND l.activity_signal = 'not_active'
+    ORDER BY m.display_name COLLATE NOCASE
   `); },
 
   // Candidate-keyed rows: activity answers about club candidates that have
@@ -1749,8 +1803,6 @@ export const clubViabilitySignals = {
     SELECT
       SUM(CASE WHEN activity_signal = 'active' THEN 1 ELSE 0 END)          AS active_count,
       SUM(CASE WHEN activity_signal = 'not_active' THEN 1 ELSE 0 END)      AS not_active_count,
-      SUM(CASE WHEN activity_signal = 'never_heard_of_it' THEN 1 ELSE 0 END) AS never_heard_count,
-      SUM(CASE WHEN activity_signal = 'not_sure' THEN 1 ELSE 0 END)        AS not_sure_count,
       COUNT(*) AS total_count
     FROM latest
     WHERE rn = 1
@@ -1760,9 +1812,7 @@ export const clubViabilitySignals = {
   // with per-candidate signal counts (one vote per member, latest wins).
   // Promoted candidates are excluded here AND their flag rows are stamped
   // with the club id at promotion time, so a vote never surfaces on both
-  // the candidate-flag group and the club gates. Candidates whose only
-  // latest votes are "not sure" stay hidden: not-sure records no activity
-  // evidence, so there is nothing for an admin to judge.
+  // the candidate-flag group and the club gates.
   get listCandidatesWithFlags() { return db.prepare(`
     WITH latest AS (
       SELECT source_entity_id AS candidate_id, member_id, activity_signal,
@@ -1785,8 +1835,6 @@ export const clubViabilitySignals = {
       MIN(l.created_at) AS oldest_flag_at,
       SUM(CASE WHEN l.activity_signal = 'active' THEN 1 ELSE 0 END)          AS active_count,
       SUM(CASE WHEN l.activity_signal = 'not_active' THEN 1 ELSE 0 END)      AS not_active_count,
-      SUM(CASE WHEN l.activity_signal = 'never_heard_of_it' THEN 1 ELSE 0 END) AS never_heard_count,
-      SUM(CASE WHEN l.activity_signal = 'not_sure' THEN 1 ELSE 0 END)        AS not_sure_count,
       COUNT(*) AS total_count
     FROM latest AS l
     INNER JOIN legacy_club_candidates AS lcc ON lcc.id = l.candidate_id
@@ -1794,8 +1842,7 @@ export const clubViabilitySignals = {
       AND lcc.mapped_club_id IS NULL
       AND lcc.lifecycle_state IS NULL
     GROUP BY l.candidate_id
-    HAVING SUM(CASE WHEN l.activity_signal != 'not_sure' THEN 1 ELSE 0 END) > 0
-    ORDER BY not_active_count DESC, never_heard_count DESC
+    ORDER BY not_active_count DESC
   `); },
 
   // Negative reporters for one candidate's flags, one vote per member
@@ -1816,8 +1863,8 @@ export const clubViabilitySignals = {
     SELECT m.display_name, l.activity_signal
     FROM latest AS l
     INNER JOIN members AS m ON m.id = l.member_id
-    WHERE l.rn = 1 AND l.activity_signal IN ('not_active', 'never_heard_of_it')
-    ORDER BY l.activity_signal, m.display_name COLLATE NOCASE
+    WHERE l.rn = 1 AND l.activity_signal = 'not_active'
+    ORDER BY m.display_name COLLATE NOCASE
   `); },
 
   // Promotion carry-forward: stamp the new live club id onto the
@@ -8214,30 +8261,6 @@ export const memberOnboarding = {
      WHERE id = ?
   `); },
 
-  // Dashboard widget read: returns the most recent detour-paused audit
-  // metadata per task that is currently in 'in_progress_paused' state.
-  // The LATEST audit row wins (ORDER BY occurred_at DESC LIMIT 1 inside
-  // the subquery) so a member who paused, resumed, and re-paused sees
-  // the most recent detour origin.
-  get listForMemberWithDetourMeta() { return db.prepare(`
-    SELECT
-      t.id,
-      t.member_id,
-      t.task_type,
-      t.state,
-      t.completed_at,
-      (
-        SELECT a.metadata_json
-          FROM audit_entries a
-         WHERE a.entity_type = 'member_onboarding_task'
-           AND a.entity_id   = t.id
-           AND a.action_type = 'wizard.task.detour_paused'
-         ORDER BY a.rowid DESC
-         LIMIT 1
-      ) AS detour_metadata_json
-    FROM member_onboarding_tasks t
-    WHERE t.member_id = ?
-  `); },
 };
 
 // ── member_declared_anchors ────────────────────────────────────────────────

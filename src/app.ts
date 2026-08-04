@@ -336,6 +336,10 @@ export function createApp(): express.Application {
       isActive: item.section === res.locals.currentSection,
     }));
     res.locals.isAuthenticated = req.isAuthenticated;
+    // Membership is the authorization level above authentication: false for a
+    // pending registrant, whose session exists but who is not yet a member.
+    // Templates branch member-only chrome on this, never on isAuthenticated.
+    res.locals.isMember = req.isMember;
     res.locals.currentUser = req.user;
     // Default social-preview image for the page head. Depends only on deploy
     // config, so it is set here like currentSection above. The self-referencing
@@ -386,8 +390,8 @@ export function createApp(): express.Application {
 
   app.use('/health',   healthRouter);
   // Crawler/AI-agent surfaces (/robots.txt, /sitemap.xml, /llms.txt). Public and
-  // unauthenticated; mounted ahead of the onboarding-gated public router so a
-  // crawler is never redirected through the onboarding flow.
+  // unauthenticated; mounted ahead of the public router so these paths resolve
+  // before any of its routes, and a crawler never meets a member-capability gate.
   app.use(seoRouter);
   app.use('/ipc',      ipcRouter);
   // Internal QC subsystem: dev/staging tooling only, retired at go-live.

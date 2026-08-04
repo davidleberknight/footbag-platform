@@ -73,7 +73,7 @@ function seedStaged(prefix: string, name: string): {
   const memberId = insertMember(db, {
     slug: `m_${tag.replace(/-/g, '_')}`, login_email: email,
     real_name: name, display_name: name,
-    birth_date: '1980-01-01',
+    birth_date: '1980-01-01', onboarding: 'none',
   });
   // The legacy-claim step is reachable only once personal details are on file.
   insertOnboardingTask(db, memberId, 'personal_details', 'completed');
@@ -153,7 +153,7 @@ describe('wizard staged-candidate card', () => {
   it('continuing without linking resolves every open candidate, so the completed task offers none', async () => {
     const t = seedStaged('attest', 'Attest Tester');
     const res = await request(createApp())
-      .post('/register/wizard/legacy_claim/skip')
+      .post('/register/wizard/legacy_claim/continue-without-linking')
       .set('Cookie', cookieFor(t.memberId))
       .type('form')
       .send({ no_old_account: '1' });
@@ -191,7 +191,7 @@ describe('wizard staged-candidate card', () => {
   it('continuing without the attestation resolves nothing and leaves the card open', async () => {
     const t = seedStaged('noattest', 'No Attest Tester');
     await request(createApp())
-      .post('/register/wizard/legacy_claim/skip')
+      .post('/register/wizard/legacy_claim/continue-without-linking')
       .set('Cookie', cookieFor(t.memberId))
       .type('form')
       .send({});

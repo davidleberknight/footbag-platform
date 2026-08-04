@@ -44,8 +44,8 @@ function insertPaymentWithSession(
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-  seedPersona(db, { slug: OWNER, displayName: 'Pay Owner', tier: 'tier1', onboardingComplete: true, coverageNotes: ['payment routes owner'] });
-  seedPersona(db, { slug: OTHER, displayName: 'Pay Other', tier: 'tier1', onboardingComplete: true, coverageNotes: ['payment routes other'] });
+  seedPersona(db, { slug: OWNER, displayName: 'Pay Owner', tier: 'tier1', coverageNotes: ['payment routes owner'] });
+  seedPersona(db, { slug: OTHER, displayName: 'Pay Other', tier: 'tier1', coverageNotes: ['payment routes other'] });
   // History rows (resolved by member, not session).
   insertPayment(db, { id: 'pay-hist-1', member_id: OWNER_ID, status: 'succeeded' });
   // Session-backed rows for the success and cancel pages.

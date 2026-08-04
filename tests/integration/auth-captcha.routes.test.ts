@@ -65,6 +65,12 @@ describe('captcha gate on registration', () => {
     expect(res.text).toContain('verification');
     // The gate fires before any DB read, so no account row is written.
     expect(memberByEmail(email)).toBeUndefined();
+    // The rejected render has to be recoverable: registration asks for a lot,
+    // and a challenge failure that silently empties the form makes the visitor
+    // retype all of it to retry.
+    expect(res.text).toContain('Reg Captcha');
+    expect(res.text).toContain(email);
+    expect(res.text).toContain('name="realName"');
   });
 });
 
@@ -108,6 +114,21 @@ describe('captcha gate on verify-email resend', () => {
     // turns it into a 422 with the generic challenge message instead.
     expect(res.status).toBe(422);
     expect(res.text).toContain('verification');
+    // The failed-challenge render must not also claim the visitor just
+    // registered. The page's three states are mutually exclusive, and a
+    // rejected resend sitting under a success message tells the reader the
+    // opposite of what happened.
+    expect(res.text).not.toContain('Registration successful');
+  });
+
+  it('the ordinary post-registration arrival still confirms the account was created', async () => {
+    // Guards the fix above from being "solved" by deleting the confirmation:
+    // a visitor who has just registered must still be told to go read their
+    // mail, with no error banner in sight.
+    const res = await request(createApp()).get('/register/check-email');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Registration successful');
+    expect(res.text).not.toContain('form-error-banner');
   });
 });
 

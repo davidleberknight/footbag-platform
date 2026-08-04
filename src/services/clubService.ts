@@ -1309,6 +1309,10 @@ export class ClubService {
    *     `affiliated_only`.
    *   - Idempotency: if this member already co-leads the club, the existing row
    *     is preserved; branch reports `idempotent`.
+   *   - One club, one question: the member's still-pending membership
+   *     suggestions about this same club are superseded in the same
+   *     transaction (the claim already answers the relationship and collects
+   *     the activity signal), so the wizard never asks about the club twice.
    *
    * All writes happen in a single transaction so a partial failure rolls back.
    */
@@ -1321,6 +1325,7 @@ export class ClubService {
     clubLeaderId: string | null;
     affiliationId: string | null;
     actualRole: 'co-leader' | null;
+    supersededMembershipRows: number;
   } {
     const leader = clubBootstrapLeaders.findById.get(bootstrapLeaderId) as
       | ClubBootstrapLeaderRow
@@ -1341,6 +1346,7 @@ export class ClubService {
     let actualRole:    'co-leader' | null = null;
     let clubLeaderId:  string | null = null;
     let affiliationId: string | null = null;
+    let supersededMembershipRows = 0;
 
     try {
       transaction(() => {
@@ -1440,6 +1446,22 @@ export class ClubService {
           // bootstrap leadership claim in this same transaction.
           applyActivePlayerClubJoinInTx(actorMemberId, actorMemberId, affiliationId);
         }
+
+        // One club, one question: a confirmed leadership claim answers the
+        // member's relationship to this club, so any still-pending membership
+        // suggestion about the same club is superseded in the same
+        // transaction rather than surfacing as a duplicate wizard card.
+        const anchors = account.findLegacyAndHpIdsById.get(actorMemberId) as
+          | { legacy_member_id: string | null; historical_person_id: string | null }
+          | undefined;
+        const superseded = legacyPersonClubAffiliations.supersedePendingForClubAndAnchors.run(
+          clubId,
+          'onboarding_service',
+          anchors?.legacy_member_id ?? null, anchors?.legacy_member_id ?? null,
+          anchors?.historical_person_id ?? null, anchors?.historical_person_id ?? null,
+          clubId,
+        );
+        supersededMembershipRows = superseded.changes;
       });
     } catch (err) {
       if (err instanceof ConflictError) throw err;
@@ -1447,7 +1469,7 @@ export class ClubService {
     }
 
     return {
-      branch, clubId, clubLeaderId, affiliationId, actualRole,
+      branch, clubId, clubLeaderId, affiliationId, actualRole, supersededMembershipRows,
     };
   }
 
@@ -1460,8 +1482,8 @@ export class ClubService {
    *     'confirmed_current' with resolved_club_id stamped (schema CHECK
    *     enforces both fields move together), plus an insert into
    *     member_club_affiliations (source='legacy_claim', is_current=1).
-   *     Exception: at the two-current-club cap this is a no-op cap hit
-   *     (see Multi-club safety below).
+   *     Exception: at the two-current-club cap the Yes is recorded as a
+   *     former membership instead (see Multi-club safety below).
    *   - 'decline' (pending row): transition to 'rejected'. No affiliation
    *     row written.
    *   - non-pending row: idempotent no-op; returns the existing
@@ -1478,12 +1500,14 @@ export class ClubService {
    * affiliations (primary + secondary). The first current club is
    * primary (is_primary=1); the second is secondary (is_primary=0).
    * If the member already has two is_current=1 rows, the confirm is a
-   * cap hit: the legacy affiliation row is left pending (NOT transitioned
-   * to 'confirmed_current'), no affiliation is inserted, and the method
-   * returns branch 'cap_hit'. The row stays actionable so the member can
-   * mark a current club as former and retry. The cap is enforced at the
-   * service layer (count-before-write), matching the 5-leader cap pattern
-   * in claimLeadership. The UNIQUE(member_id, club_id) index catches
+   * cap hit: the member's Yes is still a true answer about the past, so
+   * the row resolves 'former_only' (no member_club_affiliations insert),
+   * the historical membership is kept, and the method returns branch
+   * 'cap_hit'. The card resolves and never blocks completing the task;
+   * a member who wants this club current swaps affiliations from the
+   * clubs pages after onboarding. The cap is enforced at the service
+   * layer (count-before-write), matching the 5-leader cap pattern in
+   * claimLeadership. The UNIQUE(member_id, club_id) index catches
    * idempotent re-inserts of the same member-club pair.
    */
   confirmAffiliation(
@@ -1559,18 +1583,25 @@ export class ClubService {
 
     // 'confirm' or 'correct': transition status + stamp resolved_club_id +
     // insert member_club_affiliations atomically. The two-current-club cap is
-    // checked before the transition so a capped confirm leaves the row pending
-    // and actionable rather than silently consuming it.
+    // checked before the transition; a capped confirm records the Yes as
+    // former membership so the card resolves and never blocks onboarding.
     let newAffiliationId: string | null = null;
     let capHit = false;
     const now = new Date().toISOString();
     try {
       transaction(() => {
         // Two-current-club cap (max 2 is_current=1 rows per member). At the
-        // cap, leave the legacy row pending (no transition, no insert) and
-        // surface a cap-hit branch so the member can free a slot and retry.
+        // cap, the member's Yes is still a true answer about the past: the
+        // row resolves 'former_only' (no member_club_affiliations insert), so
+        // the historical membership is kept and the member who wants this
+        // club current swaps affiliations from the clubs pages later.
         const currentCount = (memberClubAffiliations.countCurrentByMemberId.get(actorMemberId) as { c: number }).c;
         if (currentCount >= 2) {
+          legacyPersonClubAffiliations.setResolutionStatusFormerOnly.run(
+            resolvedClubId,
+            'onboarding_service',
+            affiliationRowId,
+          );
           capHit = true;
           return;
         }

@@ -16,7 +16,6 @@ import {
   PersonalDetailsFormState,
 } from '../services/memberOnboardingService';
 import { memberService } from '../services/memberService';
-import { clubService } from '../services/clubService';
 import { simulatedEmailService } from '../services/simulatedEmailService';
 import { logger } from '../config/logger';
 import { handleControllerError } from '../lib/controllerErrors';
@@ -28,7 +27,6 @@ import {
   readFlash,
   clearFlash,
 } from '../lib/flashCookie';
-import { mayCreateClub } from '../services/tierPredicates';
 import { config } from '../config/env';
 import { getCaptchaAdapter } from '../adapters/captchaAdapter';
 
@@ -53,7 +51,11 @@ const EMPTY_FLASH = {
 interface ClubAffiliationsCardContent {
   dashboardHref:   string;
   submitHref:      string;
-  skipHref:        string;
+  // The explicit "none of these are my clubs" answer: declines every
+  // remaining suggestion card and completes the task. The wizard carries no
+  // outward links, no skip, and no dismissal; this and the per-card submits
+  // are the step's only exits.
+  noClubsHref:     string;
   card:            WizardCard | null;
   cardsTotal:      number;
   cardsRemaining:  number;
@@ -62,18 +64,6 @@ interface ClubAffiliationsCardContent {
   formError:       string | null;
   isWrapUp?:       boolean;
   noLegacyAffiliationFound?: boolean;
-  canCreateClub?:  boolean;
-  clubsBrowseHref?: string;
-  memberCountry?:  string;
-  // Detour links route through the wizard so the optional club task pauses
-  // (in_progress_paused) before the member leaves for the clubs surface, and
-  // the dashboard can offer "Resume onboarding".
-  detourBrowseHref?:  string;
-  detourCountryHref?: string;
-  detourCreateHref?:  string;
-  // Permanent dismissal of the optional club task (distinct from "skip", which
-  // the dashboard keeps offering to resume).
-  dismissHref?:    string;
 }
 
 interface PersonalDetailsContent {
@@ -84,13 +74,16 @@ interface PersonalDetailsContent {
   birthDate: string;
   gender: string;
   yearValue: string;
+  showFirstCompetitionYear: boolean;
   showCompetitiveResults: boolean;
+  regionRequired: boolean;
   error: string | null;
   submitLabel: string;
 }
 
 interface WizardCompleteContent {
   dashboardHref: string;
+  capHitNotice: { message: string; manageClubsHref: string } | null;
 }
 
 function dashboardHrefFor(req: Request): string {
@@ -209,8 +202,8 @@ async function renderLegacyClaim(
       (await simulatedEmailService.getEmailPreview({ urlPathPrefix: mailLinkPrefix })) ?? undefined;
   }
   res.status(statusOverride ?? 200).render('register/wizard/legacy-claim', {
-    seo:  { title: 'Find your past records and clubs' },
-    page: { sectionKey: 'members', pageKey: 'onboarding_legacy_claim', title: 'Find your past records and clubs' },
+    seo:  { title: 'Find your past records' },
+    page: { sectionKey: 'members', pageKey: 'onboarding_legacy_claim', title: 'Find your past records' },
     content: data,
   } satisfies PageViewModel<LinkHistoryContent>);
 }
@@ -245,6 +238,24 @@ function readClubCapHitFlash(req: Request, res: Response): { clubName: string } 
   return null;
 }
 
+// The cap notice has to reach the member wherever the answer leaves them. When
+// the capped club was the last card, the task completes on the very next GET
+// and the club page never renders again, so the completion page shows the
+// notice instead; without that, the member is never told their Yes was recorded
+// as a former membership. Wording is service-shaped; this only reads the flash
+// cookie and supplies the request-derived href.
+function capHitNoticeFrom(
+  req: Request,
+  res: Response,
+): { message: string; manageClubsHref: string } | null {
+  const flash = readClubCapHitFlash(req, res);
+  if (!flash) return null;
+  return {
+    message: memberOnboardingService.buildClubCapHitNoticeMessage(flash.clubName),
+    manageClubsHref: dashboardHrefFor(req),
+  };
+}
+
 function renderClubAffiliationsCard(
   req: Request,
   res: Response,
@@ -253,29 +264,22 @@ function renderClubAffiliationsCard(
   const memberId = req.user!.userId;
   const cards = memberOnboardingService.listWizardCardsForMember(memberId);
   const resolvedFlash = readClubResolvedFlash(req, res);
-  // Pre-shaped banner text so the template never branches on the decision code.
-  const RESOLVED_MESSAGES: Record<'confirm' | 'correct' | 'decline', (clubName: string) => string> = {
-    confirm: (n) => `Added ${n} to your clubs.`,
-    decline: (n) => `Marked ${n} as not yours.`,
-    correct: (n) => `Noted that the ${n} record needs correction.`,
-  };
+  // Banner text is service-shaped so the template never branches on the
+  // decision code and the wording lives with the rest of the wizard copy.
   const resolvedNotice = resolvedFlash
-    ? { ...resolvedFlash, message: RESOLVED_MESSAGES[resolvedFlash.decision](resolvedFlash.clubName) }
-    : null;
-  const capHitFlash = readClubCapHitFlash(req, res);
-  const capHitNotice = capHitFlash
     ? {
-        message: `You are already at the two current-club limit, so ${capHitFlash.clubName} was not added. Leave one of your current clubs to add it.`,
-        manageClubsHref: dashboardHrefFor(req),
+        ...resolvedFlash,
+        message: memberOnboardingService.buildClubResolvedNoticeMessage(
+          resolvedFlash.decision,
+          resolvedFlash.clubName,
+        ),
       }
     : null;
+  const capHitNotice = capHitNoticeFrom(req, res);
   const cardsRemaining = cards.length;
   const cardsTotal     = resolvedNotice ? cardsRemaining + 1 : cardsRemaining;
 
   const stage = memberOnboardingService.getClubAffiliationStage(memberId);
-  const prefill = memberService.getPersonalDetailsPrefill(memberId);
-  const memberCountry = prefill.country ?? null;
-  const clubsBrowseHref = clubService.countryBrowseHref(memberCountry);
 
   res.status(opts.statusOverride ?? 200).render('register/wizard/club-affiliations', {
     seo:  { title: 'Club affiliations' },
@@ -283,7 +287,7 @@ function renderClubAffiliationsCard(
     content: {
       dashboardHref:  dashboardHrefFor(req),
       submitHref:     '/register/wizard/club_affiliations/submit',
-      skipHref:       '/register/wizard/club_affiliations/skip',
+      noClubsHref:    '/register/wizard/club_affiliations/none',
       card:           cards.length > 0 ? cards[0] : null,
       cardsTotal,
       cardsRemaining,
@@ -293,13 +297,6 @@ function renderClubAffiliationsCard(
       isWrapUp:       stage === 'wrap_up',
       noLegacyAffiliationFound:
         stage === 'wrap_up' && !memberOnboardingService.memberHadClubSuggestionMaterial(memberId),
-      canCreateClub:  mayCreateClub(memberId),
-      clubsBrowseHref,
-      memberCountry,
-      detourBrowseHref:  '/register/wizard/club_affiliations/detour?to=join',
-      detourCountryHref: '/register/wizard/club_affiliations/detour?to=country',
-      detourCreateHref:  '/register/wizard/club_affiliations/detour?to=create',
-      dismissHref:       '/register/wizard/club_affiliations/dismiss',
     },
   } satisfies PageViewModel<ClubAffiliationsCardContent>);
 }
@@ -309,25 +306,13 @@ function renderPersonalDetails(
   res: Response,
   opts: { city?: string; region?: string; country?: string; birthDate?: string; gender?: string; yearValue?: string; showCompetitiveResults?: boolean; error?: string | null; statusOverride?: number } = {},
 ): void {
-  const prefill = memberService.getPersonalDetailsPrefill(req.user!.userId);
-  const yearValue =
-    opts.yearValue !== undefined
-      ? opts.yearValue
-      : prefill.firstCompetitionYear != null
-      ? String(prefill.firstCompetitionYear)
-      : '';
+  const form = memberService.getPersonalDetailsForm(req.user!.userId, opts);
   res.status(opts.statusOverride ?? 200).render('register/wizard/personal-details', {
     seo:  { title: 'Personal details' },
     page: { sectionKey: 'members', pageKey: 'onboarding_personal_details', title: 'Personal details' },
     content: {
       dashboardHref: dashboardHrefFor(req),
-      city: opts.city ?? prefill.city,
-      region: opts.region ?? prefill.region,
-      country: opts.country ?? prefill.country,
-      birthDate: opts.birthDate ?? prefill.birthDate,
-      gender: opts.gender ?? prefill.gender,
-      yearValue,
-      showCompetitiveResults: opts.showCompetitiveResults ?? prefill.showCompetitiveResults,
+      ...form,
       error: opts.error ?? null,
       // "Continue" while other onboarding steps remain; "Complete" when saving
       // this required step finishes the member's outstanding wizard tasks.
@@ -343,7 +328,7 @@ function renderComplete(req: Request, res: Response): void {
   res.status(200).render('register/wizard/complete', {
     seo:  { title: 'Onboarding complete' },
     page: { sectionKey: 'members', pageKey: 'onboarding_complete', title: 'Onboarding complete' },
-    content: { dashboardHref: dashboardHrefFor(req) },
+    content: { dashboardHref: dashboardHrefFor(req), capHitNotice: capHitNoticeFrom(req, res) },
   } satisfies PageViewModel<WizardCompleteContent>);
 }
 
@@ -448,7 +433,7 @@ export const memberOnboardingController = {
       }
 
       const taskState = memberOnboardingService.getTaskState(memberId, taskType);
-      if (taskState === 'completed' || taskState === 'not_applicable') {
+      if (taskState === 'completed') {
         // A completed legacy_claim still renders in two cases: while open
         // staged candidates remain (the cross-source follow-on offer
         // surfaces here right after the first claim completes), and while a
@@ -482,12 +467,13 @@ export const memberOnboardingController = {
       // otherwise read as "all done" and render a false completion page while the
       // gate still blocks every capability route.
       memberOnboardingService.startTaskList(memberId);
-      // Don't lie: if any task is still outstanding (pending or paused mid-flow),
-      // route the member to the next one instead of telling them everything is
-      // handled. Uses the same outstanding-task source the gate middleware uses.
-      const upcoming = memberOnboardingService.nextOutstandingTaskType(memberId);
-      if (upcoming) {
-        res.redirect(303, taskUrlFor(upcoming));
+      // Render only when the membership predicate itself passes; anything less
+      // routes the member to the first task still unanswered. Outstanding means
+      // not completed, the same definition the gate and the widget use, so this
+      // page can never say "handled" while the gate still bounces the member.
+      if (!memberOnboardingService.isOnboardingComplete(memberId)) {
+        const upcoming = memberOnboardingService.nextOutstandingTaskType(memberId);
+        res.redirect(303, upcoming ? taskUrlFor(upcoming) : taskUrlFor('personal_details'));
         return;
       }
       renderComplete(req, res);
@@ -497,71 +483,27 @@ export const memberOnboardingController = {
     }
   },
 
-  async postSkip(req: Request, res: Response, next: NextFunction): Promise<void> {
-    const taskType = req.params.taskType;
-    if (!isValidTaskType(taskType)) {
-      renderNotFound(res);
-      return;
-    }
+  // The legacy-claim continue-without-linking decision: the member's explicit
+  // statement that they never held an old-site account, which completes the
+  // required task. Not a skip; the wizard has none.
+  async postContinueWithoutLinking(req: Request, res: Response, next: NextFunction): Promise<void> {
     const attestedNoOldAccount = String(req.body?.no_old_account ?? '') === '1';
-    await dispatch(req, res, next, taskType, {
-      action: () => memberOnboardingService.processTaskSkip(req.user!.userId, taskType, attestedNoOldAccount),
+    await dispatch(req, res, next, 'legacy_claim', {
+      action: () => memberOnboardingService.processContinueWithoutLinking(req.user!.userId, attestedNoOldAccount),
       renderValidationError: async (result) => {
-        // Only the legacy_claim decision can fail validation (the "I never had an
-        // old account" attestation); re-render its page with the message so the
-        // member sees why the click did not advance.
-        if (taskType === 'legacy_claim') {
-          await renderLegacyClaim(req, res, { ...EMPTY_FLASH }, 422, result.message);
-          return;
-        }
-        res.redirect(303, taskUrlFor(taskType));
+        // The attestation is the only validation that can fail; re-render the
+        // page with the message so the member sees why the click did not advance.
+        await renderLegacyClaim(req, res, { ...EMPTY_FLASH }, 422, result.message);
       },
     });
   },
 
-  // Detour out of the optional club task to join or create a club. The pause is
-  // recorded in the onboarding service (the club task becomes in_progress_paused
-  // and the dashboard offers "Resume onboarding") before redirecting to the
-  // plain clubs surface, so the clubs controller never owns onboarding logic.
-  getClubDetour(req: Request, res: Response, next: NextFunction): void {
-    try {
-      const memberId = req.user!.userId;
-      const to = req.query.to;
-      let dest: string;
-      let targetStory: string;
-      let sourceCard: string;
-      if (to === 'create') {
-        dest = '/clubs/create';
-        targetStory = 'M_Create_Club';
-        sourceCard = 'create_club';
-      } else if (to === 'country') {
-        const country = memberService.getPersonalDetailsPrefill(memberId).country ?? null;
-        dest = clubService.countryBrowseHref(country);
-        targetStory = 'M_Join_Club';
-        sourceCard = 'clubs_in_country';
-      } else {
-        dest = '/clubs';
-        targetStory = 'M_Join_Club';
-        sourceCard = 'browse_clubs';
-      }
-      memberOnboardingService.transitionToDetourPaused(memberId, 'club_affiliations', targetStory, sourceCard);
-      res.redirect(303, dest);
-    } catch (err) {
-      logger.error('onboarding club detour error', { error: err instanceof Error ? err.message : String(err) });
-      next(err);
-    }
-  },
-
-  // Permanently dismiss the optional club task so the dashboard stops offering
-  // it (distinct from "skip", which stays resumable). Returns to the dashboard.
-  postClubDismiss(req: Request, res: Response, next: NextFunction): void {
-    try {
-      memberOnboardingService.dismissClubAffiliationsTask(req.user!.userId);
-      res.redirect(303, dashboardHrefFor(req));
-    } catch (err) {
-      logger.error('onboarding club dismiss error', { error: err instanceof Error ? err.message : String(err) });
-      next(err);
-    }
+  // The club task's explicit "none of these are my clubs" answer: declines
+  // every remaining suggestion card and completes the task in one transaction.
+  async postNoClubs(req: Request, res: Response, next: NextFunction): Promise<void> {
+    await dispatch(req, res, next, 'club_affiliations', {
+      action: () => memberOnboardingService.processNoClubsAnswer(req.user!.userId),
+    });
   },
 
   async postLegacyClaimFind(req: Request, res: Response, next: NextFunction): Promise<void> {

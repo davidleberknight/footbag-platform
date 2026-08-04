@@ -50,7 +50,7 @@ function editOwner(fields: Record<string, string>): request.Test {
     .post(`/members/${OWNER_SLUG}/edit`)
     .set('Cookie', cookieFor(OWNER_ID))
     .type('form')
-    .send({ city: 'Portland', country: 'USA', ...fields });
+    .send({ city: 'Portland', region: 'OR', country: 'USA', ...fields });
 }
 
 describe('per-field contact-PII visibility', () => {
@@ -64,6 +64,20 @@ describe('per-field contact-PII visibility', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('555-0101');
     expect(res.text).toContain('555-0202');
+  });
+
+  it('an opted-in WhatsApp number renders as a chat link, showing the number as typed', async () => {
+    await editOwner({
+      phone: '', whatsapp: '+1 (555) 010-0300',
+      whatsappVisible: '1', emailVisibility: 'private',
+    }).expect(303);
+
+    const res = await request(createApp()).get(`/members/${OWNER_SLUG}`).set('Cookie', cookieFor(VIEWER_ID));
+    expect(res.status).toBe(200);
+    // wa.me addresses a contact by digits alone, while the profile keeps the
+    // number in the form the member wrote it.
+    expect(res.text).toContain('https://wa.me/15550100300');
+    expect(res.text).toContain('+1 (555) 010-0300');
   });
 
   it('opted-out phone and WhatsApp are hidden from an authenticated member', async () => {
@@ -92,7 +106,7 @@ describe('per-field contact-PII visibility', () => {
       .post(`/members/${COLEAD_SLUG}/edit`)
       .set('Cookie', cookieFor(COLEAD_ID))
       .type('form')
-      .send({ city: 'Portland', country: 'USA', emailVisibility: 'private' })
+      .send({ city: 'Portland', region: 'OR', country: 'USA', emailVisibility: 'private' })
       .expect(303);
 
     const row = db.prepare('SELECT email_visibility FROM members WHERE id = ?').get(COLEAD_ID) as { email_visibility: string };

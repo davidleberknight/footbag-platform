@@ -122,7 +122,10 @@
 
   <fieldset class="form-fieldset">
     <legend>Upload files now (optional)</legend>
-    <input type="file" name="photoFiles" accept="image/jpeg,image/png" multiple>
+    {{! The legend names the group, not the control, so assistive tech needs
+        the input's own accessible name; aria-label mirrors the legend without
+        adding a redundant visible label. }}
+    <input type="file" name="photoFiles" accept="image/jpeg,image/png" multiple aria-label="Upload files now">
     <small class="form-hint">
       JPEG or PNG, up to 25 MB each, max 3 files.
     </small>

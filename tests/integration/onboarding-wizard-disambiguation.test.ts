@@ -28,6 +28,8 @@ const MEMBER_SAME_CITY    = 'wiz-disambig-samecity';
 const MEMBER_MIXED        = 'wiz-disambig-mixed';
 const MEMBER_LEADERSHIP   = 'wiz-disambig-leadership';
 const MEMBER_F1           = 'wiz-disambig-f1';
+const MEMBER_NO_CITY      = 'wiz-disambig-nocity';
+const MEMBER_SAME_CITY_TWO_COUNTRIES = 'wiz-disambig-twocountries';
 
 let sameCityAffA = '';
 let sameCityAffB = '';
@@ -43,7 +45,7 @@ beforeAll(async () => {
   const db = createTestDb(dbPath);
 
   // Same-city scenario: 3 clubs in Portland for one member.
-  insertMember(db, {
+  insertMember(db, { onboarding: 'none',
     id: MEMBER_SAME_CITY,
     slug: 'wiz_disambig_samecity',
     login_email: 'disambig-same@example.com',
@@ -60,7 +62,7 @@ beforeAll(async () => {
   sameCityAffC = insertLegacyPersonClubAffiliation(db, { legacy_member_id: 'lm-disambig-same', legacy_club_candidate_id: candC, confidence_score: 0.5 });
 
   // Mixed-city: 2 Portland + 1 Denver for one member.
-  insertMember(db, {
+  insertMember(db, { onboarding: 'none',
     id: MEMBER_MIXED,
     slug: 'wiz_disambig_mixed',
     login_email: 'disambig-mixed@example.com',
@@ -77,7 +79,7 @@ beforeAll(async () => {
   mixedDenverAff    = insertLegacyPersonClubAffiliation(db, { legacy_member_id: 'lm-disambig-mixed', legacy_club_candidate_id: mixCandD,  confidence_score: 0.9 });
 
   // Leadership + same-city memberships: leadership always individual.
-  insertMember(db, {
+  insertMember(db, { onboarding: 'none',
     id: MEMBER_LEADERSHIP,
     slug: 'wiz_disambig_leader',
     login_email: 'disambig-leader@example.com',
@@ -97,8 +99,35 @@ beforeAll(async () => {
   leadershipAffId = insertLegacyPersonClubAffiliation(db, { legacy_member_id: 'lm-disambig-leader', legacy_club_candidate_id: candH1, confidence_score: 0.9 });
   insertLegacyPersonClubAffiliation(db, { legacy_member_id: 'lm-disambig-leader', legacy_club_candidate_id: candH2, confidence_score: 0.7 });
 
+  // Two suggestions the mirror recorded no city for. An unmapped candidate has
+  // no clubs row to take a city from, so both carry a null city.
+  insertMember(db, { onboarding: 'none',
+    id: MEMBER_NO_CITY,
+    slug: 'wiz_disambig_nocity',
+    login_email: 'disambig-nocity@example.com',
+    legacy_member_id: 'lm-disambig-nocity',
+  });
+  const candNoCityA = insertLegacyClubCandidate(db, { classification: 'pre_populate', display_name: 'Cityless Alpha' });
+  const candNoCityB = insertLegacyClubCandidate(db, { classification: 'pre_populate', display_name: 'Cityless Beta' });
+  insertLegacyPersonClubAffiliation(db, { legacy_member_id: 'lm-disambig-nocity', legacy_club_candidate_id: candNoCityA, confidence_score: 0.9 });
+  insertLegacyPersonClubAffiliation(db, { legacy_member_id: 'lm-disambig-nocity', legacy_club_candidate_id: candNoCityB, confidence_score: 0.7 });
+
+  // Two clubs whose cities share a name in different countries.
+  insertMember(db, { onboarding: 'none',
+    id: MEMBER_SAME_CITY_TWO_COUNTRIES,
+    slug: 'wiz_disambig_twocountries',
+    login_email: 'disambig-twoc@example.com',
+    legacy_member_id: 'lm-disambig-twoc',
+  });
+  const springfieldUs = insertClub(db, { name: 'Springfield Kickers', city: 'Springfield', country: 'USA' });
+  const springfieldAu = insertClub(db, { name: 'Springfield Shredders', city: 'Springfield', country: 'Australia' });
+  const candSpringUs = insertLegacyClubCandidate(db, { classification: 'pre_populate', mapped_club_id: springfieldUs, display_name: 'Springfield Kickers' });
+  const candSpringAu = insertLegacyClubCandidate(db, { classification: 'pre_populate', mapped_club_id: springfieldAu, display_name: 'Springfield Shredders' });
+  insertLegacyPersonClubAffiliation(db, { legacy_member_id: 'lm-disambig-twoc', legacy_club_candidate_id: candSpringUs, confidence_score: 0.9 });
+  insertLegacyPersonClubAffiliation(db, { legacy_member_id: 'lm-disambig-twoc', legacy_club_candidate_id: candSpringAu, confidence_score: 0.7 });
+
   // F1 anti-enumeration: another member's affiliation.
-  insertMember(db, {
+  insertMember(db, { onboarding: 'none',
     id: MEMBER_F1,
     slug: 'wiz_disambig_f1',
     login_email: 'disambig-f1@example.com',
@@ -110,7 +139,10 @@ beforeAll(async () => {
 
   // The club-affiliations step is reachable only once personal details are on
   // file, so complete that prerequisite for every member exercised here.
-  for (const id of [MEMBER_SAME_CITY, MEMBER_MIXED, MEMBER_LEADERSHIP, MEMBER_F1]) {
+  for (const id of [
+    MEMBER_SAME_CITY, MEMBER_MIXED, MEMBER_LEADERSHIP, MEMBER_F1,
+    MEMBER_NO_CITY, MEMBER_SAME_CITY_TWO_COUNTRIES,
+  ]) {
     insertOnboardingTask(db, id, 'personal_details', 'completed');
   }
 
@@ -149,7 +181,7 @@ describe('GET /register/wizard/club_affiliations — disambiguation card renderi
       .get('/register/wizard/club_affiliations')
       .set('Cookie', cookieFor(MEMBER_SAME_CITY));
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Which clubs in Portland were you part of?');
+    expect(res.text).toContain('Which of these clubs in Portland were you part of?');
     expect(res.text).toContain('Portland Alpha');
     expect(res.text).toContain('Portland Beta');
     expect(res.text).toContain('Portland Gamma');
@@ -178,10 +210,49 @@ describe('GET /register/wizard/club_affiliations — disambiguation card renderi
     expect(res.text).toContain('makes you a co-leader');
     expect(res.text).not.toContain('Which clubs in Helsinki');
   });
+
+  it('suggestions with no recorded city are asked one at a time, never grouped', async () => {
+    // Grouping exists to ask once about clubs that plausibly describe the same
+    // membership. An unrecorded city is not evidence of a shared place, so
+    // folding these together would present unrelated clubs as one
+    // single-select question and force the member to disclaim all but one.
+    const res = await request(createApp())
+      .get('/register/wizard/club_affiliations')
+      .set('Cookie', cookieFor(MEMBER_NO_CITY));
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('name="kind" value="disambiguation"');
+    expect(res.text).toContain('Were you a member of Cityless Alpha?');
+  });
+
+  it('cities that share a name in different countries are not one place', async () => {
+    const res = await request(createApp())
+      .get('/register/wizard/club_affiliations')
+      .set('Cookie', cookieFor(MEMBER_SAME_CITY_TWO_COUNTRIES));
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('name="kind" value="disambiguation"');
+    expect(res.text).toContain('Were you a member of Springfield');
+  });
 });
 
 describe('POST /register/wizard/club_affiliations/submit — disambiguation', () => {
-  it('selecting 1 of 3 confirms selected, declines the other 2', async () => {
+  it('selecting more than one club is rejected: the grouped card resolves a single membership', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .post('/register/wizard/club_affiliations/submit')
+      .set('Cookie', cookieFor(MEMBER_SAME_CITY))
+      .type('form')
+      .send({
+        kind: 'disambiguation',
+        allCandidateIds: [sameCityAffA, sameCityAffB, sameCityAffC],
+        selectedCandidateIds: [sameCityAffA, sameCityAffB],
+      });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Select at most one club.');
+    expect(readAffiliationStatus(sameCityAffA)).toBe('pending');
+    expect(readAffiliationStatus(sameCityAffB)).toBe('pending');
+  });
+
+  it('selecting 1 of 3 declines the other 2 and leaves the chosen club pending for its standard card', async () => {
     const app = createApp();
     const res = await request(app)
       .post('/register/wizard/club_affiliations/submit')
@@ -194,9 +265,20 @@ describe('POST /register/wizard/club_affiliations/submit — disambiguation', ()
       });
     expect(res.status).toBe(303);
 
-    expect(readAffiliationStatus(sameCityAffA)).toBe('confirmed_current');
+    // The chosen club is NOT confirmed here: its row stays pending so the
+    // next render presents its standard card, which is where the membership
+    // confirmation and the activity signal are collected.
+    expect(readAffiliationStatus(sameCityAffA)).toBe('pending');
     expect(readAffiliationStatus(sameCityAffB)).toBe('rejected');
     expect(readAffiliationStatus(sameCityAffC)).toBe('rejected');
+
+    const followUp = await request(app)
+      .get('/register/wizard/club_affiliations')
+      .set('Cookie', cookieFor(MEMBER_SAME_CITY));
+    expect(followUp.status).toBe(200);
+    expect(followUp.text).toContain('Portland Alpha');
+    expect(followUp.text).toContain('still active?');
+    expect(followUp.text).not.toContain('Which of these clubs in Portland');
   });
 
   it('selecting none declines all', async () => {
@@ -253,17 +335,17 @@ describe('POST /register/wizard/club_affiliations/submit — disambiguation', ()
         kind: 'membership',
         candidateId: mixedDenverAff,
         userDecision: 'decline',
-        activitySignal: 'not_sure',
+        activitySignal: 'not_active',
       });
 
-    // All cards resolved, no club confirmed: the wrap-up guidance screen
-    // (clubs browse + create-club path) renders instead of auto-completing.
+    // All cards resolved, no club confirmed: the wrap-up landing renders and
+    // waits for the explicit no-club answer instead of auto-completing.
     expect(readTaskState(MEMBER_MIXED)).not.toBe('completed');
     const wrapUp = await request(app)
       .get('/register/wizard/club_affiliations')
       .set('Cookie', cookieFor(MEMBER_MIXED));
     expect(wrapUp.status).toBe(200);
-    expect(wrapUp.text).toContain('Find or create your club');
-    expect(wrapUp.text).toContain('Skip for Now');
+    expect(wrapUp.text).toContain('Clubs come after onboarding');
+    expect(wrapUp.text).toContain('Finish Without a Club');
   });
 });

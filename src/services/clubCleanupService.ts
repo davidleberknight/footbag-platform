@@ -115,8 +115,6 @@ export interface ClubViabilityResult {
 interface SignalCounts {
   active_count: number;
   not_active_count: number;
-  never_heard_count: number;
-  not_sure_count: number;
   total_count: number;
 }
 
@@ -282,6 +280,11 @@ export interface CleanupQueueItem {
   // controls; the service decides which rows show them so the template branches
   // on a boolean rather than the predicate enum.
   showLeaderlessControls: boolean;
+  // Opportunity items (the "Needs Leader" list) are a tolerated state, not
+  // remediation work: they render as a separate low-priority section, offer no
+  // demote or archive action, and demotion stays driven only by the
+  // crowdsourced inactivity signals.
+  isOpportunity?: boolean;
   // Sort inputs, not rendered: negative-signal weight and the timestamp the
   // item has been open since (the club's last update stands in for predicate
   // items, which carry no dedicated opened-at of their own).
@@ -398,6 +401,9 @@ interface CleanupQueueItemGroup {
   predicate: PredicateSource;
   count: number;
   items: CleanupQueueItem[];
+  // Marks the low-priority "Needs Leader" opportunity section; the template
+  // renders its explanatory framing and withholds the remediation actions.
+  isOpportunity?: boolean;
 }
 
 interface CleanupQueueContent {
@@ -436,8 +442,6 @@ interface SignalListRow {
   club_updated_at: string;
   active_count: number;
   not_active_count: number;
-  never_heard_count: number;
-  not_sure_count: number;
   total_count: number;
 }
 
@@ -456,11 +460,7 @@ function negativeReporterSuffix(
   reporters: Array<{ display_name: string; activity_signal: string }>,
 ): string {
   const saidInactive = reporters.filter((r) => r.activity_signal === 'not_active').map((r) => r.display_name);
-  const saidNeverHeard = reporters.filter((r) => r.activity_signal === 'never_heard_of_it').map((r) => r.display_name);
-  const reporterParts: string[] = [];
-  if (saidInactive.length) reporterParts.push(`inactive per: ${saidInactive.join(', ')}`);
-  if (saidNeverHeard.length) reporterParts.push(`never heard of it per: ${saidNeverHeard.join(', ')}`);
-  return reporterParts.length ? ` (${reporterParts.join('; ')})` : '';
+  return saidInactive.length ? ` (inactive per: ${saidInactive.join(', ')})` : '';
 }
 
 // ---------------------------------------------------------------------------
@@ -529,32 +529,11 @@ function assembleQueue(): AssembledQueue {
       clubStatus: row.club_status,
       predicate: 'crowdsource_viability',
       predicateLabel: 'Crowdsource viability',
-      detail: `${row.active_count} active, ${row.not_active_count} inactive, ${row.never_heard_count} never heard${reporterSuffix}`,
+      detail: `${row.active_count} active, ${row.not_active_count} inactive${reporterSuffix}`,
       recommendedAction,
       showLeaderlessControls: false,
-      flagCount: row.not_active_count + row.never_heard_count,
+      flagCount: row.not_active_count,
       openSince: row.club_updated_at,
-      claimLabel: claimLabelFrom(claims, 'club', row.club_id),
-    });
-  }
-
-  const leaderless = findLeaderlessActiveClubs();
-  for (const row of leaderless) {
-    if (isResolved(resolutions, row.club_id, 'leaderless_active')) continue;
-    items.push({
-      clubId: row.club_id,
-      clubName: row.club_name,
-      clubCity: row.city,
-      clubRegion: row.region,
-      clubCountry: row.country,
-      clubStatus: row.status,
-      predicate: 'leaderless_active',
-      predicateLabel: 'Leaderless active club',
-      detail: 'Active club with no co-leader',
-      recommendedAction: 'Add a co-leader (recommended), contact members, or defer',
-      showLeaderlessControls: true,
-      flagCount: 0,
-      openSince: row.last_updated,
       claimLabel: claimLabelFrom(claims, 'club', row.club_id),
     });
   }
@@ -584,6 +563,33 @@ function assembleQueue(): AssembledQueue {
       flagCount: leaders.length,
       openSince: first.provisional_since,
       claimLabel: claimLabelFrom(claims, 'club', clubId),
+    });
+  }
+
+  // Leaderless clubs come LAST: leaderless is a tolerated state, not a defect,
+  // so these render as a separate low-priority "Needs Leader" opportunity
+  // section beneath the review items rather than as remediation work. Before
+  // members have claimed their clubs this matches nearly the whole active
+  // universe, which is exactly why it must not read as a review backlog.
+  const leaderless = findLeaderlessActiveClubs();
+  for (const row of leaderless) {
+    if (isResolved(resolutions, row.club_id, 'leaderless_active')) continue;
+    items.push({
+      clubId: row.club_id,
+      clubName: row.club_name,
+      clubCity: row.city,
+      clubRegion: row.region,
+      clubCountry: row.country,
+      clubStatus: row.status,
+      predicate: 'leaderless_active',
+      predicateLabel: 'Needs Leader',
+      detail: 'Active club with no co-leader yet; a tolerated state, and an opportunity, not a problem to fix',
+      recommendedAction: 'Add a co-leader, invite members to volunteer, or defer',
+      showLeaderlessControls: true,
+      isOpportunity: true,
+      flagCount: 0,
+      openSince: row.last_updated,
+      claimLabel: claimLabelFrom(claims, 'club', row.club_id),
     });
   }
 
@@ -645,8 +651,6 @@ function assembleQueue(): AssembledQueue {
     oldest_flag_at: string;
     active_count: number;
     not_active_count: number;
-    never_heard_count: number;
-    not_sure_count: number;
     total_count: number;
   }>;
   const candidateFlags: CandidateFlagItem[] = [];
@@ -663,8 +667,8 @@ function assembleQueue(): AssembledQueue {
       region: r.region,
       country: r.country,
       classificationLabel: CLASSIFICATION_LABELS[r.classification] ?? r.classification,
-      detail: `${r.active_count} active, ${r.not_active_count} inactive, ${r.never_heard_count} never heard${negativeReporterSuffix(reporters)}`,
-      flagCount: r.not_active_count + r.never_heard_count,
+      detail: `${r.active_count} active, ${r.not_active_count} inactive${negativeReporterSuffix(reporters)}`,
+      flagCount: r.not_active_count,
       oldestFlagAt: r.oldest_flag_at,
       deferAnnotation: deferAnnotationFrom(res),
       claimLabel: claimLabelFrom(claims, 'candidate', r.candidate_id),
@@ -698,7 +702,7 @@ function assembleQueue(): AssembledQueue {
 
 const CATEGORY_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
   { value: 'crowdsource_viability', label: 'Crowdsource viability' },
-  { value: 'leaderless_active', label: 'Leaderless active club' },
+  { value: 'leaderless_active', label: 'Needs Leader' },
   { value: 'stale_provisional', label: 'Stale provisional leader' },
   { value: 'candidate_flag', label: 'Wizard flags by candidate' },
   { value: 'residue', label: 'Unconfirmed residue' },
@@ -817,7 +821,13 @@ function getCleanupQueuePage(filter?: CleanupQueueFilter): PageViewModel<Cleanup
   for (const item of items) {
     let group = groupsByLabel.get(item.predicateLabel);
     if (!group) {
-      group = { label: item.predicateLabel, predicate: item.predicate, count: 0, items: [] };
+      group = {
+        label: item.predicateLabel,
+        predicate: item.predicate,
+        count: 0,
+        items: [],
+        isOpportunity: item.isOpportunity === true,
+      };
       groupsByLabel.set(item.predicateLabel, group);
       itemGroups.push(group);
     }

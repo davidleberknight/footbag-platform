@@ -28,8 +28,11 @@
         </div>
         <div class="nav-auth">
           {{#if isAuthenticated}}
+            {{! A pending registrant has no profile page yet; the same href
+                routes them to their next wizard task, so the label names that
+                destination instead of implying a profile exists. }}
             <a href="/members/{{currentUser.slug}}" {{#if (eq currentSection 'members')}}class="active"{{/if}}>
-              {{#if currentUser.displayName}}{{currentUser.displayName}}{{else}}My Profile{{/if}}
+              {{#if isMember}}{{#if currentUser.displayName}}{{currentUser.displayName}}{{else}}My Profile{{/if}}{{else}}Finish Onboarding{{/if}}
             </a>
             {{#if isAdmin}}
               <a href="/admin" {{#if (eq currentSection 'admin')}}class="active"{{/if}}>Admin</a>

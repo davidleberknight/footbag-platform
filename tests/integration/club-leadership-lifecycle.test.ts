@@ -91,7 +91,7 @@ describe('revival on leadership claim', () => {
     });
 
     const result = onboardingSvc.submitClubAffiliationsResponse(memberId, {
-      candidateId, userDecision: 'confirm',
+      candidateId, userDecision: 'confirm', activitySignal: 'active',
     });
     expect(result.branch).toBe('promoted_co_leader');
     expect(clubStatus(clubId)).toBe('active');
@@ -109,7 +109,7 @@ describe('revival on leadership claim', () => {
     });
 
     const result = onboardingSvc.submitClubAffiliationsResponse(memberId, {
-      candidateId, userDecision: 'confirm',
+      candidateId, userDecision: 'confirm', activitySignal: 'active',
     });
     expect(result.branch).toBe('promoted_co_leader');
     expect(clubStatus(clubId)).toBe('active');
@@ -123,7 +123,7 @@ describe('revival on leadership claim', () => {
       club_id: clubId, legacy_member_id: `lm-cll-${_n}`, role: 'leader', status: 'provisional',
     });
 
-    onboardingSvc.submitClubAffiliationsResponse(memberId, { candidateId, userDecision: 'confirm' });
+    onboardingSvc.submitClubAffiliationsResponse(memberId, { candidateId, userDecision: 'confirm', activitySignal: 'active' });
     expect(clubStatus(clubId)).toBe('active');
     expect(revivalAudits(clubId)).toHaveLength(0);
   });
@@ -135,7 +135,7 @@ describe('revival on leadership claim', () => {
       club_id: clubId, legacy_member_id: `lm-cll-${_n}`, role: 'leader', status: 'provisional',
     });
 
-    onboardingSvc.submitClubAffiliationsResponse(memberId, { candidateId, userDecision: 'decline' });
+    onboardingSvc.submitClubAffiliationsResponse(memberId, { candidateId, userDecision: 'decline', activitySignal: 'not_active' });
     expect(clubStatus(clubId)).toBe('inactive');
     expect(revivalAudits(clubId)).toHaveLength(0);
   });

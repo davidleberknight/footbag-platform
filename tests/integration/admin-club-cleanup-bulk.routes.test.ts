@@ -266,8 +266,8 @@ describe('bulk defer per group', () => {
       .get('/admin/club-cleanup')
       .set('Cookie', adminCookie());
     expect(queue.text).not.toContain('Crowdsource viability (');
-    // The same clubs' leaderless items are a different group and stay open.
-    expect(queue.text).toContain('Leaderless active club (');
+    // The same clubs' Needs Leader items are a different group and stay open.
+    expect(queue.text).toContain('Needs Leader (');
   });
 
   it('stale_provisional: the grouped club defers under its own predicate', async () => {
@@ -299,7 +299,7 @@ describe('bulk defer per group', () => {
     const queue = await request(createApp())
       .get('/admin/club-cleanup')
       .set('Cookie', adminCookie());
-    expect(queue.text).not.toContain('Leaderless active club (');
+    expect(queue.text).not.toContain('Needs Leader (');
   });
 });
 

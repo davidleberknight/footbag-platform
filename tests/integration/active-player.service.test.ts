@@ -6,8 +6,9 @@
  *     Tier 1+ no-op, validation
  *   - applyVouch: grant + paired vouch row, target Tier 1+ no-op, self-vouch
  *     rejection, voucher-tier validation, rate-limit, no-shorten
- *   - applyClubJoin: lifetime one-time idempotency (broader than the schema
- *     unique index), Tier 1+ no-op, FK validation
+ *   - applyClubJoinInTx: lifetime one-time idempotency (broader than the schema
+ *     unique index), Tier 1+ no-op, FK validation, and co-commit with the
+ *     caller's transaction
  *   - applyExpiry: writes an `expire` row exactly once per crossing
  *   - getStatus: returns shape from member_active_player_current
  */
@@ -541,7 +542,7 @@ describe('applyVouch', () => {
   });
 });
 
-describe('applyClubJoin', () => {
+describe('the one-time club-join Active Player grant', () => {
   function buildAffiliation(memberId: string): string {
     const db = new BetterSqlite3(dbPath);
     const clubId = insertClub(db);
@@ -554,7 +555,7 @@ describe('applyClubJoin', () => {
     const id = freshMember();
     const affId = buildAffiliation(id);
 
-    const result = aps.applyClubJoin(ACTOR_ID, id, affId);
+    const result = dbMod.transaction(() => aps.applyClubJoinInTx(ACTOR_ID, id, affId));
 
     expect(result.status).toBe('granted');
     const rows = apGrants(id);
@@ -580,7 +581,7 @@ describe('applyClubJoin', () => {
     db.close();
     const affId = buildAffiliation(id);
 
-    const result = aps.applyClubJoin(ACTOR_ID, id, affId);
+    const result = dbMod.transaction(() => aps.applyClubJoinInTx(ACTOR_ID, id, affId));
 
     expect(result).toEqual({
       status: 'noop',
@@ -612,7 +613,7 @@ describe('applyClubJoin', () => {
     db.close();
     const affId = buildAffiliation(id);
 
-    const result = aps.applyClubJoin(ACTOR_ID, id, affId);
+    const result = dbMod.transaction(() => aps.applyClubJoinInTx(ACTOR_ID, id, affId));
 
     expect(result.status).toBe('noop');
   });
@@ -622,7 +623,7 @@ describe('applyClubJoin', () => {
     setMemberTier(id, 'tier1');
     const affId = buildAffiliation(id);
 
-    const result = aps.applyClubJoin(ACTOR_ID, id, affId);
+    const result = dbMod.transaction(() => aps.applyClubJoinInTx(ACTOR_ID, id, affId));
 
     expect(result).toEqual({ status: 'noop', reason: 'tier1_plus_no_op' });
     expect(apGrants(id)).toHaveLength(0);
@@ -632,14 +633,14 @@ describe('applyClubJoin', () => {
     const idA = freshMember();
     const idB = freshMember();
     const affA = buildAffiliation(idA);
-    expect(() => aps.applyClubJoin(ACTOR_ID, idB, affA)).toThrow(
+    expect(() => dbMod.transaction(() => aps.applyClubJoinInTx(ACTOR_ID, idB, affA))).toThrow(
       /does not belong to member/,
     );
   });
 
   it('rejects an unknown affiliationId', () => {
     const id = freshMember();
-    expect(() => aps.applyClubJoin(ACTOR_ID, id, 'aff-bogus')).toThrow(
+    expect(() => dbMod.transaction(() => aps.applyClubJoinInTx(ACTOR_ID, id, 'aff-bogus'))).toThrow(
       /not found/,
     );
   });

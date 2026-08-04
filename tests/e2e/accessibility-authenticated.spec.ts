@@ -30,6 +30,7 @@ import {
   insertFreestyleTrick,
   insertAuditEntry,
   insertOutboxEmail,
+  insertOnboardingTask,
 } from '../fixtures/factories';
 
 function rand(): string {
@@ -83,18 +84,34 @@ test('member surfaces have no WCAG 2.1 AA axe violations', { tag: ['@a11y'] }, a
   }
 });
 
-test('the onboarding claim wizard has no WCAG 2.1 AA axe violations', { tag: ['@a11y'] }, async ({ browser, baseURL }) => {
+test('the onboarding wizard has no WCAG 2.1 AA axe violations', { tag: ['@a11y'] }, async ({ browser, baseURL }) => {
   const db = openLiveDb();
-  const member = seedTier0Member(db, { slug: `a11y_wizard_${rand()}` });
+  // Each wizard step renders for exactly one task state, so covering all three
+  // needs two personas: one still owing personal details, and one past that
+  // step. A single persona would follow the redirect and silently scan the
+  // personal-details form three times.
+  const fresh = seedTier0Member(db, { slug: `a11y_wiz_new_${rand()}` });
+  const past = seedTier0Member(db, { slug: `a11y_wiz_on_${rand()}` });
+  insertOnboardingTask(db, past.memberId, 'personal_details', 'completed');
   db.close();
 
-  const ctx = await createAuthenticatedContext(browser, baseURL!, member);
+  const freshCtx = await createAuthenticatedContext(browser, baseURL!, fresh);
   try {
-    await scanPages(ctx, [
-      { path: '/register/wizard/legacy_claim', name: 'legacy-claim wizard' },
+    await scanPages(freshCtx, [
+      { path: '/register/wizard/personal_details', name: 'personal-details wizard' },
     ]);
   } finally {
-    await ctx.close();
+    await freshCtx.close();
+  }
+
+  const pastCtx = await createAuthenticatedContext(browser, baseURL!, past);
+  try {
+    await scanPages(pastCtx, [
+      { path: '/register/wizard/legacy_claim', name: 'legacy-claim wizard' },
+      { path: '/register/wizard/club_affiliations', name: 'club-affiliations wizard' },
+    ]);
+  } finally {
+    await pastCtx.close();
   }
 });
 

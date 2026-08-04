@@ -97,6 +97,20 @@ function memberId(slug: string): string {
   return `member_persona_${slug}`;
 }
 
+// Membership is an authorization level above authentication: a persona whose
+// spec leaves any onboarding task short of completed is a pending registrant,
+// and the requireMember guard routes it to the wizard before any member
+// capability, admin gate, or ownership check runs. Personas with no explicit
+// onboardingTasks are seeded onboarding-complete by the factory.
+const ALL_TASKS = ['personal_details', 'legacy_claim', 'club_affiliations'] as const;
+function isPendingPersona(p: (typeof CANONICAL_PERSONAS)[number]): boolean {
+  if (p.onboardingTasks === undefined) return false;
+  return !ALL_TASKS.every((t) => p.onboardingTasks?.[t] === 'completed');
+}
+function isWizardRedirect(res: { status: number; headers: Record<string, string> }): boolean {
+  return res.status === 303 && (res.headers.location ?? '').includes('/register/wizard/');
+}
+
 beforeAll(async () => {
   const db = createTestDb(dbPath);
   for (const persona of CANONICAL_PERSONAS) {
@@ -201,6 +215,8 @@ describe('admin gate — GET (allow admin only, deny everyone else)', () => {
         const cell = `${p.slug} -> GET ${route}`;
         if (!cookie) {
           expect(isLoginRedirect(res), `${cell} (anonymous → login)`).toBe(true);
+        } else if (isPendingPersona(p)) {
+          expect(isWizardRedirect(res), `${cell} (pending → wizard)`).toBe(true);
         } else if (p.isAdmin) {
           expect(res.status, `${cell} (admin allow)`).toBe(200);
         } else {
@@ -292,12 +308,16 @@ describe('owner gate — member self-edit (BOLA)', () => {
   // be denied (404 anti-enumeration), proving the gate is object-level.
   const VICTIM = 't1_paid';
 
-  it('serves a member its own edit page', async () => {
+  it('serves a member its own edit page; a pending registrant is routed to the wizard instead', async () => {
     for (const p of CANONICAL_PERSONAS) {
       const cookie = cookies.get(p.slug);
       if (!cookie) continue;
       const res = await request(createApp()).get(`/members/${p.slug}/edit`).set('Cookie', cookie);
-      expect(res.status, `${p.slug} -> own /edit (allow)`).toBe(200);
+      if (isPendingPersona(p)) {
+        expect(isWizardRedirect(res), `${p.slug} -> own /edit (pending → wizard)`).toBe(true);
+      } else {
+        expect(res.status, `${p.slug} -> own /edit (allow)`).toBe(200);
+      }
     }
   });
 
@@ -309,6 +329,10 @@ describe('owner gate — member self-edit (BOLA)', () => {
       const res = await req;
       if (!cookie) {
         expect(isLoginRedirect(res), `${p.slug} -> victim /edit (anonymous → login)`).toBe(true);
+      } else if (isPendingPersona(p)) {
+        // Membership is checked before ownership, so a pending registrant is
+        // routed to the wizard rather than receiving the anti-enumeration 404.
+        expect(isWizardRedirect(res), `${p.slug} -> victim /edit (pending → wizard)`).toBe(true);
       } else if (p.slug === VICTIM) {
         expect(res.status, `${p.slug} -> own /edit`).toBe(200);
       } else {
@@ -433,13 +457,14 @@ describe('owner gate — club content edit (adjacent-owner BOLA)', () => {
 });
 
 describe('tier gate — POST /clubs/create (create-club bootstrap eligibility)', () => {
-  // The onboarding gate redirects not-yet-onboarded members off /clubs paths
-  // before the tier gate runs, and the Active-Player personas turn on time;
-  // both are held out so each cell isolates the tier decision.
+  // The membership gate routes a pending registrant to the wizard before the
+  // tier gate runs, and the Active-Player personas turn on time; both are held
+  // out so each cell isolates the tier decision. A persona declaring per-task
+  // onboarding state is the pending kind; every other persona is a member.
   const tierCandidates = CANONICAL_PERSONAS.filter(
     (p) =>
       canHoldSession(p) &&
-      p.onboardingComplete === true &&
+      !p.onboardingTasks &&
       !p.activePlayer,
   );
 

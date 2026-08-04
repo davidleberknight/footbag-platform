@@ -86,14 +86,6 @@ describe('memberService write-path atomicity', () => {
     expect(memberField(id, 'city')).toBe('ORIGINAL CITY');
   });
 
-  it('setFirstCompetitionYear rolls back the year update when the audit append throws', () => {
-    const { id } = seedMember({ first_competition_year: 1990 });
-    const spy = throwOnAudit();
-    expect(() => svc.setFirstCompetitionYear(id, '2001')).toThrow('forced audit failure');
-    spy.mockRestore();
-    expect(memberField(id, 'first_competition_year')).toBe(1990);
-  });
-
   it('setPersonalDetails commits the competitive-results flag with the other fields, all-or-nothing', () => {
     // The onboarding wizard submits the flag together with the personal
     // details; a crash mid-submit must not complete the task while silently
@@ -124,11 +116,4 @@ describe('memberService write-path atomicity', () => {
     expect(memberField(id, 'show_competitive_results')).toBe(0);
   });
 
-  it('setShowCompetitiveResults rolls back the flag update when the audit append throws', () => {
-    const { id } = seedMember({ show_competitive_results: 1 });
-    const spy = throwOnAudit();
-    expect(() => svc.setShowCompetitiveResults(id, '0')).toThrow('forced audit failure');
-    spy.mockRestore();
-    expect(memberField(id, 'show_competitive_results')).toBe(1);
-  });
 });

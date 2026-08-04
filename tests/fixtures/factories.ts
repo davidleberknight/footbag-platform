@@ -8,6 +8,7 @@
  * cleanup is only needed when a test mutates shared state that a later test reads.
  * For mutation tests, use a fresh per-test DB or wrap in a transaction and roll back.
  */
+import { randomUUID } from 'node:crypto';
 import BetterSqlite3 from 'better-sqlite3';
 import { signJwtLocalSync } from './signJwt';
 
@@ -110,8 +111,13 @@ const TS  = '2025-01-01T00:00:00.000Z';
 const SYS = 'system';
 
 let _counter = 0;
+// Counter for in-process ordering plus a UUID tail for cross-process
+// uniqueness: e2e spec processes share one live stack database, and a bare
+// counter restarts at 0001 in every process, so deterministic ids collide the
+// moment two processes (or a retried spec in a fresh worker) seed the same
+// table. Mirrors the uid shape in src/testkit/personaRowBuilders.ts.
 function uid(): string {
-  return (++_counter).toString().padStart(4, '0');
+  return `${(++_counter).toString().padStart(4, '0')}_${randomUUID().replace(/-/g, '').slice(0, 12)}`;
 }
 
 // ── Session JWT helper ──────────────────────────────────────────────────────

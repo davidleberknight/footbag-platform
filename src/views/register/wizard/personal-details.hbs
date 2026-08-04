@@ -1,6 +1,7 @@
 <div class="hero hero-sm">
   <div>
     <h1>{{page.title}}</h1>
+    <p class="hero-subtitle">Your account is pending until these steps are done. Member features unlock when you finish.</p>
   </div>
 </div>
 
@@ -21,14 +22,32 @@
         </div>
 
         <div class="form-field">
-          <label for="region">Region / State <span class="text-muted">(optional)</span></label>
-          <input type="text" id="region" name="region" maxlength="64" value="{{content.region}}" />
-          <small class="form-hint">For the USA, use the official two-letter state code (e.g. CA). For other countries, enter your province, county, or region name.</small>
+          <label for="region">Region / State
+            {{#if content.regionRequired}}<span class="fw-600">(required)</span>
+            {{else}}<span class="text-muted">(optional)</span>{{/if}}
+          </label>
+          {{#if content.regionHasOptions}}
+            <select id="region" name="region" required>
+              <option value="">Select your state or province</option>
+              {{#each content.regionOptions}}
+                <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
+              {{/each}}
+            </select>
+          {{else}}
+            <input type="text" id="region" name="region" maxlength="64" value="{{content.region}}" />
+            <small class="form-hint">Optional here: enter your province, county, or region name.</small>
+          {{/if}}
         </div>
 
         <div class="form-field">
           <label for="country">Country <span class="fw-600">(required)</span></label>
-          <input type="text" id="country" name="country" maxlength="64" value="{{content.country}}" required />
+          <select id="country" name="country" required>
+            <option value="">Select your country</option>
+            {{#each content.countryOptions}}
+              <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
+            {{/each}}
+          </select>
+          <small class="form-hint">Choosing the USA or Canada adds a state or province list to the field above when you save.</small>
         </div>
 
         <div class="form-field">

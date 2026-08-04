@@ -36,7 +36,14 @@ export const clubController = {
    */
   byKey(req: Request, res: Response, next: NextFunction): void {
     try {
-      const result = clubService.resolveByKey(req.params.key, req.isAuthenticated, req.user?.userId);
+      // Member-visible roster, contact, and affiliation state key off
+      // membership, not bare authentication: a pending registrant reads the
+      // club page as an anonymous visitor.
+      const result = clubService.resolveByKey(
+        req.params.key,
+        req.isMember,
+        req.isMember ? req.user?.userId : undefined,
+      );
       res.render(result.template, result.vm);
     } catch (err) {
       // An old /clubs/<slug> link whose club did not survive normalization

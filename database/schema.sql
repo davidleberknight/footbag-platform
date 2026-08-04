@@ -1996,7 +1996,13 @@ CREATE VIEW members_searchable AS
     AND is_deceased = 0
     AND searchable = 1
     AND personal_data_purged_at IS NULL
-    AND email_verified_at IS NOT NULL;
+    AND email_verified_at IS NOT NULL
+    -- Membership is an authorization level: an account is pending until every
+    -- onboarding task completes, and a pending registrant is not yet a member,
+    -- so they never appear in member search. Mirrors the service-layer
+    -- isOnboardingComplete predicate (all three catalog tasks completed).
+    AND (SELECT COUNT(*) FROM member_onboarding_tasks t
+          WHERE t.member_id = members.id AND t.state = 'completed') = 3;
 
 -- =============================================================================
 -- SECTION 15: MEMBER LINKS
@@ -3493,14 +3499,15 @@ CREATE TABLE club_viability_signals (
   member_id TEXT NOT NULL REFERENCES members(id),
   club_id   TEXT REFERENCES clubs(id),
 
+  -- The onboarding wizard is the only surface that collects activity
+  -- signals, and its activity question offers exactly two answers, so the
+  -- vocabulary admits nothing another surface or a wider answer set would
+  -- write.
   source_stage TEXT NOT NULL
-    CHECK (source_stage IN (
-      'stage1a_contact','stage1b_affiliated',
-      'club_detail','dashboard'
-    )),
+    CHECK (source_stage IN ('stage1a_contact','stage1b_affiliated')),
 
   activity_signal TEXT NOT NULL
-    CHECK (activity_signal IN ('active','not_active','not_sure','never_heard_of_it')),
+    CHECK (activity_signal IN ('active','not_active')),
 
   source_entity_type TEXT,
   source_entity_id   TEXT,
@@ -3596,7 +3603,10 @@ CREATE TABLE member_onboarding_tasks (
   task_type    TEXT NOT NULL
     CHECK (task_type IN ('personal_details','legacy_claim','club_affiliations')),
   state        TEXT NOT NULL DEFAULT 'pending'
-    CHECK (state IN ('pending','in_progress_paused','skipped','completed','not_applicable')),
+    -- Two states only: a task is outstanding until the member answers it.
+    -- Every exit from a wizard task is an explicit answer, so there is no
+    -- skip, no dismissal, and no paused state to park a task in.
+    CHECK (state IN ('pending','completed')),
   completed_at TEXT,
 
   UNIQUE(member_id, task_type)

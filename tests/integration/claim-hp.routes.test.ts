@@ -79,11 +79,11 @@ beforeAll(async () => {
   insertMember(testDb, { id: CLAIMER_ID, slug: CLAIMER_SLUG,
     real_name: CLAIMER_NAME, display_name: CLAIMER_NAME,
     login_email: 'hpc-claimer@example.com', country: null,
-    birth_date: '1980-01-01' });
+    birth_date: '1980-01-01', onboarding: 'none' });
   insertMember(testDb, { id: OTHER_ID, slug: OTHER_SLUG,
     real_name: OTHER_NAME, display_name: OTHER_NAME,
     login_email: 'hpc-other@example.com',
-    birth_date: '1980-01-01' });
+    birth_date: '1980-01-01', onboarding: 'none' });
   // The direct claim surface runs only after personal details are on file, and
   // stays open until legacy_claim is also resolved. These claimants have personal
   // details completed but have not yet resolved legacy_claim, so the surface is open.
@@ -326,9 +326,11 @@ describe('POST /history/:personId/claim/confirm — scenario D (HP-only)', () =>
   });
 
   it('claimer who already linked one record is routed to admin link help and keeps that link', async () => {
-    // CLAIMER linked from the previous test, which also completed onboarding, so
-    // the self-serve claim surface is now closed: a second attempt routes to the
-    // admin link-request form and the original link is left untouched.
+    // CLAIMER linked from the previous test, which completed the claim step;
+    // answering the club question finishes onboarding, which closes the
+    // self-serve claim surface: a second attempt routes to the admin
+    // link-request form and the original link is left untouched.
+    insertOnboardingTask(testDb, CLAIMER_ID, 'club_affiliations', 'completed');
     const secondHp = 'hp-second-for-claimer';
     insertHistoricalPerson(testDb, {
       person_id: secondHp, person_name: 'David Mockingbird',
@@ -351,7 +353,7 @@ describe('POST /history/:personId/claim/confirm — scenario E (HP + unclaimed l
     const scenarioEClaimerId = insertMember(testDb, {
       slug: 'scenario_e', real_name: 'David Mockingbird', display_name: 'David Mockingbird',
       login_email: 'scenario-e@example.com', country: null,
-      birth_date: '1980-01-01',
+      birth_date: '1980-01-01', onboarding: 'none',
     });
     insertOnboardingTask(testDb, scenarioEClaimerId, 'personal_details', 'completed');
     const scenarioECookie = `__Host-footbag_session=${createTestSessionJwt({ memberId: scenarioEClaimerId })}`;
@@ -427,7 +429,7 @@ describe('POST /history/:personId/claim/confirm — adversarial', () => {
     const secondClaimerId = insertMember(testDb, {
       slug: 'hpc_second', real_name: 'Jamie Mockingbird', display_name: 'Jamie Mockingbird',
       login_email: 'hpc-second@example.com',
-      birth_date: '1980-01-01',
+      birth_date: '1980-01-01', onboarding: 'none',
     });
     insertOnboardingTask(testDb, secondClaimerId, 'personal_details', 'completed');
     const secondCookie = `__Host-footbag_session=${createTestSessionJwt({ memberId: secondClaimerId })}`;
@@ -462,7 +464,7 @@ describe('POST /history/:personId/claim/confirm — adversarial', () => {
     const freshClaimerId = insertMember(testDb, {
       slug: 'hpc_deceased_adv', real_name: 'Jamie Mockingbird', display_name: 'Jamie Mockingbird',
       login_email: 'hpc-deceased-adv@example.com',
-      birth_date: '1980-01-01',
+      birth_date: '1980-01-01', onboarding: 'none',
     });
     insertOnboardingTask(testDb, freshClaimerId, 'personal_details', 'completed');
     const cookie = `__Host-footbag_session=${createTestSessionJwt({ memberId: freshClaimerId })}`;
@@ -503,7 +505,7 @@ describe('claim of a record held by a deceased contact-scrubbed member', () => {
     seedDeceasedHeldHp(heldHp, 'hpc_dec_holder_get', 0);
     const claimantId = insertMember(testDb, {
       slug: 'hpc_dec_claimant_get', real_name: 'Casey Mockingbird', display_name: 'Casey Mockingbird',
-      login_email: 'hpc-dec-get@example.com',
+      login_email: 'hpc-dec-get@example.com', onboarding: 'none',
     });
     const cookie = `__Host-footbag_session=${createTestSessionJwt({ memberId: claimantId })}`;
     const app = createApp();
@@ -519,7 +521,7 @@ describe('claim of a record held by a deceased contact-scrubbed member', () => {
     const claimantId = insertMember(testDb, {
       slug: 'hpc_dec_claimant_post', real_name: 'Casey Mockingbird', display_name: 'Casey Mockingbird',
       login_email: 'hpc-dec-post@example.com',
-      birth_date: '1980-01-01',
+      birth_date: '1980-01-01', onboarding: 'none',
     });
     insertOnboardingTask(testDb, claimantId, 'personal_details', 'completed');
     const cookie = `__Host-footbag_session=${createTestSessionJwt({ memberId: claimantId })}`;
@@ -544,7 +546,7 @@ describe('GET /history/:personId/claim — rate limiting', () => {
       id: lookerId, slug: 'hpc_looker',
       real_name: 'Lucy Mockingbird', display_name: 'Lucy Mockingbird',
       login_email: 'hpc-looker@example.com',
-      birth_date: '1980-01-01',
+      birth_date: '1980-01-01', onboarding: 'none',
     });
     insertOnboardingTask(testDb, lookerId, 'personal_details', 'completed');
     const cookie = `__Host-footbag_session=${createTestSessionJwt({ memberId: lookerId })}`;

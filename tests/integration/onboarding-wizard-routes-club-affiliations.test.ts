@@ -38,6 +38,7 @@ const MEMBER_CAP       = 'wiz-clubaff-cap';
 const MEMBER_DISAMBIG_CAP = 'wiz-clubaff-disambig-cap';
 const MEMBER_SKIP_DONE    = 'wiz-clubaff-skip-done';
 const MEMBER_PD_SKIP      = 'wiz-clubaff-pd-skip';
+const MEMBER_CAP_LAST     = 'wiz-clubaff-cap-last';
 
 let membershipClubId = '';
 let membershipAffId  = '';
@@ -53,6 +54,7 @@ let promoteAffId     = '';
 let nopromoteCandId  = '';
 let nopromoteAffId   = '';
 let capAffId         = '';
+let capLastAffId     = '';
 let disambigCapAffX  = '';
 let disambigCapAffY  = '';
 
@@ -60,7 +62,7 @@ beforeAll(async () => {
   const db = createTestDb(dbPath);
 
   // Empty: member with no candidates -> empty-state GET.
-  insertMember(db, {
+  insertMember(db, { onboarding: 'none',
     id: MEMBER_EMPTY,
     slug: 'wiz_clubaff_empty',
     login_email: 'wiz-empty@example.com',
@@ -68,7 +70,7 @@ beforeAll(async () => {
   });
 
   // Membership-only: one pending membership candidate.
-  insertMember(db, {
+  insertMember(db, { onboarding: 'none',
     id: MEMBER_MEMBERSHIP,
     slug: 'wiz_clubaff_membership',
     login_email: 'wiz-membership@example.com',
@@ -78,7 +80,7 @@ beforeAll(async () => {
   // Seed an existing co-leader so confirming membership (which now grants the
   // member Active Player) does not surface a path-2 leadership offer; this test
   // isolates pure membership-completion. The path-2 offer has its own coverage.
-  insertMember(db, { id: 'wiz-membership-coleader', slug: 'wiz_membership_coleader', login_email: 'wiz-mem-co@example.com' });
+  insertMember(db, { onboarding: 'none', id: 'wiz-membership-coleader', slug: 'wiz_membership_coleader', login_email: 'wiz-mem-co@example.com' });
   insertClubLeader(db, { club_id: membershipClubId, member_id: 'wiz-membership-coleader' });
   const membershipCand = insertLegacyClubCandidate(db, {
     classification: 'pre_populate',
@@ -92,7 +94,7 @@ beforeAll(async () => {
   });
 
   // Leadership-only: one provisional bootstrap leader.
-  insertMember(db, {
+  insertMember(db, { onboarding: 'none',
     id: MEMBER_LEADERSHIP,
     slug: 'wiz_clubaff_leadership',
     login_email: 'wiz-leadership@example.com',
@@ -110,7 +112,7 @@ beforeAll(async () => {
   // Stage-aware ordering: leadership (Stage 1A) renders before membership
   // (Stage 1B) regardless of club name. So the Beta leadership card renders
   // first; after submit, the Alpha membership card renders.
-  insertMember(db, {
+  insertMember(db, { onboarding: 'none',
     id: MEMBER_MULTI,
     slug: 'wiz_clubaff_multi',
     login_email: 'wiz-multi@example.com',
@@ -138,7 +140,7 @@ beforeAll(async () => {
   // Junk-classified candidate: a pending affiliation against a junk candidate
   // must never surface as a wizard card, even when the candidate has a
   // mapped clubs row.
-  insertMember(db, {
+  insertMember(db, { onboarding: 'none',
     id: MEMBER_JUNK,
     slug: 'wiz_clubaff_junk',
     login_email: 'wiz-junk@example.com',
@@ -158,7 +160,7 @@ beforeAll(async () => {
 
   // Unpromoted candidates: pending affiliations against onboarding_visible
   // candidates that have no clubs row yet. Confirm promotes; decline does not.
-  insertMember(db, {
+  insertMember(db, { onboarding: 'none',
     id: MEMBER_PROMOTE,
     slug: 'wiz_clubaff_promote',
     login_email: 'wiz-promote@example.com',
@@ -176,7 +178,7 @@ beforeAll(async () => {
     legacy_club_candidate_id: promoteCandId,
     confidence_score:         0.9,
   });
-  insertMember(db, {
+  insertMember(db, { onboarding: 'none',
     id: MEMBER_NOPROMOTE,
     slug: 'wiz_clubaff_nopromote',
     login_email: 'wiz-nopromote@example.com',
@@ -195,7 +197,7 @@ beforeAll(async () => {
 
   // At-cap: member already holds two current club affiliations plus a pending
   // membership candidate for a third club. Confirming the third is a cap hit.
-  insertMember(db, {
+  insertMember(db, { onboarding: 'none',
     id: MEMBER_CAP,
     slug: 'wiz_clubaff_cap',
     login_email: 'wiz-cap@example.com',
@@ -217,8 +219,36 @@ beforeAll(async () => {
     confidence_score:         0.9,
   });
 
+  // At-cap with the club step last: same shape as MEMBER_CAP, but the claim
+  // step is already answered, so resolving this card completes onboarding and
+  // the member is advanced straight to the completion page. That is the case
+  // where the club card never renders again, so it is the one that proves the
+  // cap notice still reaches the member.
+  insertMember(db, { onboarding: 'none',
+    id: MEMBER_CAP_LAST,
+    slug: 'wiz_clubaff_cap_last',
+    login_email: 'wiz-cap-last@example.com',
+    legacy_member_id: 'lm-wiz-cap-last',
+  });
+  const capLastA = insertClub(db, { name: 'Cap Last Current A' });
+  const capLastB = insertClub(db, { name: 'Cap Last Current B' });
+  insertMemberClubAffiliation(db, MEMBER_CAP_LAST, capLastA, { is_current: 1, is_primary: 1 });
+  insertMemberClubAffiliation(db, MEMBER_CAP_LAST, capLastB, { is_current: 1, is_primary: 0 });
+  const capLastC = insertClub(db, { name: 'Cap Last Third Club' });
+  const capLastCand = insertLegacyClubCandidate(db, {
+    classification: 'pre_populate',
+    mapped_club_id: capLastC,
+    display_name:   'Cap Last Third Club',
+  });
+  capLastAffId = insertLegacyPersonClubAffiliation(db, {
+    legacy_member_id:         'lm-wiz-cap-last',
+    legacy_club_candidate_id: capLastCand,
+    confidence_score:         0.9,
+  });
+  insertOnboardingTask(db, MEMBER_CAP_LAST, 'legacy_claim', 'completed');
+
   // F1 setup: a different member's candidate that the attacker tries to POST.
-  insertMember(db, {
+  insertMember(db, { onboarding: 'none',
     id: MEMBER_F1_OTHER,
     slug: 'wiz_clubaff_other',
     login_email: 'wiz-other@example.com',
@@ -238,7 +268,7 @@ beforeAll(async () => {
   // same-city pair of pending candidates (one disambiguation card). Confirming
   // a club from it is a cap hit, so the wizard must surface the cap notice
   // rather than telling the member the club was added.
-  insertMember(db, {
+  insertMember(db, { onboarding: 'none',
     id: MEMBER_DISAMBIG_CAP,
     slug: 'wiz_clubaff_disambig_cap',
     login_email: 'wiz-disambig-cap@example.com',
@@ -258,9 +288,9 @@ beforeAll(async () => {
   // Skip-guard members: one with the club task already completed (a skip POST
   // must not re-open it), one with personal_details pending (a skip POST on the
   // required task is a no-op that leaves it pending).
-  insertMember(db, { id: MEMBER_SKIP_DONE, slug: 'wiz_clubaff_skip_done', login_email: 'wiz-skip-done@example.com' });
+  insertMember(db, { onboarding: 'none', id: MEMBER_SKIP_DONE, slug: 'wiz_clubaff_skip_done', login_email: 'wiz-skip-done@example.com' });
   insertOnboardingTask(db, MEMBER_SKIP_DONE, 'club_affiliations', 'completed');
-  insertMember(db, { id: MEMBER_PD_SKIP, slug: 'wiz_clubaff_pd_skip', login_email: 'wiz-pd-skip@example.com' });
+  insertMember(db, { onboarding: 'none', id: MEMBER_PD_SKIP, slug: 'wiz_clubaff_pd_skip', login_email: 'wiz-pd-skip@example.com' });
   insertOnboardingTask(db, MEMBER_PD_SKIP, 'personal_details', 'pending');
 
   // The club-affiliations step runs only once personal details are on file, so
@@ -268,7 +298,7 @@ beforeAll(async () => {
   // submit has that prerequisite completed first.
   for (const id of [
     MEMBER_EMPTY, MEMBER_MEMBERSHIP, MEMBER_LEADERSHIP, MEMBER_MULTI,
-    MEMBER_JUNK, MEMBER_CAP, MEMBER_DISAMBIG_CAP, MEMBER_PROMOTE, MEMBER_NOPROMOTE,
+    MEMBER_JUNK, MEMBER_CAP, MEMBER_CAP_LAST, MEMBER_DISAMBIG_CAP, MEMBER_PROMOTE, MEMBER_NOPROMOTE,
   ]) {
     insertOnboardingTask(db, id, 'personal_details', 'completed');
   }
@@ -293,6 +323,13 @@ function readAffiliationStatus(id: string): string {
     .prepare(`SELECT resolution_status FROM legacy_person_club_affiliations WHERE id = ?`)
     .get(id) as { resolution_status: string } | undefined;
   return row?.resolution_status ?? '';
+}
+
+function readCurrentAffiliationCount(memberId: string): number {
+  const row = testDb
+    .prepare(`SELECT COUNT(*) c FROM member_club_affiliations WHERE member_id = ? AND is_current = 1`)
+    .get(memberId) as { c: number };
+  return row.c;
 }
 
 function readBootstrapStatus(id: string): string {
@@ -336,7 +373,7 @@ describe('GET /register/wizard/club_affiliations — card listing', () => {
     // join or create a club. With no legacy suggestion material, the landing
     // states that no past club affiliation was found.
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Find or create your club');
+    expect(res.text).toContain('Clubs come after onboarding');
     expect(res.text).toContain('We did not find a past club affiliation for you');
     expect(readTaskState(MEMBER_EMPTY)).toBe('pending');
   });
@@ -349,7 +386,7 @@ describe('GET /register/wizard/club_affiliations — card listing', () => {
     // With the junk candidate filtered, the member has zero Stage 1 cards and
     // still lands on the find-or-create-your-club wrap-up landing.
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Find or create your club');
+    expect(res.text).toContain('Clubs come after onboarding');
     expect(readTaskState(MEMBER_JUNK)).toBe('pending');
   });
 
@@ -364,9 +401,9 @@ describe('GET /register/wizard/club_affiliations — card listing', () => {
     // The hidden inputs encode kind + candidateId for the POST.
     expect(res.text).toContain('value="membership"');
     expect(res.text).toContain(`value="${membershipAffId}"`);
-    // The save control renders at both the top and bottom of the card so the
-    // pending action stays visible without scrolling.
-    expect(res.text.match(/>Save Answers</g)?.length).toBe(2);
+    // One save control, below both questions, so the member reaches the action
+    // having already read what it submits.
+    expect(res.text.match(/>Save Answers</g)?.length).toBe(1);
   });
 
   it('member with one leadership candidate -> renders the leadership card with classification + signal checklist', async () => {
@@ -410,32 +447,63 @@ describe('GET /register/wizard/club_affiliations — card listing', () => {
   });
 });
 
-describe('club_affiliations detour + dismiss', () => {
+describe('the wizard offers no way out but an answer', () => {
   const taskState = (memberId: string): string =>
     (testDb.prepare(
       `SELECT state FROM member_onboarding_tasks WHERE member_id = ? AND task_type = 'club_affiliations'`,
     ).get(memberId) as { state: string } | undefined)?.state ?? 'missing';
 
-  it('detour to create pauses the club task and redirects to the create-club surface', async () => {
-    const id = insertMember(testDb, { slug: 'wiz_detour_create', login_email: 'wiz-detour-create@example.com' });
-    // First GET materializes the task list (task pending).
+  it('the retired detour and dismiss routes are gone', async () => {
+    const id = insertMember(testDb, { onboarding: 'none', slug: 'wiz_no_exits', login_email: 'wiz-no-exits@example.com' });
     await request(createApp()).get('/register/wizard/club_affiliations').set('Cookie', cookieFor(id));
-    const res = await request(createApp())
+
+    const detour = await request(createApp())
       .get('/register/wizard/club_affiliations/detour?to=create')
       .set('Cookie', cookieFor(id));
-    expect(res.status).toBe(303);
-    expect(res.headers.location).toBe('/clubs/create');
-    expect(taskState(id)).toBe('in_progress_paused');
-  });
+    expect(detour.status).toBe(404);
 
-  it('dismiss marks the optional club task not_applicable so it stops surfacing', async () => {
-    const id = insertMember(testDb, { slug: 'wiz_dismiss', login_email: 'wiz-dismiss@example.com' });
-    await request(createApp()).get('/register/wizard/club_affiliations').set('Cookie', cookieFor(id));
-    const res = await request(createApp())
+    const dismiss = await request(createApp())
       .post('/register/wizard/club_affiliations/dismiss')
       .set('Cookie', cookieFor(id));
+    expect(dismiss.status).toBe(404);
+
+    expect(taskState(id)).toBe('pending');
+  });
+
+  it('the no-club answer completes the task', async () => {
+    const id = insertMember(testDb, { onboarding: 'none', slug: 'wiz_no_clubs', login_email: 'wiz-no-clubs@example.com' });
+    // The club step runs only once personal details are on file.
+    insertOnboardingTask(testDb, id, 'personal_details', 'completed');
+    await request(createApp()).get('/register/wizard/club_affiliations').set('Cookie', cookieFor(id));
+    const res = await request(createApp())
+      .post('/register/wizard/club_affiliations/none')
+      .set('Cookie', cookieFor(id));
     expect(res.status).toBe(303);
-    expect(taskState(id)).toBe('not_applicable');
+    expect(taskState(id)).toBe('completed');
+  });
+
+  it('the no-club answer refuses before personal details are on file', async () => {
+    const id = insertMember(testDb, { onboarding: 'none', slug: 'wiz_no_clubs_early', login_email: 'wiz-no-clubs-early@example.com' });
+    await request(createApp()).get('/register/wizard/club_affiliations').set('Cookie', cookieFor(id));
+    const res = await request(createApp())
+      .post('/register/wizard/club_affiliations/none')
+      .set('Cookie', cookieFor(id));
+    expect(res.status).toBe(303);
+    expect(taskState(id)).toBe('pending');
+  });
+
+  it('the no-club answer is a no-op once the task is already answered', async () => {
+    const id = insertMember(testDb, { onboarding: 'none', slug: 'wiz_no_clubs_again', login_email: 'wiz-no-clubs-again@example.com' });
+    insertOnboardingTask(testDb, id, 'personal_details', 'completed');
+    await request(createApp()).get('/register/wizard/club_affiliations').set('Cookie', cookieFor(id));
+    await request(createApp())
+      .post('/register/wizard/club_affiliations/none')
+      .set('Cookie', cookieFor(id));
+    const again = await request(createApp())
+      .post('/register/wizard/club_affiliations/none')
+      .set('Cookie', cookieFor(id));
+    expect(again.status).toBe(303);
+    expect(taskState(id)).toBe('completed');
   });
 });
 
@@ -462,7 +530,7 @@ describe('POST /register/wizard/club_affiliations/submit — per-card flow', () 
     expect(isActivePlayer(MEMBER_MEMBERSHIP)).toBe(1);
   });
 
-  it('membership confirm at the two-current-club cap -> 303 retry_same; row stays pending; cap notice renders', async () => {
+  it('membership confirm at the two-current-club cap records a former membership and resolves the card', async () => {
     const res = await request(createApp())
       .post('/register/wizard/club_affiliations/submit')
       .set('Cookie', cookieFor(MEMBER_CAP))
@@ -470,21 +538,52 @@ describe('POST /register/wizard/club_affiliations/submit — per-card flow', () 
       .send({ kind: 'membership', candidateId: capAffId, userDecision: 'confirm', activitySignal: 'active' });
 
     expect(res.status).toBe(303);
-    // The card stays actionable: the legacy row is not transitioned, so the
-    // member can free a current-club slot and confirm it later.
-    expect(readAffiliationStatus(capAffId)).toBe('pending');
+    // The Yes is true about the past even though no current slot is free, so
+    // it is kept as a former membership and the card never blocks the step.
+    expect(readAffiliationStatus(capAffId)).toBe('former_only');
+    // No current affiliation is written, so the cap itself still holds.
+    expect(readCurrentAffiliationCount(MEMBER_CAP)).toBe(2);
 
-    // Replay the cap-hit flash onto the receiving GET; the notice renders.
+    // The member carries the cap notice into the next render of the step.
     const setCookies = (res.headers['set-cookie'] ?? []) as unknown as string[];
     const flashCookie = setCookies
       .map((c) => c.split(';')[0])
       .find((c) => c.startsWith('footbag_flash='));
     expect(flashCookie).toBeDefined();
-    const getRes = await request(createApp())
+  });
+
+  it('cap hit on the last card still tells the member, on the page they land on', async () => {
+    // The card that carried the notice is gone by the time the member sees a
+    // page again: resolving it completes the step, and the next GET advances
+    // past it. The notice has to survive that hop or the member is never told
+    // their Yes was recorded as a former membership rather than a current club.
+    const submit = await request(createApp())
+      .post('/register/wizard/club_affiliations/submit')
+      .set('Cookie', cookieFor(MEMBER_CAP_LAST))
+      .type('form')
+      .send({ kind: 'membership', candidateId: capLastAffId, userDecision: 'confirm', activitySignal: 'active' });
+    expect(submit.status).toBe(303);
+
+    const flashCookie = ((submit.headers['set-cookie'] ?? []) as unknown as string[])
+      .map((c) => c.split(';')[0])
+      .find((c) => c.startsWith('footbag_flash='));
+    expect(flashCookie).toBeDefined();
+
+    const carried = `${cookieFor(MEMBER_CAP_LAST)}; ${flashCookie}`;
+
+    // The club step reconciles itself complete and hands the member onward.
+    const afterCard = await request(createApp())
       .get('/register/wizard/club_affiliations')
-      .set('Cookie', `${cookieFor(MEMBER_CAP)}; ${flashCookie}`);
-    expect(getRes.status).toBe(200);
-    expect(getRes.text).toContain('already at the two current-club limit');
+      .set('Cookie', carried);
+    expect(afterCard.status).toBe(303);
+    expect(afterCard.headers.location).toBe('/register/wizard/complete');
+
+    const done = await request(createApp())
+      .get('/register/wizard/complete')
+      .set('Cookie', carried);
+    expect(done.status).toBe(200);
+    expect(done.text).toContain('two current-club limit');
+    expect(done.text).toContain('Cap Last Third Club');
   });
 
   it('leadership confirm -> 303 advance; bootstrap_leader claimed; task completed', async () => {
@@ -699,7 +798,7 @@ describe('POST /register/wizard/club_affiliations/submit — unpromoted-candidat
       .post('/register/wizard/club_affiliations/submit')
       .set('Cookie', cookieFor(MEMBER_NOPROMOTE))
       .type('form')
-      .send({ kind: 'membership', candidateId: nopromoteAffId, userDecision: 'decline', activitySignal: 'not_sure' });
+      .send({ kind: 'membership', candidateId: nopromoteAffId, userDecision: 'decline', activitySignal: 'not_active' });
     expect(res.status).toBe(303);
 
     expect(readCandidate(nopromoteCandId).mapped_club_id).toBeNull();
@@ -713,18 +812,18 @@ describe('POST /register/wizard/club_affiliations/submit — unpromoted-candidat
       .get('/register/wizard/club_affiliations')
       .set('Cookie', cookieFor(MEMBER_NOPROMOTE));
     expect(wrapUp.status).toBe(200);
-    expect(wrapUp.text).toContain('Find or create your club');
-    // A fresh Tier 0 member has no Active Player, so creating a club requires
-    // Tier 1 benefits: the wrap-up shows the Tier-1 requirement notice instead
-    // of the create-club action.
+    expect(wrapUp.text).toContain('Clubs come after onboarding');
+    // Joining and creating clubs are member capabilities, still fenced at this
+    // point, so the wizard offers neither action nor any outward link.
     expect(wrapUp.text).not.toContain('Create a New Club');
-    expect(wrapUp.text).toContain('Creating a club requires IFPA Membership (Tier 1)');
+    expect(wrapUp.text).not.toContain('Browse Clubs');
+    expect(wrapUp.text).not.toContain('Creating a club requires IFPA Membership (Tier 1)');
 
-    const skip = await request(createApp())
-      .post('/register/wizard/club_affiliations/skip')
+    const answer = await request(createApp())
+      .post('/register/wizard/club_affiliations/none')
       .set('Cookie', cookieFor(MEMBER_NOPROMOTE));
-    expect(skip.status).toBe(303);
-    expect(readTaskState(MEMBER_NOPROMOTE)).toBe('skipped');
+    expect(answer.status).toBe(303);
+    expect(readTaskState(MEMBER_NOPROMOTE)).toBe('completed');
   });
 });
 
@@ -923,8 +1022,8 @@ describe('POST /register/wizard/club_affiliations/submit — activity-signal emi
   });
 });
 
-describe('club_affiliations skip-guard and disambiguation cap', () => {
-  it('disambiguation confirm at the two-current-club cap surfaces the cap notice, not "added"; rows stay pending', async () => {
+describe('club_affiliations answer guards and the grouped card', () => {
+  it('the grouped card leaves the chosen club pending for its own card, and declines the rest', async () => {
     const res = await request(createApp())
       .post('/register/wizard/club_affiliations/submit')
       .set('Cookie', cookieFor(MEMBER_DISAMBIG_CAP))
@@ -935,27 +1034,22 @@ describe('club_affiliations skip-guard and disambiguation cap', () => {
         selectedCandidateIds: disambigCapAffX,
       });
     expect(res.status).toBe(303);
-    // The confirmed club could not be added at the cap, so the candidate stays
-    // actionable rather than silently resolving.
+    // Choosing on the grouped card resolves WHICH club, not the membership
+    // itself: the chosen row stays pending so its standard card can ask the
+    // membership and activity questions.
     expect(readAffiliationStatus(disambigCapAffX)).toBe('pending');
+    expect(readAffiliationStatus(disambigCapAffY)).toBe('rejected');
 
-    const setCookies = (res.headers['set-cookie'] ?? []) as unknown as string[];
-    const flashCookie = setCookies
-      .map((c) => c.split(';')[0])
-      .find((c) => c.startsWith('footbag_flash='));
-    expect(flashCookie).toBeDefined();
     const getRes = await request(createApp())
       .get('/register/wizard/club_affiliations')
-      .set('Cookie', `${cookieFor(MEMBER_DISAMBIG_CAP)}; ${flashCookie}`);
+      .set('Cookie', cookieFor(MEMBER_DISAMBIG_CAP));
     expect(getRes.status).toBe(200);
-    expect(getRes.text).toContain('already at the two current-club limit');
-    // The false "added" banner must not appear when nothing was added.
-    expect(getRes.text).not.toContain('Added 1 club(s)');
+    expect(getRes.text).toContain('still active?');
   });
 
-  it('skip POST on an already-completed club_affiliations task is a no-op (stays completed)', async () => {
+  it('the no-club answer on an already-answered club task leaves it completed', async () => {
     const res = await request(createApp())
-      .post('/register/wizard/club_affiliations/skip')
+      .post('/register/wizard/club_affiliations/none')
       .set('Cookie', cookieFor(MEMBER_SKIP_DONE))
       .type('form')
       .send({});
@@ -963,13 +1057,13 @@ describe('club_affiliations skip-guard and disambiguation cap', () => {
     expect(readTaskState(MEMBER_SKIP_DONE, 'club_affiliations')).toBe('completed');
   });
 
-  it('skip POST on the required personal_details task is a no-op (stays pending)', async () => {
+  it('no task carries a skip route: the required personal-details step has none', async () => {
     const res = await request(createApp())
       .post('/register/wizard/personal_details/skip')
       .set('Cookie', cookieFor(MEMBER_PD_SKIP))
       .type('form')
       .send({});
-    expect(res.status).toBe(303);
+    expect(res.status).toBe(404);
     expect(readTaskState(MEMBER_PD_SKIP, 'personal_details')).toBe('pending');
   });
 });

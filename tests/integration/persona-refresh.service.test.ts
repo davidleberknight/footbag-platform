@@ -150,7 +150,7 @@ describe('refreshAllPersonas', () => {
     db.prepare(
       `INSERT INTO club_viability_signals
          (id, created_at, created_by, member_id, club_id, source_stage, activity_signal)
-       VALUES ('cvs-persona-1', ?, 'system', ?, 'club-real-keep-1', 'club_detail', 'active')`,
+       VALUES ('cvs-persona-1', ?, 'system', ?, 'club-real-keep-1', 'stage1b_affiliated', 'active')`,
     ).run(TS, T1);
 
     // Auth and identity flows: reset token, declared anchor, the anchor's

@@ -240,54 +240,48 @@ describe('onboarding wizard leadership confirmation writes the stable club ID', 
   });
 });
 
-// ── Dashboard task widget ────────────────────────────────────────────────────
+// ── Resume while pending ─────────────────────────────────────────────────────
 
-describe('dashboard task widget: pending and skipped tasks surface Resume buttons', () => {
-  it('member with a skipped optional club task sees Resume button on dashboard', async () => {
+describe('resume while pending: the profile page routes a pending registrant into the wizard', () => {
+  it('member with the club question still open is routed to that task from their own profile URL', async () => {
+    // The gate redirect IS the resume surface: a pending registrant landing
+    // anywhere member-gated, their own profile included, is taken to the next
+    // outstanding task.
     const stamp = Date.now();
     const memberId = insertMember(db, {
       slug: `widget_${stamp}`,
       login_email: `widget-${stamp}@example.com`,
+      onboarding: 'none',
     });
     const cookie = cookieFor(memberId);
 
-    // club_affiliations is the optional task that can be skipped; legacy_claim
-    // and personal_details are required and cannot reach a skipped state.
-    await request(createApp()).get('/register/wizard/club_affiliations').set('Cookie', cookie);
-    await request(createApp())
-      .post('/register/wizard/club_affiliations/skip')
-      .set('Cookie', cookie)
-      .type('form')
-      .send({});
-    expect(getTaskState(memberId, 'club_affiliations')).toBe('skipped');
+    svc.startTaskList(memberId);
+    svc.completeTask(memberId, 'personal_details');
+    svc.completeTask(memberId, 'legacy_claim');
+    expect(getTaskState(memberId, 'club_affiliations')).toBe('pending');
 
     const dashboard = await request(createApp())
       .get(`/members/widget_${stamp}`)
       .set('Cookie', cookie);
 
-    expect(dashboard.status).toBe(200);
-    expect(dashboard.text).toContain('/register/wizard/club_affiliations');
-    expect(dashboard.text).toMatch(/Resume|Continue/i);
+    expect(dashboard.status).toBe(303);
+    expect(dashboard.headers.location).toBe('/register/wizard/club_affiliations');
   });
 
-  it('member with all tasks completed or not_applicable sees no task widget section on dashboard', async () => {
+  it('member with all three tasks answered gets their profile page, not a wizard redirect', async () => {
     const stamp = Date.now();
     const memberId = insertMember(db, {
       slug: `widget_done_${stamp}`,
       login_email: `widget-done-${stamp}@example.com`,
     });
 
-    svc.startTaskList(memberId);
-    svc.completeTask(memberId, 'personal_details');
-    svc.completeTask(memberId, 'legacy_claim');
-    svc.markTaskNotApplicable(memberId, 'club_affiliations');
-
     const dashboard = await request(createApp())
       .get(`/members/widget_done_${stamp}`)
       .set('Cookie', cookieFor(memberId));
 
+    // The page may legitimately link into the wizard (the profile's
+    // legacy-claim anchor surface), so the assertion is only that the member
+    // is served their page rather than redirected.
     expect(dashboard.status).toBe(200);
-    expect(dashboard.text).not.toContain('onboarding-task-widget');
-    expect(dashboard.text).not.toContain('onboarding-task-cta');
   });
 });

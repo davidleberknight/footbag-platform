@@ -597,6 +597,9 @@ describe('enqueueMailingListEmail', () => {
   beforeEach(() => {
     const db = new BetterSqlite3(dbPath);
     db.prepare('DELETE FROM mailing_list_subscriptions').run();
+    // The member factory seeds onboarding-task rows (a factory member is a
+    // full member), so the FK child rows go before the member rows.
+    db.prepare("DELETE FROM member_onboarding_tasks WHERE member_id LIKE 'mlmem-%'").run();
     db.prepare("DELETE FROM members WHERE id LIKE 'mlmem-%'").run();
     db.close();
   });

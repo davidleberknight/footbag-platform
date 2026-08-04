@@ -44,7 +44,6 @@ beforeAll(async () => {
     slug: SLUG,
     displayName: 'Tim Poral',
     tier: 'tier1',
-    onboardingComplete: true,
     coverageNotes: ['session temporal probe member'],
   });
   db.close();

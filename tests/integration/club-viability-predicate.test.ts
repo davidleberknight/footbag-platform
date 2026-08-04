@@ -2,17 +2,21 @@ import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/
 
 const { dbPath } = setTestEnv('3973');
 
+import BetterSqlite3 from 'better-sqlite3';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import {
   insertMember,
   insertClub,
   insertClubViabilitySignal,
   insertLegacyClubCandidate,
+  insertClubLeader,
+  insertMemberClubAffiliation,
 } from '../fixtures/factories';
 
 const MEMBER_A = 'viab-mem-a';
 const MEMBER_B = 'viab-mem-b';
 const MEMBER_C = 'viab-mem-c';
+const MEMBER_D = 'viab-mem-d';
 
 const CLUB_ACTIVE      = 'viab-club-active';
 const CLUB_INACTIVE    = 'viab-club-inactive';
@@ -21,12 +25,14 @@ const CLUB_REVIEW      = 'viab-club-review';
 const CLUB_NOSIGNAL    = 'viab-club-nosignal';
 const CLUB_MIXED       = 'viab-club-mixed';
 const CLUB_LEADERLESS  = 'viab-club-leaderless';
-const CLUB_DETAIL_POS  = 'viab-club-detail-pos';
 const CLUB_DUP_MEMBER  = 'viab-club-dup-member';
 const CLUB_CHANGED     = 'viab-club-changed';
-const CLUB_DETAIL_ONLY = 'viab-club-detail-only';
 const CLUB_OF_PROMOTED = 'viab-club-of-promoted';
 const CLUB_MAPPED_ONBOARDING = 'viab-club-mapped-onboarding';
+const CLUB_LIVE_MEMBERS  = 'viab-club-live-members';
+const CLUB_LIVE_LEADER   = 'viab-club-live-leader';
+const CLUB_LIVE_WEAK     = 'viab-club-live-weak';
+const CLUB_LIVE_REVIEW   = 'viab-club-live-review';
 
 const CAND_FLAGGED  = 'viab-cand-flagged';
 const CAND_PROMOTED = 'viab-cand-promoted';
@@ -55,6 +61,7 @@ beforeAll(async () => {
   insertMember(db, { id: MEMBER_A, slug: 'viab_a', display_name: 'Viab A', login_email: 'viab-a@example.com' });
   insertMember(db, { id: MEMBER_B, slug: 'viab_b', display_name: 'Viab B', login_email: 'viab-b@example.com' });
   insertMember(db, { id: MEMBER_C, slug: 'viab_c', display_name: 'Viab C', login_email: 'viab-c@example.com' });
+  insertMember(db, { id: MEMBER_D, slug: 'viab_d', display_name: 'Viab D', login_email: 'viab-d@example.com' });
 
   insertClub(db, { id: CLUB_ACTIVE,   name: 'Active Club' });
   insertClub(db, { id: CLUB_INACTIVE, name: 'Concordant Inactive Club' });
@@ -85,15 +92,32 @@ beforeAll(async () => {
   insertClubViabilitySignal(db, { member_id: MEMBER_A, club_id: CLUB_MAPPED_ONBOARDING, activity_signal: 'not_active' });
   insertLegacyClubCandidate(db, { id: 'lcc-mapped-onb-001', mapped_club_id: CLUB_MAPPED_ONBOARDING, classification: 'onboarding_visible' });
 
+  // Visible operational life suppresses every negative gate. Each club below
+  // carries the exact signal shape that would otherwise demote it, plus a
+  // current member or a leader, which is direct evidence the club is alive and
+  // outranks members reporting it inactive.
+  insertClub(db, { id: CLUB_LIVE_MEMBERS, name: 'Live Members Club' });
+  insertClubViabilitySignal(db, { member_id: MEMBER_A, club_id: CLUB_LIVE_MEMBERS, activity_signal: 'not_active' });
+  insertClubViabilitySignal(db, { member_id: MEMBER_B, club_id: CLUB_LIVE_MEMBERS, activity_signal: 'not_active' });
+  insertMemberClubAffiliation(db, MEMBER_C, CLUB_LIVE_MEMBERS);
+
+  insertClub(db, { id: CLUB_LIVE_LEADER, name: 'Live Leader Club' });
+  insertClubViabilitySignal(db, { member_id: MEMBER_A, club_id: CLUB_LIVE_LEADER, activity_signal: 'not_active' });
+  insertClubViabilitySignal(db, { member_id: MEMBER_B, club_id: CLUB_LIVE_LEADER, activity_signal: 'not_active' });
+  insertClubLeader(db, { club_id: CLUB_LIVE_LEADER, member_id: MEMBER_D });
+
+  insertClub(db, { id: CLUB_LIVE_WEAK, name: 'Live Weak Club' });
+  insertClubViabilitySignal(db, { member_id: MEMBER_A, club_id: CLUB_LIVE_WEAK, activity_signal: 'not_active' });
+  insertMemberClubAffiliation(db, MEMBER_C, CLUB_LIVE_WEAK);
+
+  insertClub(db, { id: CLUB_LIVE_REVIEW, name: 'Live Review Club' });
+  insertClubViabilitySignal(db, { member_id: MEMBER_A, club_id: CLUB_LIVE_REVIEW, activity_signal: 'not_active' });
+  insertLegacyClubCandidate(db, { id: 'lcc-live-review-001', mapped_club_id: CLUB_LIVE_REVIEW, classification: 'pre_populate' });
+  insertMemberClubAffiliation(db, MEMBER_C, CLUB_LIVE_REVIEW);
+
   // Mixed: active + inactive -> G1 wins
   insertClubViabilitySignal(db, { member_id: MEMBER_A, club_id: CLUB_MIXED, activity_signal: 'not_active' });
   insertClubViabilitySignal(db, { member_id: MEMBER_B, club_id: CLUB_MIXED, activity_signal: 'active' });
-
-  // Detail-page 'active' must not decide a gate: the wizard channel says
-  // one member inactive, so the gate is G3, not G1.
-  insertClub(db, { id: CLUB_DETAIL_POS, name: 'Detail Positive Club' });
-  insertClubViabilitySignal(db, { member_id: MEMBER_A, club_id: CLUB_DETAIL_POS, source_stage: 'club_detail', activity_signal: 'active' });
-  insertClubViabilitySignal(db, { member_id: MEMBER_B, club_id: CLUB_DETAIL_POS, activity_signal: 'not_active' });
 
   // One member re-posting 'not_active' is one vote, not two: G3, not G2.
   insertClub(db, { id: CLUB_DUP_MEMBER, name: 'Duplicate Member Club' });
@@ -106,21 +130,12 @@ beforeAll(async () => {
   insertClubViabilitySignal(db, { member_id: MEMBER_A, club_id: CLUB_CHANGED, activity_signal: 'not_active', created_at: '2026-01-01T00:00:00.000Z' });
   insertClubViabilitySignal(db, { member_id: MEMBER_A, club_id: CLUB_CHANGED, activity_signal: 'active', created_at: '2026-02-01T00:00:00.000Z' });
 
-  // Rows from the retired club-page poll channel only: the gates see
-  // nothing and no crowdsource queue item appears.
-  insertClub(db, { id: CLUB_DETAIL_ONLY, name: 'Detail Only Club' });
-  insertClubViabilitySignal(db, { member_id: MEMBER_A, club_id: CLUB_DETAIL_ONLY, source_stage: 'club_detail', activity_signal: 'not_active', created_at: '2026-01-01T00:00:00.000Z' });
-  insertClubViabilitySignal(db, { member_id: MEMBER_A, club_id: CLUB_DETAIL_ONLY, source_stage: 'club_detail', activity_signal: 'not_active', created_at: '2026-01-02T00:00:00.000Z' });
-  insertClubViabilitySignal(db, { member_id: MEMBER_B, club_id: CLUB_DETAIL_ONLY, source_stage: 'club_detail', activity_signal: 'never_heard_of_it' });
-  insertClubViabilitySignal(db, { member_id: MEMBER_C, club_id: CLUB_DETAIL_ONLY, source_stage: 'club_detail', activity_signal: 'active' });
-
   // Candidate-keyed flags: activity answers about unpromoted candidates.
-  // One member re-posts (one vote), one says never-heard, one says not-sure.
+  // One member re-posts (one vote), one reports it active.
   insertLegacyClubCandidate(db, { id: CAND_FLAGGED, display_name: 'Flagged Candidate', classification: 'onboarding_visible' });
   insertCandidateFlag(db, MEMBER_A, CAND_FLAGGED, 'not_active', '2026-01-01T00:00:00.000Z');
   insertCandidateFlag(db, MEMBER_A, CAND_FLAGGED, 'not_active', '2026-01-02T00:00:00.000Z');
-  insertCandidateFlag(db, MEMBER_B, CAND_FLAGGED, 'never_heard_of_it');
-  insertCandidateFlag(db, MEMBER_C, CAND_FLAGGED, 'not_sure');
+  insertCandidateFlag(db, MEMBER_C, CAND_FLAGGED, 'active');
 
   // A promoted candidate's un-stamped flag rows surface nowhere: not in the
   // candidate-flag group (the candidate is promoted) and not in its live
@@ -189,13 +204,6 @@ describe('evaluateClubViability', () => {
     expect(result.gate).toBe('G1_confirmed_active');
   });
 
-  it('a detail-page active signal does not decide a gate', async () => {
-    const { clubCleanupService } = await import('../../src/services/clubCleanupService');
-    const result = clubCleanupService.evaluateClubViability(CLUB_DETAIL_POS);
-    expect(result.gate).toBe('G3_weak_inactive');
-    expect(result.s1AnyActive).toBe(false);
-  });
-
   it('one member re-posting inactive is one vote, not concordant', async () => {
     const { clubCleanupService } = await import('../../src/services/clubCleanupService');
     const result = clubCleanupService.evaluateClubViability(CLUB_DUP_MEMBER);
@@ -209,10 +217,23 @@ describe('evaluateClubViability', () => {
     expect(result.gate).toBe('G1_confirmed_active');
   });
 
-  it('detail-page-only reports leave the gates at no_signals', async () => {
-    const { clubCleanupService } = await import('../../src/services/clubCleanupService');
-    const result = clubCleanupService.evaluateClubViability(CLUB_DETAIL_ONLY);
-    expect(result.gate).toBe('no_signals');
+  it('the schema rejects every retired signal value and stage at the door', async () => {
+    // The wizard is the only collection surface and its activity question
+    // offers two answers, so the vocabulary the earlier design carried
+    // (not-sure and never-heard answers; club-page and dashboard stages) is
+    // rejected by the database itself, not merely unwritten by the service.
+    const raw = new BetterSqlite3(dbPath);
+    for (const activity_signal of ['not_sure', 'never_heard_of_it']) {
+      expect(() =>
+        insertClubViabilitySignal(raw, { member_id: MEMBER_A, club_id: CLUB_WEAK, activity_signal }),
+      ).toThrow(/CHECK constraint failed/);
+    }
+    for (const source_stage of ['club_detail', 'dashboard']) {
+      expect(() =>
+        insertClubViabilitySignal(raw, { member_id: MEMBER_A, club_id: CLUB_WEAK, source_stage, activity_signal: 'active' }),
+      ).toThrow(/CHECK constraint failed/);
+    }
+    raw.close();
   });
 });
 
@@ -228,7 +249,10 @@ describe('getCleanupQueuePage', () => {
     const leaderlessItems = items.filter(i => i.predicate === 'leaderless_active');
     const leaderlessClub = leaderlessItems.find(i => i.clubId === CLUB_LEADERLESS);
     expect(leaderlessClub).toBeTruthy();
-    expect(leaderlessClub!.predicateLabel).toBe('Leaderless active club');
+    // Leaderless is a tolerated state: the item is a low-priority "Needs
+    // Leader" opportunity, never remediation work.
+    expect(leaderlessClub!.predicateLabel).toBe('Needs Leader');
+    expect(leaderlessClub!.isOpportunity).toBe(true);
   });
 
   it('excludes G1_confirmed_active clubs from viability items', async () => {
@@ -238,18 +262,6 @@ describe('getCleanupQueuePage', () => {
       i => i.clubId === CLUB_ACTIVE && i.predicate === 'crowdsource_viability',
     );
     expect(activeClub).toBeUndefined();
-  });
-
-  it('retired club-page poll rows never produce a crowdsource queue item', async () => {
-    const { clubCleanupService } = await import('../../src/services/clubCleanupService');
-    const vm = clubCleanupService.getCleanupQueuePage();
-    // CLUB_DETAIL_ONLY carries only club_detail rows: no gate fires and no
-    // crowdsource item appears (it may still surface as leaderless, which
-    // is independent of signals).
-    const crowdsourceItem = vm.content.itemGroups.flatMap(g => g.items).find(
-      i => i.clubId === CLUB_DETAIL_ONLY && i.predicate === 'crowdsource_viability',
-    );
-    expect(crowdsourceItem).toBeUndefined();
   });
 
   it('names the negative wizard reporters on the crowdsource item', async () => {
@@ -269,11 +281,10 @@ describe('candidate-flag group', () => {
     const vm = clubCleanupService.getCleanupQueuePage();
     const item = vm.content.candidateFlags.find(f => f.candidateId === CAND_FLAGGED);
     expect(item).toBeTruthy();
-    // Member A's re-post is one vote; not-sure contributes no flag weight.
-    expect(item!.flagCount).toBe(2);
-    expect(item!.detail).toContain('0 active, 1 inactive, 1 never heard');
+    // Member A's re-post is one vote.
+    expect(item!.flagCount).toBe(1);
+    expect(item!.detail).toContain('1 active, 1 inactive');
     expect(item!.detail).toContain('inactive per: Viab A');
-    expect(item!.detail).toContain('never heard of it per: Viab B');
     expect(item!.classificationLabel).toBe('Onboarding-visible');
   });
 

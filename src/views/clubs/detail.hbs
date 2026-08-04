@@ -92,7 +92,7 @@
     </section>
     {{/if}}
 
-    {{#if isAuthenticated}}
+    {{#if isMember}}
     <div class="mt-4">
       {{#if content.club.viewerIsMember}}
         <p class="badge">You are a member of this club</p>
@@ -127,7 +127,7 @@
     {{/if}}
     {{/if}}
 
-    {{#if isAuthenticated}}
+    {{#if isMember}}
     {{#if content.club.members.length}}
     <div class="club-members">
       <div class="section-heading"><h2>Club members</h2></div>

@@ -51,7 +51,11 @@
         <p>Phone: {{content.contactPhone}}</p>
       {{/if}}
       {{#if content.contactWhatsapp}}
-        <p>WhatsApp: {{content.contactWhatsapp}}</p>
+        {{#if content.contactWhatsappHref}}
+          <p>WhatsApp: {{{externalLink content.contactWhatsappHref label=content.contactWhatsapp}}}</p>
+        {{else}}
+          <p>WhatsApp: {{content.contactWhatsapp}}</p>
+        {{/if}}
       {{/if}}
     </div>
     {{/if}}

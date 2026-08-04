@@ -25,34 +25,36 @@ import { rulesController } from '../controllers/rulesController';
 import { ifpaController } from '../controllers/ifpaController';
 import { legalController } from '../controllers/legalController';
 import { tagSuggestController } from '../controllers/tagSuggestController';
-import { requireAuth } from '../middleware/auth';
+import { requireAuth, requireMember } from '../middleware/auth';
 import { requireTier1Benefits, requireMayCreateClub } from '../middleware/requireTier';
-import { requireOnboardingComplete } from '../middleware/requireOnboardingComplete';
 
 export const publicRouter = Router();
-// A verified member who has not finished required onboarding is redirected to
-// the wizard from the member, club, and admin capability surfaces; browse and
-// the wizard's own affordances stay reachable (see requireOnboardingComplete).
-publicRouter.use(requireOnboardingComplete);
+// Membership is an authorization level: an account is pending until every
+// onboarding task completes, and a pending registrant holds a session but no
+// member authorization. Every member-capability route below carries
+// requireMember, which routes a pending request to its next wizard task; bare
+// requireAuth appears only on the wizard's own routes and the historical-record
+// claim routes, because claiming is part of finishing onboarding. A conformance
+// test pins that split.
 
 publicRouter.get('/',      homeController.home);
 // Login-gated hop to the archive landing page, for deployments where the
 // archive edge cannot share the platform session cookie.
-publicRouter.get('/archive', requireAuth, homeController.archiveRedirect);
+publicRouter.get('/archive', requireMember, homeController.archiveRedirect);
 publicRouter.get('/clubs',                  clubController.index);
-publicRouter.post('/clubs/swap-primary',    requireAuth, clubController.postSwapPrimary);
-publicRouter.get('/clubs/create',           requireAuth, clubController.getCreate);
-publicRouter.post('/clubs/create',          requireAuth, requireMayCreateClub(), clubController.postCreate);
+publicRouter.post('/clubs/swap-primary',    requireMember, clubController.postSwapPrimary);
+publicRouter.get('/clubs/create',           requireMember, clubController.getCreate);
+publicRouter.post('/clubs/create',          requireMember, requireMayCreateClub(), clubController.postCreate);
 publicRouter.get('/clubs/:key',             clubController.byKey);
-publicRouter.post('/clubs/:key/join',           requireAuth, clubController.postJoin);
-publicRouter.post('/clubs/:key/leave',          requireAuth, clubController.postLeave);
-publicRouter.post('/clubs/:key/volunteer',      requireAuth, requireTier1Benefits(), clubController.postVolunteer);
-publicRouter.post('/clubs/:key/invite',         requireAuth, clubController.postInvite);
-publicRouter.post('/clubs/:key/step-down',      requireAuth, clubController.postStepDown);
-publicRouter.post('/clubs/:key/mark-inactive',  requireAuth, clubController.postMarkInactive);
-publicRouter.post('/clubs/:key/reactivate',     requireAuth, clubController.postReactivate);
-publicRouter.post('/clubs/:key/hashtag',        requireAuth, clubController.postUpdateHashtag);
-publicRouter.post('/clubs/:key/content/edit',    requireAuth, clubController.postContentEdit);
+publicRouter.post('/clubs/:key/join',           requireMember, clubController.postJoin);
+publicRouter.post('/clubs/:key/leave',          requireMember, clubController.postLeave);
+publicRouter.post('/clubs/:key/volunteer',      requireMember, requireTier1Benefits(), clubController.postVolunteer);
+publicRouter.post('/clubs/:key/invite',         requireMember, clubController.postInvite);
+publicRouter.post('/clubs/:key/step-down',      requireMember, clubController.postStepDown);
+publicRouter.post('/clubs/:key/mark-inactive',  requireMember, clubController.postMarkInactive);
+publicRouter.post('/clubs/:key/reactivate',     requireMember, clubController.postReactivate);
+publicRouter.post('/clubs/:key/hashtag',        requireMember, clubController.postUpdateHashtag);
+publicRouter.post('/clubs/:key/content/edit',    requireMember, clubController.postContentEdit);
 publicRouter.get('/tags/suggest',       tagSuggestController.suggest);
 publicRouter.get('/media',              mediaController.hub);
 // IMPORTANT: /media/browse is a literal sub-route and MUST be registered
@@ -167,29 +169,29 @@ publicRouter.get('/history/:personId',   historyController.detail);
 // captured as :section. The /members/:memberKey/galleries/* tree must
 // also precede the catch-all so "galleries" is not captured as :section.
 publicRouter.get('/members/:memberKey',             memberController.getProfile);
-publicRouter.get('/members/:memberKey/edit',          requireAuth, memberController.getProfileEdit);
-publicRouter.post('/members/:memberKey/edit',         requireAuth, memberController.postProfileEdit);
-publicRouter.get('/members/:memberKey/edit/password', requireAuth, memberController.getPasswordEdit);
-publicRouter.post('/members/:memberKey/edit/password',requireAuth, memberController.postPasswordEdit);
-publicRouter.post('/members/:memberKey/avatar',       requireAuth, memberController.postAvatarUpload);
-publicRouter.post('/members/:memberKey/purchase-tier', requireAuth, memberController.postPurchaseTier);
-publicRouter.get('/members/:memberKey/payments',       requireAuth, paymentController.getPaymentHistory);
+publicRouter.get('/members/:memberKey/edit',          requireMember, memberController.getProfileEdit);
+publicRouter.post('/members/:memberKey/edit',         requireMember, memberController.postProfileEdit);
+publicRouter.get('/members/:memberKey/edit/password', requireMember, memberController.getPasswordEdit);
+publicRouter.post('/members/:memberKey/edit/password',requireMember, memberController.postPasswordEdit);
+publicRouter.post('/members/:memberKey/avatar',       requireMember, memberController.postAvatarUpload);
+publicRouter.post('/members/:memberKey/purchase-tier', requireMember, memberController.postPurchaseTier);
+publicRouter.get('/members/:memberKey/payments',       requireMember, paymentController.getPaymentHistory);
 publicRouter.post('/members/:memberKey/recurring-donations/:stripeSubscriptionId/cancel',
-  requireAuth, paymentController.postCancelRecurringDonation);
-publicRouter.get('/members/:memberKey/contact-admin',  requireAuth, contactRequestController.getForm);
-publicRouter.post('/members/:memberKey/contact-admin', requireAuth, contactRequestController.postSubmit);
+  requireMember, paymentController.postCancelRecurringDonation);
+publicRouter.get('/members/:memberKey/contact-admin',  requireMember, contactRequestController.getForm);
+publicRouter.post('/members/:memberKey/contact-admin', requireMember, contactRequestController.postSubmit);
 
 // Owner-only named-gallery management. Order matters: literal `new`
 // must precede `:id`; literal `edit`/`delete` sub-paths sit at a deeper
 // level than `:id` so are unambiguous, but registering them explicitly
 // keeps intent clear. All routes 404 (anti-enumeration) when the
 // authenticated user's slug does not match :memberKey.
-publicRouter.get('/members/:memberKey/galleries',                requireAuth, memberGalleryController.getList);
-publicRouter.get('/members/:memberKey/galleries/new',            requireAuth, memberGalleryController.getNew);
-publicRouter.post('/members/:memberKey/galleries',               requireAuth, requireTier1Benefits(), memberGalleryController.postCreate);
-publicRouter.get('/members/:memberKey/galleries/:id/edit',       requireAuth, memberGalleryController.getEdit);
-publicRouter.post('/members/:memberKey/galleries/:id/edit',      requireAuth, requireTier1Benefits(), memberGalleryController.postUpdate);
-publicRouter.post('/members/:memberKey/galleries/:id/delete',    requireAuth, requireTier1Benefits(), memberGalleryController.postDelete);
+publicRouter.get('/members/:memberKey/galleries',                requireMember, memberGalleryController.getList);
+publicRouter.get('/members/:memberKey/galleries/new',            requireMember, memberGalleryController.getNew);
+publicRouter.post('/members/:memberKey/galleries',               requireMember, requireTier1Benefits(), memberGalleryController.postCreate);
+publicRouter.get('/members/:memberKey/galleries/:id/edit',       requireMember, memberGalleryController.getEdit);
+publicRouter.post('/members/:memberKey/galleries/:id/edit',      requireMember, requireTier1Benefits(), memberGalleryController.postUpdate);
+publicRouter.post('/members/:memberKey/galleries/:id/delete',    requireMember, requireTier1Benefits(), memberGalleryController.postDelete);
 
 // Owner-only member upload. Same anti-enumeration 404 pattern as the
 // gallery routes above. POST is multipart/form-data (busboy in the
@@ -202,15 +204,15 @@ publicRouter.post('/members/:memberKey/galleries/:id/delete',    requireAuth, re
 // actionable upgrade path without hitting a bare 403). POST is the gate:
 // requireTier1Benefits returns 403 to under-tiered submissions, with
 // defense-in-depth in curatorMediaService.assertTier1Benefits.
-publicRouter.get('/members/:memberKey/media/upload',  requireAuth, memberMediaUploadController.getUpload);
-publicRouter.post('/members/:memberKey/media/upload', requireAuth, requireTier1Benefits(), memberMediaUploadController.postUpload);
+publicRouter.get('/members/:memberKey/media/upload',  requireMember, memberMediaUploadController.getUpload);
+publicRouter.post('/members/:memberKey/media/upload', requireMember, requireTier1Benefits(), memberMediaUploadController.postUpload);
 
 // Per-item edit (caption + tags + external URL) and permanent delete.
 // MUST be registered after /media/upload so the literal `upload` segment
 // wins on POST; controller also defends with an `:mediaId === 'upload'` 404.
-publicRouter.get('/members/:memberKey/media/:mediaId/edit',  requireAuth, memberMediaEditController.getEdit);
-publicRouter.post('/members/:memberKey/media/:mediaId/edit', requireAuth, requireTier1Benefits(), memberMediaEditController.postUpdate);
-publicRouter.post('/members/:memberKey/media/:mediaId/delete', requireAuth, requireTier1Benefits(), memberMediaEditController.postDelete);
+publicRouter.get('/members/:memberKey/media/:mediaId/edit',  requireMember, memberMediaEditController.getEdit);
+publicRouter.post('/members/:memberKey/media/:mediaId/edit', requireMember, requireTier1Benefits(), memberMediaEditController.postUpdate);
+publicRouter.post('/members/:memberKey/media/:mediaId/delete', requireMember, requireTier1Benefits(), memberMediaEditController.postDelete);
 
 // The catch-all for this prefix, so it decides what every unrecognized
 // /members/<a>/<b> URL looks like — including the old site's member-profile
@@ -219,7 +221,7 @@ publicRouter.post('/members/:memberKey/media/:mediaId/delete', requireAuth, requ
 // gets the not-found page signed in or not, while a real section gates on
 // authentication as usual and a signed-out visitor is sent to sign in and back.
 publicRouter.get('/members/:memberKey/:section',
-                 memberController.rejectUnknownSection, requireAuth, memberController.getStub);
+                 memberController.rejectUnknownSection, requireMember, memberController.getStub);
 
 publicRouter.get('/legal',      legalController.index);
 
@@ -233,9 +235,10 @@ publicRouter.post('/verify/resend',         authController.postVerifyResend);
 
 
 // Onboarding wizard. Per-action sub-paths land before the catch-all
-// `:taskType` routes so literal segments (find, skip, auto-link, claim,
+// `:taskType` routes so literal segments (find, none, auto-link, claim,
 // submit) are not captured as :taskType. Order matters: Express matches
-// in registration order.
+// in registration order. Every task exit is an explicit answer: there is no
+// skip, dismiss, or detour route.
 publicRouter.post('/register/wizard/personal_details/submit',           requireAuth, memberOnboardingController.postPersonalDetailsSubmit);
 publicRouter.post('/register/wizard/legacy_claim/find',                 requireAuth, memberOnboardingController.postLegacyClaimFind);
 publicRouter.post('/register/wizard/legacy_claim/auto-link/confirm',    requireAuth, memberOnboardingController.postLegacyClaimAutoLinkConfirm);
@@ -249,9 +252,8 @@ publicRouter.post('/register/wizard/legacy_claim/claim/confirm',        requireA
 publicRouter.post('/register/wizard/legacy_claim/anchors/add',          requireAuth, memberOnboardingController.postAddAnchor);
 publicRouter.post('/register/wizard/legacy_claim/anchors/remove',       requireAuth, memberOnboardingController.postRemoveAnchor);
 publicRouter.post('/register/wizard/club_affiliations/submit',          requireAuth, memberOnboardingController.postClubAffiliationsSubmit);
-publicRouter.get('/register/wizard/club_affiliations/detour',           requireAuth, memberOnboardingController.getClubDetour);
-publicRouter.post('/register/wizard/club_affiliations/dismiss',         requireAuth, memberOnboardingController.postClubDismiss);
-publicRouter.post('/register/wizard/:taskType/skip',                    requireAuth, memberOnboardingController.postSkip);
+publicRouter.post('/register/wizard/club_affiliations/none',            requireAuth, memberOnboardingController.postNoClubs);
+publicRouter.post('/register/wizard/legacy_claim/continue-without-linking', requireAuth, memberOnboardingController.postContinueWithoutLinking);
 publicRouter.get('/register/wizard/complete',                           requireAuth, memberOnboardingController.getComplete);
 publicRouter.get('/register/wizard/:taskType',                          requireAuth, memberOnboardingController.getTask);
 publicRouter.get('/password/forgot',        authController.getPasswordForgot);
@@ -288,21 +290,21 @@ publicRouter.post(
   express.raw({ type: 'application/json', limit: '1mb' }),
   paymentController.postPaymentWebhook,
 );
-publicRouter.get('/payments/success', requireAuth, paymentController.getPaymentSuccess);
-publicRouter.get('/payments/cancel',  requireAuth, paymentController.getPaymentCancel);
+publicRouter.get('/payments/success', requireMember, paymentController.getPaymentSuccess);
+publicRouter.get('/payments/cancel',  requireMember, paymentController.getPaymentCancel);
 
 // Donations. Signed-in only: a donation is attributed to a member record, and
 // the note defaults from the member's honors.
-publicRouter.get('/donate',  requireAuth, paymentController.getDonate);
-publicRouter.post('/donate', requireAuth, paymentController.postDonate);
+publicRouter.get('/donate',  requireMember, paymentController.getDonate);
+publicRouter.post('/donate', requireMember, paymentController.postDonate);
 
 // Stub-mode checkout pass-through: registered only when PAYMENT_ADAPTER=stub.
 // In live mode, members are redirected to checkout.stripe.com instead and
 // these routes never fire. Keeping the registration conditional avoids
 // exposing a stub-only surface in production.
 if (config.paymentAdapter === 'stub') {
-  publicRouter.get('/payments/checkout/:sessionId',         requireAuth, paymentController.getCheckout);
-  publicRouter.post('/payments/checkout/:sessionId/confirm', requireAuth, paymentController.postCheckoutConfirm);
-  publicRouter.post('/payments/checkout/:sessionId/cancel',  requireAuth, paymentController.postCheckoutCancel);
-  publicRouter.post('/payments/checkout/:sessionId/decline', requireAuth, paymentController.postCheckoutDecline);
+  publicRouter.get('/payments/checkout/:sessionId',         requireMember, paymentController.getCheckout);
+  publicRouter.post('/payments/checkout/:sessionId/confirm', requireMember, paymentController.postCheckoutConfirm);
+  publicRouter.post('/payments/checkout/:sessionId/cancel',  requireMember, paymentController.postCheckoutCancel);
+  publicRouter.post('/payments/checkout/:sessionId/decline', requireMember, paymentController.postCheckoutDecline);
 }

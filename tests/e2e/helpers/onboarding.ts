@@ -82,7 +82,7 @@ export function getMemberField(db: BetterSqlite3.Database, memberId: string, fie
  * address to stay correct when the shared stub buffer holds other tests' mail.
  */
 export async function legacyClaimConfirmUrlFromCard(page: Page, legacyEmail: string): Promise<string> {
-  const row = page.locator('.sec-card-dev tbody tr', { hasText: legacyEmail });
+  const row = page.locator('.sec-card-dev .sec-msg', { hasText: legacyEmail });
   const href = await row.locator('a[href*="/claim/confirm/"]').first().getAttribute('href');
   if (!href) throw new Error(`no claim confirm link in simulated-email card for ${legacyEmail}`);
   return new URL(href, page.url()).pathname;
@@ -139,6 +139,7 @@ export function seedMemberWithLegacyDiffEmail(
     slug,
     tier: 'tier0',
     memberOverrides: {
+      onboarding: 'none',
       login_email: uniqueEmail('enq'),
       real_name: 'Enqueued Claim',
     },
@@ -177,6 +178,7 @@ export function seedMemberWithHpMatch(
     slug,
     tier: 'tier0',
     memberOverrides: {
+      onboarding: 'none',
       login_email: uniqueEmail('hp'),
       real_name: memberName,
     },
@@ -205,7 +207,9 @@ export function seedMemberWithClubCards(
     id: memberId,
     slug,
     tier: 'tier0',
-    memberOverrides: { login_email: uniqueEmail('clubs'), legacy_member_id: legacyMemberId },
+    // Mid-wizard on the club step, so the factory's member-by-default task
+    // rows are suppressed; the two preceding tasks are seeded below.
+    memberOverrides: { onboarding: 'none', login_email: uniqueEmail('clubs'), legacy_member_id: legacyMemberId },
   });
 
   const personId = insertHistoricalPerson(db, {
@@ -295,7 +299,7 @@ export function seedMemberWithLeadershipCard(
     id: memberId,
     slug,
     tier: 'tier1',
-    memberOverrides: { login_email: uniqueEmail('ldr'), legacy_member_id: legacyMemberId },
+    memberOverrides: { onboarding: 'none', login_email: uniqueEmail('ldr'), legacy_member_id: legacyMemberId },
   });
 
   insertHistoricalPerson(db, {
@@ -379,17 +383,8 @@ export function seedAllTasksCompleted(
     });
   }
 
-  const tasks = ['personal_details', 'legacy_claim', 'club_affiliations'];
-  for (const taskType of tasks) {
-    const taskId = `mot-done-${rand()}`;
-    const state = taskType === 'club_affiliations' ? 'not_applicable' : 'completed';
-    db.prepare(`
-      INSERT INTO member_onboarding_tasks (
-        id, created_at, created_by, updated_at, updated_by, version,
-        member_id, task_type, state, completed_at
-      ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
-    `).run(taskId, TS, SYS, TS, SYS, memberId, taskType, state, state === 'completed' ? TS : null);
-  }
+  // Onboarding-complete means all three tasks completed, which the member
+  // factory already seeds by default; nothing further to insert here.
 
   return {
     memberId,
@@ -400,6 +395,10 @@ export function seedAllTasksCompleted(
   };
 }
 
+// A member part-way through the wizard, with all three rows already
+// materialized: the legacy claim answered, the other two still outstanding.
+// Entering a task creates any missing row, so a spec that needs to observe
+// rows as they stand seeds them up front rather than relying on that.
 export function seedMixedTaskState(
   db: BetterSqlite3.Database,
   opts: { slug?: string } = {},
@@ -407,22 +406,11 @@ export function seedMixedTaskState(
   const memberId = `mix-${rand()}`;
   const slug = opts.slug ?? `mix_${rand()}`;
 
-  createMemberAtTier(db, { id: memberId, slug, tier: 'tier0', memberOverrides: { login_email: uniqueEmail('mix') } });
+  createMemberAtTier(db, { id: memberId, slug, tier: 'tier0', memberOverrides: { onboarding: 'none', login_email: uniqueEmail('mix') } });
 
-  const taskStates: Array<[string, string]> = [
-    ['personal_details', 'pending'],
-    ['legacy_claim', 'completed'],
-    ['club_affiliations', 'skipped'],
-  ];
-  for (const [taskType, state] of taskStates) {
-    const taskId = `mot-mix-${rand()}`;
-    db.prepare(`
-      INSERT INTO member_onboarding_tasks (
-        id, created_at, created_by, updated_at, updated_by, version,
-        member_id, task_type, state, completed_at
-      ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
-    `).run(taskId, TS, SYS, TS, SYS, memberId, taskType, state, state === 'completed' ? TS : null);
-  }
+  insertOnboardingTask(db, memberId, 'personal_details', 'pending');
+  insertOnboardingTask(db, memberId, 'legacy_claim', 'completed');
+  insertOnboardingTask(db, memberId, 'club_affiliations', 'pending');
 
   return {
     memberId,
@@ -443,7 +431,9 @@ export function seedBrandNewPlayer(db: BetterSqlite3.Database, opts: { slug?: st
 }
 
 export function seedTier0Member(db: BetterSqlite3.Database, opts: { slug?: string; overrides?: Record<string, unknown> } = {}) {
-  return _seedTier0Member(db, { slug: opts.slug, overrides: { login_email: uniqueEmail('t0'), ...opts.overrides } as any });
+  // Wizard specs need a pending registrant (the factory default is a full
+  // member); explicit task states are seeded by the individual spec.
+  return _seedTier0Member(db, { slug: opts.slug, overrides: { onboarding: 'none', login_email: uniqueEmail('t0'), ...opts.overrides } as any });
 }
 
 export function seedTier1Member(db: BetterSqlite3.Database, opts: { slug?: string } = {}) {
@@ -485,6 +475,7 @@ export function seedMemberWithAutoLinkCandidate(
     slug,
     tier: 'tier0',
     memberOverrides: {
+      onboarding: 'none',
       login_email: loginEmail,
       real_name: personName,
     },

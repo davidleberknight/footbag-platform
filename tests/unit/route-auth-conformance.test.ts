@@ -1,0 +1,149 @@
+/**
+ * Membership-authorization conformance for the route table.
+ *
+ * The permanent contract: membership is an authorization level above
+ * authentication. An account is pending from registration until every
+ * onboarding task completes, and a pending registrant holds a session but no
+ * member authorization. Every member-capability route therefore carries the
+ * requireMember guard, and bare requireAuth appears only on the surfaces a
+ * pending registrant legitimately uses: the wizard's own routes, and the
+ * historical-record claim routes (claiming is part of finishing onboarding).
+ * Admin authority sits above member authority rather than beside it, so both
+ * admin-gated routers require membership before the admin check runs.
+ *
+ * This test reads the route sources statically, so a new route lands in the
+ * suite whether it carries the weaker guard or no guard at all. A missing
+ * guard is the worse of the two failures and is the one a scan keyed on the
+ * guard name cannot see, which is why registrations are parsed whole and
+ * checked for the presence of a guard rather than only for its spelling.
+ */
+import { describe, it, expect } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
+
+function readRoutes(file: string): string {
+  return fs.readFileSync(path.join(process.cwd(), 'src', 'routes', file), 'utf8');
+}
+
+const PUBLIC_ROUTES   = readRoutes('publicRoutes.ts');
+const ADMIN_ROUTES    = readRoutes('adminRoutes.ts');
+const INTERNAL_ROUTES = readRoutes('internalRoutes.ts');
+
+// The only path prefixes a pending registrant may reach while authenticated.
+const PENDING_ALLOWED = [
+  '/register/wizard/',
+  '/history/:personId/claim',
+];
+
+// State-changing routes that are unguarded by design: each is either a
+// pre-session flow an anonymous visitor must be able to post to, or a
+// server-to-server webhook that authenticates its caller in the controller (by
+// payload signature or shared secret) because there is no session to gate on.
+// Adding to this list is a deliberate decision about a publicly postable
+// surface, which is the point of making it explicit here.
+const UNGUARDED_BY_DESIGN = new Set([
+  '/login',
+  '/register',
+  '/verify/resend',
+  '/password/forgot',
+  '/password/reset/:token',
+  '/logout',
+  'STRIPE_WEBHOOK_PATH',
+  'SES_FEEDBACK_WEBHOOK_PATH',
+]);
+
+interface Registration {
+  line: number;
+  method: string;
+  /** The first argument: a quoted path, or the identifier naming one. */
+  target: string;
+  /** The whole registration, however many source lines it spans. */
+  text: string;
+}
+
+// A registration may wrap across several lines, so accumulate from the opening
+// call until its parentheses balance. Reading only the first line would miss a
+// guard sitting on the next one, and would miss the call entirely when the
+// path is a constant rather than a literal.
+function registrations(source: string): Registration[] {
+  const lines = source.split('\n');
+  const found: Registration[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const opener = lines[i].match(/\b\w*[Rr]outer\.(get|post|put|delete)\(/);
+    if (!opener) continue;
+    let text = '';
+    let depth = 0;
+    let started = false;
+    for (let j = i; j < lines.length; j++) {
+      text += (j > i ? '\n' : '') + lines[j];
+      for (const ch of lines[j]) {
+        if (ch === '(') { depth++; started = true; }
+        else if (ch === ')') depth--;
+      }
+      if (started && depth <= 0) break;
+    }
+    const quoted = text.match(/\(\s*'([^']+)'/);
+    const ident  = text.match(/\(\s*([A-Z][A-Z0-9_]*)\s*,/);
+    found.push({
+      line: i + 1,
+      method: opener[1],
+      target: quoted?.[1] ?? ident?.[1] ?? '',
+      text,
+    });
+  }
+  return found;
+}
+
+const isPendingSurface = (target: string): boolean =>
+  PENDING_ALLOWED.some((p) => target.startsWith(p));
+
+const hasGuard = (text: string): boolean =>
+  /\brequireAuth\b/.test(text) || /\brequireMember\b/.test(text);
+
+describe('membership-authorization route conformance', () => {
+  const publicRegistrations = registrations(PUBLIC_ROUTES);
+
+  it('parses the public route table (guards the parser itself against silent drift)', () => {
+    // A parser that quietly matched nothing would pass every assertion below,
+    // so pin that it still finds the table it is meant to police.
+    expect(publicRegistrations.length).toBeGreaterThan(50);
+    expect(publicRegistrations.some((r) => r.target === '/clubs/:key')).toBe(true);
+  });
+
+  it('bare requireAuth appears only on the wizard and claim routes', () => {
+    const offenders = publicRegistrations
+      .filter((r) => /\brequireAuth\b/.test(r.text) && !isPendingSurface(r.target))
+      .map((r) => `line ${r.line}: ${r.method.toUpperCase()} ${r.target}`);
+    expect(offenders, offenders.join('\n')).toEqual([]);
+  });
+
+  it('the wizard and claim routes use bare requireAuth, never requireMember', () => {
+    // A pending registrant has to reach these to stop being pending.
+    const offenders = publicRegistrations
+      .filter((r) => isPendingSurface(r.target) && /\brequireMember\b/.test(r.text))
+      .map((r) => `line ${r.line}: ${r.method.toUpperCase()} ${r.target}`);
+    expect(offenders, offenders.join('\n')).toEqual([]);
+  });
+
+  it('every state-changing public route carries a guard unless it is unguarded by design', () => {
+    // The check a guard-name scan cannot make: a route registered with no
+    // guard at all is open to anonymous visitors, which is a worse failure
+    // than carrying the weaker guard.
+    const offenders = publicRegistrations
+      .filter((r) => r.method !== 'get')
+      .filter((r) => !UNGUARDED_BY_DESIGN.has(r.target))
+      .filter((r) => !hasGuard(r.text))
+      .map((r) => `line ${r.line}: ${r.method.toUpperCase()} ${r.target}`);
+    expect(offenders, offenders.join('\n')).toEqual([]);
+  });
+
+  it('the admin router gates on requireMember before requireAdmin', () => {
+    expect(ADMIN_ROUTES).toMatch(/adminRouter\.use\(\s*requireMember\s*,\s*requireAdmin\s*\)/);
+    expect(ADMIN_ROUTES).not.toMatch(/\brequireAuth\b/);
+  });
+
+  it('the internal operator router gates on requireMember before requireAdmin', () => {
+    expect(INTERNAL_ROUTES).toMatch(/internalRouter\.use\(\s*requireMember\s*,\s*requireAdmin\s*\)/);
+    expect(INTERNAL_ROUTES).not.toMatch(/\brequireAuth\b/);
+  });
+});

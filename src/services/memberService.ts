@@ -39,18 +39,26 @@
  *     has received (both shapes must set that column to satisfy the members
  *     credential CHECK), so a contact-scrubbed row can still be fully purged.
  *   - Own-profile routes are owner-only. Anonymous non-owner viewing is limited
- *     to the explicit HoF/BAP exception; authenticated members may view any
- *     member profile read-only. Contact fields never reach an anonymous page;
- *     the login email renders to authenticated viewers only when the owner
- *     opted in (email_visibility 'members'); phone and WhatsApp render the
- *     same way, each gated by its own opt-in. Tier and Active Player badges
- *     are member-visible only.
- *   - Privacy gate is fail-closed: getMemberProfilePage returns null only for an
- *     unauthenticated visitor viewing a non-HoF/BAP member, which the controller maps
- *     to 404. HoF and BAP profiles stay publicly visible; any authenticated member may
- *     view any profile read-only. The 404 carries no "this profile is private" message,
- *     which would itself leak existence. Owner-only sub-routes (edit, edit/password,
- *     galleries, media upload, account :section) return 404 on slug mismatch, not 403.
+ *     to the explicit HoF/BAP exception; full members may view any member
+ *     profile read-only. Contact fields never reach an anonymous page; the
+ *     login email renders to member viewers only when the owner opted in
+ *     (email_visibility 'members'); phone and WhatsApp render the same way,
+ *     each gated by its own opt-in. Tier and Active Player badges are
+ *     member-visible only.
+ *   - A profile page exists only once its owner is a member. An account is
+ *     pending until every onboarding task completes; getMemberProfilePage
+ *     returns null for a pending target (indistinguishable from an unknown
+ *     slug, so pending accounts are not enumerable), except for an admin
+ *     viewer, whose operational surfaces reference pending accounts by
+ *     profile link. The pending owner is routed to their next wizard task by
+ *     the controller instead of a render.
+ *   - Privacy gate is fail-closed: getMemberProfilePage returns null for an
+ *     unauthenticated or pending viewer viewing a non-HoF/BAP member, which the
+ *     controller maps to 404. HoF and BAP profiles stay publicly visible; any full
+ *     member may view any member profile read-only. The 404 carries no "this profile
+ *     is private" message, which would itself leak existence. Owner-only sub-routes
+ *     (edit, edit/password, galleries, media upload, account :section) return 404 on
+ *     slug mismatch, not 403.
  *   - Max 3 external URLs per member; one avatar per member (partial UNIQUE
  *     index `ux_media_avatar_per_member`).
  *   - Avatar upload validates JPEG/PNG only with 5 MB size limit, processes to
@@ -78,7 +86,7 @@ import { account, publicPlayers, memberClubAffiliations, memberLinks, clubLeader
 import { validateExternalUrl } from '../lib/externalUrlValidator';
 import { validateBirthDate } from '../lib/birthDate';
 import { identityAccessService } from './identityAccessService';
-import { memberOnboardingService, type DashboardTaskWidget } from './memberOnboardingService';
+import { memberOnboardingService } from './memberOnboardingService';
 import { NotFoundError, RateLimitedError, ValidationError } from './serviceErrors';
 import { hit as rateLimitHit } from './rateLimitService';
 import { readIntConfig } from './configReader';
@@ -93,6 +101,7 @@ import { getStatus as getActivePlayerStatus } from './activePlayerService';
 import { mayCreateClub } from './tierPredicates';
 import { mediaService, type ProfileMediaView } from './mediaService';
 import { formatDateDisplay } from './dateFormat';
+import { countryCode, countryNames, subdivisionsForCountry } from './countryUtils';
 
 const MAX_BIO = 1000;
 const SEARCH_LIMIT = 20;
@@ -289,11 +298,6 @@ export interface OwnProfileContent {
   /** List of legacy accounts the member has claimed (display-only; a member
    * who believes a confirmed link is wrong uses the dispute path). */
   claimedLegacyIdentities?: ClaimedLegacyIdentityView[];
-  /** Onboarding-task widget for the personal dashboard. Null when the
-   * member has no onboarding-task rows yet (pre-task-list bootstrap state).
-   * The widget surfaces the member's outstanding onboarding tasks with
-   * pre-shaped CTA labels; a completed task is removed from it. */
-  dashboardTasks?: DashboardTaskWidget | null;
   myClubs?: MyClubsView;
   /** Thumbnail preview of the member's own uploaded media. */
   media?: ProfileMediaView;
@@ -321,7 +325,9 @@ export interface SearchBlockView {
   hasQuery: boolean;
 }
 
-export interface ProfileEditContent extends OwnProfileContent {
+export interface ProfileEditContent extends OwnProfileContent, LocationPickers {
+  /** Whether this member's country is one whose addresses need a state or province. */
+  regionRequired: boolean;
   memberKey: string;
   loginEmail: string;
   profileUrl: string;
@@ -372,6 +378,8 @@ export interface PublicProfileContent {
   contactEmail: string | null;
   contactPhone: string | null;
   contactWhatsapp: string | null;
+  /** wa.me chat link for the displayed number, or null when it has no digits. */
+  contactWhatsappHref: string | null;
   tierBadgeText: string | null;
   isActivePlayer: boolean;
   /** 'Male' / 'Female' when the member opted gender into public visibility and
@@ -385,6 +393,19 @@ export interface PublicProfileContent {
   /** Thumbnail preview of the member's uploaded media, shown to authenticated
    *  viewers only; empty for the anonymous HoF/BAP render. */
   media: ProfileMediaView;
+}
+
+export interface ProfileEditPageOptions {
+  /** Form-level error banner. */
+  error?: string;
+  avatarError?: string;
+  avatarSuccess?: string;
+  /**
+   * What the member just submitted, layered over the stored row. Supplied on a
+   * validation or rate-limit re-render so the form returns their work; omitted
+   * on a fresh GET, where the stored values are what belongs on the page.
+   */
+  submitted?: ProfileEditInput;
 }
 
 export interface ProfileEditInput {
@@ -414,6 +435,105 @@ export interface ProfileEditInput {
 
 function normalizeText(val: unknown): string {
   return typeof val === 'string' ? val.trim() : '';
+}
+
+// In the USA and Canada a location without its state or province is ambiguous
+// (a bare "Portland" or "London" names more than one place), so the region is
+// required there and optional everywhere else. The country field is free text,
+// so the common spellings are folded to an ISO code before comparing; the
+// shared country map already carries the full names and the USA alias, and the
+// short forms a member is likely to type are handled here.
+const REGION_REQUIRED_COUNTRY_CODES = new Set(['US', 'CA']);
+const REGION_REQUIRED_SPELLINGS = new Set([
+  'US', 'USA', 'UNITED STATES', 'UNITED STATES OF AMERICA', 'AMERICA',
+  'CA', 'CAN', 'CANADA',
+]);
+
+export function regionRequiredForCountry(country: string): boolean {
+  const raw = normalizeText(country).toUpperCase().replace(/\./g, '');
+  if (REGION_REQUIRED_SPELLINGS.has(raw)) return true;
+  return REGION_REQUIRED_COUNTRY_CODES.has(countryCode(normalizeText(country)).toUpperCase());
+}
+
+// WhatsApp is published as a chat link, and a wa.me address names its contact
+// by international number in digits alone. Free text would put a value on the
+// profile that cannot be dialled or linked, so the stored value has to reduce
+// to a plausible international number: seven to fifteen digits once the
+// punctuation people write numbers with is stripped. The member's own spelling
+// is what the profile displays; the digits are only what the link is built from.
+const WHATSAPP_MESSAGE =
+  'WhatsApp must be an international phone number, for example +1 555 0100.';
+
+export function whatsappDigits(value: string): string | null {
+  const digits = value.replace(/[\s().+-]/g, '');
+  return /^\d{7,15}$/.test(digits) ? digits : null;
+}
+
+const REGION_REQUIRED_MESSAGE = 'Region or state is required for the USA and Canada.';
+const REGION_CODE_MESSAGE =
+  'Region must be the official two-letter state or province code, such as CO, CA, or NY.';
+
+// Where a country writes its addresses with an official state or province set,
+// that set is the whole vocabulary and the server decides membership in it.
+// The form renders a picker, but a picker is not the only way a value reaches
+// this method, and the column feeds the official IFPA roster export, where one
+// place recorded as CA, California and Calif. cannot be reconciled afterwards.
+// A full name is refused rather than folded to its code, because the member is
+// answering a picker and a name means the submission did not come from it.
+// A country with no official set keeps a free-text region.
+function canonicalRegionOrThrow(country: string, region: string | null): string | null {
+  if (!region) return region;
+  const subdivisions = subdivisionsForCountry(country);
+  if (subdivisions.length === 0) return region;
+  const match = subdivisions.find((s) => s.code.toLowerCase() === region.trim().toLowerCase());
+  if (!match) throw new ValidationError(REGION_CODE_MESSAGE);
+  return match.code;
+}
+
+export interface PersonalDetailsFormFields {
+  city: string; region: string; country: string; birthDate: string; gender: string;
+  yearValue: string; showFirstCompetitionYear: boolean; showCompetitiveResults: boolean;
+}
+
+// Spreading a caller's optional overrides straight over the stored values would
+// let an absent field blank a present one, so the keys that were not supplied
+// are dropped before the merge.
+function definedOnly<T extends object>(o: T): Partial<T> {
+  return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as Partial<T>;
+}
+
+export interface SelectOption { value: string; label: string; selected: boolean }
+
+// A picker never silently rewrites what is already stored. Migrated profiles
+// carry whatever the legacy import wrote (a bare 'US' rather than the canonical
+// name, for instance), and those values are not ours to change, so a stored
+// value the list does not contain is offered as its own first option and stays
+// selected until the member chooses otherwise.
+function selectOptions(
+  choices: ReadonlyArray<{ value: string; label: string }>,
+  selected: string,
+): SelectOption[] {
+  const listed = choices.some((c) => c.value === selected);
+  const all = selected && !listed ? [{ value: selected, label: selected }, ...choices] : choices;
+  return all.map((c) => ({ ...c, selected: c.value === selected }));
+}
+
+// The country picker, plus the state or province picker for the countries that
+// use one. A country with no subdivisions returns none, and the region stays a
+// free-text field there.
+export interface LocationPickers {
+  countryOptions: SelectOption[];
+  regionOptions: SelectOption[];
+  regionHasOptions: boolean;
+}
+
+export function locationPickers(country: string, region: string): LocationPickers {
+  const countryOptions = selectOptions(countryNames().map((n) => ({ value: n, label: n })), country);
+  const subdivisions = subdivisionsForCountry(country);
+  const regionOptions = subdivisions.length
+    ? selectOptions(subdivisions.map((s) => ({ value: s.code, label: s.label })), region)
+    : [];
+  return { countryOptions, regionOptions, regionHasOptions: regionOptions.length > 0 };
 }
 
 // Gender appears on cross-member surfaces (profile, search, roster) only when
@@ -534,11 +654,6 @@ function buildClaimedLegacyIdentitiesView(memberId: string): ClaimedLegacyIdenti
     displayName:      r.displayName,
     claimedAtDisplay: r.claimedAt ? formatDateDisplay(r.claimedAt) : null,
   }));
-}
-
-function buildDashboardTasksView(memberId: string): DashboardTaskWidget | null {
-  const widget = memberOnboardingService.getDashboardTaskWidget(memberId);
-  return widget.hasOutstanding ? widget : null;
 }
 
 export type PurgeAccountPIIResult =
@@ -715,6 +830,7 @@ function scrubDeceasedMemberPII(memberId: string): ScrubDeceasedMemberPIIResult 
 export const memberService = {
   purgeAccountPII,
   scrubDeceasedMemberPII,
+  regionRequiredForCountry,
 
   getOwnProfile(
     slug: string,
@@ -764,7 +880,6 @@ export const memberService = {
         media:        buildMemberMediaView(row.id, slug),
         memberSlug:   slug,
         claimedLegacyIdentities: buildClaimedLegacyIdentitiesView(row.id),
-        dashboardTasks:         buildDashboardTasksView(row.id),
         links:        buildMemberLinksView(row.id),
       },
     };
@@ -785,9 +900,17 @@ export const memberService = {
    */
   getMemberProfilePage(
     slug: string,
-    viewer: { authenticated: boolean },
+    viewer: { authenticated: boolean; admin?: boolean },
   ): PageViewModel<PublicProfileContent> | null {
     const row = fetchMemberBySlug(slug);
+    // A profile page exists only once its owner is a member: an account still
+    // pending in the onboarding wizard has no profile for any member or
+    // visitor, and the null return is indistinguishable from an unknown slug,
+    // so pending accounts are not enumerable here. Admin viewers are exempt:
+    // operational surfaces (the audit log, the work queue) reference pending
+    // accounts by profile link, and admin oversight of an account is not a
+    // member capability of its owner.
+    if (!viewer.admin && !memberOnboardingService.isOnboardingComplete(row.id)) return null;
     const isHof = Boolean(row.is_hof);
     const isBap = Boolean(row.is_bap);
     if (!viewer.authenticated && !isHof && !isBap) return null;
@@ -805,6 +928,13 @@ export const memberService = {
       viewer.authenticated && row.phone_visible === 1 ? row.phone : null;
     const contactWhatsapp =
       viewer.authenticated && row.whatsapp_visible === 1 ? row.whatsapp : null;
+    // The number the member typed is what shows; the link is built from its
+    // digits, because wa.me addresses a contact by digits alone. A stored value
+    // predating the format rule may not reduce to a number, and then it renders
+    // as text rather than as a link that would not open a chat.
+    const contactWhatsappHref = contactWhatsapp
+      ? (whatsappDigits(contactWhatsapp) ? `https://wa.me/${whatsappDigits(contactWhatsapp)}` : null)
+      : null;
     const tierBadgeText = viewer.authenticated
       ? TIER_BADGE_TEXT[getTierStatus(row.id).tier_status]
       : null;
@@ -833,6 +963,7 @@ export const memberService = {
         contactEmail,
         contactPhone,
         contactWhatsapp,
+        contactWhatsappHref,
         tierBadgeText,
         isActivePlayer,
         genderLabel:    genderPublicLabel(row.gender, row.show_gender, viewer.authenticated),
@@ -847,11 +978,15 @@ export const memberService = {
 
   getProfileEditPage(
     slug: string,
-    error?: string,
-    avatarError?: string,
-    avatarSuccess?: string,
+    opts: ProfileEditPageOptions = {},
   ): PageViewModel<ProfileEditContent> {
+    const { error, avatarError, avatarSuccess, submitted } = opts;
     const row = fetchMemberBySlug(slug);
+    // The pickers and the region-required marker follow what the member just
+    // chose, not what is stored, so a re-render after a validation error shows
+    // the country they picked with that country's own region control.
+    const effectiveCountry = submitted ? normalizeText(submitted.country) : (row.country ?? '');
+    const effectiveRegion  = submitted ? normalizeText(submitted.region)  : (row.region ?? '');
     const cta = buildIdentityCta(
       row.legacy_member_id !== null,
       row.historical_person_id !== null,
@@ -864,6 +999,8 @@ export const memberService = {
       },
       content: {
         ...rowToContent(row),
+        ...locationPickers(effectiveCountry, effectiveRegion),
+        regionRequired: regionRequiredForCountry(effectiveCountry),
         memberKey: slug,
         loginEmail: row.login_email,
         profileUrl: `/members/${slug}`,
@@ -875,10 +1012,17 @@ export const memberService = {
         // even before the member has made an explicit choice.
         gender: row.gender ?? 'undisclosed',
         showGender: row.show_gender !== 0,
+        // A validation error must hand the member back their own work. Without
+        // this the form re-renders from the stored row, so one bad URL silently
+        // discards the rewritten bio, the changed location and both visibility
+        // toggles, and the member is told only about the URL.
+        ...submittedOverlay(submitted),
         error,
         avatarError,
         avatarSuccess,
-        linkSlots: buildMemberLinkSlots(row.id),
+        linkSlots: submitted
+          ? submittedLinkSlots(submitted.links)
+          : buildMemberLinkSlots(row.id),
       },
     };
   },
@@ -952,11 +1096,10 @@ export const memberService = {
     if (bio.length > MAX_BIO) {
       throw new ValidationError(`Bio must be ${MAX_BIO} characters or fewer.`);
     }
-    // City and country are mandatory profile fields. This edit path is reachable
-    // during onboarding (it is ungated), so without this check a member could
-    // save a profile with the required location fields blank. The edit form
+    // City and country are mandatory profile fields, re-checked here because
+    // the onboarding form is not the only way they are written: the edit form
     // pre-fills both from the stored values, so a genuine save always carries
-    // them; only a deliberately-blanked submission is rejected here.
+    // them, and only a deliberately-blanked submission is rejected here.
     if (!city || !country) {
       throw new ValidationError(
         !city && !country
@@ -966,16 +1109,34 @@ export const memberService = {
             : 'Country is required.',
       );
     }
+    // Enforced here as well as on the onboarding form, so the rule cannot be
+    // undone by editing the profile afterwards.
+    if (!region && regionRequiredForCountry(country)) {
+      throw new ValidationError(REGION_REQUIRED_MESSAGE);
+    }
+    const storedRegion = canonicalRegionOrThrow(country, region);
+    if (whatsapp && whatsappDigits(whatsapp) === null) {
+      throw new ValidationError(WHATSAPP_MESSAGE);
+    }
 
     // Validate links (network I/O) before the transaction; the write is sync.
     const validatedLinks = await validateMemberLinks(input.links);
+
+    // Compared before the write, while the stored values are still readable.
+    const changedFields = changedProfileFields(row, buildMemberLinksView(row.id), {
+      bio, city, region: storedRegion, country, phone, whatsapp,
+      emailVisibility: emailVis, phoneVisible, whatsappVisible, searchable,
+      firstCompetitionYear: validYear, showCompetitiveResults: showResults,
+      showFirstCompetitionYear: showYear, showGender, gender: genderValue,
+      links: validatedLinks,
+    });
 
     const now = new Date().toISOString();
     transaction(() => {
       account.updateMemberProfile.run(
         bio,
         city,
-        region,
+        storedRegion,
         country,
         phone,
         whatsapp,
@@ -1003,37 +1164,8 @@ export const memberService = {
           i,
         );
       });
-      // Complete the required onboarding task only when the profile now carries
-      // every field the wizard's personal_details step requires. City and
-      // country are validated as required above; date of birth is collected only
-      // by the wizard step, so a member who reached this page without completing
-      // that step — birth_date still unset — stays on the task instead of
-      // finishing onboarding with mandatory data missing.
-      if (city && country && row.birth_date) {
-        memberOnboardingService.completeTaskIfOutstanding(row.id, 'personal_details');
-      }
-      auditProfileUpdate(row.id, [
-        'bio', 'city', 'region', 'country', 'phone', 'whatsapp', 'emailVisibility',
-        'phoneVisible', 'whatsappVisible', 'searchable',
-        'firstCompetitionYear', 'showCompetitiveResults', 'showFirstCompetitionYear',
-        'gender', 'showGender',
-        'links',
-      ]);
+      auditProfileUpdate(row.id, changedFields);
     });
-  },
-
-  getCompetitionPrefill(memberId: string): {
-    firstCompetitionYear: number | null;
-    showCompetitiveResults: boolean;
-  } {
-    const row = account.findCompetitionFieldsByMemberId.get(memberId) as
-      | { first_competition_year: number | null; show_competitive_results: number; historical_first_year: number | null }
-      | undefined;
-    if (!row) return { firstCompetitionYear: null, showCompetitiveResults: false };
-    return {
-      firstCompetitionYear: row.first_competition_year ?? row.historical_first_year ?? null,
-      showCompetitiveResults: row.show_competitive_results !== 0,
-    };
   },
 
   getPersonalDetailsPrefill(memberId: string): {
@@ -1063,6 +1195,31 @@ export const memberService = {
     };
   },
 
+  /**
+   * The personal-details form's fields: what is on file, with any resubmitted
+   * values layered over it. `regionRequired` follows the effective country, so
+   * the marker on the form and the rule enforced on save cannot disagree.
+   */
+  getPersonalDetailsForm(
+    memberId: string,
+    overrides: Partial<PersonalDetailsFormFields> = {},
+  ): PersonalDetailsFormFields & LocationPickers & { regionRequired: boolean } {
+    const p = this.getPersonalDetailsPrefill(memberId);
+    const fields: PersonalDetailsFormFields = {
+      city: p.city, region: p.region, country: p.country, birthDate: p.birthDate,
+      gender: p.gender,
+      yearValue: p.firstCompetitionYear != null ? String(p.firstCompetitionYear) : '',
+      showFirstCompetitionYear: p.showFirstCompetitionYear,
+      showCompetitiveResults: p.showCompetitiveResults,
+      ...definedOnly(overrides),
+    };
+    return {
+      ...fields,
+      ...locationPickers(fields.country, fields.region),
+      regionRequired: regionRequiredForCountry(fields.country),
+    };
+  },
+
   setPersonalDetails(memberId: string, input: {
     city?: unknown; region?: unknown; country?: unknown; birthDate?: unknown;
     gender?: unknown; yearValue?: unknown; showFirstCompetitionYear?: unknown;
@@ -1088,6 +1245,10 @@ export const memberService = {
     if (!rawDob) {
       throw new ValidationError('Date of birth is required.');
     }
+    if (!region && regionRequiredForCountry(country)) {
+      throw new ValidationError(REGION_REQUIRED_MESSAGE);
+    }
+    const storedRegion = canonicalRegionOrThrow(country, region);
 
     if (city && city.length > 64) {
       throw new ValidationError('City must be 64 characters or fewer.');
@@ -1140,7 +1301,7 @@ export const memberService = {
     const now = new Date().toISOString();
     transaction(() => {
       account.updateMemberPersonalDetails.run(
-        city, region, country, birthDate, genderValue,
+        city, storedRegion, country, birthDate, genderValue,
         firstCompetitionYear, showFirstCompetitionYear,
         now, memberId,
       );
@@ -1152,42 +1313,6 @@ export const memberService = {
         'firstCompetitionYear', 'showFirstCompetitionYear',
         ...(hasShowCompetitiveResults ? ['showCompetitiveResults'] : []),
       ]);
-    });
-  },
-
-  setFirstCompetitionYear(memberId: string, rawYear: unknown): void {
-    const raw = normalizeText(rawYear);
-    const now = new Date().toISOString();
-    if (raw === '') {
-      transaction(() => {
-        account.updateMemberFirstCompetitionYear.run(null, now, memberId);
-        auditProfileUpdate(memberId, ['firstCompetitionYear']);
-      });
-      return;
-    }
-    const parsed = parseInt(raw, 10);
-    const thisYear = new Date().getFullYear();
-    if (!Number.isFinite(parsed) || String(parsed) !== raw || parsed < 1972 || parsed > thisYear) {
-      throw new ValidationError(`Year must be a whole number between 1972 and ${thisYear}.`);
-    }
-    transaction(() => {
-      account.updateMemberFirstCompetitionYear.run(parsed, now, memberId);
-      auditProfileUpdate(memberId, ['firstCompetitionYear']);
-    });
-  },
-
-  setShowCompetitiveResults(memberId: string, rawEnabled: unknown): void {
-    const value =
-      rawEnabled === true ||
-      rawEnabled === 'on' ||
-      rawEnabled === '1' ||
-      rawEnabled === 'true'
-        ? 1
-        : 0;
-    const now = new Date().toISOString();
-    transaction(() => {
-      account.updateMemberShowCompetitiveResults.run(value, now, memberId);
-      auditProfileUpdate(memberId, ['showCompetitiveResults']);
     });
   },
 
@@ -1531,6 +1656,119 @@ function buildMemberLinksView(memberId: string): MemberLinkView[] {
 
 // Fixed-length edit slots: existing links first, then blank pairs so the edit
 // form always renders the full set of inputs up to the cap.
+// The values a profile save is about to write, in the shape they will be
+// stored, so they can be compared against what is already there.
+interface ProfileWriteValues {
+  bio: string;
+  city: string | null;
+  region: string | null;
+  country: string | null;
+  phone: string | null;
+  whatsapp: string | null;
+  emailVisibility: string;
+  phoneVisible: number;
+  whatsappVisible: number;
+  searchable: number;
+  firstCompetitionYear: number | null;
+  showCompetitiveResults: number;
+  showFirstCompetitionYear: number;
+  showGender: number;
+  /** Null means the submission did not set gender, so the stored value stands. */
+  gender: string | null;
+  links: MemberLinkView[];
+}
+
+// The names of the fields this save actually changes. The audit row exists to
+// answer which field a member altered, and a fixed list of every editable field
+// answers nothing: it records all of them as changed on every save. Only names
+// are produced, never values, so the trail stays free of the personal data it
+// exists to make traceable.
+function changedProfileFields(
+  row: MemberProfileRow,
+  priorLinks: MemberLinkView[],
+  next: ProfileWriteValues,
+): string[] {
+  const changed: string[] = [];
+  const compare = (name: string, before: unknown, after: unknown): void => {
+    if (before !== after) changed.push(name);
+  };
+  compare('bio', row.bio ?? '', next.bio);
+  compare('city', row.city ?? null, next.city);
+  compare('region', row.region ?? null, next.region);
+  compare('country', row.country ?? null, next.country);
+  compare('phone', row.phone ?? null, next.phone);
+  compare('whatsapp', row.whatsapp ?? null, next.whatsapp);
+  compare('emailVisibility', row.email_visibility, next.emailVisibility);
+  compare('phoneVisible', row.phone_visible, next.phoneVisible);
+  compare('whatsappVisible', row.whatsapp_visible, next.whatsappVisible);
+  compare('searchable', row.searchable, next.searchable);
+  compare('firstCompetitionYear', row.first_competition_year ?? null, next.firstCompetitionYear);
+  compare('showCompetitiveResults', row.show_competitive_results, next.showCompetitiveResults);
+  compare('showFirstCompetitionYear', row.show_first_competition_year, next.showFirstCompetitionYear);
+  compare('showGender', row.show_gender, next.showGender);
+  // A submission that set no recognised gender leaves the stored value alone,
+  // so there is nothing to compare and nothing changed.
+  if (next.gender !== null) compare('gender', row.gender ?? null, next.gender);
+  // Links are replaced as a set, so the set is what is compared: same labels
+  // and URLs in the same slot order means nothing changed.
+  const sameLinks =
+    priorLinks.length === next.links.length &&
+    priorLinks.every((l, i) => l.label === next.links[i].label && l.url === next.links[i].url);
+  if (!sameLinks) changed.push('links');
+  return changed;
+}
+
+// A checkbox posts its value only when ticked, so an absent field is a
+// deliberate "off" rather than a missing answer. Express may deliver a repeated
+// field as an array, which the same rule covers.
+function checkedFlag(value: string | string[] | undefined): boolean {
+  const raw = Array.isArray(value) ? value[value.length - 1] : value;
+  return raw === '1' || raw === 'on' || raw === 'true';
+}
+
+// The submitted values, shaped exactly as the form's own fields, so a
+// validation re-render returns the member's work instead of the stored row.
+function submittedOverlay(submitted?: ProfileEditInput): Partial<ProfileEditContent> {
+  if (!submitted) return {};
+  const year = normalizeText(submitted.firstCompetitionYear);
+  const parsedYear = year === '' ? null : Number.parseInt(year, 10);
+  const gender = normalizeText(submitted.gender).toLowerCase();
+  return {
+    bio:             submitted.bio,
+    city:            normalizeText(submitted.city),
+    region:          normalizeText(submitted.region),
+    country:         normalizeText(submitted.country),
+    phone:           normalizeText(submitted.phone),
+    whatsapp:        normalizeText(submitted.whatsapp),
+    emailVisibility: normalizeText(submitted.emailVisibility),
+    phoneVisible:    checkedFlag(submitted.phoneVisible),
+    whatsappVisible: checkedFlag(submitted.whatsappVisible),
+    searchable:      checkedFlag(submitted.searchable),
+    firstCompetitionYear: Number.isFinite(parsedYear) ? parsedYear : null,
+    showCompetitiveResults:   checkedFlag(submitted.showCompetitiveResults),
+    showFirstCompetitionYear: checkedFlag(submitted.showFirstCompetitionYear),
+    showGender:      checkedFlag(submitted.showGender),
+    ...(gender === 'male' || gender === 'female' || gender === 'undisclosed'
+      ? { gender }
+      : {}),
+  };
+}
+
+// Submitted link pairs in slot order, padded to the full set so the form keeps
+// its empty rows. Values are echoed as typed, including the one that failed
+// validation, because the member is being asked to correct it.
+function submittedLinkSlots(pairs: Array<{ label: string; url: string }>): MemberLinkView[] {
+  const slots: MemberLinkView[] = [];
+  for (let i = 0; i < MAX_MEMBER_LINKS; i += 1) {
+    const pair = pairs[i];
+    slots.push({
+      label: normalizeText(pair?.label ?? ''),
+      url:   normalizeText(pair?.url ?? ''),
+    });
+  }
+  return slots;
+}
+
 function buildMemberLinkSlots(memberId: string): MemberLinkView[] {
   const links = buildMemberLinksView(memberId);
   const slots: MemberLinkView[] = [];

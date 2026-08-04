@@ -2579,12 +2579,13 @@ Authorization Middleware Pattern:
 Authorization runs as a chain of middleware functions after `authMiddleware` (§3.2) populates `req.user`. The chain on a protected route is:
 
 1. `requireAuth` (`src/middleware/auth.ts`) checks `req.isAuthenticated`. If false on an HTML route, the middleware returns a 302 redirect to `/login?returnTo=<originalUrl>` so the browser user sees a login form rather than an opaque status code. A JSON API route returns 401 from the same gate.
-2. Tier middleware (e.g. `requireTier1Benefits`) checks `req.user`'s tier value, which the auth middleware sourced from the DB row on the current request. Insufficient tier returns 403 with a rendered tier-upsell page on an HTML route, or a JSON error on an API route.
-3. Admin middleware (e.g. `requireAdmin`) checks `req.user.role`, derived from `members.is_admin`. Non-admin returns 403.
+2. `requireMember` (`src/middleware/auth.ts`) checks `req.isMember`, the membership authorization level that sits above authentication. An account is pending from registration until every onboarding task is completed, and a pending registrant holds a session but no member authorization. An unauthenticated request takes the same 302-to-login as `requireAuth`; a pending request is redirected 303 to the registrant's next outstanding wizard task. Every member-capability route carries this guard; bare `requireAuth` remains only on the wizard's own routes and the historical-record claim routes, because claiming is part of finishing onboarding. `req.isMember` is derived from the task rows on every request rather than carried in the session, so membership takes effect the moment the completing transition lands, with no re-login.
+3. Tier middleware (e.g. `requireTier1Benefits`) checks `req.user`'s tier value, which the auth middleware sourced from the DB row on the current request. Insufficient tier returns 403 with a rendered tier-upsell page on an HTML route, or a JSON error on an API route.
+4. Admin middleware (e.g. `requireAdmin`) checks `req.user.role`, derived from `members.is_admin`. Non-admin returns 403.
 
 Defense in depth: every state-changing service method re-asserts the same authorization predicate against the DB row. A request that bypassed the middleware (a test-seam misuse, a future middleware regression) is still rejected at the service layer with the same outcome.
 
-The `/login?returnTo=...` redirect from `requireAuth` is the one site that emits 302 by design. It is exempted from the explicit-303 rule below because it is a framework-level auth gate rather than a per-route response, and because the redirect applies uniformly to every method (GET, POST, PUT, PATCH, DELETE); the post-login flow returns the user to the originally-requested URL via the `returnTo` parameter, validated through `isSafePath`.
+The `/login?returnTo=...` redirect from the authentication gate (`requireAuth`, and the unauthenticated branch of `requireMember`) is the one site that emits 302 by design. It is exempted from the explicit-303 rule below because it is a framework-level auth gate rather than a per-route response, and because the redirect applies uniformly to every method (GET, POST, PUT, PATCH, DELETE); the post-login flow returns the user to the originally-requested URL via the `returnTo` parameter, validated through `isSafePath`.
 
 HTTP Response Convention:
 

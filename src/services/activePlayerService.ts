@@ -248,17 +248,6 @@ export function getStatus(memberId: string): ActivePlayerStatus {
 }
 
 /**
- * Whether the member has ever held Active Player (any prior grant row of any
- * change_type). Distinguishes a never-AP Tier 0 member — still eligible for the
- * one-time club bootstrap grant — from a lapsed-AP Tier 0 member whose one-time
- * grant is spent.
- */
-export function hasEverHeldActivePlayer(memberId: string): boolean {
-  const row = activePlayer.hasAnyPriorGrant.get(memberId) as { exists_flag: number } | undefined;
-  return row?.exists_flag === 1;
-}
-
-/**
  * Mark a Tier 0 member as Active Player from event attendance.
  *
  * Tier 1+ members no-op (audit-log only); attendance does not extend their
@@ -728,16 +717,6 @@ function applyClubJoinCore(
   });
 
   return { status: 'granted' as const, expiresAt: newExpiresAt };
-}
-
-export function applyClubJoin(
-  actorId: string,
-  memberId: string,
-  clubAffiliationId: string,
-): ApplyResult {
-  // Standalone entry point: opens its own transaction so the grant insert and
-  // its audit row commit together.
-  return transaction(() => applyClubJoinCore(actorId, memberId, clubAffiliationId));
 }
 
 export function applyClubJoinInTx(

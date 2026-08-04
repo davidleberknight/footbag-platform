@@ -3,6 +3,7 @@ import { auth as authDb } from '../db/db';
 import { getJwtSigningAdapter } from '../adapters/jwtSigningAdapter';
 import { createSessionJwt } from '../services/jwtService';
 import { issueSessionCookie } from '../lib/sessionCookie';
+import { memberOnboardingService } from '../services/memberOnboardingService';
 
 /**
  * The `__Host-` prefix is enforced by the browser rather than by the server: a
@@ -38,6 +39,13 @@ declare global {
   namespace Express {
     interface Request {
       isAuthenticated: boolean;
+      // Membership is an authorization level above authentication: an account
+      // is pending from registration until every onboarding task completes,
+      // and a pending registrant holds a session but no member authorization.
+      // True only when the session belongs to a member whose onboarding is
+      // complete; auth-enhanced surfaces key member privileges off this, so a
+      // pending registrant reads public pages as an anonymous visitor.
+      isMember: boolean;
       user: SessionUser | null;
     }
   }
@@ -62,6 +70,7 @@ export const SESSION_REFRESH_WINDOW_SECONDS = 6 * 60 * 60;
 export function authMiddleware() {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     req.isAuthenticated = false;
+    req.isMember = false;
     req.user = null;
 
     const cookie = req.cookies?.[SESSION_COOKIE_NAME] as string | undefined;
@@ -91,6 +100,11 @@ export function authMiddleware() {
       }
 
       req.isAuthenticated = true;
+      // Authorization level, not identity: pending until every onboarding task
+      // completes, member afterwards. Derived fresh per request from the task
+      // rows so a session issued mid-onboarding gains membership the moment
+      // the completion transition lands, with no re-login.
+      req.isMember = memberOnboardingService.isOnboardingComplete(row.id);
       req.user = {
         userId: row.id,
         slug: row.slug ?? row.id,
@@ -137,4 +151,36 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
     return;
   }
   next();
+}
+
+/**
+ * Member-capability route guard. An account is pending from registration until
+ * every onboarding task completes; a pending registrant holds a session but no
+ * member authorization, so every member-capability route requires this guard
+ * and a pending request is routed to its next outstanding wizard task. Bare
+ * requireAuth remains only on the surfaces a pending registrant legitimately
+ * uses: the wizard routes and the historical-record claim routes (claiming is
+ * part of finishing onboarding). A conformance test pins that allowlist.
+ */
+export function requireMember(req: Request, res: Response, next: NextFunction): void {
+  if (!req.isAuthenticated) {
+    res.redirect(`/login?returnTo=${encodeURIComponent(req.originalUrl)}`);
+    return;
+  }
+  if (!req.isMember) {
+    res.redirect(303, nextPendingWizardHref(req.user!.userId));
+    return;
+  }
+  next();
+}
+
+/**
+ * The pending registrant's next stop. With nothing outstanding, route to the
+ * wizard complete page, which re-checks and redirects onward if a task is in
+ * fact still pending; falling back to a specific task here would loop if that
+ * task were ever non-completable.
+ */
+export function nextPendingWizardHref(memberId: string): string {
+  const next = memberOnboardingService.nextOutstandingTaskType(memberId);
+  return next ? `/register/wizard/${next}` : '/register/wizard/complete';
 }

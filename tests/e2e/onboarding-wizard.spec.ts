@@ -59,11 +59,11 @@ test('post-verify: register -> check-email -> click verify link -> lands on wiza
   expect(page.url()).toMatch(/\/register\/wizard\/personal_details|\/members\//);
 });
 
-// ── Skip legacy_claim -> land on next task ───────────────────────────────────
+// ── Answer legacy_claim -> land on next task ─────────────────────────────────
 
-test('skip legacy_claim -> advances to next task', async ({ browser, baseURL }) => {
+test('answering legacy_claim without linking advances to the next task', async ({ browser, baseURL }) => {
   const db = openLiveDb();
-  const persona = seedBrandNewPlayer(db, { slug: `e2e_skip_${Date.now()}` });
+  const persona = seedBrandNewPlayer(db, { slug: `e2e_cwl_${Date.now()}` });
   completePersonalDetails(db, persona.memberId);
   db.close();
 
@@ -72,40 +72,17 @@ test('skip legacy_claim -> advances to next task', async ({ browser, baseURL }) 
   const wizard = new WizardPage(page);
 
   await wizard.goto('legacy_claim');
-  await expect(wizard.skipButton).toBeVisible();
-  await wizard.skipCurrentTask();
+  await expect(wizard.continueWithoutLinkingButton).toBeVisible();
+  await wizard.answerCurrentTask();
 
-  expect(page.url()).toMatch(/\/register\/wizard\/(personal_details|club_affiliations)/);
-
-  await context.close();
-});
-
-// ── Dashboard task widget: Resume buttons ────────────────────────────────────
-
-test('dashboard shows Resume button for skipped tasks', async ({ browser, baseURL }) => {
-  const db = openLiveDb();
-  const persona = seedTier0Member(db, { slug: `e2e_widget_${Date.now()}` });
-  completePersonalDetails(db, persona.memberId);
-  db.close();
-
-  const context = await createAuthenticatedContext(browser, baseURL!, persona);
-  const page = await context.newPage();
-  const wizard = new WizardPage(page);
-
-  await wizard.goto('legacy_claim');
-  await wizard.skipCurrentTask();
-
-  const dashboard = new DashboardPage(page);
-  await dashboard.goto(persona.slug);
-  await expect(dashboard.taskWidget).toBeVisible();
-  await expect(dashboard.resumeButtons.first()).toBeVisible();
+  expect(page.url()).toMatch(/\/register\/wizard\/club_affiliations/);
 
   await context.close();
 });
 
-// ── Resume task from dashboard ───────────────────────────────────────────────
+// ── Dashboard task widget: Continue Onboarding buttons ───────────────────────
 
-test('clicking Resume on dashboard opens the wizard task page', async ({ browser, baseURL }) => {
+test('a pending registrant visiting their own profile is routed to the next outstanding task', async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const persona = seedTier0Member(db, { slug: `e2e_resume_${Date.now()}` });
   completePersonalDetails(db, persona.memberId);
@@ -116,13 +93,14 @@ test('clicking Resume on dashboard opens the wizard task page', async ({ browser
   const wizard = new WizardPage(page);
 
   await wizard.goto('legacy_claim');
-  await wizard.skipCurrentTask();
+  await wizard.answerCurrentTask();
 
+  // Resume is the gate redirect: the profile page does not exist while
+  // pending, so requesting it lands on the next outstanding wizard task.
   const dashboard = new DashboardPage(page);
   await dashboard.goto(persona.slug);
-  await dashboard.clickFirstResume();
-
-  expect(page.url()).toMatch(/\/register\/wizard\//);
+  await page.waitForURL(/\/register\/wizard\/club_affiliations/);
+  expect(page.url()).toMatch(/\/register\/wizard\/club_affiliations/);
 
   await context.close();
 });
@@ -141,7 +119,7 @@ test('complete personal_details via form fill -> advances to next task', async (
   await wizard.goto('personal_details');
   await expect(wizard.yearInput).toBeVisible();
   await page.locator('#city').fill('Portland');
-  await page.locator('#country').fill('US');
+  await wizard.selectCountry('United States', 'OR');
   await page.locator('#birthDate').fill('2000-01-15');
   await wizard.submitYear('2005');
 
@@ -212,29 +190,26 @@ test('wizard pages have accessible form labels and heading', { tag: ['@a11y'] },
 
   await wizard.goto('legacy_claim');
   await expect(wizard.heading).toBeVisible();
-  await expect(wizard.skipButton).toBeVisible();
+  await expect(wizard.continueWithoutLinkingButton).toBeVisible();
   const identifierLabel = page.locator('label[for="identifier"]');
   await expect(identifierLabel).toBeVisible();
 
-  await wizard.skipCurrentTask();
+  await wizard.answerCurrentTask();
 
-  const tasks = ['club_affiliations'];
-  for (const taskType of tasks) {
-    await wizard.goto(taskType);
-    const status = await page.evaluate(() => document.readyState);
-    if (status === 'complete') {
-      await expect(wizard.heading).toBeVisible();
-      await expect(wizard.skipButton).toBeVisible();
-    }
-  }
+  // The club step is reached by the advance above; it carries its own heading
+  // and its own explicit answer control.
+  expect(page.url()).toContain('club_affiliations');
+  await expect(wizard.heading).toBeVisible();
+  await expect(wizard.noClubsButton).toBeVisible();
 
   await context.close();
 });
 
-test('club-affiliations disambiguation group is a labelled fieldset', { tag: ['@a11y'] }, async ({ browser, baseURL }) => {
-  // Two candidate clubs in one city produce the disambiguation card. Its
-  // checkboxes must be grouped in a fieldset whose legend carries the question,
-  // so a screen reader announces the choice and the group together.
+test('club-affiliations disambiguation group is a single-select labelled fieldset', { tag: ['@a11y'] }, async ({ browser, baseURL }) => {
+  // Two candidate clubs in one city produce the disambiguation card. It resolves
+  // only which club is the member's, so the options are radios sharing one name
+  // rather than independent checkboxes, grouped in a fieldset whose legend
+  // carries the question so a screen reader announces choice and group together.
   const db = openLiveDb();
   const persona = seedMemberWithClubCards(db, {
     slug: `e2e_club_fieldset_${Date.now()}`,
@@ -254,17 +229,18 @@ test('club-affiliations disambiguation group is a labelled fieldset', { tag: ['@
 
   const legend = fieldset.locator('legend.card-title');
   await expect(legend).toBeVisible();
-  await expect(legend).toContainText(/Which clubs in .+ were you part of\?/);
+  await expect(legend).toContainText(/Which of these clubs in .+ were you part of\?/);
 
-  const checkboxes = fieldset.locator('input[type="checkbox"][name="selectedCandidateIds"]');
-  expect(await checkboxes.count()).toBeGreaterThan(0);
+  const radios = fieldset.locator('input[type="radio"][name="selectedCandidateIds"]');
+  expect(await radios.count()).toBeGreaterThan(1);
+  await expect(fieldset.locator('input[type="checkbox"]')).toHaveCount(0);
 
   await context.close();
 });
 
 // ── Keyboard navigation ──────────────────────────────────────────────────────
 
-test('wizard skip button is keyboard-reachable and activatable', { tag: ['@a11y'] }, async ({ browser, baseURL }) => {
+test('the continue-without-linking answer is keyboard-reachable and activatable', { tag: ['@a11y'] }, async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const persona = seedTier0Member(db, { slug: `e2e_kbd_${Date.now()}` });
   completePersonalDetails(db, persona.memberId);
@@ -281,8 +257,8 @@ test('wizard skip button is keyboard-reachable and activatable', { tag: ['@a11y'
   // exercising keyboard activation of the button itself.
   await wizard.noOldAccountCheckbox.check();
 
-  await wizard.skipButton.focus();
-  await expect(wizard.skipButton).toBeFocused();
+  await wizard.continueWithoutLinkingButton.focus();
+  await expect(wizard.continueWithoutLinkingButton).toBeFocused();
 
   await page.keyboard.press('Enter');
   await page.waitForURL(/\/register\/wizard\/(?!legacy_claim)/);

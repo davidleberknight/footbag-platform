@@ -28,7 +28,7 @@ compile error at every call site.
 - `page.sectionKey` selects the active nav section; `page.pageKey` is a unique page id; `page.title`
   is the displayed h1 (distinct from `seo.title`); `eyebrow` / `intro` / `notice` are optional.
 - `navigation` (breadcrumbs / siblings / contextLinks) is service-provided. Middleware separately
-  provides `currentSection` and `isAuthenticated` via `res.locals`; those are not part of the
+  provides `currentSection`, `isAuthenticated`, and `isMember` via `res.locals`; those are not part of the
   service contract.
 - `content` holds page-specific regions. Services compute every href and every domain-derived label
   and boolean; templates render them. Templates never construct URLs or derive labels.
