@@ -360,7 +360,7 @@ Impact:
 
 Decision:
 
-Container memory limits: Docker memory limits are explicitly set for each container preventing unbounded memory consumption. Authoritative allocation values are defined and implemented in docker-compose.yml. The following are deployment sizing estimates subject to tuning based on observed production usage.
+Container memory limits: Docker memory limits are explicitly set for each container preventing unbounded memory consumption. Authoritative allocation values are defined and implemented in docker-compose.yml. The following are deployment sizing estimates subject to tuning based on observed production usage. The host survives any container workload: a container that exceeds its budget dies by its own cgroup limit while the host stays responsive. On a host too small to hold every limit simultaneously, the sum of limits may exceed host RAM only where the sole memory-spiking workload is admission-gated on host available memory before it starts and the host carries a disk-backed swapfile; the staging host runs with that explicit residual, and production's limits fit within its RAM.
 
 Initial Allocations (Subject to Adjustment):
 
@@ -384,7 +384,7 @@ Rationale:
 
 - **worker** is smaller due to asynchronous processing: Background jobs process sequentially or with limited concurrency. Email sending, nightly backups, do not require high memory. 384MB sufficient for runtime and job processing. 
 
-- **image** is largest due to Sharp library: Image processing library loads entire image into memory, performs transformations, and outputs new format. Sharp decodes the entire source image into an uncompressed raster before resizing. Uploads are capped at 25MB and PNG is accepted (PNG has no shrink-on-load, so a large PNG decodes in full), and each upload generates its thumbnail and display variants as two parallel Sharp pipelines, so one upload holds two simultaneous decodes. The production host runs two uploads concurrently, so up to four decodes can be in flight; 896MB provides the safety margin, and smaller hosts scale the memory limit and the concurrency cap down together. 
+- **image** is largest due to Sharp library: Image processing library loads entire image into memory, performs transformations, and outputs new format. Sharp decodes the entire source image into an uncompressed raster before resizing. Uploads are capped at 25MB and PNG is accepted (PNG has no shrink-on-load, so a large PNG decodes in full), and each upload generates its thumbnail and display variants as two parallel Sharp pipelines, so one upload holds two simultaneous decodes. The production host runs two uploads concurrently, so up to four decodes can be in flight; 896MB provides the safety margin, and smaller hosts scale the memory limit and the concurrency cap down together. The video transcode path holds no source or output buffers in the container: bytes stream between storage and disk, so its memory cost is the encoder child's working set, bounded by the output height ceiling and the x264 tuning. 
 
 Trade-offs:
 
@@ -392,7 +392,7 @@ Trade-offs:
 
 - Over-allocation risk: If containers use significantly less than allocated memory, instance is under-utilized. Acceptable for operational stability.
 
-- Under-allocation risk: If containers exceed limits, Docker kills process (OOM).
+- Under-allocation risk: If containers exceed limits, Docker kills the process (OOM). The kill is contained by design: limits, admission control, and host swap are arranged so the host itself keeps running.
 
 - Requires careful monitoring and adjustment during early production operation.
 
@@ -402,7 +402,7 @@ Impact:
 
 - docker-compose.yml specifies memory limits for each container using the `deploy.resources.limits.memory` directive, with per-environment values supplied through the host env.
 
-- Container will be killed (OOM) if exceeds allocated memory. Health checks and restart policies ensure container restarts automatically.
+- Container will be killed (OOM) if exceeds allocated memory. Health checks and restart policies ensure container restarts automatically, and the host survives the episode: no single container's ceiling can exhaust what the host and its swap can supply.
 
 - CloudWatch agent monitors container-level memory usage via docker stats API.
 
@@ -3573,7 +3573,7 @@ State machine for media_jobs:
 
 - pending_transcode: bytes confirmed in S3 by /finalize; job dispatched to worker.
 
-- processing: worker has claimed the row via optimistic UPDATE; lease_expires_at set so a crashed worker's row can be reclaimed at next worker boot.
+- processing: worker has claimed the row via optimistic UPDATE; lease_expires_at set so a row stranded by a crashed or restarted worker can be reclaimed once its lease expires.
 
 - succeeded: media_items row written and pending source keys deleted.
 
@@ -3581,7 +3581,9 @@ State machine for media_jobs:
 
 - abandoned: pending_upload row past its TTL.
 
-There is no polling anywhere. The only sweep is a one-shot boot-time scan in the worker for orphaned processing rows whose lease has expired; those reset to pending_transcode for re-dispatch. All other transitions are HTTP push events.
+The only sweep is the worker's expired-lease scan for orphaned processing rows, run once at boot and repeated on a slow reap cycle; matched rows reset to pending_transcode for re-dispatch. The recurring pass exists because a lease can outlive the process that held it: a row claimed shortly before a restart still holds a live lease when the boot scan runs, is correctly left alone there, and its lease then expires with no further boot coming. Only expired leases are ever reclaimed, so a live claim is never touched whatever process topology is running. All other transitions are HTTP push events.
+
+The worker-side transcode is streaming end to end: the image container downloads the source to a disk temp file in bounded chunks under a running byte cap, runs ffmpeg file-to-file, and uploads the result from disk with an explicit Content-Length, so no video bytes are ever held whole in memory and peak memory is the encoder's working set regardless of file size. Before any encode starts, the worker compares the host's available memory against a configured admission floor and answers busy (503 with Retry-After) when the host is too low; the dispatcher treats that as pressure, waiting the advised interval and re-attempting a bounded number of times without consuming the job's retry budget. The job lease is validated at boot to exceed a full transcode attempt plus the maximum busy wait, so an expired lease remains proof that its holder is gone.
 
 Authentication seams: web-to-worker dispatch and worker-to-web event push share an INTERNAL_EVENT_SECRET; /ipc/* routes on web are dropped at the nginx perimeter so they are reachable only from the docker internal network. SSE is gated by the admin session cookie. Direct-S3 PUT is gated by the bucket CORS policy (allowed_origins limited to the canonical public origin) and the time-bounded signed URL.
 
@@ -3628,6 +3630,7 @@ Availability of external-platform reference URLs is verified via the platform oE
 Requirements:
 
 - The image-worker container holds no AWS credentials. The web container generates short-lived presigned GET URLs (read source) and PUT URLs (write final variants) and passes them to the worker. The worker's only AWS-network exposure is via those signed URLs, so a worker compromise cannot enumerate or delete S3 objects outside the per-job key set.
+- The image-worker container is given none of the web application's environment contract, and no module it loads reads that contract. It decodes untrusted media unprivileged with capabilities dropped, and the web contract carries the session secret, public base URL, and database path, which that process neither should hold nor can satisfy. Its encoder bounds are read at its own entry point and passed into the transcode path as arguments, so each bound keeps one definition across both processes.
 - Presigned PUT URLs use the lowest TTL that still covers the upload window (single-digit minutes). The `/sign` controller does not issue long-lived URLs and does not pre-sign keys outside the active job.
 - User-facing error messages from the transcode pipeline truncate ffmpeg stderr to a documented byte limit and never include filesystem paths or container-internal identifiers. Full stderr is written to the worker log, not surfaced to the browser.
 - `markDeadLetter` writes a NULL `body_text` (or equivalent payload-stripped marker) when the failure cause is suspected payload toxicity, so the dead-letter table cannot itself become a malware-replay vector when an operator triages the queue.

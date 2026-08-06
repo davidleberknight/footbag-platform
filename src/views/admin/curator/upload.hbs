@@ -35,7 +35,7 @@
     </noscript>
   {{/if}}
 
-  <form action="/admin/curator/upload" method="POST" enctype="multipart/form-data"{{#if asyncEnabled}} data-async-enabled="true"{{/if}} class="upload-form">
+  <form action="/admin/curator/upload" method="POST" enctype="multipart/form-data"{{#if asyncEnabled}} data-async-enabled="true"{{/if}} data-video-max-bytes="{{videoMaxBytes}}" class="upload-form">
 
     <div class="upload-tabs">
       {{!-- Hidden radios act as the tab control. The mediaType field is
@@ -78,7 +78,7 @@
             <legend>Video file + poster</legend>
             <p>
               <label>
-                Video file (MP4 / WebM / MOV, up to 150&nbsp;MB):
+                Video file (MP4 / WebM / MOV, up to {{videoMaxMb}}&nbsp;MB):
                 <input type="file" name="mediaFile" accept="video/mp4,video/webm,video/quicktime">
               </label>
             </p>

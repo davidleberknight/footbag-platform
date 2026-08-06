@@ -47,6 +47,12 @@ process.env.SECRETS_ADAPTER         ??= 'stub';
 // guard. Default is fine because the value never leaves test space.
 process.env.INTERNAL_EVENT_SECRET   ??= 'test-internal-event-secret';
 
+// The transcode admission gate compares real host memory against a floor, so
+// left on it would make unrelated video-route tests pass or fail with the
+// machine's memory weather. Disabled process-wide; the gate's own tests
+// enable it deterministically through the createImageWorkerApp seams.
+process.env.VIDEO_MIN_HOST_AVAILABLE_MB ??= '0';
+
 // Seeded preview-user password used by integration tests that insert the
 // Footbag Hacky test account and then authenticate as it. Tests read
 // `process.env.STUB_PASSWORD` with no string fallback so no credential

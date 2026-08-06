@@ -12,7 +12,12 @@ import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import {
   buildFfmpegArgs,
   detectVideoFormat,
+  detectVideoFormatFile,
+  FFMPEG_STDERR_TAIL_BYTES,
+  FfmpegExecutionError,
   transcodeCuratorVideo,
+  transcodeCuratorVideoFile,
+  type VideoTranscodeTuning,
 } from '../../src/lib/videoProcessing';
 
 const ffmpegAvailable =
@@ -176,12 +181,201 @@ describe('buildFfmpegArgs', () => {
   });
 });
 
+describe('file-based transcode API', () => {
+  async function withTempDir<T>(fn: (dir: string) => Promise<T>): Promise<T> {
+    const { mkdtempSync, rmSync } = await import('node:fs');
+    const path = await import('node:path');
+    const os = await import('node:os');
+    const dir = mkdtempSync(path.join(os.tmpdir(), 'footbag-test-videofile-'));
+    try {
+      return await fn(dir);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+
+  it('detectVideoFormatFile reads only the leading bytes from disk', async () => {
+    await withTempDir(async (dir) => {
+      const { writeFileSync } = await import('node:fs');
+      const path = await import('node:path');
+      const mp4 = Buffer.alloc(32);
+      mp4.write('ftyp', 4, 'ascii');
+      mp4.write('mp42', 8, 'ascii');
+      const mp4Path = path.join(dir, 'a.bin');
+      writeFileSync(mp4Path, mp4);
+      expect(await detectVideoFormatFile(mp4Path)).toBe('mp4');
+
+      const webmPath = path.join(dir, 'b.bin');
+      writeFileSync(webmPath, Buffer.from([0x1a, 0x45, 0xdf, 0xa3, 0, 0, 0, 0, 0, 0, 0, 0]));
+      expect(await detectVideoFormatFile(webmPath)).toBe('webm');
+
+      const shortPath = path.join(dir, 'c.bin');
+      writeFileSync(shortPath, Buffer.alloc(4));
+      expect(await detectVideoFormatFile(shortPath)).toBeNull();
+
+      const garbagePath = path.join(dir, 'd.bin');
+      writeFileSync(garbagePath, Buffer.alloc(32, 0xff));
+      expect(await detectVideoFormatFile(garbagePath)).toBeNull();
+    });
+  });
+
+  it('transcodeCuratorVideoFile refuses a file whose magic bytes are unrecognized', async () => {
+    await withTempDir(async (dir) => {
+      const { writeFileSync } = await import('node:fs');
+      const path = await import('node:path');
+      const inputPath = path.join(dir, 'in.bin');
+      writeFileSync(inputPath, Buffer.alloc(32, 0xff));
+      await expect(
+        transcodeCuratorVideoFile(inputPath, path.join(dir, 'out.mp4')),
+      ).rejects.toThrow('unrecognized video format');
+    });
+  });
+
+  it.skipIf(process.platform === 'win32')(
+    'scrubs both the input and output directories from a failed run',
+    async () => {
+      // Input and output live in different directories, the way a caller that
+      // owns its own temp layout may arrange them; the encoder banner echoes
+      // both paths and neither may survive into the error.
+      const { mkdtempSync, writeFileSync, rmSync } = await import('node:fs');
+      const path = await import('node:path');
+      const os = await import('node:os');
+      const inDir = mkdtempSync(path.join(os.tmpdir(), 'footbag-test-vin-'));
+      const outDir = mkdtempSync(path.join(os.tmpdir(), 'footbag-test-vout-'));
+      const shimDir = mkdtempSync(path.join(os.tmpdir(), 'footbag-test-ffmpeg-shim-'));
+      const originalPath = process.env.PATH;
+      try {
+        const inputPath = path.join(inDir, 'in.bin');
+        const mp4 = Buffer.alloc(32);
+        mp4.write('ftyp', 4, 'ascii');
+        mp4.write('mp42', 8, 'ascii');
+        writeFileSync(inputPath, mp4);
+        writeFileSync(
+          path.join(shimDir, 'ffmpeg'),
+          '#!/bin/sh\neval last=\\${$#}\necho "opening $2 writing $last" 1>&2\nexit 2\n',
+          { mode: 0o755 },
+        );
+        process.env.PATH = `${shimDir}:${originalPath ?? ''}`;
+        let caught: unknown = null;
+        try {
+          await transcodeCuratorVideoFile(inputPath, path.join(outDir, 'out.mp4'));
+        } catch (err) {
+          caught = err;
+        }
+        expect(caught).toBeInstanceOf(FfmpegExecutionError);
+        const fferr = caught as FfmpegExecutionError;
+        expect(fferr.stderrTail).not.toContain(inDir);
+        expect(fferr.stderrTail).not.toContain(outDir);
+        expect(fferr.message).not.toContain(inDir);
+        expect(fferr.message).not.toContain(outDir);
+        expect(fferr.stderrTail).toContain('[tmp]');
+      } finally {
+        process.env.PATH = originalPath;
+        rmSync(inDir, { recursive: true, force: true });
+        rmSync(outDir, { recursive: true, force: true });
+        rmSync(shimDir, { recursive: true, force: true });
+      }
+    },
+  );
+});
+
 describe('transcodeCuratorVideo', () => {
   it('rejects unrecognized input format with no ffmpeg invocation', async () => {
     const garbage = Buffer.alloc(16, 0xff);
     await expect(transcodeCuratorVideo(garbage)).rejects.toThrow(
       'unrecognized video format',
     );
+  });
+
+  // Failure classification runs against a fake ffmpeg on PATH: a shell shim
+  // that fails in a controlled way stands in for the encoder, so the kill,
+  // exit, and timeout branches are exercised without a real encode. Shell
+  // shims need a POSIX shell, hence the platform gate.
+  const posixOnly = process.platform !== 'win32';
+
+  function fakeMp4Input(): Buffer {
+    const buf = Buffer.alloc(16);
+    buf.write('ftyp', 4, 'ascii');
+    buf.write('mp42', 8, 'ascii');
+    return buf;
+  }
+
+  async function runWithFakeFfmpeg(
+    script: string,
+    tuning?: VideoTranscodeTuning,
+  ): Promise<unknown> {
+    const { mkdtempSync, writeFileSync, rmSync } = await import('node:fs');
+    const path = await import('node:path');
+    const os = await import('node:os');
+    const shimDir = mkdtempSync(path.join(os.tmpdir(), 'footbag-test-ffmpeg-shim-'));
+    const shimPath = path.join(shimDir, 'ffmpeg');
+    writeFileSync(shimPath, `#!/bin/sh\n${script}\n`, { mode: 0o755 });
+    const originalPath = process.env.PATH;
+    process.env.PATH = `${shimDir}:${originalPath ?? ''}`;
+    try {
+      await transcodeCuratorVideo(fakeMp4Input(), tuning);
+      return null;
+    } catch (err) {
+      return err;
+    } finally {
+      process.env.PATH = originalPath;
+      rmSync(shimDir, { recursive: true, force: true });
+    }
+  }
+
+  it.skipIf(!posixOnly)(
+    'classifies an externally killed encoder as a signal kill, not an exit code',
+    async () => {
+      const err = await runWithFakeFfmpeg('kill -KILL $$');
+      expect(err).toBeInstanceOf(FfmpegExecutionError);
+      const fferr = err as FfmpegExecutionError;
+      expect(fferr.kind).toBe('signal');
+      expect(fferr.exitCode).toBeNull();
+      expect(fferr.signal).toBe('SIGKILL');
+      expect(fferr.message).toContain('killed by SIGKILL');
+      expect(fferr.message).not.toContain('code null');
+    },
+  );
+
+  it.skipIf(!posixOnly)(
+    'classifies a non-zero encoder exit and scrubs the temp directory from stderr and message',
+    async () => {
+      // The shim echoes its input path ($2 follows -i) the way the real
+      // encoder's banner does.
+      const err = await runWithFakeFfmpeg('echo "opening $2" 1>&2; exit 2');
+      expect(err).toBeInstanceOf(FfmpegExecutionError);
+      const fferr = err as FfmpegExecutionError;
+      expect(fferr.kind).toBe('exit');
+      expect(fferr.exitCode).toBe(2);
+      expect(fferr.signal).toBeNull();
+      expect(fferr.stderrTail).toContain('[tmp]');
+      expect(fferr.stderrTail).not.toContain('curator-video-');
+      expect(fferr.message).not.toContain('curator-video-');
+    },
+  );
+
+  it.skipIf(!posixOnly)(
+    'classifies its own watchdog kill as a timeout naming the ceiling',
+    async () => {
+      // exec replaces the shell so the watchdog's kill lands on the sleeping
+      // process itself; a sleep left running as a child would keep the stderr
+      // pipe open and delay the close event past the kill.
+      const err = await runWithFakeFfmpeg('exec sleep 30', { timeoutMs: 200 });
+      expect(err).toBeInstanceOf(FfmpegExecutionError);
+      const fferr = err as FfmpegExecutionError;
+      expect(fferr.kind).toBe('timeout');
+      expect(fferr.message).toBe('ffmpeg timed out after 200 ms');
+    },
+  );
+
+  it.skipIf(!posixOnly)('keeps only the bounded tail of a large stderr stream', async () => {
+    const err = await runWithFakeFfmpeg(
+      "head -c 5000 /dev/zero | tr '\\0' 'x' 1>&2; exit 1",
+    );
+    expect(err).toBeInstanceOf(FfmpegExecutionError);
+    const fferr = err as FfmpegExecutionError;
+    expect(fferr.stderrTail.length).toBeLessThanOrEqual(FFMPEG_STDERR_TAIL_BYTES);
+    expect(fferr.stderrTail.length).toBeGreaterThan(0);
   });
 
   it.skipIf(!ffmpegAvailable)(

@@ -12,6 +12,7 @@ import { insertMember, insertMediaItem } from '../fixtures/factories';
 const { dbPath } = setTestEnv('3120');
 
 let createMediaJobService: typeof import('../../src/services/mediaJobService').createMediaJobService;
+let MEDIA_JOB_LAST_ERROR_MAX_LENGTH: number;
 let ConflictError: typeof import('../../src/services/serviceErrors').ConflictError;
 let NotFoundError: typeof import('../../src/services/serviceErrors').NotFoundError;
 let ValidationError: typeof import('../../src/services/serviceErrors').ValidationError;
@@ -27,6 +28,7 @@ beforeAll(async () => {
   const svcMod = await import('../../src/services/mediaJobService');
   const errMod = await import('../../src/services/serviceErrors');
   createMediaJobService = svcMod.createMediaJobService;
+  MEDIA_JOB_LAST_ERROR_MAX_LENGTH = svcMod.MEDIA_JOB_LAST_ERROR_MAX_LENGTH;
   ConflictError = errMod.ConflictError;
   NotFoundError = errMod.NotFoundError;
   ValidationError = errMod.ValidationError;
@@ -223,6 +225,20 @@ describe('markFailed', () => {
     const row = readRow(id);
     expect(row?.state).toBe('failed');
     expect(row?.last_error).toBe('third');
+  });
+
+  it('bounds an oversized error message before persisting it', () => {
+    // last_error is rendered on the admin status page and carried on failure
+    // events, so an upstream message of arbitrary size (a wrapped response
+    // body, an encoder dump) must not ride into those surfaces via
+    // persistence.
+    const svc = createMediaJobService();
+    const id = setupProcessing(svc);
+    const oversized = 'e'.repeat(MEDIA_JOB_LAST_ERROR_MAX_LENGTH * 5);
+    svc.markFailed(id, oversized, 1);
+    const row = readRow(id);
+    expect(row?.state).toBe('failed');
+    expect((row?.last_error as string).length).toBe(MEDIA_JOB_LAST_ERROR_MAX_LENGTH);
   });
 
   it('throws ConflictError when not in processing state', () => {

@@ -8,11 +8,90 @@
  * reject `video_platform='s3'` to enforce this restriction at the boundary.
  */
 import { spawn } from 'node:child_process';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, open, readFile, rm, writeFile } from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
-import { config } from '../config/env';
+/**
+ * The single definition of each encoder bound's default.
+ *
+ * This module reads no environment of its own, deliberately. It is loaded by
+ * the media container, which runs unprivileged with every capability dropped
+ * and is given none of the web environment contract: no session secret, no
+ * public base URL, no database path. Reaching the application config from here
+ * would impose that contract on a process that cannot satisfy it and would stop
+ * the container from starting at all. The container's entry point reads its own
+ * deploy-time bounds and passes them in, so the values arrive as arguments and
+ * this module stays loadable anywhere.
+ *
+ * Each default is applied here when a caller supplies no value, and the
+ * application config imports it as the default it validates an operator
+ * override against. Defining each one once is what makes the two sides of that
+ * boundary agree: a second literal on the config side would drift silently the
+ * first time either was changed alone.
+ */
+export const DEFAULT_VIDEO_MAX_HEIGHT = 1080;
+export const DEFAULT_FFMPEG_TIMEOUT_MS = 240_000;
+
+/**
+ * How much encoder stderr is kept, and how much of it any user-facing message
+ * may carry. The full tail belongs in the worker log, where an operator reads
+ * it; a curator-facing message is capped at the public limit because encoder
+ * output is diagnostic noise to them and can echo infrastructure detail.
+ */
+export const FFMPEG_STDERR_TAIL_BYTES = 2000;
+export const FFMPEG_STDERR_PUBLIC_LIMIT_BYTES = 512;
+
+/**
+ * A failed ffmpeg run, classified so callers can branch on what happened
+ * without parsing message strings:
+ *
+ *   - 'timeout': this module's own watchdog killed a run that exceeded its
+ *     time ceiling.
+ *   - 'signal': something outside this module killed the process — on a
+ *     memory-limited container that is the cgroup enforcing its ceiling, which
+ *     arrives as an exit code of null and a signal.
+ *   - 'exit': ffmpeg itself failed and returned a non-zero exit code.
+ */
+export class FfmpegExecutionError extends Error {
+  readonly kind: 'timeout' | 'signal' | 'exit';
+  readonly exitCode: number | null;
+  readonly signal: NodeJS.Signals | null;
+  readonly timeoutMs?: number;
+  readonly stderrTail: string;
+
+  constructor(fields: {
+    kind: 'timeout' | 'signal' | 'exit';
+    exitCode: number | null;
+    signal: NodeJS.Signals | null;
+    timeoutMs?: number;
+    stderrTail: string;
+  }) {
+    super(composeFfmpegErrorMessage(fields));
+    this.name = 'FfmpegExecutionError';
+    this.kind = fields.kind;
+    this.exitCode = fields.exitCode;
+    this.signal = fields.signal;
+    this.timeoutMs = fields.timeoutMs;
+    this.stderrTail = fields.stderrTail;
+  }
+}
+
+function composeFfmpegErrorMessage(fields: {
+  kind: 'timeout' | 'signal' | 'exit';
+  exitCode: number | null;
+  signal: NodeJS.Signals | null;
+  timeoutMs?: number;
+  stderrTail: string;
+}): string {
+  if (fields.kind === 'timeout') {
+    return `ffmpeg timed out after ${fields.timeoutMs} ms`;
+  }
+  if (fields.kind === 'signal') {
+    return `ffmpeg killed by ${fields.signal}: ${fields.stderrTail}`;
+  }
+  return `ffmpeg exited with code ${fields.exitCode}: ${fields.stderrTail}`;
+}
 
 /**
  * Height cap for the output, expressed so the encoder never upscales: a source
@@ -56,6 +135,31 @@ export interface VideoTranscodeTuning {
   rcLookahead?: number;
   /** Output height ceiling; defaults to the configured value. Never upscales. */
   maxHeight?: number;
+  /**
+   * Ceiling on one ffmpeg run, in milliseconds. A malformed input can put the
+   * encoder into a loop that consumes a core and produces nothing; unbounded,
+   * that holds the worker's video slot forever and the media job neither
+   * completes nor fails.
+   */
+  timeoutMs?: number;
+}
+
+/**
+ * detectVideoFormat against a file on disk, reading only the leading magic
+ * bytes. Exists so the streaming path can validate an input that was never
+ * held in memory as a whole.
+ */
+export async function detectVideoFormatFile(
+  filePath: string,
+): Promise<CuratorVideoFormat | null> {
+  const handle = await open(filePath, 'r');
+  try {
+    const header = Buffer.alloc(12);
+    const { bytesRead } = await handle.read(header, 0, 12, 0);
+    return detectVideoFormat(header.subarray(0, bytesRead));
+  } finally {
+    await handle.close();
+  }
 }
 
 /**
@@ -111,7 +215,7 @@ export function buildFfmpegArgs(
     '-map', '0:a?',
     '-map_metadata', '-1',
     '-map_chapters', '-1',
-    '-vf', buildHeightCapFilter(tuning?.maxHeight ?? config.videoMaxHeight),
+    '-vf', buildHeightCapFilter(tuning?.maxHeight ?? DEFAULT_VIDEO_MAX_HEIGHT),
     '-c:v', 'libx264',
     ...x264Tuning,
     '-c:a', 'aac',
@@ -123,17 +227,59 @@ export function buildFfmpegArgs(
 }
 
 /**
- * Transcode an input video buffer to a sanitized MP4 buffer.
- *
- * Spawns ffmpeg as a subprocess, reading from a temp file (ffmpeg cannot
- * reliably seek a stdin pipe for non-streamable inputs). Stdout/stderr
- * are captured for error reporting. The temp directory is cleaned up
- * unconditionally, even on failure.
+ * Transcode a video file on disk to a sanitized MP4 file on disk. The
+ * streaming counterpart of transcodeCuratorVideo: no video bytes are ever
+ * held in this process's memory, so peak memory is the encoder child's
+ * working set alone, independent of file size. The caller owns both paths
+ * and their cleanup; outputPath must end in .mp4 so ffmpeg picks the muxer.
  *
  * Errors:
- *   - 'ffmpeg exited with code N: <stderr tail>' on non-zero exit.
- *   - 'unrecognized video format' if the input magic bytes do not match
+ *   - FfmpegExecutionError, classified by `kind`, when the ffmpeg run fails.
+ *     Its stderr tail and message never contain either file's directory.
+ *   - 'unrecognized video format' if the file's magic bytes do not match
  *     the curator-video input whitelist.
+ */
+export async function transcodeCuratorVideoFile(
+  inputPath: string,
+  outputPath: string,
+  tuning?: VideoTranscodeTuning,
+): Promise<{ outputFormat: 'mp4' }> {
+  const detected = await detectVideoFormatFile(inputPath);
+  if (!detected) {
+    throw new Error('unrecognized video format');
+  }
+  try {
+    await runFfmpeg(buildFfmpegArgs(inputPath, outputPath, tuning),
+                    tuning?.timeoutMs ?? DEFAULT_FFMPEG_TIMEOUT_MS);
+  } catch (err) {
+    // ffmpeg echoes its input and output paths in its banner, so the captured
+    // stderr routinely carries their directories. Only this function knows
+    // those paths exactly, so they are scrubbed here rather than
+    // pattern-guessed by a caller; no caller may surface a filesystem path.
+    if (err instanceof FfmpegExecutionError) {
+      throw new FfmpegExecutionError({
+        kind: err.kind,
+        exitCode: err.exitCode,
+        signal: err.signal,
+        timeoutMs: err.timeoutMs,
+        stderrTail: err.stderrTail
+          .split(path.dirname(inputPath)).join('[tmp]')
+          .split(path.dirname(outputPath)).join('[tmp]'),
+      });
+    }
+    throw err;
+  }
+  return { outputFormat: 'mp4' };
+}
+
+/**
+ * Transcode an input video buffer to a sanitized MP4 buffer, via temp files
+ * and transcodeCuratorVideoFile. Holds the whole input and output in memory,
+ * so it is only for callers on hosts with adequate memory (the operator
+ * seeder, local development, tests); the storage-fed worker route uses the
+ * file variant and never buffers video bytes.
+ *
+ * Errors: same as transcodeCuratorVideoFile.
  */
 export async function transcodeCuratorVideo(
   input: Buffer,
@@ -150,7 +296,7 @@ export async function transcodeCuratorVideo(
 
   try {
     await writeFile(inputPath, input);
-    await runFfmpeg(buildFfmpegArgs(inputPath, outputPath, tuning));
+    await transcodeCuratorVideoFile(inputPath, outputPath, tuning);
     const bytes = await readFile(outputPath);
     return { bytes, outputFormat: 'mp4' };
   } finally {
@@ -166,7 +312,7 @@ export async function transcodeCuratorVideo(
  */
 function runFfmpeg(
   args: string[],
-  timeoutMs: number = config.ffmpegTimeoutSeconds * 1000,
+  timeoutMs: number = DEFAULT_FFMPEG_TIMEOUT_MS,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const proc = spawn('ffmpeg', args, { stdio: ['ignore', 'ignore', 'pipe'] });
@@ -180,20 +326,32 @@ function runFfmpeg(
       proc.kill('SIGKILL');
     }, timeoutMs);
     proc.stderr.on('data', (chunk: Buffer) => {
-      stderrTail = (stderrTail + chunk.toString('utf8')).slice(-2000);
+      stderrTail = (stderrTail + chunk.toString('utf8')).slice(-FFMPEG_STDERR_TAIL_BYTES);
     });
     proc.on('error', (err) => {
       clearTimeout(timer);
       reject(err);
     });
-    proc.on('close', (code) => {
+    // A process killed by a signal closes with a null code and the signal set.
+    // Binding only the code would report the literal "code null" and lose the
+    // one fact that distinguishes an external kill (a memory-ceiling
+    // enforcement) from an encoder failure.
+    proc.on('close', (code, signal) => {
       clearTimeout(timer);
       if (timedOut) {
-        reject(new Error(`ffmpeg timed out after ${timeoutMs} ms`));
+        reject(new FfmpegExecutionError({
+          kind: 'timeout', exitCode: code, signal, timeoutMs, stderrTail,
+        }));
       } else if (code === 0) {
         resolve();
+      } else if (signal !== null) {
+        reject(new FfmpegExecutionError({
+          kind: 'signal', exitCode: code, signal, timeoutMs, stderrTail,
+        }));
       } else {
-        reject(new Error(`ffmpeg exited with code ${code}: ${stderrTail}`));
+        reject(new FfmpegExecutionError({
+          kind: 'exit', exitCode: code, signal, timeoutMs, stderrTail,
+        }));
       }
     });
   });

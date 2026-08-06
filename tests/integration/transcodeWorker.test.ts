@@ -3,7 +3,7 @@
  * worker container. Covers shared-secret auth, claim contention, success and
  * failure event emission, and boot-time orphan recovery.
  */
-import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from 'vitest';
 import { expectLoggedError } from '../setup-env';
 import BetterSqlite3 from 'better-sqlite3';
 import request from '../fixtures/supertestWithOrigin';
@@ -15,6 +15,7 @@ const { dbPath } = setTestEnv('3155');
 
 let createMediaJobService: typeof import('../../src/services/mediaJobService').createMediaJobService;
 let createTranscodeWorker: typeof import('../../src/transcodeWorker').createTranscodeWorker;
+let VideoTranscodingError: typeof import('../../src/adapters/videoTranscodingAdapter').VideoTranscodingError;
 
 let adminId: string;
 
@@ -24,8 +25,10 @@ beforeAll(async () => {
   db.close();
   const svcMod = await import('../../src/services/mediaJobService');
   const wkMod = await import('../../src/transcodeWorker');
+  const adapterMod = await import('../../src/adapters/videoTranscodingAdapter');
   createMediaJobService = svcMod.createMediaJobService;
   createTranscodeWorker = wkMod.createTranscodeWorker;
+  VideoTranscodingError = adapterMod.VideoTranscodingError;
 });
 
 afterAll(() => cleanupTestDb(dbPath));
@@ -368,6 +371,183 @@ describe('recoverOnBoot', () => {
     const row = readRow(jobId);
     expect(row?.state).toBe('pending_transcode');
     expect(row?.retry_count).toBe(0);
+  });
+});
+
+/**
+ * The recurring expired-lease pass. A job claimed shortly before a restart
+ * holds a live lease at boot, is correctly left alone there, and its lease
+ * then expires with no further boot coming; this pass, run on a cycle from the
+ * worker's reap loop, is what revisits the row. Only provably-dead leases are
+ * reclaimed.
+ */
+describe('reapExpiredProcessing', () => {
+  it('reclaims a processing row after its lease expires and runs it to completion', async () => {
+    const svc = createMediaJobService();
+    const jobId = seedPendingTranscode();
+    // The orphan scenario: a previous process claimed the row, then died;
+    // by the time this pass runs, the lease it held has expired.
+    svc.claimForProcessing(jobId, '2024-01-01T00:00:00.000Z');
+
+    const events: CapturedEvent[] = [];
+    seedMediaItem('media_reaped_001');
+    const w = makeWorker({
+      finalize: async () => ({ mediaId: 'media_reaped_001' }),
+      events,
+    });
+
+    const result = await w.reapExpiredProcessing();
+    expect(result.reclaimedIds).toEqual([jobId]);
+    await w.pendingForTests();
+
+    const row = readRow(jobId);
+    expect(row?.state).toBe('succeeded');
+    expect(events.map((e) => e.state)).toContain('claimed');
+    expect(events.map((e) => e.state)).toContain('succeeded');
+  });
+
+  it('never touches a processing row whose lease is still live', async () => {
+    const svc = createMediaJobService();
+    const jobId = seedPendingTranscode();
+    svc.claimForProcessing(jobId, '2099-01-01T00:00:00.000Z');
+
+    const w = makeWorker({});
+    const result = await w.reapExpiredProcessing();
+    expect(result.reclaimedIds).toEqual([]);
+
+    const row = readRow(jobId);
+    expect(row?.state).toBe('processing');
+    expect(row?.lease_expires_at).toBe('2099-01-01T00:00:00.000Z');
+  });
+
+  it('leaves parked retry rows to the in-process retry loop and boot recovery', async () => {
+    const svc = createMediaJobService();
+    const jobId = seedPendingTranscode();
+    svc.claimForProcessing(jobId, '2099-01-01T00:00:00.000Z');
+    const parked = svc.markFailed(jobId, 'transient failure', 3);
+    expect(parked.state).toBe('pending_transcode');
+
+    const w = makeWorker({ maxRetries: 3 });
+    const result = await w.reapExpiredProcessing();
+    expect(result.reclaimedIds).toEqual([]);
+
+    const row = readRow(jobId);
+    expect(row?.state).toBe('pending_transcode');
+    expect(row?.retry_count).toBe(1);
+  });
+
+  it('returns empty when nothing is stranded', async () => {
+    const w = makeWorker({});
+    const result = await w.reapExpiredProcessing();
+    expect(result.reclaimedIds).toEqual([]);
+  });
+});
+
+/**
+ * A busy 503 from the media worker (slot taken, or the host below its memory
+ * admission floor) is pressure, not failure: the dispatcher waits the advised
+ * interval and retries the same attempt, bounded, without consuming the job's
+ * retry budget.
+ */
+describe('busy-refusal waits', () => {
+  function seedExpiredProcessing(): string {
+    const svc = createMediaJobService();
+    const jobId = seedPendingTranscode();
+    svc.claimForProcessing(jobId, '2020-01-01T00:00:00.000Z');
+    return jobId;
+  }
+
+  it('waits through busy answers and succeeds without consuming the retry budget', async () => {
+    vi.useFakeTimers();
+    try {
+      const jobId = seedExpiredProcessing();
+      const events: CapturedEvent[] = [];
+      seedMediaItem('media_busy_001');
+      let calls = 0;
+      const w = makeWorker({
+        finalize: async () => {
+          calls += 1;
+          if (calls <= 2) {
+            throw new VideoTranscodingError('video worker returned 503: busy', 503, 5);
+          }
+          return { mediaId: 'media_busy_001' };
+        },
+        events,
+        maxRetries: 1,
+      });
+
+      const result = await w.reapExpiredProcessing();
+      expect(result.reclaimedIds).toEqual([jobId]);
+      await vi.advanceTimersByTimeAsync(200_000);
+      await w.pendingForTests();
+
+      expect(calls).toBe(3);
+      const row = readRow(jobId);
+      expect(row?.state).toBe('succeeded');
+      // The busy waits consumed none of the retry budget: with maxRetries 1 a
+      // single markFailed would have been terminal.
+      expect(row?.retry_count).toBe(0);
+      expect(events.map((e) => e.state)).toContain('retrying');
+      expect(events.map((e) => e.state)).toContain('succeeded');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('falls through to the normal failure path when the busy budget is exhausted', async () => {
+    vi.useFakeTimers();
+    try {
+      expectLoggedError('transcodeWorker: finalize failed');
+      const jobId = seedExpiredProcessing();
+      const events: CapturedEvent[] = [];
+      let calls = 0;
+      const w = makeWorker({
+        finalize: async () => {
+          calls += 1;
+          throw new VideoTranscodingError('video worker returned 503: busy', 503, 5);
+        },
+        events,
+        maxRetries: 1,
+      });
+
+      await w.reapExpiredProcessing();
+      await vi.advanceTimersByTimeAsync(400_000);
+      await w.pendingForTests();
+
+      // Three waited re-attempts after the first, then the budget is spent and
+      // the normal markFailed path takes over (terminal at maxRetries 1).
+      expect(calls).toBe(4);
+      const row = readRow(jobId);
+      expect(row?.state).toBe('failed');
+      expect(events.map((e) => e.state)).toContain('failed');
+      // The admin-facing failure text is a plain actionable sentence, not the
+      // wrapped HTTP body of the busy answer.
+      expect(row?.last_error).toBe(
+        'the media worker stayed busy through every retry; wait a few minutes and re-upload',
+      );
+      expect(row?.last_error).not.toContain('503');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('a non-busy failure still fails through the retry path unchanged', async () => {
+    expectLoggedError('transcodeWorker: finalize failed');
+    const jobId = seedExpiredProcessing();
+    const events: CapturedEvent[] = [];
+    const w = makeWorker({
+      finalize: async () => {
+        throw new VideoTranscodingError('video worker returned 500: broken', 500);
+      },
+      events,
+      maxRetries: 1,
+    });
+
+    await w.reapExpiredProcessing();
+    await w.pendingForTests();
+
+    const row = readRow(jobId);
+    expect(row?.state).toBe('failed');
   });
 });
 

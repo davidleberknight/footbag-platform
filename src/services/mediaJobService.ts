@@ -10,10 +10,14 @@
  * changes are broadcast back to the web container via /ipc/job-events; this
  * service does not know about the event bus, only about persistence.
  *
- * Recovery is boot-time only: recoverOrphanedProcessingJobs resets rows whose
- * dispatch lease has expired (worker crashed mid-transcode) and
- * findRetryEligiblePendingTranscode lists parked retry rows; both run once at
- * worker startup. There is no steady-state polling.
+ * Recovery: recoverOrphanedProcessingJobs resets rows whose dispatch lease has
+ * expired (worker crashed or restarted mid-transcode). It runs at worker
+ * startup and again on a recurring reap cycle, because a row claimed shortly
+ * before a restart still holds a live lease at boot and its lease then expires
+ * with no further boot coming. Only expired leases are ever reset; a live one
+ * is proof the attempt may still be running. findRetryEligiblePendingTranscode
+ * lists parked retry rows and runs at startup only, since the in-process retry
+ * loop re-claims parked rows during steady state.
  *
  * getJobForAdmin matches on (jobId, admin_member_id), so a job initiated by a
  * different admin returns null and reads as not-found (404, not 403); the admin
@@ -41,6 +45,15 @@ import { readIntConfig } from './configReader';
 
 const ADMIN_ACTOR = 'admin';
 const SYSTEM_ACTOR = 'system';
+
+/**
+ * Ceiling on what markFailed persists into last_error. The column's content is
+ * rendered on the admin job-status page and carried on failure events to the
+ * browser, so an unbounded upstream message (an encoder dump, a wrapped HTTP
+ * body) must not ride into those surfaces on the persistence path. Callers
+ * compose short messages; this cap is the guarantee, not the formatter.
+ */
+export const MEDIA_JOB_LAST_ERROR_MAX_LENGTH = 1000;
 
 export type MediaJobKind = 'curator_video';
 export type MediaJobState =
@@ -180,11 +193,12 @@ export function createMediaJobService(): MediaJobService {
       }
       const now = new Date().toISOString();
       const nextRetry = existing.retry_count + 1;
+      const boundedMessage = errorMessage.slice(0, MEDIA_JOB_LAST_ERROR_MAX_LENGTH);
       if (nextRetry >= maxRetries) {
-        mediaJobs.markFailedTerminal.run(errorMessage, now, SYSTEM_ACTOR, jobId);
+        mediaJobs.markFailedTerminal.run(boundedMessage, now, SYSTEM_ACTOR, jobId);
         return { state: 'failed', retryCount: nextRetry };
       }
-      mediaJobs.markFailedRetry.run(errorMessage, now, SYSTEM_ACTOR, jobId);
+      mediaJobs.markFailedRetry.run(boundedMessage, now, SYSTEM_ACTOR, jobId);
       return { state: 'pending_transcode', retryCount: nextRetry };
     },
 

@@ -210,6 +210,26 @@ def test_events_seeds_non_deleted_events_only(repo):
     assert mod.build_events() == [f"{BASE}/events/show/420", f"{BASE}/events/show/857"]
 
 
+def test_calendar_approval_separates_what_the_site_showed_from_what_it_withheld(repo):
+    # Capture takes every non-deleted event because approval decides only whether
+    # the site advertised the page. Anything reader-facing needs the opposite cut,
+    # and this is the only place the two can still be told apart.
+    _write_dump(
+        repo, "events",
+        "INSERT INTO `calendar` VALUES ('1','0','857','shown');\n"
+        "INSERT INTO `calendar` VALUES ('0','0','420','withheld');\n"
+        "INSERT INTO `calendar` VALUES ('1','1','999','deleted');\n",
+    )
+    assert mod.approved_event_ids() == {"857"}
+
+
+def test_approval_is_unknown_rather_than_empty_without_the_legacy_clone(tmp_path, monkeypatch):
+    # An empty set would read as "the calendar listed nothing" and withhold every
+    # event as if each had been refused. Absence has to stay distinguishable.
+    monkeypatch.setattr(mod, "LEGACY_REPO", tmp_path / "absent")
+    assert mod.approved_event_ids() is None
+
+
 def test_members_seeds_valid_profiles_only(repo):
     # members columns: 0 MemberID, 1 MemberValid.
     _write_dump(

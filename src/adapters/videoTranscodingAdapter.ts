@@ -57,10 +57,25 @@ export interface VideoTranscodingAdapter {
 }
 
 export class VideoTranscodingError extends Error {
-  constructor(message: string, readonly status?: number) {
+  /**
+   * retryAfterSeconds is set from the worker's Retry-After header on a busy
+   * (503) refusal, so the dispatching caller can wait the advised interval
+   * and try again instead of failing the job.
+   */
+  constructor(
+    message: string,
+    readonly status?: number,
+    readonly retryAfterSeconds?: number,
+  ) {
     super(message);
     this.name = 'VideoTranscodingError';
   }
+}
+
+function parseRetryAfterSeconds(res: Response): number | undefined {
+  const raw = res.headers.get('retry-after');
+  if (raw === null || !/^\d+$/.test(raw)) return undefined;
+  return parseInt(raw, 10);
 }
 
 interface TranscodeVideoResponse {
@@ -115,6 +130,7 @@ export function createHttpVideoTranscodingAdapter(opts: {
       throw new VideoTranscodingError(
         `video worker returned ${res.status}: ${body}`,
         res.status,
+        parseRetryAfterSeconds(res),
       );
     }
 
@@ -175,6 +191,7 @@ export function createHttpVideoTranscodingAdapter(opts: {
       throw new VideoTranscodingError(
         `video worker returned ${res.status}: ${body}`,
         res.status,
+        parseRetryAfterSeconds(res),
       );
     }
 

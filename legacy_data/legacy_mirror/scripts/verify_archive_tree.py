@@ -224,6 +224,15 @@ def check_xml_untouched(report, html_pages, www_root):
     report.add('xml stored under an html name left alone', damaged)
 
 
+def _listing_links(listing):
+    """Every in-archive reference the listing page offers, as (ref, None) pairs."""
+    try:
+        blob = listing.read_bytes()
+    except OSError:
+        return []
+    return [(ref, None) for ref in crawler._page_local_refs(blob)]
+
+
 def check_listing_page(report, www_root):
     listing = www_root / crawler.ARCHIVE_DIRECTORY_FILENAME
     if not listing.is_file():
@@ -243,6 +252,36 @@ def check_listing_page(report, www_root):
     dangling = [ref for ref, fix in crawler._dangling_refs(listing, www_root)]
     report.add('every listing link resolves', dangling)
 
+    # A link resolving to a file is not the same as leading somewhere worth
+    # arriving at. A redirect stub resolves while its own target is missing, and
+    # a page the legacy app served as its own error resolves while telling the
+    # reader the server may be down. Both passed the check above unnoticed.
+    leads_nowhere = []
+    for ref in {r for r, _fix in _listing_links(listing)}:
+        target = crawler._resolve_local_ref(ref, listing.parent, www_root)
+        if target is None or not os.path.exists(target):
+            continue
+        landed = crawler._resolve_redirect_stub(target)
+        if not os.path.exists(landed):
+            leads_nowhere.append(f'{ref} (redirect target missing)')
+        elif crawler._is_error_capture(landed):
+            leads_nowhere.append(f'{ref} (the site\'s own error page)')
+    report.add('every listing link leads to a preserved page', leads_nowhere)
+
+    # An area legitimately empties when everything it names became reachable, and
+    # the generator then omits the heading entirely. What must never appear is a
+    # heading standing over nothing, which is a section that lost its rows after
+    # it was built. The per-section sizes ride along so an operator comparing two
+    # runs can see which section moved without re-deriving it.
+    sized = re.findall(
+        r'<h2>([^<]*)</h2>\s*<p class="count">(\d+) page\(s\)\.</p>', body)
+    empty = [f'{heading} (0 pages)' for heading, count in sized if int(count) == 0]
+    unsized = [h for h in re.findall(r'<h2>([^<]*)</h2>', body)
+               if h not in {heading for heading, _c in sized}]
+    report.add('every listing section states its size',
+               empty + [f'{h} (no count line)' for h in unsized],
+               ', '.join(f'{heading} {count}' for heading, count in sized))
+
 
 def check_member_notice(report, www_root):
     notice = www_root / 'members' / 'home' / 'index.html'
@@ -256,6 +295,69 @@ def check_member_notice(report, www_root):
     if re.search(r'\bsign in\b.*<input', body, re.I | re.S):
         problems.append('still renders a sign-in control')
     report.add('member area replaced by the notice', problems)
+
+
+def check_nothing_stored_that_should_have_been_refused(report, html_pages, www_root):
+    """The tree half of the refusal rules: nothing they forbid survived a run.
+
+    Three separate promises, reported separately so a failure names which rule
+    did not hold: no page is the legacy application reporting failure, no HTML
+    document sits under a media extension, and no page still carries the
+    server's own diagnostics or the absolute filesystem paths inside them.
+    """
+    errors = [rel(p, www_root) for p in html_pages
+              if not is_xml(p) and crawler.is_error_body(read(p))]
+    report.add('no page is the site reporting its own failure', errors)
+
+    media_suffixes = {s.lower() for s in crawler.MEDIA_FORMATS}
+    disguised = []
+    for media in www_root.rglob('*'):
+        if not media.is_file() or media.suffix.lower() not in media_suffixes:
+            continue
+        try:
+            head = media.read_bytes()[:512].lstrip().lower()
+        except OSError:
+            continue
+        if head.startswith((b'<!doctype', b'<html', b'<meta')):
+            disguised.append(rel(media, www_root))
+    report.add('no html document is filed under a media extension', disguised)
+
+    # Two shapes, because the site printed its failures two ways. One was wrapped
+    # in a comment with a coloured span; the other is plain visible text naming
+    # the database engine, which the first pattern cannot see.
+    leaking = [rel(p, www_root) for p in html_pages
+               if crawler._SERVER_DIAGNOSTIC_HINT.search(read(p))
+               or crawler._SQL_ERROR_RE.search(read(p))]
+    report.add('no page carries the server\'s own diagnostics', leaking)
+
+
+def check_refusals_were_reviewed(report, mirror_root):
+    """What the crawl threw away, surfaced for a human to look at.
+
+    An over-broad refusal rule is invisible in the finished tree: the evidence
+    is precisely the pages that are not there. This is the one check that cannot
+    be answered from the capture, so it reads the crawl's own record and puts
+    the numbers and a sample in front of the operator. It never fails on its
+    own, because a refusal is the rule working; what it prevents is a large or
+    surprising number of them going unnoticed after an unattended run.
+    """
+    manifest = mirror_root / crawler.REFUSED_PAGES_MANIFEST
+    if not manifest.is_file():
+        report.add('pages the crawl refused are recorded', [],
+                   'no refused-pages manifest; this capture predates the record',
+                   skipped=True)
+        return
+    rows = [line.split('\t', 1) for line in
+            manifest.read_text(encoding='utf-8', errors='replace').splitlines()
+            if line and not line.startswith('#')]
+    counts = {}
+    for row in rows:
+        counts[row[0]] = counts.get(row[0], 0) + 1
+    note = ', '.join(f'{reason}: {n}' for reason, n in sorted(counts.items())) \
+        or 'nothing refused'
+    report.add('pages the crawl refused are recorded', [], note)
+    if rows:
+        print(f'        review {manifest}: every URL here was fetched and not kept')
 
 
 def check_dead_links(report, html_pages, www_root):
@@ -364,6 +466,8 @@ def main():
     check_listing_page(report, www_root)
     check_member_notice(report, www_root)
     check_dead_links(report, html_pages, www_root)
+    check_nothing_stored_that_should_have_been_refused(report, html_pages, www_root)
+    check_refusals_were_reviewed(report, mirror_root)
     check_media(report, www_root)
     check_videos(report, mirror_root, html_pages, www_root)
     check_manifests_are_outside_the_published_subtree(report, mirror_root, www_root)

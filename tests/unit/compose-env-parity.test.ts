@@ -567,6 +567,28 @@ describe('docker-compose.prod.yml structural invariants', () => {
     expect(overlay.services.worker.deploy?.resources?.limits?.memory).toBe('${WORKER_MEMORY_LIMIT:-96M}');
     expect(overlay.services.image.deploy?.resources?.limits?.memory).toBe('${IMAGE_MEMORY_LIMIT:-256M}');
   });
+
+  it('image service env forwards the transcode admission floor', () => {
+    // The floor is read at the image worker's entry point; without this
+    // forwarding an operator override in /srv/footbag/env would silently
+    // never reach the process and the gate would run at its built-in default.
+    const overlay = loadCompose('docker/docker-compose.prod.yml');
+    const env = normalizeEnv(overlay.services.image.environment);
+    expect(env.VIDEO_MIN_HOST_AVAILABLE_MB).toBe('${VIDEO_MIN_HOST_AVAILABLE_MB:-}');
+  });
+
+  it('image service env forwards the same memory-limit expression the cgroup limit uses', () => {
+    // The image worker names this value in the refusal a curator sees when an
+    // encode is killed by the container's memory ceiling. Compose cannot share
+    // one definition between an environment entry and a deploy limit, so the
+    // two literals are pinned equal here: if they drift, the refusal names a
+    // ceiling that is not the one being enforced.
+    const overlay = loadCompose('docker/docker-compose.prod.yml');
+    const env = normalizeEnv(overlay.services.image.environment);
+    expect(env.IMAGE_MEMORY_LIMIT).toBe(
+      overlay.services.image.deploy?.resources?.limits?.memory,
+    );
+  });
 });
 
 describe('FOOTBAG_DEV_* placement (dev/staging admin allowlist scope)', () => {

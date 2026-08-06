@@ -1427,7 +1427,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       validateTags(tags);
 
       // Poster is small (cap 25 MB) and the worker container can hold it
-      // inline. Video bytes (cap 150 MB) are NOT pulled in here — they go
+      // inline. Video bytes, whose cap is far larger, are NOT pulled in here — they go
       // image-container-direct via videoTranscoder.transcodeFromStorage so
       // the worker container's 96 M staging cgroup never has to buffer the
       // source. The image worker validates the source size + magic bytes on

@@ -2081,6 +2081,9 @@ describe('env config: FFMPEG_TIMEOUT_SECONDS', () => {
     process.env.NODE_ENV = 'development';
     process.env.VIDEO_TRANSCODE_TIMEOUT_MS = '1800000';
     process.env.FFMPEG_TIMEOUT_SECONDS = '1500';
+    // Raising the attempt ceiling obliges raising the job lease with it: the
+    // lease must outlast the longest legitimate attempt.
+    process.env.MEDIA_JOB_LEASE_SECONDS = '2000';
     const { config } = await import('../../src/config/env');
     expect(config.ffmpegTimeoutSeconds).toBe(1500);
   });
@@ -2117,6 +2120,63 @@ describe('env config: FFMPEG_TIMEOUT_SECONDS', () => {
     await expect(import('../../src/config/env')).rejects.toThrow(
       /FFMPEG_TIMEOUT_SECONDS/,
     );
+  });
+});
+
+describe('env config: MEDIA_JOB_LEASE_SECONDS outlasts a transcode attempt', () => {
+  // An expired lease is read as proof the process holding a media job is gone,
+  // and the recurring reap reclaims the row on that proof. A lease shorter
+  // than the longest legitimate attempt would let the reap steal a job that is
+  // still running, so the pair is cross-checked at boot.
+  let snap: EnvSnapshot;
+  beforeEach(() => {
+    snap = snapshotEnv();
+    vi.resetModules();
+  });
+  afterEach(() => restoreEnv(snap));
+
+  it('defaults with the lease above the attempt ceiling', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    const { config } = await import('../../src/config/env');
+    expect(config.mediaJobLeaseSeconds * 1000).toBeGreaterThan(
+      config.videoTranscodeTimeoutMs,
+    );
+  });
+
+  it('refuses a lease at or below the attempt ceiling', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.VIDEO_TRANSCODE_TIMEOUT_MS = '300000';
+    process.env.MEDIA_JOB_LEASE_SECONDS = '300';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /MEDIA_JOB_LEASE_SECONDS \(300s\) must exceed VIDEO_TRANSCODE_TIMEOUT_MS/,
+    );
+  });
+
+  it('counts the busy-wait budget against the lease, not just the transcode ceiling', async () => {
+    // 450s of lease clears the 300s transcode ceiling alone but not the
+    // ceiling plus the 180s of bounded waits a busy worker may add; admitting
+    // it would let the reap reclaim a job that is still politely waiting.
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.VIDEO_TRANSCODE_TIMEOUT_MS = '300000';
+    process.env.MEDIA_JOB_LEASE_SECONDS = '450';
+    await expect(import('../../src/config/env')).rejects.toThrow(/busy-wait budget/);
+  });
+
+  it('honors a raised lease alongside a raised attempt ceiling', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.VIDEO_TRANSCODE_TIMEOUT_MS = '1800000';
+    process.env.FFMPEG_TIMEOUT_SECONDS = '1500';
+    process.env.MEDIA_JOB_LEASE_SECONDS = '2000';
+    const { config } = await import('../../src/config/env');
+    expect(config.mediaJobLeaseSeconds).toBe(2000);
   });
 });
 

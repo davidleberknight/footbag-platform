@@ -33,8 +33,18 @@ BASE = mirror_script.BASE_URL
 def env(tmp_path, monkeypatch):
     monkeypatch.setattr(mirror_script, 'MIRROR_DIR', str(tmp_path / 'mirror'))
     monkeypatch.setattr(mirror_script, 'SEEDS_DIR', str(tmp_path / 'seeds'))
+    # The events area asks the frozen legacy database which events the calendar
+    # was willing to show. Whether this machine has that database attached is not
+    # allowed to change any result here, so the answer is always supplied; a test
+    # that wants events listed says which ids the calendar carried.
+    monkeypatch.setattr(mirror_script, '_calendar_listed_event_ids', lambda: None)
     (tmp_path / 'seeds').mkdir()
     return tmp_path
+
+
+def _calendar_lists(monkeypatch, *event_ids):
+    monkeypatch.setattr(mirror_script, '_calendar_listed_event_ids',
+                        lambda: set(event_ids))
 
 
 def _capture(url, title):
@@ -57,12 +67,12 @@ def _www(env):
 def test_listing_holds_only_pages_nothing_else_links(env):
     # The page exists to surface what browsing cannot reach. A captured page that
     # some other page links is reachable already and does not belong on it.
-    _seed(env, 'clubs.txt', [BASE + '/clubs/show/1', BASE + '/clubs/show/2',
-                             BASE + '/clubs/show/3'])
-    _capture(BASE + '/clubs/show/1', 'footbag.org: Club: Alpha Club')
-    _capture(BASE + '/clubs/show/3', 'footbag.org: Club: Zeta Club')
+    _seed(env, 'faq.txt', [BASE + '/faq/show/1', BASE + '/faq/show/2',
+                           BASE + '/faq/show/3'])
+    _capture(BASE + '/faq/show/1', 'footbag.org: Alpha Answer')
+    _capture(BASE + '/faq/show/3', 'footbag.org: Zeta Answer')
     # Something in the archive links Alpha, so Alpha is reachable by browsing.
-    hub = _www(env) / 'clubs' / 'index.html'
+    hub = _www(env) / 'faq' / 'index.html'
     hub.parent.mkdir(parents=True, exist_ok=True)
     hub.write_text('<html><body><a href="show/1/index.html">Alpha</a></body></html>',
                    encoding='utf-8')
@@ -70,9 +80,9 @@ def test_listing_holds_only_pages_nothing_else_links(env):
     mirror_script.generate_archive_directory()
     listing = (_www(env) / 'archive-directory.html').read_text()
 
-    assert 'Zeta Club' in listing               # nothing links it
-    assert 'Alpha Club' not in listing          # the clubs hub links it
-    assert '/clubs/show/2' not in listing       # never captured
+    assert 'Zeta Answer' in listing             # nothing links it
+    assert 'Alpha Answer' not in listing        # the FAQ hub links it
+    assert '/faq/show/2' not in listing         # never captured
     assert '<script' not in listing.lower()     # strictly JS-free
     assert 'complete' not in listing.lower()    # claims only what it holds
 
@@ -80,29 +90,29 @@ def test_listing_holds_only_pages_nothing_else_links(env):
 def test_listing_does_not_erase_itself_on_a_second_run(env):
     # The listing links every page it lists. Counting its own links as evidence
     # of reachability would empty it the next time it is generated.
-    _seed(env, 'clubs.txt', [BASE + '/clubs/show/9'])
-    _capture(BASE + '/clubs/show/9', 'footbag.org: Club: Lonely Club')
+    _seed(env, 'faq.txt', [BASE + '/faq/show/9'])
+    _capture(BASE + '/faq/show/9', 'footbag.org: Lonely Answer')
 
     mirror_script.generate_archive_directory()
     first = (_www(env) / 'archive-directory.html').read_text()
     mirror_script.generate_archive_directory()
     second = (_www(env) / 'archive-directory.html').read_text()
 
-    assert 'Lonely Club' in first
-    assert 'Lonely Club' in second
+    assert 'Lonely Answer' in first
+    assert 'Lonely Answer' in second
     assert first == second
 
 
 def test_an_area_with_nothing_unlinked_is_omitted_rather_than_empty(env):
-    _seed(env, 'clubs.txt', [BASE + '/clubs/show/1'])
-    _capture(BASE + '/clubs/show/1', 'footbag.org: Club: Alpha Club')
-    hub = _www(env) / 'clubs' / 'index.html'
+    _seed(env, 'faq.txt', [BASE + '/faq/show/1'])
+    _capture(BASE + '/faq/show/1', 'footbag.org: Alpha Answer')
+    hub = _www(env) / 'faq' / 'index.html'
     hub.parent.mkdir(parents=True, exist_ok=True)
     hub.write_text('<html><body><a href="show/1/index.html">Alpha</a></body></html>',
                    encoding='utf-8')
     mirror_script.generate_archive_directory()
     listing = (_www(env) / 'archive-directory.html').read_text()
-    assert 'Clubs' not in listing
+    assert '<h2>FAQ</h2>' not in listing
 
 
 def test_directory_groups_worlds_across_both_trees_chronologically(env):
@@ -242,3 +252,276 @@ def test_xml_stored_under_an_html_name_is_left_alone(env):
     feed.write_text('<?xml version="1.0"?><rss><channel/></rss>', encoding='utf-8')
     mirror_script.insert_archive_banner()
     assert feed.read_text(encoding='utf-8').startswith('<?xml')
+
+
+def _redirect_stub(path, target):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        '<!DOCTYPE html>\n<html>\n  <head>\n    <meta charset="utf-8">\n'
+        f'    <meta http-equiv="refresh" content="0; url={target}">\n'
+        '    <title>Redirecting</title>\n  </head>\n  <body>\n'
+        f'    <p>Redirecting to <a href="{target}">{target}</a></p>\n'
+        '  </body>\n</html>', encoding='utf-8')
+    return path
+
+
+def test_a_redirected_seed_is_listed_as_the_page_it_leads_to(env):
+    # A seed the live site answered with a redirect was captured as a stub whose
+    # title is the word 'Redirecting'. Listing the stub gives the reader that
+    # word for a label and an extra hop to reach anything.
+    _seed(env, 'faq.txt', [BASE + '/faq/show/117'])
+    real = _capture(BASE + '/faq/show/900/', 'footbag.org: The Answer Itself')
+    stub = Path(mirror_script.url_to_filepath(BASE + '/faq/show/117/'))
+    _redirect_stub(stub, '../900/index.html')
+
+    mirror_script.generate_archive_directory()
+    page = (_www(env) / 'archive-directory.html').read_text()
+
+    assert 'Redirecting' not in page
+    assert 'The Answer Itself' in page
+    assert 'faq/show/900/index.html' in page
+    assert real.exists()
+
+
+def test_a_redirected_seed_whose_landing_page_is_linked_is_not_listed(env):
+    # The shape the real capture holds: the stub is linked by nothing, so judging
+    # it by its own path lists a page the archive reaches perfectly well. What
+    # decides the row is where the stub lands, not where it sits.
+    _seed(env, 'faq.txt', [BASE + '/faq/show/117'])
+    _capture(BASE + '/faq/show/900/', 'footbag.org: The Answer Itself')
+    stub = Path(mirror_script.url_to_filepath(BASE + '/faq/show/117/'))
+    _redirect_stub(stub, '../900/index.html')
+    hub = _www(env) / 'faq' / 'index.html'
+    hub.parent.mkdir(parents=True, exist_ok=True)
+    hub.write_text('<html><body><a href="show/900/index.html">Answer</a></body></html>',
+                   encoding='utf-8')
+
+    mirror_script.generate_archive_directory()
+    page = (_www(env) / 'archive-directory.html').read_text()
+
+    assert 'The Answer Itself' not in page
+    assert '<h2>FAQ</h2>' not in page
+
+
+def test_a_seed_whose_page_is_the_apps_own_failure_is_not_listed(env):
+    # The legacy app answered 200 with a 'nothing here' body. Listing it sends a
+    # reader to a page saying the entry does not exist.
+    _seed(env, 'faq.txt', [BASE + '/faq/show/1', BASE + '/faq/show/2'])
+    _capture(BASE + '/faq/show/1', 'footbag.org: Real Answer')
+    empty = Path(mirror_script.url_to_filepath(BASE + '/faq/show/2'))
+    empty.parent.mkdir(parents=True, exist_ok=True)
+    empty.write_text('<html><head><title>F.A.Q.</title></head><body>'
+                     'Unknown F.A.Q. Entry'
+                     '</body></html>', encoding='utf-8')
+
+    mirror_script.generate_archive_directory()
+    page = (_www(env) / 'archive-directory.html').read_text()
+
+    assert 'Real Answer' in page
+    assert 'faq/show/2/index.html' not in page
+
+
+def test_a_page_that_is_nothing_but_a_server_error_is_not_listed(env):
+    # The site commented out each PHP diagnostic and showed a badge in its place,
+    # so the page renders as an error marker and nothing else.
+    _seed(env, 'polls.txt', [BASE + '/newpoll/show/1/'])
+    broken = Path(mirror_script.url_to_filepath(BASE + '/newpoll/show/1/'))
+    broken.parent.mkdir(parents=True, exist_ok=True)
+    broken.write_text(
+        '<meta charset="utf-8"/><div><span style="color: red" '
+        'title="View source for details...">ERROR 42109</span></div>'
+        "<!-- <span style='color: #ff0000'><br />\n<b>Warning</b>: include() "
+        'failed to open stream in <b>/home/site/docs/newpoll/show</b> on line '
+        '<b>13</b><br />\n</span> -->', encoding='utf-8')
+
+    mirror_script.generate_archive_directory()
+    page = (_www(env) / 'archive-directory.html').read_text()
+
+    assert 'Polls' not in page
+    assert 'newpoll/show/1' not in page
+
+
+def test_a_page_keeps_its_row_when_a_server_error_sits_beside_real_content(env):
+    _seed(env, 'rules.txt', [BASE + '/rules/chapter/1000/'])
+    page_path = Path(mirror_script.url_to_filepath(BASE + '/rules/chapter/1000/'))
+    page_path.parent.mkdir(parents=True, exist_ok=True)
+    page_path.write_text(
+        '<html><head><title>Official Rules</title></head><body>'
+        "<!-- <span style='color: #ff0000'><br /><b>Warning</b>: Invalid "
+        'argument in <b>/home/site/docs/rules/chapter</b><br /></span> -->'
+        '<p>Chapter 1000 text that a reader came for.</p>'
+        '</body></html>', encoding='utf-8')
+
+    mirror_script.generate_archive_directory()
+    page = (_www(env) / 'archive-directory.html').read_text()
+
+    assert 'rules/chapter/1000/index.html' in page
+
+
+def test_rows_sharing_one_title_are_told_apart(env):
+    # Whole classes of legacy page carry one title across every member, so a
+    # list of identical links tells a reader nothing about which to open.
+    _seed(env, 'rules.txt', [BASE + '/rules/chapter/30', BASE + '/rules/chapter/800'])
+    _capture(BASE + '/rules/chapter/30', 'Official Rules of Footbag Sports')
+    _capture(BASE + '/rules/chapter/800', 'Official Rules of Footbag Sports')
+
+    mirror_script.generate_archive_directory()
+    page = (_www(env) / 'archive-directory.html').read_text()
+
+    assert 'Official Rules of Footbag Sports (30)' in page
+    assert 'Official Rules of Footbag Sports (800)' in page
+
+
+def test_two_seeds_reaching_one_page_make_one_row(env):
+    _seed(env, 'ranking.txt', [BASE + '/ranking/showranks?set=1&method=1',
+                               BASE + '/ranking/showranks?set=2&method=1'])
+    _capture(BASE + '/ranking/showranks?set=1&method=1', 'DRAFT IFPA Ranking Report')
+
+    mirror_script.generate_archive_directory()
+    page = (_www(env) / 'archive-directory.html').read_text()
+
+    assert page.count('DRAFT IFPA Ranking Report') == 1
+
+
+def test_a_title_carrying_markup_reads_as_the_name_someone_typed(env, monkeypatch):
+    # Legacy event names hold markup the app escaped before storing it, so the
+    # title arrives as text that reads back as tags.
+    _calendar_lists(monkeypatch, '1')
+    _seed(env, 'events.txt', [BASE + '/events/show/1'])
+    _capture(BASE + '/events/show/1', '&lt;b&gt;Volley Sock CHAMPIONSHIPS&lt;/b&gt;')
+
+    mirror_script.generate_archive_directory()
+    page = (_www(env) / 'archive-directory.html').read_text()
+
+    assert '>Volley Sock CHAMPIONSHIPS</a>' in page
+    assert '&lt;b&gt;' not in page
+
+
+def test_a_label_can_never_inject_markup_into_the_listing(env, monkeypatch):
+    _calendar_lists(monkeypatch, '2')
+    _seed(env, 'events.txt', [BASE + '/events/show/2'])
+    path = Path(mirror_script.url_to_filepath(BASE + '/events/show/2/'))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text('<html><head><title>Jam &amp; Shred</title></head>'
+                    '<body>x</body></html>', encoding='utf-8')
+
+    mirror_script.generate_archive_directory()
+    page = (_www(env) / 'archive-directory.html').read_text()
+
+    assert 'Jam &amp; Shred' in page
+    assert 'Jam & Shred<' not in page
+
+
+def test_a_gallery_set_its_owner_hid_is_never_listed(env):
+    # Every gallery seed names a set marked invisible, seeded so its photographs
+    # are captured rather than stranded. Naming it here would publish an album
+    # its owner kept off the site's own indexes.
+    _seed(env, 'gallery.txt', [BASE + '/gallery/showset/4242'])
+    _capture(BASE + '/gallery/showset/4242', 'footbag.org: Private Jam Photos')
+
+    mirror_script.generate_archive_directory()
+    page = (_www(env) / 'archive-directory.html').read_text()
+
+    assert 'Private Jam Photos' not in page
+    assert 'Gallery' not in page
+
+
+def test_a_club_the_directory_filtered_out_is_never_listed(env):
+    # The clubs seed is the whole table, wider than the clubs directory on
+    # purpose. Listing it re-publishes exactly the entries that directory hid.
+    _seed(env, 'clubs.txt', [BASE + '/clubs/show/77'])
+    _capture(BASE + '/clubs/show/77', 'footbag.org: Club: Unapproved Club')
+
+    mirror_script.generate_archive_directory()
+    page = (_www(env) / 'archive-directory.html').read_text()
+
+    assert 'Unapproved Club' not in page
+    assert '<h2>Clubs</h2>' not in page
+
+
+def test_an_event_the_calendar_never_listed_is_withheld(env, monkeypatch):
+    # An unapproved event still serves its page, which is why the crawl captures
+    # it, but the calendar refused to show it and this page must not undo that.
+    _calendar_lists(monkeypatch, '11')
+    _seed(env, 'events.txt', [BASE + '/events/show/11', BASE + '/events/show/12'])
+    _capture(BASE + '/events/show/11', 'footbag.org: Approved Open')
+    _capture(BASE + '/events/show/12', 'footbag.org: Withheld Open')
+
+    mirror_script.generate_archive_directory()
+    page = (_www(env) / 'archive-directory.html').read_text()
+
+    assert 'Approved Open' in page
+    assert 'Withheld Open' not in page
+
+
+def test_events_are_skipped_when_the_calendar_cannot_be_consulted(env):
+    # Without the frozen legacy database an approved event cannot be told from a
+    # withheld one, and a finding aid guesses at neither.
+    _seed(env, 'events.txt', [BASE + '/events/show/11'])
+    _capture(BASE + '/events/show/11', 'footbag.org: Some Open')
+
+    mirror_script.generate_archive_directory()
+    page = (_www(env) / 'archive-directory.html').read_text()
+
+    assert 'Some Open' not in page
+    assert '<h2>Events</h2>' not in page
+
+
+def test_every_section_states_how_much_it_holds(env, monkeypatch):
+    # A reader sees the size of each heading, and a rebuild that halves a section
+    # shows it on the page rather than only in a log.
+    _calendar_lists(monkeypatch, '11')
+    _seed(env, 'events.txt', [BASE + '/events/show/11'])
+    _capture(BASE + '/events/show/11', 'footbag.org: Approved Open')
+    worlds = _www(env) / 'worlds99' / 'index.html'
+    worlds.parent.mkdir(parents=True, exist_ok=True)
+    worlds.write_text('<html><body>x</body></html>', encoding='utf-8')
+
+    mirror_script.generate_archive_directory()
+    page = (_www(env) / 'archive-directory.html').read_text()
+
+    assert '<h2>Events</h2>\n<p class="count">1 page(s).</p>' in page
+    assert '<h2>World Championships</h2>\n<p class="count">1 page(s).</p>' in page
+
+
+def test_a_front_door_the_site_served_as_a_bare_fragment_still_says_what_it_is(env):
+    # The retired-forum notice has no <body> of its own, and the main menu of
+    # every page in the archive links it. A reader arriving there with no banner
+    # has no statement of what they have reached and no way back to the live
+    # site.
+    _make(env, 'index.html',
+          '<div id="MainMenu"><a href="forum-down.html">FORUM</a></div>')
+    notice = Path(mirror_script._www_root()) / 'forum-down.html'
+    notice.write_text('<meta charset="utf-8"/><div><h2>We\'re Sorry</h2></div>',
+                      encoding='utf-8')
+
+    mirror_script.insert_archive_banner()
+    out = notice.read_text(encoding='utf-8')
+
+    assert mirror_script.ARCHIVE_BANNER_MARKER in out
+    assert mirror_script.LIVE_SITE_URL in out
+    assert "We're Sorry" in out
+
+
+def test_a_bare_fragment_is_not_banded_twice(env):
+    _make(env, 'index.html',
+          '<div id="MainMenu"><a href="forum-down.html">FORUM</a></div>')
+    notice = Path(mirror_script._www_root()) / 'forum-down.html'
+    notice.write_text('<meta charset="utf-8"/><div>notice</div>', encoding='utf-8')
+
+    mirror_script.insert_archive_banner()
+    mirror_script.insert_archive_banner()
+
+    assert notice.read_text(encoding='utf-8').count(
+        mirror_script.ARCHIVE_BANNER_MARKER) == 1
+
+
+def test_a_reference_site_is_listed_once_not_as_a_microsite_as_well(env):
+    _capture('http://sites.footbag.org/reference/', 'Reference site')
+    _capture('http://sites.footbag.org/usage-information/', 'Usage')
+
+    mirror_script.generate_archive_directory({})
+    page = (_www(env) / 'archive-directory.html').read_text()
+
+    assert page.count('sites/reference/index.html') == 1
+    assert 'sites/usage-information/index.html' in page

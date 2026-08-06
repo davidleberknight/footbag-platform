@@ -31,6 +31,7 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+from html import unescape
 from pathlib import Path
 from urllib.parse import unquote
 
@@ -41,14 +42,21 @@ SEEDS_NAME = "recrawl_broken_pages.txt"
 BASE_URL = "http://www.footbag.org"
 VHOST_BASE = "http://sites.footbag.org"
 
-_LINK_RE = re.compile(r"""(?:href|src)\s*=\s*["']([^"']+)["']""", re.IGNORECASE)
+_LINK_RE = re.compile(r"""(?:href|src|xlink:href)\s*=\s*["']([^"']+)["']""", re.IGNORECASE)
 _SKIP_PREFIXES = ("http://", "https://", "mailto:", "javascript:", "tel:",
                   "data:", "#", "webcal:", "ftp:")
+# Markup the legacy site commented out and left in place. No browser requests
+# it, so counting it reports links that do not exist: one commented search block
+# in the site-wide template outweighs every genuine broken link in the capture,
+# and a re-crawl seeded from that report would re-fetch the archive to fix
+# nothing.
+_MARKUP_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
 
 # On-disk directories the crawler synthesizes from query parameters; their
 # index.html paths do not invert to a fetchable URL by simple path joining.
 _SPECIAL_DIR_RE = re.compile(
-    r"(^|/)(list_\d{4}|past_year_\d{4}|results_year_\d{4}|ClubID_[^/]+|SID_[^/]+)(/|$)")
+    r"(^|/)(list_\d{4}|past_year_\d{4}|results_year_\d{4}|ClubID_[^/]+|SID_[^/]+"
+    r"|set_[^/]+)(/|$)")
 
 
 def _invert_to_url(html_file: Path, www_root: Path) -> str | None:
@@ -87,14 +95,21 @@ def scan(mirror_root: Path):
         except OSError:
             continue
         dangling: list[str] = []
-        for match in _LINK_RE.finditer(text):
-            link = match.group(1).strip()
+        for match in _LINK_RE.finditer(_MARKUP_COMMENT_RE.sub("", text)):
+            # Decoded once, here: a gallery photo whose filename holds an
+            # ampersand reaches disk decoded, so comparing the encoded form
+            # reports a file that is present as missing.
+            link = unescape(match.group(1).strip())
             if not link or link.startswith(_SKIP_PREFIXES) or link.startswith("//"):
                 continue
             target = link.split("#", 1)[0].split("?", 1)[0]
             if not target:
                 continue
-            resolved = (html_file.parent / unquote(target)).resolve()
+            # A reference beginning '/' is site-root-relative, so it resolves
+            # against the tree root; joining it onto the page's own directory
+            # walks out of the capture entirely.
+            base = www if target.startswith("/") else html_file.parent
+            resolved = (base / unquote(target).lstrip("/")).resolve()
             if not resolved.exists():
                 dangling.append(link)
         if dangling:

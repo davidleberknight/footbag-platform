@@ -13,9 +13,12 @@
  *      owning a loop.
  *   3. Curator video transcode HTTP server: receives /transcode/dispatch
  *      pushes from the web container, runs ffmpeg, posts state events back.
- *      No polling; strictly event-driven.
+ *      Dispatch is event-driven; a recurring reap loop re-runs the
+ *      expired-lease recovery pass, because a job claimed just before a
+ *      restart holds a live lease at boot and would otherwise be orphaned
+ *      permanently when that lease expires with no further boot coming.
  *
- * All three shut down cleanly on SIGTERM/SIGINT.
+ * All of these shut down cleanly on SIGTERM/SIGINT.
  */
 import 'dotenv/config';
 import type { Server } from 'node:http';
@@ -155,7 +158,10 @@ async function activePlayerExpiryLoop(): Promise<void> {
   logger.info('worker: AP expiry daily loop stopped');
 }
 
-async function startTranscodeServer(): Promise<{ close: () => Promise<void> }> {
+async function startTranscodeServer(): Promise<{
+  close: () => Promise<void>;
+  reapExpiredProcessing: () => Promise<{ reclaimedIds: string[] }>;
+}> {
   const transcodeWorker = createTranscodeWorker();
   await transcodeWorker.recoverOnBoot();
   const server: Server = await new Promise((resolve) => {
@@ -171,10 +177,38 @@ async function startTranscodeServer(): Promise<{ close: () => Promise<void> }> {
       new Promise((resolve, reject) => {
         server.close((err) => (err ? reject(err) : resolve()));
       }),
+    reapExpiredProcessing: transcodeWorker.reapExpiredProcessing,
   };
 }
 
-let transcodeServer: { close: () => Promise<void> } | null = null;
+async function mediaJobReapLoop(
+  reap: () => Promise<{ reclaimedIds: string[] }>,
+): Promise<void> {
+  // A fraction of the lease keeps the wait between a lease expiring and its
+  // job being reclaimed short relative to the lease itself; the clamp keeps
+  // an extreme operator override from producing a hammering or useless
+  // cadence. Sleeps first: boot recovery has already run this pass.
+  const intervalMs =
+    Math.min(Math.max(Math.floor(config.mediaJobLeaseSeconds / 4), 60), 600) * 1000;
+  logger.info('worker: media-job reap loop started', { intervalMs });
+  while (!stopping) {
+    await sleep(intervalMs);
+    if (stopping) break;
+    try {
+      await reap();
+    } catch (err) {
+      logger.error('worker: media-job reap unexpected error', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+  logger.info('worker: media-job reap loop stopped');
+}
+
+let transcodeServer: {
+  close: () => Promise<void>;
+  reapExpiredProcessing: () => Promise<{ reclaimedIds: string[] }>;
+} | null = null;
 
 function shutdown(signal: NodeJS.Signals): void {
   logger.info('worker: received signal, shutting down', { signal });
@@ -213,6 +247,12 @@ process.on('SIGINT', shutdown);
   });
   activePlayerExpiryLoop().catch((err) => {
     logger.error('worker: fatal AP expiry loop error', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    process.exit(1);
+  });
+  mediaJobReapLoop(transcodeServer.reapExpiredProcessing).catch((err) => {
+    logger.error('worker: fatal media-job reap loop error', {
       error: err instanceof Error ? err.message : String(err),
     });
     process.exit(1);

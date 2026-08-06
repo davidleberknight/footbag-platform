@@ -2386,9 +2386,13 @@ CREATE INDEX        idx_gallery_links_gallery   ON gallery_external_links(galler
 -- inserts the corresponding media_items row, deletes the pending sources, and
 -- marks the job 'succeeded' (or 'failed' on terminal failure). The worker
 -- HTTP-pushes each state transition back to the web container, which fans out
--- to any SSE-connected admin status pages. No polling at any tier; the only
--- scan of this table is a one-shot recovery sweep on worker boot for rows
+-- to any SSE-connected admin status pages. Every state transition is an HTTP
+-- push; the only scan of this table is the expired-lease recovery sweep, run
+-- once on worker boot and repeated on a slow reap cycle, which resets rows
 -- stuck in 'processing' beyond their lease (state -> 'pending_transcode').
+-- The recurring pass exists because a row claimed shortly before a restart
+-- holds a live lease at boot, is correctly skipped there, and would otherwise
+-- never be revisited when that lease expires.
 CREATE TABLE media_jobs (
   id         TEXT PRIMARY KEY,
   created_at TEXT NOT NULL,
@@ -2434,8 +2438,9 @@ CREATE TABLE media_jobs (
   last_error  TEXT,
 
   -- Worker dispatch lease. Set when the worker claims the row (state ->
-  -- 'processing'). Boot-time recovery uses lease_expires_at to distinguish a
-  -- freshly-claimed row from one orphaned by a worker crash.
+  -- 'processing'). The recovery sweep (boot and recurring reap) uses
+  -- lease_expires_at to distinguish a claim that may still be running from one
+  -- whose holder is provably gone; only expired leases are ever reclaimed.
   last_attempted_at TEXT,
   lease_expires_at  TEXT,
 

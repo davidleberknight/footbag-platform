@@ -978,7 +978,7 @@ A "named gallery" is a stable URL bookmark, not a content bucket. The `member_ga
 
 `retry_count`, `last_error`: failure metadata. `retry_count` increments only on retryable failures; reaching the configured max transitions the job to `failed` (terminal).
 
-`last_attempted_at`, `lease_expires_at`: dispatch lease. Set when the worker claims the row (state → `processing`). Boot-time recovery (`recoverOrphanedProcessingJobs`) compares `lease_expires_at` against the current time to distinguish a freshly-claimed row from one orphaned by a worker crash; orphaned rows are reset to `pending_transcode` for re-dispatch. This is the only sweep of this table; all other transitions are HTTP push events.
+`last_attempted_at`, `lease_expires_at`: dispatch lease. Set when the worker claims the row (state → `processing`). The recovery sweep (`recoverOrphanedProcessingJobs`) compares `lease_expires_at` against the current time to distinguish a claim that may still be running from one whose holder is provably gone; expired-lease rows are reset to `pending_transcode` for re-dispatch. The sweep runs at worker boot and again on a recurring reap cycle, because a row claimed shortly before a restart still holds a live lease at boot and would otherwise never be revisited. This is the only scan of this table; all other transitions are HTTP push events.
 
 `expires_at`: TTL for `pending_upload` rows. Set at `/sign` so abandoned uploads can be reconciled to `abandoned`.
 
@@ -990,7 +990,7 @@ A "named gallery" is a stable URL bookmark, not a content bucket. The `member_ga
 **Indexes:**
 - `idx_media_jobs_state ON media_jobs(state, created_at)`; state-bucketed time-ordered listing for operator inspection.
 - `idx_media_jobs_admin ON media_jobs(admin_member_id, created_at)`; admin-status-page reads.
-- `idx_media_jobs_lease_recovery ON media_jobs(lease_expires_at) WHERE state = 'processing'`; partial index used by the boot-time orphan sweep.
+- `idx_media_jobs_lease_recovery ON media_jobs(lease_expires_at) WHERE state = 'processing'`; partial index used by the orphan sweep at boot and on each reap cycle.
 
 ### 4.18 Club Leaders & Event Organizers
 

@@ -5,11 +5,15 @@
  * /process/avatar wire format and the /health probe, and verifies the
  * concurrency semaphore returns 503 when the in-flight cap is exhausted.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import sharp from 'sharp';
 import { createImageWorkerApp } from '../../src/imageWorker';
 import { processAvatar, processPhoto } from '../../src/lib/imageProcessing';
+import {
+  FFMPEG_STDERR_PUBLIC_LIMIT_BYTES,
+  FfmpegExecutionError,
+} from '../../src/lib/videoProcessing';
 
 // Tests pass this secret on `x-internal-secret` so /process/* routes admit the
 // request. setup-env.ts also defaults INTERNAL_EVENT_SECRET to this value
@@ -495,10 +499,24 @@ describe('POST /process/video-from-storage', () => {
     sourceContentLength?: string;  // override the response Content-Length
   } = {}): {
     fetchImpl: typeof fetch;
-    puts: Array<{ url: string; bytes: number; contentType: string }>;
+    puts: Array<{
+      url: string;
+      bytes: number;
+      contentType: string;
+      contentLength: string;
+      duplex: string | undefined;
+      streamed: boolean;
+    }>;
   } {
     const sources = new Map<string, Buffer>(Object.entries(opts.sources ?? {}));
-    const puts: Array<{ url: string; bytes: number; contentType: string }> = [];
+    const puts: Array<{
+      url: string;
+      bytes: number;
+      contentType: string;
+      contentLength: string;
+      duplex: string | undefined;
+      streamed: boolean;
+    }> = [];
     const fetchImpl: typeof fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === 'string' ? input : input.toString();
       const method = (init?.method ?? 'GET').toUpperCase();
@@ -506,13 +524,42 @@ describe('POST /process/video-from-storage', () => {
         if ((opts.putResponseStatus ?? 200) >= 400) {
           return new Response('upload denied', { status: opts.putResponseStatus! });
         }
-        const body = init?.body as Uint8Array | Buffer | string | undefined;
+        const body = init?.body as
+          | Uint8Array
+          | Buffer
+          | string
+          | ReadableStream<Uint8Array>
+          | undefined;
         const headers = (init?.headers ?? {}) as Record<string, string>;
         const ct = headers['Content-Type'] ?? headers['content-type'] ?? '';
-        const buf =
-          body instanceof Uint8Array ? Buffer.from(body) :
-          typeof body === 'string' ? Buffer.from(body) : Buffer.alloc(0);
-        puts.push({ url, bytes: buf.length, contentType: ct });
+        const cl = headers['Content-Length'] ?? headers['content-length'] ?? '';
+        let buf: Buffer;
+        let streamed = false;
+        if (body && typeof (body as ReadableStream<Uint8Array>).getReader === 'function') {
+          // The streaming route uploads from a file as a web stream; drain it
+          // the way a real receiver would so byte counts are observable.
+          streamed = true;
+          const chunks: Buffer[] = [];
+          const reader = (body as ReadableStream<Uint8Array>).getReader();
+          for (;;) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            chunks.push(Buffer.from(value));
+          }
+          buf = Buffer.concat(chunks);
+        } else {
+          buf =
+            body instanceof Uint8Array ? Buffer.from(body) :
+            typeof body === 'string' ? Buffer.from(body) : Buffer.alloc(0);
+        }
+        puts.push({
+          url,
+          bytes: buf.length,
+          contentType: ct,
+          contentLength: cl,
+          duplex: (init as { duplex?: string } | undefined)?.duplex,
+          streamed,
+        });
         return new Response('', { status: 200 });
       }
       // GET path
@@ -531,6 +578,16 @@ describe('POST /process/video-from-storage', () => {
 
   const SOURCE_URL = 'https://test-bucket.s3.amazonaws.com/pending/job-x/source.mp4?X-Amz-Algorithm=...';
   const PUT_URL = 'https://test-bucket.s3.amazonaws.com/system_member/detached/media_xyz-video.mp4?X-Amz-Algorithm=...';
+
+  // Stand-in for the file-to-file ffmpeg pipeline: writes known output bytes
+  // so the route's stat + streamed PUT are exercised for real.
+  function fileTranscodeStub(output = 'transcoded-bytes-here') {
+    return async (_inputPath: string, outputPath: string) => {
+      const { writeFile } = await import('node:fs/promises');
+      await writeFile(outputPath, Buffer.from(output));
+      return { outputFormat: 'mp4' as const };
+    };
+  }
 
   it('returns 400 when sourceUrl is missing or not http(s)', async () => {
     const app = createImageWorkerApp({ internalSecret: TEST_SECRET });
@@ -663,16 +720,13 @@ describe('POST /process/video-from-storage', () => {
     expect(res.body.error).toMatch(/unrecognized video format/);
   });
 
-  it('happy path: GETs source, transcodes, PUTs to putUrl, returns metadata', async () => {
+  it('happy path: streams source to disk, transcodes, streams PUT with explicit length', async () => {
     const source = makeFakeMp4();
     const { fetchImpl, puts } = makeFakeFetch({ sources: { [SOURCE_URL]: source } });
     const app = createImageWorkerApp({
       internalSecret: TEST_SECRET,
       fetchImpl,
-      transcodeVideoImpl: async (_data) => ({
-        bytes: Buffer.from('transcoded-bytes-here'),
-        outputFormat: 'mp4',
-      }),
+      transcodeVideoFileImpl: fileTranscodeStub(),
     });
     const res = await request(app)
       .post('/process/video-from-storage')
@@ -692,6 +746,67 @@ describe('POST /process/video-from-storage', () => {
     expect(puts[0].url).toBe(PUT_URL);
     expect(puts[0].contentType).toBe('video/mp4');
     expect(puts[0].bytes).toBe('transcoded-bytes-here'.length);
+    // The upload must be a stream (no output Buffer in this process) with the
+    // length stated explicitly: undici drops Content-Length for stream bodies
+    // and a presigned S3 PUT accepts no chunked transfer.
+    expect(puts[0].streamed).toBe(true);
+    expect(puts[0].contentLength).toBe(String('transcoded-bytes-here'.length));
+    expect(puts[0].duplex).toBe('half');
+  });
+
+  it('enforces the byte cap during download when the content-length header lies', async () => {
+    const oversized = Buffer.alloc(64);
+    oversized.write('ftyp', 4, 'ascii');
+    oversized.write('isom', 8, 'ascii');
+    const { fetchImpl, puts } = makeFakeFetch({
+      sources: { [SOURCE_URL]: oversized },
+      sourceContentLength: '8',
+    });
+    const app = createImageWorkerApp({
+      internalSecret: TEST_SECRET,
+      fetchImpl,
+      videoMaxBytes: 32,
+      transcodeVideoFileImpl: fileTranscodeStub(),
+    });
+    const res = await request(app)
+      .post('/process/video-from-storage')
+      .set('x-internal-secret', TEST_SECRET)
+      .send({ sourceUrl: SOURCE_URL, putUrl: PUT_URL, putContentType: 'video/mp4' });
+    expect(res.status).toBe(413);
+    expect(res.body.error).toMatch(/exceeds videoMaxBytes/);
+    expect(puts).toHaveLength(0);
+  });
+
+  it('leaves no transcode temp directory behind, on success or refusal', async () => {
+    const os = await import('node:os');
+    const { readdir } = await import('node:fs/promises');
+    const countTempDirs = async () =>
+      (await readdir(os.tmpdir())).filter((n) => n.startsWith('curator-video-')).length;
+    const before = await countTempDirs();
+
+    const { fetchImpl } = makeFakeFetch({ sources: { [SOURCE_URL]: makeFakeMp4() } });
+    const app = createImageWorkerApp({
+      internalSecret: TEST_SECRET,
+      fetchImpl,
+      transcodeVideoFileImpl: fileTranscodeStub(),
+    });
+    await request(app)
+      .post('/process/video-from-storage')
+      .set('x-internal-secret', TEST_SECRET)
+      .send({ sourceUrl: SOURCE_URL, putUrl: PUT_URL, putContentType: 'video/mp4' });
+
+    const badFormat = makeFakeFetch({ sources: { [SOURCE_URL]: Buffer.from('not a video') } });
+    const app2 = createImageWorkerApp({
+      internalSecret: TEST_SECRET,
+      fetchImpl: badFormat.fetchImpl,
+      transcodeVideoFileImpl: fileTranscodeStub(),
+    });
+    await request(app2)
+      .post('/process/video-from-storage')
+      .set('x-internal-secret', TEST_SECRET)
+      .send({ sourceUrl: SOURCE_URL, putUrl: PUT_URL, putContentType: 'video/mp4' });
+
+    expect(await countTempDirs()).toBe(before);
   });
 
   it('returns 500 when the PUT to putUrl fails', async () => {
@@ -702,10 +817,7 @@ describe('POST /process/video-from-storage', () => {
     const app = createImageWorkerApp({
       internalSecret: TEST_SECRET,
       fetchImpl,
-      transcodeVideoImpl: async () => ({
-        bytes: Buffer.from('transcoded'),
-        outputFormat: 'mp4',
-      }),
+      transcodeVideoFileImpl: fileTranscodeStub(),
     });
     const res = await request(app)
       .post('/process/video-from-storage')
@@ -722,9 +834,11 @@ describe('POST /process/video-from-storage', () => {
       internalSecret: TEST_SECRET,
       fetchImpl,
       videoTuning: { preset: 'veryfast', threads: 1, rcLookahead: 10 },
-      transcodeVideoImpl: async (_data, tuning) => {
+      transcodeVideoFileImpl: async (_inputPath, outputPath, tuning) => {
         captured = tuning;
-        return { bytes: Buffer.from('x'), outputFormat: 'mp4' };
+        const { writeFile } = await import('node:fs/promises');
+        await writeFile(outputPath, Buffer.from('x'));
+        return { outputFormat: 'mp4' as const };
       },
     });
     const res = await request(app)
@@ -735,13 +849,196 @@ describe('POST /process/video-from-storage', () => {
     expect(captured).toEqual({ preset: 'veryfast', threads: 1, rcLookahead: 10 });
   });
 
-  it('propagates 500 when the transcode implementation throws', async () => {
+  /**
+   * The transcode admission gate: an encode is refused while the HOST is
+   * below the configured available-memory floor, because starting one anyway
+   * is how a memory-starved host dies instead of answering busy.
+   */
+  describe('transcode admission gate', () => {
+    function admissionApp(opts: {
+      memAvailable: number | null;
+      floorBytes: number;
+    }) {
+      const { fetchImpl, puts } = makeFakeFetch({ sources: { [SOURCE_URL]: makeFakeMp4() } });
+      const app = createImageWorkerApp({
+        internalSecret: TEST_SECRET,
+        fetchImpl,
+        transcodeVideoFileImpl: fileTranscodeStub(),
+        readMemAvailableBytesImpl: () => opts.memAvailable,
+        minHostAvailableBytes: opts.floorBytes,
+      });
+      return { app, puts };
+    }
+
+    let stderrSpy: ReturnType<typeof vi.spyOn>;
+    beforeEach(() => {
+      stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    });
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('refuses with 503 and Retry-After when host memory is below the floor', async () => {
+      const { app, puts } = admissionApp({
+        memAvailable: 64 * 1024 * 1024,
+        floorBytes: 128 * 1024 * 1024,
+      });
+      const res = await request(app)
+        .post('/process/video-from-storage')
+        .set('x-internal-secret', TEST_SECRET)
+        .send({ sourceUrl: SOURCE_URL, putUrl: PUT_URL, putContentType: 'video/mp4' });
+      expect(res.status).toBe(503);
+      expect(res.headers['retry-after']).toBe('60');
+      expect(res.body.error).toMatch(/admission floor/);
+      expect(puts).toHaveLength(0);
+      const warned = stderrSpy.mock.calls.map((c) => String(c[0])).join('');
+      expect(warned).toContain('below floor');
+    });
+
+    it('admits when host memory reads above the floor', async () => {
+      const { app } = admissionApp({
+        memAvailable: 512 * 1024 * 1024,
+        floorBytes: 128 * 1024 * 1024,
+      });
+      const res = await request(app)
+        .post('/process/video-from-storage')
+        .set('x-internal-secret', TEST_SECRET)
+        .send({ sourceUrl: SOURCE_URL, putUrl: PUT_URL, putContentType: 'video/mp4' });
+      expect(res.status).toBe(200);
+    });
+
+    it('fails open when host memory is unreadable', async () => {
+      const { app } = admissionApp({
+        memAvailable: null,
+        floorBytes: 128 * 1024 * 1024,
+      });
+      const res = await request(app)
+        .post('/process/video-from-storage')
+        .set('x-internal-secret', TEST_SECRET)
+        .send({ sourceUrl: SOURCE_URL, putUrl: PUT_URL, putContentType: 'video/mp4' });
+      expect(res.status).toBe(200);
+      const warned = stderrSpy.mock.calls.map((c) => String(c[0])).join('');
+      expect(warned).toContain('meminfo unreadable');
+    });
+
+    it('a floor of zero disables the gate', async () => {
+      const { app } = admissionApp({ memAvailable: 1, floorBytes: 0 });
+      const res = await request(app)
+        .post('/process/video-from-storage')
+        .set('x-internal-secret', TEST_SECRET)
+        .send({ sourceUrl: SOURCE_URL, putUrl: PUT_URL, putContentType: 'video/mp4' });
+      expect(res.status).toBe(200);
+    });
+
+    it('gates the buffered video route the same way', async () => {
+      const app = createImageWorkerApp({
+        internalSecret: TEST_SECRET,
+        readMemAvailableBytesImpl: () => 1,
+        minHostAvailableBytes: 128 * 1024 * 1024,
+      });
+      const res = await request(app)
+        .post('/process/video')
+        .set('Content-Type', 'application/octet-stream')
+        .set('x-internal-secret', TEST_SECRET)
+        .send(makeFakeMp4());
+      expect(res.status).toBe(503);
+      expect(res.headers['retry-after']).toBe('60');
+    });
+  });
+
+  /**
+   * This process is the one that reads the deploy-time encoder bounds. The
+   * transcode library it calls is loaded by a container given none of the web
+   * environment contract, so the library reads no environment and takes its
+   * bounds as arguments; a bound the deployment set badly therefore has to be
+   * refused here, at construction, or nothing refuses it at all.
+   */
+  describe('deploy-time encoder bounds read from the environment', () => {
+    const ENCODER_VARS = ['VIDEO_MAX_HEIGHT', 'FFMPEG_TIMEOUT_SECONDS'];
+    let saved: Record<string, string | undefined>;
+
+    beforeEach(() => {
+      saved = {};
+      for (const name of ENCODER_VARS) {
+        saved[name] = process.env[name];
+        delete process.env[name];
+      }
+    });
+
+    afterEach(() => {
+      for (const [name, value] of Object.entries(saved)) {
+        if (value === undefined) delete process.env[name];
+        else process.env[name] = value;
+      }
+    });
+
+    async function captureTuning(): Promise<unknown> {
+      const { fetchImpl } = makeFakeFetch({ sources: { [SOURCE_URL]: makeFakeMp4() } });
+      let captured: unknown = null;
+      const app = createImageWorkerApp({
+        internalSecret: TEST_SECRET,
+        fetchImpl,
+        transcodeVideoFileImpl: async (_inputPath, outputPath, tuning) => {
+          captured = tuning;
+          const { writeFile } = await import('node:fs/promises');
+          await writeFile(outputPath, Buffer.from('x'));
+          return { outputFormat: 'mp4' as const };
+        },
+      });
+      const res = await request(app)
+        .post('/process/video-from-storage')
+        .set('x-internal-secret', TEST_SECRET)
+        .send({ sourceUrl: SOURCE_URL, putUrl: PUT_URL, putContentType: 'video/mp4' });
+      expect(res.status).toBe(200);
+      return captured;
+    }
+
+    it('passes the configured height ceiling to the transcode call', async () => {
+      process.env.VIDEO_MAX_HEIGHT = '720';
+      expect(await captureTuning()).toMatchObject({ maxHeight: 720 });
+    });
+
+    it('passes the configured encoder timeout to the transcode call, in milliseconds', async () => {
+      process.env.FFMPEG_TIMEOUT_SECONDS = '600';
+      expect(await captureTuning()).toMatchObject({ timeoutMs: 600000 });
+    });
+
+    it('leaves both bounds unset when the deployment sets neither', async () => {
+      expect(await captureTuning()).toMatchObject({
+        maxHeight: undefined,
+        timeoutMs: undefined,
+      });
+    });
+
+    it('refuses a height ceiling outside the range the encoder supports', () => {
+      process.env.VIDEO_MAX_HEIGHT = '99999';
+      expect(() => createImageWorkerApp({ internalSecret: TEST_SECRET })).toThrow(
+        /VIDEO_MAX_HEIGHT must be between 240 and 2160/,
+      );
+    });
+
+    it('refuses a height ceiling that is not a whole number', () => {
+      process.env.VIDEO_MAX_HEIGHT = '720p';
+      expect(() => createImageWorkerApp({ internalSecret: TEST_SECRET })).toThrow(
+        /VIDEO_MAX_HEIGHT must be a positive integer/,
+      );
+    });
+
+    it('refuses an encoder timeout below the range the encoder supports', () => {
+      process.env.FFMPEG_TIMEOUT_SECONDS = '1';
+      expect(() => createImageWorkerApp({ internalSecret: TEST_SECRET })).toThrow(
+        /FFMPEG_TIMEOUT_SECONDS must be between 30 and 7200/,
+      );
+    });
+  });
+
+  it('propagates 500 when the transcode implementation throws a plain error', async () => {
     const { fetchImpl } = makeFakeFetch({ sources: { [SOURCE_URL]: makeFakeMp4() } });
     const app = createImageWorkerApp({
       internalSecret: TEST_SECRET,
       fetchImpl,
-      transcodeVideoImpl: async () => {
-        throw new Error('ffmpeg exited with code null: kaboom');
+      transcodeVideoFileImpl: async () => {
+        throw new Error('kaboom');
       },
     });
     const res = await request(app)
@@ -749,7 +1046,139 @@ describe('POST /process/video-from-storage', () => {
       .set('x-internal-secret', TEST_SECRET)
       .send({ sourceUrl: SOURCE_URL, putUrl: PUT_URL, putContentType: 'video/mp4' });
     expect(res.status).toBe(500);
-    expect(res.body.error).toMatch(/ffmpeg exited/);
+    expect(res.body.error).toMatch(/kaboom/);
+  });
+
+  /**
+   * A failed ffmpeg run answers with a short refusal: everything in the 500
+   * body travels verbatim to the curator's screen, so encoder output is
+   * bounded there and container internals stay out, while the full stderr
+   * tail goes to the worker's log stream for the operator.
+   */
+  describe('transcode failure shaping', () => {
+    let savedMemoryLimit: string | undefined;
+    let stderrSpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      savedMemoryLimit = process.env.IMAGE_MEMORY_LIMIT;
+      delete process.env.IMAGE_MEMORY_LIMIT;
+      // Every test here drives the worker's stderr diagnostic line; the spy
+      // both captures it for assertion and keeps it out of the runner output.
+      stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    });
+
+    afterEach(() => {
+      if (savedMemoryLimit === undefined) delete process.env.IMAGE_MEMORY_LIMIT;
+      else process.env.IMAGE_MEMORY_LIMIT = savedMemoryLimit;
+      vi.restoreAllMocks();
+    });
+
+    async function postFailingTranscode(err: FfmpegExecutionError) {
+      const { fetchImpl } = makeFakeFetch({ sources: { [SOURCE_URL]: makeFakeMp4() } });
+      const app = createImageWorkerApp({
+        internalSecret: TEST_SECRET,
+        fetchImpl,
+        transcodeVideoFileImpl: async () => {
+          throw err;
+        },
+      });
+      return request(app)
+        .post('/process/video-from-storage')
+        .set('x-internal-secret', TEST_SECRET)
+        .send({ sourceUrl: SOURCE_URL, putUrl: PUT_URL, putContentType: 'video/mp4' });
+    }
+
+    function signalKill(): FfmpegExecutionError {
+      return new FfmpegExecutionError({
+        kind: 'signal',
+        exitCode: null,
+        signal: 'SIGKILL',
+        timeoutMs: 240000,
+        stderrTail: 'frame=6 fps=2.4 encoder working normally until the kill',
+      });
+    }
+
+    it('answers a signal-killed encode with the resource-ceiling refusal naming the configured memory limit', async () => {
+      process.env.IMAGE_MEMORY_LIMIT = '256M';
+      const res = await postFailingTranscode(signalKill());
+      expect(res.status).toBe(500);
+      expect(res.body.error).toBe(
+        "transcode was stopped by the media container's resource ceiling (memory limit 256M)",
+      );
+    });
+
+    it('omits the memory figure when no limit is configured', async () => {
+      const res = await postFailingTranscode(signalKill());
+      expect(res.status).toBe(500);
+      expect(res.body.error).toBe(
+        "transcode was stopped by the media container's resource ceiling",
+      );
+    });
+
+    it('never carries encoder output or the code-null shape on a signal kill', async () => {
+      process.env.IMAGE_MEMORY_LIMIT = '256M';
+      const res = await postFailingTranscode(signalKill());
+      expect(res.body.error).not.toContain('frame=');
+      expect(res.body.error).not.toContain('code null');
+      expect(res.body.error.length).toBeLessThan(120);
+    });
+
+    it('answers a timed-out encode naming the time limit in seconds', async () => {
+      const res = await postFailingTranscode(
+        new FfmpegExecutionError({
+          kind: 'timeout',
+          exitCode: null,
+          signal: 'SIGKILL',
+          timeoutMs: 240000,
+          stderrTail: 'partial encoder output',
+        }),
+      );
+      expect(res.status).toBe(500);
+      expect(res.body.error).toBe('transcode exceeded the 240-second encoder time limit');
+    });
+
+    it('bounds a genuine encoder failure to the public stderr limit', async () => {
+      const res = await postFailingTranscode(
+        new FfmpegExecutionError({
+          kind: 'exit',
+          exitCode: 1,
+          signal: null,
+          stderrTail: 'x'.repeat(2000),
+        }),
+      );
+      expect(res.status).toBe(500);
+      expect(res.body.error).toContain('ffmpeg exited with code 1');
+      expect(res.body.error.length).toBeLessThanOrEqual(
+        'ffmpeg exited with code 1: '.length + FFMPEG_STDERR_PUBLIC_LIMIT_BYTES,
+      );
+    });
+
+    it('writes the full stderr tail and classification to the worker log stream', async () => {
+      const longTail = 'y'.repeat(1800);
+      await postFailingTranscode(
+        new FfmpegExecutionError({
+          kind: 'exit',
+          exitCode: 1,
+          signal: null,
+          stderrTail: longTail,
+        }),
+      );
+      const logged = stderrSpy.mock.calls
+        .map((call) => String(call[0]))
+        .find((line) => line.includes('ffmpeg run failed'));
+      expect(logged).toBeDefined();
+      const parsed = JSON.parse(logged as string);
+      expect(parsed.kind).toBe('exit');
+      expect(parsed.exitCode).toBe(1);
+      expect(parsed.stderrTail).toBe(longTail);
+    });
+
+    it('refuses a malformed memory-limit value at construction', () => {
+      process.env.IMAGE_MEMORY_LIMIT = 'lots';
+      expect(() => createImageWorkerApp({ internalSecret: TEST_SECRET })).toThrow(
+        /IMAGE_MEMORY_LIMIT must be a Docker memory value/,
+      );
+    });
   });
 });
 

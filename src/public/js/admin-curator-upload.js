@@ -67,14 +67,57 @@
     });
   }
 
+  // The server refuses an oversized file either way; this only saves the
+  // curator the transfer. The cap comes from the form so the page, the check
+  // and the server all state one number, and a missing attribute simply
+  // disables the check rather than inventing a limit of its own.
+  function overTheLimit(form, file) {
+    var limit = parseInt(form.getAttribute('data-video-max-bytes'), 10);
+    if (!file || !isFinite(limit) || limit <= 0) return null;
+    if (file.size <= limit) return null;
+    return 'That video is ' + readableSize(file.size) + '. The maximum is ' +
+      readableSize(limit) + '. Pick a smaller file.';
+  }
+
   function init() {
-    var form = $('form[data-async-curator-upload]');
+    // Selected by the endpoint it posts to. An attribute the markup never
+    // carried used to be the selector, so this whole enhancement returned here
+    // and never ran; in S3-adapter mode the synchronous video route answers 410
+    // Gone, which made binary video upload impossible rather than merely
+    // unenhanced.
+    var form = $('form[action="/admin/curator/upload"]');
     if (!form) return;
     var statusEl = $('[data-async-status]', form);
     var progressEl = $('[data-async-progress]', form);
     var submitBtn = $('button[type="submit"]', form);
 
+    // Scoped to the video panel throughout: the photo panel carries an input of
+    // the same name, so an unscoped lookup finds whichever the markup happens to
+    // place first and reports the curator's chosen video as missing.
+    var videoPanelInput = $('.upload-tab-panel-video input[name="mediaFile"]', form);
+
+    // Told at the moment of choosing rather than at submit, so the curator is
+    // not left waiting on an upload the page already knows will be refused.
+    if (videoPanelInput) {
+      videoPanelInput.addEventListener('change', function () {
+        var tooBig = overTheLimit(form, videoPanelInput.files && videoPanelInput.files[0]);
+        if (tooBig) setStatus(statusEl, tooBig, 'error');
+        else setStatus(statusEl, '', 'info');
+      });
+    }
+
     form.addEventListener('submit', async function (event) {
+      // Ahead of the media-type gate below, so the multipart path is guarded
+      // too: that is the path where an oversized file would otherwise be sent
+      // in full before the server could answer.
+      var chosen = videoPanelInput && videoPanelInput.files && videoPanelInput.files[0];
+      var refusal = overTheLimit(form, chosen);
+      if (refusal) {
+        event.preventDefault();
+        setStatus(statusEl, refusal, 'error');
+        return;
+      }
+
       var mediaTypeInput = form.querySelector('input[name="mediaType"]:checked');
       var mediaType = mediaTypeInput ? mediaTypeInput.value : '';
       // The async S3 PUT flow runs only when the form opts in via
@@ -87,12 +130,11 @@
       }
       event.preventDefault();
 
-      var videoInput = form.querySelector('input[name="mediaFile"]');
       var posterInput = form.querySelector('input[name="poster"]');
       var captionInput = form.querySelector('input[name="caption"]');
       var tagsInput = form.querySelector('input[name="tags"]');
 
-      var videoFile = videoInput && videoInput.files && videoInput.files[0];
+      var videoFile = chosen;
       var posterFile = posterInput && posterInput.files && posterInput.files[0];
 
       if (!videoFile) {

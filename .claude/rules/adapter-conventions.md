@@ -31,4 +31,4 @@ Every new adapter, and any change to an adapter's contract, lands with the three
 
 ## Mechanically enforced
 
-`scripts/ci/assert_conventions.sh` blocks AWS SDK / Stripe imports outside `src/adapters/` and `process.env` reads outside `src/config/env.ts`.
+`scripts/ci/assert_conventions.sh` blocks AWS SDK / Stripe imports outside `src/adapters/` and `process.env` reads outside `src/config/env.ts` and the separate-process entry points the gate names, each of which bootstraps its own environment because it runs without the web application's contract.
