@@ -335,6 +335,31 @@ def build_events() -> list[str]:
     return [f"{BASE_URL}/events/show/{eid}" for eid in sorted(ids, key=int)]
 
 
+def approved_event_ids() -> set[str] | None:
+    """Event ids the legacy calendar was willing to list, or None when unknown.
+
+    The events seed above is deliberately blind to approval, because capture must
+    not turn on a flag that decides only whether the site advertised a page. A
+    reader-facing index of the archive is the opposite case: an unapproved event
+    is one the calendar refused to show, and naming it hands a reader what the
+    site withheld. Approval survives only in the frozen dump, so a checkout
+    without the legacy clone cannot tell an approved event from a withheld one
+    and gets None rather than a guess.
+    """
+    path = LEGACY_REPO / "events" / "backups" / "latest.sql"
+    if not path.exists():
+        return None
+    # calendar columns: 0 Approved, 1 Deleted, 2 EventID.
+    ids: set[str] = set()
+    for row in iter_table_rows(path, "calendar"):
+        if row[1].strip() != "0" or row[0].strip() == "0":
+            continue
+        event_id = row[2].strip()
+        if event_id:
+            ids.add(event_id)
+    return ids
+
+
 def build_members() -> list[str]:
     """Seed URLs for every valid member profile.
 

@@ -16,6 +16,14 @@
 #                                                      login redirect)
 #   3. Corrupted signature            403 + denied    (a CloudFront-generated 403 does
 #                                                      route through the error mapping)
+#
+# Rows 2 and 3 read the environment's declared cookie posture and assert the
+# answer that posture calls for. Where archive content is not gated on a signed
+# cookie, both expect the content to be served instead, and the run says so in
+# its output. Inverting rather than skipping keeps every environment's proof a
+# statement about what it actually does. The expectation comes from the declared
+# intent and never from the live distribution, so an environment that lost its
+# key group fails here rather than being taken for one that meant to be open.
 #   4. Valid cookies, missing key     404 + notfound  (only true because the bucket policy
 #                                                      grants ListBucket; without it S3
 #                                                      answers 403 and every broken link
@@ -52,7 +60,7 @@ SIGNING_KEY="${HOME}/AWS/archive-signing-key.pem"
 CHECK_LOGS=0
 
 usage() {
-  sed -n '2,45p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,51p' "$0" | sed 's/^# \{0,1\}//'
   exit 2
 }
 
@@ -107,6 +115,26 @@ if [[ -z "$DOMAIN" || -z "$KEY_PAIR_ID" || -z "$BUCKET" ]]; then
   echo "ERROR: archive terraform outputs are empty in ${TF_DIR}." >&2
   echo "       The archive stack must be applied (enable_archive = true)." >&2
   exit 1
+fi
+# Which answer a cookie-less request should draw depends on whether this
+# environment gates archive content at all. Where the gate is off the two
+# refusal rows below are inverted rather than skipped, so the run still states
+# what it found and a reader of the output can see the posture it ran under.
+# Taken from the declared intent, never from the live distribution: an
+# environment that lost its key group would otherwise be read as deliberately
+# open and pass.
+REQUIRE_COOKIES="$(tf_out archive_requires_signed_cookies)"
+if [[ -z "$REQUIRE_COOKIES" ]]; then
+  echo "ERROR: archive_requires_signed_cookies is not published by ${TF_DIR}." >&2
+  echo "       Apply the archive stack so the output lands in state." >&2
+  exit 1
+fi
+if [[ "$REQUIRE_COOKIES" == "true" ]]; then
+  GATED_CODE=403
+  GATED_BODY="Sign in"
+else
+  GATED_CODE=200
+  GATED_BODY=""
 fi
 
 WORK_DIR="$(mktemp -d /tmp/footbag-archive-edge.XXXXXX)"
@@ -184,10 +212,15 @@ check() {
 }
 
 echo "Archive edge proof: ${TARGET_ENV} (${DOMAIN})"
+if [[ "$REQUIRE_COOKIES" != "true" ]]; then
+  echo "  NOTE  archive content is not cookie-gated here; the two rows below assert"
+  echo "        that a cookie-less request is served, which is this environment's"
+  echo "        stated posture. The platform's login-gated redirect is the gate."
+fi
 
 check "gate page, no cookies"        200 "https://${DOMAIN}/_gate/denied.html" "" "archive"
-check "root, no cookies"             403 "https://${DOMAIN}/"                  "" "Sign in"
-check "corrupted signature"          403 "https://${DOMAIN}/${CONTENT_KEY}"    "$BAD_COOKIE_FILE" "Sign in"
+check "root, no cookies"             "$GATED_CODE" "https://${DOMAIN}/"               "" "$GATED_BODY"
+check "corrupted signature"          "$GATED_CODE" "https://${DOMAIN}/${CONTENT_KEY}" "$BAD_COOKIE_FILE" "$GATED_BODY"
 check "valid cookies, missing key"   404 "https://${DOMAIN}/no-such-key-$$"    "$COOKIE_FILE"
 check "valid cookies, existing key"  200 "https://${DOMAIN}/${CONTENT_KEY}"    "$COOKIE_FILE"
 check "valid cookies, directory URL" 200 "$DIR_URL"                            "$COOKIE_FILE"

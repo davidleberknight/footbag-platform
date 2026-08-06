@@ -1,0 +1,98 @@
+# Paths the archive publish never uploads.
+#
+# One glob per line, matched against a file's path relative to the served root
+# (the same form the S3 sync uses), '#' comments and blank lines ignored. The
+# publisher applies every entry as a sync exclusion AND drops matching files
+# from the unscanned-types refusal, so a path listed here is simply not part of
+# the archive rather than something an operator has to keep waving through.
+#
+# This is the home for "captured, but deliberately not served". A path belongs
+# here when the capture is worth keeping locally but has no place in the
+# published archive. Removing an entry publishes those files on the next sync.
+
+# JavaScript. The archive runs no script: every <script> element is stripped
+# from every page at capture, and the publish refuses a tree where any survived.
+# The standalone script files the WordPress microsites shipped (jQuery, the
+# theme sliders, the comment and embed helpers) are therefore referenced by
+# nothing once a page is sanitized. Publishing them would put a script library
+# in an archive that states it runs none, for no reader benefit.
+*.js
+
+# Formats no browser renders. The archive serves pages, JPEG, MP4, PDF, CSS and
+# fonts; everything below is a file a reader can only download and open in
+# something else, if they still have something else that opens it. Camera
+# thumbnail sidecars, Photoshop and Windows Metafile sources, Flash, HyperCard,
+# and the audio and video formats outside the converted set are all captured and
+# kept locally, and none of them belong in what the archive serves. The same
+# reasoning already governs the gallery audio tracks the media policy excludes.
+*.THM
+*.psd
+*.wmf
+*.swf
+*.bin
+*.htc
+*.rmvb
+*.m2t
+*.wma
+*.flac
+
+# News and event feeds. A feed exists to announce what is new, and nothing in a
+# frozen archive will ever be new: the events feed still advertises upcoming
+# events two decades past, and both write their item links as absolute URLs to a
+# host that stops existing at shutdown. Every reference to them in the capture is
+# a feed-autodiscovery hint in a page head, never a link a reader can see or
+# click, so leaving them unpublished costs a reader nothing.
+*.rss
+
+# Office documents. Kept out for the same reason, with the added point that the
+# archive has no way to say what is inside one. PDF stays published; it is in the
+# publisher's known set and renders in the browser.
+*.doc
+*.ppt
+*.xls
+
+# Macro-enabled Office files. Everything else the archive serves is inert once
+# it reaches a reader; a macro-enabled template is code that offers to run on
+# the machine of whoever opens it, and nothing in the capture or the publish
+# looks inside it to say what that code does. The two pages linking the judging
+# template keep their link and it stops resolving, which is the right trade
+# against handing a member a 2012 macro file the archive cannot vouch for.
+*.xltm
+*.xlsm
+*.docm
+*.pptm
+
+# Gallery captures named after a web address or an e-mail address. A member who
+# typed either into a gallery field gave the browser something it resolved as a
+# path, and the site answered with its "no set found by that name" page, which
+# was then stored under that name. Two reasons they stay out: the page is the
+# live site failing rather than anything preserved, and the file name itself is
+# the member's own address, which publishing would turn into an archive URL.
+#
+# Matched by the false extension the address leaves behind rather than by path,
+# so no member address is written into this file. The real pages one level down
+# a gallery route are named index.html and are untouched by every line here.
+# The crawler now refuses these at capture time, so a fresh crawl produces none
+# and these lines cover only a tree captured before that.
+gallery/*/*.ca
+gallery/*/*.com
+gallery/*/*.de
+gallery/*/*.ee
+gallery/*/*.org
+gallery/*/*.ru
+gallery/*/*.sk
+gallery/*/*.tk
+gallery/*/*.04
+gallery/*/*.05
+
+# Captures that are not pages, kept out until the crawler stops producing them.
+# One is a photograph the site served under a path ending in .html, so it missed
+# the re-encode every other image goes through and would reach a reader as image
+# bytes labelled as a web page. The other three are a page the site returned
+# empty and two it returned as nothing at all. None of them declares a character
+# set, which is the only reason the publish noticed: a file with no text in it
+# has nowhere to declare one.
+media/1458/*/index.html
+gallery/show/15626/index.html
+gallery/show/15631/index.html
+gallery/show/15676/index.html

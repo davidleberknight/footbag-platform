@@ -4,13 +4,19 @@
 # The single repeatable way the legacy footbag.org mirror becomes the served
 # members-only archive: verify the mirror tree, then sync the CONTENTS of its
 # www.footbag.org/ subtree to the archive S3 bucket root and invalidate the
-# archive CloudFront distribution. Dry-run by DEFAULT (unusual for this repo's
-# scripts, deliberately: the destructive form is opt-in): without --apply it
-# prints exactly what would change and touches nothing.
+# archive CloudFront distribution. Naming the environment IS the deploy: the
+# command publishes. Pass --dry-run to rehearse instead, which prints exactly
+# what would change and touches nothing.
 #
-# DESTRUCTIVE with --apply: the sync uses --delete, so bucket keys absent from
-# the mirror tree are removed (the reserved _gate/ prefix, which holds the two
-# Terraform-owned gate pages, is excluded from both upload and deletion).
+# DESTRUCTIVE: the sync uses --delete, so bucket keys absent from the mirror
+# tree are removed (the reserved _gate/ prefix, which holds the two
+# Terraform-owned gate pages, is excluded from both upload and deletion). A
+# second pass then removes what the sync structurally cannot: an excluded
+# pattern hides a key from the bucket listing as well as from the upload, so
+# --delete never sees it, and a pattern added today would otherwise leave
+# yesterday's copy served forever. Every gate below still has to pass, so a
+# publish that would ship unscanned or unrecognized bytes refuses before it
+# uploads anything.
 #
 # What it enforces, in order:
 #   1. The source is a complete mirror root: the www.footbag.org/ subtree plus
@@ -19,9 +25,9 @@
 #      syncing from the www subtree is what keeps them out.
 #   2. Sanitization gate: every media file (.mp4/.jpg/.gif) must carry its
 #      zero-byte .sanitized sidecar, the crawler's marker that the bytes were
-#      re-encoded. Bare media files are unscanned bytes; the publish refuses
-#      unless --allow-unsanitized matches their exact count. Any other media
-#      extension on disk is an unconverted crawler leftover and always fatal.
+#      re-encoded. Bare media files are unscanned bytes and the publish
+#      refuses, naming them. Any other media extension on disk is an
+#      unconverted crawler leftover and always fatal.
 #      The sidecars themselves are crawl bookkeeping and are never uploaded.
 #   3. After an applied sync: the landing page (/index.html, the only archive
 #      URL the platform ever emits) resolves to a real key; both gate pages
@@ -29,50 +35,51 @@
 #   4. One CloudFront invalidation of /*. Not optional: the edge TTL is a
 #      year, so a re-sync without an invalidation serves the old capture
 #      indefinitely.
-#   5. Optional --verify-edge: fetch the landing page through the
+#   5. Edge verification, always: fetch the landing page through the
 #      distribution with a hand-signed CloudFront cookie (custom policy,
 #      wildcard resource) and expect 200, plus a random missing key
-#      expecting 404. The cookie header travels via a 0600 temp file, never
-#      argv.
+#      expecting 404. A sync and an invalidation both reporting success do
+#      not establish that a member can read the archive; only this does. The
+#      cookie header travels via a 0600 temp file, never argv.
 #
 # Identifiers come from terraform output in the target environment's tree;
 # nothing is hardcoded. Credentials are OPERATOR credentials (the runtime
 # roles are read-only on SSM and have no archive-bucket write access).
 #
 # Usage:
-#   scripts/publish-archive.sh --env staging [--profile <p>]                  # dry run
-#   scripts/publish-archive.sh --env staging --apply --allow-unsanitized <n> \
-#       [--verify-edge [--signing-key <pem>]] [--profile <p>]
+#   scripts/publish-archive.sh --env staging              # publish, then verify the edge
+#   scripts/publish-archive.sh --env staging --dry-run    # rehearse, change nothing
 #
 # Flags:
 #   --env staging|production   Target environment (required).
-#   --apply                    Execute. Without it: full dry run, exit 0.
+#   --dry-run                  Print what a publish would change and exit 0.
+#
+# Escape hatches, each correct by default and rarely passed:
 #   --profile <p>              AWS profile; else ambient AWS_PROFILE.
 #   --mirror-root <path>       Override the mirror root location.
-#   --allow-unsanitized <n>    Proceed only if exactly n media files lack
-#                              their sidecar (the refusal lists them).
-#   --allow-unknown-types <n>  Proceed only if exactly n files are of types
-#                              nothing scans (the refusal lists them).
-#   --verify-edge              Post-publish signed-cookie fetch through the
-#                              distribution.
-#   --signing-key <pem>        Private key for --verify-edge
+#   --signing-key <pem>        Private key for the edge check
 #                              (default: ~/AWS/archive-signing-key.pem).
+#
+# There is no flag to wave through unscanned or unrecognized bytes. A file the
+# gates refuse is either something the archive should serve, in which case the
+# capture is what needs fixing, or something it should not, in which case it
+# belongs in archive-publish-exclusions.txt where the decision is recorded once
+# and holds for every future publish. A per-run count override recorded nothing
+# and silently absorbed a new file whenever an old one disappeared.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 TARGET_ENV=""
-APPLY=0
+DRY_RUN=0
 AWS_PROFILE_ARG=""
 MIRROR_ROOT="${REPO_ROOT}/legacy_data/legacy_mirror/mirror_footbag_org"
-ALLOW_UNSANITIZED=""
-ALLOW_UNKNOWN_TYPES=""
-VERIFY_EDGE=0
+EXCLUSION_LIST="${SCRIPT_DIR}/archive-publish-exclusions.txt"
 SIGNING_KEY="${HOME}/AWS/archive-signing-key.pem"
 
 usage() {
-  sed -n '2,60p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,68p' "$0" | sed 's/^# \{0,1\}//'
   exit 2
 }
 
@@ -82,7 +89,7 @@ while [[ $# -gt 0 ]]; do
       TARGET_ENV="${2:-}"
       shift 2 || { echo "ERROR: --env requires an argument" >&2; exit 2; }
       ;;
-    --apply) APPLY=1; shift ;;
+    --dry-run) DRY_RUN=1; shift ;;
     --profile)
       AWS_PROFILE_ARG="${2:-}"
       shift 2 || { echo "ERROR: --profile requires an argument" >&2; exit 2; }
@@ -91,15 +98,6 @@ while [[ $# -gt 0 ]]; do
       MIRROR_ROOT="${2:-}"
       shift 2 || { echo "ERROR: --mirror-root requires an argument" >&2; exit 2; }
       ;;
-    --allow-unsanitized)
-      ALLOW_UNSANITIZED="${2:-}"
-      shift 2 || { echo "ERROR: --allow-unsanitized requires an argument" >&2; exit 2; }
-      ;;
-    --allow-unknown-types)
-      ALLOW_UNKNOWN_TYPES="${2:-}"
-      shift 2 || { echo "ERROR: --allow-unknown-types requires an argument" >&2; exit 2; }
-      ;;
-    --verify-edge) VERIFY_EDGE=1; shift ;;
     --signing-key)
       SIGNING_KEY="${2:-}"
       shift 2 || { echo "ERROR: --signing-key requires an argument" >&2; exit 2; }
@@ -144,6 +142,39 @@ for manifest in sitemap.txt redirect_map.json skipped_videos.json skipped_videos
   fi
 done
 
+# ---- 1b. Exclusion list ------------------------------------------------------
+#
+# The maintained list of paths the archive keeps locally but never serves. It is
+# applied in two places that must agree: as sync exclusions, so the files are not
+# uploaded, and against the unscanned-types refusal, so an excluded file is not
+# something an operator is asked to accept. Applying it to only one of the two
+# either publishes what the list forbids or demands an override for files that
+# were never going to be uploaded.
+EXCLUDE_PATTERNS=()
+if [[ -f "$EXCLUSION_LIST" ]]; then
+  while IFS= read -r line; do
+    line="${line%%#*}"
+    line="${line#"${line%%[![:space:]]*}"}"
+    line="${line%"${line##*[![:space:]]}"}"
+    [[ -n "$line" ]] && EXCLUDE_PATTERNS+=("$line")
+  done < "$EXCLUSION_LIST"
+fi
+
+path_is_excluded() {
+  local candidate="$1" pattern
+  for pattern in ${EXCLUDE_PATTERNS+"${EXCLUDE_PATTERNS[@]}"}; do
+    # shellcheck disable=SC2053  # glob match is the point
+    [[ "$candidate" == $pattern || "${candidate##*/}" == $pattern ]] && return 0
+  done
+  return 1
+}
+
+if [[ ${#EXCLUDE_PATTERNS[@]} -gt 0 ]]; then
+  echo "Exclusion list: ${#EXCLUDE_PATTERNS[@]} pattern(s) from ${EXCLUSION_LIST##*/}"
+else
+  echo "Exclusion list: none (${EXCLUSION_LIST##*/} absent or empty)"
+fi
+
 # ---- 2. Terraform-owned identifiers -----------------------------------------
 
 TF_DIR="${REPO_ROOT}/terraform/${TARGET_ENV}"
@@ -181,15 +212,13 @@ if [[ -s "$LEFTOVER_LIST" ]]; then
   exit 1
 fi
 
-if [[ "$UNSANITIZED_COUNT" -gt 0 && "$ALLOW_UNSANITIZED" != "$UNSANITIZED_COUNT" ]]; then
+if [[ "$UNSANITIZED_COUNT" -gt 0 ]]; then
   echo "REFUSING: ${UNSANITIZED_COUNT} media files lack their .sanitized sidecar" >&2
-  echo "(unscanned bytes). Review the list, then re-run with" >&2
-  echo "--allow-unsanitized ${UNSANITIZED_COUNT} to accept exactly these:" >&2
+  echo "(unscanned bytes: the crawler never re-encoded them). Either re-run the" >&2
+  echo "crawler so it does, or, if the archive should not serve them, add them to" >&2
+  echo "${EXCLUSION_LIST##*/} and publish again:" >&2
   cat "$UNSANITIZED_LIST" >&2
   exit 1
-fi
-if [[ "$UNSANITIZED_COUNT" -gt 0 ]]; then
-  echo "Proceeding with ${UNSANITIZED_COUNT} operator-accepted unsanitized media files."
 fi
 
 # ---- 3a. Unrecognized file types ---------------------------------------------
@@ -211,18 +240,32 @@ find "$WWW_ROOT" -type f \
   ! -iname '*.mp4' ! -iname '*.css' ! -iname '*.pdf' ! -iname '*.ics' \
   ! -iname '*.ttf' ! -iname '*.eot' ! -iname '*.woff' ! -iname '*.woff2' \
   ! -iname '*.ico' ! -iname '*.sanitized' \
-  > "$KNOWN_LIST" || true
+  > "${KNOWN_LIST}.all" || true
+# A path the exclusion list keeps out of the bucket is not a file anyone has to
+# accept: it is not being published. Dropping them here is what stops the
+# refusal from demanding an override for files the sync will never upload.
+: > "$KNOWN_LIST"
+excluded_unknown=0
+while IFS= read -r candidate; do
+  rel_candidate="${candidate#"${WWW_ROOT}/"}"
+  if path_is_excluded "$rel_candidate"; then
+    excluded_unknown=$((excluded_unknown + 1))
+  else
+    printf '%s\n' "$candidate" >> "$KNOWN_LIST"
+  fi
+done < "${KNOWN_LIST}.all"
+if [[ "$excluded_unknown" -gt 0 ]]; then
+  echo "Exclusion list: ${excluded_unknown} unscanned file(s) are not published (${EXCLUSION_LIST##*/})."
+fi
 UNKNOWN_COUNT="$(wc -l < "$KNOWN_LIST")"
-if [[ "$UNKNOWN_COUNT" -gt 0 && "$ALLOW_UNKNOWN_TYPES" != "$UNKNOWN_COUNT" ]]; then
+if [[ "$UNKNOWN_COUNT" -gt 0 ]]; then
   echo "REFUSING: ${UNKNOWN_COUNT} files of types nothing has scanned." >&2
   echo "Neither the crawler's re-encode nor the checks above look at these." >&2
-  echo "Read the list, then re-run with --allow-unknown-types ${UNKNOWN_COUNT}" >&2
-  echo "to accept exactly these:" >&2
+  echo "Read the list. A file the archive should serve means the capture needs" >&2
+  echo "fixing; a file it should not means adding it to ${EXCLUSION_LIST##*/}," >&2
+  echo "which records the decision once instead of per publish:" >&2
   cat "$KNOWN_LIST" >&2
   exit 1
-fi
-if [[ "$UNKNOWN_COUNT" -gt 0 ]]; then
-  echo "Proceeding with ${UNKNOWN_COUNT} operator-accepted files of unscanned types."
 fi
 
 # ---- 3b. Static-archive sanitization gate ------------------------------------
@@ -245,13 +288,35 @@ fi
 #   at shutdown.
 
 sanitation_fail=0
+# Every sanitation gate below judges only what the publish would actually
+# upload. A file the exclusion list keeps out of the bucket cannot leak or break
+# anything for a reader, so holding the publish over it refuses a release for a
+# file that is not in it. The count of what was skipped is printed rather than
+# quietly dropped, so an exclusion list that has grown broad enough to be hiding
+# real problems is visible.
 report_offenders() {
   local label="$1" listing="$2"
-  local count
-  count="$(grep -c '' "$listing" || true)"
+  local published="${listing}.published"
+  local count skipped=0 offender rel_offender
+  : > "$published"
+  if [[ -f "$listing" ]]; then
+    while IFS= read -r offender; do
+      [[ -n "$offender" ]] || continue
+      rel_offender="${offender#"${WWW_ROOT}/"}"
+      if path_is_excluded "$rel_offender"; then
+        skipped=$((skipped + 1))
+      else
+        printf '%s\n' "$offender" >> "$published"
+      fi
+    done < "$listing"
+  fi
+  if [[ "$skipped" -gt 0 ]]; then
+    echo "  (${skipped} file(s) ${label}, not published, so not counted)"
+  fi
+  count="$(grep -c '' "$published" || true)"
   if [[ "$count" -gt 0 ]]; then
     echo "REFUSING: ${count} file(s) ${label}." >&2
-    head -10 "$listing" >&2
+    head -10 "$published" >&2
     [[ "$count" -gt 10 ]] && echo "  ... and $((count - 10)) more" >&2
     sanitation_fail=1
   fi
@@ -315,13 +380,61 @@ SYNC_ARGS=(
   s3 sync "${WWW_ROOT}/" "s3://${BUCKET}/"
   --exclude "*.sanitized"
   --exclude "_gate/*"
+)
+# The maintained list, applied to the upload so an excluded file is never sent.
+# It cannot also drive removal: aws s3 sync applies --exclude to the bucket
+# listing as well as to the source, so a key one of these patterns matches is
+# invisible to --delete, and the same line that keeps a file out of the bucket
+# pins whatever an earlier publish already put there. Clearing those is the
+# reconciliation pass below.
+for pattern in ${EXCLUDE_PATTERNS+"${EXCLUDE_PATTERNS[@]}"}; do
+  SYNC_ARGS+=(--exclude "$pattern")
+done
+SYNC_ARGS+=(
   --delete
   --no-progress
 )
-if [[ "$APPLY" -eq 0 ]]; then
-  echo "DRY RUN (no --apply): listing what an applied publish would change."
+# The set of keys this publish means the bucket to hold: every source file that
+# is not a sidecar and not excluded. Deletion is decided against this rather
+# than delegated to the sync, because the sync cannot see an excluded key.
+INTENDED_KEYS="${WORK_DIR}/intended_keys.txt"
+: > "$INTENDED_KEYS"
+find "$WWW_ROOT" -type f ! -name '*.sanitized' > "${WORK_DIR}/source_files.txt"
+while IFS= read -r src_file; do
+  rel_key="${src_file#"${WWW_ROOT}/"}"
+  if ! path_is_excluded "$rel_key"; then
+    printf '%s\n' "$rel_key" >> "$INTENDED_KEYS"
+  fi
+done < "${WORK_DIR}/source_files.txt"
+LC_ALL=C sort -o "$INTENDED_KEYS" "$INTENDED_KEYS"
+
+# Keys present in the bucket that the intended set does not name. _gate/ holds
+# the two Terraform-owned pages and is never a candidate: the publisher does not
+# put them there and must not take them away.
+stale_keys_from() {
+  local listing="$1" out="$2"
+  sed -E 's/^[0-9-]+ [0-9:]+ +[0-9]+ //' "$listing" \
+    | grep -v '^_gate/' \
+    | LC_ALL=C sort > "${WORK_DIR}/bucket_keys.txt"
+  comm -23 "${WORK_DIR}/bucket_keys.txt" "$INTENDED_KEYS" > "$out"
+}
+
+if [[ "$DRY_RUN" -eq 1 ]]; then
+  echo "DRY RUN (--dry-run): listing what a publish would change."
   aws "${SYNC_ARGS[@]}" --dryrun "${AWS_ARGS[@]}" | tee "${WORK_DIR}/dryrun.txt" | tail -20
   echo "Dry-run change count: $(wc -l < "${WORK_DIR}/dryrun.txt")"
+  stale_keys_from "$BUCKET_LISTING" "${WORK_DIR}/stale_dry.txt"
+  STALE_DRY="$(wc -l < "${WORK_DIR}/stale_dry.txt")"
+  if [[ "$STALE_DRY" -gt 0 ]]; then
+    echo "Reconciliation: ${STALE_DRY} key(s) in the bucket that this publish does not"
+    echo "intend and the sync cannot reach; a real run removes them:"
+    head -20 "${WORK_DIR}/stale_dry.txt"
+    if [[ "$STALE_DRY" -gt 20 ]]; then
+      echo "  ... and $((STALE_DRY - 20)) more"
+    fi
+  else
+    echo "Reconciliation: nothing stale; the bucket holds only intended keys."
+  fi
   echo "DRY RUN complete; nothing was uploaded, deleted, or invalidated."
   exit 0
 fi
@@ -332,6 +445,29 @@ aws "${SYNC_ARGS[@]}" "${AWS_ARGS[@]}" > "${WORK_DIR}/sync.txt"
 SYNC_SECONDS="$(( $(date +%s) - SYNC_START ))"
 echo "Sync complete in ${SYNC_SECONDS}s: $(wc -l < "${WORK_DIR}/sync.txt") operations"
 
+# ---- 5a. Reconcile what the sync could not reach ------------------------------
+#
+# Runs against a listing taken after the sync, so it sees the bucket the sync
+# actually left and never re-deletes what the sync already removed. A key here
+# is one an exclusion pattern now matches that an earlier publish had uploaded:
+# adding a pattern is what makes it stale, and this is what makes adding one
+# take effect on the bucket rather than only on the next upload.
+RECONCILE_LISTING="${WORK_DIR}/bucket_reconcile.txt"
+aws s3 ls "s3://${BUCKET}" --recursive "${AWS_ARGS[@]}" > "$RECONCILE_LISTING"
+STALE_KEYS="${WORK_DIR}/stale_keys.txt"
+stale_keys_from "$RECONCILE_LISTING" "$STALE_KEYS"
+STALE_COUNT="$(wc -l < "$STALE_KEYS")"
+if [[ "$STALE_COUNT" -gt 0 ]]; then
+  echo "Reconciliation: removing ${STALE_COUNT} key(s) the sync cannot reach."
+  while IFS= read -r stale_key; do
+    [[ -z "$stale_key" ]] && continue
+    echo "  removing: ${stale_key}"
+    aws s3 rm "s3://${BUCKET}/${stale_key}" "${AWS_ARGS[@]}" >/dev/null
+  done < "$STALE_KEYS"
+else
+  echo "Reconciliation: nothing stale; the bucket holds only intended keys."
+fi
+
 # ---- 6. Post-sync verification -----------------------------------------------
 
 fail=0
@@ -341,8 +477,16 @@ for key in index.html _gate/denied.html _gate/not-found.html; do
     fail=1
   fi
 done
+# The reconciliation listing already describes the post-sync bucket, so a fresh
+# one is only needed when that pass actually removed something. Listing walks
+# every key, which on a tree this size costs minutes rather than seconds, and
+# the steady state removes nothing.
 AFTER_LISTING="${WORK_DIR}/bucket_after.txt"
-aws s3 ls "s3://${BUCKET}" --recursive "${AWS_ARGS[@]}" > "$AFTER_LISTING"
+if [[ "$STALE_COUNT" -gt 0 ]]; then
+  aws s3 ls "s3://${BUCKET}" --recursive "${AWS_ARGS[@]}" > "$AFTER_LISTING"
+else
+  cp "$RECONCILE_LISTING" "$AFTER_LISTING"
+fi
 echo "Bucket after: $(wc -l < "$AFTER_LISTING") objects"
 if grep -q '\.sanitized$' "$AFTER_LISTING"; then
   echo "ERROR: .sanitized sidecar keys present in the bucket" >&2
@@ -365,19 +509,22 @@ INVALIDATION_ID="$(aws cloudfront create-invalidation --distribution-id "$DIST_I
   --paths "/*" --query 'Invalidation.Id' --output text "${AWS_ARGS[@]}")"
 echo "Invalidation created: ${INVALIDATION_ID} (distribution ${DIST_ID})"
 
-# ---- 8. Optional edge verification -------------------------------------------
+# ---- 8. Edge verification ----------------------------------------------------
+#
+# Always. A sync and an invalidation that both report success still leave the
+# question a publish exists to answer: can a member actually read the archive
+# through the distribution. Only a signed fetch answers it, so it is part of
+# publishing rather than something to remember to ask for.
 
-if [[ "$VERIFY_EDGE" -eq 1 ]]; then
-  # Delegate to the edge-proof script rather than carrying a second copy of the
-  # cookie-signing logic: one implementation of the signing means a change to
-  # the policy shape cannot leave the two disagreeing.
-  EDGE_ARGS=(--env "$TARGET_ENV" --signing-key "$SIGNING_KEY")
-  [[ -n "$AWS_PROFILE_ARG" ]] && EDGE_ARGS+=(--profile "$AWS_PROFILE_ARG")
-  if ! bash "${SCRIPT_DIR}/verify-archive-edge.sh" "${EDGE_ARGS[@]}"; then
-    echo "ERROR: edge verification failed after publish. If the invalidation just" >&2
-    echo "ran, the edge may still be settling; retry before investigating." >&2
-    exit 1
-  fi
+# Delegate to the edge-proof script rather than carrying a second copy of the
+# cookie-signing logic: one implementation of the signing means a change to
+# the policy shape cannot leave the two disagreeing.
+EDGE_ARGS=(--env "$TARGET_ENV" --signing-key "$SIGNING_KEY")
+[[ -n "$AWS_PROFILE_ARG" ]] && EDGE_ARGS+=(--profile "$AWS_PROFILE_ARG")
+if ! bash "${SCRIPT_DIR}/verify-archive-edge.sh" "${EDGE_ARGS[@]}"; then
+  echo "ERROR: edge verification failed after publish. If the invalidation just" >&2
+  echo "ran, the edge may still be settling; retry before investigating." >&2
+  exit 1
 fi
 
 echo "PUBLISH: ${TARGET_ENV} archive publish complete (${SRC_COUNT} source files, sync ${SYNC_SECONDS}s, invalidation ${INVALIDATION_ID})"

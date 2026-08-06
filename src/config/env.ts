@@ -11,6 +11,26 @@
  * singleton; no other module reads `process.env` directly. The singleton
  * is frozen after construction to prevent mutation.
  */
+// The encoder bounds are defined by the transcode library and imported here
+// rather than restated. The media container that runs that library is given
+// none of this contract and cannot import this file, so the default has to be
+// reachable from both sides; defining it once is what keeps the value this
+// config validates and the value the encoder applies from drifting apart.
+import { DEFAULT_FFMPEG_TIMEOUT_MS, DEFAULT_VIDEO_MAX_HEIGHT } from '../lib/videoProcessing';
+
+/**
+ * How long a transcode dispatch may spend politely waiting when the media
+ * worker answers busy (a 503 with Retry-After: the concurrency slot is taken,
+ * or the host is below its memory admission floor). Up to
+ * TRANSCODE_BUSY_RETRIES waits of at most TRANSCODE_BUSY_WAIT_MAX_SECONDS
+ * each, then the attempt fails through the normal retry path. Defined here so
+ * the dispatcher and the lease cross-check below share one number: the job
+ * lease has to outlast an attempt plus every wait it may legally take.
+ */
+export const TRANSCODE_BUSY_RETRIES = 3;
+export const TRANSCODE_BUSY_WAIT_MAX_SECONDS = 60;
+export const TRANSCODE_BUSY_WAIT_BUDGET_MS =
+  TRANSCODE_BUSY_RETRIES * TRANSCODE_BUSY_WAIT_MAX_SECONDS * 1000;
 
 export interface AppConfig {
   port: number;
@@ -805,14 +825,19 @@ function loadConfig(): AppConfig {
   }
   const mediaJobLeaseSeconds = parseIntEnv('MEDIA_JOB_LEASE_SECONDS', 1200, 60, 7200);
   const mediaJobMaxRetries = parseIntEnv('MEDIA_JOB_MAX_RETRIES', 1, 1, 10);
-  const videoMaxHeight = parseIntEnv('VIDEO_MAX_HEIGHT', 1080, 240, 2160);
+  const videoMaxHeight = parseIntEnv('VIDEO_MAX_HEIGHT', DEFAULT_VIDEO_MAX_HEIGHT, 240, 2160);
   const videoMaxBytes = parseIntEnv(
     'VIDEO_MAX_BYTES',
     120 * 1024 * 1024,
     1024 * 1024,
     1024 * 1024 * 1024,
   );
-  const ffmpegTimeoutSeconds = parseIntEnv('FFMPEG_TIMEOUT_SECONDS', 240, 30, 7200);
+  const ffmpegTimeoutSeconds = parseIntEnv(
+    'FFMPEG_TIMEOUT_SECONDS',
+    DEFAULT_FFMPEG_TIMEOUT_MS / 1000,
+    30,
+    7200,
+  );
   // The encoder's ceiling must sit below the HTTP boundary the caller waits on.
   // Inverted, the caller abandons the request and marks the job failed while
   // ffmpeg keeps running and keeps holding the worker's video slot, so every
@@ -823,6 +848,21 @@ function loadConfig(): AppConfig {
         `VIDEO_TRANSCODE_TIMEOUT_MS (${videoTranscodeTimeoutMs}ms): the encoder ` +
         'has to be killed before the caller gives up, or it holds the video ' +
         'worker slot after the job has already been marked failed',
+    );
+  }
+  // The lease must outlast one whole transcode attempt (each retry re-claims
+  // with a fresh lease), including the bounded waits the dispatcher inserts
+  // when the media worker answers busy. An expired lease is treated as proof
+  // that the process holding the job is gone, and the recurring reap reclaims
+  // the row on that proof; a lease shorter than an attempt would let it
+  // reclaim a job that is still legitimately running or politely waiting.
+  if (mediaJobLeaseSeconds * 1000 <= videoTranscodeTimeoutMs + TRANSCODE_BUSY_WAIT_BUDGET_MS) {
+    throw new Error(
+      `MEDIA_JOB_LEASE_SECONDS (${mediaJobLeaseSeconds}s) must exceed ` +
+        `VIDEO_TRANSCODE_TIMEOUT_MS (${videoTranscodeTimeoutMs}ms) plus the ` +
+        `${TRANSCODE_BUSY_WAIT_BUDGET_MS}ms busy-wait budget: an expired ` +
+        'lease is read as an abandoned job and reclaimed, so the lease has to ' +
+        'outlast the longest legitimate transcode attempt including its waits',
     );
   }
   const sseHeartbeatSeconds = parseIntEnv('SSE_HEARTBEAT_SECONDS', 15, 5, 60);

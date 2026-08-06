@@ -67,6 +67,11 @@ output "archive_key_pair_id" {
   value       = var.enable_archive ? aws_cloudfront_public_key.archive[0].id : null
 }
 
+output "archive_requires_signed_cookies" {
+  description = "Whether archive content is gated on a signed cookie here. The edge proof reads this to know which answer a cookie-less request should draw: a refusal where the gate is on, the content itself where it is off. Declared intent rather than the distribution's live state, so an environment that loses its gate fails the proof instead of being marked open and passing."
+  value       = var.enable_archive ? var.archive_require_signed_cookies : null
+}
+
 output "kms_key_arn" {
   description = "ARN of the KMS key used for SSM parameter encryption"
   value       = aws_kms_key.main.arn

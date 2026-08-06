@@ -76,6 +76,13 @@ const buildSvc = getDefaultCuratorMediaService;
 // uniformity; oversized photos in S3 mode are rejected by the service, not busboy.
 const PER_FILE_LIMIT = VIDEO_MAX_BYTES;
 
+// The figure comes from the same constant the ceiling does, so the refusal
+// cannot name a limit the check does not enforce. It is correct for a photo
+// part too: the per-file ceiling busboy applies is this one, whatever the part
+// holds.
+const OVERSIZED_FILE_MESSAGE =
+  `File exceeded the maximum allowed size of ${VIDEO_MAX_MB} MB.`;
+
 interface FormValues {
   mediaType?: string;
   caption?: string;
@@ -116,6 +123,12 @@ function renderForm(
     savedFlag: opts.savedFlag ?? null,
     asyncEnabled,
     requireCategory: !asyncEnabled,
+    // The cap the page states and the cap the server applies are the same
+    // number by construction. The megabyte figure is what the label reads; the
+    // byte figure is what the browser-side check compares a chosen file
+    // against, so an oversized file is refused before any of it is sent.
+    videoMaxMb: VIDEO_MAX_MB,
+    videoMaxBytes: VIDEO_MAX_BYTES,
   });
 }
 
@@ -168,6 +181,7 @@ export const adminCuratorController = {
     const fileBuffers: Record<string, Buffer> = {};
     const fileFilenames: Record<string, string> = {};
     let limitExceeded = false;
+    let replied = false;
 
     const busboy = Busboy({
       headers: req.headers,
@@ -202,6 +216,7 @@ export const adminCuratorController = {
       });
       stream.on('limit', () => {
         limitExceeded = true;
+        refuseOversized();
       });
       stream.on('end', () => {
         if (!limitExceeded) {
@@ -210,7 +225,45 @@ export const adminCuratorController = {
       });
     });
 
+    // A part that crosses the ceiling is refused the moment busboy raises it.
+    // Waiting for the parser to finish means waiting for the whole body to
+    // arrive, so an upload that was never going to be accepted still costs the
+    // curator the entire transfer: ten minutes of progress bar ending in a
+    // refusal the first megabyte already justified. Unpiping stops the parse,
+    // and closing the connection once the reply has flushed stops the browser
+    // sending the rest of a file nothing will read.
+    //
+    // Fields the browser sends after the file part have not been parsed yet, so
+    // the re-rendered form carries only what arrived before the overrun. That
+    // is the deliberate trade: a caption to retype costs less than the wait.
+    function refuseOversized(): void {
+      if (replied) return;
+      replied = true;
+      req.unpipe(busboy);
+      busboy.removeAllListeners();
+      void (async () => {
+        try {
+          const existingCategories = await buildSvc().listExistingCategories();
+          res.on('finish', () => {
+            req.destroy();
+          });
+          renderForm(res.status(422), {
+            errorMessage: OVERSIZED_FILE_MESSAGE,
+            formValues: {
+              mediaType: fields.mediaType,
+              caption: fields.caption,
+              tags: fields.tags,
+            },
+            existingCategories,
+          });
+        } catch (err) {
+          next(err);
+        }
+      })();
+    }
+
     busboy.on('finish', () => {
+      if (replied) return;
       void handleFinish().catch((err: unknown) => {
         if (err instanceof ValidationError) {
           renderForm(res.status(422), {
@@ -272,9 +325,11 @@ export const adminCuratorController = {
       const svc = getDefaultCuratorMediaService();
       const existingCategories = await svc.listExistingCategories();
 
+      // Reached only if the overrun surfaced without the stream raising its
+      // limit event; the early refusal above answers the ordinary case.
       if (limitExceeded) {
         renderForm(res.status(422), {
-          errorMessage: 'File exceeded the maximum allowed size.',
+          errorMessage: OVERSIZED_FILE_MESSAGE,
           formValues,
           existingCategories,
         });

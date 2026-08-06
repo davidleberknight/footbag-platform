@@ -31,8 +31,12 @@ read_env() {
 # Must run after the release tree is promoted into $LIVE_DIR.
 seed_container_sizing() {
   local cfg="$LIVE_DIR/docker/env/${FOOTBAG_ENV}.env"
-  local key_re='^(NGINX|WEB|WORKER|IMAGE)_MEMORY_LIMIT$|^IMAGE_MAX_CONCURRENT$|^VIDEO_X264_(PRESET|THREADS|RC_LOOKAHEAD)$'
-  local line_re='^(NGINX|WEB|WORKER|IMAGE)_MEMORY_LIMIT=|^IMAGE_MAX_CONCURRENT=|^VIDEO_X264_(PRESET|THREADS|RC_LOOKAHEAD)='
+  # VIDEO_TRANSCODE_TIMEOUT_MS rides along with FFMPEG_TIMEOUT_SECONDS
+  # deliberately: application boot refuses an encoder ceiling at or above the
+  # caller deadline, so a committed file able to set one but not the other
+  # could produce a config no container will boot with.
+  local key_re='^(NGINX|WEB|WORKER|IMAGE)_MEMORY_LIMIT$|^IMAGE_MAX_CONCURRENT$|^VIDEO_X264_(PRESET|THREADS|RC_LOOKAHEAD)$|^VIDEO_MAX_HEIGHT$|^FFMPEG_TIMEOUT_SECONDS$|^VIDEO_TRANSCODE_TIMEOUT_MS$|^VIDEO_MIN_HOST_AVAILABLE_MB$'
+  local line_re='^(NGINX|WEB|WORKER|IMAGE)_MEMORY_LIMIT=|^IMAGE_MAX_CONCURRENT=|^VIDEO_X264_(PRESET|THREADS|RC_LOOKAHEAD)=|^VIDEO_MAX_HEIGHT=|^FFMPEG_TIMEOUT_SECONDS=|^VIDEO_TRANSCODE_TIMEOUT_MS=|^VIDEO_MIN_HOST_AVAILABLE_MB='
   if [[ ! -f "$cfg" ]]; then
     echo "ERROR: sizing config $cfg is missing; refusing to deploy with unmanaged container sizing." >&2
     exit 1
@@ -51,7 +55,7 @@ seed_container_sizing() {
     case "$key" in
       *_MEMORY_LIMIT)
         [[ "$val" =~ ^[0-9]+[MG]$ ]] || { echo "ERROR: $cfg: $key='$val' is not a valid memory limit (e.g. 512M)." >&2; rm -f "$adds"; exit 1; } ;;
-      IMAGE_MAX_CONCURRENT|VIDEO_X264_THREADS|VIDEO_X264_RC_LOOKAHEAD)
+      IMAGE_MAX_CONCURRENT|VIDEO_X264_THREADS|VIDEO_X264_RC_LOOKAHEAD|VIDEO_MAX_HEIGHT|FFMPEG_TIMEOUT_SECONDS|VIDEO_TRANSCODE_TIMEOUT_MS|VIDEO_MIN_HOST_AVAILABLE_MB)
         [[ "$val" =~ ^[0-9]+$ ]] || { echo "ERROR: $cfg: $key='$val' is not a non-negative integer." >&2; rm -f "$adds"; exit 1; } ;;
       VIDEO_X264_PRESET)
         [[ "$val" =~ ^[a-z]+$ ]] || { echo "ERROR: $cfg: $key='$val' is not a valid x264 preset." >&2; rm -f "$adds"; exit 1; } ;;
@@ -334,6 +338,38 @@ done
 # Apply the committed per-environment container sizing now that the release
 # tree (and docker/env/<env>.env) is in place, before the service restart.
 seed_container_sizing
+
+# Real disk swap on the host. The instances ship with zram swap only, which
+# compresses pages in RAM and is close to useless for the incompressible bytes
+# video work moves, so without a disk-backed file a memory spike starves the
+# host to death (unreachable SSH, hypervisor reboot) instead of degrading.
+# Provisioned by the deploy itself so no separate operator step exists to
+# forget, and ordered before the service restart so the container budgets the
+# sizing seed just applied never run without the valve. Idempotent: an active
+# /swapfile is left alone (resizing means swapoff and rm first, deliberately
+# manual); the fstab line and sysctl drop-in are written only when absent.
+# Swappiness 10: the file is a survival valve, not a performance tier; zram
+# keeps its higher priority and still takes compressible pages first.
+ensure_swapfile() {
+  local size size_mb
+  case "$FOOTBAG_ENV" in
+    production) size="2G"; size_mb=2048 ;;
+    *)          size="1G"; size_mb=1024 ;;
+  esac
+  if swapon --show=NAME --noheadings | grep -qx /swapfile; then
+    echo "==> Swapfile already active"
+  else
+    echo "==> Provisioning ${size} disk swapfile..."
+    fallocate -l "$size" /swapfile || dd if=/dev/zero of=/swapfile bs=1M count="$size_mb"
+    chmod 600 /swapfile
+    mkswap /swapfile
+    swapon /swapfile
+  fi
+  grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+  echo 'vm.swappiness=10' > /etc/sysctl.d/99-footbag-swap.conf
+  sysctl -q -p /etc/sysctl.d/99-footbag-swap.conf
+}
+ensure_swapfile
 
 # Sync X_ORIGIN_VERIFY_SECRET from SSM to /srv/footbag/env. Both the value
 # CloudFront injects (via data.aws_ssm_parameter.origin_verify_secret) and the
@@ -726,6 +762,13 @@ if [[ -f "$LIVE_DIR/ops/systemd/footbag-backup.timer" ]]; then
   cp "$LIVE_DIR/ops/systemd/footbag-backup.timer" /etc/systemd/system/
 fi
 systemctl daemon-reload
+# The deploy restarts this unit below, thereby asserting it must be running;
+# leaving it disabled would assert the incoherent "run now, but not after a
+# reboot", which is exactly how a host reboot once left the stack down until
+# an operator noticed. Enabling is idempotent. The backup timer below stays
+# operator-enabled: its first install is a deliberate procedure with its own
+# prerequisites, which this main unit does not have.
+systemctl is-enabled --quiet footbag || systemctl enable footbag
 # Only restart the timer if it was already enabled: installing the backup timer
 # for the first time is a deliberate operator step with its own procedure, not
 # something a code deploy should switch on.

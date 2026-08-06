@@ -15,13 +15,24 @@ import 'dotenv/config';
  * config (FOOTBAG_DB_PATH, SESSION_SECRET, etc.).
  */
 import express, { Request, Response, NextFunction, RequestHandler } from 'express';
+import { createReadStream, createWriteStream } from 'node:fs';
+import { mkdtemp, readdir, rm, stat } from 'node:fs/promises';
+import * as os from 'node:os';
+import * as path from 'node:path';
+import { Readable, Transform } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import { detectImageType, ImageRejectedError, processAvatar, processPhoto, type ProcessedImage } from './lib/imageProcessing';
 import {
   detectVideoFormat,
+  detectVideoFormatFile,
+  FFMPEG_STDERR_PUBLIC_LIMIT_BYTES,
+  FfmpegExecutionError,
   transcodeCuratorVideo,
+  transcodeCuratorVideoFile,
   type TranscodedVideo,
   type VideoTranscodeTuning,
 } from './lib/videoProcessing';
+import { readHostMemAvailableBytes } from './lib/hostMemory';
 import { Semaphore } from './lib/semaphore';
 
 // Whitelisted libx264 preset names. Off-list values are rejected at boot to
@@ -68,6 +79,26 @@ function parseOptionalIntEnv(name: string, min: number, max: number): number | u
   return n;
 }
 
+// The cgroup memory ceiling exactly as deploy configuration hands it to Docker
+// (e.g. "256M"). Forwarded into this process solely so a killed encode can name
+// the ceiling that stopped it; nothing here enforces it — the container runtime
+// does. Absent means unlimited (a dev machine), and the refusal then omits the
+// figure.
+function parseMemoryLimitEnv(name: string): string | undefined {
+  const raw = process.env[name];
+  if (raw === undefined || raw === '') return undefined;
+  if (!/^\d+(\.\d+)?[bkmg]?$/i.test(raw)) {
+    throw new Error(`${name} must be a Docker memory value like 256M, got: ${raw}`);
+  }
+  return raw;
+}
+
+// Every deploy-time encoder bound this process passes to the transcode library,
+// read here rather than there. The library is loaded by a container that is
+// given none of the web environment contract, so it reads no environment at all
+// and takes its bounds as arguments; this entry point is where the environment
+// is allowed to be read. The ranges match what the application config enforces,
+// so a value means the same thing whichever process reads it.
 function readVideoTuningFromEnv(): VideoTranscodeTuning {
   const preset = process.env.VIDEO_X264_PRESET || undefined;
   if (preset !== undefined && !VALID_X264_PRESETS.has(preset)) {
@@ -77,7 +108,15 @@ function readVideoTuningFromEnv(): VideoTranscodeTuning {
   }
   const threads = parseOptionalIntEnv('VIDEO_X264_THREADS', 1, 16);
   const rcLookahead = parseOptionalIntEnv('VIDEO_X264_RC_LOOKAHEAD', 0, 250);
-  return { preset, threads, rcLookahead };
+  const maxHeight = parseOptionalIntEnv('VIDEO_MAX_HEIGHT', 240, 2160);
+  const timeoutSeconds = parseOptionalIntEnv('FFMPEG_TIMEOUT_SECONDS', 30, 7200);
+  return {
+    preset,
+    threads,
+    rcLookahead,
+    maxHeight,
+    timeoutMs: timeoutSeconds === undefined ? undefined : timeoutSeconds * 1000,
+  };
 }
 
 /**
@@ -104,6 +143,17 @@ export interface ImageWorkerOptions {
   // Test seam: substitute the ffmpeg pipeline so video-route tests run
   // without invoking real ffmpeg.
   transcodeVideoImpl?: (data: Buffer, tuning?: VideoTranscodeTuning) => Promise<TranscodedVideo>;
+  // Test seam: substitute the file-to-file ffmpeg pipeline used by the
+  // from-storage streaming route.
+  transcodeVideoFileImpl?: (
+    inputPath: string,
+    outputPath: string,
+    tuning?: VideoTranscodeTuning,
+  ) => Promise<{ outputFormat: 'mp4' }>;
+  // Test seams for the transcode admission gate: substitute the host-memory
+  // reading and the floor it is compared against.
+  readMemAvailableBytesImpl?: () => number | null;
+  minHostAvailableBytes?: number;
   // Override the env-derived libx264 tuning for tests; production reads
   // VIDEO_X264_PRESET / VIDEO_X264_THREADS / VIDEO_X264_RC_LOOKAHEAD from env.
   videoTuning?: VideoTranscodeTuning;
@@ -115,6 +165,26 @@ export interface ImageWorkerOptions {
   // reads process.env.INTERNAL_EVENT_SECRET; if that is also unset, /process/*
   // returns 503 (graceful misconfig signal, mirrors ipcController).
   internalSecret?: string;
+}
+
+// The short user-facing shape of a failed ffmpeg run. A kill from outside the
+// process is worded as the container's resource ceiling, not as an
+// out-of-memory diagnosis: a SIGKILL does not say who sent it, only that the
+// encoder did not fail on its own. The ceiling figure is named when configured
+// so the refusal states the limit that was hit.
+function composePublicTranscodeError(
+  err: FfmpegExecutionError,
+  memoryLimitLabel: string | undefined,
+): string {
+  if (err.kind === 'timeout') {
+    return `transcode exceeded the ${Math.round((err.timeoutMs ?? 0) / 1000)}-second encoder time limit`;
+  }
+  if (err.kind === 'signal') {
+    return memoryLimitLabel === undefined
+      ? "transcode was stopped by the media container's resource ceiling"
+      : `transcode was stopped by the media container's resource ceiling (memory limit ${memoryLimitLabel})`;
+  }
+  return `ffmpeg exited with code ${err.exitCode}: ${err.stderrTail.slice(-FFMPEG_STDERR_PUBLIC_LIMIT_BYTES)}`;
 }
 
 export function createImageWorkerApp(opts: ImageWorkerOptions = {}): express.Express {
@@ -137,7 +207,18 @@ export function createImageWorkerApp(opts: ImageWorkerOptions = {}): express.Exp
   const processAvatarFn = opts.processAvatarImpl ?? processAvatar;
   const processPhotoFn = opts.processPhotoImpl ?? processPhoto;
   const transcodeVideoFn = opts.transcodeVideoImpl ?? transcodeCuratorVideo;
+  const transcodeVideoFileFn = opts.transcodeVideoFileImpl ?? transcodeCuratorVideoFile;
   const videoTuning = opts.videoTuning ?? readVideoTuningFromEnv();
+  const memoryLimitLabel = parseMemoryLimitEnv('IMAGE_MEMORY_LIMIT');
+  const readMemAvailable = opts.readMemAvailableBytesImpl ?? readHostMemAvailableBytes;
+  // Transcode admission floor: an encode is refused while the HOST has less
+  // than this much memory available, because starting one anyway is how a
+  // memory-starved host dies outright instead of answering busy. 0 disables
+  // (a dev machine). The floor guards the host, not the container; the cgroup
+  // ceiling still bounds the container itself.
+  const minHostAvailableBytes =
+    opts.minHostAvailableBytes ??
+    (parseOptionalIntEnv('VIDEO_MIN_HOST_AVAILABLE_MB', 0, 16384) ?? 128) * 1024 * 1024;
   const fetchImpl = opts.fetchImpl ?? fetch;
   const internalSecret =
     opts.internalSecret !== undefined ? opts.internalSecret : process.env.INTERNAL_EVENT_SECRET;
@@ -205,11 +286,49 @@ export function createImageWorkerApp(opts: ImageWorkerOptions = {}): express.Exp
     }
   }
 
+  // Answers 503 and returns true when the host is too low on memory to admit
+  // a transcode. Video routes only: an encode is the one workload here whose
+  // spike can starve the host; Sharp inputs are small and bounded.
+  function refuseIfHostMemoryLow(res: Response): boolean {
+    if (minHostAvailableBytes <= 0) return false;
+    const availableBytes = readMemAvailable();
+    if (availableBytes === null) {
+      // Fail open: an unreadable /proc/meminfo is a platform anomaly, not a
+      // pressure signal, and refusing on it would hard-disable the video
+      // pipeline with no operator lever. The cgroup ceiling, host swap, and
+      // the streaming path remain as independent backstops.
+      process.stderr.write(
+        JSON.stringify({
+          ts: new Date().toISOString(),
+          level: 'warn',
+          msg: 'transcode admission: host meminfo unreadable, admitting',
+        }) + '\n',
+      );
+      return false;
+    }
+    if (availableBytes < minHostAvailableBytes) {
+      process.stderr.write(
+        JSON.stringify({
+          ts: new Date().toISOString(),
+          level: 'warn',
+          msg: 'transcode admission: refused, host memory below floor',
+          availableBytes,
+          floorBytes: minHostAvailableBytes,
+        }) + '\n',
+      );
+      res.set('Retry-After', '60');
+      res.status(503).json({ error: 'host memory below transcode admission floor' });
+      return true;
+    }
+    return false;
+  }
+
   async function runVideoProcess(
     req: Request,
     res: Response,
     next: NextFunction,
   ): Promise<void> {
+    if (refuseIfHostMemoryLow(res)) return;
     const buf = req.body;
     if (!Buffer.isBuffer(buf) || buf.length === 0) {
       res.status(400).json({ error: 'empty body' });
@@ -241,15 +360,15 @@ export function createImageWorkerApp(opts: ImageWorkerOptions = {}): express.Exp
     }
   }
 
-  // Memory-efficient transcode path: fetches source bytes via a presigned GET
-  // URL, runs ffmpeg, and writes the output via a presigned PUT URL. No AWS
-  // credentials live in this worker; it sees only opaque http(s) URLs
-  // (SEC-D02).
+  // Memory-efficient transcode path: streams source bytes from a presigned GET
+  // URL to a temp file, runs ffmpeg file-to-file, and streams the output file
+  // to a presigned PUT URL. No AWS credentials live in this worker; it sees
+  // only opaque http(s) URLs (SEC-D02).
   //
-  // The /process/video route buffers the full source payload in the request
-  // body, which OOMs on real uploads under the 96 MB cgroup ceiling. This
-  // route streams from storage at transcode time so the bytes only ever land
-  // in the image container's 256 MB cgroup.
+  // No video bytes are ever held whole in this process: peak memory is the
+  // Node baseline plus the encoder child's working set, independent of file
+  // size. The temp files live on the container's overlay filesystem (disk),
+  // where they cost storage, not cgroup memory.
   //
   // `outputKey` is echoed in the response for audit-log correlation but is
   // otherwise unused (SEC-A17: S3 path semantics never reach this worker).
@@ -258,6 +377,7 @@ export function createImageWorkerApp(opts: ImageWorkerOptions = {}): express.Exp
     res: Response,
     next: NextFunction,
   ): Promise<void> {
+    if (refuseIfHostMemoryLow(res)) return;
     const body = req.body as {
       sourceUrl?: unknown;
       putUrl?: unknown;
@@ -282,72 +402,101 @@ export function createImageWorkerApp(opts: ImageWorkerOptions = {}): express.Exp
       return;
     }
 
-    // Fetch source bytes via the presigned GET URL. No AWS SDK, no creds.
-    let source: Buffer;
+    const tmpDir = await mkdtemp(path.join(os.tmpdir(), 'curator-video-'));
+    const inputPath = path.join(tmpDir, 'in.bin');
+    const outputPath = path.join(tmpDir, 'out.mp4');
     try {
-      const sourceRes = await fetchImpl(sourceUrl);
-      if (!sourceRes.ok) {
-        res.status(502).json({ error: `s3 get failed: ${sourceRes.status}` });
+      // Stream the source to disk with a running byte cap. The content-length
+      // pre-check refuses an honestly-labelled oversize early; the counter is
+      // the enforcement, because a header can lie or be absent.
+      let receivedBytes = 0;
+      try {
+        const sourceRes = await fetchImpl(sourceUrl);
+        if (!sourceRes.ok) {
+          res.status(502).json({ error: `s3 get failed: ${sourceRes.status}` });
+          return;
+        }
+        const cl = sourceRes.headers.get('content-length');
+        if (cl !== null && /^\d+$/.test(cl) && parseInt(cl, 10) > videoMaxBytes) {
+          res.status(413).json({ error: 'source object exceeds videoMaxBytes' });
+          return;
+        }
+        if (!sourceRes.body) {
+          res.status(502).json({ error: 's3 get failed: empty response body' });
+          return;
+        }
+        const byteCap = new Transform({
+          transform(chunk: Buffer, _enc, cb) {
+            receivedBytes += chunk.length;
+            if (receivedBytes > videoMaxBytes) {
+              cb(new Error('videoMaxBytes exceeded'));
+              return;
+            }
+            cb(null, chunk);
+          },
+        });
+        await pipeline(
+          Readable.fromWeb(sourceRes.body as import('node:stream/web').ReadableStream),
+          byteCap,
+          createWriteStream(inputPath),
+        );
+      } catch (err: unknown) {
+        if (err instanceof Error && err.message === 'videoMaxBytes exceeded') {
+          res.status(413).json({ error: 'source object exceeds videoMaxBytes' });
+          return;
+        }
+        const msg = err instanceof Error ? err.message : String(err);
+        res.status(502).json({ error: `s3 get failed: ${msg}` });
         return;
       }
-      const cl = sourceRes.headers.get('content-length');
-      if (cl !== null && /^\d+$/.test(cl) && parseInt(cl, 10) > videoMaxBytes) {
-        res.status(413).json({ error: 'source object exceeds videoMaxBytes' });
+      if (receivedBytes === 0) {
+        res.status(400).json({ error: 'source object is empty' });
         return;
       }
-      const ab = await sourceRes.arrayBuffer();
-      source = Buffer.from(ab);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      res.status(502).json({ error: `s3 get failed: ${msg}` });
-      return;
-    }
-    if (source.length === 0) {
-      res.status(400).json({ error: 'source object is empty' });
-      return;
-    }
-    if (source.length > videoMaxBytes) {
-      res.status(413).json({ error: 'source object exceeds videoMaxBytes' });
-      return;
-    }
-    if (!detectVideoFormat(source)) {
-      res.status(400).json({ error: 'unrecognized video format' });
-      return;
-    }
+      if (!(await detectVideoFormatFile(inputPath))) {
+        res.status(400).json({ error: 'unrecognized video format' });
+        return;
+      }
 
-    try {
-      await videoSemaphore.acquire();
-    } catch {
-      res.set('Retry-After', '1');
-      res.status(503).json({ error: 'video worker busy' });
-      return;
-    }
-
-    try {
-      const result = await transcodeVideoFn(source, videoTuning);
-      // Drop the source reference before the PUT so the GC can reclaim it
-      // while we hold the (similarly sized) transcoded buffer.
-      source = Buffer.alloc(0);
-      const putRes = await fetchImpl(putUrl, {
-        method: 'PUT',
-        headers: { 'Content-Type': putContentType },
-        body: result.bytes as unknown as BodyInit,
-      });
-      if (!putRes.ok) {
-        const errBody = await putRes.text().catch(() => '');
-        next(new Error(`s3 put failed: ${putRes.status} ${errBody.slice(0, 200)}`));
+      try {
+        await videoSemaphore.acquire();
+      } catch {
+        res.set('Retry-After', '1');
+        res.status(503).json({ error: 'video worker busy' });
         return;
       }
-      res.status(200).json({
-        ok: true,
-        outputKey: typeof outputKey === 'string' ? outputKey : undefined,
-        outputFormat: result.outputFormat,
-        outputBytes: result.bytes.length,
-      });
-    } catch (err: unknown) {
-      next(err);
+
+      try {
+        const result = await transcodeVideoFileFn(inputPath, outputPath, videoTuning);
+        const { size } = await stat(outputPath);
+        // Explicit Content-Length: undici omits it for stream bodies, and a
+        // presigned S3 PUT accepts no chunked transfer. The length is not part
+        // of the signed request (only host and content-type are), so supplying
+        // it from the finished file is valid.
+        const putRes = await fetchImpl(putUrl, {
+          method: 'PUT',
+          headers: { 'Content-Type': putContentType, 'Content-Length': String(size) },
+          body: Readable.toWeb(createReadStream(outputPath)) as unknown as BodyInit,
+          duplex: 'half',
+        } as RequestInit);
+        if (!putRes.ok) {
+          const errBody = await putRes.text().catch(() => '');
+          next(new Error(`s3 put failed: ${putRes.status} ${errBody.slice(0, 200)}`));
+          return;
+        }
+        res.status(200).json({
+          ok: true,
+          outputKey: typeof outputKey === 'string' ? outputKey : undefined,
+          outputFormat: result.outputFormat,
+          outputBytes: size,
+        });
+      } catch (err: unknown) {
+        next(err);
+      } finally {
+        videoSemaphore.release();
+      }
     } finally {
-      videoSemaphore.release();
+      await rm(tmpDir, { recursive: true, force: true });
     }
   }
 
@@ -397,16 +546,60 @@ export function createImageWorkerApp(opts: ImageWorkerOptions = {}): express.Exp
       res.status(413).json({ error: 'payload too large' });
       return;
     }
+    // A failed ffmpeg run splits into two audiences. The full stderr tail and
+    // classification go to the worker log for the operator; the response body
+    // carries only a short refusal, because everything in it travels verbatim
+    // to the curator's screen and encoder output must stay bounded there and
+    // free of container internals. The structured logger is unreachable from
+    // this process (it loads the web config), so the file's NDJSON convention
+    // applies.
+    if (err instanceof FfmpegExecutionError) {
+      process.stderr.write(
+        JSON.stringify({
+          ts: new Date().toISOString(),
+          level: 'error',
+          msg: 'ffmpeg run failed',
+          kind: err.kind,
+          exitCode: err.exitCode,
+          signal: err.signal,
+          timeoutMs: err.timeoutMs,
+          stderrTail: err.stderrTail,
+        }) + '\n',
+      );
+      res.status(500).json({ error: composePublicTranscodeError(err, memoryLimitLabel) });
+      return;
+    }
     res.status(500).json({ error: err.message || 'image processing failed' });
   });
 
   return app;
 }
 
+// An OOM-killed or crashed run leaks its temp directory into the container's
+// writable layer, and `restart: always` restarts the process without
+// recreating the container, so leaks accumulate across restarts. Swept at
+// process start only (never in createImageWorkerApp, which tests construct
+// concurrently while their own temp dirs are live). Best-effort.
+async function sweepStaleTranscodeTempDirs(): Promise<void> {
+  const entries = await readdir(os.tmpdir(), { withFileTypes: true }).catch(
+    () => [] as import('node:fs').Dirent[],
+  );
+  await Promise.all(
+    entries
+      .filter((e) => e.isDirectory() && e.name.startsWith('curator-video-'))
+      .map((e) =>
+        rm(path.join(os.tmpdir(), e.name), { recursive: true, force: true }).catch(
+          () => undefined,
+        ),
+      ),
+  );
+}
+
 /* c8 ignore start -- standalone entry block, exercised by `npm run dev:image` */
 if (require.main === module) {
   const port = parseIntEnv('IMAGE_PORT', 4000, 1, 65535);
   const app = createImageWorkerApp();
+  void sweepStaleTranscodeTempDirs();
   app.listen(port, () => {
     process.stdout.write(
       JSON.stringify({ ts: new Date().toISOString(), level: 'info', msg: 'image worker listening', port }) + '\n',

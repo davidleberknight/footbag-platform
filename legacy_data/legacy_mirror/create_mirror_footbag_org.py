@@ -24,7 +24,7 @@ What it does
   resolve offline: kept when a past capture exists, otherwise removed)
 - Converts legacy media formats when needed
 - Generates the archive navigation at the end of each run: the Archive
-  Directory page, complete per-area browse indexes, and a homepage card
+  Directory page and a homepage card pointing at it
 - Saves progress so it can resume after interruption
 - --video-backfill: downloads the videos recorded by skip-mode crawls and
   repairs their referring pages
@@ -121,6 +121,8 @@ import logging
 import mimetypes
 import hashlib
 import argparse
+import html
+import importlib.util
 import json
 from urllib.parse import urljoin, urlparse, urlunparse, unquote, parse_qs, unquote_plus, urlencode, quote
 from pathlib import Path
@@ -409,6 +411,28 @@ def parse_args():
         ),
     )
     parser.add_argument(
+        "--rebuild-directory-only",
+        dest="rebuild_directory_only",
+        action="store_true",
+        help=(
+            "No crawl, no network, no credentials: rebuild the unlinked-pages "
+            "listing from the capture already on disk and exit. Idempotent; how "
+            "a listing correction reaches a finished tree without re-crawling "
+            "it. Rewrites nothing but the listing page."
+        ),
+    )
+    parser.add_argument(
+        "--wrap-plain-text-only",
+        dest="wrap_plain_text_only",
+        action="store_true",
+        help=(
+            "No crawl, no network, no credentials: give every markup-free "
+            "capture in the tree a minimal page around it, carrying a character "
+            "set and preserving the original column layout, then exit. "
+            "Idempotent. Combine with --dry-run to list what would change."
+        ),
+    )
+    parser.add_argument(
         "--dry-run",
         dest="dry_run",
         action="store_true",
@@ -560,6 +584,13 @@ class MirrorState:
         # counted as a failure and never re-requested on resume.
         self.skipped_videos = {}
         self.sitemap = []
+        # Pages the crawl fetched and deliberately did not store, as
+        # (url, reason) pairs. A count alone cannot answer the question that
+        # matters after an unattended run: WHICH pages were dropped, and were
+        # any of them real. A refusal rule that is broader than intended leaves
+        # no trace in the tree, because the evidence is precisely what is
+        # absent, so the list is kept here or it cannot be reviewed at all.
+        self.refused_pages = []
         self.queue = []
         self.url_depth = {}
         self.content_hashes = {}
@@ -702,6 +733,7 @@ class MirrorState:
             'url_depth': self.url_depth,
             'content_hashes': self.content_hashes,
             'stats': self.stats,
+            'refused_pages': self.refused_pages,
             'regsummary_map': self.regsummary_map,
             'timestamp': datetime.now().isoformat()
         }
@@ -740,6 +772,9 @@ class MirrorState:
             self.url_depth = data.get('url_depth', {})
             self.content_hashes = data.get('content_hashes', {})
             self.stats = data.get('stats', self.stats)
+            # Pairs on disk, tuples in memory: a resumed run must not turn one
+            # run's refusals into a different shape from the next run's.
+            self.refused_pages = [tuple(r) for r in data.get('refused_pages', [])]
             self.regsummary_map = data.get('regsummary_map', {})
             # Ensure all stats keys exist (for backwards compatibility with old progress files)
             self.stats.setdefault('media_input_bytes', 0)
@@ -2363,6 +2398,64 @@ def _general_url_path(parsed, url):
             path += '/index.html'
     return path
 
+# Gallery routes whose final segment is a member-chosen identifier rather than a
+# filename. Anchored on the whole path so a genuine asset deeper in the tree
+# (a thumbnail under a set) is untouched.
+_SLUG_TAILED_GALLERY_ROUTE_RE = re.compile(
+    r'^/gallery/(?:showset|newindex|show|video|member|photo|index)/[^/]+/?$')
+# Extensions the archive actually serves. A gallery segment ending in one of
+# these is a real file, not a member-chosen name that happens to look like one,
+# so the rule below leaves it alone: filing an image as a directory would break
+# every reference to it.
+_SERVED_ASSET_SUFFIXES = frozenset({
+    '.html', '.jpg', '.jpeg', '.gif', '.png', '.mp4', '.css', '.pdf', '.ics',
+    '.ttf', '.eot', '.woff', '.woff2', '.ico',
+})
+# Members named a gallery set with their own e-mail address, or with their
+# club's web address, and the site built the URL out of whatever they typed. Two
+# separate harms follow from publishing that name. An e-mail address becomes a
+# permanent public path, and it is on a page that already says whose gallery it
+# is, so the address adds nothing a reader needs. A club's web address is not
+# private, but the domain may have lapsed and been re-registered by anyone, and
+# the archive should not carry a path pointing at whatever sits there now.
+# Neither is a title in any useful sense, so the set keeps its photos and loses
+# only the name that was never one.
+_ADDRESS_SHAPED_NAME_RE = re.compile(
+    r'^[^/@\s]+@[^/@\s]+\.[A-Za-z]{2,}$'          # someone@example.com
+    r'|^(?:www\.)[^/\s]+\.[A-Za-z]{2,}$'          # www.example.org
+    r'|^[^/\s]+\.(?:com|org|net|ru|de|sk|ca|ee|tk|pl|co\.uk)$',  # example.ru
+    re.IGNORECASE)
+ADDRESS_REPLACEMENT_LABEL = 'Untitled set'
+
+
+def _address_shaped(segment):
+    """Whether a member-chosen gallery name is really an address."""
+    return bool(_ADDRESS_SHAPED_NAME_RE.match(segment))
+
+
+def _gallery_set_name_from_url(url):
+    """The member-chosen last segment of a gallery route, or None."""
+    parsed = urlparse(url)
+    if not _SLUG_TAILED_GALLERY_ROUTE_RE.match(parsed.path):
+        return None
+    if get_extension(parsed.path) in _SERVED_ASSET_SUFFIXES:
+        return None
+    segments = [s for s in parsed.path.split('/') if s]
+    return segments[-1] if segments else None
+
+
+def _neutral_set_name(segment):
+    """A stable stand-in for an address used as a set name.
+
+    Derived from the address so a re-crawl files the set in the same place and
+    links rewritten in one pass keep resolving in the next. Short enough to read
+    as a name rather than a checksum, and carrying nothing of the address it
+    replaces.
+    """
+    digest = hashlib.sha256(segment.encode('utf-8')).hexdigest()[:12]
+    return f'set-{digest}'
+
+
 def url_to_filepath(url):
     url = normalize_url(url)
     # Final guard: a verified cross-published vhost URL files at its www twin's
@@ -2422,6 +2515,41 @@ def url_to_filepath(url):
         except Exception:
             current_year = str(datetime.now().year)
             path = f'events/results_year_{current_year}/index.html'
+
+    elif (_SLUG_TAILED_GALLERY_ROUTE_RE.match(parsed.path)
+          and get_extension(parsed.path) not in _SERVED_ASSET_SUFFIXES):
+        # A gallery route's last segment is an identifier the member chose, not
+        # a filename. Members used their own e-mail address and their club's
+        # web address as set names, so the segment often ends in something that
+        # reads as a file extension ('.org', '.sk', '.04'), and the general
+        # handler then stores the page as an extension-less flat file instead of
+        # a directory with an index. The page survives but is served as an
+        # unknown type, which the publish step refuses.
+        segments = [s for s in parsed.path.split('/') if s]
+        # An address typed into the set-name field becomes the last segment, and
+        # storing it puts a member's own address, or a lapsed club domain, into a
+        # permanent archive path. Stand-in name here, matching text replaced when
+        # the bytes are stored, so neither the URL nor the page carries it.
+        if segments and _address_shaped(segments[-1]):
+            segments[-1] = _neutral_set_name(segments[-1])
+        path = '/'.join(segments) + '/index.html'
+
+    elif parsed.path == '/ranking/showranks':
+        # Every ranking report is a different set of results behind one path,
+        # told apart only by the query. Without this the fourteen published
+        # reports all resolve to one file and thirteen of them are overwritten
+        # in turn, leaving the archive holding whichever was fetched last.
+        # Both parameters go into the name so a report published under a second
+        # method cannot collide with its method=1 twin either.
+        rank_set = query_parts.get('set', [None])[0]
+        method = query_parts.get('method', [None])[0]
+        if rank_set:
+            name = f'set_{_slugify(rank_set)}'
+            if method:
+                name += f'_method_{_slugify(method)}'
+            path = f'ranking/showranks/{name}/index.html'
+        else:
+            path = 'ranking/showranks/index.html'
 
     elif parsed.path in ('/events/ical', '/events/ical/'):
         # The whole-calendar iCalendar feed carries no per-event id and returns
@@ -2866,6 +2994,41 @@ def strip_dead_forms(soup):
     return removed
 
 
+_SERVER_DIAGNOSTIC_HINT = re.compile(
+    r'<b>(Warning|Fatal error|Notice|Parse error)</b>|failed to open stream|'
+    r'Uncaught Error|include_path=', re.IGNORECASE)
+
+
+def strip_server_diagnostics(soup):
+    # PHP warnings and stack traces the legacy site emitted into its own pages.
+    # It wrapped each one in a comment and rendered a small badge in its place,
+    # so a reader sees an error marker on pages that are otherwise fine, and the
+    # published bytes carry the server's absolute filesystem paths, its
+    # include_path and its line numbers for anyone who views source.
+    #
+    # Both halves go together. Removing only the comment leaves a badge pointing
+    # at nothing; removing only the badge leaves the paths in the bytes, which is
+    # the half that matters for what gets published.
+    removed = 0
+    for node in list(soup.find_all(string=lambda s: isinstance(s, Comment))):
+        if _SERVER_DIAGNOSTIC_HINT.search(str(node)):
+            node.extract()
+            removed += 1
+    for badge in list(soup.find_all('span', title=True)):
+        if _already_removed(badge):
+            continue
+        if 'view source for details' not in badge.get('title', '').lower():
+            continue
+        # The badge sits alone in a wrapper div the site added for it; take the
+        # wrapper too, or the page keeps an empty block where the marker was.
+        parent = badge.parent
+        target = parent if (parent is not None and parent.name == 'div'
+                            and len(parent.find_all(True)) == 1) else badge
+        target.decompose()
+        removed += 1
+    return removed
+
+
 def strip_javascript(soup):
     # A frozen archive runs no script. Almost none of the captured script works
     # anyway: the site-wide file's entry point is an empty function, no page
@@ -3060,6 +3223,7 @@ def rewrite_links(html, page_url):
         # bare "http://www.google.com/" came to sit above the search box on every
         # page. Removing the form first means there is nothing left to flatten.
         forms = strip_dead_forms(soup)
+        diagnostics = strip_server_diagnostics(soup)
         scripts = strip_javascript(soup)
         outbound_deleted, outbound_text, offsite_actions = neutralize_outbound_links(
             soup, page_url)
@@ -3069,6 +3233,8 @@ def rewrite_links(html, page_url):
         mirror_state.stats['account_contact_blocks_removed'] = (
             mirror_state.stats.get('account_contact_blocks_removed', 0) + contact_blocks)
         mirror_state.stats['scripts_and_handlers_removed'] += scripts
+        mirror_state.stats['server_diagnostics_removed'] = (
+            mirror_state.stats.get('server_diagnostics_removed', 0) + diagnostics)
         mirror_state.stats['charset_declarations_added'] += 1 if charset_added else 0
         mirror_state.stats['outbound_links_deleted'] += outbound_deleted
         mirror_state.stats['outbound_links_made_text'] += outbound_text
@@ -3884,7 +4050,36 @@ def save_content(url, content, is_html):
                 f"Redacted the crawling account's address from a page the contact-block "
                 f"scrub did not cover: {url}")
 
-        url = normalize_url(url)  
+        # Same trade as the address above, for the query the site could not run.
+        # A page whose whole body is the failure never reaches here, because it
+        # is refused as an error capture; what is left is a real page whose event
+        # body failed to render, and losing the page to remove the error line
+        # would be the wrong way round. The line names the database engine and
+        # quotes the content that broke the query, so it does not travel.
+        if is_html and _SQL_ERROR_RE.search(content):
+            content = _SQL_ERROR_RE.sub('', content)
+            mirror_state.stats['sql_errors_redacted'] = (
+                mirror_state.stats.get('sql_errors_redacted', 0) + 1)
+            logging.warning(
+                f"Redacted a database error the site printed into a page: {url}")
+
+        # The set name reaches the page as well as the path: the site prints it
+        # in the title beside the member's own name, so filing the capture under
+        # a stand-in without replacing the text here would leave the address on
+        # screen while only the URL looked clean.
+        if is_html:
+            set_name = _gallery_set_name_from_url(url)
+            if set_name and _address_shaped(set_name):
+                replaced = content.replace(set_name, ADDRESS_REPLACEMENT_LABEL)
+                if replaced != content:
+                    content = replaced
+                    mirror_state.stats['gallery_addresses_replaced'] = (
+                        mirror_state.stats.get('gallery_addresses_replaced', 0) + 1)
+                    logging.warning(
+                        "Replaced an address used as a gallery set name; the set "
+                        f"keeps its photos under a stand-in name: {url}")
+
+        url = normalize_url(url)
         filepath = url_to_filepath(url)
         if not filepath:
             logging.error(f"Skipping save — invalid filepath for: {url}")
@@ -4133,6 +4328,37 @@ def save_redirect_map():
     _atomic_write_text(redirect_path, json.dumps(mirror_state.duplicate_redirects, indent=2))
     logging.info(f"Saved redirect map to {redirect_path}")
 
+REFUSED_PAGES_MANIFEST = 'refused_pages.txt'
+
+
+def save_refused_pages():
+    """Every page the crawl fetched and deliberately did not store.
+
+    The counterpart to the sitemap. A refusal rule that is broader than intended
+    leaves nothing behind in the tree to find, because the evidence is what is
+    missing, so this is the only record that can be reviewed after an unattended
+    run. Written even when empty, since an absent file and a run that refused
+    nothing must not look the same.
+    """
+    manifest_path = os.path.join(MIRROR_DIR, REFUSED_PAGES_MANIFEST)
+    by_reason = {}
+    for url, reason in mirror_state.refused_pages:
+        by_reason.setdefault(reason, []).append(url)
+    lines = [
+        "# Pages fetched and deliberately not stored",
+        f"# Generated: {datetime.now().isoformat()}",
+        f"# Total: {len(mirror_state.refused_pages)}",
+    ]
+    lines += [f"#   {reason}: {len(urls)}" for reason, urls in sorted(by_reason.items())]
+    lines.append("")
+    lines += [f'{reason}\t{url}'
+              for reason, urls in sorted(by_reason.items()) for url in sorted(urls)]
+    _atomic_write_text(manifest_path, '\n'.join(lines) + '\n')
+    logging.info(f"Refused-pages manifest written: {manifest_path} "
+                 f"({len(mirror_state.refused_pages)} record(s))")
+    return manifest_path
+
+
 def save_sitemap():
     sitemap_path = os.path.join(MIRROR_DIR, SITEMAP_FILE)
 
@@ -4158,26 +4384,39 @@ def verify_authenticated_session():
         logging.error("Session is not authenticated — fallback or login required.")
         return False
 
-# ---------- Reachability: Archive Directory, homepage card, browse indexes ----------
+# ---------- Reachability: Archive Directory and homepage card ----------
 #
 # The archive serves statically (no directory listing), so a captured page that
 # no link-chain reaches from the landing page is invisible to a member. The
 # orphans are exactly (a) the vhost microsites under /sites/ and (b) the
 # seed-injected content the live site's own filtered indexes never linked.
-# Three generated, JavaScript-free pieces close the gap, all rebuilt at the end
+# Two generated, JavaScript-free pieces close the gap, both rebuilt at the end
 # of every crawl from what is ACTUALLY on disk so they never link a missing
-# file: complete per-area browse indexes, one topic-grouped directory page, and
-# a native-looking card on the homepage pointing at the directory.
+# file: one topic-grouped directory page, and a native-looking card on the
+# homepage pointing at it.
 
 ARCHIVE_DIRECTORY_FILENAME = 'archive-directory.html'
 DIRECTORY_CARD_MARKER = 'mirror-archive-directory-card'
 
-# One row per browsable area: (slug, heading, seed list, sort-by-label). The
-# browse index for an area lists every seed item whose capture file exists;
-# areas whose seed ids are chronological (news, events) keep seed order.
+# One row per indexed area: (slug, heading, seed list, sort-by-label). An area
+# contributes the seed items whose capture file exists and which nothing else
+# reaches; areas whose seed ids are chronological keep seed order.
 #
-# Three seeded classes are deliberately absent, and must stay absent:
+# A seed list is a capture list, not a publication list. Several were built from
+# the frozen database precisely BECAUSE the live site's own indexes hid what they
+# name, so that the crawl would reach the pages and the images hanging off them
+# rather than strand them. Turning such a list into a reader-facing index would
+# advertise the very pages the site withheld, to every member the archive admits.
+# Five seeded classes are therefore deliberately absent, and must stay absent:
 #
+#   gallery   Every gallery seed is a set its owner marked invisible, so no
+#             gallery index links it. The seed exists so the set's photographs
+#             are captured rather than lost; listing the sets would publish an
+#             album whose owner chose to keep it off the site's own indexes.
+#   clubs     The seed is the whole club table, which is broader than the clubs
+#             directory on purpose: the directory hides unapproved clubs and
+#             clubs whose validation lapsed. Listing what it hides re-publishes
+#             the entries it filtered out.
 #   members   An alphabetical list of every profile nothing links is a member
 #             directory, which is exactly the surface the crawl's exclusion list
 #             deletes on purpose. The member-area notice tells a reader that
@@ -4187,10 +4426,12 @@ DIRECTORY_CARD_MARKER = 'mirror-archive-directory-card'
 #             and linked under its other form, so listing them lists duplicates.
 #   news      The year-list pages chain backwards from the current year and
 #             reach every article, so no news page is unreachable.
+#
+# The areas that remain are unreachable for structural reasons rather than by
+# anyone's decision: nothing indexes them, and the site was content for a reader
+# who had the address to read them.
 ARCHIVE_AREAS = [
     ('events', 'Events', 'events.txt', False),
-    ('clubs', 'Clubs', 'clubs.txt', True),
-    ('gallery', 'Gallery sets', 'gallery.txt', True),
     ('faq', 'FAQ', 'faq.txt', True),
     ('rules', 'Rulebook chapters', 'rules.txt', False),
     ('polls', 'Polls', 'polls.txt', False),
@@ -4233,21 +4474,145 @@ def _banner_html(captured_on):
 
 def _page_label(filepath, fallback):
     # Human label for an index row: the captured page's own <title>, with the
-    # site-name prefix dropped; the URL tail when a title is absent.
+    # site-name prefix dropped; the URL tail when a title is absent. The whole
+    # file is read rather than its first few kilobytes, because a page whose
+    # head is padded pushes its title past any fixed window and silently falls
+    # back to a bare id.
     try:
         with open(filepath, 'rb') as f:
-            head = f.read(4096)
+            head = f.read()
     except OSError:
         return fallback
     m = _TITLE_RE.search(head)
     if not m:
         return fallback
     title = m.group(1).decode('utf-8', errors='replace')
+    # Legacy event names hold markup their own app escaped before storing it, so
+    # a title arrives as text that reads back as tags. Decode it, drop the tags,
+    # and the reader sees the name someone typed rather than its source.
+    title = re.sub(r'<[^>]*>', '', html.unescape(title))
     title = re.sub(r'\s+', ' ', title).strip()
     for prefix in ('footbag.org:', 'Footbag WorldWide!', 'footbag.org'):
         if title.startswith(prefix):
             title = title[len(prefix):].lstrip(' :')
     return title or fallback
+
+
+_REDIRECT_STUB_RE = re.compile(
+    rb'<meta\s+http-equiv="refresh"\s+content="0;\s*url=([^"]+)"', re.IGNORECASE)
+_MAX_STUB_HOPS = 4
+
+# Bodies the legacy application returned WITH a 200 when it had nothing to serve.
+# They are the live site failing, not archive content, so an index that lists one
+# sends a reader to a page saying the server may be down.
+_ERROR_CAPTURE_MARKERS = (
+    'There were no photo sets found',
+    'No events found with a event ID of',
+    # The gallery answered a name it did not hold with an apology page. A member
+    # who typed a web address or an e-mail address into a gallery field gave the
+    # browser something it resolved as a path, so these arrive named after that
+    # address and would publish the member's own address as an archive URL.
+    'No set found by that name',
+    'No photo found by that name',
+    'Error</b>: The set "',
+    # The F.A.Q. answered an entry id it did not hold with an apology page. The
+    # site linked its own zero id, so the crawl reached the apology by following
+    # a link a reader could follow too, and stored the site failing rather than
+    # an entry anyone can read.
+    'Unknown F.A.Q. Entry',
+)
+# A query the site could not run, printed where the page should have been. It
+# names the database engine, which nothing served to a reader should, and the
+# text it quotes back is the fragment of content that broke the query. Kept
+# apart from the diagnostic pattern above because that one matches inside
+# comments and this is visible text in the body.
+_SQL_ERROR_RE = re.compile(
+    r'<font[^>]*>\s*Error\s*</font>\s*<br\s*/?>\s*'
+    r'<p>\s*You have an error in your SQL syntax.*?</p>',
+    re.IGNORECASE | re.DOTALL)
+# The site wrapped each PHP diagnostic in a comment and showed a small badge in
+# its place. A page whose only content is that pairing rendered nothing at all.
+_PHP_DIAGNOSTIC_RE = re.compile(
+    r'<!--\s*<span[^>]*color:\s*#ff0000[^>]*>.*?</span>\s*-->', re.IGNORECASE | re.DOTALL)
+_ERROR_BADGE_RE = re.compile(
+    r'<div><span[^>]*title="View source for details[^"]*"[^>]*>.*?</span></div>',
+    re.IGNORECASE | re.DOTALL)
+# Asked for a record it does not hold, the site echoes the identifier back and
+# refuses it in one sentence. Matching that whole sentence is what makes the
+# rule safe: a page reporting that a real club's contact details have gone stale
+# opens the same way and says the club is not *currently* valid, then describes
+# the club. Those are content and far outnumber the refusals, so a rule keyed on
+# the opening words alone would throw away the clubs it was meant to protect.
+# Every gap between words is \s+ because the site wrapped these sentences at its
+# own line width, so the refusal routinely arrives split across a newline.
+_RECORD_NOT_FOUND_RE = re.compile(
+    r'the\s+(?:member|club)\s+you\s+requested\s*\([^)]*\)\s*'
+    r'(?:was\s+not\s+found|is\s+not\s+valid)\b',
+    re.IGNORECASE)
+
+
+def _resolve_redirect_stub(filepath):
+    """The page a generated redirect stub stands in for, or the stub itself.
+
+    A seed URL the live site answered with a redirect was captured as a stub
+    whose title is the word 'Redirecting'. Indexing the stub gives every such
+    row that word for a label and costs the reader a hop, so the listing follows
+    the chain to the page a reader actually wants. A hop whose target is missing
+    keeps the stub, which is then judged on its own like any other entry.
+    """
+    seen = set()
+    current = filepath
+    for _hop in range(_MAX_STUB_HOPS):
+        resolved = os.path.realpath(current)
+        if resolved in seen:
+            break
+        seen.add(resolved)
+        try:
+            with open(current, 'rb') as f:
+                blob = f.read(2048)
+        except OSError:
+            break
+        m = _REDIRECT_STUB_RE.search(blob)
+        if not m:
+            break
+        target = unquote(m.group(1).decode('utf-8', errors='replace'))
+        candidate = os.path.normpath(
+            os.path.join(os.path.dirname(current), target))
+        if not os.path.isfile(candidate):
+            break
+        current = candidate
+    return current
+
+
+def _is_error_capture(filepath):
+    """Whether a captured page is the legacy app reporting failure, not content."""
+    try:
+        with open(filepath, 'rb') as f:
+            body = f.read().decode('utf-8', errors='replace')
+    except OSError:
+        return False
+    return is_error_body(body)
+
+
+def is_error_body(body):
+    """Whether a 200 response's body is the legacy app saying it has nothing.
+
+    The site answered a missing gallery set, a missing event and a failed
+    include with 200 and a page explaining the failure, so status alone cannot
+    tell a capture from a miss. Saving one puts the live site's error into the
+    archive permanently, where no reader can tell it from preserved content.
+    """
+    if any(marker in body for marker in _ERROR_CAPTURE_MARKERS):
+        return True
+    if _RECORD_NOT_FOUND_RE.search(body):
+        return True
+    stripped = _SQL_ERROR_RE.sub(
+        '', _ERROR_BADGE_RE.sub('', _PHP_DIAGNOSTIC_RE.sub('', body)))
+    if stripped == body:
+        return False
+    # Whatever the diagnostics left behind: a page with real content keeps it,
+    # a page that was nothing but the failure keeps only its charset line.
+    return not re.sub(r'<[^>]*>', '', stripped).strip()
 
 
 _ARCHIVE_PAGE_STYLE = (
@@ -4260,15 +4625,98 @@ _ARCHIVE_PAGE_STYLE = (
 
 
 def _archive_page(title, body_html):
+    # Dressed as the pages it sits among rather than as a bare document: a
+    # generated page with no stylesheet renders in the browser's defaults and
+    # reads as something that wandered in from another site. The site stylesheet
+    # comes first so the page-specific block below can still override it, and the
+    # header element is what the stylesheet hangs the wordmark on. Relative paths
+    # suit a page written at the archive root, which is where the one caller
+    # writes; the stylesheet's own image URLs resolve against the stylesheet, so
+    # they hold wherever the page lives.
     return (
         '<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="UTF-8">\n'
-        f'<title>{title}</title>\n<style>{_ARCHIVE_PAGE_STYLE}</style>\n'
+        f'<title>{title}</title>\n'
+        '<link href="css/fw.ico" rel="shortcut icon" type="image/x-icon"/>\n'
+        '<link href="global2/html/global.css" rel="stylesheet" type="text/css"/>\n'
+        f'<style>{_ARCHIVE_PAGE_STYLE}</style>\n'
         '</head>\n<body>\n'
+        '<div id="MainHeader"></div>\n'
         f'{body_html}'
         '\n<p class="count">(Generated from the footbag.org archive capture; '
         'every link on this page points at a preserved page.)</p>\n'
         '</body>\n</html>\n'
     )
+
+
+# A capture holding no markup at all. The oldest results on the site are plain
+# fixed-width text files the server handed over as-is, and the crawler stores one
+# at the path its URL gives it, which ends in a page name. Two things then go
+# wrong: the file declares no character set, because there is no markup to carry
+# one, and a browser told it is HTML collapses every run of spaces, so a results
+# table laid out in columns arrives as one unbroken paragraph.
+_ANY_MARKUP_RE = re.compile(rb'<[a-zA-Z!/?]')
+
+
+def _looks_like_plain_text(blob):
+    # A null byte means the bytes are not text at all, whatever the name says.
+    # Checked before anything else, because an image that happens to hold no
+    # angle bracket would otherwise read as a markup-free page and be wrapped.
+    if b'\x00' in blob:
+        return False
+    if _ANY_MARKUP_RE.search(blob):
+        return False
+    # Emptiness is judged after decoding: a page the site returned as nothing
+    # but non-breaking spaces holds no text a reader can see, and wrapping it
+    # produces a blank page with a title. Those are refused elsewhere as the
+    # empty captures they are, not dressed up as content here.
+    return bool(blob.decode('utf-8', errors='replace').strip())
+
+
+def wrap_plain_text_capture(text, title):
+    """A markup-free capture as a page, with its layout and its encoding kept.
+
+    The text is placed inside a preformatted block and otherwise untouched, so
+    the columns the original was typed in survive, and the wrapper carries the
+    character set the bare file could not declare.
+    """
+    return (
+        '<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="UTF-8">\n'
+        f'<title>{html.escape(title)}</title>\n</head>\n<body>\n'
+        f'<pre>{html.escape(text)}</pre>\n</body>\n</html>\n'
+    )
+
+
+def wrap_plain_text_captures(dry_run=False):
+    """Give every markup-free capture in a finished tree a page around it.
+
+    Network-free and idempotent: a wrapped file holds markup and so is not a
+    candidate on the next run. Runs over a tree that already exists because the
+    bytes needed are already captured, and re-fetching the site would return the
+    same markup-free text again.
+    """
+    root = Path(MIRROR_DIR) / WWW_HOST
+    wrapped = []
+    for page in sorted(root.rglob('*.html')):
+        try:
+            blob = page.read_bytes()
+        except OSError:
+            continue
+        if not _looks_like_plain_text(blob):
+            continue
+        wrapped.append(str(page.relative_to(root)))
+        if dry_run:
+            continue
+        # The directory holding the page names it: a results file's own name is
+        # the only label the capture carries.
+        title = page.parent.name or page.name
+        _atomic_write_text(
+            str(page),
+            wrap_plain_text_capture(blob.decode('utf-8', errors='replace'), title))
+    verb = 'would wrap' if dry_run else 'wrapped'
+    logging.info(f"Plain-text captures {verb}: {len(wrapped)}")
+    for rel_path in wrapped:
+        logging.info(f"  {verb}: {rel_path}")
+    return wrapped
 
 
 def _worlds_year(name):
@@ -4299,17 +4747,65 @@ def _linked_targets(www_root, exclude):
             blob = page.read_bytes()
         except OSError:
             continue
-        for raw in _LOCAL_REF_RE.findall(blob):
-            ref = raw.decode('utf-8', errors='replace')
-            if ref.startswith(('#', 'http:', 'https:', 'mailto:', 'javascript:', 'data:')):
-                continue
-            target = unquote(urlparse(ref).path)
-            if not target:
-                continue
-            resolved = os.path.normpath(os.path.join(str(page.parent), target))
-            if resolved.startswith(str(www_root)):
+        # A generated redirect stub links the page it stands in for, and offers
+        # that link a second time as text a reader can click. Neither is a way
+        # of reaching the page: the stub is reached only through the seed URL it
+        # was captured from, so counting its link makes an unreachable page look
+        # reached, by itself.
+        if _REDIRECT_STUB_RE.search(blob):
+            continue
+        for ref in _page_local_refs(blob):
+            resolved = _resolve_local_ref(ref, page.parent, www_root)
+            if resolved is not None:
                 linked.add(resolved)
     return linked
+
+
+_SEED_BUILDER = SCRIPT_DIR / 'scripts' / 'build_archive_seed_lists.py'
+_EVENT_SEED_ID_RE = re.compile(r'^/events/show/(\d+)/?$')
+
+
+def _calendar_listed_event_ids():
+    """Event ids the legacy calendar was willing to show, or None when unknown.
+
+    Asked of the seed builder rather than read here, because that is where the
+    frozen dump's table shape is already understood and two readers of the same
+    columns eventually disagree about which one carries approval.
+    """
+    if not _SEED_BUILDER.is_file():
+        return None
+    spec = importlib.util.spec_from_file_location(
+        'archive_seed_builder', str(_SEED_BUILDER))
+    module = importlib.util.module_from_spec(spec)
+    try:
+        spec.loader.exec_module(module)
+        return module.approved_event_ids()
+    except (OSError, SystemExit, AttributeError):
+        return None
+
+
+def _withheld_seed_urls(slug, urls):
+    """The seed URLs an area must not publish, and why, as a set and a reason.
+
+    An area whose whole population is publishable returns an empty set. An area
+    that cannot tell publishable from withheld returns every URL it holds, so
+    the caller drops the area rather than guessing at it.
+    """
+    if slug != 'events':
+        return set(), ''
+    # An unapproved event still serves its page, which is why the seed captures
+    # it, but the calendar never listed it. A finding aid that names it undoes
+    # that decision for every reader the archive admits.
+    listed = _calendar_listed_event_ids()
+    if listed is None:
+        return set(urls), ('the legacy clone is not attached, so approved and '
+                           'withheld events cannot be told apart')
+    withheld = set()
+    for url in urls:
+        m = _EVENT_SEED_ID_RE.match(urlparse(url).path)
+        if m and m.group(1) not in listed:
+            withheld.add(url)
+    return withheld, 'the calendar never listed them'
 
 
 def _unlinked_seed_entries(seeds_dir, linked):
@@ -4324,28 +4820,95 @@ def _unlinked_seed_entries(seeds_dir, linked):
     for slug, heading, seed_name, sort_by_label in ARCHIVE_AREAS:
         seed_file = seeds_dir / seed_name
         if not seed_file.is_file():
+            logging.info(f"Listing area '{slug}': no seed file, skipped")
             continue
+        urls = [line.strip() for line in
+                seed_file.read_text(encoding='utf-8').splitlines()
+                if line.strip() and not line.strip().startswith('#')]
+        withheld, withheld_reason = _withheld_seed_urls(slug, urls)
         entries = []
-        for line in seed_file.read_text(encoding='utf-8').splitlines():
-            url = line.strip()
-            if not url or url.startswith('#'):
+        seen_targets = set()
+        dropped = {'not captured': 0, 'withheld': 0, 'already reachable': 0,
+                   'error capture': 0, 'duplicate': 0}
+        for url in urls:
+            if url in withheld:
+                dropped['withheld'] += 1
                 continue
             try:
                 target = url_to_filepath(url)
             except ValueError:
+                dropped['not captured'] += 1
                 continue
             if not target or not os.path.exists(target):
+                dropped['not captured'] += 1
                 continue
+            # Resolved before the reachability test, not after: a seed captured
+            # as a redirect stub is judged by where it lands, and testing the
+            # stub's own path instead lists a page the archive links perfectly
+            # well as one nothing reaches.
+            target = _resolve_redirect_stub(target)
             if os.path.normpath(target) in linked:
+                dropped['already reachable'] += 1
                 continue
+            if _is_error_capture(target):
+                dropped['error capture'] += 1
+                continue
+            # Two seed URLs reaching one file are one row. Query parameters the
+            # path mapping does not distinguish collapse this way, and so does a
+            # pair of seeds redirecting to the same page.
+            key = os.path.normpath(target)
+            if key in seen_targets:
+                dropped['duplicate'] += 1
+                continue
+            seen_targets.add(key)
             tail = [s for s in urlparse(url).path.split('/') if s]
-            entries.append((target, _page_label(target, tail[-1] if tail else url)))
+            entries.append((target, _page_label(target, tail[-1] if tail else url),
+                            tail[-1] if tail else ''))
+        # Every seed accounted for, at the moment it is decided. A section that
+        # empties out is otherwise indistinguishable from one that was never
+        # built, and the page simply stops carrying it.
+        tally = ', '.join(f'{n} {reason}' for reason, n in dropped.items() if n)
+        logging.info(
+            f"Listing area '{slug}': {len(entries)} listed of {len(urls)} seed(s)"
+            + (f" ({tally})" if tally else ''))
+        if withheld and withheld_reason:
+            logging.info(
+                f"  '{slug}': {len(withheld)} withheld because {withheld_reason}")
         if not entries:
             continue
+        entries = _disambiguated(entries)
         if sort_by_label:
             entries.sort(key=lambda e: e[1].casefold())
         out[slug] = (heading, entries)
     return out
+
+
+def _disambiguated(entries):
+    """Rows sharing a label get the part of their URL that tells them apart.
+
+    Whole classes of legacy page carry one title across every member: every
+    rulebook chapter is 'Official Rules of Footbag Sports' and every ranking
+    report is the same draft heading. A list of identical links tells a reader
+    nothing about which one to open.
+    """
+    counts = {}
+    for _target, label, _tail in entries:
+        counts[label] = counts.get(label, 0) + 1
+    out = []
+    for target, label, tail in entries:
+        if counts[label] > 1 and tail:
+            label = f'{label} ({tail})'
+        out.append((target, label))
+    return out
+
+
+def _listing_section(heading, rows):
+    # Every section states its own size, so a reader can see at a glance how much
+    # is behind a heading and a rebuild that halves one is visible on the page
+    # rather than only in a log.
+    return (f'<h2>{heading}</h2>\n'
+            f'<p class="count">{len(rows)} page(s).</p>\n'
+            '<ul>\n' + '\n'.join(rows) + '\n</ul>')
 
 
 def generate_archive_directory(seeds_dir=None):
@@ -4366,12 +4929,10 @@ def generate_archive_directory(seeds_dir=None):
         if slug not in areas:
             continue
         heading_text, entries = areas[slug]
-        rows = '\n'.join(
-            f'<li><a href="{calculate_relative_path(listing_path, target)}">{label}</a></li>'
-            for target, label in entries)
-        sections.append(
-            f'<h2>{heading_text}</h2>\n'
-            f'<p class="count">{len(entries)} page(s).</p>\n<ul>\n{rows}\n</ul>')
+        rows = [f'<li><a href="{calculate_relative_path(listing_path, target)}">'
+                f'{html.escape(label)}</a></li>'
+                for target, label in entries]
+        sections.append(_listing_section(heading_text, rows))
 
     # Rank 0 = www tree, 1 = vhost tree: a year captured in both trees (a
     # cross-published championship stored twice) gets ONE row, the www copy.
@@ -4380,11 +4941,23 @@ def generate_archive_directory(seeds_dir=None):
         year = _worlds_year(entry)
         if year and os.path.exists(os.path.join(www, entry, 'index.html')):
             worlds.append((year, 0, f'{entry}/index.html', f'World Championships {year}'))
+    # The reference sites get their own named section below, so the generic
+    # microsite sweep must not also list them: one site under two headings reads
+    # as two captures.
+    wikis = []
+    for href, label in (('reference2/index.html', 'Reference wiki (captured from www)'),
+                        ('sites/reference/index.html', 'Reference site (captured from the sites host)')):
+        if os.path.exists(os.path.join(www, href)):
+            wikis.append(f'<li><a href="{href}">{label}</a></li>')
+    named_elsewhere = {'reference2/index.html', 'sites/reference/index.html'}
+
     sites_root = os.path.join(www, 'sites')
     microsites = []
     if os.path.isdir(sites_root):
         for entry in sorted(os.listdir(sites_root)):
             if not os.path.exists(os.path.join(sites_root, entry, 'index.html')):
+                continue
+            if f'sites/{entry}/index.html' in named_elsewhere:
                 continue
             year = _worlds_year(entry)
             if year:
@@ -4401,30 +4974,34 @@ def generate_archive_directory(seeds_dir=None):
                 continue
             seen_years.add(year)
             rows.append(f'<li><a href="{href}">{label}</a></li>')
-        sections.append('<h2>World Championships</h2>\n<ul>\n' + '\n'.join(rows) + '\n</ul>')
+        sections.append(_listing_section('World Championships', rows))
     if microsites:
-        sections.append('<h2>Microsites</h2>\n<ul>\n' + '\n'.join(microsites) + '\n</ul>')
+        sections.append(_listing_section('Microsites', microsites))
 
-    wikis = []
-    for href, label in (('reference2/index.html', 'Reference wiki (captured from www)'),
-                        ('sites/reference/index.html', 'Reference site (captured from the sites host)')):
-        if os.path.exists(os.path.join(www, href)):
-            wikis.append(f'<li><a href="{href}">{label}</a></li>')
     if wikis:
-        sections.append('<h2>Reference</h2>\n<ul>\n' + '\n'.join(wikis) + '\n</ul>')
+        sections.append(_listing_section('Reference', wikis))
 
     listed = sum(len(entries) for _heading, entries in areas.values())
     body = (
         '<h1>Pages the old site never linked from its own menus</h1>\n'
-        '<p>These pages were captured, but nothing else in this archive points '
-        'at them, so browsing normally will never reach them. Everything the old '
-        'site did link is reachable by browsing from the home page.</p>\n'
+        '<p>The old site\'s own menus never linked these pages, so this list is '
+        'the way to them. Everything those menus did link is reachable by '
+        'browsing from the home page.</p>\n'
         '<p><a href="index.html">Back to the home page</a></p>\n'
         + '\n'.join(sections)
     )
     os.makedirs(www, exist_ok=True)
+    # The banner on every front door states when it was captured, taken from the
+    # file's own modification time. Rewriting this listing would move that to the
+    # moment of the rewrite, so a corrected listing would claim the archive was
+    # captured the day someone rebuilt its index. Carry the earlier time across.
+    previous_mtime = None
+    if os.path.isfile(listing_path):
+        previous_mtime = os.stat(listing_path).st_mtime
     _atomic_write_text(listing_path,
                        _archive_page('Pages not linked from the old menus', body))
+    if previous_mtime is not None:
+        os.utime(listing_path, (previous_mtime, previous_mtime))
     logging.info(
         f"Unlinked-pages listing generated: {listed} page(s) across "
         f"{len(areas)} area(s), {len(sections)} section(s) -> {listing_path}")
@@ -4451,9 +5028,9 @@ def insert_homepage_directory_card():
         '<div class="indexEventsIndent">\n'
         f'<div class="newsHeadline"><a href="{ARCHIVE_DIRECTORY_FILENAME}">'
         'Pages the old site never linked from its own menus</a></div>\n'
-        '<div class="newsDetails">Event, club, gallery, rules, poll, ranking and '
-        'FAQ pages that were reachable only by direct link, plus the World '
-        'Championships sites and microsites.</div>\n'
+        '<div class="newsDetails">Event, rules, poll, ranking and FAQ pages that '
+        'were reachable only by direct link, plus the World Championships sites '
+        'and microsites.</div>\n'
         '</div>\n'
         '</div>\n'
     )
@@ -4587,27 +5164,61 @@ def replace_member_area_with_notice():
     return replaced
 
 
-_LOCAL_REF_RE = re.compile(rb'(?:href|src)="([^"]{1,400})"', re.IGNORECASE)
+_LOCAL_REF_RE = re.compile(rb'(?:href|src|xlink:href)="([^"]{1,400})"', re.IGNORECASE)
+# Markup the legacy site commented out and left in place. No browser requests it,
+# so counting it as a reference reports links that do not exist: one commented
+# search block in the site-wide template accounts for the overwhelming majority
+# of every dangling reference the tree appears to hold.
+_MARKUP_COMMENT_RE = re.compile(rb'<!--.*?-->', re.DOTALL)
+_OFFSITE_REF_PREFIXES = ('#', 'http:', 'https:', 'mailto:', 'javascript:', 'data:')
+
+
+def _page_local_refs(blob):
+    """Every in-archive reference a browser would actually request from a page.
+
+    Entities are decoded here, once, because that is the form the reference
+    resolves in and the form a parsed attribute value carries. Leaving them
+    encoded reports a gallery photo whose filename holds an ampersand as a dead
+    link, and worse, stops the dead-link pass from ever matching a genuinely
+    dead one against the parsed tree.
+    """
+    for raw in _LOCAL_REF_RE.findall(_MARKUP_COMMENT_RE.sub(b'', blob)):
+        ref = html.unescape(raw.decode('utf-8', errors='replace'))
+        if not ref.startswith(_OFFSITE_REF_PREFIXES):
+            yield ref
+
+
+def _resolve_local_ref(ref, page_dir, www_root):
+    """Where a reference lands on disk, or None when it leaves the capture.
+
+    A reference beginning '/' is site-root-relative, so it resolves against the
+    tree root rather than the page's own directory. Treating it as unresolvable
+    is what left every such reference neither repaired nor neutralized.
+    """
+    target = unquote(urlparse(ref).path)
+    if not target:
+        return None
+    base = str(www_root) if target.startswith('/') else str(page_dir)
+    resolved = os.path.normpath(os.path.join(base, target.lstrip('/')
+                                             if target.startswith('/') else target))
+    root = str(www_root)
+    if resolved != root and not resolved.startswith(root + os.sep):
+        return None
+    return resolved
 
 
 def _dangling_refs(page, www_root):
-    # Every relative reference on the page whose target is not on disk, with the
-    # repaired form where one exists. Cheap byte scan, so the whole tree can be
-    # triaged before anything is parsed.
+    # Every reference on the page whose target is not on disk, with the repaired
+    # form where one exists. Cheap byte scan, so the whole tree can be triaged
+    # before anything is parsed.
     out = []
     try:
         blob = page.read_bytes()
     except OSError:
         return out
-    for raw in _LOCAL_REF_RE.findall(blob):
-        ref = raw.decode('utf-8', errors='replace')
-        if ref.startswith(('#', 'http:', 'https:', 'mailto:', 'javascript:', 'data:')):
-            continue
-        target = unquote(urlparse(ref).path)
-        if not target:
-            continue
-        resolved = os.path.normpath(os.path.join(str(page.parent), target))
-        if not resolved.startswith(str(www_root)) or os.path.exists(resolved):
+    for ref in _page_local_refs(blob):
+        resolved = _resolve_local_ref(ref, page.parent, www_root)
+        if resolved is None or os.path.exists(resolved):
             continue
         repaired = None
         # A rewriting bug that put one '../' too many in front of an otherwise
@@ -4707,7 +5318,17 @@ def insert_archive_banner():
             continue
         soup = BeautifulSoup(text, 'html.parser')
         if soup.body is None:
-            skipped += 1
+            # A page the site served as a bare fragment, with no <body> of its
+            # own: the retired-forum notice is one, and it is on the main menu of
+            # every page in the archive. Skipping it leaves a front door with no
+            # statement of what the reader has arrived at, so the banner goes at
+            # the top of the fragment instead.
+            banner = BeautifulSoup(
+                _banner_html(datetime.fromtimestamp(page.stat().st_mtime)
+                             .strftime('%-d %B %Y')), 'html.parser')
+            soup.insert(0, banner)
+            _atomic_write_text(str(page), str(soup))
+            added += 1
             continue
         captured_on = datetime.fromtimestamp(page.stat().st_mtime).strftime('%-d %B %Y')
         banner = BeautifulSoup(_banner_html(captured_on), 'html.parser')
@@ -4753,11 +5374,19 @@ def neutralize_dead_internal_links():
             continue
 
         changed = False
-        for element in list(soup.find_all(['a', 'img'])):
+        # Every element that fetches something, not just the two a reader clicks.
+        # The head's feed and API links and the microsites' SVG sprite references
+        # are dead too, and leaving them means the archive ships thousands of
+        # requests for files that are not in it.
+        for element in list(soup.find_all(['a', 'img', 'link', 'use', 'iframe',
+                                           'source', 'embed'])):
             if _already_removed(element):
                 continue
-            attr = 'href' if element.name == 'a' else 'src'
+            attr = 'href' if element.name in ('a', 'link') else 'src'
             ref = element.get(attr)
+            if not ref and element.name == 'use':
+                attr = 'xlink:href' if element.get('xlink:href') else 'href'
+                ref = element.get(attr)
             if not ref:
                 continue
             if ref in fixes:
@@ -5523,6 +6152,34 @@ def crawl(start_urls):
             '.' not in filename  # No extension — default page like index
         )
 
+        # An HTML body offered under a media extension is the app answering a
+        # lookup, not a picture: a mis-authored '<img src="wolnystylul.jpg">' on
+        # an event page becomes an event-id query, and the reply gets filed as
+        # the image. It then reaches the publish step as unscanned media bytes.
+        if is_html and get_extension(final_url) in MEDIA_FORMATS:
+            logging.warning(
+                f"Refused an HTML body served under a media extension: {final_url}")
+            mirror_state.stats['html_under_media_extension_refused'] = (
+                mirror_state.stats.get('html_under_media_extension_refused', 0) + 1)
+            mirror_state.refused_pages.append((final_url, 'html-under-media-extension'))
+            continue
+
+        # A 200 whose body is the app's own failure page is a miss, not a
+        # capture. Retried once, because the gallery's wording ('the server may
+        # be down') is the shape a transient failure takes too, and only a
+        # second identical answer settles which it was.
+        if is_html and is_error_body(resp.text):
+            retry_resp, retry_final_url = fetch(final_url)
+            if retry_resp and not is_error_body(retry_resp.text):
+                resp, final_url = retry_resp, retry_final_url
+            else:
+                logging.warning(
+                    f"Not saved, the site answered with its own error page: {final_url}")
+                mirror_state.stats['error_pages_refused'] = (
+                    mirror_state.stats.get('error_pages_refused', 0) + 1)
+                mirror_state.refused_pages.append((final_url, 'site-error-page'))
+                continue
+
         # Special handlers below are all www app routes: a vhost path of the
         # same shape must take the general save path instead.
         www_page = parsed.netloc == WWW_HOST
@@ -5788,7 +6445,8 @@ def main():
         CONTENT_EXCLUSIONS = frozenset(merged)
         logging.info(f"Content exclusions loaded: {len(CONTENT_EXCLUSIONS)} "
                      f"entries from {len(paths)} file(s): {', '.join(paths)}")
-    elif not args.apply_exclusions_only:
+    elif not (args.apply_exclusions_only or args.rebuild_directory_only
+              or args.wrap_plain_text_only):
         sys.exit(
             "ERROR: --exclusion-list is required for any crawl or backfill:\n"
             "  --exclusion-list footbag_private_repo/private-custody/"
@@ -5805,6 +6463,27 @@ def main():
         if not args.exclusion_list:
             sys.exit("ERROR: --apply-exclusions-only requires --exclusion-list.")
         apply_exclusions_sweep(dry_run=args.dry_run)
+        return
+
+    if args.wrap_plain_text_only:
+        # Wrapping only: no login, no credentials, no network. The bytes are
+        # already captured and the live site would hand back the same
+        # markup-free text, so the correction belongs on the tree, not on a
+        # re-fetch.
+        wrap_plain_text_captures(dry_run=args.dry_run)
+        return
+
+    if args.rebuild_directory_only:
+        # Listing regeneration only: no login, no credentials, no network. The
+        # listing is derived wholly from what is on disk, so a correction to how
+        # it is built can reach a finished capture without re-fetching anything.
+        seed_paths = args.seeds if args.seeds else [SEEDS_DIR]
+        generate_archive_directory(seed_paths[0] if len(seed_paths) == 1
+                                   and os.path.isdir(seed_paths[0]) else None)
+        # The listing is a front door and is written fresh here, so it loses the
+        # banner the crawl gave it. Re-banding is marker-guarded, so every other
+        # door keeps the one it already carries and is not rewritten.
+        insert_archive_banner()
         return
 
     if not args.username:
@@ -5906,6 +6585,7 @@ def main():
         # the records, so the sitemap header and progress file serialize the
         # correct value.
         mirror_state.write_skipped_video_manifest()
+        save_refused_pages()
         save_sitemap()
         save_redirect_map()
         mirror_state.save_progress()

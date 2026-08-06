@@ -350,8 +350,8 @@ The crawler captures the two live footbag.org content hosts: the main site
 inside that one tree. It loads every seed list in `mirror_seeds/` by default so
 index-hidden content is captured (`--seeds` narrows to specific lists), and it
 generates the archive navigation at the end of each run (an Archive Directory
-page, per-area browse indexes, and a homepage card) so every captured page is
-reachable by browsing.
+page and a homepage card pointing at it) so a captured page the old site's own
+menus never linked is still reachable by browsing.
 
 Videos are skipped by default: video binaries dominated the previous crawl's
 time and disk (each is ffmpeg re-encoded), so the page crawl runs without them

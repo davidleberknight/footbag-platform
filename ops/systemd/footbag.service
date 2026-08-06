@@ -4,12 +4,13 @@
 # Manages the Footbag Platform Docker Compose stack on the Lightsail host.
 # Install: sudo cp ops/systemd/footbag.service /etc/systemd/system/
 #          sudo systemctl daemon-reload
-#          sudo systemctl enable footbag
 #          sudo systemctl start footbag
+# The deploy asserts the unit is enabled for boot (systemctl enable) on every
+# run, so a host reboot brings the stack back without operator action.
 #
 # Runs the compose stack defined by docker/docker-compose.yml + prod overrides.
 # Host bootstrap (Docker CE install, /srv/footbag layout, /srv/footbag/env
-# creation) must be completed before enabling this unit.
+# creation) must be completed before starting this unit.
 # =============================================================================
 
 [Unit]

@@ -9,8 +9,14 @@
  * image worker over HTTP), writes the final media_items row, and POSTs state
  * transitions back to web's /ipc/job-events.
  *
- * No polling. The only DB scan anywhere in this design is recoverOnBoot,
- * called once at worker startup to reset rows orphaned by a previous crash.
+ * Recovery scans: recoverOnBoot runs once at worker startup and resets rows
+ * orphaned by a previous crash, and reapExpiredProcessing repeats the
+ * expired-lease pass on a cycle (driven from src/worker.ts). The recurring
+ * pass exists because a lease can outlive the process that holds it: a row
+ * claimed shortly before a restart still holds a live lease when the boot
+ * sweep runs, is correctly left alone, and would otherwise never be looked at
+ * again. Only provably-dead leases are ever reclaimed; a live one is never
+ * touched, whatever process topology is running.
  */
 // dotenv MUST be imported first, before any module that reads process.env.
 // Matches src/server.ts / src/worker.ts / src/imageWorker.ts. Without this
@@ -19,10 +25,16 @@
 import 'dotenv/config';
 import express, { Request, Response, NextFunction } from 'express';
 import { logger } from './config/logger';
-import { config } from './config/env';
+import {
+  config,
+  TRANSCODE_BUSY_RETRIES,
+  TRANSCODE_BUSY_WAIT_MAX_SECONDS,
+} from './config/env';
+import { VideoTranscodingError } from './adapters/videoTranscodingAdapter';
 import { Semaphore } from './lib/semaphore';
 import {
   getMediaJobService,
+  MEDIA_JOB_LAST_ERROR_MAX_LENGTH,
   type MediaJobService,
 } from './services/mediaJobService';
 import { getMediaStorageAdapter } from './adapters/mediaStorageAdapter';
@@ -66,6 +78,7 @@ export interface TranscodeWorkerOptions {
 export interface TranscodeWorker {
   app: express.Express;
   recoverOnBoot(): Promise<{ reclaimedIds: string[] }>;
+  reapExpiredProcessing(): Promise<{ reclaimedIds: string[] }>;
   // Awaited only by tests. Production fires-and-forgets after responding 202.
   pendingForTests(): Promise<void>;
 }
@@ -179,6 +192,7 @@ export function createTranscodeWorker(opts: TranscodeWorkerOptions = {}): Transc
     }
     try {
       let current: MediaJobRow | null = job;
+      let busyWaits = 0;
       while (current) {
         const attempt = current;
         try {
@@ -192,7 +206,49 @@ export function createTranscodeWorker(opts: TranscodeWorkerOptions = {}): Transc
           });
           return;
         } catch (err) {
-          const message = err instanceof Error ? err.message : String(err);
+          // A busy answer from the media worker (slot taken, or the host is
+          // below its memory admission floor) is pressure, not failure: wait
+          // the advised interval and try the same attempt again, without
+          // consuming the job's retry budget. Bounded by TRANSCODE_BUSY_RETRIES
+          // waits, and the lease cross-check in the config guarantees the
+          // lease outlasts an attempt plus every wait this may take.
+          if (
+            err instanceof VideoTranscodingError &&
+            err.status === 503 &&
+            busyWaits < TRANSCODE_BUSY_RETRIES
+          ) {
+            busyWaits += 1;
+            const waitSeconds = Math.min(
+              Math.max(err.retryAfterSeconds ?? 20, 5),
+              TRANSCODE_BUSY_WAIT_MAX_SECONDS,
+            );
+            logger.warn('transcodeWorker: media worker busy, waiting to retry', {
+              jobId: attempt.id,
+              waitSeconds,
+              busyWaits,
+            });
+            await postEvent({
+              jobId: attempt.id,
+              state: 'retrying',
+              errorMessage: 'media worker busy; waiting to retry',
+              occurredAtIso: nowIso(),
+            });
+            await new Promise((resolve) => setTimeout(resolve, waitSeconds * 1000));
+            continue;
+          }
+          // Bounded once here: this string is persisted as last_error and
+          // rides the retrying/failed events to the admin's browser, and an
+          // upstream failure can arrive carrying a wrapped response body of
+          // arbitrary size. A busy refusal that outlasted every wait gets a
+          // short actionable sentence instead of the wrapped HTTP body: the
+          // admin's lever is when to re-upload, not the transport detail.
+          const message =
+            err instanceof VideoTranscodingError && err.status === 503
+              ? 'the media worker stayed busy through every retry; wait a few minutes and re-upload'
+              : (err instanceof Error ? err.message : String(err)).slice(
+                  0,
+                  MEDIA_JOB_LAST_ERROR_MAX_LENGTH,
+                );
           logger.error('transcodeWorker: finalize failed', { jobId: attempt.id, error: message });
           let terminal = false;
           try {
@@ -311,17 +367,43 @@ export function createTranscodeWorker(opts: TranscodeWorkerOptions = {}): Transc
     res.status(500).json({ error: err.message || 'transcode worker error' });
   });
 
-  async function recoverOnBoot(): Promise<{ reclaimedIds: string[] }> {
+  // Reset every processing row whose lease has expired, then re-claim and
+  // re-dispatch each one. Runs at boot and again on a cycle, because a row
+  // claimed shortly before a restart holds a live lease when the boot pass
+  // runs and its lease then expires with no further boot coming. A live lease
+  // is never touched: expiry is the proof that the process holding it is gone.
+  async function reapExpiredProcessing(): Promise<{ reclaimedIds: string[] }> {
     const recovered = mediaJobs.recoverOrphanedProcessingJobs(nowIso());
+    const reclaimedIds: string[] = [];
+    for (const id of recovered.recoveredIds) {
+      const claimed = mediaJobs.claimForProcessing(id, leaseExpiresAt());
+      if (!claimed) continue;
+      reclaimedIds.push(id);
+      dispatchClaimed(id, claimed);
+    }
+    if (reclaimedIds.length > 0) {
+      // warn, not info: an expired lease means a job was stranded mid-run,
+      // which an operator should see in production logs.
+      logger.warn('transcodeWorker: reclaimed expired-lease media jobs', {
+        count: reclaimedIds.length,
+      });
+    }
+    return { reclaimedIds };
+  }
+
+  async function recoverOnBoot(): Promise<{ reclaimedIds: string[] }> {
+    const orphanReclaims = await reapExpiredProcessing();
     // Parked retries: rows a previous process failed retryably and then
-    // crashed or shut down before re-claiming. Collected after the orphan
-    // reset; the filter keeps freshly reset rows from being claimed twice.
+    // crashed or shut down before re-claiming. Boot-only: during steady state
+    // the in-process retry loop re-claims a parked row itself, and a recurring
+    // pass could race it. The guarded claim keeps a row that the orphan pass
+    // already reclaimed from being dispatched twice.
     const parkedRetryIds = mediaJobs
       .findRetryEligiblePendingTranscode()
       .map((row) => row.id)
-      .filter((id) => !recovered.recoveredIds.includes(id));
-    const reclaimedIds: string[] = [];
-    for (const id of [...recovered.recoveredIds, ...parkedRetryIds]) {
+      .filter((id) => !orphanReclaims.reclaimedIds.includes(id));
+    const reclaimedIds = [...orphanReclaims.reclaimedIds];
+    for (const id of parkedRetryIds) {
       const claimed = mediaJobs.claimForProcessing(id, leaseExpiresAt());
       if (!claimed) continue;
       reclaimedIds.push(id);
@@ -341,5 +423,5 @@ export function createTranscodeWorker(opts: TranscodeWorkerOptions = {}): Transc
     }
   }
 
-  return { app, recoverOnBoot, pendingForTests };
+  return { app, recoverOnBoot, reapExpiredProcessing, pendingForTests };
 }
