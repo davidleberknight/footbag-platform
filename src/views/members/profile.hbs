@@ -14,10 +14,6 @@
           {{else}}
           <div class="profile-avatar-placeholder" aria-hidden="true">&#128100;</div>
           {{/if}}
-          <div class="profile-name">{{content.displayName}}</div>
-          {{#if content.city}}
-            <div class="profile-location text-muted">{{content.city}}{{#if content.region}}, {{content.region}}{{/if}}{{#if content.country}} · {{content.country}}{{/if}}</div>
-          {{/if}}
           {{#each navigation.contextLinks}}
             <a href="{{href}}" class="btn btn-primary profile-edit-btn">{{label}}</a>
           {{/each}}
@@ -25,6 +21,9 @@
       </div>
 
       <div class="profile-main">
+
+        {{! Sections run in the order a member reads them: who you are, then what
+            you can do, then your own things, then account administration. }}
 
         {{> member-block-membership content.membership}}
 
@@ -50,16 +49,7 @@
 
         {{> member-block-identity content.identity}}
 
-        {{> member-block-claimed-legacy-identities content.claimedLegacyIdentities}}
-
         {{> member-block-quick-actions content.quickActions}}
-
-        <div class="profile-section">
-          {{> player-results eventGroups=content.eventGroups firstCompetitionYear=content.firstCompetitionYear showFirstCompetitionYear=content.showFirstCompetitionYear}}
-          {{#unless content.showCompetitiveResults}}
-            <p class="text-muted fs-sm">Only you can see this. Public viewers do not see your competition results because "Show my competition results on my profile" is off.</p>
-          {{/unless}}
-        </div>
 
         {{> member-block-search content.search}}
 
@@ -69,12 +59,19 @@
           {{> member-block-media content.media}}
         {{/if}}
 
-        {{> member-block-coming-soon content.comingSoon}}
+        <div class="profile-section">
+          {{#if content.eventGroups.length}}
+            <h2 class="profile-section-heading">Competitive Results <span class="section-count">{{content.eventGroups.length}} events</span></h2>
+          {{/if}}
+          {{#unless content.showCompetitiveResults}}
+            <p class="text-muted fs-sm">Only you can see this. Public viewers do not see your competition results because "Show my competition results on my profile" is off.</p>
+          {{/unless}}
+          {{> player-results eventGroups=content.eventGroups firstCompetitionYear=content.firstCompetitionYear showFirstCompetitionYear=content.showFirstCompetitionYear}}
+        </div>
 
         <div class="profile-section">
           <h2 class="profile-section-heading">Account</h2>
           <ul class="profile-account-list">
-            <li><span class="disabled">Account Settings</span></li>
             <li><a href="{{content.profileBase}}/edit/password">Change Password</a></li>
             <li><a href="{{content.profileBase}}/payments">Payment History</a></li>
             <li><a href="/donate">Donate to IFPA</a></li>

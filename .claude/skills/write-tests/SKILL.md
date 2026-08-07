@@ -56,23 +56,12 @@ Do not invent behavior not in the acceptance criteria.
 
 ## Step 4: Plan test cases
 
-Read `docs/TESTING.md` §4 for the project's test design principles. When you need to confirm the surface under test traces to a deployed user story, use the deployed-surface enumeration rule (`.claude/rules/deployed-surface.md`). The baseline case list below applies to every route and is the floor; risk-classified surfaces (per TESTING.md §3) layer additional adversarial cases on top per `.claude/rules/testing.md`.
+Read `docs/TESTING.md` §4 for the project's test design principles. When you need to confirm the surface under test traces to a deployed user story, use the deployed-surface enumeration method (`.claude/skills/bug-hunt/DEPLOYED_SURFACE.md`). The baseline case list below applies to every route and is the floor; risk-classified surfaces (per TESTING.md §3) layer additional adversarial cases on top per `.claude/rules/testing.md`.
 
-Baseline case list:
+The baseline case floor for every route and service method is the edge-case list in `.claude/rules/testing.md`; read it now rather than working from memory. Two cases this project has learned the hard way and the rule does not spell out:
 
-- Happy path: correct status and expected content
-- Auth gate: 302 if unauthenticated, 200 if authenticated (protected routes)
-- Ownership: 404 if accessing another member's protected resource
-- Privacy: purged members excluded, honors-gated public profiles, PII not leaked to unauthorized users
-- Not-found / invalid input: 404 or 400 as appropriate
-- Draft/unpublished content must not appear in public responses
-- Route ordering: more-specific before catch-all
-- Negative paths: validation failures, boundary values, empty/whitespace input
-- Adversarial: session tampering, double-submit, concurrent claims
-- Anti-enumeration: existence-leaking endpoints (login, password reset, email verify, claim lookup) return identical status, body, and timing for the "exists" and "does not exist" cases
-- Rate-limit: exceeding the configured limit returns 429 with a `Retry-After` header
-- CSRF / origin: every state-changing verb (POST/PATCH/PUT/DELETE) rejects a request that carries no matching CSRF token or `Origin` header — this is why an integration suite that issues them imports `supertestWithOrigin` (see Step 5)
-- Form-bearing page: the rendered primary form is not nested and its submit control posts to the intended handler (assert structure in the render, or an E2E submit where browser semantics matter). A nested `<form>` orphans the submit button and is invisible to a handler-only POST test; the static no-nested-forms gate in `scripts/ci/assert_conventions.sh` catches the markup at merge time, and the E2E submit is the deep check that the wired form reaches its handler.
+- Privacy: purged members excluded, honors-gated public profiles, PII not leaked to unauthorized viewers.
+- Form-bearing page: the rendered primary form is not nested and its submit control posts to the intended handler. A nested `<form>` orphans the submit button and is invisible to a handler-only POST test; the static gate in `scripts/ci/assert_conventions.sh` catches the markup at merge time, and an end-to-end submit is the deep check that the wired form reaches its handler.
 
 For catastrophic-severity surfaces (auth, session, member privacy, payments, identity claim), also consider STRIDE-aware threat coverage per `docs/TESTING.md` §4.2 (a vocabulary, not a per-test artifact) and the verification floor in §4.5.
 
@@ -137,11 +126,7 @@ describe('GET /events', () => {
 
 The example imports `../fixtures/supertestWithOrigin`, not plain `supertest`, because state-changing verbs (POST/PUT/PATCH/DELETE) are origin-pinned: the request is rejected with 403 before the controller runs unless it carries a matching `Origin` header, which the wrapper supplies. Use the wrapper whenever a suite issues any state-changing request; plain `supertest` is acceptable only for a GET-only suite.
 
-Always create test data through the factories in `tests/fixtures/factories.ts` (never a raw `INSERT`); add a factory if a table lacks one. Insert only what the tests need. Use `insertMember()` overrides for edge cases (e.g., `{ is_hof: 1 }`, `{ is_deceased: 1 }`, `{ personal_data_purged_at: '2025-01-01T00:00:00.000Z' }`).
-
-Do NOT roll your own temp path with `path.join(process.cwd(), …)`. `setTestEnv` puts DBs in `os.tmpdir()` so leaks (worker timeout, OOM, WAL race) land where the OS cleans up. Applies to allowlist files and any other transient test artifact.
-
-Three more hard invariants from `.claude/rules/testing.md` always apply: no `.skip` / `.todo` in committed tests; never lower a coverage threshold to admit new code; tests never write `legacy_data/` or `curated/` — `./run_all_tests.sh` is the safe local runner.
+Test data comes from the factories; `insertMember()` overrides cover edge cases (`{ is_hof: 1 }`, `{ is_deceased: 1 }`, `{ personal_data_purged_at: '2025-01-01T00:00:00.000Z' }`). The anti-patterns that would otherwise bite here, raw inserts, home-rolled temp paths, skipped tests, lowered thresholds, and writes into the real-data trees, are all in `.claude/rules/testing.md`.
 
 ### `logger.error()` opt-in
 
@@ -181,13 +166,7 @@ fail if it were wrong.
 
 ## Step 7: Run and report
 
-```bash
-npm test              # all tests
-npm run test:unit     # unit tests only
-npm run test:integration  # integration tests only
-npm run test:coverage # with coverage report
-npm run build         # type-check
-```
+Run `npm run build` plus the suites the change reaches, named explicitly (`npx vitest run tests/...`). `npm run test:coverage` when a coverage question is open. The full suite belongs at a commit or PR gate, not here.
 
 Report: which tests were added, what each asserts, whether all tests pass, and whether type-check is clean. Flag any failures with the full error output.
 
@@ -231,4 +210,4 @@ If a test writes to the database, isolate it: use a fresh per-test DB path, or w
 
 `write-tests` fits anywhere in the flow: before implementation (spec), alongside (driven by code), or after (coverage pass).
 
-Full skill sequence: `extend-service-contract` -> `add-public-page` -> `write-tests` -> `doc-sync` -> `prepare-pr`
+Full skill sequence: see the composition order in root `CLAUDE.md`.

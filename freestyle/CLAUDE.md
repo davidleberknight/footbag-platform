@@ -46,4 +46,3 @@ The trick-dictionary QC (`22_*`) is a hard gate; the media-coverage QC (`24_*`,
 
 - Never reach back into `legacy_data/` for inputs or code at build or request time.
 - Never commit `out/` or `reports/` (gitignored build artifacts).
-- Never run `git commit` / `push` / `pull` — stage only; the human owns commits.

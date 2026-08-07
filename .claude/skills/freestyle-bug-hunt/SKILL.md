@@ -72,7 +72,7 @@ rule stays here.
    `legacy_data/` is the freestyle maintainer's domain; audit its OUTPUTS (tables, content
    modules, seeded galleries) as deployed. The kickoff prompt can pull loader code in.
 7. **One question at a time** when blocked, per `.claude/rules/asking.md`.
-8. **Deployed-surface discipline** per `.claude/rules/deployed-surface.md`: not-yet-built
+8. **Deployed-surface discipline** per `.claude/skills/bug-hunt/DEPLOYED_SURFACE.md`: not-yet-built
    is never a finding. Planned freestyle work (for example a family landing page tracked
    as an open issue in the maintainers' private tracker) is roadmap, not a gap.
 9. **Tracked work is not re-flagged.** Re-derive the tracked freestyle items from the
@@ -123,8 +123,7 @@ doctrine judgment calls; editorial voice and wording of curator-authored prose; 
 4. The five freestyle-domain skills named above — they carry the invariants.
 5. The path-scoped rules: enumerate `.claude/rules/` fresh and read every rule that
    governs a surface this run touches (at minimum `view-layer.md` for the hashtag and
-   dictionary-filter link rules, `template-conventions.md`, `testing.md`, `comments.md`,
-   `deployed-surface.md`).
+   dictionary-filter link rules, `template-conventions.md`, `testing.md`, `comments.md`).
 6. `docs/FREESTYLE.md` (the maintainer guide, including its publication gate and
    terminology sections) and the freestyle sections of `docs/DATA_MODEL.md` as the
    categories require.
@@ -135,7 +134,7 @@ doctrine judgment calls; editorial voice and wording of curator-authored prose; 
 0. **Audit the existing `BUGS.md` Freestyle group before touching it.** Re-verify every
    existing `FBH-###` entry against the current repo; correct drifted references; delete
    entries whose fix landed. Audit only the Freestyle group; never edit the other groups.
-1. **Derive the deployed freestyle surface fresh** per the deployed-surface rule: every
+1. **Derive the deployed freestyle surface fresh** per the deployed-surface method: every
    `/freestyle` route, view, browse `?view=` variant, gallery, and the services and content
    modules behind them. Hold it in scratch notes.
 2. **Build the tracked-work exclusion list** from the maintainers' private tracker and

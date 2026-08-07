@@ -463,10 +463,10 @@ fc.assert(fc.property(fc.string(), (s) => roundTrip(s) === s));
 
 Use for invariant assertions, fuzzing, and enumeration-safety checks. Targets `docs/TESTING.md` §12.2 Rigor 4.
 
-**@stryker-mutator/core, @stryker-mutator/vitest-runner.** Mutation testing. Requires a `stryker.config.json` at repo root (not committed yet). When adopted, run:
+**@stryker-mutator/core, @stryker-mutator/vitest-runner.** Mutation testing. Configured by `stryker.config.json` at repo root, with test selection in `vitest.mutation.config.ts`. Run:
 
 ```bash
-npx stryker run
+npm run test:mutation
 ```
 
 Scope: the safety-critical short list per `docs/TESTING.md` §12.1 (auth, privacy filters, migration matchers, role gates). Targets Rigor 5.

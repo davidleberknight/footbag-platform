@@ -43,9 +43,9 @@ The first premise in practice: the always-loaded layer is a table of contents, a
 - *Lazily:* a nested `CLAUDE.md` loads when a file in its subtree is opened; a rule with a `paths:` glob attaches only when a matching file is Read or Edited, never on a grep, a Bash command, or reasoning about an unopened path.
 - *On demand:* canonical documents under `docs/`, a skill's full body (loaded when invoked, then resident for the session), and individual memory entries.
 
-**In this repository:** detail lives where it loads only when relevant. A convention for editing controllers is a `paths:`-scoped rule, not a line in the root `CLAUDE.md`. A skill's long reference material moves into sidecar reference files beside it so the `SKILL.md` body stays under the roughly 500-line ceiling; `bug-hunt` (with `REFERENCE.md`, `DESIGN.md`, `DOCSYNC.md`, and `HARNESS.md`) is split this way, and its body dispatches those sidecars to read-only subagents rather than reading them itself, so the heavy catalogs load only in a subagent's context.
+**In this repository:** detail lives where it loads only when relevant. A convention for editing controllers is a `paths:`-scoped rule, not a line in the root `CLAUDE.md`. A skill's long reference material moves into sidecar reference files beside it so the `SKILL.md` body stays under the roughly 500-line ceiling; `bug-hunt` (with `REFERENCE.md`, `DESIGN.md`, `DOCSYNC.md`, `HARNESS.md`, and `DEPLOYED_SURFACE.md`) is split this way, and its body dispatches those sidecars to read-only subagents rather than reading them itself, so the heavy catalogs load only in a subagent's context.
 
-**Official grounding:** Anthropic's progressive-disclosure model, the instruction to keep `CLAUDE.md` minimal ("would removing this line cause a mistake? if not, cut it"), and the roughly 500-line `SKILL.md` ceiling.
+**Official grounding:** Anthropic's progressive-disclosure model, the instruction to keep `CLAUDE.md` minimal ("would removing this line cause a mistake? if not, cut it"), the roughly 500-line `SKILL.md` ceiling, and the documented rule that a rule file without a `paths:` glob loads at launch exactly like `CLAUDE.md`, so moving text into an unscoped rule saves no context.
 
 ## 3. Path-Scoped Rules: Where Coding Conventions Live
 
@@ -56,9 +56,9 @@ This is what keeps the root `CLAUDE.md` small without losing precision: the alwa
 Two design details:
 
 - **Attachment has a known gap, and the harness compensates.** A rule attaches on Read or Edit of a matching file, never on a grep or a Bash command. The root `CLAUDE.md` therefore imposes a pre-writing-code gate: before writing, the agent must enumerate the paths the change will touch and Read each path's governing rule itself rather than trusting auto-attach.
-- **Three rules are deliberately glob-less** because they are not tied to one subtree; they are linked by name from `CLAUDE.md` and the skills that need them: `asking.md` (putting a question to a human), `memory.md` (the memory write gate), and `deployed-surface.md` (determining what the application actually deploys, shared by the review skills).
+- **Two rules are deliberately glob-less** because they are not tied to one subtree; they are linked by name from `CLAUDE.md` and the skills that need them: `asking.md` (putting a question to a human) and `memory.md` (the memory write gate). The deployed-surface method was a third until it moved to `.claude/skills/bug-hunt/DEPLOYED_SURFACE.md`: only the review and test-writing skills ever used it, so it now loads when one of them runs instead of in every session.
 
-**Official grounding:** Anthropic's guidance to keep `CLAUDE.md` minimal and move detail into scoped, on-demand files. The pre-writing-code gate goes further, closing an attachment gap the vendor documentation does not call out.
+**Official grounding:** Anthropic's guidance to keep `CLAUDE.md` minimal and move detail into scoped, on-demand files, and the 5-series prompting guidance that instruction files written for earlier models are often too prescriptive, since one brief instruction now steers what an enumeration used to. The pre-writing-code gate goes further, closing an attachment gap the vendor documentation does not call out.
 
 ## 4. Layer Activation and Subagent Behavior
 
@@ -90,7 +90,7 @@ The harness is designed around the precise trigger for each layer, and around ho
 
 Routing is how the agent gets from the always-loaded entry point to the exact document a task needs.
 
-**The chain:** root `CLAUDE.md`, then `PROJECT_SUMMARY_CONCISE.md` (an orientation index with fast-routing and what-to-read-next sections), then the canonical design documents (`docs/USER_STORIES.md`, `docs/DESIGN_DECISIONS.md`, `docs/DATA_MODEL.md`, `docs/DATA_GOVERNANCE.md`, `docs/TESTING.md`) and the maintainers' private tracker (read on demand via `gh issue list -R "$FOOTBAG_PRIVATE_REPO"`; the `tracker-ops` skill owns the workflow, and a machine without the wiring simply skips the read, because the private repo is optional per machine).
+**The chain:** root `CLAUDE.md`, then `PROJECT_SUMMARY_CONCISE.md` (an orientation index whose routing table names the document for each kind of need), then the canonical design documents (`docs/USER_STORIES.md`, `docs/DESIGN_DECISIONS.md`, `docs/DATA_MODEL.md`, `docs/DATA_GOVERNANCE.md`, `docs/TESTING.md`) and the maintainers' private tracker (read on demand via `gh issue list -R "$FOOTBAG_PRIVATE_REPO"`; the `tracker-ops` skill owns the workflow, and a machine without the wiring simply skips the read, because the private repo is optional per machine).
 
 **The load-bearing distinction:** canonical documents describe design intent and are timeless; the private tracker is the one place implementation status lives. A deviation, a current-versus-target gap, a completion note, or a dated status line belongs in a tracker issue, never in a canonical document. `.claude/rules/doc-governance.md` enforces this, preventing the failure mode where documentation rots into stale status the agent then trusts. Keeping status out of the repository entirely also keeps it out of always-loaded context: the tracker is a pay-per-read source, fetched only when a task needs scope or deviation state.
 
@@ -255,7 +255,8 @@ Common failure modes in Claude Code setups, each paired with this repository's c
 
 - **A bloated root `CLAUDE.md`.** Subtree detail belongs in a scoped rule; rarely needed detail belongs in an on-demand document.
 - **Duplicating the authority order.** Restated in several places it drifts, and a copy that ranks code above design intent inverts policy. One home, linked everywhere.
-- **Restating a shared procedure.** A copy in several skills drifts into inconsistent versions. The deployed-surface definition lives once in `deployed-surface.md`, cited by name; shared rules are referenced by name, never by a section number that rots.
+- **Instructing verification the model already performs.** "Double-check this", "verify with a subagent", and standing verification steps compound with the model's own self-checking and produce over-verification, spending tokens without improving results. The harness delegates for breadth and for genuinely independent work, never to re-check its own output; the review skills' verifier fan-out is the exception, because an adversarial audit is independent work rather than a second look.
+- **Restating a shared procedure.** A copy in several skills drifts into inconsistent versions. The deployed-surface definition lives once in `DEPLOYED_SURFACE.md`, cited by name; shared rules are referenced by name, never by a section number that rots.
 - **A vague or over-triggering skill.** A broad description auto-fires on near-miss phrases. Explicit-only skills carry `disable-model-invocation: true`, and every skill has a precise trigger.
 - **A broad mutating allow.** `Bash(sqlite3:*)` auto-approves silent writes; the repository approves `sqlite3` only through the read-only approver hook, which requires `-readonly` and refuses the shell-exec and file-write dot-command escapes, rather than any static `sqlite3` allow.
 - **Over-confidence in a hook regex.** A substring match is bypassable by substitution or reordering. A static permission rule is preferred where one suffices, mirrored into `settings.json` so subagents inherit it.

@@ -17,6 +17,15 @@
         <p>Competition record: not yet linked.</p>
       {{/if}}
     {{/if}}
+    {{#if claimedIdentities.length}}
+      <ul class="profile-account-list">
+        {{#each claimedIdentities}}
+        <li class="claimed-legacy-row">
+          <span>{{this.displayName}}{{#if this.claimedAtDisplay}} <span class="text-muted fs-sm">(linked {{this.claimedAtDisplay}})</span>{{/if}}</span>
+        </li>
+        {{/each}}
+      </ul>
+    {{/if}}
     {{#if cta}}
       <a href="{{cta.href}}" class="btn btn-primary">{{cta.label}}</a>
     {{/if}}

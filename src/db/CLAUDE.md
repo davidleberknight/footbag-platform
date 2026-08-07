@@ -18,7 +18,7 @@ Local rules for `src/db/` work.
 
 ## Statement laziness
 
-`db.prepare()` is only ever called inside a getter or a function body, never at module top level. Statement-group properties are getters that compile their SQL on first access; dynamic-SQL helpers (`queryFilteredTeams`, `queryCandidateItems`, `queryCuratedItems`, `queryReviewItems`, etc.) build and prepare their SQL inside the function body.
+The getter-based lazy-compilation contract lives in `.claude/rules/db-layer.md`. File-local addition: dynamic-SQL helpers (`queryFilteredTeams`, `queryCandidateItems`, `queryCuratedItems`, `queryReviewItems`) build and prepare their SQL inside the function body, never at module top level.
 
 ## Do not put this in `db.ts`
 

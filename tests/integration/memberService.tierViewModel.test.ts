@@ -53,6 +53,8 @@ describe('getOwnProfile().content.membership', () => {
     expect(vm.content.membership!.showTier1Upgrade).toBe(true);
     expect(vm.content.membership!.showTier2Upgrade).toBe(true);
     expect(vm.content.membership!.benefitsBlurb).toMatch(/You can browse the platform/);
+    expect(vm.content.membership!.tier1PriceDisplay).toBe('$10 USD');
+    expect(vm.content.membership!.tier2PriceDisplay).toBe('$50 USD');
   });
 
   it('tier0 with current AP: AP block carries the formatted expiry date', () => {
@@ -129,37 +131,18 @@ describe('getOwnProfile().content.membership', () => {
 });
 
 describe('getOwnProfile().content.quickActions', () => {
-  it('always renders three live actions linking to slug-scoped routes', () => {
+  it('offers only actions no other control on the page already offers', () => {
     const db = new BetterSqlite3(dbPath);
     const m = nextMember();
     insertMember(db, { id: m.id, slug: m.slug });
     db.close();
     const vm = memberServiceMod.memberService.getOwnProfile(m.slug);
+    // The profile editor is reached from the sidebar button, so it is absent
+    // here rather than offered twice under two different labels.
     expect(vm.content.quickActions).toEqual([
-      { label: 'My Profile',   href: `/members/${m.slug}/edit` },
       { label: 'My Galleries', href: `/members/${m.slug}/galleries` },
       { label: 'Upload Media', href: `/members/${m.slug}/media/upload` },
     ]);
-  });
-});
-
-describe('getOwnProfile().content.comingSoon', () => {
-  it('lists every coming-soon surface with a description', () => {
-    const db = new BetterSqlite3(dbPath);
-    const m = nextMember();
-    insertMember(db, { id: m.id, slug: m.slug });
-    db.close();
-    const vm = memberServiceMod.memberService.getOwnProfile(m.slug);
-    const labels = vm.content.comingSoon!.map((f) => f.label);
-    expect(labels).toEqual([
-      'My Events',
-      'Donations',
-      'Voting & HoF',
-      'Email Subscriptions',
-    ]);
-    for (const f of vm.content.comingSoon!) {
-      expect(f.description.length).toBeGreaterThan(0);
-    }
   });
 });
 

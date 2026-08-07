@@ -99,6 +99,7 @@ import type { PlayerEventGroup, PlayerHeroData } from '../types/playerProfile';
 import { getTierStatus, type MemberTier, type UnderlyingTier } from './membershipTieringService';
 import { getStatus as getActivePlayerStatus } from './activePlayerService';
 import { mayCreateClub } from './tierPredicates';
+import { paymentService } from './paymentService';
 import { mediaService, type ProfileMediaView } from './mediaService';
 import { formatDateDisplay } from './dateFormat';
 import { countryCode, countryNames, subdivisionsForCountry } from './countryUtils';
@@ -181,16 +182,14 @@ export interface TierStatusView {
   showTier2Upgrade: boolean;
   showUpgradeForm: boolean;
   purchaseTierHref: string | null;
+  /** What each upgrade costs, so the member reads the price before committing. */
+  tier1PriceDisplay: string;
+  tier2PriceDisplay: string;
 }
 
 export interface QuickAction {
   label: string;
   href: string;
-}
-
-export interface ComingSoonFeature {
-  label: string;
-  description: string;
 }
 
 export interface IdentityLinkView {
@@ -207,6 +206,13 @@ export interface IdentityLinkView {
     href: string;
     label: string;
   } | null;
+  /**
+   * The old-site accounts this member has claimed. Part of the identity view
+   * rather than a block of its own: a reader shown "your past account and your
+   * competition record" beside a separate list of claimed accounts has no way
+   * to tell what distinguishes the two.
+   */
+  claimedIdentities: ClaimedLegacyIdentityView[];
 }
 
 export interface MemberWelcomeTier {
@@ -293,11 +299,7 @@ export interface OwnProfileContent {
   identity?: IdentityLinkView;
   quickActions?: QuickAction[];
   search?: SearchBlockView;
-  comingSoon?: ComingSoonFeature[];
   memberSlug?: string;
-  /** List of legacy accounts the member has claimed (display-only; a member
-   * who believes a confirmed link is wrong uses the dispute path). */
-  claimedLegacyIdentities?: ClaimedLegacyIdentityView[];
   myClubs?: MyClubsView;
   /** Thumbnail preview of the member's own uploaded media. */
   media?: ProfileMediaView;
@@ -305,6 +307,8 @@ export interface OwnProfileContent {
   links?: MemberLinkView[];
 }
 
+/** A legacy account the member has claimed. Display-only: a member who believes
+ *  a confirmed link is wrong uses the dispute path, not this list. */
 export interface ClaimedLegacyIdentityView {
   legacyMemberId:   string;
   displayName:      string;
@@ -875,11 +879,9 @@ export const memberService = {
         identity:     buildIdentityLinkView(row.id),
         quickActions: buildQuickActions(slug),
         search,
-        comingSoon:   COMING_SOON_FEATURES,
         myClubs:      buildMyClubsView(row.id),
         media:        buildMemberMediaView(row.id, slug),
         memberSlug:   slug,
-        claimedLegacyIdentities: buildClaimedLegacyIdentitiesView(row.id),
         links:        buildMemberLinksView(row.id),
       },
     };
@@ -1437,7 +1439,7 @@ function welcomeTierContent(): MemberWelcomeTier[] {
     },
     {
       label: TIER_BADGE_TEXT.tier1,
-      price: '$10 USD',
+      price: paymentService.getTierPriceDisplay('tier1'),
       benefits: [
         'Lifetime IFPA membership, no annual renewals',
         'Listed on the Official IFPA Roster',
@@ -1449,7 +1451,7 @@ function welcomeTierContent(): MemberWelcomeTier[] {
     },
     {
       label: TIER_BADGE_TEXT.tier2,
-      price: '$50 USD',
+      price: paymentService.getTierPriceDisplay('tier2'),
       benefits: [
         'Includes all Tier 1 benefits',
         'Create sanctioned events and enable paid event registration',
@@ -1535,23 +1537,21 @@ function buildTierStatusView(memberId: string, slug: string): TierStatusView {
     showTier2Upgrade,
     showUpgradeForm: canUpgrade,
     purchaseTierHref: canUpgrade ? `/members/${slug}/purchase-tier` : null,
+    tier1PriceDisplay: paymentService.getTierPriceDisplay('tier1'),
+    tier2PriceDisplay: paymentService.getTierPriceDisplay('tier2'),
   };
 }
 
+// The profile editor is reached from the sidebar button beside the member's own
+// avatar, so it is deliberately absent here: a second control to the same place
+// competes with that one, and the site header already spends the words "My
+// Profile" on a link to the profile itself.
 function buildQuickActions(slug: string): QuickAction[] {
   return [
-    { label: 'My Profile',    href: `/members/${slug}/edit` },
     { label: 'My Galleries',  href: `/members/${slug}/galleries` },
     { label: 'Upload Media',  href: `/members/${slug}/media/upload` },
   ];
 }
-
-const COMING_SOON_FEATURES: ComingSoonFeature[] = [
-  { label: 'My Events',           description: 'View your upcoming registrations and past event history.' },
-  { label: 'Donations', description: 'View your donation receipts.' },
-  { label: 'Voting & HoF',        description: 'Participate in active IFPA votes and Hall of Fame nominations.' },
-  { label: 'Email Subscriptions', description: 'Manage your email notifications and preferences.' },
-];
 
 interface CurrentAffiliationRow {
   id: string;
@@ -1855,5 +1855,6 @@ function buildIdentityLinkView(memberId: string): IdentityLinkView {
         : null,
     },
     cta: buildIdentityCta(legacyLinked, hpLinked),
+    claimedIdentities: buildClaimedLegacyIdentitiesView(memberId),
   };
 }

@@ -28,6 +28,32 @@ function profileOwnedFiles(): string[] {
   ];
 }
 
+function partialsReferencedBy(file: string): string[] {
+  const txt = fs.readFileSync(file, 'utf8');
+  return [...txt.matchAll(/\{\{>\s*([a-z0-9_-]+)/gi)].map((m) => m[1]);
+}
+
+/**
+ * Partials the member profile renders that are also rendered by a page outside
+ * the members section. Derived rather than listed, so a newly shared partial
+ * joins the check on its own.
+ */
+function sharedPartialsRenderedInsideProfileSections(): string[] {
+  const profilePages = [
+    path.join(VIEWS, 'members', 'profile.hbs'),
+    path.join(VIEWS, 'members', 'public-profile.hbs'),
+  ];
+  const usedByProfile = new Set(profilePages.flatMap(partialsReferencedBy));
+  const outsideMembers = allViewFiles(VIEWS).filter(
+    (f) => !f.startsWith(path.join(VIEWS, 'members')) && !f.startsWith(PARTIALS),
+  );
+  const usedElsewhere = new Set(outsideMembers.flatMap(partialsReferencedBy));
+  return [...usedByProfile]
+    .filter((name) => usedElsewhere.has(name))
+    .map((name) => path.join(PARTIALS, `${name}.hbs`))
+    .filter((p) => fs.existsSync(p));
+}
+
 function allViewFiles(dir: string): string[] {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
     const full = path.join(dir, e.name);
@@ -61,5 +87,23 @@ describe('member profile section-system conformance', () => {
       return txt.includes('class="section-heading"') && txt.includes('class="profile-section-heading"');
     });
     expect(mixers.map((f) => path.relative(process.cwd(), f))).toEqual([]);
+  });
+
+  it('a partial rendered by both a profile and a non-profile page carries no heading', () => {
+    // Checking each file on its own cannot catch this: the heading arrives
+    // through a partial, so the page that mixes systems contains only one of
+    // them in its own markup. A shared partial therefore leaves the heading to
+    // whichever page renders it, and each page uses its own system.
+    const shared = sharedPartialsRenderedInsideProfileSections();
+    // Without this the loop below would pass by running zero times if the
+    // derivation ever stopped finding anything.
+    expect(shared.length).toBeGreaterThan(0);
+    for (const f of shared) {
+      const txt = fs.readFileSync(f, 'utf8');
+      expect(txt, `${path.basename(f)} must not carry a section heading`).not.toContain(
+        'class="section-heading"',
+      );
+      expect(txt, `${path.basename(f)} must not carry its own h2`).not.toMatch(/<h2[\s>]/);
+    }
   });
 });

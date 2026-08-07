@@ -13,6 +13,9 @@
  *     one-time or recurring, so a repeat payer stays on one provider-side
  *     Customer instead of accumulating duplicates that split their history
  *   - Member-facing payment-history and recurring-donation reads
+ *   - The purchasable tiers' configured prices, both as the amount charged and
+ *     as the display string every surface that quotes a price to a member reads,
+ *     so a quoted price cannot drift from the charged one
  *   - Member-facing payment-page view-model shaping (checkout, success, cancel,
  *     payment-history): the `get<Page>Page()` methods compose the full
  *     PageViewModel including copy, amounts, and hrefs. Controllers fetch the
@@ -437,6 +440,25 @@ function tierPriceCents(tier: 'tier1' | 'tier2'): number {
   return tier === 'tier1'
     ? readIntConfig('tier1_price_cents', TIER1_PRICE_DEFAULT_CENTS)
     : readIntConfig('tier2_price_cents', TIER2_PRICE_DEFAULT_CENTS);
+}
+
+/**
+ * The configured price of a purchasable tier, formatted for display.
+ *
+ * Any surface that quotes a tier price to a member reads it from here, so the
+ * quoted price and the charged price cannot disagree: both resolve the same
+ * runtime setting. A price a member reads before deciding to buy is a promise,
+ * and one written into a template or a content constant keeps its old value
+ * silently when an administrator changes the setting.
+ *
+ * A whole-dollar price drops the decimal part, because that is how a
+ * subscription price reads naturally to a buyer; a price configured with cents
+ * shows them.
+ */
+function getTierPriceDisplay(tier: 'tier1' | 'tier2'): string {
+  const cents = tierPriceCents(tier);
+  const amount = cents % 100 === 0 ? String(cents / 100) : (cents / 100).toFixed(2);
+  return `$${amount} ${CURRENCY}`;
 }
 
 function tierDescriptor(tier: 'tier1' | 'tier2'): string {
@@ -2880,6 +2902,7 @@ export const paymentService = {
   handleWebhook,
   getPaymentHistoryForMember,
   getPaymentBySessionId,
+  getTierPriceDisplay,
   getCheckoutPage,
   getPaymentSuccessPage,
   getPaymentCancelPage,

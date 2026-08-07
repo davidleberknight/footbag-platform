@@ -62,6 +62,12 @@
       <a href="{{href}}" class="back-link">&#8592; {{label}}</a>
     {{/each}}
 
+    {{#if content.eventGroups.length}}
+      <div class="section-heading">
+        <h2>Competitive Results</h2>
+        <span class="section-count">{{content.eventGroups.length}} events</span>
+      </div>
+    {{/if}}
     {{> player-results eventGroups=content.eventGroups}}
   </section>
   {{else}}

@@ -15,11 +15,9 @@ Tests are split into two layers:
 - **Unit tests** (`tests/unit/`): fast, no-DB tests for exported pure functions (slugify, personHref, groupPlayerResults, serviceErrors).
 - **Integration tests** (`tests/integration/`): exercise real HTTP routes against a real SQLite database. No mocks; tests run against real code paths.
 
-When tests land, edge-case coverage, and anti-patterns are governed by `.claude/rules/testing.md` (operational mandate). Strategic framing lives in `docs/TESTING.md`.
-
 ## Test data: factories only
 
-All test data is created through the factory helpers in `tests/fixtures/factories.ts`; a raw `INSERT` for table data in a test is forbidden (see the anti-pattern in `.claude/rules/testing.md`). Each factory accepts optional overrides and returns the inserted ID. If a table has no factory, add one rather than inlining the insert.
+All test data comes from the factory helpers in `tests/fixtures/factories.ts`. Each factory accepts optional overrides and returns the inserted ID.
 
 ```typescript
 import { insertEvent, insertMember, insertDiscipline } from '../fixtures/factories';
@@ -32,13 +30,9 @@ const discId   = insertDiscipline(db, eventId, { name: 'Freestyle' });
 
 The factory inventory lives in `tests/fixtures/factories.ts` (native factories plus the `src/testkit/personaRowBuilders.ts` re-exports); read the export list there — any enumerated subset here would go stale.
 
-Insert only the rows a given test suite needs. Do not assume rows from other test files exist. Keep seed data deterministic: no random values, no timestamps that vary between runs.
-
 ## Database isolation (integration tests)
 
 Each test file sets `FOOTBAG_DB_PATH` to a unique temp path **before any module import**, so `db.ts` opens the test database. `beforeAll` builds the schema from `database/schema.sql` and inserts test data using factories. `afterAll` removes the temp DB and WAL sidecars.
-
-Temp paths MUST live in `os.tmpdir()`, NOT `process.cwd()`. The shared `setTestEnv` helper uses the `footbag-test-` prefix correctly; rolling your own `path.join(process.cwd(), …)` is forbidden — worker timeouts / OOM / WAL races against `afterAll` leak files into the working tree.
 
 New integration tests should use the shared helper in `tests/fixtures/testDb.ts`:
 
@@ -97,7 +91,3 @@ Targeted runners beyond these (`test:persona-crawl`, `test:e2e:smoke`, `test:e2e
 ## CI
 
 CI on every push and PR is defined in `.github/workflows/ci.yml`.
-
-## Coverage
-
-Measured with `@vitest/coverage-v8`. Thresholds are set in `vitest.config.ts` and ratchet up as coverage improves, never down. Overall coverage is an aspirational best-effort goal, not a fixed number; catastrophic-severity surfaces (auth, session, member privacy, payments, identity claim) target 100%.
