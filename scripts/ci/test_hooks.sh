@@ -267,6 +267,29 @@ expect "$H" 'ls scripts/ | grep aws' defer
 expect "$H" 'npm test' defer
 expect "$H" 'npm run build' defer
 
+# A script named as an ARGUMENT is read, not run, so it is not an AWS call either --
+# the same command-position rule the aws/terraform match above already applies. Reading
+# a script that reaches AWS (or one that merely mentions the CLI in a fixture) must not
+# prompt, or every read of scripts/ becomes a prompt.
+expect "$H" 'grep -n scratchpad scripts/ci/test_hooks.sh' defer
+expect "$H" 'cat scripts/test-smoke.sh' defer
+expect "$H" 'wc -l scripts/test-smoke.sh' defer
+expect "$H" 'head -20 scripts/deploy-to-aws.sh' defer
+
+# ...but naming it at command position, behind an interpreter, or piping it into a
+# shell all really do run it, so those still ask.
+expect "$H" 'bash scripts/test-smoke.sh' ask
+expect "$H" 'sh -e scripts/test-smoke.sh' ask
+expect "$H" './scripts/test-smoke.sh' ask
+expect "$H" 'ls && bash scripts/test-smoke.sh' ask
+expect "$H" 'cat scripts/test-smoke.sh | bash' ask
+# A wrapper word before the interpreter, or a quoted path after it, still runs the
+# script. An earlier attempt at this anchoring required the interpreter to sit
+# immediately before the path and lost all three of these silently.
+expect "$H" 'sudo bash scripts/test-smoke.sh' ask
+expect "$H" 'env FOO=1 bash scripts/test-smoke.sh' ask
+expect "$H" 'bash -c "scripts/test-smoke.sh"' ask
+
 H=guard-readonly-bash.sh
 
 # Writes hidden behind read-only command heads must ask.
@@ -304,6 +327,14 @@ expect "$H" 'grep foo src > /tmp/claude-1000/x/../etc/o.txt' ask
 expect "$H" 'grep foo src > /tmp/claude-1000/notscratch.txt' ask
 expect "$H" 'grep foo src > /tmp/claude-x' ask
 expect "$H" 'grep foo f > /tmp/claude-1000scratchpad.txt' ask
+
+# A redirect target written as a shell variable cannot be proven to land in the scratchpad,
+# so it is DENIED for rewrite rather than put to the human: read-only research that writes
+# only scratch must never surface a prompt. Spelled literally it gates on its own merits,
+# so nothing is widened -- the literal cases above still ask or defer exactly as before.
+expect "$H" 'grep foo src > "$SCR/list.txt"' deny
+expect "$H" 'grep foo src > $SCR/list.txt' deny
+expect "$H" 'grep foo src >> "$OUT"' deny
 
 # A write redirect must gate no matter which command head precedes it, because a static allow
 # rule for that head (egrep, fgrep, date, pgrep, a read-only git subcommand) would otherwise

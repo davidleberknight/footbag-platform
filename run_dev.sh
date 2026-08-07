@@ -58,6 +58,13 @@ ALL_DATA=0
 SEED_TEST_PERSONAS=0
 NO_MEDIA=0
 NO_PERSONAS=0
+# The persona refresh is on by default so a launch against a database older than
+# the last catalog edit never presents a stale persona as a working one. It
+# rebuilds only personas the database already has, so a launch never introduces
+# a catalog nobody asked for.
+REFRESH_PERSONAS=1
+REFRESH_ASKED_EXPLICITLY=0
+NO_REFRESH_PERSONAS=0
 for arg in "$@"; do
   case "$arg" in
     --reset)               RESET=1 ;;
@@ -65,12 +72,14 @@ for arg in "$@"; do
     --soup-to-nuts)        SOUP_TO_NUTS=1 ;;
     --all-data)            ALL_DATA=1 ;;
     --seed-test-personas)  SEED_TEST_PERSONAS=1 ;;
+    --refresh-personas)    REFRESH_PERSONAS=1; REFRESH_ASKED_EXPLICITLY=1 ;;
+    --no-refresh-personas) NO_REFRESH_PERSONAS=1 ;;
     --no-media)            NO_MEDIA=1 ;;
     --no-personas)         NO_PERSONAS=1 ;;
     -h|--help)
       cat <<'USAGE'
-Usage: ./run_dev.sh [MODE] [--seed-test-personas]
-                    [--no-media] [--no-personas]
+Usage: ./run_dev.sh [MODE] [--seed-test-personas] [--refresh-personas]
+                    [--no-media] [--no-personas] [--no-refresh-personas]
 
 Local dev launcher.
 
@@ -115,11 +124,26 @@ Opt-outs (valid only in the mode that turns the axis on by default):
   --no-personas    Skip the canonical persona-catalog seed.
                    Valid with --from-csv or --soup-to-nuts.
 
-Test-data personas (CUTOVER-REMOVE; opt-in; combinable with any rebuild mode):
-  --seed-test-personas Seeds the canonical persona catalog (plus the optional
-                   per-developer .local/test-personas.json) via
-                   scripts/manage-test-personas.sh. Idempotent. Switch between
-                   them in a browser at http://localhost:3000/dev/switch?as=<slug>.
+Test-data personas (CUTOVER-REMOVE; combinable with any rebuild mode):
+  --seed-test-personas Seeds the canonical persona catalog via
+                   scripts/manage-test-personas.sh. Switch between them in a
+                   browser at http://localhost:3000/dev/switch?as=<slug>.
+
+                   The seed makes a database COMPLETE against the catalog, not
+                   CURRENT: it adds personas the database is missing and never
+                   updates one it already has. Passing it therefore turns OFF
+                   the default refresh below, on the reading that you asked for
+                   the gentler operation deliberately.
+  --refresh-personas   ON BY DEFAULT; this flag only states it explicitly.
+                   Rebuilds every persona from its current spec before launch,
+                   so a database older than the last catalog edit never presents
+                   a stale persona as a working one. DESTRUCTIVE: persona-owned
+                   rows are deleted, so anything built while acting as a persona
+                   is lost. A database holding no personas is left alone.
+                   Skipped automatically by any rebuild mode (which seeds a
+                   current catalog already) and by --seed-test-personas.
+  --no-refresh-personas  Opt out of the default refresh and keep the persona
+                   state the database already holds.
 
   -h, --help       Show this message.
 
@@ -155,6 +179,48 @@ if (( SOUP_TO_NUTS == 0 )); then
     echo "ERROR: --no-personas is only meaningful with --from-csv, --all-data, or --soup-to-nuts (personas are off by default otherwise)." >&2
     exit 1
   fi
+fi
+
+# The persona refresh is on by default, so every condition that makes it
+# inapplicable resolves two ways: an operator who asked for it by name gets an
+# error, because a request must never be silently dropped; the default steps
+# aside with a note, because a default must never fail a launch.
+refresh_off() {  # $1 = reason shown either way
+  if (( REFRESH_ASKED_EXPLICITLY == 1 )); then
+    echo "ERROR: --refresh-personas $1" >&2
+    exit 1
+  fi
+  if (( REFRESH_PERSONAS == 1 )); then
+    echo "NOTE: persona refresh skipped: $1" >&2
+  fi
+  REFRESH_PERSONAS=0
+}
+
+if (( REFRESH_ASKED_EXPLICITLY == 1 && NO_REFRESH_PERSONAS == 1 )); then
+  echo "ERROR: --refresh-personas and --no-refresh-personas are contradictory." >&2
+  exit 1
+fi
+if (( NO_REFRESH_PERSONAS == 1 )); then
+  REFRESH_PERSONAS=0
+fi
+if (( NO_PERSONAS == 1 )); then
+  refresh_off "conflicts with --no-personas."
+fi
+# The seed is the gentler operation on the same rows: an operator who named it
+# gets what they named.
+if (( SEED_TEST_PERSONAS == 1 )); then
+  refresh_off "would rebuild the personas the requested seed only adds to."
+fi
+# Every rebuild mode drops and rebuilds the database, so its personas are seeded
+# fresh from the current catalog and a refresh would tear down what was just
+# built.
+if (( FROM_CSV + SOUP_TO_NUTS + ALL_DATA > 0 )); then
+  refresh_off "is for launches that keep the existing database; this rebuild seeds the catalog fresh below, so its personas already match their specs."
+fi
+# --reset is the one rebuild that seeds no personas at all, so a refresh has
+# nothing to act on rather than something already current.
+if (( RESET == 1 )); then
+  refresh_off "is for launches that keep the existing database; --reset rebuilds it from committed seeds and seeds no personas."
 fi
 
 # Personas ride along with any explicit DB rebuild (--from-csv or --soup-to-nuts)
@@ -278,6 +344,16 @@ fi
 if (( SEED_TEST_PERSONAS == 1 )); then
   echo "→ Seeding test-data personas..."
   bash scripts/manage-test-personas.sh --seed-test-personas
+fi
+
+# CUTOVER-REMOVE: default persona refresh. Runs after DB bootstrap for the same
+# reason the seed does. A persona whose spec changed since this database was
+# seeded would otherwise keep its old rows and read as a broken feature, which
+# is a slow, misleading failure; rebuilding it costs only persona-owned test
+# scaffolding. Skips silently on a database that holds no personas.
+if (( REFRESH_PERSONAS == 1 )); then
+  echo "→ Rebuilding test-data personas from their current specs..."
+  bash scripts/manage-test-personas.sh --refresh-test-personas --apply
 fi
 
 # 5. Launch web + image worker + outbox/jobs worker together; trap-based

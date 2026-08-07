@@ -718,8 +718,11 @@ Requirements:
 - Both browser affordances are active in development and staging and
   refused in production, gated by config.footbagEnv with a production
   hard-guard.
-- Every cookie-issuance writes an audit entry with
-  actor_type='dev-shortcut'.
+- Every cookie-issuance writes an audit entry marked
+  action_type='testkit.persona_switch'. Its actor_type is 'system':
+  the audit vocabulary admits only system, member, and admin, so the
+  persona origin is carried by the action_type namespace rather than
+  by a bespoke actor type.
 - Detection markers (file-path prefix, reason_code value, audit
   action_type) are grep-able; because personas seed only in
   development and staging, the markers are zero-residue in any

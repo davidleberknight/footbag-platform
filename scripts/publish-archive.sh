@@ -29,13 +29,27 @@
 #      refuses, naming them. Any other media extension on disk is an
 #      unconverted crawler leftover and always fatal.
 #      The sidecars themselves are crawl bookkeeping and are never uploaded.
-#   3. After an applied sync: the landing page (/index.html, the only archive
+#   3. Independent verification of the finished tree, by the mirror's own
+#      verifier (legacy_data/legacy_mirror/verify_mirror.sh). The gates above
+#      are this script's reading of the capture; that one is the capture's
+#      reading of itself, taking its rules from the crawler rather than
+#      restating them, and testing the archive's promises against the bytes
+#      that will ship instead of against the log of how they were made: no
+#      excluded surface survived into the tree, no credential field, no
+#      personal detail of the crawling account's owner, no page the site
+#      served as its own error, no crawl manifest inside the published
+#      subtree. A check it SKIPS is not a check it passed, so a skipped
+#      exclusion or personal-detail check refuses the publish; both depend on
+#      an input the operator supplies, and a missing one verifies less than it
+#      appears to while still reading green. It parses every page, so on a
+#      full capture it costs minutes.
+#   4. After an applied sync: the landing page (/index.html, the only archive
 #      URL the platform ever emits) resolves to a real key; both gate pages
 #      survived; no .sanitized or crawl-manifest key exists in the bucket.
-#   4. One CloudFront invalidation of /*. Not optional: the edge TTL is a
+#   5. One CloudFront invalidation of /*. Not optional: the edge TTL is a
 #      year, so a re-sync without an invalidation serves the old capture
 #      indefinitely.
-#   5. Edge verification, always: fetch the landing page through the
+#   6. Edge verification, always: fetch the landing page through the
 #      distribution with a hand-signed CloudFront cookie (custom policy,
 #      wildcard resource) and expect 200, plus a random missing key
 #      expecting 404. A sync and an invalidation both reporting success do
@@ -79,7 +93,7 @@ EXCLUSION_LIST="${SCRIPT_DIR}/archive-publish-exclusions.txt"
 SIGNING_KEY="${HOME}/AWS/archive-signing-key.pem"
 
 usage() {
-  sed -n '2,68p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,82p' "$0" | sed 's/^# \{0,1\}//'
   exit 2
 }
 
@@ -363,6 +377,47 @@ if [[ "$sanitation_fail" -ne 0 ]]; then
   exit 1
 fi
 echo "Sanitization gate: no admin-only fields, scripts, missing charsets, or legacy-host stylesheet URLs."
+
+# ---- 3c. Independent verification of the finished tree -----------------------
+#
+# Everything above is this script's own reading of the capture, and it can only
+# refuse what it was written to look for. The mirror's verifier reads the same
+# tree against the rules the crawler itself holds, so a rule that changes there
+# cannot leave a stale copy passing here. It runs last among the source gates
+# because it parses every page: the cheap refusals get to fail first.
+#
+# A skipped check is not a passed check. The excluded-surface and personal-detail
+# checks each depend on an input the operator supplies, and when one is missing
+# the verifier reports the skip and carries on to a green summary, which is
+# precisely the shape of a verification that looks complete while checking less
+# than it claims. Those two stand between a reader and material no reader may
+# see, so a skip in either refuses the publish. Other checks may legitimately
+# skip on a capture that predates what they read, and those are left to the
+# operator's eye rather than held against the publish.
+TREE_VERIFIER="${REPO_ROOT}/legacy_data/legacy_mirror/verify_mirror.sh"
+if [[ ! -f "$TREE_VERIFIER" ]]; then
+  echo "ERROR: the mirror verifier is missing: ${TREE_VERIFIER}" >&2
+  echo "A publish is not allowed to skip verification of the tree it ships." >&2
+  exit 1
+fi
+VERIFY_OUT="${WORK_DIR}/verify_tree.txt"
+echo "Verifying the capture with ${TREE_VERIFIER##*/}; this reads every page ..."
+if ! bash "$TREE_VERIFIER" --mirror "$MIRROR_ROOT" | tee "$VERIFY_OUT"; then
+  echo "" >&2
+  echo "REFUSING: the capture did not pass verification. Nothing was uploaded." >&2
+  echo "Fix the capture (re-run the crawler over it) and publish again." >&2
+  exit 1
+fi
+SKIPPED_GUARDS="$(grep -E '^[[:space:]]*SKIP[[:space:]]+(no excluded surface survived|no personal detail of the account owner)' "$VERIFY_OUT" || true)"
+if [[ -n "$SKIPPED_GUARDS" ]]; then
+  echo "" >&2
+  echo "REFUSING: verification skipped a check that guards what a reader must" >&2
+  echo "never see. Supply what it names below and publish again; a check that" >&2
+  echo "did not run is not a check that passed:" >&2
+  printf '%s\n' "$SKIPPED_GUARDS" >&2
+  exit 1
+fi
+echo "Capture verification: passed, with both privacy checks run rather than skipped."
 
 # ---- 4. Totals before --------------------------------------------------------
 

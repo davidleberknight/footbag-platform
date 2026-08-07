@@ -21,6 +21,7 @@ Strategic frame (how to derive, layer, and verify tests) lives in `docs/TESTING.
 3. **Every service contract change includes shape assertions.** New method, changed return shape, new error class, new validation — each gets an explicit test against the new shape.
 4. **Tests land in the same change as the code they cover.** Not "add tests later." Not "will add in a follow-up PR." Not "TODO: test this." In the same diff.
 5. **Tests fail on unexpected `logger.error()`.** A global spy in `tests/setup-env.ts` fails any test that produces a `logger.error()` not opted in via `expectLoggedError(pattern)`. The same `logger.error()` line drives the staging/prod CloudWatch admin alarm.
+6. **Every test is demonstrated to fail.** Before a test is done, break the code it covers — invert the condition it asserts, delete the guard clause, return the other branch — confirm it goes red for that reason, and restore. This generalises the regression rule above from bug fixes to every test. A test that passes against broken code asserts nothing, and no threshold can detect it: coverage is satisfied by any test that merely executes a line, whether or not an assertion would fail if the line were wrong. The `write-tests` skill carries the procedure.
 
 Do not ask whether to add tests. Add them.
 
@@ -94,6 +95,8 @@ If an adversarial test reveals a hole, fix it *and* keep the test.
 Thresholds are set in `vitest.config.ts` and are a mechanical ratchet floor: coverage never ratchets down, and a change that lowers a threshold is wrong, not the threshold. Overall coverage is an aspirational best-effort goal, not a fixed number. Catastrophic-severity surfaces (auth, session, member privacy, payments, identity claim) target 100% coverage.
 
 New source files must land with tests that keep coverage at or above the current floor. Do not lower thresholds to admit new code.
+
+Coverage measures execution, not assertion: a line can be at 100% because some unrelated test ran through it while nothing checks its result. High coverage with weak assertions is a worse position than lower coverage with strong ones, because it reads as safety. The demonstrated-failure requirement in the mandate above is what closes that gap, and it is the reason a green threshold is never on its own evidence that a surface is defended.
 
 ## When tests are insufficient
 

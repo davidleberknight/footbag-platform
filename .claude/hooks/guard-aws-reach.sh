@@ -98,8 +98,34 @@ EOF
   return 1
 }
 
+# A .sh path means "this command runs that script" only at command position,
+# optionally behind an interpreter word: `bash x.sh`, `sh -e x.sh`, `./x.sh`,
+# `source x.sh`. A path that is merely an ARGUMENT to a reader -- `grep pattern
+# scripts/x.sh`, `cat x.sh`, `wc -l x.sh` -- runs nothing, and treating it as a
+# run made every READ of a script prompt, including reads of scripts that only
+# mention the aws CLI in a comment or a test fixture. This mirrors the
+# command-position anchoring the aws / terraform match above already uses; that
+# intent was documented for one half of this guard and missing from the other.
+#
+# One carve-out keeps the old reach intact: a command that pipes into a shell
+# (`cat x.sh | bash`) really does run the script without ever naming it at
+# command position, so there every .sh path stays a candidate.
+# The test is deliberately coarse in the safe direction: if a shell interpreter
+# appears ANYWHERE in the command as its own word, every .sh path stays a
+# candidate. Requiring the interpreter to sit immediately before the path looks
+# tighter and silently loses `sudo bash x.sh`, `env A=1 bash x.sh`, and
+# `bash -c "x.sh"`, each of which really runs the script. Over-matching here
+# costs a prompt; under-matching costs an unprompted AWS reach.
+if printf '%s' "$COMMAND" | grep -Eq '(^|[[:space:];&|`({])(bash|sh|zsh|source|eval|xargs)([[:space:]]|$)'; then
+  SH_CANDIDATES="$(printf '%s' "$COMMAND" | grep -oE '(\./)?[A-Za-z0-9_][A-Za-z0-9_./-]*\.sh' || true)"
+else
+  SH_CANDIDATES="$(printf '%s' "$COMMAND" \
+    | grep -oE "${CMD_START}(\./)?[A-Za-z0-9_][A-Za-z0-9_./-]*\.sh" \
+    | grep -oE '(\./)?[A-Za-z0-9_][A-Za-z0-9_./-]*\.sh' || true)"
+fi
+
 CANDIDATES="$(
-  { printf '%s' "$COMMAND" | grep -oE '(\./)?[A-Za-z0-9_][A-Za-z0-9_./-]*\.sh' || true
+  { printf '%s' "$SH_CANDIDATES"
     collect_npm_script_bodies "$COMMAND"; } 2>/dev/null || true
 )"
 

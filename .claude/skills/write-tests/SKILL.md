@@ -156,7 +156,30 @@ it('outbox failure → 503 + audit row', async () => {
 });
 ```
 
-## Step 6: Run and report
+## Step 6: Prove each test can fail
+
+A test that has never failed has never been shown to test anything. Before a test is done,
+break the code it covers and confirm it goes red.
+
+For each new or changed test:
+
+1. Make the smallest edit to the production code that should break it — invert the condition
+   the test asserts, delete the guard clause, return the other branch.
+2. Run that one test file. It must fail, and the failure message must name the thing you
+   broke rather than something incidental.
+3. Restore the code and run it again. It must pass.
+
+If the test still passes while the code is broken, the test is wrong, not the code. Fix the
+assertion until it fails for the right reason.
+
+Restore before moving on: `git status` must show no modified production source when you are
+done.
+
+This step is the one that catches a silent gap. The coverage thresholds are satisfied by any
+test that merely executes a line; only breaking the line tells you whether an assertion would
+fail if it were wrong.
+
+## Step 7: Run and report
 
 ```bash
 npm test              # all tests
@@ -200,9 +223,9 @@ Update the test file's header docblock with the new failure-mode entry whenever 
 
 **Adapter parity (long-term).** Per `.claude/rules/testing.md` "Dev↔staging adapter parity," every adapter has three layers: boot-time config (`tests/unit/env-config.test.ts`), interface parity with an injected fake AWS client (`tests/integration/adapter-parity.test.ts`), and the staging smoke. Smoke is the only layer that needs real AWS; do not duplicate parity-test assertions into smoke.
 
-## Mutation tests (DB writes)
+## Database writes in tests
 
-If a test writes to the database, isolate it: use a fresh per-test DB path, or wrap the mutation in a transaction and roll back in `afterEach`. Do not let writes from one test affect reads in another.
+If a test writes to the database, isolate it: use a fresh per-test DB path, or wrap the write in a transaction and roll back in `afterEach`. Do not let writes from one test affect reads in another.
 
 ## Composition order
 

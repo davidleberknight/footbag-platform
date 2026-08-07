@@ -76,12 +76,13 @@ describe('TEST_PERSONA_SEED_PASSWORD_LITERAL — leak protection', () => {
     expect(hits).toEqual(['src/testkit/personaSecrets.ts']);
   }, 30_000);
 
-  it('persona seed runner source does not embed the literal as a string', () => {
-    const source = readFileSync(
-      path.resolve(REPO_ROOT, 'src', 'testkit', 'personaSeedRunner.ts'),
-      'utf8',
-    );
-    expect(source).not.toContain(TEST_PERSONA_SEED_PASSWORD_LITERAL);
+  it('persona runner sources do not embed the literal as a string', () => {
+    for (const relPath of ['personaSeedRunner.ts', 'personaRefreshCli.ts']) {
+      const source = readFileSync(path.resolve(REPO_ROOT, 'src', 'testkit', relPath), 'utf8');
+      expect(source, `${relPath} must not embed the persona password literal`).not.toContain(
+        TEST_PERSONA_SEED_PASSWORD_LITERAL,
+      );
+    }
   });
 
   it('deploy/operator scripts do not embed the literal', () => {
@@ -89,6 +90,8 @@ describe('TEST_PERSONA_SEED_PASSWORD_LITERAL — leak protection', () => {
       'deploy_to_aws.sh',
       'scripts/deploy-rebuild.sh',
       'scripts/internal/deploy-rebuild-remote.sh',
+      'scripts/deploy-code.sh',
+      'scripts/internal/deploy-code-remote.sh',
       'scripts/manage-test-personas.sh',
       'run_dev.sh',
     ]) {

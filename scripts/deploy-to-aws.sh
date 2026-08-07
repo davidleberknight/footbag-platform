@@ -92,9 +92,40 @@ MODIFIERS
   --seed-test-personas         After the deploy completes, run the persona
                                catalog seed inside the web container. The
                                catalog is code (canonicalPersonas.ts), so this
-                               carries a signal only (no JSON payload). Seed is
-                               idempotent (skips existing slugs). Allowlisted to
+                               carries a signal only (no JSON payload). The seed
+                               makes the target COMPLETE against the catalog,
+                               not CURRENT: it adds personas the database is
+                               missing and skips every slug it already has, so a
+                               persona whose spec changed since that database was
+                               seeded keeps its old rows. Deploy a rebuild mode
+                               to get a current catalog, or refresh the personas
+                               on the host (personaRefreshCli.js --apply). The
+                               seed step names any persona it could not seed and
+                               fails the deploy. Allowlisted to
                                DEPLOY_TARGET=footbag-staging only. CUTOVER-REMOVE.
+  --refresh-test-personas      ON BY DEFAULT for a code-only staging deploy;
+                               this flag only states it explicitly. After the
+                               deploy completes, rebuilds every persona on the
+                               target from its current spec, inside the web
+                               container. This is what makes staging CURRENT
+                               after a code deploy that changed persona specs;
+                               the seed alone cannot, because it skips every slug
+                               already present. DESTRUCTIVE: it deletes
+                               persona-owned rows, so anything a tester built
+                               while acting as a persona is lost, and tier or
+                               Active Player grants a persona made to other
+                               members are reverted. A database holding no
+                               personas is left alone (use --seed-test-personas
+                               to introduce them). Skipped automatically for a DB
+                               rebuild or -r (both ship a database whose catalog
+                               is already current), alongside
+                               --seed-test-personas, and for any target but
+                               footbag-staging. Named explicitly, those same
+                               conditions are errors rather than skips.
+                               CUTOVER-REMOVE.
+  --no-refresh-personas        Opt out of the default persona refresh, keeping
+                               whatever persona state the target already holds.
+                               CUTOVER-REMOVE.
   -n, --dry-run                Print planned actions; run nothing.
   -h, --help                   Show this message.
 
@@ -161,6 +192,20 @@ ALL_DATA="no"        # --from-csv build + member intake applied and shipped (ful
 # Target: remove this flag and the seed pathway at production cutover.
 SEED_TEST_PERSONAS="no"
 
+# CUTOVER-REMOVE: --refresh-test-personas flag.
+# Current: post-deploy rebuilds every persona on staging from its current spec,
+#   which is the only way a database that already holds personas picks up a spec
+#   edited since it was seeded. ON BY DEFAULT for a code-only staging deploy,
+#   because the failure it prevents is silent: a stale persona reads as a broken
+#   feature, and a tester has no way to tell that from a real defect. The cost is
+#   bounded by what a refresh deletes, which is persona-owned test scaffolding
+#   only. Opt out with --no-refresh-personas. Destructive, staging-only, and
+#   never part of the production path. Signal only, no payload.
+# Target: remove this flag and the refresh pathway at production cutover.
+REFRESH_TEST_PERSONAS="yes"
+REFRESH_ASKED_EXPLICITLY="no"   # distinguishes an operator request from the default
+NO_REFRESH_FLAG="no"            # --no-refresh-personas: opt OUT of the default refresh
+
 # Expand combined short flags (e.g. -ryW → -r -y -W) so the case below can
 # handle each independently. Duplicated by design in deploy_to_aws.sh: each
 # deploy entry point stays standalone with no sourced dependencies.
@@ -196,6 +241,8 @@ for arg in "${EXPANDED_ARGS[@]+"${EXPANDED_ARGS[@]}"}"; do
     --soup-to-nuts)        SOUP_TO_NUTS="yes" ;;
     --all-data)            ALL_DATA="yes" ;;
     --seed-test-personas)  SEED_TEST_PERSONAS="yes" ;;
+    --refresh-test-personas) REFRESH_TEST_PERSONAS="yes"; REFRESH_ASKED_EXPLICITLY="yes" ;;
+    --no-refresh-personas) NO_REFRESH_FLAG="yes" ;;
     --no-media)            NO_MEDIA_FLAG="yes" ;;
     --no-personas)         NO_PERSONAS_FLAG="yes" ;;
     *)
@@ -235,6 +282,56 @@ fi
 if [[ "$SEED_TEST_PERSONAS" == "yes" && "$NO_PERSONAS_FLAG" == "yes" ]]; then
   echo "ERROR: --seed-test-personas and --no-personas are contradictory." >&2
   exit 1
+fi
+if [[ "$REFRESH_ASKED_EXPLICITLY" == "yes" && "$NO_REFRESH_FLAG" == "yes" ]]; then
+  echo "ERROR: --refresh-test-personas and --no-refresh-personas are contradictory." >&2
+  exit 1
+fi
+
+# The refresh is on by default, so every condition that makes it inapplicable
+# resolves the same two ways: an operator who asked for it by name gets an
+# error, because a request must never be silently dropped; the default steps
+# aside with a note, because a default must never fail a deploy. Each condition
+# is a reason the refresh would do nothing useful or something unwanted.
+refresh_off() {  # $1 = reason shown either way
+  if [[ "$REFRESH_ASKED_EXPLICITLY" == "yes" ]]; then
+    echo "ERROR: --refresh-test-personas $1" >&2
+    exit 1
+  fi
+  if [[ "$REFRESH_TEST_PERSONAS" == "yes" ]]; then
+    echo "NOTE: persona refresh skipped: $1" >&2
+  fi
+  REFRESH_TEST_PERSONAS="no"
+}
+
+if [[ "$NO_REFRESH_FLAG" == "yes" ]]; then
+  REFRESH_TEST_PERSONAS="no"
+fi
+if [[ "$NO_PERSONAS_FLAG" == "yes" ]]; then
+  refresh_off "conflicts with --no-personas."
+fi
+# The seed is the gentler operation on the same rows. An operator who named it
+# gets what they named.
+if [[ "$SEED_TEST_PERSONAS" == "yes" ]]; then
+  refresh_off "would rebuild the personas the requested seed only adds to."
+fi
+# A DB rebuild ships a freshly built database whose persona seed is current by
+# construction, so a refresh on top would tear down and rebuild what was just
+# built. Reusing the local DB replaces the target's database wholesale for the
+# same reason. Excluding both keeps the flag meaning one thing: make the
+# personas on the target's EXISTING database match the code just deployed.
+if [[ "$FROM_CSV" == "yes" || "$SOUP_TO_NUTS" == "yes" || "$ALL_DATA" == "yes" ]]; then
+  refresh_off "is for code-only deploys; a DB rebuild already ships a current persona catalog."
+fi
+if [[ "$MODE" == "reuse" ]]; then
+  refresh_off "is for code-only deploys; -r/--reuse-local-db replaces the target's database with the local one."
+fi
+# The staging allowlist. The wrapper refuses a non-staging target when the flag
+# is named, but it scans literal flags and cannot see the default, so the
+# default is re-checked here — the same defense-in-depth the seed's implicit
+# enable already carries.
+if [[ "${DEPLOY_TARGET:-footbag-staging}" != "footbag-staging" ]]; then
+  refresh_off "is allowlisted to DEPLOY_TARGET=footbag-staging only."
 fi
 # The --no-* opt-outs only make sense in the mode that turns the axis on by
 # default. --no-media rides --soup-to-nuts; --no-personas rides
@@ -365,6 +462,7 @@ echo "    replace staging:  ${REPLACE_STAGING}"
 echo "    sync media:       ${SYNC_MEDIA_FLAG}"
 echo "    clean S3 sync:    ${WIPE_S3}"
 echo "    seed personas:    ${SEED_TEST_PERSONAS}"
+echo "    refresh personas: ${REFRESH_TEST_PERSONAS}"
 echo "    dry run:          ${DRY_RUN}"
 echo ""
 
@@ -469,6 +567,13 @@ export CURATOR_SEED="${CURATOR_SEED:-yes}"
 # persona-catalog seed inside the web container. No JSON payload (the catalog
 # is code).
 export SEED_TEST_PERSONAS
+
+# CUTOVER-REMOVE: REFRESH_TEST_PERSONAS, explicit opt-in; defaults to no.
+# Threaded to the staging-side remote script the same way, which then rebuilds
+# every persona inside the web container. Destructive, so it is never implied by
+# another flag the way the seed rides a DB rebuild: it happens only when it was
+# asked for by name.
+export REFRESH_TEST_PERSONAS
 
 # SYNC_MEDIA: opt-in via -m / --sync-media (default off). When off, the leaf
 # scripts skip the curated build + rsync + S3 sync entirely; curated DB rows

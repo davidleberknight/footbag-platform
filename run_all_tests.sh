@@ -59,6 +59,12 @@ WITH_REALDATA_INVARIANTS=0
 # an explicit --with-realdata-invariants). In that case an absent operator dataset
 # (a fixture-seeded clone) SKIPs the gate instead of failing the whole run.
 REALDATA_INVARIANTS_OPTIONAL=0
+# Mutation testing measures whether a regression in the scoped guards would
+# actually fail a test, which coverage cannot tell you. It is the slowest gate
+# by a wide margin: the runner forces single-threaded test execution, so its
+# baseline pass alone costs roughly a quarter-hour however little is mutated.
+# Opt in explicitly, or take it as part of --full.
+WITH_MUTATION=0
 A11Y=0
 FAIL_FAST=0
 for arg in "$@"; do
@@ -67,13 +73,14 @@ for arg in "$@"; do
     --with-smoke)         WITH_SMOKE=1 ;;
     --with-persona-crawl) WITH_PERSONA_CRAWL=1 ;;
     --with-realdata-invariants) WITH_REALDATA_INVARIANTS=1 ;;
+    --with-mutation)      WITH_MUTATION=1 ;;
     --a11y)               A11Y=1 ;;
     --pentest)            PENTEST=1 ;;
     --full)               FULL=1 ;;
     --fail-fast)          FAIL_FAST=1 ;;
     -h|--help)
       cat <<'USAGE'
-Usage: ./run_all_tests.sh [--quick] [--with-smoke] [--with-persona-crawl] [--with-realdata-invariants] [--a11y] [--pentest] [--full] [--fail-fast]
+Usage: ./run_all_tests.sh [--quick] [--with-smoke] [--with-persona-crawl] [--with-realdata-invariants] [--with-mutation] [--a11y] [--pentest] [--full] [--fail-fast]
 
 Canonical local full-suite test runner. Runs the CI gates that are safe on a
 workstation and summarizes the results.
@@ -105,6 +112,15 @@ Options:
                 Output is counts and PASS/FAIL only. Reads the dev DB by default;
                 point FOOTBAG_DB_PATH at staging to run it there. SKIPs on a
                 fixture-seeded clone (no real dataset). Never runs in CI.
+  --with-mutation
+                Additionally run mutation testing over the scoped authorization
+                guards: each guard is broken one edit at a time and the suite is
+                re-run to see whether anything fails. Measures assertion
+                strength, which coverage cannot. SLOW — the runner forces
+                single-threaded test execution, so the baseline pass alone costs
+                roughly a quarter-hour before the first mutant runs. Sandbox and
+                report are written outside the repository. Included in --full;
+                SKIPs when the runner is not installed. Never runs in CI.
   --pentest     Additionally run the heavyweight pentest harness
                 (npm run test:pentest:heavy). Boots a throwaway stack and runs
                 the security-header walk, internal-route, and upload-abuse
@@ -162,6 +178,7 @@ if (( FULL == 1 )); then
   PERSONA_CRAWL_OPTIONAL=1
   WITH_REALDATA_INVARIANTS=1
   REALDATA_INVARIANTS_OPTIONAL=1
+  WITH_MUTATION=1
 fi
 
 # Preflight: required tooling. Match deploy_to_aws.sh's need_cmd shape.
@@ -326,6 +343,21 @@ run_gate() {
 # -----------------------------------------------------------------------------
 # Compound / conditional gate bodies.
 # -----------------------------------------------------------------------------
+# Mutation testing: breaks the scoped guards one edit at a time and reports
+# whether any test notices. This is the only gate that measures assertion
+# strength rather than execution, which is why a surviving mutant is a real
+# finding even when coverage is green. Slow by construction — the runner forces
+# single-threaded test execution, so its baseline pass costs roughly a
+# quarter-hour before the first mutant runs. Its sandbox and report are written
+# outside the repository; nothing lands in the working tree.
+gate_mutation() {
+  if ! [ -x node_modules/.bin/stryker ]; then
+    echo "  mutation runner not installed — skipping (run npm ci to enable)."
+    return 77
+  fi
+  npm run test:mutation
+}
+
 gate_terraform() {
   if ! command -v terraform >/dev/null 2>&1; then
     echo "  terraform CLI absent — skipping (CI's terraform job covers it)."
@@ -669,11 +701,11 @@ run_gate build       npm run build
 run_gate lint        npm run lint
 run_gate audit       gate_audit
 run_gate conventions bash scripts/ci/assert_conventions.sh
+run_gate harness     bash scripts/ci/assert_claude_harness.sh
 run_gate generated-content bash scripts/ci/assert_generated_content_current.sh
 run_gate secret-scan gate_secret_scan
 run_gate unit        npm run test:unit
 run_gate integration npm run test:integration
-run_gate python-pipeline gate_python_pipeline
 
 if (( QUICK == 0 )); then
   run_gate e2e        gate_e2e
@@ -698,6 +730,19 @@ fi
 
 if (( PENTEST == 1 )); then
   run_gate pentest    gate_pentest
+fi
+
+# The legacy-data pipeline suite runs under --full only. CI runs it on every
+# push, so the default run here is deliberately narrower than CI on this one
+# gate: it is several hundred Python tests over the migration pipeline, and the
+# day-to-day loop does not touch that code. Anyone changing anything under
+# legacy_data/ runs --full, or pytest directly, before pushing.
+if (( FULL == 1 )); then
+  run_gate python-pipeline gate_python_pipeline
+fi
+
+if (( WITH_MUTATION == 1 )); then
+  run_gate mutation   gate_mutation
 fi
 
 # db-load-smoke (loader pipeline) is intentionally absent: it writes legacy_data

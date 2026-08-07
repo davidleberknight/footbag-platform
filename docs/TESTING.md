@@ -443,7 +443,7 @@ Persona contract:
 Reset semantics:
 
 - An operator-runnable reset that re-creates the persona set from the gitignored or secret-manager seed file.
-- The reset uses `bash scripts/manage-test-personas.sh` (or an equivalent extension), which pipes JSON via stdin per the existing pattern. No password as command-line argument.
+- The reset is `bash scripts/manage-test-personas.sh --refresh-test-personas --apply`, which tears down the persona-owned rows and rebuilds every persona from its current spec. It reports what it would change and writes nothing until `--apply` is given, and it leaves a database holding no personas untouched. No password as command-line argument.
 - The seed runner is self-healing on the password hash: a persona kept across code-only deploys whose stored hash predates the current scheme is re-hashed in place on the next seed run, its accumulated rows untouched. Restoring a persona's fuller baseline (reverting tester-driven ledger changes) still needs the delete-and-reseed reset.
 
 ### 7.5 Test scaffolding and dev-bootstrap conveniences
@@ -843,7 +843,7 @@ Uncovered branches are also a read-targeting signal: they are where both the tes
 Property-based testing (fast-check) and mutation testing (Stryker) are not universal tier-promotion requirements. They are tools to reach for when a specific surface justifies the cost.
 
 - fast-check: useful for validators, encoders, anti-enumeration helpers, idempotency invariants, and security-critical pure functions. Install and adopt on the slice that introduces the first property-shaped surface; do not pre-install for hypothetical future need.
-- Stryker: useful for security-critical pure functions and parsers when there is evidence the existing test suite is structurally weak on that module. Run on-demand against the specific module, not the whole codebase.
+- Stryker: useful for security-critical pure functions and parsers when there is evidence the existing test suite is structurally weak on that module. Adopted for the authorization guards on exactly that evidence, and scoped to them; widen one subtree at a time, only once the current scope holds its score. Never part of a quick loop — the runner forces single-threaded test execution, so a baseline pass costs several minutes however little is mutated.
 
 Decisions to adopt either tool, and the specific surface they target, are tracked in the maintainers' private tracker, not here.
 
@@ -948,7 +948,7 @@ The platform's testing toolchain consists of:
 - *Playwright.* Browser automation. Config at `tests/playwright.config.ts`. Single-worker chromium-only headless lightweight suite.
 - *Test fixtures.* `tests/fixtures/factories.ts` (synthetic row factories), `tests/fixtures/testDb.ts` (DB setup and teardown), `tests/fixtures/personas.ts` (member plus tier grant plus JWT plus Playwright cookie composition).
 - *fast-check.* Property-based testing for TypeScript. Selective use for validators, encoders, anti-enumeration helpers, idempotency invariants, and security-critical pure functions. Not a universal test-tier requirement; introduced on a per-surface basis when an invariant-shaped assertion benefits from it.
-- *Stryker (TypeScript).* Mutation testing. Selective use for security-critical pure functions and parsers where structural test weakness has been observed. Not a baseline expectation across the whole suite. Runs on-demand against a targeted module, not against the full codebase.
+- *Stryker (TypeScript).* Mutation testing: breaks a guard one edit at a time and reports whether any test notices, which is the measure coverage cannot give. Wired as an opt-in gate (`--with-mutation`, included in `--full`), scoped to the authorization guards rather than the whole codebase, with its sandbox and report written outside the repository. Config in `stryker.config.json`; test selection in `vitest.mutation.config.ts`.
 - *@axe-core/playwright.* Accessibility automated checks for the lightweight Playwright suite per §14.1, tagged `@a11y`, plus the smoke-tagged subset on high-traffic public pages.
 - *OWASP ZAP.* Heavyweight pentest scanner. Used in the on-demand heavyweight pentest gate per §9.3. Scripted invocation against the local stack or a dedicated pentest staging environment; report aggregation; findings produce regression tests per §9.6.
 - *Pairwise generator.* PICT, ACTS, or an equivalent. Used by the technique selector per §4.4 for matrix-shaped threats. May be hand-derived for small matrices; the generator becomes mandatory when the role-by-surface-by-method matrix exceeds 32 combinations.
@@ -982,7 +982,7 @@ The persona harness in `src/testkit/` lets a tester act as any seeded member, ac
 
 ### 16.2 Local quickstart (development)
 
-1. Seed the catalog: `./run_dev.sh --seed-test-personas` (combinable with any rebuild mode; idempotent, a persona whose slug already exists is skipped). To seed without launching, run `./scripts/manage-test-personas.sh --seed-test-personas`.
+1. Seed the catalog: `./run_dev.sh --seed-test-personas` (combinable with any rebuild mode; idempotent, a persona whose slug already exists is skipped). To seed without launching, run `./scripts/manage-test-personas.sh --seed-test-personas`. A launch that keeps the existing database also rebuilds the personas already in it from their current specs, so a spec edited since the database was seeded takes effect rather than reading as a broken feature; `--no-refresh-personas` opts out, and a rebuild mode skips it because its seed is current already.
 2. Open `GET /dev/personas`. Every seeded persona is listed.
 3. Click Switch on a card to become that persona (redirects to `/`). Log out to return to anonymous.
 

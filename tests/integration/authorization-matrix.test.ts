@@ -413,6 +413,77 @@ describe('owner gate — member-owned routes (BOLA anti-enumeration)', () => {
   });
 });
 
+describe('owner gate — member-owned gallery by resource id (adjacent-owner BOLA)', () => {
+  // The member-key gate cannot reach this case: the caller passes their OWN
+  // profile key and only the gallery id belongs to someone else. Personas that
+  // own a real seeded gallery are what make the cell assertable at all; a
+  // placeholder id 404s for owner and stranger alike and proves nothing.
+  const OWN_GALLERY = 'gallery_persona_gallery_owner';
+  const ADJACENT = 'gallery_owner_b';
+  const body = { name: 'Authorization matrix probe' };
+
+  it("serves the owner its own gallery's edit page", async () => {
+    const res = await request(createApp())
+      .get(`/members/gallery_owner/galleries/${OWN_GALLERY}/edit`)
+      .set('Cookie', cookies.get('gallery_owner')!);
+    expect(res.status, 'gallery_owner -> own gallery edit (allow)').toBe(200);
+  });
+
+  it("404s a member reading another member's gallery under their own profile key", async () => {
+    const res = await request(createApp())
+      .get(`/members/${ADJACENT}/galleries/${OWN_GALLERY}/edit`)
+      .set('Cookie', cookies.get(ADJACENT)!);
+    expect(res.status, 'gallery_owner_b -> adjacent gallery read (BOLA deny)').toBe(404);
+  });
+
+  it("404s a member writing another member's gallery under their own profile key", async () => {
+    const res = await request(createApp())
+      .post(`/members/${ADJACENT}/galleries/${OWN_GALLERY}/edit`)
+      .set('Cookie', cookies.get(ADJACENT)!)
+      .send(body);
+    expect(res.status, 'gallery_owner_b -> adjacent gallery write (BOLA deny)').toBe(404);
+
+    // confirmed=1 is required to reach the authorization branch at all: without
+    // it the handler answers with its delete-confirmation redirect, which is
+    // decided before ownership and so proves nothing either way.
+    const del = await request(createApp())
+      .post(`/members/${ADJACENT}/galleries/${OWN_GALLERY}/delete`)
+      .set('Cookie', cookies.get(ADJACENT)!)
+      .send({ confirmed: '1' });
+    expect(del.status, 'gallery_owner_b -> adjacent gallery delete (BOLA deny)').toBe(404);
+  });
+});
+
+describe('tier gate — an owned gallery outliving the benefits that created it', () => {
+  // Membership tiers do not expire and Active Player does, so this is the only
+  // state where the permission to edit lapses while the resource survives. The
+  // read must still work: losing benefits does not dispossess a member of what
+  // they already own.
+  const SLUG = 'gallery_owner_ap_expired';
+  const GALLERY = 'gallery_persona_gallery_owner_ap_expired';
+
+  it('still serves the owner its own gallery after the Active Player grant expired', async () => {
+    const res = await request(createApp())
+      .get(`/members/${SLUG}/galleries/${GALLERY}/edit`)
+      .set('Cookie', cookies.get(SLUG)!);
+    expect(res.status, 'expired Active Player -> own gallery read (allow)').toBe(200);
+  });
+
+  it('denies the write once the Active Player grant that conferred the benefits expired', async () => {
+    const res = await request(createApp())
+      .post(`/members/${SLUG}/galleries/${GALLERY}/edit`)
+      .set('Cookie', cookies.get(SLUG)!)
+      .send({ name: 'Authorization matrix probe' });
+    expect(res.status, 'expired Active Player -> own gallery write (tier deny)').toBe(403);
+
+    const del = await request(createApp())
+      .post(`/members/${SLUG}/galleries/${GALLERY}/delete`)
+      .set('Cookie', cookies.get(SLUG)!)
+      .send({ confirmed: '1' });
+    expect(del.status, 'expired Active Player -> own gallery delete (tier deny)').toBe(403);
+  });
+});
+
 describe('owner gate — club content edit (adjacent-owner BOLA)', () => {
   const body = { description: 'Authorization matrix probe' };
 

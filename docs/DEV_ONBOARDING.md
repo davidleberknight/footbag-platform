@@ -40,7 +40,7 @@ This guide helps contributors understand how the platform is structured and how 
   - [1.11 Optional: exercise Safe Browsing in dev](#111-optional-exercise-safe-browsing-in-dev)
   - [1.12 Optional deterministic checks](#112-optional-deterministic-checks)
   - [1.13 Docker parity check](#113-docker-parity-check)
-  - [1.14 Dev and tester shortcuts (advanced)](#114-dev-and-tester-shortcuts-advanced)
+  - [1.14 Dev and tester tooling (advanced)](#114-dev-and-tester-tooling-advanced)
   - [1.15 Filing a bug](#115-filing-a-bug)
   - [1.16 What's next](#116-whats-next)
 - [2. Path B — Orientation: what this project is and how to think about it](#2-path-b--orientation-what-this-project-is-and-how-to-think-about-it)
@@ -419,7 +419,7 @@ npx playwright install        # one-time: Playwright e2e browsers
 ./run_all_tests.sh --full     # the complete suite
 ```
 
-Developers and testers should run the complete suite with `--full`, and it is meant to pass for them on a plain workstation. The default `./run_all_tests.sh` runs every gate that is safe on a workstation: build, lint, dependency audit, conventions, secret-scan, unit, integration, e2e, and terraform fmt/validate (`--quick` skips e2e and terraform for a fast loop). `--full` adds the heavyweight pentest, the staging-AWS smoke, and the persona-crawl; on a fixture-seeded clone (no operator data handoff, no AWS profile) the staging-smoke and persona-crawl SKIP with a warning while every other gate still runs, so the run completes green instead of failing on data or credentials you are not expected to have.
+Developers and testers should run the complete suite with `--full`, and it is meant to pass for them on a plain workstation. The default `./run_all_tests.sh` runs every gate that is safe on a workstation, and mirrors the push gate: build, lint, dependency audit, conventions, harness self-check, generated-content, secret-scan, unit, integration, e2e, and terraform fmt/validate (`--quick` skips e2e and terraform for a fast loop). `--full` adds the heavyweight pentest, the staging-AWS smoke, the persona-crawl, the read-only real-data invariant gate, the legacy-data pipeline suite, and mutation testing; on a fixture-seeded clone (no operator data handoff, no AWS profile) the staging-smoke and persona-crawl SKIP with a warning while every other gate still runs, so the run completes green instead of failing on data or credentials you are not expected to have.
 
 > **Real-data testing, for developers and testers.** With the operator dataset loaded, two opt-in gates exercise the real migrated data, and both SKIP cleanly on a fixture-only clone. The **real-claim crawl** (`--with-persona-crawl`) builds a claimed account for a real migrated record via `GET /dev/build-claim?as=<legacy_member_id>` and walks its surfaces (profile, honors, results, media, any co-led club), proving migrated data renders and behaves once claimed; it defaults to the numerically-lowest Hall-of-Fame honoree carrying a legacy link, or target a specific record with `PERSONA_CRAWL_LEGACY_ID`. The **read-only invariant gate** (`--with-realdata-invariants`) runs whole-population reconciliation and referential-integrity checks over the loaded data, emitting counts and pass/fail only — never names or emails. To run either: do the full data load (below), start `./run_dev.sh`, then `./run_all_tests.sh --with-persona-crawl` and/or `./run_all_tests.sh --with-realdata-invariants`. To become a real claimed account interactively, browse to `GET /dev/build-claim?as=<legacy_member_id>`. Both gates re-point at staging with an env var — `PERSONA_CRAWL_BASE_URL` aims the crawl at a running staging stack, `FOOTBAG_DB_PATH` aims the invariant gate at the staging database. The full flag set with defaults lives in `./run_all_tests.sh -h`. The human stratified-sampling walk that complements these gates is an operator procedure in DEVOPS_GUIDE.md (private GitHub repo).
 >
@@ -642,9 +642,9 @@ docker compose \
   down
 ```
 
-### 1.14 Dev and tester shortcuts (advanced)
+### 1.14 Dev and tester tooling (advanced)
 
-> These are advanced shortcuts for maintainers and testers. None of them are needed to reach hello world or run the default test suite; a new developer can skip this section. The tester journey is the developer journey above plus the persona switching in §1.14.2.
+> These are advanced tools for maintainers and testers. None of them are needed to reach hello world or run the default test suite; a new developer can skip this section. The tester journey is the developer journey above plus the persona switching in §1.14.2.
 
 #### 1.14.1 Dev admin allowlist (maintainers)
 
@@ -654,17 +654,18 @@ For reference, the mechanism: the dev site auto-promotes a registrant whose norm
 
 Staging uses the same allowlist but reads it from an env var, not a file. The deploy pipeline parses your workstation's `.local/initial-admins.txt` into `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` and writes it into `/srv/footbag/env` on the staging host; the staging runtime reads the env var. The file path is not consulted on staging because the staging container runs `NODE_ENV=production`. For production, three layers of defense prevent the dev/staging allowlist from firing: the deploy pipeline refuses to write the env var on a production host, the env-config fail-fast refuses to boot a production process with the var set, and the production docker overlay carries an explanatory comment documenting the no-op intent. Production-first-admin uses a separate SSM-stored claim-token mechanism described in DESIGN_DECISIONS §2.9 and operationally documented in DEVOPS_GUIDE.md (private GitHub repo), "Production first-admin bootstrap".
 
-#### 1.14.2 Dev-only shortcuts
+#### 1.14.2 Dev and staging test infrastructure
 
-Several conveniences exist to reduce friction during local manual testing. The env-var-gated entries refuse to start outside their permitted environments via fail-fast guards in `src/config/env.ts`; the persona-harness operator script runs in development or staging only. Production carries none of them.
+Several conveniences exist to reduce friction during local manual testing. They are permanent development and staging infrastructure, excluded from the production image at build time rather than removed from source at cutover. The env-var-gated entries refuse to start outside their permitted environments via fail-fast guards in `src/config/env.ts`; the persona-harness operator script runs in development or staging only. Production carries none of them.
 
-| Shortcut | Type | Allowed envs | What it does |
+| Tool | Type | Allowed envs | What it does |
 |---|---|---|---|
 | `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` | env var | development AND staging | Email allowlist matched at registration; matching registrants get `is_admin=1` plus a Tier 2 grant plus audit rows in one transaction. The deploy pipeline parses `.local/initial-admins.txt` into this env var; the workstation file is the dev source. Production refused at boot and at deploy time. |
 | `GET /dev/switch?as=<slug>` | dev route | development and staging | Issues a real session cookie for a seeded persona via the production JWT primitive, so you act as any persona without a login chain. Audit-marked `testkit.persona_switch`. |
 | `./scripts/manage-test-personas.sh --seed-test-personas` (or `./run_dev.sh --seed-test-personas`) | operator script | development AND staging | Seeds the canonical persona catalog. Tier grants marked `dev_persona_seed.tier_grant`. Production blocked by the testkit import guard and the production image strip. |
+| `./scripts/manage-test-personas.sh --refresh-test-personas --apply` (or the default refresh on `./run_dev.sh` and a code-only staging deploy) | operator script | development AND staging | Rebuilds every persona from its current spec, deleting persona-owned rows first. The only path that makes an existing database match a changed catalog; reports and writes nothing without `--apply`, and leaves a database with no personas untouched. Production blocked by the same import guard and image strip, and refused for any deploy target but staging. |
 
-Production has none of these shortcuts. Production admins requiring legacy-claim recovery use `manualLegacyClaimRecovery` (DD §3.9).
+Production carries none of these tools. Production admins requiring legacy-claim recovery use `manualLegacyClaimRecovery` (DD §3.9).
 
 ##### Switch between personas in the browser (/dev/personas)
 

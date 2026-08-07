@@ -280,6 +280,7 @@ echo "==> Running remote-as-root deploy (promote, restart)..."
   printf 'DEPLOY_TARGET=%q\n'                "$REMOTE"
   printf 'FOOTBAG_DEV_INITIAL_ADMIN_EMAILS=%q\n' "$INITIAL_ADMIN_EMAILS_CSV"
   printf 'SEED_TEST_PERSONAS=%q\n'          "${SEED_TEST_PERSONAS:-no}"
+  printf 'REFRESH_TEST_PERSONAS=%q\n'       "${REFRESH_TEST_PERSONAS:-no}"
   cat "$REMOTE_HALF"
 } | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -S -p "" bash'
 
