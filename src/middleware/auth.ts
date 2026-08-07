@@ -74,6 +74,12 @@ export function authMiddleware() {
     req.user = null;
 
     const cookie = req.cookies?.[SESSION_COOKIE_NAME] as string | undefined;
+    // Removing this early return changes no outcome: a request with no cookie
+    // that falls through verifies an absent token, gets nothing back, and ends
+    // unauthenticated by the next guard or by the catch below. Mutation runs
+    // otherwise spend the whole suite twice over proving that. The negated
+    // condition on this line stays enabled and still proves the guard is live.
+    // Stryker disable next-line BlockStatement,ConditionalExpression: falling through ends unauthenticated too, so no assertion can tell the difference
     if (!cookie) {
       next();
       return;

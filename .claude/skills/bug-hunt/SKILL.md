@@ -80,7 +80,7 @@ with every ambiguity resolved by the maintainer before the file is written.
 **Success criteria for the hunt itself:**
 
 - The deployed surface was re-derived from the repo this run, never trusted from any list;
-  every user story classified per `.claude/rules/deployed-surface.md`; every deployed story
+  every user story classified per `.claude/skills/bug-hunt/DEPLOYED_SURFACE.md`; every deployed story
   held to 100% of its success criteria against code.
 - The documentation universe was enumerated (`DOCSYNC.md`); the design layer was swept with
   the `DESIGN.md` method including the threat model and migration gate-index audit; the
@@ -135,7 +135,7 @@ speculative issues recorded as bugs, no remediation in the same session.
 ## 4. Scope
 
 - **Implementation-layer scope = the deployed surface**, derived fresh every run per
-  `.claude/rules/deployed-surface.md`. Everything deployed is in scope by default.
+  `.claude/skills/bug-hunt/DEPLOYED_SURFACE.md`. Everything deployed is in scope by default.
 - **Design-layer scope = all user stories and canonical docs**, including undelivered
   stories under the undelivered-work gate: only their design quality is reviewable. "Not
   built yet" is a status fact, never a finding.
@@ -200,7 +200,7 @@ that bear on the ask and say so in the scope note.
 
 | Lane | Subagent | Brief | Returns |
 |------|----------|-------|---------|
-| 0 Orient & surface | `auditor` / `Explore` | `deployed-surface.md` | deployed surface, story classification, existing-`BUGS.md` audit, tracked-work exclusion list |
+| 0 Orient & surface | `auditor` / `Explore` | `DEPLOYED_SURFACE.md` | deployed surface, story classification, existing-`BUGS.md` audit, tracked-work exclusion list |
 | 1 Design | `auditor` | `DESIGN.md` | design-layer candidates (requirements quality, threat model, contracts, tabletop, migration gate-index audit) |
 | 2 Implementation | `auditor` (may sub-split auth/session, payments/webhooks, media/archive, admin/curator) | `REFERENCE.md` §4.4 | implementation candidates traced input→controller→service→DB→response |
 | 3 Doc/hygiene | `auditor` | `DOCSYNC.md` + `REFERENCE.md` §4.4B | doc-drift and hygiene candidates with drift direction |

@@ -148,12 +148,3 @@ Python test gates never let bytecode land in the real-data trees. Because pytest
 In dev, curated-media writes mutate the persistent on-disk `/curated/` sidecar files, which are the committed source of truth, so a switchable test-persona admin must not author real curated content. The curator service refuses curated and FH-owned-gallery writes (`assertCuratorActorMayWriteCurated`) from seeded test personas (member ids carrying the `member_persona_` prefix). Real maintainer accounts and the primary maintainer's persona register through the real flow and carry ordinary ids, so they pass; the coming freestyle sidecar curation reuses the same curator service and inherits the guard.
 
 The guard is keyed on `config.allowCuratedSidecarWrites`: it fires only where the on-disk sidecar write is enabled (dev, and the integration-test fixture, which sets `ALLOW_CURATED_SIDECAR_WRITES=1`). Staging and production run with the flag off, write curated content to the DB and object store only, and let any admin curate; there the guard is a no-op. Testing is therefore env-coupled: `tests/integration/curatorMediaService.persona-guard.test.ts` runs with the flag on (persona refused, real admin allowed, member-owned writes unaffected), and `tests/integration/curatorMediaService.persona-guard.sidecars-off.test.ts` boots with the flag cleared to pin the staging/production no-op.
-
-## Cross-references
-
-- `docs/TESTING.md` — testing strategy and methodology: how to derive, layer, and verify tests.
-- `tests/CLAUDE.md` — conventions (Vitest, Supertest, factories, test DB isolation, file layout).
-- `tests/fixtures/factories.ts` — canonical test-data factories; extend these rather than hand-rolling row inserts.
-- `tests/fixtures/testDb.ts` — DB setup/teardown helper.
-- `docs/USER_STORIES.md` — functional acceptance criteria.
-- service file-header JSDoc — service contract, invariants, and side-effects.

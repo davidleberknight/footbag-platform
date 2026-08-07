@@ -93,6 +93,10 @@ describe('GET /members/<slug> — Membership block rendering on personal home', 
     expect(res.text).toContain('Tier 0 Registered Member');
     expect(res.text).toContain('Upgrade to Tier 1');
     expect(res.text).toContain('Upgrade to Tier 2');
+    // What each upgrade costs is on the page beside its button, so the member
+    // is told the price before the click that hands them to the processor.
+    expect(res.text).toContain('$10 USD');
+    expect(res.text).toContain('$50 USD');
     // Blurb uses second-person "You..." form (no tier-name duplication).
     expect(res.text).toContain('You can browse the platform');
     // Rules link points to the IFPA hub.
@@ -131,6 +135,12 @@ describe('GET /members/<slug> — Membership block rendering on personal home', 
     expect(res.text).not.toContain('Upgrade to Tier 2');
   });
 
+  it('a member with nothing left to buy is quoted no price', async () => {
+    const res = await getDashboard(T2_ID);
+    expect(res.text).not.toContain('$10 USD');
+    expect(res.text).not.toContain('$50 USD');
+  });
+
   it('tier3 underlying tier1: shows underlying-tier reverts text', async () => {
     const res = await getDashboard(T3_T1_ID);
     expect(res.text).toContain('Tier 3 IFPA Director');
@@ -146,21 +156,33 @@ describe('GET /members/<slug> — Membership block rendering on personal home', 
   it('quick actions render slug-scoped links for each live surface', async () => {
     const res = await getDashboard(T1_ID);
     expect(res.text).toContain('Quick Actions');
-    expect(res.text).toContain('href="/members/mlt_t1/edit"');
     expect(res.text).toContain('href="/members/mlt_t1/galleries"');
     expect(res.text).toContain('href="/members/mlt_t1/media/upload"');
   });
 
-  it('coming-soon features render under their own labeled section', async () => {
+  it('the profile editor is offered once, from the sidebar', async () => {
     const res = await getDashboard(T1_ID);
-    expect(res.text).toContain('More Features');
-    expect(res.text).toContain('Coming soon');
-    expect(res.text).toContain('My Clubs');
-    expect(res.text).toContain('My Events');
-    expect(res.text).toContain('Donations');
-    expect(res.text).toContain('Voting &amp; HoF');
-    expect(res.text).toContain('Email Subscriptions');
-    expect(res.text).not.toContain('Account Management');
+    // A second control to the same editor competed with the sidebar button and
+    // wore the label the site header spends on the profile itself, so a member
+    // without a display name saw one label pointing at two destinations.
+    expect(res.text).not.toContain('My Profile');
+    expect(res.text).toContain('Edit Profile');
+    expect(res.text.match(/class="btn[^"]*"[^>]*>\s*Edit Profile/g) ?? []).toHaveLength(1);
+  });
+
+  it('no permanent advertisement of features that do not exist', async () => {
+    const res = await getDashboard(T1_ID);
+    expect(res.text).not.toContain('More Features');
+    expect(res.text).not.toContain('Coming soon');
+    expect(res.text).not.toContain('Email Subscriptions');
+  });
+
+  it('every control on the page is live', async () => {
+    const res = await getDashboard(T1_ID);
+    // Download My Data and Delete Account are the two knowingly-dead controls,
+    // held by the privacy work; nothing else on the page may be inert.
+    expect(res.text).not.toContain('Account Settings');
+    expect(res.text.match(/class="disabled"/g) ?? []).toHaveLength(2);
   });
 
   it('search section still renders and works (regression check)', async () => {

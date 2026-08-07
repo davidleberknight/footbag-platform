@@ -66,7 +66,6 @@ Before touching any file, state:
 
 - write or update integration tests in `tests/integration/` using factory helpers from `tests/fixtures/factories.ts` (see `tests/CLAUDE.md` for conventions and `write-tests` skill for guidance)
 - make excellent adversarial tests: edge cases, boundary values, invalid input, authorization bypass attempts, draft/deleted item leakage
-- run `npm test` to confirm all tests pass
-- run `npm run build` (`tsc -p tsconfig.json`) to confirm no type errors
+- verify per the defaults in root `CLAUDE.md`: `npm run build` plus the changed service's suite and its importers' suites, named explicitly; the full suite belongs at a commit or PR gate
 - **audit the service's file-header JSDoc** at the top of `src/services/<name>.ts`. If the change touches ownership, required patterns, invariants, transaction discipline, persistence tables, side-effect categories, or service shape, update the JSDoc block in the same change as the code. See `.claude/rules/service-layer.md` File-header JSDoc section for the update-obligation list.
 - after changes, invoke `doc-sync` to check whether the service's file-header JSDoc or DATA_MODEL.md needs updating

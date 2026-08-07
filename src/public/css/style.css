@@ -2350,17 +2350,8 @@ section.home-media { padding-top: 0; }
   margin-bottom: 12px;
 }
 
-/* A shared section partial embedded in a profile section (e.g. player-results,
-   which also serves the history page where the site heading is correct) adopts
-   the profile's label heading here, so the profile reads as one heading system. */
-.profile-section .section-heading { margin-bottom: 12px; }
-.profile-section .section-heading h2 {
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
+/* A count chip sits inline after a profile section's label heading. */
+.profile-section-heading .section-count { margin-left: 8px; text-transform: none; letter-spacing: 0; }
 
 .profile-link-grid {
   display: grid;
@@ -3139,6 +3130,7 @@ section.home-media { padding-top: 0; }
 .quick-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .membership-badges { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
 .membership-upgrade-form { margin-top: 8px; }
+.membership-upgrade-price { margin-left: 10px; color: var(--gray-600); }
 .identity-claim-link { font-size: 0.9rem; margin-top: 8px; }
 
 /* ── Payments ────────────────────────────────────────────────── */

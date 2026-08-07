@@ -105,17 +105,13 @@ Every mutation (`gh issue create/edit/close/comment/pin`, any `gh api` write) is
 prepared as an exact command. Claude never mutates the tracker unprompted or as a side
 effect. Then:
 
-- **Ask once, per batch.** One question covers the whole set of changes that carries out
-  one decision: state plainly what each command will change, ask once, and run the lot
-  once the human agrees. Never one question per issue, and never a second question for
-  the same decision.
-- **A directive is the agreement.** When the human says what to do to a card ("rewrite
-  it", "close it", "reassign it", "revise it for that"), that is the sign-off for every
-  command implementing it, including the accompanying comment and the follow-through on
-  the cards it merges into or from. Prepare the commands, say what they do, and run them.
-- **The batch is then settled.** Run every command in an agreed batch straight through:
-  never pause between them for confirmation, never restate the remaining ones as a fresh
-  question, and never read a permission prompt as a question to answer in prose.
+- **Ask once per batch, then run the whole batch.** One question covers every command
+  carrying out one decision: state plainly what each will change, ask once, and run the
+  lot. A directive from the human ("rewrite it", "close it", "reassign it") is itself the
+  sign-off for every command implementing it, including the accompanying comment and the
+  follow-through on cards it merges into or from. Never one question per issue, never a
+  second question for the same decision, never a pause between the commands of an agreed
+  batch, and never treat a permission prompt as a question to answer in prose.
 - **Retitle, rewrite, reassign, relabel, comment, close and reopen never prompt at the
   tool layer.** They are allowed in the committed settings, scoped to the private tracker
   by an exact repo-flag prefix, which is why every mutating command writes the repo flag

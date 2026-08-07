@@ -6,11 +6,7 @@ description: Detect documentation drift against current code and confirmed decis
 # Doc Sync
 
 ## Purpose
-Check whether current documentation still matches the current codebase and confirmed decisions.
-
-Use this skill to identify real documentation drift and propose the smallest precise edits needed to restore alignment.
-
-This skill is for maintenance and synchronization, not broad rewriting.
+Check whether documentation still matches the current codebase and confirmed decisions, and propose the smallest precise edits that restore alignment. Maintenance and synchronization, not broad rewriting.
 
 ## Use when
 - code behavior changed
@@ -133,45 +129,16 @@ For each proposed edit, provide:
 - precise after text
 
 ### 6) Human-in-the-loop requirement
-Never edit documentation unless the human explicitly approves.
-
-Valid approval:
-- yes / y
-- ok / go
-- any other reasonable affirmation
-
-Always provide the human with the option to approve all edits in the current session.
-If a human answers no to a proposed edit, ask why, then carefully adjust accordingly.
-
-Not valid approval:
-- silence
-- pressing Enter
-- approval of a different earlier edit in the same session
-
-If approval is missing or ambiguous, stop after presenting findings and proposed edits.
+Never edit documentation unless the human explicitly approves. Any reasonable affirmation counts; silence, a bare Enter, and approval of a different earlier edit do not. Offer the option to approve all edits in the session. If the human declines an edit, ask why and adjust. If approval is missing or ambiguous, stop after presenting the findings.
 
 ### 7) Apply only what was approved
-If the human approves, make only the agreed documentation edits:
-- change only the precise text approved
-- do not make opportunistic cleanup edits
-- do not rewrite adjacent text unless explicitly approved
-- do not modify unrelated docs in the same pass
-- Always verify all modified text when you think you are done with a file; look for layout, formatting, and numbered-heading bugs.
+Change only the approved text: no opportunistic cleanup, no adjacent rewriting, no unrelated docs in the same pass. When a file is done, re-read the modified text for layout, formatting, and numbered-heading damage.
 
 ## Guardrails
 Do not:
-- propose broad rewrite plans by default
-- restate the entire docs suite
 - infer intent not supported by code or explicit human direction
 - treat comments as authoritative if code behavior differs
-- edit docs without explicit human approval
 - edit a canonical (final-design) doc to match current code or infrastructure; an implementation that diverges from the final design is a deviation to record as a private-tracker issue, not a reason to rewrite the doc
 - mix confirmed drift with speculative improvements
 - expand scope beyond the area actually under review
 - introduce implementation-status language into canonical docs (the canonical-vs-active-slice separation rule and the full list of protected docs live in `.claude/rules/doc-governance.md`)
-
-## Default stance
-- prefer no change over unnecessary change
-- prefer one precise edit over a rewrite
-- prefer escalation to human over guesswork
-- prefer human approval over autonomous editing

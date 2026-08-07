@@ -1297,6 +1297,7 @@ Success Criteria:
 
 - Member must be logged in (Tier 0 members can purchase, visitors must register first).
 - Member sees a clear "Upgrade to Tier 1 IFPA Member" option from their account/dashboard when eligible.
+- The configured Tier 1 price is shown beside that option, so the member knows the amount before being handed to the payment page.
 - System creates Stripe Checkout Session with configurable amount.
 - Member redirects to Stripe-hosted payment page.
 - After successful payment confirmation via Stripe webhook, the account membership tier changes to Tier 1 and this is visible in the profile and dashboard. Tier changes are applied only after webhook-confirmed success. If the buyer was a Tier 0 Active Player, Active Player status ends because Active Player applies only to Tier 0 members.
@@ -1317,6 +1318,7 @@ Success Criteria:
 
 - Member must be logged in (Tier 0 or Tier 1 members can purchase, visitors must register first).
 - Eligible members see a clear "Upgrade to Tier 2 IFPA Organizer Member" option.
+- The configured Tier 2 price is shown beside that option, so the member knows the amount before being handed to the payment page.
 - System creates Stripe Checkout Session using the configured Tier 2 price.
 - Member redirects to Stripe-hosted payment page.
 - Tier changes are applied only after webhook-confirmed payment success.

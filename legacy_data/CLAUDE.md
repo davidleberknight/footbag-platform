@@ -8,7 +8,6 @@ Stay in this lane:
 - Do not modify repo-root code, repo-root docs, `.claude/skills/`, or `.claude/rules/`.
 - For repo-root/platform tasks, use repo-root `CLAUDE.md` and the maintainers' private tracker (the `tracker-ops` skill).
 - `legacy_data` is primarily the data and freestyle maintainer's area, but task ownership is not siloed: any maintainer may pick up work here, and the data/freestyle maintainer may pull other board tasks. Coordinate on overlapping in-flight changes.
-- Never run `git commit`, `git push`, or `git pull`. Stage-only changes are allowed; the human owns commits.
 
 ## Source of truth
 
@@ -108,7 +107,6 @@ Canonical outputs:
 - Auto-link requires a strong multi-anchor match.
 - `name_variants` stores high-confidence entries only.
 - A club's external URL stays hidden on the public read until it is verified and not quarantined.
-- Integration tests use real SQLite DBs and isolated temp DBs.
 - Writes are transactional.
 
 ## Loader contract
