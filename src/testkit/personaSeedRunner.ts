@@ -11,6 +11,20 @@
  * scheme is re-hashed in place (its accumulated rows untouched), so successive
  * code-only deploys never leave a persona on a stale hash.
  *
+ * This makes a database COMPLETE against the catalog, never CURRENT: an
+ * existing persona keeps whatever rows it was first seeded with, so a spec
+ * edited since that seed never reaches the database. Only the refresh runner
+ * (which tears the personas down and rebuilds them) makes a database current.
+ * The closing summary therefore names every persona present under a slug the
+ * catalog no longer carries, and says which of the two states the run reached,
+ * so a stale catalog is visible without anyone rebuilding to find out.
+ *
+ * One persona that cannot be seeded does not withhold the rest: the failure is
+ * reported against its own slug and the run continues, then exits non-zero so a
+ * calling script still fails. Aborting on the first collision left the catalog
+ * half-applied with only a raw constraint dump to identify the offender, and
+ * hid every later collision behind the first.
+ *
  * Input: CANONICAL_PERSONAS, the maintainer-curated catalog in code
  * (personaFactory.ts has the full PersonaSpec type; canonicalPersonas.ts has live examples).
  *
@@ -27,6 +41,7 @@ import { existsSync } from 'node:fs';
 import { TEST_PERSONA_SEED_PASSWORD_LITERAL } from './personaSecrets';
 import { CANONICAL_PERSONAS } from './canonicalPersonas';
 import { seedPersona } from './personaFactory';
+import { SEEDED_PERSONA_MEMBER_ID_PREFIX } from '../lib/personaGuards';
 import { parseDbArg } from './seedCli';
 
 export async function main(): Promise<number> {
@@ -71,6 +86,8 @@ export async function main(): Promise<number> {
   let healed = 0;
   let skipped = 0;
   let skippedBlocked = 0;
+  const failedSlugs: string[] = [];
+  let orphanSlugs: string[] = [];
   try {
     for (const spec of specs) {
       if (spec.blockedBy) {
@@ -93,17 +110,64 @@ export async function main(): Promise<number> {
         }
         continue;
       }
-      db.transaction(() => seedPersona(db, spec, { passwordHash }))();
-      created += 1;
-      console.log(`[persona-seed] seeded persona: ${spec.slug} (${spec.tier})`);
+      try {
+        db.transaction(() => seedPersona(db, spec, { passwordHash }))();
+        created += 1;
+        console.log(`[persona-seed] seeded persona: ${spec.slug} (${spec.tier})`);
+      } catch (err) {
+        // Name the persona that failed and keep going. Its transaction rolled
+        // back on its own, so the database holds no partial persona; the run
+        // exits non-zero below once every offender has been reported.
+        failedSlugs.push(spec.slug);
+        const detail = err instanceof Error ? err.message : String(err);
+        console.error(`[persona-seed] FAILED ${spec.slug}: ${detail}`);
+      }
     }
+
+    // A persona present under a slug the catalog no longer carries. It survives
+    // every future seed run (the loop only visits current specs), so it goes on
+    // answering to /dev/switch as a persona nothing in code describes.
+    const catalogSlugs = new Set(specs.map((s) => s.slug));
+    orphanSlugs = (
+      db
+        .prepare(`SELECT slug FROM members WHERE id LIKE ? ORDER BY slug`)
+        .all(`${SEEDED_PERSONA_MEMBER_ID_PREFIX}%`) as { slug: string }[]
+    )
+      .map((r) => r.slug)
+      .filter((slug) => !catalogSlugs.has(slug));
   } finally {
     db.close();
   }
 
+  for (const slug of orphanSlugs) {
+    console.log(`[persona-seed] orphan (no longer in the catalog): ${slug}`);
+  }
   console.log(
-    `[persona-seed] done. created=${created} healed=${healed} skipped=${skipped} skippedBlocked=${skippedBlocked}`,
+    `[persona-seed] done. created=${created} healed=${healed} skipped=${skipped}` +
+      ` skippedBlocked=${skippedBlocked} orphaned=${orphanSlugs.length} failed=${failedSlugs.length}`,
   );
+
+  // Say which of the two states this database reached, because the difference
+  // is invisible from the counts alone and a stale persona reads as a bug in
+  // the feature it covers rather than as an out-of-date database.
+  if (skipped > 0 || orphanSlugs.length > 0) {
+    console.log(
+      '[persona-seed] this database is COMPLETE against the catalog, not CURRENT:' +
+        ` ${skipped} existing persona(s) kept the rows they were first seeded with.`,
+    );
+    console.log(
+      '[persona-seed] to rebuild every persona from its current spec, locally run' +
+        ' ./scripts/manage-test-personas.sh --refresh-test-personas --apply,' +
+        ' or deploy with --refresh-test-personas.',
+    );
+  } else {
+    console.log('[persona-seed] this database is CURRENT against the catalog.');
+  }
+
+  if (failedSlugs.length > 0) {
+    console.error(`[persona-seed] failed personas: ${failedSlugs.join(', ')}`);
+    return 1;
+  }
   return 0;
 }
 

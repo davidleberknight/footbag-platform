@@ -80,6 +80,21 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     payments: [{ type: 'membership', status: 'succeeded', purchasedTier: 'tier2' }],
     coverageNotes: ['admin role', 'tier2', 'admin nav + admin-gated surfaces'],
   },
+  {
+    slug: 'admin_b',
+    displayName: 'Otto Secondadmin',
+    tier: 'tier2',
+    isAdmin: true,
+    dimension: 'Tier ladder & admin',
+    purpose: 'A second admin. The admin gate is flat, so one admin covers nearly every admin route, but the curator upload surface is scoped to the admin who owns the job and answers another admin with a not-found rather than a refusal. That boundary needs two admins to exercise at all: with one, the deny half has no actor.',
+    testingUsage: 'Start a curator upload as the other admin, then switch here and open that job\'s status page by id; confirm it is not found rather than visible, and that this persona still reaches every unscoped admin surface normally.',
+    negative: true,
+    payments: [{ type: 'membership', status: 'succeeded', purchasedTier: 'tier2' }],
+    coverageNotes: [
+      'second admin for the adjacent-owner deny half between admins',
+      'curator job ownership scoping, which a single admin cannot exercise',
+    ],
+  },
 
   // ── Account state & privacy (catastrophic auth / privacy surfaces) ────────
   {
@@ -583,6 +598,28 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     ],
     coverageNotes: ['membership + standalone donation history'],
   },
+  {
+    slug: 'pay_recurring_donation',
+    displayName: 'Reggie Kurring',
+    tier: 'tier1',
+    dimension: 'Payments',
+    purpose: 'Donation backed by a live Stripe subscription rather than a one-off charge. The member-facing cancel action is addressed by the subscription id, so a member without one cannot reach that surface at all.',
+    testingUsage: 'Confirm the recurring donation is distinguished from a one-off in payment history, and that cancelling it from the payments page ends the recurrence without touching the membership tier.',
+    payments: [
+      { type: 'membership', status: 'succeeded', purchasedTier: 'tier1' },
+      {
+        type: 'donation',
+        status: 'succeeded',
+        amountCents: 1500,
+        purchasedTier: null,
+        stripeSubscriptionId: 'sub_persona_recurring_donation',
+      },
+    ],
+    coverageNotes: [
+      'recurring donation carried by a Stripe subscription id',
+      'member-facing recurring-donation cancel surface',
+    ],
+  },
 
   // ── Active Player status ──────────────────────────────────────────────────
   {
@@ -604,6 +641,55 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     testingUsage: 'Confirm a recently-expired Active Player shows the expiry surface and has lost the conferred Tier 1 benefits.',
     activePlayer: { expiresAt: '2024-06-01T00:00:00.000Z', reasonCode: 'official_event_attendance' },
     coverageNotes: ['recently-expired Active Player', 'M_Active_Player_Expiry surface'],
+  },
+
+  // ── Member-owned galleries and media (authorization) ──────────────────────
+  // Membership tiers do not expire and Active Player does, so an expired
+  // Active Player holding a gallery is the only state in which the benefits
+  // that authorize an edit are lost while the resource itself survives. That
+  // makes these three a set: an owner who may edit, an owner of a DIFFERENT
+  // gallery who may not touch this one, and an owner whose permission lapsed.
+  {
+    slug: 'gallery_owner',
+    displayName: 'Gale Owner',
+    tier: 'tier1',
+    dimension: 'Member-owned media',
+    purpose: 'Owns a named gallery holding one uploaded item, so the gallery edit and delete routes have a real resource to act on rather than a placeholder id.',
+    testingUsage: 'Log in and edit, then delete, the persona\'s own gallery and its item; confirm both succeed and the gallery list reflects the change.',
+    gallery: { name: 'Gale\'s Shred Reel', description: 'Seeded gallery with one item.' },
+    coverageNotes: [
+      'member-owned named gallery with one media item',
+      'allow half of the gallery and media edit/delete ownership gate',
+    ],
+  },
+  {
+    slug: 'gallery_owner_b',
+    displayName: 'Bea Otherowner',
+    tier: 'tier1',
+    dimension: 'Member-owned media',
+    purpose: 'Owns a different gallery than gallery_owner. Passing a member\'s own profile key with another member\'s gallery id is the object-level authorization case the member-key gate cannot catch, because the key belongs to the caller and only the resource does not.',
+    testingUsage: 'While logged in as this persona, request the edit and delete routes under this persona\'s own profile key but with gallery_owner\'s gallery id; confirm each is refused and nothing on the other gallery changes.',
+    negative: true,
+    gallery: { name: 'Bea\'s Sideline Clips', description: 'Seeded gallery owned by the adjacent member.' },
+    coverageNotes: [
+      'adjacent-owner deny half for member-owned galleries and media',
+      'own profile key paired with another member\'s resource id',
+    ],
+  },
+  {
+    slug: 'gallery_owner_ap_expired',
+    displayName: 'Lapsed Lena',
+    tier: 'tier0',
+    dimension: 'Member-owned media',
+    purpose: 'Owns a gallery created while an Active Player grant supplied the Tier 1 benefits, and that grant has since expired. Viewing the gallery must still work while editing it must not: the resource outlives the permission that created it.',
+    testingUsage: 'Confirm this persona can still see its own gallery and item, and that editing, deleting, or uploading into it is refused now the Active Player grant has expired.',
+    negative: true,
+    activePlayer: { expiresAt: '2024-06-01T00:00:00.000Z', reasonCode: 'official_event_attendance' },
+    gallery: { name: 'Lena\'s Archive', description: 'Gallery outliving the benefits that created it.' },
+    coverageNotes: [
+      'owned gallery whose Tier 1 benefits lapsed with an expired Active Player grant',
+      'read allowed, write denied on a resource the member still owns',
+    ],
   },
 
   // ── Mailing-list subscription state ───────────────────────────────────────

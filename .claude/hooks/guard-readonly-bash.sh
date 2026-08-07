@@ -166,6 +166,30 @@ esac
 # An unterminated quote (a malformed command) is emitted verbatim, so a stray `>` still asks.
 RSCAN="$(printf '%s' "$RSCAN" | awk 'BEGIN{dq=sprintf("%c",34); sq=sprintf("%c",39); q=""; buf=""; xp=0} {out=""; n=length($0); for(i=1;i<=n;i++){c=substr($0,i,1); if(q==""){ if(c==sq){q=sq; buf=""} else if(c==dq){q=dq; buf=""; xp=0} else {out=out c}; continue } if(q==sq){ if(c==sq){gsub(/[<>]/,"_",buf); out=out sq buf sq; q=""} else {buf=buf c}; continue } if(c==dq){ if(xp==0){gsub(/[<>]/,"_",buf)}; out=out dq buf dq; q=""; continue } if(c=="\140"){xp=1} else if(c=="$"&&substr($0,i+1,1)=="("){xp=1} buf=buf c } if(q!=""){ out=out buf } print out}')"
 if printf '%s' "$RSCAN" | grep -q '>'; then
+  # Deny beats ask when a rewrite exists. A redirect target written as a shell
+  # variable cannot be proven to land anywhere in particular, so the scratchpad
+  # exemption above cannot apply to it -- but that is a command to rewrite, not a
+  # decision to put to the human. Deny it, and the literal form then gates on its
+  # own merits: a scratchpad path passes silently, anything else asks exactly as
+  # before. Nothing is widened. Same shape as the leading-cd, shell-loop and
+  # process-substitution guards, where a false deny costs only a rewrite while an
+  # ask costs a human interruption on every piece of read-only research.
+  # The target must be a parameter expansion specifically -- $NAME or ${NAME},
+  # optionally opening a double quote. A bare `$(` is a command substitution, not
+  # a destination: the quote pass above deliberately leaves the `>` in a region
+  # like "a -> $(date)" unneutralized so a redirect hidden inside a substitution
+  # still gates, and matching a bare `$` here would turn that conservative ask
+  # into a wrong deny.
+  if printf '%s' "$RSCAN" | grep -Eq '>>?[[:space:]]*"?\$\{?[A-Za-z_]'; then
+    jq -n '{
+      hookSpecificOutput: {
+        hookEventName: "PreToolUse",
+        permissionDecision: "deny",
+        permissionDecisionReason: "HARD BLOCK: do not write a redirect target as a shell variable. The guard cannot prove where \"$VAR/file\" lands, so the session-scratchpad exemption cannot apply. Spell the path literally: the scratchpad path for scratch output, or the real path if you mean to write it."
+      }
+    }'
+    exit 0
+  fi
   jq -n '{
     hookSpecificOutput: {
       hookEventName: "PreToolUse",

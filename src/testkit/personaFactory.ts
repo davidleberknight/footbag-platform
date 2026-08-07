@@ -127,6 +127,12 @@ export interface PersonaPaymentSpec {
   status?: 'pending' | 'succeeded' | 'failed' | 'canceled' | 'refunded';
   amountCents?: number;
   purchasedTier?: 'tier1' | 'tier2' | null;
+  /**
+   * Stripe subscription id, which makes the payment a recurring donation rather
+   * than a one-off. The member-facing cancel route is addressed by this id, so
+   * a persona without one cannot reach that surface at all.
+   */
+  stripeSubscriptionId?: string;
 }
 
 export interface PersonaLegacySpec {
@@ -567,6 +573,9 @@ export function seedPersona(
       status: p.status ?? 'succeeded',
       ...(p.amountCents !== undefined ? { amount_cents: p.amountCents } : {}),
       ...(p.purchasedTier !== undefined ? { purchased_tier_status: p.purchasedTier } : {}),
+      ...(p.stripeSubscriptionId !== undefined
+        ? { stripe_subscription_id: p.stripeSubscriptionId }
+        : {}),
     });
   }
 

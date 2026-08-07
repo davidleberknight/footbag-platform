@@ -39,6 +39,11 @@ MODE_REUSE=0       # -r / --reuse-local-db: ship current ./database/footbag.db; 
 DB_REBUILD_INVOLVED=0   # set when --from-csv / --soup-to-nuts / --all-data opt into a DB rebuild.
 DATA_REBUILD=0     # --from-csv / --soup-to-nuts / --all-data: opt-in DB rebuild + replace.
 SEED_TEST_PERSONAS=0   # --seed-test-personas: opt-in persona-catalog seed after deploy (CUTOVER-REMOVE).
+# --refresh-test-personas: persona rebuild after deploy (CUTOVER-REMOVE). The
+# rebuild is ON BY DEFAULT for a code-only staging deploy; this counter tracks
+# only whether the operator NAMED it, because the target allowlist below refuses
+# an explicit request and the inner script re-checks the target for the default.
+REFRESH_TEST_PERSONAS=0
 
 HAS_MODE=0
 for arg in "${EXPANDED_ARGS[@]+"${EXPANDED_ARGS[@]}"}"; do
@@ -47,6 +52,7 @@ for arg in "${EXPANDED_ARGS[@]+"${EXPANDED_ARGS[@]}"}"; do
     -r|--reuse-local-db)        MODE_REUSE=1;     HAS_MODE=1 ;;
     --from-csv|--soup-to-nuts|--all-data)  DATA_REBUILD=1 ;;
     --seed-test-personas)       SEED_TEST_PERSONAS=1 ;;
+    --refresh-test-personas)    REFRESH_TEST_PERSONAS=1 ;;
   esac
 done
 # Bare deploy (no -k/-r and no --from-csv/--soup-to-nuts/--all-data) is code-only:
@@ -147,6 +153,19 @@ if (( SEED_TEST_PERSONAS == 1 )); then
   if [[ "$_persona_target" != "footbag-staging" ]]; then
     echo "ERROR: --seed-test-personas is allowlisted to DEPLOY_TARGET=footbag-staging only (got '$_persona_target')." >&2
     echo "Recommendation: persona seeding must never reach production or any other environment. Remove the flag, or set DEPLOY_TARGET=footbag-staging explicitly if you intended to seed staging." >&2
+    exit 1
+  fi
+fi
+
+# CUTOVER-REMOVE: --refresh-test-personas carries the same staging-only
+# allowlist as the seed, and is refused earlier and harder besides: it deletes
+# persona-owned rows, so a target confusion would destroy test state rather than
+# merely add to it.
+if (( REFRESH_TEST_PERSONAS == 1 )); then
+  _persona_target="${DEPLOY_TARGET:-footbag-staging}"
+  if [[ "$_persona_target" != "footbag-staging" ]]; then
+    echo "ERROR: --refresh-test-personas is allowlisted to DEPLOY_TARGET=footbag-staging only (got '$_persona_target')." >&2
+    echo "Recommendation: the persona rebuild deletes persona-owned rows and must never reach production or any other environment. Remove the flag, or set DEPLOY_TARGET=footbag-staging explicitly if you intended to rebuild the staging personas." >&2
     exit 1
   fi
 fi

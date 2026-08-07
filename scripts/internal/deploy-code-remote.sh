@@ -839,3 +839,28 @@ if [[ "${SEED_TEST_PERSONAS:-no}" == "yes" ]]; then
     exit 1
   fi
 fi
+
+# CUTOVER-REMOVE: post-deploy persona rebuild. Runs only when the workstation
+# passed REFRESH_TEST_PERSONAS=yes (set by --refresh-test-personas, which the
+# deploy_to_aws.sh wrapper allowlists to DEPLOY_TARGET=footbag-staging only).
+# The seed step above can only ADD personas: it skips every slug already
+# present, so a persona whose spec changed in the code just deployed keeps the
+# rows it was first seeded with. This step deletes the persona-owned rows and
+# rebuilds them from the deployed catalog, which is the only way an existing
+# database converges on the code. Signal only: the catalog is code
+# (dist/testkit/canonicalPersonas.js), so there is no payload and no stdin pipe.
+# Same container entry point and the same FOOTBAG_ENV handling as the seed: the
+# container reads it from /srv/footbag/env per host, and the testkit import
+# guard throws when FOOTBAG_ENV='production'.
+if [[ "${REFRESH_TEST_PERSONAS:-no}" == "yes" ]]; then
+  echo "==> Rebuilding every persona from its deployed spec (persona-owned rows are deleted)..."
+  if ! docker compose \
+      --env-file "$ENV_PATH" \
+      -f "$LIVE_DIR/docker/docker-compose.yml" \
+      -f "$LIVE_DIR/docker/docker-compose.prod.yml" \
+      exec -T \
+      web node dist/testkit/personaRefreshCli.js --apply; then
+    echo "    ERROR: persona rebuild step exited non-zero; aborting the deploy." >&2
+    exit 1
+  fi
+fi

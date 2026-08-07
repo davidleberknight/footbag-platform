@@ -215,3 +215,38 @@ describe('isTier3', () => {
     expect(predicates.isTier3('does-not-exist')).toBe(false);
   });
 });
+
+describe('error-class discrimination in the tier read', () => {
+  // A missing member is an answer — no entitlement — so that error is swallowed
+  // and the predicates report false. Every OTHER error must propagate. Widen
+  // that catch to swallow everything and the failure mode is silent and
+  // expensive: a database fault during tier resolution reads as a Tier 0
+  // member, so a paying member loses their benefits with nothing surfaced
+  // anywhere. The unknown-member cases above pass either way, which is why
+  // this case is asserted separately.
+  it('propagates an error that is not a missing member, rather than reporting no entitlement', () => {
+    const db = new BetterSqlite3(dbPath);
+    // Capture the view's own definition before dropping it, so the restore is
+    // exact rather than a second copy of the DDL that could drift from schema.
+    const view = db
+      .prepare(`SELECT sql FROM sqlite_master WHERE type = 'view' AND name = 'member_tier_current'`)
+      .get() as { sql: string } | undefined;
+    expect(view?.sql, 'member_tier_current view is present to begin with').toBeTruthy();
+
+    db.exec('DROP VIEW member_tier_current');
+    try {
+      // The read now fails for a reason that is not "member missing". Each
+      // predicate must surface it instead of answering false.
+      expect(() => predicates.hasTier1Benefits('any-member')).toThrow();
+      expect(() => predicates.isTier2Plus('any-member')).toThrow();
+      expect(() => predicates.isTier3('any-member')).toThrow();
+    } finally {
+      db.exec(view!.sql);
+      db.close();
+    }
+
+    // The view is back, so the ordinary answer works again and this test has
+    // left nothing behind for the rest of the file.
+    expect(predicates.isTier3('does-not-exist')).toBe(false);
+  });
+});

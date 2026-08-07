@@ -285,3 +285,8 @@ legacy_data/save_scrape
 # another business's private domain, mail and deployment notes, and a personal
 # photograph, none of which belong in this repository's history.
 /Raych/
+
+# Mutation-testing sandbox. The runner copies the project here to mutate it,
+# and needs it beside the project so module resolution still works. Its report
+# and incremental cache are written outside the repository entirely.
+/.stryker-tmp/

@@ -30,6 +30,7 @@
     "test:e2e:a11y": "playwright test -c tests/playwright.config.ts --grep @a11y",
     "test:pentest:heavy": "bash scripts/pentest/run-heavy.sh",
     "test:coverage": "vitest run --exclude 'tests/smoke/**' --exclude 'tests/e2e/**' --exclude 'tests/dev/**' --coverage",
+    "test:mutation": "stryker run",
     "test:pre-pr": "npm run build && bash scripts/ci/assert_conventions.sh && npm test",
     "test:all": "npm run build && bash scripts/ci/assert_conventions.sh && npm test && npm run test:smoke && npm run test:e2e"
   },
@@ -56,6 +57,8 @@
   "devDependencies": {
     "@axe-core/playwright": "^4.11.3",
     "@playwright/test": "^1.58.2",
+    "@stryker-mutator/core": "^9.6.1",
+    "@stryker-mutator/vitest-runner": "^9.6.1",
     "@types/better-sqlite3": "^7.6.13",
     "@types/busboy": "^1.5.4",
     "@types/cookie-parser": "^1.4.10",

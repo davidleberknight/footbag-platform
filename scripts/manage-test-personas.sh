@@ -10,16 +10,22 @@
 # from the production image); it is not removed at cutover.
 #
 # Actions:
-#   --seed-test-personas  Seed the canonical persona catalog (plus the
-#                         optional, gitignored .local/test-personas.json
-#                         per-developer extension) via
-#                         src/testkit/personaSeedRunner.ts.
+#   --seed-test-personas  Seed the canonical persona catalog via
+#                         src/testkit/personaSeedRunner.ts. Adds personas the
+#                         database is missing; never updates one it already
+#                         has, so the result is complete against the catalog
+#                         but not current.
+#   --refresh-test-personas  Rebuild every persona from its current spec via
+#                         src/testkit/personaRefreshCli.ts: the only action
+#                         that makes an existing database current. Reports
+#                         what it would do and writes nothing unless --apply
+#                         is also given, because it deletes persona-owned
+#                         rows, including anything a tester built while
+#                         acting as a persona.
 #
-# .local/test-personas.json (optional, gitignored, JSONC-tolerant): a JSON
-# array of PersonaSpec objects. slug, displayName, tier, and a non-empty
-# coverageNotes[] are required. The full schema lives in the
-# personaSeedRunner.ts JSDoc; canonicalPersonas.ts holds live examples. There
-# is no checked-in .example template (the whole .local/ tree is gitignored).
+# The persona catalog is code (canonicalPersonas.ts) and has no per-developer
+# extension file: every developer tests against the same reviewed set, and a
+# persona only exists if it is in the catalog.
 #
 # Env:
 #   FOOTBAG_ENV           development | staging. Defaults to development if
@@ -29,6 +35,8 @@
 # Usage:
 #   ./scripts/manage-test-personas.sh --seed-test-personas
 #   FOOTBAG_DB_PATH=./custom.db ./scripts/manage-test-personas.sh --seed-test-personas
+#   ./scripts/manage-test-personas.sh --refresh-test-personas
+#   ./scripts/manage-test-personas.sh --refresh-test-personas --apply
 
 set -euo pipefail
 # Anchor cwd at repo root regardless of where the script is invoked from,
@@ -40,7 +48,16 @@ usage() {
 Usage: ./scripts/manage-test-personas.sh <action>
 
 Actions:
-  --seed-test-personas  Seed the canonical persona catalog + .local extension
+  --seed-test-personas     Seed the canonical persona catalog. Adds what is
+                           missing; never updates a persona that already exists.
+  --refresh-test-personas  Rebuild every persona from its current spec. This is
+                           the only action that makes an existing database
+                           current. Reports and writes nothing without --apply.
+
+Modifiers:
+  --apply                  Perform the refresh instead of reporting it. Deletes
+                           persona-owned rows, including anything a tester built
+                           while acting as a persona.
 
 Notes:
   - Refuses to run when NODE_ENV=production or FOOTBAG_ENV=production.
@@ -52,7 +69,7 @@ EOF
 
 # Positive guards: refuse production. Allow development and staging.
 if [[ "${NODE_ENV:-}" == "production" ]] || [[ "${FOOTBAG_ENV:-}" == "production" ]]; then
-  echo "refusing to seed test personas: production is hard-blocked." >&2
+  echo "refusing to touch test personas: production is hard-blocked." >&2
   echo "  NODE_ENV=${NODE_ENV:-} FOOTBAG_ENV=${FOOTBAG_ENV:-}" >&2
   exit 2
 fi
@@ -62,30 +79,50 @@ fi
 DB_FILE="${FOOTBAG_DB_PATH:-./database/footbag.db}"
 SEED_ENV="${FOOTBAG_ENV:-development}"
 
-action_seed_test_personas() {
+# --apply is a modifier, not an action, so it is read before the action loop
+# runs: written either side of the action on the command line, it must still
+# reach the action.
+APPLY="no"
+for arg in "$@"; do
+  [[ "$arg" == "--apply" ]] && APPLY="yes"
+done
+
+require_db_file() {
   if [[ ! -f "${DB_FILE}" ]]; then
     echo "DB file not found: ${DB_FILE}" >&2
     echo "Build the local DB first (e.g., ./run_dev.sh --from-csv or --soup-to-nuts)." >&2
     exit 1
   fi
-  # Pre-validate the optional .local extension if present, so a malformed
-  # blob fails before the runner opens the DB. JSONC tolerance: strip `//`
-  # line comments before jq.
-  if [[ -f .local/test-personas.json ]]; then
-    if ! grep -v '^[[:space:]]*//' .local/test-personas.json | jq -e . >/dev/null 2>&1; then
-      echo "ERROR: .local/test-personas.json is not valid JSON (after JSONC comment strip)." >&2
-      echo "Recommendation: grep -v '^[[:space:]]*//' .local/test-personas.json | jq -e . to see the parse error." >&2
-      exit 1
-    fi
-  fi
+}
+
+action_seed_test_personas() {
+  require_db_file
   echo "→ Seeding test personas (env=${SEED_ENV})..."
   FOOTBAG_ENV="${SEED_ENV}" npx tsx src/testkit/personaSeedRunner.ts --db "${DB_FILE}"
+}
+
+action_refresh_test_personas() {
+  require_db_file
+  if [[ "${APPLY}" == "yes" ]]; then
+    echo "→ Refreshing test personas (env=${SEED_ENV}) — persona-owned rows will be deleted..."
+    FOOTBAG_ENV="${SEED_ENV}" npx tsx src/testkit/personaRefreshCli.ts --db "${DB_FILE}" --apply
+  else
+    echo "→ Reporting the test-persona refresh (env=${SEED_ENV}); nothing will be written..."
+    FOOTBAG_ENV="${SEED_ENV}" npx tsx src/testkit/personaRefreshCli.ts --db "${DB_FILE}"
+  fi
 }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --seed-test-personas)
       action_seed_test_personas
+      shift
+      ;;
+    --refresh-test-personas)
+      action_refresh_test_personas
+      shift
+      ;;
+    --apply)
       shift
       ;;
     -h|--help)

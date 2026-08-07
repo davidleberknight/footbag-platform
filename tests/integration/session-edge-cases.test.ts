@@ -338,3 +338,40 @@ describe('session edge cases — deceased member', () => {
     expectUnauthenticated(res);
   });
 });
+
+describe('session edge cases — soft-deleted member', () => {
+  // A member who requested account deletion is soft-deleted while the grace
+  // period runs, and any session they already hold must stop resolving at once:
+  // the request that deletes the account cannot reach back and revoke a cookie
+  // already in the browser, so the session-resolution lookup is what ends it.
+  // The lookup reads the not-soft-deleted member view, and this is the only
+  // test that fails if it stops doing so — the deceased and unverified gates
+  // above are separate conditions and go on passing while this one is broken.
+
+  const DELETED_ID   = 'softdeleted-session-001';
+  const DELETED_SLUG = 'softdeleted_session_user';
+
+  beforeAll(() => {
+    const db = new BetterSqlite3(dbPath);
+    insertMember(db, {
+      id: DELETED_ID,
+      slug: DELETED_SLUG,
+      login_email: 'softdeleted-session@example.com',
+      display_name: 'Soft Deleted Session User',
+      password_version: 1,
+      deleted_at: '2026-01-01T00:00:00.000Z',
+      deletion_requested_at: '2026-01-01T00:00:00.000Z',
+      deletion_grace_expires_at: '2099-01-01T00:00:00.000Z',
+    });
+    db.close();
+  });
+
+  it('JWT for a soft-deleted member is rejected while the grace period is still open', async () => {
+    const token = createTestSessionJwt({ memberId: DELETED_ID, passwordVersion: 1 });
+    const app = createApp();
+    const res = await request(app)
+      .get(PROTECTED_ROUTE)
+      .set('Cookie', `__Host-footbag_session=${token}`);
+    expectUnauthenticated(res);
+  });
+});
