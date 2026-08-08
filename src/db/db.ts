@@ -813,23 +813,54 @@ export const clubs = {
     LIMIT 10
   `); },
 
-  // Per-country member count derived from legacy_person_club_affiliations.
-  // Aggregates by legacy_club_candidates.country (not clubs.country) because
-  // the candidate row owns the country attribution and the candidate→club
-  // link (mapped_club_id) is only stamped for bootstrap-eligible candidates
-  // in production. Counting via candidate country reflects the full mirror
-  // participation surface regardless of which clubs have been promoted.
+  // Per-country member count for the clubs index tiles. Two populations, in
+  // one shape a person can only appear in once per country.
+  //
+  // The imported roster aggregates by legacy_club_candidates.country (not
+  // clubs.country) because the candidate row owns the country attribution and
+  // the candidate→club link (mapped_club_id) is only stamped for
+  // bootstrap-eligible candidates in production. Counting via candidate country
+  // reflects the full mirror participation surface regardless of which clubs
+  // have been promoted. It counts the same statuses every other membership read
+  // counts, so a row a member declined, an admin de-listed, or a later answer
+  // superseded stops being counted the moment it is resolved; without that
+  // filter the tile could only ever rise, however much cleanup happened.
+  //
+  // Members who joined on the platform aggregate by their club's own country,
+  // which is the only country attribution such a club has.
+  //
   // Zero-count countries are excluded — callers merge by country name.
   get listAffiliationCountsByCountry() { return db.prepare(`
-    SELECT
-      lcc.country         AS country,
-      COUNT(lpca.id)      AS member_count
-    FROM legacy_club_candidates AS lcc
-    LEFT JOIN legacy_person_club_affiliations AS lpca
-      ON lpca.legacy_club_candidate_id = lcc.id
-    WHERE lcc.country IS NOT NULL AND lcc.country != ''
-    GROUP BY lcc.country
-    HAVING COUNT(lpca.id) > 0
+    SELECT country, COUNT(*) AS member_count
+    FROM (
+      SELECT
+        lcc.country                              AS country,
+        COALESCE(m.id, 'legacy_row:' || lpca.id) AS person_key
+      FROM legacy_club_candidates AS lcc
+      INNER JOIN legacy_person_club_affiliations AS lpca
+        ON lpca.legacy_club_candidate_id = lcc.id
+      LEFT JOIN members_active AS m
+        ON m.historical_person_id = lpca.historical_person_id
+      WHERE
+        lcc.country IS NOT NULL AND lcc.country != ''
+        AND lpca.resolution_status IN ('confirmed_current', 'promoted', 'pending')
+
+      UNION
+
+      SELECT
+        c.country AS country,
+        m2.id     AS person_key
+      FROM member_club_affiliations AS mca
+      INNER JOIN clubs AS c
+        ON c.id = mca.club_id
+      INNER JOIN members_active AS m2
+        ON m2.id = mca.member_id
+      WHERE
+        mca.is_current = 1
+        AND c.country IS NOT NULL AND c.country != ''
+    )
+    GROUP BY country
+    HAVING COUNT(*) > 0
   `); },
 
   get getByTagNormalized() { return db.prepare(`
@@ -871,6 +902,7 @@ export const clubs = {
       COALESCE(hp.person_name, lpca.display_name) AS person_name,
       lpca.inferred_role AS inferred_role,
       lpca.resolution_status AS resolution_status,
+      ms.id AS member_id,
       ms.slug AS member_slug,
       ms.gender AS member_gender,
       ms.show_gender AS member_show_gender,
@@ -895,6 +927,45 @@ export const clubs = {
     WHERE
       lcc.mapped_club_id = ?
       AND lpca.resolution_status IN ('confirmed_current', 'promoted', 'pending')
+    ORDER BY person_name ASC
+  `); },
+
+  // Members who joined this club on the platform, which the legacy query above
+  // can never see: it reads the imported roster, and every live path
+  // (joinClub, createClub, claimLeadership, the wizard confirm, the admin
+  // assign) writes member_club_affiliations instead. A club created here has no
+  // legacy candidate at all, so without this its roster could only ever be
+  // empty. Identity comes from members_active, matching the live leader list on
+  // the same page; the searchable view supplies the profile link and the
+  // member-visible decorations, so a member who opted out of member search is
+  // named but not linked, exactly as an unclaimed legacy person is.
+  get listLiveMembersByClubId() { return db.prepare(`
+    SELECT
+      m.historical_person_id AS person_id,
+      m.id                   AS member_id,
+      m.display_name         AS person_name,
+      ms.slug AS member_slug,
+      ms.gender AS member_gender,
+      ms.show_gender AS member_show_gender,
+      ms.city AS member_city,
+      ms.country AS member_country,
+      ms.is_hof AS member_is_hof,
+      ms.is_bap AS member_is_bap,
+      ms.is_board AS member_is_board,
+      mtc.tier_status AS member_tier_status,
+      mapc.is_active_player AS member_is_active_player
+    FROM member_club_affiliations AS mca
+    INNER JOIN members_active AS m
+      ON m.id = mca.member_id
+    LEFT JOIN members_searchable AS ms
+      ON ms.id = m.id
+    LEFT JOIN member_tier_current AS mtc
+      ON mtc.member_id = m.id
+    LEFT JOIN member_active_player_current AS mapc
+      ON mapc.member_id = m.id
+    WHERE
+      mca.club_id = ?
+      AND mca.is_current = 1
     ORDER BY person_name ASC
   `); },
 
@@ -933,22 +1004,40 @@ export const clubs = {
   // Bounded set: total bootstrap leaders are O(80) today; if the table ever
   // exceeds ~1k rows this should grow a country-scoped join filter.
   // Bulk member-count query for the country page vitality signals + the
-  // detail page club snapshot. Returns one row per (club_id, member_count)
-  // for every open club that has at least one confirmed/promoted historical
-  // affiliation. Counted scope mirrors listMembersByClubId so the count and
-  // the auth-gated list agree. Clubs with zero matching affiliations are
-  // simply absent from the result; service treats absence as count = 0.
+  // detail page club snapshot. Returns one row per (club_id, member_count).
+  // Counted scope mirrors the roster the club page shows, which is the
+  // imported roster and the members who joined here, so the count and the
+  // auth-gated list agree. A person counts once even when they hold both an
+  // imported row and a live affiliation to the same club: the UNION dedupes on
+  // their member id, and an imported row with no live account falls back to
+  // its own row id, which can never collide with one. Clubs with no members
+  // are simply absent; the service treats absence as count = 0.
   get listMemberCountsForAllClubs() { return db.prepare(`
-    SELECT
-      lcc.mapped_club_id AS club_id,
-      COUNT(*)           AS member_count
-    FROM legacy_person_club_affiliations AS lpca
-    INNER JOIN legacy_club_candidates AS lcc
-      ON lcc.id = lpca.legacy_club_candidate_id
-    WHERE
-      lpca.resolution_status IN ('confirmed_current', 'promoted', 'pending')
-      AND lcc.mapped_club_id IS NOT NULL
-    GROUP BY lcc.mapped_club_id
+    SELECT club_id, COUNT(*) AS member_count
+    FROM (
+      SELECT
+        lcc.mapped_club_id                      AS club_id,
+        COALESCE(m.id, 'legacy_row:' || lpca.id) AS person_key
+      FROM legacy_person_club_affiliations AS lpca
+      INNER JOIN legacy_club_candidates AS lcc
+        ON lcc.id = lpca.legacy_club_candidate_id
+      LEFT JOIN members_active AS m
+        ON m.historical_person_id = lpca.historical_person_id
+      WHERE
+        lpca.resolution_status IN ('confirmed_current', 'promoted', 'pending')
+        AND lcc.mapped_club_id IS NOT NULL
+
+      UNION
+
+      SELECT
+        mca.club_id AS club_id,
+        m2.id       AS person_key
+      FROM member_club_affiliations AS mca
+      INNER JOIN members_active AS m2
+        ON m2.id = mca.member_id
+      WHERE mca.is_current = 1
+    )
+    GROUP BY club_id
   `); },
 
   get listAllBootstrapLeaders() { return db.prepare(`
@@ -1025,6 +1114,15 @@ export const legacyClubCandidates = {
     UPDATE legacy_club_candidates
        SET mapped_club_id = ?, updated_at = ?, updated_by = ?, version = version + 1
      WHERE id = ? AND mapped_club_id IS NULL
+  `); },
+
+  // Stamps the admin's own decision that this club is real, run in the same
+  // transaction as the promotion it records. The IS NULL guard keeps the first
+  // admin's moment rather than the latest writer's.
+  get setAdminPromotedAt() { return db.prepare(`
+    UPDATE legacy_club_candidates
+       SET admin_promoted_at = ?, updated_at = ?, updated_by = ?, version = version + 1
+     WHERE id = ? AND admin_promoted_at IS NULL
   `); },
 
   // Junk-flagged candidates awaiting an admin verdict (confirm junk or
@@ -1335,6 +1433,28 @@ export const legacyPersonClubAffiliations = {
          SELECT id FROM legacy_club_candidates WHERE mapped_club_id = ?
        )
   `); },
+
+  // Leaving a club retires the imported row the member once confirmed, the
+  // same way the admin de-list retires an unconfirmed one: 'former_only' keeps
+  // the historical fact that they were in the club and drops them from the
+  // current-roster filter. Without it a member who leaves stays on the club's
+  // roster permanently, since the de-list above only ever touches 'pending'
+  // rows and nothing else can reach a confirmed one. Matched through the
+  // member's own historical person, which is the only link between a live
+  // member and their imported affiliation.
+  get delistConfirmedForMemberClub() { return db.prepare(`
+    UPDATE legacy_person_club_affiliations
+       SET resolution_status = 'former_only',
+           updated_at        = strftime('%Y-%m-%dT%H:%M:%fZ','now'),
+           updated_by        = ?,
+           version           = version + 1
+     WHERE resolution_status = 'confirmed_current'
+       AND resolved_club_id  = ?
+       AND historical_person_id IN (
+         SELECT historical_person_id FROM members
+          WHERE id = ? AND historical_person_id IS NOT NULL
+       )
+  `); },
 };
 
 // ---------------------------------------------------------------------------
@@ -1539,6 +1659,17 @@ export const clubLeaders = {
     ORDER BY m.display_name COLLATE NOCASE
   `); },
 
+  // Bulk variant of the per-club leader read, for the country page's club
+  // cards. Without it that page counts bootstrap leaders alone, so every club
+  // created on the platform reads "No known leaders yet" while its own detail
+  // page names the co-leader who created it.
+  get listCurrentLeadersForAllClubs() { return db.prepare(`
+    SELECT l.club_id, l.member_id, l.role, m.display_name
+    FROM club_leaders l
+    JOIN members_active m ON m.id = l.member_id
+    ORDER BY m.display_name COLLATE NOCASE
+  `); },
+
   get listAffiliatedMembersForAdmin() { return db.prepare(`
     SELECT a.member_id, m.display_name, m.slug,
            EXISTS (SELECT 1 FROM club_leaders l WHERE l.club_id = a.club_id AND l.member_id = a.member_id) AS is_leader
@@ -1655,6 +1786,17 @@ export const memberClubAffiliations = {
      WHERE member_id = ? AND club_id = ? AND is_current = 1
   `); },
 
+  // The people a club currently has, live rows only. Archiving is refused while
+  // this is non-zero: a club somebody still belongs to is not a club to retire,
+  // and nothing but the member's own leave can end an affiliation, so an
+  // archive would strand them on a club they cannot reach or leave.
+  get countCurrentPeopleForClub() { return db.prepare(`
+    SELECT
+      (SELECT COUNT(*) FROM member_club_affiliations
+        WHERE club_id = ? AND is_current = 1) AS member_count,
+      (SELECT COUNT(*) FROM club_leaders WHERE club_id = ?) AS leader_count
+  `); },
+
   // Rejoin after leave: the table-level UNIQUE(member_id, club_id) keeps
   // one row per pair for life, so a re-join reactivates the deactivated
   // row instead of inserting a new one.
@@ -1673,11 +1815,17 @@ export const memberClubAffiliations = {
      WHERE member_id = ? AND club_id = ? AND is_current = 1
   `); },
 
-  get swapPrimary() { return db.prepare(`
+  // The swap runs as clear-then-set, never as one flip of both rows. SQLite
+  // checks a partial unique index per row as an UPDATE walks the table, and
+  // ux_member_club_affiliations_one_primary allows one primary per member, so a
+  // single statement flipping both rows fails whenever the row it visits first
+  // is the one being promoted: two rows hold is_primary = 1 mid-statement. The
+  // caller runs both inside one transaction, so no moment with no primary is
+  // ever observable.
+  get clearPrimary() { return db.prepare(`
     UPDATE member_club_affiliations
-       SET is_primary = CASE WHEN is_primary = 1 THEN 0 ELSE 1 END,
-           updated_at = ?, updated_by = ?, version = version + 1
-     WHERE member_id = ? AND is_current = 1
+       SET is_primary = 0, updated_at = ?, updated_by = ?, version = version + 1
+     WHERE member_id = ? AND is_current = 1 AND is_primary = 1
   `); },
 
   get findCurrentByMemberAndClub() { return db.prepare(`
@@ -9453,6 +9601,7 @@ export const clubEvidence = {
       -- single value. Reading whichever record the query happened to meet first
       -- would let a throwaway row speak for a real club.
       COUNT(lcc.id)                                                    AS candidate_row_count,
+      MAX(lcc.admin_promoted_at IS NOT NULL)                           AS any_admin_promoted,
       MAX(lcc.classification = 'pre_populate')                         AS any_pre_populate,
       MAX(lcc.classification = 'onboarding_visible')                   AS any_onboarding_visible,
       MAX(COALESCE(lcc.ever_hosted, 0))                                AS ever_hosted,

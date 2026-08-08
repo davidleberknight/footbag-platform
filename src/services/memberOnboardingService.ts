@@ -267,7 +267,16 @@ export type OnboardingTaskState = typeof TASK_STATES[number];
 // Member-facing notice wording for the club step's transient banners. Shaped
 // here so the controller stays pass-through and the template never branches
 // on a decision code.
-function buildClubCapHitNoticeMessage(clubName: string): string {
+function buildClubCapHitNoticeMessage(
+  clubName: string,
+  kind: 'membership' | 'leadership' = 'membership',
+): string {
+  // A capped leadership claim is not a former membership: the member is a
+  // co-leader of the club and simply not one of its members, so the two cases
+  // need different words for what actually happened.
+  if (kind === 'leadership') {
+    return `You are at the two current-club limit, so you lead ${clubName} but it is not one of your current clubs. To add it, leave one of your current clubs from your profile after onboarding.`;
+  }
   return `You are at the two current-club limit, so ${clubName} was recorded as a former membership. To make it current, leave one of your current clubs from your profile after onboarding.`;
 }
 
@@ -1108,13 +1117,18 @@ function submitLeadershipResponse(
       club_id:          promote.clubId,
       club_leader_id:   promote.clubLeaderId,
       affiliation_id:   promote.affiliationId,
+      cap_hit:          promote.capHit,
       superseded_membership_rows: promote.supersededMembershipRows,
       signal_rows:      rows.length,
     },
   });
   const taskState = maybeCompleteClubAffiliationsTask(memberId);
   return {
-    branch:          promote.branch,
+    // The leadership outcome is what the claim did; the cap is what it could
+    // not do. A capped claim reports the cap, because that is the part the
+    // member cannot see for themselves and would otherwise be told the
+    // opposite of.
+    branch:          promote.capHit ? 'cap_hit' : promote.branch,
     classification:  result.classification,
     actualRole:      promote.actualRole,
     taskState,
@@ -1197,7 +1211,9 @@ export type WizardFlash =
     }
   | {
       kind: 'WIZARD_CLUB_CAP_HIT';
-      payload: { clubName: string };
+      // The card the cap was hit on, because what the platform recorded
+      // differs between the two and the notice has to say which happened.
+      payload: { clubName: string; capKind: 'membership' | 'leadership' };
     };
 
 // Per-method `formState` shapes carried in the `validation_error` arm
@@ -1970,13 +1986,18 @@ async function processClubAffiliationsSubmit(
   }
 
   if (result.branch === 'cap_hit') {
-    // At the two-current-club cap the Yes is recorded as former membership
-    // and the card resolves. Surface the cap notice before any advance so the
-    // member learns how the answer was recorded; the next GET advances via
-    // the reconciler when this was the last card.
+    // At the two-current-club cap the card still resolves, but what was
+    // recorded differs by card: a membership Yes becomes a former membership,
+    // while a leadership claim makes the member a co-leader of a club they are
+    // not a member of. Either way the notice comes before any advance, so the
+    // member learns how the answer was recorded; the next GET advances via the
+    // reconciler when this was the last card.
     return {
       kind: 'retry_same',
-      flash: { kind: 'WIZARD_CLUB_CAP_HIT', payload: { clubName } },
+      flash: {
+        kind: 'WIZARD_CLUB_CAP_HIT',
+        payload: { clubName, capKind: kindRaw },
+      },
     };
   }
   if (result.taskState === 'completed') {

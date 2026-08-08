@@ -69,7 +69,16 @@
  *     Every path that creates an affiliation makes it primary when the member
  *     held none, and leaving promotes a single survivor in the same transaction,
  *     so a lone affiliation is never left designated secondary. Which of two
- *     affiliations is primary changes only through the member's explicit swap.
+ *     affiliations is primary changes only through the member's explicit swap,
+ *     which clears the outgoing designation before setting the incoming one
+ *     because the one-primary index is enforced row by row.
+ *   - The club roster and every member count read both memberships a club can
+ *     have: the imported affiliations and the members who joined here. A person
+ *     holding one of each is listed and counted once, as their live member
+ *     identity. Leaving retires the imported row alongside the live one, so the
+ *     roster reflects the member's own action rather than the import alone. The
+ *     country page counts live co-leaders as leaders for the same reason: a
+ *     club created here has no bootstrap row and is not leaderless.
  *
  * Persistence:
  *   clubs, clubs_open, clubs_active, clubs_all, club_leaders, club_bootstrap_leaders,
@@ -685,6 +694,7 @@ interface AffiliationRow {
   person_name: string;
   inferred_role: 'member' | 'contact' | 'leader' | 'co-leader';
   resolution_status: 'confirmed_current' | 'promoted' | 'pending';
+  member_id: string | null;   // claimed, search-visible member account; NULL otherwise
   member_slug: string | null; // claimed, search-visible member account; NULL otherwise
   member_gender: string | null;
   member_show_gender: number | null;
@@ -695,6 +705,32 @@ interface AffiliationRow {
   member_is_board: number | null;
   member_tier_status: string | null;
   member_is_active_player: number | null;
+}
+
+// A member who joined this club on the platform. The imported roster and the
+// live one carry the same person differently, so they are read separately and
+// merged for display: this row already knows its member identity, where an
+// imported row only reaches one through the historical person it was matched to.
+interface LiveMemberRow {
+  person_id: string | null;
+  member_id: string;
+  person_name: string;
+  member_slug: string | null;
+  member_gender: string | null;
+  member_show_gender: number | null;
+  member_city: string | null;
+  member_country: string | null;
+  member_is_hof: number | null;
+  member_is_bap: number | null;
+  member_is_board: number | null;
+  member_tier_status: string | null;
+  member_is_active_player: number | null;
+}
+
+// A live affiliation is a member saying so themselves, which is the confirmed
+// case by definition: there is no unconfirmed live membership to note.
+function liveMemberToAffiliationRow(row: LiveMemberRow): AffiliationRow {
+  return { ...row, inferred_role: 'member', resolution_status: 'confirmed_current' };
 }
 
 // Shapes one roster entry for the club detail members list. Confirmed members
@@ -1033,9 +1069,30 @@ export class ClubService {
         memberCountByClubId.set(mr.club_id, mr.member_count);
       }
 
+      // Live co-leaders count here exactly as they do on the club's own page.
+      // A club created on the platform has no bootstrap row at all, so counting
+      // those alone would tell the directory that the newest real clubs are the
+      // most neglected ones. A bootstrap row already claimed by its member is
+      // dropped: that person is on the live list under their member identity.
+      const liveLeaderRows = clubLeaders.listCurrentLeadersForAllClubs.all() as Array<{
+        club_id: string; member_id: string; role: 'leader' | 'co-leader'; display_name: string;
+      }>;
+      const liveLeadersByClubId = new Map<string, Array<{ member_id: string; display_name: string }>>();
+      for (const lr of liveLeaderRows) {
+        if (!liveLeadersByClubId.has(lr.club_id)) liveLeadersByClubId.set(lr.club_id, []);
+        liveLeadersByClubId.get(lr.club_id)!.push(lr);
+      }
+
       const summarizeLeaders = (clubId: string): { leaders: ClubLeaderSummary[]; leadersOverflow: number; total: number } => {
-        const all = leadersByClubId.get(clubId) ?? [];
-        const visible = all.slice(0, LEADER_SUMMARY_CAP).map(toClubLeaderSummary);
+        const live = liveLeadersByClubId.get(clubId) ?? [];
+        const claimedMemberIds = new Set(live.map((l) => l.member_id));
+        const bootstrap = (leadersByClubId.get(clubId) ?? [])
+          .filter((r) => !r.claimed_member_id || !claimedMemberIds.has(r.claimed_member_id));
+        const all: ClubLeaderSummary[] = [
+          ...live.map((l) => ({ displayName: l.display_name, status: 'claimed' as const })),
+          ...bootstrap.map(toClubLeaderSummary),
+        ];
+        const visible = all.slice(0, LEADER_SUMMARY_CAP);
         const overflow = Math.max(0, all.length - LEADER_SUMMARY_CAP);
         return { leaders: visible, leadersOverflow: overflow, total: all.length };
       };
@@ -1192,9 +1249,20 @@ export class ClubService {
       // authenticated viewers. One alphabetical list carries confirmed members
       // ('confirmed_current' / 'promoted') and 'pending' rows together; pending
       // entries carry a status note so they are never presented as confirmed.
-      const memberRows = affiliationRows.filter((r) => r.inferred_role === 'member');
+      // Both rosters, merged: the imported one and the members who joined here.
+      // A member who confirmed their imported affiliation holds a row in each,
+      // so the imported row is dropped where the live one exists and the person
+      // is listed once, as themselves.
+      const liveMemberRows = clubs.listLiveMembersByClubId.all(row.club_id) as LiveMemberRow[];
+      const liveMemberIds = new Set(liveMemberRows.map((r) => r.member_id));
+      const memberRows = affiliationRows
+        .filter((r) => r.inferred_role === 'member')
+        .filter((r) => !r.member_id || !liveMemberIds.has(r.member_id));
       const members: ClubMemberSummary[] = isAuthenticated
-        ? memberRows.map(toClubMemberSummary)
+        ? [
+            ...memberRows.map(toClubMemberSummary),
+            ...liveMemberRows.map((r) => toClubMemberSummary(liveMemberToAffiliationRow(r))),
+          ].sort((a, b) => a.name.localeCompare(b.name))
         : [];
 
       // Vitality signals: counts mirror the auth-gated members list scope
@@ -1332,6 +1400,12 @@ export class ClubService {
     affiliationId: string | null;
     actualRole: 'co-leader' | null;
     supersededMembershipRows: number;
+    /**
+     * The member already held two current clubs, so this club is not one of
+     * them. The leadership outcome above still stands; only the affiliation
+     * was refused, and the caller must say so rather than report a club added.
+     */
+    capHit: boolean;
   } {
     const leader = clubBootstrapLeaders.findById.get(bootstrapLeaderId) as
       | ClubBootstrapLeaderRow
@@ -1353,6 +1427,7 @@ export class ClubService {
     let clubLeaderId:  string | null = null;
     let affiliationId: string | null = null;
     let supersededMembershipRows = 0;
+    let capHit = false;
 
     try {
       transaction(() => {
@@ -1412,7 +1487,12 @@ export class ClubService {
         // First current club is primary; second is secondary.
         const currentCount = (memberClubAffiliations.countCurrentByMemberId.get(actorMemberId) as { c: number }).c;
         if (currentCount >= 2) {
+          // At the cap the claim still stands as leadership: the bootstrap row
+          // is claimed and the co-leader row is written above. Only the club
+          // membership is refused, and the caller has to tell the member that,
+          // rather than reporting a club they are not in.
           affiliationId = null;
+          capHit = true;
         } else {
           const isPrimary = currentCount === 0 ? 1 : 0;
           affiliationId = `mca_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
@@ -1423,6 +1503,7 @@ export class ClubService {
             );
           } catch (err) {
             if (!isUniqueViolation(err)) throw err;
+            // Already affiliated to this club, which is not the cap.
             affiliationId = null;
           }
         }
@@ -1475,7 +1556,7 @@ export class ClubService {
     }
 
     return {
-      branch, clubId, clubLeaderId, affiliationId, actualRole, supersededMembershipRows,
+      branch, clubId, clubLeaderId, affiliationId, actualRole, supersededMembershipRows, capHit,
     };
   }
 
@@ -1710,7 +1791,11 @@ export class ClubService {
    * candidate carry forward to 'promoted' with the new club id stamped, and
    * the candidate's wizard activity flags get the new club id stamped so
    * those votes feed the viability gates instead of the candidate-flag
-   * cleanup group.
+   * cleanup group. An admin's promotion additionally stamps the candidate
+   * with the moment it was made: that decision becomes part of the club's
+   * record, so the cleanup rules never demote a club an admin just created
+   * and a later member report of inactivity reaches an admin as a
+   * contradiction rather than settling the club by rule.
    */
   async promoteCandidate(
     candidateId: string,
@@ -1778,6 +1863,16 @@ export class ClubService {
           clubContent.updateClubExternalUrl.run(externalUrl, now, now, 'club_service', clubId);
         }
         legacyClubCandidates.setMappedClubId.run(clubId, now, 'club_service', candidateId);
+        // An admin promoting a candidate is a person deciding the club is real,
+        // and that decision joins the club's record. The viability rules read it
+        // the way they read an established-at-import classification, so the club
+        // is not demoted out from under the admin who created it, and a member
+        // who later reports it inactive contradicts the record and reaches an
+        // admin. A member-triggered promotion needs no marker: the affiliation
+        // confirm that follows it puts a live member on the club.
+        if (opts.actorType === 'admin') {
+          legacyClubCandidates.setAdminPromotedAt.run(now, now, 'club_service', candidateId);
+        }
         if (opts.excludeAffiliationId) {
           legacyPersonClubAffiliations.setAllPromotedByCandidateExcept.run(
             clubId, 'club_service', candidateId, opts.excludeAffiliationId,
@@ -2152,6 +2247,14 @@ export class ClubService {
         clubLeaders.removeByMemberAndClub.run(actorMemberId, clubId);
       }
 
+      // The imported affiliation this member once confirmed is retired with
+      // the live one. It is a second row saying the same thing, and the club
+      // roster reads it, so leaving it behind would keep the member on the
+      // roster of a club they have just left. 'former_only' keeps the
+      // historical fact that they were once in it.
+      const legacyRetired = legacyPersonClubAffiliations
+        .delistConfirmedForMemberClub.run('club_service', clubId, actorMemberId).changes;
+
       // A member holding any current affiliation holds exactly one primary.
       // Leaving clears the departing row's flag, so a single survivor is
       // promoted here rather than left designated secondary with no other club
@@ -2177,6 +2280,7 @@ export class ClubService {
           was_primary: existing.is_primary,
           had_leadership: leadership?.role ?? null,
           promoted_primary_club_id: promoted,
+          legacy_affiliations_retired: legacyRetired,
         },
       });
     });
@@ -2206,9 +2310,19 @@ export class ClubService {
       return { branch: 'not_enough_clubs' };
     }
 
+    const incoming = current.find((c) => !c.is_primary);
+    if (!incoming) {
+      return { branch: 'not_enough_clubs' };
+    }
+
     const now = new Date().toISOString();
     transaction(() => {
-      memberClubAffiliations.swapPrimary.run(now, 'club_service', actorMemberId);
+      // Clear before setting: the one-primary index is checked per row, so
+      // promoting the incoming club while the outgoing one still holds the
+      // flag trips it. Both statements are in this transaction, so the gap
+      // with no primary never exists outside it.
+      memberClubAffiliations.clearPrimary.run(now, 'club_service', actorMemberId);
+      memberClubAffiliations.setPrimary.run(now, 'club_service', actorMemberId, incoming.club_id);
 
       appendAuditEntry({
         actionType: 'club.primary_swapped',
@@ -2219,7 +2333,7 @@ export class ClubService {
         entityId: actorMemberId,
         metadata: {
           old_primary_club_id: current.find((c) => c.is_primary)?.club_id ?? null,
-          new_primary_club_id: current.find((c) => !c.is_primary)?.club_id ?? null,
+          new_primary_club_id: incoming.club_id,
         },
       });
     });

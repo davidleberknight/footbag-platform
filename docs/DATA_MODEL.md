@@ -1213,7 +1213,7 @@ Append-only table recording crowdsourced activity signals for clubs and club can
 
 **Table:** `club_insight_notes`
 
-Free-text club knowledge a member offers in the onboarding wizard's club step, alongside the two fixed answers. Read by the admin cleanup queue only; the text never renders on a public or member-facing surface.
+Free-text club knowledge a member offers in the onboarding wizard's club step, alongside the two fixed answers. Read by the admin cleanup queue only; the text never renders on a public or member-facing surface. The presence of a note is also an input to the club-viability rules: a club somebody wrote about is never written off by rule, so the sentence reaches a person who can read it.
 
 - `club_id` is nullable and, unlike the activity signal above, so is the source-entity pair: a note may key to a live club, to an unpromoted candidate (`source_entity_type = 'legacy_club_candidate'`), or to nothing at all when the member is writing about clubs in their area rather than one the wizard named. Promoting a candidate stamps the new club id onto its candidate-keyed notes, exactly as it does for the votes.
 - `source_stage` enum: `onboarding_club_card`, `onboarding_club_wrapup` — the two places the question is asked.
@@ -1275,6 +1275,7 @@ Columns of design interest:
 - `bootstrap_eligible`: 0/1, set iff `classification = 'pre_populate'`. Leader candidacy is independent: a pre-populated club may carry zero `club_bootstrap_leaders` rows (leadership then defers to activation path 2).
 - `mapped_club_id`: FK to `clubs(id)`, populated once the candidate is promoted to a live row.
 - `lifecycle_state`: NULL while the candidate is live in the cleanup queue; `archived` or `junk_confirmed` records a terminal admin decision on the row itself, so the drop condition is checkable from the rows alone.
+- `admin_promoted_at`: set when an admin promoted the candidate into a live club from the cleanup queue. Read by the club-viability rules as part of the club's record, so a club an admin created is never demoted by rule and a later member report of inactivity reaches an admin instead.
 
 May be dropped once every non-junk candidate has reached a terminal state per `A_Periodic_Club_Cleanup`.
 

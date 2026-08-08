@@ -12,7 +12,11 @@
  *     and sort, applied in-service on the assembled queue)
  *   - Admin-home backlog badge (open-item count plus oldest-item age,
  *     computed from the same queue assembly so badge and queue agree)
- *   - Admin club cleanup resolution (demote, archive, dismiss, park)
+ *   - Admin club cleanup resolution (demote, archive, dismiss, park). A parked
+ *     club stays in the parked listing until the working queue has actually
+ *     taken it back, so no club falls between the two listings
+ *   - An admin's own promotion of a candidate counts as the club's record
+ *     saying it exists, so the rules never undo it
  *   - Contact-members action on a leaderless club: emails the club's current
  *     members the volunteer-to-co-lead invitation (audit-logged, no link).
  *     This sends only; it does not resolve the item, so the leaderless
@@ -36,6 +40,9 @@
  *     hides the other
  *   - Admin de-list of unconfirmed legacy residue (pending -> former_only),
  *     also cascaded when a club is demoted or archived
+ *   - Archiving is refused while a club still has a current member or
+ *     co-leader, because no admin can end an affiliation and an archived club
+ *     can be neither reached nor left; demotion is the action for those
  *   - Group-level bulk actions: bulk park across a predicate group or the
  *     candidate-flag group (one shared reason, one audit row per item), and
  *     bulk de-list across all residue clubs (each club in its own
@@ -61,7 +68,8 @@
  *   club_cleanup_claims (read + write),
  *   clubs (status write on resolution),
  *   legacy_person_club_affiliations (residue read + de-list write),
- *   club_leaders (read), member_club_affiliations (read),
+ *   club_leaders (read),
+ *   member_club_affiliations (read),
  *   club_bootstrap_leaders (read),
  *   legacy_club_candidates (read + classification/lifecycle cleanup writes),
  *   audit_entries (append).
@@ -82,6 +90,7 @@ import {
   clubLeaders,
   legacyClubCandidates,
   legacyPersonClubAffiliations,
+  memberClubAffiliations,
   clubs as clubsDb,
   transaction,
 } from '../db/db';
@@ -121,6 +130,8 @@ export interface ClubEvidenceRow {
   // one, so the classification arrives as one flag per kind and the strongest
   // governs rather than whichever row the query happened to meet first.
   candidate_row_count: number;
+  // Set when an admin promoted one of those candidates into this live club.
+  any_admin_promoted: number | null;
   any_pre_populate: number | null;
   any_onboarding_visible: number | null;
   ever_hosted: number | null;
@@ -164,6 +175,8 @@ export interface ClubVerdictResult {
   hasCurrentPeople: boolean;
   everHostedEvent: boolean;
   wasEstablished: boolean;
+  adminPromoted: boolean;
+  hasMemberNote: boolean;
 }
 
 function evaluateClubVerdict(row: ClubEvidenceRow): ClubVerdictResult {
@@ -183,7 +196,18 @@ function evaluateClubVerdict(row: ClubEvidenceRow): ClubVerdictResult {
   // established stays established even when a junk record also landed on it,
   // and a club any record marked for members to confirm still gets asked about
   // rather than written off.
-  const wasEstablished = row.any_pre_populate === 1;
+  // An admin who promoted a candidate into a live club has decided the club is
+  // real, and that is the club's record speaking as loudly as the import
+  // pipeline ever did. It carries the same weight here, so the rules never
+  // demote a club an admin just created, and a member who later writes it off
+  // is contradicting the record and gets a person to judge it.
+  const adminPromoted = row.any_admin_promoted === 1;
+  const wasEstablished = row.any_pre_populate === 1 || adminPromoted;
+  // A member who wrote about the club has spoken about it, and the rules cannot
+  // read a sentence. A club carrying one is therefore not a club whose record
+  // says nothing: it goes to a person, who can read it, rather than being
+  // written off with the sentence unread.
+  const hasMemberNote = row.insight_note_count > 0;
   const awaitingConfirmation = row.any_onboarding_visible === 1;
   const notEstablished = row.candidate_row_count > 0 && !wasEstablished && !awaitingConfirmation;
 
@@ -195,13 +219,14 @@ function evaluateClubVerdict(row: ClubEvidenceRow): ClubVerdictResult {
     // A member wrote it off. That settles it only where the club's own record
     // agrees; event history or an established-club classification is the club
     // pushing back, and a person decides those.
-    verdict = everHostedEvent || wasEstablished ? 'needs_review' : 'defunct_by_rule';
+    verdict = everHostedEvent || wasEstablished || hasMemberNote ? 'needs_review' : 'defunct_by_rule';
   } else if (wasEstablished) {
     verdict = 'alive';
   } else if (notEstablished && !everHostedEvent) {
     // Nothing on any side says this club exists: never ran an event, nobody
     // leads or belongs to it, and the pipeline did not judge it established.
-    verdict = 'defunct_by_rule';
+    // Unless a member wrote about it, in which case something does.
+    verdict = hasMemberNote ? 'needs_review' : 'defunct_by_rule';
   } else {
     // No member has spoken and the record is not empty enough to rule on. These
     // are the clubs the onboarding wizard exists to ask about, so they are
@@ -217,6 +242,8 @@ function evaluateClubVerdict(row: ClubEvidenceRow): ClubVerdictResult {
     hasCurrentPeople,
     everHostedEvent,
     wasEstablished,
+    adminPromoted,
+    hasMemberNote,
   };
 }
 
@@ -727,10 +754,18 @@ function assembleQueue(): AssembledQueue {
 
     // The two or three facts behind the verdict, and nothing else: what the
     // member said, and what the club's own record says back.
-    const contradiction = verdict.wasEstablished
-      ? 'the club was an established club at import'
-      : 'the club has hosted an event';
-    const detail = `Reported inactive${reporterSuffix}, but ${contradiction}`;
+    const contradiction = verdict.adminPromoted
+      ? 'an admin promoted this club from the legacy record'
+      : verdict.wasEstablished
+        ? 'the club was an established club at import'
+        : verdict.everHostedEvent
+          ? 'the club has hosted an event'
+          : 'a member left a note about it';
+    // A club can also reach review on a note alone, with nobody having reported
+    // it inactive, so the row says what actually brought it here.
+    const detail = verdict.inactiveVotes > 0
+      ? `Reported inactive${reporterSuffix}, but ${contradiction}`
+      : 'A member left a note about this club';
 
     items.push({
       clubId: row.club_id,
@@ -915,14 +950,18 @@ function assembleQueue(): AssembledQueue {
     claimLabel: claimLabelFrom(claims, 'candidate', r.id),
   }));
 
-  // Parked clubs, listed rather than lost. A park whose club has newer evidence
-  // than the park itself is already back in the working queue above, so it does
-  // not appear here as well.
+  // Parked clubs, listed rather than lost. A park drops off this listing only
+  // when the working queue above has actually taken the club back, which is
+  // checked against the rows that queue really holds rather than inferred from
+  // the club having newer evidence. Newer evidence is necessary for a return
+  // but not sufficient: a club whose verdict the rules can settle, or one no
+  // longer leaderless, never rejoins the working queue, and inferring that it
+  // had is what left such a club showing nowhere at all.
+  const workingQueueKeys = new Set(items.map((i) => `${i.clubId}:${i.predicate}`));
   const parked: ParkedItem[] = [];
   for (const r of resolutions.values()) {
     if (r.resolution !== 'parked') continue;
-    const newest = newestEvidenceFor(r.club_id);
-    if (newest && newest > r.created_at) continue;
+    if (workingQueueKeys.has(`${r.club_id}:${r.predicate_name}`)) continue;
     const evidence = evidenceByClub.get(r.club_id);
     parked.push({
       clubId: r.club_id,
@@ -1176,6 +1215,22 @@ function resolveClub(
     throw new ValidationError(`Invalid action: ${action}`);
   }
 
+  // Archiving retires a club for good, and nothing but a member's own leave can
+  // end their affiliation, so a club somebody still belongs to is never
+  // archived: doing so would leave them affiliated to a club they can neither
+  // reach nor leave, holding one of their two club slots. Demotion is the
+  // action for a club that looks defunct but still has people; it keeps the
+  // club listed and any member joining or claiming it revives it.
+  if (action === 'archive') {
+    const people = memberClubAffiliations.countCurrentPeopleForClub.get(clubId, clubId) as
+      { member_count: number; leader_count: number };
+    if (people.member_count > 0 || people.leader_count > 0) {
+      throw new ValidationError(
+        'This club still has members or co-leaders, so it cannot be archived. Demote it to inactive instead.',
+      );
+    }
+  }
+
   transaction(() => {
     const now = new Date().toISOString();
 
@@ -1229,6 +1284,7 @@ function resolveClub(
       },
     });
   });
+
 }
 
 // Contact-members action on a leaderless club: email the club's current
