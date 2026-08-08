@@ -263,17 +263,17 @@ describe('refreshAllPersonas', () => {
        VALUES ('gal-outsider-1', ?, ?, 'system')`,
     ).run(personaClub.hashtag_tag_id, TS);
 
-    // Cleanup-queue rows a tester session can mint: a persona admin's defer
-    // on a real candidate (its member FK would block the member delete), a
-    // defer on a persona-seeded candidate (its candidate FK would block the
-    // candidate delete), the persona's claim marker on the real club, and an
-    // outsider's claim on the persona club (that item is about to go).
+    // Cleanup-queue rows a tester session can mint: a persona admin parking a
+    // real candidate (its member FK would block the member delete), a park on a
+    // persona-seeded candidate (its candidate FK would block the candidate
+    // delete), the persona's claim marker on the real club, and an outsider's
+    // claim on the persona club (that item is about to go).
     insertLegacyClubCandidate(db, { id: 'cand-real-keep-1', display_name: 'Real Keep Candidate', classification: 'onboarding_visible' });
     db.prepare(
       `INSERT INTO candidate_cleanup_resolutions
-         (id, created_at, created_by, candidate_id, predicate_name, resolution, deferred_until, deferred_by_member_id, reason_text)
-       VALUES ('cdr-persona-1', ?, 'system', 'cand-real-keep-1', 'promotable_candidate', 'deferred', ?, ?, 'persona defer')`,
-    ).run(TS, TS, T1);
+         (id, created_at, created_by, candidate_id, predicate_name, resolution, parked_by_member_id, reason_text)
+       VALUES ('cdr-persona-1', ?, 'system', 'cand-real-keep-1', 'promotable_candidate', 'parked', ?, 'persona park')`,
+    ).run(TS, T1);
     const personaCandidate = db
       .prepare(
         `SELECT legacy_club_candidate_id AS id FROM legacy_person_club_affiliations
@@ -288,9 +288,9 @@ describe('refreshAllPersonas', () => {
     expect(personaCandidate).toBeDefined();
     db.prepare(
       `INSERT INTO candidate_cleanup_resolutions
-         (id, created_at, created_by, candidate_id, predicate_name, resolution, deferred_until, deferred_by_member_id, reason_text)
-       VALUES ('cdr-personacand-1', ?, 'system', ?, 'promotable_candidate', 'deferred', ?, NULL, NULL)`,
-    ).run(TS, personaCandidate!.id, TS);
+         (id, created_at, created_by, candidate_id, predicate_name, resolution, parked_by_member_id, reason_text)
+       VALUES ('cdr-personacand-1', ?, 'system', ?, 'promotable_candidate', 'parked', NULL, NULL)`,
+    ).run(TS, personaCandidate!.id);
     db.prepare(
       `INSERT INTO club_cleanup_claims
          (id, created_at, created_by, item_type, item_id, claimed_by_member_id, claimed_at)

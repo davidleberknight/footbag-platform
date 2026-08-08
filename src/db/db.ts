@@ -1889,6 +1889,88 @@ export const clubViabilitySignals = {
 
 };
 
+// ── clubInsightNotes ────────────────────────────────────────────────────────
+//
+// Free-text club knowledge a member offers in the onboarding wizard's club
+// step, alongside the two fixed answers. Read by the admin cleanup queue only.
+// A note may name no club at all (the member writing about clubs in their
+// area), so the by-club and by-area reads are separate statements rather than
+// one filter.
+export const clubInsightNotes = {
+  get insertNote() { return db.prepare(`
+    INSERT INTO club_insight_notes (
+      id, created_at, created_by,
+      member_id, club_id, source_stage, note_text,
+      source_entity_type, source_entity_id
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `); },
+
+  // Notes attached to one live club, newest first, with their author for the
+  // admin surface. A purged note (note_text NULL) is not evidence any more
+  // and drops out here.
+  get listByClub() { return db.prepare(`
+    SELECT n.id, n.created_at, n.note_text, n.source_stage,
+           m.display_name AS author_display_name
+    FROM club_insight_notes AS n
+    INNER JOIN members AS m ON m.id = n.member_id
+    WHERE n.club_id = ? AND n.note_text IS NOT NULL
+    ORDER BY n.created_at DESC, n.id DESC
+  `); },
+
+  // Notes attached to a candidate that has no live clubs row yet.
+  get listByCandidate() { return db.prepare(`
+    SELECT n.id, n.created_at, n.note_text, n.source_stage,
+           m.display_name AS author_display_name
+    FROM club_insight_notes AS n
+    INNER JOIN members AS m ON m.id = n.member_id
+    WHERE n.club_id IS NULL
+      AND n.source_entity_type = 'legacy_club_candidate'
+      AND n.source_entity_id = ?
+      AND n.note_text IS NOT NULL
+    ORDER BY n.created_at DESC, n.id DESC
+  `); },
+
+  // Unkeyed notes: the member wrote about their area rather than about one
+  // club. Grouped with the author's own location so an admin can read them
+  // against the region they concern.
+  get listUnkeyed() { return db.prepare(`
+    SELECT n.id, n.created_at, n.note_text,
+           m.display_name AS author_display_name,
+           m.city   AS author_city,
+           m.region AS author_region,
+           m.country AS author_country
+    FROM club_insight_notes AS n
+    INNER JOIN members AS m ON m.id = n.member_id
+    WHERE n.club_id IS NULL
+      AND n.source_entity_id IS NULL
+      AND n.note_text IS NOT NULL
+    ORDER BY n.created_at DESC, n.id DESC
+  `); },
+
+  // Promotion carry-forward, mirroring the activity signals: a note left
+  // against a candidate follows that candidate onto its live club row.
+  get stampClubIdForCandidateNotes() { return db.prepare(`
+    UPDATE club_insight_notes
+       SET club_id = ?
+     WHERE club_id IS NULL
+       AND source_entity_type = 'legacy_club_candidate'
+       AND source_entity_id = ?
+  `); },
+
+  // Has this member left a note yet? Drives the ask-once rule in the wizard.
+  get countForMember() { return db.prepare(`
+    SELECT COUNT(*) AS c FROM club_insight_notes WHERE member_id = ?
+  `); },
+
+  // Erasure: the member's authored text goes, the row stays. Used by both the
+  // account purge and the deceased contact scrub.
+  get clearNotesForMember() { return db.prepare(`
+    UPDATE club_insight_notes
+       SET note_text = NULL
+     WHERE member_id = ? AND note_text IS NOT NULL
+  `); },
+};
+
 // ---------------------------------------------------------------------------
 // Freestyle records, public read path
 //
@@ -9211,30 +9293,35 @@ export const officialRoster = {
 export const clubCleanupResolutions = {
   get upsert() { return db.prepare(`
     INSERT INTO club_cleanup_resolutions
-      (id, created_at, created_by, club_id, predicate_name, resolution, deferred_until, reason_text)
+      (id, created_at, created_by, club_id, predicate_name, resolution,
+       parked_by_member_id, reason_text)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(club_id, predicate_name)
     DO UPDATE SET resolution = excluded.resolution,
-                  deferred_until = excluded.deferred_until,
+                  parked_by_member_id = excluded.parked_by_member_id,
                   reason_text = excluded.reason_text,
                   created_at = excluded.created_at,
                   created_by = excluded.created_by
   `); },
 
   get findByClubAndPredicate() { return db.prepare(`
-    SELECT id, resolution, deferred_until
+    SELECT id, resolution
     FROM club_cleanup_resolutions
     WHERE club_id = ? AND predicate_name = ?
   `); },
 
-  // All resolution rows, including still-deferred ones: the service's
-  // isResolved() owns the deferral-window check, so a future deferred_until
-  // suppresses the queue item and an expired one lets it re-surface.
-  // Filtering future deferrals out here would make deferral a no-op (the
-  // service would see no row and treat the item as unresolved).
+  // Every resolution row, parked ones included: the service decides what a row
+  // means. A parked row keeps the item out of the working queue and into the
+  // parked listing, and created_at is what lets it come back on its own, since
+  // the service compares the park's moment against the newest evidence for that
+  // club. The reason and the parker's name ride along so the parked listing can
+  // say who parked it and why; before this they were written and never read.
   get listAll() { return db.prepare(`
-    SELECT club_id, predicate_name, resolution, deferred_until
-    FROM club_cleanup_resolutions
+    SELECT r.club_id, r.predicate_name, r.resolution,
+           r.created_at, r.reason_text,
+           m.display_name AS parked_by_name
+    FROM club_cleanup_resolutions AS r
+    LEFT JOIN members AS m ON m.id = r.parked_by_member_id
   `); },
 };
 
@@ -9242,27 +9329,25 @@ export const candidateCleanupResolutions = {
   get upsert() { return db.prepare(`
     INSERT INTO candidate_cleanup_resolutions
       (id, created_at, created_by, candidate_id, predicate_name, resolution,
-       deferred_until, deferred_by_member_id, reason_text)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       parked_by_member_id, reason_text)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(candidate_id, predicate_name)
     DO UPDATE SET resolution = excluded.resolution,
-                  deferred_until = excluded.deferred_until,
-                  deferred_by_member_id = excluded.deferred_by_member_id,
+                  parked_by_member_id = excluded.parked_by_member_id,
                   reason_text = excluded.reason_text,
                   created_at = excluded.created_at,
                   created_by = excluded.created_by
   `); },
 
-  // All candidate resolution rows, including still-deferred ones: the
-  // service owns the deferral-window check, so a future deferred_until
-  // suppresses the queue item and an expired one lets it re-surface with
-  // the deferred-by annotation (hence the admin display-name join).
+  // All candidate resolution rows, parked ones included: the service decides
+  // what a row means. The admin display-name join is what lets a parked
+  // candidate say who parked it.
   get listAll() { return db.prepare(`
     SELECT ccr.candidate_id, ccr.predicate_name, ccr.resolution,
-           ccr.deferred_until, ccr.reason_text,
-           m.display_name AS deferred_by_name
+           ccr.created_at, ccr.reason_text,
+           m.display_name AS parked_by_name
     FROM candidate_cleanup_resolutions AS ccr
-    LEFT JOIN members AS m ON m.id = ccr.deferred_by_member_id
+    LEFT JOIN members AS m ON m.id = ccr.parked_by_member_id
   `); },
 };
 
@@ -9316,6 +9401,82 @@ export const clubCleanupPredicates = {
     INNER JOIN clubs AS c ON c.id = cbl.club_id
     WHERE cbl.status = 'provisional'
     ORDER BY cbl.created_at ASC
+  `); },
+};
+
+// One row per live club carrying every piece of evidence a viability verdict
+// weighs, so the verdict is one read rather than a query per club per signal.
+//
+// Two families sit side by side here. Member votes and insight notes are what
+// the crowd tells us, counted one vote per member with the latest answer
+// winning. The rest is operational: what the club has actually done, drawn
+// from live rows (current members, co-leaders, events it hosted, results those
+// events produced, a verified website, a real description) and from the
+// mirror-derived evidence the import pipeline computed. That second family
+// matters because roughly a third of clubs can never receive a member vote at
+// all, and until now none of it was read by anything.
+//
+// newest_evidence_at is what lets a parked item return without a timer: it is
+// the most recent moment any member said anything about this club, so the
+// service can compare it against when the club was parked.
+export const clubEvidence = {
+  get listByClub() { return db.prepare(`
+    SELECT
+      c.id     AS club_id,
+      c.name   AS club_name,
+      c.city, c.region, c.country, c.status,
+      c.description IS NOT NULL AND length(trim(c.description)) > 0 AS has_description,
+      c.external_url IS NOT NULL                                   AS has_external_url,
+      c.external_url_validated_at IS NOT NULL                      AS url_verified,
+
+      (SELECT COUNT(*) FROM club_leaders AS cl WHERE cl.club_id = c.id) AS leader_count,
+      (SELECT COUNT(*) FROM member_club_affiliations AS mca
+         WHERE mca.club_id = c.id AND mca.is_current = 1)               AS current_member_count,
+      (SELECT COUNT(*) FROM events AS e WHERE e.host_club_id = c.id)    AS hosted_event_count,
+      (SELECT COUNT(*) FROM event_result_entries AS ere
+         INNER JOIN events AS e2 ON e2.id = ere.event_id
+         WHERE e2.host_club_id = c.id)                                  AS result_entry_count,
+      (SELECT COUNT(*) FROM legacy_person_club_affiliations AS lpca
+         INNER JOIN legacy_club_candidates AS lcc2
+                 ON lcc2.id = lpca.legacy_club_candidate_id
+         WHERE lcc2.mapped_club_id = c.id
+           AND lpca.resolution_status = 'pending')                      AS pending_residue_count,
+      (SELECT COUNT(*) FROM club_insight_notes AS cin
+         WHERE cin.club_id = c.id AND cin.note_text IS NOT NULL)        AS insight_note_count,
+
+      lcc.classification,
+      lcc.ever_hosted,
+      lcc.last_hosted_year,
+      lcc.max_affiliated_member_last_year,
+      lcc.unique_member_names,
+      lcc.linkable_member_count,
+
+      (SELECT COUNT(*) FROM (
+         SELECT s.member_id, s.activity_signal,
+                ROW_NUMBER() OVER (
+                  PARTITION BY s.member_id ORDER BY s.created_at DESC, s.id DESC
+                ) AS rn
+         FROM club_viability_signals AS s
+         WHERE s.club_id = c.id
+       ) WHERE rn = 1 AND activity_signal = 'active')                   AS active_votes,
+      (SELECT COUNT(*) FROM (
+         SELECT s.member_id, s.activity_signal,
+                ROW_NUMBER() OVER (
+                  PARTITION BY s.member_id ORDER BY s.created_at DESC, s.id DESC
+                ) AS rn
+         FROM club_viability_signals AS s
+         WHERE s.club_id = c.id
+       ) WHERE rn = 1 AND activity_signal = 'not_active')               AS inactive_votes,
+
+      (SELECT MAX(t.at) FROM (
+         SELECT MAX(s.created_at) AS at FROM club_viability_signals AS s WHERE s.club_id = c.id
+         UNION ALL
+         SELECT MAX(n.created_at) AS at FROM club_insight_notes AS n WHERE n.club_id = c.id
+       ) AS t)                                                          AS newest_evidence_at
+
+    FROM clubs AS c
+    LEFT JOIN legacy_club_candidates AS lcc ON lcc.mapped_club_id = c.id
+    WHERE c.status IN ('active', 'inactive')
   `); },
 };
 

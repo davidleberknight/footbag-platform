@@ -93,6 +93,7 @@ import {
   account,
   clubs,
   clubBootstrapLeaders,
+  clubInsightNotes,
   clubLeaders,
   clubViabilitySignals,
   legacyClubCandidates,
@@ -1790,6 +1791,10 @@ export class ClubService {
         // cleanup queue's candidate-flag group.
         const flagsStamped = clubViabilitySignals.stampClubIdForCandidateFlags
           .run(clubId, candidateId).changes;
+        // Insight notes left against the candidate follow the same carry-forward,
+        // so the club inherits the free-text evidence alongside the votes.
+        const notesStamped = clubInsightNotes.stampClubIdForCandidateNotes
+          .run(clubId, candidateId).changes;
         appendAuditEntry({
           actionType: opts.actorType === 'admin'
             ? 'admin.club_cleanup.promote'
@@ -1807,6 +1812,7 @@ export class ClubService {
             classification: candidate.classification,
             trigger: opts.trigger ?? null,
             viability_flags_stamped: flagsStamped,
+            insight_notes_stamped: notesStamped,
           },
         });
       });
@@ -1828,6 +1834,7 @@ export class ClubService {
           // Converging on an out-of-band clubs row still carries the
           // candidate's wizard flags forward to that club.
           clubViabilitySignals.stampClubIdForCandidateFlags.run(clubId, candidateId);
+          clubInsightNotes.stampClubIdForCandidateNotes.run(clubId, candidateId);
           return { branch: 'already_promoted', clubId };
         }
       }

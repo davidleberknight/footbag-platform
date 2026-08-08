@@ -129,12 +129,12 @@ describe('POST /admin/club-cleanup/:clubId/resolve', () => {
     expect(res.status).toBe(403);
   });
 
-  it('defer_30 records resolution with deferred_until', async () => {
+  it('park records the resolution with no deadline, naming who parked it and why', async () => {
     const app = createApp();
     const res = await request(app)
       .post(`/admin/club-cleanup/${CLUB_ID}/resolve`)
       .set('Cookie', adminCookie())
-      .send({ action: 'defer_30', predicate: 'crowdsource_viability', reasonText: 'Check back later' });
+      .send({ action: 'park', predicate: 'crowdsource_viability', reasonText: 'Check back later' });
     expect(res.status).toBe(303);
 
     const testDb = new BetterSqlite3(dbPath);
@@ -142,11 +142,20 @@ describe('POST /admin/club-cleanup/:clubId/resolve', () => {
       const resolution = testDb.prepare(
         'SELECT * FROM club_cleanup_resolutions WHERE club_id = ? AND predicate_name = ?',
       ).get(CLUB_ID, 'crowdsource_viability') as Record<string, unknown>;
-      expect(resolution.resolution).toBe('deferred');
-      expect(resolution.deferred_until).toBeTruthy();
+      expect(resolution.resolution).toBe('parked');
+      expect(resolution.parked_by_member_id).toBe(ADMIN_ID);
+      expect(resolution.reason_text).toBe('Check back later');
     } finally {
       testDb.close();
     }
+  });
+
+  it('rejects a deadline-style action, so no caller can reintroduce a timed park', async () => {
+    const res = await request(createApp())
+      .post(`/admin/club-cleanup/${CLUB_ID}/resolve`)
+      .set('Cookie', adminCookie())
+      .send({ action: 'defer_30', predicate: 'crowdsource_viability' });
+    expect(res.status).toBe(422);
   });
 });
 
@@ -167,51 +176,64 @@ describe('stale-provisional predicate surfaces unresolved bootstrap rows', () =>
   });
 });
 
-describe('deferred resolutions re-surface after the window expires', () => {
-  it('a deferred club is absent before expiry and returns once deferred_until passes', async () => {
+describe('parking takes a club off the working queue without losing it', () => {
+  it('a parked club leaves the working queue, stays listed as parked, and returns when a member says something new', async () => {
     const db = new BetterSqlite3(dbPath);
     const { insertClub: mkClub, insertClubViabilitySignal: mkSignal, insertMember: mkMember } = await import('../fixtures/factories');
-    const clubId = mkClub(db, { id: 'cleanup-defer-club', name: 'Deferred Club' });
+    const clubId = mkClub(db, { id: 'cleanup-parked-club', name: 'Parked Club' });
     mkMember(db, { id: 'cleanup-sig-1', slug: 'cleanup_sig_1', login_email: 'sig1@example.com' });
     mkMember(db, { id: 'cleanup-sig-2', slug: 'cleanup_sig_2', login_email: 'sig2@example.com' });
     mkSignal(db, { member_id: 'cleanup-sig-1', club_id: clubId, activity_signal: 'not_active' });
     mkSignal(db, { member_id: 'cleanup-sig-2', club_id: clubId, activity_signal: 'not_active' });
     db.close();
 
-    // A concordant-inactive club is also active+leaderless, so it carries
-    // two queue items; defer both predicates to take it fully off the page.
+    // A concordant-inactive club is also active and leaderless, so it carries
+    // two queue items; park both to take it fully off the working queue.
     for (const predicate of ['crowdsource_viability', 'leaderless_active']) {
-      const deferRes = await request(createApp())
+      const parkRes = await request(createApp())
         .post(`/admin/club-cleanup/${clubId}/resolve`)
         .set('Cookie', adminCookie())
-        .send({ action: 'defer_90', predicate, reasonText: 'Revisit later' });
-      expect(deferRes.status).toBe(303);
+        .send({ action: 'park', predicate, reasonText: 'Revisit later' });
+      expect(parkRes.status).toBe(303);
     }
 
-    const before = await request(createApp())
+    // Parked, not lost: absent from the working tables, present in the parked
+    // listing with who parked it and why.
+    const parked = await request(createApp())
       .get('/admin/club-cleanup')
       .set('Cookie', adminCookie());
-    expect(before.text).not.toContain('Deferred Club');
+    expect(parked.text).toContain('Revisit later');
+    expect(parked.text).toContain('Parked Club');
+    // The working row's recommendation is the tell that the item is live; a
+    // parked club shows only in the parked listing.
+    expect(parked.text).not.toContain('Demote to inactive');
 
-    // Move the deferral windows into the past; the club must re-surface.
+    // A third member answering after the park is new evidence, so the club
+    // rejoins the working queue on its own with no window to wait out.
     const db2 = new BetterSqlite3(dbPath);
-    db2.prepare(`
-      UPDATE club_cleanup_resolutions
-         SET deferred_until = '2020-01-01T00:00:00.000Z'
-       WHERE club_id = ?
-    `).run(clubId);
+    const { insertClubViabilitySignal: mkSignal2, insertMember: mkMember2 } = await import('../fixtures/factories');
+    mkMember2(db2, { id: 'cleanup-sig-3', slug: 'cleanup_sig_3', login_email: 'sig3@example.com' });
+    // Stamped after the park, which is what makes it new evidence: the factory
+    // otherwise dates every row to the same fixed timestamp.
+    mkSignal2(db2, {
+      member_id: 'cleanup-sig-3',
+      club_id: clubId,
+      activity_signal: 'not_active',
+      created_at: new Date(Date.now() + 60_000).toISOString(),
+    });
     db2.close();
 
     const after = await request(createApp())
       .get('/admin/club-cleanup')
       .set('Cookie', adminCookie());
-    expect(after.text).toContain('Deferred Club');
+    expect(after.text).toContain('Parked Club');
+    expect(after.text).toContain('Demote to inactive');
   });
 });
 
 describe('queue filter and sort query params', () => {
   // By this point in the file the queue holds predicate items for the stale
-  // provisional club and the re-surfaced deferred club, and no residue or
+  // provisional club and the re-surfaced parked club, and no residue or
   // candidates; the filters below pivot on that state.
   it('category filter hides items from other categories', async () => {
     const res = await request(createApp())
@@ -219,7 +241,9 @@ describe('queue filter and sort query params', () => {
       .set('Cookie', adminCookie());
     expect(res.status).toBe(200);
     expect(res.text).toContain('Stale Provisional Club');
-    expect(res.text).not.toContain('Deferred Club');
+    // The parked listing is deliberately unfiltered, so the filter is proved by
+    // the absence of the other category's working row, not of the club name.
+    expect(res.text).not.toContain('Demote to inactive');
   });
 
   it('category=residue empties the predicate table', async () => {
@@ -258,7 +282,7 @@ describe('queue filter and sort query params', () => {
       .set('Cookie', adminCookie());
     expect(res.status).toBe(200);
     expect(res.text).toContain('Stale Provisional Club');
-    expect(res.text).toContain('Deferred Club');
+    expect(res.text).toContain('Parked Club');
   });
 });
 

@@ -120,7 +120,7 @@ describe('POST /admin/club-cleanup/claim', () => {
     const res = await request(createApp())
       .post(`/admin/club-cleanup/${CLUB_ID}/resolve`)
       .set('Cookie', cookieFor(ADMIN_ONE))
-      .send({ action: 'defer_30', predicate: 'crowdsource_viability', reasonText: 'Check later' });
+      .send({ action: 'park', predicate: 'crowdsource_viability', reasonText: 'Check later' });
     expect(res.status).toBe(303);
     expect(countClaims('club', CLUB_ID)).toBe(0);
 
@@ -130,7 +130,7 @@ describe('POST /admin/club-cleanup/claim', () => {
     expect(queue.text).not.toContain('claimed by');
   });
 
-  it('candidate claims release on defer and stale markers stop rendering', async () => {
+  it('candidate claims release on park and stale markers stop rendering', async () => {
     const claim = await request(createApp())
       .post('/admin/club-cleanup/claim')
       .set('Cookie', cookieFor(ADMIN_ONE))
@@ -142,21 +142,17 @@ describe('POST /admin/club-cleanup/claim', () => {
       .set('Cookie', cookieFor(ADMIN_TWO));
     expect(before.text).toContain('claimed by Admin One');
 
-    const defer = await request(createApp())
+    const park = await request(createApp())
       .post(`/admin/club-cleanup/candidates/${CAND_ID}/resolve`)
       .set('Cookie', cookieFor(ADMIN_TWO))
-      .send({ action: 'defer_30' });
-    expect(defer.status).toBe(303);
+      .send({ action: 'park' });
+    expect(park.status).toBe(303);
     expect(countClaims('candidate', CAND_ID)).toBe(0);
 
-    // Expire the defer window so the candidate is back in the queue, then
-    // re-claim: the fresh marker renders on the re-surfaced row.
+    // Clear the park so the candidate is back in the queue, then re-claim:
+    // the fresh marker renders on the returned row.
     const db = new BetterSqlite3(dbPath);
-    db.prepare(`
-      UPDATE candidate_cleanup_resolutions
-         SET deferred_until = '2020-01-01T00:00:00.000Z'
-       WHERE candidate_id = ?
-    `).run(CAND_ID);
+    db.prepare(`DELETE FROM candidate_cleanup_resolutions WHERE candidate_id = ?`).run(CAND_ID);
     db.close();
 
     const reclaim = await request(createApp())

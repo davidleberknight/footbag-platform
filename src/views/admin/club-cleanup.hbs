@@ -39,12 +39,10 @@
           <form method="POST" action="/admin/club-cleanup/bulk-resolve" class="cleanup-action-form mt-2">
             <input type="hidden" name="group" value="{{this.predicate}}" />
             <select name="action" class="cleanup-action-select">
-              <option value="defer_30">Defer all 30d</option>
-              <option value="defer_90">Defer all 90d</option>
-              <option value="defer_180">Defer all 180d</option>
+              <option value="park">Park All</option>
             </select>
             <input type="text" name="reasonText" placeholder="Shared reason" class="cleanup-reason-input" />
-            <button type="submit" class="btn btn-outline btn-sm">Bulk Defer Group</button>
+            <button type="submit" class="btn btn-outline btn-sm">Park Group</button>
           </form>
           <table class="cleanup-queue-table mt-2">
             <thead>
@@ -71,7 +69,11 @@
                   </td>
                   <td class="text-muted">{{this.clubCity}}{{#if this.clubCountry}}, {{this.clubCountry}}{{/if}}</td>
                   <td><span class="badge">{{this.clubStatus}}</span></td>
-                  <td class="text-muted fs-sm">{{this.detail}}</td>
+                  <td class="text-muted fs-sm">{{this.detail}}
+                    {{#each this.insightNotes}}
+                      <p class="mt-1 mb-0">&ldquo;{{this.text}}&rdquo; <span class="text-muted">{{this.authorDisplayName}}, {{this.at}}</span></p>
+                    {{/each}}
+                  </td>
                   <td class="fs-sm">{{this.recommendedAction}}</td>
                   <td>
                     {{#if this.showLeaderlessControls}}
@@ -88,9 +90,7 @@
                         <option value="archive">Archive</option>
                         <option value="dismiss">Dismiss</option>
                         {{/unless}}
-                        <option value="defer_30">Defer 30d</option>
-                        <option value="defer_90">Defer 90d</option>
-                        <option value="defer_180">Defer 180d</option>
+                        <option value="park">Park</option>
                       </select>
                       <input type="text" name="reasonText" placeholder="Reason" class="cleanup-reason-input" />
                       <button type="submit" class="btn btn-outline btn-sm">Apply to Club</button>
@@ -111,16 +111,14 @@
   <section class="mt-8">
     <details class="cleanup-group">
     <summary>Wizard flags by candidate ({{content.candidateFlags.length}})</summary>
-    <p class="text-muted fs-sm">Activity answers members left about club candidates that have no live club row yet, so the viability gates cannot evaluate them. One vote per member; a member's latest answer wins. Dismiss is terminal; deferred flags re-surface after the window with a deferred-by annotation. Promoting the candidate moves its votes to the live club's viability evaluation.</p>
+    <p class="text-muted fs-sm">Activity answers members left about club candidates that have no live club row yet, so the viability gates cannot evaluate them. One vote per member; a member's latest answer wins. Dismiss is terminal; parked flags wait without a deadline and stay listed with who parked them. Promoting the candidate moves its votes to the live club's viability evaluation.</p>
     <form method="POST" action="/admin/club-cleanup/bulk-resolve" class="cleanup-action-form mt-2">
       <input type="hidden" name="group" value="candidate_flag" />
       <select name="action" class="cleanup-action-select">
-        <option value="defer_30">Defer all 30d</option>
-        <option value="defer_90">Defer all 90d</option>
-        <option value="defer_180">Defer all 180d</option>
+        <option value="park">Park All</option>
       </select>
       <input type="text" name="reasonText" placeholder="Shared reason" class="cleanup-reason-input" />
-      <button type="submit" class="btn btn-outline btn-sm">Bulk Defer Group</button>
+      <button type="submit" class="btn btn-outline btn-sm">Park Group</button>
     </form>
     <table class="cleanup-queue-table mt-2">
       <thead>
@@ -135,7 +133,7 @@
       <tbody>
         {{#each content.candidateFlags}}
           <tr>
-            <td class="fw-600">{{this.displayName}}{{#if this.deferAnnotation}}<br /><span class="text-muted fs-sm">{{this.deferAnnotation}}</span>{{/if}}
+            <td class="fw-600">{{this.displayName}}{{#if this.parkAnnotation}}<br /><span class="text-muted fs-sm">{{this.parkAnnotation}}</span>{{/if}}
               {{#if this.claimLabel}}<br /><span class="text-muted fs-sm">{{this.claimLabel}}</span>{{else}}
               <form method="POST" action="/admin/club-cleanup/claim" class="cleanup-action-form mt-1">
                 <input type="hidden" name="itemType" value="candidate" />
@@ -146,15 +144,17 @@
             </td>
             <td class="text-muted">{{this.city}}{{#if this.country}}, {{this.country}}{{/if}}</td>
             <td><span class="badge">{{this.classificationLabel}}</span></td>
-            <td class="text-muted fs-sm">{{this.detail}}</td>
+            <td class="text-muted fs-sm">{{this.detail}}
+              {{#each this.insightNotes}}
+                <p class="mt-1 mb-0">&ldquo;{{this.text}}&rdquo; <span class="text-muted">{{this.authorDisplayName}}, {{this.at}}</span></p>
+              {{/each}}
+            </td>
             <td>
               <form method="POST" action="/admin/club-cleanup/candidates/{{this.candidateId}}/resolve" class="cleanup-action-form">
                 <input type="hidden" name="predicate" value="candidate_flags" />
                 <select name="action" class="cleanup-action-select">
                   <option value="dismiss">Dismiss</option>
-                  <option value="defer_30">Defer 30d</option>
-                  <option value="defer_90">Defer 90d</option>
-                  <option value="defer_180">Defer 180d</option>
+                  <option value="park">Park</option>
                 </select>
                 <input type="text" name="reasonText" placeholder="Reason" class="cleanup-reason-input" />
                 <button type="submit" class="btn btn-outline btn-sm">Apply to Candidate</button>
@@ -235,7 +235,7 @@
       <tbody>
         {{#each content.candidates}}
           <tr>
-            <td class="fw-600">{{this.displayName}}{{#if this.deferAnnotation}}<br /><span class="text-muted fs-sm">{{this.deferAnnotation}}</span>{{/if}}
+            <td class="fw-600">{{this.displayName}}{{#if this.parkAnnotation}}<br /><span class="text-muted fs-sm">{{this.parkAnnotation}}</span>{{/if}}
               {{#if this.claimLabel}}<br /><span class="text-muted fs-sm">{{this.claimLabel}}</span>{{else}}
               <form method="POST" action="/admin/club-cleanup/claim" class="cleanup-action-form mt-1">
                 <input type="hidden" name="itemType" value="candidate" />
@@ -255,9 +255,7 @@
                 <select name="action" class="cleanup-action-select">
                   <option value="demote">Demote to dormant</option>
                   <option value="archive">Archive</option>
-                  <option value="defer_30">Defer 30d</option>
-                  <option value="defer_90">Defer 90d</option>
-                  <option value="defer_180">Defer 180d</option>
+                  <option value="park">Park</option>
                 </select>
                 <input type="text" name="reasonText" placeholder="Reason" class="cleanup-reason-input" />
                 <button type="submit" class="btn btn-outline btn-sm">Apply to Candidate</button>
@@ -311,6 +309,50 @@
         {{/each}}
       </tbody>
     </table>
+    </details>
+  </section>
+  {{/if}}
+
+  {{#if content.areaInsights.length}}
+  <section class="mt-8">
+    <details>
+      <summary class="section-heading">What members told us about their area ({{content.areaInsights.length}})</summary>
+      <p class="text-muted fs-sm">Notes members left during onboarding about clubs near them, rather
+        than about one club we asked about. They belong to no queue row, so read them when a decision
+        above is close.</p>
+      <ul class="mt-4">
+        {{#each content.areaInsights}}
+          <li class="mb-2">&ldquo;{{this.text}}&rdquo;
+            <span class="text-muted fs-sm">{{this.authorDisplayName}}{{#if this.authorLocation}}, {{this.authorLocation}}{{/if}}, {{this.at}}</span>
+          </li>
+        {{/each}}
+      </ul>
+    </details>
+  </section>
+  {{/if}}
+
+  {{#if content.parkedCount}}
+  <section>
+    <details>
+      <summary class="section-heading">Parked ({{content.parkedCount}})</summary>
+      <p class="text-muted fs-sm">Parked items wait without a deadline. Any club whose members
+        answer a card or leave a note after it was parked returns to the queue above on its own.</p>
+      <table class="admin-queue-table mt-4">
+        <thead>
+          <tr><th>Club</th><th>Location</th><th>Category</th><th>Parked</th><th>Reason</th></tr>
+        </thead>
+        <tbody>
+          {{#each content.parked}}
+            <tr>
+              <td>{{this.clubName}}</td>
+              <td>{{this.clubCity}}{{#if this.clubCountry}}, {{this.clubCountry}}{{/if}}</td>
+              <td>{{this.predicateLabel}}</td>
+              <td>by {{this.parkedByLabel}} on {{this.parkedAt}}</td>
+              <td>{{#if this.reasonText}}{{this.reasonText}}{{else}}<span class="text-muted">none given</span>{{/if}}</td>
+            </tr>
+          {{/each}}
+        </tbody>
+      </table>
     </details>
   </section>
   {{/if}}

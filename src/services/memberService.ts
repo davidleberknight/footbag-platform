@@ -82,7 +82,7 @@
  * The profile Media section is delegated to `mediaService.getMemberProfileMedia`.
  */
 import { randomUUID, createHash } from 'crypto';
-import { account, publicPlayers, memberClubAffiliations, memberLinks, clubLeaders, clubs as clubsDb, declaredAnchors, erasureLog, legacyMembers, memberPurge, workQueue, transaction, MemberProfileRow, MemberResultRow, MemberSearchRow, HistoricalPersonSearchRow, IdentityLinksRow } from '../db/db';
+import { account, publicPlayers, memberClubAffiliations, memberLinks, clubLeaders, clubs as clubsDb, clubInsightNotes, declaredAnchors, erasureLog, legacyMembers, memberPurge, workQueue, transaction, MemberProfileRow, MemberResultRow, MemberSearchRow, HistoricalPersonSearchRow, IdentityLinksRow } from '../db/db';
 import { validateExternalUrl } from '../lib/externalUrlValidator';
 import { validateBirthDate } from '../lib/birthDate';
 import { identityAccessService } from './identityAccessService';
@@ -711,6 +711,9 @@ function newErasureLogId(): string {
  *     claimed legacy_members row returns to the claimable pool
  *   - every declared identity anchor deleted
  *   - one member.pii_purged audit row recording what was cleared
+ *   - member-authored free text redacted wherever it lives outside the audit
+ *     ledger: contact-request text, and the club insight notes left in the
+ *     onboarding wizard (the text clears, the evidence row survives)
  *   - one erasure_log row (account_pii_purge) so backup restores re-apply
  *     the erasure
  *
@@ -750,6 +753,10 @@ function purgeAccountPII(memberId: string): PurgeAccountPIIResult {
     // Member-authored contact-request free text lives in work_queue_items, not
     // the audit ledger, so erasure must redact it here.
     workQueue.scrubTextForMember.run(now, memberId);
+    // The club insight notes the member left in the onboarding wizard are
+    // member-authored free text too. The text clears; the row stays, so the
+    // club evidence trail keeps its shape without keeping their words.
+    const insightNotes = clubInsightNotes.clearNotesForMember.run(memberId);
     erasureLog.insert.run(newErasureLogId(), now, 'operations_purge', memberId, 'account_pii_purge');
 
     appendAuditEntry({
@@ -765,6 +772,7 @@ function purgeAccountPII(memberId: string): PurgeAccountPIIResult {
         cleared_legacy_member_id:     row.legacy_member_id,
         cleared_historical_person_id: row.historical_person_id,
         anchors_deleted:              anchors.changes,
+        club_insight_notes_cleared:   insightNotes.changes,
       },
     });
 
@@ -812,6 +820,9 @@ function scrubDeceasedMemberPII(memberId: string): ScrubDeceasedMemberPIIResult 
     const anchors = declaredAnchors.deleteAllForMember.run(memberId);
     // Contact-request free text is contact PII; redact it on the deceased scrub.
     workQueue.scrubTextForMember.run(now, memberId);
+    // Same treatment for the wizard's club insight notes: the words go, the
+    // evidence row stays.
+    const insightNotes = clubInsightNotes.clearNotesForMember.run(memberId);
     erasureLog.insert.run(newErasureLogId(), now, 'operations_purge', memberId, 'deceased_contact_scrub');
 
     appendAuditEntry({
@@ -823,7 +834,8 @@ function scrubDeceasedMemberPII(memberId: string): ScrubDeceasedMemberPIIResult 
       entityId:      memberId,
       reasonText:    null,
       metadata: {
-        anchors_deleted: anchors.changes,
+        anchors_deleted:            anchors.changes,
+        club_insight_notes_cleared: insightNotes.changes,
       },
     });
 

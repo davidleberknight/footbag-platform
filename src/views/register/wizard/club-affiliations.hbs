@@ -123,6 +123,19 @@
               <label class="radio-label"><input type="radio" name="activitySignal" value="not_active" required /> Not active anymore</label>
             </fieldset>
 
+            {{#if content.insightPrompt}}
+              <fieldset class="activity-signal-fieldset mt-4 mb-6">
+                <legend class="fs-sm fw-600">{{content.insightPrompt.legend}}</legend>
+                <p class="text-muted fs-sm mb-2">{{content.insightPrompt.helpText}}</p>
+                <div class="form-field">
+                  <textarea
+                    name="{{content.insightPrompt.fieldName}}"
+                    rows="4"
+                    maxlength="{{content.insightPrompt.maxLength}}"></textarea>
+                </div>
+              </fieldset>
+            {{/if}}
+
             <p class="audit-notice text-muted fs-sm mb-4">Both answers required. Your answers will be saved.</p>
 
             <button type="submit" class="btn btn-primary">Save Answers</button>
@@ -145,6 +158,18 @@
       </div>
 
       <form method="POST" action="{{content.noClubsHref}}" class="mt-6">
+        {{#if content.insightPrompt}}
+          <fieldset class="activity-signal-fieldset mb-6">
+            <legend class="fs-sm fw-600">{{content.insightPrompt.legend}}</legend>
+            <p class="text-muted fs-sm mb-2">{{content.insightPrompt.helpText}}</p>
+            <div class="form-field">
+              <textarea
+                name="{{content.insightPrompt.fieldName}}"
+                rows="4"
+                maxlength="{{content.insightPrompt.maxLength}}"></textarea>
+            </div>
+          </fieldset>
+        {{/if}}
         <button type="submit" class="btn btn-primary">Finish Without a Club</button>
       </form>
     {{/if}}
