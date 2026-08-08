@@ -154,67 +154,67 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('evaluateClubViability', () => {
-  it('G1: any active signal -> confirmed_active', async () => {
+describe('one verdict per club', () => {
+  it('a member vouching for the club makes it alive', async () => {
     const { clubCleanupService } = await import('../../src/services/clubCleanupService');
-    const result = clubCleanupService.evaluateClubViability(CLUB_ACTIVE);
-    expect(result.gate).toBe('G1_confirmed_active');
-    expect(result.s1AnyActive).toBe(true);
+    expect(clubCleanupService.getClubVerdict(CLUB_ACTIVE)?.verdict).toBe('alive');
   });
 
-  it('G2: concordant inactive (2+) -> concordant_inactive', async () => {
+  it('a current member outranks members reporting the club inactive', async () => {
     const { clubCleanupService } = await import('../../src/services/clubCleanupService');
-    const result = clubCleanupService.evaluateClubViability(CLUB_INACTIVE);
-    expect(result.gate).toBe('G2_concordant_inactive');
-    expect(result.s3ConcordantInactive).toBe(true);
+    expect(clubCleanupService.getClubVerdict(CLUB_LIVE_MEMBERS)?.verdict).toBe('alive');
   });
 
-  it('G3: single inactive, weak legacy -> weak_inactive', async () => {
+  it('a current co-leader outranks members reporting the club inactive', async () => {
     const { clubCleanupService } = await import('../../src/services/clubCleanupService');
-    const result = clubCleanupService.evaluateClubViability(CLUB_WEAK);
-    expect(result.gate).toBe('G3_weak_inactive');
-    expect(result.s2AnyInactive).toBe(true);
-    expect(result.s3ConcordantInactive).toBe(false);
-    expect(result.l1StrongLegacy).toBe(false);
+    expect(clubCleanupService.getClubVerdict(CLUB_LIVE_LEADER)?.verdict).toBe('alive');
   });
 
-  it('G4: single inactive, strong legacy -> needs_review', async () => {
+  it('a write-off the club record does not contradict is defunct', async () => {
     const { clubCleanupService } = await import('../../src/services/clubCleanupService');
-    const result = clubCleanupService.evaluateClubViability(CLUB_REVIEW);
-    expect(result.gate).toBe('G4_needs_review');
-    expect(result.l1StrongLegacy).toBe(true);
+    const result = clubCleanupService.getClubVerdict(CLUB_WEAK);
+    expect(result?.verdict).toBe('defunct_by_rule');
+    expect(result?.everHostedEvent).toBe(false);
+    expect(result?.wasEstablished).toBe(false);
   });
 
-  it('a mapped non-pre_populate candidate is not strong legacy -> stays G3', async () => {
+  it('one write-off is enough; a second only repeats it', async () => {
     const { clubCleanupService } = await import('../../src/services/clubCleanupService');
-    const result = clubCleanupService.evaluateClubViability(CLUB_MAPPED_ONBOARDING);
-    expect(result.gate).toBe('G3_weak_inactive');
-    expect(result.l1StrongLegacy).toBe(false);
+    expect(clubCleanupService.getClubVerdict(CLUB_INACTIVE)?.verdict).toBe('defunct_by_rule');
+    expect(clubCleanupService.getClubVerdict(CLUB_WEAK)?.verdict).toBe('defunct_by_rule');
   });
 
-  it('no signals -> no_signals', async () => {
+  it('a write-off against an established club goes to a human, not the rules', async () => {
     const { clubCleanupService } = await import('../../src/services/clubCleanupService');
-    const result = clubCleanupService.evaluateClubViability(CLUB_NOSIGNAL);
-    expect(result.gate).toBe('no_signals');
+    const result = clubCleanupService.getClubVerdict(CLUB_REVIEW);
+    expect(result?.verdict).toBe('needs_review');
+    expect(result?.wasEstablished).toBe(true);
   });
 
-  it('mixed active + inactive -> G1 wins', async () => {
+  it('a club the pipeline marked for members to confirm is not established, so a write-off settles it', async () => {
     const { clubCleanupService } = await import('../../src/services/clubCleanupService');
-    const result = clubCleanupService.evaluateClubViability(CLUB_MIXED);
-    expect(result.gate).toBe('G1_confirmed_active');
+    expect(clubCleanupService.getClubVerdict(CLUB_MAPPED_ONBOARDING)?.verdict).toBe('defunct_by_rule');
   });
 
-  it('one member re-posting inactive is one vote, not concordant', async () => {
+  it('a club nobody has voted on and the pipeline never judged waits for an answer', async () => {
     const { clubCleanupService } = await import('../../src/services/clubCleanupService');
-    const result = clubCleanupService.evaluateClubViability(CLUB_DUP_MEMBER);
-    expect(result.gate).toBe('G3_weak_inactive');
-    expect(result.s3ConcordantInactive).toBe(false);
+    expect(clubCleanupService.getClubVerdict(CLUB_NOSIGNAL)?.verdict).toBe('waiting');
   });
 
-  it('a changed answer counts at its latest value', async () => {
+  it('one member repeating themselves is one vote', async () => {
     const { clubCleanupService } = await import('../../src/services/clubCleanupService');
-    const result = clubCleanupService.evaluateClubViability(CLUB_CHANGED);
-    expect(result.gate).toBe('G1_confirmed_active');
+    const result = clubCleanupService.getClubVerdict(CLUB_DUP_MEMBER);
+    expect(result?.inactiveVotes).toBe(1);
+  });
+
+  it('a member who changes their answer counts at the latest one', async () => {
+    const { clubCleanupService } = await import('../../src/services/clubCleanupService');
+    expect(clubCleanupService.getClubVerdict(CLUB_CHANGED)?.verdict).toBe('alive');
+  });
+
+  it('a positive answer wins over a negative one from someone else', async () => {
+    const { clubCleanupService } = await import('../../src/services/clubCleanupService');
+    expect(clubCleanupService.getClubVerdict(CLUB_MIXED)?.verdict).toBe('alive');
   });
 
   it('the schema rejects every retired signal value and stage at the door', async () => {
@@ -264,14 +264,25 @@ describe('getCleanupQueuePage', () => {
     expect(activeClub).toBeUndefined();
   });
 
-  it('names the negative wizard reporters on the crowdsource item', async () => {
+  it('names the negative wizard reporters, and the fact that contradicts them, on the review item', async () => {
     const { clubCleanupService } = await import('../../src/services/clubCleanupService');
     const vm = clubCleanupService.getCleanupQueuePage();
     const item = vm.content.itemGroups.flatMap(g => g.items).find(
-      i => i.clubId === CLUB_WEAK && i.predicate === 'crowdsource_viability',
+      i => i.clubId === CLUB_REVIEW && i.predicate === 'crowdsource_viability',
     );
     expect(item).toBeTruthy();
     expect(item!.detail).toContain('inactive per: Viab A');
+    expect(item!.detail).toContain('established club');
+  });
+
+  it('a club the rules settle is demoted rather than queued', async () => {
+    const { clubCleanupService } = await import('../../src/services/clubCleanupService');
+    const vm = clubCleanupService.getCleanupQueuePage();
+    const queued = vm.content.itemGroups.flatMap(g => g.items).find(
+      i => i.clubId === CLUB_WEAK && i.predicate === 'crowdsource_viability',
+    );
+    expect(queued).toBeUndefined();
+    expect(clubCleanupService.getClubVerdict(CLUB_WEAK)?.verdict).toBe('defunct_by_rule');
   });
 });
 
@@ -298,10 +309,11 @@ describe('candidate-flag group', () => {
 
   it('candidate-keyed rows never feed a club gate', async () => {
     const { clubCleanupService } = await import('../../src/services/clubCleanupService');
-    // The promoted candidate's un-stamped flag row carries no club id, so
-    // its live club still evaluates as having no signals at all.
-    const result = clubCleanupService.evaluateClubViability(CLUB_OF_PROMOTED);
-    expect(result.gate).toBe('no_signals');
+    // The promoted candidate's un-stamped flag row carries no club id, so its
+    // live club counts no votes of either kind from it.
+    const result = clubCleanupService.getClubVerdict(CLUB_OF_PROMOTED);
+    expect(result?.activeVotes).toBe(0);
+    expect(result?.inactiveVotes).toBe(0);
   });
 
   it('counts flag items in the backlog badge', async () => {

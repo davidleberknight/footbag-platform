@@ -299,15 +299,19 @@ describe('the admin cleanup queue is where the notes are read', () => {
     const {
       insertMember: mkMember, insertClub: mkClub,
       insertClubViabilitySignal: mkSignal, insertClubInsightNote: mkNote,
+      insertLegacyClubCandidate: mkCandidate,
       createTestSessionJwt: mkJwt,
     } = await import('../fixtures/factories');
     mkMember(db, {
       id: 'insight-admin', slug: 'insight_admin', display_name: 'Insight Admin',
       login_email: 'insight-admin@example.com', is_admin: 1,
     });
-    // A leaderless club two members called inactive is a live queue item, so
-    // the note attached to it has a row to render on.
+    // A club members called inactive, whose own record says it was established
+    // at import, is a live queue item, so the note attached to it has a row to
+    // render on. Without that contradiction the rules would settle the club and
+    // it would never reach the queue.
     const queueClub = mkClub(db, { id: 'insight-queue-club', name: 'Queue Note Club' });
+    mkCandidate(db, { mapped_club_id: queueClub, classification: 'pre_populate' });
     mkMember(db, { id: 'insight-voter-1', slug: 'insight_voter_1', display_name: 'Voter One', login_email: 'iv1@example.com' });
     mkMember(db, { id: 'insight-voter-2', slug: 'insight_voter_2', display_name: 'Voter Two', login_email: 'iv2@example.com' });
     mkSignal(db, { member_id: 'insight-voter-1', club_id: queueClub, activity_signal: 'not_active' });

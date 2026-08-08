@@ -43,6 +43,9 @@ beforeAll(async () => {
   insertMember(db, { id: ADMIN_TWO, slug: 'claims_admin_two', display_name: 'Admin Two', login_email: 'claims-admin-2@example.com', is_admin: 1 });
   insertMember(db, { id: MEMBER_ID, slug: 'claims_member', display_name: 'Claims Member', login_email: 'claims-member@example.com' });
   insertClub(db, { id: CLUB_ID, name: 'Claimed Club' });
+  // Established at import, so the club reaches the queue as a human decision
+  // and is still there for a second admin to see the claim marker on.
+  insertLegacyClubCandidate(db, { mapped_club_id: CLUB_ID, classification: 'pre_populate' });
   insertClubViabilitySignal(db, { member_id: MEMBER_ID, club_id: CLUB_ID, activity_signal: 'not_active' });
   insertClubViabilitySignal(db, { member_id: ADMIN_TWO, club_id: CLUB_ID, activity_signal: 'not_active' });
   insertLegacyClubCandidate(db, { id: CAND_ID, display_name: 'Claimed Candidate', classification: 'onboarding_visible' });

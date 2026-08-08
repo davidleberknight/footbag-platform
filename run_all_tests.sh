@@ -63,7 +63,7 @@ REALDATA_INVARIANTS_OPTIONAL=0
 # actually fail a test, which coverage cannot tell you. It is the slowest gate
 # by a wide margin: the runner forces single-threaded test execution, so its
 # baseline pass alone costs roughly a quarter-hour however little is mutated.
-# Opt in explicitly, or take it as part of --full.
+# That cost is why no other flag implies it: it runs only when asked for by name.
 WITH_MUTATION=0
 A11Y=0
 FAIL_FAST=0
@@ -73,14 +73,14 @@ for arg in "$@"; do
     --with-smoke)         WITH_SMOKE=1 ;;
     --with-persona-crawl) WITH_PERSONA_CRAWL=1 ;;
     --with-realdata-invariants) WITH_REALDATA_INVARIANTS=1 ;;
-    --with-mutation)      WITH_MUTATION=1 ;;
+    --with-mutation|--stryker) WITH_MUTATION=1 ;;
     --a11y)               A11Y=1 ;;
     --pentest)            PENTEST=1 ;;
     --full)               FULL=1 ;;
     --fail-fast)          FAIL_FAST=1 ;;
     -h|--help)
       cat <<'USAGE'
-Usage: ./run_all_tests.sh [--quick] [--with-smoke] [--with-persona-crawl] [--with-realdata-invariants] [--with-mutation] [--a11y] [--pentest] [--full] [--fail-fast]
+Usage: ./run_all_tests.sh [--quick] [--with-smoke] [--with-persona-crawl] [--with-realdata-invariants] [--with-mutation|--stryker] [--a11y] [--pentest] [--full] [--fail-fast]
 
 Canonical local full-suite test runner. Runs the CI gates that are safe on a
 workstation and summarizes the results.
@@ -112,14 +112,15 @@ Options:
                 Output is counts and PASS/FAIL only. Reads the dev DB by default;
                 point FOOTBAG_DB_PATH at staging to run it there. SKIPs on a
                 fixture-seeded clone (no real dataset). Never runs in CI.
-  --with-mutation
+  --with-mutation, --stryker
                 Additionally run mutation testing over the scoped authorization
                 guards: each guard is broken one edit at a time and the suite is
                 re-run to see whether anything fails. Measures assertion
                 strength, which coverage cannot. SLOW — the runner forces
                 single-threaded test execution, so the baseline pass alone costs
                 roughly a quarter-hour before the first mutant runs. Sandbox and
-                report are written outside the repository. Included in --full;
+                report are written outside the repository. No other flag implies
+                it, including --full: ask for it by name or it does not run.
                 SKIPs when the runner is not installed. Never runs in CI.
   --pentest     Additionally run the heavyweight pentest harness
                 (npm run test:pentest:heavy). Boots a throwaway stack and runs
@@ -158,7 +159,9 @@ USAGE
   esac
 done
 
-# --full is the kitchen sink: full mode plus every opt-in gate. Staging smoke is
+# --full is full mode plus every opt-in gate except mutation testing, which costs
+# a quarter-hour of single-threaded running before it reports anything and so is
+# never implied by another flag. Staging smoke is
 # included but degrades to a SKIP when staging credentials are absent (see
 # SMOKE_OPTIONAL), so --full runs end to end on a workstation without an AWS
 # profile while still exercising everything that can run there. The persona crawl
@@ -178,7 +181,6 @@ if (( FULL == 1 )); then
   PERSONA_CRAWL_OPTIONAL=1
   WITH_REALDATA_INVARIANTS=1
   REALDATA_INVARIANTS_OPTIONAL=1
-  WITH_MUTATION=1
 fi
 
 # Preflight: required tooling. Match deploy_to_aws.sh's need_cmd shape.
