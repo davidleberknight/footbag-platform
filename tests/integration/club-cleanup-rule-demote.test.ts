@@ -24,6 +24,8 @@ const CLUB_ESTABLISHED = 'rule-club-established';
 const CLUB_HOSTED      = 'rule-club-hosted';
 const CLUB_WAITING     = 'rule-club-waiting';
 const CLUB_PEOPLE      = 'rule-club-people';
+const CLUB_TWO_RECORDS = 'rule-club-two-records'
+const CLUB_TWO_WEAK    = 'rule-club-two-weak'
 const CLUB_PARKED      = 'rule-club-parked';
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
@@ -92,6 +94,19 @@ beforeAll(async () => {
   insertMemberClubAffiliation(db, MEMBER, CLUB_PEOPLE);
   insertClubLeader(db, { club_id: CLUB_PEOPLE, member_id: LEADER });
 
+  // A junk record from the legacy dump landed on this real club alongside its
+  // good one. Junk says nothing about the club it landed on, so the established
+  // record governs and the club stays alive.
+  insertClub(db, { id: CLUB_TWO_RECORDS, name: 'Two Records Club' });
+  insertLegacyClubCandidate(db, { mapped_club_id: CLUB_TWO_RECORDS, classification: 'junk' });
+  insertLegacyClubCandidate(db, { mapped_club_id: CLUB_TWO_RECORDS, classification: 'pre_populate' });
+
+  // Same shape one step weaker: nothing says established, but one record marks
+  // it for members to confirm, so it waits for an answer instead of going.
+  insertClub(db, { id: CLUB_TWO_WEAK, name: 'Two Weak Records Club' });
+  insertLegacyClubCandidate(db, { mapped_club_id: CLUB_TWO_WEAK, classification: 'dormant' });
+  insertLegacyClubCandidate(db, { mapped_club_id: CLUB_TWO_WEAK, classification: 'onboarding_visible' });
+
   // An admin already said "not now" about this one.
   insertClub(db, { id: CLUB_PARKED, name: 'Parked Club' });
   insertLegacyClubCandidate(db, { mapped_club_id: CLUB_PARKED, classification: 'dormant' });
@@ -150,6 +165,30 @@ describe('the cleanup rules demote the clubs they settle', () => {
 
   it('never demotes a club someone leads or belongs to', () => {
     expect(statusOf(CLUB_PEOPLE)).toBe('active');
+  });
+
+  it('judges a club by its strongest legacy record, not by a junk one', () => {
+    // Letting the junk record speak would demote a club the dump elsewhere
+    // records as established.
+    expect(statusOf(CLUB_TWO_RECORDS)).toBe('active');
+    expect(autoDemoteAuditCount(CLUB_TWO_RECORDS)).toBe(0);
+  });
+
+  it('still asks members about a club one record marks for confirmation', () => {
+    expect(statusOf(CLUB_TWO_WEAK)).toBe('active');
+    expect(autoDemoteAuditCount(CLUB_TWO_WEAK)).toBe(0);
+  });
+
+  it('counts a club with two legacy records once, never demoting it twice', () => {
+    const db = new BetterSqlite3(dbPath);
+    const rows = db.prepare(
+      "SELECT COUNT(*) AS c FROM audit_entries WHERE action_type = 'club.auto_demoted'",
+    ).get() as { c: number };
+    const clubs = db.prepare(
+      "SELECT COUNT(DISTINCT entity_id) AS c FROM audit_entries WHERE action_type = 'club.auto_demoted'",
+    ).get() as { c: number };
+    db.close();
+    expect(rows.c).toBe(clubs.c);
   });
 
   it('never overrides an admin who parked the club', () => {

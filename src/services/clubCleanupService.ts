@@ -116,7 +116,13 @@ export interface ClubEvidenceRow {
   result_entry_count: number;
   pending_residue_count: number;
   insight_note_count: number;
-  classification: string | null;
+  // The legacy record, aggregated across every candidate row that resolved to
+  // this club. A club can carry a junk or half-empty record alongside its good
+  // one, so the classification arrives as one flag per kind and the strongest
+  // governs rather than whichever row the query happened to meet first.
+  candidate_row_count: number;
+  any_pre_populate: number | null;
+  any_onboarding_visible: number | null;
   ever_hosted: number | null;
   last_hosted_year: number | null;
   max_affiliated_member_last_year: number | null;
@@ -173,8 +179,13 @@ function evaluateClubVerdict(row: ClubEvidenceRow): ClubVerdictResult {
   // than something to re-derive: established clubs were pre-populated, clubs it
   // could not settle were marked for members to confirm during onboarding, and
   // the rest it judged dormant or junk.
-  const wasEstablished = row.classification === 'pre_populate';
-  const notEstablished = row.classification === 'junk' || row.classification === 'dormant';
+  // The strongest record a club carries governs: a club known to have been
+  // established stays established even when a junk record also landed on it,
+  // and a club any record marked for members to confirm still gets asked about
+  // rather than written off.
+  const wasEstablished = row.any_pre_populate === 1;
+  const awaitingConfirmation = row.any_onboarding_visible === 1;
+  const notEstablished = row.candidate_row_count > 0 && !wasEstablished && !awaitingConfirmation;
 
   let verdict: ClubVerdict;
   if (hasCurrentPeople || activeVotes > 0) {
@@ -216,19 +227,35 @@ function evaluateClubVerdict(row: ClubEvidenceRow): ClubVerdictResult {
 // A club an admin has already ruled on is left alone, including a parked one. A
 // park is an explicit "not now" from a person, so new evidence returns that club
 // to the queue as a human decision rather than resolving it behind their back.
+// The clubs the rules will demote the next time an admin opens the queue. Both
+// the sweep and the queue assembly ask this one question, so the backlog badge
+// can never count work that is about to resolve itself: an admin who sees a
+// count and clicks through finds exactly that count waiting.
+function clubsPendingRuleDemotion(
+  evidence: ClubEvidenceRow[],
+  resolutions: Map<string, ResolutionRow>,
+): Set<string> {
+  const pending = new Set<string>();
+  for (const row of evidence) {
+    if (row.status !== 'active') continue;
+    if (resolutions.has(`${row.club_id}:crowdsource_viability`)) continue;
+    if (evaluateClubVerdict(row).verdict !== 'defunct_by_rule') continue;
+    pending.add(row.club_id);
+  }
+  return pending;
+}
+
 function applyRuleVerdicts(
   evidence: ClubEvidenceRow[],
   resolutions: Map<string, ResolutionRow>,
 ): number {
   let demoted = 0;
+  const pending = clubsPendingRuleDemotion(evidence, resolutions);
 
   for (const row of evidence) {
-    if (row.status !== 'active') continue;
-    if (resolutions.has(`${row.club_id}:crowdsource_viability`)) continue;
+    if (!pending.has(row.club_id)) continue;
 
     const verdict = evaluateClubVerdict(row);
-    if (verdict.verdict !== 'defunct_by_rule') continue;
-
     const now = new Date().toISOString();
     transaction(() => {
       clubsDb.updateStatus.run('inactive', now, 'club_cleanup_rules', row.club_id);
@@ -249,7 +276,8 @@ function applyRuleVerdicts(
         // re-run of the rules against data that has since moved on.
         metadata: {
           club_name: row.club_name,
-          classification: row.classification,
+          was_established: verdict.wasEstablished,
+          legacy_record_count: row.candidate_row_count,
           ever_hosted_event: verdict.everHostedEvent,
           leader_count: row.leader_count,
           current_member_count: row.current_member_count,
@@ -677,6 +705,14 @@ function assembleQueue(): AssembledQueue {
   const newestEvidenceFor = (clubId: string): string | null =>
     evidenceByClub.get(clubId)?.newest_evidence_at ?? null;
 
+  // A club the rules are about to demote is not work for anyone. It is left out
+  // of every listing here, so the counts this function produces describe the
+  // queue as it will stand once the rules have run rather than before.
+  const pendingRuleDemotion = clubsPendingRuleDemotion(
+    [...evidenceByClub.values()],
+    resolutions,
+  );
+
   // Only a club whose own record contradicts the member who wrote it off
   // reaches an admin. Everything the rules settle has already been acted on or
   // deliberately left alone, so nothing here is paperwork.
@@ -723,6 +759,7 @@ function assembleQueue(): AssembledQueue {
     staleByClub.set(row.club_id, arr);
   }
   for (const [clubId, leaders] of staleByClub) {
+    if (pendingRuleDemotion.has(clubId)) continue;
     if (isResolved(resolutions, clubId, 'stale_provisional', newestEvidenceFor(clubId))) continue;
     const first = leaders[0];
     items.push({
@@ -751,6 +788,8 @@ function assembleQueue(): AssembledQueue {
   // universe, which is exactly why it must not read as a review backlog.
   const leaderless = findLeaderlessActiveClubs();
   for (const row of leaderless) {
+    // A club about to be demoted is not an opportunity to find it a leader.
+    if (pendingRuleDemotion.has(row.club_id)) continue;
     if (isResolved(resolutions, row.club_id, 'leaderless_active', newestEvidenceFor(row.club_id))) continue;
     items.push({
       clubId: row.club_id,
@@ -772,7 +811,10 @@ function assembleQueue(): AssembledQueue {
     });
   }
 
-  const residueRows = legacyPersonClubAffiliations.listUnconfirmedResidueByClub.all() as ResidueRow[];
+  // Residue for a club the rules are about to demote is retired by that
+  // demotion, so it is not admin work either.
+  const residueRows = (legacyPersonClubAffiliations.listUnconfirmedResidueByClub.all() as ResidueRow[])
+    .filter((r) => !pendingRuleDemotion.has(r.club_id));
   const residue: ResidueItem[] = residueRows.map((r) => ({
     clubId: r.club_id,
     clubName: r.club_name,
