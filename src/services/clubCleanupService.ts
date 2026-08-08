@@ -80,7 +80,6 @@ import {
   clubCleanupClaims,
   clubCleanupPredicates,
   clubLeaders,
-  memberClubAffiliations,
   legacyClubCandidates,
   legacyPersonClubAffiliations,
   clubs as clubsDb,
@@ -94,31 +93,8 @@ import { logger } from '../config/logger';
 import { PageViewModel } from '../types/page';
 
 // ---------------------------------------------------------------------------
-// Crowdsource club viability predicate (G1-G4)
+// Club evidence
 // ---------------------------------------------------------------------------
-
-export type ViabilityGate =
-  | 'G1_confirmed_active'
-  | 'G2_concordant_inactive'
-  | 'G3_weak_inactive'
-  | 'G4_needs_review'
-  | 'no_signals';
-
-export interface ClubViabilityResult {
-  clubId: string;
-  gate: ViabilityGate;
-  s1AnyActive: boolean;
-  s2AnyInactive: boolean;
-  s3ConcordantInactive: boolean;
-  l1StrongLegacy: boolean;
-  o1HasOperationalLife: boolean;
-}
-
-interface SignalCounts {
-  active_count: number;
-  not_active_count: number;
-  total_count: number;
-}
 
 // One club's full evidence row. The operational columns are what let a verdict
 // be reached for the roughly one club in three that can never receive a member
@@ -130,6 +106,7 @@ export interface ClubEvidenceRow {
   region: string | null;
   country: string | null;
   status: string;
+  club_updated_at: string;
   has_description: number;
   has_external_url: number;
   url_verified: number;
@@ -150,39 +127,142 @@ export interface ClubEvidenceRow {
   newest_evidence_at: string | null;
 }
 
-function evaluateClubViability(clubId: string): ClubViabilityResult {
-  // Gates weigh onboarding-wizard signals, one vote per member (a member's
-  // latest answer wins, so re-posts and changed answers never inflate them).
-  const counts = clubViabilitySignals.countWizardByClub.get(clubId) as SignalCounts | undefined;
+// ---------------------------------------------------------------------------
+// One verdict per club
+// ---------------------------------------------------------------------------
 
-  const s1 = (counts?.active_count ?? 0) > 0;
-  const s2 = (counts?.not_active_count ?? 0) > 0;
-  const s3 = (counts?.not_active_count ?? 0) >= 2;
+// The queue exists for the cases the evidence leaves genuinely open, not for
+// paperwork. One verdict per club decides which of three things happens:
+// nothing, a demotion the rules make on their own, or a row an admin judges.
+//
+// These are rules over hard facts, not a score with tunable weights. Each
+// condition is something that is simply true or false about the club: does
+// anyone lead it, does anyone belong to it, did a member vouch for it or write
+// it off, did it ever host an event. Applied in order, the first match wins.
+//
+// A club is never required to have a website, so whether it has one, and
+// whether that address once passed its safety and reachability check, says
+// nothing about whether the club exists. It is not part of any rule here.
+//
+// Most clubs carry no member vote at all and many never will, so the rules must
+// reach a verdict without one. That is what the hosting fact does: a club that
+// never once hosted an event and that nobody leads or belongs to has nothing on
+// any side of the ledger saying it exists.
+export type ClubVerdict = 'alive' | 'defunct_by_rule' | 'needs_review' | 'waiting';
 
-  const candidateRow = legacyClubCandidates.findByMappedClubId.get(clubId) as
-    | { classification: string } | undefined;
-  const l1 = candidateRow?.classification === 'pre_populate';
+export interface ClubVerdictResult {
+  clubId: string;
+  verdict: ClubVerdict;
+  activeVotes: number;
+  inactiveVotes: number;
+  hasCurrentPeople: boolean;
+  everHostedEvent: boolean;
+  wasEstablished: boolean;
+}
 
-  const leaderCount = (clubLeaders.countByClubId.get(clubId) as { c: number } | undefined)?.c ?? 0;
-  const memberCount = (memberClubAffiliations.countCurrentByClubId.get(clubId) as { c: number } | undefined)?.c ?? 0;
-  const o1 = leaderCount > 0 || memberCount > 0;
+function evaluateClubVerdict(row: ClubEvidenceRow): ClubVerdictResult {
+  const activeVotes = row.active_votes;
+  const inactiveVotes = row.inactive_votes;
+  const hasCurrentPeople = row.leader_count > 0 || row.current_member_count > 0;
+  // Either source of the same fact counts: an event this platform records as
+  // hosted here, or the mirror-derived hosting flag the import pipeline
+  // computed for clubs whose events predate the platform.
+  const everHostedEvent = row.hosted_event_count > 0 || row.ever_hosted === 1;
+  // The import pipeline's own verdict on what kind of club this is. It weighed
+  // the mirror evidence once, at import, and its answer is a fact here rather
+  // than something to re-derive: established clubs were pre-populated, clubs it
+  // could not settle were marked for members to confirm during onboarding, and
+  // the rest it judged dormant or junk.
+  const wasEstablished = row.classification === 'pre_populate';
+  const notEstablished = row.classification === 'junk' || row.classification === 'dormant';
 
-  let gate: ViabilityGate;
-  if (!counts || counts.total_count === 0) {
-    gate = 'no_signals';
-  } else if (s1) {
-    gate = 'G1_confirmed_active';
-  } else if (s3 && !s1 && !o1) {
-    gate = 'G2_concordant_inactive';
-  } else if (s2 && !s3 && !s1 && !o1 && !l1) {
-    gate = 'G3_weak_inactive';
-  } else if (s2 && !s3 && !s1 && !o1 && l1) {
-    gate = 'G4_needs_review';
+  let verdict: ClubVerdict;
+  if (hasCurrentPeople || activeVotes > 0) {
+    // Someone leads it, belongs to it, or vouched for it. Nothing else matters.
+    verdict = 'alive';
+  } else if (inactiveVotes > 0) {
+    // A member wrote it off. That settles it only where the club's own record
+    // agrees; event history or an established-club classification is the club
+    // pushing back, and a person decides those.
+    verdict = everHostedEvent || wasEstablished ? 'needs_review' : 'defunct_by_rule';
+  } else if (wasEstablished) {
+    verdict = 'alive';
+  } else if (notEstablished && !everHostedEvent) {
+    // Nothing on any side says this club exists: never ran an event, nobody
+    // leads or belongs to it, and the pipeline did not judge it established.
+    verdict = 'defunct_by_rule';
   } else {
-    gate = 'no_signals';
+    // No member has spoken and the record is not empty enough to rule on. These
+    // are the clubs the onboarding wizard exists to ask about, so they are
+    // neither demoted nor put in front of an admin; they wait for an answer.
+    verdict = 'waiting';
   }
 
-  return { clubId, gate, s1AnyActive: s1, s2AnyInactive: s2, s3ConcordantInactive: s3, l1StrongLegacy: l1, o1HasOperationalLife: o1 };
+  return {
+    clubId: row.club_id,
+    verdict,
+    activeVotes,
+    inactiveVotes,
+    hasCurrentPeople,
+    everHostedEvent,
+    wasEstablished,
+  };
+}
+
+// The rules act on the clubs they settle, so the admin never clicks through a
+// decision that was never in doubt. Runs when an admin opens the queue, which
+// is the only trigger there is: nothing here happens unattended.
+//
+// A club an admin has already ruled on is left alone, including a parked one. A
+// park is an explicit "not now" from a person, so new evidence returns that club
+// to the queue as a human decision rather than resolving it behind their back.
+function applyRuleVerdicts(
+  evidence: ClubEvidenceRow[],
+  resolutions: Map<string, ResolutionRow>,
+): number {
+  let demoted = 0;
+
+  for (const row of evidence) {
+    if (row.status !== 'active') continue;
+    if (resolutions.has(`${row.club_id}:crowdsource_viability`)) continue;
+
+    const verdict = evaluateClubVerdict(row);
+    if (verdict.verdict !== 'defunct_by_rule') continue;
+
+    const now = new Date().toISOString();
+    transaction(() => {
+      clubsDb.updateStatus.run('inactive', now, 'club_cleanup_rules', row.club_id);
+      // A demoted club's unconfirmed legacy roster goes with it, exactly as it
+      // does when an admin demotes by hand.
+      const residueDelisted = legacyPersonClubAffiliations
+        .delistResidueByClub.run('club_cleanup_rules', row.club_id).changes;
+
+      appendAuditEntry({
+        actionType: 'club.auto_demoted',
+        category: 'club_lifecycle',
+        actorType: 'system',
+        actorMemberId: null,
+        entityType: 'club',
+        entityId: row.club_id,
+        reasonText: null,
+        // The evidence that decided it, so the row explains itself without a
+        // re-run of the rules against data that has since moved on.
+        metadata: {
+          club_name: row.club_name,
+          classification: row.classification,
+          ever_hosted_event: verdict.everHostedEvent,
+          leader_count: row.leader_count,
+          current_member_count: row.current_member_count,
+          active_votes: verdict.activeVotes,
+          inactive_votes: verdict.inactiveVotes,
+          residue_delisted: residueDelisted,
+        },
+      });
+    });
+    demoted += 1;
+  }
+
+  return demoted;
 }
 
 // ---------------------------------------------------------------------------
@@ -502,19 +582,6 @@ function monthsAgeLabel(since: string): string {
   return `${months} month${months === 1 ? '' : 's'}`;
 }
 
-interface SignalListRow {
-  club_id: string;
-  club_name: string;
-  club_city: string | null;
-  club_region: string | null;
-  club_country: string | null;
-  club_status: string;
-  club_updated_at: string;
-  active_count: number;
-  not_active_count: number;
-  total_count: number;
-}
-
 interface AssembledQueue {
   items: CleanupQueueItem[];
   residue: ResidueItem[];
@@ -610,36 +677,38 @@ function assembleQueue(): AssembledQueue {
   const newestEvidenceFor = (clubId: string): string | null =>
     evidenceByClub.get(clubId)?.newest_evidence_at ?? null;
 
-  const signalRows = clubViabilitySignals.listClubsWithWizardSignals.all() as SignalListRow[];
-  for (const row of signalRows) {
+  // Only a club whose own record contradicts the member who wrote it off
+  // reaches an admin. Everything the rules settle has already been acted on or
+  // deliberately left alone, so nothing here is paperwork.
+  for (const row of evidenceByClub.values()) {
     if (isResolved(resolutions, row.club_id, 'crowdsource_viability', newestEvidenceFor(row.club_id))) continue;
-    const viability = evaluateClubViability(row.club_id);
-    if (viability.gate === 'G1_confirmed_active' || viability.gate === 'no_signals') continue;
+    const verdict = evaluateClubVerdict(row);
+    if (verdict.verdict !== 'needs_review') continue;
 
-    let recommendedAction: string;
-    switch (viability.gate) {
-      case 'G2_concordant_inactive': recommendedAction = 'Demote to inactive'; break;
-      case 'G3_weak_inactive': recommendedAction = 'Demote to inactive'; break;
-      case 'G4_needs_review': recommendedAction = 'Review: strong legacy contradicts negative signal'; break;
-      default: recommendedAction = 'Review'; break;
-    }
     const reporters = clubViabilitySignals.listNegativeWizardReportersByClub.all(row.club_id) as
       Array<{ display_name: string; activity_signal: string }>;
     const reporterSuffix = negativeReporterSuffix(reporters);
 
+    // The two or three facts behind the verdict, and nothing else: what the
+    // member said, and what the club's own record says back.
+    const contradiction = verdict.wasEstablished
+      ? 'the club was an established club at import'
+      : 'the club has hosted an event';
+    const detail = `Reported inactive${reporterSuffix}, but ${contradiction}`;
+
     items.push({
       clubId: row.club_id,
       clubName: row.club_name,
-      clubCity: row.club_city,
-      clubRegion: row.club_region,
-      clubCountry: row.club_country,
-      clubStatus: row.club_status,
+      clubCity: row.city,
+      clubRegion: row.region,
+      clubCountry: row.country,
+      clubStatus: row.status,
       predicate: 'crowdsource_viability',
-      predicateLabel: 'Crowdsource viability',
-      detail: `${row.active_count} active, ${row.not_active_count} inactive${reporterSuffix}`,
-      recommendedAction,
+      predicateLabel: 'Reported inactive, record disagrees',
+      detail,
+      recommendedAction: 'Demote to inactive, or dismiss the report',
       showLeaderlessControls: false,
-      flagCount: row.not_active_count,
+      flagCount: verdict.inactiveVotes,
       openSince: row.club_updated_at,
       claimLabel: claimLabelFrom(claims, 'club', row.club_id),
       insightNotes: insightNotesFor(clubInsightNotes.listByClub.all(row.club_id)),
@@ -952,6 +1021,14 @@ function applyFilterAndSort(
 // ---------------------------------------------------------------------------
 
 function getCleanupQueuePage(filter?: CleanupQueueFilter): PageViewModel<CleanupQueueContent> {
+  // The rules act first, so the queue an admin then reads holds only the clubs
+  // the rules could not settle. This is the only place the sweep runs: opening
+  // the queue is the trigger, and nothing here happens unattended.
+  applyRuleVerdicts(
+    clubEvidence.listByClub.all() as ClubEvidenceRow[],
+    getActiveResolutions(),
+  );
+
   const normalized = normalizeFilter(filter);
   const { items, residue, candidates, junkCandidates, candidateFlags, parked } =
     applyFilterAndSort(assembleQueue(), normalized);
@@ -1478,8 +1555,17 @@ async function promoteCandidate(
   return result;
 }
 
+// One club's verdict, for callers holding a club id rather than an evidence
+// row. Reads the same single evidence statement the queue does, so a verdict is
+// never derived two different ways.
+function getClubVerdict(clubId: string): ClubVerdictResult | null {
+  const row = (clubEvidence.listByClub.all() as ClubEvidenceRow[])
+    .find((r) => r.club_id === clubId);
+  return row ? evaluateClubVerdict(row) : null;
+}
+
 export const clubCleanupService = {
-  evaluateClubViability,
+  getClubVerdict,
   getCleanupQueuePage,
   getBacklogBadge,
   claimItem,

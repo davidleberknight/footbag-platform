@@ -9,6 +9,7 @@ import {
   insertMember,
   insertClub,
   insertClubViabilitySignal,
+  insertLegacyClubCandidate,
   createTestSessionJwt,
 } from '../fixtures/factories';
 
@@ -31,6 +32,10 @@ beforeAll(async () => {
   insertMember(db, { id: ADMIN_ID,  slug: 'cleanup_admin',  display_name: 'Cleanup Admin', login_email: 'cleanup-admin@example.com', is_admin: 1 });
   insertMember(db, { id: MEMBER_ID, slug: 'cleanup_member', display_name: 'Cleanup Member', login_email: 'cleanup-member@example.com' });
   insertClub(db, { id: CLUB_ID, name: 'Dirty Club' });
+  // Established at import, so the members reporting it inactive are
+  // contradicted by the club's own record and an admin decides rather than the
+  // rules. A club with no such record is settled and never reaches this queue.
+  insertLegacyClubCandidate(db, { mapped_club_id: CLUB_ID, classification: 'pre_populate' });
 
   insertClubViabilitySignal(db, { member_id: MEMBER_ID, club_id: CLUB_ID, activity_signal: 'not_active' });
   insertClubViabilitySignal(db, { member_id: ADMIN_ID, club_id: CLUB_ID, activity_signal: 'not_active' });
@@ -179,8 +184,11 @@ describe('stale-provisional predicate surfaces unresolved bootstrap rows', () =>
 describe('parking takes a club off the working queue without losing it', () => {
   it('a parked club leaves the working queue, stays listed as parked, and returns when a member says something new', async () => {
     const db = new BetterSqlite3(dbPath);
-    const { insertClub: mkClub, insertClubViabilitySignal: mkSignal, insertMember: mkMember } = await import('../fixtures/factories');
+    const { insertClub: mkClub, insertClubViabilitySignal: mkSignal, insertMember: mkMember, insertLegacyClubCandidate: mkCandidate } = await import('../fixtures/factories');
     const clubId = mkClub(db, { id: 'cleanup-parked-club', name: 'Parked Club' });
+    // Established at import, so the club reaches the queue as a human decision
+    // instead of being settled by the rules before it can be parked.
+    mkCandidate(db, { mapped_club_id: clubId, classification: 'pre_populate' });
     mkMember(db, { id: 'cleanup-sig-1', slug: 'cleanup_sig_1', login_email: 'sig1@example.com' });
     mkMember(db, { id: 'cleanup-sig-2', slug: 'cleanup_sig_2', login_email: 'sig2@example.com' });
     mkSignal(db, { member_id: 'cleanup-sig-1', club_id: clubId, activity_signal: 'not_active' });

@@ -343,16 +343,18 @@ describe('promotion carry-forward of candidate-keyed wizard flags', () => {
       db.close();
     }
 
-    // The candidate-flag group no longer carries the item; the same two
-    // votes now drive the live club's gate (two inactive, no operational
-    // life -> concordant inactive).
+    // The candidate-flag group no longer carries the item; the same votes now
+    // drive the live club's verdict. Nobody leads or belongs to the new club
+    // and its record holds nothing that contradicts the members who reported
+    // it inactive, so the rules settle it.
     const queue = await request(createApp())
       .get('/admin/club-cleanup?category=candidate_flag')
       .set('Cookie', adminCookie());
     expect(queue.text).not.toContain('Flagged Promotion Club');
 
     const { clubCleanupService } = await import('../../src/services/clubCleanupService');
-    const result = clubCleanupService.evaluateClubViability(expectedClubId);
-    expect(result.gate).toBe('G2_concordant_inactive');
+    const result = clubCleanupService.getClubVerdict(expectedClubId);
+    expect(result?.verdict).toBe('defunct_by_rule');
+    expect(result?.inactiveVotes).toBe(2);
   });
 });

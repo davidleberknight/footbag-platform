@@ -62,10 +62,14 @@ function insertCandidateFlag(db: BetterSqlite3.Database, memberId: string, candi
 
 function seedResidueClub(db: BetterSqlite3.Database, clubId: string, name: string, pendingCount: number): void {
   insertClub(db, { id: clubId, name, city: 'Bulkville', country: 'USA' });
+  // Established at import, so the club survives the cleanup rules and its
+  // residue is retired by the admin's bulk de-list rather than by the cascade
+  // that follows a rule-driven demotion.
   const cand = insertLegacyClubCandidate(db, {
     legacy_club_key: `legacy_${clubId}`,
     display_name: name,
     mapped_club_id: clubId,
+    classification: 'pre_populate',
   });
   for (let i = 0; i < pendingCount; i += 1) {
     const person = insertHistoricalPerson(db, { person_id: `${clubId}-p${i}`, person_name: `Pending ${name} ${i}`, country: 'US' });
@@ -86,10 +90,15 @@ beforeAll(async () => {
   insertMember(db, { id: VOTER_TWO, slug: 'bulk_voter2', display_name: 'Bulk Voter Two', login_email: 'bulk-voter2@example.com' });
 
   // Crowdsource group: one concordant-inactive club, one weak-inactive club.
+  // Both clubs were established at import, so the members reporting them
+  // inactive are contradicted by the clubs' own records and the items stay in
+  // the queue for an admin to park in bulk.
   insertClub(db, { id: CV_CLUB_CONCORDANT, name: 'Bulk Concordant Club' });
+  insertLegacyClubCandidate(db, { mapped_club_id: CV_CLUB_CONCORDANT, classification: 'pre_populate' });
   insertClubViabilitySignal(db, { member_id: VOTER_ONE, club_id: CV_CLUB_CONCORDANT, activity_signal: 'not_active' });
   insertClubViabilitySignal(db, { member_id: VOTER_TWO, club_id: CV_CLUB_CONCORDANT, activity_signal: 'not_active' });
   insertClub(db, { id: CV_CLUB_WEAK, name: 'Bulk Weak Club' });
+  insertLegacyClubCandidate(db, { mapped_club_id: CV_CLUB_WEAK, classification: 'pre_populate' });
   insertClubViabilitySignal(db, { member_id: VOTER_ONE, club_id: CV_CLUB_WEAK, activity_signal: 'not_active' });
 
   // Stale-provisional group: one club with a provisional bootstrap leader.

@@ -64,10 +64,14 @@ function seedClub(db: BetterSqlite3.Database, clubId: string, tag: string, name:
     country: 'USA',
     hashtag_tag_id: insertTag(db, { tag_normalized: tag, tag_display: tag, standard_type: 'club' }),
   });
+  // Established at import, so the cleanup rules leave the club alone and these
+  // tests exercise the admin's own de-list rather than the automatic cascade
+  // that follows a rule-driven demotion.
   return insertLegacyClubCandidate(db, {
     legacy_club_key: `legacy_${clubId}`,
     display_name: name,
     mapped_club_id: clubId,
+    classification: 'pre_populate',
   });
 }
 

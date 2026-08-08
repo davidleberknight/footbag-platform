@@ -9425,6 +9425,7 @@ export const clubEvidence = {
       c.id     AS club_id,
       c.name   AS club_name,
       c.city, c.region, c.country, c.status,
+      c.updated_at AS club_updated_at,
       c.description IS NOT NULL AND length(trim(c.description)) > 0 AS has_description,
       c.external_url IS NOT NULL                                   AS has_external_url,
       c.external_url_validated_at IS NOT NULL                      AS url_verified,
