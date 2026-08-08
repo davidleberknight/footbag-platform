@@ -29,6 +29,7 @@ let testDb: BetterSqlite3.Database;
 const MEMBER_EMPTY     = 'wiz-clubaff-empty';
 const MEMBER_MEMBERSHIP = 'wiz-clubaff-membership';
 const MEMBER_LEADERSHIP = 'wiz-clubaff-leadership';
+const MEMBER_LEAD_CAPPED = 'wiz-clubaff-lead-capped';
 const MEMBER_MULTI     = 'wiz-clubaff-multi';
 const MEMBER_F1_OTHER  = 'wiz-clubaff-other';
 const MEMBER_JUNK      = 'wiz-clubaff-junk';
@@ -44,6 +45,7 @@ let membershipClubId = '';
 let membershipAffId  = '';
 let leadershipClubId = '';
 let leadershipCblId  = '';
+let cappedCblId      = '';
 let multiClubAlpha   = '';
 let multiClubBeta    = '';
 let multiAffAlpha    = '';
@@ -104,6 +106,24 @@ beforeAll(async () => {
   leadershipCblId = insertClubBootstrapLeader(db, {
     club_id:          leadershipClubId,
     legacy_member_id: 'lm-wiz-leadership',
+    role:             'leader',
+    status:           'provisional',
+  });
+
+  // A returning leader who already holds two current clubs. Their leadership
+  // claim can still make them a co-leader, but the club cannot become one of
+  // their clubs, and the wizard has to say so rather than report it added.
+  insertMember(db, { onboarding: 'none',
+    id: MEMBER_LEAD_CAPPED,
+    slug: 'wiz_clubaff_lead_capped',
+    login_email: 'wiz-lead-capped@example.com',
+    legacy_member_id: 'lm-wiz-lead-capped',
+  });
+  insertMemberClubAffiliation(db, MEMBER_LEAD_CAPPED, insertClub(db, { name: 'Capped First Club' }), { is_primary: 1 });
+  insertMemberClubAffiliation(db, MEMBER_LEAD_CAPPED, insertClub(db, { name: 'Capped Second Club' }), { is_primary: 0 });
+  cappedCblId = insertClubBootstrapLeader(db, {
+    club_id:          insertClub(db, { name: 'Capped Leadership Club' }),
+    legacy_member_id: 'lm-wiz-lead-capped',
     role:             'leader',
     status:           'provisional',
   });
@@ -297,7 +317,7 @@ beforeAll(async () => {
   // every member that reaches a club card, the wrap-up landing, or a club-card
   // submit has that prerequisite completed first.
   for (const id of [
-    MEMBER_EMPTY, MEMBER_MEMBERSHIP, MEMBER_LEADERSHIP, MEMBER_MULTI,
+    MEMBER_EMPTY, MEMBER_MEMBERSHIP, MEMBER_LEADERSHIP, MEMBER_LEAD_CAPPED, MEMBER_MULTI,
     MEMBER_JUNK, MEMBER_CAP, MEMBER_CAP_LAST, MEMBER_DISAMBIG_CAP, MEMBER_PROMOTE, MEMBER_NOPROMOTE,
   ]) {
     insertOnboardingTask(db, id, 'personal_details', 'completed');
@@ -606,6 +626,39 @@ describe('POST /register/wizard/club_affiliations/submit — per-card flow', () 
     // which fires the one-time club-join Active Player grant for a Tier 0 member.
     expect(clubJoinGrantCount(MEMBER_LEADERSHIP)).toBe(1);
     expect(isActivePlayer(MEMBER_LEADERSHIP)).toBe(1);
+  });
+
+  it('leadership confirm at the two-club cap says so, and never reports the club added', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .post('/register/wizard/club_affiliations/submit')
+      .set('Cookie', cookieFor(MEMBER_LEAD_CAPPED))
+      .type('form')
+      .send({ kind: 'leadership', candidateId: cappedCblId, userDecision: 'confirm', activitySignal: 'active' });
+    expect(res.status).toBe(303);
+
+    // The claim itself stands: the bootstrap row is claimed and the member
+    // co-leads the club. Only the club membership was refused.
+    expect(readBootstrapStatus(cappedCblId)).toBe('claimed');
+
+    const flashCookie = ((res.headers['set-cookie'] ?? []) as unknown as string[])
+      .map((c) => c.split(';')[0])
+      .find((c) => c.startsWith('footbag_flash='));
+    expect(flashCookie).toBeDefined();
+
+    // A leadership claim completes the club task in the submit itself, so the
+    // club step has nothing left to draw and the notice lands on the page the
+    // member is actually sent to.
+    const carried = `${cookieFor(MEMBER_LEAD_CAPPED)}; ${flashCookie}`;
+    let page = await request(app).get('/register/wizard/club_affiliations').set('Cookie', carried);
+    if (page.status === 303) {
+      page = await request(app).get(page.headers.location as string).set('Cookie', carried);
+    }
+    expect(page.status).toBe(200);
+    expect(page.text).toContain('two current-club limit');
+    expect(page.text).toContain('Capped Leadership Club');
+    expect(page.text).toContain('you lead');
+    expect(page.text).not.toContain('Added Capped Leadership Club to your clubs');
   });
 
   it('multi-card flow: submit Beta leadership (Stage 1A) first -> 303 retry_same; second GET renders Alpha membership (Stage 1B); second submit advances', async () => {

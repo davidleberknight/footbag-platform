@@ -779,34 +779,59 @@ describe('POST /process/video-from-storage', () => {
 
   it('leaves no transcode temp directory behind, on success or refusal', async () => {
     const os = await import('node:os');
-    const { readdir } = await import('node:fs/promises');
-    const countTempDirs = async () =>
-      (await readdir(os.tmpdir())).filter((n) => n.startsWith('curator-video-')).length;
-    const before = await countTempDirs();
+    const path = await import('node:path');
+    const { mkdtemp, readdir, rm } = await import('node:fs/promises');
 
-    const { fetchImpl } = makeFakeFetch({ sources: { [SOURCE_URL]: makeFakeMp4() } });
-    const app = createImageWorkerApp({
-      internalSecret: TEST_SECRET,
-      fetchImpl,
-      transcodeVideoFileImpl: fileTranscodeStub(),
-    });
-    await request(app)
-      .post('/process/video-from-storage')
-      .set('x-internal-secret', TEST_SECRET)
-      .send({ sourceUrl: SOURCE_URL, putUrl: PUT_URL, putContentType: 'video/mp4' });
+    // The worker resolves its scratch directory from the process temp directory
+    // at request time, so pointing that at a directory this test owns is what
+    // makes the assertion mean anything. The shared system temp directory is
+    // also written by other suites transcoding video in parallel workers, and a
+    // count taken there measures their scratch-directory lifecycles as well as
+    // this one's: a foreign directory created or removed inside the window
+    // moves the count with nothing leaked here.
+    const tmpRoot = await mkdtemp(path.join(os.tmpdir(), 'footbag-test-video-tmproot-'));
+    const priorTmpDir = process.env.TMPDIR;
+    process.env.TMPDIR = tmpRoot;
 
-    const badFormat = makeFakeFetch({ sources: { [SOURCE_URL]: Buffer.from('not a video') } });
-    const app2 = createImageWorkerApp({
-      internalSecret: TEST_SECRET,
-      fetchImpl: badFormat.fetchImpl,
-      transcodeVideoFileImpl: fileTranscodeStub(),
-    });
-    await request(app2)
-      .post('/process/video-from-storage')
-      .set('x-internal-secret', TEST_SECRET)
-      .send({ sourceUrl: SOURCE_URL, putUrl: PUT_URL, putContentType: 'video/mp4' });
+    try {
+      const { fetchImpl } = makeFakeFetch({ sources: { [SOURCE_URL]: makeFakeMp4() } });
+      const app = createImageWorkerApp({
+        internalSecret: TEST_SECRET,
+        fetchImpl,
+        transcodeVideoFileImpl: fileTranscodeStub(),
+      });
+      await request(app)
+        .post('/process/video-from-storage')
+        .set('x-internal-secret', TEST_SECRET)
+        .send({ sourceUrl: SOURCE_URL, putUrl: PUT_URL, putContentType: 'video/mp4' });
 
-    expect(await countTempDirs()).toBe(before);
+      const badFormat = makeFakeFetch({ sources: { [SOURCE_URL]: Buffer.from('not a video') } });
+      const app2 = createImageWorkerApp({
+        internalSecret: TEST_SECRET,
+        fetchImpl: badFormat.fetchImpl,
+        transcodeVideoFileImpl: fileTranscodeStub(),
+      });
+      await request(app2)
+        .post('/process/video-from-storage')
+        .set('x-internal-secret', TEST_SECRET)
+        .send({ sourceUrl: SOURCE_URL, putUrl: PUT_URL, putContentType: 'video/mp4' });
+
+      // Removal happens in the handler's finally block, which runs after the
+      // response is written, so a directory may still be on disk the instant
+      // the client sees its status. The contract is that none survives, not
+      // that removal precedes the response.
+      await vi.waitFor(async () => {
+        const leaked = (await readdir(tmpRoot)).filter((n) => n.startsWith('curator-video-'));
+        expect(leaked).toEqual([]);
+      });
+    } finally {
+      if (priorTmpDir === undefined) {
+        delete process.env.TMPDIR;
+      } else {
+        process.env.TMPDIR = priorTmpDir;
+      }
+      await rm(tmpRoot, { recursive: true, force: true });
+    }
   });
 
   it('returns 500 when the PUT to putUrl fails', async () => {

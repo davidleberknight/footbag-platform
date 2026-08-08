@@ -1139,6 +1139,7 @@ export interface LegacyClubCandidateOverrides {
   mapped_club_id?: string | null;
   classification?: LegacyClubCandidateClassification;
   lifecycle_state?: 'archived' | 'junk_confirmed' | null;
+  admin_promoted_at?: string | null;
   confidence_score?: number | null;
   bootstrap_eligible?: 0 | 1;
   // Classifier provenance on legacy_club_candidates: the substitute-contact
@@ -1161,7 +1162,7 @@ export function insertLegacyClubCandidate(db: BetterSqlite3.Database, o: LegacyC
     INSERT INTO legacy_club_candidates (
       id, legacy_club_key, display_name, city, region, country,
       description, external_url, mapped_club_id, classification,
-      lifecycle_state,
+      lifecycle_state, admin_promoted_at,
       confidence_score, bootstrap_eligible,
       contact_signal_substitute_applied,
       last_hosted_year, max_affiliated_member_last_year, contact_member_last_year,
@@ -1171,7 +1172,7 @@ export function insertLegacyClubCandidate(db: BetterSqlite3.Database, o: LegacyC
     ) VALUES (
       ?, ?, ?, ?, ?, ?,
       ?, ?, ?, ?,
-      ?,
+      ?, ?,
       ?, ?,
       ?,
       ?, ?, ?,
@@ -1191,6 +1192,7 @@ export function insertLegacyClubCandidate(db: BetterSqlite3.Database, o: LegacyC
     o.mapped_club_id  !== undefined ? o.mapped_club_id : null,
     o.classification  ?? 'junk',
     o.lifecycle_state !== undefined ? o.lifecycle_state : null,
+    o.admin_promoted_at !== undefined ? o.admin_promoted_at : null,
     o.confidence_score !== undefined ? o.confidence_score : null,
     o.bootstrap_eligible ?? 0,
     o.contact_signal_substitute_applied ?? 0,

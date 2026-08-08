@@ -22,16 +22,22 @@ import {
   insertHistoricalPerson,
   insertLegacyClubCandidate,
   insertLegacyPersonClubAffiliation,
+  insertMemberClubAffiliation,
+  insertClubLeader,
   completeOnboarding,
   createTestSessionJwt,
 } from '../fixtures/factories';
 
 const ADMIN_ID  = 'residue-admin-001';
 const MEMBER_ID = 'residue-member-001';
+const JOINED_MEMBER_ID = 'residue-joined-001';
+const LEADER_MEMBER_ID = 'residue-leader-001';
 
 const CLUB_A = 'residue-club-a'; // active: 1 confirmed + 2 pending (de-list target)
 const CLUB_B = 'residue-club-b'; // active: 1 pending (cascade-via-archive target)
 const CLUB_C = 'residue-club-c'; // active: 1 pending, never mutated (isolation control)
+const CLUB_D = 'residue-club-d'; // active: one member who joined here (archive refusal)
+const CLUB_E = 'residue-club-e'; // active: one co-leader (archive refusal)
 
 // Affiliation ids captured at seed time so tests can read back status.
 const aff: Record<string, string> = {};
@@ -91,7 +97,8 @@ beforeAll(async () => {
   const a2 = insertHistoricalPerson(db, { person_id: 'res-pend-a2', person_name: 'Residue PersonTwo', country: 'US' });
   aff.pendA2 = insertLegacyPersonClubAffiliation(db, { historical_person_id: a2, legacy_club_candidate_id: candA, resolution_status: 'pending' });
 
-  // Club B: one pending residue row (cascade-via-archive target).
+  // Club B: one pending residue row and nobody currently belonging to it, which
+  // is what makes it archivable at all (cascade-via-archive target).
   const candB = seedClub(db, CLUB_B, '#club_resb', 'Residue Club B');
   const b1 = insertHistoricalPerson(db, { person_id: 'res-pend-b1', person_name: 'Bravo Pending', country: 'US' });
   aff.pendB = insertLegacyPersonClubAffiliation(db, { historical_person_id: b1, legacy_club_candidate_id: candB, resolution_status: 'pending' });
@@ -100,6 +107,18 @@ beforeAll(async () => {
   const candC = seedClub(db, CLUB_C, '#club_resc', 'Residue Club C');
   const c1 = insertHistoricalPerson(db, { person_id: 'res-pend-c1', person_name: 'Charlie Pending', country: 'US' });
   aff.pendC = insertLegacyPersonClubAffiliation(db, { historical_person_id: c1, legacy_club_candidate_id: candC, resolution_status: 'pending' });
+
+  // Club D: somebody joined it here, so it is not a club to retire.
+  seedClub(db, CLUB_D, '#club_resd', 'Residue Club D');
+  insertMember(db, { id: JOINED_MEMBER_ID, slug: 'residue_joined', display_name: 'Joan Member', login_email: 'residue-joined@example.com' });
+  completeOnboarding(db, JOINED_MEMBER_ID);
+  insertMemberClubAffiliation(db, JOINED_MEMBER_ID, CLUB_D);
+
+  // Club E: no members, but somebody co-leads it.
+  seedClub(db, CLUB_E, '#club_rese', 'Residue Club E');
+  insertMember(db, { id: LEADER_MEMBER_ID, slug: 'residue_leader', display_name: 'Lena Leader', login_email: 'residue-leader@example.com' });
+  completeOnboarding(db, LEADER_MEMBER_ID);
+  insertClubLeader(db, { club_id: CLUB_E, member_id: LEADER_MEMBER_ID });
 
   db.close();
   createApp = await importApp();
@@ -222,6 +241,66 @@ describe('POST /admin/club-cleanup/:clubId/resolve — cascade', () => {
     try {
       const club = db.prepare('SELECT status FROM clubs WHERE id = ?').get(CLUB_B) as { status: string };
       expect(club.status).toBe('archived');
+    } finally {
+      db.close();
+    }
+  });
+
+  // Archiving retires a club for good, and only the member's own leave can end
+  // an affiliation, so a club somebody still belongs to is never archived.
+  it('refuses to archive a club that still has a member', async () => {
+    const res = await request(createApp())
+      .post(`/admin/club-cleanup/${CLUB_D}/resolve`)
+      .set('Cookie', adminCookie())
+      .send({ action: 'archive', predicate: 'crowdsource_viability', reasonText: 'Defunct' });
+    expect(res.status).toBe(422);
+
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    try {
+      const club = db.prepare('SELECT status FROM clubs WHERE id = ?').get(CLUB_D) as { status: string };
+      expect(club.status).toBe('active');
+      const current = db.prepare(
+        'SELECT COUNT(*) AS c FROM member_club_affiliations WHERE club_id = ? AND is_current = 1',
+      ).get(CLUB_D) as { c: number };
+      expect(current.c).toBe(1);
+    } finally {
+      db.close();
+    }
+  });
+
+  it('refuses to archive a club that still has a co-leader', async () => {
+    const res = await request(createApp())
+      .post(`/admin/club-cleanup/${CLUB_E}/resolve`)
+      .set('Cookie', adminCookie())
+      .send({ action: 'archive', predicate: 'crowdsource_viability', reasonText: 'Defunct' });
+    expect(res.status).toBe(422);
+
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    try {
+      const club = db.prepare('SELECT status FROM clubs WHERE id = ?').get(CLUB_E) as { status: string };
+      expect(club.status).toBe('active');
+    } finally {
+      db.close();
+    }
+  });
+
+  it('demotion is the action that does work on a club with members', async () => {
+    const res = await request(createApp())
+      .post(`/admin/club-cleanup/${CLUB_D}/resolve`)
+      .set('Cookie', adminCookie())
+      .send({ action: 'demote_inactive', predicate: 'crowdsource_viability', reasonText: 'Looks defunct' });
+    expect(res.status).toBe(303);
+
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    try {
+      const club = db.prepare('SELECT status FROM clubs WHERE id = ?').get(CLUB_D) as { status: string };
+      expect(club.status).toBe('inactive');
+      // Demotion keeps the club listed and its members attached, so anyone
+      // joining or claiming it revives it.
+      const current = db.prepare(
+        'SELECT COUNT(*) AS c FROM member_club_affiliations WHERE club_id = ? AND is_current = 1',
+      ).get(CLUB_D) as { c: number };
+      expect(current.c).toBe(1);
     } finally {
       db.close();
     }

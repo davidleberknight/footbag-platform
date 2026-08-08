@@ -3861,6 +3861,16 @@ CREATE TABLE legacy_club_candidates (
   -- for retiring this table) is checkable from the rows alone. NULL while
   -- the candidate is still live in the admin cleanup queue.
   lifecycle_state    TEXT CHECK (lifecycle_state IN ('archived','junk_confirmed')),
+  -- When an admin deliberately promoted this candidate into a live club from
+  -- the cleanup queue. It is part of the club's record, and the strongest part:
+  -- a person looked at the candidate and decided the club is real. The
+  -- viability rules read it exactly as they read an established-at-import
+  -- classification, so they never demote a club an admin just created, and a
+  -- member who later reports it inactive contradicts the record and reaches an
+  -- admin instead of being settled by rule. NULL for a promotion a member
+  -- triggered by confirming their own affiliation, which proves the club is
+  -- real by producing a live member instead.
+  admin_promoted_at  TEXT,
 
   -- Classification evidence: the substitute-contact marker and the raw rule
   -- inputs below. The derived classification is the only enforcement input the

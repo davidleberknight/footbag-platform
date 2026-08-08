@@ -254,6 +254,56 @@ describe('POST /admin/club-cleanup/candidates/:candidateId/promote', () => {
     }
   });
 
+  // A club an admin promoted carries nothing else that says it exists: no
+  // leader, no member, no event, no answer, and a dormant legacy record. The
+  // rules must read the admin's own decision as the club's record, or the next
+  // queue open undoes the promotion the admin just made.
+  it('a club an admin promoted survives the next queue open', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .get('/admin/club-cleanup')
+      .set('Cookie', adminCookie());
+    expect(res.status).toBe(200);
+
+    const clubId = stableClubId('promote-test-memphis');
+    const db = new BetterSqlite3(dbPath);
+    try {
+      const club = db.prepare('SELECT status FROM clubs WHERE id = ?').get(clubId) as Record<string, unknown>;
+      expect(club.status).toBe('active');
+      const demotions = db.prepare(
+        "SELECT COUNT(*) AS c FROM audit_entries WHERE action_type = 'club.auto_demoted' AND entity_id = ?",
+      ).get(clubId) as { c: number };
+      expect(demotions.c).toBe(0);
+    } finally {
+      db.close();
+    }
+  });
+
+  it('a member who later reports the promoted club inactive reaches an admin instead of demoting it', async () => {
+    const clubId = stableClubId('promote-test-memphis');
+    const db = new BetterSqlite3(dbPath);
+    insertClubViabilitySignal(db, {
+      member_id: MEMBER_ID,
+      club_id: clubId,
+      activity_signal: 'not_active',
+    });
+    db.close();
+
+    const res = await request(createApp())
+      .get('/admin/club-cleanup')
+      .set('Cookie', adminCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('an admin promoted this club from the legacy record');
+
+    const check = new BetterSqlite3(dbPath);
+    try {
+      const club = check.prepare('SELECT status FROM clubs WHERE id = ?').get(clubId) as Record<string, unknown>;
+      expect(club.status).toBe('active');
+    } finally {
+      check.close();
+    }
+  });
+
   it('a candidate URL that fails validation publishes nothing; promotion still completes', async () => {
     const app = createApp();
     const res = await request(app)
@@ -344,9 +394,10 @@ describe('promotion carry-forward of candidate-keyed wizard flags', () => {
     }
 
     // The candidate-flag group no longer carries the item; the same votes now
-    // drive the live club's verdict. Nobody leads or belongs to the new club
-    // and its record holds nothing that contradicts the members who reported
-    // it inactive, so the rules settle it.
+    // drive the live club's verdict. Nobody leads or belongs to the new club,
+    // but an admin decided it was real by promoting it, so the two members who
+    // report it inactive contradict the club's record and a person judges the
+    // disagreement rather than the rules settling it.
     const queue = await request(createApp())
       .get('/admin/club-cleanup?category=candidate_flag')
       .set('Cookie', adminCookie());
@@ -354,7 +405,7 @@ describe('promotion carry-forward of candidate-keyed wizard flags', () => {
 
     const { clubCleanupService } = await import('../../src/services/clubCleanupService');
     const result = clubCleanupService.getClubVerdict(expectedClubId);
-    expect(result?.verdict).toBe('defunct_by_rule');
+    expect(result?.verdict).toBe('needs_review');
     expect(result?.inactiveVotes).toBe(2);
   });
 });

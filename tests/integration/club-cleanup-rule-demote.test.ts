@@ -4,7 +4,9 @@ const { dbPath } = setTestEnv('3991');
 
 import BetterSqlite3 from 'better-sqlite3';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import request from '../fixtures/supertestWithOrigin';
 import {
+  createTestSessionJwt,
   insertMember,
   insertClub,
   insertClubViabilitySignal,
@@ -13,20 +15,28 @@ import {
   insertHistoricalPerson,
   insertMemberClubAffiliation,
   insertClubLeader,
+  insertEvent,
+  insertClubInsightNote,
 } from '../fixtures/factories';
 
 const MEMBER = 'rule-mem-1';
 const LEADER = 'rule-mem-2';
+const ADMIN  = 'rule-admin-1';
 
 const CLUB_DEAD        = 'rule-club-dead';
 const CLUB_DEAD_VOTED  = 'rule-club-dead-voted';
 const CLUB_ESTABLISHED = 'rule-club-established';
 const CLUB_HOSTED      = 'rule-club-hosted';
+const CLUB_HOSTED_HERE = 'rule-club-hosted-here';
 const CLUB_WAITING     = 'rule-club-waiting';
 const CLUB_PEOPLE      = 'rule-club-people';
 const CLUB_TWO_RECORDS = 'rule-club-two-records'
 const CLUB_TWO_WEAK    = 'rule-club-two-weak'
 const CLUB_PARKED      = 'rule-club-parked';
+const CLUB_NOTE_ONLY   = 'rule-club-note-only';
+const CLUB_NOTE_VOTED  = 'rule-club-note-voted';
+const CLUB_PARKED_SETTLED  = 'rule-club-parked-settled';
+const CLUB_PARKED_RETURNED = 'rule-club-parked-returned';
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
@@ -37,6 +47,10 @@ function statusOf(clubId: string): string {
   } finally {
     db.close();
   }
+}
+
+function adminCookie(): string {
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: ADMIN, role: 'admin' })}`;
 }
 
 function autoDemoteAuditCount(clubId: string): number {
@@ -55,6 +69,7 @@ beforeAll(async () => {
 
   insertMember(db, { id: MEMBER, slug: 'rule_mem_1', display_name: 'Rule Member', login_email: 'rule1@example.com' });
   insertMember(db, { id: LEADER, slug: 'rule_mem_2', display_name: 'Rule Leader', login_email: 'rule2@example.com' });
+  insertMember(db, { id: ADMIN, slug: 'rule_admin_1', display_name: 'Rule Admin', login_email: 'rule-admin@example.com', is_admin: 1 });
 
   // Nothing on any side says this club exists: the pipeline judged it not an
   // established club, it never hosted an event, nobody leads or belongs to it,
@@ -84,6 +99,14 @@ beforeAll(async () => {
   insertLegacyClubCandidate(db, { mapped_club_id: CLUB_HOSTED, classification: 'dormant', ever_hosted: 1 });
   insertClubViabilitySignal(db, { member_id: MEMBER, club_id: CLUB_HOSTED, activity_signal: 'not_active' });
 
+  // The same fact from the other source: an event this platform records as
+  // hosted by the club, rather than the mirror-derived flag above. The rule
+  // reads either, and only this limb exercises the events table.
+  insertClub(db, { id: CLUB_HOSTED_HERE, name: 'Hosted Here Club' });
+  insertLegacyClubCandidate(db, { mapped_club_id: CLUB_HOSTED_HERE, classification: 'dormant' });
+  insertEvent(db, { host_club_id: CLUB_HOSTED_HERE, title: 'Hosted Here Open' });
+  insertClubViabilitySignal(db, { member_id: MEMBER, club_id: CLUB_HOSTED_HERE, activity_signal: 'not_active' });
+
   // The pipeline marked it for members to confirm and nobody has answered yet.
   insertClub(db, { id: CLUB_WAITING, name: 'Waiting Club' });
   insertLegacyClubCandidate(db, { mapped_club_id: CLUB_WAITING, classification: 'onboarding_visible' });
@@ -107,6 +130,28 @@ beforeAll(async () => {
   insertLegacyClubCandidate(db, { mapped_club_id: CLUB_TWO_WEAK, classification: 'dormant' });
   insertLegacyClubCandidate(db, { mapped_club_id: CLUB_TWO_WEAK, classification: 'onboarding_visible' });
 
+  // Nobody voted and the record is as empty as the dead club above, except
+  // that a member wrote something about it. The rules cannot read a sentence,
+  // so this one goes to a person instead of being written off unread.
+  insertClub(db, { id: CLUB_NOTE_ONLY, name: 'Note Only Club' });
+  insertLegacyClubCandidate(db, { mapped_club_id: CLUB_NOTE_ONLY, classification: 'dormant' });
+  insertClubInsightNote(db, {
+    member_id: MEMBER,
+    club_id: CLUB_NOTE_ONLY,
+    note_text: 'It merged into the club across town and still meets on Tuesdays.',
+  });
+
+  // A member wrote it off and another wrote about it. The sentence is the only
+  // thing standing between the club and an automatic demotion.
+  insertClub(db, { id: CLUB_NOTE_VOTED, name: 'Note Voted Club' });
+  insertLegacyClubCandidate(db, { mapped_club_id: CLUB_NOTE_VOTED, classification: 'dormant' });
+  insertClubViabilitySignal(db, { member_id: MEMBER, club_id: CLUB_NOTE_VOTED, activity_signal: 'not_active' });
+  insertClubInsightNote(db, {
+    member_id: LEADER,
+    club_id: CLUB_NOTE_VOTED,
+    note_text: 'They stopped meeting in the park but still run the winter session.',
+  });
+
   // An admin already said "not now" about this one.
   insertClub(db, { id: CLUB_PARKED, name: 'Parked Club' });
   insertLegacyClubCandidate(db, { mapped_club_id: CLUB_PARKED, classification: 'dormant' });
@@ -117,6 +162,41 @@ beforeAll(async () => {
     ) VALUES (?, '2026-01-01T00:00:00.000Z', ?, ?, 'crowdsource_viability', 'parked', ?, 'Revisit later')
   `).run('ccr-rule-parked', MEMBER, CLUB_PARKED, MEMBER);
 
+  // Parked, then a member said something afterwards. The rules can settle this
+  // one, so it never rejoins the working queue: parking promised it would not
+  // be lost, and the parked listing is the only place that promise can be kept.
+  insertClub(db, { id: CLUB_PARKED_SETTLED, name: 'Parked Settled Club' });
+  insertLegacyClubCandidate(db, { mapped_club_id: CLUB_PARKED_SETTLED, classification: 'dormant' });
+  db.prepare(`
+    INSERT INTO club_cleanup_resolutions (
+      id, created_at, created_by, club_id, predicate_name, resolution,
+      parked_by_member_id, reason_text
+    ) VALUES (?, '2026-01-01T00:00:00.000Z', ?, ?, 'crowdsource_viability', 'parked', ?, 'Revisit later')
+  `).run('ccr-rule-parked-settled', MEMBER, CLUB_PARKED_SETTLED, MEMBER);
+  insertClubViabilitySignal(db, {
+    member_id: MEMBER,
+    club_id: CLUB_PARKED_SETTLED,
+    activity_signal: 'not_active',
+    created_at: '2026-02-01T00:00:00.000Z',
+  });
+
+  // Same shape, but this club's own record contradicts the member, so the
+  // working queue really does take it back and the parked listing lets it go.
+  insertClub(db, { id: CLUB_PARKED_RETURNED, name: 'Parked Returned Club' });
+  insertLegacyClubCandidate(db, { mapped_club_id: CLUB_PARKED_RETURNED, classification: 'pre_populate' });
+  db.prepare(`
+    INSERT INTO club_cleanup_resolutions (
+      id, created_at, created_by, club_id, predicate_name, resolution,
+      parked_by_member_id, reason_text
+    ) VALUES (?, '2026-01-01T00:00:00.000Z', ?, ?, 'crowdsource_viability', 'parked', ?, 'Revisit later')
+  `).run('ccr-rule-parked-returned', MEMBER, CLUB_PARKED_RETURNED, MEMBER);
+  insertClubViabilitySignal(db, {
+    member_id: MEMBER,
+    club_id: CLUB_PARKED_RETURNED,
+    activity_signal: 'not_active',
+    created_at: '2026-02-01T00:00:00.000Z',
+  });
+
   db.close();
   createApp = await importApp();
 });
@@ -124,9 +204,21 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('the cleanup rules demote the clubs they settle', () => {
-  it('leaves every club untouched until an admin opens the queue', () => {
-    expect(statusOf(CLUB_DEAD)).toBe('active');
-    expect(autoDemoteAuditCount(CLUB_DEAD)).toBe(0);
+  // Opening the queue is the only trigger there is. The surfaces that read the
+  // same club data must leave every status alone, including the admin home,
+  // whose backlog badge counts the very clubs the rules would settle.
+  it('no surface other than the queue demotes a club', async () => {
+    const app = createApp();
+
+    const home = await request(app).get('/admin').set('Cookie', adminCookie());
+    expect(home.status).toBe(200);
+    const clubs = await request(app).get('/clubs');
+    expect(clubs.status).toBe(200);
+
+    for (const clubId of [CLUB_DEAD, CLUB_DEAD_VOTED, CLUB_WAITING, CLUB_PARKED]) {
+      expect(statusOf(clubId)).toBe('active');
+      expect(autoDemoteAuditCount(clubId)).toBe(0);
+    }
   });
 
   it('demotes a club whose record says nothing on any side, and retires its residue', async () => {
@@ -158,9 +250,33 @@ describe('the cleanup rules demote the clubs they settle', () => {
     expect(statusOf(CLUB_HOSTED)).toBe('active');
   });
 
+  it('never demotes a club that hosted an event on the platform, even when a member writes it off', () => {
+    expect(statusOf(CLUB_HOSTED_HERE)).toBe('active');
+    expect(autoDemoteAuditCount(CLUB_HOSTED_HERE)).toBe(0);
+  });
+
   it('leaves a club waiting on member answers alone', () => {
     expect(statusOf(CLUB_WAITING)).toBe('active');
     expect(autoDemoteAuditCount(CLUB_WAITING)).toBe(0);
+  });
+
+  it('sends a club carrying a member note to a person rather than demoting it unread', async () => {
+    expect(statusOf(CLUB_NOTE_ONLY)).toBe('active');
+    expect(autoDemoteAuditCount(CLUB_NOTE_ONLY)).toBe(0);
+
+    const { clubCleanupService } = await import('../../src/services/clubCleanupService');
+    const row = clubCleanupService.getCleanupQueuePage().content.itemGroups
+      .flatMap((g) => g.items)
+      .find((i) => i.clubId === CLUB_NOTE_ONLY && i.predicate === 'crowdsource_viability');
+    expect(row?.detail).toBe('A member left a note about this club');
+    expect(row?.insightNotes.map((n) => n.text)).toEqual([
+      'It merged into the club across town and still meets on Tuesdays.',
+    ]);
+  });
+
+  it('a member note outweighs another member writing the club off', () => {
+    expect(statusOf(CLUB_NOTE_VOTED)).toBe('active');
+    expect(autoDemoteAuditCount(CLUB_NOTE_VOTED)).toBe(0);
   });
 
   it('never demotes a club someone leads or belongs to', () => {
@@ -204,7 +320,65 @@ describe('the cleanup rules demote the clubs they settle', () => {
       .filter((i) => i.predicate === 'crowdsource_viability')
       .map((i) => i.clubId)
       .sort();
-    expect(reviewed).toEqual([CLUB_ESTABLISHED, CLUB_HOSTED].sort());
+    expect(reviewed).toEqual(
+      [CLUB_ESTABLISHED, CLUB_HOSTED, CLUB_HOSTED_HERE, CLUB_NOTE_ONLY, CLUB_NOTE_VOTED, CLUB_PARKED_RETURNED].sort(),
+    );
+  });
+
+  // Parking promises the club is never lost. A parked club leaves the parked
+  // listing only when the working queue has actually taken it back, so a club
+  // the rules can settle stays listed rather than falling between the two.
+  it('keeps a parked club listed when the working queue cannot take it back', async () => {
+    const { clubCleanupService } = await import('../../src/services/clubCleanupService');
+    const vm = clubCleanupService.getCleanupQueuePage();
+
+    const parkedIds = vm.content.parked.map((p) => p.clubId);
+    expect(parkedIds).toContain(CLUB_PARKED_SETTLED);
+
+    // The question it was parked on is the one that has to stay visible
+    // somewhere; the club may still carry unrelated queue rows of its own.
+    const reviewIds = vm.content.itemGroups
+      .flatMap((g) => g.items)
+      .filter((i) => i.predicate === 'crowdsource_viability')
+      .map((i) => i.clubId);
+    expect(reviewIds).not.toContain(CLUB_PARKED_SETTLED);
+    expect(statusOf(CLUB_PARKED_SETTLED)).toBe('active');
+    expect(autoDemoteAuditCount(CLUB_PARKED_SETTLED)).toBe(0);
+  });
+
+  it('drops a parked club from the listing once the working queue has it back', async () => {
+    const { clubCleanupService } = await import('../../src/services/clubCleanupService');
+    const vm = clubCleanupService.getCleanupQueuePage();
+
+    expect(vm.content.parked.map((p) => p.clubId)).not.toContain(CLUB_PARKED_RETURNED);
+    expect(vm.content.itemGroups.flatMap((g) => g.items).map((i) => i.clubId))
+      .toContain(CLUB_PARKED_RETURNED);
+  });
+
+  // The audit row is the only record of a decision no human made, so it has to
+  // carry who decided and the evidence that decided it, not merely exist.
+  it('records the system as the actor and the evidence behind the demotion', () => {
+    const db = new BetterSqlite3(dbPath);
+    let row: { actor_type: string; actor_member_id: string | null; metadata_json: string };
+    try {
+      row = db.prepare(
+        "SELECT actor_type, actor_member_id, metadata_json FROM audit_entries WHERE action_type = 'club.auto_demoted' AND entity_id = ?",
+      ).get(CLUB_DEAD_VOTED) as typeof row;
+    } finally {
+      db.close();
+    }
+
+    expect(row.actor_type).toBe('system');
+    expect(row.actor_member_id).toBeNull();
+
+    const metadata = JSON.parse(row.metadata_json);
+    expect(metadata.club_name).toBe('Dead Voted Club');
+    expect(metadata.was_established).toBe(false);
+    expect(metadata.ever_hosted_event).toBe(false);
+    expect(metadata.leader_count).toBe(0);
+    expect(metadata.current_member_count).toBe(0);
+    expect(metadata.inactive_votes).toBe(1);
+    expect(metadata.active_votes).toBe(0);
   });
 
   it('a second open demotes nothing further and writes no second audit row', async () => {

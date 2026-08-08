@@ -27,6 +27,7 @@ const CLUB_MIXED       = 'viab-club-mixed';
 const CLUB_LEADERLESS  = 'viab-club-leaderless';
 const CLUB_DUP_MEMBER  = 'viab-club-dup-member';
 const CLUB_CHANGED     = 'viab-club-changed';
+const CLUB_CHANGED_DOWN = 'viab-club-changed-down';
 const CLUB_OF_PROMOTED = 'viab-club-of-promoted';
 const CLUB_MAPPED_ONBOARDING = 'viab-club-mapped-onboarding';
 const CLUB_LIVE_MEMBERS  = 'viab-club-live-members';
@@ -130,6 +131,13 @@ beforeAll(async () => {
   insertClubViabilitySignal(db, { member_id: MEMBER_A, club_id: CLUB_CHANGED, activity_signal: 'not_active', created_at: '2026-01-01T00:00:00.000Z' });
   insertClubViabilitySignal(db, { member_id: MEMBER_A, club_id: CLUB_CHANGED, activity_signal: 'active', created_at: '2026-02-01T00:00:00.000Z' });
 
+  // The same change of mind in the direction that decides the club's fate: an
+  // earlier 'active' superseded by a later 'not_active' leaves no positive vote
+  // standing, so the club's own empty record settles it.
+  insertClub(db, { id: CLUB_CHANGED_DOWN, name: 'Changed Answer Down Club' });
+  insertClubViabilitySignal(db, { member_id: MEMBER_A, club_id: CLUB_CHANGED_DOWN, activity_signal: 'active', created_at: '2026-01-01T00:00:00.000Z' });
+  insertClubViabilitySignal(db, { member_id: MEMBER_A, club_id: CLUB_CHANGED_DOWN, activity_signal: 'not_active', created_at: '2026-02-01T00:00:00.000Z' });
+
   // Candidate-keyed flags: activity answers about unpromoted candidates.
   // One member re-posts (one vote), one reports it active.
   insertLegacyClubCandidate(db, { id: CAND_FLAGGED, display_name: 'Flagged Candidate', classification: 'onboarding_visible' });
@@ -210,6 +218,14 @@ describe('one verdict per club', () => {
   it('a member who changes their answer counts at the latest one', async () => {
     const { clubCleanupService } = await import('../../src/services/clubCleanupService');
     expect(clubCleanupService.getClubVerdict(CLUB_CHANGED)?.verdict).toBe('alive');
+  });
+
+  it('a member who withdraws their positive answer leaves the club with no vote for it', async () => {
+    const { clubCleanupService } = await import('../../src/services/clubCleanupService');
+    const verdict = clubCleanupService.getClubVerdict(CLUB_CHANGED_DOWN);
+    expect(verdict?.verdict).toBe('defunct_by_rule');
+    expect(verdict?.activeVotes).toBe(0);
+    expect(verdict?.inactiveVotes).toBe(1);
   });
 
   it('a positive answer wins over a negative one from someone else', async () => {
