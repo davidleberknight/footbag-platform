@@ -3526,9 +3526,41 @@ CREATE TABLE club_viability_signals (
 CREATE INDEX idx_club_viability_signals_club   ON club_viability_signals(club_id);
 CREATE INDEX idx_club_viability_signals_member ON club_viability_signals(member_id);
 
+-- Member-authored club insight notes, collected by the onboarding wizard's
+-- club step. The two fixed answers (is this your club, is it still active)
+-- cannot express local knowledge such as "this club merged into another one"
+-- or "the organizer moved away", so the step also invites free text about the
+-- club being asked about or about any club in the member's area. The note is
+-- evidence for the admin cleanup queue and renders on that surface only:
+-- never on a public page, never on a member-facing one.
+--
+-- club_id and the source-entity pair are both optional here, unlike the
+-- activity signal above: a note about clubs in the member's area belongs to
+-- no single club, and is read by area rather than by key. note_text is
+-- purgeable and clears on account erasure and on the deceased contact scrub,
+-- while the row itself survives so the evidence trail keeps its shape.
+CREATE TABLE club_insight_notes (
+  id         TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL,
+  created_by TEXT NOT NULL,
+
+  member_id TEXT NOT NULL REFERENCES members(id),
+  club_id   TEXT REFERENCES clubs(id),
+
+  source_stage TEXT NOT NULL
+    CHECK (source_stage IN ('onboarding_club_card','onboarding_club_wrapup')),
+
+  note_text TEXT,
+
+  source_entity_type TEXT,
+  source_entity_id   TEXT
+);
+
+CREATE INDEX idx_club_insight_notes_club   ON club_insight_notes(club_id);
+CREATE INDEX idx_club_insight_notes_member ON club_insight_notes(member_id);
+
 -- Admin cleanup queue resolution tracking. One row per club per predicate
--- resolution. Prevents resolved/deferred items from reappearing in the queue.
--- Deferred items have a deferred_until timestamp; they reappear after expiry.
+-- resolution. Prevents resolved or parked items from reappearing in the queue.
 CREATE TABLE club_cleanup_resolutions (
   id         TEXT PRIMARY KEY,
   created_at TEXT NOT NULL,
@@ -3537,8 +3569,14 @@ CREATE TABLE club_cleanup_resolutions (
   club_id        TEXT NOT NULL REFERENCES clubs(id),
   predicate_name TEXT NOT NULL,
   resolution     TEXT NOT NULL
-    CHECK (resolution IN ('dismissed','deferred','demoted','archived')),
-  deferred_until TEXT,
+    CHECK (resolution IN ('dismissed','parked','demoted','archived')),
+  -- Parking carries no deadline, so there is no date to store: a calendar date
+  -- would invent urgency nobody asked for. A parked item is not forgotten. It
+  -- keeps its own listing and count, it carries who parked it and why, and it
+  -- returns to the working queue by itself once evidence about the club arrives
+  -- that postdates the park. Changed evidence, not an elapsed window, is the
+  -- reason to look again.
+  parked_by_member_id TEXT REFERENCES members(id),
   reason_text    TEXT,
 
   UNIQUE(club_id, predicate_name)
@@ -3546,14 +3584,13 @@ CREATE TABLE club_cleanup_resolutions (
 
 CREATE INDEX idx_club_cleanup_resolutions_club ON club_cleanup_resolutions(club_id);
 
--- Candidate-keyed cleanup resolutions: defer windows and terminal flag
+-- Candidate-keyed cleanup resolutions: parked items and terminal flag
 -- dismissals for unpromoted legacy_club_candidates in the admin cleanup
 -- queue. Mirrors club_cleanup_resolutions (which is keyed to live clubs and
 -- cannot hold candidate rows). One row per candidate per queue-item type
--- (predicate_name), so a defer on a candidate's wizard-flag item never
--- hides its promotable item, and vice versa. deferred_by_member_id powers
--- the "previously deferred by Admin X" annotation when an expired defer
--- re-surfaces.
+-- (predicate_name), so parking a candidate's wizard-flag item never hides its
+-- promotable item, and vice versa. parked_by_member_id powers the "parked by
+-- Admin X" annotation the listing shows.
 CREATE TABLE candidate_cleanup_resolutions (
   id         TEXT PRIMARY KEY,
   created_at TEXT NOT NULL,
@@ -3562,9 +3599,8 @@ CREATE TABLE candidate_cleanup_resolutions (
   candidate_id   TEXT NOT NULL REFERENCES legacy_club_candidates(id),
   predicate_name TEXT NOT NULL,
   resolution     TEXT NOT NULL
-    CHECK (resolution IN ('deferred','dismissed')),
-  deferred_until TEXT,
-  deferred_by_member_id TEXT REFERENCES members(id),
+    CHECK (resolution IN ('parked','dismissed')),
+  parked_by_member_id TEXT REFERENCES members(id),
   reason_text    TEXT,
 
   UNIQUE(candidate_id, predicate_name)

@@ -1,8 +1,8 @@
 /**
  * Integration tests for the cleanup queue's group-level bulk actions.
  *
- * Bulk defer covers the three club-predicate groups and the candidate-flag
- * group: every item currently in the group gets its own deferred resolution
+ * Bulk park covers the three club-predicate groups and the candidate-flag
+ * group: every item currently in the group gets its own parked resolution
  * and audit row under one shared reason. Bulk de-list runs the existing
  * per-club residue de-list across every club currently carrying residue.
  * Promotable and junk candidates have no bulk action; their resolutions are
@@ -148,13 +148,13 @@ describe('POST /admin/club-cleanup/bulk-resolve — gates and validation', () =>
   it('unauthenticated -> 302; non-admin -> 403', async () => {
     const anon = await request(createApp())
       .post('/admin/club-cleanup/bulk-resolve')
-      .send({ group: 'crowdsource_viability', action: 'defer_30' });
+      .send({ group: 'crowdsource_viability', action: 'park' });
     expect(anon.status).toBe(302);
 
     const member = await request(createApp())
       .post('/admin/club-cleanup/bulk-resolve')
       .set('Cookie', memberCookie())
-      .send({ group: 'crowdsource_viability', action: 'defer_30' });
+      .send({ group: 'crowdsource_viability', action: 'park' });
     expect(member.status).toBe(403);
   });
 
@@ -162,7 +162,7 @@ describe('POST /admin/club-cleanup/bulk-resolve — gates and validation', () =>
     const badGroup = await request(createApp())
       .post('/admin/club-cleanup/bulk-resolve')
       .set('Cookie', adminCookie())
-      .send({ group: 'bogus', action: 'defer_30' });
+      .send({ group: 'bogus', action: 'park' });
     expect(badGroup.status).toBe(422);
 
     const badAction = await request(createApp())
@@ -172,18 +172,18 @@ describe('POST /admin/club-cleanup/bulk-resolve — gates and validation', () =>
     expect(badAction.status).toBe(422);
   });
 
-  it('promotable, junk, and residue groups have no bulk defer', async () => {
+  it('promotable, junk, and residue groups have no bulk park', async () => {
     for (const group of ['candidate', 'junk_candidate', 'residue']) {
       const res = await request(createApp())
         .post('/admin/club-cleanup/bulk-resolve')
         .set('Cookie', adminCookie())
-        .send({ group, action: 'defer_30' });
+        .send({ group, action: 'park' });
       expect(res.status).toBe(422);
     }
   });
 });
 
-describe('bulk defer per group', () => {
+describe('bulk park per group', () => {
   it('candidate_flag: every flagged candidate gets its own resolution and audit row under the shared reason, and claims release', async () => {
     const claim = await request(createApp())
       .post('/admin/club-cleanup/claim')
@@ -194,15 +194,15 @@ describe('bulk defer per group', () => {
     const res = await request(createApp())
       .post('/admin/club-cleanup/bulk-resolve')
       .set('Cookie', adminCookie())
-      .send({ group: 'candidate_flag', action: 'defer_30', reasonText: 'Batch parked pending cutover' });
+      .send({ group: 'candidate_flag', action: 'park', reasonText: 'Batch parked pending cutover' });
     expect(res.status).toBe(303);
 
     for (const cand of [FLAG_CAND_A, FLAG_CAND_B]) {
       const row = readCandidateResolution(cand, 'candidate_flags');
-      expect(row?.resolution).toBe('deferred');
+      expect(row?.resolution).toBe('parked');
       expect(row?.reason_text).toBe('Batch parked pending cutover');
     }
-    expect(countAudits('admin.club_cleanup.candidate_defer', true)).toBe(2);
+    expect(countAudits('admin.club_cleanup.candidate_park', true)).toBe(2);
 
     const db = new BetterSqlite3(dbPath, { readonly: true });
     try {
@@ -217,14 +217,14 @@ describe('bulk defer per group', () => {
       .set('Cookie', adminCookie());
     expect(queue.text).not.toContain('Bulk Flagged Alpha');
     expect(queue.text).not.toContain('Bulk Flagged Beta');
-    // The promotable items are independent of the flag-group defer.
+    // The promotable items are independent of the flag-group park.
     const promotable = await request(createApp())
       .get('/admin/club-cleanup?category=candidate')
       .set('Cookie', adminCookie());
     expect(promotable.text).toContain('Bulk Flagged Alpha');
   });
 
-  it('bulk defer covers items currently in the group: a later flag surfaces and a re-run defers only it', async () => {
+  it('bulk park covers items currently in the group: a later flag surfaces and a re-run parks only it', async () => {
     const db = new BetterSqlite3(dbPath);
     insertLegacyClubCandidate(db, { id: FLAG_CAND_LATE, display_name: 'Bulk Flagged Latecomer', classification: 'onboarding_visible' });
     insertCandidateFlag(db, VOTER_ONE, FLAG_CAND_LATE);
@@ -238,29 +238,29 @@ describe('bulk defer per group', () => {
     const res = await request(createApp())
       .post('/admin/club-cleanup/bulk-resolve')
       .set('Cookie', adminCookie())
-      .send({ group: 'candidate_flag', action: 'defer_90', reasonText: 'Second sweep' });
+      .send({ group: 'candidate_flag', action: 'park', reasonText: 'Second sweep' });
     expect(res.status).toBe(303);
 
-    expect(readCandidateResolution(FLAG_CAND_LATE, 'candidate_flags')?.resolution).toBe('deferred');
+    expect(readCandidateResolution(FLAG_CAND_LATE, 'candidate_flags')?.resolution).toBe('parked');
     // The already-parked candidates were not in the group, so their rows
     // keep the first sweep's reason.
     expect(readCandidateResolution(FLAG_CAND_A, 'candidate_flags')?.reason_text).toBe('Batch parked pending cutover');
-    expect(countAudits('admin.club_cleanup.candidate_defer', true)).toBe(3);
+    expect(countAudits('admin.club_cleanup.candidate_park', true)).toBe(3);
   });
 
-  it('crowdsource_viability: both flagged clubs defer with their own audit rows; other groups stay open', async () => {
+  it('crowdsource_viability: both flagged clubs park with their own audit rows; other groups stay open', async () => {
     const res = await request(createApp())
       .post('/admin/club-cleanup/bulk-resolve')
       .set('Cookie', adminCookie())
-      .send({ group: 'crowdsource_viability', action: 'defer_180', reasonText: 'Re-check after season' });
+      .send({ group: 'crowdsource_viability', action: 'park', reasonText: 'Re-check after season' });
     expect(res.status).toBe(303);
 
     for (const club of [CV_CLUB_CONCORDANT, CV_CLUB_WEAK]) {
       const row = readClubResolution(club, 'crowdsource_viability');
-      expect(row?.resolution).toBe('deferred');
+      expect(row?.resolution).toBe('parked');
       expect(row?.reason_text).toBe('Re-check after season');
     }
-    expect(countAudits('admin.club_cleanup.defer_180', true)).toBe(2);
+    expect(countAudits('admin.club_cleanup.park', true)).toBe(2);
 
     const queue = await request(createApp())
       .get('/admin/club-cleanup')
@@ -270,13 +270,13 @@ describe('bulk defer per group', () => {
     expect(queue.text).toContain('Needs Leader (');
   });
 
-  it('stale_provisional: the grouped club defers under its own predicate', async () => {
+  it('stale_provisional: the grouped club parks under its own predicate', async () => {
     const res = await request(createApp())
       .post('/admin/club-cleanup/bulk-resolve')
       .set('Cookie', adminCookie())
-      .send({ group: 'stale_provisional', action: 'defer_30' });
+      .send({ group: 'stale_provisional', action: 'park' });
     expect(res.status).toBe(303);
-    expect(readClubResolution(STALE_CLUB, 'stale_provisional')?.resolution).toBe('deferred');
+    expect(readClubResolution(STALE_CLUB, 'stale_provisional')?.resolution).toBe('parked');
 
     const queue = await request(createApp())
       .get('/admin/club-cleanup')
@@ -284,16 +284,16 @@ describe('bulk defer per group', () => {
     expect(queue.text).not.toContain('Stale provisional leader (');
   });
 
-  it('leaderless_active: every leaderless club defers in one action', async () => {
+  it('leaderless_active: every leaderless club parks in one action', async () => {
     const res = await request(createApp())
       .post('/admin/club-cleanup/bulk-resolve')
       .set('Cookie', adminCookie())
-      .send({ group: 'leaderless_active', action: 'defer_30', reasonText: 'Leader drive planned' });
+      .send({ group: 'leaderless_active', action: 'park', reasonText: 'Leader drive planned' });
     expect(res.status).toBe(303);
 
     // Every active fixture club is leaderless, so each carries a resolution.
     for (const club of [CV_CLUB_CONCORDANT, CV_CLUB_WEAK, STALE_CLUB, RES_CLUB_A, RES_CLUB_B]) {
-      expect(readClubResolution(club, 'leaderless_active')?.resolution).toBe('deferred');
+      expect(readClubResolution(club, 'leaderless_active')?.resolution).toBe('parked');
     }
 
     const queue = await request(createApp())

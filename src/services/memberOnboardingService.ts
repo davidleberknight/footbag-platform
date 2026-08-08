@@ -11,6 +11,9 @@
  *     claim decision (a claim, or continue-without-linking with the never-had-an-account
  *     affirmation), and club_affiliations by a written club affiliation or the explicit no-club
  *     answer, which also declines every remaining suggestion card in the same transaction. The
+ *     club task also invites optional free-text insight about the club on the member's last card,
+ *     or about clubs in their area on the wrap-up landing, stored as admin-only evidence for the
+ *     club cleanup queue; leaving it blank writes nothing and never blocks the answer. The
  *     club task is optional to fulfil (no club is ever required) but not to answer. There is no
  *     skip, no dismissal, and no detour; the wizard carries no outward links. The
  *     results-visibility preference (show_competitive_results) is collected within the
@@ -57,7 +60,8 @@
  *     same chrome.
  *
  * Persistence:
- *   member_onboarding_tasks (and the tables the delegated services own).
+ *   member_onboarding_tasks, club_viability_signals, club_insight_notes (and the tables the
+ *   delegated services own).
  *
  * Side effects:
  *   - audit_entries append.
@@ -69,6 +73,7 @@ import {
   account,
   clubBootstrapLeaders,
   clubBootstrapLeaderSignals,
+  clubInsightNotes,
   clubViabilitySignals,
   legacyClubCandidates,
   legacyPersonClubAffiliations,
@@ -140,6 +145,101 @@ function writeViabilitySignal(
     sourceEntityType,
     sourceEntityId,
   );
+}
+
+// The insight question is optional, so an empty answer writes nothing at all
+// rather than an empty row: a blank note is not evidence and would only dilute
+// the admin surface that reads these. The cap is generous enough for a few
+// sentences of local knowledge and small enough that the queue can render a
+// note inline without truncation logic.
+const MAX_INSIGHT_NOTE_LENGTH = 1000;
+
+// Free text a member typed goes in as typed, minus the characters that would
+// break the admin surface rendering it: control characters other than the
+// newlines and tabs a member legitimately types.
+function normalizeInsightNote(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const cleaned = raw
+    .split('')
+    .filter((ch) => {
+      const code = ch.charCodeAt(0);
+      if (ch === '\n' || ch === '\t') return true;
+      return code >= 32 && code !== 127;
+    })
+    .join('')
+    .trim();
+  return cleaned.length > 0 ? cleaned : null;
+}
+
+// The wording of the insight question, shaped here with the rest of the
+// wizard's copy so the template renders it rather than composing it. It is
+// asked once per member, on the last card or on the wrap-up landing, because
+// asking it beside every card would train members to leave it blank.
+export interface ClubInsightPrompt {
+  fieldName: string;
+  legend: string;
+  helpText: string;
+  maxLength: number;
+}
+
+function buildClubInsightPrompt(onWrapUp: boolean): ClubInsightPrompt {
+  return {
+    fieldName: 'insightNote',
+    legend: onWrapUp
+      // The wrap-up landing names no club, so the card wording would be asking
+      // about something the member cannot see.
+      ? 'Do you know anything about footbag clubs in your area?'
+      : 'Do you have any other insight or information about this club, or any other club in your area?',
+    helpText: 'Optional. Anything you know helps us keep club listings accurate: a club that merged, moved, changed name, or is still going under someone new.',
+    maxLength: MAX_INSIGHT_NOTE_LENGTH,
+  };
+}
+
+// Has this member already left an insight note? The question is asked once, so
+// a member who answers it on their last card is not asked again on the wrap-up
+// landing they may land on straight afterwards.
+function memberHasLeftClubInsight(memberId: string): boolean {
+  const row = clubInsightNotes.countForMember.get(memberId) as { c: number } | undefined;
+  return (row?.c ?? 0) > 0;
+}
+
+// clubId and the source-entity pair are all optional: a note left on a club
+// card keys to that club or its candidate, and a note left on the wrap-up
+// landing keys to nothing, because the member is writing about clubs in their
+// area rather than about one the wizard named.
+function writeInsightNote(
+  memberId: string,
+  clubId: string | null,
+  sourceStage: 'onboarding_club_card' | 'onboarding_club_wrapup',
+  noteText: string,
+  sourceEntityType: string | null,
+  sourceEntityId: string | null,
+): void {
+  clubInsightNotes.insertNote.run(
+    `cin_${randomUUID().replace(/-/g, '').slice(0, 24)}`,
+    new Date().toISOString(),
+    'onboarding_service',
+    memberId,
+    clubId,
+    sourceStage,
+    noteText,
+    sourceEntityType,
+    sourceEntityId,
+  );
+  appendAuditEntry({
+    actionType:    'wizard.club_insight.recorded',
+    category:      'onboarding',
+    actorType:     'member',
+    actorMemberId: memberId,
+    entityType:    clubId ? 'club' : (sourceEntityType ?? 'member'),
+    entityId:      clubId ?? sourceEntityId ?? memberId,
+    metadata: {
+      source_stage: sourceStage,
+      // The note itself is member-authored free text and never goes into an
+      // audit row; the row records that one was left and how long it was.
+      note_length:  noteText.length,
+    },
+  });
 }
 
 // The task order is the wizard sequence: personal details first, because the
@@ -1502,13 +1602,28 @@ function processContinueWithoutLinking(
  * single wrapping transaction safe; the confirm/promote branches open their
  * own transactions and are never reached from here.
  */
-function processNoClubsAnswer(memberId: string): WizardActionResult {
+function processNoClubsAnswer(
+  memberId: string,
+  rawInsightNote?: unknown,
+): WizardActionResult {
   if (prerequisiteTaskFor(memberId, 'club_affiliations')) {
     // Tampered or out-of-order POST: personal details are not on file yet.
     return { kind: 'retry_same', flash: null };
   }
   if (getTaskState(memberId, 'club_affiliations') === 'completed') {
     return { kind: 'retry_same', flash: null };
+  }
+
+  // The wrap-up landing is the one place a member with no suggested club can
+  // tell us anything, so its note is keyed to no club: it is knowledge about
+  // the member's area, read by area rather than by club.
+  const insightNote = normalizeInsightNote(rawInsightNote);
+  if (insightNote && insightNote.length > MAX_INSIGHT_NOTE_LENGTH) {
+    return {
+      kind:      'validation_error',
+      formState: null,
+      message:   `Please keep your note under ${MAX_INSIGHT_NOTE_LENGTH} characters.`,
+    };
   }
 
   // Snapshot the remaining cards outside the transaction; the decline writes
@@ -1525,6 +1640,9 @@ function processNoClubsAnswer(memberId: string): WizardActionResult {
           bulkDeclineMembership(memberId, club.candidateId);
         }
       }
+    }
+    if (insightNote) {
+      writeInsightNote(memberId, null, 'onboarding_club_wrapup', insightNote, null, null);
     }
     completeTask(memberId, 'club_affiliations');
   });
@@ -1798,6 +1916,18 @@ async function processClubAffiliationsSubmit(
     };
   }
 
+  // The optional insight text is checked before the answer is recorded, so an
+  // over-long note sends the member back to a card they can still fix rather
+  // than resolving the card and dropping what they wrote.
+  const insightNote = normalizeInsightNote(body.insightNote);
+  if (insightNote && insightNote.length > MAX_INSIGHT_NOTE_LENGTH) {
+    return {
+      kind:      'validation_error',
+      formState: null,
+      message:   `Please keep your note under ${MAX_INSIGHT_NOTE_LENGTH} characters.`,
+    };
+  }
+
   assertCandidateOwnership(memberId, candidateId, kindRaw);
 
   if (kindRaw === 'membership' && userDecision === 'confirm') {
@@ -1812,6 +1942,33 @@ async function processClubAffiliationsSubmit(
   const clubName = resolvedCard?.clubName ?? 'that club';
 
   const result = submitClubAffiliationsResponse(memberId, body);
+
+  // The note is stored after the answer, so it keys to the club the answer
+  // resolved to. A membership answer on a candidate with no live club yet has
+  // no club id to key on, so the note follows the candidate and is stamped
+  // with the club id if that candidate is ever promoted, exactly as the
+  // activity signal is.
+  if (insightNote) {
+    const resolvedClubId = result.resolvedClubId
+      ?? (resolvedCard?.kind === 'leadership' ? resolvedCard.clubId : resolvedCard?.clubId)
+      ?? null;
+    if (resolvedClubId) {
+      writeInsightNote(memberId, resolvedClubId, 'onboarding_club_card', insightNote, null, null);
+    } else {
+      const affiliation = legacyPersonClubAffiliations.findById.get(candidateId) as
+        | LegacyPersonClubAffiliationRow
+        | undefined;
+      writeInsightNote(
+        memberId,
+        null,
+        'onboarding_club_card',
+        insightNote,
+        affiliation ? 'legacy_club_candidate' : null,
+        affiliation ? affiliation.legacy_club_candidate_id : null,
+      );
+    }
+  }
+
   if (result.branch === 'cap_hit') {
     // At the two-current-club cap the Yes is recorded as former membership
     // and the card resolves. Surface the cap notice before any advance so the
@@ -1864,6 +2021,8 @@ export const memberOnboardingService = {
   ensureClubAffiliationsReflectsState,
   memberHadClubSuggestionMaterial,
   buildClubCapHitNoticeMessage,
+  buildClubInsightPrompt,
+  memberHasLeftClubInsight,
   buildClubResolvedNoticeMessage,
   submitTaskResponse,
   submitClubAffiliationsResponse,

@@ -11,6 +11,7 @@ import {
   WizardFlash,
   WizardActionResult,
   WizardCard,
+  ClubInsightPrompt,
   LegacyClaimAutoLinkConfirmFormState,
   LegacyClaimTokenConfirmFormState,
   PersonalDetailsFormState,
@@ -67,6 +68,10 @@ interface ClubAffiliationsCardContent {
   formError:       string | null;
   isWrapUp?:       boolean;
   noLegacyAffiliationFound?: boolean;
+  // Present only where the insight question is asked: on the member's last
+  // club card, and on the wrap-up landing. Absent everywhere else, so the
+  // template renders the field exactly where it is offered.
+  insightPrompt:   ClubInsightPrompt | null;
 }
 
 interface PersonalDetailsContent {
@@ -307,6 +312,16 @@ function renderClubAffiliationsCard(
       isWrapUp:       stage === 'wrap_up',
       noLegacyAffiliationFound:
         stage === 'wrap_up' && !memberOnboardingService.memberHadClubSuggestionMaterial(memberId),
+      // Asked once per member. On the wrap-up landing when the member has no
+      // cards at all, otherwise on the last card they have left; a member who
+      // answers it on their final card is not asked again on the landing. A
+      // page drawing only to carry the cap notice has no form to attach it to.
+      insightPrompt:
+        opts.continueHref || cardsRemaining > 1
+          ? null
+          : memberOnboardingService.memberHasLeftClubInsight(memberId)
+            ? null
+            : memberOnboardingService.buildClubInsightPrompt(cards.length === 0),
     },
   } satisfies PageViewModel<ClubAffiliationsCardContent>);
 }
@@ -524,8 +539,18 @@ export const memberOnboardingController = {
   // The club task's explicit "none of these are my clubs" answer: declines
   // every remaining suggestion card and completes the task in one transaction.
   async postNoClubs(req: Request, res: Response, next: NextFunction): Promise<void> {
+    const insightNote = req.body?.insightNote;
     await dispatch(req, res, next, 'club_affiliations', {
-      action: () => memberOnboardingService.processNoClubsAnswer(req.user!.userId),
+      action: () => memberOnboardingService.processNoClubsAnswer(req.user!.userId, insightNote),
+      // The no-club answer can fail validation now that it carries the insight
+      // note, and a dispatch with no renderer here would return having written
+      // nothing at all, leaving the request open.
+      renderValidationError: (result) => {
+        renderClubAffiliationsCard(req, res, {
+          formError:      result.message,
+          statusOverride: 422,
+        });
+      },
     });
   },
 

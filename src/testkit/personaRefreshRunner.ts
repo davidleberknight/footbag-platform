@@ -366,13 +366,16 @@ export function refreshAllPersonas(
     delIn('media_items', 'uploader_member_id', memberIds);
     delIn('member_galleries', 'owner_member_id', memberIds); // gallery tag/link children cascade
     delIn2('club_viability_signals', 'member_id', memberIds, 'club_id', clubIds);
+    // Insight notes are member-authored and club-keyed exactly like the signals
+    // above, so both foreign keys would block the member and club deletes.
+    delIn2('club_insight_notes', 'member_id', memberIds, 'club_id', clubIds);
     delIn2('club_leaders', 'member_id', memberIds, 'club_id', clubIds);
     delIn('club_cleanup_resolutions', 'club_id', clubIds);
-    // Candidate-keyed defer rows must go before the candidate delete below;
-    // the deferred_by pass also removes a persona admin's defer on a REAL
-    // candidate (the member FK would block the member delete, and dropping
-    // the row just reverts that candidate to undeferred).
-    delIn2('candidate_cleanup_resolutions', 'candidate_id', candidateIds, 'deferred_by_member_id', memberIds);
+    // Candidate-keyed park rows must go before the candidate delete below; the
+    // parked_by pass also removes a persona admin's park on a REAL candidate
+    // (the member FK would block the member delete, and dropping the row just
+    // returns that candidate to the queue).
+    delIn2('candidate_cleanup_resolutions', 'candidate_id', candidateIds, 'parked_by_member_id', memberIds);
     // Claim markers are expiring coordination hints, safe to drop: the
     // claimant pass unblocks the member delete, the item pass covers claims
     // by anyone on a persona club or candidate (ids are unique across both

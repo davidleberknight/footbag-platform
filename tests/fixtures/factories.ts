@@ -1391,6 +1391,38 @@ export function insertClubViabilitySignal(db: BetterSqlite3.Database, o: ClubVia
   return id;
 }
 
+export interface ClubInsightNoteOverrides {
+  id?: string;
+  created_at?: string;
+  member_id?: string;
+  club_id?: string | null;
+  source_stage?: 'onboarding_club_card' | 'onboarding_club_wrapup';
+  note_text?: string | null;
+  source_entity_type?: string | null;
+  source_entity_id?: string | null;
+}
+
+// Member-authored club knowledge from the onboarding wizard. club_id is
+// optional: a note about the member's area belongs to no club.
+export function insertClubInsightNote(db: BetterSqlite3.Database, o: ClubInsightNoteOverrides = {}): string {
+  const id = o.id ?? `cin_${uid()}`;
+  db.prepare(`
+    INSERT INTO club_insight_notes
+      (id, created_at, created_by, member_id, club_id,
+       source_stage, note_text, source_entity_type, source_entity_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id, o.created_at ?? TS, SYS,
+    o.member_id ?? `mem_${uid()}`,
+    'club_id' in o ? o.club_id : null,
+    o.source_stage ?? 'onboarding_club_card',
+    o.note_text ?? 'A note a member left about this club.',
+    o.source_entity_type ?? null,
+    o.source_entity_id ?? null,
+  );
+  return id;
+}
+
 // ── Member galleries ───────────────────────────────────────────────────────────
 
 export interface MemberGalleryOverrides {

@@ -52,7 +52,7 @@ describe('POST /admin/club-cleanup/candidates/:candidateId/resolve', () => {
   it('unauthenticated -> 302', async () => {
     const res = await request(createApp())
       .post(`/admin/club-cleanup/candidates/${CANDIDATE_ID}/resolve`)
-      .send({ action: 'defer_90' });
+      .send({ action: 'park' });
     expect(res.status).toBe(302);
   });
 
@@ -60,7 +60,7 @@ describe('POST /admin/club-cleanup/candidates/:candidateId/resolve', () => {
     const res = await request(createApp())
       .post(`/admin/club-cleanup/candidates/${CANDIDATE_ID}/resolve`)
       .set('Cookie', memberCookie())
-      .send({ action: 'defer_90' });
+      .send({ action: 'park' });
     expect(res.status).toBe(403);
   });
 
@@ -78,15 +78,15 @@ describe('POST /admin/club-cleanup/candidates/:candidateId/resolve', () => {
     const res = await request(createApp())
       .post('/admin/club-cleanup/candidates/no-such-candidate/resolve')
       .set('Cookie', adminCookie())
-      .send({ action: 'defer_90' });
+      .send({ action: 'park' });
     expect(res.status).toBe(404);
   });
 
-  it('defer_90 hides the candidate, records the resolution, and writes an audit row', async () => {
+  it('parking hides the candidate, records the resolution, and writes an audit row', async () => {
     const res = await request(createApp())
       .post(`/admin/club-cleanup/candidates/${CANDIDATE_ID}/resolve`)
       .set('Cookie', adminCookie())
-      .send({ action: 'defer_90', reasonText: 'Waiting on member confirmations' });
+      .send({ action: 'park', reasonText: 'Waiting on member confirmations' });
     expect(res.status).toBe(303);
 
     const queue = await request(createApp())
@@ -99,13 +99,13 @@ describe('POST /admin/club-cleanup/candidates/:candidateId/resolve', () => {
       const row = db.prepare(
         'SELECT * FROM candidate_cleanup_resolutions WHERE candidate_id = ?',
       ).get(CANDIDATE_ID) as Record<string, unknown>;
-      expect(row.resolution).toBe('deferred');
-      expect(row.deferred_until).toBeTruthy();
-      expect(row.deferred_by_member_id).toBe(ADMIN_ID);
+      expect(row.resolution).toBe('parked');
+      expect(row.parked_by_member_id).toBeTruthy();
+      expect(row.parked_by_member_id).toBe(ADMIN_ID);
       expect(row.reason_text).toBe('Waiting on member confirmations');
 
       const audit = db.prepare(
-        "SELECT * FROM audit_entries WHERE entity_id = ? AND action_type = 'admin.club_cleanup.candidate_defer'",
+        "SELECT * FROM audit_entries WHERE entity_id = ? AND action_type = 'admin.club_cleanup.candidate_park'",
       ).get(CANDIDATE_ID) as Record<string, unknown>;
       expect(audit).toBeTruthy();
       expect(audit.actor_type).toBe('admin');
@@ -115,11 +115,11 @@ describe('POST /admin/club-cleanup/candidates/:candidateId/resolve', () => {
     }
   });
 
-  it('a second defer upserts the same resolution row instead of stacking', async () => {
+  it('a second park upserts the same resolution row instead of stacking', async () => {
     const res = await request(createApp())
       .post(`/admin/club-cleanup/candidates/${CANDIDATE_ID}/resolve`)
       .set('Cookie', adminCookie())
-      .send({ action: 'defer_30', reasonText: 'Shorter window' });
+      .send({ action: 'park', reasonText: 'Shorter window' });
     expect(res.status).toBe(303);
 
     const db = new BetterSqlite3(dbPath, { readonly: true });
@@ -134,21 +134,23 @@ describe('POST /admin/club-cleanup/candidates/:candidateId/resolve', () => {
     }
   });
 
-  it('an expired defer re-surfaces the candidate with the deferred-by annotation', async () => {
-    const db = new BetterSqlite3(dbPath);
-    db.prepare(`
-      UPDATE candidate_cleanup_resolutions
-         SET deferred_until = '2020-01-01T00:00:00.000Z'
-       WHERE candidate_id = ?
-    `).run(CANDIDATE_ID);
+  it('a parked candidate stays parked, and the resolution row keeps who parked it and why', async () => {
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const row = db.prepare(
+      `SELECT resolution, parked_by_member_id, reason_text
+         FROM candidate_cleanup_resolutions WHERE candidate_id = ?`,
+    ).get(CANDIDATE_ID) as Record<string, unknown>;
     db.close();
+    expect(row.resolution).toBe('parked');
+    expect(row.parked_by_member_id).toBeTruthy();
+    expect(row.reason_text).toBe('Shorter window');
 
+    // Nothing expires, so re-opening the queue leaves it parked.
     const res = await request(createApp())
       .get('/admin/club-cleanup')
       .set('Cookie', adminCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Defer Candidate');
-    expect(res.text).toContain('previously deferred by Candidate Admin, reason: Shorter window');
+    expect(res.text).not.toContain('Defer Candidate');
   });
 });
 

@@ -139,7 +139,7 @@ describe('candidate-flag group rendering', () => {
   });
 });
 
-describe('flag-item resolution: dismiss and defer under the candidate_flags predicate', () => {
+describe('flag-item resolution: dismiss and park under the candidate_flags predicate', () => {
   it('rejects dismiss without the candidate_flags predicate', async () => {
     const res = await request(createApp())
       .post(`/admin/club-cleanup/candidates/${DISMISS_CAND}/resolve`)
@@ -162,7 +162,7 @@ describe('flag-item resolution: dismiss and defer under the candidate_flags pred
     const res = await request(createApp())
       .post(`/admin/club-cleanup/candidates/${DISMISS_CAND}/resolve`)
       .set('Cookie', adminCookie())
-      .send({ action: 'defer_30', predicate: 'bogus_predicate' });
+      .send({ action: 'park', predicate: 'bogus_predicate' });
     expect(res.status).toBe(422);
   });
 
@@ -175,7 +175,7 @@ describe('flag-item resolution: dismiss and defer under the candidate_flags pred
 
     const row = readResolution(DISMISS_CAND, 'candidate_flags');
     expect(row?.resolution).toBe('dismissed');
-    expect(row?.deferred_until).toBeNull();
+    expect(row?.parked_by_member_id).toBeNull();
 
     const db = new BetterSqlite3(dbPath, { readonly: true });
     try {
@@ -200,43 +200,45 @@ describe('flag-item resolution: dismiss and defer under the candidate_flags pred
     expect(full.text).toContain('Dismissable Candidate');
   });
 
-  it('defer parks the flag item under its own predicate, independent of the promotable item', async () => {
+  it('parking the flag item leaves the promotable item alone', async () => {
     const res = await request(createApp())
       .post(`/admin/club-cleanup/candidates/${FLAGGED_CAND}/resolve`)
       .set('Cookie', adminCookie())
-      .send({ action: 'defer_90', predicate: 'candidate_flags', reasonText: 'Wait for more votes' });
+      .send({ action: 'park', predicate: 'candidate_flags', reasonText: 'Wait for more votes' });
     expect(res.status).toBe(303);
 
     const flagRes = readResolution(FLAGGED_CAND, 'candidate_flags');
-    expect(flagRes?.resolution).toBe('deferred');
-    expect(flagRes?.deferred_until).toBeTruthy();
+    expect(flagRes?.resolution).toBe('parked');
+    expect(flagRes?.parked_by_member_id).toBeTruthy();
     expect(readResolution(FLAGGED_CAND, 'promotable_candidate')).toBeUndefined();
 
     const queue = await request(createApp())
       .get('/admin/club-cleanup?category=candidate_flag')
       .set('Cookie', adminCookie());
     expect(queue.text).not.toContain('Main Flagged Candidate');
-    // The promotable item is untouched by the flag-item defer.
+    // The promotable item is untouched by the flag-item park.
     const promotable = await request(createApp())
       .get('/admin/club-cleanup?category=candidate')
       .set('Cookie', adminCookie());
     expect(promotable.text).toContain('Main Flagged Candidate');
   });
 
-  it('an expired flag defer re-surfaces the item with the deferred-by annotation', async () => {
-    const db = new BetterSqlite3(dbPath);
-    db.prepare(`
-      UPDATE candidate_cleanup_resolutions
-         SET deferred_until = '2020-01-01T00:00:00.000Z'
-       WHERE candidate_id = ? AND predicate_name = 'candidate_flags'
-    `).run(FLAGGED_CAND);
+  it('a parked flag item stays parked, with who parked it recorded on the row', async () => {
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const row = db.prepare(
+      `SELECT resolution, parked_by_member_id, reason_text
+         FROM candidate_cleanup_resolutions
+        WHERE candidate_id = ? AND predicate_name = 'candidate_flags'`,
+    ).get(FLAGGED_CAND) as Record<string, unknown>;
     db.close();
+    expect(row.resolution).toBe('parked');
+    expect(row.parked_by_member_id).toBeTruthy();
+    expect(row.reason_text).toBe('Wait for more votes');
 
     const res = await request(createApp())
       .get('/admin/club-cleanup?category=candidate_flag')
       .set('Cookie', adminCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Main Flagged Candidate');
-    expect(res.text).toContain('previously deferred by Flag Admin, reason: Wait for more votes');
+    expect(res.text).not.toContain('Main Flagged Candidate');
   });
 });

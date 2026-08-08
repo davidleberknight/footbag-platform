@@ -30,7 +30,7 @@ export const adminClubCleanupController = {
     try {
       clubCleanupService.resolveClub(
         req.user!.userId, clubId, predicate,
-        action as 'demote_inactive' | 'archive' | 'dismiss' | 'defer_30' | 'defer_90' | 'defer_180',
+        action as 'demote_inactive' | 'archive' | 'dismiss' | 'park',
         reasonText,
       );
       res.redirect(303, '/admin/club-cleanup');
@@ -137,7 +137,7 @@ export const adminClubCleanupController = {
     try {
       clubCleanupService.resolveCandidate(
         req.user!.userId, candidateId,
-        action as 'defer_30' | 'defer_90' | 'defer_180' | 'dismiss' | 'demote' | 'archive' | 'confirm_junk' | 'promote_dormant',
+        action as 'park' | 'dismiss' | 'demote' | 'archive' | 'confirm_junk' | 'promote_dormant',
         reasonText,
         predicate,
       );
@@ -193,7 +193,7 @@ export const adminClubCleanupController = {
     // ValidationError for unknown values; the catch below maps that to the
     // same 422 render.
     try {
-      clubCleanupService.bulkDeferGroup(req.user!.userId, group, action, reasonText);
+      clubCleanupService.bulkParkGroup(req.user!.userId, group, action, reasonText);
       res.redirect(303, '/admin/club-cleanup');
     } catch (err) {
       if (err instanceof ValidationError) {

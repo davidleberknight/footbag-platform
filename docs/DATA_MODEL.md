@@ -1211,26 +1211,34 @@ Append-only table recording crowdsourced activity signals for clubs and club can
 - `source_entity_type` and `source_entity_id`: traceability to the wizard card. Club-keyed rows carry `legacy_person_club_affiliation` or `club_bootstrap_leader`; candidate-keyed rows carry `legacy_club_candidate` with the candidate id.
 - No `updated_at`/`version`: append-only, except for the promotion stamp on `club_id`. A member who submits again writes a new row; the predicate counts one vote per member, taking the member's latest row per target.
 
+**Table:** `club_insight_notes`
+
+Free-text club knowledge a member offers in the onboarding wizard's club step, alongside the two fixed answers. Read by the admin cleanup queue only; the text never renders on a public or member-facing surface.
+
+- `club_id` is nullable and, unlike the activity signal above, so is the source-entity pair: a note may key to a live club, to an unpromoted candidate (`source_entity_type = 'legacy_club_candidate'`), or to nothing at all when the member is writing about clubs in their area rather than one the wizard named. Promoting a candidate stamps the new club id onto its candidate-keyed notes, exactly as it does for the votes.
+- `source_stage` enum: `onboarding_club_card`, `onboarding_club_wrapup` — the two places the question is asked.
+- `note_text` is member-authored personal content: it is cleared on account erasure and on the deceased contact scrub, while the row survives so the evidence trail keeps its shape.
+
 ### 4.26 Club Cleanup Resolutions
 
 **Table:** `club_cleanup_resolutions`
 
-Admin resolution tracking for the club cleanup queue. One row per club per predicate (`UNIQUE` constraint on `club_id, predicate_name`). Prevents resolved or deferred items from reappearing in the admin queue.
+Admin resolution tracking for the club cleanup queue. One row per club per predicate (`UNIQUE` constraint on `club_id, predicate_name`). Prevents resolved or parked items from reappearing in the working queue.
 
 - `predicate_name`: identifies which cleanup predicate flagged the item (e.g., `crowdsource_viability`, `leaderless_active`, `stale_provisional`).
-- `resolution` enum: `dismissed`, `deferred`, `demoted`, `archived`.
-- `deferred_until`: ISO timestamp for deferred items. The admin queue re-surfaces deferred items after this timestamp passes.
+- `resolution` enum: `dismissed`, `parked`, `demoted`, `archived`.
+- Parking stores no deadline. A parked item leaves the working queue and appears in the parked listing; it returns to the working queue when evidence about that club is newer than the row's `created_at`, which is the moment of the park.
+- `parked_by_member_id`: the parking admin, so the parked listing can name who parked it; the reason rides in `reason_text`.
 - UPSERT semantics: re-resolving the same club-plus-predicate overwrites the prior resolution.
 
 **Table:** `candidate_cleanup_resolutions`
 
-Admin defer and flag-dismissal tracking for unpromoted `legacy_club_candidates` in the cleanup queue. One row per candidate per queue-item type (`UNIQUE` on `candidate_id, predicate_name`); mirrors `club_cleanup_resolutions`, which is keyed to live clubs and cannot hold candidate rows.
+Admin park and flag-dismissal tracking for unpromoted `legacy_club_candidates` in the cleanup queue. One row per candidate per queue-item type (`UNIQUE` on `candidate_id, predicate_name`); mirrors `club_cleanup_resolutions`, which is keyed to live clubs and cannot hold candidate rows.
 
 - `predicate_name`: the candidate queue-item type that was resolved (`promotable_candidate`, `candidate_flags`). A candidate's promotable item and its wizard-flag item resolve independently; parking one never hides the other.
-- `resolution` enum: `deferred`, `dismissed`. Defer parks either item type; dismiss is the terminal resolution of a wizard-flag item only. The other candidate actions (promote, demote, archive) move the candidate itself toward a terminal state.
-- `deferred_until`: ISO timestamp; the queue re-surfaces the candidate after it passes.
-- `deferred_by_member_id`: the deferring admin; powers the "previously deferred by Admin X, reason ..." annotation on re-surface.
-- UPSERT semantics: re-deferring the same candidate overwrites the prior window.
+- `resolution` enum: `parked`, `dismissed`. Parking sets either item type aside with no deadline; dismiss is the terminal resolution of a wizard-flag item only. The other candidate actions (promote, demote, archive) move the candidate itself toward a terminal state.
+- `parked_by_member_id`: the parking admin; powers the "parked by Admin X, reason ..." annotation the listing carries.
+- UPSERT semantics: re-parking the same candidate overwrites the prior row.
 
 **Table:** `club_cleanup_claims`
 
@@ -1238,7 +1246,7 @@ Concurrent-admin coordination markers for the cleanup queue (one row per item, `
 
 - `item_type` enum: `club`, `candidate`; with `item_id` it addresses any queue item.
 - `claimed_at`: refreshed on re-claim; markers older than 30 minutes are stale and stop rendering (staleness is evaluated in the read query; no background process; stale rows are overwritten by the next claim).
-- Auto-release: every resolve, defer, dismiss, de-list, and promote action deletes the item's claim row.
+- Auto-release: every resolve, park, dismiss, de-list, and promote action deletes the item's claim row.
 - Claims are deliberately un-audited: a claim is a coordination hint, not a resolution.
 
 ---
