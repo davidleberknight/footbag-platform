@@ -9445,12 +9445,21 @@ export const clubEvidence = {
       (SELECT COUNT(*) FROM club_insight_notes AS cin
          WHERE cin.club_id = c.id AND cin.note_text IS NOT NULL)        AS insight_note_count,
 
-      lcc.classification,
-      lcc.ever_hosted,
-      lcc.last_hosted_year,
-      lcc.max_affiliated_member_last_year,
-      lcc.unique_member_names,
-      lcc.linkable_member_count,
+      -- A club can carry more than one legacy record, because the dump holds
+      -- junk and half-empty records that resolve onto a real club alongside its
+      -- good one. A junk record says nothing about the club it landed on, so
+      -- the legacy facts are aggregated across every record that resolved here
+      -- and the classification is exposed as one flag per kind rather than as a
+      -- single value. Reading whichever record the query happened to meet first
+      -- would let a throwaway row speak for a real club.
+      COUNT(lcc.id)                                                    AS candidate_row_count,
+      MAX(lcc.classification = 'pre_populate')                         AS any_pre_populate,
+      MAX(lcc.classification = 'onboarding_visible')                   AS any_onboarding_visible,
+      MAX(COALESCE(lcc.ever_hosted, 0))                                AS ever_hosted,
+      MAX(lcc.last_hosted_year)                                        AS last_hosted_year,
+      MAX(lcc.max_affiliated_member_last_year)                         AS max_affiliated_member_last_year,
+      MAX(lcc.unique_member_names)                                     AS unique_member_names,
+      MAX(lcc.linkable_member_count)                                   AS linkable_member_count,
 
       (SELECT COUNT(*) FROM (
          SELECT s.member_id, s.activity_signal,
@@ -9478,6 +9487,7 @@ export const clubEvidence = {
     FROM clubs AS c
     LEFT JOIN legacy_club_candidates AS lcc ON lcc.mapped_club_id = c.id
     WHERE c.status IN ('active', 'inactive')
+    GROUP BY c.id
   `); },
 };
 

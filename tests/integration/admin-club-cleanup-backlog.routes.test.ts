@@ -83,8 +83,13 @@ describe('admin-home backlog badge', () => {
       .get('/admin')
       .set('Cookie', adminCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('5 open');
+    // Club A is settled by the rules, which demote it and retire its residue,
+    // so it is nobody's work and the badge does not offer it as any. That
+    // leaves club B's missing leader, club B's residue, and the unpromoted
+    // candidate.
+    expect(res.text).toContain('3 open');
     expect(res.text).toContain('Oldest open item:');
+    expect(res.text).not.toContain('Backlog Club A');
   });
 
   it('badge count matches what the cleanup queue renders', async () => {
@@ -92,9 +97,11 @@ describe('admin-home backlog badge', () => {
       .get('/admin/club-cleanup')
       .set('Cookie', adminCookie());
     expect(res.status).toBe(200);
-    // 3 predicate items (queue header count) + 1 residue club + 1 candidate
-    // = the 5 the badge reported.
-    expect(res.text).toContain('3 item(s) requiring attention');
+    // 1 predicate item (queue header count) + 1 residue club + 1 candidate
+    // = the 3 the badge reported. The badge is read before the rules run and
+    // the queue after, so a mismatch here means the badge counted work that
+    // resolved itself on the way through.
+    expect(res.text).toContain('1 item(s) requiring attention');
     expect(res.text).toContain('Backlog Club B');
     expect(res.text).toContain('Backlog Candidate');
   });
