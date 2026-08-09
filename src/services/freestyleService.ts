@@ -470,6 +470,16 @@ function foldSearchSeparators(s: string): string {
   return s.toLowerCase().replace(/[\s_-]+/g, ' ').trim();
 }
 
+// A trick slug is one lowercase underscore token, and the display name maps onto
+// it by joining its words with underscores. Folding the visitor's query the same
+// way lets a query typed with spaces match the slug, and leaves a pasted
+// underscore form untouched. A hyphen inside a name is a real character rather
+// than a separator, but it still becomes an underscore in the slug, so it folds
+// here too.
+function foldQueryToSlugForm(s: string): string {
+  return s.toLowerCase().replace(/[\s_-]+/g, '_').replace(/^_+|_+$/g, '');
+}
+
 /**
  * Family-page search over the public display roster, gated by exactly the
  * family-detail route's own servability rule (official Family Parent with a
@@ -497,9 +507,13 @@ function searchPublicFamilies(query: string, limit: number): FreestyleFamilySear
 
 function runTrickSearch(query: string, limit: number): FreestyleTrickSearchResult[] {
   const q = query.trim();
-  if (q.length < TRICK_SEARCH_MIN_LENGTH) return [];
+  // The length gate reads the folded form, so a query made only of separators is
+  // rejected here rather than reaching the slug arm as an empty pattern, which
+  // would match every active trick.
+  const slugQ = foldQueryToSlugForm(query);
+  if (slugQ.length < TRICK_SEARCH_MIN_LENGTH) return [];
   return runSqliteRead('freestyleTricks.search', () => {
-    const rows = searchFreestyleTricksByText(q, limit * 4);
+    const rows = searchFreestyleTricksByText(q, slugQ, limit * 4);
     const seen = new Set<string>();
     const out: FreestyleTrickSearchResult[] = [];
     for (const r of rows) {
@@ -4476,7 +4490,7 @@ export interface ModifierStubContent {
 // ---------------------------------------------------------------------------
 
 function groupByType(rows: FreestyleRecordRow[]): FreestyleRecordGroup[] {
-  const resolvableSlugs = getResolvableTrickSlugs();
+  const resolveActiveSlug = buildActiveTrickSlugResolver();
   const groupMap = new Map<string, FreestyleRecordRow[]>();
   for (const row of rows) {
     const bucket = groupMap.get(row.record_type) ?? [];
@@ -4486,7 +4500,7 @@ function groupByType(rows: FreestyleRecordRow[]): FreestyleRecordGroup[] {
   return Array.from(groupMap.entries()).map(([recordType, typeRows]) => ({
     recordType,
     label:   labelForType(recordType),
-    records: typeRows.map(r => shapeFreestyleRecord(r, resolvableSlugs)),
+    records: typeRows.map(r => shapeFreestyleRecord(r, resolveActiveSlug)),
   }));
 }
 

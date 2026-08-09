@@ -19,7 +19,7 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
-import { insertFreestyleTrick } from '../fixtures/factories';
+import { insertFreestyleTrick, insertFreestyleTrickAlias } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3525');
 
@@ -57,6 +57,11 @@ beforeAll(async () => {
       ('spinning-whirl', 'spinning', 1)
   `).run();
 
+  // A display-eligible folk name on a modifier-linked compound in the larger
+  // family, which is the one shape every browse view lists: the family view
+  // applies an inclusion threshold the two-member mirage family does not meet.
+  insertFreestyleTrickAlias(db, 'ducking-whirl-folk-name', 'ducking-whirl', 'duck whirl');
+
   db.close();
   createApp = await importApp();
 });
@@ -88,6 +93,57 @@ describe('Browse-shell row-contract stability guard — all six primary views us
       expect(res.text, `${label} must NOT use dict-card--registry`).not.toContain('dict-card--registry');
       // No per-row green ADD chip anywhere in a migrated view.
       expect(res.text, `${label} must NOT render the green ADD chip`).not.toMatch(/class="dict-card-add[ "]/);
+    });
+  }
+});
+
+// The three-control rule for a dictionary row: the plain-English trick name is
+// display text and never a link, a separate "Trick Detail" link resolves to the
+// detail page, and the hashtag links to the trick's media gallery only when the
+// trick has media, rendering as a plain token otherwise — so a clickable hashtag
+// is the only signal that media exists. Name, hashtag and Trick Detail stay three
+// distinct controls. No trick in this fixture set carries media, so every hashtag
+// here is expected in its plain-token form.
+describe('Three-control rule — name is text, Trick Detail is the link, hashtag signals media', () => {
+  for (const [view, label] of PRIMARY_VIEWS) {
+    it(`${label} (?view=${view}) renders the trick name as plain text, never a link`, async () => {
+      const res = await request(await createApp()).get(`/freestyle/tricks?view=${view}`);
+      expect(res.status).toBe(200);
+      expect(res.text, `${label} must render the name as a span`).toMatch(/<span class="dict-trick-row-title">/);
+      expect(res.text, `${label} must not wrap the name in an anchor`).not.toMatch(/<a[^>]*class="dict-trick-row-title"/);
+    });
+
+    it(`${label} (?view=${view}) offers a separate Trick Detail link to the detail page`, async () => {
+      const res = await request(await createApp()).get(`/freestyle/tricks?view=${view}`);
+      expect(res.text, `${label} must render a Trick Detail control`).toMatch(/<a class="dict-trick-row-detail" href="\/freestyle\/tricks\/[^"]+">Trick Detail<\/a>/);
+    });
+
+    it(`${label} (?view=${view}) renders the hashtag as a plain token when the trick has no media`, async () => {
+      const res = await request(await createApp()).get(`/freestyle/tricks?view=${view}`);
+      expect(res.text, `${label} must render a plain hashtag token`).toMatch(/<span class="dict-trick-row-hashtag" aria-label="Tag identity">/);
+      expect(res.text, `${label} must not link a hashtag for a trick with no media`).not.toMatch(/dict-trick-row-hashtag--media/);
+    });
+  }
+});
+
+// The two soft-retired views draw their rows with the shared card at registry
+// density rather than the two-line row, which is why they sit outside the guard
+// above. That is a difference in layout, not in what a row may omit: a trick's
+// folk names belong on every browse view, whichever partial draws it.
+const ALL_BROWSE_VIEWS: Array<[string, string]> = [
+  ...PRIMARY_VIEWS,
+  ['category', 'By category'],
+  ['component', 'By component'],
+];
+
+describe('Alias slot uniformity — every browse view surfaces a trick\'s folk names', () => {
+  for (const [view, label] of ALL_BROWSE_VIEWS) {
+    it(`${label} (?view=${view}) renders the "Also called" slot`, async () => {
+      const res = await request(await createApp()).get(`/freestyle/tricks?view=${view}`);
+      expect(res.status).toBe(200);
+      expect(res.text, `${label} must list the aliased trick`).toContain('data-trick-slug="ducking-whirl"');
+      expect(res.text, `${label} must render the alias slot`).toContain('Also called');
+      expect(res.text, `${label} must render the alias text`).toContain('duck whirl');
     });
   }
 });

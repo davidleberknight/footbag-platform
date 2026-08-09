@@ -98,17 +98,24 @@ describe('shapeFreestyleRecord', () => {
     expect(normal.trickHref).toBe('/freestyle/tricks/gyro_symposium_swirl');
   });
 
-  // With a resolvable set, a record whose trick is not in the dictionary must not
-  // link (no 404 badge). With no set, it links unconditionally (caller knows the
-  // trick resolves).
-  it('resolution-aware: suppresses the trick href for a slug absent from the resolvable set', () => {
-    const resolvable = new Set(['mirage', 'gyro-symposium-swirl']);
-    expect(shapeFreestyleRecord(makeRow({ trick_name: 'Mirage' }), resolvable).trickHref)
+  // With a resolver, a record whose trick resolves nowhere active must not link
+  // (no 404 badge), and one that resolves through an alias links to the canonical
+  // slug rather than taking a redirect hop. With no resolver it links
+  // unconditionally (caller knows the trick resolves).
+  it('resolution-aware: suppresses the trick href for a slug that resolves nowhere active', () => {
+    const resolve = (s: string) => (['mirage', 'gyro-symposium-swirl'].includes(s) ? s : null);
+    expect(shapeFreestyleRecord(makeRow({ trick_name: 'Mirage' }), resolve).trickHref)
       .toBe('/freestyle/tricks/mirage');
-    expect(shapeFreestyleRecord(makeRow({ trick_name: 'Enterrage' }), resolvable).trickHref)
+    expect(shapeFreestyleRecord(makeRow({ trick_name: 'Enterrage' }), resolve).trickHref)
       .toBeNull();
     expect(shapeFreestyleRecord(makeRow({ trick_name: 'Enterrage' })).trickHref)
       .toBe('/freestyle/tricks/enterrage');
+  });
+
+  it('resolution-aware: links an alias-named record to its canonical trick', () => {
+    const resolve = (s: string) => (s === 'infinity_variant' ? 'winged' : null);
+    expect(shapeFreestyleRecord(makeRow({ trick_name: 'Infinity Variant' }), resolve).trickHref)
+      .toBe('/freestyle/tricks/winged');
   });
 });
 
@@ -191,14 +198,14 @@ describe('modifierSurfaceHashtag', () => {
 
 describe('record curator-review status', () => {
   it('carries no review note and links normally for an ordinary record', () => {
-    const vm = shapeFreestyleRecord(makeRow({ trick_name: 'Mirage' }), new Set(['mirage']));
+    const vm = shapeFreestyleRecord(makeRow({ trick_name: 'Mirage' }), s => (s === 'mirage' ? s : null));
     expect(vm.reviewNote).toBeNull();
     expect(vm.trickHref).toBe('/freestyle/tricks/mirage');
   });
 
   it('flags a review record and suppresses its link even when the slug resolves', () => {
-    // 'double_dyno' is a resolvable slug here, yet the review record must not link.
-    const vm = shapeFreestyleRecord(makeRow({ trick_name: 'Double Dyno' }), new Set(['double_dyno']));
+    // 'double_dyno' resolves here, yet the review record must not link.
+    const vm = shapeFreestyleRecord(makeRow({ trick_name: 'Double Dyno' }), s => (s === 'double_dyno' ? s : null));
     expect(vm.reviewNote).toMatch(/reversed Blender \/ Dyno structure/);
     expect(vm.trickHref).toBeNull();
   });

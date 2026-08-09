@@ -426,6 +426,13 @@ export interface PublicClubDetail extends PublicClubSummary {
   // viewer who passes the full volunteerToCoLeadClub eligibility gate.
   viewerCanVolunteer: boolean;
   volunteerHref: string | null;
+  // Why an otherwise-eligible member cannot lead here: they already lead their
+  // own club. Without this the volunteer control is simply absent and a guest
+  // member is told nothing.
+  volunteerBlockedNote: string | null;
+  // Whether the leadership block renders at all: the volunteer control, the
+  // invite control, or the note explaining why neither is offered.
+  showLeadershipBlock: boolean;
   // Invite-a-member-to-co-lead control: shown to a viewer who already co-leads
   // this club. The invite is an email pointing at the volunteer affordance.
   inviteHref: string | null;
@@ -675,6 +682,8 @@ function toPublicClubDetail(
     isLeaderless: false,
     viewerCanVolunteer: false,
     volunteerHref: null,
+    volunteerBlockedNote: null,
+    showLeadershipBlock: false,
     inviteHref: null,
     contentEditHref: null,
     joinHref: null,
@@ -1337,8 +1346,18 @@ export class ClubService {
           if (hasTier1Benefits && !coLeadsElsewhere) {
             club.viewerCanVolunteer = true;
             club.volunteerHref = `/clubs/${encodeURIComponent(clubKey)}/volunteer`;
+          } else if (hasTier1Benefits && coLeadsElsewhere) {
+            // Leading their own club is the only thing standing in the way, so
+            // say so. The other blockers (tier benefits, the five-co-leader
+            // cap) are deliberately not explained here: a note naming the
+            // wrong reason is worse than none.
+            club.volunteerBlockedNote =
+              'You already co-lead another club. Clubs are local groups, so you lead your own club and are a guest at any other.';
           }
         }
+
+        club.showLeadershipBlock =
+          club.viewerCanVolunteer || club.viewerIsLeader || club.volunteerBlockedNote != null;
       }
 
       return {
@@ -1376,8 +1395,7 @@ export class ClubService {
    *   - Inserts a flat `club_leaders` co-leader row. A member co-leads at most
    *     one club (`ux_one_club_leader_per_member`), so a member who already
    *     co-leads another club is affiliated here but not made a co-leader;
-   *     branch reports `affiliated_only`. An admin can resolve the contention
-   *     via `A_Reassign_Club_Leader`.
+   *     branch reports `affiliated_only`.
    *   - Application cap: max 5 co-leaders per club. At the cap the affiliation
    *     still lands and the club_leaders insert is skipped; branch reports
    *     `affiliated_only`.

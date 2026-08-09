@@ -113,6 +113,16 @@ describe('Record-to-trick linkage', () => {
     expect(res.text).toContain('Juggle Holder');
   });
 
+  // A record whose trick name reaches its trick through an alias must link to the
+  // canonical slug. Linking to the alias slug still arrives, but only by taking a
+  // redirect hop, and internal links are supposed to be canonical already.
+  it('a record named by an alias links straight to the canonical trick, not through a redirect', async () => {
+    const res = await request(await createApp()).get('/freestyle/records');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('href="/freestyle/tricks/winged"');
+    expect(res.text).not.toContain('href="/freestyle/tricks/infinity_variant"');
+  });
+
   it('the alias URL 2-bag-juggle 301-redirects to the canonical trick page', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/2_bag_juggle');
     expect(res.status).toBe(301);

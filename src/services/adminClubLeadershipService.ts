@@ -19,7 +19,9 @@
  *   - Schema invariants stand: a member co-leads at most one club
  *     (ux_one_club_leader_per_member); a member appears at most once per club
  *     (ux_club_leaders). Assigning a member who already co-leads another club
- *     is refused with direction (remove them there first).
+ *     is refused: a club is a local group, so a member leads the club they are
+ *     local to and is a guest at any other. Changing which club a member
+ *     co-leads is that member's own action, taken by stepping down first.
  *   - Every action writes one audit row with actor_type='admin',
  *     before/after values, and reason text. The audit trail is the
  *     canonical history.
@@ -195,7 +197,7 @@ function assignLeader(
   const coLeadsElsewhere = clubLeaders.memberCoLeadsAnyClub.get(member.id) as { x: number } | undefined;
   if (coLeadsElsewhere) {
     throw new ValidationError(
-      'That member already co-leads another club. A member co-leads at most one club; remove them there before adding them here.',
+      'That member already co-leads another club. Clubs are local groups, so a member leads their own club and is a guest at any other. They step down at their club first if they want to lead this one.',
     );
   }
 

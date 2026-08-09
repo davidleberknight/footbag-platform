@@ -70,6 +70,15 @@
         {{#each tokenizedEquivalences.[0]}}{{#if glossaryAnchor}}<a class="sem-token sem-token--{{cssRole}} sem-token--linked" href="{{glossaryAnchor}}"{{#if isFamilyAnchor}} data-anchor="true"{{/if}} data-token-slug="{{slug}}">{{text}}</a>{{else}}<span class="sem-token sem-token--{{cssRole}}"{{#if isFamilyAnchor}} data-anchor="true"{{/if}} data-token-slug="{{slug}}">{{text}}</span>{{/if}}{{#unless @last}} {{/unless}}{{/each}}
       </span>
     {{/if}}
+    {{! Slot 4 — "Also called" (folk names / aliases). Distinct from the ≡ structural
+        readings. Rendered as a span so it flows inline in this density; the browse
+        density renders the same content as a block paragraph. Every browse view
+        surfaces a trick's folk names; only the layout differs by density. }}
+    {{#if commonAliases.length}}
+      <span class="dict-card-aliases" aria-label="Also called">
+        Also called: {{#each commonAliases}}{{this}}{{#unless @last}} &middot; {{/unless}}{{/each}}
+      </span>
+    {{/if}}
     {{! Slot 5 — JOB block (operational notation). Independent of slot 3. }}
     {{#if operationalNotation}}
       <span class="dict-card-notation-block" aria-label="Set notation"><span class="dict-card-notation-label">JOB</span><code class="dict-card-notation dict-card-notation--inline">{{#each operationalNotation.tokens}}<span class="op-token op-token--{{cssRole}}" data-role="{{role}}" title="{{label}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}</code></span>

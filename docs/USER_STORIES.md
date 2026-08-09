@@ -119,7 +119,6 @@ This document is the Source of Truth for Functional Requirements, defining all U
     - [M_Create_Club](#m_create_club)
     - [CL_Edit_Club](#cl_edit_club)
     - [CL_Mark_Club_Inactive](#cl_mark_club_inactive)
-    - [CL_Archive_Club](#cl_archive_club)
   - [5.2 Leadership Management](#52-leadership-management)
     - [CL_Manage_CoLeaders](#cl_manage_coleaders)
 - [6. Group Owner Stories](#6-group-owner-stories)
@@ -151,7 +150,9 @@ This document is the Source of Truth for Functional Requirements, defining all U
     - [A_Upload_Curated_Media](#a_upload_curated_media)
     - [A_Manage_Curated_Gallery](#a_manage_curated_gallery)
     - [A_Browse_Freestyle_Content](#a_browse_freestyle_content)
+    - [A_Review_Emerging_Vocabulary](#a_review_emerging_vocabulary)
     - [A_Edit_Freestyle_Trick](#a_edit_freestyle_trick)
+    - [A_Register_Freestyle_Source](#a_register_freestyle_source)
     - [A_Edit_Freestyle_Record](#a_edit_freestyle_record)
     - [A_Edit_Consecutive_Kicks_Record](#a_edit_consecutive_kicks_record)
     - [A_Moderate_Freestyle_Trick_Tip](#a_moderate_freestyle_trick_tip)
@@ -975,8 +976,8 @@ Club-affiliation task acceptance criteria:
 - The wizard does not offer in-wizard club search. After every Stage 1 card resolves, the task completes if a club affiliation was written during the run; otherwise it advances to the wrap-up landing. The wizard never creates a `clubs` row except by promoting a confirmed candidate.
 - Per-card actions persist immediately; on resume, the task re-renders only the cards with no signal recorded yet, starting at the first. The no-club answer is offered only on the wrap-up landing, where no card is left open, so a member with a suggestion answers it on its own card and every answer carries an activity signal; the answer still resolves any remaining un-signaled card in the same transaction.
 - Bootstrap leadership candidates carry a strong / weak / none classification derived at read time from structural signals recorded per (member, club): `listed_contact` (the legacy club page names the person as contact), `affiliation` (a legacy person-club affiliation row links them), `hosting` (the club hosted IFPA-registered events during the person's active competitive years), `roster` (the legacy member roster lists the person), and `mirror_text` (the club page narrative mentions the person by name or known alias). Strong requires `(listed_contact AND affiliation)` or `(hosting AND roster)` or `(listed_contact AND hosting)`; weak is any structural signal set that satisfies no strong gate; none is zero structural signals. Context modifiers (`tier_signal`, `recent_activity`, `geographic_alignment`) display alongside the signals but never change the classification. The classification is display-only: it labels the candidate badge and audit metadata and never gates promotion.
-- Confirmed (or corrected) leadership promotes the bootstrap row (if any) into a live `club_leaders` co-leader row. Co-leaders are a flat equal set, capped at five per club; a member co-leads at most one club (`ux_one_club_leader_per_member`), so a registrant who already co-leads another club is affiliated to this club but not made a co-leader (an admin can resolve this via `A_Reassign_Club_Leader`). Cap-hit or already-co-leading claims still affiliate the member but insert no `club_leaders` row. A registrant already holding two current clubs is made a co-leader without the club becoming one of their clubs, and the card says so rather than reporting the club added. The bootstrap claim is tier-exempt (a legacy leader reclaims their own club regardless of tier); confirming the affiliation grants the one-time club-join Active Player period, which gives a Tier 0 member Tier 1 benefits. A leadership claim is never blocked by club status: a successful claim of an inactive or archived club returns the club to `'active'` in the same transaction, audit-logged as a revival.
-- Confirming a club affiliation creates a new `member_club_affiliations` row with `source='legacy_claim'`. A member may hold at most two current club affiliations (primary and secondary); the first confirmed club is primary, the second is secondary. When the registrant already has two `is_current=1` affiliations, the cap is hit: no `member_club_affiliations` row is written, and the confirmed Yes is recorded as former membership (the legacy affiliation row resolves `'former_only'`, keeping the answer and its activity signal), so the card resolves and never blocks completing the task. The card surfaces a cap message ("You are at the two current-club limit; this club is recorded as a former membership"). A member who wants this club current instead swaps affiliations through the explicit `M_Join_Club` / `M_Leave_Club` surface after onboarding, or via admin remediation through `A_Reassign_Club_Leader`.
+- Confirmed (or corrected) leadership promotes the bootstrap row (if any) into a live `club_leaders` co-leader row. Co-leaders are a flat equal set, capped at five per club; a member co-leads at most one club (`ux_one_club_leader_per_member`), so a registrant who already co-leads another club is affiliated to this club but not made a co-leader. Cap-hit or already-co-leading claims still affiliate the member but insert no `club_leaders` row. A registrant already holding two current clubs is made a co-leader without the club becoming one of their clubs, and the card says so rather than reporting the club added. The bootstrap claim is tier-exempt (a legacy leader reclaims their own club regardless of tier); confirming the affiliation grants the one-time club-join Active Player period, which gives a Tier 0 member Tier 1 benefits. A leadership claim is never blocked by club status: a successful claim of an inactive or archived club returns the club to `'active'` in the same transaction, audit-logged as a revival.
+- Confirming a club affiliation creates a new `member_club_affiliations` row with `source='legacy_claim'`. A member may hold at most two current club affiliations (primary and secondary); the first confirmed club is primary, the second is secondary. When the registrant already has two `is_current=1` affiliations, the cap is hit: no `member_club_affiliations` row is written, and the confirmed Yes is recorded as former membership (the legacy affiliation row resolves `'former_only'`, keeping the answer and its activity signal), so the card resolves and never blocks completing the task. The card surfaces a cap message ("You are at the two current-club limit; this club is recorded as a former membership"). A member who wants this club current instead swaps affiliations themselves through the explicit `M_Join_Club` / `M_Leave_Club` surface after onboarding.
 - The wizard carries no path to `M_Join_Club` or `M_Create_Club` and no outward links at all: joining and creating clubs are member capabilities, fenced until onboarding completes, so the wizard never links a registrant to an action they cannot yet take. A member who navigates away on their own leaves the task `pending`; unsignaled cards remain unsignaled, signaled cards retain their signals, and their next request to any member capability returns them to the first un-signaled card.
 - Club cards derive from the member's whole claimed identity, not one anchor of it: a suggestion anchored on the member's historical record surfaces even when they hold no old-site account, so a member who claims a competition record still resolves that record's club data. A card is the member's own only when an anchor on the row matches the member's own anchor of the same kind.
 - One club, one question: while a leadership card for a club is open, the membership suggestion for that same club is not also shown. Confirming leadership answers the relationship and collects the club's activity signal, and supersedes the membership suggestion in the same transaction; declining leadership leaves it pending, so the membership question then surfaces on its own card.
@@ -2010,7 +2011,7 @@ Success Criteria:
 
 # 5. Club Leader Stories
 
-Club leadership is a flat set of equal co-leaders (up to 5 per club), each with identical club-editing and member-visible-contact powers; there is no separate head-leader role. The member who creates a club becomes its first co-leader, and a member co-leads at most one club.
+Club leadership is a flat set of equal co-leaders (up to 5 per club), each with identical club-editing and member-visible-contact powers; there is no separate head-leader role. The member who creates a club becomes its first co-leader, and a member co-leads at most one club: a club is a local group, so a member leads the club they are local to and is a guest at any other. This is why a member may hold two current club affiliations but only one co-leadership.
 
 ## 5.1 Club Lifecycle
 
@@ -2025,7 +2026,7 @@ Story: As an eligible member, I can create a club so that I can become its first
 Success Criteria:
 
 - Club creation form includes: club name, description, city, country. The creator becomes the club's first co-leader, and the club is reached through that co-leader's member-visible contact email; there is no separate club contact field. A club that later loses all co-leaders still persists and surfaces only on the low-priority "could use a leader" admin list (see §5.1).
-- Before creating a club, the form runs a duplicate-prevention check against live clubs, onboarding-visible candidates, and dormant candidates. Exact name plus same country blocks creation and surfaces the existing entry instead, with options to confirm affiliation (routing to the relevant club's join page) or report the match as a different club with the same name (which logs a flag and allows creation to proceed).
+- Before creating a club, the form runs a duplicate-prevention check against live clubs, onboarding-visible candidates, and dormant candidates. Exact name plus same country blocks creation and surfaces the existing entry instead, with the option to view it and confirm affiliation. Two clubs never share an exact name within one country: where a match appears, one of the records is junk, and an admin archives that record, which frees the name for creation.
 - Near-match candidates (high name similarity in the same country, below the exact-match threshold) trigger a warning that lists the candidates with their location; the creator may proceed if confident the new club is distinct or pick an existing entry. Junk-flagged candidates are not surfaced as potential duplicates.
 
 - Standardized hashtag follows pattern club_{location_slug}.
@@ -2061,23 +2062,7 @@ Success Criteria:
 - Club members' `member_club_affiliations` rows are preserved with `is_current=1`; the club detail surface shows a warning that the club is inactive.
 - A co-leader can reactivate the club at any time.
 - Inactive status change audit-logged.
-- Inactive is the parked state: the club is out of the active listings and comes back the moment anyone joins, claims or reactivates it. Any co-leader may park a club at any time, and parking is what a club that has simply finished gets. Archiving, which is for a junk club record and is terminal, is a separate action with its own gate; see `CL_Archive_Club`.
-
-### CL_Archive_Club
-
-Access: A co-leader can archive the club if it is inactive and they are its only co-leader.
-
-Story: As a co-leader, I can delete my club from the active clubs so that I can remove defunct clubs.
-
-Success Criteria:
-
-- A club that has simply finished is parked, not archived: marking it inactive is the action, and it comes back the moment anyone joins, claims or reactivates it. Archiving is for a club record that is junk, and it is terminal.
-- Archiving is refused while the club has more than one co-leader. Co-leaders are a flat equal set, so a second co-leader means the club is still a real club and the decision is not one person's to take. It is also refused while any other member holds a current affiliation.
-- The archiving co-leader's own current affiliation and their `club_leaders` row are ended in the same transaction. This is the member acting on their own membership, which is the only thing that ever ends an affiliation; the affiliation row itself is preserved so the historical membership stays queryable.
-- Club deletion sets the club's status to 'archived'. Club records are never permanently deleted and do not use the soft-delete (deleted_at) pattern. Archived clubs remain in the database and are excluded from public listings, but are preserved for historical reference and referential integrity.
-- Deleted clubs hidden from all listings immediately.
-- Deletion audit-logged with leader ID, reason, timestamp.
-- Leader sees confirmation dialog before deletion.
+- Inactive is the parked state: the club is out of the active listings and comes back the moment anyone joins, claims or reactivates it. Any co-leader may park a club at any time, and parking is what a club that has simply finished gets. Parking is the co-leader's only lifecycle action on the club record; archiving is for a junk club record, is terminal, and is an admin action.
 
 ## 5.2 Leadership Management
 
@@ -2093,7 +2078,7 @@ Success Criteria:
 - An invited member must accept before the co-leader row is written; acceptance is the member's consent to having their contact email shown to authenticated members. An invitee who already co-leads another club cannot accept (a member co-leads at most one club).
 - The invite email states club name and responsibilities and directs the invitee to the standing "volunteer to co-lead" affordance on the club page; accepting is the invitee using it. The invitee must already be a current member of the club (a non-member joins first), and acceptance is their consent to contact-email exposure.
 - Upon acceptance, the new co-leader gains club-editing permissions, and their contact email becomes visible to authenticated members.
-- Any co-leader can view the list of current co-leaders (name, date added).
+- Any co-leader can view the list of current co-leaders by name.
 - A co-leader can step down at any time via the member dashboard. Stepping down removes only the co-leader role, not club membership; if they were the last co-leader, the club becomes leaderless (a tolerated state per §5.1).
 - A co-leader cannot remove or modify another co-leader; that is an admin action (A_Reassign_Club_Leader).
 - All co-leader actions (invite, accept, step down, admin removal) are audit-logged, and the acting co-leader sees a clear success message.
@@ -2387,7 +2372,7 @@ Success Criteria:
 
 - Admin can add a co-leader from the member base (audit-logged); the added member becomes a current affiliate if not already.
 - Admin can remove a co-leader (returning them to ordinary club member), or remove their affiliation entirely (audit-logged with mandatory reason text). Admin removal is the only way to remove a co-leader other than the co-leader stepping down themselves.
-- A member co-leads at most one club; to make a member a co-leader of a different club, the admin first removes them from their current club's co-leader set (a single admin transaction).
+- A member co-leads at most one club. Changing which club a member co-leads is the member's own action: they step down at their current club, then volunteer or accept an invitation at the other.
 - Admin can override the 5-co-leader cap when adding a co-leader, with an explicit "cap-override" reason recorded in the audit row.
 - Admin can make an affiliated-only member (one whose wizard claim was capped out) a co-leader at any time.
 - Clubs with zero co-leaders are flagged "Needs Leader" and surface on the low-priority admin opportunity list (§5.1).
@@ -2636,6 +2621,22 @@ Success Criteria:
 - An empty search or an empty filter result shows a clear empty state.
 - This surface is read-only: it performs no writes and records no audit entry.
 
+### A_Review_Emerging_Vocabulary
+
+Access: Only admins can open the emerging-vocabulary workbench. Non-admin authenticated members receive 403; unauthenticated visitors receive 302 to login.
+
+Story: As an admin, I can review the observed-but-not-yet-canonical freestyle vocabulary together with the open questions blocking its adjudication, so that I can prepare a ruling with the evidence in front of me.
+
+Success Criteria:
+
+- The workbench presents the open decisions as a packet. Each decision carries its question, the recommended answer, the alternatives considered, the evidence behind it, the consequences of deciding either way, and the observed names it covers.
+- A decision's coverage includes both names observed in the corpus and names already adjudicated outside the platform, counted together so the size of the decision is visible at a glance.
+- Decisions with no remaining names are omitted, so the packet shows only what is still open.
+- Alongside the packet, the full observed vocabulary lists as a table, filterable by one dimension at a time: object type, evidence state, blocking decision, owner, publication state, public section, and source. An unrecognized dimension shows the unfiltered table.
+- Curation diagnostics appear only here: parser confidence, failure class, and the provenance of a prior ruling. The public observational page shows none of them.
+- A name already published to the public observational page is excluded from the packet, so the workbench shows only what still needs a decision.
+- This surface is read-only. It performs no writes and records no audit entry; a ruling is recorded through the freestyle ruling ledger, not here.
+
 ### A_Edit_Freestyle_Trick
 
 Access: Only admins can edit freestyle dictionary content, on behalf of the platform's freestyle curator identity. Non-admin authenticated members receive 403; unauthenticated visitors receive 302 to login. Editing a slug that has no trick row returns 404.
@@ -2674,6 +2675,22 @@ Success Criteria, Atomicity:
 Audit:
 
 - Every create, edit, and delete of a trick row or an attached alias, source, or modifier-link row appends one audit_entries row recording the admin actor, timestamp, a freestyle-namespaced action type (for example `freestyle.trick.updated`), and the affected trick slug or row id, parallel to A_Upload_Curated_Media, A_Override_Member_Data, and the other admin content actions.
+
+### A_Register_Freestyle_Source
+
+Access: Only admins can list or create dictionary provenance sources. Non-admin authenticated members receive 403; unauthenticated visitors receive 302 to login.
+
+Story: As an admin, I can register a provenance source for the freestyle dictionary, so that a trick's attribution can point at a stable, citable record of where its information came from.
+
+Success Criteria:
+
+- The registry lists the existing provenance sources with their permanent identifier, type, label, and retrieval timestamp.
+- Admin can create a source by supplying its permanent identifier, its type, its label, and the timestamp at which the source material was retrieved. The retrieval timestamp is required, because a provenance claim without a retrieval date cannot be re-checked against a source that has since changed.
+- The permanent identifier is curator-supplied rather than generated, so a source keeps the same identity across a rebuild of the dictionary and the attributions pointing at it stay valid. It uses lowercase letters, digits, hyphens, and underscores, beginning and ending with a letter or digit, and a value already in use is rejected.
+- A source may also carry a URL and curator notes.
+- A trick's own source attachment and detachment is a separate capability (A_Edit_Freestyle_Trick); this surface owns only the registry the attachments point at.
+- This registry is distinct from the media-source registry, whose entries are created inline while publishing curated media (A_Upload_Curated_Media).
+- Creating a source appends one audit entry, in the same transaction as the row it records.
 
 ### A_Edit_Freestyle_Record
 
@@ -2805,7 +2822,7 @@ Success Criteria:
 
 ### A_Archive_Club
 
-Access: Only admins can archive or mark clubs defunct beyond what club leaders can do.
+Access: Only admins can archive a club or mark it defunct. A co-leader can park a club but never archive one.
 
 Story: As an admin, I can mark a club defunct/archived and notify members so that directories stay accurate. Archiving may be used for a club that has no co-leader (for example, a lingering “Needs Leader” item) when the club is confirmed defunct; a leaderless club is not archived merely for lacking a co-leader, since that state is tolerated per §5.1.
 

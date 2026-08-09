@@ -26,6 +26,10 @@ beforeAll(async () => {
   insertFreestyleTrick(db, { slug: 'paradox_whirl', canonical_name: 'Paradox Whirl', adds: '4', category: 'compound', sort_order: 2 });
   insertFreestyleTrick(db, { slug: 'mirage',        canonical_name: 'Mirage',        adds: '2', category: 'dex',      sort_order: 3 });
   insertFreestyleTrick(db, { slug: 'retired_trick', canonical_name: 'Retired Trick', adds: '3', sort_order: 4, is_active: 0 });
+  // A name carrying a curator-approved genuine hyphen, so the canonical name does
+  // not reproduce the slug by swapping underscores for spaces. Only the slug arm
+  // can match a query typed with spaces.
+  insertFreestyleTrick(db, { slug: 'cross_body_sole_stall', canonical_name: 'cross-body sole stall', adds: '3', category: 'dex', sort_order: 5 });
   // Folk-name alias pointing at an active canonical trick.
   insertFreestyleTrickAlias(db, 'tomahawk', 'paradox_whirl', 'tomahawk');
   db.close();
@@ -54,6 +58,29 @@ describe('GET /freestyle/search (server-rendered)', () => {
   it('matches a spaced query against the underscore slug', async () => {
     const { text } = await searchPage('paradox whirl');
     expect(text).toContain('href="/freestyle/tricks/paradox_whirl"');
+  });
+
+  // The canonical name spells this trick with a hyphen where the query has a
+  // space, so the name arm cannot match and only the slug arm can carry the hit.
+  it('finds a trick through the slug when its canonical name is spelled differently', async () => {
+    const { text } = await searchPage('cross body sole');
+    expect(text).toContain('href="/freestyle/tricks/cross_body_sole_stall"');
+  });
+
+  // A visitor who pastes or types the underscore form must still find the trick.
+  // Expanding the stored slug to spaces instead of folding the query would break
+  // this while leaving the spaced cases above green.
+  it('matches a query typed in the underscore slug form', async () => {
+    const { text } = await searchPage('paradox_whirl');
+    expect(text).toContain('href="/freestyle/tricks/paradox_whirl"');
+  });
+
+  // A query of nothing but separators folds away to an empty slug pattern, which
+  // would match every active trick if it reached the statement.
+  it('does not return the whole dictionary for a separator-only query', async () => {
+    const { text } = await searchPage('---');
+    expect(text).not.toContain('href="/freestyle/tricks/mirage"');
+    expect(text).not.toContain('href="/freestyle/tricks/paradox_whirl"');
   });
 
   it('matches by alias and surfaces the matched alias', async () => {

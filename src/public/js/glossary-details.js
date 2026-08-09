@@ -9,6 +9,15 @@
  * changes. The page works without this script; it only prevents a linked target
  * being left hidden.
  *
+ * On the no-JS path, accepted deliberately: revealing a collapsed target cannot be
+ * done on the server, because a URL fragment is never sent to it, so the server
+ * cannot know which chapter to open. Browsers increasingly close the gap on their
+ * own — the HTML specification has them expand a closed <details> when navigation
+ * targets something inside it — so this script is a fallback for engines that have
+ * not shipped that behaviour rather than the only thing standing between a visitor
+ * and the content. Every chapter remains reachable without it by opening the
+ * chapter directly; only the deep-linked jump degrades.
+ *
  * Scoped to the glossary page via the .glossary-page guard, and inert elsewhere.
  */
 (function () {

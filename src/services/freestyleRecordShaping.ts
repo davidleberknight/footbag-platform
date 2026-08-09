@@ -149,20 +149,26 @@ function safeVideoUrl(raw: string | null): string | null {
 }
 
 /**
- * The trick link for a record name. Null for record-only names. When a
- * `resolvable` set is supplied (active trick slugs + slugified aliases), the
- * link is also suppressed unless the slug actually resolves to a trick — so a
- * record whose trick isn't in the dictionary doesn't badge to a 404 page. With
- * no set, links unconditionally (used where the trick is known to resolve).
+ * The trick link for a record name. Null for record-only names. When a `resolve`
+ * function is supplied it decides both whether the name has a live trick page and
+ * which slug that page lives at: a name that resolves nowhere active yields null,
+ * so a record whose trick isn't in the dictionary doesn't badge to a 404 page, and
+ * a name that reaches its trick through an alias yields the canonical slug, so the
+ * rendered link lands on the live page instead of taking a redirect hop. With no
+ * resolver, links unconditionally (used where the trick is known to resolve).
  */
-function trickHrefFor(name: string | null, resolvable?: ReadonlySet<string>): string | null {
+function trickHrefFor(name: string | null, resolve?: (slug: string) => string | null): string | null {
   if (!name || isRecordOnlyTrickName(name)) return null;
   const slug = recordTrickNameToSlug(name);
-  if (resolvable && !resolvable.has(slug)) return null;
-  return `/freestyle/tricks/${slug}`;
+  if (!resolve) return `/freestyle/tricks/${slug}`;
+  const canonical = resolve(slug);
+  return canonical ? `/freestyle/tricks/${canonical}` : null;
 }
 
-export function shapeFreestyleRecord(row: FreestyleRecordRow, resolvableSlugs?: ReadonlySet<string>): FreestyleRecordViewModel {
+export function shapeFreestyleRecord(
+  row: FreestyleRecordRow,
+  resolveActiveSlug?: (slug: string) => string | null,
+): FreestyleRecordViewModel {
   const placeholderDate = dateIsPlaceholder(row.achieved_date);
   // A record under curator review must not link to a speculative canonical
   // trick, even if its name happens to slugify onto one.
@@ -172,7 +178,7 @@ export function shapeFreestyleRecord(row: FreestyleRecordRow, resolvableSlugs?: 
     holderName:      row.holder_name,
     holderHref:      personHref(row.holder_member_slug, row.person_id),
     trickName:       row.trick_name,
-    trickHref:       reviewNote ? null : trickHrefFor(row.trick_name, resolvableSlugs),
+    trickHref:       reviewNote ? null : trickHrefFor(row.trick_name, resolveActiveSlug),
     sortName:        row.sort_name,
     addsCount:       row.adds_count,
     valueNumeric:    row.value_numeric,

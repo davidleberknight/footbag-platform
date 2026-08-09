@@ -25,6 +25,21 @@ Strategic frame (how to derive, layer, and verify tests) lives in `docs/TESTING.
 
 Do not ask whether to add tests. Add them.
 
+## Scope of a verification run
+
+Per change: `npm run build` plus the suites the change reaches **and the suites that import what it changed**. `npm run build` type-checks `src/` only, so a changed signature leaves test call sites broken and silent; running the callers' suites is the only thing that catches it.
+
+Widen to the full suite when what changed is shared rather than local:
+
+- a fixture or factory
+- a service, helper, or type that more than one caller imports
+- a template partial rendered by more than one page
+- a SQL view or prepared statement with more than one consumer
+- any signature a test calls directly
+- any run on a working tree carrying work that is not yours
+
+The full suite (`npm run test:pre-pr`) is the commit and PR gate, always. Targeted runs verify a change; only the full run verifies the tree.
+
 ## What "edge cases" means
 
 For every public-facing route:

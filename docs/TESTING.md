@@ -1116,7 +1116,7 @@ A per-story charter names only the cases specific to that story; the cross-cutti
 
 **CL_Edit_Club** (dims 1, 5, 7, 13, 15). Only a club's co-leader edits its content; a co-leader of a different club is denied (adjacent-owner). External-URL changes are validated before persistence. Audit on the content edit.
 
-**CL_Mark_Club_Inactive** and **CL_Archive_Club** (dims 1, 5, 9, 10, 15). Co-leader-scoped state transitions. Marking inactive is reversible and open to any co-leader; archiving is terminal and refused unless the actor is the club's only co-leader with no other current member, the case where the last person there ends it. The inactive and archived states gate public visibility. Audit on each transition.
+**CL_Mark_Club_Inactive** (dims 1, 5, 9, 10, 15). Co-leader-scoped state transitions. Parking is reversible and open to any co-leader, and the club returns to the active listings the moment anyone joins, claims or reactivates it. The inactive state gates public listing visibility. Audit on each transition.
 
 ### 17.6 Charters: member profile, account, and media
 

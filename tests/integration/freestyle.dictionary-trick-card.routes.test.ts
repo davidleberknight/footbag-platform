@@ -258,8 +258,9 @@ describe('dictionary-trick-card — required slots', () => {
     expect(res.text).toMatch(/class="core-trick-equivalence dict-card-equivalence[^"]*"[^>]*>[\s\S]*?stepping[\s\S]*?butterfly/i);
     // Mobius: 'gyro torque' reading
     expect(res.text).toMatch(/class="core-trick-equivalence dict-card-equivalence[^"]*"[^>]*>[\s\S]*?gyro[\s\S]*?torque/i);
-    // The legacy aliases row is gone:
-    expect(res.text).not.toMatch(/class="dict-card-aliases"/);
+    // The ≡ structural readings and the "Also called" folk-name line are two
+    // separate slots. A trick can carry either, both, or neither, so the presence
+    // of a reading never implies an alias line and never suppresses one.
   });
 
   it('"Notation pending" placeholder is silent across all browse views', async () => {

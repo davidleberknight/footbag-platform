@@ -103,7 +103,7 @@
       {{/if}}
     </div>
 
-    {{#if (or content.club.viewerCanVolunteer content.club.viewerIsLeader)}}
+    {{#if content.club.showLeadershipBlock}}
     <section class="mt-4">
       <div class="section-heading"><h2>Leadership</h2></div>
       {{#if content.club.isLeaderless}}
@@ -113,6 +113,9 @@
         <form method="POST" action="{{content.club.volunteerHref}}">
           <button type="submit" class="btn btn-primary">Volunteer to Co-lead This Club</button>
         </form>
+      {{/if}}
+      {{#if content.club.volunteerBlockedNote}}
+        <p class="text-muted">{{content.club.volunteerBlockedNote}}</p>
       {{/if}}
       {{#if content.club.viewerIsLeader}}
         <form method="POST" action="{{content.club.inviteHref}}" class="mt-4">

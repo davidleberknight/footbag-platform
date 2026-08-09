@@ -320,7 +320,8 @@ describe('POST /clubs/create', () => {
       .set('Content-Type', 'application/x-www-form-urlencoded')
       .send(formData({ name: 'New Club', slug: 'leader_new' }));
     expect(res.status).toBe(422);
-    expect(res.text).toContain('already a Club Leader');
+    expect(res.text).toContain('You already co-lead');
+    expect(res.text).toContain('Clubs are local groups');
     expect(res.text).toContain('Existing Leader Club');
   });
 

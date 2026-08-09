@@ -22,7 +22,7 @@ Do **not** use this skill to:
 
 ## The pattern this skill encodes
 
-Every browse view shipped to date (the `allowedViews` set in `src/services/freestyleService.ts`) follows the same six-step recipe. The contract is mechanically tested by `freestyle.dictionary-trick-card.routes.test.ts`: any view that fails to render `dict-card-stack` fails the regression guard.
+Every browse view shipped to date (the `allowedViews` set in `src/services/freestyleService.ts`) follows the same six-step recipe. The contract is mechanically tested by `freestyle.dictionary-trick-card.routes.test.ts`: each view must render the density it implements, and a view rendering the wrong density fails the regression guard.
 
 ```
 Step 1 → READ existing patterns          (no writing yet)

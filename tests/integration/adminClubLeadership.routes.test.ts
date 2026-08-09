@@ -143,7 +143,7 @@ describe('assign', () => {
       .type('form')
       .send({ member_key: m, reason: 'second club' });
     expect(res.status).toBe(422);
-    expect(res.text).toContain('remove them there');
+    expect(res.text).toContain('step down at their club first');
     expect(leaders(clubB)).toHaveLength(0);
   });
 

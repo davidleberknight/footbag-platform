@@ -2689,10 +2689,13 @@ export interface FreestyleTrickSearchRow {
 }
 
 // Alias-aware substring search over active tricks. A trick matches on its
-// canonical name, its slug (hyphens read as spaces so "double leg" finds
-// double-leg-over), or any of its alias texts. Name/slug matches rank ahead of
-// alias-only matches; the caller dedupes by slug (keeping the higher-ranked
-// row) and trims to its display limit.
+// canonical name, its slug, or any of its alias texts. The caller passes the
+// query twice: as typed, for the name and alias arms, and folded to the
+// canonical underscore form, for the slug arm. Folding is what lets "double leg
+// over" find double_leg_over, and it keeps working when the visitor pastes the
+// underscore form instead. Name/slug matches rank ahead of alias-only matches;
+// the caller dedupes by slug (keeping the higher-ranked row) and trims to its
+// display limit.
 //
 // Search resolves ANY alias to its trick (a misspelling or an abbreviation still
 // finds the move), but the "also called" hint the caller renders is populated
@@ -2700,16 +2703,21 @@ export interface FreestyleTrickSearchRow {
 // search-only alias — a misspelling, an internal abbreviation — still returns
 // the trick but carries no alias text, so a misspelled or internal form is never
 // shown back to the visitor as an alternate name.
-export function searchFreestyleTricksByText(query: string, limit: number): FreestyleTrickSearchRow[] {
-  const escaped = query.replace(/[%_\\]/g, c => '\\' + c);
-  const like = `%${escaped}%`;
+export function searchFreestyleTricksByText(
+  query: string,
+  slugQuery: string,
+  limit: number,
+): FreestyleTrickSearchRow[] {
+  const escapeLike = (s: string) => s.replace(/[%_\\]/g, c => '\\' + c);
+  const like = `%${escapeLike(query)}%`;
+  const slugLike = `%${escapeLike(slugQuery)}%`;
   return db.prepare(`
     SELECT slug, canonical_name, adds, category, aliases_json,
            NULL AS matched_alias, sort_order, 0 AS match_rank
       FROM freestyle_tricks
      WHERE is_active = 1
        AND (category IS NULL OR category NOT IN ('modifier', 'operator'))
-       AND (canonical_name LIKE ? ESCAPE '\\' OR REPLACE(slug, '-', ' ') LIKE ? ESCAPE '\\')
+       AND (canonical_name LIKE ? ESCAPE '\\' OR slug LIKE ? ESCAPE '\\')
     UNION ALL
     SELECT t.slug, t.canonical_name, t.adds, t.category, t.aliases_json,
            CASE WHEN a.alias_display = 1 THEN a.alias_text ELSE NULL END AS matched_alias,
@@ -2720,7 +2728,7 @@ export function searchFreestyleTricksByText(query: string, limit: number): Frees
        AND a.alias_text LIKE ? ESCAPE '\\'
      ORDER BY match_rank ASC, sort_order ASC
      LIMIT ?
-  `).all(like, like, like, limit) as FreestyleTrickSearchRow[];
+  `).all(like, slugLike, like, limit) as FreestyleTrickSearchRow[];
 }
 
 export const freestyleTrickAliases = {

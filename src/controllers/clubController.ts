@@ -124,7 +124,7 @@ export const clubController = {
           res.redirect(303, `/clubs/${encodeURIComponent(result.clubKey)}`);
           return;
         case 'already_leader':
-          renderForm(422, `You are already a Club Leader for ${result.existingClubName}. Step down before creating a new club.`);
+          renderForm(422, `You already co-lead ${result.existingClubName}. Clubs are local groups, so you lead your own club and are a guest at any other. To create a new club, step down there first.`);
           return;
         case 'affiliation_cap':
           renderForm(422, 'You are already in 2 clubs. Leave one before creating a new club.');
@@ -262,7 +262,7 @@ export const clubController = {
         not_member:         'Join this club before volunteering to co-lead it.',
         not_eligible:       'Co-leading requires Tier 1 benefits (Tier 1+ or an active Active Player period).',
         already_coleader:   'You already co-lead this club.',
-        coleads_other_club: 'You already co-lead another club. A member can co-lead one club at a time.',
+        coleads_other_club: 'You already co-lead another club. Clubs are local groups, so you lead your own club and are a guest at any other. To lead this one instead, step down at your club first.',
         cap_reached:        'This club already has the maximum of 5 co-leaders.',
       };
       writeFlash(res, req, FLASH_KIND.CLUB_ACTION, messages[result.branch] ?? 'Could not volunteer.');

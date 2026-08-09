@@ -41,7 +41,7 @@ Consider reading the following if required for task:
 
 ## Working defaults
 
-- Verification: confirm what success looks like for the task, prefer route or integration verification first, and verify with `npm run build` plus only the test files the change reaches, named explicitly (`npx vitest run tests/...`). Doc-only or comment-only changes are verified by re-reading, not by `npm test` or `npm run build`.
+- Verification: confirm what success looks like for the task, prefer route or integration verification first, and verify with `npm run build` plus the test files the change reaches and the suites that import what it changed, named explicitly (`npx vitest run tests/...`). `npm run build` type-checks `src/` only, so a changed signature breaks test call sites silently. Widen the run per `.claude/rules/testing.md`; the full suite (`npm run test:pre-pr`) is the commit and PR gate, not the per-change loop. Doc-only or comment-only changes are verified by re-reading, not by `npm test` or `npm run build`.
 - Skill composition order when several apply: `extend-service-contract`, `add-public-page`, `write-tests`, `doc-sync`, `prepare-pr`.
 - Delegate to a sub-agent for broad multi-file searches and genuinely independent tracks of work. Never spawn one to verify or double-check your own work; the review skills keep their own verifier fan-out.
 - Lead with the outcome: your first sentence answers what happened or what you found, supporting detail after. Keep output short by being selective about what to include, not by compressing into fragments, arrow chains, or jargon. After a long run, write the final message for a reader who watched none of it.

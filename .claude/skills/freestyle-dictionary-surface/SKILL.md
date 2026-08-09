@@ -1,6 +1,6 @@
 ---
 name: freestyle-dictionary-surface
-description: Use when building or changing public-facing freestyle dictionary surfaces — the trick list and trick-detail pages (/freestyle/tricks, /freestyle/tricks/:slug), family pages, alias rendering, decomposition/related-trick/record/media display, and Simple vs Deep-Dive disclosure controls. Covers user-facing rendering and pedagogical authoring of dictionary content.
+description: Use when building or changing public-facing freestyle dictionary surfaces — the trick list and trick-detail pages (/freestyle/tricks, /freestyle/tricks/:slug), family pages, alias rendering, decomposition/related-trick/record/media display, and per-section disclosure controls. Covers user-facing rendering and pedagogical authoring of dictionary content.
 ---
 
 # Skill: freestyle-dictionary-surface
@@ -12,7 +12,7 @@ Invoke this skill when work touches:
 - Public-facing surfaces of the freestyle dictionary (`/freestyle/tricks`, `/freestyle/tricks/:slug`, `/freestyle/families/:slug`, `/freestyle/modifier/:slug`)
 - Trick-detail page rendering, including aliases, decomposition, related tricks, records, media
 - Family-page rendering: collective structure, ladder views, family-level media aggregation
-- Disclosure-depth controls (Simple / Deep Dive toggles)
+- Per-section disclosure controls (collapsible regions)
 - Alias rendering decisions across any user-facing surface
 - Pedagogical authoring (family intros, trick descriptions)
 - Media tier ordering on dictionary surfaces
@@ -52,13 +52,13 @@ These are the load-bearing patterns. Future work that quietly relaxes them is a 
 
 The default answer to "how do we surface X about a trick?" is: query the existing ontology and shape at the service layer. New schema is the rare exception, not the norm. Three of four UX axes explored needed zero new schema; the fourth degraded gracefully without it.
 
-### Disclosure depth, never auth gating
+### Disclosure by interaction, never auth gating
 
-Public dictionary content is public. Login is reserved for member-private surfaces (club rosters, member contact info, personal practice tracking). Depth on dictionary pages is controlled by **interaction** (Simple / Deep Dive toggle, accordions, expanders), not by role.
+Public dictionary content is public. Login is reserved for member-private surfaces (club rosters, member contact info, personal practice tracking). What a reader sees is controlled by **interaction**, never by role: a trick page has no modes, and each section that can be folded away is an independent collapsible region the reader opens for itself.
 
 ### Decomposition is pedagogy at the trick level
 
-A trick-detail page shows its structural decomposition (`gyro + torque = 5 ADD ✓`) even in Simple mode. The toggle controls the *explanation* depth, not the visibility of the structural fact. At family-page level, decomposition is compact annotation; at trick level, it's content.
+A trick-detail page always shows its structural decomposition (`gyro + torque = 5 ADD ✓`); it is content, not detail to be folded away. At family-page level, decomposition is compact annotation; at trick level, it's content.
 
 ### Single mapping site
 
@@ -66,7 +66,7 @@ The single-mapping-site pattern: status enums, alias categories, media tier orde
 
 ### Search resolves all aliases; display surfaces only what helps
 
-Aliases categorize into Common / Historical / Technical / Typo. Search resolves any of them to the canonical slug. Display surfaces only Common (always) and Historical (in Deep Dive). Technical aliases live in expanders. Typos are never user-visible.
+An alias carries a curator-set type (common, historical, technical, typo) and, separately, a display flag. Search resolves any alias to the canonical trick regardless of the flag, so a misspelling or an internal shorthand still finds the move. Public surfaces render one "Also called" list holding exactly the aliases whose display flag is set; the type is curator metadata and does not by itself decide what a reader sees.
 
 ### The ontology is the joint model
 
@@ -102,13 +102,13 @@ Same source data; different curatorial choice. The family page wants breadth; th
 
 | Category | Render rule | Example |
 |---|---|---|
-| Common alias | Inline always | `Reverse Whirl` → rev_whirl; `PS Whirl` → paradox_symposium_whirl |
-| Historical name | Inline in Deep Dive only; with provenance | `Whirlwind` → spinning_symposium_whirl; `Whip` → rev_whirl |
-| **Structural alias** | Inline in Deep Dive (alongside the decomposition block) | `Gyro Torque` → mobius; `Atomic Legover` → eggbeater; `Pixie DLO` → smog |
-| Technical decomposition | Search-only / "abbreviations" expander | `pdx_whirl`, `BW`, `bs_magellan` |
-| Typo / misspelling | Search-only; **never displayed** | `blury_whirl`, `m_bius`, `spinning_symposium_wirl` |
+| Common alias | Displayed when flagged | `Reverse Whirl` → rev_whirl; `PS Whirl` → paradox_symposium_whirl |
+| Historical name | Displayed when flagged; carries provenance | `Whirlwind` → spinning_symposium_whirl; `Whip` → rev_whirl |
+| **Structural alias** | Displayed when flagged, alongside the decomposition block | `Gyro Torque` → mobius; `Atomic Legover` → eggbeater; `Pixie DLO` → smog |
+| Technical decomposition | Search-only in practice; not flagged for display | `pdx_whirl`, `BW`, `bs_magellan` |
+| Typo / misspelling | Search-only; never flagged for display | `blury_whirl`, `m_bius`, `spinning_symposium_wirl` |
 
-Categorization isn't in the schema today. Heuristics (length, vowel-edit-distance, word-count, abbreviation-token detection, known-name lookup) categorize most cases; a single optional curator-asserted `alias_kind` column would clean it up. Until then, render only the most-confidently-named Common aliases and degrade gracefully.
+Categorization is in the schema: a curator sets an alias's type in the trick editor, and a separate display flag decides whether it reaches a reader. The heuristics below (length, vowel-edit-distance, word-count, abbreviation-token detection, known-name lookup) are authoring aids for classifying a new alias, not a runtime path.
 
 #### Structural alias category (validated dictionary-wide)
 
@@ -134,11 +134,11 @@ Roughly 10–15 dictionary aliases fit this pattern. The audit found them cluste
 
 #### Render rule for Structural aliases
 
-- **Inline rendering only in Deep Dive mode**, alongside (not duplicated by) the decomposition block. The decomposition formula (`gyro(+1) + torque(4) = 5 ✓`) and the structural-alias name (`Gyro Torque`) are two presentations of the same fact; both can appear because they reach different reader populations:
+- **Rendered alongside (not duplicated by) the decomposition block** when flagged for display. The decomposition formula (`gyro(+1) + torque(4) = 5 ✓`) and the structural-alias name (`Gyro Torque`) are two presentations of the same fact; both can appear because they reach different reader populations:
   - The formula reaches structural / curator audiences
   - The noun-phrase name reaches community-vocabulary audiences
 - **Search resolves them.** A user typing "Atomic Legover" lands on `eggbeater`, just as one typing "eggbeater" does.
-- **Do NOT promote them to Simple mode.** Simple mode preserves the canonical name's authority; surfacing both `Eggbeater` and `Atomic Legover` in Simple risks confusing beginners.
+- **Flag them for display sparingly.** The canonical name carries the authority; surfacing both `Eggbeater` and `Atomic Legover` everywhere risks confusing beginners.
 
 #### Heuristic for auto-classification
 
@@ -155,19 +155,17 @@ If any condition fails, the alias is NOT structural: fall through to Common / Hi
 
 Some structural aliases are also superseded names (Toe Blur → Quantum Mirage per Red pt2). Pick the **more useful** category for rendering:
 
-- If active community usage is current, classify as Structural (rendered in Deep Dive)
+- If active community usage is current, classify as Structural
 - If the alias is fading from use AND replaced by a new canonical, classify as Historical
 
 Curator override via `alias_kind` (when added) is the tiebreaker.
 
 ### Disclosure model
 
-- Single URL serves both Simple and Deep Dive
-- localStorage-based persistence (no auth, no URL state)
-- Toggle persists across pages: Deep Dive on a family page carries to clicked trick pages
-- Default first-visit lands in Simple
-- Decomposition stays visible in Simple at trick level (formula content, not depth)
-- Pedagogical intro shortens; structural blocks compress; ladders abbreviate; expanders close
+- A trick page has no modes and no depth toggle. One URL, one rendering.
+- Sections that can be folded away are independent collapsible regions: technique notes, community tips, structural decomposition, the ADD derivation panel.
+- Each starts closed and each is opened on its own. Opening one never changes another, and nothing about the choice persists across pages.
+- Decomposition is always present at trick level; the region controls how much explanation sits around it, not whether the formula exists.
 
 ---
 
