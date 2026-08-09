@@ -104,7 +104,7 @@ describe('Browse-view scale intros — present + clarifying clause per view', ()
   });
 
   it('By Modifier view states a modifiers scale + multi-modifier clarification', async () => {
-    const html = (await request(await createApp()).get('/freestyle/tricks?view=sets')).text;
+    const html = (await request(await createApp()).get('/freestyle/tricks?view=modifier')).text;
     const scale = scaleSentence(html);
     expect(scale).toMatch(/modifiers? ·/);
     expect(scale).toMatch(/trick-row memberships shown/);
@@ -126,7 +126,7 @@ describe('Browse-view scale intros — counts match the rendered sections (not h
     ['family', 'family', 'class="content-section trick-family-group'],
     ['dex-count', 'dex', 'class="content-section trick-dex-count-group'],
     ['movement-system', 'movement axes', 'class="content-section trick-movement-axis'],
-    ['sets', 'sets', 'class="trick-set-group"'],
+    ['modifier', 'modifier', 'class="trick-modifier-group"'],
     ['topology', 'neighborhoods', 'class="content-section trick-topology-group'],
   ];
 

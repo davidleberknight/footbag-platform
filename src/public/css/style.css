@@ -3417,13 +3417,7 @@ section.home-media { padding-top: 0; }
 .trick-view-toggle-sep { margin: 0 6px; opacity: 0.5; }
 
 .trick-add-group { margin-bottom: 28px; }
-.trick-set-group { margin-bottom: 28px; }
-.trick-set-type {
-  font-size: 0.78rem;
-  color: var(--text-muted);
-  font-weight: normal;
-  font-style: italic;
-}
+.trick-modifier-group { margin-bottom: 28px; }
 
 .trick-list {
   list-style: none;
@@ -4025,16 +4019,16 @@ section.home-media { padding-top: 0; }
   white-space: nowrap;
 }
 
-.related-set-groups {
+.related-modifier-groups {
   font-size: 0.85rem;
   margin: 0 0 12px 0;
   color: var(--text-muted);
 }
-.related-set-groups-label { margin-right: 6px; }
-.related-set-group-link { color: var(--primary); text-decoration: none; }
-.related-set-group-link:hover { text-decoration: underline; }
-.related-set-group-count { color: var(--text-muted); }
-.related-set-group-sep { opacity: 0.5; }
+.related-modifier-groups-label { margin-right: 6px; }
+.related-modifier-group-link { color: var(--primary); text-decoration: none; }
+.related-modifier-group-link:hover { text-decoration: underline; }
+.related-modifier-group-count { color: var(--text-muted); }
+.related-modifier-group-sep { opacity: 0.5; }
 
 .family-badge {
   display: inline-block;
@@ -11484,10 +11478,10 @@ a.dict-trick-row-hashtag--media:hover {
 
 /* Governance and polish surfaces.
    - Toggle aside for the Operators & Modifiers reference link
-   - Sets browse view (?view=sets): Core / Secondary cohorts
+   - Modifier browse view (?view=modifier): Core / Secondary cohorts
    - Browse-view status label (Movement System / Neighborhoods exploratory)
    - Observational lane sections
-   - "By Set" trick-list density
+   - "By modifier" trick-list density
 */
 .trick-view-toggle-aside {
   margin: 6px 0 14px;
@@ -11504,7 +11498,7 @@ a.dict-trick-row-hashtag--media:hover {
   border-radius: var(--radius-2xs);
   color: var(--text-secondary);
 }
-.sets-view-total {
+.modifier-view-total {
   margin: 4px 0 18px;
   font-size: 0.92rem;
 }
@@ -11664,7 +11658,7 @@ a.dict-trick-row-hashtag--media:hover {
 }
 
 /* ── Set Encyclopedia (standalone /freestyle/sets) ──────────
- * Denser visual treatment than the Set Hub at ?view=sets. Goal:
+ * Denser visual treatment than the dictionary browse views. Goal:
  * compositional vocabulary board / set periodic table; cards are
  * scan-friendly, formula-forward, with deep content deferred to
  * /freestyle/sets/<slug> detail pages.
@@ -12439,7 +12433,7 @@ a.set-detail-trick-media:hover {
   color: var(--text-subtle);
   margin: 0 2px;
 }
-.sets-cluster-blurb {
+.modifier-cluster-blurb {
   margin: -2px 0 10px;
   font-size: 0.92rem;
 }
@@ -12541,7 +12535,7 @@ a.set-detail-trick-media:hover {
 }
 
 /* Modifier-cluster jump nav. */
-.sets-view-jump {
+.modifier-view-jump {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;

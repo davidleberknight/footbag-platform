@@ -133,10 +133,10 @@ beforeAll(async () => {
     sort_order:     10,
   });
 
-  // Modifier-link fixture for the ?view=sets projection.
+  // Modifier-link fixture for the ?view=modifier projection.
   // 'spinning' is a real body-type modifier in the freestyle ontology;
   // 'spinning-whirl' is seeded above with a base of 'whirl'. Linking the
-  // two exercises the sets-grouping path so the view renders real groups
+  // two exercises the modifier-grouping path so the view renders real groups
   // instead of falling back to the empty state.
   insertFreestyleTrickModifier(db, {
     slug:                 'spinning',
@@ -529,18 +529,18 @@ describe('GET /freestyle/tricks?family=… — hashtag filter', () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?family=whirl');
     // Whirl-family fixture seeds spinning-whirl with a modifier_link to spinning.
-    expect(res.text).toContain('class="related-set-groups"');
+    expect(res.text).toContain('class="related-modifier-groups"');
     expect(res.text).toContain('Related set/modifier groups:');
-    // Deep-link into the sets projection at the matching set anchor.
-    expect(res.text).toContain('href="/freestyle/tricks?view=sets#set-spinning"');
+    // Deep-link into the modifier projection at the matching modifier anchor.
+    expect(res.text).toContain('href="/freestyle/tricks?view=modifier#set-spinning"');
     // Link surface shows the modifier name and a count chip.
-    expect(res.text).toMatch(/related-set-group-link[^>]*>spinning <span class="related-set-group-count">\(1\)<\/span>/);
+    expect(res.text).toMatch(/related-modifier-group-link[^>]*>spinning <span class="related-modifier-group-count">\(1\)<\/span>/);
   });
 
   it('does NOT render the Related set/modifier groups block when no family is active', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=add');
-    expect(res.text).not.toContain('class="related-set-groups"');
+    expect(res.text).not.toContain('class="related-modifier-groups"');
     expect(res.text).not.toContain('Related set/modifier groups:');
   });
 
@@ -549,7 +549,7 @@ describe('GET /freestyle/tricks?family=… — hashtag filter', () => {
     // legover family has one trick (legover) and no modifier_links rows.
     const res = await request(app).get('/freestyle/tricks?family=legover');
     expect(res.text).toMatch(/ family: \d+ tricks?\./); // sanity: filter active
-    expect(res.text).not.toContain('class="related-set-groups"');
+    expect(res.text).not.toContain('class="related-modifier-groups"');
   });
 });
 
@@ -938,25 +938,22 @@ describe('GET /freestyle/tricks — ADD-grouped view (default beginner view)', (
 
 // ---------------------------------------------------------------------------
 
-describe('GET /freestyle/tricks?view=sets — dedicated By Set view', () => {
-  // ?view=sets is not an alias for the soft-retired ?view=component; it
-  // activates the dedicated By Set browse view with two cohorts (Core
-  // sets + Secondary / composite systems).
+describe('GET /freestyle/tricks?view=modifier — dedicated By modifier view', () => {
+  // ?view=modifier is not an alias for the soft-retired ?view=component; it
+  // activates the dedicated modifier-grouped browse view.
 
-  it('returns 200 and renders the dedicated By Set view (not the component alias)', async () => {
+  it('returns 200 and renders the dedicated By modifier view (not the component alias)', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks?view=sets');
+    const res = await request(app).get('/freestyle/tricks?view=modifier');
     expect(res.status).toBe(200);
-    // Active-state toggle entry confirms the new view took effect (and
-    // is no longer an alias to the soft-retired component view).
+    // Active-state toggle entry confirms the view took effect.
     expect(res.text).toMatch(/class="trick-view-toggle-active">By modifier</);
     // Confirm we are NOT showing the soft-retired component view's
-    // retirement notice (i.e. the legacy alias is gone).
+    // retirement notice.
     expect(res.text).not.toContain('class="component-view-retirement-notice"');
-    // Cohort sections render conditional on having modifier-linked
-    // tricks; this fixture doesn't seed set modifier links, so the
-    // cohort h2s may be empty. Full cohort rendering is exercised in
-    // tests/integration/freestyle.sets-view.routes.test.ts.
+    // Cluster sections render conditional on having modifier-linked tricks;
+    // this fixture seeds only one such link, so full cluster rendering is
+    // exercised in the dedicated modifier-view suite.
   });
 });
 

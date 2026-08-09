@@ -6,7 +6,7 @@
  *     dict-trick-row contract (dict-trick-row-stack), NOT the shared card.
  *   - By Category and By Component render the shared dictionary-trick-card
  *     partial (dict-card-stack).
- *   - By Set uses its own compact-list density and is outside the
+ *   - By Modifier uses its own compact-list density and is outside the
  *     card-uniformity contract.
  *
  * Sample tricks:
@@ -559,11 +559,11 @@ describe('other dictionary views — per-view rendering contract', () => {
     expect(res.text).toContain('dict-card-stack');
   });
 
-  it('/freestyle/tricks?view=sets returns 200 (dedicated By Set view)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=sets');
+  it('/freestyle/tricks?view=modifier returns 200 (dedicated By modifier view)', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks?view=modifier');
     expect(res.status).toBe(200);
-    // ?view=sets renders the dedicated By Set browse view, not a component
-    // alias (compact-list density, NOT dict-card-stack registry density).
+    // ?view=modifier renders the dedicated modifier browse view, not a
+    // component alias (compact-list density, NOT dict-card-stack density).
     // Active-toggle marker confirms the routing.
     expect(res.text).toMatch(/class="trick-view-toggle-active">By modifier</);
   });
@@ -575,7 +575,7 @@ describe('other dictionary views — per-view rendering contract', () => {
   });
 
   it('the dict-card-stack browse views continue to use the shared dictionary-trick-card partial', async () => {
-    // ?view=sets is outside this card-uniformity contract (it uses
+    // ?view=modifier is outside this card-uniformity contract (it uses
     // compact-list density, not the dictionary-trick-card partial).
     // ?view=add and ?view=family are also outside it — both render the
     // two-line dict-trick-row contract, not the shared dict-card-stack.

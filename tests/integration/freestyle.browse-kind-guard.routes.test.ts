@@ -32,7 +32,7 @@ const { dbPath } = setTestEnv('3527');
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
 const BROWSE_VIEWS = [
-  'add', 'family', 'category', 'sets', 'component', 'topology', 'movement-system', 'dex-count',
+  'add', 'family', 'category', 'modifier', 'component', 'topology', 'movement-system', 'dex-count',
 ];
 
 beforeAll(async () => {
@@ -76,7 +76,7 @@ beforeAll(async () => {
     notation: 'BLUR', operational_notation: 'SET > OP IN [DEX] > OP OUT [DEX] > OP TOE [DEL]',
     review_status: 'expert_reviewed', is_active: 1,
   });
-  // Modifier registry + link so the ?view=sets projection renders a quantum
+  // Modifier registry + link so the ?view=modifier projection renders a quantum
   // group whose MEMBER is the compound, never the quantum row itself.
   insertFreestyleTrickModifier(db, {
     slug: 'quantum', modifier_name: 'quantum', add_bonus: 1, modifier_type: 'set',

@@ -151,7 +151,7 @@ Each browse-view slice ships a focused integration test file at `tests/integrati
 3. **Within-group ordering**: verify ADD-asc-then-name sort (or the view-specific rule); pick an example with 3+ tricks at different ADD values to assert ordering
 4. **Empty-group hiding** (when applicable): assert that groups with zero members do NOT render their anchor
 5. **Intentional duplication** (when applicable): for views where a trick can appear in multiple groups (component, topology), verify multi-group rendering
-6. **Card-density contract**: verify the view renders the density it implements (`dict-card-stack` for card-density views, `dict-trick-row` for two-line views, `compact-list` for sets) and at least one `data-trick-slug=` attribute (the partial's identity marker)
+6. **Card-density contract**: verify the view renders the density it implements (`dict-card-stack` for card-density views, `dict-trick-row` for two-line views, `compact-list` for the modifier view) and at least one `data-trick-slug=` attribute (the partial's identity marker)
 7. **Observational-layer attribution** (when applicable): for observational views, verify the badge + footer render
 
 Then update `tests/integration/freestyle.dictionary-trick-card.routes.test.ts`:
@@ -159,7 +159,7 @@ Then update `tests/integration/freestyle.dictionary-trick-card.routes.test.ts`:
 ```ts
 it('the dict-card-stack browse views use the shared dictionary-trick-card partial', async () => {
   // Card-density views render the shared card. Two-line views (?view=add, family)
-  // render dict-trick-row; ?view=sets uses compact-list; ?view=topology asserts
+  // render dict-trick-row; ?view=modifier uses compact-list; ?view=topology asserts
   // NOT dict-card-stack. A new view joins whichever density contract it implements.
   for (const view of ['category', 'component']) {
     const res = await request(createApp()).get(`/freestyle/tricks?view=${view}`);

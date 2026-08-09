@@ -1278,7 +1278,7 @@ export interface ActivePlayerVouchOverrides {
 
 // ── Freestyle trick modifier + modifier-link helpers ─────────────────────────
 //
-// Used by the trick-dictionary tests that exercise ?view=sets and the
+// Used by the trick-dictionary tests that exercise ?view=modifier and the
 // modifier reference table. Both helpers are minimal wrappers over the raw
 // schema; they exist so tests don't have to repeat the INSERT shape.
 

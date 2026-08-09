@@ -2981,7 +2981,7 @@ export const freestyleTrickModifiers = {
   // (modifier, trick) pair, ordered for service-side grouping. Excludes
   // pending tricks, modifier-category tricks (they're not display-tier),
   // and modifiers that have zero linked active tricks (filtered later in
-  // the service when grouping). Drives /freestyle/tricks?view=sets.
+  // the service when grouping). Drives /freestyle/tricks?view=modifier.
   get listTricksByModifier() { return db.prepare(`
     SELECT
       m.slug                  AS modifier_slug,

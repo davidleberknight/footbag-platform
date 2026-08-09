@@ -69,7 +69,7 @@ const PRIMARY_VIEWS: Array<[string, string]> = [
   ['family', 'By family'],
   ['dex-count', 'By dex count'],
   ['movement-system', 'Movement System'],
-  ['sets', 'By Modifier'],
+  ['modifier', 'By Modifier'],
   ['topology', 'Movement Neighborhoods'],
 ];
 

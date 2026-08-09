@@ -734,7 +734,7 @@ function buildFreestyleByNumbers(
     { key: 'dexterity', eyebrow: 'How many dexes define tricks?', title: 'Dexterity',
       viewKey: 'dex-count', footnote: null, bars: ordered(dex, ['0', '1', '2', '3+']) },
     { key: 'entry', eyebrow: 'How do tricks begin?', title: 'Entry sets',
-      viewKey: 'sets', footnote: null, bars: top(entry, 20) },
+      viewKey: 'modifier', footnote: null, bars: top(entry, 20) },
     { key: 'terminal', eyebrow: 'How do tricks finish?', title: 'Family endings',
       viewKey: 'family', footnote: null, bars: histTop(FAMILY_HISTOGRAM, 20) },
     { key: 'body', eyebrow: 'What body movements shape tricks?', title: 'Body movements',
@@ -2800,32 +2800,7 @@ export interface DictionaryTrickCard {
   firstClassChainIncomplete:   boolean;
 }
 
-export type FreestyleTricksActiveView = 'add' | 'family' | 'category' | 'sets' | 'component' | 'topology' | 'movement-system' | 'dex-count';
-
-// Sets-view browse model. Canonical sets are first-class ontology objects, not
-// trick-grouped browse filters. Six subtypes; each set carries a
-// hashtag, formula, movement explanation, equivalence notes, derived /
-// related system slugs, source provenance, and (optionally) audit
-// status. Per-set detail pages live at /freestyle/sets/:slug.
-//
-// Alternate-surface systems are NOT here. Surface mechanics are a
-// distinct ontology layer (see ?view=movement-system alt-surfaces
-// subsection). The Set Hub renders a cross-link card pointing readers
-// to that surface; no surface entries on this view.
-export interface FreestyleSetsBrowseView {
-  intro:                  string;
-  totalSets:              number;
-  subtypeSections:        SetSubtypeSection[];
-  altSurfacesCrossLink:   AltSurfacesCrossLink;
-}
-
-export interface SetSubtypeSection {
-  key:    SetSubtypeKey;
-  label:  string;
-  intro:  string;
-  count:  number;
-  cards:  CanonicalSetCard[];
-}
+export type FreestyleTricksActiveView = 'add' | 'family' | 'category' | 'modifier' | 'component' | 'topology' | 'movement-system' | 'dex-count';
 
 export type SetSubtypeKey =
   | 'true-core'
@@ -2835,48 +2810,23 @@ export type SetSubtypeKey =
   | 'uns'
   | 'rooted-antisymposium';
 
-export interface CanonicalSetCard {
-  slug:                 string;
-  hashtag:              string;
-  displayName:          string;
-  formula:              string;
-  movementExplanation:  string;
-  equivalenceReadings:  readonly string[];   // pre-shaped strings, "<reading> — <citation>"
-  source:               CanonicalSetSourceKey;
-  sourceLabel:          string;              // pre-shaped UI label
-  sourceCitation:       string;
-  auditStatus?:         CanonicalSetAuditKey;
-  auditStatusLabel?:    string;              // pre-shaped UI label
-  derivedSystems:       readonly SlugLinkVM[];
-  relatedSystems:       readonly SlugLinkVM[];
-  detailHref:           string;              // /freestyle/sets/<slug> detail target
-  showDetailLink:       boolean;             // suppresses the link when the detail page cannot resolve
-}
-
 export type CanonicalSetSourceKey = 'canonical' | 'platform-tracked' | 'holden-only';
 export type CanonicalSetAuditKey   = 'aligned' | 'partial' | 'conflict' | 'holden-only';
 
 export interface SlugLinkVM {
   slug:  string;
   label: string;
-  href:  string;        // anchor href within the set hub (e.g. "#set-pixie")
-}
-
-export interface AltSurfacesCrossLink {
-  heading:           string;
-  framing:           string;
-  movementSystemHref: string;
-  ctaLabel:          string;
+  href:  string;        // link target for the named set (e.g. "/freestyle/sets/pixie")
 }
 
 // ─────────────────────────────────────────────────────────────────────────
 // Set Encyclopedia (standalone /freestyle/sets page).
 //
-// Distinct from /freestyle/tricks?view=sets (which embeds set content in
-// the dictionary URL) and from /freestyle/compositional-sets (which is
-// the exploratory hub). The Encyclopedia is the canonical user-facing
-// entry point for "what is this set system?" — minimalist cards, scan-
-// friendly, links to /freestyle/sets/<slug> for deep ontology.
+// The canonical set-specific surface, and the only one: it answers "what is
+// this set system?". Distinct from /freestyle/tricks?view=modifier (which
+// groups dictionary tricks by the modifier they use, sets included) and from
+// /freestyle/compositional-sets (the exploratory hub). Minimalist cards,
+// scan-friendly, links to /freestyle/sets/<slug> for deep ontology.
 //
 // Per the curator UX directive: cards carry ONLY name +
 // hashtag + compact formula + one-sentence movement + one provenance
@@ -2963,8 +2913,8 @@ export type EncyclopediaCardRole =
   | 'rooted';
 
 export interface EncyclopediaCrossLinks {
-  dictionaryBysetLabel:    string;
-  dictionaryBysetHref:     string;
+  dictionaryModifierLabel: string;
+  dictionaryModifierHref:  string;
   compositionalHubLabel:   string;
   compositionalHubHref:    string;
   operatorsPageLabel:      string;
@@ -3043,7 +2993,7 @@ export interface SetDetailExampleTrick {
 }
 
 export interface SetDetailCrossLinks {
-  setHubHref:                string;
+  setEncyclopediaHref:       string;
   compositionalHubHref:      string;
   movementSystemAxisHref:    string;
   operatorReferenceHref?:    string;
@@ -3075,10 +3025,10 @@ export interface FreestyleTrickDexCountGroup {
   addBands: FreestyleAddBand[];
 }
 
-// One row in the ?view=sets projection. Each set/modifier carries the list
-// of canonical tricks that use it via freestyle_trick_modifier_links.
-// modifierType ('set' | 'body' | 'rotational-qualifier') drives the
-// section-header grouping in the template.
+// One row in the ?view=modifier projection. Each modifier (set, body, or
+// rotational qualifier) carries the list of canonical tricks that use it via
+// freestyle_trick_modifier_links. modifierType ('set' | 'body' |
+// 'rotational-qualifier') drives the section-header grouping in the template.
 //
 // Cards are full DictionaryTrickCard view-models (NOT FreestyleTrickIndexRow).
 // The dictionary-trick-card partial expects DictionaryTrickCard's shape —
@@ -3089,7 +3039,7 @@ export interface FreestyleTrickDexCountGroup {
 // FreestyleTrickIndexRow here, which left most card fields blank and
 // reduced the rendered output to bare hashtags. The DictionaryTrickCard
 // shape closes that gap.
-export interface FreestyleSetGroup {
+export interface FreestyleModifierGroup {
   modifierSlug: string;
   modifierName: string;
   modifierType: string;
@@ -3099,16 +3049,16 @@ export interface FreestyleSetGroup {
   trickCount: number;
 }
 
-// Cross-link from a family-filtered dictionary view to a section in the
-// ?view=sets projection. Surfaces the modifiers used by tricks in the
-// active family. Driven entirely by freestyle_trick_modifier_links —
-// no schema, ontology, or routing change.
-export interface FreestyleRelatedSetLink {
+// Cross-link from a family-filtered dictionary view into the ?view=modifier
+// projection. Surfaces the modifiers used by tricks in the active family.
+// Driven entirely by freestyle_trick_modifier_links — no schema, ontology, or
+// routing change.
+export interface FreestyleRelatedModifierLink {
   modifierSlug: string;
   modifierName: string;
   modifierType: string;
   count: number;          // number of in-family tricks linked to this modifier
-  href: string;           // /freestyle/tricks?view=sets#set-{modifierSlug}
+  href: string;           // /freestyle/tricks?view=modifier#set-{modifierSlug}
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -3239,10 +3189,6 @@ export interface FreestyleTricksIndexContent {
   // ?view=dex-count grouped view.
   // Always shaped; UI branch renders only when activeView === 'dex-count'.
   dexCountGroups: FreestyleTrickDexCountGroup[];
-  // ?view=sets grouped view. Always shaped;
-  // UI branch renders only when activeView === 'sets'. Replaces the previous
-  // sets→component alias (component view is soft-retired).
-  setsBrowseView: FreestyleSetsBrowseView;
   activeView: FreestyleTricksActiveView;
 
   // Existing category-grouped view, preserved for ?view=category.
@@ -3255,12 +3201,12 @@ export interface FreestyleTricksIndexContent {
   // families as anchor chips, so readers can skip between family sections
   // without scrolling the full list. Derived purely from familyGroups.
   familyJumpIndex: FreestyleFamilyJumpIndex;
-  // Sets-grouped view: dictionary tricks bucketed by which modifier(s) they
-  // use. Drives ?view=sets. Empty when no active tricks have modifier_links.
-  setGroups: FreestyleSetGroup[];
-  // ?view=sets cluster grouping (organizational): non-empty clusters in display
-  // order, each wrapping its active modifier groups.
-  setsClusterView: SetsClusterView[];
+  // Modifier-grouped view: dictionary tricks bucketed by which modifier(s) they
+  // use. Drives ?view=modifier. Empty when no active tricks have modifier_links.
+  modifierGroups: FreestyleModifierGroup[];
+  // ?view=modifier cluster grouping (organizational): non-empty clusters in
+  // display order, each wrapping its active modifier groups.
+  modifierClusterView: ModifierClusterView[];
   // Component view (?view=component). Body + set modifier axes only.
   componentView: ComponentBrowseView;
   // Topology view (?view=topology). Six pedagogically-
@@ -3275,7 +3221,7 @@ export interface FreestyleTricksIndexContent {
   totalTricks: number;
   activeFamily: string | null;           // when set, dictionary is filtered to this family only (hashtag-click filter)
   // Empty unless activeFamily is set AND the family has modifier-linked tricks.
-  relatedSetGroups: FreestyleRelatedSetLink[];
+  relatedModifierGroups: FreestyleRelatedModifierLink[];
   // dictionaryStats: the corpus counts (full pages / documented names / aliases),
   // shown right under the beginner onboarding block on the default landing as
   // supporting metadata, prominent near the top but not the opening lede.
@@ -3289,13 +3235,13 @@ export interface FreestyleTricksIndexContent {
   familyScale: string | null;
   dexCountScale: string | null;
   movementSystemScale: string | null;
-  setsScale: string | null;
+  modifierScale: string | null;
   topologyScale: string | null;
   // Per-view section intros, service-shaped like familyViewIntro so the copy
   // standard holds (no hardcoded section copy in the template). The dex-count
   // and modifier views carried theirs inline before.
   dexCountIntro: string | null;
-  setsIntro: string | null;
+  modifierIntro: string | null;
   // Per-view intro for the movement-system view, service-shaped so copy has a
   // single source of truth (the template appends the cross-links).
   movementSystemIntro: string | null;
@@ -3353,20 +3299,20 @@ export interface DictionaryLandingChip {
   count: number | null;         // derived hit count; null when unavailable
 }
 
-// Higher-level modifier cluster for the grouped ?view=sets page (organizational
-// UX; individual modifier groups nest underneath). Reversible content grouping,
-// not ontology — see freestyleModifierClusters.ts.
-export interface SetsClusterBand {
+// Higher-level modifier cluster for the grouped ?view=modifier page
+// (organizational UX; individual modifier groups nest underneath). Reversible
+// content grouping, not ontology — see freestyleModifierClusters.ts.
+export interface ModifierClusterBand {
   rung:  number;                // 1 / 2 / 3 (3 = "3+")
   label: string;                // "1 operator" / "2 operators" / "3+ operators"
   cards: DictionaryTrickCard[]; // alphabetical within the band
 }
 
-export interface SetsClusterView {
+export interface ModifierClusterView {
   key:        string;               // `cluster-{key}` section anchor
   label:      string;
   blurb:      string;
-  bands:      SetsClusterBand[];     // tricks banded by operator count (complexity)
+  bands:      ModifierClusterBand[]; // tricks banded by operator count (complexity)
   trickCount: number;                // total tricks across the cluster (deduped)
 }
 
@@ -8864,11 +8810,11 @@ export const freestyleService = {
     const documentedUniverseTotal = OBSERVATIONAL_UNIVERSE_STATS.universeTotal;
 
     // ---- View toggle --------------------------------------------------
-    const allowedViews: FreestyleTricksActiveView[] = ['add', 'family', 'category', 'sets', 'component', 'topology', 'movement-system', 'dex-count'];
+    const allowedViews: FreestyleTricksActiveView[] = ['add', 'family', 'category', 'modifier', 'component', 'topology', 'movement-system', 'dex-count'];
     const requestedView = (view ?? 'add') as FreestyleTricksActiveView;
-    // ?view=sets activates the dedicated By Set browse
-    // mode; the soft-retired component view keeps resolving for inbound
-    // legacy links.
+    // A value outside the allow-list falls through to the default ADD view
+    // rather than erroring. The soft-retired component view keeps resolving for
+    // inbound legacy links.
     const resolvedView: FreestyleTricksActiveView = allowedViews.includes(requestedView)
       ? requestedView
       : 'add';
@@ -8948,20 +8894,20 @@ export const freestyleService = {
     );
     const modifiers = modifierRows.map(shapeModifierEntry);
 
-    // ---- Set groups (?view=sets projection) ---------------------------
+    // ---- Modifier groups (?view=modifier projection) -------------------
     // Group active dictionary tricks by which modifier(s) they use via the
     // freestyle_trick_modifier_links table. Each modifier becomes a section;
     // tricks within a section are alphabetical. Modifiers with zero matched
-    // tricks are skipped (table-driven, not enumerated). Sets-type
+    // tricks are skipped (table-driven, not enumerated). Set-type
     // modifiers are surfaced before body-type modifiers via the SQL ORDER BY.
-    const allActiveTrickRowsForSets = allRows.filter(r => r.is_active === 1);
+    const allActiveTrickRows = allRows.filter(r => r.is_active === 1);
     const allActiveTrickRowsBySlug = new Map<string, FreestyleTrickRowWithStatus>();
-    for (const r of allActiveTrickRowsForSets) allActiveTrickRowsBySlug.set(r.slug, r);
+    for (const r of allActiveTrickRows) allActiveTrickRowsBySlug.set(r.slug, r);
 
     const linkRows = runSqliteRead('freestyleTrickModifiers.listTricksByModifier', () =>
       freestyleTrickModifiers.listTricksByModifier.all() as FreestyleTrickModifierLinkRow[],
     );
-    const setGroupAccumulator = new Map<string, {
+    const modifierGroupAccumulator = new Map<string, {
       modifierSlug: string;
       modifierName: string;
       modifierType: string;
@@ -8974,7 +8920,7 @@ export const freestyleService = {
       // and that exist in the active set (modifier-category rows excluded).
       const trickRow = allActiveTrickRowsBySlug.get(lr.trick_slug);
       if (!trickRow) continue;
-      let bucket = setGroupAccumulator.get(lr.modifier_slug);
+      let bucket = modifierGroupAccumulator.get(lr.modifier_slug);
       if (!bucket) {
         bucket = {
           modifierSlug: lr.modifier_slug,
@@ -8984,7 +8930,7 @@ export const freestyleService = {
           addBonusRotational: lr.add_bonus_rotational,
           tricks: [],
         };
-        setGroupAccumulator.set(lr.modifier_slug, bucket);
+        modifierGroupAccumulator.set(lr.modifier_slug, bucket);
       }
       // Avoid duplicate tricks within a bucket when a modifier appears at
       // multiple apply_orders for the same trick.
@@ -8992,7 +8938,7 @@ export const freestyleService = {
         bucket.tricks.push(trickRow);
       }
     }
-    const setGroups: FreestyleSetGroup[] = [...setGroupAccumulator.values()].map(b => {
+    const modifierGroups: FreestyleModifierGroup[] = [...modifierGroupAccumulator.values()].map(b => {
       // Sort tricks by ADD ascending then slug alphabetical for stable
       // section ordering. Shape both views: indexRow (intermediate) +
       // DictionaryTrickCard (the partial's view-model) so the cards
@@ -9026,84 +8972,6 @@ export const freestyleService = {
         trickCount: sorted.length,
       };
     });
-
-    // ---- Set Hub view (?view=sets) -------------------------------------
-    // Sets are first-class
-    // ontology objects; cards group by subtype (true-core / composite-derived
-    // / rotational / whirl-swirl / uns / rooted-antisymposium). Alt-surfaces
-    // are NOT here — they live on ?view=movement-system. Per-set detail
-    // pages live at /freestyle/sets/<slug>.
-    const sourceLabels: Record<CanonicalSetSourceKey, string> = {
-      'canonical':        'Canonical',
-      'platform-tracked': 'Tracked here',
-      'holden-only':      'Holden-only',
-    };
-    const auditLabels: Record<CanonicalSetAuditKey, string> = {
-      'aligned':     'Aligned with Holden',
-      'partial':     'Partial: framing differs',
-      'conflict':    'Documented disagreement',
-      'holden-only': 'Holden-cited only',
-    };
-    const shapeSetCard = (s: typeof CANONICAL_SETS[number]): CanonicalSetCard => ({
-      slug:                s.slug,
-      hashtag:             s.hashtag,
-      displayName:         s.displayName,
-      formula:             s.formula,
-      movementExplanation: s.movementExplanation,
-      equivalenceReadings: s.equivalenceNotes.map(n => `${n.reading}: ${n.citation}`),
-      source:              s.source,
-      sourceLabel:         sourceLabels[s.source],
-      sourceCitation:      s.sourceCitation,
-      auditStatus:         s.auditStatus,
-      auditStatusLabel:    s.auditStatus ? auditLabels[s.auditStatus] : undefined,
-      derivedSystems:      s.derivedSystems.map(r => ({
-        slug:  r.slug,
-        label: r.label,
-        href:  `#set-${r.slug}`,
-      })),
-      relatedSystems:      s.relatedSystems.map(r => ({
-        slug:  r.slug,
-        label: r.label,
-        href:  `#set-${r.slug}`,
-      })),
-      detailHref:          `/freestyle/sets/${s.slug}`,
-      showDetailLink:      true,
-    });
-    const subtypeSections: SetSubtypeSection[] = SET_SUBTYPE_SPECS.map(spec => {
-      // Held entries stay routable (detail page + fold-map) but are not listed as
-      // confirmed sets on the index while their set status is held pending doctrine.
-      const cards = CANONICAL_SETS.filter(s => s.subtype === spec.key && !s.heldFromEncyclopediaList).map(shapeSetCard);
-      return {
-        key:   spec.key,
-        label: spec.label,
-        intro: spec.intro,
-        count: cards.length,
-        cards,
-      };
-    }).filter(section => section.count > 0);
-
-    const altSurfacesCrossLink: AltSurfacesCrossLink = {
-      heading: 'Looking for alternate surfaces?',
-      framing:
-        'Surface mechanics (sole, heel, cloud, knee, head, neck, shoulder, forehead, ' +
-        'and flying entries) are a distinct ontology layer from sets. They live as a ' +
-        'first-class section on the Movement Systems view.',
-      movementSystemHref: '/freestyle/tricks?view=movement-system',
-      ctaLabel:           'View alternative surfaces on Movement Systems',
-    };
-
-    const setsBrowseView: FreestyleSetsBrowseView = {
-      intro:
-        'Sets are first-class compositional vocabulary: the named movement primitives that ' +
-        'open a trick. Each card is a set ontology object: hashtag, formula, movement ' +
-        'explanation, equivalence notes, derived and related systems, and source ' +
-        'provenance; each card links to its own set detail page. For the body-modifier ' +
-        'vocabulary (paradox, spinning, ducking, symposium, etc.), see the Operators & ' +
-        'Modifiers reference page.',
-      totalSets:            subtypeSections.reduce((n, s) => n + s.count, 0),
-      subtypeSections,
-      altSurfacesCrossLink,
-    };
 
     // ---- Component view (?view=component projection) --------------------
     // Body + set modifier axes only. Within each axis, groups render in priority order
@@ -9378,17 +9246,17 @@ export const freestyleService = {
     };
 
     // Cross-link block: when the dictionary is filtered to one family, surface
-    // the modifiers used by tricks in that family as deep-links into the sets
-    // projection. The accumulator is already family-scoped (allRows was
+    // the modifiers used by tricks in that family as deep-links into the
+    // modifier projection. The accumulator is already family-scoped (allRows was
     // filtered by activeFamily upstream), so a non-empty bucket means at least
     // one in-family trick links to that modifier.
-    const relatedSetGroups: FreestyleRelatedSetLink[] = activeFamily
-      ? [...setGroupAccumulator.values()].map(b => ({
+    const relatedModifierGroups: FreestyleRelatedModifierLink[] = activeFamily
+      ? [...modifierGroupAccumulator.values()].map(b => ({
           modifierSlug: b.modifierSlug,
           modifierName: b.modifierName,
           modifierType: b.modifierType,
           count:        b.tricks.length,
-          href:         `/freestyle/tricks?view=sets#set-${b.modifierSlug}`,
+          href:         `/freestyle/tricks?view=modifier#set-${b.modifierSlug}`,
         }))
       : [];
 
@@ -9469,9 +9337,9 @@ export const freestyleService = {
       hasMinorLineages: minorLineages.length > 0,
     };
 
-    // Modifier clusters (organizational UX): bucket the active modifier setGroups
+    // Modifier clusters (organizational UX): bucket the active modifier groups
     // into curated higher-level clusters for the By-modifier jump menu + the
-    // grouped sets page. Reversible content map; modifiers not listed in a
+    // grouped modifier page. Reversible content map; modifiers not listed in a
     // cluster fall through to 'other'; empty clusters are dropped.
     // Cluster → complexity bands (operator count) → alphabetical. Tricks are
     // unioned across the cluster's modifiers and deduped, then banded by
@@ -9481,11 +9349,11 @@ export const freestyleService = {
       n <= 1 ? { rung: 1, label: '1 operator' }
       : n === 2 ? { rung: 2, label: '2 operators' }
       : { rung: 3, label: '3+ operators' };
-    const setsClusterView: SetsClusterView[] = MODIFIER_CLUSTERS
+    const modifierClusterView: ModifierClusterView[] = MODIFIER_CLUSTERS
       .map(c => {
         const seen = new Set<string>();
         const rows: FreestyleTrickRowWithStatus[] = [];
-        for (const b of setGroupAccumulator.values()) {
+        for (const b of modifierGroupAccumulator.values()) {
           if (clusterForModifier(b.modifierSlug) !== c.key) continue;
           for (const t of b.tricks) {
             if (seen.has(t.slug)) continue;
@@ -9502,7 +9370,7 @@ export const freestyleService = {
           entry.rows.push(r);
           bandMap.set(band.rung, entry);
         }
-        const bands: SetsClusterBand[] = [...bandMap.values()]
+        const bands: ModifierClusterBand[] = [...bandMap.values()]
           .sort((a, b) => a.rung - b.rung)
           .map(band => ({
             rung:  band.rung,
@@ -9567,15 +9435,15 @@ export const freestyleService = {
             },
             {
               label:        'By modifier',
-              href:         '/freestyle/tricks?view=sets',
+              href:         '/freestyle/tricks?view=modifier',
               // Grouped into higher-level clusters (organizational UX; individual
               // modifiers nest under each on the page). Broad operator/ingredient
               // lens, NOT an entry-only taxonomy.
-              count:        setsClusterView.length,
-              countDisplay: fmtCount(setsClusterView.length),
+              count:        modifierClusterView.length,
+              countDisplay: fmtCount(modifierClusterView.length),
               countSuffix:  'modifier groups',
               lensQuestion: 'Which named moves, sets, or twists does it use?',
-              chips:        setsClusterView.map(c => ({ label: c.label, href: `/freestyle/tricks?view=sets#cluster-${c.key}`, count: c.trickCount })),
+              chips:        modifierClusterView.map(c => ({ label: c.label, href: `/freestyle/tricks?view=modifier#cluster-${c.key}`, count: c.trickCount })),
               crossLink:    { label: 'For set systems as first-class objects, see Set Encyclopedia →', href: '/freestyle/sets' },
             },
             {
@@ -9652,7 +9520,7 @@ export const freestyleService = {
         ? ` ${dexNotationPending} canonical ${dexNotationPending === 1 ? 'trick awaits' : 'tricks await'} ` +
           'notation authoring and cannot be counted yet; they appear in the other browse views with an incomplete badge.'
         : '');
-    const setsIntro =
+    const modifierIntro =
       'Tricks grouped by the set or body modifier they use. Each section answers: which tricks use this set or modifier?';
 
     const movementMemberships = movementSystemView.axes.reduce(
@@ -9663,10 +9531,10 @@ export const freestyleService = {
       'plus a separately-grouped Alternative Surfaces layer below the axes. ' +
       'A compound can appear under more than one axis or modifier.';
 
-    const setsMemberships = setGroups.reduce((n, g) => n + g.cards.length, 0);
-    const setsScale =
-      `${setGroups.length} ${plural(setGroups.length, 'modifier', 'modifiers')} · ` +
-      `${setsMemberships} trick-row ${plural(setsMemberships, 'membership', 'memberships')} shown. ` +
+    const modifierMemberships = modifierGroups.reduce((n, g) => n + g.cards.length, 0);
+    const modifierScale =
+      `${modifierGroups.length} ${plural(modifierGroups.length, 'modifier', 'modifiers')} · ` +
+      `${modifierMemberships} trick-row ${plural(modifierMemberships, 'membership', 'memberships')} shown. ` +
       'A trick that uses more than one modifier appears under each.';
 
     const topologyMemberships = topologyView.groups.reduce((n, g) => n + g.cards.length, 0);
@@ -9723,20 +9591,19 @@ export const freestyleService = {
         addSort,
         addJumpChips,
         dexCountGroups,
-        setsBrowseView,
         activeView,
         groups,
         familyGroups: familyParentGroups,
         minorLineages,
         familyJumpIndex,
-        setGroups,
-        setsClusterView,
+        modifierGroups,
+        modifierClusterView,
         componentView,
         topologyView,
         movementSystemView,
         modifiers,
         activeFamily,
-        relatedSetGroups,
+        relatedModifierGroups,
         totalTricks: canonicalCount,
         landingGrid,
         landingOnboarding: {
@@ -9792,10 +9659,10 @@ export const freestyleService = {
         familyScale,
         dexCountScale,
         movementSystemScale,
-        setsScale,
+        modifierScale,
         topologyScale,
         dexCountIntro,
-        setsIntro,
+        modifierIntro,
         movementSystemIntro,
         familyFilterIntro,
       },
@@ -11215,7 +11082,7 @@ export const freestyleService = {
         : undefined;
 
     const crossLinks: SetDetailCrossLinks = {
-      setHubHref:             '/freestyle/tricks?view=sets',
+      setEncyclopediaHref:    '/freestyle/sets',
       compositionalHubHref:   `/freestyle/compositional-sets#${compositionalFamilyKey[set.subtype]}`,
       movementSystemAxisHref: '/freestyle/tricks?view=movement-system#movement-axis-set-uptime',
       operatorReferenceHref,
@@ -11252,9 +11119,8 @@ export const freestyleService = {
       },
       navigation: {
         breadcrumbs: [
-          { label: 'Freestyle',    href: '/freestyle' },
-          { label: 'Trick Dictionary', href: '/freestyle/tricks' },
-          { label: 'Sets',         href: '/freestyle/tricks?view=sets' },
+          { label: 'Freestyle', href: '/freestyle' },
+          { label: 'Sets',      href: '/freestyle/sets' },
           { label: set.displayName },
         ],
       },
@@ -11315,10 +11181,11 @@ export const freestyleService = {
    * GET /freestyle/sets — Set Encyclopedia.
    *
    * Standalone minimalist surface listing canonical sets as first-class
-   * ontology objects. Distinct from:
+   * ontology objects, and the canonical answer to "what is this set system?".
+   * Distinct from:
    *
-   *   /freestyle/tricks?view=sets   — Trick Dictionary's Set Hub view
-   *                                   (verbose cards, embedded in dictionary URL)
+   *   /freestyle/tricks?view=modifier — Trick Dictionary tricks grouped by the
+   *                                     modifier they use (sets included)
    *   /freestyle/compositional-sets — exploratory compositional-sets hub
    *                                   (family / ladder groupings + Holden audit)
    *   /freestyle/sets/:slug         — per-set detail pages (deep ontology)
@@ -11553,8 +11420,8 @@ export const freestyleService = {
     }));
 
     const crossLinks: EncyclopediaCrossLinks = {
-      dictionaryBysetLabel:  'Trick Dictionary: tricks grouped by modifier',
-      dictionaryBysetHref:   '/freestyle/tricks?view=sets',
+      dictionaryModifierLabel: 'Trick Dictionary: tricks grouped by modifier',
+      dictionaryModifierHref:  '/freestyle/tricks?view=modifier',
       compositionalHubLabel: 'Compositional Sets hub (family / ladder groupings)',
       compositionalHubHref:  '/freestyle/compositional-sets',
       operatorsPageLabel:    'Operators & Modifiers',

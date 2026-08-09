@@ -3,7 +3,7 @@
  *
  * Scope verified:
  *   - /freestyle/tricks?view=component returns 200
- *   - /freestyle/tricks?view=sets is a server-side alias and renders the same view
+ *   - /freestyle/tricks?view=modifier is a separate view, not a component alias
  *   - Three axes render in the documented order (Body modifiers, Dex relationships, Set modifiers)
  *   - Topology and movement-archetype axes are NOT rendered (deferred)
  *   - Axis-jump nav anchors at top of page
@@ -125,18 +125,17 @@ describe('GET /freestyle/tricks?view=component — route + alias (soft-retired)'
     expect(res.text).toContain('href="/freestyle/tricks?view=movement-system"');
   });
 
-  it('?view=sets is NO LONGER a component-view alias', async () => {
-    // ?view=sets is not a component-view alias: it activates the
-    // dedicated By Set browse view. The component view stays soft-
-    // retired; the canonical /freestyle/tricks?view=component URL still
-    // renders with the retirement notice.
-    const res = await request(createApp()).get('/freestyle/tricks?view=sets');
+  it('?view=modifier is not a component-view alias', async () => {
+    // ?view=modifier activates the dedicated modifier-grouped browse view.
+    // The component view stays soft-retired; the canonical
+    // /freestyle/tricks?view=component URL still renders with the
+    // retirement notice.
+    const res = await request(createApp()).get('/freestyle/tricks?view=modifier');
     expect(res.status).toBe(200);
-    // The component view's markers must NOT appear on the sets URL anymore.
+    // The component view's markers must NOT appear on the modifier URL.
     expect(res.text).not.toContain('class="component-view-note"');
     expect(res.text).not.toContain('class="component-view-retirement-notice"');
-    // The dedicated By Set view's active toggle marker confirms the new
-    // routing took effect.
+    // The modifier view's active toggle marker confirms the routing.
     expect(res.text).toMatch(/class="trick-view-toggle-active">By modifier</);
   });
 });

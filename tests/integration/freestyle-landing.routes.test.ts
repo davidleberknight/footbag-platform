@@ -107,7 +107,7 @@ describe('freestyle landing foundational-tricks mosaic', () => {
     // and its only destination was the soft-retired component view.
     expect(res.text).not.toContain('view=component');
     // each card is a gateway into its matching browse axis
-    for (const view of ['view=add', 'view=dex-count', 'view=family', 'view=sets', 'view=movement-system']) {
+    for (const view of ['view=add', 'view=dex-count', 'view=family', 'view=modifier', 'view=movement-system']) {
       expect(res.text).toContain(`/freestyle/tricks?${view}`);
     }
     // shared denominator note names the counted population precisely as the

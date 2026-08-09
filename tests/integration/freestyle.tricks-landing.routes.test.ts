@@ -334,10 +334,10 @@ describe('GET /freestyle/tricks — landing-grid count labels are self-explanato
     expect(at('double-spinning-whirl')).toBeGreaterThan(at('whirl'));
   });
 
-  it('By modifier groups into clusters linking to ?view=sets cluster anchors', async () => {
+  it('By modifier groups into clusters linking to ?view=modifier cluster anchors', async () => {
     const res = await request(createApp()).get('/freestyle/tricks');
     expect(res.text).toMatch(/<span class="dict-landing-card-count-num">\d+<\/span> modifier groups/);
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\?view[^"]*sets#cluster-set-uptime"/);
+    expect(res.text).toMatch(/href="\/freestyle\/tricks\?view[^"]*modifier#cluster-set-uptime"/);
     // The broad, non-entry lens copy.
     expect(res.text).toMatch(/Which named moves, sets, or twists does it use\?/);
   });
