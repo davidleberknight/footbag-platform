@@ -217,7 +217,9 @@ beforeAll(async () => {
   // completion transition the promoted cells assert is genuinely observable.
   for (const cell of MATRIX_CELLS) {
     const memberId = `member-${cell.key}`;
-    insertMember(db, { id: memberId, slug: memberId.replace(/-/g, '_'), login_email: `${memberId}@example.com`, onboarding: 'none' });
+    // The member carries the same legacy anchor the candidate below names: a
+    // card is answerable only by the member whose own anchor its row matches.
+    insertMember(db, { id: memberId, slug: memberId.replace(/-/g, '_'), login_email: `${memberId}@example.com`, onboarding: 'none', legacy_member_id: `lm-${cell.key}` });
     const clubId = insertClub(db, { name: `Club ${cell.key}` });
     const candidateId = seedCandidate(db, {
       clubId,
@@ -231,7 +233,7 @@ beforeAll(async () => {
   // co-leader; the cap kicks in for the sixth.
   cohortClubId = insertClub(db, { name: 'Cohort Club' });
   for (const mid of COHORT_MEMBERS) {
-    insertMember(db, { id: mid, slug: mid.replace(/-/g, '_'), login_email: `${mid}@example.com` });
+    insertMember(db, { id: mid, slug: mid.replace(/-/g, '_'), login_email: `${mid}@example.com`, legacy_member_id: `lm-${mid}` });
     const candidateId = seedCandidate(db, {
       clubId: cohortClubId,
       legacyMemberId: `lm-${mid}`,
@@ -246,6 +248,7 @@ beforeAll(async () => {
     id: IDEMPOTENT_MEMBER,
     slug: 'member_idempotent',
     login_email: 'idempotent@example.com',
+    legacy_member_id: 'lm-idempotent',
   });
   idempotentClubId = insertClub(db, { name: 'Idempotent Club' });
   idempotentCandidateId = seedCandidate(db, {
@@ -259,17 +262,21 @@ beforeAll(async () => {
     id: CROSS_CLUB_MEMBER,
     slug: 'member_cross_club',
     login_email: 'cross_club@example.com',
+    legacy_member_id: 'lm-cross',
   });
   crossClubA = insertClub(db, { name: 'Cross Club A' });
   crossClubB = insertClub(db, { name: 'Cross Club B' });
+  // Both candidates carry this member's one legacy anchor. A member holds a
+  // single legacy account, so two cards for them differ by club, never by
+  // which legacy account they came from.
   crossCandidateA = seedCandidate(db, {
     clubId: crossClubA,
-    legacyMemberId: 'lm-cross-a',
+    legacyMemberId: 'lm-cross',
     classification: 'strong',
   });
   crossCandidateB = seedCandidate(db, {
     clubId: crossClubB,
-    legacyMemberId: 'lm-cross-b',
+    legacyMemberId: 'lm-cross',
     classification: 'strong',
   });
 
@@ -466,7 +473,7 @@ describe('memberOnboardingService.submitClubAffiliationsResponse — affiliation
     // bootstrap leader candidate for club Y.
     const db = new BetterSqlite3(dbPath);
     const memberId = 'member-d1-current-elsewhere';
-    insertMember(db, { id: memberId, slug: memberId.replace(/-/g, '_'), login_email: `${memberId}@example.com` });
+    insertMember(db, { id: memberId, slug: memberId.replace(/-/g, '_'), login_email: `${memberId}@example.com`, legacy_member_id: 'lm-d1' });
     const clubX = insertClub(db, { name: 'D1 Club X (pre-existing current)' });
     const clubY = insertClub(db, { name: 'D1 Club Y (new claim)' });
     // Direct insert of the pre-existing is_current=1 primary affiliation at clubX.

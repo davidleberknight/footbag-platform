@@ -197,7 +197,7 @@ These surfaces have **different semantics**; do not collapse them:
 
 - **Trick name** = display text only, never a link.
 - **Hashtag** = media-gallery link. `#<slug>` links to `/media/browse?context=<slug>` when the trick has at least one media item, and renders as a plain non-clickable token otherwise; a clickable hashtag is the sole signal that media exists.
-- **Trick Detail** = a distinct link beside the name that opens `/freestyle/tricks/<slug>`. Name, hashtag, and Trick Detail are three explicit controls; a click's destination is never guessed.
+- **Detail** = a distinct link beside the name that opens `/freestyle/tricks/<slug>`. Name, hashtag, and Detail are three explicit controls; a click's destination is never guessed.
 - **Family navigation** = a separate `family-badge` linking to `/freestyle/tricks?family={trick_family}`.
 
 Forbidden: hashtags must NOT trigger family filtering; slug-prefix matching is NOT used for filtering (narrow on `trick_family` only); family selection must NOT be derived from a hashtag.

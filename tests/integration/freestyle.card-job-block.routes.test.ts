@@ -192,8 +192,8 @@ describe('/freestyle/tricks?view=sets — two-line rows (not bare hashtags)', ()
   it('renders the trick name as plain text plus a separate Trick Detail link for each listed trick', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
     // The name is display text only; a distinct Trick Detail control opens the detail page.
-    expect(res.text).toMatch(/<a class="dict-trick-row-detail" href="\/freestyle\/tricks\/fairy_mirage">Trick Detail<\/a>/);
-    expect(res.text).toMatch(/<a class="dict-trick-row-detail" href="\/freestyle\/tricks\/spinning_paradox_mirage">Trick Detail<\/a>/);
+    expect(res.text).toMatch(/<a class="dict-trick-row-detail" href="\/freestyle\/tricks\/fairy_mirage">Detail<\/a>/);
+    expect(res.text).toMatch(/<a class="dict-trick-row-detail" href="\/freestyle\/tricks\/spinning_paradox_mirage">Detail<\/a>/);
   });
 
   it('renders the line-2 ADD slot + hashtag per row (no green chip; DictionaryTrickCard shape flows through)', async () => {

@@ -14,7 +14,10 @@
  *     computed from the same queue assembly so badge and queue agree)
  *   - Admin club cleanup resolution (demote, archive, dismiss, park). A parked
  *     club stays in the parked listing until the working queue has actually
- *     taken it back, so no club falls between the two listings
+ *     taken it back, so no club falls between the two listings. The action, the
+ *     predicate and the club are all validated: an unknown predicate would
+ *     write a resolution the queue can never look up again, and an archived club
+ *     refuses every action because archiving is terminal
  *   - An admin's own promotion of a candidate counts as the club's record
  *     saying it exists, so the rules never undo it
  *   - Contact-members action on a leaderless club: emails the club's current
@@ -36,22 +39,25 @@
  *   - Candidate park: an unpromoted candidate leaves the working queue with no
  *     deadline and stays listed as parked with who parked it and why. The
  *     promotable item and the candidate-flag item carry separate resolutions,
- *     so parking one never hides the other.
- *     Current: a parked candidate stays parked whatever evidence arrives later.
- *     Target: like a parked club, it returns to the working queue by itself
- *     once evidence about it is newer than the park; that needs a newest-signal
- *     timestamp the candidate reads do not yet carry
+ *     so parking one never hides the other. Like a parked club, it returns to
+ *     the working queue by itself once a member says something about it after
+ *     the park; an unpromoted candidate has no club row, so that evidence is
+ *     the signal and note rows keyed to the candidate itself. It leaves the
+ *     parked listing only when the working queue has really taken it back,
+ *     never on the evidence comparison alone, so a candidate promoted or
+ *     retired since the park still shows somewhere
  *   - Admin de-list of unconfirmed legacy residue (pending -> former_only),
  *     also cascaded when a club is demoted or archived
  *   - Archiving is refused while a club still has a current member or
  *     co-leader, because no admin can end an affiliation and an archived club
  *     can be neither reached nor left; demotion is the action for those
  *   - Group-level bulk actions: bulk park across a predicate group or the
- *     candidate-flag group (one shared reason, one audit row per item), and
- *     bulk de-list across all residue clubs (each club in its own
- *     transaction, idempotent). Bulk covers the items currently in the
- *     group; promotable and junk candidates have no bulk action because
- *     their resolutions are per-item judgment calls
+ *     candidate-flag group (one shared reason, one audit row per item). Bulk
+ *     covers the items currently in the group; promotable and junk candidates
+ *     have no bulk action because their resolutions are per-item judgment
+ *     calls. De-listing residue is per-club only: retiring a club's unconfirmed
+ *     legacy roster is a judgment about that club, so there is no queue-wide
+ *     de-list
  *   - Concurrent-admin claim markers: a non-blocking "claimed by Admin X at
  *     time T" coordination hint per queue item, auto-released by any resolve
  *     action and stale after 30 minutes; deliberately un-audited (a claim is
@@ -84,6 +90,7 @@
  */
 import {
   clubEvidence,
+  candidateEvidence,
   clubInsightNotes,
   clubViabilitySignals,
   clubCleanupResolutions,
@@ -402,6 +409,14 @@ function getActiveResolutions(): Map<string, ResolutionRow> {
 const PROMOTABLE_PREDICATE = 'promotable_candidate';
 const CANDIDATE_FLAG_PREDICATE = 'candidate_flags';
 
+// The club-side predicates the working queue assembles. A resolution is keyed
+// on club and predicate, and the queue only ever looks up these three names, so
+// a row stored under any other name can never be matched again: it would sit in
+// the parked listing permanently with nothing able to reach it.
+const CLUB_PREDICATES: ReadonlySet<string> = new Set([
+  'crowdsource_viability', 'leaderless_active', 'stale_provisional',
+]);
+
 // Candidate-flag items can carry any unpromoted classification (the wizard
 // shows a card whenever an affiliation suggests the candidate), so the
 // label map covers the full enum, unlike the promotable listing which only
@@ -445,10 +460,17 @@ function isResolved(
   return true;
 }
 
-// A parked candidate stays out of the working listing until someone
-// deliberately looks at the parked listing. There is no window to expire.
-function isParked(res: CandidateResolutionRow | undefined): boolean {
-  return res?.resolution === 'parked';
+// A parked candidate leaves the working queue on the same terms as a parked
+// club: no clock, no window to expire, and a return only when a member says
+// something about it after the park. The candidate's evidence is keyed to the
+// candidate itself, since an unpromoted candidate has no club row to hang it on.
+function isParked(
+  res: CandidateResolutionRow | undefined,
+  newestEvidenceAt?: string | null,
+): boolean {
+  if (res?.resolution !== 'parked') return false;
+  if (newestEvidenceAt && newestEvidenceAt > res.created_at) return false;
+  return true;
 }
 
 function parkAnnotationFrom(res: CandidateResolutionRow | undefined): string | null {
@@ -588,6 +610,10 @@ export interface CleanupQueueFilter {
   category?: string;
   region?: string;
   sort?: string;
+  // Carries the outcome of the action that redirected here, so an action that
+  // did nothing says so. A resolve that lost a race to another admin is a
+  // no-op, and without this it is indistinguishable from one that applied.
+  actionNotice?: string | null;
 }
 
 interface FilterOption {
@@ -743,8 +769,15 @@ function claimLabelFrom(
 // Single assembly point for everything the queue surfaces. The backlog badge
 // counts the same arrays the queue page renders, so the badge can never
 // disagree with what the admin finds after clicking through.
-function assembleQueue(): AssembledQueue {
-  const resolutions = getActiveResolutions();
+function assembleQueue(prefetched?: {
+  evidence: ClubEvidenceRow[];
+  resolutions: Map<string, ResolutionRow>;
+}): AssembledQueue {
+  // The caller may already hold both, because the rule sweep that runs before
+  // the queue is assembled reads exactly the same two things. Passing them in
+  // halves the work on the page an admin opens most; calling with nothing still
+  // reads them here, which is what the badge and the bulk actions do.
+  const resolutions = prefetched?.resolutions ?? getActiveResolutions();
   const claims = loadActiveClaims();
   const items: CleanupQueueItem[] = [];
 
@@ -752,7 +785,7 @@ function assembleQueue(): AssembledQueue {
   // member said anything about a club (which is what un-parks it), and the club
   // names the parked listing shows.
   const evidenceByClub = new Map<string, ClubEvidenceRow>();
-  for (const row of clubEvidence.listByClub.all() as ClubEvidenceRow[]) {
+  for (const row of prefetched?.evidence ?? (clubEvidence.listByClub.all(null, null) as ClubEvidenceRow[])) {
     evidenceByClub.set(row.club_id, row);
   }
   const newestEvidenceFor = (clubId: string): string | null =>
@@ -902,10 +935,19 @@ function assembleQueue(): AssembledQueue {
   for (const r of candidateCleanupResolutions.listAll.all() as CandidateResolutionRow[]) {
     candidateResolutions.set(`${r.candidate_id}:${r.predicate_name}`, r);
   }
+  const newestCandidateEvidence = new Map<string, string | null>();
+  for (const r of candidateEvidence.newestByCandidate.all() as Array<{
+    candidate_id: string; newest_evidence_at: string | null;
+  }>) {
+    newestCandidateEvidence.set(r.candidate_id, r.newest_evidence_at);
+  }
+  const newestEvidenceForCandidate = (candidateId: string): string | null =>
+    newestCandidateEvidence.get(candidateId) ?? null;
+
   const candidates: PromotableCandidateItem[] = [];
   for (const r of candidateRows) {
     const res = candidateResolutions.get(`${r.id}:${PROMOTABLE_PREDICATE}`);
-    if (isParked(res)) continue;
+    if (isParked(res, newestEvidenceForCandidate(r.id))) continue;
     candidates.push({
       candidateId: r.id,
       displayName: r.display_name,
@@ -939,7 +981,7 @@ function assembleQueue(): AssembledQueue {
   for (const r of flagRows) {
     const res = candidateResolutions.get(`${r.candidate_id}:${CANDIDATE_FLAG_PREDICATE}`);
     if (res?.resolution === 'dismissed') continue;
-    if (isParked(res)) continue;
+    if (isParked(res, newestEvidenceForCandidate(r.candidate_id))) continue;
     const reporters = clubViabilitySignals.listNegativeCandidateReporters.all(r.candidate_id) as
       Array<{ display_name: string; activity_signal: string }>;
     candidateFlags.push({
@@ -989,12 +1031,19 @@ function assembleQueue(): AssembledQueue {
     if (r.resolution !== 'parked') continue;
     if (workingQueueKeys.has(`${r.club_id}:${r.predicate_name}`)) continue;
     const evidence = evidenceByClub.get(r.club_id);
+    // The evidence read covers live clubs only, so a club archived since the
+    // park has no row there and would render its bare id. Fetch the name
+    // directly rather than showing an admin an identifier.
+    const fallback = evidence
+      ? null
+      : clubsDb.findById.get(r.club_id) as
+        | { name: string; city: string | null; country: string | null } | undefined;
     parked.push({
       clubId: r.club_id,
       candidateId: null,
-      clubName: evidence?.club_name ?? r.club_id,
-      clubCity: evidence?.city ?? null,
-      clubCountry: evidence?.country ?? null,
+      clubName: evidence?.club_name ?? fallback?.name ?? r.club_id,
+      clubCity: evidence?.city ?? fallback?.city ?? null,
+      clubCountry: evidence?.country ?? fallback?.country ?? null,
       predicateLabel: PARKED_PREDICATE_LABELS[r.predicate_name] ?? r.predicate_name,
       parkedByLabel: r.parked_by_name ?? 'an admin',
       parkedAt: r.created_at.slice(0, 10),
@@ -1016,8 +1065,32 @@ function assembleQueue(): AssembledQueue {
       candidateMeta.set(r.candidate_id, { name: r.display_name, city: r.city, country: r.country });
     }
   }
+  // Same membership test the club listing above uses, and for the same reason:
+  // a park leaves this listing only once the working queue has really taken the
+  // candidate back. Newer evidence is necessary for that return but not
+  // sufficient, because a candidate that has since been promoted, archived or
+  // confirmed junk leaves the working listings for good; dropping it here on
+  // the evidence comparison alone would leave it showing on no surface at all.
+  const workingCandidateKeys = new Set<string>([
+    ...candidates.map((c) => `${c.candidateId}:${PROMOTABLE_PREDICATE}`),
+    ...candidateFlags.map((c) => `${c.candidateId}:${CANDIDATE_FLAG_PREDICATE}`),
+  ]);
   for (const r of candidateResolutions.values()) {
     if (r.resolution !== 'parked') continue;
+    if (workingCandidateKeys.has(`${r.candidate_id}:${r.predicate_name}`)) continue;
+    // A candidate retired since the park is in none of the row sets read above,
+    // so its name has to be fetched directly. Without this the row renders its
+    // bare id, which names nothing an admin can act on. Bounded by the number
+    // of parked-and-retired candidates, which is small by construction.
+    if (!candidateMeta.has(r.candidate_id)) {
+      const row = legacyClubCandidates.findById.get(r.candidate_id) as
+        | { display_name: string; city: string | null; country: string | null } | undefined;
+      if (row) {
+        candidateMeta.set(r.candidate_id, {
+          name: row.display_name, city: row.city, country: row.country,
+        });
+      }
+    }
     const meta = candidateMeta.get(r.candidate_id);
     parked.push({
       clubId: null,
@@ -1165,14 +1238,17 @@ function getCleanupQueuePage(filter?: CleanupQueueFilter): PageViewModel<Cleanup
   // The rules act first, so the queue an admin then reads holds only the clubs
   // the rules could not settle. This is the only place the sweep runs: opening
   // the queue is the trigger, and nothing here happens unattended.
-  applyRuleVerdicts(
-    clubEvidence.listByClub.all() as ClubEvidenceRow[],
-    getActiveResolutions(),
-  );
+  const evidence = clubEvidence.listByClub.all(null, null) as ClubEvidenceRow[];
+  applyRuleVerdicts(evidence, getActiveResolutions());
 
   const normalized = normalizeFilter(filter);
+  // Resolutions are re-read after the sweep, which writes some, but the
+  // evidence the sweep just read is unchanged by it and is reused.
   const { items, residue, candidates, junkCandidates, candidateFlags, parked } =
-    applyFilterAndSort(assembleQueue(), normalized);
+    applyFilterAndSort(
+      assembleQueue({ evidence, resolutions: getActiveResolutions() }),
+      normalized,
+    );
 
   // Group predicate items by category for the collapsed-by-default
   // presentation; group order follows the items' (possibly sorted) order.
@@ -1206,7 +1282,10 @@ function getCleanupQueuePage(filter?: CleanupQueueFilter): PageViewModel<Cleanup
 
   return {
     seo: { title: 'Club Cleanup Queue' },
-    page: { sectionKey: 'admin', pageKey: 'admin_club_cleanup', title: 'Club Cleanup Queue' },
+    page: {
+      sectionKey: 'admin', pageKey: 'admin_club_cleanup', title: 'Club Cleanup Queue',
+      ...(filter?.actionNotice ? { notice: filter.actionNotice } : {}),
+    },
     content: {
       itemGroups,
       totalItems: items.length,
@@ -1273,6 +1352,27 @@ function resolveClub(
   ]);
   if (!validActions.has(action)) {
     throw new ValidationError(`Invalid action: ${action}`);
+  }
+  if (!CLUB_PREDICATES.has(predicate)) {
+    throw new ValidationError(`Invalid predicate: ${predicate}`);
+  }
+
+  const club = clubsDb.findById.get(clubId) as
+    | { club_id: string; status: string } | undefined;
+  if (!club) {
+    throw new NotFoundError('Club not found.');
+  }
+  // Archiving is terminal, so nothing resolves against an archived club: a
+  // demotion would move it back to inactive and undo a decision the queue can
+  // no longer surface, and a fresh park or dismissal would strand a resolution
+  // row the working queue will never look for again. The queue reads clubs_open
+  // so an archived club never enters it, but a stale page or a repeated submit
+  // still carries its id here. The read side already refuses this; so does the
+  // write.
+  if (club.status === 'archived') {
+    throw new ValidationError(
+      'This club is archived, which is final. No further cleanup action applies to it.',
+    );
   }
 
   // Archiving retires a club for good, and nothing but a member's own leave can
@@ -1715,8 +1815,7 @@ async function promoteCandidate(
 // row. Reads the same single evidence statement the queue does, so a verdict is
 // never derived two different ways.
 function getClubVerdict(clubId: string): ClubVerdictResult | null {
-  const row = (clubEvidence.listByClub.all() as ClubEvidenceRow[])
-    .find((r) => r.club_id === clubId);
+  const row = (clubEvidence.listByClub.all(clubId, clubId) as ClubEvidenceRow[])[0];
   return row ? evaluateClubVerdict(row) : null;
 }
 

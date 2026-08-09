@@ -9595,6 +9595,10 @@ export const clubCleanupPredicates = {
 // newest_evidence_at is what lets a parked item return without a timer: it is
 // the most recent moment any member said anything about this club, so the
 // service can compare it against when the club was parked.
+// Both parameters are the same club id, or both null for the whole set. One
+// club's verdict is asked for on its own often enough that scanning every club
+// to find it is the wrong shape, and the alternative, a second copy of this
+// whole query, would drift from it.
 export const clubEvidence = {
   get listByClub() { return db.prepare(`
     SELECT
@@ -9658,13 +9662,41 @@ export const clubEvidence = {
       (SELECT MAX(t.at) FROM (
          SELECT MAX(s.created_at) AS at FROM club_viability_signals AS s WHERE s.club_id = c.id
          UNION ALL
-         SELECT MAX(n.created_at) AS at FROM club_insight_notes AS n WHERE n.club_id = c.id
+         SELECT MAX(n.created_at) AS at FROM club_insight_notes AS n
+          WHERE n.club_id = c.id AND n.note_text IS NOT NULL
        ) AS t)                                                          AS newest_evidence_at
 
     FROM clubs AS c
     LEFT JOIN legacy_club_candidates AS lcc ON lcc.mapped_club_id = c.id
     WHERE c.status IN ('active', 'inactive')
+      AND (? IS NULL OR c.id = ?)
     GROUP BY c.id
+  `); },
+};
+
+// The candidate-side twin of clubEvidence's newest_evidence_at. An unpromoted
+// candidate has no clubs row, so what a member said about it is keyed to the
+// candidate itself rather than to a club. Only candidates something was said
+// about appear here; an absent row means no evidence at all, which is the same
+// answer as a null. A note whose text an account purge erased carries nothing a
+// reviewer could act on, so it is not evidence and never returns a parked item
+// to the working queue.
+export const candidateEvidence = {
+  get newestByCandidate() { return db.prepare(`
+    SELECT source_entity_id AS candidate_id, MAX(at) AS newest_evidence_at
+      FROM (
+        SELECT s.source_entity_id, s.created_at AS at
+          FROM club_viability_signals AS s
+         WHERE s.source_entity_type = 'legacy_club_candidate'
+           AND s.source_entity_id IS NOT NULL
+        UNION ALL
+        SELECT n.source_entity_id, n.created_at AS at
+          FROM club_insight_notes AS n
+         WHERE n.source_entity_type = 'legacy_club_candidate'
+           AND n.source_entity_id IS NOT NULL
+           AND n.note_text IS NOT NULL
+      )
+     GROUP BY source_entity_id
   `); },
 };
 

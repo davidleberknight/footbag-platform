@@ -1542,8 +1542,22 @@ export class ClubService {
             );
           } catch (err) {
             if (!isUniqueViolation(err)) throw err;
-            // Already affiliated to this club, which is not the cap.
-            affiliationId = null;
+            // UNIQUE(member_id, club_id) is lifelong, so this fires for two
+            // different rows. One the member currently holds, which happens
+            // when two legacy candidates map to the same club: nothing to do,
+            // they are already in it. One they previously left, or an admin
+            // ended for them: that row has to come back, or the claim reports
+            // a membership the member does not hold. The statement's own
+            // is_current = 0 guard is what tells the two apart, so the live
+            // row is never touched and its primary flag is never recomputed.
+            const revived = memberClubAffiliations.reactivate.run(
+              isPrimary, now, 'onboarding_service', actorMemberId, clubId,
+            ).changes;
+            const existing = revived > 0
+              ? memberClubAffiliations.findCurrentByMemberAndClub.get(actorMemberId, clubId) as
+                { id: string } | undefined
+              : undefined;
+            affiliationId = existing?.id ?? null;
           }
         }
 
@@ -1752,8 +1766,21 @@ export class ClubService {
           );
         } catch (err) {
           if (!isUniqueViolation(err)) throw err;
-          // UNIQUE(member_id, club_id): already affiliated at this club.
-          newAffiliationId = null;
+          // UNIQUE(member_id, club_id) is lifelong, so this fires both for a
+          // club the member currently holds (two legacy candidates resolving
+          // to one club) and for one they previously left or an admin ended.
+          // The first needs nothing; the second has to be brought back, or the
+          // card reports a membership the member does not hold. The reactivate
+          // statement only matches an is_current = 0 row, which is what keeps
+          // the live case untouched and its primary flag intact.
+          const revived = memberClubAffiliations.reactivate.run(
+            isPrimary, now, 'onboarding_service', actorMemberId, resolvedClubId,
+          ).changes;
+          const existing = revived > 0
+            ? memberClubAffiliations.findCurrentByMemberAndClub.get(actorMemberId, resolvedClubId) as
+              { id: string } | undefined
+            : undefined;
+          newAffiliationId = existing?.id ?? null;
         }
 
         // Revival: a confirmed current affiliation returns an inactive club
@@ -1897,6 +1924,28 @@ export class ClubService {
 
     try {
       transaction(() => {
+        // The terminal-state guards above ran before the URL validation, which
+        // is network I/O and takes real time. An admin can archive or junk the
+        // candidate inside that window, and the mapped-club guard alone would
+        // not notice: it refuses only a candidate already promoted. Re-reading
+        // here closes the window, because this read and every write below sit
+        // in one synchronous transaction with no interleaving point between
+        // them. A candidate promoted concurrently still converges through the
+        // constraint-violation path below rather than failing.
+        const current = legacyClubCandidates.findById.get(candidateId) as
+          | LegacyClubCandidateRow | undefined;
+        if (!current) {
+          throw new NotFoundError('Candidate not found.');
+        }
+        if (current.classification === 'junk') {
+          throw new ValidationError('Junk candidates cannot be promoted.');
+        }
+        if (current.lifecycle_state === 'archived') {
+          throw new ValidationError(
+            'This club record was archived and cannot be promoted. Create a new club instead.',
+          );
+        }
+
         mediaTags.insertStandardTag.run(
           tagId, now, 'club_service', now, 'club_service',
           tagNormalized, tagNormalized, 'club',
@@ -2304,12 +2353,15 @@ export class ClubService {
         .delistConfirmedForMemberClub.run('club_service', clubId, actorMemberId).changes;
 
       // A member holding any current affiliation holds exactly one primary.
-      // Leaving clears the departing row's flag, so a single survivor is
-      // promoted here rather than left designated secondary with no other club
-      // for the designation to mean anything against.
+      // Leaving clears the departing row's flag, so whatever survives is
+      // repaired here rather than left designated secondary with nothing for
+      // that designation to mean anything against. The repair is keyed on the
+      // invariant, not on the survivor count: a member can hold more than two
+      // current affiliations, and testing for a single survivor left every
+      // larger case with no primary at all.
       const remaining = memberClubAffiliations.listCurrentWithClubName.all(actorMemberId) as
         Array<{ club_id: string; is_primary: number }>;
-      const promoted = remaining.length === 1 && remaining[0].is_primary === 0
+      const promoted = remaining.length > 0 && !remaining.some((r) => r.is_primary === 1)
         ? remaining[0].club_id
         : null;
       if (promoted) {

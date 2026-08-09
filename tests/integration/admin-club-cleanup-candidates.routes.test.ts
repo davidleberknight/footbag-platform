@@ -214,7 +214,14 @@ describe('candidate demote and archive', () => {
     const queue = await request(createApp())
       .get('/admin/club-cleanup')
       .set('Cookie', adminCookie());
-    expect(queue.text).not.toContain('Defer Candidate');
+    // Out of every working group. It is still named in the parked listing,
+    // because this candidate was parked earlier in this suite and a park is
+    // never silently dropped: an item that left the working queue and the
+    // parked listing both would show on no surface at all.
+    const parkedAt = queue.text.indexOf('Parked (');
+    expect(parkedAt).toBeGreaterThan(-1);
+    expect(queue.text.slice(0, parkedAt)).not.toContain('Defer Candidate');
+    expect(queue.text.slice(parkedAt)).toContain('Defer Candidate');
   });
 });
 

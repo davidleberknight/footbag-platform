@@ -281,16 +281,24 @@ function demoteLeader(
   const now = new Date().toISOString();
   transaction(() => {
     clubLeaders.deleteLeaderRow.run(clubId, memberId);
+    // A co-leader can hold the role with no current affiliation, which the
+    // wizard's cap-hit branch deliberately produces, so the removal can match
+    // no row. The audit records what happened rather than what was asked for:
+    // an append-only ledger saying an affiliation was removed when none was is
+    // a false entry, and it is the only record anyone reads afterwards.
+    let affiliationEnded = false;
     if (mode === 'remove_affiliation') {
-      clubLeaders.endAffiliation.run(now, adminMemberId, memberId, clubId);
+      affiliationEnded = clubLeaders.endAffiliation
+        .run(now, adminMemberId, memberId, clubId).changes > 0;
 
       // Ending an affiliation clears its primary flag, so a member left holding
-      // one other club would carry it as secondary with nothing for that
-      // designation to mean anything against. Promote a lone survivor, exactly
-      // as the member's own leave does.
+      // clubs but no primary would carry them all as secondary with nothing for
+      // that designation to mean anything against. Repair on the invariant
+      // rather than on a survivor count, exactly as the member's own leave
+      // does: any surviving set with no primary gets one.
       const remaining = memberClubAffiliations.listCurrentWithClubName.all(memberId) as
         Array<{ club_id: string; is_primary: number }>;
-      if (remaining.length === 1 && remaining[0].is_primary === 0) {
+      if (remaining.length > 0 && !remaining.some((r) => r.is_primary === 1)) {
         memberClubAffiliations.setPrimary.run(now, adminMemberId, memberId, remaining[0].club_id);
       }
     }
@@ -298,6 +306,7 @@ function demoteLeader(
       member_id:     memberId,
       previous_role: row.role,
       mode,
+      affiliation_ended: affiliationEnded,
     });
   });
 }

@@ -213,7 +213,7 @@ describe('ADD view and Family view — shared two-line row contract', () => {
 
       // Same plain-text name + Trick Detail link in BOTH views.
       const namePat   = `<span class="dict-trick-row-title">${pilot.name}</span>`;
-      const detailPat = new RegExp(`<a class="dict-trick-row-detail" href="${escapedHref}">Trick Detail<\\/a>`);
+      const detailPat = new RegExp(`<a class="dict-trick-row-detail" href="${escapedHref}">Detail<\\/a>`);
       expect(addRegion![0], `ADD view missing name for ${slug}`).toContain(namePat);
       expect(familyRegion![0], `Family view missing name for ${slug}`).toContain(namePat);
       expect(addRegion![0], `ADD view missing detail link for ${slug}`).toMatch(detailPat);

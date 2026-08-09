@@ -115,7 +115,7 @@ describe('Three-control rule — name is text, Trick Detail is the link, hashtag
 
     it(`${label} (?view=${view}) offers a separate Trick Detail link to the detail page`, async () => {
       const res = await request(await createApp()).get(`/freestyle/tricks?view=${view}`);
-      expect(res.text, `${label} must render a Trick Detail control`).toMatch(/<a class="dict-trick-row-detail" href="\/freestyle\/tricks\/[^"]+">Trick Detail<\/a>/);
+      expect(res.text, `${label} must render a Trick Detail control`).toMatch(/<a class="dict-trick-row-detail" href="\/freestyle\/tricks\/[^"]+">Detail<\/a>/);
     });
 
     it(`${label} (?view=${view}) renders the hashtag as a plain token when the trick has no media`, async () => {

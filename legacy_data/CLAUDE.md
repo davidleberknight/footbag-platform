@@ -11,6 +11,20 @@ Stay in this lane:
 
 ## Source of truth
 
+- **Curated data outranks the dump and the mirror where they disagree about the
+  same row's value.** The dump and the mirror record what the old system happened
+  to store, damage included; a curated file is a human decision about what is
+  true. This is a per-row override precedence for club and member data, not a
+  global ranking of sources: the results lanes are split by era, and a
+  cross-source collision there is an error to fix rather than a disagreement to
+  adjudicate.
+- **The dump stays authoritative for whether a row exists, and supplies the
+  values for rows that exist nowhere else.** Deletion on the legacy site was
+  soft, the approval flag set false rather than the row removed, so a deleted
+  club has no page left to crawl and the dump is the only source that knows.
+- **A correction belongs upstream, never in a regenerated artifact.** No stage of
+  any pipeline mode writes into the curated or overrides trees. Those files are
+  changed by hand or by the dedicated curation tools, never by a run.
 - `out/canonical/*.csv` is authoritative pipeline output. Never edit it directly.
 - The workbook is derived only.
 - Mirror HTML is the highest-priority source for 1997-present results.

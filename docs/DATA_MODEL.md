@@ -1238,7 +1238,8 @@ Admin park and flag-dismissal tracking for unpromoted `legacy_club_candidates` i
 - `predicate_name`: the candidate queue-item type that was resolved (`promotable_candidate`, `candidate_flags`). A candidate's promotable item and its wizard-flag item resolve independently; parking one never hides the other.
 - `resolution` enum: `parked`, `dismissed`. Parking sets either item type aside with no deadline; dismiss is the terminal resolution of a wizard-flag item only. The other candidate actions (promote, demote, archive) move the candidate itself toward a terminal state.
 - `parked_by_member_id`: the parking admin; powers the "parked by Admin X, reason ..." annotation the listing carries.
-- UPSERT semantics: re-parking the same candidate overwrites the prior row.
+- Parking stores no deadline. A parked candidate leaves the working queue and appears in the parked listing; it returns to the working queue when evidence about that candidate is newer than the row's `created_at`, which is the moment of the park. An unpromoted candidate has no `clubs` row, so that evidence is the signal and note rows keyed to the candidate itself. It leaves the parked listing only once the working queue has actually taken it back, never on the evidence comparison alone, so a candidate promoted or retired since the park still appears somewhere.
+- UPSERT semantics: re-parking the same candidate overwrites the prior row, so a re-park is stamped with the new park moment.
 
 **Table:** `club_cleanup_claims`
 

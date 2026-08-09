@@ -67,6 +67,24 @@ describe('canonical persona catalog', () => {
     }
   });
 
+  it('every seeded persona holding a current club affiliation holds exactly one primary', () => {
+    // The catalog is already seeded by the test above (shared db). The schema
+    // index enforces at most one primary and cannot enforce at least one, so
+    // nothing but this catches a persona seeded as the secondary member of
+    // their only club — a state no path through the application can reach.
+    const offenders = db.prepare(`
+      SELECT member_id, COUNT(*) AS current_rows, SUM(is_primary) AS primaries
+        FROM member_club_affiliations
+       WHERE is_current = 1
+       GROUP BY member_id
+      HAVING primaries <> 1
+    `).all() as Array<{ member_id: string; current_rows: number; primaries: number }>;
+
+    expect(
+      offenders.map((o) => `${o.member_id} (${o.current_rows} current, ${o.primaries} primary)`),
+    ).toEqual([]);
+  });
+
   it('account-state personas seed the columns their gates read', () => {
     // The catalog is already seeded by the test above (shared db).
     const col = db.prepare(

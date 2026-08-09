@@ -186,7 +186,7 @@ describe('Presentation-hierarchy contract — ADD and Family share the two-line 
       expect(addRow).not.toBeNull();
       expect(famRow).not.toBeNull();
       // The name is plain text; the detail page is reached via the Trick Detail link.
-      const pat = new RegExp(`<a class="dict-trick-row-detail" href="/freestyle/tricks/${pilot.slug}">Trick Detail</a>`);
+      const pat = new RegExp(`<a class="dict-trick-row-detail" href="/freestyle/tricks/${pilot.slug}">Detail</a>`);
       expect(addRow!).toMatch(pat);
       expect(famRow!).toMatch(pat);
     }

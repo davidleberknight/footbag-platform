@@ -986,7 +986,15 @@ function submitMembershipResponse(
   // candidate has no live club to target, so the answer is stored as a
   // candidate-keyed flag (club_id NULL, keyed by the candidate id) and
   // surfaces on the admin cleanup queue's candidate-flag group.
-  if (activitySignal) {
+  //
+  // An idempotent branch means this card was already answered, so there is no
+  // new answer to record: writing one appends a second signal row saying what
+  // the first already said. Readers take a member's latest answer per club, so
+  // the tally never changed, but the table is meant to hold one row per member
+  // per club per stage and nothing enforces that, so a repeated submit was the
+  // one way to break it. The leadership path already returns before its own
+  // signal write for the same reason.
+  if (activitySignal && result.branch !== 'idempotent') {
     const flagCandidate = legacyClubCandidates.findById.get(
       affiliation.legacy_club_candidate_id,
     ) as { id: string; mapped_club_id: string | null } | undefined;
@@ -1201,6 +1209,14 @@ function submitClubAffiliationsResponse(
     );
   }
   const activitySignal = rawSignal as ActivitySignal;
+
+  // Ownership is asserted here as well as in the controller-facing wrapper, so
+  // the check travels with the transition rather than with one caller. The
+  // card reads are anchor-scoped, but the write transitions resolve a row by
+  // id alone: without this, any caller holding another member's affiliation id
+  // could confirm that club onto themselves or reject the card its owner has
+  // not answered yet.
+  assertCandidateOwnership(memberId, candidateId, kindRaw);
 
   return kindRaw === 'membership'
     ? submitMembershipResponse(memberId, candidateId, userDecision, activitySignal)

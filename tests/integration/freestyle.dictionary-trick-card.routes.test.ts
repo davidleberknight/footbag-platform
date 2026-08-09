@@ -211,9 +211,9 @@ describe('dictionary-trick-card — required slots', () => {
     expect(res.text).toContain('<span class="dict-card-title">mobius</span>');
     expect(res.text).toContain('<span class="dict-card-title">montage</span>');
     // A distinct Trick Detail control resolves to the detail page.
-    expect(res.text).toMatch(/<a class="dict-card-detail" href="\/freestyle\/tricks\/ripwalk">Trick Detail<\/a>/);
-    expect(res.text).toMatch(/<a class="dict-card-detail" href="\/freestyle\/tricks\/mobius">Trick Detail<\/a>/);
-    expect(res.text).toMatch(/<a class="dict-card-detail" href="\/freestyle\/tricks\/montage">Trick Detail<\/a>/);
+    expect(res.text).toMatch(/<a class="dict-card-detail" href="\/freestyle\/tricks\/ripwalk">Detail<\/a>/);
+    expect(res.text).toMatch(/<a class="dict-card-detail" href="\/freestyle\/tricks\/mobius">Detail<\/a>/);
+    expect(res.text).toMatch(/<a class="dict-card-detail" href="\/freestyle\/tricks\/montage">Detail<\/a>/);
   });
 
   it('renders the #slug tag-identity chip on every card', async () => {
@@ -425,7 +425,7 @@ describe('dictionary-trick-card — sparse and deep render through the same temp
     // first-class secondary row's labeled "JOB:" line instead.
     const res = await request(createApp()).get('/freestyle/tricks?view=category');
     expect(res.text).toContain('<span class="dict-card-title">toe stall</span>');
-    expect(res.text).toMatch(/<a class="dict-card-detail" href="\/freestyle\/tricks\/toe_stall">Trick Detail<\/a>/);
+    expect(res.text).toMatch(/<a class="dict-card-detail" href="\/freestyle\/tricks\/toe_stall">Detail<\/a>/);
     const toeStallCard = res.text.match(/data-trick-slug="toe_stall"[\s\S]*?<\/article>/);
     expect(toeStallCard).not.toBeNull();
     // No op-notation chip between hashtag and ADD chip.

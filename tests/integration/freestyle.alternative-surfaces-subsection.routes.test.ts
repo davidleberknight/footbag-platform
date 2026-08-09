@@ -97,7 +97,7 @@ describe('Movement System view: alternative-surfaces subsection', () => {
     expect(res.text).not.toContain('alt-surface-trick-list');
     // Plain-text name + the separate Trick Detail control to the detail page.
     expect(res.text).toContain('<span class="dict-trick-row-title">sole stall</span>');
-    expect(res.text).toContain('href="/freestyle/tricks/sole_stall">Trick Detail');
+    expect(res.text).toContain('href="/freestyle/tricks/sole_stall">Detail');
     // Standardized JOB / ADD notation line.
     expect(res.text).toContain('<span class="dict-trick-row-label">JOB</span>');
     expect(res.text).toContain('<span class="dict-trick-row-label">ADD</span>');

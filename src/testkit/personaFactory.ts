@@ -605,6 +605,22 @@ export function seedPersona(
     });
   }
 
+  // A member holding any current club affiliation holds exactly one primary,
+  // and the first current club is that primary unless a spec names another.
+  // Deriving it here rather than reading a flag off each entry is what stops a
+  // spec that simply omits the flag from seeding a member who is the secondary
+  // member of their only club — a state no path through the application can
+  // produce, and one the partial unique index cannot catch because it enforces
+  // at most one primary, never at least one.
+  const specNamesPrimary = (spec.clubs ?? []).some((c) => c.primary && c.current !== false);
+  let currentClubsWritten = 0;
+  const derivePrimary = (isCurrent: boolean, wantsPrimary: boolean): 0 | 1 => {
+    if (!isCurrent) return 0;
+    currentClubsWritten += 1;
+    if (specNamesPrimary) return wantsPrimary ? 1 : 0;
+    return currentClubsWritten === 1 ? 1 : 0;
+  };
+
   let clubId: string | undefined;
   if (spec.club) {
     // Persona clubs are reachable public pages the route-wiring crawl exercises,
@@ -616,6 +632,7 @@ export function seedPersona(
     });
     insertMemberClubAffiliation(db, memberId, clubId, {
       is_current: 1,
+      is_primary: derivePrimary(true, false),
       source: 'member_self_service',
     });
     if (spec.club.leader) {
@@ -657,7 +674,7 @@ export function seedPersona(
     });
     insertMemberClubAffiliation(db, memberId, cid, {
       is_current: c.current === false ? 0 : 1,
-      is_primary: c.primary ? 1 : 0,
+      is_primary: derivePrimary(c.current !== false, c.primary === true),
       is_contact: c.contact ? 1 : 0,
       source: 'member_self_service',
     });

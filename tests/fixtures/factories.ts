@@ -1420,7 +1420,10 @@ export function insertClubInsightNote(db: BetterSqlite3.Database, o: ClubInsight
     o.member_id ?? `mem_${uid()}`,
     'club_id' in o ? o.club_id : null,
     o.source_stage ?? 'onboarding_club_card',
-    o.note_text ?? 'A note a member left about this club.',
+    // An explicit null is the purged state an account deletion leaves behind:
+    // the row survives, its text does not. Presence, not truthiness, decides,
+    // so a test can seed that state instead of getting the default note.
+    'note_text' in o ? o.note_text : 'A note a member left about this club.',
     o.source_entity_type ?? null,
     o.source_entity_id ?? null,
   );

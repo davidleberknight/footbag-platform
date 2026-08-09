@@ -6,7 +6,8 @@ club-key universe. This overlay regenerates seed/clubs.csv so it contains
 exactly that approved key set:
 
   - an approved key already present in the seed keeps its existing
-    (mirror-enriched) row verbatim, byte-for-byte;
+    (mirror-enriched) row field for field, changed only where a recorded
+    curated correction covers the field;
   - an approved key not in the seed gets a dump-derived row;
   - a seeded key that is not approved in the current dump is dropped.
 
@@ -29,8 +30,10 @@ stored already double-encoded while the plain column is clean falls back to the
 plain column; text stored as HTML numeric character references is decoded back to
 the characters it stands for; and a value typed through a mismatched codepage,
 which no general rule can recover without corrupting clean rows, is corrected per
-row from an overrides file that records the reason. Corrections apply only to
-dump-derived rows, so an existing seeded row is still preserved byte-for-byte.
+row from an overrides file that records the reason. Curated corrections apply to
+seeded rows as well as dump-derived ones, because a curated correction outranks
+whatever the mirror or the dump stored; the validator sanctions exactly that
+exception and rejects any other change to a seeded field.
 """
 from __future__ import annotations
 

@@ -58,10 +58,20 @@ function cookieFor(memberId: string): string {
 }
 
 let _n = 0;
+// A wizard card is answerable only by the member whose own identity anchor the
+// card's row names, so every seeded member carries an anchor and a card seeded
+// for that member names the same one.
+function anchorFor(memberId: string): string {
+  return `lm-${memberId}`;
+}
+
 function seedMember(): string {
   _n += 1;
   const memberId = `cll-mem-${_n}`;
-  insertMember(db, { id: memberId, slug: `cll_mem_${_n}`, login_email: `${memberId}@example.com` });
+  insertMember(db, {
+    id: memberId, slug: `cll_mem_${_n}`, login_email: `${memberId}@example.com`,
+    legacy_member_id: anchorFor(memberId),
+  });
   // Settled onboarding keeps authenticated page reads from redirecting into
   // the wizard.
   completeOnboarding(db, memberId);
@@ -89,7 +99,7 @@ describe('revival on leadership claim', () => {
     const memberId = seedMember();
     const clubId = seedClub('inactive');
     const candidateId = insertClubBootstrapLeader(db, {
-      club_id: clubId, legacy_member_id: `lm-cll-${_n}`, role: 'leader', status: 'provisional',
+      club_id: clubId, legacy_member_id: anchorFor(memberId), role: 'leader', status: 'provisional',
     });
 
     const result = onboardingSvc.submitClubAffiliationsResponse(memberId, {
@@ -107,7 +117,7 @@ describe('revival on leadership claim', () => {
     const memberId = seedMember();
     const clubId = seedClub('archived');
     const candidateId = insertClubBootstrapLeader(db, {
-      club_id: clubId, legacy_member_id: `lm-cll-${_n}`, role: 'leader', status: 'provisional',
+      club_id: clubId, legacy_member_id: anchorFor(memberId), role: 'leader', status: 'provisional',
     });
 
     const result = onboardingSvc.submitClubAffiliationsResponse(memberId, {
@@ -122,7 +132,7 @@ describe('revival on leadership claim', () => {
     const memberId = seedMember();
     const clubId = seedClub('active');
     const candidateId = insertClubBootstrapLeader(db, {
-      club_id: clubId, legacy_member_id: `lm-cll-${_n}`, role: 'leader', status: 'provisional',
+      club_id: clubId, legacy_member_id: anchorFor(memberId), role: 'leader', status: 'provisional',
     });
 
     onboardingSvc.submitClubAffiliationsResponse(memberId, { candidateId, userDecision: 'confirm', activitySignal: 'active' });
@@ -134,12 +144,54 @@ describe('revival on leadership claim', () => {
     const memberId = seedMember();
     const clubId = seedClub('inactive');
     const candidateId = insertClubBootstrapLeader(db, {
-      club_id: clubId, legacy_member_id: `lm-cll-${_n}`, role: 'leader', status: 'provisional',
+      club_id: clubId, legacy_member_id: anchorFor(memberId), role: 'leader', status: 'provisional',
     });
 
     onboardingSvc.submitClubAffiliationsResponse(memberId, { candidateId, userDecision: 'decline', activitySignal: 'not_active' });
     expect(clubStatus(clubId)).toBe('inactive');
     expect(revivalAudits(clubId)).toHaveLength(0);
+  });
+});
+
+describe('a wizard card is answerable only by the member who owns it', () => {
+  it('another member cannot confirm a leadership card onto themselves', () => {
+    const owner = seedMember();
+    const stranger = seedMember();
+    const clubId = seedClub('inactive');
+    const candidateId = insertClubBootstrapLeader(db, {
+      club_id: clubId, legacy_member_id: anchorFor(owner), role: 'leader', status: 'provisional',
+    });
+
+    expect(() => onboardingSvc.submitClubAffiliationsResponse(stranger, {
+      candidateId, userDecision: 'confirm', activitySignal: 'active',
+    })).toThrow(/Candidate not found/);
+
+    // The refusal leaves the club and the stranger untouched: no revival, and
+    // no affiliation conjured for someone the card never named.
+    expect(clubStatus(clubId)).toBe('inactive');
+    const strangerRows = db.prepare(
+      'SELECT COUNT(*) AS n FROM member_club_affiliations WHERE member_id = ?',
+    ).get(stranger) as { n: number };
+    expect(strangerRows.n).toBe(0);
+  });
+
+  it('another member cannot decline a card its owner has not answered', () => {
+    const owner = seedMember();
+    const stranger = seedMember();
+    const clubId = seedClub('active');
+    const candidateId = insertClubBootstrapLeader(db, {
+      club_id: clubId, legacy_member_id: anchorFor(owner), role: 'leader', status: 'provisional',
+    });
+
+    expect(() => onboardingSvc.submitClubAffiliationsResponse(stranger, {
+      candidateId, userDecision: 'decline', activitySignal: 'not_active',
+    })).toThrow(/Candidate not found/);
+
+    // Still answerable by the member it belongs to.
+    const result = onboardingSvc.submitClubAffiliationsResponse(owner, {
+      candidateId, userDecision: 'confirm', activitySignal: 'active',
+    });
+    expect(result.branch).toBe('promoted_co_leader');
   });
 });
 
