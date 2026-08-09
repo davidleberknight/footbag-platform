@@ -85,6 +85,84 @@ describe('POST /admin/club-cleanup/:clubId/contact-members', () => {
     expect(emails.n).toBe(2);
   });
 
+  // A send to a mailbox that has already bounced or complained is suppressed
+  // before it leaves the platform. Counting it would put contacts in the audit
+  // trail that never happened, and undeliverable mailboxes are routine.
+  it('counts only members the invitation actually reached', async () => {
+    const clubId = insertClub(db, { id: 'ccm-club-suppressed', name: 'Leaderless Suppressed Club' });
+    insertMember(db, {
+      id: 'ccm-ok-mem', slug: 'ccm_ok_mem', login_email: 'ccm-ok-mem@example.com',
+    });
+    insertMember(db, {
+      id: 'ccm-bounced-mem', slug: 'ccm_bounced_mem', login_email: 'ccm-bounced-mem@example.com',
+      email_status: 'bounced',
+    });
+    insertMemberClubAffiliation(db, 'ccm-ok-mem', clubId);
+    insertMemberClubAffiliation(db, 'ccm-bounced-mem', clubId);
+
+    const res = await request(createApp())
+      .post(`/admin/club-cleanup/${clubId}/contact-members`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({});
+    expect(res.status).toBe(303);
+
+    // The reachable member is queued; the bounced mailbox is not.
+    const queued = db.prepare(
+      'SELECT recipient_member_id FROM outbox_emails WHERE recipient_member_id IN (?, ?)',
+    ).all('ccm-ok-mem', 'ccm-bounced-mem') as Array<{ recipient_member_id: string }>;
+    expect(queued.map((r) => r.recipient_member_id)).toEqual(['ccm-ok-mem']);
+
+    const audit = db.prepare(
+      `SELECT metadata_json FROM audit_entries
+        WHERE action_type = 'admin.club_cleanup.contact_members' AND entity_id = ?`,
+    ).get(clubId) as { metadata_json: string };
+    expect(JSON.parse(audit.metadata_json).recipient_count).toBe(1);
+  });
+
+  // An unreachable member must cost that member only, never the rest of the
+  // club behind them in the order.
+  it('keeps contacting the rest of the club past an unreachable member', async () => {
+    const clubId = insertClub(db, { id: 'ccm-club-partial', name: 'Leaderless Partial Club' });
+    // Ordered by display name, so the failing member is reached first and the
+    // other two only get their invitation if the loop carries on past it.
+    insertMember(db, {
+      id: 'ccm-fail-mem', slug: 'ccm_fail_mem', display_name: 'Aaron Fails',
+      login_email: 'ccm-fail-mem@example.com', email_status: 'complained',
+    });
+    insertMember(db, {
+      id: 'ccm-after-1', slug: 'ccm_after_1', display_name: 'Mia After',
+      login_email: 'ccm-after-1@example.com',
+    });
+    insertMember(db, {
+      id: 'ccm-after-2', slug: 'ccm_after_2', display_name: 'Zoe After',
+      login_email: 'ccm-after-2@example.com',
+    });
+    for (const id of ['ccm-fail-mem', 'ccm-after-1', 'ccm-after-2']) {
+      insertMemberClubAffiliation(db, id, clubId);
+    }
+
+    const res = await request(createApp())
+      .post(`/admin/club-cleanup/${clubId}/contact-members`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({});
+    expect(res.status).toBe(303);
+
+    const queued = db.prepare(
+      `SELECT recipient_member_id FROM outbox_emails
+        WHERE recipient_member_id IN ('ccm-fail-mem','ccm-after-1','ccm-after-2')
+        ORDER BY recipient_member_id`,
+    ).all() as Array<{ recipient_member_id: string }>;
+    expect(queued.map((r) => r.recipient_member_id)).toEqual(['ccm-after-1', 'ccm-after-2']);
+
+    const audit = db.prepare(
+      `SELECT metadata_json FROM audit_entries
+        WHERE action_type = 'admin.club_cleanup.contact_members' AND entity_id = ?`,
+    ).get(clubId) as { metadata_json: string };
+    expect(JSON.parse(audit.metadata_json).recipient_count).toBe(2);
+  });
+
   it('a non-admin cannot trigger the action', async () => {
     const memberId = insertMember(db, { id: 'ccm-nonadmin', slug: 'ccm_nonadmin' });
     const res = await request(createApp())

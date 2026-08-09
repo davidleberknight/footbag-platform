@@ -10,6 +10,7 @@ import {
   insertClub,
   insertClubViabilitySignal,
   insertLegacyClubCandidate,
+  insertMemberClubAffiliation,
   createTestSessionJwt,
 } from '../fixtures/factories';
 
@@ -84,6 +85,22 @@ describe('GET /admin/club-cleanup', () => {
     expect(res.text).toContain(`/admin/club-cleanup/${CLUB_ID}/contact-members`);
   });
 
+  // A leaderless club is a tolerated state, so its row offers no demote and
+  // nothing to dismiss. It does offer archive, because the queue is the only
+  // surface in the product that archives a club, and a leaderless club an admin
+  // has confirmed defunct would otherwise have no way to be retired at all.
+  it('offers archive but not demote or dismiss on a leaderless row', async () => {
+    const res = await request(createApp())
+      .get('/admin/club-cleanup?category=leaderless_active')
+      .set('Cookie', adminCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Needs Leader');
+    expect(res.text).toContain('value="archive"');
+    expect(res.text).toContain('value="park"');
+    expect(res.text).not.toContain('value="demote_inactive"');
+    expect(res.text).not.toContain('value="dismiss"');
+  });
+
   it('names the members whose latest answer was negative on the queue item', async () => {
     const app = createApp();
     const res = await request(app)
@@ -92,6 +109,30 @@ describe('GET /admin/club-cleanup', () => {
     // Negative votes are rare and admins judge them by who cast them, so
     // the crowdsource item carries the reporter names (admin-only surface).
     expect(res.text).toContain('inactive per: Cleanup Admin, Cleanup Member');
+  });
+});
+
+// Archive is offered on a leaderless row, so the endpoint's own refusal is what
+// stops a club being retired merely for lacking a co-leader: no admin can end
+// another member's affiliation, and an archived club can be neither reached nor
+// left, so a club with people in it is demoted instead.
+describe('archiving a club that still has people', () => {
+  it('is refused while a current member remains, and the club stays active', async () => {
+    const db = new BetterSqlite3(dbPath);
+    const clubId = insertClub(db, { id: 'cleanup-club-peopled', name: 'Peopled Club' });
+    insertMemberClubAffiliation(db, MEMBER_ID, clubId);
+    db.close();
+
+    const res = await request(createApp())
+      .post(`/admin/club-cleanup/${clubId}/resolve`)
+      .set('Cookie', adminCookie())
+      .send({ action: 'archive', predicate: 'leaderless_active', reasonText: 'Looks defunct' });
+    expect(res.status).toBe(422);
+
+    const check = new BetterSqlite3(dbPath, { readonly: true });
+    const status = (check.prepare('SELECT status FROM clubs WHERE id = ?').get(clubId) as { status: string }).status;
+    check.close();
+    expect(status).toBe('active');
   });
 });
 

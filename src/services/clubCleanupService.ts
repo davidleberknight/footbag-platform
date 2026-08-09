@@ -34,10 +34,13 @@
  *     candidate to dormant for further evaluation); guarded writes turn a
  *     concurrent admin's repeat action into an audited no-op
  *   - Candidate park: an unpromoted candidate leaves the working queue with no
- *     deadline, stays listed as parked with who parked it and why, and returns
- *     when new evidence about it arrives. The promotable item and the
- *     candidate-flag item carry separate resolutions, so parking one never
- *     hides the other
+ *     deadline and stays listed as parked with who parked it and why. The
+ *     promotable item and the candidate-flag item carry separate resolutions,
+ *     so parking one never hides the other.
+ *     Current: a parked candidate stays parked whatever evidence arrives later.
+ *     Target: like a parked club, it returns to the working queue by itself
+ *     once evidence about it is newer than the park; that needs a newest-signal
+ *     timestamp the candidate reads do not yet carry
  *   - Admin de-list of unconfirmed legacy residue (pending -> former_only),
  *     also cascaded when a club is demoted or archived
  *   - Archiving is refused while a club still has a current member or
@@ -265,11 +268,24 @@ function clubsPendingRuleDemotion(
   const pending = new Set<string>();
   for (const row of evidence) {
     if (row.status !== 'active') continue;
-    if (resolutions.has(`${row.club_id}:crowdsource_viability`)) continue;
+    const res = resolutions.get(`${row.club_id}:crowdsource_viability`);
+    if (res && !isStaleDemotion(res, row.status)) continue;
     if (evaluateClubVerdict(row).verdict !== 'defunct_by_rule') continue;
     pending.add(row.club_id);
   }
   return pending;
+}
+
+// A demote is a verdict about a club that looked finished. A member claiming or
+// joining it puts it back to active, and that contradicts the verdict outright,
+// so the verdict stops speaking for the club and the predicates evaluate it
+// fresh like any other live club. Without this one admin demote silences a club
+// permanently: it leaves both the rules sweep and the working queue, and no
+// amount of later evidence brings it back. Only a demotion goes stale this way.
+// An archive is terminal, and a dismissal is a judgment about the flags rather
+// than about whether the club is alive.
+function isStaleDemotion(res: ResolutionRow, clubStatus: string): boolean {
+  return res.resolution === 'demoted' && clubStatus === 'active';
 }
 
 function applyRuleVerdicts(
@@ -349,6 +365,7 @@ interface StaleLeaderRow {
   city: string | null;
   region: string | null;
   country: string | null;
+  club_status: string;
   role: string;
   provisional_since: string;
 }
@@ -415,6 +432,7 @@ function isResolved(
   clubId: string,
   predicate: string,
   newestEvidenceAt?: string | null,
+  clubStatus?: string,
 ): boolean {
   const key = `${clubId}:${predicate}`;
   const r = resolutions.get(key);
@@ -423,6 +441,7 @@ function isResolved(
     if (newestEvidenceAt && newestEvidenceAt > r.created_at) return false;
     return true;
   }
+  if (clubStatus !== undefined && isStaleDemotion(r, clubStatus)) return false;
   return true;
 }
 
@@ -460,9 +479,12 @@ export interface CleanupQueueItem {
   // on a boolean rather than the predicate enum.
   showLeaderlessControls: boolean;
   // Opportunity items (the "Needs Leader" list) are a tolerated state, not
-  // remediation work: they render as a separate low-priority section, offer no
-  // demote or archive action, and demotion stays driven only by the
-  // crowdsourced inactivity signals.
+  // remediation work: they render as a separate low-priority section and offer
+  // no demote or dismiss action, because demotion stays driven only by the
+  // crowdsourced inactivity signals and a standing opportunity is not something
+  // to dismiss. Archive is offered, for the club an admin has confirmed defunct;
+  // it is refused while the club still has a member or co-leader, so lacking a
+  // co-leader can never on its own retire a club.
   isOpportunity?: boolean;
   // Sort inputs, not rendered: negative-signal weight and the timestamp the
   // item has been open since (the club's last update stands in for predicate
@@ -650,8 +672,12 @@ interface AssembledQueue {
 // how parking stays honest, since nothing expires to bring the item back. It
 // says who parked it, why, and when, and any club whose evidence changes after
 // that moment rejoins the working queue on its own.
+// Carries a club or an unpromoted candidate: both are parked from this queue
+// and both must stay visible afterwards, so the listing is keyed by whichever
+// id the resolution holds and the name and location columns serve both.
 export interface ParkedItem {
-  clubId: string;
+  clubId: string | null;
+  candidateId: string | null;
   clubName: string;
   clubCity: string | null;
   clubCountry: string | null;
@@ -744,7 +770,7 @@ function assembleQueue(): AssembledQueue {
   // reaches an admin. Everything the rules settle has already been acted on or
   // deliberately left alone, so nothing here is paperwork.
   for (const row of evidenceByClub.values()) {
-    if (isResolved(resolutions, row.club_id, 'crowdsource_viability', newestEvidenceFor(row.club_id))) continue;
+    if (isResolved(resolutions, row.club_id, 'crowdsource_viability', newestEvidenceFor(row.club_id), row.status)) continue;
     const verdict = evaluateClubVerdict(row);
     if (verdict.verdict !== 'needs_review') continue;
 
@@ -795,15 +821,15 @@ function assembleQueue(): AssembledQueue {
   }
   for (const [clubId, leaders] of staleByClub) {
     if (pendingRuleDemotion.has(clubId)) continue;
-    if (isResolved(resolutions, clubId, 'stale_provisional', newestEvidenceFor(clubId))) continue;
     const first = leaders[0];
+    if (isResolved(resolutions, clubId, 'stale_provisional', newestEvidenceFor(clubId), first.club_status)) continue;
     items.push({
       clubId,
       clubName: first.club_name,
       clubCity: first.city,
       clubRegion: first.region,
       clubCountry: first.country,
-      clubStatus: 'active',
+      clubStatus: first.club_status,
       predicate: 'stale_provisional',
       predicateLabel: 'Stale provisional leader',
       detail: `${leaders.length} provisional leader(s) since ${first.provisional_since.slice(0, 10)}`,
@@ -825,7 +851,7 @@ function assembleQueue(): AssembledQueue {
   for (const row of leaderless) {
     // A club about to be demoted is not an opportunity to find it a leader.
     if (pendingRuleDemotion.has(row.club_id)) continue;
-    if (isResolved(resolutions, row.club_id, 'leaderless_active', newestEvidenceFor(row.club_id))) continue;
+    if (isResolved(resolutions, row.club_id, 'leaderless_active', newestEvidenceFor(row.club_id), row.status)) continue;
     items.push({
       clubId: row.club_id,
       clubName: row.club_name,
@@ -965,6 +991,7 @@ function assembleQueue(): AssembledQueue {
     const evidence = evidenceByClub.get(r.club_id);
     parked.push({
       clubId: r.club_id,
+      candidateId: null,
       clubName: evidence?.club_name ?? r.club_id,
       clubCity: evidence?.city ?? null,
       clubCountry: evidence?.country ?? null,
@@ -974,6 +1001,37 @@ function assembleQueue(): AssembledQueue {
       reasonText: r.reason_text,
     });
   }
+
+  // Parked candidates belong here for the same reason parked clubs do. The
+  // loops above drop them from the working queue, so without this they would
+  // show on no surface at all and be indistinguishable from a terminal
+  // dismissal outside the database. Their name and location come from the
+  // candidate rows already read for those loops.
+  const candidateMeta = new Map<string, { name: string; city: string | null; country: string | null }>();
+  for (const r of candidateRows) {
+    candidateMeta.set(r.id, { name: r.display_name, city: r.city, country: r.country });
+  }
+  for (const r of flagRows) {
+    if (!candidateMeta.has(r.candidate_id)) {
+      candidateMeta.set(r.candidate_id, { name: r.display_name, city: r.city, country: r.country });
+    }
+  }
+  for (const r of candidateResolutions.values()) {
+    if (r.resolution !== 'parked') continue;
+    const meta = candidateMeta.get(r.candidate_id);
+    parked.push({
+      clubId: null,
+      candidateId: r.candidate_id,
+      clubName: meta?.name ?? r.candidate_id,
+      clubCity: meta?.city ?? null,
+      clubCountry: meta?.country ?? null,
+      predicateLabel: PARKED_PREDICATE_LABELS[r.predicate_name] ?? r.predicate_name,
+      parkedByLabel: r.parked_by_name ?? 'an admin',
+      parkedAt: r.created_at.slice(0, 10),
+      reasonText: r.reason_text,
+    });
+  }
+
   parked.sort((a, b) => a.clubName.localeCompare(b.clubName));
 
   return { items, residue, candidates, junkCandidates, candidateFlags, parked };
@@ -983,6 +1041,8 @@ const PARKED_PREDICATE_LABELS: Record<string, string> = {
   crowdsource_viability: 'Crowdsource viability',
   leaderless_active: 'Needs Leader',
   stale_provisional: 'Stale provisional leader',
+  promotable_candidate: 'Promotable candidate',
+  candidate_flags: 'Wizard flags by candidate',
 };
 
 // ---------------------------------------------------------------------------
@@ -1305,10 +1365,14 @@ function contactMembersToVolunteer(
   }>;
 
   let recipientCount = 0;
-  try {
-    for (const m of members) {
-      if (!m.login_email) continue;
-      emailService.send({
+  for (const m of members) {
+    if (!m.login_email) continue;
+    // One member's failure skips that member only. A single guard around the
+    // whole loop abandoned every remaining recipient on the first error, and
+    // the audit row below then reported a contact count for people who were
+    // never reached.
+    try {
+      const sent = emailService.send({
         template: 'club_leaderless_contact',
         params: {
           memberName: m.display_name,
@@ -1318,13 +1382,18 @@ function contactMembersToVolunteer(
         recipientMemberId: m.id,
         idempotencyKey: `club-leaderless-contact:${clubId}:${m.id}`,
       });
-      recipientCount++;
+      // A suppressed send never leaves the platform: the template is disabled,
+      // or the mailbox has already bounced or complained. Counting it would
+      // record a contact that did not happen. A duplicate counts, because the
+      // idempotency key means the invitation is already queued for them.
+      if (sent.status !== 'suppressed') recipientCount++;
+    } catch (err) {
+      logger.warn('club leaderless contact-members enqueue failed for one member', {
+        clubId,
+        recipientMemberId: m.id,
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
-  } catch (err) {
-    logger.warn('club leaderless contact-members enqueue failed', {
-      clubId,
-      error: err instanceof Error ? err.message : String(err),
-    });
   }
 
   appendAuditEntry({
@@ -1613,21 +1682,10 @@ function bulkParkGroup(
   return { parkedCount };
 }
 
-// Bulk de-list across every club currently carrying unconfirmed residue.
-// Each club runs through the existing per-club de-list in its own
-// transaction, so the action stays idempotent and a mid-run failure leaves
-// completed clubs cleanly de-listed rather than rolling everything back.
-function bulkDelistResidue(
-  adminMemberId: string,
-  reasonText: string | null,
-): { clubsProcessed: number; totalDelisted: number } {
-  const { residue } = assembleQueue();
-  let totalDelisted = 0;
-  for (const item of residue) {
-    totalDelisted += delistUnconfirmedResidue(adminMemberId, item.clubId, reasonText).delistedCount;
-  }
-  return { clubsProcessed: residue.length, totalDelisted };
-}
+// Residue is retired one club at a time, on the admin's judgment about that
+// club, which is why there is no queue-wide de-list here: the transition is
+// irreversible, so the decision is made per club with that club's pending count
+// and oldest-row age in front of the admin.
 
 // ---------------------------------------------------------------------------
 // Admin override promotion (candidate -> live club)
@@ -1672,6 +1730,5 @@ export const clubCleanupService = {
   resolveCandidate,
   delistUnconfirmedResidue,
   bulkParkGroup,
-  bulkDelistResidue,
   promoteCandidate,
 };

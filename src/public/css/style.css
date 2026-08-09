@@ -2120,6 +2120,7 @@ section.home-media { padding-top: 0; }
 .club-contact-heading { font-size: 1rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 8px; }
 .club-contact-email { font-size: 0.95rem; }
 .club-leader-email { font-size: 0.9rem; margin-left: 6px; }
+.club-leader-whatsapp { font-size: 0.9rem; margin-left: 6px; }
 .club-contact-whatsapp { font-size: 0.95rem; color: var(--text); margin: 4px 0 0; }
 .club-members { margin-top: 32px; }
 .club-members-heading { font-size: 1rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 12px; }

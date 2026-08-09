@@ -270,7 +270,6 @@ describe('admin gate — POST (every state-changing admin route sits behind the 
     '/admin/clubs/ph/leadership/demote',
     '/admin/club-cleanup/claim',
     '/admin/club-cleanup/bulk-resolve',
-    '/admin/club-cleanup/bulk-delist-residue',
     '/admin/club-cleanup/ph/resolve',
     '/admin/club-cleanup/ph/contact-members',
     '/admin/club-cleanup/ph/delist-residue',

@@ -117,6 +117,7 @@ import {
   type LegacyPersonClubAffiliationRow,
 } from '../db/db';
 import { emailService } from './emailService';
+import { whatsappDigits } from './memberService';
 import { logger } from '../config/logger';
 import { ConflictError, NotFoundError, ValidationError } from './serviceErrors';
 import { validateExternalUrl } from '../lib/externalUrlValidator';
@@ -403,6 +404,12 @@ export interface ClubLeader {
   badgeNote?: string;           // pre-shaped explanatory text under the badge
   showContact: boolean;         // member-visible-by-role gate: true only for current leaders shown to an authenticated viewer
   contactEmail?: string;        // present only when showContact === true
+  // WhatsApp is opt-in per co-leader on top of the same authenticated-viewer
+  // gate, so a co-leader who has not opted in never exposes a number even to
+  // members who can see their email.
+  showWhatsapp: boolean;
+  whatsappHref?: string;        // present only when showWhatsapp === true
+  whatsappLabel?: string;       // present only when showWhatsapp === true
 }
 
 export interface PublicClubDetail extends PublicClubSummary {
@@ -593,6 +600,9 @@ function toClubLeader(row: BootstrapLeaderRow): ClubLeader {
     roleLabel:   row.role === 'leader' ? 'Leader' : 'Co-leader',
     status:      row.status,
     showContact,
+    // A bootstrap row is an imported record, not a member account, so there is
+    // no opt-in to read and no number to show.
+    showWhatsapp: false,
   };
   if (row.person_id)        leader.personId        = row.person_id;
   if (row.claimed_member_id) leader.claimedMemberId = row.claimed_member_id;
@@ -798,6 +808,7 @@ function affiliationRowToClubLeader(row: AffiliationRow): ClubLeader {
     badgeLabel:  'Provisional leader',
     badgeNote:   'imported from historical records',
     showContact: false,
+    showWhatsapp: false,
   };
   if (row.person_id) leader.personId = row.person_id;
   return leader;
@@ -1211,8 +1222,13 @@ export class ClubService {
         role: 'leader' | 'co-leader';
         display_name: string;
         login_email: string | null;
+        whatsapp: string | null;
+        whatsapp_visible: number;
       }>;
       const liveLeaders: ClubLeader[] = liveLeaderRows.map((l) => {
+        const digits = isAuthenticated && l.whatsapp_visible === 1 && l.whatsapp
+          ? whatsappDigits(l.whatsapp)
+          : null;
         const leader: ClubLeader = {
           displayName: l.display_name,
           role:        l.role,
@@ -1220,8 +1236,13 @@ export class ClubService {
           status:      'claimed',
           claimedMemberId: l.member_id,
           showContact: isAuthenticated && !!l.login_email,
+          showWhatsapp: digits !== null,
         };
         if (isAuthenticated && l.login_email) leader.contactEmail = l.login_email;
+        if (digits) {
+          leader.whatsappHref = `https://wa.me/${digits}`;
+          leader.whatsappLabel = l.whatsapp as string;
+        }
         return leader;
       });
       // Bootstrap rows render only while unclaimed: a claimed row's person is
@@ -1838,6 +1859,15 @@ export class ClubService {
     }
     if (candidate.classification === 'junk') {
       throw new ValidationError('Junk candidates cannot be promoted.');
+    }
+    // Archiving a candidate is terminal. The guard sits here rather than only
+    // on the listings so it holds for every route into promotion at once: the
+    // admin action, a page an admin left open before archiving, and the
+    // member's own wizard confirmation.
+    if (candidate.lifecycle_state === 'archived') {
+      throw new ValidationError(
+        'This club record was archived and cannot be promoted. Create a new club instead.',
+      );
     }
     if (candidate.mapped_club_id) {
       return { branch: 'already_promoted', clubId: candidate.mapped_club_id };

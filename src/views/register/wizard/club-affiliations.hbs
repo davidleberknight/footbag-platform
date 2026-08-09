@@ -16,7 +16,6 @@
     {{#if content.capHitNotice}}
       <p class="form-notice" role="status">
         {{content.capHitNotice.message}}
-        <a href="{{content.capHitNotice.manageClubsHref}}">Manage your clubs</a>
       </p>
     {{/if}}
 
@@ -62,8 +61,8 @@
                     <span class="fw-600">{{this.clubName}}</span>
                     <span class="text-muted fs-sm">({{this.confidenceBandLabel}} match)</span>
                   </label>
+                  <p class="text-muted fs-sm mt-1 mb-0">{{#if this.clubCountry}}{{this.clubCountry}} &middot; {{/if}}Listed as: {{this.roleLabel}}</p>
                   {{#if this.clubDescription}}<p class="text-muted fs-sm mt-1 mb-0">{{this.clubDescription}}</p>{{/if}}
-                  {{#if this.clubExternalUrl}}<p class="fs-sm mt-1 mb-0">{{externalLink this.clubExternalUrl label="Club website"}}</p>{{/if}}
                 </li>
               {{/each}}
             </ul>
@@ -79,20 +78,17 @@
           <div class="card-title">About {{content.card.clubName}}</div>
 
           {{#if content.card.isMembership}}
+            <p class="text-muted">{{formatLocation content.card.clubCity '' content.card.clubCountry}}</p>
+            <p class="text-muted">Listed as: {{content.card.roleLabel}}</p>
             <p class="text-muted">Match strength: {{content.card.confidenceBandLabel}}</p>
             {{#if content.card.clubDescription}}<p class="text-muted fs-sm mt-2">{{content.card.clubDescription}}</p>{{/if}}
-            {{#if content.card.clubExternalUrl}}
-              <p class="fs-sm mt-1">{{externalLink content.card.clubExternalUrl label="Club website"}}</p>
-            {{/if}}
           {{/if}}
 
           {{#if content.card.isLeadership}}
+            <p class="text-muted">{{formatLocation content.card.clubCity '' content.card.clubCountry}}</p>
             <p class="text-muted">Listed as: {{content.card.roleLabel}}</p>
             <p class="notice-card notice-card--info mt-2">{{content.card.consequencesNote}}</p>
             {{#if content.card.clubDescription}}<p class="text-muted fs-sm mt-2">{{content.card.clubDescription}}</p>{{/if}}
-            {{#if content.card.clubExternalUrl}}
-              <p class="fs-sm mt-1">{{externalLink content.card.clubExternalUrl label="Club website"}}</p>
-            {{/if}}
             <p class="badge mt-2">{{content.card.classificationLabel}}</p>
             <ul class="signal-checklist mt-4">
               {{#each content.card.signals}}
@@ -175,6 +171,5 @@
     {{/if}}
     {{/if}}
 
-    <p class="mt-2"><a href="{{content.dashboardHref}}">Back to dashboard</a></p>
   </section>
 </div>

@@ -86,6 +86,9 @@
           {{#if showContact}}
             <a class="club-leader-email" href="mailto:{{contactEmail}}">{{contactEmail}}</a>
           {{/if}}
+          {{#if showWhatsapp}}
+            <a class="club-leader-whatsapp" href="{{whatsappHref}}" rel="noopener noreferrer">WhatsApp {{whatsappLabel}}</a>
+          {{/if}}
         </li>
         {{/each}}
       </ul>

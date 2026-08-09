@@ -17,6 +17,7 @@ import {
   insertClubLeader,
   insertEvent,
   insertClubInsightNote,
+  insertClubBootstrapLeader,
 } from '../fixtures/factories';
 
 const MEMBER = 'rule-mem-1';
@@ -37,6 +38,10 @@ const CLUB_NOTE_ONLY   = 'rule-club-note-only';
 const CLUB_NOTE_VOTED  = 'rule-club-note-voted';
 const CLUB_PARKED_SETTLED  = 'rule-club-parked-settled';
 const CLUB_PARKED_RETURNED = 'rule-club-parked-returned';
+const CLUB_DEMOTED_REVIVED = 'rule-club-demoted-revived';
+const CLUB_DISMISSED_ACTIVE = 'rule-club-dismissed-active';
+const CLUB_ARCHIVED_PROVISIONAL = 'rule-club-archived-provisional';
+const CLUB_INACTIVE_PROVISIONAL = 'rule-club-inactive-provisional';
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
@@ -197,6 +202,43 @@ beforeAll(async () => {
     created_at: '2026-02-01T00:00:00.000Z',
   });
 
+  // Demoted once, then revived by a member and left to go quiet again. The
+  // club being active contradicts the demotion outright, so the verdict stops
+  // speaking for it and the rules judge it afresh.
+  insertClub(db, { id: CLUB_DEMOTED_REVIVED, name: 'Demoted Revived Club', status: 'active' });
+  insertLegacyClubCandidate(db, { mapped_club_id: CLUB_DEMOTED_REVIVED, classification: 'dormant' });
+  db.prepare(`
+    INSERT INTO club_cleanup_resolutions (
+      id, created_at, created_by, club_id, predicate_name, resolution, reason_text
+    ) VALUES (?, '2026-01-01T00:00:00.000Z', ?, ?, 'crowdsource_viability', 'demoted', 'Looked finished')
+  `).run('ccr-rule-demoted-revived', ADMIN, CLUB_DEMOTED_REVIVED);
+
+  // A dismissal is a judgment about the flags, not about whether the club is
+  // alive, so it is not released the same way.
+  insertClub(db, { id: CLUB_DISMISSED_ACTIVE, name: 'Dismissed Active Club', status: 'active' });
+  insertLegacyClubCandidate(db, { mapped_club_id: CLUB_DISMISSED_ACTIVE, classification: 'dormant' });
+  db.prepare(`
+    INSERT INTO club_cleanup_resolutions (
+      id, created_at, created_by, club_id, predicate_name, resolution, reason_text
+    ) VALUES (?, '2026-01-01T00:00:00.000Z', ?, ?, 'crowdsource_viability', 'dismissed', 'Reports not credible')
+  `).run('ccr-rule-dismissed-active', ADMIN, CLUB_DISMISSED_ACTIVE);
+
+  // Archiving is terminal, and archiving does not clear a club's provisional
+  // bootstrap rows. Without excluding archived clubs the stale-provisional
+  // group offers Demote on one, which would move it back to inactive.
+  insertClub(db, { id: CLUB_ARCHIVED_PROVISIONAL, name: 'Archived Provisional Club', status: 'archived' });
+  insertClubBootstrapLeader(db, {
+    club_id: CLUB_ARCHIVED_PROVISIONAL,
+    legacy_member_id: 'rule-legacy-provisional',
+    status: 'provisional',
+  });
+  insertClub(db, { id: CLUB_INACTIVE_PROVISIONAL, name: 'Inactive Provisional Club', status: 'inactive' });
+  insertClubBootstrapLeader(db, {
+    club_id: CLUB_INACTIVE_PROVISIONAL,
+    legacy_member_id: 'rule-legacy-provisional',
+    status: 'provisional',
+  });
+
   db.close();
   createApp = await importApp();
 });
@@ -346,6 +388,44 @@ describe('the cleanup rules demote the clubs they settle', () => {
     expect(autoDemoteAuditCount(CLUB_PARKED_SETTLED)).toBe(0);
   });
 
+  // A demote says a club looked finished. A member reviving it says the
+  // opposite, and the queue evaluates its predicates fresh against current
+  // data, so the old verdict cannot go on silencing the club for good.
+  it('re-evaluates a demoted club that a member has since revived', () => {
+    expect(statusOf(CLUB_DEMOTED_REVIVED)).toBe('inactive');
+    expect(autoDemoteAuditCount(CLUB_DEMOTED_REVIVED)).toBe(1);
+  });
+
+  it('leaves a dismissed verdict standing on an active club', () => {
+    expect(statusOf(CLUB_DISMISSED_ACTIVE)).toBe('active');
+    expect(autoDemoteAuditCount(CLUB_DISMISSED_ACTIVE)).toBe(0);
+  });
+
+  // Archiving is terminal. An archived club carrying leftover provisional rows
+  // must not reach a group whose actions would move it back to inactive.
+  it('keeps an archived club out of the stale-provisional group', async () => {
+    const { clubCleanupService } = await import('../../src/services/clubCleanupService');
+    const vm = clubCleanupService.getCleanupQueuePage();
+
+    const staleIds = vm.content.itemGroups
+      .flatMap((g) => g.items)
+      .filter((i) => i.predicate === 'stale_provisional')
+      .map((i) => i.clubId);
+    expect(staleIds).not.toContain(CLUB_ARCHIVED_PROVISIONAL);
+    expect(staleIds).toContain(CLUB_INACTIVE_PROVISIONAL);
+    expect(statusOf(CLUB_ARCHIVED_PROVISIONAL)).toBe('archived');
+  });
+
+  it('shows a stale-provisional row the club\'s real status rather than a fixed one', async () => {
+    const { clubCleanupService } = await import('../../src/services/clubCleanupService');
+    const vm = clubCleanupService.getCleanupQueuePage();
+
+    const row = vm.content.itemGroups
+      .flatMap((g) => g.items)
+      .find((i) => i.predicate === 'stale_provisional' && i.clubId === CLUB_INACTIVE_PROVISIONAL);
+    expect(row?.clubStatus).toBe('inactive');
+  });
+
   it('drops a parked club from the listing once the working queue has it back', async () => {
     const { clubCleanupService } = await import('../../src/services/clubCleanupService');
     const vm = clubCleanupService.getCleanupQueuePage();
@@ -392,8 +472,11 @@ describe('the cleanup rules demote the clubs they settle', () => {
 
   it('never archives a club: demotion keeps it listed and revivable', () => {
     const db = new BetterSqlite3(dbPath);
-    const archived = db.prepare("SELECT COUNT(*) AS c FROM clubs WHERE status = 'archived'").get() as { c: number };
+    const archived = db.prepare(
+      "SELECT id FROM clubs WHERE status = 'archived' ORDER BY id",
+    ).all() as Array<{ id: string }>;
     db.close();
-    expect(archived.c).toBe(0);
+    // The only archived club is the one seeded that way; the rules archived none.
+    expect(archived.map((r) => r.id)).toEqual([CLUB_ARCHIVED_PROVISIONAL]);
   });
 });

@@ -82,7 +82,7 @@ describe('POST /admin/club-cleanup/candidates/:candidateId/resolve', () => {
     expect(res.status).toBe(404);
   });
 
-  it('parking hides the candidate, records the resolution, and writes an audit row', async () => {
+  it('parking moves the candidate to the parked listing, records the resolution, and writes an audit row', async () => {
     const res = await request(createApp())
       .post(`/admin/club-cleanup/candidates/${CANDIDATE_ID}/resolve`)
       .set('Cookie', adminCookie())
@@ -92,7 +92,11 @@ describe('POST /admin/club-cleanup/candidates/:candidateId/resolve', () => {
     const queue = await request(createApp())
       .get('/admin/club-cleanup')
       .set('Cookie', adminCookie());
-    expect(queue.text).not.toContain('Defer Candidate');
+    // Out of the working queue: no resolve control remains for it. Still on the
+    // surface: the parked listing names it with the reason it was parked.
+    expect(queue.text).not.toContain(`/admin/club-cleanup/candidates/${CANDIDATE_ID}/resolve`);
+    expect(queue.text).toContain('Defer Candidate');
+    expect(queue.text).toContain('Waiting on member confirmations');
 
     const db = new BetterSqlite3(dbPath, { readonly: true });
     try {
@@ -145,12 +149,14 @@ describe('POST /admin/club-cleanup/candidates/:candidateId/resolve', () => {
     expect(row.parked_by_member_id).toBeTruthy();
     expect(row.reason_text).toBe('Shorter window');
 
-    // Nothing expires, so re-opening the queue leaves it parked.
+    // Nothing expires, so re-opening the queue leaves it parked and listed.
     const res = await request(createApp())
       .get('/admin/club-cleanup')
       .set('Cookie', adminCookie());
     expect(res.status).toBe(200);
-    expect(res.text).not.toContain('Defer Candidate');
+    expect(res.text).not.toContain(`/admin/club-cleanup/candidates/${CANDIDATE_ID}/resolve`);
+    expect(res.text).toContain('Defer Candidate');
+    expect(res.text).toContain('Shorter window');
   });
 });
 

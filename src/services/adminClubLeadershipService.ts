@@ -22,6 +22,11 @@
  *     is refused: a club is a local group, so a member leads the club they are
  *     local to and is a guest at any other. Changing which club a member
  *     co-leads is that member's own action, taken by stepping down first.
+ *   - A member holding any current club affiliation holds exactly one primary.
+ *     An affiliation this service creates or reactivates is primary when the
+ *     member held no other current club, and removing one promotes a lone
+ *     survivor, so neither admin path can leave a member with a club but no
+ *     primary club.
  *   - Every action writes one audit row with actor_type='admin',
  *     before/after values, and reason text. The audit trail is the
  *     canonical history.
@@ -37,7 +42,7 @@
  * Service shape: singleton object.
  */
 import { randomUUID } from 'crypto';
-import { clubLeaders, clubs as clubsDb, transaction } from '../db/db';
+import { clubLeaders, clubs as clubsDb, memberClubAffiliations, transaction } from '../db/db';
 import { appendAuditEntry } from './auditService';
 import { NotFoundError, ValidationError } from './serviceErrors';
 import { PageViewModel } from '../types/page';
@@ -217,18 +222,24 @@ function assignLeader(
       clubId, member.id, 'co-leader', now,
     );
 
-    // Ensure the assigned co-leader is on the roster.
+    // Ensure the assigned co-leader is on the roster. The primary flag is
+    // computed the same way the member's own join computes it: a member with no
+    // other current club must come out of this holding their one club as
+    // primary, or their profile shows a secondary club and no primary and they
+    // have no control that repairs it.
     const aff = clubLeaders.findCurrentAffiliation.get(member.id, clubId) as
       | { id: string; is_current: number }
       | undefined;
+    const currentCount = (memberClubAffiliations.countCurrentByMemberId.get(member.id) as { c: number }).c;
+    const isPrimary = currentCount === 0 ? 1 : 0;
     if (!aff) {
       clubLeaders.insertAdminAffiliation.run(
         `mca_${randomUUID().replace(/-/g, '').slice(0, 24)}`,
         now, adminMemberId, now, adminMemberId,
-        member.id, clubId,
+        member.id, clubId, isPrimary,
       );
     } else if (!aff.is_current) {
-      clubLeaders.reactivateAffiliation.run(now, adminMemberId, aff.id);
+      clubLeaders.reactivateAffiliation.run(isPrimary, now, adminMemberId, aff.id);
     }
 
     clubLeaders.supersedeProvisionalForClub.run(now, adminMemberId, clubId);
@@ -272,6 +283,16 @@ function demoteLeader(
     clubLeaders.deleteLeaderRow.run(clubId, memberId);
     if (mode === 'remove_affiliation') {
       clubLeaders.endAffiliation.run(now, adminMemberId, memberId, clubId);
+
+      // Ending an affiliation clears its primary flag, so a member left holding
+      // one other club would carry it as secondary with nothing for that
+      // designation to mean anything against. Promote a lone survivor, exactly
+      // as the member's own leave does.
+      const remaining = memberClubAffiliations.listCurrentWithClubName.all(memberId) as
+        Array<{ club_id: string; is_primary: number }>;
+      if (remaining.length === 1 && remaining[0].is_primary === 0) {
+        memberClubAffiliations.setPrimary.run(now, adminMemberId, memberId, remaining[0].club_id);
+      }
     }
     audit(adminMemberId, 'club.admin_leader_demoted', clubId, trimmedReason, {
       member_id:     memberId,

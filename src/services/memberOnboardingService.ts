@@ -636,6 +636,11 @@ export interface WizardMembershipCard {
   candidateId: string;       // legacy_person_club_affiliations.id
   clubId: string | null;     // null until the candidate is promoted on confirm
   clubName: string;
+  clubCity: string | null;
+  clubCountry: string | null;
+  // How the old site recorded this person's relationship to the club, shown so
+  // the member can tell one suggestion from another.
+  roleLabel: string;
   confidenceBand: MembershipConfidenceBand;
   confidenceBandLabel: string;
   clubDescription: string | null;
@@ -652,6 +657,8 @@ export interface WizardLeadershipCard {
   candidateId: string;       // club_bootstrap_leaders.id
   clubId: string;
   clubName: string;
+  clubCity: string | null;
+  clubCountry: string | null;
   role: 'leader' | 'co-leader';
   roleLabel: string;
   classification: 'strong' | 'weak' | 'none';
@@ -671,6 +678,8 @@ export interface WizardDisambiguationCard {
     candidateId: string;
     clubId: string | null;
     clubName: string;
+    clubCountry: string | null;
+    roleLabel: string;
     confidenceBand: MembershipConfidenceBand;
     confidenceBandLabel: string;
     clubDescription: string | null;
@@ -702,6 +711,15 @@ const CLASSIFICATION_LABELS: Record<'strong' | 'weak' | 'none', string> = {
 };
 
 const ROLE_LABELS: Record<'leader' | 'co-leader', string> = {
+  'leader':    'Primary contact',
+  'co-leader': 'Contact',
+};
+
+// How the legacy record described the member's relationship to the club. The
+// vocabulary is the affiliation row's own; these are the words a member reads.
+const INFERRED_ROLE_LABELS: Record<'member' | 'contact' | 'leader' | 'co-leader', string> = {
+  'member':    'Member',
+  'contact':   'Contact',
   'leader':    'Primary contact',
   'co-leader': 'Contact',
 };
@@ -783,6 +801,9 @@ function listWizardCardsForMember(memberId: string): WizardCard[] {
       candidateId:         r.affiliation_id,
       clubId:              r.club_id,
       clubName:            r.club_name,
+      clubCity:            r.club_city,
+      clubCountry:         r.club_country,
+      roleLabel:           INFERRED_ROLE_LABELS[r.inferred_role],
       confidenceBand:      band,
       confidenceBandLabel: CONFIDENCE_BAND_LABELS[band],
       clubDescription:     r.club_description || null,
@@ -808,6 +829,8 @@ function listWizardCardsForMember(memberId: string): WizardCard[] {
             candidateId:         r.affiliation_id,
             clubId:              r.club_id,
             clubName:            r.club_name,
+            clubCountry:         r.club_country,
+            roleLabel:           INFERRED_ROLE_LABELS[r.inferred_role],
             confidenceBand:      band,
             confidenceBandLabel: CONFIDENCE_BAND_LABELS[band],
             clubDescription:     r.club_description || null,
@@ -840,6 +863,8 @@ function listWizardCardsForMember(memberId: string): WizardCard[] {
       candidateId:         r.candidate_id,
       clubId:              r.club_id,
       clubName:            r.club_name,
+      clubCity:            r.club_city,
+      clubCountry:         r.club_country,
       role:                r.role,
       roleLabel:           ROLE_LABELS[r.role],
       classification:      classified.classification,
@@ -1964,7 +1989,12 @@ async function processClubAffiliationsSubmit(
   // no club id to key on, so the note follows the candidate and is stamped
   // with the club id if that candidate is ever promoted, exactly as the
   // activity signal is.
-  if (insightNote) {
+  // The note is invited once per member and is never required, so a member who
+  // has already left one writes no second note. Without this a repeated submit
+  // of the same card (a double-click reaches the endpoint twice, and neither
+  // the route nor the service checks the wizard step) lands a duplicate on the
+  // admin evidence surface.
+  if (insightNote && !memberHasLeftClubInsight(memberId)) {
     const resolvedClubId = result.resolvedClubId
       ?? (resolvedCard?.kind === 'leadership' ? resolvedCard.clubId : resolvedCard?.clubId)
       ?? null;

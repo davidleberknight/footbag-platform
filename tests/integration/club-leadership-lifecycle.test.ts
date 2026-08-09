@@ -23,6 +23,8 @@ import {
   insertClub,
   insertTag,
   insertClubBootstrapLeader,
+  insertClubLeader,
+  insertMemberClubAffiliation,
   completeOnboarding,
   createTestSessionJwt,
 } from '../fixtures/factories';
@@ -274,12 +276,16 @@ describe('join/leave notification emails', () => {
 describe('leader contact is member-visible by role', () => {
   let clubKey: string;
   let leaderEmail: string;
+  let optedOutKey: string;
 
   beforeAll(() => {
     _n += 1;
     const leaderId = `cll-leader-${_n}`;
     leaderEmail = `${leaderId}@example.com`;
-    insertMember(db, { id: leaderId, slug: `cll_leader_${_n}`, display_name: 'Visible Leader', login_email: leaderEmail });
+    insertMember(db, {
+      id: leaderId, slug: `cll_leader_${_n}`, display_name: 'Visible Leader',
+      login_email: leaderEmail, whatsapp: '+64 21 555 0134', whatsapp_visible: 1,
+    });
     clubKey = `club_visibility_${_n}`;
     const tagId = insertTag(db, { standard_type: 'club', tag_normalized: `#${clubKey}` });
     const clubId = insertClub(db, { id: `cll-vis-${_n}`, name: 'Visibility Club', hashtag_tag_id: tagId });
@@ -290,6 +296,18 @@ describe('leader contact is member-visible by role', () => {
     insertClubBootstrapLeader(db, {
       club_id: clubId, legacy_member_id: `lm-vis-${_n}`, role: 'co-leader', status: 'provisional',
     });
+
+    // A second club whose co-leader has a number on file but has not opted in.
+    _n += 1;
+    const optedOutId = `cll-leader-${_n}`;
+    insertMember(db, {
+      id: optedOutId, slug: `cll_leader_${_n}`, display_name: 'Private Leader',
+      login_email: `${optedOutId}@example.com`, whatsapp: '+64 21 555 0999', whatsapp_visible: 0,
+    });
+    optedOutKey = `club_visibility_${_n}`;
+    const optedOutTag = insertTag(db, { standard_type: 'club', tag_normalized: `#${optedOutKey}` });
+    const optedOutClub = insertClub(db, { id: `cll-vis-${_n}`, name: 'Private Club', hashtag_tag_id: optedOutTag });
+    insertClubLeader(db, { club_id: optedOutClub, member_id: optedOutId });
   });
 
   it('authenticated viewers see the co-leader email', async () => {
@@ -307,6 +325,35 @@ describe('leader contact is member-visible by role', () => {
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('Visible Leader');
     expect(res.text).not.toContain(leaderEmail);
+  });
+
+  // WhatsApp carries the same member-visible-by-role gate as the email, plus
+  // the co-leader's own opt-in on top of it.
+  it('authenticated viewers see an opted-in co-leader\'s WhatsApp', async () => {
+    const viewerId = seedMember();
+    const res = await request(createApp())
+      .get(`/clubs/${clubKey}`)
+      .set('Cookie', cookieFor(viewerId));
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('https://wa.me/64215550134');
+  });
+
+  it('the anonymous public sees no WhatsApp at all', async () => {
+    const res = await request(createApp()).get(`/clubs/${clubKey}`);
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('wa.me');
+    expect(res.text).not.toContain('555 0134');
+  });
+
+  it('a co-leader who has not opted in exposes no number to anyone', async () => {
+    const viewerId = seedMember();
+    const res = await request(createApp())
+      .get(`/clubs/${optedOutKey}`)
+      .set('Cookie', cookieFor(viewerId));
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Private Leader');
+    expect(res.text).not.toContain('wa.me');
+    expect(res.text).not.toContain('555 0999');
   });
 
   it('provisional entries never expose contact, even to authenticated viewers', async () => {
@@ -361,6 +408,109 @@ describe('revival on admin leader assignment', () => {
 
     leadershipSvc.assignLeader(adminId, clubId, memberId, 'Routine assignment');
     expect(revivalAudits(clubId)).toHaveLength(0);
+  });
+});
+
+// A member holding any current club affiliation holds exactly one primary. Both
+// admin paths write affiliations, so both have to keep that true; a member left
+// holding one club marked secondary sees it on their own profile and has no
+// control that repairs it, because the swap appears only with two clubs.
+describe('admin leadership writes keep the one-primary rule', () => {
+  function affiliations(memberId: string): Array<{ club_id: string; is_current: number; is_primary: number }> {
+    return db.prepare(
+      'SELECT club_id, is_current, is_primary FROM member_club_affiliations WHERE member_id = ? ORDER BY club_id',
+    ).all(memberId) as Array<{ club_id: string; is_current: number; is_primary: number }>;
+  }
+
+  it('a member with no club assigned as co-leader holds that club as primary', () => {
+    const adminId = seedMember();
+    const memberId = seedMember();
+    const clubId = seedClub('active');
+
+    leadershipSvc.assignLeader(adminId, clubId, memberId, 'Staffing a leaderless club');
+
+    const rows = affiliations(memberId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].club_id).toBe(clubId);
+    expect(rows[0].is_current).toBe(1);
+    expect(rows[0].is_primary).toBe(1);
+  });
+
+  it('a member who already has a primary club takes the assigned club as secondary', () => {
+    const adminId = seedMember();
+    const memberId = seedMember();
+    const firstClub = seedClub('active');
+    const secondClub = seedClub('active');
+    insertMemberClubAffiliation(db, memberId, firstClub, { is_current: 1, is_primary: 1 });
+
+    leadershipSvc.assignLeader(adminId, secondClub, memberId, 'Second club co-leadership');
+
+    const rows = affiliations(memberId);
+    expect(rows.filter((r) => r.is_current === 1)).toHaveLength(2);
+    expect(rows.find((r) => r.club_id === firstClub)?.is_primary).toBe(1);
+    expect(rows.find((r) => r.club_id === secondClub)?.is_primary).toBe(0);
+  });
+
+  it('reactivating a lapsed affiliation restores it as primary when it is the member\'s only club', () => {
+    const adminId = seedMember();
+    const memberId = seedMember();
+    const clubId = seedClub('active');
+    insertMemberClubAffiliation(db, memberId, clubId, { is_current: 0, is_primary: 0 });
+
+    leadershipSvc.assignLeader(adminId, clubId, memberId, 'Bringing a former member back to lead');
+
+    const rows = affiliations(memberId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].is_current).toBe(1);
+    expect(rows[0].is_primary).toBe(1);
+  });
+
+  it('removing an affiliation promotes the surviving club to primary', () => {
+    const adminId = seedMember();
+    const memberId = seedMember();
+    const ledClub = seedClub('active');
+    const otherClub = seedClub('active');
+    insertMemberClubAffiliation(db, memberId, ledClub, { is_current: 1, is_primary: 1 });
+    insertMemberClubAffiliation(db, memberId, otherClub, { is_current: 1, is_primary: 0 });
+    insertClubLeader(db, { club_id: ledClub, member_id: memberId });
+
+    leadershipSvc.demoteLeader(adminId, ledClub, memberId, 'remove_affiliation', 'Left the area');
+
+    const rows = affiliations(memberId);
+    expect(rows.find((r) => r.club_id === ledClub)?.is_current).toBe(0);
+    expect(rows.find((r) => r.club_id === ledClub)?.is_primary).toBe(0);
+    const survivor = rows.find((r) => r.club_id === otherClub);
+    expect(survivor?.is_current).toBe(1);
+    expect(survivor?.is_primary).toBe(1);
+  });
+
+  it('removing an affiliation when no club survives promotes nothing', () => {
+    const adminId = seedMember();
+    const memberId = seedMember();
+    const ledClub = seedClub('active');
+    insertMemberClubAffiliation(db, memberId, ledClub, { is_current: 1, is_primary: 1 });
+    insertClubLeader(db, { club_id: ledClub, member_id: memberId });
+
+    leadershipSvc.demoteLeader(adminId, ledClub, memberId, 'remove_affiliation', 'Left the sport');
+
+    const rows = affiliations(memberId);
+    expect(rows.every((r) => r.is_current === 0)).toBe(true);
+    expect(rows.every((r) => r.is_primary === 0)).toBe(true);
+  });
+
+  it('demoting to ordinary member leaves the affiliation and its primary flag alone', () => {
+    const adminId = seedMember();
+    const memberId = seedMember();
+    const ledClub = seedClub('active');
+    insertMemberClubAffiliation(db, memberId, ledClub, { is_current: 1, is_primary: 1 });
+    insertClubLeader(db, { club_id: ledClub, member_id: memberId });
+
+    leadershipSvc.demoteLeader(adminId, ledClub, memberId, 'to_member', 'Stepping back from leading');
+
+    const rows = affiliations(memberId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].is_current).toBe(1);
+    expect(rows[0].is_primary).toBe(1);
   });
 });
 

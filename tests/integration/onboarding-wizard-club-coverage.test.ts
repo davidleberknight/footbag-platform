@@ -35,9 +35,12 @@ const HP_ONLY_PERSON  = 'hp-cov-only';
 const OTHER_MEMBER    = 'cov-other';
 const OTHER_PERSON    = 'hp-cov-other';
 const NO_MATERIAL     = 'cov-no-material';
+const ARCHIVED_MEMBER = 'cov-archived';
+const ARCHIVED_PERSON = 'hp-cov-archived';
 
 let hpOnlyAffId = '';
 let otherAffId  = '';
+let archivedAffId = '';
 
 function cookieFor(memberId: string): string {
   return `__Host-footbag_session=${createTestSessionJwt({ memberId })}`;
@@ -79,6 +82,18 @@ beforeAll(async () => {
     memberId: OTHER_MEMBER, personId: OTHER_PERSON,
     slug: 'cov_other', clubName: 'Other City Circle',
   });
+
+  // The member's only suggestion points at a candidate an admin has archived.
+  // Archiving is terminal, so the card must not be offered: answering Yes on it
+  // would promote the archived record into a live club.
+  archivedAffId = seedHpAnchoredCard(db, {
+    memberId: ARCHIVED_MEMBER, personId: ARCHIVED_PERSON,
+    slug: 'cov_archived', clubName: 'Archived Coverage Club',
+  });
+  db.prepare(`
+    UPDATE legacy_club_candidates SET lifecycle_state = 'archived'
+     WHERE id = (SELECT legacy_club_candidate_id FROM legacy_person_club_affiliations WHERE id = ?)
+  `).run(archivedAffId);
 
   // A member with neither anchor: the wrap-up truthfully reports no
   // affiliation material.
@@ -303,5 +318,25 @@ describe('one club, one question: declining leadership lets the membership quest
       .set('Cookie', cookieFor(MEMBER));
     expect(res.status).toBe(200);
     expect(res.text).toContain('Were you a member of Decline Lead Club');
+  });
+});
+
+// An archived candidate is a terminal decision. It must not reach a registrant
+// as a card, because confirming one promotes it back into a live club, and it
+// must not count as affiliation material either, or the wrap-up would claim the
+// member had suggestions it never showed them.
+describe('an archived candidate never reaches the wizard', () => {
+  it('shows no card and reports no affiliation material', async () => {
+    const res = await request(createApp())
+      .get('/register/wizard/club_affiliations')
+      .set('Cookie', cookieFor(ARCHIVED_MEMBER));
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('Archived Coverage Club');
+    expect(res.text).not.toContain(archivedAffId);
+
+    const affStatus = testDb
+      .prepare('SELECT resolution_status FROM legacy_person_club_affiliations WHERE id = ?')
+      .get(archivedAffId) as { resolution_status: string };
+    expect(affStatus.resolution_status).toBe('pending');
   });
 });

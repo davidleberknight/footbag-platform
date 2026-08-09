@@ -215,7 +215,10 @@ describe('flag-item resolution: dismiss and park under the candidate_flags predi
     const queue = await request(createApp())
       .get('/admin/club-cleanup?category=candidate_flag')
       .set('Cookie', adminCookie());
-    expect(queue.text).not.toContain('Main Flagged Candidate');
+    // The flag group is gone from the working queue, and the candidate is in
+    // the parked listing rather than nowhere at all.
+    expect(queue.text).not.toContain('Wizard flags by candidate (');
+    expect(queue.text).toContain('Wait for more votes');
     // The promotable item is untouched by the flag-item park.
     const promotable = await request(createApp())
       .get('/admin/club-cleanup?category=candidate')
@@ -223,7 +226,7 @@ describe('flag-item resolution: dismiss and park under the candidate_flags predi
     expect(promotable.text).toContain('Main Flagged Candidate');
   });
 
-  it('a parked flag item stays parked, with who parked it recorded on the row', async () => {
+  it('a parked flag item stays parked and stays listed, with who parked it and why', async () => {
     const db = new BetterSqlite3(dbPath, { readonly: true });
     const row = db.prepare(
       `SELECT resolution, parked_by_member_id, reason_text
@@ -239,6 +242,11 @@ describe('flag-item resolution: dismiss and park under the candidate_flags predi
       .get('/admin/club-cleanup?category=candidate_flag')
       .set('Cookie', adminCookie());
     expect(res.status).toBe(200);
-    expect(res.text).not.toContain('Main Flagged Candidate');
+    // Out of the working queue, still on the surface: a park is recoverable and
+    // must stay distinguishable from a terminal dismissal without reading the
+    // database.
+    expect(res.text).not.toContain('Wizard flags by candidate (');
+    expect(res.text).toContain('Main Flagged Candidate');
+    expect(res.text).toContain('Wait for more votes');
   });
 });

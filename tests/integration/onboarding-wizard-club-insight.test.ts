@@ -34,12 +34,15 @@ const MEMBER_LONG    = 'insight-long-member';
 const MEMBER_BLANK   = 'insight-blank-member';
 const MEMBER_CONTROL = 'insight-control-member';
 const MEMBER_PURGE   = 'insight-purge-member';
+const MEMBER_REPEAT  = 'insight-repeat-member';
 
 let cardClubId = '';
 let cardAffId  = '';
 let longAffId  = '';
 let blankAffId = '';
 let controlAffId = '';
+let repeatClubId = '';
+let repeatAffId  = '';
 
 interface NoteRow {
   club_id: string | null;
@@ -122,6 +125,8 @@ beforeAll(async () => {
     seedCardMember(db, MEMBER_BLANK, 'insight_blank', 'Insight Blank Club'));
   ({ affId: controlAffId } =
     seedCardMember(db, MEMBER_CONTROL, 'insight_control', 'Insight Control Club'));
+  ({ clubId: repeatClubId, affId: repeatAffId } =
+    seedCardMember(db, MEMBER_REPEAT, 'insight_repeat', 'Insight Repeat Club'));
 
   // Wrap-up path: no cards at all, so the landing is where the question is asked.
   insertMember(db, {
@@ -180,6 +185,46 @@ describe('the club card asks for insight on the last card', () => {
     const meta = JSON.parse(audits[0].metadata_json);
     expect(meta.note_length).toBe('They merged into the university club in 2019.'.length);
     expect(audits[0].metadata_json).not.toContain('university');
+  });
+});
+
+// The question is asked once per member. Nothing stops the same card being
+// posted twice (a double-click reaches the endpoint again, and neither the
+// route nor the service checks the wizard step), so the note write is what has
+// to hold the once-per-member rule.
+describe('the insight question is asked once per member', () => {
+  it('writes one note when the same card is submitted twice', async () => {
+    const body = {
+      kind: 'membership',
+      candidateId: repeatAffId,
+      userDecision: 'confirm',
+      activitySignal: 'active',
+      insightNote: 'They still meet on Thursdays by the river.',
+    };
+
+    const first = await request(createApp())
+      .post('/register/wizard/club_affiliations/submit')
+      .set('Cookie', cookieFor(MEMBER_REPEAT))
+      .type('form')
+      .send(body);
+    expect(first.status).toBe(303);
+
+    const second = await request(createApp())
+      .post('/register/wizard/club_affiliations/submit')
+      .set('Cookie', cookieFor(MEMBER_REPEAT))
+      .type('form')
+      .send(body);
+    expect(second.status).toBe(303);
+
+    const notes = readNotes(MEMBER_REPEAT);
+    expect(notes).toHaveLength(1);
+    expect(notes[0]).toMatchObject({
+      club_id:      repeatClubId,
+      source_stage: 'onboarding_club_card',
+    });
+    // No orphan: the repeat must not land a second note keyed to nothing.
+    expect(notes.filter((n) => n.club_id === null)).toHaveLength(0);
+    expect(readInsightAudits(MEMBER_REPEAT)).toHaveLength(1);
   });
 });
 

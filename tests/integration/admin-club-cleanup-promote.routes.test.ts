@@ -139,6 +139,41 @@ describe('POST /admin/club-cleanup/candidates/:candidateId/promote', () => {
     expect(res.status).toBe(404);
   });
 
+  // Archiving a candidate is terminal, so promotion is refused from every
+  // route into it: the admin action here, and the member's own wizard
+  // confirmation, which is why the guard lives in the service rather than only
+  // on the listings that already hide archived rows.
+  it('archived candidate -> 422 and no club is created', async () => {
+    const db = new BetterSqlite3(dbPath);
+    const archivedCand = insertLegacyClubCandidate(db, {
+      classification: 'onboarding_visible',
+      display_name: 'Archived Candidate Club',
+    });
+    db.prepare(
+      "UPDATE legacy_club_candidates SET lifecycle_state = 'archived' WHERE id = ?",
+    ).run(archivedCand);
+    db.close();
+
+    const res = await request(createApp())
+      .post(`/admin/club-cleanup/candidates/${archivedCand}/promote`)
+      .set('Cookie', adminCookie());
+    expect(res.status).toBe(422);
+
+    const check = new BetterSqlite3(dbPath, { readonly: true });
+    try {
+      const mapped = check.prepare(
+        'SELECT mapped_club_id FROM legacy_club_candidates WHERE id = ?',
+      ).get(archivedCand) as { mapped_club_id: string | null };
+      expect(mapped.mapped_club_id).toBeNull();
+      const clubs = check.prepare(
+        "SELECT COUNT(*) AS c FROM clubs WHERE name = 'Archived Candidate Club'",
+      ).get() as { c: number };
+      expect(clubs.c).toBe(0);
+    } finally {
+      check.close();
+    }
+  });
+
   it('junk candidate -> 422 and nothing is written', async () => {
     const app = createApp();
     const res = await request(app)

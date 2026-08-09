@@ -87,9 +87,9 @@
                       <select name="action" class="cleanup-action-select">
                         {{#unless this.isOpportunity}}
                         <option value="demote_inactive">Demote</option>
-                        <option value="archive">Archive</option>
                         <option value="dismiss">Dismiss</option>
                         {{/unless}}
+                        <option value="archive">Archive</option>
                         <option value="park">Park</option>
                       </select>
                       <input type="text" name="reasonText" placeholder="Reason" class="cleanup-reason-input" />
@@ -173,10 +173,6 @@
     <details class="cleanup-group">
     <summary>Unconfirmed legacy residue ({{content.residue.length}})</summary>
     <p class="text-muted fs-sm">Live clubs still showing legacy affiliations that no one has confirmed in onboarding. De-listing marks them as former-only so they stop rendering as possible members. The oldest-age column is an advisory grace signal; nothing is retired automatically.</p>
-    <form method="POST" action="/admin/club-cleanup/bulk-delist-residue" class="cleanup-action-form mt-2">
-      <input type="text" name="reasonText" placeholder="Shared reason" class="cleanup-reason-input" />
-      <button type="submit" class="btn btn-outline btn-sm">De-list All Unconfirmed</button>
-    </form>
     <table class="cleanup-queue-table mt-2">
       <thead>
         <tr>
@@ -339,7 +335,7 @@
         answer a card or leave a note after it was parked returns to the queue above on its own.</p>
       <table class="cleanup-queue-table mt-2">
         <thead>
-          <tr><th>Club</th><th>Location</th><th>Category</th><th>Parked</th><th>Reason</th></tr>
+          <tr><th>Club or candidate</th><th>Location</th><th>Category</th><th>Parked</th><th>Reason</th></tr>
         </thead>
         <tbody>
           {{#each content.parked}}

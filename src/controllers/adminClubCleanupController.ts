@@ -206,24 +206,4 @@ export const adminClubCleanupController = {
       next(err);
     }
   },
-
-  bulkDelistResidue(req: Request, res: Response, next: NextFunction): void {
-    const reasonText = typeof req.body.reasonText === 'string' && req.body.reasonText.trim()
-      ? req.body.reasonText.trim()
-      : null;
-
-    try {
-      clubCleanupService.bulkDelistResidue(req.user!.userId, reasonText);
-      res.redirect(303, '/admin/club-cleanup');
-    } catch (err) {
-      if (err instanceof ValidationError) {
-        res.status(422).render('errors/not-found', {
-          seo:  { title: 'Invalid Request' },
-          page: { sectionKey: 'admin', pageKey: 'error_422', title: 'Invalid Request' },
-        });
-        return;
-      }
-      next(err);
-    }
-  },
 };

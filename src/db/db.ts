@@ -1083,12 +1083,14 @@ export interface LegacyClubCandidateRow {
   external_url: string | null;
   classification: 'pre_populate' | 'onboarding_visible' | 'dormant' | 'junk';
   mapped_club_id: string | null;
+  lifecycle_state: string | null;
 }
 
 export const legacyClubCandidates = {
   get findById() { return db.prepare(`
     SELECT id, legacy_club_key, display_name, city, region, country,
-           description, external_url, classification, mapped_club_id
+           description, external_url, classification, mapped_club_id,
+           lifecycle_state
       FROM legacy_club_candidates
      WHERE id = ?
   `); },
@@ -1219,6 +1221,7 @@ export interface WizardMembershipCardRow {
   club_city: string | null;
   club_country: string | null;
   confidence_score: number | null;
+  inferred_role: 'member' | 'contact' | 'leader' | 'co-leader';
   club_description: string | null;
   club_external_url: string | null;
 }
@@ -1254,6 +1257,7 @@ export const legacyPersonClubAffiliations = {
       COALESCE(c.city, lcc.city)               AS club_city,
       COALESCE(c.country, lcc.country)         AS club_country,
       lpca.confidence_score AS confidence_score,
+      lpca.inferred_role  AS inferred_role,
       COALESCE(c.description, lcc.description) AS club_description,
       c.external_url      AS club_external_url
       FROM legacy_person_club_affiliations AS lpca
@@ -1265,6 +1269,7 @@ export const legacyPersonClubAffiliations = {
          OR (? IS NOT NULL AND lpca.historical_person_id = ?))
        AND lpca.resolution_status = 'pending'
        AND lcc.classification != 'junk'
+       AND lcc.lifecycle_state IS NULL
      ORDER BY COALESCE(c.city, lcc.city) COLLATE NOCASE ASC,
               COALESCE(c.name, lcc.display_name) COLLATE NOCASE ASC
   `); },
@@ -1285,6 +1290,7 @@ export const legacyPersonClubAffiliations = {
      WHERE ((? IS NOT NULL AND lpca.legacy_member_id = ?)
          OR (? IS NOT NULL AND lpca.historical_person_id = ?))
        AND lcc.classification != 'junk'
+       AND lcc.lifecycle_state IS NULL
   `); },
 
   // Pending -> superseded for a member's membership suggestions about one
@@ -1480,6 +1486,8 @@ export interface WizardLeadershipCardRow {
   candidate_id: string;
   club_id: string;
   club_name: string;
+  club_city: string | null;
+  club_country: string | null;
   role: 'leader' | 'co-leader';
   club_description: string | null;
   club_external_url: string | null;
@@ -1529,6 +1537,8 @@ export const clubBootstrapLeaders = {
       cbl.id    AS candidate_id,
       cbl.club_id,
       c.name          AS club_name,
+      c.city          AS club_city,
+      c.country       AS club_country,
       cbl.role,
       c.description   AS club_description,
       c.external_url  AS club_external_url
@@ -1649,10 +1659,12 @@ export const clubLeaders = {
   `); },
 
   // Current (claimed/assigned) leadership for the public club page. Carries
-  // login_email because leader contact is member-visible by role: the page
-  // shows it to authenticated viewers only.
+  // login_email and the WhatsApp pair because leader contact is member-visible
+  // by role: the page shows them to authenticated viewers only, and the
+  // WhatsApp number additionally only where that co-leader opted in.
   get listCurrentLeadersForClubPage() { return db.prepare(`
-    SELECT l.member_id, l.role, m.display_name, m.login_email
+    SELECT l.member_id, l.role, m.display_name, m.login_email,
+           m.whatsapp, m.whatsapp_visible
     FROM club_leaders l
     JOIN members_active m ON m.id = l.member_id
     WHERE l.club_id = ?
@@ -1713,14 +1725,19 @@ export const clubLeaders = {
     SELECT id, is_current FROM member_club_affiliations WHERE member_id = ? AND club_id = ?
   `); },
 
+  // The primary flag is bound, not literal: a member holding a current
+  // affiliation holds exactly one primary, so a member with no other club must
+  // come out of this insert primary. The caller computes the flag.
   get insertAdminAffiliation() { return db.prepare(`
     INSERT INTO member_club_affiliations
       (id, created_at, created_by, updated_at, updated_by, member_id, club_id, is_current, is_primary, source)
-    VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0, 'admin')
+    VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, 'admin')
   `); },
 
+  // Reactivation restores the primary flag for the same reason: ending an
+  // affiliation clears it, so a rejoin must set it from the caller's count.
   get reactivateAffiliation() { return db.prepare(`
-    UPDATE member_club_affiliations SET is_current = 1, updated_at = ?, updated_by = ?, version = version + 1
+    UPDATE member_club_affiliations SET is_current = 1, is_primary = ?, updated_at = ?, updated_by = ?, version = version + 1
     WHERE id = ?
   `); },
 
@@ -9548,13 +9565,16 @@ export const clubCleanupPredicates = {
       )
   `); },
 
+  // Joins clubs_open so an archived club never enters this queue group: archiving
+  // is a terminal decision, and demoting a lingering provisional row on an
+  // archived club would move it back to inactive and undo that decision.
   get staleProvisionalLeaders() { return db.prepare(`
     SELECT cbl.id AS bootstrap_leader_id,
            cbl.club_id, c.name AS club_name,
-           c.city, c.region, c.country,
+           c.city, c.region, c.country, c.status AS club_status,
            cbl.role, cbl.created_at AS provisional_since
     FROM club_bootstrap_leaders AS cbl
-    INNER JOIN clubs AS c ON c.id = cbl.club_id
+    INNER JOIN clubs_open AS c ON c.id = cbl.club_id
     WHERE cbl.status = 'provisional'
     ORDER BY cbl.created_at ASC
   `); },

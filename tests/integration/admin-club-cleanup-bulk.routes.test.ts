@@ -224,8 +224,10 @@ describe('bulk park per group', () => {
     const queue = await request(createApp())
       .get('/admin/club-cleanup?category=candidate_flag')
       .set('Cookie', adminCookie());
-    expect(queue.text).not.toContain('Bulk Flagged Alpha');
-    expect(queue.text).not.toContain('Bulk Flagged Beta');
+    // Out of the working flag group, and both are named in the parked listing.
+    expect(queue.text).not.toContain('Wizard flags by candidate (');
+    expect(queue.text).toContain('Bulk Flagged Alpha');
+    expect(queue.text).toContain('Bulk Flagged Beta');
     // The promotable items are independent of the flag-group park.
     const promotable = await request(createApp())
       .get('/admin/club-cleanup?category=candidate')
@@ -312,50 +314,32 @@ describe('bulk park per group', () => {
   });
 });
 
-describe('POST /admin/club-cleanup/bulk-delist-residue', () => {
-  it('unauthenticated -> 302; non-admin -> 403', async () => {
-    const anon = await request(createApp()).post('/admin/club-cleanup/bulk-delist-residue');
-    expect(anon.status).toBe(302);
-    const member = await request(createApp())
-      .post('/admin/club-cleanup/bulk-delist-residue')
-      .set('Cookie', memberCookie());
-    expect(member.status).toBe(403);
-  });
-
-  it('de-lists every residue club, one transaction and audit row per club', async () => {
+describe('residue is de-listed one club at a time', () => {
+  it('offers no queue-wide de-list endpoint', async () => {
     const res = await request(createApp())
       .post('/admin/club-cleanup/bulk-delist-residue')
       .set('Cookie', adminCookie())
       .send({ reasonText: 'Cutover residue sweep' });
-    expect(res.status).toBe(303);
+    expect(res.status).toBe(404);
 
     const db = new BetterSqlite3(dbPath, { readonly: true });
     try {
       const pending = db.prepare(
         "SELECT COUNT(*) AS c FROM legacy_person_club_affiliations WHERE resolution_status = 'pending'",
       ).get() as { c: number };
-      expect(pending.c).toBe(0);
-      const former = db.prepare(
-        "SELECT COUNT(*) AS c FROM legacy_person_club_affiliations WHERE resolution_status = 'former_only'",
-      ).get() as { c: number };
-      expect(former.c).toBe(3);
+      expect(pending.c).toBeGreaterThan(0);
     } finally {
       db.close();
     }
-    expect(countAudits('admin.club_cleanup.delist_residue')).toBe(2);
+    expect(countAudits('admin.club_cleanup.delist_residue')).toBe(0);
+  });
 
+  it('offers no queue-wide de-list control on the queue page, only the per-club one', async () => {
     const queue = await request(createApp())
       .get('/admin/club-cleanup')
       .set('Cookie', adminCookie());
-    expect(queue.text).not.toContain('Unconfirmed legacy residue');
-  });
-
-  it('a re-run is a no-op: nothing left to de-list, no new audit rows', async () => {
-    const res = await request(createApp())
-      .post('/admin/club-cleanup/bulk-delist-residue')
-      .set('Cookie', adminCookie())
-      .send({ reasonText: 'Repeat sweep' });
-    expect(res.status).toBe(303);
-    expect(countAudits('admin.club_cleanup.delist_residue')).toBe(2);
+    expect(queue.text).toContain('Unconfirmed legacy residue');
+    expect(queue.text).not.toContain('De-list All Unconfirmed');
+    expect(queue.text).toContain('De-list Unconfirmed');
   });
 });
