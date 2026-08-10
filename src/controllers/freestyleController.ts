@@ -1,24 +1,16 @@
 import { Request, Response, NextFunction } from 'express';
 import { freestyleService } from '../services/freestyleService';
-import { handleControllerError } from '../lib/controllerErrors';
+import { handleControllerError, renderNotFound } from '../lib/controllerErrors';
 
 /**
  * Thin controller for public freestyle routes.
  * Business logic and page shaping live in freestyleService.
  */
 
-/**
- * Render the shared 404 page. The set and family detail service methods return
- * null (not throw) on an unknown or non-first-class slug, so their controllers
- * render the not-found page directly; this matches the NotFoundError mapping in
- * handleControllerError that the throwing detail routes rely on.
- */
-function renderNotFound(res: Response): void {
-  res.status(404).render('errors/not-found', {
-    seo:  { title: 'Page Not Found' },
-    page: { sectionKey: '', pageKey: 'error_404', title: 'Page Not Found' },
-  });
-}
+// The set and family detail service methods return null (not throw) on an
+// unknown or non-first-class slug, so their controllers call renderNotFound
+// directly; this matches the NotFoundError mapping in handleControllerError
+// that the throwing detail routes rely on.
 
 export const freestyleController = {
   /** GET /freestyle */

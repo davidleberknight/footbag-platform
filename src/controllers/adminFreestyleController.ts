@@ -16,6 +16,7 @@ import {
   ConsecutiveScalarInput,
 } from '../services/consecutiveKicksCurationService';
 import { NotFoundError, ValidationError } from '../services/serviceErrors';
+import { renderNotFound } from '../lib/controllerErrors';
 
 export const adminFreestyleController = {
   index(req: Request, res: Response, next: NextFunction): void {
@@ -600,11 +601,4 @@ function consecutiveInputFromBody(body: Record<string, unknown>): ConsecutiveSca
 
 function str(value: unknown): string {
   return typeof value === 'string' ? value : '';
-}
-
-function renderNotFound(res: Response): void {
-  res.status(404).render('errors/not-found', {
-    seo:  { title: 'Not Found' },
-    page: { sectionKey: 'admin', pageKey: 'error_404', title: 'Not Found' },
-  });
 }

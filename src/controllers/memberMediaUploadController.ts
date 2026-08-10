@@ -28,7 +28,7 @@ import {
   PHOTO_MAX_BYTES,
 } from '../services/curatorMediaService';
 import { RateLimitedError, ValidationError } from '../services/serviceErrors';
-import { renderServiceUnavailable } from '../lib/controllerErrors';
+import { renderNotFound, renderServiceUnavailable } from '../lib/controllerErrors';
 import { FLASH_KIND, writeFlash } from '../lib/flashCookie';
 import { hashtagDiscoveryService, type MemberTagSuggestions } from '../services/hashtagDiscoveryService';
 
@@ -50,13 +50,6 @@ interface GalleryOption {
 
 function isOwnRoute(req: Request): boolean {
   return req.user?.slug === req.params.memberKey;
-}
-
-function renderNotFound(res: Response): void {
-  res.status(404).render('errors/not-found', {
-    seo: { title: 'Page Not Found' },
-    page: { sectionKey: '', pageKey: 'error_404', title: 'Page Not Found' },
-  });
 }
 
 function listHref(memberKey: string): string {

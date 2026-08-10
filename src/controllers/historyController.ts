@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { historyService } from '../services/historyService';
 import { NotFoundError } from '../services/serviceErrors';
 import { logger } from '../config/logger';
+import { renderNotFound } from '../lib/controllerErrors';
 
 function redirectToLogin(req: Request, res: Response): void {
   res.redirect(302, `/login?returnTo=${encodeURIComponent(req.originalUrl)}`);
@@ -30,10 +31,7 @@ export const historyController = {
       }
     } catch (err) {
       if (err instanceof NotFoundError) {
-        res.status(404).render('errors/not-found', {
-          seo:  { title: 'Page Not Found' },
-          page: { sectionKey: '', pageKey: 'error_404', title: 'Page Not Found' },
-        });
+        renderNotFound(res);
         return;
       }
       logger.error('history detail error', {

@@ -1,19 +1,121 @@
 import { NextFunction, Response } from 'express';
 import { NotFoundError, ServiceUnavailableError, ValidationError } from '../services/serviceErrors';
 import { logger } from '../config/logger';
+import { ErrorPageContent, NavLink, PageViewModel } from '../types/page';
 
 /**
- * Render the 503 Service Unavailable page directly. Used by controllers that
- * catch an image-worker / external-adapter failure and need to surface a
- * truthful 503 rather than delegate to the generic 500 error middleware,
- * which cannot distinguish a dependency outage from an unexpected exception.
+ * Every error surface on the site renders one template through these helpers.
+ * Routes never build the error view-model themselves: a hand-written render is
+ * how a response answering 422 came to display "404" and tell the visitor their
+ * link was no longer routable. Here the digit is derived from the status the
+ * response is given, so the two cannot drift apart.
+ *
+ * Each page offers a single control home. An error page is a dead end by
+ * definition, and the one destination guaranteed to work is the front door.
  */
-export function renderServiceUnavailable(res: Response): void {
-  res.status(503).render('errors/unavailable', {
-    seo:  { title: 'Service Unavailable' },
-    page: { sectionKey: '', pageKey: 'error_503', title: 'Service Unavailable' },
-    statusCode: 503,
-  });
+
+const HOME_ACTION: NavLink = { label: 'Go to Home', href: '/' };
+const SIGN_IN_ACTION: NavLink = { label: 'Sign In', href: '/login' };
+
+function renderErrorPage(
+  res: Response,
+  statusCode: number,
+  title: string,
+  paragraphs: string[],
+  actions: NavLink[] = [HOME_ACTION],
+): void {
+  res.status(statusCode).render('errors/error', {
+    seo:  { title },
+    page: { sectionKey: '', pageKey: `error_${statusCode}`, title },
+    content: { statusCode, paragraphs, actions },
+  } satisfies PageViewModel<ErrorPageContent>);
+}
+
+/**
+ * The 404 page, and the anti-enumeration answer for an owner-only route whose
+ * slug does not match the caller. The second paragraph is aimed at a visitor
+ * following a link from the old footbag.org, whose URL space this site does not
+ * carry forward.
+ */
+export function renderNotFound(res: Response, opts: { title?: string } = {}): void {
+  renderErrorPage(res, 404, opts.title ?? 'Page Not Found', [
+    'This page does not exist on footbag.org.',
+    'If you followed a link from the old footbag.org, that link is no longer routable. Please check out the new website.',
+  ]);
+}
+
+/**
+ * An authorization refusal. Where the caller is refused because they have no
+ * session, an expired cookie among them, the useful next step is signing in
+ * rather than the front door, so the control says so.
+ *
+ * The test is deliberately `=== false`, not falsy. The auth middleware sets the
+ * flag to a real boolean, so `undefined` means the refusal happened at the
+ * perimeter before authentication ran: a cross-origin request refused there is
+ * a request-integrity failure, not a missing session, and offering a signed-in
+ * caller a sign-in control would be a control that lies.
+ */
+export function renderForbidden(res: Response): void {
+  const signedOut = res.locals.isAuthenticated === false;
+  renderErrorPage(
+    res,
+    403,
+    'Forbidden',
+    [signedOut
+      ? 'You need to be signed in to view this page.'
+      : "You don't have permission to view this page."],
+    [signedOut ? SIGN_IN_ACTION : HOME_ACTION],
+  );
+}
+
+/**
+ * A state-changing action that cannot apply because the target is already in
+ * its terminal state. The title names the specific conflict.
+ */
+export function renderConflict(res: Response, opts: { title: string }): void {
+  renderErrorPage(res, 409, opts.title, [
+    'This action could not be applied because it conflicts with the current state.',
+  ]);
+}
+
+/**
+ * A request the caller can fix, on a surface with no inline re-render path.
+ * Answers 422 by convention; the internal QC tooling answers 400 for a
+ * malformed query string, which is a request-shape fault rather than a
+ * validation failure on submitted values. `backHref` returns the caller to the
+ * surface they came from, which beats the front door when one is known.
+ */
+export function renderInvalidRequest(
+  res: Response,
+  opts: { title: string; statusCode?: 400 | 422; message?: string; backHref?: string },
+): void {
+  renderErrorPage(
+    res,
+    opts.statusCode ?? 422,
+    opts.title,
+    opts.message ? [opts.message] : [],
+    opts.backHref ? [{ label: 'Go Back', href: opts.backHref }] : undefined,
+  );
+}
+
+/**
+ * A throttle hit rendered as a page. Callers set `Retry-After` from the error's
+ * `retryAfterSeconds` before calling this.
+ */
+export function renderRateLimited(res: Response, opts: { title: string }): void {
+  renderErrorPage(res, 429, opts.title, []);
+}
+
+/**
+ * Render the service-unavailable page directly. Used by controllers that catch
+ * an image-worker / external-adapter failure and need to surface a truthful 503
+ * rather than delegate to the generic 500 error middleware, which cannot
+ * distinguish a dependency outage from an unexpected exception.
+ */
+export function renderServiceUnavailable(res: Response, statusCode: 500 | 503 = 503): void {
+  renderErrorPage(res, statusCode, 'Service Unavailable', [
+    'The site is temporarily unavailable. Please try again in a moment.',
+  ]);
 }
 
 /**
@@ -31,18 +133,11 @@ export function handleControllerError(
   context: string,
 ): void {
   if (err instanceof NotFoundError || err instanceof ValidationError) {
-    res.status(404).render('errors/not-found', {
-      seo:  { title: 'Page Not Found' },
-      page: { sectionKey: '', pageKey: 'error_404', title: 'Page Not Found' },
-    });
+    renderNotFound(res);
     return;
   }
   if (err instanceof ServiceUnavailableError) {
-    res.status(503).render('errors/unavailable', {
-      seo:  { title: 'Service Unavailable' },
-      page: { sectionKey: '', pageKey: 'error_503', title: 'Service Unavailable' },
-      statusCode: 503,
-    });
+    renderServiceUnavailable(res);
     return;
   }
   logger.error(`unexpected error in ${context}`, {

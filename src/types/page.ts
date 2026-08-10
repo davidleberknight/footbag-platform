@@ -41,6 +41,15 @@ export interface NavigationMeta {
   contextLinks?: ContextLink[];
 }
 
+// The one error page every failing route renders. The status digit is carried
+// in the view-model rather than written into the template, so the number the
+// visitor reads is always the status the response actually carries.
+export interface ErrorPageContent {
+  statusCode: number;
+  paragraphs: string[];
+  actions: NavLink[];
+}
+
 export interface PageViewModel<TContent = Record<string, unknown>> {
   seo: SeoMeta;
   page: PageMeta;

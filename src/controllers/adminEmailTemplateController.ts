@@ -7,13 +7,7 @@
 import type { NextFunction, Request, Response } from 'express';
 import { emailTemplateAdminService, type EmailTemplateEditInput } from '../services/emailTemplateAdminService';
 import { NotFoundError, ValidationError } from '../services/serviceErrors';
-
-function renderNotFound(res: Response): void {
-  res.status(404).render('errors/not-found', {
-    seo:  { title: 'Not Found' },
-    page: { sectionKey: 'admin', pageKey: 'error_404', title: 'Not Found' },
-  });
-}
+import { renderNotFound } from '../lib/controllerErrors';
 
 function editInputFromBody(body: Record<string, unknown>): EmailTemplateEditInput {
   return {

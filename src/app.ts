@@ -23,6 +23,7 @@ import { publicRouter, STRIPE_WEBHOOK_PATH }   from './routes/publicRoutes';
 // export null, so the import is safe everywhere.
 import { devRouter }      from './testkit/devRoutes';
 import { redactTokenPaths } from './lib/redactTokenPaths';
+import { renderForbidden, renderNotFound, renderServiceUnavailable } from './lib/controllerErrors';
 import { assetUrl, renderStylesheet } from './lib/assetVersion';
 import { countryFlag } from './services/countryUtils';
 import { externalLinkHelper } from './web/helpers/externalLink';
@@ -413,10 +414,7 @@ export function createApp(): express.Application {
   app.use('/',         publicRouter);
 
   app.use((_req, res) => {
-    res.status(404).render('errors/not-found', {
-      seo:  { title: 'Page Not Found' },
-      page: { sectionKey: '', pageKey: 'error_404', title: 'Page Not Found' },
-    });
+    renderNotFound(res);
   });
 
   // ── ServiceError → HTTP mapping (must precede the catch-all 500) ─────
@@ -425,10 +423,7 @@ export function createApp(): express.Application {
   // maps to a 403 render; everything else falls through to the 500 handler.
   app.use((err: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {
     if (err instanceof ForbiddenError) {
-      res.status(403).render('errors/forbidden', {
-        seo: { title: 'Forbidden' },
-        page: { sectionKey: '', pageKey: 'error_403', title: 'Forbidden' },
-      });
+      renderForbidden(res);
       return;
     }
     // Throttle hits from in-service rate limiting. Controllers that want a
@@ -462,11 +457,7 @@ export function createApp(): express.Application {
       url: redactTokenPaths(req.url),
       error: err instanceof Error ? err.message : String(err),
     });
-    res.status(500).render('errors/unavailable', {
-      seo:  { title: 'Service Unavailable' },
-      page: { sectionKey: '', pageKey: 'error_500', title: 'Service Unavailable' },
-      statusCode: 500,
-    });
+    renderServiceUnavailable(res, 500);
   });
 
   return app;

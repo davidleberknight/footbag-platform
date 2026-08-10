@@ -1,19 +1,12 @@
 import { Request, Response, NextFunction } from 'express';
 import { adminWorkQueueService, CONTACT_CATEGORIES, CONTACT_CATEGORY_LABELS } from '../services/adminWorkQueueService';
 import { RateLimitedError, ValidationError } from '../services/serviceErrors';
-import { handleControllerError } from '../lib/controllerErrors';
+import { handleControllerError, renderNotFound } from '../lib/controllerErrors';
 import { PageViewModel } from '../types/page';
 import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
 
 function isOwnProfile(req: Request): boolean {
   return req.user?.slug === req.params.memberKey;
-}
-
-function renderNotFound(res: Response): void {
-  res.status(404).render('errors/not-found', {
-    seo:  { title: 'Page Not Found' },
-    page: { sectionKey: '', pageKey: 'error_404', title: 'Page Not Found' },
-  });
 }
 
 interface ContactAdminContent {

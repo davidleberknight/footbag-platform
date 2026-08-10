@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { clubCleanupService } from '../services/clubCleanupService';
 import { NotFoundError, ValidationError } from '../services/serviceErrors';
 import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
+import { renderInvalidRequest, renderNotFound } from '../lib/controllerErrors';
 
 // An action that changed nothing has to say so. A resolve whose guarded write
 // matched no row means another admin acted first, and redirecting the same way
@@ -49,17 +50,11 @@ export const adminClubCleanupController = {
       res.redirect(303, '/admin/club-cleanup');
     } catch (err) {
       if (err instanceof NotFoundError) {
-        res.status(404).render('errors/not-found', {
-          seo:  { title: 'Page Not Found' },
-          page: { sectionKey: 'admin', pageKey: 'error_404', title: 'Page Not Found' },
-        });
+        renderNotFound(res);
         return;
       }
       if (err instanceof ValidationError) {
-        res.status(422).render('errors/not-found', {
-          seo:  { title: 'Invalid Request' },
-          page: { sectionKey: 'admin', pageKey: 'error_422', title: 'Invalid Request' },
-        });
+        renderInvalidRequest(res, { title: 'Invalid Request' });
         return;
       }
       next(err);
@@ -73,10 +68,7 @@ export const adminClubCleanupController = {
       res.redirect(303, '/admin/club-cleanup');
     } catch (err) {
       if (err instanceof NotFoundError) {
-        res.status(404).render('errors/not-found', {
-          seo:  { title: 'Page Not Found' },
-          page: { sectionKey: 'admin', pageKey: 'error_404', title: 'Page Not Found' },
-        });
+        renderNotFound(res);
         return;
       }
       next(err);
@@ -94,17 +86,11 @@ export const adminClubCleanupController = {
       res.redirect(303, '/admin/club-cleanup');
     } catch (err) {
       if (err instanceof ValidationError) {
-        res.status(422).render('errors/not-found', {
-          seo:  { title: 'Invalid Request' },
-          page: { sectionKey: 'admin', pageKey: 'error_422', title: 'Invalid Request' },
-        });
+        renderInvalidRequest(res, { title: 'Invalid Request' });
         return;
       }
       if (err instanceof NotFoundError) {
-        res.status(404).render('errors/not-found', {
-          seo:  { title: 'Page Not Found' },
-          page: { sectionKey: 'admin', pageKey: 'error_404', title: 'Page Not Found' },
-        });
+        renderNotFound(res);
         return;
       }
       next(err);
@@ -124,17 +110,11 @@ export const adminClubCleanupController = {
       res.redirect(303, '/admin/club-cleanup');
     } catch (err) {
       if (err instanceof ValidationError) {
-        res.status(422).render('errors/not-found', {
-          seo:  { title: 'Invalid Request' },
-          page: { sectionKey: 'admin', pageKey: 'error_422', title: 'Invalid Request' },
-        });
+        renderInvalidRequest(res, { title: 'Invalid Request' });
         return;
       }
       if (err instanceof NotFoundError) {
-        res.status(404).render('errors/not-found', {
-          seo:  { title: 'Page Not Found' },
-          page: { sectionKey: 'admin', pageKey: 'error_404', title: 'Page Not Found' },
-        });
+        renderNotFound(res);
         return;
       }
       next(err);
@@ -170,17 +150,11 @@ export const adminClubCleanupController = {
       res.redirect(303, '/admin/club-cleanup');
     } catch (err) {
       if (err instanceof ValidationError) {
-        res.status(422).render('errors/not-found', {
-          seo:  { title: 'Invalid Request' },
-          page: { sectionKey: 'admin', pageKey: 'error_422', title: 'Invalid Request' },
-        });
+        renderInvalidRequest(res, { title: 'Invalid Request' });
         return;
       }
       if (err instanceof NotFoundError) {
-        res.status(404).render('errors/not-found', {
-          seo:  { title: 'Page Not Found' },
-          page: { sectionKey: 'admin', pageKey: 'error_404', title: 'Page Not Found' },
-        });
+        renderNotFound(res);
         return;
       }
       next(err);
@@ -198,10 +172,7 @@ export const adminClubCleanupController = {
       res.redirect(303, '/admin/club-cleanup');
     } catch (err) {
       if (err instanceof ValidationError) {
-        res.status(422).render('errors/not-found', {
-          seo:  { title: 'Invalid Request' },
-          page: { sectionKey: 'admin', pageKey: 'error_422', title: 'Invalid Request' },
-        });
+        renderInvalidRequest(res, { title: 'Invalid Request' });
         return;
       }
       next(err);
@@ -223,10 +194,7 @@ export const adminClubCleanupController = {
       res.redirect(303, '/admin/club-cleanup');
     } catch (err) {
       if (err instanceof ValidationError) {
-        res.status(422).render('errors/not-found', {
-          seo:  { title: 'Invalid Request' },
-          page: { sectionKey: 'admin', pageKey: 'error_422', title: 'Invalid Request' },
-        });
+        renderInvalidRequest(res, { title: 'Invalid Request' });
         return;
       }
       next(err);

@@ -5,6 +5,7 @@ import {
   isTier2Plus,
   isTier3,
 } from '../services/tierPredicates';
+import { renderForbidden } from '../lib/controllerErrors';
 
 /**
  * Tier-based authz gates. Require `requireAuth` to have run first so
@@ -16,10 +17,7 @@ import {
  * The predicate reads from the DB on every request; no cached check.
  */
 function deny(res: Response): void {
-  res.status(403).render('errors/forbidden', {
-    seo: { title: 'Forbidden' },
-    page: { sectionKey: '', pageKey: 'error_403', title: 'Forbidden' },
-  });
+  renderForbidden(res);
 }
 
 function makeRequireTier(predicate: (memberId: string) => boolean) {

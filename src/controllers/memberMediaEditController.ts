@@ -27,17 +27,11 @@ import { logger } from '../config/logger';
 import { getDefaultCuratorMediaService } from '../services/curatorMediaService';
 import { NotFoundError, RateLimitedError, ValidationError } from '../services/serviceErrors';
 import { FLASH_KIND, writeFlash } from '../lib/flashCookie';
+import { renderNotFound } from '../lib/controllerErrors';
 import { hashtagDiscoveryService, type MemberTagSuggestions } from '../services/hashtagDiscoveryService';
 
 function isOwnRoute(req: Request): boolean {
   return req.user?.slug === req.params.memberKey;
-}
-
-function renderNotFound(res: Response): void {
-  res.status(404).render('errors/not-found', {
-    seo: { title: 'Page Not Found' },
-    page: { sectionKey: '', pageKey: 'error_404', title: 'Page Not Found' },
-  });
 }
 
 function galleriesHref(memberKey: string): string {

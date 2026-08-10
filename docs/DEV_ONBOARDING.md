@@ -882,8 +882,7 @@ The layered shape is the right mental map. The tree below shows the original eve
 │  │  ├─ partials/
 │  │  │  └─ result-section.hbs
 │  │  └─ errors/
-│  │     ├─ not-found.hbs
-│  │     └─ unavailable.hbs
+│  │     └─ error.hbs
 │  ├─ public/
 │  │  └─ css/
 │  │     └─ style.css

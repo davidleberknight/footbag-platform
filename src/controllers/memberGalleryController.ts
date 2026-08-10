@@ -24,6 +24,7 @@ import { detectImageType } from '../lib/imageProcessing';
 import { ConflictError, NotFoundError, RateLimitedError, ValidationError } from '../services/serviceErrors';
 import { parseExternalLinkInputs, parseGalleryMultipart } from './galleryFormHelpers';
 import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
+import { renderNotFound } from '../lib/controllerErrors';
 import { mediaService } from '../services/mediaService';
 import { hashtagDiscoveryService } from '../services/hashtagDiscoveryService';
 
@@ -83,13 +84,6 @@ const buildSvc = getDefaultCuratorMediaService;
 
 function isOwnRoute(req: Request): boolean {
   return req.user?.slug === req.params.memberKey;
-}
-
-function renderNotFound(res: Response): void {
-  res.status(404).render('errors/not-found', {
-    seo: { title: 'Page Not Found' },
-    page: { sectionKey: '', pageKey: 'error_404', title: 'Page Not Found' },
-  });
 }
 
 function listHref(memberKey: string): string {

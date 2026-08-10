@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { eventService } from '../services/eventService';
-import { handleControllerError } from '../lib/controllerErrors';
+import { handleControllerError, renderNotFound } from '../lib/controllerErrors';
 
 /**
  * Thin controller layer for the public Events + Results routes.
@@ -38,10 +38,7 @@ export const eventController = {
 
       // Non-integer year params are treated as 404 (do not expose param detail)
       if (isNaN(year)) {
-        res.status(404).render('errors/not-found', {
-          seo:  { title: 'Page Not Found' },
-          page: { sectionKey: '', pageKey: 'error_404', title: 'Page Not Found' },
-        });
+        renderNotFound(res);
         return;
       }
 

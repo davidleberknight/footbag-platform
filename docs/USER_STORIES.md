@@ -518,7 +518,8 @@ Story: As a user, if the system is down or encounters an internal error (50x HTT
 
 Success Criteria:
 
-- Shows a friendly error message with next steps (retry later, contact link).
+- Shows a friendly error message that invites the visitor to try again shortly, and offers one control: a link to the home page. Where the refusal is an authentication one, a missing or expired session, that control is the sign-in page instead.
+- The status code shown on the page is the status the response carries.
 - Does not reveal stack traces or sensitive internals.
 
 ### V_Register_Account

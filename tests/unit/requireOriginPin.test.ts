@@ -45,7 +45,9 @@ function makeReq(method: string, path: string, headers: Record<string, string> =
 function makeRes() {
   const render = vi.fn();
   const status = vi.fn().mockReturnValue({ render });
-  return { res: { status } as unknown as Response, status, render };
+  // The origin pin runs ahead of the auth middleware, so `locals` is empty here
+  // exactly as it is in the app: no session flag has been written yet.
+  return { res: { status, locals: {} } as unknown as Response, status, render };
 }
 
 describe('requireOriginPin', () => {
@@ -121,7 +123,7 @@ describe('requireOriginPin', () => {
     expect(status).not.toHaveBeenCalled();
   });
 
-  it('rejects a POST whose Origin is a different host (403, forbidden.hbs)', () => {
+  it('rejects a POST whose Origin is a different host (403 error page)', () => {
     const { res, status, render } = makeRes();
     const next = vi.fn() as unknown as NextFunction;
     requireOriginPin(
@@ -130,8 +132,9 @@ describe('requireOriginPin', () => {
       next,
     );
     expect(status).toHaveBeenCalledWith(403);
-    expect(render).toHaveBeenCalledWith('errors/forbidden', expect.objectContaining({
+    expect(render).toHaveBeenCalledWith('errors/error', expect.objectContaining({
       seo: { title: 'Forbidden' },
+      content: expect.objectContaining({ statusCode: 403 }),
     }));
     expect(next).not.toHaveBeenCalled();
   });

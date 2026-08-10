@@ -5,7 +5,7 @@ import { WebhookSignatureError } from '../adapters/stripeWebhook';
 import { config } from '../config/env';
 import { logger } from '../config/logger';
 import { ValidationError, NotFoundError, RateLimitedError } from '../services/serviceErrors';
-import { handleControllerError } from '../lib/controllerErrors';
+import { handleControllerError, renderNotFound, renderRateLimited } from '../lib/controllerErrors';
 import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
 import { isSafePath } from '../lib/safePath';
 
@@ -13,13 +13,6 @@ import { isSafePath } from '../lib/safePath';
 
 function safeReturnTo(value: unknown, fallback: string): string {
   return isSafePath(value) ? value : fallback;
-}
-
-function renderNotFound(res: Response): void {
-  res.status(404).render('errors/not-found', {
-    seo:  { title: 'Page Not Found' },
-    page: { sectionKey: '', pageKey: 'error_404', title: 'Page Not Found' },
-  });
 }
 
 // ── Controller ──────────────────────────────────────────────────────────────
@@ -421,10 +414,7 @@ export const paymentController = {
         if (err.retryAfterSeconds) {
           res.setHeader('Retry-After', String(err.retryAfterSeconds));
         }
-        res.status(429).render('errors/not-found', {
-          seo:  { title: 'Too many requests' },
-          page: { sectionKey: '', pageKey: 'error_429', title: err.message },
-        });
+        renderRateLimited(res, { title: err.message });
         return;
       }
       handleControllerError(err, res, next, 'cancel recurring donation controller');

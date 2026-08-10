@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { config } from '../config/env';
 import { SES_FEEDBACK_WEBHOOK_PATH, STRIPE_WEBHOOK_PATH } from '../routes/publicRoutes';
+import { renderForbidden } from '../lib/controllerErrors';
 
 export const MUTATION_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
@@ -34,10 +35,7 @@ function safeUrlOrigin(value: string | undefined): string | null {
 }
 
 function reject(res: Response): void {
-  res.status(403).render('errors/forbidden', {
-    seo: { title: 'Forbidden' },
-    page: { sectionKey: '', pageKey: 'error_403', title: 'Forbidden' },
-  });
+  renderForbidden(res);
 }
 
 export function requireOriginPin(req: Request, res: Response, next: NextFunction): void {

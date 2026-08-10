@@ -11,7 +11,7 @@ import { ConflictError, RateLimitedError, ServiceUnavailableError, ValidationErr
 import { paymentService } from '../services/paymentService';
 import { PageViewModel } from '../types/page';
 import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
-import { renderServiceUnavailable } from '../lib/controllerErrors';
+import { renderInvalidRequest, renderNotFound, renderRateLimited, renderServiceUnavailable } from '../lib/controllerErrors';
 
 interface MemberPasswordEditContent {
   memberKey: string;
@@ -49,13 +49,6 @@ function coerceStringArray(value: unknown): string[] {
   if (Array.isArray(value)) return value.map((v) => (typeof v === 'string' ? v : ''));
   if (typeof value === 'string') return [value];
   return [];
-}
-
-function renderNotFound(res: Response): void {
-  res.status(404).render('errors/not-found', {
-    seo:  { title: 'Page Not Found' },
-    page: { sectionKey: '', pageKey: 'error_404', title: 'Page Not Found' },
-  });
 }
 
 export const memberController = {
@@ -473,20 +466,14 @@ export const memberController = {
       // ordinary user state, not a server fault, so it renders as 422
       // instead of falling through to the 500 handler.
       if (err instanceof ValidationError || err instanceof ConflictError) {
-        res.status(422).render('errors/not-found', {
-          seo:  { title: 'Invalid request' },
-          page: { sectionKey: '', pageKey: 'error_422', title: err.message },
-        });
+        renderInvalidRequest(res, { title: err.message });
         return;
       }
       if (err instanceof RateLimitedError) {
         if (err.retryAfterSeconds) {
           res.setHeader('Retry-After', String(err.retryAfterSeconds));
         }
-        res.status(429).render('errors/not-found', {
-          seo:  { title: 'Too many requests' },
-          page: { sectionKey: '', pageKey: 'error_429', title: err.message },
-        });
+        renderRateLimited(res, { title: err.message });
         return;
       }
       // Payment kill-switch (payments_paused) and any transient payment-service

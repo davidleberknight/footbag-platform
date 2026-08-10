@@ -5,16 +5,15 @@
 import { Request, Response, NextFunction } from 'express';
 import { netQcService } from '../services/netQcService';
 import { NotFoundError, ConflictError, ValidationError } from '../../services/serviceErrors';
-import { handleControllerError } from '../../lib/controllerErrors';
+import {
+  handleControllerError,
+  renderConflict,
+  renderInvalidRequest,
+  renderNotFound,
+} from '../../lib/controllerErrors';
 
 function renderBadRequest(res: Response, message: string, backHref: string): void {
-  res.status(400).render('errors/form-error', {
-    seo: { title: 'Bad Request' },
-    page: { sectionKey: '', pageKey: 'error_400', title: 'Bad Request' },
-    statusCode: 400,
-    errorMessage: message,
-    backHref,
-  });
+  renderInvalidRequest(res, { statusCode: 400, title: 'Bad Request', message, backHref });
 }
 
 export const netQcController = {
@@ -25,10 +24,7 @@ export const netQcController = {
       res.render('internal-qc/net/event-detail', vm);
     } catch (err) {
       if (err instanceof NotFoundError) {
-        res.status(404).render('errors/not-found', {
-          seo:  { title: 'Page Not Found' },
-          page: { sectionKey: '', pageKey: 'error_404', title: 'Page Not Found' },
-        });
+        renderNotFound(res);
         return;
       }
       handleControllerError(err, res, next, 'net qc controller');
@@ -151,10 +147,7 @@ export const netQcController = {
       res.redirect(303, '/internal/net/team-corrections');
     } catch (err) {
       if (err instanceof NotFoundError) {
-        res.status(404).render('errors/not-found', {
-          seo: { title: 'Page Not Found' },
-          page: { sectionKey: '', pageKey: 'error_404', title: 'Page Not Found' },
-        });
+        renderNotFound(res);
         return;
       }
       if (err instanceof ValidationError) {
@@ -194,10 +187,7 @@ export const netQcController = {
       res.redirect(303, '/internal/net/recovery-candidates');
     } catch (err) {
       if (err instanceof NotFoundError) {
-        res.status(404).render('errors/not-found', {
-          seo:  { title: 'Page Not Found' },
-          page: { sectionKey: '', pageKey: 'error_404', title: 'Page Not Found' },
-        });
+        renderNotFound(res);
         return;
       }
       if (err instanceof ValidationError) {
@@ -278,10 +268,7 @@ export const netQcController = {
       res.render('internal-qc/net/candidate-detail', vm);
     } catch (err) {
       if (err instanceof NotFoundError) {
-        res.status(404).render('errors/not-found', {
-          seo:  { title: 'Page Not Found' },
-          page: { sectionKey: '', pageKey: 'error_404', title: 'Page Not Found' },
-        });
+        renderNotFound(res);
         return;
       }
       handleControllerError(err, res, next, 'net qc controller');
@@ -298,17 +285,11 @@ export const netQcController = {
       res.redirect(303, `/internal/net/candidates/${candidateId}`);
     } catch (err) {
       if (err instanceof NotFoundError) {
-        res.status(404).render('errors/not-found', {
-          seo:  { title: 'Page Not Found' },
-          page: { sectionKey: '', pageKey: 'error_404', title: 'Page Not Found' },
-        });
+        renderNotFound(res);
         return;
       }
       if (err instanceof ConflictError) {
-        res.status(409).render('errors/conflict', {
-          seo:  { title: 'Already Curated' },
-          page: { sectionKey: '', pageKey: 'error_409', title: 'Already Curated' },
-        });
+        renderConflict(res, { title: 'Already Curated' });
         return;
       }
       handleControllerError(err, res, next, 'net qc controller');
@@ -325,17 +306,11 @@ export const netQcController = {
       res.redirect(303, `/internal/net/candidates/${candidateId}`);
     } catch (err) {
       if (err instanceof NotFoundError) {
-        res.status(404).render('errors/not-found', {
-          seo:  { title: 'Page Not Found' },
-          page: { sectionKey: '', pageKey: 'error_404', title: 'Page Not Found' },
-        });
+        renderNotFound(res);
         return;
       }
       if (err instanceof ConflictError) {
-        res.status(409).render('errors/conflict', {
-          seo:  { title: 'Already Curated' },
-          page: { sectionKey: '', pageKey: 'error_409', title: 'Already Curated' },
-        });
+        renderConflict(res, { title: 'Already Curated' });
         return;
       }
       handleControllerError(err, res, next, 'net qc controller');
@@ -371,10 +346,7 @@ export const netQcController = {
       res.redirect(303, '/internal/net/review');
     } catch (err) {
       if (err instanceof NotFoundError) {
-        res.status(404).render('errors/not-found', {
-          seo:  { title: 'Page Not Found' },
-          page: { sectionKey: '', pageKey: 'error_404', title: 'Page Not Found' },
-        });
+        renderNotFound(res);
         return;
       }
       if (err instanceof ValidationError) {
@@ -409,10 +381,7 @@ export const netQcController = {
       res.redirect(303, '/internal/net/review');
     } catch (err) {
       if (err instanceof NotFoundError) {
-        res.status(404).render('errors/not-found', {
-          seo:  { title: 'Page Not Found' },
-          page: { sectionKey: '', pageKey: 'error_404', title: 'Page Not Found' },
-        });
+        renderNotFound(res);
         return;
       }
       if (err instanceof ValidationError) {

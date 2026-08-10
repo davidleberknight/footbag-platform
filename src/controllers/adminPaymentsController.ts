@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { paymentReconciliationService } from '../services/paymentReconciliationService';
-import { handleControllerError } from '../lib/controllerErrors';
+import { handleControllerError, renderNotFound } from '../lib/controllerErrors';
 import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
 import { NotFoundError, ValidationError } from '../services/serviceErrors';
 
@@ -65,10 +65,7 @@ export const adminPaymentsController = {
     try {
       const model = paymentReconciliationService.getAdminPaymentDetailPage(req.params.paymentId);
       if (!model) {
-        res.status(404).render('errors/not-found', {
-          seo: { title: 'Page Not Found' },
-          page: { sectionKey: 'admin', pageKey: 'error_404', title: 'Page Not Found' },
-        });
+        renderNotFound(res);
         return;
       }
       res.render('admin/payments/detail', model);
@@ -103,10 +100,7 @@ export const adminPaymentsController = {
         return;
       }
       if (err instanceof NotFoundError) {
-        res.status(404).render('errors/not-found', {
-          seo: { title: 'Page Not Found' },
-          page: { sectionKey: 'admin', pageKey: 'error_404', title: 'Page Not Found' },
-        });
+        renderNotFound(res);
         return;
       }
       handleControllerError(err, res, next, 'admin reconciliation resolve controller');

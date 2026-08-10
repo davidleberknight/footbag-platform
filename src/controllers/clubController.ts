@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { clubService } from '../services/clubService';
 import { ValidationError } from '../services/serviceErrors';
-import { handleControllerError } from '../lib/controllerErrors';
+import { handleControllerError, renderNotFound } from '../lib/controllerErrors';
 import { writeFlash } from '../lib/flashCookie';
 import { FLASH_KIND } from '../lib/flashCookie';
 
@@ -155,10 +155,7 @@ export const clubController = {
       const result = clubService.joinClub(req.user!.userId, clubId);
 
       if (result.branch === 'club_not_found') {
-        res.status(404).render('errors/not-found', {
-          seo: { title: 'Club Not Found' },
-          page: { sectionKey: '', pageKey: 'error_404', title: 'Club Not Found' },
-        });
+        renderNotFound(res, { title: 'Club Not Found' });
         return;
       }
       if (result.branch === 'cap_reached') {
@@ -336,7 +333,7 @@ export const clubController = {
       const clubId = clubService.resolveClubIdByKey(clubKey);
       const result = clubService.updateClubHashtag(clubId, newSlug, req.user!.userId);
       if (result.branch === 'not_leader') {
-        res.status(404).render('errors/not-found');
+        renderNotFound(res);
         return;
       }
       if (result.branch === 'invalid_format') {

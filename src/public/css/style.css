@@ -2011,6 +2011,12 @@ section.home-media { padding-top: 0; }
 }
 .error-page h2 { margin-bottom: 12px; }
 .error-page p  { color: var(--text-muted); margin-bottom: 24px; }
+.error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+}
 
 /* ── Footer ─────────────────────────────────────────────────── */
 .site-footer {

@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { rulesService } from '../services/rulesService';
 import { NotFoundError } from '../services/serviceErrors';
-import { handleControllerError } from '../lib/controllerErrors';
+import { handleControllerError, renderNotFound } from '../lib/controllerErrors';
 
 export const rulesController = {
   /** GET /rules */
@@ -23,10 +23,7 @@ export const rulesController = {
       res.render('rules/detail', vm);
     } catch (err) {
       if (err instanceof NotFoundError) {
-        res.status(404).render('errors/not-found', {
-          seo: { title: 'Page Not Found' },
-          page: { sectionKey: '', pageKey: 'error_404', title: 'Page Not Found' },
-        });
+        renderNotFound(res);
         return;
       }
       handleControllerError(err, res, next, 'rules controller');

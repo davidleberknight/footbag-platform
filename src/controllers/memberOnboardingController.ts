@@ -19,7 +19,7 @@ import {
 import { memberService } from '../services/memberService';
 import { simulatedEmailService } from '../services/simulatedEmailService';
 import { logger } from '../config/logger';
-import { handleControllerError } from '../lib/controllerErrors';
+import { handleControllerError, renderNotFound } from '../lib/controllerErrors';
 import { RateLimitedError, ValidationError } from '../services/serviceErrors';
 import { PageViewModel } from '../types/page';
 import {
@@ -96,13 +96,6 @@ interface WizardCompleteContent {
 
 function dashboardHrefFor(req: Request): string {
   return `/members/${encodeURIComponent(req.user!.slug)}`;
-}
-
-function renderNotFound(res: Response): void {
-  res.status(404).render('errors/not-found', {
-    seo:  { title: 'Page Not Found' },
-    page: { sectionKey: '', pageKey: 'error_404', title: 'Page Not Found' },
-  });
 }
 
 function isValidTaskType(value: string | undefined): value is OnboardingTaskType {

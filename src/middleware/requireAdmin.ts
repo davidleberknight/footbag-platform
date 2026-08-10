@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { renderForbidden } from '../lib/controllerErrors';
 
 /**
  * Admin-only authz gate. Requires `requireAuth` to have run first so
@@ -7,10 +8,7 @@ import { Request, Response, NextFunction } from 'express';
  */
 export function requireAdmin(req: Request, res: Response, next: NextFunction): void {
   if (req.user?.role !== 'admin') {
-    res.status(403).render('errors/forbidden', {
-      seo: { title: 'Forbidden' },
-      page: { sectionKey: '', pageKey: 'error_403', title: 'Forbidden' },
-    });
+    renderForbidden(res);
     return;
   }
   next();

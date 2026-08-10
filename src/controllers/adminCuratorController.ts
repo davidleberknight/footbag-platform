@@ -14,7 +14,7 @@ import {
   type CuratorGalleryEditView,
 } from '../services/curatorMediaService';
 import { ConflictError, NotFoundError, RateLimitedError, ValidationError } from '../services/serviceErrors';
-import { renderServiceUnavailable } from '../lib/controllerErrors';
+import { renderInvalidRequest, renderNotFound, renderServiceUnavailable } from '../lib/controllerErrors';
 import {
   parseExternalLinkInputs,
   parseGalleryMultipart,
@@ -595,11 +595,9 @@ export const adminCuratorController = {
       });
     } catch (err) {
       if (err instanceof ValidationError) {
-        res.status(422).render('errors/form-error', {
-          seo: { title: 'Invalid Request' },
-          page: { sectionKey: 'admin', pageKey: 'admin_curator_list_error', title: 'Invalid Request' },
-          statusCode: 422,
-          errorMessage: err.message,
+        renderInvalidRequest(res, {
+          title: 'Invalid Request',
+          message: err.message,
           backHref: '/admin/curator/media',
         });
         return;
@@ -954,10 +952,7 @@ export const adminCuratorController = {
         await svc.deleteMedia({ adminMemberId, mediaId });
       } catch (err) {
         if (err instanceof NotFoundError) {
-          res.status(404).render('errors/not-found', {
-            seo: { title: 'Page Not Found' },
-            page: { sectionKey: 'admin', pageKey: 'admin_curator_media_not_found', title: 'Curator media not found' },
-          });
+          renderNotFound(res, { title: 'Curator media not found' });
           return;
         }
         throw err;

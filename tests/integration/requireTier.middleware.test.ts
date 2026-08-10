@@ -78,7 +78,9 @@ function makeReq(user: SessionUser | null): Request {
 function makeRes() {
   const render = vi.fn();
   const status = vi.fn().mockReturnValue({ render });
-  const res = { status } as unknown as Response;
+  // `locals` mirrors Express: the auth middleware writes the session flag the
+  // forbidden page reads when choosing between a home and a sign-in control.
+  const res = { status, locals: {} } as unknown as Response;
   return { res, status, render };
 }
 
