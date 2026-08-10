@@ -733,7 +733,7 @@ Append-only ledger recording that an Active Player expiry reminder was sent to a
 #### Competition history
 
 - `first_competition_year` (`INTEGER`, nullable): the member's first competition year. Editable on profile edit and wizard personal-details task. Pre-populated from `historical_persons.first_year` during legacy claim via COALESCE (member value wins if already set).
-- `show_first_competition_year` (`INTEGER`, default 0): opt-in toggle controlling whether "Competing since {year}" appears on the member's public profile. Default 0 means legacy imports and HP-claim transfers do not auto-show the year; only explicit member action sets it to 1.
+- `show_first_competition_year` (`INTEGER`, default 0): opt-in toggle controlling whether "Competing since {year}" appears on the member's public profile. Default 0 means legacy imports and HP-claim transfers do not auto-show the year; only explicit member action sets it to 1. The toggle is not the hide mechanism: clearing `first_competition_year` hides the line whatever the toggle says, and the profile read applies no fallback to a linked historical person's `first_year`, so a value the member cleared is not put back by the record they are linked to.
 - `show_competitive_results` (`INTEGER`, default 1): controls whether competition results appear on the member's public profile. Own-profile view always shows results to the owner regardless of toggle state.
 - `show_gender` (`INTEGER`, default 0): opt-in toggle controlling whether the member's `gender` is shown to authenticated members on the member profile, in member search, and on club rosters. Default 0 keeps gender owner-and-admin only; only explicit member action sets it to 1. Only `'male'` / `'female'` render when set.
 - `email_visibility` (`TEXT`, default `'private'`, `CHECK (email_visibility IN ('private','members'))`): controls whether the member's contact email is shown to authenticated members. `'private'` (default) keeps it owner-and-admin only; `'members'` shows it to authenticated members; never shown to unauthenticated visitors. Gated in `memberService`.
@@ -757,7 +757,7 @@ Two FK-style columns carry person-identity / legacy-account linkage:
 `legacy_user_id` and `legacy_email` also remain as TEXT columns for backward compatibility with fields migrated into `members` at claim time; the canonical source for these is `legacy_members`. Post-claim, the member's row holds its own editable copy per `M_Claim_Legacy_Account` merge rules; the `legacy_members` row is preserved unchanged as the permanent archival record.
 
 - `legacy_is_admin`; flag indicating the account held admin status on the legacy site. Retained for admin review and audit context only; never grants live admin privilege.
-- `ifpa_join_date`, `birth_date`, `street_address`, `postal_code`; profile fields copied from `legacy_members` at claim time (COALESCE / fill-if-empty). The active member can subsequently edit them; the `legacy_members` copy remains immutable.
+- `ifpa_join_date`, `birth_date`; profile fields copied from `legacy_members` at claim time (COALESCE / fill-if-empty). The `legacy_members` copy remains immutable. `street_address` and `postal_code` are NOT copied: nothing reads them from a member row, so retaining them there would be personal data held with no stated purpose, and they stay on the archival `legacy_members` snapshot. The columns remain on `members` because rows claimed before that rule carry values, and the PII purge and claim-revert scrub must keep clearing them.
 
 #### Credential-state invariant
 

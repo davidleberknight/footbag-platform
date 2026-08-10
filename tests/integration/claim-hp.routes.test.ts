@@ -319,7 +319,10 @@ describe('POST /history/:personId/claim/confirm — scenario D (HP-only)', () =>
     };
     expect(row.historical_person_id).toBe(HP_NO_LEGACY);
     expect(row.legacy_member_id).toBeNull();
-    expect(row.country).toBe('NZ');
+    // The imported record spells the country as an ISO code. A claim merge
+    // holds imported location to the same rules the member's own forms apply,
+    // so what lands on the member row is the one name the picker offers.
+    expect(row.country).toBe('New Zealand');
     expect(row.is_hof).toBe(1);
     expect(row.hof_inducted_year).toBe(2005);
     expect(row.first_competition_year).toBe(1988);
@@ -375,7 +378,7 @@ describe('POST /history/:personId/claim/confirm — scenario E (HP + unclaimed l
     };
     expect(memberRow.historical_person_id).toBe(HP_WITH_LM);
     expect(memberRow.legacy_member_id).toBe(LM_FOR_HP_E);
-    expect(memberRow.country).toBe('NZ');
+    expect(memberRow.country).toBe('New Zealand');
     expect(memberRow.is_hof).toBe(1);
     expect(memberRow.is_bap).toBe(1);
 

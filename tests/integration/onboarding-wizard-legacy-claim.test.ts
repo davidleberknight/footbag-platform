@@ -295,7 +295,10 @@ describe('email-equality fast path (login email == legacy_email)', () => {
       .send({ identifier: email });
 
     const member = getMember(memberId)!;
-    expect(member.country).toBe('FR');
+    // The claim merge holds imported location to the same rules the member's
+    // own forms apply, so the legacy record's ISO code lands as the one name
+    // the picker offers for that country.
+    expect(member.country).toBe('France');
   });
 
   it('merge: OR semantics for is_hof (legacy=1 member=0 -> 1)', async () => {
@@ -490,7 +493,7 @@ describe('transitive HP claim through legacy back-link (Case E)', () => {
       .send({ identifier: email });
 
     const member = getMember(memberId)!;
-    expect(member.country).toBe('JP');
+    expect(member.country).toBe('Japan');
     expect(member.first_competition_year).toBe(1999);
     expect(member.is_hof).toBe(1);
   });

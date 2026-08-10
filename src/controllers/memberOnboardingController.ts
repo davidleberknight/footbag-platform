@@ -82,7 +82,6 @@ interface PersonalDetailsContent {
   birthDate: string;
   gender: string;
   yearValue: string;
-  showFirstCompetitionYear: boolean;
   showCompetitiveResults: boolean;
   regionRequired: boolean;
   error: string | null;
@@ -731,13 +730,11 @@ export const memberOnboardingController = {
     const birthDate = String(req.body.birthDate ?? '');
     const gender = String(req.body.gender ?? '');
     const yearValue = String(req.body.year ?? '');
-    const showFirstCompetitionYear =
-      req.body.showFirstCompetitionYear === '1' || req.body.showFirstCompetitionYear === 'true';
     const showCompetitiveResults =
       req.body.showCompetitiveResults === '1' || req.body.showCompetitiveResults === 'true';
     await dispatch<PersonalDetailsFormState>(req, res, next, 'personal_details', {
       action: () => memberOnboardingService.processPersonalDetailsSubmit(
-        req.user!.userId, city, region, country, birthDate, gender, yearValue, showFirstCompetitionYear, showCompetitiveResults),
+        req.user!.userId, city, region, country, birthDate, gender, yearValue, showCompetitiveResults),
       renderValidationError: (result) => {
         renderPersonalDetails(req, res, {
           city: result.formState.city,

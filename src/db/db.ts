@@ -1219,6 +1219,7 @@ export interface WizardMembershipCardRow {
   // row to fall back to, and the candidate's own city and country are optional
   // because the mirror did not always record them.
   club_city: string | null;
+  club_region: string | null;
   club_country: string | null;
   confidence_score: number | null;
   inferred_role: 'member' | 'contact' | 'leader' | 'co-leader';
@@ -1255,6 +1256,7 @@ export const legacyPersonClubAffiliations = {
       lcc.mapped_club_id  AS club_id,
       COALESCE(c.name, lcc.display_name)       AS club_name,
       COALESCE(c.city, lcc.city)               AS club_city,
+      COALESCE(c.region, lcc.region)           AS club_region,
       COALESCE(c.country, lcc.country)         AS club_country,
       lpca.confidence_score AS confidence_score,
       lpca.inferred_role  AS inferred_role,
@@ -2692,6 +2694,20 @@ export const freestyleTricks = {
         execution_summary = ?, learning_notes = ?, prerequisite_notes = ?,
         pronunciation = ?, operational_notation_source = ?,
         updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+    WHERE slug = ?
+  `); },
+
+  // Drop the notation parse derived for this row. The parse fields are a function
+  // of the notation the parse was taken from and of the asserted ADD it was
+  // compared against; when a curation edit changes either, the stored parse
+  // describes notation the row no longer carries. Clearing them leaves the row in
+  // the same state as a trick whose notation has never been parsed, which the
+  // public grammar panel already handles by not rendering, rather than leaving a
+  // panel that confidently describes the previous notation.
+  get clearDerivedParse() { return db.prepare(`
+    UPDATE freestyle_tricks
+    SET structural_parse_json = NULL, computed_add_formula = NULL,
+        computed_adds = NULL, add_formula_status = NULL
     WHERE slug = ?
   `); },
 };
@@ -5459,7 +5475,6 @@ export interface MemberProfileRow {
   avatar_thumb_key: string | null;
   avatar_media_id: string | null;
   historical_person_name: string | null;
-  historical_first_year: number | null;
   historical_bap_nickname: string | null;
   historical_bap_induction_year: number | null;
   historical_hof_induction_year: number | null;
@@ -5534,7 +5549,6 @@ export const account = {
       mi.s3_key_thumb AS avatar_thumb_key,
       mi.id           AS avatar_media_id,
       hp.person_name AS historical_person_name,
-      hp.first_year AS historical_first_year,
       hp.bap_nickname AS historical_bap_nickname,
       hp.bap_induction_year AS historical_bap_induction_year,
       hp.hof_induction_year AS historical_hof_induction_year
@@ -5798,19 +5812,6 @@ export const account = {
       version                    = version + 1
     WHERE id = ?
   `); },
-
-  get findCompetitionFieldsByMemberId() { return db.prepare(`
-    SELECT
-      m.first_competition_year,
-      m.show_competitive_results,
-      hp.first_year AS historical_first_year
-    FROM members_active AS m
-    LEFT JOIN historical_persons AS hp
-      ON hp.person_id = m.historical_person_id
-    WHERE m.id = ?
-      AND m.personal_data_purged_at IS NULL
-  `); },
-
 
   get updateMemberPersonalDetails() { return db.prepare(`
     UPDATE members
@@ -8128,6 +8129,13 @@ export const legacyClaim = {
       AND legacy_member_id IS NOT NULL
   `); },
 
+  // Street address and postal code are deliberately NOT copied here. Nothing
+  // on the platform reads them off a member row: there is no edit surface, no
+  // page renders them, and the roster export does not carry them. Personal data
+  // is not retained without a stated purpose, so they stay in the archival
+  // legacy snapshot, which is where the historical record belongs. The purge
+  // and revert-scrub statements still clear both columns, because rows claimed
+  // before this change carry values.
   get transferLegacyFields() { return db.prepare(`
     UPDATE members
     SET
@@ -8136,8 +8144,6 @@ export const legacyClaim = {
       legacy_email     = COALESCE(legacy_email, ?),
       bio              = CASE WHEN bio = '' THEN ? ELSE bio END,
       birth_date       = COALESCE(birth_date, ?),
-      street_address   = COALESCE(street_address, ?),
-      postal_code      = COALESCE(postal_code, ?),
       city             = CASE WHEN city IS NULL OR city = '' THEN ? ELSE city END,
       region           = CASE WHEN region IS NULL OR region = '' THEN ? ELSE region END,
       country          = CASE WHEN country IS NULL OR country = '' THEN ? ELSE country END,
@@ -8167,6 +8173,35 @@ export const legacyClaim = {
       updated_at             = ?,
       updated_by             = 'claim_merge',
       version                = version + 1
+    WHERE id = ?
+  `); },
+
+  // Re-assert the curated historical record's values over values the legacy
+  // dump left on the member row in an EARLIER transaction.
+  //
+  // Curated data outranks the dump, but both merge statements fill only empty
+  // columns, so write order settles precedence within one claim and nothing
+  // settles it across two: a member who claims their legacy account first and
+  // the curated record later would keep the dump's country and first year
+  // forever, because the second merge finds those columns already filled.
+  //
+  // A column moves only when it still holds exactly what the legacy transfer
+  // wrote, which is the same equality test the claim revert uses so that a
+  // value the member typed themselves is never touched. `IS` rather than `=`
+  // so a NULL on either side compares correctly; a curated value of NULL means
+  // the record says nothing and leaves the column alone.
+  get reassertCuratedOverLegacyFields() { return db.prepare(`
+    UPDATE members
+    SET
+      country = CASE
+        WHEN ? IS NOT NULL AND country IS ? THEN ?
+        ELSE country END,
+      first_competition_year = CASE
+        WHEN ? IS NOT NULL AND first_competition_year IS ? THEN ?
+        ELSE first_competition_year END,
+      updated_at = ?,
+      updated_by = 'claim_merge',
+      version    = version + 1
     WHERE id = ?
   `); },
 
@@ -8570,6 +8605,21 @@ export const memberOnboarding = {
            updated_by   = ?,
            version      = version + 1
      WHERE id = ?
+  `); },
+
+  // Put a completed task back in front of the member. The caller decides when
+  // that is warranted; this only performs it, and only on a task that is
+  // currently completed, so re-running it cannot disturb one already pending.
+  get reopenCompletedTask() { return db.prepare(`
+    UPDATE member_onboarding_tasks
+       SET state        = 'pending',
+           completed_at = NULL,
+           updated_at   = ?,
+           updated_by   = ?,
+           version      = version + 1
+     WHERE member_id = ?
+       AND task_type  = ?
+       AND state      = 'completed'
   `); },
 
 };

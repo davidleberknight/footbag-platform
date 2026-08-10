@@ -80,9 +80,12 @@ export const adminClubCleanupController = {
     const reasonText = typeof req.body.reasonText === 'string' && req.body.reasonText.trim()
       ? req.body.reasonText.trim()
       : null;
+    const region = typeof req.body.region === 'string' && req.body.region.trim()
+      ? req.body.region.trim()
+      : null;
 
     try {
-      await clubCleanupService.promoteCandidate(req.user!.userId, candidateId, reasonText);
+      await clubCleanupService.promoteCandidate(req.user!.userId, candidateId, reasonText, region);
       res.redirect(303, '/admin/club-cleanup');
     } catch (err) {
       if (err instanceof ValidationError) {

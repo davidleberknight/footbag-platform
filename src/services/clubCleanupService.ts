@@ -110,6 +110,7 @@ import { clubService } from './clubService';
 import { emailService } from './emailService';
 import { logger } from '../config/logger';
 import { PageViewModel } from '../types/page';
+import { subdivisionsForCountry } from './countryUtils';
 
 // ---------------------------------------------------------------------------
 // Club evidence
@@ -555,6 +556,22 @@ interface ResidueRow {
   oldest_pending_at: string;
 }
 
+// Clubs store the full state or province name, so that is what the control
+// offers and submits. A candidate that already carries one needs no prompt:
+// its value descends from the curated club seed and outranks anything an
+// admin would supply now.
+function promotionRegionPrompt(
+  country: string | null,
+  region: string | null,
+): { needsRegion: boolean; regionOptions: Array<{ value: string; label: string }> } {
+  const subdivisions = subdivisionsForCountry(country ?? '');
+  const needsRegion = subdivisions.length > 0 && !region;
+  return {
+    needsRegion,
+    regionOptions: needsRegion ? subdivisions.map((s) => ({ value: s.label, label: s.label })) : [],
+  };
+}
+
 // Unpromoted non-junk candidates: onboarding_visible / dormant rows with no
 // live clubs row yet. Listed so the admin can exercise the override
 // promotion path; member-confirmation promotion happens in the wizard.
@@ -570,6 +587,14 @@ export interface PromotableCandidateItem {
   // admin who parked it and why.
   parkAnnotation: string | null;
   claimLabel: string | null;
+  /**
+   * The mirror these candidates came from recorded no state or province, and
+   * the country page groups clubs by one only when every club in the country
+   * has it, so promoting without it flattens the whole listing. The form asks
+   * the admin when the candidate has none and its country uses them.
+   */
+  needsRegion: boolean;
+  regionOptions: Array<{ value: string; label: string }>;
 }
 
 // Wizard activity flags about unpromoted candidates, grouped per candidate.
@@ -958,6 +983,7 @@ function assembleQueue(prefetched?: {
       createdAt: r.created_at,
       parkAnnotation: parkAnnotationFrom(res),
       claimLabel: claimLabelFrom(claims, 'candidate', r.id),
+      ...promotionRegionPrompt(r.country, r.region),
     });
   }
 
@@ -1798,11 +1824,16 @@ async function promoteCandidate(
   adminMemberId: string,
   candidateId: string,
   reasonText: string | null,
+  region: string | null = null,
 ): Promise<{ branch: 'promoted' | 'already_promoted'; clubId: string }> {
   const result = await clubService.promoteCandidate(candidateId, adminMemberId, {
     actorType: 'admin',
     reasonText,
     trigger: 'admin_queue',
+    // The mirror the candidates came from carried no state or province, and a
+    // club created without one flattens its country page's grouping, so the
+    // queue offers the admin a state for a candidate that lacks one.
+    region,
   });
   // The promotion transaction lives in ClubService; releasing the claim
   // afterwards is fine because a leftover marker is only a hint and would

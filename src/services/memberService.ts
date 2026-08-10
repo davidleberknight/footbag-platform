@@ -59,6 +59,15 @@
  *     is private" message, which would itself leak existence. Owner-only sub-routes
  *     (edit, edit/password, galleries, media upload, account :section) return 404 on
  *     slug mismatch, not 403.
+ *   - Location and first-competition-year rules are NOT defined here. They live
+ *     in `memberLocationRules.ts` because four paths write those columns and
+ *     must agree: this service's two (the onboarding wizard's personal-details
+ *     step and the profile edit form, which both refuse invalid input) and the
+ *     two claim merges in IdentityAccessService (which normalise the same way
+ *     but never refuse). A rule enforced on only one path is not a rule:
+ *     whatever the wizard refuses could otherwise be stored by editing the
+ *     profile afterwards, and the Official IFPA Roster export carries whatever
+ *     lands.
  *   - Max 3 external URLs per member; one avatar per member (partial UNIQUE
  *     index `ux_media_avatar_per_member`).
  *   - Avatar upload validates JPEG/PNG only with 5 MB size limit, processes to
@@ -102,7 +111,13 @@ import { mayCreateClub } from './tierPredicates';
 import { paymentService } from './paymentService';
 import { mediaService, type ProfileMediaView } from './mediaService';
 import { formatDateDisplay } from './dateFormat';
-import { countryCode, countryNames, subdivisionsForCountry } from './countryUtils';
+import { countryNames, subdivisionsForCountry } from './countryUtils';
+import {
+  regionRequiredForCountry,
+  validateMemberLocationAndYear,
+} from './memberLocationRules';
+
+export { regionRequiredForCountry };
 
 const MAX_BIO = 1000;
 const SEARCH_LIMIT = 20;
@@ -289,7 +304,10 @@ export interface OwnProfileContent {
   historicalPersonHref: string | null;
   firstCompetitionYear: number | null;
   showCompetitiveResults: boolean;
+  /** The stored preference, shown as the edit form's checkbox state. */
   showFirstCompetitionYear: boolean;
+  /** Whether the "Competing since" line renders: preference AND a year on file. */
+  showCompetingSince: boolean;
   heroData?: PlayerHeroData;
   profileBase?: string;
   avatarThumbUrl: string | null;
@@ -373,6 +391,8 @@ export interface PublicProfileContent {
   firstCompetitionYear: number | null;
   showCompetitiveResults: boolean;
   showFirstCompetitionYear: boolean;
+  /** Whether the "Competing since" line renders: preference AND a year on file. */
+  showCompetingSince: boolean;
   heroData: PlayerHeroData;
   eventGroups: PlayerEventGroup[];
   // Member-visible fields, null/false for the anonymous HoF/BAP render:
@@ -441,24 +461,6 @@ function normalizeText(val: unknown): string {
   return typeof val === 'string' ? val.trim() : '';
 }
 
-// In the USA and Canada a location without its state or province is ambiguous
-// (a bare "Portland" or "London" names more than one place), so the region is
-// required there and optional everywhere else. The country field is free text,
-// so the common spellings are folded to an ISO code before comparing; the
-// shared country map already carries the full names and the USA alias, and the
-// short forms a member is likely to type are handled here.
-const REGION_REQUIRED_COUNTRY_CODES = new Set(['US', 'CA']);
-const REGION_REQUIRED_SPELLINGS = new Set([
-  'US', 'USA', 'UNITED STATES', 'UNITED STATES OF AMERICA', 'AMERICA',
-  'CA', 'CAN', 'CANADA',
-]);
-
-export function regionRequiredForCountry(country: string): boolean {
-  const raw = normalizeText(country).toUpperCase().replace(/\./g, '');
-  if (REGION_REQUIRED_SPELLINGS.has(raw)) return true;
-  return REGION_REQUIRED_COUNTRY_CODES.has(countryCode(normalizeText(country)).toUpperCase());
-}
-
 // WhatsApp is published as a chat link, and a wa.me address names its contact
 // by international number in digits alone. Free text would put a value on the
 // profile that cannot be dialled or linked, so the stored value has to reduce
@@ -473,30 +475,9 @@ export function whatsappDigits(value: string): string | null {
   return /^\d{7,15}$/.test(digits) ? digits : null;
 }
 
-const REGION_REQUIRED_MESSAGE = 'Region or state is required for the USA and Canada.';
-const REGION_CODE_MESSAGE =
-  'Region must be the official two-letter state or province code, such as CO, CA, or NY.';
-
-// Where a country writes its addresses with an official state or province set,
-// that set is the whole vocabulary and the server decides membership in it.
-// The form renders a picker, but a picker is not the only way a value reaches
-// this method, and the column feeds the official IFPA roster export, where one
-// place recorded as CA, California and Calif. cannot be reconciled afterwards.
-// A full name is refused rather than folded to its code, because the member is
-// answering a picker and a name means the submission did not come from it.
-// A country with no official set keeps a free-text region.
-function canonicalRegionOrThrow(country: string, region: string | null): string | null {
-  if (!region) return region;
-  const subdivisions = subdivisionsForCountry(country);
-  if (subdivisions.length === 0) return region;
-  const match = subdivisions.find((s) => s.code.toLowerCase() === region.trim().toLowerCase());
-  if (!match) throw new ValidationError(REGION_CODE_MESSAGE);
-  return match.code;
-}
-
 export interface PersonalDetailsFormFields {
   city: string; region: string; country: string; birthDate: string; gender: string;
-  yearValue: string; showFirstCompetitionYear: boolean; showCompetitiveResults: boolean;
+  yearValue: string; showCompetitiveResults: boolean;
 }
 
 // Spreading a caller's optional overrides straight over the stored values would
@@ -588,7 +569,12 @@ function buildMemberHeroData(row: MemberProfileRow): PlayerHeroData {
     region:               row.region,
     country:              row.country,
     isHistoricalOnly: false,
-    firstCompetitionYear: row.first_competition_year ?? row.historical_first_year ?? null,
+    // No fallback to the linked historical record's first year. Clearing the
+    // field is how a member hides the "Competing since" line, and the claim
+    // merge has already copied the record's year onto their row, so a read-time
+    // fallback would fire exactly when they clear it and put back the value
+    // they just removed.
+    firstCompetitionYear: row.first_competition_year,
     showFirstCompetitionYear: row.show_first_competition_year !== 0,
   };
 }
@@ -615,9 +601,18 @@ function rowToContent(row: MemberProfileRow): OwnProfileContent {
     historicalPersonHref: row.historical_person_id
       ? `/history/${encodeURIComponent(row.historical_person_id)}`
       : null,
-    firstCompetitionYear: row.first_competition_year ?? row.historical_first_year ?? null,
+    // Clear-to-hide, with no fallback to the linked historical record: this
+    // shape also fills the edit form, so a fallback here would re-offer the
+    // cleared year pre-filled and the member's next save would write it back.
+    firstCompetitionYear: row.first_competition_year,
     showCompetitiveResults: row.show_competitive_results !== 0,
+    // The stored preference, which is what the edit form's checkbox shows.
     showFirstCompetitionYear: row.show_first_competition_year !== 0,
+    // Whether the "Competing since" line renders, which needs a year as well as
+    // the preference: a member who cleared the year has nothing to print, and
+    // rendering on the preference alone emits the label with a blank after it.
+    showCompetingSince:
+      row.show_first_competition_year !== 0 && row.first_competition_year != null,
     avatarThumbUrl:  buildAvatarUrl(row.avatar_thumb_key, row.avatar_media_id),
   };
 }
@@ -969,9 +964,11 @@ export const memberService = {
         hofMember:      isHof,
         bapMember:      isBap,
         historicalPersonName: resolveHistoricalName(row),
-        firstCompetitionYear: row.first_competition_year ?? row.historical_first_year ?? null,
+        firstCompetitionYear: row.first_competition_year,
         showCompetitiveResults: row.show_competitive_results !== 0,
         showFirstCompetitionYear: row.show_first_competition_year !== 0,
+        showCompetingSince:
+          row.show_first_competition_year !== 0 && row.first_competition_year != null,
         heroData,
         eventGroups,
         contactEmail,
@@ -1082,9 +1079,6 @@ export const memberService = {
       : input.searchable;
     const searchable = rawSearchable === '1' ? 1 : 0;
     const rawYear = normalizeText(input.firstCompetitionYear);
-    const firstCompYear = rawYear ? parseInt(rawYear, 10) : null;
-    const validYear = firstCompYear && firstCompYear >= 1972 && firstCompYear <= new Date().getFullYear()
-      ? firstCompYear : null;
     const rawShow = Array.isArray(input.showCompetitiveResults)
       ? input.showCompetitiveResults[input.showCompetitiveResults.length - 1]
       : input.showCompetitiveResults;
@@ -1123,12 +1117,11 @@ export const memberService = {
             : 'Country is required.',
       );
     }
-    // Enforced here as well as on the onboarding form, so the rule cannot be
-    // undone by editing the profile afterwards.
-    if (!region && regionRequiredForCountry(country)) {
-      throw new ValidationError(REGION_REQUIRED_MESSAGE);
-    }
-    const storedRegion = canonicalRegionOrThrow(country, region);
+    // Shared with the onboarding form, so the rules cannot be undone by editing
+    // the profile afterwards.
+    const location = validateMemberLocationAndYear({
+      city, region, country, storedCountry: row.country, rawYear,
+    });
     if (whatsapp && whatsappDigits(whatsapp) === null) {
       throw new ValidationError(WHATSAPP_MESSAGE);
     }
@@ -1138,9 +1131,10 @@ export const memberService = {
 
     // Compared before the write, while the stored values are still readable.
     const changedFields = changedProfileFields(row, buildMemberLinksView(row.id), {
-      bio, city, region: storedRegion, country, phone, whatsapp,
+      bio, city: location.city, region: location.region, country: location.country,
+      phone, whatsapp,
       emailVisibility: emailVis, phoneVisible, whatsappVisible, searchable,
-      firstCompetitionYear: validYear, showCompetitiveResults: showResults,
+      firstCompetitionYear: location.firstCompetitionYear, showCompetitiveResults: showResults,
       showFirstCompetitionYear: showYear, showGender, gender: genderValue,
       links: validatedLinks,
     });
@@ -1149,16 +1143,16 @@ export const memberService = {
     transaction(() => {
       account.updateMemberProfile.run(
         bio,
-        city,
-        storedRegion,
-        country,
+        location.city,
+        location.region,
+        location.country,
         phone,
         whatsapp,
         emailVis,
         phoneVisible,
         whatsappVisible,
         searchable,
-        validYear,
+        location.firstCompetitionYear,
         showResults,
         showYear,
         showGender,
@@ -1223,7 +1217,6 @@ export const memberService = {
       city: p.city, region: p.region, country: p.country, birthDate: p.birthDate,
       gender: p.gender,
       yearValue: p.firstCompetitionYear != null ? String(p.firstCompetitionYear) : '',
-      showFirstCompetitionYear: p.showFirstCompetitionYear,
       showCompetitiveResults: p.showCompetitiveResults,
       ...definedOnly(overrides),
     };
@@ -1236,7 +1229,7 @@ export const memberService = {
 
   setPersonalDetails(memberId: string, input: {
     city?: unknown; region?: unknown; country?: unknown; birthDate?: unknown;
-    gender?: unknown; yearValue?: unknown; showFirstCompetitionYear?: unknown;
+    gender?: unknown; yearValue?: unknown;
     showCompetitiveResults?: unknown;
   }): void {
     const city = normalizeText(input.city) || null;
@@ -1259,45 +1252,28 @@ export const memberService = {
     if (!rawDob) {
       throw new ValidationError('Date of birth is required.');
     }
-    if (!region && regionRequiredForCountry(country)) {
-      throw new ValidationError(REGION_REQUIRED_MESSAGE);
-    }
-    const storedRegion = canonicalRegionOrThrow(country, region);
-
-    if (city && city.length > 64) {
-      throw new ValidationError('City must be 64 characters or fewer.');
-    }
-    if (region && region.length > 64) {
-      throw new ValidationError('Region must be 64 characters or fewer.');
-    }
-    if (country && country.length > 64) {
-      throw new ValidationError('Country must be 64 characters or fewer.');
-    }
+    // Shared with the profile edit form. The stored country is read so that a
+    // member re-submitting this step is held to the country rule only if they
+    // changed the value, exactly as the edit form treats them.
+    const stored = runSqliteRead('findPersonalDetails', () =>
+      account.findPersonalDetails.get(memberId),
+    ) as { country: string | null } | undefined;
+    const location = validateMemberLocationAndYear({
+      city, region, country,
+      storedCountry: stored?.country ?? null,
+      rawYear: normalizeText(input.yearValue),
+    });
+    const firstCompetitionYear = location.firstCompetitionYear;
 
     let birthDate: string | null = null;
     if (rawDob) {
       birthDate = validateBirthDate(rawDob);
     }
 
-    let firstCompetitionYear: number | null = null;
-    const rawYear = normalizeText(input.yearValue);
-    if (rawYear !== '') {
-      const parsedYear = parseInt(rawYear, 10);
-      const thisYear = new Date().getFullYear();
-      if (!Number.isFinite(parsedYear) || String(parsedYear) !== rawYear || parsedYear < 1972 || parsedYear > thisYear) {
-        throw new ValidationError(`Year must be a whole number between 1972 and ${thisYear}.`);
-      }
-      firstCompetitionYear = parsedYear;
-    }
-
-    const showFirstCompetitionYear = firstCompetitionYear != null
-      ? 1
-      : (input.showFirstCompetitionYear === true ||
-         input.showFirstCompetitionYear === 'on' ||
-         input.showFirstCompetitionYear === '1' ||
-         input.showFirstCompetitionYear === 'true'
-           ? 1
-           : 0);
+    // The wizard offers no visibility control for the year, and deliberately:
+    // a member who supplies one is showing it, and a member who leaves it blank
+    // has nothing to show. The profile edit form owns the toggle from then on.
+    const showFirstCompetitionYear = firstCompetitionYear != null ? 1 : 0;
 
     // The competitive-results flag commits with the other fields so a crash
     // cannot complete the submit while silently dropping the preference
@@ -1315,7 +1291,7 @@ export const memberService = {
     const now = new Date().toISOString();
     transaction(() => {
       account.updateMemberPersonalDetails.run(
-        city, storedRegion, country, birthDate, genderValue,
+        location.city, location.region, location.country, birthDate, genderValue,
         firstCompetitionYear, showFirstCompetitionYear,
         now, memberId,
       );

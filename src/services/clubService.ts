@@ -25,6 +25,16 @@
  *     leaderless state: the club persists, stays joinable, and stays listed.
  *   - Standard hashtag (`#club_{slug}`) persisted via `mediaTags.insertStandardTag` at
  *     creation; permanent (not HD).
+ *   - Every path that creates a club row applies `resolveClubRegion`: a country
+ *     with an official state or province set must name one, stored as the FULL
+ *     NAME, with a submitted code folded to it. The country page groups by
+ *     region only when every club in that country has one, so a single
+ *     region-less row flattens the whole country into one list. This is the
+ *     opposite of the member column, which stores the two-letter code for the
+ *     roster export; nothing joins them and they must not be unified. The fold
+ *     happens at the write path only: correcting a misspelling already on a row
+ *     stays a curated-data fix made at source, so the render layer is never
+ *     taught a geography table.
  *   - Club display names are not required to be globally unique; the hashtag is the
  *     canonical identifier.
  *   - A club has no club-level contact field; it is reachable through its
@@ -126,7 +136,7 @@ import { applyClubJoinInTx as applyActivePlayerClubJoinInTx, getStatus as getAct
 import { getTierStatus } from './membershipTieringService';
 import { runSqliteRead } from './sqliteRetry';
 import { PageViewModel } from '../types/page';
-import { countryCode } from './countryUtils';
+import { countryCode, subdivisionsForCountry } from './countryUtils';
 import { slugifyForTag } from './slugify';
 import { deriveClubTag, stableClubId } from './clubTag';
 import { randomUUID } from 'crypto';
@@ -168,6 +178,48 @@ function foldRegion(region: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, ' ')
     .trim();
+}
+
+export const CLUB_REGION_REQUIRED_MESSAGE =
+  'State or province is required for clubs in the USA and Canada.';
+export const CLUB_REGION_NAME_MESSAGE =
+  'Enter the full state or province name, such as Colorado or Ontario.';
+
+export type ClubRegionResolution =
+  | { status: 'ok'; region: string | null }
+  | { status: 'missing' }
+  | { status: 'unrecognized' };
+
+/**
+ * The state or province a club row stores, resolved from whatever was offered.
+ *
+ * Clubs store the FULL NAME ("New York"), the opposite of the member column,
+ * which stores the two-letter code ("NY"). That is deliberate and the two must
+ * not be unified: the member column feeds the Official IFPA Roster export,
+ * where a fixed-width code is the reconcilable form, while a club's region is
+ * read by visitors as a heading on the country page, where the name is what
+ * reads. Nothing joins the two columns.
+ *
+ * A country with an official state or province set must name one, because the
+ * country page groups by region only when every club in that country has one:
+ * a single region-less club flattens the whole country into one list. A country
+ * with no such set keeps a free-text region, unchanged.
+ *
+ * This resolves at the write path, which is not the same as folding a spelling
+ * at render time. Correcting a misspelling or a postal abbreviation already on
+ * a row stays a curated-data fix, made at source, so the render layer is never
+ * taught a geography table.
+ */
+export function resolveClubRegion(country: string, region: string | null): ClubRegionResolution {
+  const subdivisions = subdivisionsForCountry(country);
+  if (subdivisions.length === 0) return { status: 'ok', region };
+  const offered = region?.trim() ?? '';
+  if (!offered) return { status: 'missing' };
+  const wanted = offered.toLowerCase();
+  const match = subdivisions.find(
+    (s) => s.label.toLowerCase() === wanted || s.code.toLowerCase() === wanted,
+  );
+  return match ? { status: 'ok', region: match.label } : { status: 'unrecognized' };
 }
 
 // The heading shows the spelling most of the region's clubs use, so one mistyped
@@ -1877,6 +1929,12 @@ export class ClubService {
        * records the member's answer.
        */
       excludeAffiliationId?: string;
+      /**
+       * The state or province to give the new club, supplied by whoever
+       * triggered the promotion when the candidate carries none and its
+       * country requires one. Ignored when the candidate already has one.
+       */
+      region?: string | null;
     },
   ): Promise<{ branch: 'promoted' | 'already_promoted'; clubId: string }> {
     const candidate = legacyClubCandidates.findById.get(candidateId) as
@@ -1899,6 +1957,23 @@ export class ClubService {
     if (candidate.mapped_club_id) {
       return { branch: 'already_promoted', clubId: candidate.mapped_club_id };
     }
+
+    // The candidate's own region wins where it has one: it descends from the
+    // curated club seed, and curated data outranks anything supplied later.
+    // Where it has none and the country requires one, the caller must supply
+    // it, because a club created without it flattens the country page's
+    // grouping for every other club in that country.
+    const regionResolution = resolveClubRegion(
+      candidate.country ?? '',
+      candidate.region ?? opts.region ?? null,
+    );
+    if (regionResolution.status === 'missing') {
+      throw new ValidationError(CLUB_REGION_REQUIRED_MESSAGE);
+    }
+    if (regionResolution.status === 'unrecognized') {
+      throw new ValidationError(CLUB_REGION_NAME_MESSAGE);
+    }
+    const promotedRegion = regionResolution.region;
 
     const clubId = stableClubId(candidate.legacy_club_key);
 
@@ -1953,7 +2028,7 @@ export class ClubService {
         clubs.insertClub.run(
           clubId, now, 'club_service', now, 'club_service',
           candidate.display_name, candidate.description ?? '',
-          candidate.city ?? '', candidate.region, candidate.country ?? '',
+          candidate.city ?? '', promotedRegion, candidate.country ?? '',
           tagId,
         );
         if (externalUrl) {
@@ -2063,6 +2138,17 @@ export class ClubService {
     if (!city) fieldErrors.city = 'City is required.';
     if (!country) fieldErrors.country = 'Country is required.';
 
+    // The country page groups clubs by state or province only when every club
+    // in that country has one, so a single region-less club flattens the whole
+    // country into one long list.
+    const regionResolution = resolveClubRegion(country, region);
+    if (regionResolution.status === 'missing') {
+      fieldErrors.region = CLUB_REGION_REQUIRED_MESSAGE;
+    } else if (regionResolution.status === 'unrecognized') {
+      fieldErrors.region = CLUB_REGION_NAME_MESSAGE;
+    }
+    const storedRegion = regionResolution.status === 'ok' ? regionResolution.region : null;
+
     let slug = input.slug.trim().toLowerCase();
     if (!slug) {
       slug = slugifyForTag(city);
@@ -2138,7 +2224,7 @@ export class ClubService {
         );
         clubs.insertClub.run(
           clubId, now, 'club_service', now, 'club_service',
-          name, description, city, region, country,
+          name, description, city, storedRegion, country,
           tagId,
         );
         clubLeaders.insertClubLeader.run(

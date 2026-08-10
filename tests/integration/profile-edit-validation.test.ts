@@ -217,18 +217,24 @@ describe('Edit Profile no longer hosts legacy-claim anchors', () => {
 // ── firstCompetitionYear ──────────────────────────────────────────────────────
 
 describe('firstCompetitionYear validation', () => {
-  it('year below 1972 is silently discarded (set to NULL)', async () => {
+  // A year the member cannot have competed in is a typo, and the profile form
+  // must say so rather than accept the save and quietly clear the field: a
+  // member who mistypes one digit would otherwise lose the year they had and be
+  // told the save succeeded.
+  it('a year before 1972 is refused, and the stored year is left alone', async () => {
+    const before = readMember().first_competition_year;
     const res = await postEdit({ firstCompetitionYear: '1960' });
-    expect(res.status).toBe(303);
-    const row = readMember();
-    expect(row.first_competition_year).toBeNull();
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Year must be a whole number between 1972 and');
+    expect(readMember().first_competition_year).toBe(before);
   });
 
-  it('year above current year is silently discarded', async () => {
+  it('a year after the current year is refused, and the stored year is left alone', async () => {
+    const before = readMember().first_competition_year;
     const res = await postEdit({ firstCompetitionYear: '2099' });
-    expect(res.status).toBe(303);
-    const row = readMember();
-    expect(row.first_competition_year).toBeNull();
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Year must be a whole number between 1972 and');
+    expect(readMember().first_competition_year).toBe(before);
   });
 
   it('year exactly 1972 is accepted', async () => {
@@ -246,11 +252,12 @@ describe('firstCompetitionYear validation', () => {
     expect(row.first_competition_year).toBe(Number(currentYear));
   });
 
-  it('non-numeric string is discarded (set to NULL)', async () => {
+  it('a non-numeric year is refused rather than erasing the stored year', async () => {
+    const before = readMember().first_competition_year;
     const res = await postEdit({ firstCompetitionYear: 'abc' });
-    expect(res.status).toBe(303);
-    const row = readMember();
-    expect(row.first_competition_year).toBeNull();
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Year must be a whole number between 1972 and');
+    expect(readMember().first_competition_year).toBe(before);
   });
 
   it('empty string is discarded (set to NULL)', async () => {
@@ -331,6 +338,9 @@ describe('bio validation', () => {
 // ── Mandatory city/country ────────────────────────────────────────────────────
 
 describe('mandatory city/country', () => {
+  // The establishing save submits 'USA', which the country rule folds to the one
+  // name the picker offers for that country, so the stored value these cases
+  // check for is the canonical spelling rather than the submitted one.
   it('rejects a submission that blanks both city and country, preserving the stored values', async () => {
     // Establish a complete profile first.
     await postEdit({ city: 'Portland', country: 'USA' });
@@ -341,7 +351,7 @@ describe('mandatory city/country', () => {
     expect(res.text).toContain('City and country are required');
     const row = readMember();
     expect(row.city).toBe('Portland');
-    expect(row.country).toBe('USA');
+    expect(row.country).toBe('United States');
   });
 
   it('rejects a submission that blanks only the country', async () => {
@@ -352,7 +362,7 @@ describe('mandatory city/country', () => {
     const row = readMember();
     // The rejected save leaves the earlier complete profile untouched.
     expect(row.city).toBe('Portland');
-    expect(row.country).toBe('USA');
+    expect(row.country).toBe('United States');
   });
 });
 

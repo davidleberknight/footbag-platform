@@ -247,6 +247,14 @@
             <td><span class="badge">{{this.classificationLabel}}</span></td>
             <td>
               <form method="POST" action="/admin/club-cleanup/candidates/{{this.candidateId}}/promote" class="cleanup-action-form">
+                {{#if this.needsRegion}}
+                  <select name="region" class="cleanup-action-select">
+                    <option value="">State or province</option>
+                    {{#each this.regionOptions}}
+                      <option value="{{this.value}}">{{this.label}}</option>
+                    {{/each}}
+                  </select>
+                {{/if}}
                 <input type="text" name="reasonText" placeholder="Reason" class="cleanup-reason-input" />
                 <button type="submit" class="btn btn-outline btn-sm">Promote to Live Club</button>
               </form>

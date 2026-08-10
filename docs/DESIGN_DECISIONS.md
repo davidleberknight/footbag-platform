@@ -4154,15 +4154,11 @@ Impact:
 
 Decision:
 
-Patching is a reviewed human action on every surface: dependencies, pinned GitHub Actions, host operating-system packages, and container base images. Automated detection is wanted; automated version bumping is not. The cadence and the per-surface procedure live in DEVOPS_GUIDE.md (private GitHub repo), "Routine Security and Platform Operations".
+Patching is a reviewed human action on every surface: dependencies, pinned GitHub Actions, host operating-system packages, and container base images. Automated detection covers dependency advisories; pinned actions, host packages, and base images are reviewed by hand on the operational cadence. No bot opens a version bump on any surface. The cadence and the per-surface procedure live in DEVOPS_GUIDE.md (private GitHub repo), "Routine Security and Platform Operations".
 
 Rationale:
 
 - A bot that opens version bumps replaces a deliberate review step with an unreviewed upstream change, which is the opposite of why dependencies are pinned at all.
-
-- Detection and application separate cleanly: learning that a patch is needed carries no risk, applying one does. Only the second half needs a human, so only the second half is manual.
-
-- A vulnerable dependency announces itself through a published advisory. A dependency that has merely aged out announces nothing, and stays invisible until the platform it runs on is withdrawn. The two need different instruments, and covering only the first leaves the failure that actually arrives unwatched.
 
 Requirements:
 
@@ -4171,8 +4167,6 @@ Requirements:
 - Repository-level vulnerability alerting is enabled, so the maintainer is notified when a dependency carries a published advisory.
 
 - The dependency audit fails CI at moderate severity and above, and the pull-request dependency review inspects what each change introduces.
-
-- A scheduled check reports any pinned GitHub Action that has fallen behind its current release. It reports only and never edits a workflow. An action left on a withdrawn runtime raises no advisory, so this is the only instrument that sees that class of drift.
 
 - Host operating-system packages and container base images are patched on the documented operational cadence, with the health endpoints and logs verified after any restart.
 
@@ -4183,8 +4177,6 @@ Trade-offs:
 Impact:
 
 - Patching is System Administrator work and the user stories assign it there.
-
-- The scheduled staleness check fails its own run when a pin is behind, which is the notification channel. It never blocks an ordinary build, because it depends on the network and an outage must not fail unrelated work.
 
 # 8. Logging, Monitoring & Abuse Prevention
 

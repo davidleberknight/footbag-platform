@@ -6,9 +6,16 @@
  * titles) into a single source of truth so new countries are added in one
  * place. Both lookups key on the full country name as stored in the DB.
  *
+ * The code map is also the vocabulary a stored country is canonicalized
+ * against: it carries every alias the platform accepts, and the picker offers
+ * one name per ISO code, so `canonicalCountryName` can fold any accepted
+ * spelling to that one name.
+ *
  * Keep both maps in sync when adding a new country. `FLAG` entries not
  * present in `CODE` (or vice versa) fall back to the documented default on
- * lookup: empty string for flag, the input name for code.
+ * lookup: empty string for flag, the input name for code. A country the picker
+ * offers with no flag entry renders no flag at all, which is why every name
+ * `countryNames()` can return carries one.
  */
 
 const COUNTRY_FLAGS: Record<string, string> = {
@@ -22,22 +29,31 @@ const COUNTRY_FLAGS: Record<string, string> = {
   'Chile':            '🇨🇱',
   'China':            '🇨🇳',
   'Colombia':         '🇨🇴',
+  'Croatia':          '🇭🇷',
   'Czech Republic':   '🇨🇿',
   'Denmark':          '🇩🇰',
   'Estonia':          '🇪🇪',
   'Finland':          '🇫🇮',
   'France':           '🇫🇷',
   'Germany':          '🇩🇪',
+  'Greece':           '🇬🇷',
   'Hungary':          '🇭🇺',
   'India':            '🇮🇳',
   'Ireland':          '🇮🇪',
+  'Israel':           '🇮🇱',
+  'Italy':            '🇮🇹',
   'Japan':            '🇯🇵',
   'Mexico':           '🇲🇽',
+  'Netherlands':      '🇳🇱',
   'New Zealand':      '🇳🇿',
   'Nigeria':          '🇳🇬',
+  'Norway':           '🇳🇴',
   'Pakistan':         '🇵🇰',
+  'Peru':             '🇵🇪',
   'Poland':           '🇵🇱',
+  'Portugal':         '🇵🇹',
   'Puerto Rico':      '🇵🇷',
+  'Romania':          '🇷🇴',
   'Russia':           '🇷🇺',
   'Slovakia':         '🇸🇰',
   'Slovenia':         '🇸🇮',
@@ -52,6 +68,7 @@ const COUNTRY_FLAGS: Record<string, string> = {
   'United Kingdom':   '🇬🇧',
   'USA':              '🇺🇸',
   'United States':    '🇺🇸',
+  'Uruguay':          '🇺🇾',
   'Venezuela':        '🇻🇪',
 };
 
@@ -134,6 +151,46 @@ export function countryNames(): string[] {
     names.push(name);
   }
   return names;
+}
+
+/**
+ * The picker's name for a country however it was spelled, or null when the
+ * spelling names no country this platform knows.
+ *
+ * A country reaches a write path from the picker, from a legacy import, or
+ * from a request built by hand, and those three spell the same place
+ * differently ('United States', 'USA', 'us', 'U.S.'). Every alias and every ISO
+ * code therefore resolves to the single name the picker offers for that
+ * country's code, so one place cannot be stored under several spellings.
+ * Case and the full stops people write into abbreviations are ignored, which
+ * is the same punctuation the region-required rule folds before deciding
+ * whether a country is one that needs a state or province: the two must agree
+ * about what names a country, or a spelling could satisfy one and escape the
+ * other.
+ */
+export function canonicalCountryName(country: string): string | null {
+  return canonicalNameBySpelling().get(foldCountrySpelling(country)) ?? null;
+}
+
+function foldCountrySpelling(country: string): string {
+  return country.trim().toLowerCase().replace(/\./g, '');
+}
+
+let CANONICAL_NAME_BY_SPELLING: Map<string, string> | null = null;
+
+function canonicalNameBySpelling(): Map<string, string> {
+  if (CANONICAL_NAME_BY_SPELLING) return CANONICAL_NAME_BY_SPELLING;
+  const nameForCode = new Map<string, string>();
+  for (const name of countryNames()) nameForCode.set(COUNTRY_CODES[name], name);
+  const index = new Map<string, string>();
+  for (const [name, code] of Object.entries(COUNTRY_CODES)) {
+    const canonical = nameForCode.get(code);
+    if (!canonical) continue;
+    index.set(foldCountrySpelling(name), canonical);
+    index.set(foldCountrySpelling(code), canonical);
+  }
+  CANONICAL_NAME_BY_SPELLING = index;
+  return index;
 }
 
 /**

@@ -31,7 +31,13 @@ function createClub(memberId: string, body: Record<string, string>) {
     .send({ description: '', region: '', whatsapp: '', ...body });
 }
 
-const VALID = { city: 'Townsville', country: 'USA', contactEmail: 'organizer@example.com' };
+// The USA writes its addresses with states, and a club created without one
+// flattens the country page's grouping for every other club there, so a valid
+// submission carries one.
+const VALID = {
+  city: 'Townsville', region: 'Kansas', country: 'USA',
+  contactEmail: 'organizer@example.com',
+};
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);

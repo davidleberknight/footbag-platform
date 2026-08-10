@@ -64,7 +64,7 @@ describe('memberService write-path atomicity', () => {
       bio: 'NEW BIO',
       city: 'NewCity',
       region: '',
-      country: 'NewCountry',
+      country: 'France',
       phone: '',
       emailVisibility: 'private',
       firstCompetitionYear: '',
@@ -80,7 +80,7 @@ describe('memberService write-path atomicity', () => {
     const { id } = seedMember({ city: 'ORIGINAL CITY' });
     const spy = throwOnAudit();
     expect(() => svc.setPersonalDetails(id, {
-      city: 'NewCity', country: 'NewCountry', birthDate: '1990-01-01',
+      city: 'NewCity', country: 'France', birthDate: '1990-01-01',
     })).toThrow('forced audit failure');
     spy.mockRestore();
     expect(memberField(id, 'city')).toBe('ORIGINAL CITY');
@@ -93,7 +93,7 @@ describe('memberService write-path atomicity', () => {
     const { id } = seedMember({ city: 'ORIGINAL CITY', show_competitive_results: 1 });
     const spy = throwOnAudit();
     expect(() => svc.setPersonalDetails(id, {
-      city: 'NewCity', country: 'NewCountry', birthDate: '1990-01-01',
+      city: 'NewCity', country: 'France', birthDate: '1990-01-01',
       showCompetitiveResults: '0',
     })).toThrow('forced audit failure');
     spy.mockRestore();
@@ -101,7 +101,7 @@ describe('memberService write-path atomicity', () => {
     expect(memberField(id, 'show_competitive_results')).toBe(1);
 
     svc.setPersonalDetails(id, {
-      city: 'NewCity', country: 'NewCountry', birthDate: '1990-01-01',
+      city: 'NewCity', country: 'France', birthDate: '1990-01-01',
       showCompetitiveResults: '0',
     });
     expect(memberField(id, 'city')).toBe('NewCity');
@@ -111,7 +111,7 @@ describe('memberService write-path atomicity', () => {
   it('setPersonalDetails leaves the competitive-results flag untouched when the field is omitted', () => {
     const { id } = seedMember({ show_competitive_results: 0 });
     svc.setPersonalDetails(id, {
-      city: 'SomeCity', country: 'SomeCountry', birthDate: '1990-01-01',
+      city: 'SomeCity', country: 'Germany', birthDate: '1990-01-01',
     });
     expect(memberField(id, 'show_competitive_results')).toBe(0);
   });

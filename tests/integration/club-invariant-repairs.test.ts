@@ -164,7 +164,9 @@ describe('promotion refuses a candidate retired while its URL was being checked'
   it('never produces a live club from a candidate archived during the network call', async () => {
     const candidateId = insertLegacyClubCandidate(db, {
       display_name: 'Racy Candidate',
-      city: 'Portland', country: 'USA',
+      // A state on file, so this case exercises the archived-during-the-call
+      // race rather than the separate state requirement.
+      city: 'Portland', region: 'Oregon', country: 'USA',
       classification: 'onboarding_visible',
       external_url: 'https://example.com/racy',
     });

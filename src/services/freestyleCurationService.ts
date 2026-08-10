@@ -35,7 +35,15 @@
  * structural doctrine check: when the ADD is numeric and the execution notation
  * carries scoring brackets, the scoring-bracket count must equal the ADD. Rows
  * with no scoring brackets are not checked. Terminal-atom and name-to-slug
- * doctrine remain out of scope. addAlias derives the alias slug from the display
+ * doctrine remain out of scope. A save that changes either notation field or the
+ * asserted ADD also clears the row's stored notation parse (the structural parse,
+ * the computed ADD and its formula, and the parse status) in the same
+ * transaction, and records that it did so on the audit entry: those fields are
+ * derived from the notation and graded against the asserted ADD by the content
+ * pipeline, which this surface cannot re-run, so keeping them would publish a
+ * grammar panel describing notation the row no longer carries. A row with no
+ * stored parse renders without the panel, which is the same state a
+ * never-parsed row is in. addAlias derives the alias slug from the display
  * text with the pipeline's normalization, and rejects a slug that equals any
  * canonical trick slug (checked across every row regardless of status) or an
  * existing alias slug (the global primary key); it leaves source_id and notes
@@ -823,6 +831,16 @@ export const freestyleCurationService = {
     if (pronunciation !== (current.pronunciation ?? null))      changedFields.push('pronunciation');
     if (operationalNotationSource !== (current.operational_notation_source ?? null)) changedFields.push('operational_notation_source');
 
+    // The stored notation parse is derived from the two notation fields and is
+    // graded against the asserted ADD, so an edit to any of the three leaves it
+    // describing a row that no longer exists. Nothing in the application can
+    // re-derive it (the parse is produced by the content pipeline), so the honest
+    // outcome is to drop it and let the public grammar panel fall silent until it
+    // is derived again, rather than keep serving a parse of the previous notation.
+    const parseInputsChanged = changedFields.some(
+      (field) => field === 'notation' || field === 'operational_notation' || field === 'adds',
+    );
+
     transaction(() => {
       freestyleTricks.updateScalars.run(
         canonicalName, adds, movementNotation, executionNotation,
@@ -830,6 +848,9 @@ export const freestyleCurationService = {
         description, shortDescription, executionSummary, learningNotes,
         prerequisiteNotes, pronunciation, operationalNotationSource, slug,
       );
+      if (parseInputsChanged) {
+        freestyleTricks.clearDerivedParse.run(slug);
+      }
       appendAuditEntry({
         actionType:    'freestyle.trick.updated',
         category:      'content',
@@ -837,7 +858,7 @@ export const freestyleCurationService = {
         actorMemberId,
         entityType:    'freestyle_trick',
         entityId:      slug,
-        metadata:      { changedFields },
+        metadata:      { changedFields, derivedParseCleared: parseInputsChanged },
       });
     });
   },

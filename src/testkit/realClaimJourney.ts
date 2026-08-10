@@ -182,15 +182,17 @@ export async function buildRealClaimJourney(legacyMemberId: string): Promise<Bui
 
   // 5. Personal details: synthetic, obviously-test values (the claimed record's
   //    own migrated data is what the crawl verifies, not these). Completing the
-  //    task lets the wizard advance to the club-affiliations step.
+  //    task lets the wizard advance to the club-affiliations step. The city
+  //    carries the obviously-synthetic signal; the country has to be a real one
+  //    because the location rules hold a changed country to the canonical set,
+  //    and a country with no state or province list keeps the region blank.
   memberService.setPersonalDetails(memberId, {
     city: 'Testville',
     region: '',
-    country: 'Testland',
+    country: 'Estonia',
     birthDate: '2008-08-08',
     gender: 'undisclosed',
     yearValue: '2000',
-    showFirstCompetitionYear: true,
     showCompetitiveResults: true,
   });
   memberOnboardingService.completeTaskIfOutstanding(memberId, 'personal_details');
@@ -214,7 +216,7 @@ export async function buildRealClaimJourney(legacyMemberId: string): Promise<Bui
     bio: bioFor(),
     city: 'Testville',
     region: '',
-    country: 'Testland',
+    country: 'Estonia',
     phone: '',
     whatsapp: '',
     emailVisibility: 'members',

@@ -132,7 +132,10 @@ describe('direct HP claim: surname match succeeds', () => {
       .send({});
 
     const member = getMember(memberId)!;
-    expect(member.country).toBe('NZ');
+    // The record spells the country as an ISO code; the claim merge holds
+    // imported location to the same rules the member's own forms apply, so the
+    // member row carries the one name the picker offers.
+    expect(member.country).toBe('New Zealand');
   });
 
   it('HP HoF flag merges onto member via OR semantics', async () => {

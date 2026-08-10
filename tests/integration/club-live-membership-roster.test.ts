@@ -231,7 +231,7 @@ describe('a club roster shows the members who joined it', () => {
       .post('/clubs/create')
       .set('Cookie', cookieFor(JOINER))
       .type('form')
-      .send({ name: 'Joiner Footbag Collective', city: 'Boise', country: 'USA' });
+      .send({ name: 'Joiner Footbag Collective', city: 'Boise', region: 'Idaho', country: 'USA' });
     expect(create.status).toBe(303);
 
     const db = new BetterSqlite3(dbPath, { readonly: true });

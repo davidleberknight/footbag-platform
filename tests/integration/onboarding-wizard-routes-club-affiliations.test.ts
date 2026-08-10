@@ -34,6 +34,7 @@ const MEMBER_MULTI     = 'wiz-clubaff-multi';
 const MEMBER_F1_OTHER  = 'wiz-clubaff-other';
 const MEMBER_JUNK      = 'wiz-clubaff-junk';
 const MEMBER_PROMOTE   = 'wiz-clubaff-promote';
+const MEMBER_NOSTATE   = 'wiz-clubaff-nostate';
 const MEMBER_NOPROMOTE = 'wiz-clubaff-nopromote';
 const MEMBER_CAP       = 'wiz-clubaff-cap';
 const MEMBER_DISAMBIG_CAP = 'wiz-clubaff-disambig-cap';
@@ -53,6 +54,8 @@ let multiCblBeta     = '';
 let otherMemberAffId = '';
 let promoteCandId    = '';
 let promoteAffId     = '';
+let nostateCandId    = '';
+let nostateAffId     = '';
 let nopromoteCandId  = '';
 let nopromoteAffId   = '';
 let capAffId         = '';
@@ -198,6 +201,27 @@ beforeAll(async () => {
     legacy_club_candidate_id: promoteCandId,
     confidence_score:         0.9,
   });
+
+  // A second unpromoted candidate in a state-using country, for the case where
+  // the member confirms without answering the state question.
+  insertMember(db, { onboarding: 'none',
+    id: MEMBER_NOSTATE,
+    slug: 'wiz_clubaff_nostate',
+    login_email: 'wiz-nostate@example.com',
+    legacy_member_id: 'lm-wiz-nostate',
+  });
+  nostateCandId = insertLegacyClubCandidate(db, {
+    classification: 'onboarding_visible',
+    display_name:   'Stateless Confirm Club',
+    city:           'Riverton',
+    country:        'USA',
+    description:    'A club awaiting promotion with no state on file.',
+  });
+  nostateAffId = insertLegacyPersonClubAffiliation(db, {
+    legacy_member_id:         'lm-wiz-nostate',
+    legacy_club_candidate_id: nostateCandId,
+    confidence_score:         0.9,
+  });
   insertMember(db, { onboarding: 'none',
     id: MEMBER_NOPROMOTE,
     slug: 'wiz_clubaff_nopromote',
@@ -319,6 +343,7 @@ beforeAll(async () => {
   for (const id of [
     MEMBER_EMPTY, MEMBER_MEMBERSHIP, MEMBER_LEADERSHIP, MEMBER_LEAD_CAPPED, MEMBER_MULTI,
     MEMBER_JUNK, MEMBER_CAP, MEMBER_CAP_LAST, MEMBER_DISAMBIG_CAP, MEMBER_PROMOTE, MEMBER_NOPROMOTE,
+    MEMBER_NOSTATE,
   ]) {
     insertOnboardingTask(db, id, 'personal_details', 'completed');
   }
@@ -823,16 +848,25 @@ describe('POST /register/wizard/club_affiliations/submit — unpromoted-candidat
       .post('/register/wizard/club_affiliations/submit')
       .set('Cookie', cookieFor(MEMBER_PROMOTE))
       .type('form')
-      .send({ kind: 'membership', candidateId: promoteAffId, userDecision: 'confirm', activitySignal: 'active' });
+      .send({
+        kind: 'membership', candidateId: promoteAffId, userDecision: 'confirm',
+        activitySignal: 'active',
+        // The candidate carries no state, and its country uses them, so the
+        // card asked the member for one. Without it the club would be created
+        // region-less and flatten the country page's grouping.
+        clubRegion: 'Illinois',
+      });
     expect(res.status).toBe(303);
 
     const candidate = readCandidate(promoteCandId);
     expect(candidate.mapped_club_id).not.toBeNull();
 
     const club = testDb
-      .prepare(`SELECT name FROM clubs WHERE id = ?`)
-      .get(candidate.mapped_club_id) as { name: string } | undefined;
+      .prepare(`SELECT name, region FROM clubs WHERE id = ?`)
+      .get(candidate.mapped_club_id) as { name: string; region: string | null } | undefined;
     expect(club?.name).toBe('Unpromoted Confirm Club');
+    // Clubs store the full state name, unlike the member column's code.
+    expect(club?.region).toBe('Illinois');
 
     const aff = testDb
       .prepare(`SELECT resolution_status, resolved_club_id FROM legacy_person_club_affiliations WHERE id = ?`)
@@ -848,6 +882,23 @@ describe('POST /register/wizard/club_affiliations/submit — unpromoted-candidat
     expect(mca[0].is_current).toBe(1);
 
     expect(readTaskState(MEMBER_PROMOTE)).toBe('completed');
+  });
+
+  // The country page groups clubs by state only when every club in that country
+  // has one, so one region-less club flattens a listing of hundreds. Promotion
+  // refuses rather than creating it, and the member is asked again.
+  it('refuses to promote a candidate in a state-using country with no state supplied', async () => {
+    const res = await request(createApp())
+      .post('/register/wizard/club_affiliations/submit')
+      .set('Cookie', cookieFor(MEMBER_NOSTATE))
+      .type('form')
+      .send({
+        kind: 'membership', candidateId: nostateAffId, userDecision: 'confirm',
+        activitySignal: 'active', clubRegion: '',
+      });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('State or province is required');
+    expect(readCandidate(nostateCandId).mapped_club_id).toBeNull();
   });
 
   it('decline rejects the suggestion without creating a club', async () => {

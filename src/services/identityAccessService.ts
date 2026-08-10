@@ -51,6 +51,22 @@
  *     the admin dispute revert that pairs claim.dispute_opened with
  *     claim.revert_applied in one transaction; covers legacy-linked and
  *     HP-only claims alike
+ *   - The claim-time field merge and its precedence ladder: the member's own
+ *     answer beats every import, and the curated historical record beats the
+ *     legacy dump. Inside one transaction that ladder is enforced by write
+ *     order plus fill-if-empty; across transactions it is not, so a curated
+ *     record claimed after a legacy account re-asserts its values over exactly
+ *     what the dump wrote (equality-matched, so nothing the member entered
+ *     moves). Imported location is normalised through the shared member
+ *     location rules, which NEVER throw here: a value that will not normalise
+ *     is dropped and the member supplies it, because refusing would roll back
+ *     the whole claim transaction over a defect in twenty-year-old data. The
+ *     revert scrub is handed the same normalised values that were written, or
+ *     its equality test would match nothing and strand the record's personal
+ *     data on the member row. Street address and postal code are deliberately
+ *     not copied onto the member row at all; they stay on the archival
+ *     legacy_members snapshot. A revert that empties a field the
+ *     personal-details task requires re-opens that task.
  *
  * Does not own:
  *   - Member profile CRUD (MemberService)
@@ -129,7 +145,7 @@
 import { randomUUID, randomBytes } from 'crypto';
 import argon2 from 'argon2';
 import { hashPassword } from '../lib/passwordHash';
-import { auth, registration, legacyClaim, legacyMembers, account, workQueue, autoLinkStagedCandidates, declaredAnchors, accountTokens, MemberAuthRow, LegacyMemberRow, AlreadyClaimedRow, HistoricalPersonClaimRow, AutoLinkStagedCandidateRow } from '../db/db';
+import { auth, registration, legacyClaim, legacyMembers, account, memberOnboarding, workQueue, autoLinkStagedCandidates, declaredAnchors, accountTokens, MemberAuthRow, LegacyMemberRow, AlreadyClaimedRow, HistoricalPersonClaimRow, AutoLinkStagedCandidateRow } from '../db/db';
 import { transaction } from '../db/db';
 import { accountTokenService } from './accountTokenService';
 import { emailService } from './emailService';
@@ -165,6 +181,7 @@ function normalizeEmail(email: string): string {
 
 import { slugify } from './slugify';
 import { extractSurname, matchReservedNameWord, stripAccents, surnameKey } from './nameUtils';
+import { normalizeImportedLocation } from './memberLocationRules';
 
 /**
  * Generate a unique slug. Appends _2, _3, etc. on conflict.
@@ -1951,7 +1968,7 @@ function claimLegacyAccountInTxInner(
       throw new ValidationError('Your account is already linked to a historical player record.');
     }
     legacyClaim.mergeHistoricalPersonFields.run(
-      hp.country,
+      normalizeImportedLocation({ city: null, region: null, country: hp.country }).country,
       hp.hof_member,
       hp.bap_member,
       hp.hof_induction_year,
@@ -1961,17 +1978,23 @@ function claimLegacyAccountInTxInner(
     );
   }
 
+  // The legacy record's location is held to the same rules the member's own
+  // forms apply, except that nothing here refuses: a value that will not
+  // normalise is dropped and the member supplies it on the personal-details
+  // step, because a typo in twenty-year-old data must never fail a claim.
+  const legacyLocation = normalizeImportedLocation({
+    city: row.city, region: row.region, country: row.country,
+  });
+
   legacyClaim.transferLegacyFields.run(
     row.legacy_member_id,
     row.legacy_user_id,
     row.legacy_email,
     row.bio ?? '',
     row.birth_date,
-    row.street_address,
-    row.postal_code,
-    row.city,
-    row.region,
-    row.country,
+    legacyLocation.city,
+    legacyLocation.region,
+    legacyLocation.country,
     row.ifpa_join_date,
     row.is_hof,
     row.is_bap,
@@ -3059,11 +3082,15 @@ function claimHistoricalPersonInTxInner(
 
   // Merge precedence: the member's own answer beats every import, and the
   // curated historical record beats the legacy dump. Both merge statements are
-  // fill-if-empty, so the ladder is enforced by write order: the curated
-  // historical fields (country / HoF / BAP / hof_inducted_year /
-  // first_competition_year) land BEFORE the transitive legacy transfer.
+  // fill-if-empty, so WITHIN this transaction the ladder is enforced by write
+  // order: the curated historical fields (country / HoF / BAP /
+  // hof_inducted_year / first_competition_year) land BEFORE the transitive
+  // legacy transfer. Write order settles nothing ACROSS transactions, which is
+  // what the re-assert below is for.
+  const curatedCountry =
+    normalizeImportedLocation({ city: null, region: null, country: hp.country }).country;
   legacyClaim.mergeHistoricalPersonFields.run(
-    hp.country,
+    curatedCountry,
     hp.hof_member,
     hp.bap_member,
     hp.hof_induction_year,
@@ -3072,18 +3099,41 @@ function claimHistoricalPersonInTxInner(
     requestingMemberId,
   );
 
+  // The member linked a legacy account in an earlier transaction, so the
+  // columns the two sources share are already filled from the dump and the
+  // fill-if-empty merge above could not reach them. Put the curated record back
+  // on top of exactly what the dump wrote, and nothing else.
+  if (member.legacy_member_id) {
+    const priorLegacy = legacyMembers.findByLegacyMemberId.get(member.legacy_member_id) as
+      | LegacyMemberRow
+      | undefined;
+    if (priorLegacy) {
+      const priorLocation = normalizeImportedLocation({
+        city: priorLegacy.city, region: priorLegacy.region, country: priorLegacy.country,
+      });
+      legacyClaim.reassertCuratedOverLegacyFields.run(
+        curatedCountry, priorLocation.country, curatedCountry,
+        hp.first_year, priorLegacy.first_competition_year, hp.first_year,
+        now, requestingMemberId,
+      );
+    }
+  }
+
   if (transitiveLegacyRow) {
+    const transitiveLocation = normalizeImportedLocation({
+      city:    transitiveLegacyRow.city,
+      region:  transitiveLegacyRow.region,
+      country: transitiveLegacyRow.country,
+    });
     legacyClaim.transferLegacyFields.run(
       transitiveLegacyRow.legacy_member_id,
       transitiveLegacyRow.legacy_user_id,
       transitiveLegacyRow.legacy_email,
       transitiveLegacyRow.bio ?? '',
       transitiveLegacyRow.birth_date,
-      transitiveLegacyRow.street_address,
-      transitiveLegacyRow.postal_code,
-      transitiveLegacyRow.city,
-      transitiveLegacyRow.region,
-      transitiveLegacyRow.country,
+      transitiveLocation.city,
+      transitiveLocation.region,
+      transitiveLocation.country,
       transitiveLegacyRow.ifpa_join_date,
       transitiveLegacyRow.is_hof,
       transitiveLegacyRow.is_bap,
@@ -3149,6 +3199,31 @@ function claimHistoricalPersonInTxInner(
     legacyMemberId: hp.legacy_member_id ?? null,
     personId:       hp.person_id,
   });
+}
+
+// A claim revert clears every field that still matches what the claim copied
+// in, and city, country and date of birth are fields the personal-details step
+// requires. A member who happened to type the same city as their linked record
+// therefore loses it on a revert, while the step stays completed: nothing
+// re-asks them, and the Official IFPA Roster export carries the blank. Putting
+// the step back in front of them is the honest repair -- the same posture the
+// platform takes elsewhere with unresolved legacy residue, which is labelled
+// and re-asked rather than quietly carried.
+//
+// Runs inside the revert transaction, so the task state and the scrub commit
+// together.
+function reopenPersonalDetailsIfIncomplete(
+  memberId: string,
+  now: string,
+  actorMemberId: string,
+): void {
+  const row = account.findPersonalDetails.get(memberId) as
+    | { city: string | null; country: string | null; birth_date: string | null }
+    | undefined;
+  if (!row) return;
+  const incomplete = !row.city || !row.country || !row.birth_date;
+  if (!incomplete) return;
+  memberOnboarding.reopenCompletedTask.run(now, actorMemberId, memberId, 'personal_details');
 }
 
 function claimHistoricalPerson(
@@ -3695,6 +3770,14 @@ function revertAutoLinkInTx(
       // themselves is preserved.
       const legacyRow = legacyMembers.findByLegacyMemberId.get(legacyMemberId) as LegacyMemberRow | undefined;
       if (legacyRow) {
+        // The scrub clears a field only where it still equals what the claim
+        // copied in, so it must be handed the values the merge actually wrote,
+        // not the raw ones it read. Comparing against the raw spelling after
+        // the merge stored a normalised one would match nothing and strand the
+        // linked record's personal data on the member row.
+        const claimedLocation = normalizeImportedLocation({
+          city: legacyRow.city, region: legacyRow.region, country: legacyRow.country,
+        });
         legacyMembers.scrubClaimedLegacyFields.run(
           legacyRow.legacy_user_id,
           legacyRow.legacy_email,
@@ -3702,15 +3785,16 @@ function revertAutoLinkInTx(
           legacyRow.birth_date,
           legacyRow.street_address,
           legacyRow.postal_code,
-          legacyRow.city,
-          legacyRow.region,
-          legacyRow.country,
+          claimedLocation.city,
+          claimedLocation.region,
+          claimedLocation.country,
           legacyRow.ifpa_join_date,
           legacyRow.first_competition_year,
           now,
           actor.actorMemberId,
           memberId,
         );
+        reopenPersonalDetailsIfIncomplete(memberId, now, actor.actorMemberId);
       }
     }
     if (clearedHp) {

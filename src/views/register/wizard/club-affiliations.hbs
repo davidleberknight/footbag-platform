@@ -112,6 +112,19 @@
               <label class="radio-label"><input type="radio" name="userDecision" value="decline" required /> No</label>
             </fieldset>
 
+            {{#if content.card.needsRegion}}
+              <div class="form-field mt-4 mb-6">
+                <label for="clubRegion">{{content.card.regionQuestionLabel}}</label>
+                <p class="text-muted fs-sm mb-2">We only need this if you answer Yes. It lets us list the club under the right state or province.</p>
+                <select id="clubRegion" name="clubRegion">
+                  <option value="">Select a state or province</option>
+                  {{#each content.card.regionOptions}}
+                    <option value="{{this.value}}">{{this.label}}</option>
+                  {{/each}}
+                </select>
+              </div>
+            {{/if}}
+
             <fieldset class="activity-signal-fieldset mt-4 mb-6">
               <legend class="fs-sm fw-600">Is {{content.card.clubName}} still active?</legend>
               <p class="text-muted fs-sm mb-2">This helps us keep club listings accurate.</p>

@@ -138,6 +138,23 @@ function setupClaimed(opts: { withHpBackLink: boolean; hpHasMatchingLegacyId?: b
   return { memberId, legacyId, hpId };
 }
 
+// A fixed stamp for seeded task rows; nothing under test compares against it.
+const SEEDED_AT = '2026-01-01T00:00:00.000Z';
+
+/**
+ * Put the member's personal-details task into the completed state the revert
+ * cases start from. The task row already exists by this point, created when the
+ * member's onboarding list was started, so this moves it rather than making a
+ * second one.
+ */
+function markPersonalDetailsCompleted(db: BetterSqlite3.Database, memberId: string): void {
+  db.prepare(`
+    UPDATE member_onboarding_tasks
+       SET state = 'completed', completed_at = ?, updated_at = ?
+     WHERE member_id = ? AND task_type = 'personal_details'
+  `).run(SEEDED_AT, SEEDED_AT, memberId);
+}
+
 describe('identityAccessService.revertAutoLink', () => {
   it('reverts state cleanly when member has a claim and HP back-link', () => {
     const { memberId, legacyId } = setupClaimed({ withHpBackLink: true });
@@ -431,11 +448,21 @@ describe('identityAccessService.revertClaimForDispute (queue-item binding)', () 
     const claimed = memberRow(memberId);
     expect(claimed.bio).toBe('legacy bio text');       // copied (was empty)
     expect(claimed.birth_date).toBe('1980-05-15');     // copied
-    expect(claimed.street_address).toBe('1 Old Road'); // copied
     expect(claimed.region).toBe('ON');                 // copied
     expect(claimed.city).toBe('Testville');            // member value kept
     expect(claimed.country).toBe('US');                // member value kept
     expect(claimed.is_hof).toBe(1);
+    // The claim no longer copies the address columns: nothing reads them off a
+    // member row, so they stay in the archival snapshot instead.
+    expect(claimed.street_address).toBeNull();
+    expect(claimed.postal_code).toBeNull();
+
+    // A row claimed before that change still carries both, and the revert must
+    // still clear them, so the scrub is exercised against a row that has them.
+    const dbSeed = open();
+    dbSeed.prepare('UPDATE members SET street_address = ?, postal_code = ? WHERE id = ?')
+      .run('1 Old Road', 'A1B2C3', memberId);
+    dbSeed.close();
 
     const requesterId = nextId('req');
     const db2 = open();
@@ -471,5 +498,67 @@ describe('identityAccessService.revertClaimForDispute (queue-item binding)', () 
     const meta = JSON.parse(String(audits[audits.length - 1].metadata_json)) as Record<string, unknown>;
     expect(meta.scrubbed_legacy_fields).toBe(true);
     expect(meta.cleared_derived_honors).toBe(true);
+  });
+
+  // The scrub clears every field still matching what the claim copied in, and
+  // the personal-details step requires city, country and date of birth. A
+  // member left short of one of those is a full member on paper carrying an
+  // incomplete row, which the Official IFPA Roster export renders as a blank
+  // cell, so the step goes back in front of them rather than staying silently
+  // completed.
+  it('re-opens the personal-details step when the scrub clears a field that step requires', () => {
+    const { memberId, legacyId } = setupClaimed({ withHpBackLink: false });
+
+    const db = open();
+    // The member typed the same city as their linked record, so the scrub's
+    // equality test will clear it, and the step is complete before the revert.
+    const legacyCity = db
+      .prepare('SELECT city FROM legacy_members WHERE legacy_member_id = ?')
+      .get(legacyId) as { city: string | null };
+    db.prepare('UPDATE members SET city = ?, country = ?, birth_date = ? WHERE id = ?')
+      .run(legacyCity.city, 'United States', '1990-01-01', memberId);
+    markPersonalDetailsCompleted(db, memberId);
+    db.close();
+
+    svc.revertAutoLink(memberId, 'audit-reopen-1', {
+      actorType: 'member',
+      actorMemberId: memberId,
+    });
+
+    const db2 = open();
+    const task = db2
+      .prepare('SELECT state, completed_at FROM member_onboarding_tasks WHERE member_id = ? AND task_type = ?')
+      .get(memberId, 'personal_details') as { state: string; completed_at: string | null };
+    const after = db2.prepare('SELECT city FROM members WHERE id = ?').get(memberId) as { city: string | null };
+    db2.close();
+
+    expect(after.city).toBeNull();
+    expect(task.state).toBe('pending');
+    expect(task.completed_at).toBeNull();
+  });
+
+  it('leaves the personal-details step completed when the member keeps every required field', () => {
+    const { memberId } = setupClaimed({ withHpBackLink: false });
+
+    const db = open();
+    // A city the member entered themselves, different from the linked record's,
+    // so the scrub's equality test leaves it in place.
+    db.prepare('UPDATE members SET city = ?, country = ?, birth_date = ? WHERE id = ?')
+      .run('Somewhere Else', 'United States', '1990-01-01', memberId);
+    markPersonalDetailsCompleted(db, memberId);
+    db.close();
+
+    svc.revertAutoLink(memberId, 'audit-reopen-2', {
+      actorType: 'member',
+      actorMemberId: memberId,
+    });
+
+    const db2 = open();
+    const task = db2
+      .prepare('SELECT state FROM member_onboarding_tasks WHERE member_id = ? AND task_type = ?')
+      .get(memberId, 'personal_details') as { state: string };
+    db2.close();
+
+    expect(task.state).toBe('completed');
   });
 });

@@ -198,7 +198,10 @@ describe('POST /admin/club-cleanup/candidates/:candidateId/promote', () => {
       .post(`/admin/club-cleanup/candidates/${OV_CAND}/promote`)
       .set('Cookie', adminCookie())
       .type('form')
-      .send({ reasonText: 'Confirmed real by curator review' });
+      // The candidate carries no state and its country uses them, so the queue
+      // asks the admin for one rather than creating a club that would flatten
+      // the country page's grouping.
+      .send({ reasonText: 'Confirmed real by curator review', region: 'Tennessee' });
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/admin/club-cleanup');
 
@@ -208,7 +211,10 @@ describe('POST /admin/club-cleanup/candidates/:candidateId/promote', () => {
       expect(club).toBeTruthy();
       expect(club.name).toBe('Austin Style');
       expect(club.city).toBe('Austin');
-      expect(club.region).toBe('TX');
+      // Clubs store the full state name; the candidate's postal abbreviation is
+      // folded to it at the write path. The member column keeps the code, and
+      // the two are deliberately different.
+      expect(club.region).toBe('Texas');
       expect(club.country).toBe('USA');
       expect(club.description).toBe('Austin freestyle crew since the nineties.');
       expect(club.status).toBe('active');
@@ -276,7 +282,9 @@ describe('POST /admin/club-cleanup/candidates/:candidateId/promote', () => {
     const app = createApp();
     const res = await request(app)
       .post(`/admin/club-cleanup/candidates/${DORMANT_CAND}/promote`)
-      .set('Cookie', adminCookie());
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ region: 'Tennessee' });
     expect(res.status).toBe(303);
 
     const db = new BetterSqlite3(dbPath);
@@ -407,7 +415,7 @@ describe('promotion carry-forward of candidate-keyed wizard flags', () => {
       .post(`/admin/club-cleanup/candidates/${FLAGGED_CAND}/promote`)
       .set('Cookie', adminCookie())
       .type('form')
-      .send({ reasonText: 'Real club; flags carry forward' });
+      .send({ reasonText: 'Real club; flags carry forward', region: 'Colorado' });
     expect(res.status).toBe(303);
 
     const db = new BetterSqlite3(dbPath, { readonly: true });

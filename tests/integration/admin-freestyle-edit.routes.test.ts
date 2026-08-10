@@ -222,6 +222,34 @@ beforeAll(async () => {
     description: 'Clear me.',
   });
 
+  // Derived-parse rows: each carries a stored notation parse, so a save can be
+  // shown to drop it when it changes what the parse was taken from, and to keep
+  // it when it does not. One row per case, because the first save that clears the
+  // parse would otherwise leave nothing for the next assertion to observe.
+  const seededParse = {
+    slug: 'parse_seed',
+    canonical_name: 'Parse Seed',
+    adds: '2',
+    notation: 'CLIP > OP IN [DEX] move_marker',
+    operational_notation: 'CLIP > OP CLIP [XBD] exec_marker [DEL]',
+    trick_family: 'whirl', base_trick: 'whirl', category: 'compound',
+    review_status: 'curated', is_active: 1,
+    structural_parse_json: '{"core_family":"whirl","parse_warnings":[]}',
+    computed_add_formula: 'whirl(2) = 2',
+    computed_adds: 2,
+    add_formula_status: 'exact_self_atom',
+  };
+  insertFreestyleTrick(db, { ...seededParse, slug: 'parse_movement', canonical_name: 'Parse Movement' });
+  insertFreestyleTrick(db, { ...seededParse, slug: 'parse_execution', canonical_name: 'Parse Execution' });
+  // Bracket-free execution notation, so the ADD can be changed on its own without
+  // the scoring-bracket parity check rejecting the save.
+  insertFreestyleTrick(db, {
+    ...seededParse, slug: 'parse_adds', canonical_name: 'Parse Adds',
+    operational_notation: 'CLIP > OP CLIP no_brackets',
+  });
+  insertFreestyleTrick(db, { ...seededParse, slug: 'parse_prose', canonical_name: 'Parse Prose' });
+  insertFreestyleTrick(db, { ...seededParse, slug: 'parse_noop', canonical_name: 'Parse Noop' });
+
   createApp = await importApp();
 });
 
@@ -278,6 +306,16 @@ function modifierLink(trickSlug: string, modifierSlug: string, applyOrder: numbe
   return db.prepare(
     'SELECT trick_slug, modifier_slug, apply_order FROM freestyle_trick_modifier_links WHERE trick_slug = ? AND modifier_slug = ? AND apply_order = ?',
   ).get(trickSlug, modifierSlug, applyOrder) as { apply_order: number } | undefined;
+}
+
+function parseRow(slug: string) {
+  return db.prepare(
+    `SELECT structural_parse_json, computed_add_formula, computed_adds, add_formula_status
+     FROM freestyle_tricks WHERE slug = ?`,
+  ).get(slug) as {
+    structural_parse_json: string | null; computed_add_formula: string | null;
+    computed_adds: number | null; add_formula_status: string | null;
+  };
 }
 
 function proseRow(slug: string) {
@@ -423,6 +461,79 @@ describe('POST /admin/freestyle/tricks/:slug/edit — scoring-bracket parity', (
       validBody({ canonicalName: 'Skip Blank Add', adds: '', executionNotation: 'OP IN [DEX] [DEL]' }));
     expect(res.status).toBe(303);
     expect(trickRow('save_skip').canonical_name).toBe('Skip Blank Add');
+  });
+});
+
+// The stored notation parse is produced by the content pipeline from the two
+// notation fields and graded against the asserted ADD. The application cannot
+// re-derive it, so a save that changes any of those three drops it rather than
+// leaving the public grammar panel describing notation the row no longer carries.
+describe('POST /admin/freestyle/tricks/:slug/edit — derived notation parse', () => {
+  it('clears the stored parse when the movement notation changes', async () => {
+    const before = parseRow('parse_movement');
+    expect(before.structural_parse_json).not.toBeNull();
+
+    const res = await post('/admin/freestyle/tricks/parse_movement/edit', admin(),
+      validBody({ movementNotation: 'CLIP > OP IN [DEX] different_marker' }));
+    expect(res.status).toBe(303);
+
+    const after = parseRow('parse_movement');
+    expect(after.structural_parse_json).toBeNull();
+    expect(after.computed_add_formula).toBeNull();
+    expect(after.computed_adds).toBeNull();
+    expect(after.add_formula_status).toBeNull();
+  });
+
+  it('clears the stored parse when the execution notation changes', async () => {
+    const res = await post('/admin/freestyle/tricks/parse_execution/edit', admin(),
+      validBody({ executionNotation: 'CLIP > OP CLIP [XBD] different_marker [DEL]' }));
+    expect(res.status).toBe(303);
+
+    const after = parseRow('parse_execution');
+    expect(after.structural_parse_json).toBeNull();
+    expect(after.computed_adds).toBeNull();
+  });
+
+  it('clears the stored parse when the asserted ADD changes, since the parse is graded against it', async () => {
+    const res = await post('/admin/freestyle/tricks/parse_adds/edit', admin(),
+      validBody({ adds: '5', executionNotation: 'CLIP > OP CLIP no_brackets' }));
+    expect(res.status).toBe(303);
+    expect(trickRow('parse_adds').canonical_name).toBe('Save OK'); // the save really landed
+
+    const after = parseRow('parse_adds');
+    expect(after.structural_parse_json).toBeNull();
+    expect(after.add_formula_status).toBeNull();
+  });
+
+  it('keeps the stored parse when the save changes neither notation nor the ADD', async () => {
+    const res = await post('/admin/freestyle/tricks/parse_prose/edit', admin(),
+      validBody({ description: 'Fresh editorial prose.' }));
+    expect(res.status).toBe(303);
+    expect(proseRow('parse_prose').description).toBe('Fresh editorial prose.');
+
+    const after = parseRow('parse_prose');
+    expect(after.structural_parse_json).toBe('{"core_family":"whirl","parse_warnings":[]}');
+    expect(after.computed_add_formula).toBe('whirl(2) = 2');
+    expect(after.computed_adds).toBe(2);
+    expect(after.add_formula_status).toBe('exact_self_atom');
+  });
+
+  it('keeps the stored parse when the submitted values are identical to the stored row', async () => {
+    const res = await post('/admin/freestyle/tricks/parse_noop/edit', admin(),
+      validBody({ canonicalName: 'Parse Noop' }));
+    expect(res.status).toBe(303);
+    expect(parseRow('parse_noop').structural_parse_json).not.toBeNull();
+  });
+
+  it('records on the audit entry whether the parse was cleared', async () => {
+    const cleared = auditRows('parse_movement').map((r) => JSON.parse(r.metadata_json));
+    expect(cleared).toHaveLength(1);
+    expect(cleared[0].derivedParseCleared).toBe(true);
+    expect(cleared[0].changedFields).toContain('notation');
+
+    const kept = auditRows('parse_prose').map((r) => JSON.parse(r.metadata_json));
+    expect(kept).toHaveLength(1);
+    expect(kept[0].derivedParseCleared).toBe(false);
   });
 });
 

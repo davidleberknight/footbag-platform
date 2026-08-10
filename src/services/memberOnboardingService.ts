@@ -47,6 +47,13 @@
  *   - The wizard never reveals whether the member has a plausible legacy match beyond the existing
  *     anti-enumeration contract.
  *   - Per-task answers persist on submit; completing a task advances the sequence.
+ *   - A membership card whose club has no live clubs row yet promotes its candidate on
+ *     confirmation, which creates the club. Where that club's country writes its
+ *     addresses with states or provinces and the candidate carries none, the card asks
+ *     the member for one and promotion refuses without it, because a region-less club
+ *     flattens the grouping on its country's page for every other club there. A
+ *     candidate that already carries a state keeps it; that value descends from the
+ *     curated club seed and outranks an answer supplied now.
  *   - The personal_details task precedes and gates the legacy_claim task: no resolving
  *     action (confirm, search, token confirm, direct record claim, or the continue-without-
  *     linking decision) runs until personal_details is completed, so the required personal
@@ -90,6 +97,7 @@ import {
 import { appendAuditEntry } from './auditService';
 import { memberService } from './memberService';
 import { clubService } from './clubService';
+import { subdivisionsForCountry } from './countryUtils';
 import {
   classifyBootstrapLeader,
   type StructuralSignals,
@@ -645,6 +653,17 @@ export interface WizardMembershipCard {
   confidenceBandLabel: string;
   clubDescription: string | null;
   clubExternalUrl: string | null;
+  /**
+   * Confirming a membership on a club the old site never turned into a real
+   * club record creates that club, and the country page groups clubs by state
+   * or province only when every club in the country has one. The mirror the
+   * candidates came from carried no state, so the member is asked for it here
+   * rather than letting one confirmation flatten a country's whole listing.
+   * False whenever the state is already known or the country does not use one.
+   */
+  needsRegion: boolean;
+  regionQuestionLabel: string;
+  regionOptions: Array<{ value: string; label: string }>;
 }
 
 export interface WizardLeadershipCard {
@@ -792,6 +811,8 @@ function listWizardCardsForMember(memberId: string): WizardCard[] {
 
   const toMembershipCard = (r: WizardMembershipCardRow): WizardMembershipCard => {
     const band = confidenceBandFor(r.confidence_score);
+    const subdivisions = subdivisionsForCountry(r.club_country ?? '');
+    const needsRegion = subdivisions.length > 0 && !r.club_region;
     return {
       kind:                'membership' as const,
       isMembership:        true as const,
@@ -808,6 +829,13 @@ function listWizardCardsForMember(memberId: string): WizardCard[] {
       confidenceBandLabel: CONFIDENCE_BAND_LABELS[band],
       clubDescription:     r.club_description || null,
       clubExternalUrl:     r.club_external_url || null,
+      needsRegion,
+      regionQuestionLabel: `Which state or province is ${r.club_name} in?`,
+      // Clubs store the full state or province name, so that is what the
+      // control offers and submits.
+      regionOptions:       needsRegion
+        ? subdivisions.map((s) => ({ value: s.label, label: s.label }))
+        : [],
     };
   };
 
@@ -1266,7 +1294,7 @@ export type LegacyClaimAutoLinkConfirmFormState =
   | { personId: string; personName: string; confidence: 'high' | 'medium' }
   | null;
 export type LegacyClaimTokenConfirmFormState = null;
-export type PersonalDetailsFormState = { city: string; region: string; country: string; birthDate: string; gender: string; yearValue: string; showFirstCompetitionYear: boolean; showCompetitiveResults: boolean };
+export type PersonalDetailsFormState = { city: string; region: string; country: string; birthDate: string; gender: string; yearValue: string; showCompetitiveResults: boolean };
 
 // Per-arm types so the discriminant union's non-formState arms can be
 // returned from helpers (e.g. advanceAfter) without binding to a
@@ -1583,7 +1611,6 @@ function processPersonalDetailsSubmit(
   birthDate: string,
   gender: string,
   yearValue: string,
-  showFirstCompetitionYear: boolean,
   showCompetitiveResults: boolean,
 ): WizardActionResult<PersonalDetailsFormState> {
   try {
@@ -1591,7 +1618,7 @@ function processPersonalDetailsSubmit(
     // as the other fields, so a crash cannot complete the task while
     // silently losing the preference.
     submitTaskResponse(memberId, 'personal_details', {
-      city, region, country, birthDate, gender, yearValue, showFirstCompetitionYear,
+      city, region, country, birthDate, gender, yearValue,
       showCompetitiveResults,
     });
     return advanceAfter(memberId, 'personal_details');
@@ -1599,7 +1626,7 @@ function processPersonalDetailsSubmit(
     if (err instanceof ValidationError) {
       return {
         kind: 'validation_error',
-        formState: { city, region, country, birthDate, gender, yearValue, showFirstCompetitionYear, showCompetitiveResults },
+        formState: { city, region, country, birthDate, gender, yearValue, showCompetitiveResults },
         message: err.message,
       };
     }
@@ -1882,7 +1909,11 @@ function submitDisambiguationResponse(
 // 'promoted' carry-forward so it records the member's answer. Junk
 // candidates are skipped here; the confirm path then 404s on them exactly
 // like a missing row.
-async function promoteCandidateIfUnmapped(memberId: string, affiliationId: string): Promise<void> {
+async function promoteCandidateIfUnmapped(
+  memberId: string,
+  affiliationId: string,
+  region: string | null,
+): Promise<void> {
   const affiliation = legacyPersonClubAffiliations.findById.get(affiliationId) as
     | LegacyPersonClubAffiliationRow
     | undefined;
@@ -1895,6 +1926,7 @@ async function promoteCandidateIfUnmapped(memberId: string, affiliationId: strin
     actorType: 'member',
     trigger:   'stage1',
     excludeAffiliationId: affiliationId,
+    region,
   });
 }
 
@@ -1988,7 +2020,18 @@ async function processClubAffiliationsSubmit(
   assertCandidateOwnership(memberId, candidateId, kindRaw);
 
   if (kindRaw === 'membership' && userDecision === 'confirm') {
-    await promoteCandidateIfUnmapped(memberId, candidateId);
+    // Only offered, and only required, when the card asked for it; promotion
+    // refuses a blank where the club's country needs one, and that refusal
+    // surfaces as a validation error on the card the member is looking at.
+    const clubRegion = typeof body.clubRegion === 'string' ? body.clubRegion.trim() : '';
+    try {
+      await promoteCandidateIfUnmapped(memberId, candidateId, clubRegion || null);
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        return { kind: 'validation_error', formState: null, message: err.message };
+      }
+      throw err;
+    }
   }
 
   const cardsBefore = listWizardCardsForMember(memberId);
