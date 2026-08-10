@@ -169,6 +169,24 @@ describe('GET /media/item/:mediaId — tag-query context', () => {
     expect(res.text).toContain('2 of 3');
   });
 
+  it('places the media in the wide column with its metadata in the rail beside it', async () => {
+    const res = await request(createApp()).get(`/media/item/${ITEM_B}?tag=wrapset`);
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('class="media-layout media-layout--rail-end"');
+
+    const mainIdx = res.text.indexOf('class="media-layout-main"');
+    const mediaIdx = res.text.indexOf('class="gallery-item-media"');
+    const railIdx = res.text.indexOf('class="media-layout-rail"');
+    const dateIdx = res.text.indexOf('class="gallery-tile-date"');
+
+    // Media in the main column, upload date (and the rest of the metadata)
+    // in the rail after it, rather than stacked underneath in one column.
+    expect(mainIdx).toBeGreaterThan(-1);
+    expect(mediaIdx).toBeGreaterThan(mainIdx);
+    expect(railIdx).toBeGreaterThan(mediaIdx);
+    expect(dateIdx).toBeGreaterThan(railIdx);
+  });
+
   it('resolves the item with the tag cap applied when over-many include tags are supplied', async () => {
     // Thirteen include tokens all carried by ITEM_C; the cap keeps twelve, and
     // the AND of those still matches the item, so it resolves without error.

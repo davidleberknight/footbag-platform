@@ -30,10 +30,17 @@
  *     one-item set hides the pager. Every list surface (named gallery, browse,
  *     profile preview, teaching examples) emits an in-site `itemHref` so a tile
  *     click opens the viewer rather than a raw media-store file.
- *   - /media/browse on-the-fly tag browse read (paginated results mode)
+ *   - /media/browse read, in two states. The landing carries the site's one
+ *     hashtag index: Popular Tags, the recent-events and tutorials highlight,
+ *     and the alphabetical All Tags list, all shaped by HashtagDiscoveryService
+ *     and nested here as `content.hashtagIndex`. The results state is the
+ *     paginated outcome of an on-the-fly tag query.
  *   - /media/freestyle-tutorials: permanent 301 redirect to /freestyle/media,
  *     where the freestyle media surface lives (registered before
  *     /media/:galleryId so the literal path matches first)
+ *   - /tags: permanent 301 redirect to /media/browse, which absorbed the
+ *     hashtag index, so there is one place to find media by hashtag rather than
+ *     two that look alike
  *
  * Does not own:
  *   - Any media or gallery write: uploads, edits, deletes, gallery
@@ -55,19 +62,31 @@
  *     repeated-arg form.
  *   - Results mode carries an editable tag filter (`content.filter`): one no-JS
  *     GET form whose controls all defer to a single "Apply Hashtag Filters"
- *     submit. Active include/exclude tags are checked checkboxes (uncheck + Apply
- *     removes); co-occurring tags (minus active / `#by_*` / `#unavailable_embed`)
- *     are unchecked add checkboxes; a locked context tag is read-only with a
- *     hidden input; free-text fields add new tags. On submit the controller folds
- *     the whole state into one canonical shareable URL via `canonicalFilterPath`
- *     and redirects (PRG), so the service owns every URL and the controller stays
- *     thin.
- *   - Hero `byMember` chip lifts from any `#by_<slug>` criterion (linked to that
- *     member's public gallery) so the template renders "by *Member Name*"
- *     attribution distinct from gallery ownership.
+ *     submit. Active include and exclude tags prefill two space-separated text
+ *     fields that progressively enhance into chip tokenizers with autocomplete;
+ *     co-occurring tags (minus active / `#by_*` / `#unavailable_embed`) are
+ *     quick-add submit chips; a locked context tag is read-only with a hidden
+ *     input. Common controls lead and the rarer exclude field sits in a
+ *     collapsed disclosure, which `hasExcludeTags` renders open whenever an
+ *     exclusion is in force so the control behind the current set is never
+ *     hidden. On submit the controller folds the whole state into one canonical
+ *     shareable URL via `canonicalFilterPath` and redirects (PRG), so the
+ *     service owns every URL and the controller stays thin.
+ *   - Browse results and a named gallery render one shared set header
+ *     (`content.setHeader`), because they are the same query model with
+ *     different seeds. A set whose only include criterion is one member's
+ *     uploader tag, with nothing excluded, is that member's own gallery and is
+ *     headed by their display name instead of a tag query; an unresolvable
+ *     `#by_*` (deleted or purged member) falls back to the query header rather
+ *     than naming anyone. Otherwise the header's `byMember` chip lifts from any
+ *     `#by_<slug>` criterion, linked to that member's public gallery, so the
+ *     prose reads "by *Member Name*" distinct from gallery ownership.
  *   - Viewer-aware shaping (`viewer: ViewerContext`): the member-galleries list
- *     links an owner's display name to their member profile only for a signed-in
- *     viewer (profiles are member-only); the name shows unlinked otherwise.
+ *     and the identity set header link a member's display name to their member
+ *     profile only for a signed-in viewer (profiles are member-only); the name
+ *     shows unlinked otherwise. A `#by_*` chip is a different control and always
+ *     links to that member's public gallery, for every viewer, so a signed-out
+ *     visitor never meets a dead name.
  *
  * Service shape: singleton object (storage adapter used only to construct
  * read URLs).
@@ -98,7 +117,11 @@ import { NotFoundError } from './serviceErrors';
 import { UPLOADER_TAG_PREFIX } from './curatorMediaService';
 import { PageViewModel } from '../types/page';
 import { VideoMedia, expandVideoFromMediaItem } from './videoMedia';
-import { hashtagDiscoveryService } from './hashtagDiscoveryService';
+import {
+  hashtagDiscoveryService,
+  tagToBrowseHref,
+  type HashtagIndexContent,
+} from './hashtagDiscoveryService';
 import { FREESTYLE_MEDIA_STRUCTURE } from '../content/freestyleMedia';
 
 export const PAGE_SIZE = 24;
@@ -132,7 +155,7 @@ function collectMemberNamesForByTags(tagDisplays: string[]): Map<string, string>
 
 // `buildOtherHref`, when supplied, sets the chip href for non-`#by_*`
 // tags. Hero criteria/exclude callers omit it so chips render as plain.
-// Item-tile callers pass `browseTagHref` so each chip links to the
+// Item-tile callers pass `tagToBrowseHref` so each chip links to the
 // on-the-fly /media/browse view for that tag.
 //
 // A `#by_<slug>` tag renders the member's display name linked to that member's
@@ -152,19 +175,11 @@ function shapeTagChip(
     if (memberName) {
       return {
         display: memberName,
-        href: browseTagHref(display),
+        href: tagToBrowseHref(display),
       };
     }
   }
   return { display, href: buildOtherHref ? buildOtherHref() : null };
-}
-
-// /media/browse URL for a single tag, given its tag_normalized form
-// (with leading '#'). The URL token is the normalized form minus the '#',
-// matching the input format the browse handler expects.
-function browseTagHref(tagNormalized: string): string {
-  const token = tagNormalized.startsWith('#') ? tagNormalized.slice(1) : tagNormalized;
-  return `/media/browse?tag=${encodeURIComponent(token)}`;
 }
 
 // Splits raw criterion/exclude tag rows into the prose-attribution
@@ -197,6 +212,87 @@ function shapeGalleryChips(
     .filter((t) => !t.tag_display.startsWith(UPLOADER_TAG_PREFIX))
     .map((t) => shapeTagChip(t.tag_display, viewer, memberNamesBySlug));
   return { byMember, criteriaTags, excludeTags };
+}
+
+// Count-and-criteria prose for a set the visitor assembled from hashtags.
+export interface SetQueryLine {
+  totalItems: number;
+  totalItemsNoun: string;
+  byMember: TagChip | null;
+  criteriaTags: TagChip[];
+  excludeTags: TagChip[];
+  excludeTagsNoun: string;
+}
+
+// The header every set surface renders. Browse results, a named gallery and a
+// member's own gallery are the same query with different seeds, so they say
+// what the visitor is looking at the same way.
+export interface SetHeaderView {
+  title: string;
+  // The member profile behind an identity heading, for a signed-in viewer only.
+  // Null otherwise, including on every non-identity header.
+  titleHref: string | null;
+  // One plain line when the set is exactly one member's uploads.
+  identityLine: string | null;
+  // Count-and-criteria prose otherwise; null when there is nothing to say.
+  query: SetQueryLine | null;
+}
+
+/**
+ * A set is one member's gallery when its only include criterion is that
+ * member's uploader tag and nothing is excluded. Three routes reach that set
+ * (`?tag=by_<slug>`, `?context=by_<slug>`, and the auto-created personal
+ * gallery at its own id), and all three read as that person rather than as a
+ * tag query.
+ *
+ * The display name is public, so it heads the page for every viewer; the link
+ * to the member profile is added only for a signed-in viewer, because profiles
+ * are member-only. The heading is the one place a member's name reaches their
+ * profile: a `#by_*` chip anywhere else still links to that member's public
+ * gallery, so a signed-out visitor never meets a dead name.
+ *
+ * A `#by_*` tag whose member does not resolve (soft deleted, or personal data
+ * purged) yields no identity at all, and the header falls back to the plain
+ * query prose rather than rendering a name the database deliberately withholds.
+ */
+function shapeSetHeader(args: {
+  fallbackTitle: string;
+  includeTagDisplays: string[];
+  chips: { byMember: TagChip | null; criteriaTags: TagChip[]; excludeTags: TagChip[] };
+  totalItems: number;
+  memberNamesBySlug: Map<string, string>;
+  viewer: ViewerContext;
+}): SetHeaderView {
+  const { fallbackTitle, includeTagDisplays, chips, totalItems, memberNamesBySlug, viewer } = args;
+  const totalItemsNoun = totalItems === 1 ? 'item' : 'items';
+
+  const onlyInclude = includeTagDisplays.length === 1 ? includeTagDisplays[0] : null;
+  const slug = onlyInclude && onlyInclude.startsWith(UPLOADER_TAG_PREFIX)
+    ? onlyInclude.slice(UPLOADER_TAG_PREFIX.length) : null;
+  const memberName = slug ? memberNamesBySlug.get(slug) : undefined;
+
+  if (memberName && chips.excludeTags.length === 0) {
+    return {
+      title: memberName,
+      titleHref: viewer.authenticated ? `/members/${slug}` : null,
+      identityLine: `Photos and videos uploaded by ${memberName}. Showing ${totalItems} ${totalItemsNoun}.`,
+      query: null,
+    };
+  }
+
+  return {
+    title: fallbackTitle,
+    titleHref: null,
+    identityLine: null,
+    query: {
+      totalItems,
+      totalItemsNoun,
+      byMember: chips.byMember,
+      criteriaTags: chips.criteriaTags,
+      excludeTags: chips.excludeTags,
+      excludeTagsNoun: chips.excludeTags.length === 1 ? 'tag' : 'tags',
+    },
+  };
 }
 
 // A resolved ontology cross-link from a media tag to a canonical freestyle page.
@@ -374,6 +470,10 @@ export interface NamedGalleryHero {
 
 export interface NamedGalleryContent {
   gallery: NamedGalleryHero;
+  // The shared set header, so a gallery says what it is the same way browse
+  // results do. A gallery whose only criterion is one member's uploader tag
+  // reads as that person rather than as its stored name.
+  setHeader: SetHeaderView;
   items: GalleryItem[];
   totalItems: number;
   // Pre-pluralized nouns so the hero subtitle never counts in the template.
@@ -473,7 +573,16 @@ export interface MediaBrowseContent {
   items: GalleryItem[];
   totalItems: number;
   pagination: GalleryPagination | null;
+  // The five-chip nudge under an empty result set. Absent in browse mode, where
+  // the hashtag index below is the discovery surface.
   popularTags?: BrowseTagChip[];
+  // The hashtag index the landing renders: popular tags, the recent-events and
+  // tutorials highlight, and the alphabetical community index. Null in results
+  // mode, where the visitor has already chosen what to look at.
+  hashtagIndex: HashtagIndexContent | null;
+  // The shared set header, so results say what they are the same way a named
+  // gallery does. Null on the landing, which is not a set.
+  setHeader: SetHeaderView | null;
   // The editable tag filter, present in results mode. The viewer removes an
   // active tag (each chip's `removeHref`), adds a free-text tag via the add
   // form, or clicks a co-occurring suggestion. Null in browse mode, where the
@@ -505,11 +614,17 @@ export interface SuggestionChip {
 // fully editable/removable; `suggestions` are context-aware co-occurring tags
 // offered as click-to-add chips; `contextChips` / `contextInputs` carry only the
 // locked owner-scoping `#by_*` tag. `addAction` is the form's GET target.
+//
+// Excluding is the rarer intent, so the exclude field sits inside a collapsed
+// disclosure beneath the everyday controls. `hasExcludeTags` opens that
+// disclosure on render, so an exclusion already in force is never hidden from
+// the visitor who set it.
 export interface TagFilterView {
   contextChips: FilterChip[];
   contextInputs: { name: string; value: string }[];
   includeText: string;
   excludeText: string;
+  hasExcludeTags: boolean;
   suggestions: SuggestionChip[];
   addAction: string;
 }
@@ -841,12 +956,12 @@ function buildItemPage(
         uploadedBy = shapeTagChip(tr.tag_display, viewer, memberNamesBySlug);
       }
     } else {
-      tags.push(shapeTagChip(tr.tag_display, viewer, memberNamesBySlug, () => browseTagHref(tr.tag_normalized)));
+      tags.push(shapeTagChip(tr.tag_display, viewer, memberNamesBySlug, () => tagToBrowseHref(tr.tag_normalized)));
     }
   }
   // A curated item links to all curated media; a member upload links to that
   // member's gallery (via uploadedBy). The two are mutually exclusive in practice.
-  const curatedHref = isCurated ? browseTagHref(CURATED_TAG) : null;
+  const curatedHref = isCurated ? tagToBrowseHref(CURATED_TAG) : null;
 
   const adapter = getMediaStorageAdapter();
   const item = shapeItem(row, [], (k) => adapter.constructURL(k));
@@ -1202,7 +1317,7 @@ export const mediaService = {
           tr.tag_display,
           viewer,
           memberNamesBySlug,
-          () => browseTagHref(tr.tag_normalized),
+          () => tagToBrowseHref(tr.tag_normalized),
         );
         const list = tagsByMediaId.get(tr.media_id);
         if (list) list.push(chip);
@@ -1228,6 +1343,15 @@ export const mediaService = {
       const emptyResultSuggestions = rows.length === 0
         ? hashtagDiscoveryService.getPopularTags(5) : undefined;
 
+      const setHeader = shapeSetHeader({
+        fallbackTitle: `Named Gallery: ${gallery.name}`,
+        includeTagDisplays: tagRows.map((r) => r.tag_display),
+        chips,
+        totalItems: rows.length,
+        memberNamesBySlug,
+        viewer,
+      });
+
       return {
         seo: { title: `Gallery ${gallery.name}` },
         page: {
@@ -1249,6 +1373,7 @@ export const mediaService = {
               label: string; url: string;
             }>).map((r) => ({ label: r.label, url: r.url })),
           },
+          setHeader,
           items,
           totalItems: rows.length,
           totalItemsNoun: rows.length === 1 ? 'item' : 'items',
@@ -1374,11 +1499,10 @@ export const mediaService = {
       // Browse mode: no resolved criteria → no results pane. Hero echoes
       // submitted tokens via formInclude/ExcludeText only; chip lists empty.
       if (criteriaTagIds.length === 0) {
-        // A short suggested-tag list keeps the landing a discovery aid, not a wall
-        // of chips. Real popular tags lead, ranked by usage; curated starter seeds
-        // pad any unfilled slots so representative club, event, and style tags can
-        // surface before community usage accrues, then fall away as it does.
-        const popularTags = hashtagDiscoveryService.getPopularTagsWithSeeds(8);
+        // The landing is the site's one hashtag index: the search form, then the
+        // popular tags, the recent-events and tutorials highlight, and the
+        // alphabetical community index. There is no second index page.
+        const hashtagIndex = hashtagDiscoveryService.getHashtagIndexContent();
         return {
           seo: { title: 'Browse Media' },
           page: {
@@ -1400,7 +1524,8 @@ export const mediaService = {
             items: [],
             totalItems: 0,
             pagination: null,
-            popularTags: popularTags.length > 0 ? popularTags : undefined,
+            hashtagIndex,
+            setHeader: null,
             filter: null,
           },
         };
@@ -1426,7 +1551,7 @@ export const mediaService = {
           tr.tag_display,
           viewer,
           memberNamesBySlug,
-          () => browseTagHref(tr.tag_normalized),
+          () => tagToBrowseHref(tr.tag_normalized),
         );
         const list = tagsByMediaId.get(tr.media_id);
         if (list) list.push(chip);
@@ -1488,6 +1613,15 @@ export const mediaService = {
         curatedCount,
       });
 
+      const setHeader = shapeSetHeader({
+        fallbackTitle: 'Browse Media',
+        includeTagDisplays: [...contextRows, ...includeRows].map((r) => r.tag_display),
+        chips: heroChips,
+        totalItems: total,
+        memberNamesBySlug,
+        viewer,
+      });
+
       return {
         seo: { title: 'Browse Media' },
         page: {
@@ -1498,6 +1632,7 @@ export const mediaService = {
         content: {
           mode: 'results',
           isResultsMode: true,
+          setHeader,
           totalItemsNoun: total === 1 ? 'item' : 'items',
           excludeTagsNoun: heroChips.excludeTags.length === 1 ? 'tag' : 'tags',
           formIncludeText,
@@ -1510,6 +1645,7 @@ export const mediaService = {
           totalItems: total,
           pagination,
           popularTags: emptyResultSuggestions?.length ? emptyResultSuggestions : undefined,
+          hashtagIndex: null,
           filter,
         },
       };
@@ -1535,7 +1671,7 @@ export const mediaService = {
           tr.tag_display,
           { authenticated: true },
           new Map(),
-          () => browseTagHref(tr.tag_normalized),
+          () => tagToBrowseHref(tr.tag_normalized),
         );
         const list = tagsByMediaId.get(tr.media_id);
         if (list) list.push(chip);
@@ -1794,6 +1930,7 @@ export function buildTagFilterView(args: {
     contextInputs,
     includeText: includeNormalized.map(stripHash).join(' '),
     excludeText: excludeNormalized.map(stripHash).join(' '),
+    hasExcludeTags: excludeNormalized.length > 0,
     suggestions,
     addAction: args.basePath,
   };
@@ -1828,11 +1965,11 @@ export function resolveTagFilterAdd(args: {
   return buildFilterPath(args.basePath, context, include, exclude);
 }
 
-// Canonical filter path for an "Apply Hashtag Filters" submit. The batch filter
-// form posts its full checkbox state plus any free-text additions and an `apply`
-// marker; the controller folds them here and redirects (PRG), so every applied
-// filter lands on one clean shareable URL (normalized, de-duped, empty and
-// raw-cased tokens dropped) no matter which boxes were checked. `curatedOff`
+// Canonical filter path for an "Apply Hashtag Filters" submit. The filter form
+// posts its include and exclude fields, any quick-add suggestion chip, and an
+// `apply` marker; the controller folds them here and redirects (PRG), so every
+// applied filter lands on one clean shareable URL (normalized, de-duped, empty
+// and raw-cased tokens dropped) however the visitor assembled it. `curatedOff`
 // replays a broadened named-gallery view.
 export function canonicalFilterPath(args: {
   basePath: string;

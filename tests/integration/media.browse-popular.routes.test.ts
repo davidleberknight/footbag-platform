@@ -1,10 +1,10 @@
 /**
- * The /media/browse landing (no query) leads with discovery: the Suggested-tags
- * chip cloud renders the most-used public tags and precedes the filter form.
- * Real popular tags lead, ranked by usage; curated starter seeds pad any
- * unfilled slots up to eight, so representative club, event, and style tags
- * surface before community usage accrues. The old hardcoded "Try one" fallback
- * chips are gone.
+ * The /media/browse landing (no query) leads with the search form, then the
+ * Popular tags chip cloud. That list is composed, not ranked alone: real popular
+ * tags lead by usage, and curated starter seeds pad the unfilled slots so
+ * representative club, event, and style tags are there to click before anyone
+ * has uploaded. The seeds are squeezed out as community usage accrues, with no
+ * flag to flip. The old hardcoded "Try one" fallback chips are gone.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -49,17 +49,17 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('GET /media/browse landing — search leads, suggested tags follow', () => {
-  it('renders the real curated tag in the Suggested tags section', async () => {
+describe('GET /media/browse landing — search leads, popular tags follow', () => {
+  it('renders the real curated tag in the Popular tags section', async () => {
     const res = await request(createApp()).get('/media/browse');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Suggested tags');
+    expect(res.text).toContain('Popular tags');
     expect(res.text).toContain('#passback_records');
   });
 
   it('pads the unfilled slots with the curated starter seeds alongside the real tag', async () => {
     const res = await request(createApp()).get('/media/browse');
-    // One real public tag leads; the curated seeds fill the rest up to eight.
+    // One real public tag leads; the curated seeds fill the rest of the block.
     expect(res.text).toContain('#passback_records');
     expect(res.text).toContain('#club_wellington');
     expect(res.text).toContain('#event_2026_worlds_japan');
@@ -73,9 +73,10 @@ describe('GET /media/browse landing — search leads, suggested tags follow', ()
     expect(res.text).not.toContain('browse-standard-section');
   });
 
-  it('leads with the search form, ahead of the suggested tags', async () => {
+  it('leads with the search form, ahead of the popular tags', async () => {
     const res = await request(createApp()).get('/media/browse');
     expect(res.text.indexOf('browse-search-form')).toBeGreaterThan(-1);
-    expect(res.text.indexOf('browse-search-form')).toBeLessThan(res.text.indexOf('browse-popular-section'));
+    expect(res.text.indexOf('browse-popular-heading')).toBeGreaterThan(-1);
+    expect(res.text.indexOf('browse-search-form')).toBeLessThan(res.text.indexOf('browse-popular-heading'));
   });
 });

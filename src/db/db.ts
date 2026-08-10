@@ -7600,6 +7600,14 @@ export interface StandardTagWithMediaRow {
   usage_count: number;
 }
 
+/** A tag carrying media, without the community-threshold column. */
+export interface TagWithUsageRow {
+  tag_id: string;
+  tag_normalized: string;
+  tag_display: string;
+  usage_count: number;
+}
+
 export interface TagSuggestRow {
   tag_normalized: string;
   tag_display: string;
@@ -7731,6 +7739,46 @@ export const tagStats = {
           )
     ORDER BY ts.usage_count DESC, ts.distinct_member_count DESC
     LIMIT ?
+  `); },
+
+  // The All Tags half of the public browse page: community tags only, so a tag
+  // one member uses many times stays personal and off the page, and the curated
+  // catalog's single-uploader tags do not fill an alphabetical index. Unbounded
+  // by design; the community-tag threshold is the only limit the page has.
+  get listCommunityTagsAlphabetical() { return db.prepare(`
+    SELECT ts.tag_id, t.tag_normalized, t.tag_display,
+           ts.usage_count, ts.distinct_member_count
+    FROM tag_stats ts
+    JOIN tags t ON t.id = ts.tag_id
+    WHERE t.tag_normalized NOT LIKE '#by_%'
+      AND t.tag_normalized <> '#unavailable_embed'
+      AND ts.distinct_member_count >= 2
+    ORDER BY t.tag_normalized ASC
+  `); },
+
+  // Event hashtags that carry media, newest first. The event tag embeds its own
+  // year (#event_{year}_{slug}), so a descending sort on the normalized form
+  // orders by year without joining the events table; ordering within a year is
+  // by slug and carries no recency meaning.
+  get listRecentEventTagsWithMedia() { return db.prepare(`
+    SELECT t.id AS tag_id, t.tag_normalized, t.tag_display, ts.usage_count
+    FROM tags t
+    JOIN tag_stats ts ON ts.tag_id = t.id
+    WHERE t.is_standard = 1
+      AND t.standard_type = 'event'
+      AND ts.usage_count > 0
+    ORDER BY t.tag_normalized DESC
+    LIMIT ?
+  `); },
+
+  // The tutorial hashtag, returned only when it carries media, so the page
+  // links it as a gallery rather than showing a dead token.
+  get findTutorialTagWithMedia() { return db.prepare(`
+    SELECT ts.tag_id, t.tag_normalized, t.tag_display, ts.usage_count
+    FROM tag_stats ts
+    JOIN tags t ON t.id = ts.tag_id
+    WHERE t.tag_normalized = '#tutorial'
+      AND ts.usage_count > 0
   `); },
 
   get listStandardTagsWithMedia() { return db.prepare(`

@@ -421,6 +421,19 @@ describe('GET /freestyle/media (consolidated Freestyle Media section)', () => {
     expect(res.text).not.toContain('gallery_passback_advanced');
   });
 
+  it('holds every category in one section, so the gap does not grow with the category count', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/media');
+    expect(res.status).toBe(200);
+    // A section per category stacked the global section padding on top of each
+    // block's own margin, compounding the gap for every category added.
+    expect(res.text).toContain('class="media-blocks"');
+    expect(res.text.match(/<section/g)?.length).toBe(1);
+    // The category headings and their card grids are unaffected.
+    expect(res.text).toContain('class="section-heading"');
+    expect(res.text).toContain('class="card-grid card-grid-2col"');
+  });
+
   it('links folders whose gallery has items and marks unseeded folders coming soon', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/media');
@@ -522,7 +535,7 @@ describe('GET /media/:galleryId (named gallery)', () => {
     expect(res.text).toContain('rel="next"');
   });
 
-  it('renders the tag-aware empty-state copy when the gallery matches no media', async () => {
+  it('renders the shared empty-state copy when the gallery matches no media', async () => {
     const db = openDb();
     const emptyTagId = 'tag-empty-state-001';
     db.prepare(`
@@ -545,7 +558,10 @@ describe('GET /media/:galleryId (named gallery)', () => {
     const app = createApp();
     const res = await request(app).get(`/media/${galleryId}`);
     expect(res.status).toBe(200);
-    expect(res.text).toContain('No photos or videos found with this tag');
+    // The empty state says nothing matched, never that the site holds nothing,
+    // and it does not restate the criteria: the header above already names the
+    // set and shows a zero count.
+    expect(res.text).toContain('No photos or videos found.');
   });
 
   it('renders external links as "External URL: <clickable url>" with no icon and no curator label', async () => {

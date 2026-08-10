@@ -418,6 +418,14 @@ section + section { border-top: 1px solid var(--border); }
   text-underline-offset: 2px;
 }
 .hero .tag-chip-link:hover { color: rgba(255, 255, 255, 0.85); }
+/* A member's own gallery heads the page with their name, linked to their
+   profile for a signed-in viewer. */
+.hero .hero-title-link {
+  color: var(--white);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.hero .hero-title-link:hover { color: rgba(255, 255, 255, 0.85); }
 
 .year-page-nav {
   display: flex;
@@ -782,6 +790,33 @@ th.sortable:hover { color: var(--primary); }
   overflow: hidden;
 }
 
+/* ── Media page layout ──────────────────────────────────────────
+   Two-column shell for the media viewing surfaces, so the grid or the
+   media itself starts at the top of the viewport and its controls sit
+   beside it rather than above it. Mirrors the member profile's column
+   split and collapses at the same breakpoint. The rail is not sticky:
+   the filter rail carries a full suggestion list and is tall enough
+   that sticking it gains nothing. */
+.media-layout {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 32px;
+  align-items: start;
+}
+.media-layout--rail-end { grid-template-columns: 1fr 300px; }
+/* Grid children default to min-content width, which lets a nested grid or a
+   long tag push the column wider than its track; min-width:0 keeps both
+   columns to the track and lets the inner grid reflow instead. */
+.media-layout-rail,
+.media-layout-main { min-width: 0; }
+
+/* Vertical rhythm for stacked blocks inside one section. Blocks carry no
+   margin of their own, so spacing is this gap and nothing else. */
+.media-blocks {
+  display: grid;
+  gap: 24px;
+}
+
 /* ── Gallery ────────────────────────────────────────────────── */
 .gallery-grid {
   display: grid;
@@ -834,9 +869,10 @@ th.sortable:hover { color: var(--primary); }
   filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.5));
 }
 
-/* Single-item detail page (/media/:galleryId/:mediaId) */
+/* Single-item detail page (/media/:galleryId/:mediaId). The width cap moved
+   onto the media column, so the metadata rail can sit beside it; the cap
+   returns once the two columns stack. */
 .gallery-item-detail {
-  max-width: 800px;
   margin: 24px auto 0;
 }
 .gallery-item-media {
@@ -1007,13 +1043,14 @@ th.sortable:hover { color: var(--primary); }
   font-size: 0.75rem;
 }
 
-.browse-search-section { margin: 16px 0 0; }
 .browse-standard-section { margin: 16px 0 0; }
-.browse-popular-section { margin: 16px 0 0; }
+/* The two hashtag fields and the submit read as one control, so they share a
+   row; the blocks around them are spaced by the .media-blocks gap instead of
+   per-block margins, which stacked with the global section padding. */
 .browse-search-form {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
   margin: 0;
 }
@@ -1025,6 +1062,14 @@ th.sortable:hover { color: var(--primary); }
   border-radius: var(--radius-sm);
   font-size: 0.95rem;
 }
+/* Row sizing is scoped to the search form. The filter bar reuses this input
+   class inside a column flex container, where a flex-basis would apply to the
+   input's height instead of its width. */
+.browse-search-form .browse-search-input {
+  flex: 1 1 240px;
+  min-width: 0;
+  width: auto;
+}
 .browse-section-heading {
   font-size: 1rem;
   font-weight: 600;
@@ -1034,7 +1079,6 @@ th.sortable:hover { color: var(--primary); }
   margin: 0 0 10px;
 }
 .browse-tags-help {
-  margin: 16px 0 0;
   padding: 16px 20px;
   background: var(--bg-light);
   border-radius: var(--radius-md);
@@ -1231,9 +1275,20 @@ button.tag-suggestion {
 .tag-filter-apply {
   align-self: flex-start;
 }
-.tag-filter-apply-hint {
-  font-size: 0.8rem;
+/* Advanced filter controls, collapsed by default so the rail leads with the
+   everyday include-and-apply pair. */
+.tag-filter-more {
+  border-top: 1px solid var(--parch-350);
+  padding-top: 10px;
+}
+.tag-filter-more-summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.85rem;
   color: var(--text-muted);
+}
+.tag-filter-more[open] > .tag-filter-more-summary {
+  margin-bottom: 10px;
 }
 /* Exclude field: mark its chips with a minus glyph and a muted, dashed treatment
    so include vs exclude never relies on color alone. */
@@ -3227,6 +3282,10 @@ section.home-media { padding-top: 0; }
   #clubs-map { display: none; }
   .profile-layout { grid-template-columns: 1fr; gap: 24px; }
   .profile-sidebar { position: static; }
+  .media-layout,
+  .media-layout--rail-end { grid-template-columns: 1fr; gap: 24px; }
+  /* Stacked again, so the single-item column takes back its reading-width cap. */
+  .gallery-item-detail { max-width: 800px; }
   .profile-avatar-card { display: flex; flex-direction: row; align-items: center; gap: 20px; text-align: left; padding: 20px 24px; }
   .profile-avatar-placeholder { width: 80px; height: 80px; font-size: 2rem; margin: 0; flex-shrink: 0; }
   .profile-edit-btn { width: auto; margin-top: 8px; }
@@ -3257,6 +3316,11 @@ section.home-media { padding-top: 0; }
 
   /* Tables: scroll horizontally rather than blowing out the page */
   .results-table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  /* Hashtag search: one field per row once a row cannot hold two */
+  .browse-search-form { flex-direction: column; align-items: stretch; }
+  .browse-search-form .browse-search-input { max-width: none; width: 100%; }
+  .browse-search-form .btn { width: 100%; }
 }
 
 /* ==========================================================================

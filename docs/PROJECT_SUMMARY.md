@@ -177,7 +177,7 @@ Members upload photos and share links to videos into named galleries, and then u
 
 **Discovery and browsing**
 
-- Tags are clickable everywhere and open a tag gallery (photos + videos) plus Related Tags (top co-occurring tags). A public /tags page provides Popular Tags and All Tags, and only lists "community tags" used by at least two distinct members.
+- Tags are clickable everywhere and open a tag gallery (photos + videos) plus Related Tags (top co-occurring tags). The public /media/browse landing provides Popular Tags and All Tags; All Tags only lists "community tags" used by at least two distinct members.
 
 **Auto-generated event/club galleries**
 

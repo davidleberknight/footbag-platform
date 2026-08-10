@@ -1,0 +1,16 @@
+{{!-- The empty state shared by every media set surface. It says nothing
+      matched, never that the site holds nothing, and it does not restate the
+      criteria: the set header directly above already names the set and shows a
+      zero count. Five site-wide popular tags follow as a way back into content
+      rather than a dead end. --}}
+<div class="empty-state">
+  <p>No photos or videos found.</p>
+  {{#if popularTags.length}}
+    <p>Try one of these popular tags:</p>
+    <ul class="tag-chip-row">
+      {{#each popularTags}}
+        <li><a href="{{href}}" class="tag-chip">{{display}}</a></li>
+      {{/each}}
+    </ul>
+  {{/if}}
+</div>

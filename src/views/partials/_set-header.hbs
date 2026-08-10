@@ -1,0 +1,20 @@
+{{!-- The header shared by every media set surface: browse results, a named
+      gallery, and a member's own gallery. They are one query model with
+      different seeds, so they say what the visitor is looking at the same way.
+      A set that is exactly one member's uploads reads as that person: their
+      name is the heading, linked to their profile only for a signed-in viewer,
+      since profiles are member-only. Every field is service-shaped
+      (mediaService SetHeaderView). --}}
+<div class="hero hero-sm">
+  <div>
+    <h1>{{#if header.titleHref}}<a href="{{header.titleHref}}" class="hero-title-link">{{header.title}}</a>{{else}}{{header.title}}{{/if}}</h1>
+    {{#if header.identityLine}}
+      <p class="hero-subtitle">{{header.identityLine}}</p>
+    {{/if}}
+    {{#if header.query}}
+      <p class="hero-subtitle">
+        Showing {{header.query.totalItems}} {{header.query.totalItemsNoun}}{{#if header.query.byMember}} by {{#if header.query.byMember.href}}<a href="{{header.query.byMember.href}}" class="tag-chip-link">{{header.query.byMember.display}}</a>{{else}}{{header.query.byMember.display}}{{/if}}{{#if header.query.criteriaTags.length}},{{/if}}{{/if}}{{#if header.query.criteriaTags.length}} tagged: {{#each header.query.criteriaTags}}{{display}}{{#unless @last}} {{/unless}}{{/each}}{{/if}}{{#if header.query.excludeTags.length}} - Excluding {{header.query.excludeTagsNoun}}: {{#each header.query.excludeTags}}{{display}}{{#unless @last}} {{/unless}}{{/each}}{{/if}}
+      </p>
+    {{/if}}
+  </div>
+</div>

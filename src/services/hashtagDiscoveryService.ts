@@ -11,6 +11,16 @@
  *     summary; the starters are visible while the community is quiet and are
  *     phased out as real community usage accrues
  *   - Standard tags with media (club/event tags that have tagged content)
+ *   - The hashtag index blocks the /media/browse landing renders: Popular Tags
+ *     (the three-tier composition, at the landing's wider limit) and All Tags
+ *     (community tags only, alphabetical), plus a highlight of recent event
+ *     hashtags and the tutorial hashtag. Popular and All Tags are deliberately
+ *     different populations: curated single-uploader tags are public and belong
+ *     in Popular, but not in an alphabetical index of the community's own
+ *     vocabulary. This is a content fragment, not a page envelope; mediaService
+ *     owns the browse page view-model that carries it.
+ *   - The /media/browse href for a single tag, shared with mediaService so one
+ *     builder fixes every hashtag destination on the site.
  *   - Tag prefix suggest (autocomplete)
  *   - Member-context tag suggestions (club affiliations, participated events)
  *
@@ -35,10 +45,21 @@ import {
   type PopularTagRow,
   type StandardTagWithMediaRow,
   type TagStatSourceRow,
+  type TagWithUsageRow,
   type MemberTagRow,
 } from '../db/db';
 import { runSqliteRead } from './sqliteRetry';
 import { TEACHING_TAG_SEEDS, composeSuggestedTags } from '../content/teachingTagSeeds';
+
+/**
+ * How many chips the landing's Popular Tags block carries. The list is composed,
+ * not ranked alone: real community tags lead, the pinned curated starters fill
+ * the remaining slots so the block is useful before anyone has uploaded, and the
+ * starters are squeezed out as community usage accrues.
+ */
+const BROWSE_POPULAR_LIMIT = 30;
+/** How many event hashtags the recency highlight carries. */
+const BROWSE_HIGHLIGHT_EVENT_LIMIT = 12;
 
 export interface TagChipShape {
   display: string;
@@ -67,7 +88,31 @@ export interface MemberTagSuggestions {
   popularTags: TagChipShape[];
 }
 
-function tagToBrowseHref(tagNormalized: string): string {
+/**
+ * The hashtag index blocks, rendered inside the /media/browse landing. Not a
+ * page envelope: mediaService nests this in the browse page view-model.
+ */
+export interface HashtagIndexContent {
+  /** Popular tags: real community usage first, curated starters filling the rest. */
+  popularTags: TagChipShape[];
+  hasPopularTags: boolean;
+  /** Community tags only, alphabetically. A single member's tags stay personal. */
+  communityTags: TagChipShape[];
+  hasCommunityTags: boolean;
+  /** Shown in place of the list while no tag has been shared by two members. */
+  communityEmptyNote: string;
+  /** Recent event hashtags, newest first, plus the tutorial tag when it has media. */
+  highlightTags: TagChipShape[];
+  hasHighlights: boolean;
+}
+
+/**
+ * The /media/browse URL for one tag, given its `tag_normalized` form (with the
+ * leading '#'). The URL token is that form minus the '#', matching the input
+ * format the browse handler expects. Shared with mediaService so a hashtag has
+ * exactly one destination wherever it is rendered.
+ */
+export function tagToBrowseHref(tagNormalized: string): string {
   const token = tagNormalized.startsWith('#') ? tagNormalized.slice(1) : tagNormalized;
   return `/media/browse?tag=${encodeURIComponent(token)}`;
 }
@@ -167,6 +212,39 @@ export const hashtagDiscoveryService = {
         else events.push(chip);
       }
       return { clubs, events };
+    });
+  },
+
+  // The hashtag index blocks for the /media/browse landing. Popular Tags and
+  // All Tags are two different populations on purpose: Popular is the public
+  // set, which includes curated single-uploader tags so the curated catalog
+  // surfaces and so the block is useful before anyone has uploaded, while All
+  // Tags is community only, so an alphabetical index is people's shared
+  // vocabulary rather than a dump of the catalog.
+  getHashtagIndexContent(): HashtagIndexContent {
+    return runSqliteRead('hashtagDiscoveryService.getHashtagIndexContent', () => {
+      const popularTags = hashtagDiscoveryService.getPopularTagsWithSeeds(BROWSE_POPULAR_LIMIT);
+      const communityTags = (tagStats.listCommunityTagsAlphabetical.all() as PopularTagRow[])
+        .map(rowToChip);
+
+      // Recent events lead the highlight; the tutorial tag rides beside them so
+      // the two halves of the criterion sit in one place.
+      const eventRows = tagStats.listRecentEventTagsWithMedia
+        .all(BROWSE_HIGHLIGHT_EVENT_LIMIT) as TagWithUsageRow[];
+      const tutorialRow = tagStats.findTutorialTagWithMedia.get() as TagWithUsageRow | undefined;
+      const highlightTags = eventRows.map(rowToChip);
+      if (tutorialRow) highlightTags.push(rowToChip(tutorialRow));
+
+      return {
+        popularTags,
+        hasPopularTags: popularTags.length > 0,
+        communityTags,
+        hasCommunityTags: communityTags.length > 0,
+        communityEmptyNote:
+          'A tag joins this list once two different members have used it. Until then, tags stay on the galleries of the members who wrote them.',
+        highlightTags,
+        hasHighlights: highlightTags.length > 0,
+      };
     });
   },
 

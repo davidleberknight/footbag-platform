@@ -180,6 +180,45 @@ export function insertTag(db: BetterSqlite3.Database, o: TagOverrides = {}): str
   return id;
 }
 
+// A member-created tag: no standard type, so it never auto-links a club or an
+// event gallery. The uploader marker (`#by_<slug>`) and `#curated` are this kind
+// of row too, which is why the normalized form is always caller-supplied.
+export interface FreeformTagOverrides {
+  id?: string;
+  tag_normalized?: string;
+  tag_display?: string;
+}
+
+export function insertFreeformTag(db: BetterSqlite3.Database, o: FreeformTagOverrides = {}): string {
+  const id         = o.id             ?? `tag-test-${uid()}`;
+  const normalized = o.tag_normalized ?? `#freeform_test_${uid()}`;
+  const display    = o.tag_display    ?? normalized;
+  db.prepare(`
+    INSERT INTO tags (id, tag_normalized, tag_display, is_standard, standard_type, created_at, created_by, updated_at, updated_by, version)
+    VALUES (?, ?, ?, 0, NULL, ?, ?, ?, ?, 1)
+  `).run(id, normalized, display, TS, SYS, TS, SYS);
+  return id;
+}
+
+// Applies a tag to a media item. tag_display is denormalized at insert time from
+// the tag row, matching the production write path.
+export function attachMediaTag(
+  db: BetterSqlite3.Database,
+  mediaId: string,
+  tagId: string,
+): string {
+  const row = db.prepare(`SELECT tag_display FROM tags WHERE id = ?`).get(tagId) as
+    | { tag_display: string }
+    | undefined;
+  if (!row) throw new Error(`attachMediaTag: no tag row for id ${tagId}`);
+  const id = `mt-test-${uid()}`;
+  db.prepare(`
+    INSERT INTO media_tags (id, created_at, created_by, updated_at, updated_by, version, media_id, tag_id, tag_display)
+    VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)
+  `).run(id, TS, SYS, TS, SYS, mediaId, tagId, row.tag_display);
+  return id;
+}
+
 // ── Member named gallery + one matching media item ────────────────────────────
 //
 // Seeds a member-owned named gallery (is_default=0, so it is a deliberately

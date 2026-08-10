@@ -20,6 +20,8 @@ import { signJwtLocalSync } from './signJwt';
 import {
   insertMember,
   insertTag,
+  insertFreeformTag,
+  attachMediaTag,
   insertLegacyMember,
   insertHistoricalPerson,
   insertClub,
@@ -48,6 +50,8 @@ import {
 export {
   insertMember,
   insertTag,
+  insertFreeformTag,
+  attachMediaTag,
   insertLegacyMember,
   insertHistoricalPerson,
   insertClub,
@@ -1461,6 +1465,20 @@ export function insertMemberGallery(db: BetterSqlite3.Database, o: MemberGallery
     o.sort_order ?? 'upload_desc',
   );
   return id;
+}
+
+// One AND-criterion on a named gallery: an item belongs to the gallery only if
+// it carries every criterion tag. A personal gallery has exactly one, the
+// owner's `#by_<slug>` uploader tag.
+export function insertGalleryCriterionTag(
+  db: BetterSqlite3.Database,
+  galleryId: string,
+  tagId: string,
+): void {
+  db.prepare(`
+    INSERT INTO member_gallery_tags (gallery_id, tag_id, created_at, created_by)
+    VALUES (?, ?, ?, ?)
+  `).run(galleryId, tagId, TS, SYS);
 }
 
 // ── Outbox email ───────────────────────────────────────────────────────────────

@@ -263,9 +263,9 @@ The distinction between standardized and freeform tags is semantic, not technica
 
 *Uploader hashtags* identify the source of a media item with a tag that matches the uploader's identity. Member uploads carry `#by_{member_slug}` automatically. Curator (FH) uploads carry `#curated`. The system auto-applies these tags on every upload and rejects them when supplied by anyone in input, so they cannot be forged. This makes per-uploader views (a member's Personal Gallery, the all-FH gallery) plain tag-criteria queries that share the same query path as event and club galleries. The slug pattern matches the member URL slug (lowercase letters, digits, underscores), so a member's Personal Gallery is just `criteria_tags = [#by_{member_slug}]`. Member-owned named galleries auto-include `#by_{owner_slug}` in their criteria-tag set on both create and edit, so the gallery's tag-AND filter scopes to the owner's content by default and that scoping cannot be lifted by editing. The bare `#{member_slug}` is an ordinary freeform tag: any member may apply it to mention another member, to pre-tag historical or unsigned persons whose slug does not yet exist in the system, or to organize their own content.
 
-Tag Discovery and Browsing: A hashtag links to its tag gallery wherever at least one media item carries it (the same lightweight existence check used for event and club gallery links, with no total computed), and clicking it navigates to a tag gallery page showing all photos and videos with that tag. On a surface that lists a media item every hashtag shown is on that item, so it always links; where a hashtag is shown apart from any media, such as a freestyle trick with no media yet, it renders as a plain non-clickable token. A browse-all tags page shows Popular Tags (the most frequently used tags, top N by usage) and All Tags (community tags listed alphabetically).
+Tag Discovery and Browsing: A hashtag links to its tag gallery wherever at least one media item carries it (the same lightweight existence check used for event and club gallery links, with no total computed), and clicking it navigates to a tag gallery page showing all photos and videos with that tag. On a surface that lists a media item every hashtag shown is on that item, so it always links; where a hashtag is shown apart from any media, such as a freestyle trick with no media yet, it renders as a plain non-clickable token. The media browse landing at /media/browse carries the hashtag index: Popular Tags and All Tags (community tags listed alphabetically). There is no separate hashtag index page.
 
-A community tag is any tag used by at least two distinct members. The Browse Hashtags page helps new visitors explore user-uploaded content. Tags used only by a single member (even if that member uses the tag many times) are treated as personal tags and are not listed on the Browse Hashtags page. This browsing architecture turns tags into a navigation system, not just metadata. The Browse Hashtags page and per-tag gallery pages are public.
+A community tag is any tag used by at least two distinct members. The hashtag index on the browse landing helps new visitors explore user-uploaded content. Tags used only by a single member (even if that member uses the tag many times) are treated as personal tags and are not listed in the All Tags index. This browsing architecture turns tags into a navigation system, not just metadata. The browse landing and per-tag gallery pages are public.
 
 The upload interface for media (photos and video links) from the MyContent page never blocks, never enforces. All tag fields start empty. Members can upload media into named galleries with no tags at all, they simply won't appear in event/club or discoverable galleries. This respects member agency while providing clear pathways to proper organization.
 
@@ -447,7 +447,7 @@ Success Criteria:
 - Opening a gallery item shows its detail (the full display image or a playable video, the full caption, all clickable hashtags, uploader attribution per the visibility rule below, and upload date) on a server-rendered page reached within the site, with a clear path back to the gallery it was opened from.
 - From an item's detail view, the viewer can move to the previous and next item in the same gallery without returning to the grid first.
 - Every surface that lists an item (gallery grid, item detail, browse results) shows that item's hashtags as clickable tags.
-- Empty state displays "No photos or videos found with this tag" with suggestions of 5 popular tags platform-wide (a teachable moment).
+- Empty state displays "No photos or videos found." with suggestions of 5 popular tags platform-wide (a teachable moment). It never says the site holds nothing, and it does not restate the criteria: the set header above already names the set and shows a zero count.
 - Media galleries are pubic, but only logged-in members will see details about the personal information of the member who uploaded the media (uploaded_by).
 - The public hub at `/media` presents a fixed set of collection cards: Browse by hashtag first, the Member galleries card second, then the curated collection cards (Freestyle, Net, Sideline, Related Sports). The Member galleries card follows the same has-content rule as the other collection cards: it appears once at least one member-owned named gallery exists, linking to the member-galleries list page, and is not shown before then. FH-owned named galleries are reached through the curated collection cards.
 - The member-galleries list page at `/media/member-galleries` lists every member-owned named gallery in chronological order by creation date (oldest first); each entry shows the gallery name, description, item count, and owner attribution linking to the owner's profile. Auto-materialized per-member default galleries (Personal Gallery) are excluded from this list; they remain reachable at their `/media/{gallery_id}` URL for direct sharing.
@@ -478,15 +478,15 @@ Success Criteria:
 
 ### V_Browse_Hashtags
 
-Access: Any visitor can browse standardized and freeform hashtags on the public Browse Hashtags page and see public content tagged with them. This page will always highlight popular hashtags, recent events, and tutorials.
+Access: Any visitor can browse standardized and freeform hashtags on the public browse landing at /media/browse and see public content tagged with them. The landing always highlights popular hashtags, and highlights recent events and tutorials whenever any of them carry media.
 
 Story: As a visitor, I can browse all freeform and standard hashtags so that I discover content vocabulary without searching.
 
 Success Criteria:
 
-- Popular Tags section displays the most frequently used public tags (top 30 by usage across the site).
+- Popular Tags section displays 30 public tags: the most frequently used lead, and the pinned curated starter tags fill the remaining slots so the section is useful before anyone has uploaded.
 - Recent events and tutorial will be given special treatment to facilitate discovery.
-- This feature lists public tags. A tag is public when at least two distinct members have used it (a community tag) or it appears on curator-published content (the curated catalog is public even though one system account owns it). A tag used by a single ordinary member is a personal tag, private to that member's gallery, and stays off the public Browse Hashtags page. A background job recomputes tag usage statistics, recording both total usage and the distinct-member count per tag. The Popular Tags section shows the top 30 public tags ranked by usage.
+- This feature lists public tags. A tag is public when at least two distinct members have used it (a community tag) or it appears on curator-published content (the curated catalog is public even though one system account owns it). A tag used by a single ordinary member is a personal tag, private to that member's gallery, and stays out of the public hashtag index. A background job recomputes tag usage statistics, recording both total usage and the distinct-member count per tag. The Popular Tags section composes 30 chips in three tiers: community-popular tags first, then the pinned curated starter tags, then curator-published tags. The starters are squeezed out automatically as real community usage accrues, with no flag to flip and no migration.
 
 ### V_Access_Denied
 Access: Any user. This is an exceptional error user story. It should only happen if there is a system bug, because no User Interface field should ever be available for any user to click on if they are not both authorized and authenticated (active session).
@@ -3445,7 +3445,7 @@ Success Criteria:
 
 - A scheduled background job runs once per day to recompute aggregated hashtag usage counts from recent media.
 - The job reads MediaItem records, normalizes each tag, and updates a stats structure containing {tag, usageCount, lastUpdated}.
-- The stats are stored in a format that can be read quickly by the Browse Hashtags page and any “popular tags” UI elements.
+- The stats are stored in a format that can be read quickly by the hashtag index on the browse landing and any “popular tags” UI elements.
 - If the job fails, existing stats remain in place and the failure is logged for later investigation.
 - The system exposes basic metrics for the job (run time, success/failure) to operations/admins.
 

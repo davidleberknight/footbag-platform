@@ -98,7 +98,7 @@ test('Tier-1 member uploads a photo into their named gallery end-to-end', { tag:
   // A fresh deploy seeds the gallery container only, never the media, so the
   // named gallery starts empty.
   await page.goto(`/media/${galleryId}`);
-  await expect(page.locator('text=No photos or videos found with this tag')).toBeVisible();
+  await expect(page.locator('text=No photos or videos found.')).toBeVisible();
 
   // Upload a real photo through the member upload UI, exercising the real image
   // worker the same way the avatar test does.

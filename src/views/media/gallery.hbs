@@ -1,13 +1,4 @@
-<div class="hero hero-sm">
-  <div>
-    <h1>Named Gallery: {{content.gallery.name}}</h1>
-    {{#if (or content.gallery.byMember content.gallery.criteriaTags.length)}}
-      <p class="hero-subtitle">
-        Showing {{content.totalItems}} {{content.totalItemsNoun}}{{#if content.gallery.byMember}} by {{#if content.gallery.byMember.href}}<a href="{{content.gallery.byMember.href}}" class="tag-chip-link">{{content.gallery.byMember.display}}</a>{{else}}{{content.gallery.byMember.display}}{{/if}}{{#if content.gallery.criteriaTags.length}},{{/if}}{{/if}}{{#if content.gallery.criteriaTags.length}} tagged: {{#each content.gallery.criteriaTags}}{{display}}{{#unless @last}} {{/unless}}{{/each}}{{/if}}{{#if content.gallery.excludeTags.length}} - Excluding {{content.excludeTagsNoun}}: {{#each content.gallery.excludeTags}}{{display}}{{#unless @last}} {{/unless}}{{/each}}{{/if}}
-      </p>
-    {{/if}}
-  </div>
-</div>
+{{> _set-header header=content.setHeader}}
 
 <div class="wrapper">
 
@@ -23,33 +14,29 @@
     </ul>
   {{/if}}
 
-  {{#if content.filter}}
-    {{> _tag-filter-bar filter=content.filter}}
-  {{/if}}
-
-  {{#if content.truncationNotice}}
-    <div class="notice notice-info">{{content.truncationNotice}}</div>
-  {{/if}}
-
-  {{#if content.items.length}}
-    <ul class="gallery-grid">
-      {{#each content.items}}
-        {{> _gallery-tile this}}
-      {{/each}}
-    </ul>
-  {{else}}
-    <div class="empty-state">
-      <p>No photos or videos found with this tag</p>
-      {{#if content.popularTags.length}}
-      <p>Try one of these popular tags:</p>
-      <ul class="tag-chip-row">
-        {{#each content.popularTags}}
-        <li><a href="{{href}}" class="tag-chip">{{display}}</a></li>
-        {{/each}}
-      </ul>
+  <div class="media-layout">
+    <div class="media-layout-rail">
+      {{#if content.filter}}
+        {{> _tag-filter-bar filter=content.filter}}
       {{/if}}
     </div>
-  {{/if}}
+
+    <div class="media-layout-main">
+      {{#if content.truncationNotice}}
+        <div class="notice notice-info">{{content.truncationNotice}}</div>
+      {{/if}}
+
+      {{#if content.items.length}}
+        <ul class="gallery-grid">
+          {{#each content.items}}
+            {{> _gallery-tile this}}
+          {{/each}}
+        </ul>
+      {{else}}
+        {{> _set-empty-state popularTags=content.popularTags}}
+      {{/if}}
+    </div>
+  </div>
 
 </div>
 <script src="{{{asset 'js/tag-chips.js'}}}" defer></script>

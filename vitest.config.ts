@@ -6,10 +6,17 @@ import os from 'node:os';
 // reporting 20 host cores against ~8 GB) the concurrent boots oversubscribe
 // memory and stretch beforeAll hooks past their ceiling. Cap workers to memory
 // ONLY when RAM is the bottleneck; CPU-balanced machines and CI keep vitest's
-// default parallelism. ~0.8 GB/worker covers app boot + better-sqlite3 + node
-// heap with headroom.
+// default parallelism.
+//
+// The reservation is per worker and deliberately larger than a worker's own
+// footprint. It is the machine's budget divided by workers, so it also has to
+// cover the operating system, the page cache the SQLite test databases run on,
+// and a development server the developer left running alongside the suite. A
+// figure tight enough to leave the box with no free memory buys parallelism
+// with swap pressure and load-dependent flake, which costs more than the
+// wall-clock it saves.
 const cpuCount = os.cpus().length;
-const memWorkerCap = Math.max(1, Math.floor(os.totalmem() / (0.8 * 1024 ** 3)));
+const memWorkerCap = Math.max(1, Math.floor(os.totalmem() / (1.2 * 1024 ** 3)));
 const ramBound = memWorkerCap < cpuCount;
 // A VM that is CPU- or disk-slow but RAM-adequate slips past the memory cap and
 // runs full parallelism, so each worker's cold app-graph compile in beforeAll

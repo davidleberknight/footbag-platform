@@ -125,6 +125,12 @@ export const mediaController = {
   freestyleTutorials(_req: Request, res: Response): void {
     res.redirect(301, '/freestyle/media');
   },
+
+  // The hashtag index lives on the browse landing, so there is one place to find
+  // media by hashtag rather than two that look alike. This path keeps working.
+  tagsIndex(_req: Request, res: Response): void {
+    res.redirect(301, '/media/browse');
+  },
 };
 
 // Express+qs surfaces a repeated `?tag=a&tag=b` as a string[]; a single

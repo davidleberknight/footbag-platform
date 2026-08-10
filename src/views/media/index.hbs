@@ -7,8 +7,10 @@
 
 <div class="wrapper">
 
-  {{! ── Media-collection cards; browse-by-hashtag leads with a green accent ─ }}
-  <section class="content-section">
+  {{! ── Media-collection cards; browse-by-hashtag leads with a green accent ─
+      The section's own padding is the whole gap above the grid; the extra
+      content-section margin on top of it just pushed the cards down. }}
+  <section>
     <div class="media-hub-grid">
       {{#each content.cards}}
       <div class="media-hub-card{{#if accent}} media-hub-card--browse{{/if}}">

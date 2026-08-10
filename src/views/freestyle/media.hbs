@@ -6,26 +6,31 @@
 </div>
 
 <div class="wrapper">
-  {{#each content.sections}}
-  <section class="content-section">
-    {{#if heading}}
-    <div class="section-heading"><h2>{{heading}}</h2></div>
-    {{/if}}
-    <div class="card-grid card-grid-2col">
-      {{#each folders}}
-      <div class="card">
-        <div class="card-title">{{label}}</div>
-        {{#if description}}<p>{{description}}</p>{{/if}}
-        <div class="card-actions">
-          {{#if available}}
-          <a href="{{href}}" class="btn btn-outline">Watch &rarr;</a>
-          {{else}}
-          <span class="media-hub-soon">Coming soon</span>
-          {{/if}}
+  {{! One section holding every category. A section per category stacked the
+      global section padding on top of each block's own margin, so the gap
+      between categories grew with the number of categories. }}
+  <section class="media-blocks">
+    {{#each content.sections}}
+    <div>
+      {{#if heading}}
+      <div class="section-heading"><h2>{{heading}}</h2></div>
+      {{/if}}
+      <div class="card-grid card-grid-2col">
+        {{#each folders}}
+        <div class="card">
+          <div class="card-title">{{label}}</div>
+          {{#if description}}<p>{{description}}</p>{{/if}}
+          <div class="card-actions">
+            {{#if available}}
+            <a href="{{href}}" class="btn btn-outline">Watch &rarr;</a>
+            {{else}}
+            <span class="media-hub-soon">Coming soon</span>
+            {{/if}}
+          </div>
         </div>
+        {{/each}}
       </div>
-      {{/each}}
     </div>
+    {{/each}}
   </section>
-  {{/each}}
 </div>

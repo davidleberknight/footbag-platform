@@ -168,6 +168,20 @@ describe('GET /media/browse — browse mode (no criteria)', () => {
     expect(res.text).not.toContain('class="gallery-grid"');
   });
 
+  it('groups the landing blocks under one section so they are spaced by the block gap alone', async () => {
+    const app = createApp();
+    const res = await request(app).get('/media/browse');
+    expect(res.status).toBe(200);
+    // One section wrapper holds all three blocks. Sibling sections would each
+    // take the global section padding and a divider on top of it, which is
+    // what left the landing mostly empty space.
+    expect(res.text).toContain('class="media-blocks"');
+    expect(res.text.match(/<section/g)?.length).toBe(1);
+    // The blocks stay labelled regions, so the landmark structure is unchanged.
+    expect(res.text).toContain('role="region" aria-labelledby="browse-search-heading"');
+    expect(res.text).toContain('role="region" aria-labelledby="browse-popular-heading"');
+  });
+
   it('takes precedence over /media/:galleryId for the literal "browse" segment', async () => {
     // /media/browse must NOT be captured as :galleryId. If it were,
     // mediaService.getNamedGalleryPage would return 404 ("gallery
@@ -205,6 +219,27 @@ describe('GET /media/browse — results mode', () => {
     expect(res.text).toContain('Apply Hashtag Filters');
     expect(res.text).toContain('href="/media/browse"');
     expect(res.text).toContain('Browse All Media');
+  });
+
+  it('puts the filter in the rail and the grid in the main column, so the grid starts at the top', async () => {
+    const app = createApp();
+    const res = await request(app).get('/media/browse?tag=butterfly');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('class="media-layout"');
+
+    const railIdx = res.text.indexOf('class="media-layout-rail"');
+    const mainIdx = res.text.indexOf('class="media-layout-main"');
+    const filterIdx = res.text.indexOf('class="tag-filter-bar"');
+    const gridIdx = res.text.indexOf('class="gallery-grid"');
+
+    // The filter belongs to the rail and the grid to the main column. If the
+    // grid were still stacked under the filter it would sit inside the rail,
+    // which is the shape that pushed it off screen.
+    expect(railIdx).toBeGreaterThan(-1);
+    expect(mainIdx).toBeGreaterThan(-1);
+    expect(filterIdx).toBeGreaterThan(railIdx);
+    expect(filterIdx).toBeLessThan(mainIdx);
+    expect(gridIdx).toBeGreaterThan(mainIdx);
   });
 
   it('AND-matches multiple ?tag= criteria (repeated arg form)', async () => {
@@ -281,18 +316,38 @@ describe('GET /media/browse — results mode', () => {
     expect(tile![0]).toContain('href="/media/browse?tag&#x3D;spike"');
   });
 
-  it('lifts a `#by_<slug>` criterion into the hero byMember chip', async () => {
+  it('reads a set of one member\'s uploads as that person, not as a tag query', async () => {
     const app = createApp();
     const res = await request(app).get('/media/browse?tag=by_browse_regular');
     expect(res.status).toBe(200);
-    // Hero subtitle reads "Showing 1 item by Browse Regular"
-    expect(res.text).toMatch(/Showing 1 item by[\s\S]{0,500}Browse Regular/);
-    // The raw #by_<slug> token is NOT echoed in the "tagged:" list.
+    // The member is the heading; the line beneath says what the set is and how
+    // much is in it, in plain words.
+    expect(res.text).toContain('<h1>Browse Regular</h1>');
+    expect(res.text).toContain('Photos and videos uploaded by Browse Regular. Showing 1 item.');
+    // The raw #by_<slug> token is never echoed as a tag.
     const heroOpen = res.text.search(/class="hero hero-sm[^"]*"/);
     expect(heroOpen).toBeGreaterThan(-1);
     const heroClose = res.text.indexOf('</div>\n</div>', heroOpen);
     const heroBlock = res.text.slice(heroOpen, heroClose);
     expect(heroBlock).not.toContain('#by_browse_regular');
+  });
+
+  it('does not link the member name to a profile for a signed-out visitor', async () => {
+    const app = createApp();
+    const res = await request(app).get('/media/browse?tag=by_browse_regular');
+    // The display name is public; the profile behind it is member-only.
+    expect(res.text).toContain('<h1>Browse Regular</h1>');
+    expect(res.text).not.toContain('/members/browse_regular');
+  });
+
+  it('keeps the tag-query header when the set is one member plus a topic tag', async () => {
+    const app = createApp();
+    const res = await request(app).get('/media/browse?tag=by_browse_regular&tag=butterfly');
+    expect(res.status).toBe(200);
+    // Two criteria, so this is a query the visitor built, not that person's
+    // gallery; the name stays a mid-prose link rather than the heading.
+    expect(res.text).toContain('<h1>Browse Media</h1>');
+    expect(res.text).toMatch(/Showing [\s\S]{0,500}Browse Regular/);
   });
 
   it('escapes HTML in item captions', async () => {

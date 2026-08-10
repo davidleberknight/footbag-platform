@@ -120,6 +120,37 @@ describe('GET /media/browse — active filter chip inputs', () => {
   });
 });
 
+describe('GET /media/browse — common controls lead, advanced ones follow', () => {
+  it('collapses the exclude field into a disclosure when nothing is excluded', async () => {
+    const res = await request(createApp()).get('/media/browse?tag=butterfly');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('<details class="tag-filter-more">');
+    expect(res.text).toContain('More filter options');
+    // The field is still in the document, so a no-JS visitor can open the
+    // disclosure and submit it; only its initial visibility changes.
+    expect(res.text).toContain('id="tag-filter-exclude"');
+  });
+
+  it('opens the disclosure when an exclusion is already in force', async () => {
+    const res = await request(createApp()).get('/media/browse?tag=butterfly&exclude=tutorial');
+    expect(res.status).toBe(200);
+    // Rendered open by the server, so the control behind the current result set
+    // is never hidden from the visitor who set it, with or without JS.
+    expect(res.text).toContain('<details class="tag-filter-more" open>');
+  });
+
+  it('puts the include field and Apply ahead of the advanced disclosure', async () => {
+    const res = await request(createApp()).get('/media/browse?tag=butterfly');
+    const include = res.text.indexOf('id="tag-filter-include"');
+    const apply = res.text.indexOf('Apply Hashtag Filters');
+    const more = res.text.indexOf('tag-filter-more');
+    expect(include).toBeGreaterThan(-1);
+    expect(more).toBeGreaterThan(-1);
+    expect(include).toBeLessThan(apply);
+    expect(apply).toBeLessThan(more);
+  });
+});
+
 describe('GET /media/browse — chip-input autocomplete + help', () => {
   it('renders both fields as data-tag-chips inputs with help text (autocomplete via /tags/suggest)', async () => {
     const res = await request(createApp()).get('/media/browse?tag=butterfly');

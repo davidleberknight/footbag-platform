@@ -188,10 +188,14 @@ describe('member-uploaded media surfaces', () => {
     expect(res.text).not.toContain('Chinlone hack');
   });
 
-  it('the Personal Gallery is reachable by URL', async () => {
+  it('the Personal Gallery is reachable by URL and reads as its owner', async () => {
     const res = await request(createApp()).get(`/media/${PERSONAL_GALLERY_ID}`);
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Named Gallery: Personal Gallery');
+    // A gallery whose only criterion is the owner's uploader tag is that
+    // person's gallery, so the member heads the page rather than the stored
+    // gallery name, which every member's default gallery shares.
+    expect(res.text).toContain(`<h1>${MEMBER_NAME}</h1>`);
+    expect(res.text).toContain(`Photos and videos uploaded by ${MEMBER_NAME}.`);
     expect(res.text).toContain('182 panel footbags');
   });
 
@@ -243,12 +247,19 @@ describe('member-uploaded media surfaces', () => {
   });
 });
 
-describe('#by_ uploader-tag links to the member gallery (not the profile)', () => {
+// A member's name appears in two roles on media surfaces, and they resolve to
+// different places on purpose. As a `#by_` chip it is a "more from this
+// uploader" control, so it goes to that member's public gallery and does so for
+// every viewer, because a signed-out visitor must never meet a dead name. As
+// the heading of that member's own gallery it identifies the person rather than
+// offering navigation to the page you are already on, so it goes to their
+// profile, which only a signed-in viewer may open.
+describe('a member name on media surfaces resolves by the role it plays', () => {
   const GALLERY_HREF = `href="/media/browse?tag&#x3D;by_${MEMBER_SLUG}"`;
 
-  it('an authenticated viewer sees the name linked to the member gallery, not the profile', async () => {
+  it('links a #by_ chip to the member gallery, not the profile, for a signed-in viewer', async () => {
     const res = await request(createApp())
-      .get(`/media/browse?tag=by_${MEMBER_SLUG}`)
+      .get('/media/browse?tag=chinlone')
       .set('Cookie', cookieFor(VIEWER_ID));
     expect(res.status).toBe(200);
     expect(res.text).toContain(MEMBER_NAME);
@@ -256,11 +267,26 @@ describe('#by_ uploader-tag links to the member gallery (not the profile)', () =
     expect(res.text).not.toContain(PROFILE_HREF);
   });
 
-  it('an anonymous viewer gets the same member-gallery link (member galleries are public)', async () => {
-    const res = await request(createApp()).get(`/media/browse?tag=by_${MEMBER_SLUG}`);
+  it('gives an anonymous viewer the same member-gallery chip link', async () => {
+    const res = await request(createApp()).get('/media/browse?tag=chinlone');
     expect(res.status).toBe(200);
     expect(res.text).toContain(MEMBER_NAME);
     expect(res.text).toContain(GALLERY_HREF);
+    expect(res.text).not.toContain(PROFILE_HREF);
+  });
+
+  it('links the identity heading of that member\'s own gallery to their profile, signed in', async () => {
+    const res = await request(createApp())
+      .get(`/media/browse?tag=by_${MEMBER_SLUG}`)
+      .set('Cookie', cookieFor(VIEWER_ID));
+    expect(res.status).toBe(200);
+    expect(res.text).toContain(`<h1><a href="/members/${MEMBER_SLUG}" class="hero-title-link">${MEMBER_NAME}</a></h1>`);
+  });
+
+  it('leaves that same heading plain for an anonymous viewer, who cannot open a profile', async () => {
+    const res = await request(createApp()).get(`/media/browse?tag=by_${MEMBER_SLUG}`);
+    expect(res.status).toBe(200);
+    expect(res.text).toContain(`<h1>${MEMBER_NAME}</h1>`);
     expect(res.text).not.toContain(PROFILE_HREF);
   });
 });

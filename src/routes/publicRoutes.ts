@@ -56,6 +56,9 @@ publicRouter.post('/clubs/:key/reactivate',     requireMember, clubController.po
 publicRouter.post('/clubs/:key/hashtag',        requireMember, clubController.postUpdateHashtag);
 publicRouter.post('/clubs/:key/content/edit',    requireMember, clubController.postContentEdit);
 publicRouter.get('/tags/suggest',       tagSuggestController.suggest);
+// The hashtag index moved onto the browse landing; this path redirects there.
+// The autocomplete endpoint above is an exact path, so it is unaffected.
+publicRouter.get('/tags',               mediaController.tagsIndex);
 publicRouter.get('/media',              mediaController.hub);
 // IMPORTANT: /media/browse is a literal sub-route and MUST be registered
 // before /media/:galleryId. Without this ordering, "browse" would be

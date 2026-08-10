@@ -421,10 +421,15 @@ describe('profile update writes an audit row', () => {
 
     const db = new BetterSqlite3(dbPath, { readonly: true });
     const row = db.prepare(
+      // Earlier cases in this file save the same member, and audit timestamps
+      // carry millisecond resolution, so two saves can tie. created_at alone
+      // then orders non-deterministically and can return a prior save's row.
+      // rowid rises with insertion, so it breaks the tie exactly; the audit id
+      // is a random UUID and carries no ordering.
       `SELECT action_type, category, actor_type, actor_member_id, entity_type, entity_id, metadata_json
          FROM audit_entries
         WHERE action_type = 'member.profile_updated' AND entity_id = ?
-        ORDER BY created_at DESC LIMIT 1`,
+        ORDER BY created_at DESC, rowid DESC LIMIT 1`,
     ).get(MEMBER_ID) as
       | {
           action_type: string; category: string; actor_type: string;
@@ -461,7 +466,7 @@ describe('profile update writes an audit row', () => {
     const row = db.prepare(
       `SELECT metadata_json FROM audit_entries
         WHERE action_type = 'member.profile_updated' AND entity_id = ?
-        ORDER BY created_at DESC, id DESC LIMIT 1`,
+        ORDER BY created_at DESC, rowid DESC LIMIT 1`,
     ).get(MEMBER_ID) as { metadata_json: string } | undefined;
     db.close();
 

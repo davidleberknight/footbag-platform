@@ -7,7 +7,9 @@
       as a hidden `?context=` input so it survives a submit and cannot be lifted.
       An `apply` marker drives the controller's canonical PRG redirect; without
       JS the inputs are plain prefilled text fields and the form still filters.
-      All fields are service-shaped (mediaService TagFilterView). --}}
+      Common controls lead, advanced ones follow in a collapsed disclosure that
+      needs no JS to open. All fields are service-shaped (mediaService
+      TagFilterView). --}}
 <section class="tag-filter-bar" aria-label="Filter media">
   <form method="GET" action="{{filter.addAction}}" class="tag-filter-form">
     <input type="hidden" name="apply" value="1">
@@ -28,9 +30,8 @@
       <p id="tag-filter-include-hint" class="tag-filter-hint">Type a hashtag and press Enter, remove one with ✕, or pick a suggestion below.</p>
     </div>
 
-    <div class="tag-filter-field tag-filter-field--exclude">
-      <label class="tag-filter-field-label" for="tag-filter-exclude">Hide media with these hashtags</label>
-      <input type="text" id="tag-filter-exclude" name="exclude" value="{{filter.excludeText}}" data-tag-chips class="browse-search-input" placeholder="e.g. tutorial">
+    <div class="tag-filter-actions">
+      <button type="submit" class="btn btn-primary tag-filter-apply">Apply Hashtag Filters</button>
     </div>
 
     {{#if filter.suggestions.length}}
@@ -44,9 +45,16 @@
       </div>
     {{/if}}
 
-    <div class="tag-filter-actions">
-      <button type="submit" class="btn btn-primary tag-filter-apply">Apply Hashtag Filters</button>
-      <span class="tag-filter-apply-hint">Nothing changes until you apply.</span>
-    </div>
+    {{! Excluding is the rarer intent, so it sits behind a disclosure. The
+        service opens it whenever an exclusion is already in force, so the
+        control that produced the current result set is never hidden. }}
+    <details class="tag-filter-more"{{#if filter.hasExcludeTags}} open{{/if}}>
+      <summary class="tag-filter-more-summary">More filter options</summary>
+      <div class="tag-filter-field tag-filter-field--exclude">
+        <label class="tag-filter-field-label" for="tag-filter-exclude">Hide media with these hashtags</label>
+        <input type="text" id="tag-filter-exclude" name="exclude" value="{{filter.excludeText}}" data-tag-chips class="browse-search-input" placeholder="e.g. tutorial">
+        <p class="tag-filter-hint">Nothing changes until you apply.</p>
+      </div>
+    </details>
   </form>
 </section>

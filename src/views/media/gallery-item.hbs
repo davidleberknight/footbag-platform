@@ -21,53 +21,61 @@
       <h2 class="gallery-item-title">{{content.itemTitle}}</h2>
     {{/if}}
 
-    {{#if content.item.captionMask}}
-      {{! The correction lives inside a square content frame (the source clips are
-          1:1) that both the video and the mask fill; the outer wrapper is the
-          fullscreen target, so fullscreen scales the frame and its mask together
-          and the burnt-in caption is never revealed. }}
-      <div class="gallery-item-media gallery-item-media--masked">
-        <div class="caption-mask-frame">
-          {{#if content.item.media}}
-            {{> video-facade media=content.item.media eager=true}}
-          {{else}}
-            <img src="{{content.item.displayHref}}" alt="{{content.item.alt}}" decoding="async" />
-          {{/if}}
-          {{! Sibling of the player, not a child, so it survives the click-to-play
-              swap and stays over the video before, during, and after playback. }}
-          {{> _caption-mask caption=content.item.caption}}
-        </div>
-        <button type="button" class="caption-mask-fullscreen" aria-label="View this clip fullscreen">
-          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
-        </button>
-      </div>
-    {{else}}
-      <div class="gallery-item-media">
-        {{#if content.item.media}}
-          {{> video-facade media=content.item.media eager=true}}
+    {{! The media takes the wide column and its metadata sits beside it; the
+        title stays above both so it reads as the heading for the pair. }}
+    <div class="media-layout media-layout--rail-end">
+      <div class="media-layout-main">
+        {{#if content.item.captionMask}}
+          {{! The correction lives inside a square content frame (the source clips are
+              1:1) that both the video and the mask fill; the outer wrapper is the
+              fullscreen target, so fullscreen scales the frame and its mask together
+              and the burnt-in caption is never revealed. }}
+          <div class="gallery-item-media gallery-item-media--masked">
+            <div class="caption-mask-frame">
+              {{#if content.item.media}}
+                {{> video-facade media=content.item.media eager=true}}
+              {{else}}
+                <img src="{{content.item.displayHref}}" alt="{{content.item.alt}}" decoding="async" />
+              {{/if}}
+              {{! Sibling of the player, not a child, so it survives the click-to-play
+                  swap and stays over the video before, during, and after playback. }}
+              {{> _caption-mask caption=content.item.caption}}
+            </div>
+            <button type="button" class="caption-mask-fullscreen" aria-label="View this clip fullscreen">
+              <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+            </button>
+          </div>
         {{else}}
-          <img src="{{content.item.displayHref}}" alt="{{content.item.alt}}"{{#if content.item.width}} width="{{content.item.width}}"{{/if}}{{#if content.item.height}} height="{{content.item.height}}"{{/if}} decoding="async" />
+          <div class="gallery-item-media">
+            {{#if content.item.media}}
+              {{> video-facade media=content.item.media eager=true}}
+            {{else}}
+              <img src="{{content.item.displayHref}}" alt="{{content.item.alt}}"{{#if content.item.width}} width="{{content.item.width}}"{{/if}}{{#if content.item.height}} height="{{content.item.height}}"{{/if}} decoding="async" />
+            {{/if}}
+          </div>
         {{/if}}
       </div>
-    {{/if}}
 
-    {{#if content.uploadedBy}}
-      <p class="gallery-item-uploader">Uploaded by {{#if content.uploadedBy.href}}<a href="{{content.uploadedBy.href}}" class="tag-chip-link">{{content.uploadedBy.display}}</a>{{else}}{{content.uploadedBy.display}}{{/if}}</p>
-    {{/if}}
+      <div class="media-layout-rail">
+        {{#if content.uploadedBy}}
+          <p class="gallery-item-uploader">Uploaded by {{#if content.uploadedBy.href}}<a href="{{content.uploadedBy.href}}" class="tag-chip-link">{{content.uploadedBy.display}}</a>{{else}}{{content.uploadedBy.display}}{{/if}}</p>
+        {{/if}}
 
-    {{#if content.curatedHref}}
-      <p class="gallery-item-uploader"><a href="{{content.curatedHref}}" class="tag-chip-link">Curated</a></p>
-    {{/if}}
+        {{#if content.curatedHref}}
+          <p class="gallery-item-uploader"><a href="{{content.curatedHref}}" class="tag-chip-link">Curated</a></p>
+        {{/if}}
 
-    {{#if content.tags.length}}
-      <ul class="gallery-tile-tags gallery-item-tags">
-        {{#each content.tags}}
-          <li>{{#if href}}<a href="{{href}}" class="gallery-tile-tag">{{display}}</a>{{else}}<span class="gallery-tile-tag">{{display}}</span>{{/if}}</li>
-        {{/each}}
-      </ul>
-    {{/if}}
+        {{#if content.tags.length}}
+          <ul class="gallery-tile-tags gallery-item-tags">
+            {{#each content.tags}}
+              <li>{{#if href}}<a href="{{href}}" class="gallery-tile-tag">{{display}}</a>{{else}}<span class="gallery-tile-tag">{{display}}</span>{{/if}}</li>
+            {{/each}}
+          </ul>
+        {{/if}}
 
-    <p class="gallery-tile-date"><time datetime="{{content.item.uploadedAtIso}}">{{content.item.uploadedAtDisplay}}</time></p>
+        <p class="gallery-tile-date"><time datetime="{{content.item.uploadedAtIso}}">{{content.item.uploadedAtDisplay}}</time></p>
+      </div>
+    </div>
   </article>
 </div>
 
