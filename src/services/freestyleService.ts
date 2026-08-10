@@ -2638,14 +2638,14 @@ export interface FreestyleModifierEntry {
 //   'none'     — no media of any kind for this trick
 export type TrickMediaCoverage = 'tutorial' | 'demo' | 'record' | 'none';
 
-// A media hashtag links to the trick's gallery only when curated tutorial or
-// demo media lives there. A trick whose only footage is a competition record's
-// own video has no curated gallery item, so /media/browse?context=<slug> would
-// open an empty gallery — that coverage renders a plain, non-clickable token
+// A media hashtag links to the trick's gallery when a tagged media item lives
+// there, whatever its source. The one coverage state that does not link is a
+// trick whose only footage is a competition record's own video: that video sits
+// on the record row rather than in the media library, so /media/browse?context=
+// <slug> would open an empty gallery. It renders a plain, non-clickable token
 // (and its own "Record video" chip), never a dead link. This is the single
 // authoritative linkable-coverage predicate shared by the browse cards and the
-// set-detail example rows; it matches the trick-detail gallery gate, which
-// links only when a non-record reference-media item exists.
+// set-detail example rows, and it agrees with the trick-detail gallery gate.
 function hasLinkableMediaCoverage(coverage: TrickMediaCoverage): boolean {
   return coverage === 'tutorial' || coverage === 'demo';
 }
@@ -7541,16 +7541,19 @@ export const freestyleService = {
           if (arr) arr.push(t.tag_display);
           else tagsByMediaId.set(t.media_id, [t.tag_display]);
         }
-        // Reference media tagged with the trick (curator clips + member uploads),
-        // split into tutorial and demonstration buckets by source tier. Records
-        // render in the Passback Records table below, not here.
+        // Reference media tagged with the trick (curator clips + member uploads).
+        // Every tagged clip counts as the trick's media, whatever its source: it
+        // sits in the trick's gallery, so the hashtag and the gallery link are
+        // honest about what a visitor will find there. A record-source clip is
+        // counted but not bucketed, because it renders in the Passback Records
+        // table below and would otherwise appear on the page twice.
         const tutorialMedia: TrickReferenceMediaItem[] = [];
         const demoMedia: TrickReferenceMediaItem[] = [];
-        let nonRecordRefCount = 0;
+        let refMediaCount = 0;
         for (const r of allRefMedia) {
           const tier = tierOf(r.source_id);
+          refMediaCount++;
           if (tier === 'RECORD') continue;
-          nonRecordRefCount++;
           const shaped = shapeReferenceMedia(r, tagsByMediaId.get(r.id) ?? []);
           if (tier === 'TUTORIAL') {
             tutorialMedia.push(shaped);
@@ -7562,12 +7565,11 @@ export const freestyleService = {
             tutorialMedia.push(shaped);
           }
         }
-        const hasReferenceMedia = tutorialMedia.length > 0 || demoMedia.length > 0;
-        const hasAnyReferenceMedia = nonRecordRefCount > 0;
+        const hasReferenceMedia = refMediaCount > 0;
         // The trick's full gallery is the dynamic tag-set gallery for its slug.
         // The slug rides as a locked context token (matching club/event/member
         // gallery links) so it renders non-removable in the gallery's filter bar.
-        const referenceGalleryHref = hasAnyReferenceMedia
+        const referenceGalleryHref = hasReferenceMedia
           ? `/media/browse?context=${encodeURIComponent(slug)}`
           : null;
 
@@ -7948,7 +7950,7 @@ export const freestyleService = {
             hasUx2Prose: shapeUx2PilotFromRow(dictRow, currentRows.length) !== null,
           }),
           hasMediaBlock:
-            hasAnyReferenceMedia ||
+            hasReferenceMedia ||
             shapeUx2PilotFromRow(dictRow, currentRows.length) !== null,
           heroFormula: dictEntry
             ? buildHeroFormula(

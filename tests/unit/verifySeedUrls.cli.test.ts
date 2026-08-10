@@ -5,7 +5,7 @@
 // publication — against synthetic fixtures in a temp directory. The transport and
 // the clock are injected, so no network call, no .env file, no credential and no
 // application config is involved. The verdict logic itself is never replaced.
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import path from 'node:path';
 import os from 'node:os';
 import {
@@ -126,6 +126,15 @@ function capture(): { deps: RunDeps; out: string[]; err: string[]; seen: string[
 function tempArtifacts(dir: string): string[] {
   if (!existsSync(dir)) return [];
   return readdirSync(dir).filter((f) => f.includes('.partial-'));
+}
+
+// Presents `dir` as the caller's working directory. The verifier turns a relative
+// command-line path into an absolute one with path.resolve, which reads the working
+// directory, so faking that read exercises the real resolution contract. Tests run
+// on worker threads, where the process working directory cannot be changed, and
+// changing it would in any case leak across the tests sharing the worker.
+function fakeWorkingDirectory(dir: string) {
+  return vi.spyOn(process, 'cwd').mockReturnValue(dir);
 }
 
 // ── mode and redirect contract ───────────────────────────────────────────────
@@ -282,8 +291,7 @@ describe('verify-seed-urls: redirected output and cache', () => {
     const fx = makeRepo();
     const workdir = path.join(fx.root, 'workdir');
     mkdirSync(workdir);
-    const previous = process.cwd();
-    process.chdir(workdir);
+    const cwd = fakeWorkingDirectory(workdir);
     try {
       const c = capture();
       expect(await run(['--clubs-only', '--clubs-verdicts', 'nested/clubs.csv'], fx.root, c.deps))
@@ -292,7 +300,7 @@ describe('verify-seed-urls: redirected output and cache', () => {
       expect(existsSync(landed)).toBe(true);
       expect(c.out.join('\n')).toContain(landed);
     } finally {
-      process.chdir(previous);
+      cwd.mockRestore();
     }
   });
 });
@@ -589,8 +597,7 @@ describe('verify-seed-urls: selected clubs input', () => {
     const workdir = path.join(fx.root, 'workdir');
     mkdirSync(workdir);
     const selected = altSeed(workdir, 'rel-clubs.csv');
-    const previous = process.cwd();
-    process.chdir(workdir);
+    const cwd = fakeWorkingDirectory(workdir);
     try {
       const c = capture();
       expect(await run(['--clubs-only', '--clubs-seed', 'rel-clubs.csv'], fx.root, c.deps))
@@ -598,7 +605,7 @@ describe('verify-seed-urls: selected clubs input', () => {
       expect(c.out.join('\n')).toContain(`clubs input <- ${selected}`);
       expect(c.seen).toEqual(['https://example.org/selected']);
     } finally {
-      process.chdir(previous);
+      cwd.mockRestore();
     }
   });
 });
