@@ -53,7 +53,9 @@
             <td>
               <a href="{{editHref}}">Edit</a>
               <a href="/media/{{id}}" target="_blank" rel="noopener noreferrer">View</a>
-              {{#if isConfirmDelete}}
+              {{#if isDefault}}
+                <span class="text-muted">Created for you, and kept</span>
+              {{else if isConfirmDelete}}
                 <form method="POST" action="{{deleteHref}}" class="inline-form">
                   <input type="hidden" name="confirmed" value="1" />
                   <span class="text-secondary">Are you sure?</span>

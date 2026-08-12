@@ -239,7 +239,7 @@ Media is stored separately from the SQLite database. The database stores media m
 
 Rationale:
 
-Media data is handled separately from application data, in a dedicated AWS S3 bucket (instead of the SQLite database hosted on the main AWS Lightsail container). Media data is large and will grow over time, and storing it co-located with Lightsail would blow out the host size and therefore the cost; this is why we store media data in S3. Each uploaded photo generates two variants (thumbnail at 300×300 pixels, display at 800px width) stored as JPEG at 85% quality on S3 (also processed to eliminate possible malware). System-account video bytes are stored as-is with no server-side transcoding (see §6.8 for the curator-video pipeline) alongside a Sharp-processed poster image. Original photo files are discarded after processing.
+Media data is handled separately from application data, in a dedicated AWS S3 bucket (instead of the SQLite database hosted on the main AWS Lightsail container). Media data is large and will grow over time, and storing it co-located with Lightsail would blow out the host size and therefore the cost; this is why we store media data in S3. Each uploaded photo generates two variants (thumbnail bounded at 600 pixels on the longest edge, display at 800px width) stored as JPEG at 85% quality on S3 (also processed to eliminate possible malware). System-account video bytes are stored as-is with no server-side transcoding (see §6.8 for the curator-video pipeline) alongside a Sharp-processed poster image. Original photo files are discarded after processing.
 
 Separates structured metadata (benefits from SQL queries, transactions, referential integrity) from large binary objects (benefits from object storage scalability, CDN delivery, independent backup/replication). SQLite handles relational data well but is not optimized for large binary storage. S3 provides dedicated photo infrastructure (replication, lifecycle policies, CDN integration) without database bloat. Development filesystem maintains parity without AWS credentials.
 
@@ -1779,7 +1779,7 @@ Privacy is part of the platform's security model. Current member data, discovera
 
 The platform preserves and publicly exposes official footbag history, including public event results, year archives, permanent honors such as Hall of Fame and Big Add Posse, and other explicitly approved historical-record surfaces such as world records.
 
-Public historical discoverability does not authorize a public current-member directory, public current-member search, public current-member profiles, or public contact discovery.
+Public historical discoverability does not authorize a public current-member directory, public current-member search, public current-member profiles, or public contact discovery. A Hall of Fame or Big Add Posse honoree's profile is the single exception and is scoped to the honor record: display name, country, avatar, honor badges, the historical competition name, and the member-controlled competing-since year and competition results. Every other profile field stays member-only, so the exception publishes an honor, not a member profile.
 
 Imported historical people and result-linked identities may appear publicly only as historical-record surfaces. They do not thereby become activated members, profile owners, searchable current members, or publicly contactable accounts.
 
@@ -3597,7 +3597,7 @@ Cache control header strategy:
 
 Decision:
 
-Images are processed synchronously on upload to eliminate malware and generate two variants: Thumbnail (300×300 pixels) and Display (800px width), both stored as JPEG at 85% quality in S3. Original files are discarded after processing.
+Images are processed synchronously on upload to eliminate malware and generate two variants: Thumbnail and Display (800px width), both stored as JPEG at 85% quality in S3. A photo thumbnail preserves the photo's aspect ratio, bounded at 600 pixels on its longest edge, and the square frame a gallery tile needs is applied by the stylesheet where it is displayed rather than stored. An avatar thumbnail is the exception and is cropped square at 300×300 pixels, because its frame never varies. Original files are discarded after processing.
 
 Rationale:
 
@@ -3617,7 +3617,7 @@ Security Pipeline:
 
 - Metadata stripping: All EXIF and ICC profiles removed
 
-- Variant generation: 300×300px thumbnail, 800px width display (or smaller if original is smaller)
+- Variant generation: 600px longest-edge photo thumbnail or 300×300px square avatar thumbnail, 800px width display (or smaller if original is smaller)
 
 Trade-offs Accepted:
 

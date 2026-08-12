@@ -62,6 +62,12 @@
  *   - Member-owned galleries auto-prepend `#by_<owner_slug>` to validated criteria
  *     tags on every create/update; `>=1 criteria tag` invariant enforced AFTER
  *     auto-prepend; user-supplied `#by_*` tags rejected.
+ *   - The member's `is_default` Personal Gallery, materialized on first upload,
+ *     keeps its fixed name and its lone uploader-tag criterion and cannot be
+ *     deleted; only its description, sort order and external links are editable.
+ *     No other member-owned gallery may take that name or the row id derived from
+ *     it, on create or on rename, because the upload path re-derives that id and
+ *     probes by that name. Enforced on every actor, admin included.
  *   - FH-owned writes JSON sidecar at `/curated/galleries/<slug>.json` after commit
  *     (sidecar I/O failure logged but does not roll back DB). Member-owned never
  *     touches the filesystem.
@@ -685,16 +691,75 @@ function applyTagsForMember(
   return applyTags(mediaId, canonical, now);
 }
 
-// Default per-member gallery materialized on first upload. Members can
-// rename or delete it after creation; the find-by-name probe in
-// ensureDefaultPersonalGalleryTx keys on this exact name, so a manual
-// rename detaches the auto-create path (subsequent uploads do not
-// re-create a "Personal Gallery" row). Criteria tag is the member's
-// uploader-attribution tag (#by_<slug>), so everything they upload
-// appears here automatically and nothing tagged with their freeform
-// `#<slug>` by another member can pollute the gallery.
+// Default per-member gallery materialized on first upload. It is not a gallery
+// the member composed, so it is neither theirs to rename nor theirs to delete,
+// and assertPersonalGalleryIsIntact enforces both. Two things depend on that.
+// Its row id is derived from this exact name, and the find-by-name probe in
+// ensureDefaultPersonalGalleryTx recomputes the same id, so a renamed row would
+// still hold the id the next upload tries to claim and that upload would fail
+// on the primary key. And its single criteria tag is the member's
+// uploader-attribution tag (#by_<slug>), which is what makes it the one listing
+// holding everything they have uploaded: criteria are combined with AND, so any
+// added criteria or exclude tag would quietly narrow it below that guarantee.
+// The uploader tag also means nothing another member tags with the freeform
+// `#<slug>` can pollute it.
 const PERSONAL_GALLERY_NAME = 'Personal Gallery';
 const PERSONAL_GALLERY_DESCRIPTION = 'Everything I have uploaded.';
+
+// Refuses any edit that would change what the Personal Gallery is: its name,
+// which carries its row id, and its criteria and exclude sets, which carry its
+// promise to hold everything the member has uploaded. Description, sort order
+// and external links are ordinary preferences and stay editable. The submitted
+// criteria set is compared before the uploader tag is prepended, so an
+// unchanged form submission (which sends an empty criteria box, the uploader
+// tag being filtered out of the form's display string) passes.
+//
+// Applies to every actor, not only the owner: the id collision a rename sets up
+// breaks the member's next upload whoever performed the rename, and no admin
+// surface offers these operations on a member-owned gallery.
+function assertPersonalGalleryIsIntact(
+  isDefault: boolean,
+  submitted: { name: string; criteriaTags: string[]; excludeTags: string[] },
+): void {
+  if (!isDefault) return;
+  if (submitted.name !== PERSONAL_GALLERY_NAME) {
+    throw new ValidationError(
+      `Your ${PERSONAL_GALLERY_NAME} cannot be renamed. It is created for you and collects everything you upload.`,
+      { fieldErrors: { name: `This gallery keeps the name ${PERSONAL_GALLERY_NAME}.` } },
+    );
+  }
+  if (submitted.criteriaTags.length > 0 || submitted.excludeTags.length > 0) {
+    throw new ValidationError(
+      `Your ${PERSONAL_GALLERY_NAME} always shows everything you have uploaded, so it takes no criteria or exclude tags. Create a named gallery to collect a subset.`,
+      {
+        fieldErrors: {
+          ...(submitted.criteriaTags.length > 0 && { criteriaTags: 'Leave this empty for this gallery.' }),
+          ...(submitted.excludeTags.length > 0 && { excludeTags: 'Leave this empty for this gallery.' }),
+        },
+      },
+    );
+  }
+}
+
+// Refuses a member-owned gallery that would claim the Personal Gallery's
+// identity, which is the other half of the same rule: the guard above keeps the
+// Personal Gallery from being renamed away from its name, and this one keeps any
+// other gallery from taking that name over. Both failures are the same failure.
+// A gallery standing on that name is adopted by the find-by-name probe, so the
+// member's uploads land in a gallery they composed, which can carry narrower
+// criteria and is not protected. A gallery standing on the derived id without
+// the name is worse: the probe misses it, the materializing insert collides on
+// the primary key, and that path has no retry and no catch, so the member's next
+// upload fails and keeps failing. Comparing derived ids catches both, and every
+// spelling that slugifies alike with them.
+function assertDoesNotClaimPersonalGallery(ownerSlug: string, name: string): void {
+  const personalGalleryId = buildMemberGalleryId(ownerSlug, PERSONAL_GALLERY_NAME, 0);
+  if (buildMemberGalleryId(ownerSlug, name, 0) !== personalGalleryId) return;
+  throw new ValidationError(
+    `That name is reserved for your ${PERSONAL_GALLERY_NAME}, the one created for you that collects everything you upload. Choose another name.`,
+    { fieldErrors: { name: 'Choose a different name.' } },
+  );
+}
 
 // Closure for first-upload Personal Gallery materialization. Caller
 // must already hold a transaction open (the upload methods call this
@@ -834,6 +899,10 @@ export interface CuratorGalleryEditView {
   name: string;
   description: string;
   sortOrder: GallerySortOrderValue;
+  // True for the member's auto-materialized Personal Gallery, whose name and
+  // criteria the service refuses to change. The edit form reads this to present
+  // those parts as fixed rather than offering inputs that would be rejected.
+  isDefault: boolean;
   criteriaTags: string[];   // tag-display strings e.g. '#curated'
   // Pre-shaped display string for the owner-facing edit form: criteriaTags
   // joined by space with the auto-applied `#by_<slug>` uploader tag
@@ -883,6 +952,9 @@ export interface CuratorGallerySummary {
   criteriaTags: string[];
   excludeTags: string[];
   itemCount: number;
+  // True for the member's auto-materialized Personal Gallery, which the owner
+  // may open but may not rename or delete. FH-owned galleries are never it.
+  isDefault: boolean;
 }
 
 export interface CuratorGalleryExternalLinkInput {
@@ -2090,6 +2162,9 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
             criteriaTags: criteriaTagRows.map((t) => t.tag_display),
             excludeTags: excludeTagRows.map((t) => t.tag_display),
             itemCount: countGalleryItemsByCriteria(criteriaTagIds, excludeTagIds),
+            // FH-owned galleries are all deliberately composed; the default
+            // Personal Gallery belongs to a member and never appears here.
+            isDefault: false,
           };
         });
       });
@@ -2110,7 +2185,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     ): CuratorGalleryEditView {
       return runSqliteRead('getGalleryForEdit', () => {
         const g = media.getNamedGalleryById.get(galleryId) as
-          | { id: string; name: string; description: string; sort_order: GallerySortOrderValue; owner_member_id: string }
+          | { id: string; name: string; description: string; sort_order: GallerySortOrderValue; owner_member_id: string; is_default: number }
           | undefined;
         if (!g) {
           throw new NotFoundError(`gallery ${galleryId} not found`);
@@ -2184,6 +2259,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           name: g.name,
           description: g.description,
           sortOrder: g.sort_order,
+          isDefault: g.is_default === 1,
           criteriaTags: criteriaTagDisplays,
           criteriaTagsDisplayString: criteriaTagDisplays
             .filter((t) => !t.toLowerCase().startsWith(UPLOADER_TAG_PREFIX))
@@ -2216,13 +2292,25 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       const validated = await validateGalleryUpdates(updates);
 
       const existing = media.getNamedGalleryById.get(galleryId) as
-        | { id: string; owner_member_id: string; is_system: number; owner_slug: string }
+        | { id: string; owner_member_id: string; is_system: number; is_default: number; owner_slug: string }
         | undefined;
       if (!existing) {
         throw new NotFoundError(`gallery ${galleryId} not found`);
       }
 
       authorizeGalleryActor(actorMemberId, actorIsAdmin, existing.owner_member_id);
+
+      assertPersonalGalleryIsIntact(existing.is_default === 1, {
+        name: validated.name,
+        criteriaTags: validated.criteriaTags,
+        excludeTags: validated.excludeTags,
+      });
+      // A rename onto the reserved name, from a gallery of the member's own.
+      // FH-owned galleries are exempt: their ids are declared rather than
+      // derived from the name, and they are not uploader-scoped.
+      if (existing.is_default === 0 && existing.is_system === 0) {
+        assertDoesNotClaimPersonalGallery(existing.owner_slug, validated.name);
+      }
 
       // A curated (FH-owned) gallery edit hits the persistent /curated sidecar in
       // dev; gate it. Member-owned gallery edits are never curated, so they pass.
@@ -2345,6 +2433,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
             'Member-owned gallery requires ownerSlug.',
           );
         }
+        assertDoesNotClaimPersonalGallery(ownerSlug, validated.name);
         galleryId = buildMemberGalleryId(ownerSlug, validated.name, 0);
         // Member-owned galleries auto-include the owner's `#by_<slug>` so
         // the tag-AND query scopes to the owner's uploads. validateGalleryTag
@@ -2458,13 +2547,22 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       assertTier1Benefits(actorMemberId);
 
       const existing = media.getNamedGalleryById.get(galleryId) as
-        | { id: string; owner_member_id: string; is_system: number }
+        | { id: string; owner_member_id: string; is_system: number; is_default: number }
         | undefined;
       if (!existing) {
         throw new NotFoundError(`gallery ${galleryId} not found`);
       }
 
       authorizeGalleryActor(actorMemberId, actorIsAdmin, existing.owner_member_id);
+
+      // Deleting it would take away the only surface listing every item the
+      // member owns, and per-item edit and delete links exist nowhere else, so
+      // it would strand them until their next upload recreated it.
+      if (existing.is_default === 1) {
+        throw new ValidationError(
+          `Your ${PERSONAL_GALLERY_NAME} cannot be deleted. It is created for you and is where you manage everything you upload.`,
+        );
+      }
 
       // A curated (FH-owned) gallery delete removes the persistent /curated
       // sidecar in dev; gate it. Member-owned deletes are never curated.
@@ -2513,9 +2611,14 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     },
 
 
-    // Lists every gallery owned by a given member, including item count.
-    // Public read; no authz gate. Drives the member profile "Galleries"
-    // section.
+    // Lists every gallery owned by a given member, including item count and the
+    // Personal Gallery. Drives the owner's own gallery-management list and the
+    // gallery picker on the upload form, both owner-only surfaces, which is why
+    // the Personal Gallery belongs in the result: per-item edit and delete links
+    // are reachable only through a gallery's edit form, so hiding it would leave
+    // the member no route to manage their own media. The public surfaces take a
+    // different statement that filters it out, since it is not a collection the
+    // member composed and has nothing to say to a visitor.
     listGalleriesForOwner(memberId: string): CuratorGallerySummary[] {
       return runSqliteRead('listGalleriesForOwner', () => {
         const rows = media.listMemberGalleriesByOwner.all(memberId) as Array<{
@@ -2523,6 +2626,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           name: string;
           description: string;
           sort_order: GallerySortOrderValue;
+          is_default: number;
         }>;
         return rows.map((g) => {
           const criteriaTagRows = media.listFhNamedGalleryTags.all(g.id) as Array<{
@@ -2543,6 +2647,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
             criteriaTags: criteriaTagRows.map((t) => t.tag_display),
             excludeTags: excludeTagRows.map((t) => t.tag_display),
             itemCount: countGalleryItemsByCriteria(criteriaTagIds, excludeTagIds),
+            isDefault: g.is_default === 1,
           };
         });
       });

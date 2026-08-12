@@ -3,6 +3,8 @@
  *
  * Covers:
  *   - Honors-gated public profiles (HoF/BAP accessible without auth; regular members not)
+ *   - The honoree exception publishes the honor record only: a visitor sees the
+ *     name, country and honor badge, never the biography, locality or links
  *   - PII not leaked on public profiles
  *   - show_competitive_results flag
  *   - Purged members excluded from all queries
@@ -12,7 +14,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import { hashTestPassword } from '../fixtures/hashTestPassword';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-import { insertMember, insertHistoricalPerson, insertTag, insertEvent, insertDiscipline, insertResultsUpload, insertResultEntry, insertResultParticipant, createTestSessionJwt } from '../fixtures/factories';
+import { insertMember, insertMemberLink, insertHistoricalPerson, insertTag, insertEvent, insertDiscipline, insertResultsUpload, insertResultEntry, insertResultParticipant, createTestSessionJwt } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3060');
 
@@ -28,6 +30,13 @@ const HOF_NORESULTS_SLUG = 'hof_noresults';
 const VIEWER_ID    = 'viewer-001';
 const VIEWER_SLUG  = 'viewer_user';
 
+const HOF_BIO        = 'Freestyle shredder and lifelong footbag advocate.';
+const HOF_CITY       = 'Boulder';
+const HOF_REGION     = 'CO';
+const HOF_COUNTRY    = 'United States';
+const HOF_LINK_LABEL = 'Personal Site';
+const HOF_LINK_URL   = 'https://hofplayer.example.com/';
+
 const DECEASED_EMAIL    = 'deceased@example.com';
 const DECEASED_PASSWORD = 'DeceasedPass1!';
 
@@ -41,13 +50,17 @@ beforeAll(async () => {
   // Viewer (authenticated user who is not any of the test subjects)
   insertMember(db, { id: VIEWER_ID, slug: VIEWER_SLUG, display_name: 'Viewer User' });
 
-  // HoF member with results
+  // HoF member with results, a biography, a locality and an external link:
+  // the fields an honoree's profile keeps member-only.
   const hofId = insertMember(db, {
     id: 'hof-001', slug: HOF_SLUG, display_name: 'HoF Player',
     is_hof: 1, show_competitive_results: 1,
     login_email: 'hof@example.com',
     legacy_member_id: 'legacy-hof-001',
+    bio: HOF_BIO,
+    city: HOF_CITY, region: HOF_REGION, country: HOF_COUNTRY,
   });
+  insertMemberLink(db, hofId, { label: HOF_LINK_LABEL, url: HOF_LINK_URL });
   // Create a linked historical person and result for this HoF member
   insertHistoricalPerson(db, {
     person_id: 'hp-hof-001', person_name: 'HoF Player',
@@ -129,6 +142,41 @@ describe('GET /members/:slug — HoF public profile', () => {
     expect(res.text).not.toContain('name="bio"');
     expect(res.text).not.toContain('name="phone"');
     expect(res.text).not.toContain('name="emailVisibility"');
+  });
+
+  it('renders the honor record to a visitor: name, country and the honor badge', async () => {
+    const app = createApp();
+    const res = await request(app).get(`/members/${HOF_SLUG}`);
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('HoF Player');
+    expect(res.text).toContain(HOF_COUNTRY);
+    expect(res.text).toContain('Hall of Fame');
+  });
+
+  it('withholds the biography, the locality and the external links from a visitor', async () => {
+    const app = createApp();
+    const res = await request(app).get(`/members/${HOF_SLUG}`);
+    expect(res.text).not.toContain(HOF_BIO);
+    expect(res.text).not.toContain(HOF_CITY);
+    expect(res.text).not.toContain(HOF_LINK_LABEL);
+    expect(res.text).not.toContain(HOF_LINK_URL);
+    // The location line carries the country alone: any surviving city or
+    // region would change this paragraph, so it pins both at once.
+    expect(res.text).toContain(`<p class="hero-subtitle">${HOF_COUNTRY}</p>`);
+  });
+
+  it('shows the biography, the locality and the external links to a signed-in member', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .get(`/members/${HOF_SLUG}`)
+      .set('Cookie', viewerCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain(HOF_BIO);
+    expect(res.text).toContain(HOF_LINK_LABEL);
+    expect(res.text).toContain(HOF_LINK_URL);
+    expect(res.text).toContain(
+      `<p class="hero-subtitle">${HOF_CITY}, ${HOF_REGION} · ${HOF_COUNTRY}</p>`,
+    );
   });
 });
 

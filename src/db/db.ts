@@ -497,36 +497,6 @@ export const publicPlayers = {
     LIMIT ?
   `); },
 
-  // On-site Hall of Fame / Big Add Posse indexes: the canonical honorees, each
-  // linked to a claimed member profile when one exists, else the history page.
-  // Dated inductees sort most-recent first; undated ones follow alphabetically.
-  get listHofHonorees() { return db.prepare(`
-    SELECT
-      hp.person_id,
-      hp.person_name,
-      hp.hof_induction_year,
-      (SELECT m.slug FROM members_searchable AS m
-       WHERE m.historical_person_id = hp.person_id LIMIT 1) AS linked_member_slug
-    FROM historical_persons AS hp
-    WHERE hp.source_scope = 'CANONICAL' AND hp.hof_member = 1
-    ORDER BY hp.hof_induction_year IS NULL, hp.hof_induction_year DESC,
-             hp.person_name COLLATE NOCASE
-  `); },
-
-  get listBapHonorees() { return db.prepare(`
-    SELECT
-      hp.person_id,
-      hp.person_name,
-      hp.bap_nickname,
-      hp.bap_induction_year,
-      (SELECT m.slug FROM members_searchable AS m
-       WHERE m.historical_person_id = hp.person_id LIMIT 1) AS linked_member_slug
-    FROM historical_persons AS hp
-    WHERE hp.source_scope = 'CANONICAL' AND hp.bap_member = 1
-    ORDER BY hp.bap_induction_year IS NULL, hp.bap_induction_year DESC,
-             hp.person_name COLLATE NOCASE
-  `); },
-
   get getById() { return db.prepare(`
     SELECT
       hp.person_id,
@@ -6895,9 +6865,11 @@ export const media = {
   // owner_member_id, the system-member flag, and the owner's display
   // identity so the service layer can render owner attribution and
   // dispatch on cohort (FH vs member-owned) for authorization and
-  // post-commit sidecar I/O.
+  // post-commit sidecar I/O. is_default marks the auto-materialized
+  // per-member Personal Gallery, whose name and criteria the service
+  // layer refuses to change and whose row it refuses to delete.
   get getNamedGalleryById() { return db.prepare(`
-    SELECT g.id, g.name, g.description, g.sort_order,
+    SELECT g.id, g.name, g.description, g.sort_order, g.is_default,
            g.owner_member_id, m.is_system,
            m.display_name AS owner_display_name,
            m.slug         AS owner_slug
@@ -6962,7 +6934,7 @@ export const media = {
   // profile "Galleries" surface and by tests asserting member-owned
   // gallery state.
   get listMemberGalleriesByOwner() { return db.prepare(`
-    SELECT g.id, g.name, g.description, g.sort_order
+    SELECT g.id, g.name, g.description, g.sort_order, g.is_default
     FROM member_galleries g
     WHERE g.owner_member_id = ?
     ORDER BY g.name

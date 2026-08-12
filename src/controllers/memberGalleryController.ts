@@ -110,6 +110,7 @@ function renderListWithError(
     itemCount: g.itemCount,
     editHref: `/members/${memberKey}/galleries/${g.id}/edit`,
     deleteHref: `/members/${memberKey}/galleries/${g.id}/delete`,
+    isDefault: g.isDefault,
   }));
   res.status(status).render('members/galleries/list', {
     seo: { title: 'My Galleries' },
@@ -147,7 +148,8 @@ export const memberGalleryController = {
         itemCount: g.itemCount,
         editHref: `/members/${memberKey}/galleries/${g.id}/edit`,
         deleteHref: `/members/${memberKey}/galleries/${g.id}/delete`,
-        isConfirmDelete: confirmDeleteId !== null && g.id === confirmDeleteId,
+        isDefault: g.isDefault,
+        isConfirmDelete: confirmDeleteId !== null && g.id === confirmDeleteId && !g.isDefault,
       }));
       // No galleries means the member has uploaded nothing yet (the Personal
       // Gallery materializes on first upload), so this is the no-media state:
@@ -296,6 +298,7 @@ export const memberGalleryController = {
             sortOrder: g.sortOrder,
             criteriaTagsString: g.criteriaTagsDisplayString,
             excludeTagsString: g.excludeTags.join(' '),
+            isDefault: g.isDefault,
           },
           cancelHref: listHref(memberKey),
           uploadMediaHref: `/members/${memberKey}/media/upload`,
@@ -686,10 +689,12 @@ async function executeMultipartUpdate(args: {
   ): void {
     let currentItems: CuratorGalleryEditView['currentItems'] = [];
     let currentItemsTruncated = false;
+    let isDefault = false;
     try {
       const reread = svc.getGalleryForEdit(galleryId, actorMemberId, { memberKey });
       currentItems = reread.currentItems;
       currentItemsTruncated = reread.currentItemsTruncated;
+      isDefault = reread.isDefault;
     } catch {
       /* gallery may have been deleted concurrently; render with empty items */
     }
@@ -706,6 +711,7 @@ async function executeMultipartUpdate(args: {
         sortOrder: sortOrderRaw,
         criteriaTagsString: fields.criteriaTags ?? '',
         excludeTagsString: fields.excludeTags ?? '',
+        isDefault,
       },
       cancelHref: listHref(memberKey),
       uploadMediaHref: `/members/${memberKey}/media/upload`,

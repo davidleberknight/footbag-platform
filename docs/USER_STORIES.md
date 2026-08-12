@@ -273,7 +273,7 @@ Gallery Auto-Linking: When a user loads an event or club media gallery page, the
 
 To keep gallery pages fast, the system may cache gallery scan results. As a result, newly uploaded media or tag edits may take a few minutes to appear on event/club gallery pages.
 
-Gallery pages can lazy-load photos using JavaScript (an optional user experience enhancement). Initial HTML contains metadata and 300×300 pixel thumbnails. JavaScript requests full-resolution images on scroll. Without JavaScript, users see thumbnails and can click through to full images.
+Gallery pages can lazy-load photos using JavaScript (an optional user experience enhancement). Initial HTML contains metadata and thumbnails. JavaScript requests full-resolution images on scroll. Without JavaScript, users see thumbnails and can click through to full images.
 
 Event and club detail pages automatically detect and link to media galleries when content tagged with the standard event or club hashtag exists. Gallery links appear when content exists: View Event Gallery or View Club Gallery. Gallery listings mix photos and videos naturally. This unified approach simplifies the user experience.
 
@@ -289,7 +289,7 @@ Members can edit tags after upload. Adding #event_2025_Beaver_Open to a photo th
 
 Security and Validation: The hashtag system implements security at input validation. All hashtags (standardized and freeform) undergo processing before storage: must start with `#`, HTML tags stripped, Unicode normalized (preventing homograph attacks where visually similar characters create different hashtags), control characters removed, length limited to 100 characters, and restricted to letters, numbers, and underscores after the leading `#` (no spaces or punctuation). This happens regardless of whether the tag is standardized or freeform.
 
-Photos (Hosted Content): Members upload photos (JPEG and PNG only; GIF not supported) with security processing in a way the eliminates the need for anti-virus scans as part of the system's tech stack. Each photo is re-encoded at 85% quality, stripped of all EXIF/ICC metadata, and generates two variants: a 300×300 pixel thumbnail and an 800px-width display image (or smaller if the original image is narrower than 800px). Processing occurs synchronously.
+Photos (Hosted Content): Members upload photos (JPEG and PNG only; GIF not supported) with security processing in a way the eliminates the need for anti-virus scans as part of the system's tech stack. Each photo is re-encoded at 85% quality, stripped of all EXIF/ICC metadata, and generates two variants: a thumbnail bounded at 600 pixels on its longest edge, which keeps the photo's own shape, and an 800px-width display image (or smaller if the original image is narrower than 800px). Processing occurs synchronously.
 
 Captions, Descriptions and other Text: All user-submitted text fields (captions, descriptions, names) undergo input validation before storage. Input sanitization removes HTML tags and normalizes Unicode to prevent homograph attacks; output encoding via Handlebars templates prevents script execution; length limits enforce practical constraints (captions 500 characters, descriptions 2000 characters, names 100 characters after normalization). This multi-layer approach prevents injection attacks (XSS, CSV formulas, template code) while maintaining usability for legitimate international content.
 
@@ -1479,10 +1479,10 @@ Story: As a member, I can upload photos so that I share visual content.
 
 Success Criteria:
 
-- Upload photos via named gallery interface. Each member has a Personal Gallery, materialized on first upload, which collects everything they upload. It is not a named gallery: the member cannot rename or delete it, because both its identity and its automatic re-creation key on its fixed name. Members create their own named galleries to organize photos further.
+- Upload photos via named gallery interface. Each member has a Personal Gallery, materialized on first upload, which collects everything they upload. It is not a named gallery: the member cannot rename or delete it, and cannot give one of their own galleries its name, because both its identity and its automatic re-creation key on that fixed name. Members create their own named galleries to organize photos further.
 - JPEG and PNG only; GIF not supported. Animated content should be uploaded to YouTube or Vimeo and embedded via video links.
 - Accepted image dimensions: at least 200×200 pixels, at most 16.8 megapixels (4096×4096 pixels), and an aspect ratio no more extreme than 4:1 (longer side at most 4× the shorter). An image outside these bounds is rejected with a clear inline error naming the limit it missed (too small, too large, or too long and thin), and the form re-renders for retry.
-- Photo processing generates two variants only: Thumbnail (300×300 pixels) and Display (800px width maximum). Both stored as JPEG at 85% quality, sufficient quality for web viewing and sharing. Original uploaded file is discarded after processing,
+- Photo processing generates two variants only: Thumbnail (600 pixels on the longest edge, aspect ratio preserved) and Display (800px width maximum). Both stored as JPEG at 85% quality, sufficient quality for web viewing and sharing. Original uploaded file is discarded after processing,
 - Add caption to photo optionally (plain text, max 500 chars).
 - Optional external URL on each uploaded photo (for example a link to a source article or creator page), validated at the service boundary (see DD §3.17). The upload form works without JavaScript.
 - Tag optionally with hashtags for discovery (standardized tags for events and clubs, plus freeform tags such as tutorial, golf).

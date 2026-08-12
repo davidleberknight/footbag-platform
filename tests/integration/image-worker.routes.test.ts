@@ -356,8 +356,8 @@ describe('POST /process/photo', () => {
 
   it('produces an aspect-preserving thumb (not a cover-crop)', async () => {
     const app = createImageWorkerApp();
-    // 1000x500 input — a cover-crop thumb would be 300x300; a longest-edge
-    // thumb preserves the 2:1 aspect → 300x150.
+    // 1000x500 input — a cover-crop thumb would be square; a longest-edge
+    // thumb preserves the 2:1 aspect → 600x300.
     const jpeg = await makeJpeg(1000, 500);
     const res = await request(app)
       .post('/process/photo')
@@ -369,8 +369,8 @@ describe('POST /process/photo', () => {
     const thumb = Buffer.from(res.body.thumb, 'base64');
     const meta = await sharp(thumb).metadata();
     expect(meta.format).toBe('jpeg');
-    expect(meta.width).toBe(300);
-    expect(meta.height).toBe(150);
+    expect(meta.width).toBe(600);
+    expect(meta.height).toBe(300);
   });
 
   it('rejects non-image body with 400', async () => {

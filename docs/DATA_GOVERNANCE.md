@@ -193,7 +193,7 @@ Any work touching members, historical persons, search, rosters, contact fields, 
 
 **Hard rules for code:**
 
-- No public route may serve current-member search results, current-member profiles, or contact fields.
+- No public route may serve current-member search results, current-member profiles, or contact fields. Hall of Fame and Big Add Posse honorees are the one exception, and it publishes the honor record rather than the profile: a visitor sees display name, country, avatar, honor badges, the historical competition name, and the member-controlled competing-since year and competition results. Biography, city, region, member-authored external links, contact fields, tier and Active Player badges, gender, club affiliations and media stay member-only on an honoree's profile as on any other.
 - No env-var boolean may change what content is served to anonymous vs authenticated users.
 - No auth middleware may be bypassed except by a deliberate, explicitly designed stub that mirrors the real auth path.
 - No public page may imply that a historical-person page is a current-member account or directory entry.

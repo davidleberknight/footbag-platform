@@ -617,7 +617,7 @@ Login and password-reset endpoints use application-level rate limiting keyed by 
 
 ## 6.2 Image Upload Strategy
 
-Members (Tier 1+) can upload photos in JPEG or PNG format, with maximum 25MB file size and 4096×4096 pixel dimensions. Images are processed synchronously during upload, users wait 2-5 seconds while the system generates two optimized variants: a 300×300 pixel thumbnail and an 800-pixel-width display version, both saved as JPEG at 85% quality.
+Members (Tier 1+) can upload photos in JPEG or PNG format, with maximum 25MB file size and 4096×4096 pixel dimensions. Images are processed synchronously during upload, users wait 2-5 seconds while the system generates two optimized variants: a thumbnail bounded at 600 pixels on its longest edge and an 800-pixel-width display version, both saved as JPEG at 85% quality.
 
 Processing eliminates malware through re-encoding that converts images to raw pixels and back, discarding everything except visual content. This approach removes the need for antivirus scanning infrastructure. All metadata (EXIF, GPS, camera information, ICC profiles) is stripped for privacy and security. Original uploaded files are discarded after processing, reducing storage requirements.
 

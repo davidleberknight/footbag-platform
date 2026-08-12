@@ -40,11 +40,16 @@
  *     credential CHECK), so a contact-scrubbed row can still be fully purged.
  *   - Own-profile routes are owner-only. Anonymous non-owner viewing is limited
  *     to the explicit HoF/BAP exception; full members may view any member
- *     profile read-only. Contact fields never reach an anonymous page; the
- *     login email renders to member viewers only when the owner opted in
- *     (email_visibility 'members'); phone and WhatsApp render the same way,
- *     each gated by its own opt-in. Tier and Active Player badges are
- *     member-visible only.
+ *     profile read-only. That exception publishes the honor record rather than
+ *     the profile: an anonymous viewer sees display name, country, avatar,
+ *     honor badges, the historical competition name, and the member-controlled
+ *     competing-since year and competition results. Bio, city, region and the
+ *     member's own external links are member-visible only, alongside club
+ *     affiliations, media and gender. Contact fields never reach an anonymous
+ *     page; the login email renders to member viewers only when the owner
+ *     opted in (email_visibility 'members'); phone and WhatsApp render the
+ *     same way, each gated by its own opt-in. Tier and Active Player badges
+ *     are member-visible only.
  *   - A profile page exists only once its owner is a member. An account is
  *     pending until every onboarding task completes; getMemberProfilePage
  *     returns null for a pending target (indistinguishable from an unknown
@@ -379,10 +384,17 @@ export interface ProfileClubView {
   href: string;
 }
 
+// What an anonymous viewer sees on the HoF/BAP exception is the honor record,
+// not the profile: display name, country, avatar, honor badges, the historical
+// competition name, and the member-controlled competing-since year and
+// results. Every other field below empties or nulls for that viewer, including
+// the hero's city and region.
 export interface PublicProfileContent {
   displayName: string;
+  /** Member-visible; null for the anonymous HoF/BAP render. */
   city: string | null;
   country: string | null;
+  /** Member-visible; empty for the anonymous HoF/BAP render. */
   bio: string;
   avatarThumbUrl: string | null;
   hofMember: boolean;
@@ -409,7 +421,8 @@ export interface PublicProfileContent {
   /** 'Male' / 'Female' when the member opted gender into public visibility and
    *  the viewer is authenticated, else null. */
   genderLabel: string | null;
-  /** Validated external links (max 3), shown on the public profile. */
+  /** Validated external links (max 3), shown to authenticated viewers only;
+   *  empty for the anonymous HoF/BAP render. */
   links: MemberLinkView[];
   /** Current club affiliations (primary first), shown to authenticated viewers
    *  only; empty for the anonymous HoF/BAP render. */
@@ -898,12 +911,17 @@ export const memberService = {
    * Read-only profile of another member. Viewer-aware (the one shaping
    * input this service takes besides ownership): an anonymous viewer may
    * see only the explicit HoF/BAP public exception; an authenticated
-   * member may view any member profile. Per-field gates: the login email
-   * appears only to authenticated viewers of members who opted in
-   * (email_visibility 'members'); phone and WhatsApp each render to
-   * authenticated viewers on their own opt-in; tier and Active Player badges
-   * are member-visible only; competition results honor
-   * show_competitive_results. No payment, audit, or edit surfaces.
+   * member may view any member profile. That exception publishes the honor
+   * record, not the profile: an anonymous viewer sees display name, country,
+   * avatar, honor badges, the historical competition name, and the
+   * member-controlled competing-since year and results, and nothing else.
+   * Per-field gates: bio, city, the hero's city and region, and the member's
+   * external links are member-visible only; the login email appears only to
+   * authenticated viewers of members who opted in (email_visibility
+   * 'members'); phone and WhatsApp each render to authenticated viewers on
+   * their own opt-in; tier and Active Player badges are member-visible only;
+   * competition results honor show_competitive_results. No payment, audit, or
+   * edit surfaces.
    * Returns null when the viewer may not see this member (caller 404s or
    * requires auth).
    */
@@ -925,7 +943,14 @@ export const memberService = {
     if (!viewer.authenticated && !isHof && !isBap) return null;
 
     const eventGroups = row.show_competitive_results !== 0 ? fetchEventGroups(row) : [];
-    const heroData = buildMemberHeroData(row);
+    // The hero is the only place a locality renders on this page, so gating
+    // content.city alone would change nothing on screen. City and region are
+    // member-only: the honor exception publishes the honor record, whose
+    // location is the country and nothing finer.
+    const fullHero = buildMemberHeroData(row);
+    const heroData = viewer.authenticated
+      ? fullHero
+      : { ...fullHero, city: null, region: null };
 
     const contactEmail =
       viewer.authenticated && row.email_visibility !== 'private'
@@ -957,9 +982,9 @@ export const memberService = {
       navigation: { contextLinks: [] },
       content: {
         displayName:    row.display_name,
-        city:           row.city,
+        city:           viewer.authenticated ? row.city : null,
         country:        row.country,
-        bio:            row.bio,
+        bio:            viewer.authenticated ? row.bio : '',
         avatarThumbUrl: buildAvatarUrl(row.avatar_thumb_key, row.avatar_media_id),
         hofMember:      isHof,
         bapMember:      isBap,
@@ -978,7 +1003,7 @@ export const memberService = {
         tierBadgeText,
         isActivePlayer,
         genderLabel:    genderPublicLabel(row.gender, row.show_gender, viewer.authenticated),
-        links:          buildMemberLinksView(row.id),
+        links:          viewer.authenticated ? buildMemberLinksView(row.id) : [],
         clubs:          viewer.authenticated ? buildPublicProfileClubsView(row.id) : [],
         media:          viewer.authenticated
           ? buildMemberMediaView(row.id, slug)

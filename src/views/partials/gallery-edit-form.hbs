@@ -33,11 +33,27 @@
     <div class="form-error-banner" role="alert">{{errorMessage}}</div>
   {{/if}}
 
-  <div class="form-field">
-    <label for="gallery-name">Name</label>
-    <input type="text" id="gallery-name" name="name" value="{{gallery.name}}" maxlength="150" required>
-    {{#if fieldErrors.name}}<small class="form-field-error" role="alert">{{fieldErrors.name}}</small>{{/if}}
-  </div>
+  {{#if gallery.isDefault}}
+    {{! The name carries this gallery's web address and the identity the upload
+        path re-derives, and its criteria are what make it hold everything the
+        member has uploaded, so neither is offered as an input here. The service
+        refuses both regardless of what is submitted. }}
+    <div class="form-field">
+      <span class="form-sublabel">Name</span>
+      <p class="form-hint">
+        <strong>{{gallery.name}}</strong> keeps its name. This gallery is created
+        for you and always shows everything you have uploaded, so it collects no
+        hashtags of its own. Create a named gallery to collect a subset.
+      </p>
+      <input type="hidden" name="name" value="{{gallery.name}}">
+    </div>
+  {{else}}
+    <div class="form-field">
+      <label for="gallery-name">Name</label>
+      <input type="text" id="gallery-name" name="name" value="{{gallery.name}}" maxlength="150" required>
+      {{#if fieldErrors.name}}<small class="form-field-error" role="alert">{{fieldErrors.name}}</small>{{/if}}
+    </div>
+  {{/if}}
 
   <div class="form-field">
     <label for="gallery-description">Description</label>
@@ -59,6 +75,7 @@
       {{#if fieldErrors.sortOrder}}<small class="form-field-error" role="alert">{{fieldErrors.sortOrder}}</small>{{/if}}
     </div>
 
+    {{#unless gallery.isDefault}}
     <div class="form-field">
       <label for="gallery-criteria-tags">Criteria tags</label>
       <textarea id="gallery-criteria-tags" name="criteriaTags" rows="2" placeholder="#freestyle #trick" data-tag-chips>{{gallery.criteriaTagsString}}</textarea>
@@ -76,6 +93,7 @@
       <small class="form-hint">Whitespace- or newline-separated. An item carrying any of these tags is filtered out. Optional.</small>
       {{#if fieldErrors.excludeTags}}<small class="form-field-error" role="alert">{{fieldErrors.excludeTags}}</small>{{/if}}
     </div>
+    {{/unless}}
   </details>
 
   {{#if externalLinkSlots.length}}

@@ -134,7 +134,13 @@ FFMPEG_OPTS = [
 
 # ── PIL JPEG settings: parallel to Sharp pipeline (DD §6.8) ───────────────
 JPEG_QUALITY = 85
-THUMB_SIZE = 300
+# Two thumbnail bounds, matching the Sharp pipeline value for value. An avatar
+# is cropped square for its fixed circular frame; a photo thumbnail keeps its
+# own shape and is bounded on the longest edge, sized for the gallery tile on a
+# high-density screen. The two producers must agree: both write the same
+# database column, so a disagreement puts two shapes in one grid.
+AVATAR_THUMB_SIZE = 300
+PHOTO_THUMB_SIZE = 600
 DISPLAY_WIDTH = 800
 
 
@@ -211,8 +217,8 @@ def process_poster(input_path: Path, output_path: Path, max_width: int) -> tuple
         return w, h
 
 
-def process_thumb(input_path: Path, output_path: Path, size: int) -> None:
-    """Re-encode JPEG to a square thumbnail through PIL."""
+def process_avatar_thumb(input_path: Path, output_path: Path, size: int) -> None:
+    """Re-encode JPEG to a square avatar thumbnail through PIL."""
     with Image.open(input_path) as img:
         rgb = img.convert("RGB")
         # Cover-crop to square then resize, parallel to sharp's `fit: 'cover'`.
@@ -222,6 +228,20 @@ def process_thumb(input_path: Path, output_path: Path, size: int) -> None:
         cropped = rgb.crop((left, top, left + side, top + side))
         thumbnail = cropped.resize((size, size))
         thumbnail.save(output_path, "JPEG", quality=JPEG_QUALITY)
+
+
+def process_photo_thumb(input_path: Path, output_path: Path, size: int) -> None:
+    """Re-encode JPEG to an aspect-preserving photo thumbnail through PIL."""
+    with Image.open(input_path) as img:
+        rgb = img.convert("RGB")
+        # Bound the longest edge and keep the source shape, parallel to sharp's
+        # `fit: 'inside'` with `withoutEnlargement`, which is why a source
+        # smaller than the bound is left at its own size rather than blown up.
+        # The square crop belongs to the frame the thumbnail is drawn into, and
+        # the stylesheet applies it, so storing one here would throw away the
+        # part of the photo the admin picker surfaces rely on.
+        rgb.thumbnail((size, size), Image.Resampling.LANCZOS)
+        rgb.save(output_path, "JPEG", quality=JPEG_QUALITY)
 
 
 def ensure_fh_member(con: sqlite3.Connection, ts: str) -> str:
@@ -399,7 +419,7 @@ def seed_video_item(
     width_px, height_px = process_poster(
         source_dir / item["poster_source"], abs_poster_display, DISPLAY_WIDTH
     )
-    process_thumb(source_dir / item["poster_source"], abs_poster_thumb, THUMB_SIZE)
+    process_photo_thumb(source_dir / item["poster_source"], abs_poster_thumb, PHOTO_THUMB_SIZE)
 
     # video_id stores the storage key. The adapter (`MediaStorageAdapter`)
     # owns URL construction; `constructURL(key)` returns `/media-store/{key}`
@@ -464,7 +484,10 @@ def seed_photo_item(
     width_px, height_px = process_poster(
         source_dir / item["photo_source"], abs_display, DISPLAY_WIDTH
     )
-    process_thumb(source_dir / item["photo_source"], abs_thumb, THUMB_SIZE)
+    if is_avatar:
+        process_avatar_thumb(source_dir / item["photo_source"], abs_thumb, AVATAR_THUMB_SIZE)
+    else:
+        process_photo_thumb(source_dir / item["photo_source"], abs_thumb, PHOTO_THUMB_SIZE)
 
     # See seed_video_item for the rationale on uploaded_at vs ts.
     source_photo_path = source_dir / item["photo_source"]

@@ -1,8 +1,9 @@
 /**
- * The Hall of Fame and Big Add Posse pages carry an on-site index of their
- * canonical honorees (public historical record), each linked to a claimed member
- * profile when one exists, otherwise the history page. Dated inductees sort
- * most-recent first; undated ones follow. The external site link is retained.
+ * The Hall of Fame and Big Add Posse pages are editorial landing pages. Each
+ * tells its honor's history and sends the reader to that honor's own site. They
+ * carry no on-site roster of honorees and no per-person honor page, so honored
+ * people seeded in the database reach neither page and no person link is
+ * rendered on either.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -19,11 +20,11 @@ const LINKED_PERSON = 'hof-person-linked-001';
 beforeAll(async () => {
   const db = createTestDb(dbPath);
 
+  // Honored people exist in the database, including one who has claimed a live
+  // member account. Neither page may surface any of them.
   insertHistoricalPerson(db, { person_id: 'hof-dated-001', person_name: 'Ada Recent', hof_member: 1, hof_induction_year: 2015 });
   insertHistoricalPerson(db, { person_id: 'hof-undated-001', person_name: 'Cyrus Undated', hof_member: 1, hof_induction_year: null });
 
-  // A HoF person who has claimed a live, searchable member account: their index
-  // entry links to the member profile, not the history page.
   insertHistoricalPerson(db, { person_id: LINKED_PERSON, person_name: 'Bella Claimed', hof_member: 1, hof_induction_year: 2010 });
   insertMember(db, { id: 'member-bella', slug: 'bella_claimed', display_name: 'Bella Claimed', login_email: 'bella@example.com' });
   db.prepare('UPDATE members SET historical_person_id = ? WHERE id = ?').run(LINKED_PERSON, 'member-bella');
@@ -36,37 +37,42 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('GET /hof — on-site inductee index', () => {
-  it('renders the inductee index and keeps the external site link', async () => {
+describe('GET /hof — editorial landing page', () => {
+  it('tells the honor history and links out to the honor\'s own site', async () => {
     const res = await request(await createApp()).get('/hof');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Inductees');
-    expect(res.text).toContain('Ada Recent');
-    expect(res.text).toContain('Cyrus Undated');
-    expect(res.text).toContain('2015');
-    expect(res.text).toContain('footbaghalloffame.net');
+    expect(res.text).toContain('Footbag Hall of Fame');
+    expect(res.text).toContain('A Bit of History...');
+    expect(res.text).toContain('https://www.footbaghalloffame.net/');
   });
 
-  it('links an unclaimed honoree to the history page and a claimed one to the member profile', async () => {
+  it('carries no inductee roster', async () => {
     const res = await request(await createApp()).get('/hof');
-    expect(res.text).toContain('href="/history/hof-dated-001"');
-    expect(res.text).toContain('href="/members/bella_claimed"');
-    expect(res.text).not.toContain('href="/history/hof-person-linked-001"');
+    expect(res.text).not.toContain('Inductees');
+    expect(res.text).not.toContain('Ada Recent');
+    expect(res.text).not.toContain('Cyrus Undated');
+    expect(res.text).not.toContain('Bella Claimed');
   });
 
-  it('sorts dated inductees before undated ones', async () => {
+  it('renders no person link', async () => {
     const res = await request(await createApp()).get('/hof');
-    expect(res.text.indexOf('Ada Recent')).toBeLessThan(res.text.indexOf('Cyrus Undated'));
+    expect(res.text).not.toContain('href="/history/');
+    expect(res.text).not.toContain('href="/members/bella_claimed"');
   });
 });
 
-describe('GET /bap — on-site member index', () => {
-  it('renders the member index with induction year and keeps the external link', async () => {
+describe('GET /bap — editorial landing page', () => {
+  it('tells the honor history and links out to the honor\'s own site', async () => {
     const res = await request(await createApp()).get('/bap');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Dex Poser');
-    expect(res.text).toContain('2008');
-    expect(res.text).toContain('href="/history/bap-001"');
-    expect(res.text).toContain('bigaddposse.com');
+    expect(res.text).toContain('Big Add Posse');
+    expect(res.text).toContain('History of the BAP');
+    expect(res.text).toContain('https://bigaddposse.com/');
+  });
+
+  it('carries no member roster and no person link', async () => {
+    const res = await request(await createApp()).get('/bap');
+    expect(res.text).not.toContain('Dex Poser');
+    expect(res.text).not.toContain('href="/history/');
   });
 });

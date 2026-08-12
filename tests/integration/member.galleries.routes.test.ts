@@ -1035,3 +1035,213 @@ describe('POST /members/:memberKey/galleries — rate limit', () => {
     }
   });
 });
+
+// The Personal Gallery is materialized by the upload path rather than composed
+// by the member: its row id is derived from its fixed name, and its single
+// criteria tag is what makes it hold everything the member has uploaded. It is
+// therefore not theirs to rename or delete, and the parts that carry those two
+// properties are not editable, while ordinary preferences on it still are.
+describe('the member Personal Gallery is protected from rename and deletion', () => {
+  const PERSONAL = 'Personal Gallery';
+
+  async function uploadOnePhoto(filename: string): Promise<request.Response> {
+    const jpeg = await sharp({
+      create: { width: 256, height: 256, channels: 3, background: { r: 50, g: 100, b: 150 } },
+    }).jpeg().toBuffer();
+    return request(createApp())
+      .post(`/members/${OWNER_SLUG}/media/upload`)
+      .set('Cookie', ownerCookie())
+      .field('mediaType', 'photo')
+      .attach('photoFile', jpeg, filename);
+  }
+
+  function readGallery(name: string): { id: string; name: string; description: string } | undefined {
+    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    try {
+      return db.prepare(
+        'SELECT id, name, description FROM member_galleries WHERE owner_member_id = ? AND is_default = 1',
+      ).get(OWNER_ID) as { id: string; name: string; description: string } | undefined;
+    } finally {
+      db.close();
+    }
+  }
+
+  function readCriteriaTags(galleryId: string): string[] {
+    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    try {
+      const rows = db.prepare(`
+        SELECT t.tag_display
+        FROM member_gallery_tags gt
+        JOIN tags t ON t.id = gt.tag_id
+        WHERE gt.gallery_id = ?
+        ORDER BY t.tag_display
+      `).all(galleryId) as Array<{ tag_display: string }>;
+      return rows.map((r) => r.tag_display);
+    } finally {
+      db.close();
+    }
+  }
+
+  function editPersonalGallery(
+    galleryId: string,
+    fields: { name?: string; description?: string; criteriaTags?: string; excludeTags?: string },
+  ): Promise<request.Response> {
+    return request(createApp())
+      .post(`/members/${OWNER_SLUG}/galleries/${galleryId}/edit`)
+      .set('Cookie', ownerCookie())
+      .type('form')
+      .send({
+        name: fields.name ?? PERSONAL,
+        description: fields.description ?? 'Everything I have uploaded.',
+        sortOrder: 'upload_desc',
+        criteriaTags: fields.criteriaTags ?? '',
+        excludeTags: fields.excludeTags ?? '',
+      });
+  }
+
+  it('refuses a rename and leaves the stored name alone', async () => {
+    await uploadOnePhoto(`personal-rename-${Date.now()}.jpg`);
+    const before = readGallery(PERSONAL)!;
+    expect(before.name).toBe(PERSONAL);
+
+    const res = await editPersonalGallery(before.id, { name: 'My Best Shots' });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('cannot be renamed');
+    expect(readGallery(PERSONAL)!.name).toBe(PERSONAL);
+  });
+
+  it('refuses criteria and exclude tags, which would narrow it below everything the member owns', async () => {
+    await uploadOnePhoto(`personal-criteria-${Date.now()}.jpg`);
+    const gallery = readGallery(PERSONAL)!;
+    const before = readCriteriaTags(gallery.id);
+
+    const res = await editPersonalGallery(gallery.id, { criteriaTags: '#freestyle' });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('takes no criteria or exclude tags');
+    expect(readCriteriaTags(gallery.id)).toEqual(before);
+
+    const excluded = await editPersonalGallery(gallery.id, { excludeTags: '#freestyle' });
+    expect(excluded.status).toBe(422);
+  });
+
+  it('still accepts a description change, which carries none of its identity', async () => {
+    await uploadOnePhoto(`personal-desc-${Date.now()}.jpg`);
+    const gallery = readGallery(PERSONAL)!;
+
+    const res = await editPersonalGallery(gallery.id, { description: 'My own words.' });
+    expect(res.status).toBe(303);
+    expect(readGallery(PERSONAL)!.description).toBe('My own words.');
+  });
+
+  it('refuses a delete and leaves the row in place', async () => {
+    await uploadOnePhoto(`personal-delete-${Date.now()}.jpg`);
+    const gallery = readGallery(PERSONAL)!;
+
+    const res = await request(createApp())
+      .post(`/members/${OWNER_SLUG}/galleries/${gallery.id}/delete`)
+      .set('Cookie', ownerCookie())
+      .type('form')
+      .send({ confirmed: '1' });
+    expect(res.status).toBe(404);
+    expect(readGallery(PERSONAL)).toBeDefined();
+  });
+
+  // The regression the rename guard exists for. The gallery's row id is
+  // rebuilt from the fixed name on every upload, so a renamed row would still
+  // hold the id the next upload claims, and that upload would fail on the
+  // primary key with no retry and no catch.
+  it('leaves the next upload working after a rename attempt', async () => {
+    const stamp = Date.now();
+    const firstFile = `personal-regression-first-${stamp}.jpg`;
+    const secondFile = `personal-regression-second-${stamp}.jpg`;
+
+    await uploadOnePhoto(firstFile);
+    const gallery = readGallery(PERSONAL)!;
+
+    await editPersonalGallery(gallery.id, { name: 'Renamed Away' });
+
+    const second = await uploadOnePhoto(secondFile);
+    expect(second.status).toBe(303);
+
+    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    try {
+      const stored = db.prepare(`
+        SELECT source_filename FROM media_items
+        WHERE uploader_member_id = ? AND source_filename IN (?, ?)
+        ORDER BY source_filename
+      `).all(OWNER_ID, firstFile, secondFile) as Array<{ source_filename: string }>;
+      expect(stored.map((r) => r.source_filename)).toEqual([firstFile, secondFile]);
+    } finally {
+      db.close();
+    }
+  });
+
+  it('offers no delete control for it on the galleries list', async () => {
+    await uploadOnePhoto(`personal-list-${Date.now()}.jpg`);
+    const gallery = readGallery(PERSONAL)!;
+
+    const res = await request(createApp())
+      .get(`/members/${OWNER_SLUG}/galleries`)
+      .set('Cookie', ownerCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain(PERSONAL);
+    expect(res.text).not.toContain(`/galleries/${gallery.id}/delete`);
+    // The edit link stays: per-item edit and delete links live inside a
+    // gallery's edit form and nowhere else.
+    expect(res.text).toContain(`/galleries/${gallery.id}/edit`);
+  });
+
+  // The protection above keys on the stored default flag, so it only holds
+  // while the Personal Gallery is the one row standing on that name and on the
+  // row id derived from it. A gallery of the member's own that takes either is
+  // adopted by the upload path in its place, or collides with the id that path
+  // claims, so the name is reserved on create and on rename.
+  it('refuses to create a gallery on the reserved name, leaving the next upload to materialize the real one', async () => {
+    const refused = await createGalleryViaApi(PERSONAL);
+    expect(refused.status).toBe(422);
+    expect(refused.text).toContain('reserved for your Personal Gallery');
+    expect(findGalleryIdByName(PERSONAL)).toBeUndefined();
+
+    const upload = await uploadOnePhoto(`personal-reserved-${Date.now()}.jpg`);
+    expect(upload.status).toBe(303);
+    const materialized = readGallery(PERSONAL);
+    expect(materialized).toBeDefined();
+    expect(readCriteriaTags(materialized!.id)).toEqual([`#by_${OWNER_SLUG}`]);
+  });
+
+  // The sharper half: a name that differs only in case or punctuation passes
+  // the name comparison but derives the same row id, which the materializing
+  // insert has no retry and no catch for.
+  it('refuses a name that only derives the same row id', async () => {
+    const refused = await createGalleryViaApi('personal gallery!');
+    expect(refused.status).toBe(422);
+    expect(refused.text).toContain('reserved for your Personal Gallery');
+    expect(findGalleryIdByName('personal gallery!')).toBeUndefined();
+
+    const upload = await uploadOnePhoto(`personal-slug-${Date.now()}.jpg`);
+    expect(upload.status).toBe(303);
+    expect(readGallery(PERSONAL)).toBeDefined();
+  });
+
+  it('refuses to rename a gallery of the member\'s own onto the reserved name', async () => {
+    const created = await createGalleryViaApi('My Best Shots');
+    expect(created.status).toBe(303);
+    const galleryId = findGalleryIdByName('My Best Shots')!;
+
+    const res = await request(createApp())
+      .post(`/members/${OWNER_SLUG}/galleries/${galleryId}/edit`)
+      .set('Cookie', ownerCookie())
+      .type('form')
+      .send({
+        name: PERSONAL,
+        description: 'desc',
+        sortOrder: 'upload_desc',
+        criteriaTags: '#tag1',
+        excludeTags: '',
+      });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('reserved for your Personal Gallery');
+    expect(findGalleryIdByName('My Best Shots')).toBe(galleryId);
+    expect(findGalleryIdByName(PERSONAL)).toBeUndefined();
+  });
+});

@@ -1,6 +1,14 @@
 import sharp from 'sharp';
 
-const THUMB_SIZE = 300;
+// The two thumbnail renditions have different jobs, so they take different
+// bounds. An avatar is a face in a fixed circular frame 120 CSS pixels across,
+// so it is cropped to a square and 300 covers that frame on a high-density
+// screen. A photo thumbnail keeps its own shape and is cropped to whatever
+// frame it lands in by CSS, so its bound is the longest edge, and it is sized
+// for the gallery tile: tiles are at least 220 CSS pixels and grow to the full
+// column width on a phone, at two to three device pixels per CSS pixel.
+const AVATAR_THUMB_SIZE = 300;
+const PHOTO_THUMB_SIZE = 600;
 const DISPLAY_WIDTH = 800;
 const JPEG_QUALITY = 85;
 
@@ -26,9 +34,9 @@ const SHARP_TIMEOUT_SECONDS = 30;
 
 const SHARP_OPTS = { limitInputPixels: MAX_INPUT_PIXELS } as const;
 
-// Below this on either edge the thumbnail (300x300) and display (800px)
-// variants are heavily upscaled and look poor; above this aspect ratio the
-// square avatar crop discards most of the image.
+// Below this on either edge the rendition variants are heavily upscaled and
+// look poor; above this aspect ratio the square avatar crop discards most of
+// the image.
 const MIN_INPUT_EDGE = 200;
 const MAX_ASPECT_RATIO = 4;
 
@@ -119,7 +127,7 @@ export async function processAvatar(data: Buffer): Promise<ProcessedImage> {
   const [thumb, display] = await Promise.all([
     sharp(data, SHARP_OPTS)
       .timeout({ seconds: SHARP_TIMEOUT_SECONDS })
-      .resize(THUMB_SIZE, THUMB_SIZE, { fit: 'cover' })
+      .resize(AVATAR_THUMB_SIZE, AVATAR_THUMB_SIZE, { fit: 'cover' })
       .rotate()
       .jpeg({ quality: JPEG_QUALITY })
       .toBuffer(),
@@ -136,12 +144,19 @@ export async function processAvatar(data: Buffer): Promise<ProcessedImage> {
 }
 
 /**
- * Process a raw upload buffer into two JPEG variants for a hero/curator photo.
+ * Process a raw upload buffer into two JPEG variants for a photo: member
+ * uploads, curator uploads, and the poster that accompanies a curator video.
  *
- * Differs from processAvatar in that the thumb is aspect-preserving
- * (longest-edge 300px, fit:'inside') instead of a 300x300 cover-crop.
- * Used by the admin curator upload path where preserving the photo's
- * aspect matters (event photos, illustrations, etc.).
+ * The thumb keeps the source aspect ratio bounded on its longest edge, rather
+ * than taking processAvatar's square crop, because its consumers disagree
+ * about shape. A gallery tile is square and crops in CSS; the admin curator
+ * list and the gallery-editor picker render the natural shape, since their job
+ * is letting someone recognise which photo is which. One aspect-preserving
+ * rendition serves both, and a stored crop would serve only the first.
+ *
+ * The Python curator seeding script produces the same rendition for curated
+ * media and follows the same two rules, so a thumbnail is the same shape and
+ * bound whichever side produced it.
  */
 export async function processPhoto(data: Buffer): Promise<ProcessedImage> {
   const metadata = await readImageMetadata(data);
@@ -163,7 +178,7 @@ export async function processPhoto(data: Buffer): Promise<ProcessedImage> {
   const [thumb, display] = await Promise.all([
     sharp(data, SHARP_OPTS)
       .timeout({ seconds: SHARP_TIMEOUT_SECONDS })
-      .resize(THUMB_SIZE, THUMB_SIZE, { fit: 'inside', withoutEnlargement: true })
+      .resize(PHOTO_THUMB_SIZE, PHOTO_THUMB_SIZE, { fit: 'inside', withoutEnlargement: true })
       .rotate()
       .jpeg({ quality: JPEG_QUALITY })
       .toBuffer(),
