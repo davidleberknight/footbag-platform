@@ -725,7 +725,7 @@ Success Criteria:
 - On successful registration the system enqueues a verification email containing a unique single-use link with an Administrator-configurable TTL (default: 24 hours). The registration response does not include a session cookie; the visitor lands on a generic "check your email" page.
 - The verify link is a single-use, unguessable token stored hashed at rest (SHA-256); the raw token is never persisted.
 - Opening the verify link marks the member's email as verified, issues the authenticated session (HttpOnly, Secure, SameSite=Lax cookie), and takes the member to the onboarding wizard's first outstanding task. A newly verified account is pending, not yet a member: it has no profile page and no dashboard to land on, so the wizard is the single post-verification destination, and the member reaches their profile once all three tasks are answered. Any legacy-record match the platform found for their email surfaces inside the wizard's claim task rather than as a separate destination.
-- Successful verification appends an `audit_entries` row (the account-lifecycle transition that activates the account is auditable, like registration and password events).
+- Consuming a valid verify link appends an `audit_entries` row, whether or not it is the click that flips the account to verified: the row records that a session was issued off a verify link, and a repeat click is flagged so it does not read as a second activation. The account-lifecycle transition is auditable like registration and password events.
 - Consuming the link a second time is rejected with a generic "invalid, expired, or already used" response. Unknown or expired tokens render the same response (enumeration-safe).
 - Unverified members cannot log in. The login failure response is identical to the wrong-password response (enumeration-safe).
 - Unverified members do not appear in the authenticated member search.
@@ -782,6 +782,7 @@ Story: As a member, I can log out so that my current session ends and the site n
 Success Criteria:
 
 - Logout action clears the authentication session cookie.
+- Logging out happens on a POST and there is no GET route that reaches it, so a link on another site cannot log a member out. A page that submitted such a form for the visitor would be the same defect wearing a disguise, because the submission would carry this site's own origin.
 - After logout, any attempt to access member-only pages redirects to login page.
 - Member sees a clear confirmation message that they are logged out.
 

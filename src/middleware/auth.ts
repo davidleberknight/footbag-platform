@@ -85,69 +85,77 @@ export function authMiddleware() {
       return;
     }
 
+    // Only the cookie itself degrades to "not signed in". A cookie that is
+    // stale, corrupt, tampered with, or signed by a key we no longer trust is a
+    // session problem, and the honest answer to it is the login page, not a
+    // Service Unavailable screen.
+    let claims: Awaited<ReturnType<ReturnType<typeof getJwtSigningAdapter>['verifyJwt']>>;
     try {
-      const claims = await getJwtSigningAdapter().verifyJwt(cookie);
-      if (!claims) {
-        next();
-        return;
-      }
+      claims = await getJwtSigningAdapter().verifyJwt(cookie);
+    } catch {
+      next();
+      return;
+    }
+    if (!claims) {
+      next();
+      return;
+    }
 
+    // Past this point the cookie is known good, so a failure means we cannot
+    // tell whether this member is still allowed in, not that they are not. The
+    // lookups below decide revocation and role, and answering "anonymous" when
+    // the database is unreachable would silently sign a member out and hide the
+    // outage behind ordinary logged-out traffic. Let it surface as the server
+    // error it is.
+    try {
       const row = authDb.findMemberForSession.get(claims.sub) as
         | SessionMemberRow
         | undefined;
-      if (!row) {
-        next();
-        return;
-      }
 
-      if (row.password_version !== claims.passwordVersion) {
-        next();
-        return;
-      }
+      // An unknown member, or a token predating the current password_version,
+      // is a revoked session: the request continues unauthenticated.
+      if (row && row.password_version === claims.passwordVersion) {
+        req.isAuthenticated = true;
+        // Authorization level, not identity: pending until every onboarding task
+        // completes, member afterwards. Derived fresh per request from the task
+        // rows so a session issued mid-onboarding gains membership the moment
+        // the completion transition lands, with no re-login.
+        req.isMember = memberOnboardingService.isOnboardingComplete(row.id);
+        req.user = {
+          userId: row.id,
+          slug: row.slug ?? row.id,
+          // Authz role is derived strictly from the current DB row, never
+          // from JWT claims. A stale admin-role JWT issued before demotion
+          // must not grant admin privileges after `is_admin` is cleared.
+          // `claims.role` stays in the token for audit logs but is not used
+          // for authorization decisions.
+          role: row.is_admin ? 'admin' : 'member',
+          displayName: row.display_name ?? undefined,
+        };
 
-      req.isAuthenticated = true;
-      // Authorization level, not identity: pending until every onboarding task
-      // completes, member afterwards. Derived fresh per request from the task
-      // rows so a session issued mid-onboarding gains membership the moment
-      // the completion transition lands, with no re-login.
-      req.isMember = memberOnboardingService.isOnboardingComplete(row.id);
-      req.user = {
-        userId: row.id,
-        slug: row.slug ?? row.id,
-        // Authz role is derived strictly from the current DB row, never
-        // from JWT claims. A stale admin-role JWT issued before demotion
-        // must not grant admin privileges after `is_admin` is cleared.
-        // `claims.role` stays in the token for audit logs but is not used
-        // for authorization decisions.
-        role: row.is_admin ? 'admin' : 'member',
-        displayName: row.display_name ?? undefined,
-      };
-
-      // Sliding refresh: an active member near expiry gets a fresh token in
-      // place. Failures here never break the request — the current token is
-      // still valid; the next in-window request retries the refresh.
-      const secondsToExpiry = claims.exp - Math.floor(Date.now() / 1000);
-      if (secondsToExpiry > 0 && secondsToExpiry <= SESSION_REFRESH_WINDOW_SECONDS) {
-        try {
-          const fresh = await createSessionJwt(
-            row.id,
-            row.is_admin ? 'admin' : 'member',
-            row.password_version,
-          );
-          issueSessionCookie(res, fresh, req);
-        } catch {
-          // Signing hiccup (KMS blip): keep serving on the still-valid token.
+        // Sliding refresh: an active member near expiry gets a fresh token in
+        // place. Failures here never break the request — the current token is
+        // still valid; the next in-window request retries the refresh.
+        const secondsToExpiry = claims.exp - Math.floor(Date.now() / 1000);
+        if (secondsToExpiry > 0 && secondsToExpiry <= SESSION_REFRESH_WINDOW_SECONDS) {
+          try {
+            const fresh = await createSessionJwt(
+              row.id,
+              row.is_admin ? 'admin' : 'member',
+              row.password_version,
+            );
+            issueSessionCookie(res, fresh, req);
+          } catch {
+            // Signing hiccup (KMS blip): keep serving on the still-valid token.
+          }
         }
       }
-
-      next();
-    } catch {
-      // Malformed / unverifiable cookie: treat as unauthenticated, not as a
-      // server error. The legitimate path for a stale or corrupt cookie is
-      // "not logged in"; routing a 500 through next(err) here gave users a
-      // confusing Service Unavailable page on what is really a session issue.
-      next();
+    } catch (err) {
+      next(err);
+      return;
     }
+
+    next();
   };
 }
 

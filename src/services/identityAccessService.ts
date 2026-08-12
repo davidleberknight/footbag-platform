@@ -110,7 +110,20 @@
  * Transaction discipline:
  *   - Multi-write paths (claim merge, password reset + version bump, register + audit)
  *     wrap in transaction(() => { ... }) from db.ts. All DB ops inside are synchronous;
- *     external I/O (SES, etc.) happens BEFORE the transaction opens.
+ *     external I/O (SES, etc.) happens BEFORE the transaction opens. Enqueuing an
+ *     email is not external I/O: it inserts an outbox row in this same database,
+ *     and the provider call happens later in the drain worker.
+ *   - Password change orders every fallible step ahead of the one irreversible
+ *     one. The replacement session JWT is signed first, so a signing outage ends
+ *     the request with nothing changed; then the version bump, its audit row, and
+ *     the confirmation-email outbox row commit as a single transaction, so a
+ *     refused enqueue can never leave the password changed. A send the template
+ *     registry suppresses, or an account with no deliverable address, commits
+ *     without mail but never silently: it records the notification failure in
+ *     the same transaction, so a password that changed with nobody told is
+ *     always visible. The bump is
+ *     conditioned on the password_version that was read, so a concurrent change
+ *     is refused rather than applied over an unknown state.
  *   - In-tx variants (consumeAndClaimLegacyInTx, claimHistoricalPersonInTx) accept a
  *     caller-owned transaction so the wizard orchestrator can merge the claim and the
  *     member_onboarding_tasks row transition inside one transaction.
@@ -159,7 +172,8 @@ import { config } from '../config/env';
 // from being set in production, where the single-shot SSM-token claim is the
 // first-admin (and break-glass recovery) path.
 import { applyDevStagingBootstrapAdmin } from '../dev-bootstrap/runtime';
-import { ConflictError, NotFoundError, RateLimitedError, ServiceError, ValidationError } from './serviceErrors';
+import { ConflictError, NotFoundError, RateLimitedError, ServiceError, ServiceUnavailableError, ValidationError } from './serviceErrors';
+import { createSessionJwt } from './jwtService';
 import { compareBirthDates } from '../lib/birthDate';
 import { isUniqueConstraintError } from './sqliteRetry';
 import { findAutoLinkCandidates } from './nameVariantsService';
@@ -1047,20 +1061,21 @@ async function verifyEmailByToken(rawToken: string): Promise<VerifyEmailResult |
 
     const now = new Date().toISOString();
     const update = auth.markEmailVerified.run(now, now, c.memberId);
-    // update.changes may be 0 if the member was already verified; that's fine
-    // since the token itself is single-use, we proceed with login in any case.
-    if (update.changes > 0) {
-      // Account-lifecycle trail: verification is the transition that activates
-      // the account, so it gets an audit row like register and password events.
-      appendAuditEntry({
-        actionType: 'auth.email_verified',
-        category: 'auth',
-        actorType: 'member',
-        actorMemberId: c.memberId,
-        entityType: 'member',
-        entityId: c.memberId,
-      });
-    }
+    // A member who already verified changes no row here, because the statement
+    // only marks an unverified account. They still spend a token and still
+    // leave with a session, so the row is appended either way: what the trail
+    // records is that a session was issued off a verification link, and gating
+    // that on whether an UPDATE moved a row would silently lose the cases where
+    // a second outstanding link is redeemed. The flag distinguishes the two.
+    appendAuditEntry({
+      actionType: 'auth.email_verified',
+      category: 'auth',
+      actorType: 'member',
+      actorMemberId: c.memberId,
+      entityType: 'member',
+      entityId: c.memberId,
+      ...(update.changes > 0 ? {} : { metadata: { alreadyVerified: true } }),
+    });
     return c;
   });
   if (!consumed) return null;
@@ -3244,6 +3259,12 @@ function claimHistoricalPerson(
 export interface PasswordChangeResult {
   memberId: string;
   newPasswordVersion: number;
+  /**
+   * Session JWT carrying the new password_version, signed before the version
+   * bump committed. The caller sets it as the session cookie; until it does,
+   * the member's browser holds a token the bump has just invalidated.
+   */
+  sessionJwt: string;
 }
 
 async function changePassword(
@@ -3288,13 +3309,61 @@ async function changePassword(
   }
 
   const newHash = await hashPassword(newPassword);
+  const newPasswordVersion = row.password_version + 1;
+
+  const member = auth.findMemberForSessionAfterVerify.get(memberId) as
+    | { login_email: string | null; is_admin: number }
+    | undefined;
+
+  // Every step that can fail on something outside this database runs BEFORE the
+  // version bump, because the bump is the one action that cannot be undone from
+  // the member's side: it invalidates the session in the browser they are using.
+  // Signing the replacement token first means a signing outage ends the request
+  // with nothing changed and the member still logged in, instead of committing a
+  // change whose replacement session can no longer be minted. The token stays in
+  // this process until the commit succeeds, so nothing outside ever sees a token
+  // for a version the database does not hold.
+  let sessionJwt: string;
+  try {
+    sessionJwt = await createSessionJwt(
+      memberId,
+      member?.is_admin ? 'admin' : 'member',
+      newPasswordVersion,
+    );
+  } catch (err) {
+    // Operator-actionable and alarmed: signing is a hard dependency, so a
+    // policy regression or key problem here blocks every password change on the
+    // platform. The production alarm counts error-level lines, so this must not
+    // be softened to a warning.
+    logger.error('password change abandoned: session signing unavailable', {
+      memberId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    throw new ServiceUnavailableError(
+      'We could not complete the password change. Your password was not changed. Please try again.',
+    );
+  }
+
   const now = new Date().toISOString();
-  // Password bump (invalidates all other sessions) and its audit row commit
-  // together, so a failed audit insert cannot leave the version bumped with no
-  // audit trail. The confirmation email below is external I/O and stays
-  // post-commit by design.
-  transaction(() => {
-    auth.updateMemberPassword.run(newHash, now, now, memberId);
+  // The bump (which invalidates every other session), its audit row, and the
+  // confirmation email all commit together or not at all. The email is enqueued
+  // into the outbox, which is a row in this same database, so it belongs inside
+  // the transaction; the delivery attempt to the mail provider happens later in
+  // the drain worker, outside any request. Keeping the three together removes
+  // the failure mode where the password changed but the member was never told.
+  const committed = transaction(() => {
+    const update = auth.updateMemberPassword.run(
+      newHash,
+      now,
+      now,
+      memberId,
+      row.password_version,
+    );
+    // The version moved between the read above and this write, so another
+    // password change for this member won the race and the token signed above
+    // is already stale. Change nothing and let the member retry.
+    if (update.changes !== 1) return false;
+
     appendAuditEntry({
       actionType: 'auth.password_change',
       category: 'auth',
@@ -3303,52 +3372,62 @@ async function changePassword(
       entityType: 'member',
       entityId: memberId,
     });
-  });
 
-  // Confirmation email. Uses the strict enqueueEmailOrFail helper because a
-  // silent loss of the password-change notification is itself a security
-  // signal (an attacker doing account takeover plus a degraded email path
-  // would otherwise leave the legitimate owner unaware). The
-  // password_version increment is already committed above; if the enqueue
-  // fails the caller surfaces an actionable 503 and the member uses
-  // password reset to recover (per memberController.postPasswordEdit).
-  const member = auth.findMemberForSessionAfterVerify.get(memberId) as
-    | { login_email: string | null }
-    | undefined;
-  if (member?.login_email) {
-    try {
-      emailService.send({
-        template: 'password_changed',
-        params: {},
-        recipientEmail: member.login_email,
-        recipientMemberId: memberId,
-        // No token row for password-change notifications; use the new
-        // password_version as the per-event key so re-emit on worker
-        // restart between SES-send and outbox-mark-sent collapses to the
-        // same outbox row.
-        idempotencyKey: `pwchange:${memberId}:${row.password_version + 1}`,
-        strict: true,
-      });
-    } catch (err) {
-      // High-priority audit row: the password change committed but the
-      // member never got their notification. Operator review should treat
-      // this as a possible account-takeover signal that coincided with an
-      // email-pipeline degradation.
+    // Strict enqueue: a silently dropped password-change notification is itself
+    // a security signal, because an account takeover paired with a degraded
+    // email path would leave the legitimate owner unaware. Strict means a failed
+    // enqueue throws, which rolls this whole transaction back, so the password
+    // cannot change on the strength of a notification the outbox refused.
+    //
+    // Suppression is the case that does not raise: an operator can disable this
+    // notification's template, and the send then returns without sending. That
+    // leaves the password changed and nobody told, which is the state someone
+    // using a stolen session wants, so it leaves a forensic row and an operator
+    // alert in the same transaction as the change itself rather than passing as
+    // an ordinary change.
+    if (!member?.login_email) {
+      // Not defensive: the schema permits a null address only on an account
+      // whose personal data is purged, and such an account has no password hash
+      // to authenticate the change that got us here.
+      throw new Error(
+        'password change reached notification with no recipient address; schema invariant violated',
+      );
+    }
+    const sent = emailService.send({
+      template: 'password_changed',
+      params: {},
+      recipientEmail: member.login_email,
+      recipientMemberId: memberId,
+      // No token row for password-change notifications; use the new
+      // password_version as the per-event key so re-emit on worker
+      // restart between SES-send and outbox-mark-sent collapses to the
+      // same outbox row.
+      idempotencyKey: `pwchange:${memberId}:${newPasswordVersion}`,
+      strict: true,
+    });
+
+    if (sent.status === 'suppressed') {
       recordOperationalError({
         actionType: 'auth.password_change_notification_failed',
         category: 'auth',
         entityType: 'member',
         entityId: memberId,
         reasonText:
-          'Password change committed but confirmation-email enqueue failed.',
-        cause: err,
-        metadata: { newPasswordVersion: row.password_version + 1 },
+          'Password changed but its confirmation email is suppressed, so the member was not told.',
+        cause: 'password_changed template disabled',
+        metadata: { newPasswordVersion },
       });
-      throw err;
     }
+    return true;
+  });
+
+  if (!committed) {
+    throw new ConflictError(
+      'Your password was changed from another session. Please sign in again and retry.',
+    );
   }
 
-  return { memberId, newPasswordVersion: row.password_version + 1 };
+  return { memberId, newPasswordVersion, sessionJwt };
 }
 
 // ── Password reset ───────────────────────────────────────────────────────────
@@ -3460,7 +3539,24 @@ async function completePasswordReset(
       throw new ValidationError('This reset link is invalid, expired, or already used.');
     }
 
-    auth.updateMemberPassword.run(newHash, now, now, consumed.memberId);
+    // The row was read inside this same transaction, so the version it carries
+    // is the version the write conditions on and cannot have moved underneath.
+    // Checked anyway, because the failure it guards against is silent and bad:
+    // the token is already spent by the line above, so a write that matched
+    // nothing would tell the member their reset succeeded while leaving the old
+    // password in place and the single-use link burned.
+    const reset = auth.updateMemberPassword.run(
+      newHash,
+      now,
+      now,
+      consumed.memberId,
+      member.password_version,
+    );
+    if (reset.changes !== 1) {
+      throw new Error(
+        'password reset matched no row: password_version moved inside the transaction',
+      );
+    }
 
     // Re-read password_version post-UPDATE rather than computing
     // `member.password_version + 1` from the pre-UPDATE snapshot. The

@@ -136,7 +136,7 @@ Any test that deliberately exercises an error path producing `logger.error()` ca
 import { expectLoggedError } from '../setup-env';
 
 it('outbox failure → 503 + audit row', async () => {
-  expectLoggedError('audit: auth.password_change_notification_failed');
+  expectLoggedError('audit: auth.register_notification_failed');
   // ... action that throws inside the catch block
 });
 ```

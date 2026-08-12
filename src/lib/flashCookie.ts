@@ -11,6 +11,7 @@ import { Request, Response } from 'express';
 export const FLASH_COOKIE = 'footbag_flash';
 
 export const FLASH_KIND = {
+  LOGIN: 'login',
   LOGOUT: 'logout',
   AVATAR_UPLOADED: 'avatar_uploaded',
   WIZARD_LEGACY_CLAIM_RESULT: 'wizard_legacy_claim_result',

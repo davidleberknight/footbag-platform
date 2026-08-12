@@ -92,6 +92,30 @@ describe('POST /login — DB-backed auth', () => {
     expect(cookie).toBeTruthy();
   });
 
+  it('a successful login confirms itself: flash cookie set, banner on the next page, gone after', async () => {
+    const res = await request(app)
+      .post('/login')
+      .type('form')
+      .send({ email: TEST_MEMBER_EMAIL, password: TEST_PASSWORD });
+
+    const cookies: string[] = Array.isArray(res.headers['set-cookie'])
+      ? res.headers['set-cookie']
+      : [res.headers['set-cookie'] ?? ''];
+    const flashCookie = cookies.find((c: string) => c.startsWith('footbag_flash='));
+    expect(flashCookie).toBeDefined();
+
+    // The banner is what the member actually sees; a cookie alone confirms
+    // nothing to them.
+    const landing = await request(app).get('/').set('Cookie', flashCookie!.split(';')[0]);
+    expect(landing.status).toBe(200);
+    expect(landing.text).toContain('You are now logged in.');
+
+    // Shown once: the confirmation belongs to the sign-in, not to every page
+    // the member visits afterwards.
+    const next = await request(app).get('/');
+    expect(next.text).not.toContain('You are now logged in.');
+  });
+
   it('Footbag Hacky login (email=footbag) → 303 redirect and session cookie set', async () => {
     const res = await request(app)
       .post('/login')

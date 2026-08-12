@@ -6011,6 +6011,7 @@ export const auth = {
       updated_by            = 'member',
       version               = version + 1
     WHERE id = ?
+      AND password_version = ?
   `); },
 };
 

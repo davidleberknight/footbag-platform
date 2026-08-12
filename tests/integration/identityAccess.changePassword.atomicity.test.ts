@@ -1,11 +1,12 @@
 /**
  * Atomicity regression test for identityAccessService.changePassword.
  *
- * The password bump (which invalidates all other sessions) and its audit row
- * must commit together. Pre-fix they ran as two separate statements, so a
- * failed audit append left password_version bumped with no audit trail. The
- * confirmation email is external I/O and stays post-commit (not asserted here;
- * the throw happens before it is reached).
+ * The password bump (which invalidates all other sessions), its audit row, and
+ * the confirmation-email outbox row must commit together. Pre-fix the bump and
+ * the audit append ran as two separate statements, so a failed audit append
+ * left password_version bumped with no audit trail. This file drives the audit
+ * half; the enqueue half is asserted by the password-change route suite, whose
+ * forced enqueue failure must leave the password unchanged.
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';

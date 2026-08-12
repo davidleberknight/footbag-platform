@@ -361,6 +361,9 @@ export function createApp(): express.Application {
     if (flash?.kind === FLASH_KIND.LOGOUT) {
       res.locals.flashLoggedOut = true;
     }
+    if (flash?.kind === FLASH_KIND.LOGIN) {
+      res.locals.flashLoggedIn = true;
+    }
     // Wrap render so two render-time concerns are handled in one place:
     //  1. Emit a self-referencing canonical (and og:url) only for successful
     //     content responses. Error and not-found renders (status >= 400) must
@@ -376,7 +379,7 @@ export function createApp(): express.Application {
       if (res.statusCode < 400) {
         res.locals.canonicalUrl = canonicalBase + req.path;
       }
-      if (res.locals.flashLoggedOut) {
+      if (res.locals.flashLoggedOut || res.locals.flashLoggedIn) {
         clearFlash(res, req);
       }
       return origRender(...args);

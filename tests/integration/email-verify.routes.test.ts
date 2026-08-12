@@ -113,7 +113,7 @@ describe('POST /register → check-email + outbox enqueue', () => {
 });
 
 describe('GET /verify/:token', () => {
-  it('consumes valid token → sets email_verified_at, issues session cookie, redirects to /members/:slug', async () => {
+  it('consumes valid token → sets email_verified_at, issues session cookie, redirects to the wizard', async () => {
     const app = createApp();
     await request(app).post('/register').type('form').send({
       realName: 'Verify Good',
@@ -144,6 +144,50 @@ describe('GET /verify/:token', () => {
     db.close();
     expect(m.email_verified_at).not.toBeNull();
     expect(audit.n).toBe(1);
+  });
+
+  it('a still-valid token consumed after the account is already verified issues a session and still audits', async () => {
+    const app = createApp();
+    await request(app).post('/register').type('form').send({
+      realName: 'Verify Already',
+      email: 'verify-already@example.com',
+      password: 'verifypass!1',
+      confirmPassword: 'verifypass!1',
+    });
+    const token = tokenFromOutbox('verify-already@example.com');
+
+    // The account reaches verified by another route (a second outstanding link
+    // redeemed first), leaving this link valid and unused against an account
+    // that no longer needs verifying.
+    const seed = new BetterSqlite3(dbPath);
+    seed.prepare(
+      `UPDATE members SET email_verified_at = ? WHERE login_email_normalized = ?`,
+    ).run(new Date().toISOString(), 'verify-already@example.com');
+    seed.close();
+
+    const res = await request(app).get(`/verify/${token}`);
+
+    // The link still signs the member in, so it is a session issuance and has
+    // to be recorded as one. Gating the audit row on the row-changing UPDATE
+    // lost exactly this case: nothing changed, so nothing was written, while a
+    // session went out with no trail behind it.
+    expect(res.status).toBe(303);
+    const cookies = res.headers['set-cookie'] as string[] | undefined;
+    expect(cookies?.some((c) => c.startsWith('__Host-footbag_session='))).toBe(true);
+
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const m = db.prepare(
+      `SELECT id FROM members WHERE login_email_normalized = ?`,
+    ).get('verify-already@example.com') as { id: string };
+    const rows = db.prepare(
+      `SELECT metadata_json FROM audit_entries
+        WHERE action_type = 'auth.email_verified' AND entity_id = ?`,
+    ).all(m.id) as { metadata_json: string }[];
+    db.close();
+
+    expect(rows).toHaveLength(1);
+    // Flagged, so the trail does not read as a second account activation.
+    expect(JSON.parse(rows[0].metadata_json).alreadyVerified).toBe(true);
   });
 
   it('second consume of the same token → 400 with generic error', async () => {

@@ -113,7 +113,7 @@ describe('CSRF — cross-site POST without session cookie is blocked', () => {
 });
 
 describe('CSRF — verb discipline', () => {
-  it('GET /logout does not clear the session (logout is POST-only)', async () => {
+  it('logout is not reachable by GET at all, so no link on another site can trigger it', async () => {
     const app = createApp();
     // First establish a session.
     const loginRes = await request(app)
@@ -124,13 +124,17 @@ describe('CSRF — verb discipline', () => {
     const sessionCookie = cookies.find((c) => c.startsWith('__Host-footbag_session='))!
       .split(';')[0];
 
-    // GET /logout renders a bridge page that auto-submits POST /logout, but
-    // MUST NOT clear the session itself — GET is the safe verb. Only POST
-    // /logout performs the state change.
+    // No GET route exists. The Origin pin only guards state-changing verbs, so
+    // anything a plain cross-site link can reach is outside its protection:
+    // a GET that logged the member out, or a GET page that posted on load from
+    // our own origin, would both be forced logouts the pin would never see.
     const res = await request(app).get('/logout').set('Cookie', sessionCookie);
-    expect(res.status).toBe(200);
-    // No clear-cookie directive on GET.
+    expect(res.status).toBe(404);
     const respCookies = (res.headers['set-cookie'] as string[] | undefined) ?? [];
     expect(respCookies.some((c) => /footbag_session=\s*;/.test(c))).toBe(false);
+
+    // The session still resolves afterwards: nothing about it changed.
+    const after = await request(app).get('/').set('Cookie', sessionCookie);
+    expect(after.status).toBe(200);
   });
 });

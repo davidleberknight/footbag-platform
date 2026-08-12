@@ -4987,7 +4987,8 @@ a.hashtag--media:hover {
   border-radius: var(--radius-xs);
   font-size: 1em;
 }
-.flash-logout {
+.flash-logout,
+.flash-login {
   background: var(--info-bg);
   border: 1px solid var(--slate-300);
   color: var(--steel-accent);

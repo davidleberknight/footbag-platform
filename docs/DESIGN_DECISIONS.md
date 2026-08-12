@@ -1371,7 +1371,7 @@ An authenticated session is represented by a JSON Web Token (JWT) issued at logi
 The system does not support targeted revocation of one JWT while leaving other JWTs for the same member valid. The available revocation operations are:
 
 1. Per-device cookie deletion at logout.
-2. Global invalidation of every JWT issued before a password change, via increment of `members.password_version`. The authorization middleware compares `member.password_version` against the JWT's `passwordVersion` claim on every authenticated request; a mismatch rejects the token immediately. The password-change response also re-issues a fresh JWT to the originating browser so the member is not logged out on the device that performed the change.
+2. Global invalidation of every JWT issued before a password change, via increment of `members.password_version`. The authorization middleware compares `member.password_version` against the JWT's `passwordVersion` claim on every authenticated request; a mismatch rejects the token immediately. The password-change response also re-issues a fresh JWT to the originating browser so the member is not logged out on the device that performed the change. The replacement token is signed before the increment commits, and the increment, its audit row, and the confirmation-email outbox row commit as one transaction, so a signing failure or a refused enqueue ends the request with nothing changed rather than committing an invalidation whose replacement session can no longer be issued. A notification the template registry suppresses, or an account with no deliverable address, commits without mail rather than failing the change, but records the missing notification as an operational failure in the same transaction, so a password that changed with nobody told is never silent.
 3. KMS key rotation, which makes every JWT signed with the prior key fail verification once the prior key is disabled.
 
 Three cookie surfaces:
@@ -1457,7 +1457,7 @@ Requirements:
 
 Trade-offs:
 
-- Verb discipline must be maintained at the source level: a GET handler that mutates state bypasses the entire defense. Integration tests (`tests/integration/csrf.test.ts`, `tests/integration/csrf.origin-pin.test.ts`) cover the surface; a regression that adds a mutating GET would surface there.
+- Verb discipline must be maintained at the source level: a GET handler that mutates state bypasses the entire defense. Integration tests (`tests/integration/csrf.test.ts`, `tests/integration/csrf.origin-pin.test.ts`, `tests/integration/csrf.per-route.test.ts`) cover the surface, and `tests/integration/csrf.sweep.test.ts` sweeps every deployed mutation route so a route added later cannot escape the perimeter unasserted; a regression that adds a mutating GET would surface there.
 - A small fraction of legitimate user-agents strip both `Origin` and `Referer` (privacy plugins, `file://` pages, certain redirect chains) and cannot submit state-changing forms. Accepted given the protected surface (community site, not a public API).
 - The defense does not protect against same-origin XSS on `footbag.org` itself. The Content Security Policy (§3.12), input sanitization (§3.14), and text-sanitization pipeline (§3.15) are the layers responsible for that surface.
 

@@ -29,6 +29,7 @@ import path from 'node:path';
 import Database from 'better-sqlite3';
 import request from '../fixtures/supertestWithOrigin';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
+import { loadRouteTable } from '../fixtures/routeTable';
 import { seedPersona } from '../../src/testkit/personaFactory';
 import { CANONICAL_PERSONAS } from '../../src/testkit/canonicalPersonas';
 import type { PersonaSpec } from '../../src/testkit/personaFactory';
@@ -349,36 +350,65 @@ describe('owner gate — member-owned routes (BOLA anti-enumeration)', () => {
   const VICTIM = 't1_paid';
   const CROSS_OWNER = 't2_paid';
 
-  // Routes addressed by member key alone: the ownership gate is the sole
-  // determinant, so the owner passes it (never 404) and every non-owner 404s.
-  const keyOnlyRoutes: Array<{ method: 'get' | 'post'; path: string }> = [
-    { method: 'post', path: '/edit' },
-    { method: 'get',  path: '/edit/password' },
-    { method: 'post', path: '/edit/password' },
-    { method: 'post', path: '/avatar' },
-    { method: 'post', path: '/purchase-tier' },
-    { method: 'get',  path: '/payments' },
-    { method: 'get',  path: '/contact-admin' },
-    { method: 'post', path: '/contact-admin' },
-    { method: 'get',  path: '/galleries' },
-    { method: 'get',  path: '/galleries/new' },
-    { method: 'post', path: '/galleries' },
-    { method: 'get',  path: '/media/upload' },
-    { method: 'post', path: '/media/upload' },
-  ];
+  // The member-owned cells come from the deployed router rather than a list
+  // kept by hand here. A hand-kept list is a ledger that cannot notice its own
+  // gaps: a member-owned route added tomorrow is simply absent, and absence
+  // asserts nothing and fails nothing. Reading the router means a new route
+  // arrives in this sweep on the day it ships.
+  const MEMBER_PREFIX = '/members/:memberKey';
 
-  // Resource-id sub-routes: a placeholder id 404s for owner and non-owner alike,
-  // so only the deny half (a non-owner never gets past the slug gate) is asserted
-  // here; the owner-allow path is exercised by each feature's own suite against a
-  // real seeded resource.
-  const idRoutes: Array<{ method: 'get' | 'post'; path: string }> = [
-    { method: 'get',  path: '/galleries/ph/edit' },
-    { method: 'post', path: '/galleries/ph/edit' },
-    { method: 'post', path: '/galleries/ph/delete' },
-    { method: 'get',  path: '/media/ph/edit' },
-    { method: 'post', path: '/media/ph/edit' },
-    { method: 'post', path: '/media/ph/delete' },
-  ];
+  // Every member-key route deliberately left out, each with the reason it is
+  // covered elsewhere or is not an ownership cell at all. An exclusion is a
+  // decision someone made; a missing line is an oversight, and the difference
+  // has to be visible.
+  const EXCLUDED = new Map<string, string>([
+    ['GET ', 'the public profile page: readable by any signed-in member, so not an ownership cell'],
+    ['GET /edit', 'covered by the self-edit describe above, which also asserts the pending-registrant branch'],
+    ['GET /:section', 'the unknown-section catch-all, which answers not-found on shape before ownership is reached'],
+  ]);
+
+  type OwnedRoute = { method: 'get' | 'post'; path: string; hasResourceId: boolean };
+  let ownedRoutes: OwnedRoute[] = [];
+
+  beforeAll(async () => {
+    const table = await loadRouteTable();
+    ownedRoutes = table.allRoutes
+      .filter((r) => r.path === MEMBER_PREFIX || r.path.startsWith(`${MEMBER_PREFIX}/`))
+      .map((r) => ({
+        method: r.method.toLowerCase() as 'get' | 'post',
+        suffix: r.path.slice(MEMBER_PREFIX.length),
+      }))
+      .filter(({ method, suffix }) => !EXCLUDED.has(`${method.toUpperCase()} ${suffix}`))
+      .map(({ method, suffix }) => ({
+        method,
+        // A sub-resource id that does not exist: the deny half still lands,
+        // because ownership is checked before the resource is looked up.
+        path: suffix.replace(/:[^/]+/g, 'ph'),
+        hasResourceId: /:[^/]+/.test(suffix),
+      }));
+
+    // A router that failed to import would leave this empty and every loop
+    // below would pass by doing nothing.
+    expect(ownedRoutes.length, 'derived member-owned routes').toBeGreaterThan(15);
+    // The cell the hand-kept list had lost: cancelling a recurring donation is
+    // member-owned, and it was defended only because a payments test happened
+    // to cover it while this ledger showed no gap at all. Naming it keeps the
+    // reason the derivation exists legible.
+    expect(
+      ownedRoutes.some((r) => r.path.includes('/recurring-donations/')),
+      'recurring-donation cancel appears among the derived cells',
+    ).toBe(true);
+    // The exclusions must still name real routes; a stale one silently widens
+    // the hole it was written to describe.
+    const deployed = new Set(
+      table.allRoutes
+        .filter((r) => r.path === MEMBER_PREFIX || r.path.startsWith(`${MEMBER_PREFIX}/`))
+        .map((r) => `${r.method.toUpperCase()} ${r.path.slice(MEMBER_PREFIX.length)}`),
+    );
+    for (const key of EXCLUDED.keys()) {
+      expect(deployed.has(key), `excluded route still deployed: ${key}`).toBe(true);
+    }
+  });
 
   const fire = (method: 'get' | 'post', url: string, cookie?: string) => {
     const t = method === 'get' ? request(createApp()).get(url) : request(createApp()).post(url);
@@ -387,7 +417,7 @@ describe('owner gate — member-owned routes (BOLA anti-enumeration)', () => {
   };
 
   it('404s a non-owner and redirects the unauthenticated on every member-owned route', async () => {
-    for (const { method, path } of [...keyOnlyRoutes, ...idRoutes]) {
+    for (const { method, path } of ownedRoutes) {
       const url = `/members/${VICTIM}${path}`;
       const cross = await fire(method, url, cookies.get(CROSS_OWNER)!);
       expect(cross.status, `${CROSS_OWNER} -> ${method.toUpperCase()} ${url} (cross-owner deny)`).toBe(404);
@@ -397,11 +427,14 @@ describe('owner gate — member-owned routes (BOLA anti-enumeration)', () => {
   });
 
   it('admits the owner past the ownership gate on key-addressed routes', async () => {
-    // The two multipart upload POSTs reject an empty JSON probe body before the
-    // handler resolves, so their owner-allow path is exercised by their own
-    // upload suites; the deny cells above still cover them.
-    const ownerAllow = keyOnlyRoutes.filter(
-      (r) => !(r.method === 'post' && (r.path === '/avatar' || r.path === '/media/upload')),
+    // A sub-resource id that does not exist answers not-found for the owner too,
+    // so only routes addressed by member key alone can show the owner passing
+    // the gate. The two multipart upload POSTs reject an empty JSON probe body
+    // before the handler resolves, so their owner-allow path is exercised by
+    // their own upload suites; the deny cells above still cover them.
+    const ownerAllow = ownedRoutes.filter(
+      (r) => !r.hasResourceId
+        && !(r.method === 'post' && (r.path === '/avatar' || r.path === '/media/upload')),
     );
     for (const { method, path } of ownerAllow) {
       const url = `/members/${VICTIM}${path}`;

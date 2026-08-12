@@ -4,8 +4,9 @@
  * Verifies that the auth middleware rejects malformed, tampered, expired,
  * stale-passwordVersion, or orphaned JWT cookies without crashing the app.
  */
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
+import { expectLoggedError } from '../setup-env';
 import { hashTestPassword } from '../fixtures/hashTestPassword';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
@@ -373,5 +374,56 @@ describe('session edge cases — soft-deleted member', () => {
       .get(PROTECTED_ROUTE)
       .set('Cookie', `__Host-footbag_session=${token}`);
     expectUnauthenticated(res);
+  });
+});
+
+describe('session edge cases — the middleware separates a bad cookie from a broken lookup', () => {
+  // The two failures look identical from inside one catch block and are not the
+  // same thing. A cookie we cannot verify tells us the visitor is not signed in.
+  // A database we cannot read tells us nothing about the visitor at all, and
+  // answering "not signed in" there would sign a real member out and file the
+  // outage under ordinary logged-out traffic where nobody would ever see it.
+
+  it('an unverifiable cookie degrades to signed out rather than erroring', async () => {
+    const adapterMod = await import('../../src/adapters/jwtSigningAdapter');
+    const real = adapterMod.getJwtSigningAdapter();
+    adapterMod.setJwtSigningAdapterForTests({
+      signJwt: (claims, ttl) => real.signJwt(claims, ttl),
+      verifyJwt: () => {
+        throw new Error('verification key unavailable');
+      },
+    });
+    try {
+      const token = createTestSessionJwt({ memberId: MEMBER_ID, passwordVersion: 3 });
+      const res = await request(createApp())
+        .get(PROTECTED_ROUTE)
+        .set('Cookie', `__Host-footbag_session=${token}`);
+      expectUnauthenticated(res);
+    } finally {
+      adapterMod.resetJwtSigningAdapterForTests();
+    }
+  });
+
+  it('a database fault during session lookup surfaces as a server error, not as a silent sign-out', async () => {
+    expectLoggedError(/session lookup unavailable|Internal|error/i);
+    const dbMod = await import('../../src/db/db');
+    // The statement group hands out prepared statements through getters, so the
+    // injected statement stands in for the real one for this call only.
+    const spy = vi.spyOn(dbMod.auth, 'findMemberForSession', 'get').mockReturnValue({
+      get: () => {
+        throw new Error('session lookup unavailable');
+      },
+    } as never);
+    try {
+      const token = createTestSessionJwt({ memberId: MEMBER_ID, passwordVersion: 3 });
+      const res = await request(createApp())
+        .get(PROTECTED_ROUTE)
+        .set('Cookie', `__Host-footbag_session=${token}`);
+      expect(res.status).toBe(500);
+      // Not the login redirect: the member was never established as signed out.
+      expect(res.headers.location).toBeUndefined();
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

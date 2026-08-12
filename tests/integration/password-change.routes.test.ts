@@ -2,11 +2,11 @@
  * Integration tests for GET/POST /members/:slug/edit/password.
  */
 import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest';
-import { expectLoggedError } from '../setup-env';
 import request from '../fixtures/supertestWithOrigin';
 import { hashTestPassword } from '../fixtures/hashTestPassword';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
+import { expectLoggedError } from '../setup-env';
 import { insertMember, createTestSessionJwt } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3064');
@@ -270,8 +270,11 @@ describe('POST /members/:slug/edit/password — session reissue failure', () => 
     adapterMod.resetJwtSigningAdapterForTests();
   });
 
-  it('signJwt failure after password_version commit → 503, no Set-Cookie, DB committed, actionable error', async () => {
-    expectLoggedError('password change: session reissue failed');
+  it('signJwt failure leaves the password unchanged and the member signed in → 503, no Set-Cookie, nothing committed', async () => {
+    // Signing is a hard dependency, so its failure is operator-actionable and
+    // the production alarm counts error-level lines. Opting in here pins the
+    // level: softening it to a warning would silence the alarm and fail this.
+    expectLoggedError('password change abandoned: session signing unavailable');
     // Restore a deterministic starting state: prior tests in this file mutate
     // password_hash and password_version, so seed from scratch.
     const hash = await hashTestPassword(OLD_PASSWORD);
@@ -302,15 +305,17 @@ describe('POST /members/:slug/edit/password — session reissue failure', () => 
         confirmPassword: NEW_PASSWORD,
       });
 
-    // A1: actionable error message, 503 status, body names the recovery path.
+    // The message tells the truth: nothing changed, so retrying is the whole
+    // recovery. It must not send the member to password reset, which would be
+    // advice to recover from a lockout that did not happen.
     expect(res.status).toBe(503);
-    expect(res.text).toContain('Your password was changed');
-    expect(res.text).toContain('could not re-issue your session');
-    expect(res.text).toContain('Forgot password');
+    expect(res.text).toContain('your password was not changed');
+    expect(res.text).toContain('still signed in');
+    expect(res.text).not.toContain('Forgot password');
 
-    // A3: no Set-Cookie issuing a fresh session cookie. (A clear-cookie
-    // header with Max-Age=0 would be acceptable; this test asserts no
-    // newly-valid session cookie was issued.)
+    // No fresh session cookie: there is no new session to issue. (A clear-cookie
+    // header with Max-Age=0 would be acceptable; this asserts no newly-valid
+    // session cookie was issued.)
     const cookies = res.headers['set-cookie'] as string[] | undefined;
     const sessionCookieIssued = cookies?.some((c) =>
       c.startsWith('__Host-footbag_session=') &&
@@ -318,15 +323,50 @@ describe('POST /members/:slug/edit/password — session reissue failure', () => 
     );
     expect(sessionCookieIssued).toBeFalsy();
 
-    // A2: password_version was committed before the signing attempt (the
-    // failure mode is "row updated + session not issued" — exactly what the
-    // controller must recover from). pv was 1 at the start of this test;
-    // a successful commit lands it at 2.
+    // The signing attempt happens before the bump, so a signing outage leaves
+    // password_version where it was and the member's existing session valid.
     const dbCheck = new BetterSqlite3(dbPath, { readonly: true });
-    const row = dbCheck.prepare('SELECT password_version FROM members WHERE id=?')
-      .get(OWN_ID) as { password_version: number };
+    const row = dbCheck.prepare('SELECT password_version, password_hash FROM members WHERE id=?')
+      .get(OWN_ID) as { password_version: number; password_hash: string };
     dbCheck.close();
-    expect(row.password_version).toBe(2);
+    expect(row.password_version).toBe(1);
+    // The old password still authenticates: the hash was never replaced.
+    expect(row.password_hash).toBe(hash);
+  });
+
+  it('the member can still sign in on the old password after a signing outage', async () => {
+    expectLoggedError('password change abandoned: session signing unavailable');
+    const hash = await hashTestPassword(OLD_PASSWORD);
+    const db = new BetterSqlite3(dbPath);
+    db.prepare('UPDATE members SET password_hash=?, password_version=1 WHERE id=?')
+      .run(hash, OWN_ID);
+    db.close();
+
+    adapterMod.setJwtSigningAdapterForTests({
+      signJwt: async () => { throw new Error('KMS Sign failed: AccessDeniedException'); },
+      verifyJwt: (token) => realAdapter.verifyJwt(token),
+    });
+
+    const app = createApp();
+    await request(app)
+      .post(`/members/${OWN_SLUG}/edit/password`)
+      .set('Cookie', ownCookie(1))
+      .type('form')
+      .send({
+        oldPassword: OLD_PASSWORD,
+        newPassword: NEW_PASSWORD,
+        confirmPassword: NEW_PASSWORD,
+      });
+
+    adapterMod.resetJwtSigningAdapterForTests();
+
+    // The session cookie the member arrived with still carries the current
+    // password_version, so the browser that made the failed attempt is still
+    // authenticated rather than locked out.
+    const after = await request(createApp())
+      .get(`/members/${OWN_SLUG}/edit/password`)
+      .set('Cookie', ownCookie(1));
+    expect(after.status).toBe(200);
   });
 });
 
@@ -346,16 +386,17 @@ describe('POST /members/:slug/edit/password — confirmation-email enqueue failu
     commsMod.resetCommunicationServiceForTests();
   });
 
-  it('enqueueEmailOrFail throws → 503 + actionable error + audit row + DB committed + no Set-Cookie', async () => {
-    expectLoggedError('audit: auth.password_change_notification_failed');
+  it('enqueue failure rolls the whole change back → 503, nothing committed, no audit row, no Set-Cookie', async () => {
     // Restore deterministic starting state.
     const hash = await hashTestPassword(OLD_PASSWORD);
     const db = new BetterSqlite3(dbPath);
     db.prepare('UPDATE members SET password_hash=?, password_version=1 WHERE id=?')
       .run(hash, OWN_ID);
-    db.prepare(
-      `DELETE FROM audit_entries WHERE entity_id = ? AND action_type = 'auth.password_change_notification_failed'`,
-    ).run(OWN_ID);
+    // audit_entries is append-only, so the rollback is proved by the row count
+    // standing still rather than by clearing the table first.
+    const auditCountBefore = (db.prepare(
+      `SELECT COUNT(*) AS n FROM audit_entries WHERE entity_id = ? AND action_type = 'auth.password_change'`,
+    ).get(OWN_ID) as { n: number }).n;
     db.close();
 
     const { ServiceUnavailableError } = await import('../../src/services/serviceErrors');
@@ -387,13 +428,14 @@ describe('POST /members/:slug/edit/password — confirmation-email enqueue failu
         confirmPassword: NEW_PASSWORD,
       });
 
-    // A1: actionable error message + 503 status + body names the recovery path.
+    // Honest message: the password did not change, so there is nothing to
+    // recover from and no reason to send the member to password reset.
     expect(res.status).toBe(503);
-    expect(res.text).toContain('Your password was changed');
-    expect(res.text).toContain('could not enqueue the confirmation email');
-    expect(res.text).toContain('Forgot password');
+    expect(res.text).toContain('your password was not changed');
+    expect(res.text).toContain('still signed in');
+    expect(res.text).not.toContain('Forgot password');
 
-    // A4: no Set-Cookie issuing a fresh session cookie.
+    // No fresh session cookie was issued.
     const cookies = res.headers['set-cookie'] as string[] | undefined;
     const sessionCookieIssued = cookies?.some((c) =>
       c.startsWith('__Host-footbag_session=') &&
@@ -401,23 +443,83 @@ describe('POST /members/:slug/edit/password — confirmation-email enqueue failu
     );
     expect(sessionCookieIssued).toBeFalsy();
 
-    // A3: password_version committed before the enqueue attempt.
-    // A2: audit row with the dedicated action_type was written.
+    // The notification is enqueued inside the same transaction as the bump and
+    // its audit row, so a failed enqueue takes all three down together: the
+    // password cannot change without the member being told it changed.
     const dbCheck = new BetterSqlite3(dbPath, { readonly: true });
-    const row = dbCheck.prepare('SELECT password_version FROM members WHERE id=?')
-      .get(OWN_ID) as { password_version: number };
-    const auditRow = dbCheck.prepare(
-      `SELECT action_type, category, actor_type FROM audit_entries
-         WHERE entity_id = ? AND action_type = 'auth.password_change_notification_failed'
-         ORDER BY created_at DESC LIMIT 1`,
-    ).get(OWN_ID) as
-      | { action_type: string; category: string; actor_type: string }
-      | undefined;
+    const row = dbCheck.prepare('SELECT password_version, password_hash FROM members WHERE id=?')
+      .get(OWN_ID) as { password_version: number; password_hash: string };
+    const auditCountAfter = (dbCheck.prepare(
+      `SELECT COUNT(*) AS n FROM audit_entries WHERE entity_id = ? AND action_type = 'auth.password_change'`,
+    ).get(OWN_ID) as { n: number }).n;
     dbCheck.close();
-    expect(row.password_version).toBe(2);
-    expect(auditRow).toBeDefined();
-    expect(auditRow!.action_type).toBe('auth.password_change_notification_failed');
-    expect(auditRow!.category).toBe('auth');
-    expect(auditRow!.actor_type).toBe('system');
+    expect(row.password_version).toBe(1);
+    expect(row.password_hash).toBe(hash);
+    expect(auditCountAfter).toBe(auditCountBefore);
   });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// A change that commits with nobody told still leaves a trail
+// ─────────────────────────────────────────────────────────────────────────
+
+describe('POST /members/:slug/edit/password — the member could not be notified', () => {
+  // Suppression is not an enqueue failure, so it does not roll the change back.
+  // It ends with the password changed and no mail sent, which is precisely the
+  // state someone using a stolen session would want, so it has to be visible
+  // afterwards rather than passing as an ordinary change.
+
+  function notificationFailureCount(): number {
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const row = db.prepare(
+      `SELECT COUNT(*) AS n FROM audit_entries
+        WHERE entity_id = ? AND action_type = 'auth.password_change_notification_failed'`,
+    ).get(OWN_ID) as { n: number };
+    db.close();
+    return row.n;
+  }
+
+  async function seedMember(): Promise<void> {
+    const hash = await hashTestPassword(OLD_PASSWORD);
+    const db = new BetterSqlite3(dbPath);
+    db.prepare('UPDATE members SET password_hash=?, password_version=1 WHERE id=?')
+      .run(hash, OWN_ID);
+    db.close();
+  }
+
+  it('records the failure when an operator has disabled the notification template', async () => {
+    expectLoggedError('audit: auth.password_change_notification_failed');
+    await seedMember();
+    const before = notificationFailureCount();
+
+    const db = new BetterSqlite3(dbPath);
+    db.prepare(`UPDATE email_templates SET is_enabled = 0 WHERE template_key = 'password_changed'`).run();
+    db.close();
+
+    const res = await request(createApp())
+      .post(`/members/${OWN_SLUG}/edit/password`)
+      .set('Cookie', ownCookie(1))
+      .type('form')
+      .send({
+        oldPassword: OLD_PASSWORD,
+        newPassword: NEW_PASSWORD,
+        confirmPassword: NEW_PASSWORD,
+      });
+
+    const restore = new BetterSqlite3(dbPath);
+    restore.prepare(`UPDATE email_templates SET is_enabled = 1 WHERE template_key = 'password_changed'`).run();
+    restore.close();
+
+    // The change still succeeds: a disabled template is an operator's own
+    // decision, not a reason to lock members out of changing their password.
+    expect(res.status).toBe(200);
+    const check = new BetterSqlite3(dbPath, { readonly: true });
+    const row = check.prepare('SELECT password_version FROM members WHERE id=?')
+      .get(OWN_ID) as { password_version: number };
+    check.close();
+    expect(row.password_version).toBe(2);
+    // ... and the silence is on the record.
+    expect(notificationFailureCount()).toBe(before + 1);
+  });
+
 });

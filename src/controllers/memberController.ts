@@ -5,7 +5,6 @@ import { memberService, ProfileEditInput } from '../services/memberService';
 import { AVATAR_MAX_BYTES, getDefaultAvatarService } from '../services/avatarService';
 import { identityAccessService } from '../services/identityAccessService';
 import { ImageProcessingError } from '../adapters/imageProcessingAdapter';
-import { createSessionJwt } from '../services/jwtService';
 import { issueSessionCookie } from '../lib/sessionCookie';
 import { ConflictError, RateLimitedError, ServiceUnavailableError, ValidationError, NotFoundError } from '../services/serviceErrors';
 import { paymentService } from '../services/paymentService';
@@ -357,36 +356,12 @@ export const memberController = {
         newPassword ?? '',
         confirmPassword ?? '',
       );
-      // Re-issue the JWT cookie under the new passwordVersion so this browser
-      // stays authenticated. Other sessions (older passwordVersion) are rejected
-      // by the auth middleware's per-request DB check.
-      //
-      // Failure mode (KMS Sign error, IAM regression, KMS key rotation mid-flight):
-      // the password change already committed at the DB layer (password_version
-      // incremented). All existing sessions are now invalid by the per-request
-      // password_version check. If we let the signing error fall through to the
-      // 500 handler, the member sees a generic error and is locked out with no
-      // recovery path visible. Catch and surface an actionable message pointing
-      // at password reset (which goes through a separate JWT issuance flow).
-      const role = req.user!.role;
-      let cookieValue: string;
-      try {
-        cookieValue = await createSessionJwt(result.memberId, role, result.newPasswordVersion);
-      } catch (jwtErr) {
-        logger.error('password change: session reissue failed after password_version commit', {
-          memberId: result.memberId,
-          error: jwtErr instanceof Error ? jwtErr.message : String(jwtErr),
-        });
-        renderForm({
-          error:
-            'Your password was changed, but we could not re-issue your session. ' +
-            'All existing sessions (including this one) are now invalid. ' +
-            'Please use the Forgot password? link on the login page to reset and sign in again.',
-          status: 503,
-        });
-        return;
-      }
-      issueSessionCookie(res, cookieValue, req);
+      // Set the replacement session cookie so this browser stays signed in. The
+      // service signed it before committing the change, so by the time we get
+      // here the token is guaranteed to exist and to carry the new version.
+      // Other devices, still on the old version, are rejected by the auth
+      // middleware's per-request check.
+      issueSessionCookie(res, result.sessionJwt, req);
       renderForm({ success: true });
     } catch (err) {
       if (err instanceof RateLimitedError) {
@@ -398,17 +373,19 @@ export const memberController = {
         renderForm({ error: err.message, status: 422 });
         return;
       }
+      if (err instanceof ConflictError) {
+        // Another session changed this member's password first, so the change
+        // was abandoned rather than applied on top of an unknown current state.
+        renderForm({ error: err.message, status: 422 });
+        return;
+      }
       if (err instanceof ServiceUnavailableError) {
-        // Confirmation-email enqueue failed AFTER the password_version
-        // increment committed (per identityAccessService.changePassword's
-        // enqueueEmailOrFail call). All existing sessions are now invalid
-        // by the per-request password_version check; the member must use
-        // the password-reset flow to issue a fresh session.
+        // A dependency the change depends on (session signing, the notification
+        // outbox) was unavailable, so nothing was committed. The member is still
+        // signed in on their old password and can simply try again.
         renderForm({
           error:
-            'Your password was changed, but we could not enqueue the confirmation email and your session was not re-issued. ' +
-            'All existing sessions (including this one) are now invalid. ' +
-            'Please use the Forgot password? link on the login page to reset and sign in again.',
+            'We could not complete the password change, so your password was not changed and you are still signed in. Please try again in a moment.',
           status: 503,
         });
         return;

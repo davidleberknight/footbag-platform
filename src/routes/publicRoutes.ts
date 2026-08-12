@@ -264,7 +264,8 @@ publicRouter.get('/password/forgot',        authController.getPasswordForgot);
 publicRouter.post('/password/forgot',       authController.postPasswordForgot);
 publicRouter.get('/password/reset/:token',  authController.getPasswordReset);
 publicRouter.post('/password/reset/:token', authController.postPasswordReset);
-publicRouter.get('/logout',                 authController.getLogout);
+// POST only: logging out is a state change, and a GET route to it would be
+// reachable from any other site by a plain link.
 publicRouter.post('/logout',                authController.postLogout);
 
 // ── Payments (Stripe-flow workflow per DD §6.1) ────────────────────────────

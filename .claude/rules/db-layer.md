@@ -47,7 +47,7 @@ For multi-condition filters, define a SQL view and select from it. Services read
 
 ## Transactions
 
-Multi-write operations wrap in `transaction(() => { ... })`. All DB operations inside are synchronous; external I/O (S3, email, HTTP) happens BEFORE the transaction opens. `await` inside a `transaction()` callback is a runtime crash in better-sqlite3.
+Multi-write operations wrap in `transaction(() => { ... })`. All DB operations inside are synchronous; external I/O (S3, HTTP, and any call that reaches the mail provider) happens BEFORE the transaction opens. `await` inside a `transaction()` callback is a runtime crash in better-sqlite3. Enqueuing an email is not external I/O and belongs inside the transaction when the notification must not survive a rolled-back change: the enqueue inserts an outbox row in this same database, and the provider call happens later in the drain worker.
 
 ## Returned shapes
 
