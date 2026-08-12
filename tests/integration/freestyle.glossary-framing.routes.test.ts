@@ -74,7 +74,7 @@ describe('Glossary framing — Reading the dictionary section', () => {
     for (const [label, view] of [
       ['By ADD', 'view=add'],
       ['By family', 'view=family'],
-      ['By modifier', 'view=sets'],
+      ['By modifier', 'view=modifier'],
       ['By movement system', 'view=movement-system'],
       ['Movement Neighborhoods', 'view=topology'],
       ['By dex count', 'view=dex-count'],

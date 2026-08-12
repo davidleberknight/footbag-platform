@@ -2,10 +2,26 @@ import { FreestyleTrickRow } from '../db/db';
 import { slugToHashtag } from './freestyleRecordShaping';
 import { resolveTrickKind } from '../content/freestyleTrickKindOverrides';
 
+/**
+ * Answers "does this trick have watchable media", for the panels that render a
+ * trick's hashtag. The caller supplies it so these builders stay free of db
+ * access, and so one batched coverage read serves every panel on the page.
+ */
+export type HasTrickMedia = (slug: string) => boolean;
+
+/** The gallery a trick's hashtag opens. Shaped here so no template builds a URL. */
+export function trickGalleryHref(slug: string): string {
+  return `/media/browse?context=${encodeURIComponent(slug)}`;
+}
+
 export interface FreestyleRelatedTrick {
   slug:          string;
   canonicalName: string;
   hashtag:       string;
+  // Non-null exactly when the trick has media. A clickable hashtag is the
+  // signal media exists, so a panel that always renders a plain token is
+  // asserting that no trick has any.
+  hashtagHref:   string | null;
   adds:          string | null;
   detailHref:    string;
   rule:          'neighborhood' | 'family' | 'modifier-prefix' | 'parent' | 'grandparent';
@@ -172,11 +188,16 @@ function roundRobinSample<T>(buckets: T[][], cap: number): T[] {
   return out;
 }
 
-function shape(row: FreestyleTrickRow, rule: FreestyleRelatedTrick['rule']): FreestyleRelatedTrick {
+function shape(
+  row: FreestyleTrickRow,
+  rule: FreestyleRelatedTrick['rule'],
+  hasMedia?: HasTrickMedia,
+): FreestyleRelatedTrick {
   return {
     slug:          row.slug,
     canonicalName: row.canonical_name,
     hashtag:       slugToHashtag(row.slug),
+    hashtagHref:   hasMedia?.(row.slug) ? trickGalleryHref(row.slug) : null,
     adds:          row.adds,
     detailHref:    `/freestyle/tricks/${row.slug}`,
     rule,
@@ -215,6 +236,7 @@ function shape(row: FreestyleTrickRow, rule: FreestyleRelatedTrick['rule']): Fre
 export function buildRelatedTricks(
   current: FreestyleTrickRow,
   allRows: readonly FreestyleTrickRow[],
+  hasMedia?: HasTrickMedia,
 ): FreestyleRelatedTrick[] {
   // Caller passes rows from freestyleTricks.listAll which already filters
   // is_active=1; here we only strip modifier-category rows and self.
@@ -282,31 +304,31 @@ export function buildRelatedTricks(
     if (out.length >= MAX_RESULTS) break;
     if (seen.has(row.slug)) continue;
     seen.add(row.slug);
-    out.push(shape(row, 'neighborhood'));
+    out.push(shape(row, 'neighborhood', hasMedia));
   }
   for (const row of r1Sampled) {
     if (out.length >= MAX_RESULTS) break;
     if (seen.has(row.slug)) continue;
     seen.add(row.slug);
-    out.push(shape(row, 'family'));
+    out.push(shape(row, 'family', hasMedia));
   }
   for (const row of r2Sampled) {
     if (out.length >= MAX_RESULTS) break;
     if (seen.has(row.slug)) continue;
     seen.add(row.slug);
-    out.push(shape(row, 'modifier-prefix'));
+    out.push(shape(row, 'modifier-prefix', hasMedia));
   }
   for (const row of r3) {
     if (out.length >= MAX_RESULTS) break;
     if (seen.has(row.slug)) continue;
     seen.add(row.slug);
-    out.push(shape(row, 'grandparent'));
+    out.push(shape(row, 'grandparent', hasMedia));
   }
   for (const row of r4) {
     if (out.length >= MAX_RESULTS) break;
     if (seen.has(row.slug)) continue;
     seen.add(row.slug);
-    out.push(shape(row, 'parent'));
+    out.push(shape(row, 'parent', hasMedia));
   }
   return out;
 }

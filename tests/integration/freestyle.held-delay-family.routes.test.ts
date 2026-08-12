@@ -149,9 +149,9 @@ describe('First-class browse-card rendering — JOB+ADD card renders for promote
       expect(res.status).toBe(200);
       const card = cardFor(slug, res.text);
       // First-class row present
-      expect(card).toMatch(/class="dict-trick-row-job-value">/);
+      expect(card).toMatch(/class="dict-trick-row-notation-value">/);
       // JOB label rendered (not the muted incomplete-state pill)
-      expect(card).toMatch(/class="dict-trick-row-label">JOB</);
+      expect(card).toMatch(/class="dict-trick-row-notation-value"/);
       expect(card).not.toContain('canonical decomposition pending');
       expect(card).not.toContain('dict-trick-row-pending-value');
     },

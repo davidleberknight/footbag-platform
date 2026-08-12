@@ -189,30 +189,35 @@ describe('Canonical ADD browse: unreviewed FM-sourced compounds stay out', () =>
 });
 
 // ── rake + pendulum browse cards: JOB-form chain readings suppressed ──
-describe('rake + pendulum: ≡ slot does not echo the JOB notation', () => {
-  it('rake browse card has NO "swing toe" ≡ reading (JOB-form leakage)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
-    const card = res.text.match(/data-trick-slug="rake"[\s\S]*?<\/article>/);
-    expect(card).not.toBeNull();
-    // ≡ "swing toe" was just the lowercase JOB-form echo; user audit
-    // listed it as leakage. The JOB row carries "SET > SWING TOE [DEL]"
-    // — the chain reading on top would be redundant.
-    expect(card![0]).not.toMatch(/core-trick-equivalence[\s\S]*?swing[\s\S]*?toe/);
-    // The JOB row still carries the canonical bracket form.
-    expect(card![0]).toMatch(/SET &gt; SWING TOE \[DEL\]/);
+describe('rake + pendulum: no reading echoes the execution notation', () => {
+  it('rake has NO "swing toe" reading (execution-form leakage)', async () => {
+    const app = await createApp();
+    const page = await request(app).get('/freestyle/tricks/rake');
+    expect(page.status).toBe(200);
+    // ≡ "swing toe" was just the lowercase execution-form echo; the audit
+    // listed it as leakage. The execution chain already reads
+    // "SET > SWING TOE [DEL]", so a reading on top would only repeat it.
+    const readings = page.text.match(/<ol class="equivalent-readings-list">[\s\S]*?<\/ol>/)?.[0] ?? '';
+    expect(readings).not.toMatch(/swing[\s\S]*?toe/i);
+    // The execution chain still carries the canonical bracket form. The chain
+    // renders one span per token, so the tags come off before comparing.
+    const chain = page.text
+      .match(/<code class="operational-notation-tokens">([\s\S]*?)<\/code>/)?.[1]
+      ?.replace(/<[^>]+>/g, '') ?? '';
+    expect(chain).toMatch(/SET[\s\S]{0,20}SWING[\s\S]{0,20}TOE[\s\S]{0,20}\[DEL\]/);
   });
 
-  it('pendulum browse card has NO "toe swing" ≡ reading and the JOB row is the canonical bracket form', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
-    const card = res.text.match(/data-trick-slug="pendulum"[\s\S]*?<\/article>/);
-    expect(card).not.toBeNull();
-    expect(card![0]).not.toMatch(/core-trick-equivalence[\s\S]*?toe[\s\S]*?swing/);
-    // pendulum's terminal surface is arbitrary, so the JOB row renders the
-    // open (contact) terminal, not a fixed stall or the ambiguous two-flags form.
-    expect(card![0]).toMatch(/TOE SWING/);
-    expect(card![0]).toMatch(/\(contact\)/);
-    expect(card![0]).not.toMatch(/SAME TOE/);
-    expect(card![0]).not.toMatch(/\[DEL\]\s*\[DEX\]/);
+  it('pendulum has NO "toe swing" reading and its chain is the canonical bracket form', async () => {
+    const app = await createApp();
+    const page = await request(app).get('/freestyle/tricks/pendulum');
+    expect(page.status).toBe(200);
+    const readings = page.text.match(/<ol class="equivalent-readings-list">[\s\S]*?<\/ol>/)?.[0] ?? '';
+    expect(readings).not.toMatch(/toe[\s\S]*?swing/i);
+    // pendulum's terminal surface is arbitrary, so the chain renders the open
+    // (contact) terminal, not a fixed stall or the ambiguous two-flags form.
+    expect(page.text).toMatch(/TOE[\s\S]{0,120}SWING/);
+    expect(page.text).toMatch(/\(contact\)/);
+    expect(page.text).not.toMatch(/\[DEL\]\s*\[DEX\]/);
   });
 });
 

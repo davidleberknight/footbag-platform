@@ -9,6 +9,12 @@
  * Cohort (PILOT_FIRST_CLASS_SLUGS, freestyleService.ts):
  *   osis, paradox-mirage, symposium-mirage, atomic-butterfly, ripwalk
  *
+ * A trick's execution chain, its ADD breakdown and its equivalence readings
+ * are trick-page content: a browse row carries identity and a difficulty
+ * value, and everything structural reads on the trick's own page. The
+ * assertions below therefore verify the curator data arrives at
+ * /freestyle/tricks/:slug, which is where a reader meets it.
+ *
  * Two contracts verified here:
  *
  * 1) Tautological-chain suppression. The freestyleSymbolicEquivalences
@@ -208,7 +214,7 @@ beforeAll(async () => {
   insertFreestyleTrick(db, { slug: 'shoulder_stall', canonical_name: 'shoulder stall', adds: '1', base_trick: 'shoulder_stall', trick_family: 'shoulder_stall', category: 'surface', notation: 'SHOULDER STALL', operational_notation: '[set] > shoulder' });
   insertFreestyleTrick(db, { slug: 'sole_kick',      canonical_name: 'sole kick',      adds: '1', base_trick: 'sole_kick',      trick_family: 'sole_kick',      category: 'body',    notation: 'SOLE KICK',      operational_notation: '[set] > sole kick' });
   insertFreestyleTrick(db, { slug: 'cloud_kick',     canonical_name: 'cloud kick',     adds: '1', base_trick: 'cloud_kick',     trick_family: 'cloud_kick',     category: 'body',    notation: 'CLOUD KICK',     operational_notation: '[set] > cloud kick' });
-  insertFreestyleTrick(db, { slug: 'peak_delay',     canonical_name: 'peak delay',     adds: '1', base_trick: 'peak_delay',     trick_family: 'peak_delay',     category: 'surface', notation: 'PEAK DELAY',     operational_notation: '[set] > peak' });
+  insertFreestyleTrick(db, { slug: 'peak_stall',     canonical_name: 'peak stall',     adds: '1', base_trick: 'peak_stall',     trick_family: 'peak_stall',     category: 'surface', notation: 'PEAK STALL',     operational_notation: '[set] > peak' });
   insertFreestyleTrick(db, { slug: 'flying_inside',  canonical_name: 'flying inside',  adds: '1', base_trick: 'flying_inside',  trick_family: 'flying_inside',  category: 'body',    notation: 'FLYING INSIDE',  operational_notation: 'flying > inside' });
   insertFreestyleTrick(db, { slug: 'flying_outside', canonical_name: 'flying outside', adds: '1', base_trick: 'flying_outside', trick_family: 'flying_outside', category: 'body',    notation: 'FLYING OUTSIDE', operational_notation: 'flying > outside' });
   insertFreestyleTrick(db, { slug: 'double_knee',    canonical_name: 'double knee',    adds: '1', base_trick: 'double_knee',    trick_family: 'double_knee',    category: 'body',    notation: 'DOUBLE KNEE',    operational_notation: 'double knee' });
@@ -239,6 +245,35 @@ afterAll(() => cleanupTestDb(dbPath));
 
 // Extract a single dictionary-trick-card's HTML from the rendered page
 // so each assertion scopes to one card and not the whole document.
+// A trick's notation, its ADD breakdown and its equivalence readings are
+// trick-page content: the browse row carries identity and a difficulty value,
+// and everything structural reads on the page itself. These helpers fetch that
+// page, which is where the assertions below verify the curator data arrives.
+async function pageFor(slug: string): Promise<string> {
+  const res = await request(await createApp()).get(`/freestyle/tricks/${slug}`);
+  expect(res.status, `${slug} detail page must render`).toBe(200);
+  return res.text;
+}
+
+/** The Execution notation chain as readable text, or null when the trick has
+ *  no authored operational chain. Its absence is the honest incomplete-state:
+ *  the page says nothing rather than inventing a chain from the trick's own
+ *  name. The chain renders as one role-tagged span per token, so the tags come
+ *  off to compare against the curator string the tokens were built from. */
+function executionNotation(html: string): string | null {
+  const section = html.match(/<section class="content-section operational-notation-display"[\s\S]*?<\/section>/);
+  if (!section) return null;
+  const code = section[0].match(/<code class="operational-notation-tokens">([\s\S]*?)<\/code>/);
+  return code ? code[1]!.replace(/<[^>]+>/g, '') : section[0];
+}
+
+/** The difficulty block's derivation formula, or null when none is published
+ *  and none derives from the trick's modifier links. */
+function addDerivation(html: string): string | null {
+  const m = html.match(/<code class="trick-add-analysis-derivation">([\s\S]*?)<\/code>/);
+  return m ? m[1]! : null;
+}
+
 function cardFor(slug: string, html: string): string {
   const startMarker = `data-trick-slug="${slug}"`;
   const startIdx = html.indexOf(startMarker);
@@ -251,20 +286,12 @@ function cardFor(slug: string, html: string): string {
 }
 
 describe('First-class rendering parity — osis golden', () => {
-  it('osis renders JOB + ADD rows in the first-class summary', async () => {
-    const app = await createApp();
-    const res = await request(app).get('/freestyle/tricks?view=add');
-    expect(res.status).toBe(200);
-    const card = cardFor('osis', res.text);
-    // Line-2 notation present (JOB + ADD)
-    expect(card).toContain('dict-trick-row-notation');
-    // JOB value carries the curator-authored operational chain
-    expect(card).toMatch(/class="dict-trick-row-job-value">[\s\S]*SET[\s\S]+SPIN/);
-    // ADD value carries the atomic flag-decomposition breakdown.
-    expect(card).toContain('spin(1) + xbod(1) + stall(1)');
-    // JOB resolved (not pending)
-    expect(card).not.toContain('dict-trick-row-pending-value');
-    expect(card).not.toContain('canonical decomposition pending');
+  it('osis renders its execution chain and its ADD breakdown', async () => {
+    const html = await pageFor('osis');
+    // Curator-authored operational chain.
+    expect(executionNotation(html)).toMatch(/SET[\s\S]+SPIN/);
+    // The atomic flag-decomposition breakdown.
+    expect(addDerivation(html)).toContain('spin(1) + xbod(1) + stall(1)');
   });
 });
 
@@ -298,14 +325,13 @@ describe('First-class rendering parity — tautological-chain suppression', () =
 
 describe('First-class rendering parity — informative chain preserved', () => {
   it('ripwalk preserves its non-tautological folk-name chain (stepping butterfly)', async () => {
-    const app = await createApp();
-    const res = await request(app).get('/freestyle/tricks?view=add');
-    const card = cardFor('ripwalk', res.text);
-    // Folk-name resolution is legitimate: canonical "ripwalk" ≢
-    // structural form "stepping butterfly". Chain row should still
-    // surface tokens for stepping + butterfly.
-    expect(card).toMatch(/data-token-slug="stepping"/);
-    expect(card).toMatch(/data-token-slug="butterfly"/);
+    const html = await pageFor('ripwalk');
+    // Folk-name resolution is legitimate: canonical "ripwalk" ≢ structural
+    // form "stepping butterfly", so the reading carries information the
+    // title does not and reads in the trick's equivalent-readings section.
+    const readings = html.match(/<ol class="equivalent-readings-list">[\s\S]*?<\/ol>/)?.[0] ?? '';
+    expect(readings).toMatch(/stepping/);
+    expect(readings).toMatch(/butterfly/);
   });
 });
 
@@ -320,15 +346,14 @@ describe('First-class rendering parity — honest incomplete-state', () => {
     // breakdowns; the hero/registry ADD chip carries the total.
     ['paradox_mirage',   'paradox(+1) + mirage(2)'],
     ['atomic_butterfly', 'atomic(+1) + butterfly(3)'],
-  ])('%s renders ADD breakdown + honest INCOMPLETE badge for the unauthored JOB', async (slug, expectedAddText) => {
-    const app = await createApp();
-    const res = await request(app).get('/freestyle/tricks?view=add');
-    const card = cardFor(slug, res.text);
-    // Honest incomplete-state badge for missing Job notation
-    expect(card).toContain('dict-badge-incomplete');
-    expect(card).toContain('>INCOMPLETE<');
-    // ADD breakdown rendered (authoritative data wired through)
-    expect(card).toContain(expectedAddText);
+  ])('%s renders its ADD breakdown and stays silent about the unauthored chain', async (slug, expectedAddText) => {
+    const html = await pageFor(slug);
+    // ADD breakdown rendered (authoritative data wired through).
+    expect(addDerivation(html)).toContain(expectedAddText);
+    // No execution chain has been authored, so the page renders no Execution
+    // notation section at all. Silence is the honest state: an invented chain
+    // echoing the trick's own name would read as curator-published data.
+    expect(executionNotation(html)).toBeNull();
   });
 });
 
@@ -343,46 +368,40 @@ describe('First-class rendering parity — no fake formulas, no pending pill', (
     }
   });
 
-  it('first-class cards never substitute the canonical name as a fake Job line', async () => {
-    const app = await createApp();
-    const res = await request(app).get('/freestyle/tricks?view=add');
-    // Look at the four compounds whose Job notation is genuinely absent.
-    // Their first-class summary partial must not render a JOB row with a
-    // <code> value (which would mean a curator-published chain). It must
-    // only render the muted incomplete-state line. The 'JOB:' label
-    // appears on the incomplete line, so we check that no curator-style
-    // <code> follows JOB: in the chain position.
+  it('a trick with no authored chain never has its own name passed off as one', async () => {
+    // The four compounds whose execution chain is genuinely absent. A chain
+    // reading back as the trick's own name would be a fabrication dressed as
+    // curator data, so it must not appear as execution notation anywhere.
     for (const slug of ['paradox_mirage', 'symposium_mirage', 'atomic_butterfly', 'ripwalk']) {
-      const card = cardFor(slug, res.text);
-      // The literal canonical name must NOT appear as the JOB value in the
-      // line-2 <code class="dict-trick-row-job-value"> element (that would be a
-      // fabricated chain echoing the title).
-      expect(card).not.toMatch(new RegExp(`<code class="dict-trick-row-job-value">${slug.replace(/_/g, ' ')}</code>`, 'i'));
+      const html = await pageFor(slug);
+      const execution = executionNotation(html);
+      if (execution !== null) {
+        expect(execution.toLowerCase(), `${slug} chain echoes its own name`)
+          .not.toContain(slug.replace(/_/g, ' '));
+      }
     }
   });
 
-  it('osis JOB-row source is the curator content module, not a derived stub', async () => {
-    const app = await createApp();
-    const res = await request(app).get('/freestyle/tricks?view=add');
-    const card = cardFor('osis', res.text);
+  it('the osis chain comes from the curator content module, not a derived stub', async () => {
+    const html = await pageFor('osis');
     // The osis atomic flag-decomposition is curator-authored and either-side:
-    // osis catches on a same-side or opposite-side clipper, so the Job row in
-    // the first-class summary carries the SAME/OP catch verbatim.
-    expect(card).toContain('SET &gt; (back or front) SPIN [BOD] &gt; SAME/OP CLIP [XBD] [DEL]');
+    // osis catches on a same-side or opposite-side clipper, so the chain keeps
+    // the either-side catch rather than picking one arbitrarily. Compared with
+    // whitespace collapsed, because the chain renders one span per token and
+    // the tokenizer's spacing around the slash is presentation, not data.
+    const collapsed = executionNotation(html)!.replace(/\s+/g, ' ');
+    expect(collapsed)
+      .toContain('SET &gt; (back or front) SPIN [BOD] &gt; SAME / OP CLIP [XBD] [DEL]');
   });
 });
 
 describe('First-class rendering parity — slug/alias variations do not suppress data', () => {
   it('ripwalk renders its ADD breakdown even though notation column ("STEPPING BUTTERFLY") shadows the canonical name', async () => {
-    const app = await createApp();
-    const res = await request(app).get('/freestyle/tricks?view=add');
-    const card = cardFor('ripwalk', res.text);
     // Ripwalk has notation="STEPPING BUTTERFLY" in the DB. The ADD
-    // breakdown from RESOLVED_FORMULAS must still wire through; an
-    // earlier shaping path that compared notation against canonical
-    // name could in theory miscategorize ripwalk. Assert the data
-    // survives all the way to render.
-    expect(card).toContain('stepping(+1) + butterfly(3)');
+    // breakdown from RESOLVED_FORMULAS must still wire through; a shaping
+    // path that compared notation against canonical name could in theory
+    // miscategorize ripwalk. Assert the data survives all the way to render.
+    expect(addDerivation(await pageFor('ripwalk'))).toContain('stepping(+1) + butterfly(3)');
   });
 });
 
@@ -409,33 +428,20 @@ describe('First-class cohort expansion — Tier 1 atom parity', () => {
     ['whirl',      'SET &gt; OP IN [DEX] &gt; OP CLIP [XBD] [DEL]',     'xbody(1) + dex(1) + stall(1)'],
     ['butterfly',  'SET &gt; OP OUT [DEX] &gt; OP CLIP [XBD] [DEL]',    'dex(1) + xbody(1) + stall(1)'],
     ['swirl',      'SET &gt; SAME OUT [DEX] &gt; SAME CLIP [XBD] [DEL]', 'xbody(1) + dex(1) + stall(1)'],
-  ])('%s renders JOB + ADD rows in the first-class summary (full parity)', async (slug, expectedJobText, expectedAddText) => {
-    const app = await createApp();
-    const res = await request(app).get('/freestyle/tricks?view=add');
-    const card = cardFor(slug, res.text);
-    expect(card).toContain('dict-trick-row-notation');
-    expect(card).toMatch(/class="dict-trick-row-label">JOB</);
-    expect(card).toContain(expectedJobText);
-    expect(card).toContain(expectedAddText);
-    // JOB resolved — not the pending placeholder.
-    expect(card).not.toContain('dict-trick-row-pending-value');
-    expect(card).not.toContain('canonical decomposition pending');
+  ])('%s renders both its execution chain and its ADD breakdown', async (slug, expectedJobText, expectedAddText) => {
+    const html = await pageFor(slug);
+    expect(executionNotation(html), `${slug} missing its execution chain`).toContain(expectedJobText);
+    expect(addDerivation(html), `${slug} missing its ADD breakdown`).toContain(expectedAddText);
   });
 });
 
 describe('First-class cohort expansion — Tier 1 compound (pendulum)', () => {
   it('pendulum renders full parity (curator op-notation + resolved formula)', async () => {
-    const app = await createApp();
-    const res = await request(app).get('/freestyle/tricks?view=add');
-    const card = cardFor('pendulum', res.text);
-    // Curator-authored op-notation in DB → line-2 JOB value populated.
-    expect(card).toMatch(/class="dict-trick-row-label">JOB</);
-    expect(card).toMatch(/class="dict-trick-row-job-value">[\s\S]*?\[DEL\][\s\S]*?\[DEX\]/);
-    // RESOLVED_FORMULAS provides the line-2 ADD breakdown.
-    expect(card).toContain('dict-trick-row-notation');
-    expect(card).toMatch(/class="dict-trick-row-label">ADD<[\s\S]*?<code class="dict-trick-row-add-value">[^<]+<\/code>/);
-    // JOB resolved — not the pending placeholder.
-    expect(card).not.toContain('dict-trick-row-pending-value');
+    const html = await pageFor('pendulum');
+    // Curator-authored op-notation in the DB reaches the execution chain.
+    expect(executionNotation(html)).toMatch(/\[DEL\][\s\S]*?\[DEX\]/);
+    // RESOLVED_FORMULAS provides the difficulty breakdown.
+    expect(addDerivation(html)).toBeTruthy();
   });
 });
 
@@ -446,28 +452,22 @@ describe('First-class cohort expansion — Tier 2 new promotions', () => {
     ['spinning_butterfly',      'spinning(+1) + butterfly(3)'],
     ['stepping_osis',           'stepping(+1) + osis(3)'],
     ['paradox_symposium_whirl', 'paradox(+1) + symposium(+1) + whirl(3)'],
-  ])('%s renders ADD breakdown + honest INCOMPLETE badge', async (slug, expectedAddSubstring) => {
-    const app = await createApp();
-    const res = await request(app).get('/freestyle/tricks?view=add');
-    const card = cardFor(slug, res.text);
-    expect(card).toContain('dict-badge-incomplete');
-    expect(card).toContain('>INCOMPLETE<');
-    expect(card).toContain(expectedAddSubstring);
+  ])('%s renders its ADD breakdown with no authored chain', async (slug, expectedAddSubstring) => {
+    const html = await pageFor(slug);
+    expect(addDerivation(html)).toContain(expectedAddSubstring);
+    expect(executionNotation(html)).toBeNull();
   });
 
   it('eggbeater renders its folk-name chain (≡ atomic legover) plus ADD breakdown', async () => {
-    const app = await createApp();
-    const res = await request(app).get('/freestyle/tricks?view=add');
-    const card = cardFor('eggbeater', res.text);
+    const html = await pageFor('eggbeater');
     // Folk-name chain reading is non-tautological ("atomic legover" ≢
     // "eggbeater") so it survives the first-class tautological filter.
-    expect(card).toMatch(/data-token-slug="atomic"/);
-    expect(card).toMatch(/data-token-slug="legover"/);
-    // ADD breakdown wires through.
-    expect(card).toContain('atomic(+1) + legover(2)');
-    // JOB notation is unauthored (eggbeater has no curator op-notation), so the
-    // card carries the honest INCOMPLETE badge.
-    expect(card).toContain('>INCOMPLETE<');
+    const readings = html.match(/<ol class="equivalent-readings-list">[\s\S]*?<\/ol>/)?.[0] ?? '';
+    expect(readings).toMatch(/atomic/);
+    expect(readings).toMatch(/legover/);
+    // ADD breakdown wires through; the execution chain is unauthored.
+    expect(addDerivation(html)).toContain('atomic(+1) + legover(2)');
+    expect(executionNotation(html)).toBeNull();
   });
 });
 
@@ -485,7 +485,7 @@ describe('First-class cohort governance — isFirstClass() and getFirstClassTier
       // Tier 1 — 14 foundational 1-ADD primitives
       'heel_stall', 'inside_stall', 'outside_stall', 'head_stall',
       'forehead_stall', 'neck_stall', 'knee_stall', 'shoulder_stall',
-      'sole_kick', 'cloud_kick', 'peak_delay',
+      'sole_kick', 'cloud_kick', 'peak_stall',
       'flying_inside', 'flying_outside', 'double_knee',
       // Tier 1 — 3 foundational 2-ADD primitives (pedagogical ADD-bucket
       // normalization) + knee-clipper folk-name resolution

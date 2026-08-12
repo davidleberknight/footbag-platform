@@ -2,8 +2,8 @@
  * freestyleCanonicalSets.ts
  * ==========================
  *
- * Canonical-set ontology objects for the Set Hub at
- * /freestyle/tricks?view=sets.
+ * Canonical-set ontology objects for the Set Encyclopedia at
+ * /freestyle/sets and its per-set detail pages.
  *
  * Each entry is a first-class ontology object: set systems are
  * compositional vocabulary, not browse filters.
@@ -28,8 +28,8 @@
  * - Surface mechanics (sole, cloud, head, etc.) are NOT sets and do
  *   NOT appear in this module.
  * - Component mechanics (ducking, diving, bare spinning/inspinning,
- *   gyro) are body modifiers; they appear as cross-links from the Set
- *   Hub, never as set entries here.
+ *   gyro) are body modifiers; they appear as cross-links from the set
+ *   surfaces, never as set entries here.
  */
 
 export type SetSubtype =

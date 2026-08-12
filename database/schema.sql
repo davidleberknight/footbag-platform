@@ -2373,6 +2373,26 @@ CREATE UNIQUE INDEX ux_media_items_source_video
   ON media_items(source_id, video_url)
   WHERE source_id IS NOT NULL AND video_url IS NOT NULL
     AND moderation_status = 'active';
+-- media_items_linkable_video: the read surface for "does this subject have a
+-- watchable video". Filters the three conditions that make a video row reachable
+-- in a gallery: it is a video, it is not admin-removed, and its embed still
+-- resolves (rows tagged '#unavailable_embed' point at footage the host has taken
+-- down). Source is deliberately NOT a condition: a member-uploaded clip leaves
+-- source_id NULL and is trick media exactly as a curator-published clip is, so a
+-- query deciding whether media exists reads this view rather than filtering the
+-- bare table, which is how the browse rows and the trick detail page came to
+-- disagree. The hashtag-index surfaces are the deliberate exception: they answer
+-- the same question from tag usage counts and never read media_items at all.
+CREATE VIEW media_items_linkable_video AS
+  SELECT * FROM media_items mi
+  WHERE mi.media_type = 'video'
+    AND mi.moderation_status = 'active'
+    AND NOT EXISTS (
+      SELECT 1 FROM media_tags mtu
+      JOIN tags tu ON tu.id = mtu.tag_id
+      WHERE mtu.media_id = mi.id AND tu.tag_normalized = '#unavailable_embed'
+    );
+
 CREATE UNIQUE INDEX ux_galleries_default_per_member ON member_galleries(owner_member_id) WHERE is_default = 1;
 CREATE INDEX        idx_galleries_owner         ON member_galleries(owner_member_id);
 CREATE INDEX        idx_gallery_links_gallery   ON gallery_external_links(gallery_id);

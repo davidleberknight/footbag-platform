@@ -171,8 +171,8 @@ describe('topology view — Movement Neighborhoods framing', () => {
 
   it('the intro jump-nav lists all six neighborhood category names', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=topology');
-    const navMatch = res.text.match(/<nav class="topology-jump"[\s\S]*?<\/nav>/);
-    expect(navMatch, 'topology-jump nav').not.toBeNull();
+    const navMatch = res.text.match(/<nav [^>]*aria-label="Movement Neighborhood categories"[\s\S]*?<\/nav>/);
+    expect(navMatch, 'neighborhood jump nav').not.toBeNull();
     const nav = navMatch![0];
     for (const name of [
       'Hippy downtime dex',
@@ -365,12 +365,12 @@ describe('topology view — row-uniformity invariant', () => {
     expect(res.text).toMatch(/class="(?:op-token|sem-token)/);
   });
 
-  it('rows carry JOB + ADD labels with no green ADD chip (two-line contract)', async () => {
+  it('rows carry notation and a difficulty value, with no green ADD chip', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=topology');
     expect(res.text).not.toMatch(/class="dict-card-add[ "]/);
     const m = res.text.match(/<article class="dict-trick-row[\s\S]*?data-trick-slug="whirl"[\s\S]*?<\/article>/);
     expect(m).not.toBeNull();
-    expect(m![0]).toMatch(/class="dict-trick-row-label">JOB</);
-    expect(m![0]).toMatch(/class="dict-trick-row-label">ADD</);
+    expect(m![0]).toMatch(/class="dict-trick-row-notation-value"/);
+    expect(m![0]).toMatch(/aria-label="Difficulty value">\(\d+\)</);
   });
 });

@@ -177,7 +177,7 @@ describe('GET /freestyle/glossary — connective panels section', () => {
     const whirlStart = res.text.indexOf('id="glossary-panel-whirl"');
     const spinningSlice = res.text.substring(spinningStart, whirlStart);
     expect(spinningSlice).toContain('href="/freestyle/modifier/spinning"');
-    expect(spinningSlice).toMatch(/Modifier reference\s*&rarr;/);
+    expect(spinningSlice).toMatch(/Modifier reference/);
   });
 
   it('non-spinning panels do NOT include modifier-family deep-link', async () => {

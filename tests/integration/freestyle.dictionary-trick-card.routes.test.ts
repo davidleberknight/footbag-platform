@@ -6,7 +6,7 @@
  *     dict-trick-row contract (dict-trick-row-stack), NOT the shared card.
  *   - By Category and By Component render the shared dictionary-trick-card
  *     partial (dict-card-stack).
- *   - By Set uses its own compact-list density and is outside the
+ *   - By modifier uses its own compact-list density and is outside the
  *     card-uniformity contract.
  *
  * Sample tricks:
@@ -218,9 +218,9 @@ describe('dictionary-trick-card — required slots', () => {
 
   it('renders the #slug tag-identity chip on every card', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=category');
-    expect(res.text).toContain('<span class="dict-card-hashtag" aria-label="Tag identity">#ripwalk</span>');
-    expect(res.text).toContain('<span class="dict-card-hashtag" aria-label="Tag identity">#mobius</span>');
-    expect(res.text).toContain('<span class="dict-card-hashtag" aria-label="Tag identity">#montage</span>');
+    expect(res.text).toContain('<span class="hashtag" aria-label="Tag identity">#ripwalk</span>');
+    expect(res.text).toContain('<span class="hashtag" aria-label="Tag identity">#mobius</span>');
+    expect(res.text).toContain('<span class="hashtag" aria-label="Tag identity">#montage</span>');
   });
 
   it('renders ADD label slot for every seeded trick', async () => {
@@ -304,7 +304,7 @@ describe('dictionary-trick-card — required slots', () => {
       // Tier 1 — foundational 1-ADD primitives
       'heel_stall', 'inside_stall', 'outside_stall', 'head_stall',
       'forehead_stall', 'neck_stall', 'knee_stall', 'shoulder_stall',
-      'sole_kick', 'cloud_kick', 'peak_delay',
+      'sole_kick', 'cloud_kick', 'peak_stall',
       'flying_inside', 'flying_outside', 'double_knee',
       // Tier 1 — foundational 2-ADD primitives + knee-clipper + guay
       'cloud_stall', 'dragonfly_kick', 'flying_clipper', 'knee_clipper', 'guay',
@@ -560,10 +560,10 @@ describe('other dictionary views — per-view rendering contract', () => {
     expect(res.text).toContain('dict-card-stack');
   });
 
-  it('/freestyle/tricks?view=sets returns 200 (dedicated By Set view)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=sets');
+  it('/freestyle/tricks?view=modifier returns 200 (the modifier browse)', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks?view=modifier');
     expect(res.status).toBe(200);
-    // ?view=sets renders the dedicated By Set browse view, not a component
+    // ?view=modifier renders the modifier-grouped browse, not a component
     // alias (compact-list density, NOT dict-card-stack registry density).
     // Active-toggle marker confirms the routing.
     expect(res.text).toMatch(/class="trick-view-toggle-active">By modifier</);
@@ -576,7 +576,7 @@ describe('other dictionary views — per-view rendering contract', () => {
   });
 
   it('the dict-card-stack browse views continue to use the shared dictionary-trick-card partial', async () => {
-    // ?view=sets is outside this card-uniformity contract (it uses
+    // ?view=modifier is outside this card-uniformity contract (it uses
     // compact-list density, not the dictionary-trick-card partial).
     // ?view=add and ?view=family are also outside it — both render the
     // two-line dict-trick-row contract, not the shared dict-card-stack.

@@ -33,6 +33,7 @@ Run from the repo root with the venv active:
 import argparse
 import csv
 import re
+import sys
 try:
     import pysqlite3 as sqlite3
 except ImportError:
@@ -44,6 +45,12 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).parent
 REPO_ROOT = SCRIPT_DIR.parents[1]
 SCRAPED_CSV = SCRIPT_DIR.parents[0] / "inputs" / "footbag_org_moves_snapshot.csv"
+
+sys.path.insert(0, str(REPO_ROOT / "scripts"))
+from _legacy_move_overrides import (  # noqa: E402
+    assert_override_targets_present_and_active,
+    override_slug_for_move,
+)
 
 FOOTBAG_ORG_SOURCE_ID = "footbag-org-2026-04"
 FOOTBAG_ORG_RETRIEVED_AT = "2026-04-15T00:00:00.000Z"
@@ -105,7 +112,14 @@ def build_resolver(conn: sqlite3.Connection) -> dict[str, str]:
 
 
 def resolve_scraped_row(row: dict, resolver: dict[str, str]) -> str | None:
-    """Try source_name first, then alt_name. Returns trick_slug or None."""
+    """Try the curated move-ID override, then source_name, then alt_name.
+
+    The override wins over name resolution: it exists precisely for the moves
+    whose published name resolves to the wrong trick, or to none at all.
+    """
+    override = override_slug_for_move(row.get("showmove_id"))
+    if override is not None:
+        return override
     for field in ("source_name", "alt_name"):
         raw = (row.get(field) or "").strip()
         if not raw:
@@ -171,6 +185,12 @@ def promote_blank_notation(conn: sqlite3.Connection, scraped_csv: Path, resolver
 def overlay_footbag_sources(conn: sqlite3.Connection, scraped_csv: Path) -> dict:
     if not scraped_csv.exists():
         raise FileNotFoundError(f"Scraped CSV not found: {scraped_csv}")
+
+    with scraped_csv.open(newline="", encoding="utf-8") as f:
+        scraped_move_ids = [row.get("showmove_id") for row in csv.DictReader(f)]
+    assert_override_targets_present_and_active(
+        conn, "footbag.org source linker", scraped_move_ids
+    )
 
     resolver = build_resolver(conn)
 

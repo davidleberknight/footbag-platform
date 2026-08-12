@@ -3446,15 +3446,15 @@
 "sort_order": 1238
 },
 {
-"slug": "peak_delay",
-"canonical_name": "peak delay",
+"slug": "peak_stall",
+"canonical_name": "peak stall",
 "adds": "1",
-"base_trick": "peak_delay",
-"trick_family": "peak_delay",
+"base_trick": "peak_stall",
+"trick_family": "peak_stall",
 "category": "surface",
 "description": null,
 "aliases_json": null,
-"notation": "PEAK DELAY",
+"notation": "PEAK STALL",
 "operational_notation": "SET > SAME PEAK [DEL]",
 "sort_order": 1239
 },
@@ -12944,80 +12944,12 @@
 ],
 "aliases": [
 {
-"alias_text": "2 bag juggle",
-"trick_slug": "2_bag_juggling"
-},
-{
-"alias_text": "two bag juggling",
-"trick_slug": "2_bag_juggling"
-},
-{
-"alias_text": "two-bag",
-"trick_slug": "2_bag_juggling"
-},
-{
-"alias_text": "3 bag juggle",
-"trick_slug": "3_bag_juggling"
-},
-{
-"alias_text": "three bag juggling",
-"trick_slug": "3_bag_juggling"
-},
-{
-"alias_text": "three-bag",
-"trick_slug": "3_bag_juggling"
-},
-{
-"alias_text": "nuclear osis",
-"trick_slug": "aeon_flux"
-},
-{
 "alias_text": "nucleosis",
 "trick_slug": "aeon_flux"
 },
 {
-"alias_text": "barraging near double down",
-"trick_slug": "archnemesis"
-},
-{
 "alias_text": "furious george",
 "trick_slug": "archnemesis"
-},
-{
-"alias_text": "high stepping ddd",
-"trick_slug": "archnemesis"
-},
-{
-"alias_text": "paradox miraging symposium eggbeater",
-"trick_slug": "armageddon"
-},
-{
-"alias_text": "atw",
-"trick_slug": "around_the_world"
-},
-{
-"alias_text": "atw heel",
-"trick_slug": "around_the_world_heel"
-},
-{
-"alias_text": "atw kick",
-"trick_slug": "around_the_world_kick"
-},
-{
-"alias_text": "pixie ducking mirage",
-"trick_slug": "assassin"
-},
-{
-"alias_text": "assassin (ss)",
-"trick_slug": "assassin_same_side"
-},
-{
-"alias_text": "atomic mirage",
-"trick_slug": "atom_smasher"
-},
-{
-"alias_text": "atomsmasher",
-"trick_slug": "atom_smasher"
 },
 {
 "alias_text": "leg beater",
@@ -13028,20 +12960,12 @@
 "trick_slug": "atomic_butterfly"
 },
 {
-"alias_text": "alpine atomsmasher",
-"trick_slug": "atomic_ducking_mirage"
-},
-{
 "alias_text": "skullsmasher",
 "trick_slug": "atomic_ducking_mirage"
 },
 {
 "alias_text": "icarus",
 "trick_slug": "atomic_ducking_torque"
-},
-{
-"alias_text": "illusioning flail",
-"trick_slug": "atomic_flail"
 },
 {
 "alias_text": "toe massacre",
@@ -13052,48 +12976,16 @@
 "trick_slug": "atomic_illusion"
 },
 {
-"alias_text": "illusioning symposium butterfly",
-"trick_slug": "atomic_symposium_butterfly"
-},
-{
-"alias_text": "illusioning symposium eggbeater",
-"trick_slug": "atomic_symposium_eggbeater"
-},
-{
-"alias_text": "illusioning symposium mirage",
-"trick_slug": "atomic_symposium_mirage"
-},
-{
 "alias_text": "slaughter",
 "trick_slug": "atomic_symposium_mirage"
-},
-{
-"alias_text": "atomic far symp double down",
-"trick_slug": "atomic_symposium_paradon"
-},
-{
-"alias_text": "atomic os symposium double over down",
-"trick_slug": "atomic_symposium_paradon"
 },
 {
 "alias_text": "silo",
 "trick_slug": "atomic_torque"
 },
 {
-"alias_text": "bar fly",
-"trick_slug": "barfly"
-},
-{
 "alias_text": "double infinity",
 "trick_slug": "barfly"
-},
-{
-"alias_text": "nuclear near butterfly",
-"trick_slug": "barfry"
-},
-{
-"alias_text": "nuclear ss butterfly",
-"trick_slug": "barfry"
 },
 {
 "alias_text": "janiwalker",
@@ -13104,16 +12996,8 @@
 "trick_slug": "barraging_butterfly"
 },
 {
-"alias_text": "furious butterfly swirl",
-"trick_slug": "barraging_butterfly_swirl"
-},
-{
 "alias_text": "tsunami",
 "trick_slug": "barraging_butterfly_swirl"
-},
-{
-"alias_text": "furious drifter",
-"trick_slug": "barraging_drifter"
 },
 {
 "alias_text": "clownface",
@@ -13124,112 +13008,12 @@
 "trick_slug": "barraging_illusion"
 },
 {
-"alias_text": "furious illusion",
-"trick_slug": "barraging_illusion"
-},
-{
-"alias_text": "furious mirage",
-"trick_slug": "barraging_mirage"
-},
-{
 "alias_text": "baroque",
 "trick_slug": "barraging_osis"
 },
 {
-"alias_text": "barroque",
-"trick_slug": "barraging_osis"
-},
-{
-"alias_text": "furious symposium eggbeater",
-"trick_slug": "barraging_symposium_eggbeater"
-},
-{
 "alias_text": "walrus",
 "trick_slug": "barraging_symposium_eggbeater"
-},
-{
-"alias_text": "symposium furious legover",
-"trick_slug": "barraging_symposium_legover"
-},
-{
-"alias_text": "stepping paradox eggbeater",
-"trick_slug": "bedwetter"
-},
-{
-"alias_text": "spinning paradox miraging symposium torque",
-"trick_slug": "big_apple_sauce"
-},
-{
-"alias_text": "surfing ss blender",
-"trick_slug": "big_papa_smurf"
-},
-{
-"alias_text": "surging butterfly",
-"trick_slug": "bigwalk"
-},
-{
-"alias_text": "flailing ss symposium eggbeater",
-"trick_slug": "bill_ted_s_excellent_adventure"
-},
-{
-"alias_text": "toe near symposium double down",
-"trick_slug": "blackula"
-},
-{
-"alias_text": "whirling mirage",
-"trick_slug": "blaze"
-},
-{
-"alias_text": "whirling osis",
-"trick_slug": "blender"
-},
-{
-"alias_text": "stepping illusion",
-"trick_slug": "blizzard"
-},
-{
-"alias_text": "stepping paradox mirage",
-"trick_slug": "blur"
-},
-{
-"alias_text": "stepping barrage",
-"trick_slug": "blurrage"
-},
-{
-"alias_text": "stepping near double down",
-"trick_slug": "blurrier"
-},
-{
-"alias_text": "blurr-iest",
-"trick_slug": "blurriest"
-},
-{
-"alias_text": "blurry barfly",
-"trick_slug": "blurriest"
-},
-{
-"alias_text": "stepping far double down",
-"trick_slug": "blurriest"
-},
-{
-"alias_text": "blurry w",
-"trick_slug": "blurry_whirl"
-},
-{
-"alias_text": "bw",
-"trick_slug": "blurry_whirl"
-},
-{
-"alias_text": "stepping paradox whirl",
-"trick_slug": "blurry_whirl"
-},
-{
-"alias_text": "spinning near double down",
-"trick_slug": "bullwhip"
-},
-{
-"alias_text": "far butterfly",
-"trick_slug": "butterfly"
 },
 {
 "alias_text": "infinity",
@@ -13240,200 +13024,28 @@
 "trick_slug": "butterfly_dragon"
 },
 {
-"alias_text": "infinity swirl",
-"trick_slug": "butterfly_swirl"
-},
-{
-"alias_text": "surging ducking blender",
-"trick_slug": "cheese_processor"
-},
-{
-"alias_text": "clipper kick",
-"trick_slug": "clipper"
-},
-{
-"alias_text": "clipper delay",
-"trick_slug": "clipper_stall"
-},
-{
-"alias_text": "clipper stall (ss)",
-"trick_slug": "clipper_stall"
-},
-{
-"alias_text": "cloud delay",
-"trick_slug": "cloud_stall"
-},
-{
-"alias_text": "furious eggbeater",
-"trick_slug": "clown_face"
-},
-{
 "alias_text": "geesha",
 "trick_slug": "cold_fusion"
-},
-{
-"alias_text": "nuclear ddd",
-"trick_slug": "cold_fusion"
-},
-{
-"alias_text": "nuclear double over down",
-"trick_slug": "cold_fusion"
-},
-{
-"alias_text": "nuclear far double down",
-"trick_slug": "cold_fusion"
-},
-{
-"alias_text": "paradox fusion",
-"trick_slug": "cold_fusion"
-},
-{
-"alias_text": "cross-body sole delay",
-"trick_slug": "cross_body_sole_stall"
 },
 {
 "alias_text": "flapper",
 "trick_slug": "cross_body_sole_stall"
 },
 {
-"alias_text": "flapper delay",
-"trick_slug": "cross_body_sole_stall"
-},
-{
-"alias_text": "flapper stall",
-"trick_slug": "cross_body_sole_stall"
-},
-{
-"alias_text": "da-da-curve",
-"trick_slug": "dada_curve"
-},
-{
-"alias_text": "da da curve swirl",
-"trick_slug": "dada_curve_swirl"
-},
-{
-"alias_text": "pixie diving butterfly",
-"trick_slug": "darkwalk"
-},
-{
-"alias_text": "pixie far double down",
-"trick_slug": "dimmiest"
-},
-{
-"alias_text": "dim walk",
-"trick_slug": "dimwalk"
-},
-{
-"alias_text": "pixie butterfly",
-"trick_slug": "dimwalk"
-},
-{
-"alias_text": "pixie opposite side butterfly",
-"trick_slug": "dimwalk"
-},
-{
-"alias_text": "toe far symposium double down",
-"trick_slug": "dolomite"
-},
-{
-"alias_text": "railing symposium mirage",
-"trick_slug": "dorshanatrix"
-},
-{
-"alias_text": "double atw",
-"trick_slug": "double_around_the_world"
-},
-{
-"alias_text": "double atw heel",
-"trick_slug": "double_around_the_world_heel"
-},
-{
 "alias_text": "delusion",
 "trick_slug": "double_illusion"
-},
-{
-"alias_text": "miraging legover",
-"trick_slug": "double_leg_over"
-},
-{
-"alias_text": "double leg over (ss)",
-"trick_slug": "double_leg_over_same_side"
-},
-{
-"alias_text": "fairy legover (ss)",
-"trick_slug": "double_orbit"
-},
-{
-"alias_text": "dod reverse swirl",
-"trick_slug": "double_over_down_reverse_swirl"
-},
-{
-"alias_text": "doublespinning kick",
-"trick_slug": "double_spin"
-},
-{
-"alias_text": "double swirling dragon",
-"trick_slug": "double_swirl_dragon"
 },
 {
 "alias_text": "dragon stein",
 "trick_slug": "double_swirl_dragon"
 },
 {
-"alias_text": "double switchover",
-"trick_slug": "double_switch_over"
-},
-{
 "alias_text": "whirr",
 "trick_slug": "double_whirl"
 },
 {
-"alias_text": "diving down double-down",
-"trick_slug": "down_diver"
-},
-{
-"alias_text": "dragonfly",
-"trick_slug": "dragonfly_kick"
-},
-{
-"alias_text": "miraging clipper",
-"trick_slug": "drifter"
-},
-{
-"alias_text": "dyno (op)",
-"trick_slug": "dyno"
-},
-{
 "alias_text": "catwalk",
 "trick_slug": "eclipse"
-},
-{
-"alias_text": "eclipse (ss)",
-"trick_slug": "eclipse_same_side"
-},
-{
-"alias_text": "atomic legover",
-"trick_slug": "eggbeater"
-},
-{
-"alias_text": "egg beater",
-"trick_slug": "eggbeater"
-},
-{
-"alias_text": "eggbeater (ss)",
-"trick_slug": "eggbeater_same_side"
-},
-{
-"alias_text": "atomic ducking whirl",
-"trick_slug": "ego"
-},
-{
-"alias_text": "fairy beater",
-"trick_slug": "fairy_butterfly"
-},
-{
-"alias_text": "fairy double leg over (ss)",
-"trick_slug": "fairy_double_leg_over_same_side"
 },
 {
 "alias_text": "fudge",
@@ -13452,128 +13064,16 @@
 "trick_slug": "fairy_pickup"
 },
 {
-"alias_text": "fairy pickup (ss)",
-"trick_slug": "fairy_pickup_same_side"
-},
-{
-"alias_text": "fairy reverse whirl",
-"trick_slug": "fairy_rev_whirl"
-},
-{
 "alias_text": "frankenstein",
 "trick_slug": "fairy_swirling_swirl"
-},
-{
-"alias_text": "flail (ss)",
-"trick_slug": "flail"
-},
-{
-"alias_text": "symposium illusion",
-"trick_slug": "flail"
-},
-{
-"alias_text": "floating butterfly",
-"trick_slug": "floatation"
-},
-{
-"alias_text": "gyro flurry",
-"trick_slug": "flurricane"
-},
-{
-"alias_text": "atomic osis",
-"trick_slug": "flux"
-},
-{
-"alias_text": "illusioning osis",
-"trick_slug": "flux"
 },
 {
 "alias_text": "jester",
 "trick_slug": "flying_clipper"
 },
 {
-"alias_text": "railing ducking mirage",
-"trick_slug": "flying_fish"
-},
-{
-"alias_text": "blurry dim walk",
-"trick_slug": "fog"
-},
-{
-"alias_text": "stepping paradox double leg over",
-"trick_slug": "fog"
-},
-{
-"alias_text": "blurry blender",
-"trick_slug": "food_processor"
-},
-{
-"alias_text": "forehead delay",
-"trick_slug": "forehead_stall"
-},
-{
-"alias_text": "barraging paradox mirage",
-"trick_slug": "fury"
-},
-{
-"alias_text": "furious paradox mirage",
-"trick_slug": "fury"
-},
-{
-"alias_text": "atomic double over down",
-"trick_slug": "fusion"
-},
-{
-"alias_text": "atomic down-over-down",
-"trick_slug": "fusion"
-},
-{
-"alias_text": "atomic far double down",
-"trick_slug": "fusion"
-},
-{
-"alias_text": "stepping-ducking-paradox-torque",
-"trick_slug": "gauntlet"
-},
-{
-"alias_text": "barraging whirl",
-"trick_slug": "genesis"
-},
-{
-"alias_text": "furious whirl",
-"trick_slug": "genesis"
-},
-{
-"alias_text": "fairy spyro symposium torque",
-"trick_slug": "genuphobia"
-},
-{
-"alias_text": "pixie ducking double leg over",
-"trick_slug": "goliath"
-},
-{
-"alias_text": "stepping same-side torque",
-"trick_slug": "grave_digger"
-},
-{
-"alias_text": "stepping torque",
-"trick_slug": "grave_digger"
-},
-{
-"alias_text": "gdlo",
-"trick_slug": "gyro_double_leg_over"
-},
-{
-"alias_text": "alpine-big-apple",
-"trick_slug": "gyro_ducking_symposium_torque"
-},
-{
 "alias_text": "pandora's box",
 "trick_slug": "gyro_pickup"
-},
-{
-"alias_text": "gyro shooting double down",
-"trick_slug": "gyro_shooting_star"
 },
 {
 "alias_text": "supernova",
@@ -13584,116 +13084,8 @@
 "trick_slug": "gyro_symposium_mirage"
 },
 {
-"alias_text": "stepping double leg over",
-"trick_slug": "haze"
-},
-{
-"alias_text": "head delay",
-"trick_slug": "head_stall"
-},
-{
-"alias_text": "heel delay",
-"trick_slug": "heel_stall"
-},
-{
-"alias_text": "nuclear ss whirl",
-"trick_slug": "hurl"
-},
-{
-"alias_text": "alpine fusion",
-"trick_slug": "id"
-},
-{
-"alias_text": "atomic ducking far double down",
-"trick_slug": "id"
-},
-{
-"alias_text": "outside-in mirage",
-"trick_slug": "illusion"
-},
-{
 "alias_text": "reverse mirage",
 "trick_slug": "illusion"
-},
-{
-"alias_text": "illusion kick",
-"trick_slug": "illusioning_kick"
-},
-{
-"alias_text": "inside atw",
-"trick_slug": "inside_around_the_world"
-},
-{
-"alias_text": "Inside DATW",
-"trick_slug": "inside_double_around_the_world"
-},
-{
-"alias_text": "inside delay",
-"trick_slug": "inside_stall"
-},
-{
-"alias_text": "inspinning same side butterfly",
-"trick_slug": "inspinning_butterfly"
-},
-{
-"alias_text": "inspinning ss illusion",
-"trick_slug": "inspinning_same_side_illusion"
-},
-{
-"alias_text": "inspinning ss mirage",
-"trick_slug": "inspinning_same_side_mirage"
-},
-{
-"alias_text": "atomic gyro torque",
-"trick_slug": "irish_cream"
-},
-{
-"alias_text": "neutron torque",
-"trick_slug": "irish_cream"
-},
-{
-"alias_text": "tapping mobius",
-"trick_slug": "irish_cream"
-},
-{
-"alias_text": "neutron drifter",
-"trick_slug": "irish_spring"
-},
-{
-"alias_text": "tapping gyro drifter",
-"trick_slug": "irish_spring"
-},
-{
-"alias_text": "knee delay",
-"trick_slug": "knee_stall"
-},
-{
-"alias_text": "leg-over",
-"trick_slug": "legover"
-},
-{
-"alias_text": "stepping ducking far double down",
-"trick_slug": "leviathon"
-},
-{
-"alias_text": "stepping ducking far double over down",
-"trick_slug": "leviathon"
-},
-{
-"alias_text": "splicing ss blender",
-"trick_slug": "liquifier"
-},
-{
-"alias_text": "pixie same legover",
-"trick_slug": "magellan"
-},
-{
-"alias_text": "surging paradox blender",
-"trick_slug": "margaritaville"
-},
-{
-"alias_text": "nuclear far butterfly",
-"trick_slug": "matador"
 },
 {
 "alias_text": "dragster",
@@ -13704,76 +13096,12 @@
 "trick_slug": "miraging_flail"
 },
 {
-"alias_text": "armaggedon",
-"trick_slug": "miraging_symposium_eggbeater"
-},
-{
 "alias_text": "Merlin",
 "trick_slug": "miraging_symposium_mirage"
 },
 {
-"alias_text": "miraging far symp double down",
-"trick_slug": "miraging_symposium_paradon"
-},
-{
 "alias_text": "toxic",
 "trick_slug": "miraging_symposium_whirl"
-},
-{
-"alias_text": "gyro torque",
-"trick_slug": "mobius"
-},
-{
-"alias_text": "toe mobius",
-"trick_slug": "mobius"
-},
-{
-"alias_text": "gyro torque screw",
-"trick_slug": "moby_dick"
-},
-{
-"alias_text": "gyro torquescrew",
-"trick_slug": "moby_dick"
-},
-{
-"alias_text": "mobiusscrew",
-"trick_slug": "moby_dick"
-},
-{
-"alias_text": "miraging far symposium double down",
-"trick_slug": "mofly"
-},
-{
-"alias_text": "alpine void",
-"trick_slug": "morpheus"
-},
-{
-"alias_text": "double down near osis",
-"trick_slug": "motion"
-},
-{
-"alias_text": "furious double legover",
-"trick_slug": "nebula"
-},
-{
-"alias_text": "neck catch",
-"trick_slug": "neck_stall"
-},
-{
-"alias_text": "neck delay",
-"trick_slug": "neck_stall"
-},
-{
-"alias_text": "barraging far double down",
-"trick_slug": "nemesis"
-},
-{
-"alias_text": "furious barfly",
-"trick_slug": "nemesis"
-},
-{
-"alias_text": "symposium double leg over",
-"trick_slug": "nova"
 },
 {
 "alias_text": "Terminator",
@@ -13788,208 +13116,20 @@
 "trick_slug": "nuclear_dyno"
 },
 {
-"alias_text": "nuclear ss dyno",
-"trick_slug": "nuclear_dyno"
-},
-{
-"alias_text": "nuclear ss guay",
-"trick_slug": "nuclear_guay_same_side"
-},
-{
-"alias_text": "nuclear ss illusion",
-"trick_slug": "nuclear_illusion_same_side"
-},
-{
-"alias_text": "nuclear ss legover",
-"trick_slug": "nuclear_legover_same_side"
-},
-{
-"alias_text": "nuclear ss mirage",
-"trick_slug": "nuclear_mirage_same_side"
-},
-{
-"alias_text": "nuclear ss pickup",
-"trick_slug": "nuclear_pickup_same_side"
-},
-{
-"alias_text": "nuclear ss reverse whirl",
-"trick_slug": "nuclear_reverse_whirl_same_side"
-},
-{
-"alias_text": "nuclear nova",
-"trick_slug": "oh_wheely"
-},
-{
-"alias_text": "ratw",
-"trick_slug": "orbit"
-},
-{
-"alias_text": "rev-atw",
-"trick_slug": "orbit"
-},
-{
-"alias_text": "reverse around-the-world",
-"trick_slug": "orbit"
-},
-{
-"alias_text": "reverse atw",
-"trick_slug": "orbit"
-},
-{
-"alias_text": "reverse ATW kick",
-"trick_slug": "orbit_kick"
-},
-{
 "alias_text": "frigidosis",
 "trick_slug": "osis"
-},
-{
-"alias_text": "outside atw",
-"trick_slug": "outside_around_the_world"
-},
-{
-"alias_text": "outside delay",
-"trick_slug": "outside_stall"
-},
-{
-"alias_text": "pixie symposium eggbeater",
-"trick_slug": "pandemonium"
-},
-{
-"alias_text": "p. blender",
-"trick_slug": "paradox_blender"
-},
-{
-"alias_text": "p. drifter",
-"trick_slug": "paradox_drifter"
-},
-{
-"alias_text": "paradox double drifter",
-"trick_slug": "paradox_high_plains_drifter"
-},
-{
-"alias_text": "p. mirage",
-"trick_slug": "paradox_mirage"
-},
-{
-"alias_text": "p.s. whirl",
-"trick_slug": "paradox_symposium_whirl"
-},
-{
-"alias_text": "p. torque",
-"trick_slug": "paradox_torque"
-},
-{
-"alias_text": "paradox t",
-"trick_slug": "paradox_torque"
-},
-{
-"alias_text": "p. whirl",
-"trick_slug": "paradox_whirl"
-},
-{
-"alias_text": "park-walk",
-"trick_slug": "parkwalk"
-},
-{
-"alias_text": "pixie ss butterfly",
-"trick_slug": "parkwalk"
-},
-{
-"alias_text": "paste (ss)",
-"trick_slug": "paste_same_side"
-},
-{
-"alias_text": "peak",
-"trick_slug": "peak_delay"
-},
-{
-"alias_text": "pickup (ss)",
-"trick_slug": "pickup"
-},
-{
-"alias_text": "pigbeater (ss)",
-"trick_slug": "pigbeater_same_side"
-},
-{
-"alias_text": "pixie double pickup (ss)",
-"trick_slug": "pixie_double_pickup_same_side"
-},
-{
-"alias_text": "pixie double switchover",
-"trick_slug": "pixie_double_switch_over"
-},
-{
-"alias_text": "weaving pigbeater",
-"trick_slug": "pixie_ducking_eggbeater"
 },
 {
 "alias_text": "johnny vodka",
 "trick_slug": "pixie_mobius"
 },
 {
-"alias_text": "pod",
-"trick_slug": "pixie_over_down"
-},
-{
 "alias_text": "Frantic Legover",
 "trick_slug": "pixie_quantum_legover"
 },
 {
-"alias_text": "pixie reverse whirl",
-"trick_slug": "pixie_rev_whirl"
-},
-{
-"alias_text": "pixie symposium reverse whirl",
-"trick_slug": "pixie_symposium_rev_whirl"
-},
-{
 "alias_text": "porque",
 "trick_slug": "pixie_torque"
-},
-{
-"alias_text": "quantum double down",
-"trick_slug": "plasma"
-},
-{
-"alias_text": "quantum double over down",
-"trick_slug": "plasma"
-},
-{
-"alias_text": "quantum far double down",
-"trick_slug": "plasma"
-},
-{
-"alias_text": "pogo ss flail",
-"trick_slug": "pogo_flail_same_side"
-},
-{
-"alias_text": "pogo ss illusion",
-"trick_slug": "pogo_illusion_same_side"
-},
-{
-"alias_text": "pogo ss legover",
-"trick_slug": "pogo_legover_same_side"
-},
-{
-"alias_text": "pogo far mirage",
-"trick_slug": "pogo_mirage"
-},
-{
-"alias_text": "pogo ss mirage",
-"trick_slug": "pogo_mirage_same_side"
-},
-{
-"alias_text": "pogo ss pickup",
-"trick_slug": "pogo_pickup_same_side"
-},
-{
-"alias_text": "pogo ss symposium mirage",
-"trick_slug": "pogo_symposium_mirage_same_side"
-},
-{
-"alias_text": "atomic double leg over",
-"trick_slug": "predator"
 },
 {
 "alias_text": "Weaving Magellan",
@@ -14000,64 +13140,8 @@
 "trick_slug": "quantum_butterfly"
 },
 {
-"alias_text": "toe blizzard",
-"trick_slug": "quantum_illusion"
-},
-{
-"alias_text": "toe blur",
-"trick_slug": "quantum_mirage"
-},
-{
-"alias_text": "backside symposium toe blur",
-"trick_slug": "quantum_symposium_mirage"
-},
-{
 "alias_text": "quark",
 "trick_slug": "quantum_torque"
-},
-{
-"alias_text": "furious symposium mirage",
-"trick_slug": "rage"
-},
-{
-"alias_text": "railing ducking butterfly",
-"trick_slug": "rail_warrior"
-},
-{
-"alias_text": "railing ss butterfly",
-"trick_slug": "railing_butterfly_same_side"
-},
-{
-"alias_text": "railing ss dlo",
-"trick_slug": "railing_double_leg_over_same_side"
-},
-{
-"alias_text": "railing ss double legover",
-"trick_slug": "railing_double_leg_over_same_side"
-},
-{
-"alias_text": "red wetter",
-"trick_slug": "redwetter"
-},
-{
-"alias_text": "shooting eggbeater",
-"trick_slug": "redwetter"
-},
-{
-"alias_text": "reverse swirl",
-"trick_slug": "rev_swirl"
-},
-{
-"alias_text": "rev whirl (op)",
-"trick_slug": "rev_whirl"
-},
-{
-"alias_text": "reverse whirl",
-"trick_slug": "rev_whirl"
-},
-{
-"alias_text": "revwhirl",
-"trick_slug": "rev_whirl"
 },
 {
 "alias_text": "whip",
@@ -14072,10 +13156,6 @@
 "trick_slug": "reverse_magellan"
 },
 {
-"alias_text": "reverse swirling dragon",
-"trick_slug": "reverse_swirl_dragon"
-},
-{
 "alias_text": "snapdragon",
 "trick_slug": "reverse_swirl_dragon"
 },
@@ -14084,228 +13164,36 @@
 "trick_slug": "reverse_swirling_pickup"
 },
 {
-"alias_text": "double swirl",
-"trick_slug": "ripstein"
-},
-{
-"alias_text": "stepping opposite side butterfly",
-"trick_slug": "ripwalk"
-},
-{
-"alias_text": "paradox grifter",
-"trick_slug": "royale"
-},
-{
 "alias_text": "Dasein",
 "trick_slug": "sailing_butterfly"
-},
-{
-"alias_text": "Sail Down",
-"trick_slug": "sailing_butterfly"
-},
-{
-"alias_text": "sailing ss butterfly",
-"trick_slug": "sailing_butterfly_same_side"
 },
 {
 "alias_text": "Fracture",
 "trick_slug": "sailing_double_leg_over"
 },
 {
-"alias_text": "sailing ss dlo",
-"trick_slug": "sailing_double_leg_over_same_side"
-},
-{
-"alias_text": "sailing ss double legover",
-"trick_slug": "sailing_double_leg_over_same_side"
-},
-{
-"alias_text": "sailing dod",
-"trick_slug": "sailing_double_over_down"
-},
-{
-"alias_text": "sailing ss illusion",
-"trick_slug": "sailing_illusion_same_side"
-},
-{
-"alias_text": "sailing ss legover",
-"trick_slug": "sailing_legover_same_side"
-},
-{
 "alias_text": "Dominatrix",
 "trick_slug": "sailing_mirage"
-},
-{
-"alias_text": "sailing ss mirage",
-"trick_slug": "sailing_mirage_same_side"
-},
-{
-"alias_text": "sailing ss pickup",
-"trick_slug": "sailing_pickup_same_side"
-},
-{
-"alias_text": "stepping legover",
-"trick_slug": "schmoe"
-},
-{
-"alias_text": "spinning down double-down",
-"trick_slug": "scorpions_tail"
-},
-{
-"alias_text": "spinning far double down",
-"trick_slug": "scorpions_tail"
-},
-{
-"alias_text": "clipper near symposium double down",
-"trick_slug": "shaft"
-},
-{
-"alias_text": "clipper set ss symposium double over down",
-"trick_slug": "shaft"
-},
-{
-"alias_text": "symposium down double down",
-"trick_slug": "shaft"
 },
 {
 "alias_text": "porn star",
 "trick_slug": "shooting_barfly"
 },
 {
-"alias_text": "shooting ss clipper",
-"trick_slug": "shooting_clipper_same_side"
-},
-{
-"alias_text": "shooting ss illusion",
-"trick_slug": "shooting_illusion_same_side"
-},
-{
-"alias_text": "shooting ss legover",
-"trick_slug": "shooting_legover_same_side"
-},
-{
-"alias_text": "shooting ss mirage",
-"trick_slug": "shooting_mirage_same_side"
-},
-{
-"alias_text": "shooting ss pickup",
-"trick_slug": "shooting_pickup_same_side"
-},
-{
-"alias_text": "pogo nuclear far double down",
-"trick_slug": "shooting_star"
-},
-{
-"alias_text": "shooting double over down",
-"trick_slug": "shooting_star"
-},
-{
-"alias_text": "shooting down double down",
-"trick_slug": "shooting_star"
-},
-{
-"alias_text": "shooting far double down",
-"trick_slug": "shooting_star"
-},
-{
-"alias_text": "shoulder delay",
-"trick_slug": "shoulder_stall"
-},
-{
-"alias_text": "smear (ss)",
-"trick_slug": "smear_same_side"
-},
-{
-"alias_text": "pixie double leg over",
-"trick_slug": "smog"
-},
-{
-"alias_text": "pixie double legover",
-"trick_slug": "smog"
-},
-{
-"alias_text": "smog (ss)",
-"trick_slug": "smog_same_side"
-},
-{
-"alias_text": "pixie drifter",
-"trick_slug": "smoke"
-},
-{
-"alias_text": "pixie illusion",
-"trick_slug": "smudge"
-},
-{
-"alias_text": "smudge (ss)",
-"trick_slug": "smudge_same_side"
-},
-{
-"alias_text": "sole delay",
-"trick_slug": "sole_stall"
-},
-{
-"alias_text": "spinning symposium whirl",
-"trick_slug": "sole_survivor"
-},
-{
-"alias_text": "spinning symposium wirl",
-"trick_slug": "sole_survivor"
-},
-{
 "alias_text": "whirlwind",
 "trick_slug": "sole_survivor"
-},
-{
-"alias_text": "clipper ducking far double down",
-"trick_slug": "spanishfly"
-},
-{
-"alias_text": "spikehammer",
-"trick_slug": "spike_hammer"
-},
-{
-"alias_text": "spinning kick",
-"trick_slug": "spin"
-},
-{
-"alias_text": "toe set spinning double over down",
-"trick_slug": "spinning_double_over_down"
 },
 {
 "alias_text": "void",
 "trick_slug": "spinning_drifter"
 },
 {
-"alias_text": "alpine superduperfly",
-"trick_slug": "spinning_ducking_superfly"
-},
-{
-"alias_text": "superdeeduperfly",
-"trick_slug": "spinning_ducking_superfly"
-},
-{
-"alias_text": "alpine super mario",
-"trick_slug": "spinning_ducking_symposium_torque"
-},
-{
 "alias_text": "king koopa",
 "trick_slug": "spinning_ducking_symposium_torque"
 },
 {
-"alias_text": "alpine spinning whirl",
-"trick_slug": "spinning_ducking_whirl"
-},
-{
 "alias_text": "big applesauce",
 "trick_slug": "spinning_miraging_symposium_torque"
-},
-{
-"alias_text": "spinning reverse whirl",
-"trick_slug": "spinning_rev_whirl"
-},
-{
-"alias_text": "superduperfly",
-"trick_slug": "spinning_superfly"
 },
 {
 "alias_text": "big orange",
@@ -14324,14 +13212,6 @@
 "trick_slug": "squeeze"
 },
 {
-"alias_text": "pincher squeeze",
-"trick_slug": "squeeze"
-},
-{
-"alias_text": "sidwalk",
-"trick_slug": "stepping_butterfly"
-},
-{
 "alias_text": "ripcurl",
 "trick_slug": "stepping_butterfly_swirl"
 },
@@ -14340,20 +13220,8 @@
 "trick_slug": "stepping_butterfly_swirl"
 },
 {
-"alias_text": "alpine sidewalk",
-"trick_slug": "stepping_diving_butterfly"
-},
-{
 "alias_text": "jackknife",
 "trick_slug": "stepping_diving_butterfly"
-},
-{
-"alias_text": "stepping opposite reaper",
-"trick_slug": "stepping_double_switch_over"
-},
-{
-"alias_text": "alpine ripwalk",
-"trick_slug": "stepping_ducking_butterfly"
 },
 {
 "alias_text": "blurtigo",
@@ -14368,18 +13236,6 @@
 "trick_slug": "stepping_dyno"
 },
 {
-"alias_text": "stepping opposite side reverse whirl",
-"trick_slug": "stepping_rev_whirl"
-},
-{
-"alias_text": "stepping reverse whirl",
-"trick_slug": "stepping_rev_whirl"
-},
-{
-"alias_text": "torch r rack",
-"trick_slug": "stepping_superfly"
-},
-{
 "alias_text": "torture rack",
 "trick_slug": "stepping_superfly"
 },
@@ -14388,76 +13244,16 @@
 "trick_slug": "stepping_swirl"
 },
 {
-"alias_text": "stepping far symp double down",
-"trick_slug": "stepping_symposium_paradon"
-},
-{
 "alias_text": "whirlygig",
 "trick_slug": "stepping_symposium_whirl"
-},
-{
-"alias_text": "nuclear far mirage",
-"trick_slug": "sumo"
-},
-{
-"alias_text": "nuclear mirage",
-"trick_slug": "sumo"
-},
-{
-"alias_text": "clipper far symposium double down",
-"trick_slug": "superfly"
-},
-{
-"alias_text": "super fly",
-"trick_slug": "superfly"
-},
-{
-"alias_text": "symposium barfly",
-"trick_slug": "superfly"
-},
-{
-"alias_text": "surfing ss pickup",
-"trick_slug": "surfing_pickup_same_side"
-},
-{
-"alias_text": "surging paradox mirage",
-"trick_slug": "surge"
-},
-{
-"alias_text": "surging symposium reverse whirl",
-"trick_slug": "surgery"
 },
 {
 "alias_text": "carousel",
 "trick_slug": "surging_ducking_paradox_symposium_whirling_rake"
 },
 {
-"alias_text": "surging ss osis",
-"trick_slug": "surging_same_side_osis"
-},
-{
-"alias_text": "surging paradox whirl",
-"trick_slug": "surreal"
-},
-{
 "alias_text": "spitfire",
 "trick_slug": "swirl_dragon"
-},
-{
-"alias_text": "swirling dragon",
-"trick_slug": "swirl_dragon"
-},
-{
-"alias_text": "spinning paradox symposium whirling swirl",
-"trick_slug": "swirlwind"
-},
-{
-"alias_text": "symposium mirage (ss)",
-"trick_slug": "symposium_mirage"
-},
-{
-"alias_text": "symposium swirl (op)",
-"trick_slug": "symposium_swirl"
 },
 {
 "alias_text": "swivel",
@@ -14468,104 +13264,20 @@
 "trick_slug": "symposium_whirling_mirage"
 },
 {
-"alias_text": "toe barrage",
-"trick_slug": "terrage"
-},
-{
-"alias_text": "toe near barrage",
-"trick_slug": "terrage"
-},
-{
-"alias_text": "enterrage",
-"trick_slug": "terraging_legover"
-},
-{
-"alias_text": "toe",
-"trick_slug": "toe_stall"
-},
-{
-"alias_text": "toe delay",
-"trick_slug": "toe_stall"
-},
-{
-"alias_text": "ducking paradox whirl",
-"trick_slug": "tomahawk"
-},
-{
-"alias_text": "stepping drifter",
-"trick_slug": "tombstone"
-},
-{
-"alias_text": "miraging osis",
-"trick_slug": "torque"
-},
-{
-"alias_text": "stepping opposite osis",
-"trick_slug": "torque"
-},
-{
-"alias_text": "3atw",
-"trick_slug": "triple_around_the_world"
-},
-{
-"alias_text": "tatw",
-"trick_slug": "triple_around_the_world"
-},
-{
-"alias_text": "triple atw",
-"trick_slug": "triple_around_the_world"
-},
-{
 "alias_text": "triage",
 "trick_slug": "triple_mirage"
-},
-{
-"alias_text": "triple spinning kick",
-"trick_slug": "triple_spin"
 },
 {
 "alias_text": "cardinal swirl",
 "trick_slug": "triple_swirl"
 },
 {
-"alias_text": "surging barfly",
-"trick_slug": "venom"
-},
-{
-"alias_text": "surging far double down",
-"trick_slug": "venom"
-},
-{
-"alias_text": "gyro drifter",
-"trick_slug": "vortex"
-},
-{
-"alias_text": "step-over",
-"trick_slug": "walk_over"
-},
-{
-"alias_text": "warping mirage",
-"trick_slug": "warp"
-},
-{
 "alias_text": "ghost",
 "trick_slug": "whirling_rake"
 },
 {
-"alias_text": "whirling reverse whirl",
-"trick_slug": "whirling_rev_whirl"
-},
-{
 "alias_text": "whirlwalk",
 "trick_slug": "whirling_whirl"
-},
-{
-"alias_text": "zulu far legover",
-"trick_slug": "zulu_legover"
-},
-{
-"alias_text": "zulu far pickup",
-"trick_slug": "zulu_pickup"
 }
 ]
 }

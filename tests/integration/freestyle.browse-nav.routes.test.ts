@@ -43,7 +43,7 @@ const VIEWS: Array<[string, string]> = [
   ['movement-system', 'By movement system'],
   ['topology', 'Movement Neighborhoods'],
   ['dex-count', 'By dex count'],
-  ['sets', 'By modifier'],
+  ['modifier', 'By modifier'],
 ];
 
 const CANONICAL_ORDER = [

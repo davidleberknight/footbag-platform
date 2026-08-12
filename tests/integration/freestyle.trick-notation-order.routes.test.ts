@@ -1,13 +1,14 @@
 /**
- * Trick-detail notation ordering (presentation-only IA).
+ * Trick-detail notation ordering (presentation-only information architecture).
  *
- * The Movement-notation block renders first on every trick page — above
- * Movement Intuition and About — so the trick's structure reads before the
- * prose, regardless of whether the trick is a family/branch anchor, a
- * first-class roster anchor, or an ordinary compound. The block renders
- * exactly once per page:
- *   - any page with notation -> notation appears before "About this trick"
- *   - every page renders at most one notation block
+ * A trick page orients before it analyses: plain words saying what the trick is
+ * come first, and the notation follows. Opening on a symbol string made a
+ * reader scroll past the technical layer to find out what they were looking at.
+ *
+ * The block renders exactly once per page. A Movement notation block is
+ * suppressed where the stored string merely restates the trick's own name, so
+ * the fixtures below carry notation their names do not state; otherwise this
+ * file would pass or fail for the wrong reason.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -23,21 +24,21 @@ const ABOUT = 'About this trick';
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-  const t = (slug: string, name: string, family: string) =>
+  const t = (slug: string, name: string, family: string, notation: string) =>
     insertFreestyleTrick(db, {
       slug, canonical_name: name, adds: '4', base_trick: family, trick_family: family,
       category: 'compound', description: `${name} description prose.`,
-      notation: name.toUpperCase(), operational_notation: 'CLIP > OP IN [DEX] > OP CLIP [XBD] [DEL]',
+      notation, operational_notation: 'CLIP > OP IN [DEX] > OP CLIP [XBD] [DEL]',
       review_status: 'curated', is_active: 1,
     });
   // Family-roster anchor (non-first-class).
-  t('torque', 'torque', 'osis');
+  t('torque', 'torque', 'osis', 'SET > SPIN [BOD] > SAME IN [DEX] > OP OSIS [DEL]');
   // Major-compound anchor (mobius is in the curated hero-notation set).
-  t('mobius', 'mobius', 'torque');
+  t('mobius', 'mobius', 'torque', 'SET > GYRO > SAME IN [DEX] > OP OSIS [DEL]');
   // First-class roster anchor.
-  t('osis', 'osis', 'osis');
+  t('osis', 'osis', 'osis', 'SET > SPIN [BOD] > SAME CLIP [XBD] [DEL]');
   // Non-anchor, non-first-class compound.
-  t('paradox-whirl', 'paradox whirl', 'whirl');
+  t('paradox-whirl', 'paradox whirl', 'whirl', 'SET > SAME IN [PDX] [DEX] > OP CLIP [XBD] [DEL]');
   db.close();
   createApp = await importApp();
 });
@@ -52,12 +53,13 @@ const idx = (html: string, marker: string) => html.indexOf(marker);
 const count = (html: string, marker: string) =>
   html.split(marker).length - 1;
 
-describe('Notation renders first on every trick page', () => {
+describe('About reads before the notation on every trick page', () => {
   for (const slug of ['torque', 'mobius', 'osis', 'paradox-whirl']) {
-    it(`${slug} renders the notation block before About`, async () => {
+    it(`${slug} renders About before the notation block`, async () => {
       const html = await page(slug);
       expect(idx(html, NOTATION)).toBeGreaterThan(-1);
-      expect(idx(html, NOTATION)).toBeLessThan(idx(html, ABOUT));
+      expect(idx(html, ABOUT)).toBeGreaterThan(-1);
+      expect(idx(html, ABOUT)).toBeLessThan(idx(html, NOTATION));
     });
   }
 });

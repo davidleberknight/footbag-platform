@@ -861,6 +861,68 @@ if [ -n "$(printf '%s' "$emdash_hits" | tr -d '[:space:]')" ]; then
   violations=$((violations + 1))
 fi
 
+# Rule: every font size comes from the closed type scale.
+# Reason: the stylesheet had drifted to sixty distinct sizes, many a tenth of a
+# rem apart, which is not a hierarchy a reader can perceive. Each step maps to
+# one job (metadata, body, subheading, section heading, page title) plus two
+# display sizes for figures and icon glyphs. Nothing renders below 0.9rem;
+# subordination below that is carried by colour and weight. A closed set only
+# stays closed if something checks it.
+echo "[conventions] check: font sizes come from the type scale"
+size_ok='0\.9rem|1rem|1\.25rem|1\.5rem|2\.25rem|2rem|3rem|0\.9em|1em'
+size_bad=$(grep -nE 'font-size: *[0-9.]+r?em' src/public/css/style.css \
+  | grep -vE "font-size: ($size_ok);" || true)
+# Sizes carried in custom properties obey the scale too.
+token_bad=$(grep -nE '^\s*--[a-z-]*size[a-z-]*: *[0-9.]+r?em' src/public/css/style.css \
+  | grep -vE ": *($size_ok);" || true)
+if [ -n "$size_bad$token_bad" ]; then
+  [ -n "$size_bad" ] && printf '%s\n' "$size_bad" >&2
+  [ -n "$token_bad" ] && printf '%s\n' "$token_bad" >&2
+  echo "  FAIL: font size is off the type scale (0.9 / 1 / 1.25 / 1.5 / 2.25 rem, display 2 / 3 rem)" >&2
+  violations=$((violations + 1))
+fi
+
+# Rule: a public control never carries a decorative arrow in its label.
+# Reason: colour, resting underline, and wording carry the link affordance; an
+# appended arrow is decoration every author must remember to type and every
+# reviewer must check. Glyphs that carry meaning are content, not decoration,
+# and are allowlisted below: sort-direction indicators, notation showing an
+# input-to-result transformation, sequence and ladder separators, and
+# position markers within a list. Internal and administrative tooling is out of
+# scope and keeps its existing glyphs.
+echo "[conventions] check: decorative arrows in public control labels"
+# Matched precisely: an arrow inside a control's own label, meaning immediately
+# before the closing tag or immediately after the opening tag of an anchor or
+# button. An arrow sitting BETWEEN elements is a separator (a progression chain,
+# an operator-to-compound mapping), and an arrow inside <code>/<pre> or a
+# dedicated arrow span is notation; neither is a label, so neither matches.
+arrow_label='(&rarr;|&larr;|→|←)[[:space:]]*</(a|button)>|<(a|button)[^>]*>[[:space:]]*(&rarr;|&larr;|→|←)'
+# An icon-only control whose whole label is the glyph is not a label with an
+# arrow appended; it carries its name in aria-label and is exempt.
+arrow_icon='<(a|button)[^>]*aria-label=[^>]*>[[:space:]]*(<span[^>]*>)?[[:space:]]*(&rarr;|&larr;|→|←)[[:space:]]*(</span>)?[[:space:]]*</(a|button)>'
+arrow_hits=""
+for f in $(grep -rlE '&rarr;|&larr;|→|←' src/views --include='*.hbs' 2>/dev/null \
+             | grep -vE 'internal-qc/|/dev/|/admin/' || true); do
+  h=$(perl -0777 -pe 's/\{\{!--.*?--\}\}//gs; s/\{\{!.*?\}\}//gs' "$f" \
+        | grep -nE "$arrow_label" | grep -vE "$arrow_icon" | sed "s|^|$f:|" || true)
+  [ -n "$h" ] && arrow_hits="${arrow_hits}${h}"$'\n'
+done
+# CSS pseudo-element arrows. Reported with the selector they belong to, so the
+# semantic ones (sort-direction indicator, ladder separator) can be told apart
+# from an arrow bolted onto a link class.
+css_arrow=$(perl -0777 -ne '
+  while (/([^\n{}]+)\{([^}]*content:[^;}]*(?:\\2192|\\2190|\x{2192}|\x{2190})[^;}]*;[^}]*)\}/gs) {
+    my $sel = $1; $sel =~ s/^\s+|\s+$//g; $sel =~ s/\s*\n\s*/ /g;
+    next if $sel =~ /sortable|ladder-step/;
+    print "$sel\n";
+  }' src/public/css/style.css || true)
+[ -n "$css_arrow" ] && arrow_hits="${arrow_hits}src/public/css/style.css selectors:"$'\n'"${css_arrow}"$'\n'
+if [ -n "$(printf '%s' "$arrow_hits" | tr -d '[:space:]')" ]; then
+  printf '%s\n' "$arrow_hits" >&2
+  echo "  FAIL: public control labels carry no decorative arrow; drop the glyph and keep the words" >&2
+  violations=$((violations + 1))
+fi
+
 # Rule: every audit action_type is a lowercase, dotted, domain-prefixed value.
 # Reason: action_type is a closed vocabulary that downstream queries, metric
 # filters, and the cutover residue audit match on; a value without a namespace

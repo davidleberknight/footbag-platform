@@ -1,9 +1,10 @@
 {{!--
   /freestyle/sets — Set Encyclopedia.
 
-  Standalone minimalist index of canonical sets as first-class ontology
-  objects. Distinct from /freestyle/tricks?view=sets (Trick Dictionary's
-  By-Set view) and from /freestyle/compositional-sets (exploratory hub).
+  The canonical set-specific surface: a minimalist index of canonical sets as
+  first-class ontology objects. Distinct from /freestyle/tricks?view=modifier
+  (the dictionary's modifier-grouped trick browse) and from
+  /freestyle/compositional-sets (exploratory hub).
 
   Curator UX directive: cards stay compact + scan-friendly — name, hashtag,
   formula, one-sentence movement, one provenance line, up to 3 quick-
@@ -38,7 +39,7 @@
   <nav class="sets-encyclopedia-cross-nav" aria-label="Related surfaces">
     <p class="sets-encyclopedia-cross-nav-intro">Related surfaces, different questions:</p>
     <ul class="sets-encyclopedia-cross-nav-list">
-      <li><a href="{{content.crossLinks.dictionaryBysetHref}}">{{content.crossLinks.dictionaryBysetLabel}}</a> <span class="sets-encyclopedia-cross-nav-question">(which tricks use this set?)</span></li>
+      <li><a href="{{content.crossLinks.dictionaryModifierHref}}">{{content.crossLinks.dictionaryModifierLabel}}</a> <span class="sets-encyclopedia-cross-nav-question">(which tricks use this set?)</span></li>
       <li><a href="{{content.crossLinks.compositionalHubHref}}">{{content.crossLinks.compositionalHubLabel}}</a> <span class="sets-encyclopedia-cross-nav-question">(how do sets relate as families?)</span></li>
       <li><a href="{{content.crossLinks.operatorsPageHref}}">{{content.crossLinks.operatorsPageLabel}}</a> <span class="sets-encyclopedia-cross-nav-question">(what transformations act on tricks?)</span></li>
     </ul>
@@ -75,7 +76,7 @@
         <div class="dict-trick-row-head">
           <a class="dict-trick-row-title" href="{{detailHref}}">{{displayName}}</a>
           {{#if isFlagship}}<span class="sets-encyclopedia-card-flagship" title="{{flagshipTitle}}">&#9733;</span>{{/if}}
-          <span class="dict-trick-row-hashtag" aria-label="Tag identity">{{hashtag}}</span>
+          <span class="hashtag" aria-label="Tag identity">{{hashtag}}</span>
           <span class="sets-encyclopedia-card-status sets-encyclopedia-card-status--{{statusPill.key}}">{{statusPill.label}}</span>
           <span class="sets-encyclopedia-card-role-chip sets-encyclopedia-card-role-chip--{{roleKey}}">{{roleLabel}}</span>
         </div>
@@ -84,7 +85,7 @@
             <span class="dict-trick-row-label">SET</span>
             {{#if formula}}<code class="dict-trick-row-job-value">{{formula}}</code>{{else}}<span class="dict-trick-row-job-value dict-trick-row-pending-value">notation pending</span>{{/if}}
           </span>
-          <a class="sets-encyclopedia-card-detail-link" href="{{detailHref}}">View details &rarr;</a>
+          <a class="sets-encyclopedia-card-detail-link" href="{{detailHref}}">View details</a>
         </div>
         <p class="sets-encyclopedia-card-movement">{{compactMovement}}</p>
       </article>

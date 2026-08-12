@@ -154,7 +154,7 @@ describe('GET /freestyle/tricks — default By ADD ladder', () => {
 
   it('renders ADD jump-nav chips that link to the in-page ADD section anchors', async () => {
     const res = await request(createApp()).get('/freestyle/tricks');
-    expect(res.text).toContain('class="add-jump"');
+    expect(res.text).toContain('aria-label="Jump to ADD level"');
     // Each chip jumps to its ADD section (e.g. <a href="#add-2">2 ADD</a>),
     // the same affordance as the old per-level move list.
     expect(res.text).toMatch(/<a href="#add-\d+">\d+ ADD<\/a>/);
@@ -278,12 +278,12 @@ describe('GET /freestyle/tricks — landing-grid count labels are self-explanato
 
   it('By family view renders a jump index linking to in-page family-section anchors', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=family');
-    expect(res.text).toContain('class="family-jump"');
+    expect(res.text).toContain('aria-label="Jump to family"');
     expect(res.text).toContain('Root families:');
     // whirl has >1 member in the seed, so its family section + jump chip render;
     // the chip targets the in-page anchor, not the ?family= detail page.
     expect(res.text).toMatch(/href="#family-whirl"/);
-    expect(res.text).toContain('class="family-jump-count"');
+    expect(res.text).toContain('class="jump-bar-count"');
   });
 
   it('orders family entries by operator rung: anchor, then 1-operator, then 2-operator', async () => {
@@ -334,10 +334,10 @@ describe('GET /freestyle/tricks — landing-grid count labels are self-explanato
     expect(at('double-spinning-whirl')).toBeGreaterThan(at('whirl'));
   });
 
-  it('By modifier groups into clusters linking to ?view=sets cluster anchors', async () => {
+  it('By modifier groups into clusters linking to ?view=modifier cluster anchors', async () => {
     const res = await request(createApp()).get('/freestyle/tricks');
     expect(res.text).toMatch(/<span class="dict-landing-card-count-num">\d+<\/span> modifier groups/);
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\?view[^"]*sets#cluster-set-uptime"/);
+    expect(res.text).toMatch(/href="\/freestyle\/tricks\?view[^"]*modifier#cluster-set-uptime"/);
     // The broad, non-entry lens copy.
     expect(res.text).toMatch(/Which named moves, sets, or twists does it use\?/);
   });

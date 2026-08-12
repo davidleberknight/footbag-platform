@@ -50,7 +50,7 @@
         {{#each entries}}
         <li class="learn-entry{{#unless isShipped}} learn-entry-planned{{/unless}}">
           {{#if isShipped}}
-          <a class="learn-entry-title" href="{{href}}">{{title}} →</a>
+          <a class="learn-entry-title" href="{{href}}">{{title}}</a>
           {{else}}
           <span class="learn-entry-title">{{title}} <span class="learn-entry-status">planned</span></span>
           {{/if}}

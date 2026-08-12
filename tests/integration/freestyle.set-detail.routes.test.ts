@@ -13,7 +13,6 @@
  *     applicable)
  *   - /freestyle/sets (no slug) renders the Set Encyclopedia (200, not a redirect)
  *   - /freestyle/sets/reference renders the flat Holden reference (200)
- *   - Set Hub shows a "View set details →" link, never a placeholder
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -142,12 +141,13 @@ describe('GET /freestyle/sets/:slug — set detail page', () => {
     expect(res.text).toContain('No tricks are linked to this set yet');
   });
 
-  it('renders cross-links to set hub, compositional hub, and movement-system axis', async () => {
+  it('renders cross-links to the encyclopedia, compositional hub, and movement-system axis', async () => {
     const res = await request(await createApp()).get('/freestyle/sets/pixie');
-    // Handlebars HTML-encodes `=` in interpolated href values (?view=sets → ?view&#x3D;sets);
-    // browsers decode entities in href values so the link works. Match either form.
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\?view(?:=|&#x3D;)sets"/);
+    // The back control lands on the Set Encyclopedia, the canonical set surface.
+    expect(res.text).toContain('href="/freestyle/sets">Back to Set Encyclopedia<');
     expect(res.text).toContain('href="/freestyle/compositional-sets#single-dex-primitives"');
+    // Handlebars HTML-encodes `=` in interpolated href values; browsers decode
+    // entities in href values so the link works. Match either form.
     expect(res.text).toMatch(/href="\/freestyle\/tricks\?view(?:=|&#x3D;)movement-system#movement-axis-set-uptime"/);
     // The flat Holden reference table link is intentionally not surfaced
     // (no source-person naming on the public related-surfaces list).
@@ -403,10 +403,11 @@ describe('GET /freestyle/sets/:slug — section order mirrors the trick-detail s
   });
 });
 
-// Set-detail links are not covered here. The /freestyle/tricks?view=sets
-// URL answers "which tricks use this set?" with a modifier-grouped trick
-// list and carries no detail links; the Set Encyclopedia at /freestyle/sets
-// owns them, under its own card class names, and its own suite covers them.
+// Set-detail links are not covered here. The /freestyle/tricks?view=modifier
+// URL answers "which tricks use this set or modifier?" with a modifier-grouped
+// trick list and carries no detail links; the Set Encyclopedia at
+// /freestyle/sets owns them, under its own card class names, and its own suite
+// covers them.
 
 describe('Set detail — X-Dex receiver note (atomic / quantum / nuclear only)', () => {
   for (const slug of ['atomic', 'quantum', 'nuclear']) {

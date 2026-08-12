@@ -1,4 +1,13 @@
-/** Pre-handover probe: verify spin/juggling rows render with structured JOB + op_notation. */
+/**
+ * Spin and multi-bag juggling tricks render their notation as structured
+ * tokens rather than as a raw string.
+ *
+ * A Movement notation block is suppressed where the stored string merely
+ * restates the trick's own name, which is the case for `spin` (name "spin",
+ * notation "SPIN"). Its notation reads in the Execution block instead. The
+ * compound and multi-bag fixtures carry notation their names do not state, so
+ * their Movement blocks render.
+ */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
@@ -24,10 +33,12 @@ describe('spin/juggling rendering probe', () => {
     expect(res.status).toBe(200);
   });
 
-  it('spin renders Movement notation block tokenized SPIN', async () => {
+  it('spin renders its notation tokenized, in the Execution block', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/spin');
-    expect(res.text).toContain('notation-display');
-    expect(res.text).toMatch(/notation-token[^>]*>SPIN</);
+    // "SPIN" is the trick's own name, so the Movement block would only repeat
+    // the h1 and is suppressed; the Execution chain carries the tokens.
+    expect(res.text).toContain('operational-notation-display');
+    expect(res.text).toMatch(/op-token[^>]*>SPIN</);
   });
 
   it('spin cross-links to its operator collection (See also: Spinning tricks)', async () => {

@@ -1,11 +1,14 @@
 /**
- * /freestyle/tricks?view=sets — By Set browse view tests.
+ * /freestyle/tricks?view=modifier — the modifier-grouped browse view.
  *
- * Pins the post-audit behavior:
- *   1. `?view=sets` answers "which tricks use this set?" — renders modifier-
- *      grouped trick lists, NOT the Set Encyclopedia surface.
+ * Pins the behavior:
+ *   1. `?view=modifier` answers "which tricks use this set or modifier?" —
+ *      renders modifier-grouped trick lists, NOT the Set Encyclopedia surface.
  *   2. Set Encyclopedia remains separate at `/freestyle/sets` (sets-
- *      encyclopedia.hbs template).
+ *      encyclopedia.hbs template), and is the canonical set-specific surface.
+ *   6. `?view=modifier` is not a supported view value: it falls through to the
+ *      default ADD view, with no alias and no redirect, and no rendered page
+ *      links to it.
  *   3. Ecosystem findability: fairy / spinning / stepping / quantum /
  *      ducking sections each surface their modifier-linked tricks.
  *   4. `spinning-paradox-mirage` reaches both spinning and paradox sections.
@@ -148,26 +151,26 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('/freestyle/tricks?view=sets — modifier-grouped trick lists (not Set Encyclopedia)', () => {
-  it('200s and renders the By Set view shell', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
+describe('/freestyle/tricks?view=modifier — modifier-grouped trick lists (not Set Encyclopedia)', () => {
+  it('200s and renders the By modifier view shell', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks?view=modifier');
     expect(res.status).toBe(200);
     expect(res.text).toContain('class="trick-view-toggle-active">By modifier<');
   });
 
   it('intro explains the page answers "which tricks use this set?"', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
+    const res = await request(await createApp()).get('/freestyle/tricks?view=modifier');
     expect(res.text).toMatch(/which tricks use this set or modifier/i);
   });
 
   it('cross-links to /freestyle/sets for the Set Encyclopedia', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
+    const res = await request(await createApp()).get('/freestyle/tricks?view=modifier');
     expect(res.text).toMatch(/href="\/freestyle\/sets"/);
     expect(res.text).toMatch(/Set Encyclopedia/);
   });
 
   it('does NOT render Set Encyclopedia set-card markup (set-card-formula / set-card-movement / derived-systems)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
+    const res = await request(await createApp()).get('/freestyle/tricks?view=modifier');
     expect(res.text).not.toContain('class="set-card-formula"');
     expect(res.text).not.toContain('class="set-card-movement"');
     expect(res.text).not.toContain('class="set-card-relations"');
@@ -175,7 +178,7 @@ describe('/freestyle/tricks?view=sets — modifier-grouped trick lists (not Set 
   });
 
   it('renders a section per modifier cluster', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
+    const res = await request(await createApp()).get('/freestyle/tricks?view=modifier');
     expect(res.text).toContain('id="cluster-set-uptime"');
     expect(res.text).toContain('id="cluster-rotational-body"');
     expect(res.text).toContain('id="cluster-no-plant-timing"');
@@ -183,26 +186,26 @@ describe('/freestyle/tricks?view=sets — modifier-grouped trick lists (not Set 
   });
 
   it('renders the two-line dict-trick-row stack per section', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
+    const res = await request(await createApp()).get('/freestyle/tricks?view=modifier');
     expect(res.text).toContain('class="dict-trick-row-stack"');
     expect(res.text).toMatch(/class="dict-trick-row[ "]/);
     expect(res.text).not.toContain('dict-card-stack');
   });
 });
 
-describe('/freestyle/tricks?view=sets — findability of representative ecosystem tricks', () => {
+describe('/freestyle/tricks?view=modifier — findability of representative ecosystem tricks', () => {
   it('rotational-body cluster includes spinning-paradox-mirage', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
+    const res = await request(await createApp()).get('/freestyle/tricks?view=modifier');
     expect(res.text).toMatch(/id="cluster-rotational-body"[\s\S]+?spinning-paradox-mirage/);
   });
 
   it('no-plant-timing cluster also includes spinning-paradox-mirage (multi-modifier surfacing)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
+    const res = await request(await createApp()).get('/freestyle/tricks?view=modifier');
     expect(res.text).toMatch(/id="cluster-no-plant-timing"[\s\S]+?spinning-paradox-mirage/);
   });
 
   it('set-uptime cluster includes fairy-mirage and fairy-butterfly', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
+    const res = await request(await createApp()).get('/freestyle/tricks?view=modifier');
     const section = res.text.match(/id="cluster-set-uptime"[\s\S]+?(?=<section class="content-section" id="cluster-|$)/);
     expect(section).not.toBeNull();
     expect(section![0]).toContain('fairy-mirage');
@@ -210,23 +213,23 @@ describe('/freestyle/tricks?view=sets — findability of representative ecosyste
   });
 
   it('set-uptime cluster includes stepping-eggbeater', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
+    const res = await request(await createApp()).get('/freestyle/tricks?view=modifier');
     expect(res.text).toMatch(/id="cluster-set-uptime"[\s\S]+?stepping-eggbeater/);
   });
 
   it('set-uptime cluster includes quantum-mirage', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
+    const res = await request(await createApp()).get('/freestyle/tricks?view=modifier');
     expect(res.text).toMatch(/id="cluster-set-uptime"[\s\S]+?quantum-mirage/);
   });
 
   it('dexterity-structural cluster includes ducking-mirage', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
+    const res = await request(await createApp()).get('/freestyle/tricks?view=modifier');
     expect(res.text).toMatch(/id="cluster-dexterity-structural"[\s\S]+?ducking-mirage/);
   });
 
   it('cluster jump nav surfaces the clusters', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
-    expect(res.text).toContain('class="sets-view-jump"');
+    const res = await request(await createApp()).get('/freestyle/tricks?view=modifier');
+    expect(res.text).toContain('aria-label="Modifier cluster jump"');
     expect(res.text).toMatch(/href="#cluster-set-uptime"/);
     expect(res.text).toMatch(/href="#cluster-rotational-body"/);
     expect(res.text).toMatch(/href="#cluster-no-plant-timing"/);
@@ -242,43 +245,88 @@ describe('/freestyle/sets — Set Encyclopedia remains separate', () => {
     expect(res.text).toMatch(/Set Encyclopedia|set-card|canonical sets/i);
   });
 
-  it('/freestyle/sets does NOT include the By Set browse-view markup', async () => {
+  it('/freestyle/sets does NOT include the By modifier browse-view markup', async () => {
     const res = await request(await createApp()).get('/freestyle/sets');
     expect(res.text).not.toContain('class="trick-view-toggle-active">By modifier<');
-    expect(res.text).not.toContain('class="sets-view-jump"');
+    expect(res.text).not.toContain('aria-label="Modifier cluster jump"');
   });
 });
 
-describe('/freestyle/tricks?view=sets — card formatting standardization', () => {
+describe('/freestyle/tricks?view=modifier — card formatting standardization', () => {
   it('uses the two-line row partial output (no raw operational notation outside the line-2 JOB value)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
+    const res = await request(await createApp()).get('/freestyle/tricks?view=modifier');
     // Every bracketed op-notation token (e.g. [DEX]) must sit inside the row's
-    // line-2 JOB value (dict-trick-row-job-value) / an op-token span — never
+    // line-2 JOB value (dict-trick-row-notation-value) / an op-token span — never
     // as loose body text.
     const re = /\[(DEX|BOD|PDX|XBD|DEL|UNS|XDEX)\]/g;
     let m: RegExpExecArray | null;
     while ((m = re.exec(res.text)) !== null) {
       const before = res.text.substring(Math.max(0, m.index - 260), m.index);
-      expect(before, `bracket token at ${m.index} not inside a JOB value`).toMatch(/dict-trick-row-job-value|op-token/);
+      expect(before, `bracket token at ${m.index} not inside a JOB value`).toMatch(/dict-trick-row-notation-value|op-token/);
     }
   });
 
-  it('rows carry JOB + ADD labels with no green ADD chip (two-line contract)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
+  it('rows carry notation and a difficulty value, with no green ADD chip', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks?view=modifier');
     expect(res.text).not.toMatch(/class="dict-card-add[ "]/);
     const m = res.text.match(/<article class="dict-trick-row[\s\S]*?data-trick-slug="spinning-paradox-mirage"[\s\S]*?<\/article>/);
     expect(m).not.toBeNull();
-    expect(m![0]).toMatch(/class="dict-trick-row-label">JOB</);
-    expect(m![0]).toMatch(/class="dict-trick-row-label">ADD</);
+    expect(m![0]).toMatch(/class="dict-trick-row-notation-value"/);
+    expect(m![0]).toMatch(/aria-label="Difficulty value">\(\d+\)</);
   });
 
   it('cluster section count + complexity-band headings render', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
+    const res = await request(await createApp()).get('/freestyle/tricks?view=modifier');
     // rotational-body has 1 trick (spinning-paradox-mirage, a 2-operator compound).
     expect(res.text).toMatch(/id="cluster-rotational-body"[\s\S]+?<span class="section-count">1<\/span>/);
     // set-uptime groups its four 1-operator tricks under a "1 operator" band.
     const setUptime = res.text.match(/id="cluster-set-uptime"[\s\S]+?(?=<section class="content-section" id="cluster-|$)/);
     expect(setUptime).not.toBeNull();
     expect(setUptime![0]).toContain('1 operator');
+  });
+});
+
+describe('?view=sets is not a supported browse value', () => {
+  it('falls through to the default ADD view rather than redirecting or aliasing', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('class="trick-view-toggle-active">By ADD<');
+    expect(res.text).not.toContain('class="trick-view-toggle-active">By modifier<');
+    expect(res.text).not.toContain('aria-label="Modifier cluster jump"');
+  });
+
+  it('no rendered page emits a ?view=sets link', async () => {
+    // Both spellings: raw in a template literal, and Handlebars-escaped when
+    // the href is interpolated from a service-supplied field.
+    const app = await createApp();
+    const urls = [
+      '/freestyle',
+      '/freestyle/tricks',
+      '/freestyle/tricks?view=modifier',
+      '/freestyle/tricks?family=mirage',
+      '/freestyle/sets',
+      '/freestyle/sets/pixie',
+      '/freestyle/about',
+      '/freestyle/glossary',
+    ];
+    for (const url of urls) {
+      const res = await request(app).get(url);
+      expect(res.status, url).toBe(200);
+      expect(res.text, `${url} must not link the retired view key`).not.toMatch(/view(?:=|&#x3D;)sets/);
+    }
+  });
+});
+
+describe('the former Set Hub controls land on the Set Encyclopedia', () => {
+  it('the about page links the Set Encyclopedia, and never names a Set Hub', async () => {
+    const res = await request(await createApp()).get('/freestyle/about');
+    expect(res.text).toMatch(/<a href="\/freestyle\/sets" class="action-link">Set Encyclopedia<\/a>/);
+    expect(res.text).not.toMatch(/Set Hub/);
+  });
+
+  it('a set detail page goes back to the Set Encyclopedia, and never names a Set Hub', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets/pixie');
+    expect(res.text).toMatch(/<a href="\/freestyle\/sets">Back to Set Encyclopedia<\/a>/);
+    expect(res.text).not.toMatch(/Set Hub/);
   });
 });

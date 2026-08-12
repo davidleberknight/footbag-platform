@@ -220,42 +220,31 @@ describe('Clipper-Stall family retirement (Family View)', () => {
 // 4. Unresolved-compound pill (dictionary trick cards)
 // ─────────────────────────────────────────────────────────────────────────
 
-describe('Unresolved-compound pill', () => {
-  it('renders the pending pill on each curator-flagged folk-derived row (shared-card view)', async () => {
+describe('Unresolved compounds stay listed, with no review state on the row', () => {
+  it('a curator-flagged folk-derived trick is listed like any other', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
-    // For each unresolved slug seeded into the fixture, the rendered
-    // card must carry the pending-pill marker. tomahawk is not in
-    // UNRESOLVED_COMPOUNDS (its decomposition is settled), so it is
-    // excluded here.
-    for (const slug of ['reaper', 'surreal', 'montage', 'surgery']) {
+    // A row states what a trick is, never how far along our own authoring of
+    // it has got. An unresolved compound is therefore indistinguishable from a
+    // settled one on the row: it is listed, named and reachable, and the
+    // review state is trick-page content. tomahawk is not in
+    // UNRESOLVED_COMPOUNDS (its decomposition is settled) and is listed here
+    // alongside the flagged four to show the rows do not differ.
+    for (const slug of ['reaper', 'surreal', 'montage', 'surgery', 'tomahawk']) {
       const idx = res.text.indexOf(`data-trick-slug="${slug}"`);
-      expect(idx, `${slug} card should render`).toBeGreaterThan(-1);
-      // Look for the pending-pill class within a short window after the
-      // card's data-trick-slug attribute (well under one card's length).
-      const window = res.text.substring(idx, idx + 4000);
-      expect(window, `${slug} should carry the pending pill`).toContain('class="dict-trick-row-pending"');
-    }
-  });
-
-  it('does NOT render the pill on non-flagged rows', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=add');
-    // Sanity rows that should NOT carry the pill. tomahawk is explicitly
-    // included to verify it is absent from UNRESOLVED_COMPOUNDS.
-    for (const slug of ['whirl', 'paradox_whirl', 'osis', 'torque', 'blender', 'drifter', 'tomahawk']) {
-      const idx = res.text.indexOf(`data-trick-slug="${slug}"`);
-      expect(idx, `${slug} card should render`).toBeGreaterThan(-1);
-      // Window from this card's start up to the next card (cheaper than
-      // a full parse): the pill must not appear inside it.
+      expect(idx, `${slug} row should render`).toBeGreaterThan(-1);
       const nextCard = res.text.indexOf('data-trick-slug=', idx + 1);
-      const upper = nextCard > -1 ? nextCard : idx + 4000;
-      const window = res.text.substring(idx, upper);
-      expect(window, `${slug} should not carry the pending pill`).not.toContain('class="dict-trick-row-pending"');
+      const window = res.text.substring(idx, nextCard > -1 ? nextCard : idx + 4000);
+      expect(window, `${slug} row carries a review state`).not.toContain('decomposition under review');
+      expect(window, `${slug} row carries a review state`).not.toContain('dict-trick-row-pending');
     }
   });
 
-  it('renders the pill text "decomposition under review" in italics', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=add');
-    expect(res.text).toMatch(/<span class="dict-trick-row-pending"[^>]*><em>decomposition under review<\/em><\/span>/);
+  it('no row on any browse view announces a decomposition under review', async () => {
+    for (const view of ['add', 'family', 'dex-count', 'movement-system']) {
+      const res = await request(createApp()).get(`/freestyle/tricks?view=${view}`);
+      expect(res.status).toBe(200);
+      expect(res.text, `${view} view carries a review state`).not.toContain('dict-trick-row-pending');
+    }
   });
 });

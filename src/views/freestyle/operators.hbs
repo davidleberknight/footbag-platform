@@ -47,7 +47,7 @@
         <article class="dict-trick-row" id="operator-{{slug}}" data-modifier-slug="{{slug}}">
           <div class="dict-trick-row-head">
             <a class="dict-trick-row-title" href="/freestyle/modifier/{{slug}}">{{name}}</a>
-            <span class="dict-trick-row-hashtag" aria-label="Tag identity">{{hashtag}}</span>
+            <span class="hashtag" aria-label="Tag identity">{{hashtag}}</span>
             <span class="operator-meta-chip">{{typeLabel}}</span>
             {{#if addLabel}}<span class="operator-meta-chip operator-meta-chip--add">{{addLabel}}</span>{{/if}}
             <span class="operator-status-pill operator-status-pill--{{status.key}}">{{status.label}}</span>
@@ -62,8 +62,8 @@
           {{/if}}
           {{#if descriptor}}<p class="operator-row-descriptor">{{descriptor}}</p>{{/if}}
           <p class="operator-row-links">
-            <a class="operator-row-link" href="/freestyle/modifier/{{slug}}">View details &rarr;</a>
-            <a class="operator-row-link" href="{{{browseHref}}}">Browse tricks &rarr;</a>
+            <a class="operator-row-link" href="/freestyle/modifier/{{slug}}">View details</a>
+            <a class="operator-row-link" href="{{{browseHref}}}">Browse tricks</a>
           </p>
         </article>
         {{/each}}
@@ -89,15 +89,15 @@
         <article class="dict-trick-row" id="operator-{{slug}}" data-modifier-slug="{{slug}}">
           <div class="dict-trick-row-head">
             <a class="dict-trick-row-title" href="/freestyle/modifier/{{slug}}">{{name}}</a>
-            <span class="dict-trick-row-hashtag" aria-label="Tag identity">{{hashtag}}</span>
+            <span class="hashtag" aria-label="Tag identity">{{hashtag}}</span>
             <span class="operator-meta-chip">{{typeLabel}}</span>
             {{#if addLabel}}<span class="operator-meta-chip operator-meta-chip--add">{{addLabel}}</span>{{/if}}
             <span class="operator-status-pill operator-status-pill--{{status.key}}">{{status.label}}</span>
           </div>
           {{#if descriptor}}<p class="operator-row-descriptor">{{descriptor}}</p>{{/if}}
           <p class="operator-row-links">
-            <a class="operator-row-link" href="/freestyle/modifier/{{slug}}">View details &rarr;</a>
-            <a class="operator-row-link" href="{{{browseHref}}}">Browse tricks &rarr;</a>
+            <a class="operator-row-link" href="/freestyle/modifier/{{slug}}">View details</a>
+            <a class="operator-row-link" href="{{{browseHref}}}">Browse tricks</a>
           </p>
         </article>
         {{/each}}

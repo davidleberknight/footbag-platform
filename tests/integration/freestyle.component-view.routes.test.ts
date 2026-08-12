@@ -3,7 +3,7 @@
  *
  * Scope verified:
  *   - /freestyle/tricks?view=component returns 200
- *   - /freestyle/tricks?view=sets is a server-side alias and renders the same view
+ *   - /freestyle/tricks?view=modifier is its own view, never a component alias
  *   - Three axes render in the documented order (Body modifiers, Dex relationships, Set modifiers)
  *   - Topology and movement-archetype axes are NOT rendered (deferred)
  *   - Axis-jump nav anchors at top of page
@@ -125,18 +125,16 @@ describe('GET /freestyle/tricks?view=component — route + alias (soft-retired)'
     expect(res.text).toContain('href="/freestyle/tricks?view=movement-system"');
   });
 
-  it('?view=sets is NO LONGER a component-view alias', async () => {
-    // ?view=sets is not a component-view alias: it activates the
-    // dedicated By Set browse view. The component view stays soft-
+  it('?view=modifier is not a component-view alias', async () => {
+    // The modifier browse is its own view. The component view stays soft-
     // retired; the canonical /freestyle/tricks?view=component URL still
     // renders with the retirement notice.
-    const res = await request(createApp()).get('/freestyle/tricks?view=sets');
+    const res = await request(createApp()).get('/freestyle/tricks?view=modifier');
     expect(res.status).toBe(200);
-    // The component view's markers must NOT appear on the sets URL anymore.
+    // The component view's markers must NOT appear on the modifier URL.
     expect(res.text).not.toContain('class="component-view-note"');
     expect(res.text).not.toContain('class="component-view-retirement-notice"');
-    // The dedicated By Set view's active toggle marker confirms the new
-    // routing took effect.
+    // The modifier view's active toggle marker confirms the routing.
     expect(res.text).toMatch(/class="trick-view-toggle-active">By modifier</);
   });
 });
@@ -148,7 +146,7 @@ describe('GET /freestyle/tricks?view=component — route + alias (soft-retired)'
 describe('component view — axes + axis-jump nav', () => {
   it('renders the axis-jump nav with Body modifiers, Dex relationships, and Set modifiers', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=component');
-    expect(res.text).toContain('class="component-axis-jump"');
+    expect(res.text).toContain('aria-label="Component axes"');
     expect(res.text).toMatch(/<a href="#axis-body">Body modifiers<\/a>/);
     expect(res.text).toMatch(/<a href="#axis-entry-topology">Dex relationships<\/a>/);
     expect(res.text).toMatch(/<a href="#axis-set">Set modifiers<\/a>/);

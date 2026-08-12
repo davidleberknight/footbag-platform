@@ -28,6 +28,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import sys
 try:
     import pysqlite3 as sqlite3
 except ImportError:
@@ -42,6 +43,9 @@ TIPS_NDJSON = FREESTYLE_ROOT / "inputs" / "footbag_org_member_tips.ndjson"
 REPORTS_DIR = FREESTYLE_ROOT / "reports"
 DEFAULT_DB = FREESTYLE_ROOT.parent / "database" / "footbag.db"
 SOURCE = "footbag_org_moves2"
+
+sys.path.insert(0, str(FREESTYLE_ROOT.parent / "scripts"))
+from _legacy_move_overrides import LEGACY_MOVE_ID_SLUG_OVERRIDES  # noqa: E402
 
 
 def name_to_slug(name: str) -> str:
@@ -65,20 +69,6 @@ FRONTIER_UNRESOLVED = {
 AMBIGUOUS_UNRESOLVED = {
     "atomic double over down",  # a canonical ('fusion') may exist but is unconfirmed; do not guess
 }
-
-# Curated legacy-move-ID -> canonical-slug overrides. Some legacy footbag.org
-# moves cannot be disambiguated by name because the legacy `moves` table gives
-# them the bare Name "Clipper": move 18 is the delay, which is the modern
-# clipper_stall (the modern bare "clipper" is the 1-ADD kick, its own move 2
-# "Clipper Kick"); move 209's Name is a stale "Clipper" though the move is
-# Spinning Clipper (its tips page heading reads "Tips for Spinning Clipper").
-# Without these, name mapping collides both onto the kick. Keyed on the stable
-# legacy move ID, which is authoritative for the source page.
-LEGACY_MOVE_ID_SLUG_OVERRIDES: dict[int, str] = {
-    18: "clipper_stall",
-    209: "spinning_clipper",
-}
-
 
 def _abort_override(move_id: int, slug: str, problem: str) -> None:
     """Abort the load with an actionable message. Never returns."""

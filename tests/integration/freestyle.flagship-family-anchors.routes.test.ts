@@ -147,9 +147,10 @@ describe('flagship anchors — universal notation card renders', () => {
       // Execution notation section: the operational chain renders as op-tokens.
       expect(res.text).toMatch(/operational-notation-display"[^>]*aria-label="Execution notation"/);
       expect(res.text).toMatch(/<h2>Execution notation<\/h2>/);
-      // ADD derivation section.
-      expect(res.text).toMatch(/trick-add-analysis"[^>]*aria-label="ADD derivation"/);
-      expect(res.text).toMatch(/<dt>ADD<\/dt>/);
+      // Difficulty section: the value, then the derivation behind it.
+      expect(res.text).toMatch(/trick-add-analysis"[^>]*aria-label="Difficulty"/);
+      expect(res.text).toMatch(/<dt>Difficulty<\/dt>/);
+      expect(res.text).toMatch(/class="trick-add-analysis-derivation"/);
     },
   );
 

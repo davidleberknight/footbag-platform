@@ -214,10 +214,11 @@ export const freestyleController = {
   },
 
   /**
-   * GET /freestyle/sets — Set Encyclopedia. Standalone
-   * minimalist index of canonical sets as first-class ontology objects.
-   * Distinct from the dictionary's /freestyle/tricks?view=sets surface
-   * and from the /freestyle/compositional-sets exploration hub.
+   * GET /freestyle/sets — Set Encyclopedia. The canonical set-specific
+   * surface: a minimalist index of canonical sets as first-class ontology
+   * objects. Distinct from the dictionary's /freestyle/tricks?view=modifier
+   * browse (tricks grouped by the modifier they use) and from the
+   * /freestyle/compositional-sets exploration hub.
    */
   setsEncyclopedia(_req: Request, res: Response, next: NextFunction): void {
     try {

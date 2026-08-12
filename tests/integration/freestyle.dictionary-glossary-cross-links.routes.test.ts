@@ -181,7 +181,7 @@ describe('Trick-card rendering — tokens wrap in anchor links when glossaryAnch
   // contract this describe block validates.
   it('renders the stepping token as an anchor on the ripwalk card', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks?view=family');
+    const res = await request(app).get('/freestyle/tricks?view=category');
     expect(res.status).toBe(200);
     const card = res.text.match(
       /data-trick-slug="ripwalk"[\s\S]*?<\/article>/,
@@ -194,7 +194,7 @@ describe('Trick-card rendering — tokens wrap in anchor links when glossaryAnch
 
   it('renders the butterfly token as an anchor on the ripwalk card', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks?view=family');
+    const res = await request(app).get('/freestyle/tricks?view=category');
     const card = res.text.match(
       /data-trick-slug="ripwalk"[\s\S]*?<\/article>/,
     );
@@ -206,7 +206,7 @@ describe('Trick-card rendering — tokens wrap in anchor links when glossaryAnch
 
   it('preserves data-token-slug on linked tokens', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks?view=family');
+    const res = await request(app).get('/freestyle/tricks?view=category');
     const card = res.text.match(
       /data-trick-slug="ripwalk"[\s\S]*?<\/article>/,
     );
@@ -216,19 +216,18 @@ describe('Trick-card rendering — tokens wrap in anchor links when glossaryAnch
     );
   });
 
-  it('renders linked tokens identically in ADD view (registry density)', async () => {
+  it('keeps chain tokens off the row-density views entirely', async () => {
+    // The row views carry identity and notation; a chain reading is
+    // structural content and reads on the trick's own page. A linked chain
+    // token must therefore never appear on a row.
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks?view=add');
-    const card = res.text.match(
-      /data-trick-slug="ripwalk"[\s\S]*?<\/article>/,
-    );
-    expect(card).not.toBeNull();
-    expect(card![0]).toMatch(
-      /<a class="sem-token[^"]*sem-token--linked"[^>]*>stepping<\/a>/,
-    );
-    expect(card![0]).toMatch(
-      /<a class="sem-token[^"]*sem-token--linked"[^>]*>butterfly<\/a>/,
-    );
+    for (const view of ['add', 'family', 'dex-count']) {
+      const res = await request(app).get(`/freestyle/tricks?view=${view}`);
+      expect(res.status).toBe(200);
+      const card = res.text.match(/data-trick-slug="ripwalk"[\s\S]*?<\/article>/);
+      expect(card, `ripwalk row missing in ${view} view`).not.toBeNull();
+      expect(card![0], `${view} row carries a chain token`).not.toMatch(/sem-token/);
+    }
   });
 });
 
@@ -268,19 +267,23 @@ describe('Glossary §6 modifier cards — "See tricks using X" deep-links', () =
   });
 });
 
-describe('Freestyle heroes carry no cross-link CTA clutter', () => {
-  it('glossary hero no longer carries a hero-cross-link CTA', async () => {
+describe('Freestyle heroes carry their own parts only, never navigation', () => {
+  it('the glossary hero holds no action link to another page', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/glossary');
     expect(res.status).toBe(200);
-    expect(res.text).not.toContain('class="hero-cross-link"');
+    const hero = res.text.match(/<div class="hero[^"]*"[\s\S]*?<\/div>\s*<div class="wrapper/);
+    expect(hero, 'glossary hero block').not.toBeNull();
+    expect(hero![0]).not.toContain('class="action-link"');
   });
 
-  it('trick-dictionary hero no longer carries a hero-cross-link CTA', async () => {
+  it('the trick-dictionary hero holds no action link to another page', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
-    expect(res.text).not.toContain('class="hero-cross-link"');
+    const hero = res.text.match(/<div class="hero[^"]*"[\s\S]*?<\/div>\s*<div class="wrapper/);
+    expect(hero, 'dictionary hero block').not.toBeNull();
+    expect(hero![0]).not.toContain('class="action-link"');
   });
 
   it('the glossary still cross-references the trick dictionary in its body', async () => {

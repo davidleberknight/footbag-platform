@@ -12,7 +12,7 @@
 <div class="wrapper">
 
   {{#if content.isResultsMode}}
-  <p class="mt-4 mb-4"><a href="/media/browse" class="btn btn-outline">&larr; Browse All Media</a></p>
+  <p class="mt-4 mb-4"><a href="/media/browse" class="btn btn-outline">Browse All Media</a></p>
   {{/if}}
 
   {{#if content.unresolvedTokens.length}}
@@ -98,9 +98,9 @@
           {{#if content.pagination}}
             {{#if (or content.pagination.hasPrev content.pagination.hasNext)}}
               <nav class="gallery-pagination" aria-label="Pagination">
-                {{#if content.pagination.hasPrev}}<a href="{{content.pagination.prevHref}}" rel="prev">&larr; Previous</a>{{/if}}
+                {{#if content.pagination.hasPrev}}<a href="{{content.pagination.prevHref}}" rel="prev">Previous</a>{{/if}}
                 <span class="gallery-pagination-status">Page {{content.pagination.page}}</span>
-                {{#if content.pagination.hasNext}}<a href="{{content.pagination.nextHref}}" rel="next">Next &rarr;</a>{{/if}}
+                {{#if content.pagination.hasNext}}<a href="{{content.pagination.nextHref}}" rel="next">Next</a>{{/if}}
               </nav>
             {{/if}}
           {{/if}}

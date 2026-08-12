@@ -15,17 +15,30 @@
 
 <div class="wrapper trick-shell">
 
-  {{!-- Taxonomy ribbon: identity tag, family, and ADD. Lives in the body,
-       not the hero. The hashtag links to the trick's media gallery only
-       when reference media exists; otherwise it is a plain identity token. --}}
+  {{> trick-compressed-from}}
+
+  {{!--
+    Trick-detail architecture: one universal shell with variable depth,
+    movement-language-first → structure-second. Curated movement-language
+    prose suppresses cleanly when unauthored. Relationship sections follow
+    a single-owner rule so nothing is shown twice: the Family ladder owns
+    same-family progression, Related Tricks owns conceptual movement
+    neighbours, and Structural Neighbors owns cross-base composition only.
+    The parent-delta line lives in Movement Intuition and the build path in
+    About, so no standalone mechanical-delta or progressive-readings
+    section is needed.
+  --}}
+  {{!-- Above the fold, in the order a detail page orients: plain words saying
+       what the trick is, then the taxonomy chips that classify it, then the
+       technical layer (notation and difficulty), then the compact
+       structural-fact block. A reader meets the trick in prose before meeting
+       the vocabulary used to file it. --}}
+  {{> trick-about}}
+
+  {{!-- Taxonomy ribbon: family, ADD, and pronunciation. Sits under the
+       plain-words opening, not above it. The identity hashtag renders in the
+       hero (trick-hero partial), matching the club-detail hero. --}}
   <p class="trick-hero-meta-ribbon" aria-label="Trick metadata">
-    {{#if content.trickTag}}
-      {{#if content.hasReferenceMedia}}
-      <a class="trick-hero-meta-chip trick-hero-meta-chip--media" href="{{content.referenceGalleryHref}}" aria-label="Media for this trick">{{content.trickTag}}</a>
-      {{else}}
-      <span class="trick-hero-meta-chip">{{content.trickTag}}</span>
-      {{/if}}
-    {{/if}}
     {{#if content.familyChip}}
     <a class="trick-hero-meta-chip trick-hero-meta-chip-family{{#if content.familyChip.isMinorLineage}} trick-hero-meta-chip-family--minor{{/if}}" href="/freestyle/tricks?family={{content.familyChip.slug}}">{{content.familyChip.label}}{{#if content.familyChip.isMinorLineage}} &middot; minor lineage{{/if}}</a>
     {{/if}}
@@ -43,29 +56,9 @@
     {{/if}}
   </p>
 
-  {{> trick-compressed-from}}
-
-  {{!--
-    Trick-detail architecture: one universal shell with variable depth,
-    movement-language-first → structure-second. Curated movement-language
-    prose suppresses cleanly when unauthored. Relationship sections follow
-    a single-owner rule so nothing is shown twice: the Family ladder owns
-    same-family progression, Related Tricks owns conceptual movement
-    neighbours, and Structural Neighbors owns cross-base composition only.
-    The parent-delta line lives in Movement Intuition and the build path in
-    About, so no standalone mechanical-delta or progressive-readings
-    section is needed.
-  --}}
-  {{!-- Above the fold: the universal notation card (Movement notation ->
-       Execution notation -> ADD), then About (description / how it's built /
-       compared with base), then the compact structural-fact block, so a reader
-       grasps what the trick is, how it is executed, and how it is built without
-       scrolling. --}}
-  {{> trick-notation}}
-
-  {{> trick-about}}
-
   {{> trick-relative-side}}
+
+  {{> trick-notation}}
 
   {{> trick-structural-facts}}
 
@@ -155,7 +148,7 @@
     </div>
 
     <p class="mt-4">
-      <a href="{{content.referenceGalleryHref}}" class="btn btn-outline">See All Videos for {{content.trickName}} &rarr;</a>
+      <a href="{{content.referenceGalleryHref}}" class="action-link">See All Videos for {{content.trickName}}</a>
     </p>
   </section>
   {{/if}}

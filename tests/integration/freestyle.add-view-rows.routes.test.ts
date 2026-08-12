@@ -1,16 +1,19 @@
 /**
- * /freestyle/tricks?view=add — two-line row contract.
+ * /freestyle/tricks?view=add — the row contract.
  *
- * Every promoted trick row obeys the SAME two-line structure:
- *   Line 1 (.dict-trick-row-head): name · hashtag · optional ≡ interpretation · optional media
- *   Line 2 (.dict-trick-row-notation): JOB: <op notation> · ADD: <formula | bare N>
+ * Every trick row obeys the same two-column structure:
+ *   Identity (.dict-trick-row-identity): name · difficulty value · hashtag ·
+ *     Detail · Media · aliases
+ *   Notation (.dict-trick-row-notation): the movement notation, unlabelled
  *
  * Hard rules pinned:
  *   - Every row uses the .dict-trick-row wrapper (uniform structure).
- *   - No green ADD chip (.dict-card-add) inside ADD-view rows.
- *   - Interpretation slot appears only when meaningful (2-bag-juggling has none).
- *   - JOB + ADD always present on line 2 (honest pending/unrated when unknown).
- *   - Media badge on line 1.
+ *   - The difficulty value is carried on the row itself, as a number rather
+ *     than as a derivation, because only this view groups by it.
+ *   - The row states what a trick is, never how far along our own authoring
+ *     of it has got: no status badge, no pending-decomposition note, no
+ *     not-yet-authored marker.
+ *   - Movement notation appears only inside the notation column.
  *   - Section headers still group by ADD.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -87,7 +90,7 @@ function cardWindow(text: string, slug: string): string {
   return text.substring(open, close + 10);
 }
 
-describe('ADD view — uniform two-line row contract', () => {
+describe('ADD view — uniform row contract', () => {
   it('200 + section headers still group by ADD', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
@@ -100,8 +103,8 @@ describe('ADD view — uniform two-line row contract', () => {
     for (const slug of EXAMPLE_SLUGS) {
       const w = cardWindow(res.text, slug);
       expect(w, `${slug} missing .dict-trick-row`).toMatch(/class="dict-trick-row/);
-      expect(w, `${slug} missing line-1 head`).toMatch(/class="dict-trick-row-head"/);
-      expect(w, `${slug} missing line-2 notation`).toMatch(/class="dict-trick-row-notation"/);
+      expect(w, `${slug} missing the identity column`).toMatch(/class="dict-trick-row-identity"/);
+      expect(w, `${slug} missing the notation column`).toMatch(/class="dict-trick-row-notation"/);
     }
   });
 
@@ -110,72 +113,51 @@ describe('ADD view — uniform two-line row contract', () => {
     expect(res.text).not.toMatch(/class="dict-card-add[ "]/);
   });
 
-  it('every row line 2 carries both a JOB label and an ADD label', async () => {
+  it('every row carries its difficulty value as a number, not a derivation', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=add');
     for (const slug of EXAMPLE_SLUGS) {
       const w = cardWindow(res.text, slug);
-      expect(w, `${slug} missing JOB label`).toMatch(/class="dict-trick-row-label">JOB</);
-      expect(w, `${slug} missing ADD label`).toMatch(/class="dict-trick-row-label">ADD</);
+      expect(w, `${slug} missing its difficulty value`).toMatch(/aria-label="Difficulty value">\(\d+\)</);
     }
   });
 
-  it('2-bag-juggling: no interpretation slot; line 2 has JOB + ADD', async () => {
+  it('no row states how far along our own authoring has got', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=add');
-    const w = cardWindow(res.text, '2-bag-juggling');
-    expect(w).not.toMatch(/class="dict-trick-row-interpretation"/);
-    expect(w).toMatch(/class="dict-trick-row-label">JOB</);
-    expect(w).toMatch(/class="dict-trick-row-label">ADD</);
+    for (const slug of EXAMPLE_SLUGS) {
+      const w = cardWindow(res.text, slug);
+      expect(w, `${slug} must not carry a status badge`).not.toMatch(/dict-trick-row-status/);
+      expect(w, `${slug} must not carry a pending-decomposition note`).not.toMatch(/dict-trick-row-pending/);
+      expect(w, `${slug} must not carry a not-yet-authored marker`).not.toMatch(/dict-badge-incomplete/);
+    }
   });
 
-  it('drifter: interpretation held (no ≡ reading); line 2 has JOB + ADD', async () => {
+  it('the operator-by-operator breakdown does not reach a browse row', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=add');
-    const w = cardWindow(res.text, 'drifter');
-    // drifter's "miraging clipper" reading is held for curator review, so it
-    // renders no ≡ interpretation and never teaches the miraging nickname.
-    expect(w).not.toMatch(/class="dict-trick-row-interpretation"/);
-    expect(w).not.toMatch(/miraging/);
-    expect(w).toMatch(/class="dict-trick-row-label">JOB</);
-    expect(w).toMatch(/class="dict-trick-row-label">ADD</);
+    // ducking-guay and ducking-mirage both have a derivable breakdown from the
+    // ducking modifier-link. It belongs on the trick detail page, in words; a
+    // reader scanning the dictionary wants the value, not the arithmetic.
+    expect(res.text).not.toMatch(/ducking\(\+1\) \+ guay\(2\)/);
+    expect(res.text).not.toMatch(/ducking\(\+1\) \+ mirage\(2\)/);
   });
 
   it('ducking-guay and ducking-mirage render with identical row structure', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=add');
     const guay = cardWindow(res.text, 'ducking-guay');
     const mirage = cardWindow(res.text, 'ducking-mirage');
-    // Same wrapper + same line-1/line-2 scaffolding + same JOB/ADD labels.
-    for (const marker of ['class="dict-trick-row', 'class="dict-trick-row-head"', 'class="dict-trick-row-notation"', 'class="dict-trick-row-label">JOB<', 'class="dict-trick-row-label">ADD<']) {
+    for (const marker of ['class="dict-trick-row', 'class="dict-trick-row-identity"', 'class="dict-trick-row-notation"']) {
       expect(guay).toContain(marker);
       expect(mirage).toContain(marker);
     }
-    // Both derive an ADD formula from the ducking modifier-link (ducking(+1) + base).
-    expect(guay).toMatch(/ducking\(\+1\) \+ guay\(2\)/);
-    expect(mirage).toMatch(/ducking\(\+1\) \+ mirage\(2\)/);
   });
 
-  it('media badge renders on line 1 (inside the head), not line 2', async () => {
+  it('movement notation appears only inside the notation column, never loose', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=add');
-    // Seed a media row: drifter has none here, so just assert the structural
-    // rule — when media chip class appears, it is within dict-trick-row-head.
-    // (No media seeded in this fixture; assert the negative isn't violated.)
-    const w = cardWindow(res.text, 'drifter');
-    if (/dict-trick-row-media/.test(w)) {
-      const headIdx = w.indexOf('dict-trick-row-head');
-      const notationIdx = w.indexOf('dict-trick-row-notation');
-      const mediaIdx = w.indexOf('dict-trick-row-media');
-      expect(mediaIdx).toBeGreaterThan(headIdx);
-      expect(mediaIdx).toBeLessThan(notationIdx);
-    }
-  });
-
-  it('operational notation appears ONLY inside the JOB slot (never loose)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
-    // Bracket tokens like [DEX] must sit inside a dict-trick-row-job-value code element.
     const re = /\[(DEX|BOD|PDX|XBD|DEL|UNS|XDEX)\]/g;
     let m: RegExpExecArray | null;
     while ((m = re.exec(res.text)) !== null) {
       const before = res.text.substring(Math.max(0, m.index - 260), m.index);
-      // Each bracket token must be preceded (within the window) by the JOB value code open tag.
-      expect(before, `bracket token at ${m.index} not inside a JOB value`).toMatch(/dict-trick-row-job-value|op-token/);
+      expect(before, `bracket token at ${m.index} sits outside a notation value`)
+        .toMatch(/dict-trick-row-notation-value|dict-trick-row-notation-value|op-token/);
     }
   });
 });

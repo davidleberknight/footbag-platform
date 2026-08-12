@@ -100,7 +100,8 @@ publicRouter.get('/freestyle/add-analysis', freestyleController.addAnalysis);
 publicRouter.get('/freestyle/combo-analysis', freestyleController.comboAnalysis);
 // /freestyle/sets is the standalone Set Encyclopedia, a minimalist index
 // of canonical sets as first-class ontology objects, distinct from
-// /freestyle/tricks?view=sets (Trick Dictionary's By-Set view) and from
+// /freestyle/tricks?view=modifier (the Trick Dictionary's modifier-grouped
+// trick browse) and from
 // /freestyle/compositional-sets (exploratory hub). Per-set detail pages
 // live at /freestyle/sets/:slug; flat Holden reference table at
 // /freestyle/sets/reference.

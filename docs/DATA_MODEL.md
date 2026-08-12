@@ -1405,6 +1405,7 @@ These apply a meaningful `WHERE` clause; always understand the filter before usi
 | `clubs_active` | `status = 'active'` | Public club directory listings (index + country pages); inactive clubs stay reachable by direct link |
 | `email_templates_enabled` | `is_enabled = 1` | Templates active for automated email flows |
 | `recurring_donation_subscriptions_active` | `status <> 'canceled'` | Active subscription queries |
+| `media_items_linkable_video` | `media_type = 'video' AND moderation_status = 'active' AND not tagged '#unavailable_embed'` | The only `media_items` read surface for whether a subject has watchable video (the hashtag-index surfaces decide media presence from `tag_stats` usage counts instead). Both the dictionary browse coverage query and the trick detail reference-media query read it, so the two cannot diverge on what counts as media. |
 
 ### Multi-condition search view
 

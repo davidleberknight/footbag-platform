@@ -1555,7 +1555,7 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
     base:        'hop-over',
     baseAdd:     2,
     totalAdd:    2,
-    derivation:  'inside-delay(1) + bod(1) = 2 ADD',
+    derivation:  'inside-stall(1) + bod(1) = 2 ADD',
     operationalNotation: '[set] > inside [DEL] > (hop over) [BOD]',  // Held-delay leg-over family; fb.org-derived ("Hop Over"); not Red-confirmed.
     provenance:  'Held-delay leg-over family. fb.org-derived: "Hold an inside delay close to the ground and hop over it with the support leg." Component tags [bod] [del] = 2 ADD. Sibling-not-merge to walk-over and wrap; distinct event signature (body jump over a held delay). Not Red-confirmed.',
   },
@@ -1566,7 +1566,7 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
     base:        'walk-over',
     baseAdd:     2,
     totalAdd:    2,
-    derivation:  'inside-delay(1) + dex(1) = 2 ADD',
+    derivation:  'inside-stall(1) + dex(1) = 2 ADD',
     operationalNotation: '[set] > inside [DEL] > OP (step over) [DEX]',  // Held-delay leg-over family; fb.org-derived ("Walk Over" / "Step Over"); not Red-confirmed. Step-over is the fb.org alias of walk-over.
     provenance:  'Held-delay leg-over family. fb.org-derived: "Put an inside delay on the ground and step over it with the opposite leg." Component tags [del] [dex] = 2 ADD. fb.org uses "step over" as the alias of walk-over. Sibling-not-merge to hop-over and wrap; distinct event signature (leg passes over a held delay). Not Red-confirmed.',
   },
@@ -1577,7 +1577,7 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
     base:        'wrap',
     baseAdd:     2,
     totalAdd:    2,
-    derivation:  'inside-delay(1) + dex(1) = 2 ADD',
+    derivation:  'inside-stall(1) + dex(1) = 2 ADD',
     operationalNotation: '[set] > inside [DEL] > (wrap) [DEX]',  // Held-delay leg-over family; new canonical row promoted in red_additions; fb.org-derived ("Wrap"); not Red-confirmed.
     provenance:  'Held-delay leg-over family. fb.org-derived: "Inside delay the footbag and pull the footbag around your support leg into a cross body position." Component tags [del] [dex] = 2 ADD. New canonical row promoted via red_additions. Sibling-not-merge to hop-over and walk-over; distinct event signature (bag pulled around the support leg). Not Red-confirmed.',
   },

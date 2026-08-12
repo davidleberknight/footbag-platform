@@ -1087,7 +1087,7 @@ Person hashtags reuse the member slug. Records have no separate hashtag namespac
 
 Alias hashtags for tricks canonicalize to the parent trick's slug at write time on every curator path (admin UI, seeder, migration script); `tags` and `media_tags` therefore carry canonical slugs only. Read-side surfaces that expose alias slugs (e.g. a tag gallery link carrying an alias) 301-redirect to the canonical slug. `freestyle_trick_aliases` is the single source of truth for the alias-to-canonical mapping.
 
-A trick hashtag and the trick detail page are separate read-side destinations. The plain-English trick name (e.g. *Double Leg Over*) is display text only and is never a link. Two clickable controls sit beside it, each rendering the canonical underscore token: the hashtag (`#double_leg_over`) opens the trick's media gallery when the trick has at least one media item and renders as a plain non-clickable token otherwise (a clickable hashtag is the signal that media exists), and a distinct "Trick Detail" link opens the detail page at `/freestyle/tricks/double_leg_over`. This keeps the gallery path and the detail path as two explicit controls that never collapse onto the name or onto one ambiguous control.
+A trick hashtag and the trick detail page are separate read-side destinations. The plain-English trick name (e.g. *Double Leg Over*) is display text only and is never a link. Clickable controls sit beside it: the hashtag (`#double_leg_over`) opens the trick's media gallery when the trick has at least one media item and renders as a plain non-clickable token otherwise; a distinct "Detail" link opens the detail page at `/freestyle/tricks/double_leg_over`; and a "Media" link opens the same gallery as the hashtag, rendered only when the trick has media. Media presence therefore carries two agreeing signals, a live hashtag and a present Media control, rather than resting on the hashtag alone. This keeps the gallery path and the detail path as explicit controls that never collapse onto the name or onto one ambiguous control.
 
 Rationale:
 
@@ -2429,6 +2429,8 @@ Requirements:
 
 - A new breakpoint is not introduced; layouts fit the canonical set.
 
+- The token set is shared, not per-section. A token is added because the site lacks a value it needs, never so one section can carry its own palette. A `:root` block scoped to a single section, and a second token name that merely aliases an existing one, both defeat this gate rather than satisfy it: they pass the mechanical check while producing exactly the parallel design language the one-public-rendering-standard decision forbids.
+
 Trade-offs:
 
 - The gate rejects expedient one-off values, forcing the token-first step even for a single use.
@@ -2526,6 +2528,140 @@ Impact:
 
 - A normal deploy ships changed CSS/JS and the edge serves it immediately under a new `?v=` token, with no manual invalidation.
 - A new asset reference uses the helper; the conformance test fails a build that hardcodes an asset URL.
+
+## 4.12 Bounded Type-Size Ramp
+
+Decision:
+
+Public pages draw every font size from one bounded scale. Each step is a whole or half pixel at the 16px root, and each has a single job:
+
+| Step | At 16px root | Context |
+|---|---|---|
+| `0.9rem` | 14.4px | Everything subordinate to body: metadata, captions, section intros, timestamps, provenance notes, badges, chips, tag tokens, table cells |
+| `1rem` | 16px | Body prose and control labels; the default, and what a reader spends most time in |
+| `1.25rem` | 20px | Subordinate heading (`h3`) and the title of a card or panel |
+| `1.5rem` | 24px | Section heading (`h2`) |
+| `2.25rem` | 36px | Page title (`h1`) |
+
+Above the text scale sit two display sizes reserved for figures and icon glyphs rather than reading: `2rem` and `3rem`. The `em` forms (`1em`, `0.9em`) are the same steps expressed relative to a parent, for text nested inside a component that has already chosen its size.
+
+Nothing renders below `0.9rem`. Text subordinate to that is made subordinate by colour and weight, not by shrinking further. The compact content-section variant differs from an ordinary section in vertical rhythm only; both take the same `1.5rem` section heading.
+
+Rationale:
+
+- A component that picks its own size produces a page where nothing outranks anything. The stylesheet had drifted to sixty distinct font sizes, twenty of them inside a tenth of a rem of a neighbour, and one trick detail page rendered its section headings smaller and lighter than the prose beneath them.
+
+- Steps a tenth of a rem apart are not a hierarchy a reader can perceive; they are an accident that survived review. Ratios wide enough to see are what make a heading read as a heading.
+
+- Five steps cover every job the site has. A sixth step is almost always a second name for one that already exists, which is how sixty accumulated.
+
+- Text below roughly 14px is uncomfortable to read and disproportionately excludes older and low-vision readers, who are a real share of a sport's audience. Colour and weight push text into the background without pushing it out of reach.
+
+- Each step maps to one job, so choosing a size is a question about what the text *is*, not about how big it should look.
+
+- A closed set is checkable by a machine. A designer's intent is not.
+
+Requirements:
+
+- Every `font-size` in the stylesheet is one of the five text steps, one of their two `em` forms, or one of the two display sizes. A new intermediate value is a design question, not a local choice.
+
+- A section heading always outranks the body text under it in both size and colour.
+
+- Sizes carried in custom properties obey the scale like any other declaration; a token is a name for a step, not an exemption from it.
+
+Trade-offs:
+
+- Components whose size was tuned by eye shift by a step. Badge, chip, and footnote text grows noticeably, because the scale has no step below `0.9rem`; those elements now recede by colour rather than by size.
+
+Impact:
+
+- The convention gate rejects any font size outside the scale, so the set stays closed without depending on review.
+
+## 4.13 Reading Measure
+
+Decision:
+
+Running prose is capped at a comfortable reading measure of roughly 70 characters. The cap is applied per component through `max-width`, in `ch` units for text and in pixels where a component caps a mixed column; the page container itself stays full width so grids, tables, and media are unaffected.
+
+Rationale:
+
+- The site container is wide enough that uncapped prose reached about 160 characters per line, which roughly doubles comfortable measure and makes a reader lose the line on return.
+
+- Capping the component rather than the container keeps wide content (ladders, grids, tables, galleries) at full width, where its own structure carries the eye.
+
+Requirements:
+
+- Every element carrying running prose has a measure cap, whether from its own rule or an ancestor prose rule.
+
+- A component that mixes prose with wide content caps the prose, not the component.
+
+Trade-offs:
+
+- Prose no longer fills the column on a wide display, leaving deliberate whitespace to its right.
+
+Impact:
+
+- Section intros and detail-page prose across the site read at one measure.
+
+## 4.14 Link and Disclosure Affordances
+
+Decision:
+
+A link is marked as a link by its colour and its resting underline, never by a decorative glyph. No public control appends an arrow to its label, in the template text or through a CSS pseudo-element. Disclosure controls use the browser's native marker; no surface draws its own caret. Arrows and triangles that carry meaning are not affordances and are unaffected: sort-direction indicators, notation such as an input-to-result transformation, sequence and ladder separators, and position markers within a list.
+
+Rationale:
+
+- An arrow after a label is decoration that every author must remember to type and every reviewer must check. It says nothing the colour and underline have not already said.
+
+- The native disclosure marker is free, accessible, consistent across the site, and rotates on open without any code. Every custom caret is a rule that can strand its glyph, which is exactly what happened where a summary was laid out as a column.
+
+- Distinguishing decoration from notation keeps the ban enforceable: notation is content and stays.
+
+Requirements:
+
+- No `&rarr;`, `&larr;`, or literal arrow character in the rendered label of a public control, and no arrow supplied by a `::before` or `::after` on a link class.
+
+- Disclosure summaries keep the native marker: no `list-style: none`, no marker suppression, no substitute glyph.
+
+- Pagination and back links carry words ("Previous", "Next", "Back to ..."), not glyphs.
+
+Trade-offs:
+
+- Controls lose a visual cue some readers associate with navigation; colour, underline, and wording carry it instead.
+
+Impact:
+
+- Internal and administrative tooling is out of scope and keeps its existing glyphs.
+
+## 4.15 Callout and Box Policy
+
+Decision:
+
+A box is a deliberate primitive, not the default way to group content. Enclosing chrome (border, tinted background, radius, accent bar) is reserved for notices, cards, empty states, and panels presenting technical notation. Ordinary sections are separated by heading, spacing, and rules. Where a callout does carry an accent bar, the bar takes one of three roles: neutral for an aside, the secondary accent for informational content, and the warning accent for a caveat.
+
+Rationale:
+
+- Chrome applied per section stops distinguishing anything. One page stacked twelve boxed blocks, so the boxes marked nothing and the page read as a stack of unrelated cards.
+
+- Bar colour only communicates when the palette is small enough to learn. A section drifted to sixteen bar colours whose meanings no reader could recover, including a focus-indicator colour reused as decoration.
+
+- Three roles cover every callout the site actually has.
+
+Requirements:
+
+- A new boxed treatment names which reserved category it belongs to, or it is not a box.
+
+- An accent bar takes one of the three role colours; a bar colour is never invented per surface, and a token defined for another purpose is never borrowed as decoration.
+
+- A colour key that genuinely encodes a taxonomy is a legend, not a callout bar, and is documented where the taxonomy lives.
+
+Trade-offs:
+
+- Content previously separated by a box relies on spacing and heading hierarchy, which requires those to be correct.
+
+Impact:
+
+- Technical notation panels keep their chrome, which is what makes them legible as notation.
 
 # 5. Back-End Services and Patterns
 

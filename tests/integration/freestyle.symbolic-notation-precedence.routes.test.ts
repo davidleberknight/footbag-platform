@@ -88,57 +88,57 @@ afterAll(() => cleanupTestDb(dbPath));
 // 1. New chain entries render symbolically (not via op-notation fallback)
 // ─────────────────────────────────────────────────────────────────────────
 
+// A chain reading is structural content, so it reads in the trick's own
+// Equivalent readings section; the browse row carries the trick's notation and
+// never a reading. Each test below therefore checks the reading on the page and
+// the notation on the row.
 describe('branch-family chain additions render symbolically', () => {
-  it('paradox_blender card renders the chain reading, not the operational notation', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
+  function rowFor(html: string, slug: string): string {
+    const idx = html.indexOf(`data-trick-slug="${slug}"`);
+    expect(idx, `row for ${slug} not found`).toBeGreaterThan(-1);
+    const next = html.indexOf('data-trick-slug=', idx + 1);
+    return html.substring(idx, next > -1 ? next : idx + 4000);
+  }
+  function readings(html: string): string {
+    return html.match(/<ol class="equivalent-readings-list">[\s\S]*?<\/ol>/)?.[0] ?? '';
+  }
+
+  it('paradox_blender renders its chain reading on the page and its notation on the row', async () => {
+    const app = createApp();
+    const page = await request(app).get('/freestyle/tricks/paradox_blender');
+    expect(page.status).toBe(200);
+    expect(readings(page.text)).toBeTruthy();
+
+    const res = await request(app).get('/freestyle/tricks?view=dex-count');
     expect(res.status).toBe(200);
-    const idx = res.text.indexOf('data-trick-slug="paradox_blender"');
-    expect(idx).toBeGreaterThan(-1);
-    const nextCard = res.text.indexOf('data-trick-slug=', idx + 1);
-    const window = res.text.substring(idx, nextCard > -1 ? nextCard : idx + 4000);
-    // The chain reading is rendered as semantic tokens; the equivalence
-    // sigil + class are the load-bearing render-time markers.
-    expect(window).toContain('dict-trick-row-interpretation');
-    expect(window).toContain('&equiv;');
-    // Two-line contract: the JOB also renders on line 2 alongside the line-1
-    // chain reading (independent slots).
-    expect(window).toMatch(/class="dict-trick-row-job-value">/);
+    expect(rowFor(res.text, 'paradox_blender')).toMatch(/class="dict-trick-row-notation-value">/);
   });
 
   it('food_processor surfaces the Red-locked Blurry-Blender reading', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
-    const idx = res.text.indexOf('data-trick-slug="food_processor"');
-    expect(idx).toBeGreaterThan(-1);
-    const nextCard = res.text.indexOf('data-trick-slug=', idx + 1);
-    const window = res.text.substring(idx, nextCard > -1 ? nextCard : idx + 4000);
-    expect(window).toContain('dict-trick-row-interpretation');
-    // The blurry + blender tokens both appear in the first reading.
-    expect(window).toMatch(/blurry[\s\S]{0,300}blender/i);
+    const page = await request(createApp()).get('/freestyle/tricks/food_processor');
+    expect(page.status).toBe(200);
+    expect(readings(page.text)).toMatch(/blurry[\s\S]{0,300}blender/i);
   });
 
   it('spender surfaces the curator-prose-confirmed reading', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
-    const idx = res.text.indexOf('data-trick-slug="spender"');
-    expect(idx).toBeGreaterThan(-1);
-    const nextCard = res.text.indexOf('data-trick-slug=', idx + 1);
-    const window = res.text.substring(idx, nextCard > -1 ? nextCard : idx + 4000);
-    expect(window).toContain('dict-trick-row-interpretation');
-    expect(window).toMatch(/spinning[\s\S]{0,300}paradox[\s\S]{0,300}blender/i);
+    const page = await request(createApp()).get('/freestyle/tricks/spender');
+    expect(page.status).toBe(200);
+    expect(readings(page.text)).toMatch(/spinning[\s\S]{0,300}paradox[\s\S]{0,300}blender/i);
   });
 
-  it('paradox_drifter: deeper miraging reading held, renders no interpretation but keeps JOB', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
-    const idx = res.text.indexOf('data-trick-slug="paradox_drifter"');
-    expect(idx).toBeGreaterThan(-1);
-    const nextCard = res.text.indexOf('data-trick-slug=', idx + 1);
-    const window = res.text.substring(idx, nextCard > -1 ? nextCard : idx + 4000);
+  it('paradox_drifter: the held miraging reading never surfaces, on the page or the row', async () => {
+    const app = createApp();
     // The deeper 'paradox miraging clipper' reading is held with drifter's own
-    // decomposition, and 'paradox drifter' echoes the canonical name, so no ≡
-    // interpretation renders. It must never show the miraging nickname.
-    expect(window).not.toContain('dict-trick-row-interpretation');
-    expect(window).not.toMatch(/miraging/);
-    // Two-line contract: JOB still renders on line 2 (independent of the chain).
-    expect(window).toMatch(/class="dict-trick-row-job-value">/);
+    // decomposition, and 'paradox drifter' echoes the canonical name. Neither
+    // the page nor the row may show the miraging nickname.
+    const page = await request(app).get('/freestyle/tricks/paradox_drifter');
+    expect(page.status).toBe(200);
+    expect(readings(page.text)).not.toMatch(/miraging/);
+
+    const res = await request(app).get('/freestyle/tricks?view=dex-count');
+    const row = rowFor(res.text, 'paradox_drifter');
+    expect(row).not.toMatch(/miraging/);
+    expect(row).toMatch(/class="dict-trick-row-notation-value">/);
   });
 });
 
@@ -160,7 +160,7 @@ describe('rendering precedence preserved (no regression)', () => {
     const nextCard = res.text.indexOf('data-trick-slug=', idx + 1);
     const window = res.text.substring(idx, nextCard > -1 ? nextCard : idx + 4000);
     // No chain → line-2 JOB renders (resolved value), no line-1 interpretation.
-    expect(window).toMatch(/class="dict-trick-row-job-value">/);
+    expect(window).toMatch(/class="dict-trick-row-notation-value">/);
     expect(window).not.toContain('dict-trick-row-interpretation');
   });
 });

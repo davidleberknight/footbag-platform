@@ -211,19 +211,19 @@ describe('ADD view and Family view — shared two-line row contract', () => {
       expect(addRegion, `dict-trick-row not found in ADD view for ${slug}`).not.toBeNull();
       expect(familyRegion, `dict-trick-row not found in family view for ${slug}`).not.toBeNull();
 
-      // Same plain-text name + Trick Detail link in BOTH views.
-      const namePat   = `<span class="dict-trick-row-title">${pilot.name}</span>`;
-      const detailPat = new RegExp(`<a class="dict-trick-row-detail" href="${escapedHref}">Detail<\\/a>`);
-      expect(addRegion![0], `ADD view missing name for ${slug}`).toContain(namePat);
-      expect(familyRegion![0], `Family view missing name for ${slug}`).toContain(namePat);
+      // Same name link + Detail control in BOTH views, both opening the page.
+      const namePat   = new RegExp(`<a[^>]*href="${escapedHref}"[^>]*>${pilot.name}<\\/a>`);
+      const detailPat = new RegExp(`<a[^>]*href="${escapedHref}"[^>]*>\\s*Detail\\s*<\\/a>`);
+      expect(addRegion![0], `ADD view missing name for ${slug}`).toMatch(namePat);
+      expect(familyRegion![0], `Family view missing name for ${slug}`).toMatch(namePat);
       expect(addRegion![0], `ADD view missing detail link for ${slug}`).toMatch(detailPat);
       expect(familyRegion![0], `Family view missing detail link for ${slug}`).toMatch(detailPat);
 
-      // ADD value: line-2 ADD slot in both; the green shared-card chip never
-      // appears on the row. ADD view groups by ADD bucket (id="add-N").
+      // Difficulty value on the row in both views; the green shared-card chip
+      // never appears. ADD view groups by ADD bucket (id="add-N").
       expect(addView.text).toContain(`id="add-${pilot.adds}"`);
-      expect(addRegion![0]).toContain('class="dict-trick-row-add"');
-      expect(familyRegion![0]).toContain('class="dict-trick-row-add"');
+      expect(addRegion![0]).toContain(`aria-label="Difficulty value">(${pilot.adds})<`);
+      expect(familyRegion![0]).toContain(`aria-label="Difficulty value">(${pilot.adds})<`);
       expect(addRegion![0]).not.toMatch(/class="dict-card-add[ "]/);
       expect(familyRegion![0]).not.toMatch(/class="dict-card-add[ "]/);
 

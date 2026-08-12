@@ -371,7 +371,10 @@ describe('GET /freestyle — two-band landing', () => {
   it('renders Banner 1 (The Language of Freestyle) and retires Start Here', async () => {
     const res = await request(createApp()).get('/freestyle');
     expect(res.text).toContain('>The Language of Freestyle<');
-    expect(res.text).not.toContain('>Start Here<');
+    // The retired card was headed "Start Here". Anchored on a heading rather
+    // than the bare string, because the beginner on-ramp is a button reading
+    // "Start Here" and that control is not the retired card.
+    expect(res.text).not.toMatch(/<h[1-6][^>]*>\s*Start Here\s*<\/h[1-6]>/);
     for (const href of [
       '/freestyle/tricks',
       '/freestyle/glossary',

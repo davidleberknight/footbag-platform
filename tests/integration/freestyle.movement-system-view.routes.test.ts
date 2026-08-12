@@ -111,7 +111,6 @@ describe('GET /freestyle/tricks?view=movement-system — axes + groups', () => {
   it('renders the observational note + axis-jump nav', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=movement-system');
     expect(res.text).toContain('movement-system-view-note');
-    expect(res.text).toContain('movement-axis-jump');
     expect(res.text).toMatch(/aria-label="Movement System axes"/);
   });
 
@@ -172,15 +171,14 @@ describe('GET /freestyle/tricks?view=movement-system — cards', () => {
     expect(res.text).not.toContain('dict-card-stack');
   });
 
-  it('rows carry JOB + ADD labels with no green ADD chip (two-line contract)', async () => {
+  it('rows carry notation and a difficulty value, with no green ADD chip', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=movement-system');
     expect(res.text).not.toMatch(/class="dict-card-add[ "]/);
     const m = res.text.match(/<article class="dict-trick-row[\s\S]*?data-trick-slug="pixie-illusion"[\s\S]*?<\/article>/);
     expect(m).not.toBeNull();
-    expect(m![0]).toMatch(/class="dict-trick-row-label">JOB</);
-    expect(m![0]).toMatch(/class="dict-trick-row-label">ADD</);
-    // JOB resolves from the row's operational notation.
-    expect(m![0]).toMatch(/class="dict-trick-row-job-value">/);
+    // The notation resolves from the row's operational notation.
+    expect(m![0]).toMatch(/class="dict-trick-row-notation-value">/);
+    expect(m![0]).toMatch(/aria-label="Difficulty value">\(\d+\)</);
   });
 
   it('sorts pixie-illusion (ADD 3) before the ADD-4 tricks inside the Set / Uptime axis', async () => {

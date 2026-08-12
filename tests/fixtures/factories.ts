@@ -327,6 +327,40 @@ export function insertMediaItem(db: BetterSqlite3.Database, o: MediaItemOverride
 
 // ── TT lesson media ──────────────────────────────────────────────────────────
 
+/**
+ * Attach tag rows to a media item, creating each tag on first use. The
+ * normalized form is the lowercased display form, matching the tags-table
+ * CHECK constraint and the production tagging path.
+ *
+ * Distinct from the re-exported `attachMediaTag` (singular), which takes an
+ * existing tag's id and throws when that tag row is missing; that guard is
+ * deliberate for the persona harness. This one is for fixtures that name a tag
+ * by its display form and expect it to come into being.
+ */
+function attachMediaTags(
+  db: BetterSqlite3.Database,
+  mediaId: string,
+  tagDisplays: string[],
+): void {
+  for (const tagDisplay of tagDisplays) {
+    const tagNormalized = tagDisplay.toLowerCase();
+    const tagId = `tag-${tagNormalized.replace(/[^a-z0-9]/g, '_')}`;
+    db.prepare(`
+      INSERT OR IGNORE INTO tags (
+        id, created_at, created_by, updated_at, updated_by, version,
+        tag_normalized, tag_display
+      ) VALUES (?, ?, 'test', ?, 'test', 1, ?, ?)
+    `).run(tagId, TS, TS, tagNormalized, tagDisplay);
+
+    db.prepare(`
+      INSERT INTO media_tags (
+        id, created_at, created_by, updated_at, updated_by, version,
+        media_id, tag_id, tag_display
+      ) VALUES (?, ?, 'test', ?, 'test', 1, ?, ?, ?)
+    `).run(`mt-${mediaId}-${tagId}`, TS, TS, mediaId, tagId, tagDisplay);
+  }
+}
+
 export interface TtLessonOverrides {
   uploader_member_id: string;
   ttNumber: number;
@@ -335,6 +369,7 @@ export interface TtLessonOverrides {
   lessonTitle?: string;    // "Knee Stall", etc.; defaults derived from slug
   source_id?: string;      // 'tt_youtube' by default
   caption?: string;        // overrides the auto-generated TT caption
+  extraTags?: string[];    // additional tag displays beyond the sidecar three
   id?: string;
 }
 
@@ -372,23 +407,7 @@ export function insertTtLesson(db: BetterSqlite3.Database, o: TtLessonOverrides)
   );
 
   // Tag rows: trick slug + #freestyle + #trick (matches sidecar shape).
-  for (const tagDisplay of [`#${o.trickSlug}`, '#freestyle', '#trick']) {
-    const tagNormalized = tagDisplay.toLowerCase();
-    const tagId = `tag-${tagNormalized.replace(/[^a-z0-9]/g, '_')}`;
-    db.prepare(`
-      INSERT OR IGNORE INTO tags (
-        id, created_at, created_by, updated_at, updated_by, version,
-        tag_normalized, tag_display
-      ) VALUES (?, ?, 'test', ?, 'test', 1, ?, ?)
-    `).run(tagId, TS, TS, tagNormalized, tagDisplay);
-
-    db.prepare(`
-      INSERT INTO media_tags (
-        id, created_at, created_by, updated_at, updated_by, version,
-        media_id, tag_id, tag_display
-      ) VALUES (?, ?, 'test', ?, 'test', 1, ?, ?, ?)
-    `).run(`mt-${id}-${tagId}`, TS, TS, id, tagId, tagDisplay);
-  }
+  attachMediaTags(db, id, [`#${o.trickSlug}`, '#freestyle', '#trick', ...(o.extraTags ?? [])]);
 
   return id;
 }
@@ -399,13 +418,15 @@ export interface MemberSubmittedVideoOverrides {
   source_id?: string | null;       // member submissions leave this NULL (default)
   id?: string;
   moderation_status?: string;      // default 'active'
+  tags?: string[];                 // tag displays to attach; none by default
 }
 
 /**
  * Insert a member-submitted URL-reference video (media_type='video',
  * created_by='member'), mirroring the production insertMemberVideo shape. By
  * default source_id is NULL, matching real member submissions; pass source_id to
- * attribute it to a media source.
+ * attribute it to a media source. Pass tags to make the clip discoverable the
+ * way a real submission is, for example tagging it with a trick's '#slug'.
  */
 export function insertMemberSubmittedVideo(
   db: BetterSqlite3.Database,
@@ -434,6 +455,7 @@ export function insertMemberSubmittedVideo(
     o.videoId, `https://www.youtube.com/watch?v=${o.videoId}`,
     sourceId, o.moderation_status ?? 'active',
   );
+  attachMediaTags(db, id, o.tags ?? []);
   return id;
 }
 
@@ -1282,7 +1304,7 @@ export interface ActivePlayerVouchOverrides {
 
 // ── Freestyle trick modifier + modifier-link helpers ─────────────────────────
 //
-// Used by the trick-dictionary tests that exercise ?view=sets and the
+// Used by the trick-dictionary tests that exercise ?view=modifier and the
 // modifier reference table. Both helpers are minimal wrappers over the raw
 // schema; they exist so tests don't have to repeat the INSERT shape.
 

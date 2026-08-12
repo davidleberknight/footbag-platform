@@ -71,7 +71,7 @@
   {{! ── Landing grid: 3-band conceptual map of the
       dictionary's browse axes. Renders ONLY on the default landing view
       (?view=add, the default) to orient first-time readers. On secondary
-      views (?view=family, ?view=sets, etc.) the inline view-toggle below
+      views (?view=family, ?view=modifier, etc.) the inline view-toggle below
       handles persistent quick-switching nav. Emerging Vocabulary lives
       under the third band (Tracking & Expansion), promoted from its
       previous separate footer-style paragraph. }}
@@ -94,7 +94,7 @@
             {{#each chips}}<a class="dict-landing-card-chip" href="{{href}}">{{label}}{{#if count}} <span class="dict-landing-card-chip-count">{{count}}</span>{{/if}}</a>{{#unless @last}} <span class="dict-landing-card-chip-sep">·</span> {{/unless}}{{/each}}
           </p>
           {{/if}}
-          <p class="dict-landing-card-open"><a href="{{href}}">Open &rarr;</a></p>
+          <p class="dict-landing-card-open"><a href="{{href}}">Open</a></p>
           {{#if crossLink}}
           <p class="dict-landing-card-crosslink"><a href="{{crossLink.href}}">{{crossLink.label}}</a></p>
           {{/if}}
@@ -109,13 +109,13 @@
 
   {{#if content.activeFamily}}
   <p class="browse-view-intro">{{content.familyFilterIntro}}
-    <a class="dictionary-intro-glossary-link" href="/freestyle/glossary">New to the dictionary? Open the glossary &rarr;</a>
+    <a class="dictionary-intro-glossary-link" href="/freestyle/glossary">New to the dictionary? Open the glossary</a>
     &nbsp;<a href="/freestyle/tricks">Clear the filter</a> to see the full dictionary.</p>
-  {{#if content.relatedSetGroups.length}}
-  <nav class="related-set-groups" aria-label="Related set or modifier groups">
-    <span class="related-set-groups-label">Related set/modifier groups:</span>
-    {{#each content.relatedSetGroups}}
-      <a class="related-set-group-link" href="{{{href}}}">{{modifierName}} <span class="related-set-group-count">({{count}})</span></a>{{#unless @last}} <span class="related-set-group-sep">·</span> {{/unless}}
+  {{#if content.relatedModifierGroups.length}}
+  <nav class="related-modifier-groups" aria-label="Related set or modifier groups">
+    <span class="related-modifier-groups-label">Related set/modifier groups:</span>
+    {{#each content.relatedModifierGroups}}
+      <a class="related-modifier-group-link" href="{{{href}}}">{{modifierName}} <span class="related-modifier-group-count">({{count}})</span></a>{{#unless @last}} <span class="related-modifier-group-sep">·</span> {{/unless}}
     {{/each}}
   </nav>
   {{/if}}
@@ -155,10 +155,10 @@
       <a href="/freestyle/tricks?view=dex-count">By dex count</a>
     {{/if}}
     <span class="trick-view-toggle-sep">·</span>
-    {{#if (eq content.activeView "sets")}}
+    {{#if (eq content.activeView "modifier")}}
       <span class="trick-view-toggle-active">By modifier</span>
     {{else}}
-      <a href="/freestyle/tricks?view=sets">By modifier</a>
+      <a href="/freestyle/tricks?view=modifier">By modifier</a>
     {{/if}}
   </nav>
   {{#unless (eq content.activeView "add")}}
@@ -190,10 +190,10 @@
     {{/if}}
   </nav>
   {{#if content.addJumpChips.length}}
-  <nav class="add-jump" aria-label="Jump to ADD level">
-    <span class="add-jump-label">Jump to:</span>
+  <nav class="jump-bar" aria-label="Jump to ADD level">
+    <span class="jump-bar-label">Jump to:</span>
     {{#each content.addJumpChips}}
-      <a href="{{href}}">{{label}}</a>{{#unless @last}} <span class="component-axis-jump-sep">·</span> {{/unless}}
+      <a href="{{href}}">{{label}}</a>{{#unless @last}} <span class="jump-bar-sep">·</span> {{/unless}}
     {{/each}}
   </nav>
   {{/if}}
@@ -238,10 +238,10 @@
   {{#if content.dexCountScale}}<p class="browse-view-scale">{{content.dexCountScale}}</p>{{/if}}
   {{! In-view jump nav (mirrors By ADD). Static hash anchors into each dex bucket. }}
   {{#if content.dexCountGroups.length}}
-  <nav class="add-jump" aria-label="Jump to dex bucket">
-    <span class="add-jump-label">Jump to:</span>
+  <nav class="jump-bar" aria-label="Jump to dex bucket">
+    <span class="jump-bar-label">Jump to:</span>
     {{#each content.dexCountGroups}}
-      <a href="#{{bucketId}}">{{dexLabel}} <span class="family-jump-count">{{cards.length}}</span></a>{{#unless @last}} <span class="component-axis-jump-sep">·</span> {{/unless}}
+      <a href="#{{bucketId}}">{{dexLabel}} <span class="jump-bar-count">{{cards.length}}</span></a>{{#unless @last}} <span class="jump-bar-sep">·</span> {{/unless}}
     {{/each}}
   </nav>
   {{/if}}
@@ -266,40 +266,32 @@
   {{/each}}
   {{/if}}
 
-  {{! ── Set Hub view.
-      Sets are first-class ontology objects, not trick-grouped browse
-      filters. Six subtype sections; each card carries hashtag, formula,
-      movement explanation, equivalence readings, derived / related
-      systems, and provenance. Per-set detail pages live at
-      /freestyle/sets/<slug>. }}
-  {{! ── By Set view — modifier-grouped trick lists (answers "which tricks
-       use this set?"). Distinct from the Set Encyclopedia at /freestyle/sets
-       which answers "what is this set system?" — that surface remains
-       separate and intentional. This view uses content.setGroups (the
-       trick-grouping projection); content.setsBrowseView (the encyclopedia
-       projection) is reserved for /freestyle/sets. }}
-  {{#if (eq content.activeView "sets")}}
-  {{#if content.setsIntro}}<p class="browse-view-intro">{{content.setsIntro}} For what a set system actually is, see the <a href="/freestyle/sets">Set Encyclopedia</a>.</p>{{/if}}
+  {{! ── By modifier view — modifier-grouped trick lists (answers "which
+       tricks use this set or modifier?"). Distinct from the Set Encyclopedia
+       at /freestyle/sets, which answers "what is this set system?" and is the
+       canonical set-specific surface. }}
+  {{#if (eq content.activeView "modifier")}}
+  {{#if content.modifierIntro}}<p class="browse-view-intro">{{content.modifierIntro}} For what a set system actually is, see the <a href="/freestyle/sets">Set Encyclopedia</a>.</p>{{/if}}
   <p class="browse-view-lens-note detail-muted">These cluster totals count tricks by the modifier they use, so they will not match the grouping totals in <a href="/freestyle/tricks?view=movement-system">By movement system</a>, which sorts some of the same modifiers into different groups. The two are different lenses on the same tricks, not the same tally.</p>
-  {{#if content.setsScale}}<p class="browse-view-scale">{{content.setsScale}}</p>{{/if}}
-  {{#if content.setsClusterView.length}}
-  <p class="sets-view-total detail-muted"><strong>{{content.setsClusterView.length}}</strong> modifier clusters, each banded by operator count.</p>
+  {{#if content.modifierScale}}<p class="browse-view-scale">{{content.modifierScale}}</p>{{/if}}
+  {{#if content.modifierClusterView.length}}
+  <p class="modifier-view-total detail-muted"><strong>{{content.modifierClusterView.length}}</strong> modifier clusters, each banded by operator count.</p>
 
-  <nav class="sets-view-jump" aria-label="Modifier cluster jump">
-    {{#each content.setsClusterView}}
-      <a href="#cluster-{{key}}">{{label}}</a>{{#unless @last}} <span class="component-axis-jump-sep">·</span> {{/unless}}
+  <nav class="jump-bar jump-bar--inline" aria-label="Modifier cluster jump">
+    {{#each content.modifierClusterView}}
+      <a href="#cluster-{{key}}">{{label}}</a>{{#unless @last}} <span class="jump-bar-sep">·</span> {{/unless}}
     {{/each}}
   </nav>
 
-  {{#each content.setsClusterView}}
+  {{#each content.modifierClusterView}}
   <section class="content-section" id="cluster-{{key}}" data-anchor-style="solid">
     <div class="section-heading">
       <h2>{{label}}</h2>
       <span class="section-count">{{trickCount}}</span>
     </div>
-    <p class="sets-cluster-blurb detail-muted">{{blurb}}</p>
+    <p class="modifier-cluster-blurb detail-muted">{{blurb}}</p>
     {{#each bands}}
-    <section class="trick-set-group" data-anchor-style="dotted">
+    <section class="trick-modifier-group" data-anchor-style="dotted">
       <div class="section-heading">
         <h3>{{label}}</h3>
         <span class="section-count">{{cards.length}}</span>
@@ -333,19 +325,19 @@
       families and derived branch families, plus a link to the minor-lineages
       band. Lets readers skip between family sections without scrolling. }}
   {{#if content.familyJumpIndex.roots.length}}
-  <nav class="family-jump" aria-label="Jump to family">
-    <span class="family-jump-label">Root families:</span>
+  <nav class="jump-bar jump-bar--wide" aria-label="Jump to family">
+    <span class="jump-bar-label">Root families:</span>
     {{#each content.familyJumpIndex.roots}}
-      <a href="{{anchor}}">{{name}} <span class="family-jump-count">{{count}}</span></a>{{#unless @last}} <span class="component-axis-jump-sep">·</span> {{/unless}}
+      <a href="{{anchor}}">{{name}} <span class="jump-bar-count">{{count}}</span></a>{{#unless @last}} <span class="jump-bar-sep">·</span> {{/unless}}
     {{/each}}
     {{#if content.familyJumpIndex.branches.length}}
-    <span class="family-jump-label family-jump-label--branch">Derived / branch:</span>
+    <span class="jump-bar-label jump-bar-label--branch">Derived / branch:</span>
     {{#each content.familyJumpIndex.branches}}
-      <a href="{{anchor}}">{{name}} <span class="family-jump-count">{{count}}</span></a>{{#unless @last}} <span class="component-axis-jump-sep">·</span> {{/unless}}
+      <a href="{{anchor}}">{{name}} <span class="jump-bar-count">{{count}}</span></a>{{#unless @last}} <span class="jump-bar-sep">·</span> {{/unless}}
     {{/each}}
     {{/if}}
     {{#if content.familyJumpIndex.hasMinorLineages}}
-    <span class="family-jump-label family-jump-label--minor">Minor lineages:</span>
+    <span class="jump-bar-label jump-bar-label--minor">Minor lineages:</span>
     <a href="#minor-lineages">All minor lineages</a>
     {{/if}}
   </nav>
@@ -373,7 +365,7 @@
     <p class="trick-family-shared-structure">Shared terminal structure: <code>{{sharedStructure}}</code></p>
     {{/if}}
     {{#if crossLink}}
-    <p class="trick-family-cross-link"><a href="{{crossLink.href}}">{{crossLink.label}} &rarr;</a></p>
+    <p class="trick-family-cross-link"><a href="{{crossLink.href}}">{{crossLink.label}}</a></p>
     {{/if}}
     {{! Operator-rung bands: simplest/base forms first, then 1-, 2-, 3+-operator
         forms. Band headers show only when a family spans more than one rung
@@ -430,10 +422,10 @@
   <p class="component-view-note">{{content.componentView.duplicationNote}}</p>
 
   {{! Axis-jump nav. Static; no JS. Hash anchors only. }}
-  <nav class="component-axis-jump" aria-label="Component axes">
+  <nav class="jump-bar" aria-label="Component axes">
     {{#each content.componentView.axes}}
       {{#if groups.length}}
-      <a href="#{{anchorId}}">{{axisLabel}}</a>{{#unless @last}} <span class="component-axis-jump-sep">·</span> {{/unless}}
+      <a href="#{{anchorId}}">{{axisLabel}}</a>{{#unless @last}} <span class="jump-bar-sep">·</span> {{/unless}}
       {{/if}}
     {{/each}}
   </nav>
@@ -528,9 +520,9 @@
   {{#if content.topologyScale}}<p class="browse-view-scale">{{content.topologyScale}}</p>{{/if}}
 
   {{#if content.topologyView.groups.length}}
-  <nav class="topology-jump" aria-label="Movement Neighborhood categories">
+  <nav class="jump-bar" aria-label="Movement Neighborhood categories">
     {{#each content.topologyView.groups}}
-      <a href="#{{anchorId}}">{{topologyName}}</a>{{#unless @last}} <span class="topology-jump-sep">·</span> {{/unless}}
+      <a href="#{{anchorId}}">{{topologyName}}</a>{{#unless @last}} <span class="jump-bar-sep">·</span> {{/unless}}
     {{/each}}
   </nav>
   {{#each content.topologyView.groups}}
@@ -572,17 +564,17 @@
       render in author order (no priority-by-frequency re-sort). }}
   {{#if (eq content.activeView "movement-system")}}
   <p class="browse-view-status-label"><strong>An exploratory view, not an official grouping.</strong></p>
-  <p class="browse-view-intro">{{content.movementSystemIntro}} To find every trick that uses a specific modifier (pixie, fairy, ducking, spinning, and so on), use <a href="/freestyle/tricks?view=sets">By modifier</a>. For what a set system actually is, see the <a href="/freestyle/sets">Set Encyclopedia</a>.</p>
-  <p class="browse-view-lens-note detail-muted">Each grouping total here counts the distinct tricks in that movement grouping. It will not match the per-cluster totals in <a href="/freestyle/tricks?view=sets">By modifier</a>, because the two views place some modifiers in different groups. They are different lenses on the same tricks.</p>
+  <p class="browse-view-intro">{{content.movementSystemIntro}} To find every trick that uses a specific modifier (pixie, fairy, ducking, spinning, and so on), use <a href="/freestyle/tricks?view=modifier">By modifier</a>. For what a set system actually is, see the <a href="/freestyle/sets">Set Encyclopedia</a>.</p>
+  <p class="browse-view-lens-note detail-muted">Each grouping total here counts the distinct tricks in that movement grouping. It will not match the per-cluster totals in <a href="/freestyle/tricks?view=modifier">By modifier</a>, because the two views place some modifiers in different groups. They are different lenses on the same tricks.</p>
   <p class="movement-system-view-note">{{content.movementSystemView.observationalNote}}</p>
   {{#if content.movementSystemScale}}<p class="browse-view-scale">{{content.movementSystemScale}}</p>{{/if}}
 
   {{! Axis-jump nav. Mirror of the Component view's pattern. }}
-  <nav class="movement-axis-jump" aria-label="Movement System axes">
+  <nav class="jump-bar" aria-label="Movement System axes">
     {{#each content.movementSystemView.axes}}
-      <a href="#{{anchorId}}">{{axisName}}</a>{{#unless @last}} <span class="movement-axis-jump-sep">·</span> {{/unless}}
+      <a href="#{{anchorId}}">{{axisName}}</a>{{#unless @last}} <span class="jump-bar-sep">·</span> {{/unless}}
     {{/each}}
-    {{#if content.movementSystemView.alternativeSurfaces.groups.length}} <span class="movement-axis-jump-sep">·</span> <a href="#alt-surfaces">Alternative surfaces</a>{{/if}}
+    {{#if content.movementSystemView.alternativeSurfaces.groups.length}} <span class="jump-bar-sep">·</span> <a href="#alt-surfaces">Alternative surfaces</a>{{/if}}
   </nav>
 
   {{#if content.movementSystemView.axes.length}}

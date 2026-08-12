@@ -33,7 +33,7 @@
 
   {{#if content.representativeMedia}}
   <p class="family-representative-media mt-4">
-    <a href="{{content.representativeMedia.href}}">Watch a clip from this family &rarr;</a>
+    <a href="{{content.representativeMedia.href}}">Watch a clip from this family</a>
     <span class="text-muted">({{content.representativeMedia.coverageLabel}}: {{content.representativeMedia.label}})</span>
   </p>
   {{/if}}
@@ -170,7 +170,7 @@
     {{#each content.variantGroups}}
     <div class="trick-family-rung" id="variant-{{slug}}">
       <h3 class="family-rung-header">{{name}} <span class="section-count">{{memberCount}}</span></h3>
-      {{#if pageHref}}<p class="trick-family-cross-link"><a href="{{pageHref}}">{{name}} family page &rarr;</a></p>{{/if}}
+      {{#if pageHref}}<p class="trick-family-cross-link"><a href="{{pageHref}}">{{name}} family page</a></p>{{/if}}
       <ul class="set-detail-trick-list">
         {{#each members}}
         <li class="set-detail-trick">

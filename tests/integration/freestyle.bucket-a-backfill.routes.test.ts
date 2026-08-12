@@ -145,40 +145,44 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-function cardFor(slug: string, html: string): string {
-  const startMarker = `data-trick-slug="${slug}"`;
-  const startIdx = html.indexOf(startMarker);
-  if (startIdx < 0) throw new Error(`card not found: ${slug}`);
-  const articleOpen  = html.lastIndexOf('<article', startIdx);
-  const articleClose = html.indexOf('</article>', startIdx);
-  return html.slice(articleOpen, articleClose + '</article>'.length);
+// A trick's execution chain is trick-page content: the browse row carries
+// identity and a difficulty value, and the chain reads on the page itself.
+async function pageFor(slug: string): Promise<string> {
+  const res = await request(await createApp()).get(`/freestyle/tricks/${slug}`);
+  expect(res.status, `${slug} detail page must render`).toBe(200);
+  return res.text;
+}
+
+/** The Execution notation chain as readable text, or null when the trick has
+ *  no authored chain. The chain renders one role-tagged span per token, so the
+ *  tags come off to compare against the curator string behind them. */
+function executionNotation(html: string): string | null {
+  const section = html.match(/<section class="content-section operational-notation-display"[\s\S]*?<\/section>/);
+  if (!section) return null;
+  const code = section[0].match(/<code class="operational-notation-tokens">([\s\S]*?)<\/code>/);
+  return code ? code[1]!.replace(/<[^>]+>/g, '') : section[0];
 }
 
 // ─────────────────────────────────────────────────────────────────────────
 // Path 1: First-class browse card (15 of 19 Bucket A slugs)
 // ─────────────────────────────────────────────────────────────────────────
 
-describe('Bucket A backfill — first-class browse-card rendering (15 slugs)', () => {
+describe('Bucket A backfill — first-class execution-chain rendering (15 slugs)', () => {
   it.each(FIRST_CLASS_BACKFILL.map(r => [r.slug] as const))(
-    '%s no longer renders "JOB: canonical decomposition pending" on its browse card',
+    '%s has an execution chain, so its page never says one is pending',
     async (slug) => {
-      const app = await createApp();
-      const res = await request(app).get('/freestyle/tricks?view=add');
-      expect(res.status).toBe(200);
-      const card = cardFor(slug, res.text);
-      expect(card).not.toContain('dict-trick-row-pending-value');
-      expect(card).not.toContain('canonical decomposition pending');
+      const html = await pageFor(slug);
+      expect(executionNotation(html), `${slug} should carry an execution chain`).not.toBeNull();
+      expect(html).not.toContain('canonical decomposition pending');
     },
   );
 
   it.each(FIRST_CLASS_BACKFILL.map(r => [r.slug, r.expectedJob] as const))(
-    '%s renders the JOB row with its derived operationalNotation verbatim',
+    '%s renders its derived operationalNotation verbatim',
     async (slug, expectedJob) => {
-      const app = await createApp();
-      const res = await request(app).get('/freestyle/tricks?view=add');
-      const card = cardFor(slug, res.text);
-      expect(card).toMatch(/class="dict-trick-row-label">JOB</);
-      expect(card).toContain(expectedJob);
+      // The chain renders one role-tagged span per token, so the tags come
+      // off to compare against the curator string the tokens were built from.
+      expect(executionNotation(await pageFor(slug))).toContain(expectedJob);
     },
   );
 });
@@ -254,13 +258,12 @@ describe('Bucket A backfill — every slug has operationalNotation in RESOLVED_A
 
 describe('Bucket A backfill — Bucket B/C/D rows untouched', () => {
   it.each(NEGATIVE_COHORT.map(r => [r.slug, r.bucket] as const))(
-    '%s (bucket %s) still renders the honest INCOMPLETE badge after the Bucket A backfill',
+    '%s (bucket %s) still has no execution chain after the Bucket A backfill',
     async (slug) => {
-      const app = await createApp();
-      const res = await request(app).get('/freestyle/tricks?view=add');
-      const card = cardFor(slug, res.text);
-      expect(card).toContain('dict-badge-incomplete');
-      expect(card).toContain('>INCOMPLETE<');
+      // The backfill reached Bucket A only. These tricks still have no
+      // authored chain, so their pages render no Execution notation section:
+      // the absence is the honest state, not a fabricated chain.
+      expect(executionNotation(await pageFor(slug))).toBeNull();
     },
   );
 

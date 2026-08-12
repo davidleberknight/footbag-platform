@@ -21,6 +21,7 @@
  */
 import type { FreestyleTrickRow } from '../db/db';
 import { slugToHashtag } from './freestyleRecordShaping';
+import { trickGalleryHref, type HasTrickMedia } from './freestyleRelatedTricks';
 import { symbolicGrammarService, normalizeSymbolicSlug } from './symbolicGrammarService';
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -47,6 +48,9 @@ export interface SymbolicTopologyPanelMember {
   slug:          string;
   canonicalName: string;
   hashtag:       string;
+  // Non-null exactly when the trick has media; a clickable hashtag is the
+  // signal media exists.
+  hashtagHref:   string | null;
   adds:          string | null;
   detailHref:    string;
 }
@@ -101,11 +105,12 @@ function pickPrimaryTopologyGroup(slug: string): string | null {
   return null;
 }
 
-function shapeMember(row: FreestyleTrickRow): SymbolicTopologyPanelMember {
+function shapeMember(row: FreestyleTrickRow, hasMedia?: HasTrickMedia): SymbolicTopologyPanelMember {
   return {
     slug:          row.slug,
     canonicalName: row.canonical_name,
     hashtag:       slugToHashtag(row.slug),
+    hashtagHref:   hasMedia?.(row.slug) ? trickGalleryHref(row.slug) : null,
     adds:          row.adds,
     detailHref:    `/freestyle/tricks/${row.slug}`,
   };
@@ -207,6 +212,7 @@ export function buildSymbolicEducationCtas(slug: string): SymbolicEducationCta[]
 export function buildSymbolicRelatedTopologyPanel(
   currentSlug: string,
   allDictRows: readonly FreestyleTrickRow[],
+  hasMedia?: HasTrickMedia,
 ): SymbolicRelatedTopologyPanel | null {
   if (!shouldRenderSymbolicTopologyPanel(currentSlug)) return null;
 
@@ -236,7 +242,7 @@ export function buildSymbolicRelatedTopologyPanel(
     seenSlugs.add(m.trickSlug);
     const dictRow = dictBySlug.get(m.trickSlug);
     if (!dictRow) continue;                            // skip non-existent or modifier rows
-    members.push(shapeMember(dictRow));
+    members.push(shapeMember(dictRow, hasMedia));
   }
   members.sort(compareAddsThenSlug);
   const totalRelatedCount = members.length;

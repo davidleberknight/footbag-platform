@@ -73,8 +73,10 @@ describe('Trick-search placeholder is short and non-truncating', () => {
 });
 
 describe('Torque teaches the canonical set as its scoring label, not the nickname', () => {
-  it('ADD-view card shows quantum(+1) + osis(3), never miraging as the scored component', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks');
+  it('the torque page shows quantum(+1) + osis(3), never miraging as the scored component', async () => {
+    // The derivation is trick-page content: a browse row carries the
+    // difficulty value, and the arithmetic behind it reads on the page.
+    const res = await request(await createApp()).get('/freestyle/tricks/torque');
     expect(res.status).toBe(200);
     expect(res.text).toContain('quantum(+1) + osis(3)');
     expect(res.text).not.toContain('miraging(+1) + osis(3)');

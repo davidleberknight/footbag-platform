@@ -105,11 +105,11 @@ describe('Family view — two-line row contract', () => {
     expect(res.text).toMatch(/<h2><a href="\/freestyle\/tricks\?family=mirage">Mirage family<\/a><\/h2>/);
   });
 
-  it('every family member renders the generalized dict-trick-row wrapper (line 1 + line 2)', async () => {
+  it('every family member renders both columns of the shared dict-trick-row', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=family');
     for (const slug of ALL_MEMBERS) {
       const row = rowFor(res.text, slug);
-      expect(row, `${slug} missing head`).toMatch(/class="dict-trick-row-head"/);
+      expect(row, `${slug} missing identity`).toMatch(/class="dict-trick-row-identity"/);
       expect(row, `${slug} missing notation`).toMatch(/class="dict-trick-row-notation"/);
     }
   });
@@ -120,30 +120,37 @@ describe('Family view — two-line row contract', () => {
     expect(res.text).not.toContain('dict-card-stack');
   });
 
-  it('every family row line 2 carries both a JOB and an ADD label', async () => {
+  it('every family row carries its notation and its difficulty value', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=family');
     for (const slug of ALL_MEMBERS) {
       const row = rowFor(res.text, slug);
-      expect(row, `${slug} missing JOB`).toMatch(/class="dict-trick-row-label">JOB</);
-      expect(row, `${slug} missing ADD`).toMatch(/class="dict-trick-row-label">ADD</);
+      expect(row, `${slug} missing notation`).toMatch(/class="dict-trick-row-notation-value"/);
+      expect(row, `${slug} missing difficulty value`).toMatch(/aria-label="Difficulty value">\(\d+\)</);
     }
   });
 
-  it('interpretation (≡) coexists with JOB + ADD on family compounds', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=family');
+  it('a family compound reads its ≡ interpretation on its own page, not on the row', async () => {
+    const app = await createApp();
+    const res = await request(app).get('/freestyle/tricks?view=family');
     // smear ≡ pixie mirage, magellan ≡ pixie legover, torque ≡ quantum osis
     const cases: Array<[string, RegExp]> = [
-      ['smear', /mirage/],
-      ['magellan', /legover/],
-      ['torque', /osis/],
+      ['smear', /mirage/i],
+      ['magellan', /legover/i],
+      ['torque', /osis/i],
     ];
     for (const [slug, readingToken] of cases) {
+      const page = await request(app).get(`/freestyle/tricks/${slug}`);
+      expect(page.status).toBe(200);
+      // The reading reaches the reader either as its own section or, when the
+      // About build path already says the same thing, through that line; a
+      // page never states one compositional reading twice.
+      const readings = page.text.match(/<ol class="equivalent-readings-list">[\s\S]*?<\/ol>/)?.[0] ?? '';
+      const buildPath = page.text.match(/<dd data-build-path>([\s\S]*?)<\/dd>/)?.[1] ?? '';
+      expect(readings + buildPath, `${slug} missing its reading`).toMatch(readingToken);
+      // The row keeps to identity and notation; the reading is not on it.
       const row = rowFor(res.text, slug);
-      expect(row, `${slug} missing interpretation slot`).toMatch(/class="dict-trick-row-interpretation"/);
-      expect(row, `${slug} interpretation token`).toMatch(readingToken);
-      // ...and the JOB + ADD line still renders on the same row.
-      expect(row).toMatch(/class="dict-trick-row-label">JOB</);
-      expect(row).toMatch(/class="dict-trick-row-label">ADD</);
+      expect(row, `${slug} row carries a reading`).not.toMatch(/&equiv;/);
+      expect(row).toMatch(/class="dict-trick-row-notation-value"/);
     }
   });
 
@@ -161,7 +168,7 @@ describe('Family view — two-line row contract', () => {
     let m: RegExpExecArray | null;
     while ((m = re.exec(res.text)) !== null) {
       const before = res.text.substring(Math.max(0, m.index - 260), m.index);
-      expect(before, `bracket token at ${m.index} not inside a JOB value`).toMatch(/dict-trick-row-job-value|op-token/);
+      expect(before, `bracket token at ${m.index} not inside a JOB value`).toMatch(/dict-trick-row-notation-value|op-token/);
     }
   });
 });

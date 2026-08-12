@@ -191,14 +191,16 @@ beforeAll(async () => {
     // operational_notation omitted → defaults to NULL → section must omit
   });
 
-  // ── Seeds for NF-2B semantic-notation ladder tests ─────────────────────
-  // Mobius has a curated equivalence chain (3 readings) AND curator notation
-  // 'MOBIUS' (mirrors the canonical Red-corrections seed). Both layers render.
+  // ── Seeds for the semantic-notation ladder tests ───────────────────────
+  // Mobius has a curated equivalence chain (3 readings) AND curator notation.
+  // Its notation names the structure rather than repeating the trick's own
+  // name, which is the condition under which the notation block renders at
+  // all; both layers then coexist on the page.
   insertFreestyleTrick(db, {
     slug: 'mobius',
     canonical_name: 'mobius',
     adds: '5',
-    notation: 'MOBIUS',
+    notation: 'GYRO TORQUE',
   });
   // Mirage is a core atom; needed for paradox-mirage's base lookup.
   insertFreestyleTrick(db, {
@@ -671,7 +673,6 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
     // Identity-layer forever-invariant: observational entries never get
     // #-tag chips.
     const res = await request(createApp()).get('/freestyle/observational');
-    expect(res.text).not.toContain('class="dict-card-hashtag"');
     expect(res.text).not.toMatch(/<span[^>]*class="[^"]*hashtag[^"]*"[^>]*>#/);
   });
 
@@ -1244,13 +1245,17 @@ describe('GET /freestyle/tricks/:slug — operational notation block (O1a)', () 
     if (structIdx > -1) expect(opIdx).toBeLessThan(structIdx);
   });
 
-  it('renders the "Token reference" glossary deeplink below the notation block', async () => {
+  it('renders the notation glossary deeplink below the notation block', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks/op-notation-seeded');
     expect(res.text).toContain('class="notation-glossary-link"');
-    // The deeplink targets the glossary's notation section anchor, which
-    // must exist in glossary.hbs (a missing anchor lands at the page top).
-    expect(res.text).toMatch(/<a href="\/freestyle\/glossary#section-notation">Token reference/);
+    // Anchored on the pairing a visitor relies on, the control's visible label
+    // and where it resolves to. The deeplink targets the glossary's notation
+    // section anchor, which must exist in glossary.hbs (a missing anchor lands
+    // at the page top).
+    expect(res.text).toMatch(
+      /<a[^>]*href="\/freestyle\/glossary#section-notation"[^>]*>\s*How to read this notation\s*<\/a>/,
+    );
   });
 
   it('uses the refined per-token tooltip for OP (O1c)', async () => {
@@ -1328,13 +1333,10 @@ describe('GET /freestyle/tricks/:slug — semantic-notation fallback ladder', ()
   it('Layer 1 + Layer 2 coexistence: mobius renders both Notation and Equivalent readings sections', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks/mobius');
+    expect(res.status).toBe(200);
     // Both sections present and Notation precedes Equivalent readings.
     const notationIdx   = res.text.indexOf('notation-display-tokens');
     const equivalentIdx = res.text.indexOf('class="equivalent-readings');
-    if (notationIdx === -1) {
-      // Surface diagnostic context if Layer 1 didn't render
-      throw new Error(`notation-display-tokens not in response. Snippet: ${res.text.slice(0, 500)}`);
-    }
     expect(notationIdx).toBeGreaterThan(0);
     expect(equivalentIdx).toBeGreaterThan(notationIdx);
   });
@@ -2370,25 +2372,34 @@ describe('Freestyle dictionary — S1+S3: ≡ equivalence rendering on dict card
   });
 
   it('renders ≡ readings sourced from the curator chain registry', async () => {
-    // On the two-line dex-count rows, the tokenized ≡ reading renders in the
-    // line-1 interpretation slot, carrying the ≡ sigil span.
+    // A reading is structural content and reads on the trick's own page, in
+    // its Equivalent readings section; no browse row carries one.
+    const page = await request(createApp()).get('/freestyle/tricks/torque');
+    expect(page.status).toBe(200);
+    expect(page.text).toMatch(/class="content-section equivalent-readings"/);
+
     const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
-    expect(res.text).toMatch(/class="dict-trick-row-interpretation"/);
-    expect(res.text).toMatch(/class="core-trick-equiv-sigil">&equiv;<\/span>/);
+    expect(res.text).not.toMatch(/class="dict-trick-row-interpretation"/);
+    expect(res.text).not.toMatch(/class="core-trick-equiv-sigil"/);
   });
 });
 
 describe('Freestyle dictionary — S2: canon-locked chain readings (torque/blender/drifter)', () => {
   it('renders torque as ≡ quantum osis', async () => {
-    // Tokenized rendering wraps each operator in a sem-token span; match
-    // each word independently allowing intervening markup.
-    const res = await request(createApp()).get('/freestyle/tricks?view=add');
-    expect(res.text).toMatch(/data-trick-slug="torque"[\s\S]*?quantum[\s\S]*?osis/);
+    // Tokenized rendering wraps each operator in its own span; match each word
+    // independently allowing intervening markup. The reading reads on the
+    // trick's page, where its structural content belongs.
+    const res = await request(createApp()).get('/freestyle/tricks/torque');
+    expect(res.status).toBe(200);
+    const readings = res.text.match(/<ol class="equivalent-readings-list">[\s\S]*?<\/ol>/)?.[0] ?? '';
+    expect(readings).toMatch(/quantum[\s\S]*?osis/i);
   });
 
   it('renders blender as ≡ whirling osis (pt11)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=add');
-    expect(res.text).toMatch(/data-trick-slug="blender"[\s\S]*?whirling[\s\S]*?osis/);
+    const res = await request(createApp()).get('/freestyle/tricks/blender');
+    expect(res.status).toBe(200);
+    const readings = res.text.match(/<ol class="equivalent-readings-list">[\s\S]*?<\/ol>/)?.[0] ?? '';
+    expect(readings).toMatch(/whirling[\s\S]*?osis/i);
   });
 
   it('holds drifter\'s decomposition: no miraging reading rendered', async () => {
@@ -2424,7 +2435,7 @@ describe('Freestyle dictionary — S3: alias-governance allow-list filtering', (
 
   it('atom dictionary rows surface curator-authored op-notation via the two-line JOB slot', async () => {
     // Atoms (first-class) carry their curator JOB chain on line 2 of the
-    // two-line row (dict-trick-row-job-value), sourced from firstClassChainValue,
+    // two-line row (dict-trick-row-notation-value), sourced from firstClassChainValue,
     // including the (midtime) marker. No shared-card op-notation chip.
     const res = await request(createApp()).get('/freestyle/tricks?view=dex-count');
     const atwIdx = res.text.indexOf('data-trick-slug="around_the_world"');
@@ -2434,7 +2445,7 @@ describe('Freestyle dictionary — S3: alias-governance allow-list filtering', (
     // No shared-card op-notation chip.
     expect(atwCard).not.toMatch(/<code class="dict-card-notation/);
     // Line-2 JOB slot carries the resolved symbolic chain.
-    expect(atwCard).toMatch(/class="dict-trick-row-label">JOB</);
-    expect(atwCard).toMatch(/class="dict-trick-row-job-value">[\s\S]*?TOE[\s\S]*?\[DEX\]/);
+    expect(atwCard).toMatch(/class="dict-trick-row-notation-value"/);
+    expect(atwCard).toMatch(/class="dict-trick-row-notation-value">[\s\S]*?TOE[\s\S]*?\[DEX\]/);
   });
 });

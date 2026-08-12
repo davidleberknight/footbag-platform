@@ -40,7 +40,12 @@ async function page(path: string): Promise<string> {
 describe('landing CTA', () => {
   it('points "Start here" at the novice page, not the pathways index', async () => {
     const html = await page('/freestyle');
-    expect(html).toMatch(/New to freestyle\?\s*<a href="\/freestyle\/start">/);
+    // Anchored on the pairing the visitor relies on, the control's visible
+    // label and where it resolves to, so restyling the control cannot quietly
+    // repoint it. Attribute order and presentation classes are deliberately
+    // not pinned.
+    expect(html).toMatch(/New to freestyle\?/);
+    expect(html).toMatch(/<a[^>]*href="\/freestyle\/start"[^>]*>\s*Start Here\s*<\/a>/i);
   });
 });
 

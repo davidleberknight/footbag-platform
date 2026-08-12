@@ -1,9 +1,20 @@
 {{!--
-  Trick hero block. Carries identity only: the h1, then the structural
-  decomposition strip, formula, and summary in that order. Sparse pages
-  without a heroDecomposition fall back to the records-side sortname
-  subtitle for identity continuity. The taxonomy ribbon (hashtag, family,
-  ADD) renders in the page body, not the hero.
+  Trick hero block: breadcrumbs, the h1, and a subtitle. Nothing else.
+
+  It previously also carried a structural decomposition strip and an ADD
+  formula. For a trick whose name is its decomposition, and 275 of the 712
+  tricks that have one are exactly that, the two of them restated the h1
+  twice over: "Ducking Toe Stall", then `ducking` `toe stall`, then
+  `ducking(+1) + toe stall`. Both now live below the plain-words opening,
+  where the decomposition belongs, and only the formula survives of the two
+  because it carries the arithmetic the strip left implicit.
+
+  Sparse pages with no summary fall back to the records-side sortname for
+  identity continuity. The identity hashtag renders here as the hero identity
+  line, matching the club-detail hero; the taxonomy chips (family, ADD,
+  pronunciation) render in the page body, not here. The hashtag links to the
+  trick's media gallery only when reference media exists; otherwise it is a
+  plain identity token.
 --}}
 <div class="hero hero-sm{{#if summary}} trick-hero-ux2{{/if}}">
   <div>
@@ -15,21 +26,17 @@
     </nav>
     {{/if}}
     <h1>{{page.title}}</h1>
-    {{#if content.heroDecomposition}}
-    <p class="trick-hero-decomposition" aria-label="Structural decomposition: {{#each content.heroDecomposition}}{{text}}{{#unless @last}} {{/unless}}{{/each}}">
-      {{#each content.heroDecomposition}}<span class="hero-decomp-token hero-decomp-{{cssRole}}" data-kind="{{kind}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}
-    </p>
-    {{/if}}
-    {{#unless content.heroDecomposition}}
-      {{#if content.sortName}}<p class="hero-subtitle">{{content.sortName}}</p>{{/if}}
-    {{/unless}}
-    {{#if content.heroFormula}}
-    <p class="trick-hero-formula" aria-label="ADD derivation">
-      {{#each content.heroFormula}}{{#if isOperator}}<span class="hero-formula-op">{{text}}</span>{{else if isResult}}<span class="hero-formula-result">{{text}}</span>{{else}}<span class="hero-formula-token hero-formula-{{cssRole}}">{{text}}</span>{{#if weight}}<span class="hero-formula-weight">{{weight}}</span>{{/if}}{{/if}}{{#unless @last}} {{/unless}}{{/each}}
-    </p>
-    {{/if}}
     {{#if summary}}
-    <p class="trick-hero-summary">{{summary}}</p>
+    <p class="hero-subtitle">{{summary}}</p>
+    {{else}}
+      {{#if content.sortName}}<p class="hero-subtitle">{{content.sortName}}</p>{{/if}}
+    {{/if}}
+    {{#if content.trickTag}}
+      {{#if content.hasReferenceMedia}}
+      <p class="hero-hashtag"><a href="{{content.referenceGalleryHref}}" aria-label="Media for this trick">{{content.trickTag}}</a></p>
+      {{else}}
+      <p class="hero-hashtag">{{content.trickTag}}</p>
+      {{/if}}
     {{/if}}
   </div>
 </div>

@@ -164,7 +164,8 @@ describe('First-class trick pilot — universal notation card', () => {
     expect(res.status).toBe(200);
     const region = sectionByClass(res.text, 'trick-add-analysis');
     expect(region).not.toBeNull();
-    expect(region!).toMatch(/<dt>ADD<\/dt>/);
+    expect(region!).toMatch(/<dt>Difficulty<\/dt>/);
+    expect(region!).toMatch(/class="trick-add-analysis-derivation"/);
   });
 
   it.each(PILOT_SLUGS)('notation card on %s does NOT carry a "First-class" badge', async (slug) => {
@@ -232,7 +233,8 @@ describe('First-class trick pilot — universal notation card', () => {
     expect(res.text).not.toMatch(/operational-notation-display/);
     const region = sectionByClass(res.text, 'trick-add-analysis');
     expect(region).not.toBeNull();
-    expect(region!).toMatch(/<dt>ADD<\/dt>/);
+    expect(region!).toMatch(/<dt>Difficulty<\/dt>/);
+    expect(region!).toMatch(/class="trick-add-analysis-derivation"/);
     expect(region!).toContain('paradox(+1) + mirage(2)');
   });
 });
@@ -269,15 +271,15 @@ describe('First-class trick pilot — notation card is universal', () => {
     const paradoxMirage = await request(createApp()).get('/freestyle/tricks/paradox_mirage');
     const region = sectionByClass(paradoxMirage.text, 'trick-add-analysis');
     expect(region).not.toBeNull();
-    expect(region!).toMatch(/<dt>ADD<\/dt>/);
+    expect(region!).toMatch(/<dt>Difficulty<\/dt>/);
+    expect(region!).toMatch(/class="trick-add-analysis-derivation"/);
   });
 });
 
-describe('First-class trick pilot — two-line JOB+ADD row', () => {
-  it.each(PILOT_SLUGS)('renders the line-2 JOB+ADD notation for %s in the dictionary browse', async (slug) => {
+describe('First-class trick pilot — uniform browse row', () => {
+  it.each(PILOT_SLUGS)('renders the shared row contract for %s in the dictionary browse', async (slug) => {
     const res = await request(createApp()).get('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
-    // The pilot slug's row carries the line-2 notation block (JOB + ADD).
     const cardIdx = res.text.indexOf(`data-trick-slug="${slug}"`);
     expect(cardIdx, `row for ${slug} not found in the ADD view`).toBeGreaterThan(0);
     const cardEnd = res.text.indexOf('</article>', cardIdx);
@@ -285,17 +287,25 @@ describe('First-class trick pilot — two-line JOB+ADD row', () => {
     expect(cardRegion).toContain('class="dict-trick-row-notation"');
   });
 
-  it('non-first-class rows render the SAME two-line contract (no first-class visual distinction)', async () => {
-    // Every row (first-class or not) renders the same line-2 JOB+ADD
-    // notation. mobius (non-first-class) is the control.
+  it('a non-first-class row is indistinguishable from a first-class one', async () => {
+    // First-class status is curator bookkeeping, not a fact about the trick a
+    // reader is scanning for, so it must not change how a row looks. mobius
+    // (non-first-class) is compared against osis (first-class): both carry the
+    // same two columns and the same difficulty slot, and neither carries a
+    // marker the other lacks.
     const res = await request(createApp()).get('/freestyle/tricks?view=add');
-    const cardIdx = res.text.indexOf('data-trick-slug="mobius"');
-    expect(cardIdx).toBeGreaterThan(0);
-    const cardEnd = res.text.indexOf('</article>', cardIdx);
-    const cardRegion = res.text.slice(cardIdx, cardEnd);
-    expect(cardRegion).toContain('class="dict-trick-row-notation"');
-    expect(cardRegion).toMatch(/class="dict-trick-row-label">JOB</);
-    expect(cardRegion).toMatch(/class="dict-trick-row-label">ADD</);
+    const regionFor = (slug: string): string => {
+      const idx = res.text.indexOf(`data-trick-slug="${slug}"`);
+      expect(idx, `row for ${slug} not found`).toBeGreaterThan(0);
+      return res.text.slice(idx, res.text.indexOf('</article>', idx));
+    };
+    for (const slug of ['mobius', 'osis']) {
+      const region = regionFor(slug);
+      expect(region, `${slug} missing identity column`).toContain('class="dict-trick-row-identity"');
+      expect(region, `${slug} missing notation column`).toContain('class="dict-trick-row-notation"');
+      expect(region, `${slug} missing difficulty value`).toMatch(/aria-label="Difficulty value">\(\d+\)</);
+      expect(region, `${slug} carries a first-class marker`).not.toMatch(/first-class/i);
+    }
   });
 });
 

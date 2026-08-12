@@ -11,7 +11,7 @@
  *      (The ADD view uses a distinct two-line `.dict-trick-row` contract,
  *      pinned separately in freestyle.add-view-rows.routes.test.ts.)
  *
- *   2. /freestyle/tricks?view=sets renders LINKED trick cards
+ *   2. /freestyle/tricks?view=modifier renders LINKED trick cards
  *      (dictionary-trick-card partial with DictionaryTrickCard view-model)
  *      — title is an <a href="/freestyle/tricks/...">, ADD chip present,
  *      operational notation inside the JOB-block. NOT just hashtag text.
@@ -40,7 +40,7 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 beforeAll(async () => {
   const db = createTestDb(dbPath);
 
-  // Modifier registry (enough to drive ?view=sets sections + Movement System)
+  // Modifier registry (enough to drive ?view=modifier sections + Movement System)
   db.prepare(`
     INSERT INTO freestyle_trick_modifiers
       (slug, modifier_name, modifier_type, add_bonus, add_bonus_rotational, notes, loaded_at)
@@ -72,7 +72,7 @@ beforeAll(async () => {
   ];
   for (const t of tricks) insertFreestyleTrick(db, t);
 
-  // Modifier links so ?view=sets has data to render
+  // Modifier links so ?view=modifier has data to render
   db.prepare(`
     INSERT INTO freestyle_trick_modifier_links (trick_slug, modifier_slug, apply_order)
     VALUES
@@ -114,14 +114,14 @@ function expectJobBlockRender(text: string, slug: string) {
 
 // Two-line contract (migrated views: ADD / Family / Dex). Operational notation
 // renders inside the row's resolved line-2 JOB value
-// (<code class="dict-trick-row-job-value">), never loose and never the pending
+// (<code class="dict-trick-row-notation-value">), never loose and never the pending
 // placeholder.
 function expectTwoLineJob(text: string, slug: string) {
   const idx = text.indexOf(`data-trick-slug="${slug}"`);
   expect(idx, `row with data-trick-slug="${slug}" not present`).toBeGreaterThan(-1);
   const window = text.substring(idx, idx + 4000);
-  expect(window).toMatch(/class="dict-trick-row-label">JOB</);
-  expect(window).toMatch(/class="dict-trick-row-job-value">/);
+  expect(window).toMatch(/class="dict-trick-row-notation-value"/);
+  expect(window).toMatch(/class="dict-trick-row-notation-value">/);
 }
 
 describe('JOB-block rendering across browse views (no raw operational notation outside the labeled block)', () => {
@@ -150,33 +150,35 @@ describe('JOB-block rendering across browse views (no raw operational notation o
   });
 
   it('By set: cards with operational notation render the JOB-block label', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
+    const res = await request(await createApp()).get('/freestyle/tricks?view=modifier');
     expect(res.status).toBe(200);
     expectJobBlockRender(res.text, 'fairy_mirage');
     expectJobBlockRender(res.text, 'spinning_paradox_mirage');
   });
 
-  it('a row with BOTH an equivalence reading AND operational notation renders BOTH (no either/or)', async () => {
+  it('a trick with BOTH an equivalence reading AND operational notation renders BOTH (no either/or)', async () => {
     // mobius carries a tokenizedEquivalence (≡ gyro-torque chain) AND has
-    // operational notation. On the two-line contract both render: the line-1
-    // interpretation slot and the line-2 JOB slot are independent. Asserted on
-    // the dex-count view (renders every active trick, including the torque
-    // singleton mobius).
-    const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
+    // operational notation. The two are independent: neither suppresses the
+    // other. Both are structural, so both read on the trick's page; the browse
+    // row carries the trick's notation and says nothing about readings.
+    const app = await createApp();
+    const page = await request(app).get('/freestyle/tricks/mobius');
+    expect(page.status).toBe(200);
+    expect(page.text).toMatch(/class="content-section equivalent-readings"/);
+    expect(page.text).toMatch(/class="operational-notation-tokens"/);
+
+    const res = await request(app).get('/freestyle/tricks?view=dex-count');
     const idx = res.text.indexOf('data-trick-slug="mobius"');
     expect(idx).toBeGreaterThan(-1);
     const window = res.text.substring(idx, idx + 4000);
-    // Line 1: the ≡ interpretation slot.
-    expect(window).toMatch(/class="dict-trick-row-interpretation"/);
-    // Line 2: the resolved JOB value — present even though the ≡ reading exists.
-    expect(window).toMatch(/class="dict-trick-row-job-value">/);
+    expect(window).toMatch(/class="dict-trick-row-notation-value">/);
   });
 
   it('orphan `<code class="dict-card-notation">` (without the JOB-block wrapper) does NOT appear on shared-card views', async () => {
     // The shared-card JOB-block-wrapper invariant applies to the still-shared
     // views. Asserted on category (a stable shared-card view, not in the
     // active two-line migration sequence). Migrated views (ADD / Family / Dex /
-    // Movement System) use dict-trick-row-job-value — see the *-view-rows tests.
+    // Movement System) use dict-trick-row-notation-value — see the *-view-rows tests.
     const res = await request(await createApp()).get('/freestyle/tricks?view=category');
     const re = /<code class="dict-card-notation/g;
     let match: RegExpExecArray | null;
@@ -188,40 +190,43 @@ describe('JOB-block rendering across browse views (no raw operational notation o
   });
 });
 
-describe('/freestyle/tricks?view=sets — two-line rows (not bare hashtags)', () => {
-  it('renders the trick name as plain text plus a separate Trick Detail link for each listed trick', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
-    // The name is display text only; a distinct Trick Detail control opens the detail page.
-    expect(res.text).toMatch(/<a class="dict-trick-row-detail" href="\/freestyle\/tricks\/fairy_mirage">Detail<\/a>/);
-    expect(res.text).toMatch(/<a class="dict-trick-row-detail" href="\/freestyle\/tricks\/spinning_paradox_mirage">Detail<\/a>/);
+describe('/freestyle/tricks?view=modifier — shared rows (not bare hashtags)', () => {
+  it('offers a separate Detail control for each listed trick', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks?view=modifier');
+    // The name opens the trick's page and so does the Detail control; the two
+    // agree on the destination, which is what a reader relies on.
+    expect(res.text).toMatch(/<a[^>]*href="\/freestyle\/tricks\/fairy_mirage"[^>]*>\s*Detail\s*<\/a>/);
+    expect(res.text).toMatch(/<a[^>]*href="\/freestyle\/tricks\/spinning_paradox_mirage"[^>]*>\s*Detail\s*<\/a>/);
   });
 
-  it('renders the line-2 ADD slot + hashtag per row (no green chip; DictionaryTrickCard shape flows through)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
+  it('renders the difficulty value + hashtag per row (no green chip), and the derivation on the page', async () => {
+    const app = await createApp();
+    const res = await request(app).get('/freestyle/tricks?view=modifier');
     const slugIdx = res.text.indexOf('data-trick-slug="spinning_paradox_mirage"');
     expect(slugIdx).toBeGreaterThan(-1);
     const window = res.text.substring(slugIdx, slugIdx + 2000);
-    // Line 2 carries the ADD value (derived formula), not a green chip.
-    expect(window).toMatch(/class="dict-trick-row-add"/);
-    expect(window).toMatch(/spinning\(\+1\) \+ paradox\(\+1\) \+ mirage\(2\)/);
+    // The row carries the difficulty value, never a green chip.
+    expect(window).toMatch(/aria-label="Difficulty value">\(\d+\)</);
     expect(window).not.toMatch(/class="dict-card-add[ "]/);
-    expect(window).toMatch(/class="dict-trick-row-hashtag"[^>]*>#spinning_paradox_mirage</);
+    expect(window).toMatch(/class="hashtag"[^>]*>#spinning_paradox_mirage</);
+    // The arithmetic behind that value reads on the trick's own page.
+    const page = await request(app).get('/freestyle/tricks/spinning_paradox_mirage');
+    expect(page.status).toBe(200);
+    expect(page.text).toMatch(/spinning\(\+1\) \+ paradox\(\+1\) \+ mirage\(2\)/);
   });
 
-  it('renders the trick name as plain text first, then the hashtag, then the Trick Detail link', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
+  it('renders the trick name first, then the hashtag, then the Detail control', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks?view=modifier');
     const slugIdx = res.text.indexOf('data-trick-slug="fairy_mirage"');
     expect(slugIdx).toBeGreaterThan(-1);
     const window = res.text.substring(slugIdx, slugIdx + 2000);
-    // Name is plain text, not an anchor.
-    expect(window).toContain('<span class="dict-trick-row-title">');
     const titleIdx   = window.indexOf('class="dict-trick-row-title"');
     const hashtagIdx = window.indexOf('>#fairy_mirage<');
-    const detailIdx  = window.indexOf('class="dict-trick-row-detail"');
+    const detailIdx  = window.search(/<a[^>]*>\s*Detail\s*<\/a>/);
     expect(titleIdx).toBeGreaterThan(-1);
     expect(hashtagIdx).toBeGreaterThan(-1);
     expect(detailIdx).toBeGreaterThan(-1);
-    // DOM order: name → hashtag → Trick Detail.
+    // DOM order: name → hashtag → Detail.
     expect(titleIdx).toBeLessThan(hashtagIdx);
     expect(hashtagIdx).toBeLessThan(detailIdx);
   });
@@ -232,11 +237,11 @@ describe('Movement-system / By-set axis disambiguation', () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=movement-system');
     expect(res.text).toMatch(/four big movement families/i);
     expect(res.text).toMatch(/how you enter/i);
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\?view=sets"/);
+    expect(res.text).toMatch(/href="\/freestyle\/tricks\?view=modifier"/);
   });
 
-  it('By Set intro names "which tricks use this set?" + cross-links to Set Encyclopedia', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=sets');
+  it('By modifier intro names "which tricks use this set or modifier?" + cross-links to Set Encyclopedia', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks?view=modifier');
     expect(res.text).toMatch(/which tricks use this set or modifier/i);
     expect(res.text).toMatch(/href="\/freestyle\/sets"/);
   });
@@ -262,30 +267,30 @@ describe('/freestyle/observational — Emerging Vocabulary copy + source chips',
   });
 });
 
-// "Also called:" surfaces folk aliases in their own slot, distinct from the ≡
-// structural readings. An alias that duplicates a ≡ reading is filtered so the
-// same phrase never appears in both places.
-describe('/freestyle/tricks — "Also called:" alias slot, separate from ≡ readings', () => {
-  function mobiusCard(text: string): string {
+// A trick's nicknames ride inline beside its name on the row, each in quotes.
+// An alias that duplicates a ≡ reading is filtered so the same phrase never
+// appears in both places.
+describe('/freestyle/tricks — nicknames beside the name, separate from ≡ readings', () => {
+  function mobiusRow(text: string): string {
     const start = text.indexOf('data-trick-slug="mobius"');
-    return start === -1 ? '' : text.slice(start, start + 1800);
+    return start === -1 ? '' : text.slice(start, text.indexOf('</article>', start));
   }
 
-  it('renders folk aliases under "Also called:" on the mobius card', async () => {
+  it('renders folk nicknames beside the mobius name', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
-    const card = mobiusCard(res.text);
-    expect(card).toContain('Also called:');
-    expect(card).toContain('möbius');
-    expect(card).toContain('toe mobius');
+    const row = mobiusRow(res.text);
+    expect(row).toContain('aria-label="Also called"');
+    expect(row).toContain('möbius');
+    expect(row).toContain('toe mobius');
   });
 
-  it('omits an alias that duplicates the ≡ reading (gyro torque) from "Also called:"', async () => {
+  it('omits a nickname that duplicates the ≡ reading (gyro torque)', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
-    const card = mobiusCard(res.text);
-    // mobius's ≡ reading IS "gyro torque"; the identical alias must not repeat in
-    // the "Also called:" line.
-    const alsoCalledLine = card.split('Also called:')[1]?.split('</')[0] ?? '';
-    expect(alsoCalledLine).toContain('möbius');
-    expect(alsoCalledLine).not.toContain('gyro torque');
+    const row = mobiusRow(res.text);
+    // mobius's ≡ reading IS "gyro torque"; the identical alias must not repeat
+    // as a nickname beside the name.
+    const nicknames = row.match(/aria-label="Also called">([\s\S]*?)<\/span>/)?.[1] ?? '';
+    expect(nicknames).toContain('möbius');
+    expect(nicknames).not.toContain('gyro torque');
   });
 });

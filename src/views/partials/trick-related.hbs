@@ -17,7 +17,11 @@
       {{#each tricks}}
       <li>
         <a href="{{detailHref}}">{{canonicalName}}</a>
-        <span class="trick-hashtag">{{hashtag}}</span>
+        {{#if hashtagHref}}
+          <a class="hashtag hashtag--block hashtag--media" href="{{hashtagHref}}" aria-label="Media for this trick">{{hashtag}}</a>
+        {{else}}
+          <span class="hashtag hashtag--block" aria-label="Tag identity">{{hashtag}}</span>
+        {{/if}}
       </li>
       {{/each}}
     </ul>

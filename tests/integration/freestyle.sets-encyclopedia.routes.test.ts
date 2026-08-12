@@ -1,9 +1,9 @@
 /**
  * GET /freestyle/sets — Set Encyclopedia.
  *
- * Standalone minimalist surface listing canonical sets as first-class
+ * The canonical set-specific surface, listing canonical sets as first-class
  * ontology objects. Distinct from:
- *   /freestyle/tricks?view=sets   — Trick Dictionary's Set Hub view
+ *   /freestyle/tricks?view=modifier — the dictionary's modifier-grouped browse
  *   /freestyle/compositional-sets — exploratory compositional-sets hub
  *   /freestyle/sets/:slug         — per-set detail pages
  *   /freestyle/sets/reference     — flat Holden reference table
@@ -67,7 +67,7 @@ describe('GET /freestyle/sets — route + envelope', () => {
     expect(res.text).toContain('Set Encyclopedia');
   });
 
-  it('no longer 301-redirects to /freestyle/tricks?view=sets', async () => {
+  it('serves the page itself rather than redirecting into the trick dictionary', async () => {
     const res = await request(await createApp()).get('/freestyle/sets');
     expect(res.status).toBe(200);
     expect(res.status).not.toBe(301);
@@ -88,7 +88,7 @@ describe('GET /freestyle/sets — minimalist card contract', () => {
       // Card present
       expect(res.text).toContain(`id="enc-set-${slug}"`);
       // Detail link points at the per-set detail page (not in-page anchor)
-      expect(res.text).toMatch(new RegExp(`<a class="sets-encyclopedia-card-detail-link" href="/freestyle/sets/${slug}">View details &rarr;</a>`));
+      expect(res.text).toMatch(new RegExp(`<a class="sets-encyclopedia-card-detail-link" href="/freestyle/sets/${slug}">View details</a>`));
       // Hashtag follows the set ontology role-prefix pattern (#set_<slug>)
       expect(res.text).toContain(`#set_${slug}`);
     },
@@ -117,11 +117,10 @@ describe('GET /freestyle/sets — minimalist card contract', () => {
     expect(res.text).not.toContain('Holden partial');
   });
 
-  it('cards do NOT carry the verbose Set Hub fields (equivalences, source/audit footer with citation, alt-surfaces cross-link)', async () => {
-    // The Encyclopedia is meant to be a LIGHTER surface than the Set Hub
-    // at /freestyle/tricks?view=sets. The verbose fields belong on the
-    // detail page, not the index. Specifically, the citation footer and
-    // equivalence-readings <ul> from the Set Hub do not appear here.
+  it('cards do NOT carry the verbose fields (equivalences, source/audit footer with citation, alt-surfaces cross-link)', async () => {
+    // The Encyclopedia index stays light: the verbose fields belong on the
+    // per-set detail page. Specifically, the citation footer and the
+    // equivalence-readings list do not appear here.
     const res = await request(await createApp()).get('/freestyle/sets');
     expect(res.text).not.toContain('set-card-citation');
     expect(res.text).not.toContain('set-card-equivalences');
@@ -183,7 +182,7 @@ describe('GET /freestyle/sets — detail-page link resolution', () => {
 });
 
 describe('GET /freestyle/sets — distinct from sibling surfaces', () => {
-  it('renders compact trick-dictionary-style rows, not the Set Hub view cards', async () => {
+  it('renders compact trick-dictionary-style rows, not the retired verbose set cards', async () => {
     const res = await request(await createApp()).get('/freestyle/sets');
     // The index mirrors the trick-dictionary row contract (shared structure)
     // while carrying the encyclopedia's own status pill + role chip.
@@ -191,7 +190,7 @@ describe('GET /freestyle/sets — distinct from sibling surfaces', () => {
     expect(res.text).toContain('class="dict-trick-row"');
     expect(res.text).toContain('sets-encyclopedia-card-status');
     expect(res.text).toContain('sets-encyclopedia-card-role-chip');
-    // Set Hub view classes (from /freestyle/tricks?view=sets) are NOT here
+    // The retired verbose set-card classes are NOT here
     expect(res.text).not.toContain('class="set-card set-card--');
     expect(res.text).not.toContain('class="set-card-grid"');
   });

@@ -1,9 +1,12 @@
 /**
- * The by-ADD dictionary view's line-2 formula (addViewFormula) renders a trick's
- * base by its canonical display name, not the raw underscore slug. A trick that
- * falls to the mechanical modifier-link derivation (no curator resolved formula)
- * on a compound base shows "<modifier>(+b) + <base display name>(N)" -- e.g.
- * "double over down(4)", never the machine slug "double_over_down(4)".
+ * A trick's difficulty derivation renders its base by canonical display name,
+ * not the raw underscore slug. A trick that falls to the mechanical
+ * modifier-link derivation (no curator resolved formula) on a compound base
+ * shows "<modifier>(+b) + <base display name>(N)" -- e.g. "double over
+ * down(4)", never the machine slug "double_over_down(4)".
+ *
+ * The derivation reads on the trick's own page: a browse row carries the
+ * difficulty value, and the arithmetic behind it is trick-page content.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -50,9 +53,9 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('GET /freestyle/tricks?view=add — ADD formula renders canonical base name', () => {
-  it('the mechanical line-2 formula shows the base by canonical name, not the raw slug', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=add');
+describe('GET /freestyle/tricks/:slug — ADD formula renders canonical base name', () => {
+  it('the mechanical derivation shows the base by canonical name, not the raw slug', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks/mech_test');
     expect(res.status).toBe(200);
     // Mechanical derivation is "spinning(+1) + double over down(4)". The "(4)" suffix
     // anchors these to the formula, not to a slug that appears in an href.

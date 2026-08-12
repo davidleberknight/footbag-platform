@@ -12,10 +12,12 @@
 
 <div class="wrapper freestyle-landing">
 
-  {{! ── Beginner on-ramp: funnel newcomers to the getting-started page ────── }}
-  <p class="freestyle-learn-pointer">
-    New to freestyle? <a href="/freestyle/start">Start here &rarr;</a>
-  </p>
+  {{! ── Beginner on-ramp: funnel newcomers to the getting-started page.
+       Sits in a section so it takes the page's own vertical rhythm; a bare
+       block here butts straight against the hero. ── }}
+  <section>
+    New to freestyle? <a class="btn btn-outline" href="/freestyle/start">Start Here</a>
+  </section>
 
   {{! ── What is Freestyle? — plain intro + demo video ───────────────────── }}
   {{#if content.intro.paragraphs.length}}
@@ -137,7 +139,7 @@
     </div>
     {{#if content.tricksMosaicHasClips}}
       <div class="text-center mt-4">
-        <a href="/media/gallery_foundations_of_freestyle" class="btn btn-outline">See All Foundations &rarr;</a>
+        <a href="/media/gallery_foundations_of_freestyle" class="action-link">See All Foundations</a>
       </div>
     {{/if}}
   </section>
@@ -164,7 +166,7 @@
           {{/each}}
         </span>
         {{#if footnote}}<span class="by-numbers-footnote">{{footnote}}</span>{{/if}}
-        <span class="by-numbers-cta">Browse &rarr;</span>
+        <span class="by-numbers-cta">Browse</span>
       </a>
       {{/each}}
     </div>

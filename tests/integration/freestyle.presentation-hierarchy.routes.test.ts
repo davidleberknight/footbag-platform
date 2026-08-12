@@ -98,29 +98,25 @@ function trickRowRegion(html: string, slug: string): string | null {
   return match ? match[0] : null;
 }
 
-describe('Presentation-hierarchy contract — ADD View two-line row', () => {
+describe('Presentation-hierarchy contract — ADD View row order', () => {
   // The ADD view no longer renders the shared dict-card. It uses the
-  // dict-trick-row two-line contract: line 1 (head) = title + hashtag +
-  // optional interpretation; line 2 (notation) = JOB + ADD. The canonical
-  // ADD-view order is: title (line 1) BEFORE the JOB/ADD notation (line 2).
+  // dict-trick-row contract: an identity column (name, nicknames, hashtag,
+  // controls) and a notation column (difficulty value, then movement
+  // notation). Identity comes first: a reader scanning the view is looking
+  // for a trick by name, and the notation is reference material beside it.
   for (const pilot of PILOTS) {
-    it(`renders ${pilot.slug} with the two-line row order in ADD View`, async () => {
+    it(`renders ${pilot.slug} identity-before-notation in ADD View`, async () => {
       const app = createApp();
       const res = await request(app).get('/freestyle/tricks?view=add');
       expect(res.status).toBe(200);
       const row = trickRowRegion(res.text, pilot.slug);
       expect(row, `add-row not found for ${pilot.slug} in ADD View`).not.toBeNull();
-      const titlePos    = row!.indexOf('class="dict-trick-row-title"');
-      const headPos     = row!.indexOf('class="dict-trick-row-head"');
+      const titlePos    = row!.indexOf(`href="/freestyle/tricks/${pilot.slug}"`);
+      const identityPos = row!.indexOf('class="dict-trick-row-identity"');
       const notationPos = row!.indexOf('class="dict-trick-row-notation"');
-      const jobPos      = row!.indexOf('class="dict-trick-row-label">JOB<');
-      const addPos      = row!.indexOf('class="dict-trick-row-label">ADD<');
-      // Line 1 (head + title) precedes line 2 (notation with JOB + ADD).
       expect(titlePos).toBeGreaterThanOrEqual(0);
-      expect(headPos).toBeGreaterThanOrEqual(0);
+      expect(identityPos).toBeGreaterThanOrEqual(0);
       expect(notationPos).toBeGreaterThan(titlePos);
-      expect(jobPos).toBeGreaterThan(notationPos);
-      expect(addPos).toBeGreaterThan(jobPos);
       // The ADD view never renders the shared dict-card wrapper or chip.
       expect(row!).not.toContain('dict-card--registry');
       expect(row!).not.toMatch(/class="dict-card-add[ "]/);
@@ -128,25 +124,21 @@ describe('Presentation-hierarchy contract — ADD View two-line row', () => {
   }
 });
 
-describe('Presentation-hierarchy contract — Family View two-line row', () => {
-  // Family uses the same generalized two-line dict-trick-row contract
-  // as the ADD view. Row order: title (line 1) BEFORE the JOB/ADD notation
-  // (line 2). No shared dict-card wrapper, no green chip.
+describe('Presentation-hierarchy contract — Family View row order', () => {
+  // Family uses the same generalized dict-trick-row contract as the ADD
+  // view: identity column before notation column. No shared dict-card
+  // wrapper, no green chip.
   for (const pilot of PILOTS) {
-    it(`renders ${pilot.slug} with the two-line row order in Family View`, async () => {
+    it(`renders ${pilot.slug} identity-before-notation in Family View`, async () => {
       const app = createApp();
       const res = await request(app).get('/freestyle/tricks?view=family');
       expect(res.status).toBe(200);
       const row = trickRowRegion(res.text, pilot.slug);
       expect(row, `trick-row not found for ${pilot.slug} in Family View`).not.toBeNull();
-      const titlePos    = row!.indexOf('class="dict-trick-row-title"');
+      const titlePos    = row!.indexOf(`href="/freestyle/tricks/${pilot.slug}"`);
       const notationPos = row!.indexOf('class="dict-trick-row-notation"');
-      const jobPos      = row!.indexOf('class="dict-trick-row-label">JOB<');
-      const addPos      = row!.indexOf('class="dict-trick-row-label">ADD<');
       expect(titlePos).toBeGreaterThanOrEqual(0);
       expect(notationPos).toBeGreaterThan(titlePos);
-      expect(jobPos).toBeGreaterThan(notationPos);
-      expect(addPos).toBeGreaterThan(jobPos);
       // No shared dict-card wrapper / green chip / deprecated header.
       expect(row!).not.toContain('dict-card--registry');
       expect(row!).not.toMatch(/class="dict-card-add[ "]/);
@@ -155,12 +147,11 @@ describe('Presentation-hierarchy contract — Family View two-line row', () => {
   }
 });
 
-describe('Presentation-hierarchy contract — ADD and Family share the two-line row contract', () => {
-  // ADD and Family both use the generalized two-line dict-trick-row.
-  // They render the SAME row contract; only the grouping (ADD bucket vs
-  // family section) differs. (Long-term target: every browse view on this
-  // same contract.)
-  it('dimwalk renders the two-line order (title -> JOB/ADD notation) in BOTH ADD and Family', async () => {
+describe('Presentation-hierarchy contract — ADD and Family share the row contract', () => {
+  // ADD and Family both use the generalized dict-trick-row. They render the
+  // SAME row contract; only the grouping (ADD bucket vs family section)
+  // differs. (Long-term target: every browse view on this same contract.)
+  it('dimwalk renders identity-before-notation in BOTH ADD and Family', async () => {
     const app = createApp();
     const add = await request(app).get('/freestyle/tricks?view=add');
     const fam = await request(app).get('/freestyle/tricks?view=family');
@@ -168,14 +159,14 @@ describe('Presentation-hierarchy contract — ADD and Family share the two-line 
     for (const [label, html] of [['ADD', add.text], ['Family', fam.text]] as const) {
       const row = trickRowRegion(html, 'dimwalk');
       expect(row, `dimwalk row missing in ${label} view`).not.toBeNull();
-      const titlePos    = row!.indexOf('class="dict-trick-row-title"');
+      const titlePos    = row!.indexOf('href="/freestyle/tricks/dimwalk"');
       const notationPos = row!.indexOf('class="dict-trick-row-notation"');
       expect(titlePos).toBeGreaterThanOrEqual(0);
       expect(notationPos).toBeGreaterThan(titlePos);
     }
   });
 
-  it('the detail page is reached through the same Trick Detail link in both views', async () => {
+  it('the detail page is reached the same way in both views', async () => {
     const app = createApp();
     const add = await request(app).get('/freestyle/tricks?view=add');
     const fam = await request(app).get('/freestyle/tricks?view=family');
@@ -185,10 +176,15 @@ describe('Presentation-hierarchy contract — ADD and Family share the two-line 
       const famRow = trickRowRegion(fam.text, pilot.slug);
       expect(addRow).not.toBeNull();
       expect(famRow).not.toBeNull();
-      // The name is plain text; the detail page is reached via the Trick Detail link.
-      const pat = new RegExp(`<a class="dict-trick-row-detail" href="/freestyle/tricks/${pilot.slug}">Detail</a>`);
-      expect(addRow!).toMatch(pat);
-      expect(famRow!).toMatch(pat);
+      // Both the name and the Detail control open the trick's page, and both
+      // views offer them identically: the same trick is reached the same way
+      // wherever a reader meets it.
+      const namePat   = new RegExp(`<a[^>]*href="/freestyle/tricks/${pilot.slug}"[^>]*>[^<]+</a>`);
+      const detailPat = new RegExp(`<a[^>]*href="/freestyle/tricks/${pilot.slug}"[^>]*>\\s*Detail\\s*</a>`);
+      expect(addRow!).toMatch(namePat);
+      expect(famRow!).toMatch(namePat);
+      expect(addRow!).toMatch(detailPat);
+      expect(famRow!).toMatch(detailPat);
     }
   });
 
@@ -201,10 +197,11 @@ describe('Presentation-hierarchy contract — ADD and Family share the two-line 
       const addRow = trickRowRegion(add.text, pilot.slug);
       const famRow = trickRowRegion(fam.text, pilot.slug);
       // ADD view groups by ADD bucket; family groups by family section. Both
-      // carry the ADD value on the row's line-2 ADD slot, never a green chip.
+      // carry the difficulty value on the row itself, never a green chip, so
+      // the value is readable in the seven views that do not group by it.
       expect(add.text).toContain(`id="add-${pilot.adds}"`);
-      expect(addRow!).toContain('class="dict-trick-row-add"');
-      expect(famRow!).toContain('class="dict-trick-row-add"');
+      expect(addRow!).toContain(`aria-label="Difficulty value">(${pilot.adds})<`);
+      expect(famRow!).toContain(`aria-label="Difficulty value">(${pilot.adds})<`);
       expect(addRow!).not.toMatch(/class="dict-card-add[ "]/);
       expect(famRow!).not.toMatch(/class="dict-card-add[ "]/);
     }

@@ -47,8 +47,11 @@ describe('freestyle landing foundational-tricks mosaic', () => {
     const res = await request(createApp()).get('/freestyle');
     expect(res.text).toContain('The Language of Freestyle');
     expect(res.text).toContain('Analysis &amp; Competition');
-    expect(res.text).not.toContain('Start Here');
-    expect(res.text).not.toContain('Go Deeper');
+    // The retired cards were headed "Start Here" and "Go Deeper". Anchored on
+    // a heading rather than the bare strings, because the beginner on-ramp is
+    // a button reading "Start Here" and that control is not a portal card.
+    expect(res.text).not.toMatch(/<h[1-6][^>]*>\s*Start Here\s*<\/h[1-6]>/);
+    expect(res.text).not.toMatch(/<h[1-6][^>]*>\s*Go Deeper\s*<\/h[1-6]>/);
     // Insights renamed to Freestyle Patterns (route unchanged)
     expect(res.text).toContain('Freestyle Patterns');
     expect(res.text).toContain('href="/freestyle/insights"');
@@ -107,7 +110,7 @@ describe('freestyle landing foundational-tricks mosaic', () => {
     // and its only destination was the soft-retired component view.
     expect(res.text).not.toContain('view=component');
     // each card is a gateway into its matching browse axis
-    for (const view of ['view=add', 'view=dex-count', 'view=family', 'view=sets', 'view=movement-system']) {
+    for (const view of ['view=add', 'view=dex-count', 'view=family', 'view=modifier', 'view=movement-system']) {
       expect(res.text).toContain(`/freestyle/tricks?${view}`);
     }
     // shared denominator note names the counted population precisely as the
@@ -160,10 +163,13 @@ describe('freestyle landing beginner on-ramp', () => {
   it('funnels newcomers to the getting-started page above the foundations mosaic', async () => {
     const res = await request(createApp()).get('/freestyle');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('class="freestyle-learn-pointer"');
+    // The on-ramp is a plain line and a standard outline button. It carries no
+    // callout panel: a one-line pointer does not need chrome around it to be
+    // seen at the top of the page.
     expect(res.text).toMatch(/New to freestyle\?/i);
+    expect(res.text).toMatch(/<a class="btn btn-outline" href="\/freestyle\/start">/);
     expect(res.text).toContain('href="/freestyle/start"');
-    const pointerAt = res.text.indexOf('freestyle-learn-pointer');
+    const pointerAt = res.text.indexOf('href="/freestyle/start"');
     const mosaicAt = res.text.indexOf('The 12 Foundations of Freestyle');
     expect(pointerAt).toBeGreaterThan(-1);
     expect(mosaicAt).toBeGreaterThan(pointerAt);

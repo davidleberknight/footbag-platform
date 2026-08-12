@@ -5,6 +5,11 @@
  * Execution notation (the operational string), the two notation blocks would
  * render the same tokens. The detail page suppresses the Movement block and
  * keeps the Execution block. When the two strings differ, both blocks render.
+ *
+ * A Movement string that merely restates the trick's own name is suppressed by
+ * a separate rule, so the differing fixture below carries a notation distinct
+ * from BOTH its execution string and its name; otherwise this file would pass
+ * or fail for the wrong reason.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -36,7 +41,7 @@ beforeAll(async () => {
     slug: 'dedup-distinct', canonical_name: 'dedup distinct', adds: '2',
     base_trick: 'toe-stall', trick_family: 'toe-stall', category: 'compound',
     review_status: 'expert_reviewed', is_active: 1,
-    notation: 'DEDUP DISTINCT', operational_notation: IDENTICAL,
+    notation: 'SET > OP OUT [DEX] > SAME CLIP [XBD] [DEL]', operational_notation: IDENTICAL,
   });
   db.close();
   createApp = await importApp();

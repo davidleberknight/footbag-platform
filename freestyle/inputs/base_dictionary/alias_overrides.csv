@@ -4,7 +4,7 @@ atomic_dod,retype,technical,0,abbreviation for fusion
 back,delete,,,junk alias to inactive/notation-phrase (back)
 blurry_dlo,retype,technical,0,abbreviation for fog
 blury_whirl,retype,typo,0,misspelling of blurry_whirl
-datw,retype,technical,0,abbreviation for double_around_the_world
+datw,retype,technical,0,abbreviation for double_around_the_world; maintainer-confirmed on review
 datw_heel,retype,technical,0,abbreviation for double_around_the_world_heel
 ddd,retype,technical,0,abbreviation for down_double_down
 dlo,retype,technical,0,abbreviation for double_leg_over
@@ -20,7 +20,7 @@ paradox_dlo,retype,technical,0,abbreviation for paradox_double_leg_over
 paralax,retype,typo,0,misspelling of parallax
 pdx_blender,retype,technical,0,abbreviation for paradox_blender
 pdx_drifter,retype,technical,0,abbreviation for paradox_drifter
-pdx_mirage,retype,technical,0,abbreviation for paradox_mirage
+pdx_mirage,retype,technical,0,abbreviation for paradox_mirage; maintainer-confirmed on review
 pdx_symposium_whirl,retype,technical,0,abbreviation for paradox_symposium_whirl
 pdx_torque,retype,technical,0,abbreviation for paradox_torque
 pdx_whirl,retype,technical,0,abbreviation for paradox_whirl
@@ -41,3 +41,325 @@ backside_symposium_toe_blizzard,retype,technical,0,"footbag.org name for Quantum
 quantum_symposium_illusion,retype,technical,0,"footbag.org alt-name for Quantum Flail (newmoves 131); carried inline on the Red row so the source name resolves, retyped here to a non-display technical redirect."
 toe_ripwalk,retype,technical,0,"Toe-entry spelling of Tripwalk, folded from a duplicate canonical row (footbag.org newmoves 135 names one movement with both names). Carried inline on the Red row so the footbag.org source linker resolves the source name before the alias loader runs; retyped here to a non-display technical redirect."
 symposium_tomahawk,retype,technical,0,"Compositional spelling of Mullet: tomahawk is ducking paradox whirl, so symposium tomahawk expands to the exact operator set Mullet's technical name spells (ducking paradox symposium whirl), corroborated by the observational parenthetical. Carried inline on the surviving Red row so the footbag.org source linker resolves the source name; retyped here to a non-display technical redirect. Folded from a duplicate canonical row."
+2_bag_juggle,retype,technical,0,numeric/spelling variant of the canonical
+3_bag_juggle,retype,technical,0,numeric/spelling variant of the canonical; maintainer-confirmed on review
+3atw,retype,technical,0,abbreviation of the canonical
+alpine_atomsmasher,retype,structural,0,modifier-stack decomposition rather than a nickname
+alpine_big_apple,retype,structural,0,modifier-stack decomposition rather than a nickname
+alpine_fusion,retype,structural,0,modifier-stack decomposition rather than a nickname
+alpine_ripwalk,retype,structural,0,modifier-stack decomposition rather than a nickname
+alpine_sidewalk,retype,structural,0,modifier-stack decomposition rather than a nickname
+alpine_spinning_whirl,retype,structural,0,modifier-stack decomposition rather than a nickname
+alpine_super_mario,retype,structural,0,modifier-stack decomposition rather than a nickname
+alpine_superduperfly,retype,structural,0,modifier-stack decomposition rather than a nickname
+alpine_void,retype,structural,0,modifier-stack decomposition rather than a nickname
+armaggedon,retype,typo,0,misspelling that collides with the armageddon trick
+assassin_ss,retype,positional,0,same-side / opposite-side marker on the canonical name
+atomic_double_leg_over,retype,structural,0,modifier-stack decomposition rather than a nickname
+atomic_double_over_down,retype,structural,0,modifier-stack decomposition rather than a nickname
+atomic_down_over_down,retype,structural,0,modifier-stack decomposition rather than a nickname
+atomic_ducking_far_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
+atomic_ducking_whirl,retype,structural,0,modifier-stack decomposition rather than a nickname
+atomic_far_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
+atomic_far_symp_double_down,retype,technical,0,abbreviation of the canonical name
+atomic_gyro_torque,retype,structural,0,modifier-stack decomposition rather than a nickname
+atomic_legover,retype,structural,0,modifier-stack decomposition rather than a nickname
+atomic_mirage,retype,structural,0,modifier-stack decomposition rather than a nickname
+atomic_os_symposium_double_over_down,retype,structural,0,modifier-stack decomposition
+atomic_osis,retype,structural,0,modifier-stack decomposition rather than a nickname
+atomsmasher,retype,technical,0,spacing or spelling variant of the canonical name
+atw,retype,technical,0,abbreviation of the canonical name
+atw_heel,retype,technical,0,abbreviation of the canonical name
+atw_kick,retype,technical,0,abbreviation of the canonical name
+backside_symposium_toe_blur,retype,structural,0,modifier-stack decomposition rather than a nickname
+bar_fly,retype,technical,0,spacing or spelling variant of the canonical name
+barraging_far_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
+barraging_near_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
+barraging_paradox_mirage,retype,structural,0,modifier-stack decomposition rather than a nickname
+barraging_whirl,retype,structural,0,modifier-stack decomposition rather than a nickname
+barroque,retype,typo,0,misspelling of baroque
+blurr_iest,retype,typo,0,misspelling of the canonical name
+blurry_barfly,retype,structural,0,modifier-stack decomposition rather than a nickname
+blurry_blender,retype,structural,0,modifier-stack decomposition rather than a nickname
+blurry_dim_walk,retype,structural,0,modifier-stack decomposition rather than a nickname
+blurry_w,retype,technical,0,abbreviation of the canonical name
+bw,retype,technical,0,abbreviation of the canonical name
+clipper_delay,retype,historical,0,delay-form of the canonical stall name; maintainer-confirmed on review (stall and delay name the same thing)
+clipper_ducking_far_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
+clipper_far_symposium_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
+clipper_kick,retype,structural,0,modifier-stack decomposition rather than a nickname
+clipper_near_symposium_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
+clipper_set_ss_symposium_double_over_down,retype,positional,0,same-side / opposite-side marker on the canonical name
+clipper_stall_ss,retype,positional,0,same-side / opposite-side marker on the canonical name
+cloud_delay,retype,historical,0,delay-form of the canonical stall name
+cross_body_sole_delay,retype,historical,0,delay-form of the canonical stall name
+da_da_curve,retype,technical,0,spacing or spelling variant of the canonical name
+da_da_curve_swirl,retype,technical,0,spacing or spelling variant of the canonical name
+dim_walk,retype,technical,0,spacing or spelling variant of the canonical name
+diving_down_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
+dod_reverse_swirl,retype,technical,0,abbreviation of the canonical name
+double_atw,retype,technical,0,abbreviation of the canonical name; maintainer-confirmed on review
+double_atw_heel,retype,technical,0,abbreviation of the canonical name
+double_down_near_osis,retype,structural,0,modifier-stack decomposition rather than a nickname
+double_leg_over_ss,retype,positional,0,same-side / opposite-side marker on the canonical name
+double_swirl,retype,structural,0,modifier-stack decomposition rather than a nickname
+double_swirling_dragon,retype,structural,0,modifier-stack decomposition rather than a nickname
+double_switchover,retype,technical,0,spacing or spelling variant of the canonical name
+doublespinning_kick,retype,technical,0,spelling variant of the canonical
+dragonfly,retype,technical,0,truncation of the canonical
+ducking_paradox_whirl,retype,structural,0,modifier-stack decomposition rather than a nickname
+dyno_op,retype,positional,0,same-side / opposite-side marker on the canonical name
+eclipse_ss,retype,positional,0,same-side / opposite-side marker on the canonical name
+egg_beater,retype,technical,0,spacing or spelling variant of the canonical name
+eggbeater_ss,retype,positional,0,same-side / opposite-side marker on the canonical name
+enterrage,retype,technical,0,contraction derivable from the canonical
+fairy_beater,retype,structural,0,modifier-stack decomposition rather than a nickname
+fairy_double_leg_over_ss,retype,positional,0,same-side / opposite-side marker on the canonical name
+fairy_legover_ss,retype,positional,0,same-side / opposite-side marker on the canonical name
+fairy_pickup_ss,retype,positional,0,same-side / opposite-side marker on the canonical name
+fairy_reverse_whirl,retype,structural,0,modifier-stack decomposition rather than a nickname
+fairy_spyro_symposium_torque,retype,structural,0,modifier-stack decomposition rather than a nickname
+far_butterfly,retype,structural,0,modifier-stack decomposition rather than a nickname
+flail_ss,retype,positional,0,same-side / opposite-side marker on the canonical name
+flailing_ss_symposium_eggbeater,retype,positional,0,same-side / opposite-side marker on the canonical name
+flapper_delay,retype,historical,0,delay-form of the canonical stall name
+flapper_stall,retype,historical,0,stall-form of the flapper nickname
+floating_butterfly,retype,structural,0,modifier-stack decomposition rather than a nickname
+forehead_delay,retype,historical,0,delay-form of the canonical stall name
+furious_barfly,retype,structural,0,modifier-stack decomposition rather than a nickname
+furious_butterfly_swirl,retype,structural,0,modifier-stack decomposition rather than a nickname
+furious_double_legover,retype,structural,0,modifier-stack decomposition rather than a nickname
+furious_drifter,retype,structural,0,modifier-stack decomposition rather than a nickname
+furious_eggbeater,retype,structural,0,modifier-stack decomposition rather than a nickname
+furious_illusion,retype,structural,0,modifier-stack decomposition rather than a nickname
+furious_mirage,retype,structural,0,modifier-stack decomposition rather than a nickname
+furious_paradox_mirage,retype,structural,0,modifier-stack decomposition rather than a nickname
+furious_symposium_eggbeater,retype,structural,0,modifier-stack decomposition rather than a nickname
+furious_symposium_mirage,retype,structural,0,modifier-stack decomposition rather than a nickname
+furious_whirl,retype,structural,0,modifier-stack decomposition rather than a nickname
+gdlo,retype,technical,0,abbreviation of the canonical name
+gyro_drifter,retype,structural,0,modifier-stack decomposition rather than a nickname
+gyro_flurry,retype,structural,0,modifier-stack decomposition rather than a nickname
+gyro_shooting_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
+gyro_torque,retype,structural,0,modifier-stack decomposition rather than a nickname
+gyro_torque_screw,retype,structural,0,modifier-stack decomposition rather than a nickname
+gyro_torquescrew,retype,structural,0,modifier-stack decomposition rather than a nickname
+head_delay,retype,historical,0,delay-form of the canonical stall name
+heel_delay,retype,historical,0,delay-form of the canonical stall name
+high_stepping_ddd,retype,technical,0,abbreviation of the canonical name
+illusion_kick,retype,technical,0,spelling variant of the canonical; maintainer-confirmed on review
+illusioning_flail,retype,structural,0,modifier-stack decomposition rather than a nickname
+illusioning_osis,retype,structural,0,modifier-stack decomposition rather than a nickname
+illusioning_symposium_butterfly,retype,structural,0,modifier-stack decomposition rather than a nickname
+illusioning_symposium_eggbeater,retype,structural,0,modifier-stack decomposition rather than a nickname
+illusioning_symposium_mirage,retype,structural,0,modifier-stack decomposition rather than a nickname
+infinity_swirl,retype,structural,0,decomposition built on the butterfly nickname
+inside_atw,retype,technical,0,abbreviation of the canonical name
+inside_datw,retype,technical,0,abbreviation of the canonical name
+inside_delay,retype,historical,0,delay-form of the canonical stall name
+inspinning_same_side_butterfly,retype,structural,0,modifier-stack decomposition rather than a nickname
+inspinning_ss_illusion,retype,positional,0,same-side / opposite-side marker on the canonical name
+inspinning_ss_mirage,retype,positional,0,same-side / opposite-side marker on the canonical name; maintainer-confirmed on review (ss is not a nickname)
+knee_delay,retype,historical,0,delay-form of the canonical stall name
+leg_over,retype,technical,0,spacing or spelling variant of the canonical name
+miraging_clipper,retype,structural,0,modifier-stack decomposition rather than a nickname
+miraging_far_symp_double_down,retype,technical,0,abbreviation of the canonical name
+miraging_far_symposium_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
+miraging_legover,retype,structural,0,modifier-stack decomposition rather than a nickname
+miraging_osis,retype,structural,0,modifier-stack decomposition rather than a nickname
+mobiusscrew,retype,technical,0,spelling variant of gyro torquescrew
+neck_catch,retype,historical,0,delay-form of the canonical stall name
+neck_delay,retype,historical,0,delay-form of the canonical stall name
+neutron_drifter,retype,structural,0,modifier-stack decomposition
+neutron_torque,retype,structural,0,modifier-stack decomposition
+nuclear_ddd,retype,technical,0,abbreviation of the canonical name
+nuclear_double_over_down,retype,structural,0,modifier-stack decomposition rather than a nickname
+nuclear_far_butterfly,retype,structural,0,modifier-stack decomposition rather than a nickname
+nuclear_far_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
+nuclear_far_mirage,retype,structural,0,modifier-stack decomposition rather than a nickname
+nuclear_mirage,retype,structural,0,modifier-stack decomposition rather than a nickname
+nuclear_near_butterfly,retype,structural,0,modifier-stack decomposition rather than a nickname
+nuclear_nova,retype,structural,0,modifier-stack decomposition rather than a nickname
+nuclear_osis,retype,structural,0,modifier-stack decomposition rather than a nickname
+nuclear_ss_butterfly,retype,positional,0,same-side / opposite-side marker on the canonical name
+nuclear_ss_dyno,retype,positional,0,same-side / opposite-side marker on the canonical name
+nuclear_ss_guay,retype,positional,0,same-side / opposite-side marker on the canonical name
+nuclear_ss_illusion,retype,positional,0,same-side / opposite-side marker on the canonical name
+nuclear_ss_legover,retype,positional,0,same-side / opposite-side marker on the canonical name
+nuclear_ss_mirage,retype,positional,0,same-side / opposite-side marker on the canonical name
+nuclear_ss_pickup,retype,positional,0,same-side / opposite-side marker on the canonical name
+nuclear_ss_reverse_whirl,retype,positional,0,same-side / opposite-side marker on the canonical name
+nuclear_ss_whirl,retype,positional,0,same-side / opposite-side marker on the canonical name
+outside_atw,retype,technical,0,abbreviation of the canonical name; maintainer-confirmed on review (atw is not a nickname)
+outside_delay,retype,historical,0,delay-form of the canonical stall name
+outside_in_mirage,retype,structural,0,modifier-stack decomposition rather than a nickname
+p_blender,retype,technical,0,abbreviation of the canonical name
+p_drifter,retype,technical,0,abbreviation of the canonical name
+p_mirage,retype,technical,0,abbreviation of the canonical name; maintainer-confirmed on review
+p_s_whirl,retype,technical,0,abbreviation of the canonical name
+p_torque,retype,technical,0,abbreviation of the canonical name
+p_whirl,retype,technical,0,abbreviation of the canonical name
+paradox_double_drifter,retype,structural,0,modifier-stack decomposition rather than a nickname
+paradox_fusion,retype,structural,0,modifier-stack decomposition rather than a nickname
+paradox_grifter,retype,structural,0,modifier-stack decomposition rather than a nickname
+paradox_miraging_symposium_eggbeater,retype,structural,0,modifier-stack decomposition rather than a nickname
+paradox_t,retype,technical,0,abbreviation of the canonical name
+park_walk,retype,technical,0,spacing or spelling variant of the canonical name
+paste_ss,retype,positional,0,same-side / opposite-side marker on the canonical name
+peak,retype,technical,0,truncation of the canonical
+pickup_ss,retype,positional,0,same-side / opposite-side marker on the canonical name
+pigbeater_ss,retype,positional,0,same-side / opposite-side marker on the canonical name
+pincher_squeeze,retype,structural,0,the pincher nickname compounded with the canonical
+pixie_butterfly,retype,structural,0,modifier-stack decomposition rather than a nickname
+pixie_diving_butterfly,retype,structural,0,modifier-stack decomposition rather than a nickname
+pixie_double_leg_over,retype,structural,0,modifier-stack decomposition rather than a nickname
+pixie_double_legover,retype,structural,0,modifier-stack decomposition rather than a nickname
+pixie_double_pickup_ss,retype,positional,0,same-side / opposite-side marker on the canonical name
+pixie_double_switchover,retype,technical,0,spacing or spelling variant of the canonical name
+pixie_drifter,retype,structural,0,modifier-stack decomposition rather than a nickname
+pixie_ducking_double_leg_over,retype,structural,0,modifier-stack decomposition rather than a nickname
+pixie_ducking_mirage,retype,structural,0,modifier-stack decomposition rather than a nickname
+pixie_far_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
+pixie_illusion,retype,structural,0,modifier-stack decomposition rather than a nickname
+pixie_opposite_side_butterfly,retype,structural,0,modifier-stack decomposition rather than a nickname
+pixie_reverse_whirl,retype,structural,0,modifier-stack decomposition rather than a nickname
+pixie_same_legover,retype,structural,0,modifier-stack decomposition rather than a nickname
+pixie_ss_butterfly,retype,positional,0,same-side / opposite-side marker on the canonical name
+pixie_symposium_eggbeater,retype,structural,0,modifier-stack decomposition rather than a nickname
+pixie_symposium_reverse_whirl,retype,structural,0,modifier-stack decomposition rather than a nickname
+pod,retype,technical,0,abbreviation of the canonical name
+pogo_far_mirage,retype,structural,0,modifier-stack decomposition rather than a nickname
+pogo_nuclear_far_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
+pogo_ss_flail,retype,positional,0,same-side / opposite-side marker on the canonical name
+pogo_ss_illusion,retype,positional,0,same-side / opposite-side marker on the canonical name
+pogo_ss_legover,retype,positional,0,same-side / opposite-side marker on the canonical name
+pogo_ss_mirage,retype,positional,0,same-side / opposite-side marker on the canonical name
+pogo_ss_pickup,retype,positional,0,same-side / opposite-side marker on the canonical name
+pogo_ss_symposium_mirage,retype,positional,0,same-side / opposite-side marker on the canonical name
+quantum_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
+quantum_double_over_down,retype,structural,0,modifier-stack decomposition rather than a nickname
+quantum_far_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
+railing_ducking_butterfly,retype,structural,0,modifier-stack decomposition rather than a nickname
+railing_ducking_mirage,retype,structural,0,modifier-stack decomposition rather than a nickname
+railing_ss_butterfly,retype,positional,0,same-side / opposite-side marker on the canonical name
+railing_ss_dlo,retype,positional,0,same-side / opposite-side marker on the canonical name
+railing_ss_double_legover,retype,positional,0,same-side / opposite-side marker on the canonical name
+railing_symposium_mirage,retype,structural,0,modifier-stack decomposition rather than a nickname
+ratw,retype,technical,0,abbreviation of the canonical name
+red_wetter,retype,technical,0,spacing or spelling variant of the canonical name
+rev_atw,retype,technical,0,abbreviation of the canonical name
+rev_whirl_op,retype,positional,0,same-side / opposite-side marker on the canonical name
+reverse_around_the_world,retype,structural,0,modifier-stack decomposition rather than a nickname
+reverse_atw,retype,technical,0,abbreviation of the canonical name
+reverse_atw_kick,retype,technical,0,abbreviation of the canonical name
+reverse_swirl,retype,structural,0,modifier-stack decomposition rather than a nickname
+reverse_swirling_dragon,retype,structural,0,modifier-stack decomposition rather than a nickname
+reverse_whirl,retype,structural,0,modifier-stack decomposition rather than a nickname
+revwhirl,retype,technical,0,spacing or spelling variant of the canonical name
+sail_down,retype,structural,0,modifier-stack decomposition
+sailing_dod,retype,technical,0,abbreviation of the canonical name
+sailing_ss_butterfly,retype,positional,0,same-side / opposite-side marker on the canonical name
+sailing_ss_dlo,retype,positional,0,same-side / opposite-side marker on the canonical name
+sailing_ss_double_legover,retype,positional,0,same-side / opposite-side marker on the canonical name
+sailing_ss_illusion,retype,positional,0,same-side / opposite-side marker on the canonical name
+sailing_ss_legover,retype,positional,0,same-side / opposite-side marker on the canonical name
+sailing_ss_mirage,retype,positional,0,same-side / opposite-side marker on the canonical name
+sailing_ss_pickup,retype,positional,0,same-side / opposite-side marker on the canonical name
+shooting_double_over_down,retype,structural,0,modifier-stack decomposition rather than a nickname
+shooting_down_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
+shooting_eggbeater,retype,structural,0,modifier-stack decomposition rather than a nickname
+shooting_far_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
+shooting_ss_clipper,retype,positional,0,same-side / opposite-side marker on the canonical name
+shooting_ss_illusion,retype,positional,0,same-side / opposite-side marker on the canonical name
+shooting_ss_legover,retype,positional,0,same-side / opposite-side marker on the canonical name
+shooting_ss_mirage,retype,positional,0,same-side / opposite-side marker on the canonical name
+shooting_ss_pickup,retype,positional,0,same-side / opposite-side marker on the canonical name
+shoulder_delay,retype,historical,0,delay-form of the canonical stall name
+sidwalk,retype,typo,0,misspelling of sidewalk
+smear_ss,retype,positional,0,same-side / opposite-side marker on the canonical name
+smog_ss,retype,positional,0,same-side / opposite-side marker on the canonical name
+smudge_ss,retype,positional,0,same-side / opposite-side marker on the canonical name
+sole_delay,retype,historical,0,delay-form of the canonical stall name
+spikehammer,retype,technical,0,spacing or spelling variant of the canonical name
+spinning_down_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
+spinning_far_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
+spinning_kick,retype,structural,0,modifier-stack decomposition rather than a nickname
+spinning_near_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
+spinning_paradox_miraging_symposium_torque,retype,technical,0,spacing or spelling variant of the canonical name
+spinning_paradox_symposium_whirling_swirl,retype,structural,0,modifier-stack decomposition rather than a nickname
+spinning_reverse_whirl,retype,structural,0,modifier-stack decomposition rather than a nickname
+spinning_symposium_whirl,retype,structural,0,modifier-stack decomposition rather than a nickname
+spinning_symposium_wirl,retype,typo,0,misspelling of the canonical name
+splicing_ss_blender,retype,positional,0,same-side / opposite-side marker on the canonical name
+step_over,retype,technical,0,spelling variant of the canonical
+stepping_barrage,retype,structural,0,modifier-stack decomposition rather than a nickname
+stepping_double_leg_over,retype,structural,0,modifier-stack decomposition rather than a nickname
+stepping_drifter,retype,structural,0,modifier-stack decomposition rather than a nickname
+stepping_ducking_far_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
+stepping_ducking_far_double_over_down,retype,structural,0,modifier-stack decomposition rather than a nickname
+stepping_ducking_paradox_torque,retype,structural,0,modifier-stack decomposition rather than a nickname
+stepping_far_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
+stepping_far_symp_double_down,retype,technical,0,abbreviation of the canonical name
+stepping_illusion,retype,structural,0,modifier-stack decomposition rather than a nickname
+stepping_legover,retype,structural,0,modifier-stack decomposition rather than a nickname
+stepping_near_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
+stepping_opposite_osis,retype,structural,0,modifier-stack decomposition rather than a nickname
+stepping_opposite_reaper,retype,structural,0,modifier-stack decomposition rather than a nickname
+stepping_opposite_side_butterfly,retype,structural,0,modifier-stack decomposition rather than a nickname
+stepping_opposite_side_reverse_whirl,retype,structural,0,modifier-stack decomposition rather than a nickname
+stepping_paradox_double_leg_over,retype,structural,0,modifier-stack decomposition rather than a nickname
+stepping_paradox_eggbeater,retype,structural,0,modifier-stack decomposition rather than a nickname
+stepping_paradox_mirage,retype,structural,0,modifier-stack decomposition rather than a nickname
+stepping_paradox_whirl,retype,structural,0,modifier-stack decomposition rather than a nickname
+stepping_reverse_whirl,retype,structural,0,modifier-stack decomposition rather than a nickname
+stepping_same_side_torque,retype,structural,0,modifier-stack decomposition rather than a nickname
+stepping_torque,retype,structural,0,modifier-stack decomposition rather than a nickname
+super_fly,retype,technical,0,spacing or spelling variant of the canonical name
+superdeeduperfly,retype,technical,0,spelling variant of superduperfly
+superduperfly,retype,technical,0,elongation derivable from the canonical
+surfing_ss_blender,retype,positional,0,same-side / opposite-side marker on the canonical name
+surfing_ss_pickup,retype,positional,0,same-side / opposite-side marker on the canonical name
+surging_barfly,retype,structural,0,modifier-stack decomposition rather than a nickname
+surging_butterfly,retype,structural,0,modifier-stack decomposition rather than a nickname
+surging_ducking_blender,retype,structural,0,modifier-stack decomposition rather than a nickname
+surging_far_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
+surging_paradox_blender,retype,structural,0,modifier-stack decomposition rather than a nickname
+surging_paradox_mirage,retype,structural,0,modifier-stack decomposition rather than a nickname
+surging_paradox_whirl,retype,structural,0,modifier-stack decomposition rather than a nickname
+surging_ss_osis,retype,positional,0,same-side / opposite-side marker on the canonical name
+surging_symposium_reverse_whirl,retype,structural,0,modifier-stack decomposition rather than a nickname
+swirling_dragon,retype,structural,0,modifier-stack decomposition rather than a nickname
+symposium_barfly,retype,structural,0,modifier-stack decomposition rather than a nickname
+symposium_double_leg_over,retype,structural,0,modifier-stack decomposition rather than a nickname
+symposium_down_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
+symposium_furious_legover,retype,structural,0,modifier-stack decomposition rather than a nickname
+symposium_illusion,retype,structural,0,modifier-stack decomposition rather than a nickname
+symposium_mirage_ss,retype,positional,0,same-side / opposite-side marker on the canonical name
+symposium_swirl_op,retype,positional,0,same-side / opposite-side marker on the canonical name
+tapping_gyro_drifter,retype,structural,0,modifier-stack decomposition rather than a nickname
+tapping_mobius,retype,structural,0,modifier-stack decomposition rather than a nickname
+tatw,retype,technical,0,abbreviation of the canonical name
+three_bag,retype,technical,0,truncation of the canonical; maintainer-confirmed on review
+three_bag_juggling,retype,technical,0,spelling variant of the canonical; maintainer-confirmed on review (3 spells three rather than naming anything)
+toe,retype,ambiguous,0,bare surface word; too generic to display
+toe_barrage,retype,structural,0,modifier-stack decomposition rather than a nickname
+toe_blizzard,retype,structural,0,modifier-stack decomposition rather than a nickname
+toe_blur,retype,structural,0,modifier-stack decomposition rather than a nickname
+toe_delay,retype,historical,0,delay-form of the canonical stall name
+toe_far_symposium_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
+toe_mobius,retype,structural,0,modifier-stack decomposition rather than a nickname
+toe_near_barrage,retype,structural,0,modifier-stack decomposition rather than a nickname
+toe_near_symposium_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
+toe_set_spinning_double_over_down,retype,structural,0,modifier-stack decomposition rather than a nickname
+torch_r_rack,retype,typo,0,misspelling of the canonical name
+triple_atw,retype,technical,0,abbreviation of the canonical name
+triple_spinning_kick,retype,structural,0,modifier-stack decomposition rather than a nickname
+two_bag,retype,technical,0,truncation of the canonical
+two_bag_juggling,retype,technical,0,spelling variant of the canonical
+warping_mirage,retype,structural,0,modifier-stack decomposition rather than a nickname
+weaving_pigbeater,retype,structural,0,modifier-stack decomposition rather than a nickname
+whirling_mirage,retype,structural,0,modifier-stack decomposition rather than a nickname
+whirling_osis,retype,structural,0,modifier-stack decomposition rather than a nickname
+whirling_reverse_whirl,retype,structural,0,modifier-stack decomposition rather than a nickname
+zulu_far_legover,retype,structural,0,modifier-stack decomposition rather than a nickname
+zulu_far_pickup,retype,structural,0,modifier-stack decomposition rather than a nickname

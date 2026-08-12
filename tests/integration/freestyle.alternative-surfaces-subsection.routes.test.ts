@@ -95,12 +95,12 @@ describe('Movement System view: alternative-surfaces subsection', () => {
     // Standard browse-row markup, not a bespoke inline list.
     expect(res.text).toContain('class="dict-trick-row"');
     expect(res.text).not.toContain('alt-surface-trick-list');
-    // Plain-text name + the separate Trick Detail control to the detail page.
-    expect(res.text).toContain('<span class="dict-trick-row-title">sole stall</span>');
-    expect(res.text).toContain('href="/freestyle/tricks/sole_stall">Detail');
-    // Standardized JOB / ADD notation line.
-    expect(res.text).toContain('<span class="dict-trick-row-label">JOB</span>');
-    expect(res.text).toContain('<span class="dict-trick-row-label">ADD</span>');
+    // The name opens the trick's page, and the separate Detail control agrees.
+    expect(res.text).toMatch(/<a[^>]*href="\/freestyle\/tricks\/sole_stall"[^>]*>sole stall<\/a>/);
+    expect(res.text).toMatch(/<a[^>]*href="\/freestyle\/tricks\/sole_stall"[^>]*>\s*Detail\s*<\/a>/);
+    // The shared notation column: notation, and the difficulty value.
+    expect(res.text).toContain('class="dict-trick-row-notation-value"');
+    expect(res.text).toMatch(/aria-label="Difficulty value">\(\d+\)</);
   });
 
   it('does NOT render the Alternative surfaces section on ?view=add', async () => {

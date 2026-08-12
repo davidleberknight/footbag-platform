@@ -2795,6 +2795,15 @@ export const freestyleTrickAliases = {
     ORDER BY trick_slug, alias_text COLLATE NOCASE
   `); },
 
+  // Every trick slug the alias table holds a row for, whatever the display
+  // gate says. Read alongside listAll so a caller can tell "this trick has no
+  // aliases recorded" from "this trick's aliases are all curated out of
+  // display": the first may fall back to the deprecated aliases_json column,
+  // the second must not, or curation would be undone by the fallback.
+  get listTrickSlugsWithAnyAlias() { return db.prepare(`
+    SELECT DISTINCT trick_slug FROM freestyle_trick_aliases
+  `); },
+
   // The alias slugs for one canonical trick. Used to fold records whose
   // trick_name is spelled as an alias onto the canonical trick page.
   get getAliasSlugsForTrick() { return db.prepare(`
@@ -2959,43 +2968,40 @@ export const freestyleTrickTips = {
 
 export const freestyleMediaLinks = {
   // Per-trick media-coverage rows joined to source_id. One row per
-  // (trick_slug, source_id) pair (deduped). Drives the tier-aware media
-  // chip on the trick-dictionary ADD view and the dictionary-index
-  // media-coverage chip ('Tutorial available' / 'Demo only' / 'No video
-  // yet'): the service classifies each trick as 'tutorial' (any
-  // tutorial-tier source tagged), 'demo' (only demo-/record-tier), or
-  // 'none' (no rows here at all).
-  // Coverage comes from the curator-tagged channel: a media_items row
-  // tagged with a trick's '#slug' tag is coverage for that trick, and
-  // mi.source_id carries the tier the service classifies on.
+  // (trick_slug, source_id) pair (deduped). A media row tagged with a
+  // trick's '#slug' tag is coverage for that trick; mi.source_id carries
+  // the tier the service classifies the chip on, and is NULL for a
+  // member-uploaded clip, which is coverage exactly as a curator-published
+  // clip is. Reading the linkable-video view rather than the bare table is
+  // what keeps this answer identical to the trick detail page's.
   get listCoveredTrickSlugsWithSource() { return db.prepare(`
     SELECT DISTINCT
       ft.slug       AS slug,
       mi.source_id  AS source_id
-    FROM media_items mi
+    FROM media_items_linkable_video mi
     INNER JOIN media_tags mt ON mt.media_id = mi.id
     INNER JOIN tags t        ON t.id        = mt.tag_id
     INNER JOIN freestyle_tricks ft ON ('#' || ft.slug) = t.tag_normalized
-    WHERE mi.source_id IS NOT NULL
-      AND ft.is_active = 1
+    WHERE ft.is_active = 1
     UNION
     -- Media tagged with a trick's alias slug (e.g. a retired structural name
     -- folded onto its folk-named canonical) is coverage for that canonical.
     SELECT DISTINCT
       ft.slug       AS slug,
       mi.source_id  AS source_id
-    FROM media_items mi
+    FROM media_items_linkable_video mi
     INNER JOIN media_tags mt ON mt.media_id = mi.id
     INNER JOIN tags t        ON t.id        = mt.tag_id
     INNER JOIN freestyle_trick_aliases a ON ('#' || a.alias_slug) = t.tag_normalized
     INNER JOIN freestyle_tricks ft       ON ft.slug = a.trick_slug AND ft.is_active = 1
-    WHERE mi.source_id IS NOT NULL
   `); },
 };
 
 export interface FreestyleMediaCoveredSourceRow {
   slug:      string;
-  source_id: string;
+  // NULL for a member-uploaded clip: the source registry names curated
+  // channels and series, and a member's own clip belongs to none of them.
+  source_id: string | null;
 }
 
 export interface FreestyleModifierUsageRow {
@@ -3022,7 +3028,7 @@ export const freestyleTrickModifiers = {
   // (modifier, trick) pair, ordered for service-side grouping. Excludes
   // pending tricks, modifier-category tricks (they're not display-tier),
   // and modifiers that have zero linked active tricks (filtered later in
-  // the service when grouping). Drives /freestyle/tricks?view=sets.
+  // the service when grouping). Drives /freestyle/tricks?view=modifier.
   get listTricksByModifier() { return db.prepare(`
     SELECT
       m.slug                  AS modifier_slug,
@@ -6605,27 +6611,20 @@ export const media = {
       AND mi.is_avatar = 0
   `); },
 
-  // Trick detail "Reference Media" block: every active video media item
+  // Trick detail "Reference Media" block: every watchable video media item
   // tagged with the trick's canonical slug hashtag (e.g. '#butterfly').
   // Returns most-recent first. The caller filters per their policy
   // (e.g. /freestyle/tricks/:slug includes TT items; the public gallery
-  // grouping path excludes them). Always-on exclusion: items tagged
-  // `#unavailable_embed` are filtered out.
+  // grouping path excludes them). Reading the linkable-video view is what
+  // keeps this answer identical to the dictionary browse rows'.
   get listMediaByTrickTag() { return db.prepare(`
     SELECT mi.id, mi.video_id, mi.video_url, mi.thumbnail_url, mi.caption,
            mi.video_platform, mi.uploaded_at, mi.source_id,
            ms.source_name, ms.creator AS source_creator, ms.url AS source_url
-    FROM media_items mi
+    FROM media_items_linkable_video mi
     JOIN media_tags mt ON mt.media_id = mi.id
     LEFT JOIN media_sources ms ON ms.source_id = mi.source_id
     WHERE mt.tag_display = ?
-      AND mi.media_type = 'video'
-      AND mi.moderation_status = 'active'
-      AND NOT EXISTS (
-        SELECT 1 FROM media_tags mtu
-        JOIN tags tu ON tu.id = mtu.tag_id
-        WHERE mtu.media_id = mi.id AND tu.tag_normalized = '#unavailable_embed'
-      )
     ORDER BY mi.uploaded_at DESC, mi.id ASC
   `); },
 

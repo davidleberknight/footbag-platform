@@ -58,7 +58,7 @@ Public dictionary content is public. Login is reserved for member-private surfac
 
 ### Decomposition is pedagogy at the trick level
 
-A trick-detail page always shows its structural decomposition (`gyro + torque = 5 ADD ✓`); it is content, not detail to be folded away. At family-page level, decomposition is compact annotation; at trick level, it's content.
+A trick-detail page always shows its structural decomposition (`gyro + torque = 5 ADD ✓`); it is content, never removed and never gated. It is not the page's opening: plain-words orientation comes first and the decomposition sits below it. At family-page level, decomposition is compact annotation; at trick level, it's content.
 
 ### Single mapping site
 
@@ -163,7 +163,7 @@ Curator override via `alias_kind` (when added) is the tiebreaker.
 ### Disclosure model
 
 - A trick page has no modes and no depth toggle. One URL, one rendering.
-- Sections that can be folded away are independent collapsible regions: technique notes, community tips, structural decomposition, the ADD derivation panel.
+- Sections that can be folded away are independent collapsible regions: technique notes, community tips, the explanation surrounding the structural decomposition, and the ADD derivation panel. The decomposition formula itself is never inside a closed region.
 - Each starts closed and each is opened on its own. Opening one never changes another, and nothing about the choice persists across pages.
 - Decomposition is always present at trick level; the region controls how much explanation sits around it, not whether the formula exists.
 
@@ -225,7 +225,7 @@ Forward sequencing for these surfaces (alias-category surfacing, a modifier-aggr
 
 - **Auth-gating dictionary depth.** Login is for member-private data; trick depth stays public.
 - **Inventing schema for UX wants.** Three of four UX axes require zero new schema. The fourth degrades gracefully.
-- **Hiding decomposition as "advanced only"** at trick level. The formula IS pedagogy.
+- **Hiding decomposition as "advanced only"** at trick level, or removing it. The formula IS pedagogy; it is placed below the plain-words opening, not deleted from the page.
 - **Rendering typo aliases publicly.** Search resolves; display omits.
 - **Treating modifier associations as parallel families.** Primary family is data; modifier association is narrative+modifier_links.
 - **Editorializing difficulty in prose.** ADD numbers speak.
@@ -234,7 +234,8 @@ Forward sequencing for these surfaces (alias-category surfacing, a modifier-aggr
 - **Fragmenting depth across multiple URLs.** One trick = one URL; one family = one URL. Disclosure controls layered content, not routing.
 - **Coupling status enums to template-rendered text.** Single mapping site at the service layer.
 - **Rendering broken links.** "Modifier association" text without a destination is acceptable; a link to a non-existent page is not.
-- **Linking a trick hashtag with no media, or making the name a link.** On a trick page the hashtag links to its gallery only when the trick has media, else a plain token (a clickable hashtag is the sole media signal); the name is never a link; a separate "Trick Detail" link opens the detail page. Rule: `.claude/rules/view-layer.md`.
+- **Inventing visual treatment for these surfaces.** Type ramp, reading measure, heading scale, link and disclosure affordances, and callout chrome are the site-wide standard; the rule is `.claude/rules/view-layer.md`, which these surfaces follow without a freestyle variant.
+- **Linking a trick hashtag with no media.** On a trick page the hashtag links to its gallery only when the trick has media, else a plain token; the trick name links to the detail page, the same destination as the separate "Detail" link, and a "Media" link opens the gallery, rendered only when the trick has media. Rule: `.claude/rules/view-layer.md`.
 
 ---
 

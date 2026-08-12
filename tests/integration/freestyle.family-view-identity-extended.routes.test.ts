@@ -187,24 +187,22 @@ describe('Family View — butterfly / mirage / osis / torque pilot families rend
   }
 });
 
-describe('Family View — chain entries surface as visible formulas', () => {
-  it('renders the first-reading tokens for each chained pilot', async () => {
+describe('Chain entries surface as visible formulas', () => {
+  it('renders the first-reading tokens for each chained pilot on its trick page', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks?view=family');
-    expect(res.status).toBe(200);
-
+    // A chain reading is structural content: it reads on the trick's own page,
+    // either as its own section or, when the About build path already says the
+    // same thing, through that line. Browse rows carry identity and notation.
     for (const pilot of PILOTS_WITH_CHAINS) {
-      const cardRegion = res.text.match(
-        new RegExp(`data-trick-slug="${pilot.slug}"[\\s\\S]*?<\\/article>`),
-      );
-      expect(cardRegion, `card region not found for ${pilot.slug}`).not.toBeNull();
-
+      const page = await request(app).get(`/freestyle/tricks/${pilot.slug}`);
+      expect(page.status, `${pilot.slug} page must render`).toBe(200);
+      const readings = page.text.match(/<ol class="equivalent-readings-list">[\s\S]*?<\/ol>/)?.[0] ?? '';
+      const buildPath = page.text.match(/<dd data-build-path>([\s\S]*?)<\/dd>/)?.[1] ?? '';
       for (const token of pilot.firstReadingTokens) {
-        const pattern = new RegExp(`sem-token[^>]*>${token}<`);
         expect(
-          cardRegion![0],
-          `card for ${pilot.slug} missing token '${token}' in family view`,
-        ).toMatch(pattern);
+          readings + buildPath,
+          `${pilot.slug} page missing token '${token}'`,
+        ).toMatch(new RegExp(token, 'i'));
       }
     }
   });
@@ -255,28 +253,33 @@ describe('ADD View and Family View — shared two-line row contract, shared firs
       expect(addRegion, `dict-trick-row not found in ADD view for ${slug}`).not.toBeNull();
       expect(familyRegion, `dict-trick-row not found in Family view for ${slug}`).not.toBeNull();
 
-      // Same plain-text name + Trick Detail link in BOTH views.
-      const namePat   = `<span class="dict-trick-row-title">${pilot.name}</span>`;
-      const detailPat = new RegExp(`<a class="dict-trick-row-detail" href="/freestyle/tricks/${slug}">Detail<\\/a>`);
-      expect(addRegion![0]).toContain(namePat);
-      expect(familyRegion![0]).toContain(namePat);
+      // Same name link + Detail control in BOTH views, both opening the page.
+      const namePat   = new RegExp(`<a[^>]*href="/freestyle/tricks/${slug}"[^>]*>${pilot.name}</a>`);
+      const detailPat = new RegExp(`<a[^>]*href="/freestyle/tricks/${slug}"[^>]*>\\s*Detail\\s*</a>`);
+      expect(addRegion![0]).toMatch(namePat);
+      expect(familyRegion![0]).toMatch(namePat);
       expect(addRegion![0]).toMatch(detailPat);
       expect(familyRegion![0]).toMatch(detailPat);
 
-      // ADD value: line-2 ADD slot in both; green chip never on the row.
+      // Difficulty value on the row in both views; green chip never on a row.
       expect(addView.text).toContain(`id="add-${pilot.adds}"`);
-      expect(addRegion![0]).toContain('class="dict-trick-row-add"');
-      expect(familyRegion![0]).toContain('class="dict-trick-row-add"');
+      expect(addRegion![0]).toContain(`aria-label="Difficulty value">(${pilot.adds})<`);
+      expect(familyRegion![0]).toContain(`aria-label="Difficulty value">(${pilot.adds})<`);
       expect(addRegion![0]).not.toMatch(/class="dict-card-add[ "]/);
       expect(familyRegion![0]).not.toMatch(/class="dict-card-add[ "]/);
 
-      // First-reading ≡ tokens render in the line-1 interpretation slot of
-      // both views.
+      // The trick's first reading is structural content and reads on its own
+      // page; no row in either view carries it.
+      const page = await request(app).get(`/freestyle/tricks/${slug}`);
+      expect(page.status).toBe(200);
+      const readings = page.text.match(/<ol class="equivalent-readings-list">[\s\S]*?<\/ol>/)?.[0] ?? '';
+      const buildPath = page.text.match(/<dd data-build-path>([\s\S]*?)<\/dd>/)?.[1] ?? '';
       for (const token of pilot.firstReadingTokens) {
-        const tokenPattern = new RegExp(`sem-token[^>]*>${token}<`);
-        expect(addRegion![0], `ADD view missing first-reading token '${token}' for ${slug}`).toMatch(tokenPattern);
-        expect(familyRegion![0], `Family view missing first-reading token '${token}' for ${slug}`).toMatch(tokenPattern);
+        expect(readings + buildPath, `${slug} page missing first-reading token '${token}'`)
+          .toMatch(new RegExp(token, 'i'));
       }
+      expect(addRegion![0], `ADD row for ${slug} carries a reading`).not.toMatch(/&equiv;/);
+      expect(familyRegion![0], `Family row for ${slug} carries a reading`).not.toMatch(/&equiv;/);
     });
   }
 });

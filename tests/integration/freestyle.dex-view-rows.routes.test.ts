@@ -1,10 +1,18 @@
 /**
- * /freestyle/tricks?view=dex-count — two-line row contract.
+ * /freestyle/tricks?view=dex-count — shared row contract.
  *
  * Dex view uses the SAME generalized dictionary-trick-row partial as the
- * ADD and Family views. Every dex-bucketed row obeys the two-line contract:
- *   Line 1 (.dict-trick-row-head): name · hashtag · optional ≡ interpretation · optional media
- *   Line 2 (.dict-trick-row-notation): JOB: <op notation> · ADD: <formula | bare N>
+ * ADD and Family views. Every dex-bucketed row carries both columns:
+ *   Identity (.dict-trick-row-identity): name linking to the trick's page ·
+ *     nicknames · hashtag · Detail and Media controls
+ *   Notation (.dict-trick-row-notation): the difficulty value, then the
+ *     movement notation
+ *
+ * A row states what a trick is, never how far our own authoring of it has got,
+ * and never the arithmetic behind its difficulty: no status badge, no
+ * equivalence reading, no operator-by-operator derivation. Those are trick-page
+ * content, and the assertions here that used to read them off a row now read
+ * them off the page.
  *
  * Dex-bucket grouping headers (0 / 1 / 2 / 3+ dex events) are the ONLY sections:
  * a trick without operational notation is not dex-countable and does not render
@@ -153,11 +161,15 @@ describe('Dex view — two-line row contract', () => {
     expect(res.text).not.toContain('data-trick-slug="ducking"');
   });
 
-  it('notation-pending tricks stay browsable in the ADD view carrying the INCOMPLETE badge', async () => {
+  it('notation-pending tricks stay browsable in the ADD view', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=add');
-    // mystery-trick has no notation of any kind: visible, badged incomplete.
+    // mystery-trick has no notation of any kind. It stays listed and reachable
+    // rather than being hidden until someone authors its notation; how far our
+    // own authoring has got is not a fact about the trick, so the row states
+    // what is known (its name, its difficulty) and says nothing about the gap.
     const row = rowFor(res.text, 'mystery-trick');
-    expect(row).toContain('dict-badge-incomplete');
+    expect(row).toMatch(/<a[^>]*href="\/freestyle\/tricks\/mystery-trick"[^>]*>mystery trick<\/a>/);
+    expect(row).toContain('(3)');
   });
 
   it('landing dex-count card shows only the numeric dex chips (no Unresolved chip)', async () => {
@@ -170,11 +182,15 @@ describe('Dex view — two-line row contract', () => {
     expect(html).not.toMatch(/dict-landing-card-chip" href="[^"]*dex-count#[^"]*">Unknown/);
   });
 
-  it('every representative row uses the generalized dict-trick-row wrapper (line 1 + line 2)', async () => {
+  it('every representative row carries both columns: identity and notation', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
     for (const slug of REPRESENTATIVE) {
       const row = rowFor(res.text, slug);
-      expect(row, `${slug} missing head`).toMatch(/class="dict-trick-row-head"/);
+      // Identity: the name opens the trick's page. Notation: the reference
+      // column beside it. Every row has both, so a reader scanning hundreds
+      // of them finds each field in the same place.
+      expect(row, `${slug} missing its name link`)
+        .toMatch(new RegExp(`<a[^>]*href="/freestyle/tricks/${slug}"`));
       expect(row, `${slug} missing notation`).toMatch(/class="dict-trick-row-notation"/);
     }
   });
@@ -185,12 +201,15 @@ describe('Dex view — two-line row contract', () => {
     expect(res.text).not.toContain('dict-card-stack');
   });
 
-  it('every representative row line 2 carries both a JOB and an ADD label', async () => {
+  it('every representative row carries its notation and its difficulty value', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
     for (const slug of REPRESENTATIVE) {
       const row = rowFor(res.text, slug);
-      expect(row, `${slug} missing JOB`).toMatch(/class="dict-trick-row-label">JOB</);
-      expect(row, `${slug} missing ADD`).toMatch(/class="dict-trick-row-label">ADD</);
+      expect(row, `${slug} missing notation`).toMatch(/class="dict-trick-row-notation-value"/);
+      // The difficulty is the number alone. The operator-by-operator
+      // derivation behind it is trick-page content, not row content.
+      expect(row, `${slug} missing difficulty value`).toMatch(/aria-label="Difficulty value">\(\d+\)</);
+      expect(row, `${slug} must not carry the derivation`).not.toMatch(/\(\+\d\)/);
     }
   });
 
@@ -200,27 +219,37 @@ describe('Dex view — two-line row contract', () => {
     expect(res.text).toContain('data-trick-slug="double-spin"');
   });
 
-  it('2-bag-juggling: no interpretation slot; line 2 has JOB + ADD', async () => {
+  it('2-bag-juggling: notation and difficulty, no equivalence reading', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
     const row = rowFor(res.text, '2-bag-juggling');
-    expect(row).not.toMatch(/class="dict-trick-row-interpretation"/);
-    expect(row).toMatch(/class="dict-trick-row-label">JOB</);
-    expect(row).toMatch(/class="dict-trick-row-label">ADD</);
+    // An equivalence reading is structural content and belongs on the trick
+    // page; no row on any view carries one.
+    expect(row).not.toMatch(/&equiv;/);
+    expect(row).toMatch(/class="dict-trick-row-notation-value"/);
+    expect(row).toMatch(/aria-label="Difficulty value">\(2\)</);
   });
 
-  it('drifter: interpretation held (no ≡ reading); line 2 resolved JOB + ADD', async () => {
+  it('drifter: notation renders; its held reading never leaks onto the row', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
     const row = rowFor(res.text, 'drifter');
     // drifter's "miraging clipper" reading is held for curator review.
-    expect(row).not.toMatch(/class="dict-trick-row-interpretation"/);
     expect(row).not.toMatch(/miraging/);
-    expect(row).toMatch(/class="dict-trick-row-job-value">/);
+    expect(row).toMatch(/class="dict-trick-row-notation-value">/);
   });
 
-  it('ducking-guay + fairy-legover derive line-2 ADD formulas from their modifier links', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
-    expect(rowFor(res.text, 'ducking-guay')).toMatch(/ducking\(\+1\) \+ guay\(2\)/);
-    expect(rowFor(res.text, 'fairy-legover')).toMatch(/fairy\(\+1\) \+ legover\(2\)/);
+  it('ducking-guay + fairy-legover derive their ADD formulas from their modifier links', async () => {
+    // The breakdown is trick-page content: the row carries the difficulty
+    // value, the page carries the arithmetic behind it. Neither trick has a
+    // curator-published formula, so this also pins the modifier-link fallback,
+    // which is where most of the dictionary's derivations come from.
+    const app = await createApp();
+    const guay = await request(app).get('/freestyle/tricks/ducking-guay');
+    expect(guay.status).toBe(200);
+    expect(guay.text).toMatch(/ducking\(\+1\) \+ guay\(2\)/);
+
+    const legover = await request(app).get('/freestyle/tricks/fairy-legover');
+    expect(legover.status).toBe(200);
+    expect(legover.text).toMatch(/fairy\(\+1\) \+ legover\(2\)/);
   });
 
   it('hop-over (dex-less body atom) buckets as 0 dex even with no notation', async () => {
@@ -245,7 +274,7 @@ describe('Dex view — two-line row contract', () => {
     let m: RegExpExecArray | null;
     while ((m = re.exec(res.text)) !== null) {
       const before = res.text.substring(Math.max(0, m.index - 260), m.index);
-      expect(before, `bracket token at ${m.index} not inside a JOB value`).toMatch(/dict-trick-row-job-value|op-token/);
+      expect(before, `bracket token at ${m.index} not inside a JOB value`).toMatch(/dict-trick-row-notation-value|op-token/);
     }
   });
 });

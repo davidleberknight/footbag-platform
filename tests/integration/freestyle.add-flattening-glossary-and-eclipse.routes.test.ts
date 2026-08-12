@@ -59,11 +59,11 @@ beforeAll(async () => {
     operational_notation: 'double knee',
   });
   insertFreestyleTrick(db, {
-    slug:                'peak-delay',
-    canonical_name:      'peak delay',
+    slug:                'peak-stall',
+    canonical_name:      'peak stall',
     adds:                '1',
-    base_trick:          'peak-delay',
-    trick_family:        'peak-delay',
+    base_trick:          'peak-stall',
+    trick_family:        'peak-stall',
     category:            'surface',
     review_status:       'expert_reviewed',
     is_active:           1,
@@ -145,8 +145,8 @@ describe('Eclipse — curator-supplied operational notation', () => {
     const articleClose = res.text.indexOf('</article>', idx);
     const card = res.text.slice(articleOpen, articleClose + '</article>'.length);
     // First-class JOB + ADD row present; no "canonical decomposition pending"
-    expect(card).toMatch(/class="dict-trick-row-job-value">/);
-    expect(card).toMatch(/class="dict-trick-row-label">JOB</);
+    expect(card).toMatch(/class="dict-trick-row-notation-value">/);
+    expect(card).toMatch(/class="dict-trick-row-notation-value"/);
     expect(card).not.toContain('canonical decomposition pending');
   });
 });
@@ -155,14 +155,14 @@ describe('Eclipse — curator-supplied operational notation', () => {
 // Curator rulings under test:
 //   - double-knee: sui-generis 1 ADD body primitive; JOB = self-token
 //     "double knee"; ADD = BOD(1).
-//   - peak-delay: folk-name unusual-surface delay (peak = rim of ballcap);
-//     JOB = "[set] > peak"; ADD = delay(1).
+//   - peak-stall: folk-name unusual-surface stall (peak = rim of ballcap);
+//     JOB = "[set] > peak"; ADD = stall(1).
 //   - multi-bag doctrine: "one additional ADD per simultaneously controlled
 //     bag"; 2-bag-juggling = TOE > TOE, ADD = delay(2). Boundary-object
 //     ontology; future dedicated multi-bag module pending.
 // ─────────────────────────────────────────────────────────────────────────
 
-describe('Curator rulings — double-knee + peak-delay + multi-bag doctrine', () => {
+describe('Curator rulings — double-knee + peak-stall + multi-bag doctrine', () => {
   it('double-knee renders the sui-generis self-token JOB "double knee" with 1 ADD', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/double_knee');
     expect(res.status).toBe(200);
@@ -192,8 +192,8 @@ describe('Curator rulings — double-knee + peak-delay + multi-bag doctrine', ()
     expect(SUI_GENERIS_SELF_TOKEN_SLUGS.has('double-knee')).toBe(false);
   });
 
-  it('peak-delay renders as 1-ADD folk-name surface delay (JOB "[set] > peak")', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks/peak-delay');
+  it('peak-stall renders as 1-ADD folk-name surface stall (JOB "[set] > peak")', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks/peak-stall');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/<span class="trick-hero-meta-chip trick-hero-meta-chip-adds">1 ADD<\/span>/);
     // Set notation present

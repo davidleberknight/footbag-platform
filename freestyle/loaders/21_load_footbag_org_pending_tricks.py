@@ -65,6 +65,12 @@ DEFAULT_SCRAPE = LEGACY_DIR / "inputs" / "footbag_org_moves_snapshot.csv"
 FOOTBAG_ORG_SOURCE_ID = "footbag-org-2026-04"
 PENDING_SORT_BASE     = 10_000  # well above any curated/red sort_order
 
+sys.path.insert(0, str(REPO_ROOT / "scripts"))
+from _legacy_move_overrides import (  # noqa: E402
+    assert_override_targets_present_and_active,
+    override_slug_for_move,
+)
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -112,6 +118,12 @@ def build_resolver(conn: sqlite3.Connection) -> dict[str, str]:
 
 
 def resolve_to_existing(row: dict, resolver: dict[str, str]) -> str | None:
+    """The curated move-ID override wins over name resolution, so an overridden
+    move is recognized as already curated and never spawns a pending duplicate
+    of the canonical trick it belongs to."""
+    override = override_slug_for_move(row.get("showmove_id"))
+    if override is not None:
+        return override
     for field in ("source_name", "alt_name"):
         raw = (row.get(field) or "").strip()
         if not raw:
@@ -368,6 +380,10 @@ def load(db_path: Path, scrape_path: Path) -> dict:
         with conn:
             n_cleared = clear_prior_pending_from_footbag(conn)
 
+            assert_override_targets_present_and_active(
+                conn, "footbag.org pending loader",
+                [row.get("showmove_id") for row in scrape_rows],
+            )
             resolver = build_resolver(conn)
             tricks, aliases, source_links, n_resolved, n_dedup = build_pending_rows(
                 scrape_rows, resolver, loaded_at

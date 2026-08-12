@@ -1,93 +1,84 @@
 {{!--
-  dictionary-trick-row.hbs — the generalized two-line trick-row contract.
-  View-agnostic: rendered by every migrated browse view (ADD, Family, and
-  subsequent views) for a uniform row presentation. Grouping (ADD bucket,
-  family section, etc.) is the view template's responsibility; this partial
-  renders one row. Every row obeys the SAME structure:
+  dictionary-trick-row.hbs — the generalized trick-row contract.
+  View-agnostic: rendered by every migrated browse view for a uniform row
+  presentation. Grouping (ADD bucket, family section, etc.) is the view
+  template's responsibility; this partial renders one row.
 
-  Line 1 (.dict-trick-row-head):
-    - trick name (plain-English display text, never a link)
+  Two columns, so a reader scanning hundreds of rows can run their eye down
+  one edge instead of re-finding each field per row:
+
+  Identity column (.dict-trick-row-identity):
+    - trick name, linking to the trick's detail page, the way every other
+      entity list on the site links its title. An external-only placeholder
+      has no page to open, so its name stays plain text.
     - hashtag (#slug identity): links to the trick's media gallery when the
-      trick has media, otherwise a plain token. A clickable hashtag is the
-      sole signal that media exists.
-    - Trick Detail link (the separate control that opens the detail page;
-      suppressed for external-only placeholders)
-    - interpretation subtitle  `≡ <reading>`  (optional, only when meaningful)
+      trick has media, otherwise a plain token
+    - Detail control (opens the detail page, the same destination as the
+      name; suppressed for external-only placeholders) and Media control
+      (opens the gallery, present only when the trick has media). Both take
+      the site's small chip so they read as controls rather than as text.
+  Notation column (.dict-trick-row-notation):
+    - the trick's difficulty value in parentheses, then the movement notation,
+      unlabelled, inside a delimited field so it reads as one object rather
+      than as loose words trailing the name. It sits beside the identity as
+      reference material and never displaces it.
+    - the value rides here, compact, rather than beside the name: only the ADD
+      view groups by difficulty, so the other seven views need it on the row,
+      but spelling it out per row restates the group heading 24 times in the
+      one view that already says it.
 
-  Line 2 (.dict-trick-row-notation):
-    - JOB:  <operational notation tokens>  (or "canonical decomposition pending" when absent)
-    - ADD:  <derived formula>              (or bare "N" when no formula; "?" when unrated)
+  Nicknames ride inline in the identity column, each in quotes so it reads
+  distinctly beside the canonical name, never on a line of its own. The
+  display-eligible alias set is curated to true community nicknames (names
+  players actually use); structural decompositions, initialisms and spelling
+  variants are search-only and never reach the row.
 
   HARD RULES (enforced by this contract):
-    - NO green ADD chip on the row. The ADD value is carried by the
-      view's grouping header (ADD bucket / family section) + the line-2
-      ADD: formula.
-    - Operational notation appears ONLY in the line-2 JOB: slot, never as
-      loose body text and never in the interpretation slot.
-    - JOB + ADD slots always render on line 2 when known; when unknown the
-      slot is preserved with an honest pending/unknown label (row structure
-      never changes between rows).
+    - The row states what a trick is, never how far along our own authoring
+      of it has got. No status badge, no pending-decomposition note, no
+      not-yet-authored marker; those belong on the trick detail page.
+    - The difficulty value is the number, not the derivation. The
+      operator-by-operator breakdown is detail-page content.
+    - Movement notation appears ONLY in the notation column, never as loose
+      body text.
 
   Consumes: DictionaryTrickCard view-model.
 --}}
 <article class="dict-trick-row{{#if isExternalOnly}} dict-trick-row--external-placeholder{{/if}}"
          data-trick-slug="{{slug}}"
          data-media-coverage="{{mediaCoverage}}">
-  <div class="dict-trick-row-head">
-    <span class="dict-trick-row-title">{{displayName}}</span>
-    {{#if hashtagHref}}
-      <a class="dict-trick-row-hashtag dict-trick-row-hashtag--media" href="{{hashtagHref}}" aria-label="Media for this trick">{{hashtag}}</a>
+  <div class="dict-trick-row-identity">
+    {{#if isExternalOnly}}
+      <span class="dict-trick-row-title">{{displayName}}</span>
     {{else}}
-      <span class="dict-trick-row-hashtag" aria-label="Tag identity">{{hashtag}}</span>
+      <a class="dict-trick-row-title" href="{{href}}">{{displayName}}</a>
+    {{/if}}
+    {{#if commonAliases.length}}
+      <span class="dict-trick-row-nicknames" aria-label="Also called">{{#each commonAliases}}&ldquo;{{this}}&rdquo;{{#unless @last}} {{/unless}}{{/each}}</span>
+    {{/if}}
+    {{#if hashtagHref}}
+      <a class="hashtag hashtag--media" href="{{hashtagHref}}" aria-label="Media for this trick">{{hashtag}}</a>
+    {{else}}
+      <span class="hashtag" aria-label="Tag identity">{{hashtag}}</span>
     {{/if}}
     {{#unless isExternalOnly}}
-      <a class="dict-trick-row-detail" href="{{href}}">Detail</a>
+      <a class="tag-chip tag-chip--sm" href="{{href}}">Detail</a>
     {{/unless}}
-
-    {{#if tokenizedEquivalences.length}}
-      <span class="dict-trick-row-interpretation" aria-label="Interpretation reading">
-        <span class="core-trick-equiv-sigil">&equiv;</span>
-        {{#each tokenizedEquivalences.[0]}}{{#if glossaryAnchor}}<a class="sem-token sem-token--{{cssRole}} sem-token--linked" href="{{glossaryAnchor}}" data-token-slug="{{slug}}">{{text}}</a>{{else}}<span class="sem-token sem-token--{{cssRole}}" data-token-slug="{{slug}}">{{text}}</span>{{/if}}{{#unless @last}} {{/unless}}{{/each}}
-      </span>
+    {{#if hashtagHref}}
+      <a class="tag-chip tag-chip--sm" href="{{hashtagHref}}">Media</a>
     {{/if}}
 
-    {{#if commonAliases.length}}
-      <span class="dict-trick-row-aliases" aria-label="Also called">
-        Also called: {{#each commonAliases}}{{this}}{{#unless @last}} &middot; {{/unless}}{{/each}}
-      </span>
-    {{/if}}
-
-    {{#if statusBadge}}
-      <span class="dict-trick-row-status">{{statusBadge}}</span>
-    {{/if}}
-    {{#if pendingDecomposition}}
-      <span class="dict-trick-row-pending" aria-label="Decomposition under review"><em>decomposition under review</em></span>
-    {{/if}}
   </div>
 
   <div class="dict-trick-row-notation">
-    <span class="dict-trick-row-job">
-      <span class="dict-trick-row-label">JOB</span>
-      {{#if operationalNotation}}
-        <code class="dict-trick-row-job-value">{{#each operationalNotation.tokens}}<span class="op-token op-token--{{cssRole}}" data-role="{{role}}" title="{{label}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}</code>
-      {{else if firstClassChainValue}}
-        {{!-- First-class atoms/tricks suppress operationalNotation; their JOB
-             chain rides firstClassChainValue (a plain curator string). --}}
-        <code class="dict-trick-row-job-value">{{firstClassChainValue}}</code>
-      {{else}}
-        <span class="dict-badge-incomplete" title="Adjudicated as canonical; JOB notation not yet authored">INCOMPLETE</span>
-      {{/if}}
-    </span>
-    <span class="dict-trick-row-add">
-      <span class="dict-trick-row-label">ADD</span>
-      {{#if addViewFormula}}
-        <code class="dict-trick-row-add-value">{{addViewFormula}}</code>
-      {{else if adds}}
-        <code class="dict-trick-row-add-value">{{adds}}</code>
-      {{else}}
-        <span class="dict-trick-row-add-value dict-trick-row-pending-value">unrated</span>
-      {{/if}}
-    </span>
+    <span class="dict-trick-row-add" aria-label="Difficulty value">{{#if adds}}({{adds}}){{else}}(?){{/if}}</span>
+    {{#if operationalNotation}}
+      <code class="dict-trick-row-notation-value">{{#each operationalNotation.tokens}}<span class="op-token op-token--{{cssRole}}" data-role="{{role}}" title="{{label}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}</code>
+    {{else if firstClassChainValue}}
+      {{!-- First-class atoms/tricks suppress operationalNotation; their chain
+           rides firstClassChainValue (a plain curator string). --}}
+      <code class="dict-trick-row-notation-value">{{firstClassChainValue}}</code>
+    {{/if}}
   </div>
 
   {{#if placeholderNote}}

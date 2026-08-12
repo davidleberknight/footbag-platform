@@ -270,7 +270,7 @@ describe('GET /freestyle — beginner on-ramp', () => {
     // educational-pathways index cross-linked from modifier-family pages.
     const res = await request(createApp()).get('/freestyle');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('freestyle-learn-pointer');
+    expect(res.text).toMatch(/New to freestyle\?/i);
     expect(res.text).toContain('href="/freestyle/start"');
   });
 });

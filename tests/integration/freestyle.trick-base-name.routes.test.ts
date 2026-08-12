@@ -1,9 +1,9 @@
 /**
- * Hero base-name humanization: the trick-page hero surfaces (ADD-derivation
- * formula, decomposition strip, modifier-layering panel) render the base
+ * Base-name humanization: every trick-page surface that names a trick's base
+ * (the difficulty derivation, the modifier-layering panel) renders the base
  * trick's canonical display name, never the raw base_trick slug. A compound
  * whose base is itself a compound has an underscore slug ("ducking_legover"),
- * and the hero must read it as prose ("ducking legover"). A base with no
+ * and the page must read it as prose ("ducking legover"). A base with no
  * dictionary row falls back to the slug with separators read as spaces. The
  * slug itself stays the identity/lookup key (hrefs still carry it).
  */
@@ -27,7 +27,7 @@ beforeAll(async () => {
   insertFreestyleTrick(db, {
     slug: 'ducking_legover', canonical_name: 'ducking legover', adds: '3', category: 'compound',
   });
-  // A one-modifier compound on that base: hero formula + decomposition fire.
+  // A one-modifier compound on that base: the difficulty derivation fires.
   insertFreestyleTrick(db, {
     slug: 'puck', canonical_name: 'puck', adds: '4',
     base_trick: 'ducking_legover', trick_family: 'legover', category: 'compound',
@@ -59,27 +59,21 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('hero surfaces render the base display name, never the raw slug', () => {
-  it('hero formula shows the canonical base name for a compound base', async () => {
+describe('trick-page surfaces render the base display name, never the raw slug', () => {
+  it('the difficulty derivation shows the canonical base name for a compound base', async () => {
     const res = await request(createApp()).get('/freestyle/tricks/puck');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('hero-formula-core-family">ducking legover</span>');
-    // The raw underscore slug must never appear as rendered token text
+    expect(res.text).toContain('pixie(+1) + ducking legover(3)');
+    // The raw underscore slug must never appear inside the derivation
     // (attribute values such as hrefs may still carry the slug).
-    expect(res.text).not.toContain('>ducking_legover</span>');
-  });
-
-  it('hero decomposition strip shows the canonical base name', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/puck');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('data-kind="base">ducking legover</span>');
+    expect(res.text).not.toContain('ducking_legover(3)');
   });
 
   it('falls back to the spaced slug when the base has no dictionary row', async () => {
     const res = await request(createApp()).get('/freestyle/tricks/phantom_compound');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('>double leg over</span>');
     expect(res.text).not.toContain('>double_leg_over</span>');
+    expect(res.text).not.toContain('double_leg_over(');
   });
 
   it('modifier-layering panel names the base by its canonical name', async () => {

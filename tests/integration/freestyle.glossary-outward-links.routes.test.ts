@@ -57,7 +57,7 @@ describe('GET /freestyle/glossary — standardized outward-link phrasings', () =
     // The phrase appears at least once per panel × 5 panels — but we
     // only assert at least one occurrence here; per-panel coverage is
     // pinned in freestyle.glossary-derivation-atlas.routes.test.ts.
-    expect(res.text).toMatch(/View full ontology\s*&rarr;/);
+    expect(res.text).toMatch(/View full ontology/);
   });
 
   it('"View full ontology →" appears on family cards', async () => {
@@ -81,9 +81,9 @@ describe('GET /freestyle/glossary — standardized outward-link phrasings', () =
     expect(card).not.toContain('href="/freestyle/tricks/down"');
   });
 
-  it('"Browse {Name} tricks →" replaces "See tricks using {Name} →" on modifier feel-cards', async () => {
+  it('"Browse {Name} tricks" replaces "See tricks using {Name}" on modifier feel-cards', async () => {
     const res = await request(createApp()).get('/freestyle/glossary');
-    expect(res.text).toMatch(/Browse \w[\w\s-]*tricks\s*&rarr;/i);
+    expect(res.text).toMatch(/Browse \w[\w\s-]*tricks/i);
   });
 
   it('Forbidden phrasing "See tricks using" is retired from the glossary', async () => {

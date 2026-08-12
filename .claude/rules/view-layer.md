@@ -46,7 +46,8 @@ discipline, and service-owned shaping. Internal `/internal/*` tooling is exempt 
 
 Compose every public page from one small set: site frame (header / main / footer), page hero
 (eyebrow / title / subtitle / notice), content section, event card, discipline tag, result section,
-year navigation, metadata / summary rows, empty state, and notice / coming-soon block. A new page
+year navigation, metadata / summary rows, prominent action link, empty state, and notice /
+coming-soon block. A new page
 joins the standard only if it can be expressed through these. A genuinely new reusable primitive is
 added to the standard first, then applied across the relevant pages, never invented per page.
 
@@ -56,9 +57,37 @@ label twice on one page (for example a "Back to results" link in both the hero a
 control reads cleaner. Keep visible spacing between the hero and the first content block, and between
 stacked sections, so adjacent blocks never butt together with a zero gap.
 
+## Action hierarchy
+
+Every clickable control on a public page belongs to exactly one of six tiers, and the tier fixes the
+class. A control that fits no tier is a design question to raise, never a licence to mint a class.
+
+| Tier | What it is | Class |
+|---|---|---|
+| Primary action | The one thing the page most wants the visitor to do | `.btn .btn-primary` |
+| Secondary action | A real action, subordinate to the primary one | `.btn .btn-outline`, or `.btn .btn-inverse` on a dark gradient panel |
+| Prominent action link | A destination that must read as important without being a button: a cross-link out of a section, a "see all of X" pointer | `.action-link` |
+| Prose link | An ordinary link inside running text | bare `<a>` |
+| Tag or chip | A clickable filter, tag, or hashtag | `.tag-chip`; a trick hashtag uses the shared hashtag token |
+| Non-clickable token | An identity or status that is not a link | the hashtag token at rest; `.badge` for status |
+
+The prominent-action-link tier exists because its absence is what produces one-off classes: a
+surface needing more weight than prose and less than a button will otherwise invent a local `*-cta`,
+`*-link`, or `*-deeplink`. There is one class for it, site-wide.
+
+Three constraints bind every tier. No control appends a decorative arrow to its label, in template
+text or through a pseudo-element; colour, underline, and wording carry the affordance, and glyphs
+that carry meaning (sort direction, notation, sequence separators, position markers) are content,
+not decoration (DESIGN_DECISIONS §4.14). A link never renders at `color: inherit` with no resting underline;
+the global underline on links in running text is a colour-blind affordance, not decoration. And a
+control's visible label names where it goes or what it does, per the truthful-controls rule in
+`template-conventions.md`.
+
 ## Hashtag and dictionary-filter links
 
-Freestyle dictionary surfaces follow the href rule above with no exceptions. Every media hashtag, family chip, and view filter (by-ADD, by-family, by-movement-system, movement-neighborhoods, by-dex, by-modifier) is a service-provided display-and-href pair: the service fixes the destination (a hashtag links to its media gallery `/media/browse?context=<slug>`; a family or view filter links to the filtered dictionary `/freestyle/tricks?...`; the plain-English trick name is display text only, and a separate "Detail" link resolves to the trick detail page) and the template only renders the pair. Templates never assemble a `?family=` or `?context=` URL from a slug. A trick's slug, hashtag body, and `/freestyle/tricks/:slug` segment are one lowercase underscore token (no hyphens); the display name is the plain-English words, also without hyphens. The trick name is plain text, never a link. The hashtag links to the trick's media gallery only when the trick has media (an existence check at render, not a count) and renders as a plain token otherwise, so a clickable hashtag is the sole signal that media exists. A separate "Detail" link opens the detail page. Name, hashtag, and Detail stay three distinct controls.
+Freestyle dictionary surfaces follow the href rule above with no exceptions. Every media hashtag, family chip, and view filter (by-ADD, by-family, by-movement-system, movement-neighborhoods, by-dex, by-modifier) is a service-provided display-and-href pair: the service fixes the destination (a hashtag links to its media gallery `/media/browse?context=<slug>`; a family or view filter links to the filtered dictionary `/freestyle/tricks?...`; the plain-English trick name links to the trick detail page, and a separate "Detail" link resolves to the same page) and the template only renders the pair. Templates never assemble a `?family=` or `?context=` URL from a slug. A trick's slug, hashtag body, and `/freestyle/tricks/:slug` segment are one lowercase underscore token (no hyphens); the display name is the plain-English words, also without hyphens. The trick name links to the trick's detail page; the "Detail" link resolves to the same page, so the two controls agree the way the hashtag and Media do. The hashtag links to the trick's media gallery only when the trick has media (an existence check at render, not a count) and renders as a plain token otherwise. A "Media" link opens the same gallery as the hashtag and renders only when the trick has media, so media presence carries two agreeing signals rather than one. Name, hashtag, Detail, and Media stay four distinct controls. This four-control pattern is the trick
+dictionary's own standard and is not a site-wide list convention; other sections list their items
+their own way. A true community nickname renders inline beside the canonical name in quotes, never on a line of its own; display-eligible aliases are curated to such nicknames, and structural decompositions, initialisms and spelling variants stay search-only.
 
 ## CSS vocabulary
 
@@ -75,7 +104,8 @@ discipline, not the enumeration.
   that section); both groups live in `style.css`.
 - Buttons: `.btn-primary`, `.btn-outline`, and `.btn-inverse` (white fill, teal text, for CTAs on
   dark gradient panels) are the only button variants. Secondary content uses the card pattern
-  (`.card`, `.card-title`, `.card-meta`, `.card-description`); status chips use `.badge`.
+  (`.card`, `.card-title`, `.card-meta`, `.card-description`); status chips use `.badge`. Which of
+  these a control takes is fixed by the action hierarchy above, not chosen per surface.
 - Button / CTA label casing is Title Case: capitalize the first letter of each word EXCEPT the
   minor words `a an as the and or nor but to of in on at by for`, unless the minor word is the first or
   last word ("Create a New Club", "Browse All Matching Media", "Log In", "Go to Home", "Apply Hashtag
@@ -97,7 +127,20 @@ state.
 
 A page uses one section pattern and one content-card pattern, never two. Do not mix the site
 `.section-heading` (the h2 type-scale system) with the `.profile-section` / `.profile-section-heading`
-label system on the same page; pick one and apply it to every section. Within a page, section headings
+label system on the same page; pick one and apply it to every section. Three section systems exist and
+each has a home: the bare `<section>` element, with a rule between siblings, is the default for a browse
+or index page; `.content-section` is the denser variant for a long prose or reference page, taking the
+compact rhythm through `.section-compact` or a section body class; `.profile-section` is the member
+profile's label system. A page picks the one that fits its content and uses nothing else, and a new page
+does not introduce a fourth.
+
+Font sizes come from the bounded ramp, and running prose carries a reading-measure cap; a section
+heading always outranks the body text beneath it in both size and colour (DESIGN_DECISIONS §4.12,
+§4.13). Disclosure controls keep the browser's native marker: no surface suppresses it or draws a
+substitute caret (§4.14). Enclosing chrome is reserved for notices, cards, empty states, and
+technical-notation panels, and a callout accent bar takes one of three role colours (§4.15).
+
+Within a page, section headings
 are one size, one case, one weight, one color; content cards are one padding, one radius, one elevation;
 and stacked sections share one vertical-spacing rhythm so adjacent blocks read as one page rather than
 several pasted together. A block that needs a different visual weight is a justified exception, not a
@@ -111,6 +154,18 @@ breakpoints 480 / 768 / 1024 (§4.7), accessible responsive HTML-first design (�
 stylesheet / template convention gates (§4.8) — colors from `:root` tokens (no raw hex in rule
 bodies), `--radius*` tokens for corners, `--font-body` / `--font-mono` only, no inline `style` or
 `script`, no nested `<form>`, and template-class-to-`style.css` correspondence.
+
+## Detail-page order
+
+A detail page orients before it analyses. Under the hero, in this order: a notice band if the page
+has one; a short horizontal strip of identifying facts; plain-language prose saying what the thing
+is; then the structured or technical sections; then actions; then the back link from
+`navigation.contextLinks`. Club detail, event detail and the member profile are the worked examples.
+
+Short related facts sit horizontally on desktop and stack on narrow screens rather than each taking
+a line of its own. Reuse `.event-meta-row` (a wrapping inline strip), `.club-detail-meta` (a
+label-and-value grid), or `.trick-structural-facts-list` (the same grid with an explicit stack at
+480px). Do not add a fourth.
 
 ## Content and copy standard
 

@@ -330,7 +330,7 @@ describe('Item 6: ALT row appears after ADD on rev(0) entries', () => {
     }
     const res = await request(app).get('/freestyle/tricks/illusion');
     expect(res.status).toBe(200);
-    const addIdx = res.text.indexOf('<dt>ADD</dt>');
+    const addIdx = res.text.indexOf('<dt>Difficulty</dt>');
     const altIdx = res.text.indexOf('<dt>ALT</dt>');
     expect(addIdx).toBeGreaterThan(0);
     expect(altIdx).toBeGreaterThan(addIdx);

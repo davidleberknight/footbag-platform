@@ -113,7 +113,7 @@ describe('Paradox-family browse rendering — FIRST_CLASS_TIER_2', () => {
       const articleOpen = res.text.lastIndexOf('<article', idx);
       const articleClose = res.text.indexOf('</article>', idx);
       const card = res.text.slice(articleOpen, articleClose + '</article>'.length);
-      expect(card).toMatch(/class="dict-trick-row-job-value">/);
+      expect(card).toMatch(/class="dict-trick-row-notation-value">/);
       expect(card).not.toContain('canonical decomposition pending');
     }
   });

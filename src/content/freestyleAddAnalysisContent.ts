@@ -265,14 +265,18 @@ const XDEX_NOTE =
   'met, there is no extra point. This is why an atomic trick and a quantum ' +
   'trick built on the same base can still differ by one.';
 
-// Delays are the one bracket a reader tends to assume rather than count, so the
-// multiple-delay case (jump-class tricks) is named explicitly.
+// The stall is the one bracket a reader tends to assume rather than count, so
+// the multiple-stall case (jump-class tricks) is named explicitly. This passage
+// is also the single place the prose accounts for the bracket reading DEL: the
+// notation abbreviates delay, the older word for the same catch, while every
+// trick name and every other surface says stall.
 const DELAY_NOTE =
-  'A delay is a controlled catch, written [DEL], and it counts one. Most tricks ' +
-  'end in a single delay, the stall that stops the bag. Some carry more than ' +
-  'one: a jump-class trick catches in mid-flight and again on landing, so it ' +
-  'shows two [DEL] brackets and counts both. The delay is where the trick ' +
-  'resolves, and like every other bracket it is counted, not assumed.';
+  'A stall is a controlled catch, and it counts one. The notation writes it ' +
+  '[DEL], from delay, the older word for the same catch. Most tricks end in a ' +
+  'single stall, the catch that stops the bag. Some carry more than one: a ' +
+  'jump-class trick catches in mid-flight and again on landing, so it shows ' +
+  'two [DEL] brackets and counts both. The stall is where the trick resolves, ' +
+  'and like every other bracket it is counted, not assumed.';
 
 // Composite operators are the last thing a reader needs before the bracket
 // count adds up: names that are shorthand for a combination, scored as the sum

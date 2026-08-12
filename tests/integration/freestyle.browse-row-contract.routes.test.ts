@@ -74,7 +74,7 @@ const PRIMARY_VIEWS: Array<[string, string]> = [
   ['family', 'By family'],
   ['dex-count', 'By dex count'],
   ['movement-system', 'Movement System'],
-  ['sets', 'By Modifier'],
+  ['modifier', 'By Modifier'],
   ['topology', 'Movement Neighborhoods'],
 ];
 
@@ -97,31 +97,49 @@ describe('Browse-shell row-contract stability guard — all six primary views us
   }
 });
 
-// The three-control rule for a dictionary row: the plain-English trick name is
-// display text and never a link, a separate "Trick Detail" link resolves to the
-// detail page, and the hashtag links to the trick's media gallery only when the
-// trick has media, rendering as a plain token otherwise — so a clickable hashtag
-// is the only signal that media exists. Name, hashtag and Trick Detail stay three
+// The control rule for a dictionary row: the trick name opens the trick's detail
+// page, a separate "Detail" control resolves to that same page so the two agree,
+// and the hashtag links to the trick's media gallery only when the trick has
+// media, rendering as a plain token otherwise. Name, hashtag and Detail stay
 // distinct controls. No trick in this fixture set carries media, so every hashtag
 // here is expected in its plain-token form.
-describe('Three-control rule — name is text, Trick Detail is the link, hashtag signals media', () => {
+describe('Control-separation rule — name opens the page, Detail agrees with it, hashtag signals media', () => {
   for (const [view, label] of PRIMARY_VIEWS) {
-    it(`${label} (?view=${view}) renders the trick name as plain text, never a link`, async () => {
+    it(`${label} (?view=${view}) links the trick name to that trick's detail page`, async () => {
       const res = await request(await createApp()).get(`/freestyle/tricks?view=${view}`);
       expect(res.status).toBe(200);
-      expect(res.text, `${label} must render the name as a span`).toMatch(/<span class="dict-trick-row-title">/);
-      expect(res.text, `${label} must not wrap the name in an anchor`).not.toMatch(/<a[^>]*class="dict-trick-row-title"/);
+      // Anchored on the destination a visitor lands on, not on how the control
+      // is marked up: the name of a listed trick resolves to that trick's page.
+      expect(res.text, `${label} must link the name to the trick's detail page`)
+        .toMatch(/<a[^>]*href="\/freestyle\/tricks\/ducking-whirl"[^>]*>ducking whirl<\/a>/);
     });
 
-    it(`${label} (?view=${view}) offers a separate Trick Detail link to the detail page`, async () => {
+    it(`${label} (?view=${view}) sends the name and the Detail control to the same page`, async () => {
       const res = await request(await createApp()).get(`/freestyle/tricks?view=${view}`);
-      expect(res.text, `${label} must render a Trick Detail control`).toMatch(/<a class="dict-trick-row-detail" href="\/freestyle\/tricks\/[^"]+">Detail<\/a>/);
+      // Two controls on one row that both open the trick must not disagree about
+      // where they go; a row where they diverge is lying about one of them.
+      const nameHrefs = [...res.text.matchAll(/<a[^>]*href="(\/freestyle\/tricks\/[^"]+)"[^>]*>ducking whirl<\/a>/g)]
+        .map(m => m[1]);
+      const detailHrefs = [...res.text.matchAll(/<a[^>]*href="(\/freestyle\/tricks\/[^"]+)"[^>]*>\s*Detail\s*<\/a>/g)]
+        .map(m => m[1]);
+      expect(nameHrefs, `${label} must render the name as a link`).toContain('/freestyle/tricks/ducking-whirl');
+      expect(detailHrefs, `${label} Detail must resolve to the same page as the name`)
+        .toContain('/freestyle/tricks/ducking-whirl');
+    });
+
+    it(`${label} (?view=${view}) offers a separate Detail link to the detail page`, async () => {
+      const res = await request(await createApp()).get(`/freestyle/tricks?view=${view}`);
+      // Anchored on the pairing a visitor relies on, the control's visible
+      // label and where it resolves to. Presentation classes are deliberately
+      // not pinned: how the control is styled is free to change, where it
+      // goes is not.
+      expect(res.text, `${label} must render a Detail control`).toMatch(/<a[^>]*href="\/freestyle\/tricks\/[^"]+"[^>]*>\s*Detail\s*<\/a>/);
     });
 
     it(`${label} (?view=${view}) renders the hashtag as a plain token when the trick has no media`, async () => {
       const res = await request(await createApp()).get(`/freestyle/tricks?view=${view}`);
-      expect(res.text, `${label} must render a plain hashtag token`).toMatch(/<span class="dict-trick-row-hashtag" aria-label="Tag identity">/);
-      expect(res.text, `${label} must not link a hashtag for a trick with no media`).not.toMatch(/dict-trick-row-hashtag--media/);
+      expect(res.text, `${label} must render a plain hashtag token`).toMatch(/<span class="hashtag" aria-label="Tag identity">/);
+      expect(res.text, `${label} must not link a hashtag for a trick with no media`).not.toMatch(/hashtag--media/);
     });
   }
 });

@@ -19,13 +19,11 @@
   <div class="glossary-main-column">
 
   {{! Glossary intro: one short orientation line above the chapter list. }}
-  <aside class="glossary-intro-card" aria-label="About this glossary">
-    <p class="glossary-intro-card-lede">
-      A reference for freestyle's movement language: the words for surfaces,
-      dexes, families, modifiers, notation, and how tricks compose. Open any
-      topic to read it.
-    </p>
-  </aside>
+  <p class="mb-6">
+    A reference for freestyle's movement language: the words for surfaces,
+    dexes, families, modifiers, notation, and how tricks compose. Open any
+    topic to read it.
+  </p>
 
   {{! ── Reading the dictionary — platform-ontology orientation.
        Explains the trick-row contract, the six browse
@@ -80,7 +78,7 @@
         <tbody>
           <tr><td><a href="/freestyle/tricks?view=add">By ADD</a></td><td>difficulty buckets</td><td>how layered a trick is</td></tr>
           <tr><td><a href="/freestyle/tricks?view=family">By family</a></td><td>conserved terminal mechanic</td><td>structural lineage</td></tr>
-          <tr><td><a href="/freestyle/tricks?view=sets">By modifier</a></td><td>the set / body modifier used</td><td>what transforms the base</td></tr>
+          <tr><td><a href="/freestyle/tricks?view=modifier">By modifier</a></td><td>the set / body modifier used</td><td>what transforms the base</td></tr>
           <tr><td><a href="/freestyle/tricks?view=movement-system">By movement system</a></td><td>four conceptual axes (+ alternative surfaces)</td><td>the compositional system</td></tr>
           <tr><td><a href="/freestyle/tricks?view=topology">Movement Neighborhoods</a></td><td>&ldquo;feels mechanically similar&rdquo;</td><td>exploratory similarity, not a canonical taxonomy</td></tr>
           <tr><td><a href="/freestyle/tricks?view=dex-count">By dex count</a></td><td>number of <a href="#section-dexterities">dex</a> events</td><td>mechanical complexity</td></tr>
@@ -836,7 +834,7 @@
     <h2 class="section-heading">
       Operators &amp; Modifiers
       <span class="glossary-tier-badge glossary-tier-badge--intermediate">Intermediate</span>
-      <a class="glossary-section-canonical-link" href="/freestyle/operators">Open standalone &rarr;</a>
+      <a class="glossary-section-canonical-link" href="/freestyle/operators">Open standalone</a>
     </h2>
 
     <div class="glossary-concept" id="concept-set-vs-operator">
@@ -894,7 +892,7 @@
       rather than as a family of its own. An ecosystem is
       <strong>not a family</strong>: it has no terminal mechanic of its own; it
       modifies a base that does. Browse a single ecosystem under
-      <a href="/freestyle/tricks?view=sets">By modifier</a>.
+      <a href="/freestyle/tricks?view=modifier">By modifier</a>.
     </p>
 
     {{! Operator/set-system histogram: a second rendering of the shared landing-band
@@ -1369,7 +1367,7 @@
     <p>
       Job's original proposal sets out the core grammar:
     </p>
-    <pre><code>(toe | clip) &gt;
+    <pre><code class="font-mono">(toe | clip) &gt;
 [(same | op)(in | out) dexterity]* &gt;
 (same | op)(toe | clip)</code></pre>
     <p>
@@ -1410,7 +1408,7 @@
       an identical ADD.
     </p>
     <p class="mt-2">
-      <a class="btn btn-outline" href="/freestyle/notation-article">To See the Entire Article, Press Here.</a>
+      <a class="action-link" href="/freestyle/notation-article">To See the Entire Article, Press Here.</a>
     </p>
 
     {{! ── Generative Insight ───────────────────────────────────────────────
@@ -1666,7 +1664,7 @@
       <dd>The opposite leg from the most recent side-bearing component. The other leg performs the move.</dd>
     </dl>
     <p>Worked example, tracking which leg acts as you read left to right:</p>
-    <pre><code>LEFT set &gt; OP dex   = RIGHT dex
+    <pre><code class="font-mono">LEFT set &gt; OP dex   = RIGHT dex
 RIGHT dex &gt; OP catch = LEFT catch</code></pre>
     <p>So a set and a catch that are each <code>OP</code> relative to the step before
       them land back on the setting leg, not on the opposite one.</p>
@@ -2202,8 +2200,8 @@ RIGHT dex &gt; OP catch = LEFT catch</code></pre>
       derivations&rdquo; panel, this is what they&rsquo;re showing:
       structurally distinct routes through the movement
       language that converge on the same trick.
-      <a href="/freestyle/tricks/flurry">See flurry &rarr;</a>
-      <a href="/freestyle/tricks/witchdoctor">See witchdoctor &rarr;</a>
+      <a href="/freestyle/tricks/flurry">See flurry</a>
+      <a href="/freestyle/tricks/witchdoctor">See witchdoctor</a>
     </p>
     <p>
       Some equivalent derivations survive primarily as
@@ -2431,7 +2429,7 @@ RIGHT dex &gt; OP catch = LEFT catch</code></pre>
         {{/if}}
 
         {{#if modifierFamilyHref}}
-        <a class="panel-deep-link glossary-outward-link" href="{{modifierFamilyHref}}">Modifier reference &rarr;</a>
+        <a class="panel-deep-link glossary-outward-link" href="{{modifierFamilyHref}}">Modifier reference</a>
         {{/if}}
       </div>
       {{/each}}

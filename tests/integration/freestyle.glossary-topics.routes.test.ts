@@ -98,7 +98,8 @@ describe('Glossary — flat chapter architecture (reference-manual table of cont
   it('opens with a short intro paragraph and no navigation scaffolding', async () => {
     const html = await glossary();
     expect(html).toContain('A reference for freestyle');
-    expect(html).toContain('class="glossary-intro-card-lede"');
+    // The intro is prose, not a panel: no section-local card chrome wraps it.
+    expect(html).not.toContain('glossary-intro-card');
     // the removed scaffolding stays gone
     expect(html).not.toContain('glossary-topics-header');
     expect(html).not.toContain('You now know enough to read any trick');

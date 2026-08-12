@@ -98,7 +98,7 @@ bad_invocation=""
 for f in .claude/skills/*/SKILL.md; do
   [ -f "$f" ] || continue
   fm=$(awk 'NR==1&&/^---[[:space:]]*$/{f=1;next} f&&/^---[[:space:]]*$/{exit} f{print}' "$f")
-  if printf '%s' "$fm" | grep -qiE 'invoke only|only when the user explicitly|only on explicit'; then
+  if printf '%s' "$fm" | grep -qiE 'invoke only|only when the (user|human) explicitly|only on explicit'; then
     if ! printf '%s' "$fm" | grep -qE '^disable-model-invocation:[[:space:]]*true'; then
       bad_invocation="${bad_invocation}  ${f}"$'\n'
     fi

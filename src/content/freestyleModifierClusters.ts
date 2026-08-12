@@ -4,7 +4,7 @@
  *
  * Curated higher-level CLUSTERS for the Trick Dictionary "By modifier" browse
  * surface. Organizational UX only: groups the flat per-modifier list into a
- * small set of conceptual clusters so the landing menu and the `?view=sets`
+ * small set of conceptual clusters so the landing menu and the `?view=modifier`
  * page offer progressive disclosure (cluster -> individual modifiers) instead
  * of a flat, heterogeneous list.
  *

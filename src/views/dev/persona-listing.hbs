@@ -43,7 +43,7 @@
           <div class="card{{#unless backed}} dev-persona-muted{{/unless}}">
             <div class="card-title">{{displayName}}</div>
             <div class="card-meta">
-              <code>{{slug}}</code>
+              <code class="font-mono">{{slug}}</code>
               <span>{{tierLabel}}</span>
               {{#each roles}}<span class="badge">{{this}}</span>{{/each}}
               {{#each statusBadges}}<span class="badge{{#if muted}} badge-muted{{/if}}">{{text}}</span>{{/each}}

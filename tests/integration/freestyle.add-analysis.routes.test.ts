@@ -127,9 +127,12 @@ describe('GET /freestyle/add-analysis — route + page structure', () => {
     expect(res.text).toMatch(/mirage, illusion, whirl, torque, or drifter/);
   });
 
-  it('explains delays, including the multiple-delay jump class', async () => {
+  it('explains stalls, including the multiple-stall jump class', async () => {
     const res = await request(createApp()).get('/freestyle/add-analysis');
-    expect(res.text).toMatch(/A delay is a controlled catch/);
+    expect(res.text).toMatch(/A stall is a controlled catch/);
+    // The bracket abbreviates the older word for the same catch, so the page
+    // accounts for the mismatch between what it says and what it writes.
+    expect(res.text).toMatch(/\[DEL\], from delay/);
     expect(res.text).toMatch(/two \[DEL\] brackets/);
   });
 
