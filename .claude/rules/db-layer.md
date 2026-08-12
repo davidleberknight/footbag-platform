@@ -41,11 +41,7 @@ For multi-condition filters, define a SQL view and select from it. Services read
 - `official_ifpa_roster_current` -- the only roster read surface (filters `is_official_roster_member = 1 AND is_deceased = 0`).
 - `net_team_appearance_canonical` -- the only public Net appearance surface (filters `evidence_class = 'canonical_only'`; other evidence classes never reach public routes).
 - `system_config_current` -- latest effective value per key (the bare `system_config` table is queried only by audit-style admin tooling).
-<<<<<<< HEAD
 - `media_items_linkable_video` -- the only `media_items` read surface for watchable video (filters `media_type = 'video'`, `moderation_status = 'active'`, and not tagged `#unavailable_embed`; source is deliberately not a condition, so member uploads count). The hashtag-index surfaces are the deliberate exception: they decide whether a tag carries media from `tag_stats` usage counts, not from `media_items` at all.
-=======
-- `media_items_linkable_video` -- the only read surface for watchable video (filters `media_type = 'video'`, `moderation_status = 'active'`, and not tagged `#unavailable_embed`; source is deliberately not a condition, so member uploads count).
->>>>>>> e738aa1a (fix(freestyle): decide trick media from one view so browse and detail agree)
 
 `news_items` and `events` are hard-delete domains: query the base table directly; it is their only read surface (deleted rows are gone permanently).
 
