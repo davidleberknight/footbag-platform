@@ -16,6 +16,7 @@ import * as path from 'node:path';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import { insertAuditEntry } from '../fixtures/factories';
+import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const SCHEMA_SQL = fs.readFileSync(path.join(REPO_ROOT, 'database', 'schema.sql'), 'utf8');
@@ -165,6 +166,10 @@ function runChecklist(dbPath: string, snapshotDir: string): { status: number; st
     cwd: REPO_ROOT,
     env,
     encoding: 'utf8',
+    ...SPAWN_GUARD,
+    // The checklist runs every gate in one pass, so it legitimately takes longer
+    // than the shared bound allows; the cases that call it declare the matching
+    // per-test timeout. The kill signal stays the guard's.
     timeout: 60_000,
   });
   return {

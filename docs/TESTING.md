@@ -216,7 +216,7 @@ Does not belong:
 
 ### 5.2 Integration tests
 
-Vitest plus Supertest plus better-sqlite3 against a real SQLite test DB per file (`tests/integration/`). Exercises real route, middleware, service, and DB paths. No mocks. The default home for assertions that exercise routes, services, schemas, or persistence.
+Vitest plus Supertest plus better-sqlite3 against a real SQLite test DB per file (`tests/integration/`). Exercises real route, middleware, service, and DB paths. No mocks. The default home for assertions that exercise routes, services, schemas, or persistence. A few files here drive a committed command-line script as a real subprocess instead of an HTTP route, including the redirected club production chain, which runs the legacy club extractors through `python3`; those need the legacy-data Python dependencies importable by the `python3` on the path, which the continuous-integration job installs before the suite runs.
 
 Belongs:
 

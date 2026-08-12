@@ -12,6 +12,7 @@ import { spawnSync } from 'child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'path';
+import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const SCRIPT = 'scripts/reset-local-db.sh';
@@ -31,7 +32,7 @@ function run(envOverrides: Record<string, string>, cwd: string = REPO_ROOT) {
     cwd,
     env: { ...baseEnv, ...envOverrides },
     encoding: 'utf-8',
-    timeout: 5000,
+    ...SPAWN_GUARD,
   });
 }
 

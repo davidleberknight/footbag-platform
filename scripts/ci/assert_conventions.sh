@@ -302,6 +302,27 @@ if [ -n "$skip_hits" ]; then
   violations=$((violations + 1))
 fi
 
+# Rule: a test file that spawns a process synchronously imports the shared bound
+# in tests/fixtures/spawnGuard.ts.
+# Reason: a synchronous spawn blocks the worker's event loop, and vitest's own
+# testTimeout is a timer on that loop, so it cannot fire while the loop is
+# frozen. An unbounded command therefore parks the worker with no failure
+# reported and no test named, and the run stops making progress instead of
+# failing. The shared bound is applied beneath the loop and turns that into an
+# ordinary failure. This check is file-level: it catches a file that never
+# adopted the bound, which is the case that reached the main branch, not a file
+# that imports it and then omits it on one call site among several.
+echo "[conventions] check: synchronous spawns in tests carry the shared bound"
+spawn_files=$(grep -rlE --include='*.ts' '(spawnSync|execFileSync|execSync)\(' tests/ \
+  | grep -v '^tests/fixtures/spawnGuard\.ts$' \
+  || true)
+guard_hits=$(echo "$spawn_files" | grep -v '^$' | xargs -r grep -L 'spawnGuard' || true)
+if [ -n "$guard_hits" ]; then
+  echo "$guard_hits" >&2
+  echo "  FAIL: a test that spawns synchronously must spread SPAWN_GUARD from tests/fixtures/spawnGuard.ts" >&2
+  violations=$((violations + 1))
+fi
+
 # Rule: no test may reach real cloud object storage or a deployed database.
 # Reason: a test suite is collectible by anyone and runs unattended, so it is
 # the wrong place to hold something that mutates a live bucket or database.

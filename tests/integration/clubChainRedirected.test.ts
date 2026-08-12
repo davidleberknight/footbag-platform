@@ -13,10 +13,10 @@
 //
 // The mirror and the legacy dump are entirely synthetic. The production mirror,
 // the production dump, the database and the network are never reached.
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, beforeAll } from 'vitest';
 import path from 'node:path';
 import os from 'node:os';
-import { execFileSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
   mkdtempSync,
@@ -32,6 +32,7 @@ import {
   chmodSync,
 } from 'node:fs';
 import { run, EXIT_OK, EXIT_MISSING_PREREQUISITE } from '../../scripts/verify-seed-urls';
+import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const SCRIPTS = path.join(REPO_ROOT, 'legacy_data', 'scripts');
@@ -54,6 +55,45 @@ const MEMBER_NAME = 'Ada Lovelace';
 const MEMBER_ID = '77001';
 
 const roots: string[] = [];
+
+// The stages below are the real extractors, which parse the mirror's saved HTML
+// with BeautifulSoup, so this suite runs them under an interpreter that carries
+// the pipeline's dependencies. The pipeline's own entry points take those from a
+// virtual environment beside the legacy data, so resolve it the same way they
+// do; a host that installs the requirements into the interpreter on the path
+// instead, as the continuous-integration runner does, is served by the fallback.
+function resolvePython(): string {
+  const legacy = path.join(REPO_ROOT, 'legacy_data');
+  for (const candidate of [process.env.VENV_DIR, '.venv', 'footbag_venv', 'venv']) {
+    if (!candidate) continue;
+    const bin = path.resolve(legacy, candidate, 'bin', 'python');
+    if (existsSync(bin)) return bin;
+  }
+  return 'python3';
+}
+
+const PYTHON = resolvePython();
+
+// Proving the dependency once, before any stage runs, turns an environment gap
+// into a single sentence naming the fix; without it every stage dies at its
+// import line and the suite reports only mismatched exit statuses, which
+// describe the symptom and not the cause.
+beforeAll(() => {
+  const probe = spawnSync(PYTHON, ['-c', 'import bs4'], {
+    encoding: 'utf8',
+    ...SPAWN_GUARD,
+  });
+  if (probe.status !== 0) {
+    throw new Error(
+      'This suite runs the legacy club extractors as real subprocesses, and they ' +
+      'need BeautifulSoup importable by the interpreter that runs them, which ' +
+      `resolved here to ${PYTHON}. Install the pipeline dependencies ` +
+      '(legacy_data/requirements.txt) into it, or create the pipeline virtual ' +
+      'environment beside the legacy data. The probe reported: ' +
+      `${(probe.stderr ?? '').trim() || probe.error?.message || 'interpreter not runnable'}`,
+    );
+  }
+});
 
 afterEach(() => {
   while (roots.length) {
@@ -248,19 +288,28 @@ interface StageResult {
   stderr: string;
 }
 
+// spawnSync rather than execFileSync so stderr comes back on every path: a stage
+// that dies before it can print anything of its own, on a missing interpreter or
+// an unimportable module, is diagnosed from the traceback it did produce rather
+// than from a bare exit status.
 function python(script: string, args: string[], cwd: string): StageResult {
-  try {
-    const stdout = execFileSync('python3', [script, ...args], {
-      cwd,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-      env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1' },
-    });
-    return { status: 0, stdout, stderr: '' };
-  } catch (err) {
-    const e = err as { status?: number; stdout?: string; stderr?: string };
-    return { status: e.status ?? 1, stdout: e.stdout ?? '', stderr: e.stderr ?? '' };
+  const r = spawnSync(PYTHON, [script, ...args], {
+    cwd,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+    env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1' },
+    ...SPAWN_GUARD,
+  });
+  // A signal kill reports a null status. Naming the signal keeps the guard's own
+  // kill legible as a kill, rather than surfacing as an unexplained null.
+  if (r.status === null) {
+    return {
+      status: -1,
+      stdout: r.stdout ?? '',
+      stderr: `${r.stderr ?? ''}\nkilled by signal ${r.signal ?? 'unknown'}`,
+    };
   }
+  return { status: r.status, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
 }
 
 /** Records which stages were invoked, so a test can prove later ones did not run. */
@@ -350,7 +399,7 @@ describe('redirected club production chain', () => {
     const result = await runChain(chain);
 
     // Stage 1: generated, not skipped.
-    expect(result.results.extract_clubs!.status).toBe(0);
+    expect(result.results.extract_clubs!.status, result.results.extract_clubs!.stderr).toBe(0);
     expect(result.results.extract_clubs!.stdout).toContain('GENERATED');
     expect(result.results.extract_clubs!.stdout).not.toContain('SKIPPED');
     const afterExtract = result.snapshots.extract_clubs!;
@@ -361,7 +410,7 @@ describe('redirected club production chain', () => {
 
     // Stage 2: the overlay actually reconciled, and changed the row set.
     const overlayOut = result.results.overlay!.stdout;
-    expect(result.results.overlay!.status).toBe(0);
+    expect(result.results.overlay!.status, result.results.overlay!.stderr).toBe(0);
     expect(overlayOut).toContain('Authoritative club reconciliation:');
     expect(overlayOut).not.toContain('skipped');
     expect(overlayOut).toContain('dump-only additions:     1');
@@ -373,7 +422,10 @@ describe('redirected club production chain', () => {
     expect(afterOverlay).not.toBe(afterExtract);
 
     // Stage 3: members generated for the surviving club.
-    expect(result.results.extract_club_members!.status).toBe(0);
+    expect(
+      result.results.extract_club_members!.status,
+      result.results.extract_club_members!.stderr,
+    ).toBe(0);
     expect(result.results.extract_club_members!.stdout).toContain('GENERATED');
     const members = readFileSync(chain.membersCsv, 'utf8');
     expect(members).toContain(KEPT_KEY);
@@ -432,11 +484,16 @@ describe('redirected club chain: failure sequencing', () => {
     // report a clean pass, and the chain must not treat that as regeneration.
     writeFileSync(chain.clubsCsv, 'STALE\n');
     const future = Date.now() / 1000 + 10_000;
-    execFileSync('python3', [
-      '-c',
-      `import os,sys; os.utime(sys.argv[1], (${future}, ${future}))`,
-      chain.clubsCsv,
-    ]);
+    const touched = spawnSync(
+      PYTHON,
+      [
+        '-c',
+        `import os,sys; os.utime(sys.argv[1], (${future}, ${future}))`,
+        chain.clubsCsv,
+      ],
+      { encoding: 'utf8', ...SPAWN_GUARD },
+    );
+    expect(touched.status, touched.stderr).toBe(0);
 
     const skipped = python(
       path.join(chain.scriptsDir, 'extract_clubs.py'),
@@ -444,7 +501,7 @@ describe('redirected club chain: failure sequencing', () => {
       chain.root,
     );
 
-    expect(skipped.status).toBe(3);
+    expect(skipped.status, skipped.stderr).toBe(3);
     expect(skipped.stdout).toContain('SKIPPED, generated nothing');
     expect(readFileSync(chain.clubsCsv, 'utf8')).toBe('STALE\n');
     expectCommittedUnchanged(before, committedState());
@@ -458,7 +515,11 @@ describe('redirected club chain: failure sequencing', () => {
 
     const result = await runChain(chain);
 
-    expect(result.results.extract_clubs!.status).toBe(1);
+    expect(result.results.extract_clubs!.status, result.results.extract_clubs!.stderr).toBe(1);
+    // The status alone does not prove the intended path: an extractor that died
+    // for any other reason, an unimportable module among them, also exits 1. The
+    // refusal this test is about announces itself, so assert on the announcement.
+    expect(result.results.extract_clubs!.stderr).toContain('mirror not found');
     expect(result.invoked).toEqual(['extract_clubs']);
     expect(result.verifierExit).toBeNull();
     expect(existsSync(chain.clubsCsv)).toBe(false);
@@ -476,8 +537,8 @@ describe('redirected club chain: failure sequencing', () => {
 
     const result = await runChain(chain);
 
-    expect(result.results.extract_clubs!.status).toBe(0);
-    expect(result.results.overlay!.status).not.toBe(0);
+    expect(result.results.extract_clubs!.status, result.results.extract_clubs!.stderr).toBe(0);
+    expect(result.results.overlay!.status, result.results.overlay!.stdout).not.toBe(0);
     expect(result.invoked).toEqual(['extract_clubs', 'overlay']);
     expect(result.verifierExit).toBeNull();
     expect(existsSync(chain.membersCsv)).toBe(false);
@@ -495,8 +556,8 @@ describe('redirected club chain: failure sequencing', () => {
 
     const result = await runChain(chain);
 
-    expect(result.results.extract_clubs!.status).toBe(0);
-    expect(result.results.overlay!.status).toBe(3);
+    expect(result.results.extract_clubs!.status, result.results.extract_clubs!.stderr).toBe(0);
+    expect(result.results.overlay!.status, result.results.overlay!.stderr).toBe(3);
     expect(result.invoked).toEqual(['extract_clubs', 'overlay']);
     expect(result.verifierExit).toBeNull();
     expect(result.results.overlay!.stdout).not.toContain('Authoritative club reconciliation:');
@@ -524,9 +585,12 @@ describe('redirected club chain: failure sequencing', () => {
       chmodSync(chain.scratchSeed, 0o700);
     }
 
-    expect(result.results.extract_clubs!.status).toBe(0);
-    expect(result.results.overlay!.status).toBe(0);
-    expect(result.results.extract_club_members!.status).not.toBe(0);
+    expect(result.results.extract_clubs!.status, result.results.extract_clubs!.stderr).toBe(0);
+    expect(result.results.overlay!.status, result.results.overlay!.stderr).toBe(0);
+    expect(
+      result.results.extract_club_members!.status,
+      result.results.extract_club_members!.stdout,
+    ).not.toBe(0);
     // The invocation ledger is the proof, not the absence of a file.
     expect(result.invoked).toEqual(['extract_clubs', 'overlay', 'extract_club_members']);
     expect(result.verifierExit).toBeNull();

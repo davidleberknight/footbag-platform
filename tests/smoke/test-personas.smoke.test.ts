@@ -43,6 +43,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import { CANONICAL_PERSONAS } from '../../src/testkit/canonicalPersonas';
+import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 
 // Personas are seeded on staging only (the seeder is allowlisted to the
 // staging target), so this suite is meaningful only against staging: a
@@ -74,8 +75,12 @@ describe.skipIf(!RUN)(
     beforeAll(() => {
       const stdout = execFileSync('scripts/verify-test-personas.sh', [], {
         stdio: ['ignore', 'pipe', 'inherit'],
-        timeout: 120_000,
         encoding: 'utf8',
+        ...SPAWN_GUARD,
+        // The verifier talks to staging AWS, so its round trip outlasts the
+        // shared bound; the hook declares the matching timeout. The kill signal
+        // stays the guard's.
+        timeout: 120_000,
       });
       const lastLine = stdout
         .trim()

@@ -13,6 +13,7 @@ import * as path from 'node:path';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
 import { insertMember, insertLegacyMember, insertHistoricalPerson } from '../fixtures/factories';
+import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 
 const { dbPath } = setTestEnv('3091');
 const REPO_ROOT = path.resolve(__dirname, '../..');
@@ -39,7 +40,11 @@ afterAll(() => cleanupTestDb(dbPath));
 
 function run(): { stdout: string; status: number } {
   const r = spawnSync('npx', ['tsx', SCRIPT, '--db', dbPath], {
-    cwd: REPO_ROOT, encoding: 'utf8', timeout: 120_000,
+    cwd: REPO_ROOT, encoding: 'utf8',
+    ...SPAWN_GUARD,
+    // A cold `npx tsx` compiles the script before it runs, which outlasts the
+    // shared bound on a loaded machine. The kill signal stays the guard's.
+    timeout: 120_000,
   });
   return { stdout: r.stdout ?? '', status: r.status ?? -1 };
 }
