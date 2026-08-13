@@ -38,7 +38,14 @@ const DRAFT_EVENT_KEY    = 'event_2026_draft_event';
 const ALICE_ID = 'person-alice-001';
 const BOB_ID   = 'person-bob-001';
 
-const TEST_DB_PATH       = path.join(os.tmpdir(), 'footbag-test-app-routes.db');
+// pid + random suffix, matching setTestEnv's idiom: a fixed name collides
+// when two vitest invocations run this file concurrently on one machine
+// (createTestDb execs the schema unconditionally, so the second process
+// dies with "table tags already exists" before any test runs).
+const TEST_DB_PATH       = path.join(
+  os.tmpdir(),
+  `footbag-test-app-routes-${process.pid}-${Math.random().toString(36).slice(2, 10)}.db`,
+);
 
 // Set env vars BEFORE any module that reads them is imported.
 // JWT/SES env vars come from tests/setup-env.ts (per-vitest-worker defaults).
@@ -609,6 +616,33 @@ describe('GET /', () => {
     expect(res.text).toContain('href="/events"');
     expect(res.text).toContain('href="/clubs"');
     expect(res.text).toContain('href="/login"');
+  });
+
+  it('orders the explore grid newcomer-first: ways to play lead, honors close', async () => {
+    const app = createApp();
+    const res = await request(app).get('/');
+    const cardTitles = [...res.text.matchAll(/<div class="card-title">([^<]+)<\/div>/g)].map(
+      (m) => m[1],
+    );
+    expect(cardTitles.indexOf('Sideline')).toBeLessThan(cardTitles.indexOf('Events'));
+    expect(cardTitles.indexOf('Freestyle')).toBeLessThan(cardTitles.indexOf('Events'));
+    expect(cardTitles.indexOf('Records')).toBeGreaterThan(cardTitles.indexOf('Members'));
+    expect(cardTitles.indexOf('Big Add Posse')).toBeGreaterThan(cardTitles.indexOf('Hall of Fame'));
+  });
+
+  it('Members card button says where it goes: Log In, to /login', async () => {
+    const app = createApp();
+    const res = await request(app).get('/');
+    expect(res.text).toMatch(/<a href="\/login" class="btn btn-outline">Log In<\/a>/);
+  });
+
+  it('describes the Big Add Posse without insider vocabulary', async () => {
+    const app = createApp();
+    const res = await request(app).get('/');
+    expect(res.text).toContain(
+      'The invite-only honor society of freestyle&#x27;s most accomplished players.',
+    );
+    expect(res.text).not.toContain('shredders');
   });
 
   it('links Media Galleries card to /media', async () => {
