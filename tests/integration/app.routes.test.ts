@@ -592,6 +592,17 @@ describe('GET /', () => {
     expect(res.text).toContain('Footbag');
   });
 
+  it('hero explains the sport and offers the newcomer entry path to /sideline', async () => {
+    const app = createApp();
+    const res = await request(app).get('/');
+    expect(res.text).toContain(
+      'The sport of keeping a small bag in the air with your feet, from casual &quot;Hacky Sack&quot; circles to world championships.',
+    );
+    expect(res.text).toContain('New to Footbag? Start Here');
+    // The CTA must be the anchor's own destination, not a nearby card link.
+    expect(res.text).toMatch(/<a href="\/sideline" class="btn btn-inverse[^"]*">New to Footbag\? Start Here<\/a>/);
+  });
+
   it('includes section cards for Events, Clubs, and Members', async () => {
     const app = createApp();
     const res = await request(app).get('/');

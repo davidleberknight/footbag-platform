@@ -6,6 +6,10 @@ import { config } from '../config/env';
 interface HomeHero {
   heading: string;
   subheading?: string;
+  // Single newcomer entry path; renders as the hero's one CTA. The hero is a
+  // dark gradient panel, so the template renders it with the inverse button
+  // treatment reserved for CTAs on dark panels.
+  cta?: { label: string; href: string };
   videoMedia?: VideoMedia;
   videoCaption?: string;
 }
@@ -53,11 +57,12 @@ export const homeService = {
         sectionKey: 'home',
         pageKey: 'home_index',
         title: 'Footbag Worldwide',
-        intro: 'The home of footbag sports and recreational "Hacky Sack."',
+        intro: 'The sport of keeping a small bag in the air with your feet, from casual "Hacky Sack" circles to world championships.',
       },
       hero: {
         heading: 'Footbag Worldwide',
-        subheading: 'The home of footbag sports and recreational "Hacky Sack."',
+        subheading: 'The sport of keeping a small bag in the air with your feet, from casual "Hacky Sack" circles to world championships.',
+        cta: { label: 'New to Footbag? Start Here', href: '/sideline' },
       },
       primaryLinks: [
         {

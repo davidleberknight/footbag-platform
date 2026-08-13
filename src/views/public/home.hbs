@@ -2,6 +2,7 @@
   <div>
     <h1>{{hero.heading}}</h1>
     {{#if hero.subheading}}<p>{{hero.subheading}}</p>{{/if}}
+    {{#if hero.cta}}<a href="{{hero.cta.href}}" class="btn btn-inverse mt-4">{{hero.cta.label}}</a>{{/if}}
     {{#if page.notice}}<div class="notice">{{page.notice}}</div>{{/if}}
   </div>
 </div>
