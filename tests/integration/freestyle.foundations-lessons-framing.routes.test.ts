@@ -58,6 +58,6 @@ describe('Freestyle onboarding — foundations vs lessons framing', () => {
   it('the trick index onboarding link starts newcomers with the six vocabulary lessons', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Start with the six vocabulary lessons');
+    expect(res.text).toContain('Start With the Six Vocabulary Lessons');
   });
 });

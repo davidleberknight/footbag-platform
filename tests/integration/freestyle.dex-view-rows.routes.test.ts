@@ -172,14 +172,14 @@ describe('Dex view — two-line row contract', () => {
     expect(row).toContain('(3)');
   });
 
-  it('landing dex-count card shows only the numeric dex chips (no Unresolved chip)', async () => {
-    const html = (await request(await createApp()).get('/freestyle/tricks')).text;
-    // Numeric dex chips still render on the landing card.
-    expect(html).toMatch(/dict-landing-card-chip" href="[^"]*dex-count#dex-0">0 dex/);
-    expect(html).toMatch(/dict-landing-card-chip" href="[^"]*dex-count#dex-3">3\+ dex/);
-    // Neither an Unresolved nor an Unknown chip renders: the dex view has no such bucket.
-    expect(html).not.toMatch(/dict-landing-card-chip" href="[^"]*dex-count#[^"]*">Unresolved/);
-    expect(html).not.toMatch(/dict-landing-card-chip" href="[^"]*dex-count#[^"]*">Unknown/);
+  it('the dex view buckets by number only, with no Unresolved or Unknown bucket', async () => {
+    const html = (await request(await createApp()).get('/freestyle/tricks?view=dex-count')).text;
+    // Buckets are numeric; the jump nav reaches them by their numeric anchor.
+    expect(html).toMatch(/href="#dex-0"/);
+    expect(html).toMatch(/href="#dex-3"/);
+    // The view has no catch-all bucket for tricks it could not resolve.
+    expect(html).not.toMatch(/<h2>Unresolved/);
+    expect(html).not.toMatch(/<h2>Unknown/);
   });
 
   it('every representative row carries both columns: identity and notation', async () => {

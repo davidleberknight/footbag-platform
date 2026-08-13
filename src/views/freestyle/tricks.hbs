@@ -16,46 +16,13 @@
 
 <div class="wrapper">
 
-  {{! ── Beginner-first landing lede. The "New to freestyle? Start here"
-      onboarding block leads the page so orientation, not a number, is the first
-      thing a newcomer reads; the corpus-count line follows it (prominent near the
-      top, supporting metadata, not the opening lede). Default landing only:
-      secondary views and the family filter carry their own state-specific
-      orientation, and the search box below leads on those. ── }}
-  {{#if (eq content.activeView "add")}}
-  {{#unless content.activeFamily}}
-  {{#if content.landingOnboarding}}
-  <aside class="dict-onboarding" aria-label="New to freestyle? Start here">
-    <h2 class="dict-onboarding-heading">{{content.landingOnboarding.heading}}</h2>
-    {{#each content.landingOnboarding.intro}}<p class="dict-onboarding-intro">{{this}}</p>{{/each}}
-    {{#if content.landingOnboarding.definitions.length}}
-    <dl class="dict-onboarding-defs">
-      {{#each content.landingOnboarding.definitions}}<div class="dict-onboarding-def"><dt>{{term}}</dt><dd>{{plain}}</dd></div>{{/each}}
-    </dl>
-    {{/if}}
-    <p class="dict-onboarding-example">
-      <span class="dict-onboarding-example-label">{{content.landingOnboarding.example.label}}:</span>
-      {{#each content.landingOnboarding.example.steps}}<span class="dict-onboarding-step"><strong>{{name}}</strong> <span class="dict-onboarding-step-note">{{note}}</span></span>{{#unless @last}} <span class="dict-onboarding-arrow">&rarr;</span> {{/unless}}{{/each}}
-    </p>
-    <ul class="dict-onboarding-lenses">
-      {{#each content.landingOnboarding.lenses}}<li><strong>{{label}}</strong> <span class="dict-onboarding-lens-note">{{note}}</span></li>{{/each}}
-    </ul>
-    <p class="dict-onboarding-links">
-      {{#each content.landingOnboarding.links}}<a href="{{href}}">{{label}}</a>{{#unless @last}} <span class="dict-onboarding-link-sep">·</span> {{/unless}}{{/each}}
-    </p>
-  </aside>
-  {{/if}}
-  {{#if content.dictionaryStats}}
-  <p class="browse-view-scale">{{content.dictionaryStats}}</p>
-  {{/if}}
-  {{/unless}}
-  {{/if}}
-
-  {{! ── Trick search: name/alias lookup. Submits to the dedicated search page
-      (typeahead lives there); works without JS. Placed after the orientation
-      intro so beginner context leads the page. ── }}
-  <div class="card search-box-card">
+  {{! ── Actions card: the two things a reader can DO from here, on one row.
+      Search submits to the dedicated search page (typeahead lives there) and
+      works without JS; Watch Videos leaves for the freestyle media hub, so it
+      is a button, not a tile that looks like it would open in place. ── }}
+  <div class="card search-box-card mt-5" id="dictionary-top">
     <div class="search-box-section">
+      <h2 class="card-title">{{content.searchSection.heading}}</h2>
       <form method="GET" action="/freestyle/search" class="search-box-form" role="search">
         <input type="text" name="q" minlength="2" maxlength="100"
                placeholder="Name or alias"
@@ -65,44 +32,78 @@
                class="search-box-input" />
         <button type="submit" class="btn btn-primary">Search</button>
       </form>
+      <a class="btn btn-outline" href="{{content.watchVideosButton.href}}">{{content.watchVideosButton.label}}</a>
     </div>
   </div>
 
-  {{! ── Landing grid: 3-band conceptual map of the
-      dictionary's browse axes. Renders ONLY on the default landing view
-      (?view=add, the default) to orient first-time readers. On secondary
-      views (?view=family, ?view=modifier, etc.) the inline view-toggle below
-      handles persistent quick-switching nav. Emerging Vocabulary lives
-      under the third band (Tracking & Expansion), promoted from its
-      previous separate footer-style paragraph. }}
+  {{! ── Orientation tiles: one wrapping row of three closed disclosures holding
+      the beginner links, the how-tricks-are-built primer, and what the
+      dictionary contains, ordered beginner to expert. Every tile in the row
+      behaves the same way (opens in place, independently, nothing persists),
+      so the row carries no control that navigates away. An open tile stretches
+      to the full row and the rest reflow. Default landing only: secondary
+      views and the family filter carry their own state-specific
+      orientation. ── }}
   {{#if (eq content.activeView "add")}}
   {{#unless content.activeFamily}}
-  <div class="dict-landing-grid" aria-label="Dictionary browse axes">
-    {{#each content.landingGrid.bands}}
-    <section class="dict-landing-band">
-      <p class="dict-landing-band-eyebrow">{{eyebrow}}</p>
-      <div class="dict-landing-band-cards">
-        {{#each cards}}
-        <article class="dict-landing-card">
-          <header class="dict-landing-card-header">
-            <h2 class="dict-landing-card-label"><a href="{{href}}">{{label}}</a></h2>
-            <span class="dict-landing-card-count" aria-label="{{countDisplay}} {{countSuffix}}"><span class="dict-landing-card-count-num">{{countDisplay}}</span> {{countSuffix}}</span>
-          </header>
-          <p class="dict-landing-card-question">{{lensQuestion}}</p>
-          {{#if chips.length}}
-          <p class="dict-landing-card-chips" aria-label="Jump to section">
-            {{#each chips}}<a class="dict-landing-card-chip" href="{{href}}">{{label}}{{#if count}} <span class="dict-landing-card-chip-count">{{count}}</span>{{/if}}</a>{{#unless @last}} <span class="dict-landing-card-chip-sep">·</span> {{/unless}}{{/each}}
-          </p>
-          {{/if}}
-          <p class="dict-landing-card-open"><a href="{{href}}">Open</a></p>
-          {{#if crossLink}}
-          <p class="dict-landing-card-crosslink"><a href="{{crossLink.href}}">{{crossLink.label}}</a></p>
-          {{/if}}
-        </article>
-        {{/each}}
+  <div class="dict-tile-grid" aria-label="About the dictionary">
+    <details class="dict-tile">
+      <summary class="dict-tile-summary">
+        <span class="dict-tile-title">{{content.landingTiles.start.title}}</span>
+        <span class="dict-tile-hint">{{content.landingTiles.start.hint}}</span>
+      </summary>
+      <div class="dict-tile-body">
+        {{! Each of these is a destination that must read as important without
+            being a button, which is the prominent-action-link tier; as
+            dot-separated prose links they read as running text instead. }}
+        <div class="dict-onboarding-links">
+          {{#each content.landingOnboarding.links}}<a class="action-link" href="{{href}}">{{label}}</a>{{/each}}
+        </div>
       </div>
-    </section>
-    {{/each}}
+    </details>
+    <details class="dict-tile">
+      <summary class="dict-tile-summary">
+        <span class="dict-tile-title">{{content.landingTiles.built.title}}</span>
+        <span class="dict-tile-hint">{{content.landingTiles.built.hint}}</span>
+      </summary>
+      <div class="dict-tile-body">
+        {{#each content.landingOnboarding.intro}}<p class="dict-onboarding-intro">{{this}}</p>{{/each}}
+        {{#if content.landingOnboarding.definitions.length}}
+        <dl class="dict-onboarding-defs">
+          {{#each content.landingOnboarding.definitions}}<div class="dict-onboarding-def"><dt>{{term}}</dt><dd>{{plain}}</dd></div>{{/each}}
+        </dl>
+        {{/if}}
+        <p class="dict-onboarding-example">
+          <span class="dict-onboarding-example-label">{{content.landingOnboarding.example.label}}:</span>
+          {{#each content.landingOnboarding.example.steps}}<span class="dict-onboarding-step"><strong>{{name}}</strong> <span class="dict-onboarding-step-note">{{note}}</span></span>{{#unless @last}} <span class="dict-onboarding-arrow">&rarr;</span> {{/unless}}{{/each}}
+        </p>
+        <ul class="dict-onboarding-lenses">
+          {{#each content.landingOnboarding.lenses}}<li><strong>{{label}}</strong> <span class="dict-onboarding-lens-note">{{note}}</span></li>{{/each}}
+        </ul>
+      </div>
+    </details>
+    <details class="dict-tile">
+      <summary class="dict-tile-summary">
+        <span class="dict-tile-title">{{content.landingTiles.contents.title}}</span>
+        <span class="dict-tile-hint">{{content.landingTiles.contents.hint}}</span>
+      </summary>
+      <div class="dict-tile-body">
+        {{#if content.dictionaryStats}}
+        <p class="browse-view-scale">{{content.dictionaryStats}}</p>
+        {{/if}}
+        {{! Where the data comes from belongs with what is in the dictionary,
+            up here where a reader meets it, not stranded under the list. }}
+        <p class="source-note">
+          Trick data sourced from community documentation.
+          ADD values reflect the standard difficulty scoring system;
+          see <a href="/freestyle/add-analysis">ADD Accounting &amp; Analysis</a> for
+          a step-by-step walkthrough of how totals are constructed, with worked
+          examples and discrepancy case studies.
+          Tricks with documented records are linked to their record pages.
+        </p>
+        <p class="dict-emerging-line"><a href="{{content.emergingLine.titleHref}}">{{content.emergingLine.titleLabel}}</a>: {{content.emergingLine.sentence}}</p>
+      </div>
+    </details>
   </div>
   {{/unless}}
   {{/if}}
@@ -121,64 +122,65 @@
   {{/if}}
   {{/if}}
 
-  {{! ── Browse navigation. "By ADD" is the default; the other systems are
-      secondary ways to navigate the same movement universe. No JavaScript;
-      view selected via the ?view= query param. ── }}
+  {{! ── Browse navigation, gathered into one titled card so the three control
+      rows (which view, how each tier sorts, and where to jump) read as one
+      thing rather than three loose lines. "By ADD" is the default; the other
+      systems are secondary ways to navigate the same movement universe. No
+      JavaScript; view selected via the ?view= query param. ── }}
+  <div class="card dict-nav-card">
+    <h2 class="card-title">{{content.navSection.heading}}</h2>
+  {{! Each entry carries the lens question as its title, so what an axis is FOR
+      arrives on hover and focus instead of costing a line of layout. }}
   <nav class="trick-view-toggle" aria-label="Browse the dictionary">
+    <span class="dict-nav-label">{{content.navSection.viewLabel}}</span>
     {{#if (eq content.activeView "add")}}
-      <span class="trick-view-toggle-active">By ADD</span>
+      <span title="{{content.navSection.viewTitles.add}}" class="trick-view-toggle-active">By ADD</span>
     {{else}}
-      <a href="/freestyle/tricks?view=add">By ADD</a>
+      <a title="{{content.navSection.viewTitles.add}}" href="/freestyle/tricks?view=add">By ADD</a>
     {{/if}}
     <span class="trick-view-toggle-sep">·</span>
     {{#if (eq content.activeView "family")}}
-      <span class="trick-view-toggle-active">By family</span>
+      <span title="{{content.navSection.viewTitles.family}}" class="trick-view-toggle-active">By family</span>
     {{else}}
-      <a href="/freestyle/tricks?view=family">By family</a>
+      <a title="{{content.navSection.viewTitles.family}}" href="/freestyle/tricks?view=family">By family</a>
     {{/if}}
     <span class="trick-view-toggle-sep">·</span>
     {{#if (eq content.activeView "movement-system")}}
-      <span class="trick-view-toggle-active">By movement system</span>
+      <span title="{{content.navSection.viewTitles.movementSystem}}" class="trick-view-toggle-active">By movement system</span>
     {{else}}
-      <a href="/freestyle/tricks?view=movement-system">By movement system</a>
+      <a title="{{content.navSection.viewTitles.movementSystem}}" href="/freestyle/tricks?view=movement-system">By movement system</a>
     {{/if}}
     <span class="trick-view-toggle-sep">·</span>
     {{#if (eq content.activeView "topology")}}
-      <span class="trick-view-toggle-active">Movement Neighborhoods</span>
+      <span title="{{content.navSection.viewTitles.topology}}" class="trick-view-toggle-active">Movement Neighborhoods</span>
     {{else}}
-      <a href="/freestyle/tricks?view=topology">Movement Neighborhoods</a>
+      <a title="{{content.navSection.viewTitles.topology}}" href="/freestyle/tricks?view=topology">Movement Neighborhoods</a>
     {{/if}}
     <span class="trick-view-toggle-sep">·</span>
     {{#if (eq content.activeView "dex-count")}}
-      <span class="trick-view-toggle-active">By dex count</span>
+      <span title="{{content.navSection.viewTitles.dexCount}}" class="trick-view-toggle-active">By dex count</span>
     {{else}}
-      <a href="/freestyle/tricks?view=dex-count">By dex count</a>
+      <a title="{{content.navSection.viewTitles.dexCount}}" href="/freestyle/tricks?view=dex-count">By dex count</a>
     {{/if}}
     <span class="trick-view-toggle-sep">·</span>
     {{#if (eq content.activeView "modifier")}}
-      <span class="trick-view-toggle-active">By modifier</span>
+      <span title="{{content.navSection.viewTitles.modifier}}" class="trick-view-toggle-active">By modifier</span>
     {{else}}
-      <a href="/freestyle/tricks?view=modifier">By modifier</a>
+      <a title="{{content.navSection.viewTitles.modifier}}" href="/freestyle/tricks?view=modifier">By modifier</a>
     {{/if}}
   </nav>
-  {{#unless (eq content.activeView "add")}}
-  {{! Secondary-view reachability for cross-link surfaces. On the default
-      landing view, the dict-landing-grid above carries Operators / Set
-      Encyclopedia cross-links in their respective cards; on secondary
-      views, this aside paragraph preserves reachability without requiring
-      a return trip to the landing. }}
+  {{! Reference surfaces that are NOT dictionary browse axes, so they never
+      belong in the View row above. This carried the browse grid's two
+      cross-links, which is why it now renders on every view rather than only
+      the secondary ones. }}
   <p class="trick-view-toggle-aside">New to the dictionary? Start with the <a href="/freestyle/glossary">glossary</a>. For modifier and operator vocabulary, see the <a href="/freestyle/operators">Operators &amp; Modifiers reference</a> (not a dictionary browse axis; it's vocabulary that helps you read trick names). For set systems as first-class objects (what is pixie / stepping / atomic as a system?), see the <a href="/freestyle/sets">Set Encyclopedia</a>.</p>
-  {{/unless}}
 
-  {{! ── Default ADD-grouped view — two-line row contract.
-       Every row: line 1 = name/hashtag/≡interpretation/media; line 2 =
-       JOB: + ADD:. No green ADD chip (the value is in the section header
-       + the line-2 ADD: formula). See dictionary-trick-row.hbs. }}
   {{#if (eq content.activeView "add")}}
   {{! Within-tier browse mode: Alphabetical (default, flat A-Z for lookup) or
       By family (nearest-anchor family bands in public-family order). Selected
       via ?sort=; server-rendered, no JavaScript. }}
   <nav class="trick-view-toggle" aria-label="Sort within each ADD tier">
+    <span class="dict-nav-label">{{content.navSection.sortLabel}}</span>
     {{#if (eq content.addSort "alpha")}}
       <a href="/freestyle/tricks?view=add&amp;sort=family">By family</a>
       <span class="trick-view-toggle-sep">·</span>
@@ -197,11 +199,19 @@
     {{/each}}
   </nav>
   {{/if}}
+  {{/if}}
+  </div>
+
+  {{! ── Default ADD-grouped view — two-line row contract.
+       Every row: line 1 = name/hashtag/≡interpretation/media; line 2 =
+       JOB: + ADD:. No green ADD chip (the value is in the section header
+       + the line-2 ADD: formula). See dictionary-trick-row.hbs. }}
+  {{#if (eq content.activeView "add")}}
   {{#each content.addGroups}}
   <section class="content-section trick-add-group" id="{{anchorId}}">
     <div class="section-heading">
       <h2>{{addLabel}}</h2>
-      <span class="section-count">{{cards.length}}</span>
+      <span class="section-count">{{countLabel}}</span>
     </div>
     {{#if (eq @root.content.addSort "alpha")}}
     {{! Alphabetical: flat A-Z across the whole tier, by canonical name. }}
@@ -634,13 +644,8 @@
   {{/if}}
   {{/if}}
 
-  <p class="source-note">
-    Trick data sourced from community documentation.
-    ADD values reflect the standard difficulty scoring system;
-    see <a href="/freestyle/add-analysis">ADD Accounting &amp; Analysis</a> for
-    a step-by-step walkthrough of how totals are constructed, with worked
-    examples and discrepancy case studies.
-    Tricks with documented records are linked to their record pages.
-  </p>
+  {{! The list runs long, so the foot of the page offers the way back up
+      rather than provenance the reader needed before they started reading. }}
+  <p class="dict-back-to-top"><a class="btn btn-outline" href="#dictionary-top">{{content.backToTopLabel}}</a></p>
 
 </div>

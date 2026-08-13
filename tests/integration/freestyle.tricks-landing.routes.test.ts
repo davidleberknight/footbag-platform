@@ -224,58 +224,7 @@ describe('GET /freestyle/tricks — default By ADD ladder', () => {
   });
 });
 
-describe('GET /freestyle/tricks — landing-grid count labels are self-explanatory', () => {
-  // Each portal-card count badge must show a VISIBLE noun (what the number
-  // counts), not only an aria-label. The number sits in a
-  // .dict-landing-card-count-num span; the noun follows as visible text.
-  const NOUNS = ['ADD buckets', 'dex buckets', 'core families', 'modifier groups', 'axes + surfaces', 'neighborhoods', 'unconfirmed names'];
-  const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
-
-  it('every portal-card badge renders a visible noun label after the number', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks');
-    for (const noun of NOUNS) {
-      const pat = new RegExp(`<span class="dict-landing-card-count-num">[\\d,]+</span> ${esc(noun)}</span>`);
-      expect(res.text, `visible "${noun}" badge`).toMatch(pat);
-    }
-  });
-
-  it('badge aria-labels carry the same "<count> <noun>" text', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks');
-    for (const noun of NOUNS) {
-      expect(res.text, `aria "${noun}"`).toMatch(new RegExp(`aria-label="[\\d,]+ ${esc(noun)}"`));
-    }
-  });
-
-  // NB: Handlebars escapes '=' in attribute output to '&#x3D;', so href patterns
-  // use a tolerant '[^"]*' across the query-string separator.
-  it('portal-card chips are jump-links into subsections, with derived hit counts', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks');
-    // Chips render as anchor links (not plain spans) into per-bucket anchors.
-    expect(res.text).toMatch(/<a class="dict-landing-card-chip" href="\/freestyle\/tricks\?view[^"]*add#add-\d+"/);
-    expect(res.text).toMatch(/<a class="dict-landing-card-chip" href="\/freestyle\/tricks\?view[^"]*dex-count#dex-/);
-    // Derived counts surface in a count span.
-    expect(res.text).toContain('dict-landing-card-chip-count');
-  });
-
-  it('By family lists the first-class Family Parents, each opening its family page', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks');
-    // First-class Family Parents only (current editorial standard); minor
-    // lineages live in their own band inside the By-family view.
-    // 17 Family Parents: the 16 long-standing parents plus the Down umbrella
-    // (expert-ruled one family aggregating its four variant branches).
-    expect(res.text).toMatch(/<span class="dict-landing-card-count-num">17<\/span> core families/);
-    // Each family-name chip opens that family's encyclopedia page, not the
-    // filtered trick list, so the landing no longer bypasses the family article.
-    for (const slug of ['mirage', 'osis', 'drifter']) {
-      expect(res.text, `family-page link ${slug}`).toContain(`href="/freestyle/families/${slug}"`);
-    }
-    // The card label and the Open link still open the full By-family browse.
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\?view[^"]*family"/);
-    // eclipse is a minor lineage, not a first-class landing-card chip at all.
-    expect(res.text).not.toContain('href="/freestyle/families/eclipse"');
-    expect(res.text).not.toMatch(/dict-landing-card-chip" href="\/freestyle\/tricks\?family[^"]*eclipse"/);
-  });
-
+describe('GET /freestyle/tricks — browse axes and their explanations', () => {
   it('By family view renders a jump index linking to in-page family-section anchors', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=family');
     expect(res.text).toContain('aria-label="Jump to family"');
@@ -334,35 +283,55 @@ describe('GET /freestyle/tricks — landing-grid count labels are self-explanato
     expect(at('double-spinning-whirl')).toBeGreaterThan(at('whirl'));
   });
 
-  it('By modifier groups into clusters linking to ?view=modifier cluster anchors', async () => {
+  it('each browse axis explains what it is for, without spending a line of layout', async () => {
     const res = await request(createApp()).get('/freestyle/tricks');
-    expect(res.text).toMatch(/<span class="dict-landing-card-count-num">\d+<\/span> modifier groups/);
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\?view[^"]*modifier#cluster-set-uptime"/);
-    // The broad, non-entry lens copy.
-    expect(res.text).toMatch(/Which named moves, sets, or twists does it use\?/);
+    // The lens questions ride as the title of each View entry. A reader cannot
+    // guess what "By dex count" or "Movement Neighborhoods" mean from the label
+    // alone, so the explanation has to be reachable somewhere.
+    for (const q of [
+      'How layered is the trick?',
+      'What core movement pattern does the trick build on?',
+      'Which broad movement style does it belong to?',
+      'Tricks that move alike, even across different families.',
+      'How many dexterity moves does it have?',
+      'Which named moves, sets, or twists does it use?',
+    ]) {
+      expect(res.text, `lens question: ${q}`).toContain(`title="${q.replace(/\?/g, '?')}"`);
+    }
   });
 
-  it('the unconfirmed-names badge renders a locale-grouped count (Emerging vocabulary)', async () => {
+  it('Emerging Vocabulary renders as one forward-looking line: a link plus sentence, no count', async () => {
     const res = await request(createApp()).get('/freestyle/tricks');
-    // The visible label carries a formatted number: comma-grouped when the
-    // intake-queue total exceeds 999, a plain 1-3 digit number below that.
-    // The queue shrinks as names are promoted, so the magnitude is not pinned.
-    expect(res.text).toMatch(/<span class="dict-landing-card-count-num">\d{1,3}(?:,\d{3})*<\/span> unconfirmed names<\/span>/);
+    // A single line at the foot of the browse tile: the title links to the
+    // observational page and the sentence names the community sources. No
+    // count and no review-queue framing on this surface; the observational
+    // page itself carries the detail.
+    expect(res.text).toContain('class="dict-emerging-line"');
+    expect(res.text).toMatch(/<a href="\/freestyle\/observational">Emerging Vocabulary<\/a>: the cutting edge\./);
+    expect(res.text).toContain('PassBack, Footbag.org, FootbagMoves, and Stanford, still taking shape.');
+    expect(res.text).not.toContain('unconfirmed names');
   });
 
-  it('no portal-card badge renders a bare number with no noun (old behavior)', async () => {
+  it('the browse axes are not duplicated by a parallel card grid', async () => {
     const res = await request(createApp()).get('/freestyle/tricks');
-    // The old badge was `<span class="dict-landing-card-count" ...>91</span>`
-    // (number only). That form must no longer appear.
-    expect(res.text).not.toMatch(/<span class="dict-landing-card-count"[^>]*>\d[\d,]*<\/span>/);
+    // The View row is the single home for the six axes. A second grid listing
+    // the same six destinations with count badges was redundant with it and
+    // with the Jump to row two lines below.
+    expect(res.text).not.toContain('dict-landing-grid');
+    expect(res.text).not.toContain('dict-landing-card');
+    // The two reference surfaces the grid used to cross-link stay reachable.
+    expect(res.text).toContain('href="/freestyle/operators"');
+    expect(res.text).toContain('href="/freestyle/sets"');
   });
 });
 
 describe('GET /freestyle/tricks — beginner orientation bridge', () => {
-  it('renders the orientation bridge on the default landing view', async () => {
+  it('renders the orientation content inside the landing tiles on the default view', async () => {
     const res = await request(createApp()).get('/freestyle/tricks');
-    expect(res.text).toContain('class="dict-onboarding"');
-    expect(res.text).toContain('New to freestyle? Start here.');
+    expect(res.text).toContain('class="dict-tile-grid"');
+    // The onboarding heading is retired: the tile titles name the blocks, and
+    // this audience is not new to freestyle.
+    expect(res.text).not.toContain('New to freestyle? Start here.');
     // High-level ADD definition in plain words.
     expect(res.text).toMatch(/ADD \(added difficulty\)/);
     // The build-up example, in order; each step introduces one concept and
@@ -405,17 +374,17 @@ describe('GET /freestyle/tricks — beginner orientation bridge', () => {
     expect(start).toBeGreaterThan(-1);
     const links = res.text.slice(start, start + 700);
     expect(links).toContain('href="/freestyle/glossary#section-add-accounting"');
-    expect(links).toContain('What is an ADD?');
+    expect(links).toContain('What Is an ADD?');
     expect(links).toContain('#section-notation');
     expect(links).toContain('#section-reading-the-dictionary');
     expect(links).toContain('#section-core-concepts');
   });
 
-  it('does not render the bridge on secondary or filtered views', async () => {
+  it('does not render the orientation tiles on secondary or filtered views', async () => {
     const family = await request(createApp()).get('/freestyle/tricks?view=family');
-    expect(family.text).not.toContain('class="dict-onboarding"');
+    expect(family.text).not.toContain('class="dict-tile-grid"');
     const filtered = await request(createApp()).get('/freestyle/tricks?family=whirl');
-    expect(filtered.text).not.toContain('class="dict-onboarding"');
+    expect(filtered.text).not.toContain('class="dict-tile-grid"');
   });
 
   it('softens internal ontology terms to beginner entry vocabulary', async () => {
@@ -454,25 +423,27 @@ describe('GET /freestyle/tricks — browse views', () => {
 });
 
 describe('GET /freestyle/tricks — one orienting lede per state', () => {
-  it('the default landing leads with the onboarding block, ahead of the search box', async () => {
+  it('the default landing leads with the actions card, then tiles, then the list', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
-    const onboardingIdx = res.text.indexOf('class="dict-onboarding"');
     const searchIdx = res.text.indexOf('search-box-card');
-    expect(onboardingIdx).toBeGreaterThan(-1);
-    expect(onboardingIdx).toBeLessThan(searchIdx);
-    // The generic "pick a lens" intro is dropped in favor of the onboarding block.
+    const tilesIdx = res.text.indexOf('class="dict-tile-grid"');
+    const listIdx = res.text.indexOf('data-trick-slug=');
+    expect(searchIdx).toBeGreaterThan(-1);
+    expect(tilesIdx).toBeGreaterThan(searchIdx);
+    expect(listIdx).toBeGreaterThan(tilesIdx);
+    // The generic "pick a lens" intro stays dropped.
     expect(res.text).not.toContain('Pick a lens below to start');
   });
 
-  it('the corpus-count line sits under the onboarding block, above the browse lenses', async () => {
+  it('the corpus-count line renders inside the tile row, ahead of the browse controls', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
-    const onboardingIdx = res.text.indexOf('class="dict-onboarding"');
+    const tilesIdx = res.text.indexOf('class="dict-tile-grid"');
     const countIdx = res.text.indexOf('class="browse-view-scale"');
-    const gridIdx = res.text.indexOf('class="dict-landing-grid"');
-    expect(countIdx).toBeGreaterThan(onboardingIdx);
-    expect(countIdx).toBeLessThan(gridIdx);
+    const navIdx = res.text.indexOf('class="card dict-nav-card"');
+    expect(countIdx).toBeGreaterThan(tilesIdx);
+    expect(countIdx).toBeLessThan(navIdx);
   });
 
   it('a secondary view shows its own state-specific lede', async () => {
@@ -491,5 +462,116 @@ describe('GET /freestyle/tricks — one orienting lede per state', () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
     expect(res.text).toContain('New to the dictionary? Start with the <a href="/freestyle/glossary">glossary</a>');
+  });
+});
+
+describe('GET /freestyle/tricks — orientation tiles and search section', () => {
+  it('renders exactly three disclosure tiles, all closed on arrival', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks');
+    const closed = res.text.match(/<details class="dict-tile">/g) ?? [];
+    expect(closed).toHaveLength(3);
+    // No tile arrives open; the reader opens each independently.
+    expect(res.text).not.toMatch(/<details class="dict-tile"[^>]*\sopen/);
+  });
+
+  it('tile summaries carry the three titles in beginner-to-expert order', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks');
+    const at = (s: string) => res.text.indexOf(s);
+    const start    = at('Where to start');
+    const built    = at('How tricks are built');
+    const contents = at('What&#x27;s in the dictionary');
+    expect(start).toBeGreaterThan(-1);
+    expect(built).toBeGreaterThan(start);
+    expect(contents).toBeGreaterThan(built);
+  });
+
+  it('every tile in the row is a disclosure, and Watch Videos is a button beside search', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks');
+    // Watch Videos leaves the page, so it renders as a secondary-action button
+    // in the search card, never as a tile that would look like it opens here.
+    expect(res.text).toMatch(/<a class="btn btn-outline" href="\/freestyle\/media">Watch Videos<\/a>/);
+    const gridStart = res.text.indexOf('class="dict-tile-grid"');
+    const gridEnd = res.text.indexOf('class="card dict-nav-card"');
+    const row = res.text.slice(gridStart, gridEnd);
+    expect(gridStart).toBeGreaterThan(-1);
+    expect(gridEnd).toBeGreaterThan(gridStart);
+    // Nothing in the row navigates away: no anchor is itself a tile.
+    expect(row).not.toContain('<a class="dict-tile');
+    expect(row).not.toContain('Watch Videos');
+  });
+
+  it('each ADD section count names what it counts, and pluralizes', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks');
+    // A bare number beside "2 ADD" says nothing about what it counts.
+    expect(res.text).not.toMatch(/<span class="section-count">\d+<\/span>/);
+    // The seed puts a single trick at 2 ADD and five at 4 ADD, so both the
+    // singular and the plural forms render.
+    expect(res.text).toContain('<span class="section-count">1 trick</span>');
+    expect(res.text).toContain('<span class="section-count">5 tricks</span>');
+  });
+
+  it('data provenance sits in the top tiles, not stranded under the list', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks');
+    const noteIdx = res.text.indexOf('class="source-note"');
+    const tilesIdx = res.text.indexOf('class="dict-tile-grid"');
+    const listIdx = res.text.indexOf('data-trick-slug=');
+    expect(noteIdx).toBeGreaterThan(tilesIdx);
+    expect(noteIdx).toBeLessThan(listIdx);
+    // Still the same text, and still linking the ADD walkthrough.
+    expect(res.text).toContain('Trick data sourced from community documentation.');
+    expect(res.text).toContain('href="/freestyle/add-analysis"');
+  });
+
+  it('the long list ends with a control back to the top of the dictionary', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks');
+    const listIdx = res.text.indexOf('data-trick-slug=');
+    const backIdx = res.text.indexOf('class="dict-back-to-top"');
+    expect(backIdx).toBeGreaterThan(listIdx);
+    expect(res.text).toMatch(/<a class="btn btn-outline" href="#dictionary-top">Back to Top<\/a>/);
+    // The anchor it names exists on the page.
+    expect(res.text).toContain('id="dictionary-top"');
+  });
+
+  it('the browse controls sit in one titled card', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks');
+    const cardIdx = res.text.indexOf('class="card dict-nav-card"');
+    expect(cardIdx).toBeGreaterThan(-1);
+    expect(res.text).toContain('<h2 class="card-title">Navigate the Trick Dictionary</h2>');
+    // All three control rows live inside that card, before the trick list.
+    const viewIdx = res.text.indexOf('aria-label="Browse the dictionary"');
+    const sortIdx = res.text.indexOf('aria-label="Sort within each ADD tier"');
+    const jumpIdx = res.text.indexOf('aria-label="Jump to ADD level"');
+    const listIdx = res.text.indexOf('data-trick-slug=');
+    expect(viewIdx).toBeGreaterThan(cardIdx);
+    expect(sortIdx).toBeGreaterThan(viewIdx);
+    expect(jumpIdx).toBeGreaterThan(sortIdx);
+    expect(listIdx).toBeGreaterThan(jumpIdx);
+  });
+
+  it('the trick list renders below the tile row', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks');
+    const tilesIdx = res.text.indexOf('class="dict-tile-grid"');
+    const listIdx = res.text.indexOf('data-trick-slug=');
+    expect(tilesIdx).toBeGreaterThan(-1);
+    expect(listIdx).toBeGreaterThan(tilesIdx);
+  });
+
+  it('the two actions share one card: search leads, Watch Videos sits beside it', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks');
+    const cardIdx    = res.text.indexOf('search-box-card');
+    const headingIdx = res.text.indexOf('<h2 class="card-title">Look up a trick</h2>');
+    const formIdx    = res.text.indexOf('action="/freestyle/search"');
+    const watchIdx   = res.text.indexOf('href="/freestyle/media"');
+    const tilesIdx   = res.text.indexOf('class="dict-tile-grid"');
+    expect(cardIdx).toBeGreaterThan(-1);
+    // Heading, then the form, then the secondary action, all in one card.
+    expect(headingIdx).toBeGreaterThan(cardIdx);
+    expect(formIdx).toBeGreaterThan(headingIdx);
+    expect(watchIdx).toBeGreaterThan(formIdx);
+    // The actions card leads, ahead of the disclosure row.
+    expect(cardIdx).toBeLessThan(tilesIdx);
+    expect(watchIdx).toBeLessThan(tilesIdx);
+    // No second glossary link beside the form: the tile row carries it.
+    expect(res.text).not.toContain('Open the Glossary of Freestyle Jargon');
   });
 });

@@ -47,8 +47,8 @@ describe('Glossary — Family Encyclopedia topic (destination card + in-topic co
 
     // the topic wrapper exists and is a details with a destination card
     expect(topicAt).toBeGreaterThan(-1);
-    expect(html).toContain('class="glossary-topic"');
-    expect(html).toContain('class="glossary-topic-card-title"');
+    expect(html).toContain('<details class="dict-tile" id="chapter-family-encyclopedia">');
+    expect(html.indexOf('class="dict-tile-title"', topicAt)).toBeLessThan(nextTopicAt);
 
     // the teaching lead now lives INSIDE the topic (after the card), not above it
     expect(teachingAt).toBeGreaterThan(topicAt);

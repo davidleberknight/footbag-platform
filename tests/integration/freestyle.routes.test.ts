@@ -890,7 +890,7 @@ describe('GET /freestyle/glossary', () => {
     // structures grid.
     expect(res.text).toMatch(/Structural compression/);
     expect(res.text).toMatch(/Jobs notation/);
-    expect(res.text).toContain('Core Trick Families');
+    expect(res.text).toContain('Family Encyclopedia');
     expect(res.text).toContain('clipper');
     expect(res.text).toContain('butterfly');
   });
@@ -1918,7 +1918,7 @@ describe('Freestyle IA realignment — Batch 1 contract', () => {
     expect(res.text).not.toContain('An illusion combined with body rotation');
   });
 
-  it('Core Trick Families renders as the registry-style core-trick grid; pixie/fairy stay in the set-modifiers reference', async () => {
+  it('the family chapter renders the registry-style core-trick grid; pixie/fairy stay in the set-modifiers reference', async () => {
     // The families section carries the registry-style core-trick grid. Modifiers
     // (with the pixie/fairy set-modifier grid) now precedes families in the
     // Foundations spine, so the family grid is bounded by the families section on

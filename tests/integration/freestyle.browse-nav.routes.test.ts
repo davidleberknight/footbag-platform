@@ -62,11 +62,13 @@ function navBlock(html: string): string {
 }
 
 // Ordered item labels: each item is either an active <span> or a link <a>.
+// Items may carry other attributes (a title explaining the axis), so the
+// match is on the element and its label, not on an exact attribute string.
 function navLabels(nav: string): string[] {
   return Array.from(
-    nav.matchAll(/<(?:span class="trick-view-toggle-active"|a href="[^"]*")>([^<]+)<\/(?:span|a)>/g),
+    nav.matchAll(/<(?:span[^>]*class="trick-view-toggle-active"|a[^>]*href="[^"]*")[^>]*>([^<]+)<\/(?:span|a)>/g),
     m => m[1].trim(),
-  );
+  ).filter(l => l !== '·');
 }
 
 async function fetchNav(view: string): Promise<string> {
@@ -86,7 +88,7 @@ describe('Browse-shell nav — consistency across all six primary views', () => 
   it('each view marks the correct active nav item', async () => {
     for (const [view, activeLabel] of VIEWS) {
       const nav = await fetchNav(view);
-      const active = nav.match(/<span class="trick-view-toggle-active">([^<]+)<\/span>/);
+      const active = nav.match(/<span[^>]*class="trick-view-toggle-active"[^>]*>([^<]+)<\/span>/);
       expect(active, `${view} has an active nav item`).not.toBeNull();
       expect(active![1].trim(), `${view} active label`).toBe(activeLabel);
       // Exactly one active item per view.

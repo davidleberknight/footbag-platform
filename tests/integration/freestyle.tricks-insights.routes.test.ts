@@ -494,7 +494,7 @@ describe('public dictionary presentation', () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('class="dict-onboarding"');
+    expect(res.text).toContain('class="dict-tile-grid"');
     // The corpus counts are surfaced as supporting metadata, in beginner-facing
     // wording (not the internal "canonical").
     expect(res.text).toContain('come with a full page');

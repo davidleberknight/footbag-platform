@@ -1,11 +1,11 @@
 /**
  * Integration tests for the flat chapter architecture on GET /freestyle/glossary.
  *
- * The glossary is a compact reference manual: a short intro, then a stack of
- * independently collapsible chapters, each a `<details class="glossary-topic">`
+ * The glossary is a compact reference manual: the body opens directly on one
+ * grid of independently collapsible chapter cards, each a `<details class="dict-tile">`
  * whose summary carries the chapter title and a one-line description. There is
  * no Foundations-vs-topics split, no shelf header, and no sidebar; the chapter
- * stack is the table of contents. This suite pins that contract: the chapters
+ * grid is the table of contents. This suite pins that contract: the chapters
  * render as peers in reading order, each with a title and a description, and the
  * removed scaffolding stays gone.
  *
@@ -50,6 +50,7 @@ const CHAPTER_IDS_IN_ORDER = [
   'id="chapter-operators-modifiers"',
   'id="chapter-family-encyclopedia"',
   'id="chapter-structural-analysis"',
+  'id="chapter-add-accounting"',
   'id="chapter-runs-sequences"',
   'id="chapter-reference-history"',
 ];
@@ -62,23 +63,49 @@ describe('Glossary — flat chapter architecture (reference-manual table of cont
       const at = html.indexOf(id);
       expect(at, `${id} present`).toBeGreaterThan(-1);
       expect(at, `${id} in reading order`).toBeGreaterThan(prev);
-      // each chapter id sits on a collapsible topic details
-      expect(html).toContain(`<details class="glossary-topic" ${id}>`);
+      // each chapter id sits on a collapsible card
+      expect(html).toContain(`<details class="dict-tile" ${id}>`);
       prev = at;
+    }
+  });
+
+  it('names each chapter exactly once, never repeating the title inside the card', async () => {
+    const html = await glossary();
+    const titles = [
+      'Reading the Dictionary', 'Movement Basics', 'Contact Surfaces &amp; Delays',
+      'Dexterities', 'Timing &amp; Sets', 'Operators &amp; Modifiers',
+      'Family Encyclopedia', 'Structural Analysis', 'ADD Accounting',
+      'Runs &amp; Sequences', 'Reference &amp; History',
+    ];
+    for (const title of titles) {
+      const headings = html.match(new RegExp(`<h2[^>]*>\\s*${title}`, 'g')) ?? [];
+      expect(headings.length, `${title} carries one heading`).toBe(1);
+    }
+  });
+
+  it('lays the chapter cards out in one grid', async () => {
+    const html = await glossary();
+    const gridAt = html.indexOf('class="dict-tile-grid"');
+    expect(gridAt).toBeGreaterThan(-1);
+    // every chapter sits inside that grid, so none escapes back to a full-width stack
+    for (const id of CHAPTER_IDS_IN_ORDER) {
+      expect(html.indexOf(id), `${id} inside the chapter grid`).toBeGreaterThan(gridAt);
     }
   });
 
   it('gives each chapter a title and a one-line description in its summary', async () => {
     const html = await glossary();
-    expect(html).toContain('class="glossary-topic-card-title"');
-    expect(html).toContain('class="glossary-topic-card-hook"');
+    expect(html).toContain('class="dict-tile-title"');
+    expect(html).toContain('class="dict-tile-hint"');
     // titles
     expect(html).toContain('>Reading the Dictionary<');
     expect(html).toContain('>Movement Basics<');
     expect(html).toContain('>Structural Analysis<');
+    expect(html).toContain('>ADD Accounting<');
     // one-line descriptions (spot check)
     expect(html).toContain('The twelve core atoms and the vocabulary every trick is built from.');
     expect(html).toContain('How to read any trick name as a formula.');
+    expect(html).toContain("Where a trick's difficulty number comes from, and how the weights add up.");
     expect(html).toContain('How individual tricks combine into runs.');
   });
 
@@ -95,10 +122,10 @@ describe('Glossary — flat chapter architecture (reference-manual table of cont
     expect(html).not.toContain('id="chapter-twelve-core-atoms"');
   });
 
-  it('opens with a short intro paragraph and no navigation scaffolding', async () => {
+  it('opens straight onto the chapters, with no intro prose or navigation scaffolding', async () => {
     const html = await glossary();
-    expect(html).toContain('A reference for freestyle');
-    // The intro is prose, not a panel: no section-local card chrome wraps it.
+    // The hero subtitle orients the reader; the body opens on the chapters themselves.
+    expect(html).not.toContain('A reference for freestyle');
     expect(html).not.toContain('glossary-intro-card');
     // the removed scaffolding stays gone
     expect(html).not.toContain('glossary-topics-header');
@@ -108,5 +135,7 @@ describe('Glossary — flat chapter architecture (reference-manual table of cont
     // the old chapter-summary disclosure is retired
     expect(html).not.toContain('glossary-chapter-summary');
     expect(html).not.toContain('class="glossary-chapter"');
+    // and so is the full-width stacked chapter card the grid replaced
+    expect(html).not.toContain('glossary-topic-card');
   });
 });

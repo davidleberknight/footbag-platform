@@ -695,6 +695,9 @@ th.sortable:hover { color: var(--primary); }
 
 /* ── Find Members card (member dashboard) ───────────────────── */
 .search-box-card { padding: 16px; scroll-margin-top: 80px; }
+/* A heading sitting in the card's flex row is a row item, not a stacked block:
+   its bottom margin would push the input and buttons off centre. */
+.search-box-section .card-title { margin-bottom: 0; }
 #find-members { scroll-margin-top: 80px; }
 .search-box-section { margin-bottom: 8px; }
 .search-box-card-results-head {
@@ -3606,6 +3609,15 @@ a.hashtag--media:hover {
 .trick-view-toggle-active { font-weight: 600; color: var(--text); }
 .trick-view-toggle-sep { margin: 0 6px; opacity: 0.5; }
 
+/* The ADD section count reads as words beside the heading ("39 tricks"), so it
+   needs no pill: the tint and border were carrying meaning the noun now
+   carries, and a chip around a phrase reads as a status badge. */
+.trick-add-group .section-count {
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+
 /* Tighter than a general content section. These groups are <section>
    elements, so they take the site's 40px section padding on top of their own
    margin, which put roughly 60px between two groups of a list whose rows are
@@ -5341,49 +5353,6 @@ a.hashtag--media:hover {
   text-decoration: underline;
 }
 
-/* Glossary chapters: a compact table of contents of independently collapsible
-   sections. Each summary is a chapter title plus a one-line description; the
-   stack of ten reads as a tidy list, not ten heavy cards. Opening a chapter
-   unfolds its whole section in place. */
-.glossary-topic {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  margin: 8px 0;
-  background: var(--white);
-}
-.glossary-topic-card {
-  cursor: pointer;
-  padding: 14px 18px;
-}
-.glossary-topic-card:hover .glossary-topic-card-title { color: var(--primary-dk); }
-.glossary-topic-card-title {
-  font-weight: 700;
-  font-size: 1.25rem;
-  color: var(--text);
-}
-.glossary-topic-card-hook {
-  display: block;
-  font-size: 0.9rem;
-  color: var(--text-secondary);
-  margin-top: 3px;
-}
-.glossary-topic[open] > .glossary-topic-card {
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 8px;
-}
-.glossary-topic > *:not(summary) {
-  margin-left: 18px;
-  margin-right: 18px;
-}
-.glossary-topic > *:last-child {
-  margin-bottom: 14px;
-}
-
-@media (max-width: 768px) {
-  .glossary-topic-card { padding: 12px 40px 12px 14px; }
-  .glossary-topic > *:not(summary) { margin-left: 12px; margin-right: 12px; }
-}
-
 /* Technique Notes inner sub-blocks (Execution / Learning Notes / Before You Try
    This), each a compact labeled group inside the single disclosure. */
 .trick-technique-part {
@@ -6665,9 +6634,9 @@ a.trick-hero-meta-chip--media:hover {
   border-color: var(--parch-450);
 }
 
-/* Glossary page layout: a single content column. The page's navigation is
-   the chapter stack itself (collapsible details), so there is no rail or
-   grid; the .wrapper class constrains overall width. */
+/* Glossary page layout: a single content column. The page's navigation is the
+   chapter cards themselves (collapsible details in the shared card grid), so
+   there is no sidebar rail; the .wrapper class constrains overall width. */
 .glossary-page {
   display: block;
 }
@@ -12142,26 +12111,111 @@ a.set-detail-trick-media:hover {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
-   Dictionary landing grid
+   Shared card grid: dictionary orientation tiles, glossary chapters
 
-   3-band conceptual grid for /freestyle/tricks default view.
-   Bands: DIFFICULTY (2 cards) / STRUCTURE (4 cards) / TRACKING & EXPANSION
-   (1 card). Each card carries: label + count, lens-question one-liner,
-   3 micro-example chips, Open link, optional cross-link.
+   A grid of closed disclosure cards in the banner-tile visual language
+   (title + muted hint, 4/3/2/1 across as the row narrows). The columns are
+   even, so a part-filled last row keeps the card width of the rows above it
+   rather than stretching to fill. The native marker is kept, and its absence
+   on a card that is a plain link is what tells the reader that one navigates
+   instead of opening. An open card takes the whole row and the closed ones
+   reflow around it.
 
-   Renders only on the landing default view; secondary views render the
-   inline trick-view-toggle nav (existing pattern) for quick switching.
+   /freestyle/tricks uses it for the orientation tiles (beginner links, the
+   primer, the corpus counts, the browse-axes grid, and a link into freestyle
+   media); /freestyle/glossary uses it for the chapter cards.
+
+   The browse grid inside the last disclosure tile keeps its two bands
+   (ADD / STRUCTURE); each card carries label + count, lens-question
+   one-liner, jump chips, Open link, optional cross-link. Renders only on
+   the landing default view; secondary views render the inline
+   trick-view-toggle nav (existing pattern) for quick switching.
    ───────────────────────────────────────────────────────────────────────── */
-.dict-onboarding {
-  margin: 18px 0 22px;
-  padding: 16px 18px;
-  background: var(--parch-50);
-  border: 1px solid var(--parch-350);
-  border-radius: var(--radius-sm);
+.dict-tile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+  margin: 12px 0;
 }
-.dict-onboarding-heading {
-  margin: 0 0 8px;
-  font-size: 1rem;
+/* Card treatment, not the landing page's tinted tile: these sit between two
+   real cards, and a tinted block between them reads as a different system. */
+.dict-tile {
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+/* The opened card spans every column, at every width: the media steps below
+   change the track size, never the span. */
+.dict-tile[open] { grid-column: 1 / -1; }
+.dict-tile-summary {
+  cursor: pointer;
+  padding: 10px 14px;
+}
+.dict-tile[open] > .dict-tile-summary { border-bottom: 1px solid var(--border); }
+/* The title stays inline so the summary's native marker shares its line. As a
+   block it would push the marker onto a line of its own, costing a whole row
+   per tile. Inside the flex tiles (link, search) it blockifies anyway. The
+   display and margin resets are what let a real heading element carry the
+   title, which is how the glossary chapters avoid repeating the chapter name
+   as the first line inside the card. */
+.dict-tile-title { display: inline; margin: 0; font-weight: 700; font-size: 1rem; }
+.dict-tile-hint  { display: block; font-size: 0.9rem; color: var(--text-muted); }
+.dict-tile-body  { padding: 10px 14px; }
+/* Inside a tile the blocks stack tight: the tile's own padding carries the
+   breathing room, so the first and last child add none of their own. */
+.dict-tile-body > :first-child { margin-top: 0; }
+.dict-tile-body > :last-child  { margin-bottom: 0; }
+/* Browse-navigation card: the three control rows (which view, how each ADD
+   tier sorts, where to jump) gathered under one title so they read as one
+   control group instead of three loose lines. */
+.dict-nav-card { padding: 16px; }
+.dict-nav-card .card-title { margin-bottom: 8px; }
+/* The rows carry their own standalone spacing for use outside a card; inside
+   one the card's padding already provides it, so they tighten to a single
+   6px step and the last row adds no trailing gap. The jump bar also drops the
+   rule and inset it uses when it floats free, which inside the card would
+   double the chrome and misalign it from the rows above. */
+.dict-nav-card nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 6px;
+  margin: 6px 0 0;
+}
+.dict-nav-card nav:first-of-type { margin-top: 0; }
+.dict-nav-card .jump-bar { padding: 0; border-bottom: none; }
+/* One label column so the three rows line up and each says what it controls:
+   "By family" appears in two of them meaning different things. */
+.dict-nav-label,
+.dict-nav-card .jump-bar-label {
+  min-width: 3.5rem;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+/* The page's closing control, left-aligned with the content column above it. */
+.dict-back-to-top { margin: 24px 0 0; }
+/* Clears the sticky header so the anchor does not land under it. */
+#dictionary-top { scroll-margin-top: 80px; }
+/* Emerging Vocabulary: one quiet forward-looking line at the foot of the
+   browse tile; the observational page carries the detail. */
+.dict-emerging-line {
+  margin: 12px 0 0;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+/* Same width steps as .banner-tile: four across at desktop, then three, then
+   two, then one. The behaviour differs at the last row: banner tiles grow to
+   fill it, these keep their column width, because a chapter list runs to eleven
+   cards and a stretched remainder reads as a different kind of row. */
+@media (max-width: 1024px) {
+  .dict-tile-grid { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+}
+@media (max-width: 768px) {
+  .dict-tile-grid { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+}
+@media (max-width: 480px) {
+  .dict-tile-grid { grid-template-columns: 1fr; }
 }
 .dict-onboarding-intro {
   margin: 0 0 8px;
@@ -12220,131 +12274,25 @@ a.set-detail-trick-media:hover {
   color: var(--text-subtle);
   font-size: 0.9rem;
 }
+/* A wrapping row of prominent action links, not a sentence of prose links:
+   these are destinations, so they take the action-link tier and are separated
+   by space rather than by punctuation. */
 .dict-onboarding-links {
-  margin: 8px 0 0;
-  font-size: 0.9rem;
-}
-.dict-onboarding-link-sep {
-  color: var(--text-subtle);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin: 0;
 }
 @media (max-width: 480px) {
-  .dict-onboarding { padding: 14px; }
   .dict-onboarding-defs { grid-template-columns: 1fr; }
   .dict-onboarding-example { flex-direction: column; gap: 4px; }
   .dict-onboarding-step { white-space: normal; }
   .dict-onboarding-lenses { flex-direction: column; gap: 6px; }
 }
 
-.dict-landing-grid {
-  margin: 18px 0 20px;
-}
-.dict-landing-band {
-  margin: 0 0 22px;
-}
-.dict-landing-band:last-child {
-  margin-bottom: 8px;
-}
-.dict-landing-band-eyebrow {
-  margin: 0 0 8px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--text-subtle);
-}
-.dict-landing-band-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 10px;
-}
-.dict-landing-card {
-  padding: 12px 14px;
-  background: var(--bg);
-  border: 1px solid var(--parch-250);
-  border-radius: var(--radius-xs);
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.dict-landing-card-header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 2px;
-  flex-wrap: wrap;
-}
-.dict-landing-card-label {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 600;
-}
-.dict-landing-card-label a {
-  text-decoration: none;
-  color: var(--steel-700);
-}
-.dict-landing-card-label a:hover,
-.dict-landing-card-label a:focus {
-  text-decoration: underline;
-}
-.dict-landing-card-count {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--text-subtle);
-  background: var(--parch-100);
-  padding: 1px 8px;
-  border-radius: var(--radius-2xs);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-.dict-landing-card-count-num {
-  color: var(--steel-700);
-}
-.dict-landing-card-question {
-  margin: 0;
-  font-size: 0.9rem;
-  color: var(--text-secondary);
-  font-style: italic;
-  line-height: 1.4;
-}
-.dict-landing-card-chips {
-  margin: 2px 0 0;
-  font-size: 0.9rem;
-  color: var(--text-subtle);
-  line-height: 1.4;
-}
-.dict-landing-card-chip {
-  display: inline-block;
-  color: var(--link);
-  text-decoration: none;
-}
-.dict-landing-card-chip:hover {
-  text-decoration: underline;
-}
-.dict-landing-card-chip-count {
-  color: var(--text-subtle);
-  font-size: 0.9em;
-}
-.dict-landing-card-chip-sep {
-  color: var(--text-subtle);
-  margin: 0 2px;
-}
 .modifier-cluster-blurb {
   margin: -2px 0 10px;
   font-size: 0.9rem;
-}
-.dict-landing-card-open {
-  margin: 4px 0 0;
-  font-size: 0.9rem;
-  font-weight: 500;
-}
-.dict-landing-card-open a {
-  color: var(--fern-500);
-  text-decoration: none;
-}
-.dict-landing-card-open a:hover,
-.dict-landing-card-open a:focus {
-  text-decoration: underline;
 }
 
 /* ── Freestyle partial section identifiers and notes ───────────────────────
@@ -12468,23 +12416,6 @@ a.set-detail-trick-media:hover {
   cursor: pointer;
   font-weight: 600;
   color: var(--secondary);
-}
-.dict-landing-card-crosslink {
-  margin: 4px 0 0;
-  padding-top: 6px;
-  border-top: 1px dashed var(--border-subtle);
-  font-size: 0.9rem;
-  line-height: 1.4;
-  color: var(--text-subtle);
-}
-.dict-landing-card-crosslink a {
-  color: var(--text-secondary);
-  text-decoration: none;
-}
-.dict-landing-card-crosslink a:hover,
-.dict-landing-card-crosslink a:focus {
-  text-decoration: underline;
-  color: var(--text-primary);
 }
 
 /* Dev-only persona harness listing (/dev/personas; development + staging).

@@ -2692,6 +2692,7 @@ export interface FreestyleTrickGroup {
 export interface FreestyleTrickAddGroup {
   addNumeric: number | null;
   addLabel: string;            // pre-shaped: '1 ADD', '2 ADD', '0 ADD', 'Unrated / unresolved'
+  countLabel: string;          // pre-shaped '39 tricks' / '1 trick'; a bare number beside the heading says nothing about what it counts
   anchorId: string;            // pre-shaped section anchor: 'add-0'..'add-N', 'add-unrated'. Avoids the 0-is-falsy template footgun and stays correct for future 8/9 ADD buckets.
   tricks: FreestyleTrickIndexRow[];
   // Shared symbolic trick cards. Built alongside the legacy
@@ -3255,55 +3256,66 @@ export interface FreestyleTricksIndexContent {
   // Self-orienting header for the family filter (?family=<name>): plain-words
   // orientation naming the family and trick count. Null unless a filter is active.
   familyFilterIntro: string | null;
-  /** Landing-surface 3-band conceptual grid
-   *  rendered above the inline view-toggle when on the default landing view.
-   *  Bands = Difficulty / Structure / Tracking & Expansion. Each card carries
-   *  a lens question + count + full-enumeration chip preview + optional
-   *  cross-link. Each card surfaces
-   *  ALL labels in its enumeration (wrapped-chip form) so the landing feels
-   *  encyclopedic and navigable rather than truncated. */
-  landingGrid: DictionaryLandingGrid;
-  // Beginner orientation bridge above the landing grid on the default view:
-  // what the dictionary is, a high-level ADD definition, a single-base build-up
-  // example, the three exploration lenses, and deep links into the glossary.
+  // Beginner orientation bridge inside the "How tricks are built" disclosure
+  // tile on the default view: what the dictionary is, a high-level ADD
+  // definition, a single-base build-up example, the three exploration lenses,
+  // and (in its own "Where to start" tile) deep links into the glossary.
   landingOnboarding: DictionaryLandingOnboarding;
+  // The search card that leads the default landing. Heading only: the input's
+  // placeholder already names what search matches, and the glossary is reached
+  // from the tile row rather than from a second link beside the form.
+  searchSection: { heading: string };
+  // The card gathering the browse-navigation control rows. Each row carries a
+  // label naming what it controls: without them "By family" appears in two
+  // rows meaning two different things (which view, and how a tier sorts).
+  // viewTitles are the lens questions ("How layered is the trick?"), carried as
+  // the title of each View entry: a reader cannot guess what "By dex count" or
+  // "Movement Neighborhoods" mean from the label alone, and a tooltip explains
+  // it without spending a line of layout on a parallel card grid.
+  navSection: {
+    heading: string;
+    viewLabel: string;
+    sortLabel: string;
+    viewTitles: {
+      add: string;
+      family: string;
+      movementSystem: string;
+      topology: string;
+      dexCount: string;
+      modifier: string;
+    };
+  };
+  // Label of the control closing the page, which returns to the top of the
+  // dictionary rather than making a long list end in a dead stop.
+  backToTopLabel: string;
+  // Summary labels for the three closed disclosure tiles on the default
+  // landing, rendered in this order (beginner to expert): start, built,
+  // contents. Each tile's body binds to its existing content field; these are
+  // only the always-visible title and one-line hint a reader scans before
+  // opening anything.
+  landingTiles: {
+    start:    { title: string; hint: string };
+    built:    { title: string; hint: string };
+    contents: { title: string; hint: string };
+  };
+  // Secondary action beside search: the page-level entry into freestyle media.
+  // A button rather than a tile, because it leaves the page. Per-trick media
+  // stays on the dictionary rows' own hashtag / Media controls.
+  watchVideosButton: { label: string; href: string };
+  // Emerging Vocabulary, reframed as a single forward-looking line at the foot
+  // of the "Other ways to browse" tile: a link on the title and one sentence
+  // naming the community sources. Deliberately carries no count and no
+  // review-queue framing on this surface; the detail lives on the
+  // observational page itself.
+  emergingLine: { titleLabel: string; titleHref: string; sentence: string };
 }
 
 export interface DictionaryLandingOnboarding {
-  heading: string;
   intro: readonly string[];
   definitions: readonly { term: string; plain: string }[];
   example: { label: string; steps: readonly { name: string; note: string }[] };
   lenses: readonly { label: string; note: string }[];
   links: readonly { label: string; href: string }[];
-}
-
-export interface DictionaryLandingGrid {
-  bands: readonly DictionaryLandingBand[];
-}
-
-export interface DictionaryLandingBand {
-  eyebrow: string;  // 'DIFFICULTY' / 'STRUCTURE' / 'TRACKING & EXPANSION'
-  cards:   readonly DictionaryLandingCard[];
-}
-
-export interface DictionaryLandingCard {
-  label:        string;         // display label (sentence case)
-  href:         string;         // /freestyle/tricks?view=… OR /freestyle/observational
-  count:        number;         // bucket / group / row count (per C1 governance)
-  countDisplay: string;         // thousands-separated count for the visible badge (e.g. '1,769')
-  countSuffix:  string;         // noun the count enumerates ('families' / 'modifiers' / ...); rendered visibly next to the number AND in aria
-  lensQuestion: string;         // 'How layered is the trick?'
-  // Jump-menu entries: each links to its subsection/page anchor, with an
-  // optional derived hit count (null when not available).
-  chips:        readonly DictionaryLandingChip[];
-  crossLink?:   { label: string; href: string };  // optional in-context cross-link
-}
-
-export interface DictionaryLandingChip {
-  label: string;
-  href:  string;                // anchor or page link the chip jumps to
-  count: number | null;         // derived hit count; null when unavailable
 }
 
 // Higher-level modifier cluster for the grouped ?view=modifier page (organizational
@@ -8697,12 +8709,6 @@ export const freestyleService = {
       freestyleTricks.listAllWithPending.all() as FreestyleTrickRowWithStatus[],
     );
 
-    // The Emerging Vocabulary tile counts unconfirmed (unpublished) names, so it
-    // uses the same public view the /freestyle/observational page does: published /
-    // aliased names and review-held names are both excluded, so the tile count never
-    // exceeds what the page actually shows.
-    const emergingVocabUnconfirmed = publicObservationalUniverse().length;
-
     // Apply optional family filter (driven by ?family= hashtag click). An
     // umbrella root with no raw rows of its own (the Down family) filters as
     // the set of raw labels its branches and their sub-labels carry.
@@ -8892,6 +8898,7 @@ export const freestyleService = {
       return {
         addNumeric,
         addLabel,
+        countLabel: `${sorted.length} ${sorted.length === 1 ? 'trick' : 'tricks'}`,
         anchorId: addNumeric != null ? `add-${addNumeric}` : 'add-unrated',
         tricks: sorted.map(e => e.indexRow),
         cards:  sorted.map(cardOf),
@@ -9388,31 +9395,6 @@ export const freestyleService = {
         }))
       : [];
 
-    // Landing grid — 3-band conceptual grid for the
-    // /freestyle/tricks landing surface. Bands: Difficulty / Structure /
-    // Tracking & Expansion. Count governance:
-    // each card's count = buckets / groups, NOT trick rows (since the same
-    // trick appears in multiple axes — would mislead).
-    const dexChipLabel = (dexCount: number): string =>
-      dexCount === 0 ? '0 dex'
-      : dexCount === 1 ? '1 dex'
-      : dexCount === 2 ? '2 dex'
-      : '3+ dex';
-    const dexLandingChips: { label: string; href: string; count: number }[] =
-      dexCountGroups.map(g => ({
-        label: dexChipLabel(g.dexCount),
-        href:  `/freestyle/tricks?view=dex-count#${g.bucketId}`,
-        count: g.cards.length,
-      }));
-    const axisChipLabel = (axisKey: string, axisName: string): string => {
-      switch (axisKey) {
-        case 'set-uptime':          return 'Set/Uptime';
-        case 'entry-topology':      return 'Entry';
-        case 'midtime-body':        return 'Midtime Body';
-        case 'no-plant-suspension': return 'No-Plant';
-        default:                    return axisName;
-      }
-    };
     const fmtCount = (n: number): string => n.toLocaleString('en-US');
 
     // Public-family hit counts for the By-family jump menu, derived from the same
@@ -9442,13 +9424,6 @@ export const freestyleService = {
         count: g.cards.length,
         href:  `/freestyle/tricks?family=${g.familySlug}`,
       }));
-    // The full curated Family-Parent roster (tier from the curated first-class
-    // set, independent of what the current data populates). The landing By-family
-    // card previews all of these; the browse renders only the populated ones.
-    const familyParentRoster = PUBLIC_DISPLAY_FAMILIES.filter(
-      f => familyTier(f.slug) === 'family-parent',
-    );
-
     // Family-view jump index: anchor chips for the first-class family sections,
     // split into root vs derived-branch (branchParentName != null) so a reader
     // can skip directly to a family without scrolling. Derived from the already
@@ -9508,115 +9483,6 @@ export const freestyleService = {
         return { key: c.key, label: c.label, blurb: c.blurb, bands, trickCount: rows.length };
       })
       .filter(c => c.bands.length > 0);
-    const landingGrid: DictionaryLandingGrid = {
-      bands: [
-        {
-          eyebrow: 'ADD',
-          cards: [
-            {
-              label:        'By ADD',
-              href:         '/freestyle/tricks?view=add',
-              count:        addGroups.length,
-              countDisplay: fmtCount(addGroups.length),
-              countSuffix:  'ADD buckets',
-              lensQuestion: 'How layered is the trick?',
-              chips:        addGroups.map(g => ({ label: g.addLabel, href: `/freestyle/tricks?view=add#${g.anchorId}`, count: g.tricks.length })),
-            },
-            {
-              label:        'By dex count',
-              href:         '/freestyle/tricks?view=dex-count',
-              count:        dexLandingChips.length,
-              countDisplay: fmtCount(dexLandingChips.length),
-              countSuffix:  'dex buckets',
-              lensQuestion: 'How many dexterity moves does it have?',
-              chips:        dexLandingChips,
-            },
-          ],
-        },
-        {
-          eyebrow: 'STRUCTURE',
-          cards: [
-            {
-              label:        'By family',
-              href:         '/freestyle/tricks?view=family',
-              // First-class Family Parents (current editorial standard). Each
-              // family-name chip opens that family's encyclopedia page when it
-              // has one, otherwise the ?family={slug} filtered list; the card
-              // label and the Open link still open the full By-family browse.
-              // Minor lineages render in their own band inside that browse.
-              // First-class Family Parents (curated roster tier, DB-independent):
-              // the landing previews every core family the dictionary defines, not
-              // only the ones the current data populates. Each chip opens that
-              // family's encyclopedia page when it has one, else the ?family={slug}
-              // filtered list; minor lineages render in their own browse band.
-              count:        familyParentRoster.length,
-              countDisplay: fmtCount(familyParentRoster.length),
-              countSuffix:  'core families',
-              lensQuestion: 'What core movement pattern does the trick build on?',
-              chips:        familyParentRoster.map(f => ({
-                label: f.label,
-                href:  (isOfficialFamilyParent(f.slug) && PUBLIC_FAMILY_LABEL.has(f.slug))
-                  ? `/freestyle/families/${f.slug}`
-                  : `/freestyle/tricks?family=${f.slug}`,
-                count: familyTrickCounts.get(f.slug) ?? 0,
-              })),
-            },
-            {
-              label:        'By modifier',
-              href:         '/freestyle/tricks?view=modifier',
-              // Grouped into higher-level clusters (organizational UX; individual
-              // modifiers nest under each on the page). Broad operator/ingredient
-              // lens, NOT an entry-only taxonomy.
-              count:        modifierClusterView.length,
-              countDisplay: fmtCount(modifierClusterView.length),
-              countSuffix:  'modifier groups',
-              lensQuestion: 'Which named moves, sets, or twists does it use?',
-              chips:        modifierClusterView.map(c => ({ label: c.label, href: `/freestyle/tricks?view=modifier#cluster-${c.key}`, count: c.trickCount })),
-              crossLink:    { label: 'For set systems as first-class objects, see Set Encyclopedia', href: '/freestyle/sets' },
-            },
-            {
-              label:        'By movement system',
-              href:         '/freestyle/tricks?view=movement-system',
-              count:        MOVEMENT_SYSTEM_AXES.length,
-              countDisplay: fmtCount(MOVEMENT_SYSTEM_AXES.length),
-              // The four primary compositional axes PLUS a separately-modeled
-              // Alternative Surfaces grouping (parallel layer, not a fifth axis).
-              countSuffix:  'axes + surfaces',
-              lensQuestion: 'Which broad movement style does it belong to?',
-              chips:        [
-                ...movementSystemView.axes.map(a => ({ label: axisChipLabel(a.axisKey, a.axisName), href: `/freestyle/tricks?view=movement-system#${a.anchorId}`, count: a.cards.length })),
-                { label: 'Alternative Surfaces', href: '/freestyle/tricks?view=movement-system#alt-surfaces', count: movementSystemView.alternativeSurfaces.groups.reduce((n, g) => n + g.cards.length, 0) },
-              ],
-              crossLink:    { label: 'For modifier vocabulary, see Operators & Modifiers', href: '/freestyle/operators' },
-            },
-            {
-              label:        'Movement Neighborhoods',
-              href:         '/freestyle/tricks?view=topology',
-              count:        topologyView.groups.length,
-              countDisplay: fmtCount(topologyView.groups.length),
-              countSuffix:  'neighborhoods',
-              lensQuestion: 'Tricks that move alike, even across different families.',
-              chips:        topologyView.groups.map(g => ({ label: g.topologyName, href: `/freestyle/tricks?view=topology#${g.anchorId}`, count: g.memberCount })),
-              crossLink:    { label: 'Compare to By family for the official grouping.', href: '/freestyle/tricks?view=family' },
-            },
-          ],
-        },
-        {
-          eyebrow: 'TRACKING & EXPANSION',
-          cards: [
-            {
-              label:        'Emerging vocabulary',
-              href:         '/freestyle/observational',
-              count:        emergingVocabUnconfirmed,
-              countDisplay: fmtCount(emergingVocabUnconfirmed),
-              countSuffix:  'unconfirmed names',
-              lensQuestion: 'Names the community is still confirming, not separate tricks yet.',
-              chips:        ['PassBack', 'Footbag.org', 'FootbagMoves', 'Stanford'].map(s => ({ label: s, href: '/freestyle/observational', count: null })),
-            },
-          ],
-        },
-      ],
-    };
 
     // Per-view scale sentences. Counts are derived from the SAME group arrays
     // the templates render, so they always match the visible sections/cards.
@@ -9733,9 +9599,7 @@ export const freestyleService = {
         activeFamily,
         relatedModifierGroups,
         totalTricks: canonicalCount,
-        landingGrid,
         landingOnboarding: {
-          heading: 'New to freestyle? Start here.',
           intro: [
             'This is a reference for tricks: the named moves players do. Every trick is a base move with modifiers layered on top, and the more you layer, the harder it gets.',
             'That difficulty has a score called ADD (added difficulty). The simplest moves are 1 or 2; layer enough on and a trick can reach 7 or more.',
@@ -9760,13 +9624,43 @@ export const freestyleService = {
             { label: 'By family', note: 'grouped by the base move' },
             { label: 'By modifier / set', note: 'grouped by the layers added' },
           ],
+          // Title Case, and each ends in a full stop except the one that asks
+          // a question and keeps its question mark.
           links: [
-            { label: 'Start with the six vocabulary lessons', href: '/freestyle/learn' },
-            { label: 'What is an ADD?', href: '/freestyle/glossary#section-add-accounting' },
-            { label: 'How trick names work', href: '/freestyle/glossary#section-notation' },
-            { label: 'How to read the dictionary', href: '/freestyle/glossary#section-reading-the-dictionary' },
-            { label: 'Beginner glossary', href: '/freestyle/glossary#section-core-concepts' },
+            { label: 'Start With the Six Vocabulary Lessons.', href: '/freestyle/learn' },
+            { label: 'What Is an ADD?', href: '/freestyle/glossary#section-add-accounting' },
+            { label: 'How Trick Names Work.', href: '/freestyle/glossary#section-notation' },
+            { label: 'How to Read the Dictionary.', href: '/freestyle/glossary#section-reading-the-dictionary' },
+            { label: 'Beginner Glossary.', href: '/freestyle/glossary#section-core-concepts' },
           ],
+        },
+        searchSection: { heading: 'Look up a trick' },
+        navSection: {
+          heading:   'Navigate the Trick Dictionary',
+          viewLabel: 'View:',
+          sortLabel: 'Sort:',
+          viewTitles: {
+            add:            'How layered is the trick?',
+            family:         'What core movement pattern does the trick build on?',
+            movementSystem: 'Which broad movement style does it belong to?',
+            topology:       'Tricks that move alike, even across different families.',
+            dexCount:       'How many dexterity moves does it have?',
+            modifier:       'Which named moves, sets, or twists does it use?',
+          },
+        },
+        backToTopLabel: 'Back to Top',
+        landingTiles: {
+          start:    { title: 'Where to start',           hint: 'Glossary, notation, and the first things to read.' },
+          built:    { title: 'How tricks are built',     hint: 'ADD, dex, families, and modifiers, with a worked example.' },
+          contents: { title: "What's in the dictionary", hint: 'How many tricks and names, and what is still being confirmed.' },
+        },
+        watchVideosButton: { label: 'Watch Videos', href: '/freestyle/media' },
+        emergingLine: {
+          titleLabel: 'Emerging Vocabulary',
+          titleHref:  '/freestyle/observational',
+          sentence:
+            'the cutting edge. New trick names from PassBack, Footbag.org, ' +
+            'FootbagMoves, and Stanford, still taking shape.',
         },
         dictionaryStats:
           `Most tricks here come with a full page: what the move is, how it's done, and how hard ` +
@@ -10192,7 +10086,7 @@ export const freestyleService = {
         sectionKey: 'freestyle',
         pageKey:    'freestyle_glossary',
         title:      'Freestyle Glossary',
-        intro:      'Plain-language definitions for the words and abbreviations players use when talking about freestyle.',
+        intro:      'Definitions of technical jargon and specialized terminology that players use when describing tricks.',
       },
       navigation: {
         breadcrumbs: [

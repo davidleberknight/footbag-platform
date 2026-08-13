@@ -45,9 +45,9 @@ discipline, and service-owned shaping. Internal `/internal/*` tooling is exempt 
 ## Reusable primitives
 
 Compose every public page from one small set: site frame (header / main / footer), page hero
-(eyebrow / title / subtitle / notice), content section, event card, discipline tag, result section,
-year navigation, metadata / summary rows, prominent action link, empty state, and notice /
-coming-soon block. A new page
+(eyebrow / title / subtitle / notice), content section, compact disclosure card grid, event card,
+discipline tag, result section, year navigation, metadata / summary rows, prominent action link,
+empty state, and notice / coming-soon block. A new page
 joins the standard only if it can be expressed through these. A genuinely new reusable primitive is
 added to the standard first, then applied across the relevant pages, never invented per page.
 

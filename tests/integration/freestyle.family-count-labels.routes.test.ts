@@ -1,16 +1,11 @@
 /**
- * The trick-index landing "By family" card and the By-family browse describe the
- * family populations with precise, non-colliding labels and stay consistent.
- *
- * The landing card previews the full curated Family-Parent roster (DB-independent),
- * labelled "core families". The browse states its rendered roster as "N family
- * groupings organize tricks by structural anchor: C core families and M smaller
- * lineages ...", with the three numbers derived from the same rendered arrays so the
- * browse is internally consistent (N == C + M). Both surfaces name the Family-Parent
- * tier with the same "core families" wording, which is the cross-surface consistency
- * that must not drift; the landing's curated count and the browse's rendered count
- * coincide only when the data populates every family, so they are not asserted equal
- * on a partial fixture.
+ * The By-family browse describes its family populations with precise,
+ * non-colliding labels: "N family groupings organize tricks by structural
+ * anchor: C core families and M smaller lineages ...", with the three numbers
+ * derived from the same rendered arrays, so the sentence is internally
+ * consistent (N == C + M) and can never claim a population the page does not
+ * render. "Core families" is the name for the Family-Parent tier and is the
+ * wording that must not drift.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -46,21 +41,11 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-const landingCoreCount = (html: string) =>
-  html.match(/dict-landing-card-count-num">(\d+)<\/span>\s*core families/)?.[1];
 const browseGroupings = (html: string) => html.match(/(\d+) family groupings? organize tricks by structural anchor/)?.[1];
 const browseCore      = (html: string) => html.match(/structural anchor: (\d+) core famil/)?.[1];
 const browseSmaller   = (html: string) => html.match(/core famil(?:y|ies) and (\d+) smaller lineages?/)?.[1];
 
 describe('GET /freestyle/tricks — precise, consistent family-count labels', () => {
-  it('the landing card names the Family-Parent tier as "core families" and previews the full curated roster', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks');
-    expect(res.status).toBe(200);
-    // The landing previews the curated roster, so its count is DB-independent (17
-    // core families) even though the fixture populates only two.
-    expect(landingCoreCount(res.text)).toBe('17');
-  });
-
   it('the browse explanation states the rendered roster as core families plus smaller lineages', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
@@ -75,10 +60,8 @@ describe('GET /freestyle/tricks — precise, consistent family-count labels', ()
     expect(groupings).toBe(core + smaller);
   });
 
-  it('both surfaces name the Family-Parent tier with the same "core families" wording', async () => {
-    const landing = await request(await createApp()).get('/freestyle/tricks');
+  it('the browse names the Family-Parent tier "core families"', async () => {
     const browse = await request(await createApp()).get('/freestyle/tricks?view=family');
-    expect(landing.text).toContain('core families');
     expect(browse.text).toContain('core families');
   });
 });

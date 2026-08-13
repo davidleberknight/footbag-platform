@@ -88,7 +88,7 @@ describe('GET /freestyle/tricks?view=dex-count', () => {
 
   it('renders the view-toggle link as active when ?view=dex-count', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=dex-count');
-    expect(res.text).toContain('<span class="trick-view-toggle-active">By dex count</span>');
+    expect(res.text).toMatch(/<span[^>]*class="trick-view-toggle-active"[^>]*>By dex count<\/span>/);
   });
 
   it('renders the view-toggle link as inactive when on a different view', async () => {
@@ -140,7 +140,7 @@ describe('GET /freestyle/tricks?view=dex-count', () => {
   it('unknown query value falls back to the default ADD view (validation)', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=does-not-exist');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('<span class="trick-view-toggle-active">By ADD</span>');
+    expect(res.text).toMatch(/<span[^>]*class="trick-view-toggle-active"[^>]*>By ADD<\/span>/);
     expect(res.text).not.toContain('<h2>0 dex events</h2>');
   });
 });

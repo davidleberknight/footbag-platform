@@ -1,14 +1,17 @@
 /**
- * Integration tests for the Structural Analysis topic on GET /freestyle/glossary:
- * the former Notation and ADD Accounting sections, merged into one section and
- * presented as a major topic behind a destination card.
+ * Integration tests for the two structural chapters on GET /freestyle/glossary:
+ * Structural Analysis (how a trick name is written and read) and ADD Accounting
+ * (where a trick's difficulty number comes from), each its own top-level chapter
+ * card.
  *
- * The whole section (its notation framing, the ADD concept card, the notation
- * reference, and the ADD accounting) lives inside the topic. The former sections'
- * anchors are preserved (section-notation on the merged section, section-add-accounting
- * on a div inside it, plus traditional-reference and run-quality). The ADD expansion
- * is reconciled to one term and the bracket-count checksum is stated once (in the
- * concept card reveal), not duplicated in the accounting prose.
+ * Notation framing, the ADD concept card and the notation reference live in the
+ * Structural Analysis chapter; the ADD accounting is a chapter of its own, so a
+ * reader looking for what an ADD number means finds it from the closed state
+ * instead of having to open a chapter labelled for notation. Every anchor is
+ * preserved across the two (section-notation and section-add-accounting on the
+ * chapter sections, plus traditional-reference and run-quality). The ADD
+ * expansion is reconciled to one term and the bracket-count checksum is stated
+ * once (in the concept card reveal), not duplicated in the accounting prose.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -38,34 +41,48 @@ async function glossary(): Promise<string> {
   return res.text;
 }
 
-describe('Glossary — Structural Analysis chapter (Notation + ADD merge)', () => {
-  it('folds the notation and ADD reference into one topic behind a destination card', async () => {
+describe('Glossary — Structural Analysis and ADD Accounting chapters', () => {
+  it('keeps the notation material in the Structural Analysis chapter', async () => {
     const html = await glossary();
 
-    const topicAt       = html.indexOf('id="chapter-structural-analysis"');
-    const cardAt        = html.indexOf('id="concept-add"');
-    const premiseAt     = html.indexOf('id="compositional-premise"');
-    const accountingAt  = html.indexOf('id="section-add-accounting"');
-    const topicEnd      = html.indexOf('</section>', topicAt);
+    const topicAt   = html.indexOf('id="chapter-structural-analysis"');
+    const cardAt    = html.indexOf('id="concept-add"');
+    const premiseAt = html.indexOf('id="compositional-premise"');
+    const topicEnd  = html.indexOf('id="chapter-add-accounting"');
 
     expect(topicAt).toBeGreaterThan(-1);
-    expect(html).toContain('class="glossary-topic-card-title"');
-    // the ADD concept card, the notation reference, and the ADD accounting all live inside the topic
+    expect(html).toContain('class="dict-tile-title"');
+    // the ADD concept card and the notation reference live inside that chapter
     expect(cardAt).toBeGreaterThan(topicAt);
     expect(cardAt).toBeLessThan(topicEnd);
     expect(premiseAt).toBeGreaterThan(topicAt);
     expect(premiseAt).toBeLessThan(topicEnd);
-    expect(accountingAt).toBeGreaterThan(topicAt);
-    expect(accountingAt).toBeLessThan(topicEnd);
   });
 
-  it('preserves the merged sections\' anchors and inbound-link targets', async () => {
+  it('gives the ADD accounting a top-level chapter card of its own', async () => {
     const html = await glossary();
-    expect(html).toContain('id="section-notation"');       // merged section keeps this id
-    expect(html).toContain('id="section-add-accounting"');  // preserved on a div
+
+    const chapterAt    = html.indexOf('id="chapter-add-accounting"');
+    const accountingAt = html.indexOf('id="section-add-accounting"');
+    const notationEnd  = html.indexOf('id="chapter-add-accounting"');
+
+    expect(chapterAt).toBeGreaterThan(-1);
+    expect(html).toContain('<details class="dict-tile" id="chapter-add-accounting">');
+    // the accounting section is the chapter's own body, not a block inside the notation chapter
+    expect(accountingAt).toBeGreaterThan(chapterAt);
+    expect(html.indexOf('id="section-notation"')).toBeLessThan(notationEnd);
+    // its title and description name the subject, so it is findable while closed
+    expect(html).toContain('>ADD Accounting<');
+    expect(html).toContain("Where a trick's difficulty number comes from, and how the weights add up.");
+  });
+
+  it('preserves both chapters\' anchors and inbound-link targets', async () => {
+    const html = await glossary();
+    expect(html).toContain('id="section-notation"');        // notation chapter section
+    expect(html).toContain('id="section-add-accounting"');  // ADD chapter section
     expect(html).toContain('id="traditional-reference"');   // history.hbs inbound link
     expect(html).toContain('id="run-quality"');
-    expect(html).toContain('ADD Accounting');               // demoted heading text
+    expect(html).toContain('ADD Accounting');
   });
 
   it('reconciles the ADD expansion to one term and states the checksum only once', async () => {

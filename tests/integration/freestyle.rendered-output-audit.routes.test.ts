@@ -297,13 +297,13 @@ describe('Emerging Vocabulary remains accessible', () => {
   });
 
   it('the dictionary landing surfaces a link to Emerging Vocabulary', async () => {
-    // Emerging Vocabulary renders inside the landing grid's third band
-    // ("TRACKING & EXPANSION"), not as a separate footer-style
-    // paragraph. The display label is sentence case
-    // ("Emerging vocabulary"); the route is /freestyle/observational.
+    // Emerging Vocabulary renders as a single forward-looking line at the
+    // foot of the browse tile: the title links to /freestyle/observational
+    // and the sentence names the community sources. No count and no
+    // review-queue framing on the landing; the observational page carries
+    // the detail.
     const res = await request(await createApp()).get('/freestyle/tricks?view=add');
-    expect(res.text).toMatch(/Emerging vocabulary/);
-    expect(res.text).toContain('href="/freestyle/observational"');
-    expect(res.text).toMatch(/TRACKING &amp; EXPANSION/);
+    expect(res.text).toContain('class="dict-emerging-line"');
+    expect(res.text).toMatch(/<a href="\/freestyle\/observational">Emerging Vocabulary<\/a>/);
   });
 });

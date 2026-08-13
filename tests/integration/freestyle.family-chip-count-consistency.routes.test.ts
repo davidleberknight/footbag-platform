@@ -1,11 +1,9 @@
 /**
- * A family's By-family jump-menu chip count on the trick-index landing equals the
- * member count its rendered family section shows on the By-family browse. Both are
- * derived from one membership map, which folds sub-labels (a trick whose raw
- * trick_family is a sub-label such as paradox_mirage renders under mirage). A
- * separate raw-label chip tally previously omitted that fold and undercounted a
- * family's chip by exactly its folded rows, so the chip and its section disagreed
- * by one.
+ * A family's member count on the By-family browse counts every trick that renders
+ * under it, including rows folded in from its sub-labels: a trick whose raw
+ * trick_family is a sub-label such as paradox_mirage renders under mirage and is
+ * counted there. The count and the rows it heads come from one membership map, so
+ * they can never disagree.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -38,33 +36,23 @@ function sectionCount(html: string): number | null {
   return m ? Number(m[1]) : null;
 }
 
-// The mirage chip count on the landing: the number inside the chip-count span of
-// the chip anchor linking to the mirage family.
-function chipCount(html: string): number | null {
-  const m = html.match(/href="\/freestyle\/families\/mirage"[^>]*>[^<]*<span class="dict-landing-card-chip-count">(\d+)<\/span>/);
-  return m ? Number(m[1]) : null;
+// The mirage members actually rendered under the family-mirage section.
+function sectionRows(html: string): number {
+  const start = html.indexOf('id="family-mirage"');
+  if (start < 0) return -1;
+  const end = html.indexOf('</section>', start);
+  return (html.slice(start, end).match(/data-trick-slug=/g) ?? []).length;
 }
 
-describe('GET /freestyle/tricks — family chip count matches its section count', () => {
+describe('GET /freestyle/tricks — family section count counts every rendered member', () => {
   it('folds the sub-label row into the mirage section (three members)', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
     expect(sectionCount(res.text)).toBe(3);
   });
 
-  it('shows the same folded count on the landing chip (three, not two)', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks');
-    expect(res.status).toBe(200);
-    expect(chipCount(res.text)).toBe(3);
-  });
-
-  it('the landing chip count equals the browse section count', async () => {
-    const landing = await request(await createApp()).get('/freestyle/tricks');
-    const browse = await request(await createApp()).get('/freestyle/tricks?view=family');
-    const chip = chipCount(landing.text);
-    const section = sectionCount(browse.text);
-    expect(chip).not.toBeNull();
-    expect(section).not.toBeNull();
-    expect(chip).toBe(section);
+  it('the count equals the number of rows the section actually renders', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks?view=family');
+    expect(sectionCount(res.text)).toBe(sectionRows(res.text));
   });
 });

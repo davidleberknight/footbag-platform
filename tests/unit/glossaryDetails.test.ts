@@ -54,7 +54,7 @@ describe('glossary-details.js — deep-link opener', () => {
   it('opens a collapsed chapter whose content is the fragment target, on load', () => {
     document.body.innerHTML = `
       <div class="glossary-page">
-        <details class="glossary-topic" id="chapter-x">
+        <details class="dict-tile" id="chapter-x">
           <summary>Chapter X</summary>
           <section id="section-x"><p>content</p></section>
         </details>
@@ -69,7 +69,7 @@ describe('glossary-details.js — deep-link opener', () => {
   it('opens every nested <details> ancestor of the target', () => {
     document.body.innerHTML = `
       <div class="glossary-page">
-        <details class="glossary-topic" id="chapter-outer">
+        <details class="dict-tile" id="chapter-outer">
           <summary>Outer</summary>
           <details class="glossary-core-atom-collapsible" id="inner">
             <summary>Inner</summary>

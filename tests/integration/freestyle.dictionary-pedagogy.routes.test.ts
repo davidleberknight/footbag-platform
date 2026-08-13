@@ -100,21 +100,24 @@ describe('Dictionary browse — family-view intro paragraph', () => {
 });
 
 describe('Dictionary — beginner-first landing lede', () => {
-  it('renders the onboarding block on the ADD browse view', async () => {
+  it('renders the orientation tiles on the ADD browse view', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('class="dict-onboarding"');
+    // Orientation is a row of closed disclosure tiles a reader opens as
+    // needed, rather than a block of prose ahead of the dictionary.
+    expect(res.text).toContain('class="dict-tile-grid"');
+    expect(res.text).toContain('How tricks are built');
   });
 
   it('explains the dictionary in plain, movement-first language', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=add');
     expect(res.text).toMatch(/movement vocabulary/i);
-    // The plain-language explanation lives in the onboarding block and the
-    // landing-grid bands (difficulty / structure / tracking & expansion), each
-    // with its own lens-question.
+    // The plain-language explanation lives in the orientation tiles, and each
+    // browse axis carries its lens question so a label like "By dex count" is
+    // never left to be guessed at.
     expect(res.text).toMatch(/difficulty/i);
-    expect(res.text).toMatch(/structure/i);
     expect(res.text).toMatch(/How layered is the trick/);
+    expect(res.text).toMatch(/How many dexterity moves does it have/);
     // No ontology jargon in the beginner lede.
     expect(res.text).not.toMatch(/orthogonal/i);
   });

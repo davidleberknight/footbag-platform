@@ -44,10 +44,11 @@ async function glossary(): Promise<string> {
 }
 
 describe('Glossary framing — Reading the dictionary section', () => {
-  it('renders the "Reading the dictionary" orientation section', async () => {
+  it('renders the "Reading the Dictionary" orientation section', async () => {
     const html = await glossary();
     expect(html).toContain('id="section-reading-the-dictionary"');
-    expect(html).toMatch(/<h2 class="section-heading">Reading the dictionary<\/h2>/);
+    // The chapter card's own heading names the section; it is not repeated inside.
+    expect(html).toMatch(/<h2 class="dict-tile-title">Reading the Dictionary<\/h2>/);
   });
 
   it('explains the two-line trick-row contract (line 1 + line 2 slots)', async () => {

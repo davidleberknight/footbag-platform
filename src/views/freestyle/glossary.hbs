@@ -18,12 +18,11 @@
 
   <div class="glossary-main-column">
 
-  {{! Glossary intro: one short orientation line above the chapter list. }}
-  <p class="mb-6">
-    A reference for freestyle's movement language: the words for surfaces,
-    dexes, families, modifiers, notation, and how tricks compose. Open any
-    topic to read it.
-  </p>
+  {{! The chapter cards: one grid of closed disclosures, each opening in place
+      to the whole chapter. An opened card spans the grid and the closed ones
+      reflow around it, so the page never leaves the reader scrolling past
+      chapters they did not open. }}
+  <div class="dict-tile-grid">
 
   {{! ── Reading the dictionary — platform-ontology orientation.
        Explains the trick-row contract, the six browse
@@ -31,13 +30,13 @@
        separate. Foundational orientation only; do NOT harden
        family-hierarchy language here, the family taxonomy framing is
        curator-owned. }}
-  <details class="glossary-topic" id="chapter-reading-the-dictionary">
-    <summary class="glossary-topic-card">
-      <span class="glossary-topic-card-title">Reading the Dictionary</span>
-      <span class="glossary-topic-card-hook">How the dictionary describes every trick and the kinds of object it keeps separate.</span>
+  <details class="dict-tile" id="chapter-reading-the-dictionary">
+    <summary class="dict-tile-summary">
+      <h2 class="dict-tile-title">Reading the Dictionary</h2>
+      <span class="dict-tile-hint">How the dictionary describes every trick and the kinds of object it keeps separate.</span>
     </summary>
+    <div class="dict-tile-body">
   <section class="content-section" id="section-reading-the-dictionary">
-    <h2 class="section-heading">Reading the dictionary</h2>
     <p>
       Before the movement vocabulary, three things about how the dictionary
       presents tricks: the <strong>row</strong> every trick shares, the six
@@ -169,13 +168,15 @@
       place.
     </p>
   </section>
+    </div>
   </details>
 
-  <details class="glossary-topic" id="chapter-movement-basics">
-    <summary class="glossary-topic-card">
-      <span class="glossary-topic-card-title">Movement Basics</span>
-      <span class="glossary-topic-card-hook">The twelve core atoms and the vocabulary every trick is built from.</span>
+  <details class="dict-tile" id="chapter-movement-basics">
+    <summary class="dict-tile-summary">
+      <h2 class="dict-tile-title">Movement Basics</h2>
+      <span class="dict-tile-hint">The twelve core atoms and the vocabulary every trick is built from.</span>
     </summary>
+    <div class="dict-tile-body">
   <section class="content-section" id="section-core-concepts">
     <h2 class="section-heading">Movement Basics</h2>
     <p>
@@ -299,18 +300,17 @@
     </div>
     {{/if}}
   </section>
+    </div>
   </details>
 
-  <details class="glossary-topic" id="chapter-contact-surfaces">
-    <summary class="glossary-topic-card">
-      <span class="glossary-topic-card-title">Contact Surfaces &amp; Delays</span>
-      <span class="glossary-topic-card-hook">The surfaces a trick lands on and how each one controls the bag.</span>
-    </summary>
-  <section class="content-section" id="section-surfaces">
-    <h2 class="section-heading">
-      Contact Surfaces &amp; Delays
+  <details class="dict-tile" id="chapter-contact-surfaces">
+    <summary class="dict-tile-summary">
+      <h2 class="dict-tile-title">Contact Surfaces &amp; Delays</h2>
       <span class="glossary-tier-badge glossary-tier-badge--beginner">Beginner</span>
-    </h2>
+      <span class="dict-tile-hint">The surfaces a trick lands on and how each one controls the bag.</span>
+    </summary>
+    <div class="dict-tile-body">
+  <section class="content-section" id="section-surfaces">
     <p>
       A <strong>contact surface</strong> is where the foot or body meets the
       bag. A <strong>stall</strong> (or <strong>delay</strong>) holds the bag
@@ -448,18 +448,17 @@
       (2 ADD each).
     </p>
   </section>
+    </div>
   </details>
 
-  <details class="glossary-topic" id="chapter-dexterities">
-    <summary class="glossary-topic-card">
-      <span class="glossary-topic-card-title">Dexterities</span>
-      <span class="glossary-topic-card-hook">The leg motions that shape the middle of a trick.</span>
-    </summary>
-  <section class="content-section" id="section-dexterities">
-    <h2 class="section-heading">
-      Dexterities (Dex)
+  <details class="dict-tile" id="chapter-dexterities">
+    <summary class="dict-tile-summary">
+      <h2 class="dict-tile-title">Dexterities</h2>
       <span class="glossary-tier-badge glossary-tier-badge--beginner">Beginner</span>
-    </h2>
+      <span class="dict-tile-hint">The leg motions that shape the middle of a trick.</span>
+    </summary>
+    <div class="dict-tile-body">
+  <section class="content-section" id="section-dexterities">
     <p>
       A <strong>dex</strong> (dexterity) is a motion where the foot circles
       around the bag. The dex is the heart of freestyle; almost every
@@ -666,18 +665,17 @@
       <dd>A duck-quality term: a duck performed with just the very top of the head, the duck-world parallel to a thin or <a href="#term-shoey">shoey</a> dex.</dd>
     </dl>
   </section>
+    </div>
   </details>
 
-  <details class="glossary-topic" id="chapter-timing-sets">
-    <summary class="glossary-topic-card">
-      <span class="glossary-topic-card-title">Timing &amp; Sets</span>
-      <span class="glossary-topic-card-hook">Where each move happens during a trick, and the sets that begin it.</span>
-    </summary>
-  <section class="content-section" id="section-timing-sets">
-    <h2 class="section-heading">
-      Timing &amp; Sets
+  <details class="dict-tile" id="chapter-timing-sets">
+    <summary class="dict-tile-summary">
+      <h2 class="dict-tile-title">Timing &amp; Sets</h2>
       <span class="glossary-tier-badge glossary-tier-badge--beginner">Beginner</span>
-    </h2>
+      <span class="dict-tile-hint">Where each move happens during a trick, and the sets that begin it.</span>
+    </summary>
+    <div class="dict-tile-body">
+  <section class="content-section" id="section-timing-sets">
     <p>
       A trick has a clock. The <strong>set</strong> positions the bag; the
       bag rises, peaks, falls; the trick catches. Modifiers (see the
@@ -823,19 +821,21 @@
       reading is not automatically an equivalent canonical set name.
     </p>
   </section>
+    </div>
   </details>
 
-  <details class="glossary-topic" id="chapter-operators-modifiers">
-    <summary class="glossary-topic-card">
-      <span class="glossary-topic-card-title">Operators &amp; Modifiers</span>
-      <span class="glossary-topic-card-hook">The transformations that turn a base trick into new tricks.</span>
-    </summary>
-  <section class="content-section" id="section-modifiers">
-    <h2 class="section-heading">
-      Operators &amp; Modifiers
+  <details class="dict-tile" id="chapter-operators-modifiers">
+    <summary class="dict-tile-summary">
+      <h2 class="dict-tile-title">Operators &amp; Modifiers</h2>
       <span class="glossary-tier-badge glossary-tier-badge--intermediate">Intermediate</span>
-      <a class="glossary-section-canonical-link" href="/freestyle/operators">Open standalone</a>
-    </h2>
+      <span class="dict-tile-hint">The transformations that turn a base trick into new tricks.</span>
+    </summary>
+    <div class="dict-tile-body">
+  <section class="content-section" id="section-modifiers">
+    {{! The standalone link navigates away, so it stays in the body: the cards
+        in the grid above all open in place, and a control that leaves the page
+        must not sit among them. }}
+    <p><a class="glossary-section-canonical-link" href="/freestyle/operators">Open standalone</a></p>
 
     <div class="glossary-concept" id="concept-set-vs-operator">
       <p>{{content.setVsOperatorConcept.line}}</p>
@@ -983,18 +983,17 @@
 
     {{> freestyle-modifier-reference}}
   </section>
+    </div>
   </details>
 
-  <details class="glossary-topic" id="chapter-family-encyclopedia">
-    <summary class="glossary-topic-card">
-      <span class="glossary-topic-card-title">Family Encyclopedia</span>
-      <span class="glossary-topic-card-hook">How tricks organize into lineages.</span>
-    </summary>
-  <section class="content-section" id="section-families">
-    <h2 class="section-heading">
-      Core Trick Families
+  <details class="dict-tile" id="chapter-family-encyclopedia">
+    <summary class="dict-tile-summary">
+      <h2 class="dict-tile-title">Family Encyclopedia</h2>
       <span class="glossary-tier-badge glossary-tier-badge--intermediate">Intermediate</span>
-    </h2>
+      <span class="dict-tile-hint">How tricks organize into lineages.</span>
+    </summary>
+    <div class="dict-tile-body">
+  <section class="content-section" id="section-families">
     <p>
       A <strong>family</strong> is a <strong>productive movement lineage</strong>:
       a group of tricks that share a conserved <strong>terminal mechanic</strong>,
@@ -1256,18 +1255,17 @@
     </details>
     {{/if}}
   </section>
+    </div>
   </details>
 
-  <details class="glossary-topic" id="chapter-structural-analysis">
-    <summary class="glossary-topic-card">
-      <span class="glossary-topic-card-title">Structural Analysis</span>
-      <span class="glossary-topic-card-hook">How to read any trick name as a formula.</span>
-    </summary>
-  <section class="content-section" id="section-notation">
-    <h2 class="section-heading">
-      Structural Analysis: Notation &amp; ADD
+  <details class="dict-tile" id="chapter-structural-analysis">
+    <summary class="dict-tile-summary">
+      <h2 class="dict-tile-title">Structural Analysis</h2>
       <span class="glossary-tier-badge glossary-tier-badge--intermediate">Intermediate</span>
-    </h2>
+      <span class="dict-tile-hint">How to read any trick name as a formula.</span>
+    </summary>
+    <div class="dict-tile-body">
+  <section class="content-section" id="section-notation">
 
     {{! No in-section mini-TOC here: the section's anchors are deep-link
         targets inside this collapsed chapter, revealed on arrival by the
@@ -1722,9 +1720,17 @@ RIGHT dex &gt; OP catch = LEFT catch</code></pre>
       <a href="/freestyle/sets/reference">Set notation reference</a>.
     </p>
     </details>
+  </section>
+    </div>
+  </details>
 
-    <div id="section-add-accounting">
-    <h3 class="section-heading" id="traditional-reference">ADD Accounting</h3>
+  <details class="dict-tile" id="chapter-add-accounting">
+    <summary class="dict-tile-summary">
+      <h2 class="dict-tile-title" id="traditional-reference">ADD Accounting</h2>
+      <span class="dict-tile-hint">Where a trick's difficulty number comes from, and how the weights add up.</span>
+    </summary>
+    <div class="dict-tile-body">
+    <section class="content-section" id="section-add-accounting">
 
     <h3 id="run-quality">ADD philosophy</h3>
     <p>
@@ -2000,20 +2006,18 @@ RIGHT dex &gt; OP catch = LEFT catch</code></pre>
       tiers and the competitive formats (Sick3, Shred:30, Circle) to real runs,
       see <a href="/freestyle/combo-analysis">Combo Analysis</a>.
     </p>
+    </section>
     </div>
-  </section>
   </details>
 
-  <details class="glossary-topic" id="chapter-runs-sequences">
-    <summary class="glossary-topic-card">
-      <span class="glossary-topic-card-title">Runs &amp; Sequences</span>
-      <span class="glossary-topic-card-hook">How individual tricks combine into runs.</span>
-    </summary>
-  <section class="content-section" id="section-composition">
-    <h2 class="section-heading">
-      Runs &amp; Sequences
+  <details class="dict-tile" id="chapter-runs-sequences">
+    <summary class="dict-tile-summary">
+      <h2 class="dict-tile-title">Runs &amp; Sequences</h2>
       <span class="glossary-tier-badge glossary-tier-badge--intermediate">Intermediate</span>
-    </h2>
+      <span class="dict-tile-hint">How individual tricks combine into runs.</span>
+    </summary>
+    <div class="dict-tile-body">
+  <section class="content-section" id="section-composition">
     <p>
       Above the single-trick level, tricks combine into longer sequences. The
       vocabulary below describes how tricks are <em>used</em>, not how they
@@ -2363,15 +2367,16 @@ RIGHT dex &gt; OP catch = LEFT catch</code></pre>
     </p>
     </div>
   </section>
+    </div>
   </details>
 
-  <details class="glossary-topic" id="chapter-reference-history">
-    <summary class="glossary-topic-card">
-      <span class="glossary-topic-card-title">Reference &amp; History</span>
-      <span class="glossary-topic-card-hook">Where the vocabulary comes from.</span>
+  <details class="dict-tile" id="chapter-reference-history">
+    <summary class="dict-tile-summary">
+      <h2 class="dict-tile-title">Reference &amp; History</h2>
+      <span class="dict-tile-hint">Where the vocabulary comes from.</span>
     </summary>
+    <div class="dict-tile-body">
   <section class="content-section" id="section-reference-history">
-    <h2 class="section-heading">Reference &amp; History</h2>
     <p>
       Nothing below is required to understand the system; it is lookup. It
       matters because freestyle's vocabulary carries its own history: folk and
@@ -2819,7 +2824,10 @@ RIGHT dex &gt; OP catch = LEFT catch</code></pre>
     </p>
   </section>
   </section>
+    </div>
   </details>
+
+  </div>{{! /.dict-tile-grid }}
 
   </div>{{! /.glossary-main-column }}
 </div>
