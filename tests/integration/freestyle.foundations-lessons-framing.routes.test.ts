@@ -2,9 +2,10 @@
  * Integration tests pinning the foundations-versus-lessons framing distinction.
  *
  * "The 12 Foundations of Freestyle" is reserved for the twelve foundational
- * movements on the landing page. The six-page beginner learning path is called
- * "six beginner lessons", never "six foundations", so a newcomer never meets two
- * conflicting foundation counts on adjacent onboarding surfaces.
+ * movements, which the landing page names on its link into their media gallery.
+ * The six-page beginner learning path is called "six beginner lessons", never
+ * "six foundations", so a newcomer never meets two conflicting foundation counts
+ * on adjacent onboarding surfaces.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -29,11 +30,14 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('Freestyle onboarding — foundations vs lessons framing', () => {
-  it('the landing page presents twelve Foundations for the twelve movements', async () => {
+  it('the landing page never renames the twelve movements to another count', async () => {
     const res = await request(await createApp()).get('/freestyle');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('The 12 Foundations of Freestyle');
+    // The twelve movements are named only where they are linked, and only ever
+    // as twelve. The landing seeds no clips here, so the gallery link is absent;
+    // what must never appear is a competing count.
     expect(res.text).not.toMatch(/six foundations/i);
+    expect(res.text).not.toMatch(/\b(?!12\b)\d+ Foundations of Freestyle/);
   });
 
   it('the learning path presents six lessons, not foundations', async () => {

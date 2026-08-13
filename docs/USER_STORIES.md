@@ -894,13 +894,12 @@ Card-at-login confirmation:
 Tier grant on claim:
 
 - A confirmed claim writes one `member_tier_grants` row (`reason_code = 'legacy.claim_tier_grant'`) for the standing the legacy account held at cutover, under the IFPA-approved blanket policy that maps each legacy standing to its 2026 equivalent (annual maps to lifetime). The bases are evaluated together in precedence order; the first match sets the tier:
-  1. On the IFPA board at cutover (Tier 3 / Director) → `tier3`, underlying derived below.
-  2. Hall of Fame or Big Add Posse → `tier2`.
-  3. Ever paid Tier 2 (annual or lifetime, any state) → `tier2`.
-  4. Paid Tier 1 Lifetime → `tier1`.
-  5. Tier 1 Annual active at cutover (attendance or vouch within 365 days) → `tier1`.
-  6. Anything else, including expired Tier 1 Annual and no IFPA history → `tier0`.
-- Tier 3 underlying derivation (board only): Hall of Fame or Big Add Posse → underlying `tier2`; otherwise pre-board paid Tier 2 → `tier2`; pre-board Tier 1, Tier 0, or unknown → `tier1`, per the IFPA rules.
+  1. Hall of Fame or Big Add Posse → `tier2`.
+  2. Ever paid Tier 2 (annual or lifetime, any state) → `tier2`.
+  3. Paid Tier 1 Lifetime → `tier1`.
+  4. Tier 1 Annual active at cutover (attendance or vouch within 365 days) → `tier1`.
+  5. Anything else, including expired Tier 1 Annual and no IFPA history → `tier0`.
+- Board / Tier 3 governance status is not granted by a claim. A sitting director receives it from an administrator setting the IFPA Board flag, which sets Tier 3 and records the underlying tier for later reversion, per `A_Grant_HoF_BAP_Board_Status`. A director who claims a legacy account is granted on their honors and paid history like any other claimant, and that grant becomes the underlying tier the Board flag reverts to.
 - A member is granted on whatever standings their legacy record carries; a record showing only honors is granted on that basis. This is one outcome of the single mapping, not a separate mode. Honors are validated against the public rosters before go-live, so an honor-driven grant never rests on a wrong flag.
 - The grant is written once, inside the claim transaction; concurrent claims resolve to exactly one grant, with no partial tier grant persisting.
 

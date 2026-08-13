@@ -351,7 +351,7 @@ describe('GET /freestyle — two-band landing', () => {
   it('renders the hero with a movement-first title + subtitle', async () => {
     const res = await request(createApp()).get('/freestyle');
     expect(res.text).toContain('<h1>Freestyle Footbag</h1>');
-    expect(res.text).toContain('Learn the movements, watch the sport, and explore the trick vocabulary.');
+    expect(res.text).toContain('Learn the movements, watch videos, and explore the vocabulary.');
   });
 
   it('shows the mascot image', async () => {
@@ -412,44 +412,66 @@ describe('GET /freestyle — two-band landing', () => {
     expect(res.text).not.toContain('World Records');
   });
 
-  it('orders sections: lede → Banner 1 → Banner 2 → mosaic → Featured', async () => {
+  it('orders sections: lede → vocabulary → Featured → Media → History → analysis', async () => {
     const res = await request(createApp()).get('/freestyle');
     const ledeIdx     = res.text.indexOf('freestyle-portal-lede');
-    const banner1Idx  = res.text.indexOf('>The Language of Freestyle<');
-    const banner2Idx  = res.text.indexOf('Analysis &amp; Competition');
-    const mosaicIdx   = res.text.indexOf('The 12 Foundations of Freestyle');
+    const languageIdx = res.text.indexOf('>The Language of Freestyle<');
     const featuredIdx = res.text.indexOf('class="content-section freestyle-featured"');
+    const mediaIdx    = res.text.indexOf('>Freestyle Media<');
+    const historyIdx  = res.text.indexOf('>History of Freestyle<');
+    const analysisIdx = res.text.indexOf('Analysis &amp; Competition');
     expect(ledeIdx).toBeGreaterThan(0);
-    expect(banner1Idx).toBeGreaterThan(ledeIdx);
-    expect(banner2Idx).toBeGreaterThan(banner1Idx);
-    expect(mosaicIdx).toBeGreaterThan(banner2Idx);
-    expect(featuredIdx).toBeGreaterThan(mosaicIdx);
+    expect(languageIdx).toBeGreaterThan(ledeIdx);
+    expect(featuredIdx).toBeGreaterThan(languageIdx);
+    expect(mediaIdx).toBeGreaterThan(featuredIdx);
+    expect(historyIdx).toBeGreaterThan(mediaIdx);
+    // The deeper analysis reference closes the page, below the video sections.
+    expect(analysisIdx).toBeGreaterThan(historyIdx);
+  });
+
+  it('carries the By the Numbers link inside the analysis group', async () => {
+    const res = await request(createApp()).get('/freestyle');
+    const analysisIdx = res.text.indexOf('Analysis &amp; Competition');
+    const numbersIdx  = res.text.indexOf('href="/freestyle/by-the-numbers"');
+    expect(analysisIdx).toBeGreaterThan(0);
+    expect(numbersIdx).toBeGreaterThan(analysisIdx);
   });
 
   // ── Featured videos showcase ────────────────────────────────────────────
   it('renders the Featured videos showcase with the curated demonstrations', async () => {
     const res = await request(createApp()).get('/freestyle');
     expect(res.text).toContain('>Featured Videos<');
-    for (const name of ['Routine', 'Circle', 'Sick 3', 'Shred 30']) {
+    for (const name of ['Circle', 'Sick 3', 'Shred 30']) {
       expect(res.text).toContain(name);
     }
-    for (const key of ['routine', 'circle', 'sick3', 'shred30', 'reese-1988', 'conlon-1998', 'worlds-2023-team', 'san-marino-2026']) {
+    for (const key of ['circle', 'sick3', 'shred30', 'reese-1988', 'conlon-1998', 'worlds-2023-team', 'san-marino-2026']) {
       expect(res.text).toContain(`id="featured-${key}"`);
     }
+    expect(res.text).not.toContain('id="featured-routine"');
   });
 
   it('Featured format cards use one-line captions, not paragraph prose', async () => {
     const res = await request(createApp()).get('/freestyle');
-    expect(res.text).toContain('Choreographed performance to music.');
+    expect(res.text).toContain('Turn-based show-off format.');
     expect(res.text).toContain('Thirty-second technical scoring.');
     expect(res.text).not.toContain('Routine is a timed event in which');
+  });
+
+  it('shows no hashtag chips on the featured cards', async () => {
+    const res = await request(createApp()).get('/freestyle');
+    const start = res.text.indexOf('freestyle-featured-grid');
+    const strip = res.text.slice(start, res.text.indexOf('</section>', start));
+    expect(start).toBeGreaterThan(-1);
+    expect(strip).not.toContain('media-tag');
+    expect(strip).not.toContain('#worlds_2023');
+    expect(strip).not.toContain('#by_jay7bah');
   });
 
   it('lazy-loads the featured competition-format videos via the video-facade partial', async () => {
     const res = await request(createApp()).get('/freestyle');
     // No eager YouTube iframe on initial load — the facade swaps it in on click.
     expect(res.text).not.toMatch(/<iframe[^>]+src=["']https:\/\/www\.youtube(-nocookie)?\.com\/embed\//);
-    for (const videoId of ['Z-KkyOpoBhM', 'aMr5e5wlgeE', 'h6F0aPIpC1o', 'wb75xzvAs68']) {
+    for (const videoId of ['aMr5e5wlgeE', 'h6F0aPIpC1o', 'wb75xzvAs68']) {
       expect(res.text).toContain(`href="https://www.youtube.com/watch?v&#x3D;${videoId}"`);
       expect(res.text).toContain(`data-embed-url="https://www.youtube-nocookie.com/embed/${videoId}?rel&#x3D;0"`);
     }
@@ -466,19 +488,6 @@ describe('GET /freestyle — two-band landing', () => {
     expect(res.text).toContain('Featuring Jim Penske');
     expect(res.text).toContain('id="featured-conlon-1998"');
     expect(res.text).toContain('id="featured-san-marino-2026"');
-  });
-
-  it('F7 — only curated demonstrations carry hashtag chip strips', async () => {
-    const res = await request(createApp()).get('/freestyle');
-    const startIdx = res.text.indexOf('class="freestyle-featured-grid"');
-    expect(startIdx).toBeGreaterThan(0);
-    const slice = res.text.slice(startIdx);
-    // Four chip strips: Reese-1988 + Conlon-1998 + Worlds-2023-Team + San Marino.
-    // Format cards carry no chips — the title is the format anchor.
-    const stripCount = (slice.match(/class="media-tag-strip"/g) ?? []).length;
-    expect(stripCount).toBe(4);
-    expect(slice).toContain('media-tag-chip--source');
-    expect(slice).toContain('media-tag-chip--creator');
   });
 
   // ── Demo video ──────────────────────────────────────────────────────────

@@ -1,6 +1,8 @@
-{{! /freestyle — landing. Hero → What is Freestyle? (tight lede) → Banner 1
-    (Language) → Banner 2 (Analysis & Competition) → the language in practice
-    (mosaic + by-the-numbers) → Featured videos → Media → History. }}
+{{! /freestyle — landing. Hero → demo video + What is Freestyle? (tight lede) →
+    beginner on-ramp → Language of Freestyle → Featured videos → Media →
+    History → Analysis & Competition (which carries By the Numbers). The
+    foundations clips live in their own media gallery, linked from the
+    vocabulary group. }}
 
 <div class="hero hero-sm hero-with-mascot">
   <div class="hero-text">
@@ -12,20 +14,11 @@
 
 <div class="wrapper freestyle-landing">
 
-  {{! ── Beginner on-ramp: funnel newcomers to the getting-started page.
-       Sits in a section so it takes the page's own vertical rhythm; a bare
-       block here butts straight against the hero. ── }}
-  <section>
-    New to freestyle? <a class="btn btn-outline" href="/freestyle/start">Start Here</a>
-  </section>
-
-  {{! ── What is Freestyle? — plain intro + demo video ───────────────────── }}
+  {{! ── The page opens on the sport in motion, then the prose it illustrates.
+       Both sit in one section so the video reads as part of the intro rather
+       than as a block of its own. ── }}
   {{#if content.intro.paragraphs.length}}
   <section class="content-section freestyle-portal-lede">
-    {{#if content.intro.heading}}<h2>{{content.intro.heading}}</h2>{{/if}}
-    {{#each content.intro.paragraphs}}
-    <p class="freestyle-portal-lede-paragraph">{{this}}</p>
-    {{/each}}
     {{#if content.demoVideo}}
     <figure class="demo-video">
       <video autoplay loop muted playsinline controls preload="metadata" poster="{{content.demoVideo.posterUrl}}">
@@ -35,8 +28,17 @@
       <figcaption>{{content.demoVideo.caption}}</figcaption>
     </figure>
     {{/if}}
+    {{#if content.intro.heading}}<div class="section-heading"><h2>{{content.intro.heading}}</h2></div>{{/if}}
+    {{#each content.intro.paragraphs}}
+    <p class="freestyle-portal-lede-paragraph">{{this}}</p>
+    {{/each}}
   </section>
   {{/if}}
+
+  {{! ── Beginner on-ramp: funnel newcomers to the getting-started page ────── }}
+  <section class="content-section freestyle-start-cta">
+    New to freestyle? <a class="btn btn-outline" href="/freestyle/start">Start Here</a>
+  </section>
 
   {{! ── Banner 1 — The Language of Freestyle (reference / vocabulary) ───────── }}
   <section class="content-section">
@@ -71,10 +73,74 @@
         <span class="banner-tile-title">ADD Analysis</span>
         <span class="banner-tile-blurb">How freestyle measures trick difficulty.</span>
       </a>
+      {{! Same gate as the mosaic's own "See All Foundations" link: the gallery
+          exists only once its clips are curated. }}
+      {{#if content.tricksMosaicHasClips}}
+      <a class="banner-tile" href="/media/gallery_foundations_of_freestyle">
+        <span class="banner-tile-title">Media Gallery: Foundations of Freestyle</span>
+        <span class="banner-tile-blurb">Almost every trick is built from one of these core movements.</span>
+      </a>
+      {{/if}}
     </div>
   </section>
 
-  {{! ── Banner 2 — Analysis & Competition ──────────────────────────────────── }}
+  {{! ── Featured videos — the visual showcase ──────────────────────────────── }}
+  {{#if content.featured.length}}
+  <section class="content-section freestyle-featured" id="featured">
+    <div class="section-heading"><h2>Featured Videos</h2></div>
+    <div class="freestyle-featured-grid">
+      {{#each content.featured}}
+      <article class="card featured-card" id="featured-{{key}}">
+        <div class="video-embed">
+          {{> video-facade media=media}}
+        </div>
+        <div class="card-title">{{title}}</div>
+        {{#if caption}}<p class="featured-caption">{{caption}}</p>{{/if}}
+      </article>
+      {{/each}}
+    </div>
+  </section>
+  {{/if}}
+
+  {{! ── Freestyle Media (supporting) ───────────────────────────────────────── }}
+  <section class="content-section">
+    <div class="section-heading"><h2>Freestyle Media</h2></div>
+    <div class="banner-grid">
+      <a class="banner-tile" href="/freestyle/media">
+        <span class="banner-tile-title">Browse Freestyle Media</span>
+        <span class="banner-tile-blurb">Tutorials and demos, trick videos, and other media galleries.</span>
+      </a>
+      <a class="banner-tile" href="/media/browse?tag=freestyle">
+        <span class="banner-tile-title">Browse by Hashtag</span>
+        <span class="banner-tile-blurb">Every freestyle clip on the site, filtered by the tags it carries.</span>
+      </a>
+    </div>
+  </section>
+
+  {{! ── History of Freestyle (supporting) ──────────────────────────────────── }}
+  <section class="content-section">
+    <div class="section-heading"><h2>History of Freestyle</h2></div>
+    <div class="banner-grid">
+      <a class="banner-tile" href="/freestyle/history">
+        <span class="banner-tile-title">Story of Freestyle</span>
+        <span class="banner-tile-blurb">How the sport grew from kicking circles.</span>
+      </a>
+      <a class="banner-tile" href="/freestyle/history#competition">
+        <span class="banner-tile-title">History Timeline</span>
+        <span class="banner-tile-blurb">How competitive freestyle grew across the decades.</span>
+      </a>
+      <a class="banner-tile" href="/freestyle/history#institutions">
+        <span class="banner-tile-title">Historical Milestones</span>
+        <span class="banner-tile-blurb">The Hall of Fame, the Big Add Posse, and the institutions that shaped the sport.</span>
+      </a>
+      <a class="banner-tile" href="/freestyle/history#vocabulary">
+        <span class="banner-tile-title">Evolution of Vocabulary</span>
+        <span class="banner-tile-blurb">How a few operators multiplied a handful of moves into hundreds of named tricks.</span>
+      </a>
+    </div>
+  </section>
+
+  {{! ── Analysis & Competition — the deeper reference, after the visual tour ── }}
   <section class="content-section">
     <div class="section-heading">
       <h2>Analysis &amp; Competition</h2>
@@ -111,117 +177,9 @@
         <span class="banner-tile-title">About Freestyle</span>
         <span class="banner-tile-blurb">Formats, judging, and set notation.</span>
       </a>
-    </div>
-  </section>
-
-  {{! ── The language in practice: mosaic + by-the-numbers ───────────────────── }}
-
-  {{! ── The 12 Foundations: core-atom mosaic ───────────────────────────────── }}
-  <section class="content-section tricks-mosaic-section{{#unless content.tricksMosaicHasClips}} tricks-mosaic-section--placeholder{{/unless}}">
-    <div class="section-heading">
-      <h2>The 12 Foundations of Freestyle</h2>
-      <p class="section-intro">Almost every freestyle trick is built from these core movements.</p>
-    </div>
-    <div class="tricks-mosaic">
-      {{#each content.tricksMosaic}}
-        <figure class="tricks-mosaic-cell">
-          {{#if href}}
-            <a href="{{href}}" class="tricks-mosaic-link" aria-label="Watch {{label}}">
-              <img class="tricks-mosaic-media" src="{{posterUrl}}" alt="{{label}}" loading="lazy">
-              <span class="tricks-mosaic-playicon" aria-hidden="true"></span>
-            </a>
-          {{else}}
-            <div class="tricks-mosaic-media tricks-mosaic-empty" aria-hidden="true"></div>
-          {{/if}}
-          <figcaption class="tricks-mosaic-label">{{#if trickHref}}<a href="{{trickHref}}" class="tricks-mosaic-learn">{{label}}</a>{{else}}{{label}}{{/if}}</figcaption>
-        </figure>
-      {{/each}}
-    </div>
-    {{#if content.tricksMosaicHasClips}}
-      <div class="text-center mt-4">
-        <a href="/media/gallery_foundations_of_freestyle" class="action-link">See All Foundations</a>
-      </div>
-    {{/if}}
-  </section>
-
-  {{! ── Freestyle by the Numbers: six live histogram cards ─────────────────── }}
-  {{#if content.byTheNumbers.length}}
-  <section class="content-section" id="by-the-numbers">
-    <div class="section-heading">
-      <h2>Freestyle by the Numbers</h2>
-      <p class="section-intro">{{content.byTheNumbersNote}} Each card opens its browse view.</p>
-    </div>
-    <div class="by-numbers-grid">
-      {{#each content.byTheNumbers}}
-      <a class="by-numbers-card" href="/freestyle/tricks?view={{viewKey}}">
-        <span class="by-numbers-eyebrow">{{eyebrow}}</span>
-        <span class="by-numbers-title">{{title}}</span>
-        <span class="by-numbers-bars">
-          {{#each bars}}
-          <span class="by-numbers-bar">
-            <span class="by-numbers-bar-label">{{label}}</span>
-            <span class="by-numbers-bar-track"><span class="by-numbers-bar-fill gloss-bar-fill--w{{widthBucket}}"></span></span>
-            <span class="by-numbers-bar-count">{{count}}</span>
-          </span>
-          {{/each}}
-        </span>
-        {{#if footnote}}<span class="by-numbers-footnote">{{footnote}}</span>{{/if}}
-        <span class="by-numbers-cta">Browse</span>
-      </a>
-      {{/each}}
-    </div>
-  </section>
-  {{/if}}
-
-  {{! ── Featured videos — the visual showcase ──────────────────────────────── }}
-  {{#if content.featured.length}}
-  <section class="content-section freestyle-featured" id="featured">
-    <h2>Featured Videos</h2>
-    <div class="freestyle-featured-grid">
-      {{#each content.featured}}
-      <article class="card featured-card" id="featured-{{key}}">
-        <div class="video-embed">
-          {{> video-facade media=media}}
-        </div>
-        <div class="card-title">{{title}}</div>
-        {{#if caption}}<p class="featured-caption">{{caption}}</p>{{/if}}
-        {{> media-tag-strip tags=tags}}
-      </article>
-      {{/each}}
-    </div>
-  </section>
-  {{/if}}
-
-  {{! ── Freestyle Media (supporting) ───────────────────────────────────────── }}
-  <section class="content-section">
-    <div class="section-heading"><h2>Freestyle Media</h2></div>
-    <div class="banner-grid">
-      <a class="banner-tile" href="/freestyle/media">
-        <span class="banner-tile-title">Browse Freestyle Media</span>
-        <span class="banner-tile-blurb">Tutorials and demos, records footage, curated trick videos, and individual shred clips.</span>
-      </a>
-    </div>
-  </section>
-
-  {{! ── History of Freestyle (supporting) ──────────────────────────────────── }}
-  <section class="content-section">
-    <div class="section-heading"><h2>History of Freestyle</h2></div>
-    <div class="banner-grid">
-      <a class="banner-tile" href="/freestyle/history">
-        <span class="banner-tile-title">Story of Freestyle</span>
-        <span class="banner-tile-blurb">How the sport grew from kicking circles.</span>
-      </a>
-      <a class="banner-tile" href="/freestyle/history#competition">
-        <span class="banner-tile-title">History Timeline</span>
-        <span class="banner-tile-blurb">How competitive freestyle grew across the decades.</span>
-      </a>
-      <a class="banner-tile" href="/freestyle/history#institutions">
-        <span class="banner-tile-title">Historical Milestones</span>
-        <span class="banner-tile-blurb">The Hall of Fame, the Big Add Posse, and the institutions that shaped the sport.</span>
-      </a>
-      <a class="banner-tile" href="/freestyle/history#vocabulary">
-        <span class="banner-tile-title">Evolution of Vocabulary</span>
-        <span class="banner-tile-blurb">How a few operators multiplied a handful of moves into hundreds of named tricks.</span>
+      <a class="banner-tile" href="/freestyle/by-the-numbers">
+        <span class="banner-tile-title">Freestyle by the Numbers</span>
+        <span class="banner-tile-blurb">How the trick dictionary breaks down by difficulty, dexterity, entry set, family ending, and body movement.</span>
       </a>
     </div>
   </section>

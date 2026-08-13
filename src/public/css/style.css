@@ -4844,11 +4844,20 @@ a.hashtag--media:hover {
 .format-card .card-actions { margin-top: auto; }
 
 /* Ambient demo clip shown under the intro heading on portal landing pages */
+/* The margins are deliberately larger than the gap between the paragraphs
+   beside it: at paragraph spacing the video reads as another line of the prose
+   block rather than as the illustration for it. Where the figure opens or
+   closes its section, the section's own padding carries that edge instead. */
 .demo-video {
-  margin: 0 auto 16px;
-  max-width: 640px;
+  margin: 20px auto;
+  max-width: 560px;
   width: 100%;
 }
+.demo-video:first-child { margin-top: 0; }
+/* When the figure closes its section, the section's own padding separates it
+   from what follows; keeping the margin too would make that one gap wider
+   than every other gap on the page. */
+.demo-video:last-child { margin-bottom: 0; }
 .demo-video video {
   width: 100%;
   height: auto;
@@ -4858,11 +4867,12 @@ a.hashtag--media:hover {
   background: var(--bg-light);
   object-fit: cover;
 }
+/* Same treatment as every other caption on the page: the small muted scale,
+   set flush with the block it describes rather than centred under it. */
 .demo-video figcaption {
   margin-top: 6px;
   font-size: 0.9rem;
   color: var(--text-muted);
-  text-align: center;
 }
 
 /* Landing-scoped spacing: tighten gaps between explainer sections */
@@ -4870,21 +4880,34 @@ a.hashtag--media:hover {
    That is right between sections and wrong immediately under the hero, where
    it leaves the first block almost touching the gradient. The wrapper carries
    the opening gap so the inter-section rhythm stays tight. */
-.freestyle-landing,
 .net-landing,
 .sideline-landing { padding-top: 24px; }
+/* On the freestyle landing the first section's own top margin and padding are
+   reset to zero by the compact-rhythm rule, so the wrapper alone carries the
+   opening gap, and it matches the section gap that separates every later pair
+   of sections. */
+.freestyle-landing { padding-top: 20px; }
 .freestyle-landing .content-section,
 .net-landing       .content-section,
 .sideline-landing  .content-section { margin: 0; }
-.freestyle-landing section,
 .net-landing       section,
 .sideline-landing  section { padding: 16px 0; }
+/* The freestyle landing is a stack of short tile sections, so it runs the
+   tightest rhythm of the three: the section gap alone does the separating and
+   the sections carry no padding of their own. */
+.freestyle-landing section { padding: 0; }
 .freestyle-landing section + section,
 .net-landing       section + section,
 .sideline-landing  section + section { border-top: none; }
 .freestyle-landing .content-section p,
 .net-landing       .content-section p,
 .sideline-landing  .content-section p { margin: 0 0 10px; }
+/* The closing paragraph keeps no bottom margin: the section's own padding
+   separates it from the next section, and the paragraph gap on top of that
+   makes that one seam wider than every other one on the page. */
+.freestyle-landing .content-section p:last-child,
+.net-landing       .content-section p:last-child,
+.sideline-landing  .content-section p:last-child { margin-bottom: 0; }
 .freestyle-landing h2,
 .net-landing       h2,
 .sideline-landing  h2 { margin-top: 0; margin-bottom: 10px; }
@@ -6003,6 +6026,11 @@ a.hashtag--media:hover {
   line-height: 1.5;
   max-width: 70ch;
 }
+/* Inside the heading row the intro sits beside the h2, so its bottom margin is
+   pure dead space: it would leave a section that carries an intro sitting 8px
+   lower than one that does not, on the same page. The heading block owns that
+   gap for both. */
+.section-heading .section-intro { margin-bottom: 0; }
 
 
 /* "Compressed from" / "Compressed reading" pedagogy line, a
@@ -9741,7 +9769,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
      viewports step down at the breakpoints below. */
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 14px;
+  gap: 12px;
 }
 @media (max-width: 1024px) {
   .freestyle-featured-grid {
@@ -9749,7 +9777,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   }
 }
 .featured-card {
-  padding: 12px 12px 10px 12px;
+  padding: 12px 14px;
   display: flex;
   flex-direction: column;
 }
@@ -12483,124 +12511,22 @@ a.set-detail-trick-media:hover {
   opacity: 0.6;
 }
 
-/* Homepage foundational-tricks mosaic: a 4-across by 3-down grid of labelled
-   looping clips, one per core atom. Cells with no clip yet show a neutral
-   labelled tile so the grid reads as complete before the media is produced. */
-.tricks-mosaic-section {
-  margin-top: 40px;
-  margin-bottom: 32px;
-}
-/* The placeholder state (no cell has a clip loaded) keeps this enrichment block
-   quiet so it does not compete with the main homepage content: narrower and
-   slightly recessed. The full-width grid returns once clips are present. */
-.tricks-mosaic-section--placeholder .tricks-mosaic {
-  max-width: 760px;
-  margin-left: auto;
-  margin-right: auto;
-  opacity: 0.88;
-}
-.tricks-mosaic {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 10px;
-}
-.tricks-mosaic-cell {
-  position: relative;
-  margin: 0;
-  border-radius: var(--radius-md);
-  overflow: hidden;
-  box-shadow: var(--shadow-sm);
-}
-.tricks-mosaic-media {
-  display: block;
-  width: 100%;
-  aspect-ratio: 1 / 1;
-  object-fit: cover;
-  background: var(--surface-dark);
-}
-.tricks-mosaic-link {
-  display: block;
-  position: relative;
-  width: 100%;
-}
-.tricks-mosaic-link:focus-visible {
-  outline: 2px solid var(--secondary);
-  outline-offset: 2px;
-}
-.tricks-mosaic-playicon {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 44px;
-  height: 44px;
-  transform: translate(-50%, -50%);
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.45);
-  pointer-events: none;
-  transition: background 0.15s ease;
-}
-.tricks-mosaic-playicon::before {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: 54%;
-  transform: translate(-50%, -50%);
-  border-style: solid;
-  border-width: 9px 0 9px 15px;
-  border-color: transparent transparent transparent var(--white);
-}
-.tricks-mosaic-link:hover .tricks-mosaic-playicon { background: rgba(0, 0, 0, 0.62); }
-.tricks-mosaic-empty {
-  background: linear-gradient(135deg, var(--surface-dark) 0%, var(--gray-900) 100%);
-}
-.tricks-mosaic-label {
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  width: 30%;
-  height: 28%;
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  padding: 0 6px;
-  font-weight: 600;
-  font-size: 0.9rem;
-  line-height: 1.1;
-  color: var(--white);
-  text-align: left;
-  /* Solid opaque box over the lower-left corner only: it masks the source
-     clip's burnt-in caption that sits there with our own label. Sized as a
-     share of the square cell so the cover scales with the tile. */
-  background: rgba(0, 0, 0, 1);
-}
-.tricks-mosaic-learn {
-  color: inherit;
-  text-decoration: none;
-}
-.tricks-mosaic-learn:hover,
-.tricks-mosaic-learn:focus {
-  text-decoration: underline;
-}
-@media (max-width: 1024px) {
-  .tricks-mosaic { grid-template-columns: repeat(2, 1fr); }
-}
-@media (max-width: 480px) {
-  .tricks-mosaic { gap: 6px; }
-  .tricks-mosaic-label { font-size: 0.9rem; }
-}
-
-/* "Freestyle by the Numbers" landing band: six gateway histogram cards. Bar
-   widths reuse the .gloss-bar-fill--w{n} classes; one accent, restrained. */
+/* "Freestyle by the Numbers": the gateway histogram cards. Cards differ a lot
+   in height (four bars to twenty), so they flow down three text columns rather
+   than sitting in grid rows: column flow packs them with no dead space under
+   the short ones. Bar widths reuse the .gloss-bar-fill--w{n} classes; one
+   accent, restrained. */
 .by-numbers-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 14px;
+  columns: 3;
+  column-gap: 12px;
 }
 .by-numbers-card {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 14px 16px;
+  break-inside: avoid;
+  margin-bottom: 12px;
+  padding: 12px 14px;
   border-radius: var(--radius-md);
   background: var(--bg-subtle);
   box-shadow: var(--shadow-sm);
@@ -12617,7 +12543,7 @@ a.set-detail-trick-media:hover {
 .by-numbers-bars { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
 .by-numbers-bar {
   display: grid;
-  grid-template-columns: 6.5rem 1fr 2.6rem;
+  grid-template-columns: 8rem 1fr 2.6rem;
   align-items: center;
   gap: 8px;
   font-size: 0.9rem;
@@ -12636,8 +12562,11 @@ a.set-detail-trick-media:hover {
 .by-numbers-bar-count { font-variant-numeric: tabular-nums; color: var(--text-muted); }
 .by-numbers-footnote { font-size: 0.9rem; font-style: italic; color: var(--text-muted); }
 .by-numbers-cta { margin-top: auto; font-size: 0.9rem; font-weight: 600; color: var(--secondary); }
+@media (max-width: 1024px) {
+  .by-numbers-grid { columns: 2; }
+}
 @media (max-width: 768px) {
-  .by-numbers-grid { grid-template-columns: 1fr; }
+  .by-numbers-grid { columns: 1; }
 }
 
 /* Footbag Media hub: six equal media-collection cards in a 3x2 grid. Cards
@@ -12683,15 +12612,18 @@ a.set-detail-trick-media:hover {
 /* Four across at desktop width. The tiles are single-line titles over a short
    blurb, so a fourth column costs no legibility and packs each section into
    fewer rows, which is what keeps a landing page of stacked tile sections from
-   running long. */
+   running long. Tiles wrap and grow rather than sitting in fixed columns: a
+   section holding five or six tiles would otherwise end on a part-empty row,
+   and every section here holds a different number of them. */
 .banner-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   align-items: stretch;
 }
 .banner-tile {
   display: flex;
+  flex: 1 1 240px;
   flex-direction: column;
   gap: 4px;
   padding: 12px 14px;
@@ -12704,19 +12636,25 @@ a.set-detail-trick-media:hover {
   transition: box-shadow 0.15s ease, transform 0.15s ease;
 }
 a.banner-tile:hover { box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12); transform: translateY(-1px); }
+/* The beginner on-ramp is a single line of text and one button, not a block of
+   content: it takes no section padding of its own, so it sits closer to the
+   intro it follows than a full section would. */
+.freestyle-start-cta { padding-top: 0; padding-bottom: 0; }
 .banner-tile-title { font-weight: 700; font-size: 1rem; }
 .banner-tile-blurb { font-size: 0.9rem; color: var(--text-muted); }
 .banner-tile--soon { background: transparent; box-shadow: none; border: 1px dashed rgba(0, 0, 0, 0.12); }
 .banner-tile--soon .banner-tile-title { color: var(--text-muted); }
 .banner-tile-soon { margin-top: auto; font-size: 0.9rem; font-weight: 600; color: var(--text-muted); }
+/* The basis sets how many tiles fit a row before they wrap and share out the
+   remaining width: four at desktop, then three, then two, then one. */
 @media (max-width: 1024px) {
-  .banner-grid { grid-template-columns: repeat(3, 1fr); }
+  .banner-tile { flex-basis: 260px; }
 }
 @media (max-width: 768px) {
-  .banner-grid { grid-template-columns: repeat(2, 1fr); }
+  .banner-tile { flex-basis: 280px; }
 }
 @media (max-width: 480px) {
-  .banner-grid { grid-template-columns: 1fr; }
+  .banner-tile { flex-basis: 100%; }
 }
 
 /* Dev outbox: the captured-email body block on the development/staging tester

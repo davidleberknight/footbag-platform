@@ -1,5 +1,5 @@
 /**
- * The landing "By the Numbers" note must state its count universe precisely: the
+ * The "By the Numbers" note must state its count universe precisely: the
  * total is the browsable dictionary-trick subset (derived, not a literal), it
  * excludes modifiers/operators, and rows still awaiting a notation breakdown are
  * counted inside that total rather than silently dropped or presented as
@@ -39,7 +39,7 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('freestyle By the Numbers — count universe reconciles', () => {
   it('states the browsable dictionary-trick total and excludes modifiers', async () => {
-    const res = await request(createApp()).get('/freestyle');
+    const res = await request(createApp()).get('/freestyle/by-the-numbers');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/Counts cover 2 dictionary tricks/);
     // The imprecise "active canonical tricks" label is gone, and the modifier
@@ -49,13 +49,13 @@ describe('freestyle By the Numbers — count universe reconciles', () => {
   });
 
   it('keeps incomplete rows inside the stated total, named as a subset', async () => {
-    const res = await request(createApp()).get('/freestyle');
+    const res = await request(createApp()).get('/freestyle/by-the-numbers');
     expect(res.text).toContain('1 of them still awaits a complete notation breakdown');
   });
 
   it('renders a sentence whose two numbers reconcile with the underlying sets', async () => {
     // Seeded: 2 dictionary tricks (one notated, one awaiting) + 1 modifier.
-    const res = await request(createApp()).get('/freestyle');
+    const res = await request(createApp()).get('/freestyle/by-the-numbers');
     const m = res.text.match(
       /Counts cover (\d+) dictionary tricks(?:; (\d+) of them still (?:await|awaits) a complete notation breakdown)?\./,
     );

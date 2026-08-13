@@ -117,6 +117,7 @@ publicRouter.get('/freestyle/operators',   freestyleController.operators);
 publicRouter.get('/freestyle/observational', freestyleController.observational);
 publicRouter.get('/freestyle/tricks',      freestyleController.tricksIndex);
 publicRouter.get('/freestyle/insights',    freestyleController.insights);
+publicRouter.get('/freestyle/by-the-numbers', freestyleController.byTheNumbers);
 publicRouter.get('/freestyle/learn',       freestyleController.symbolicLearn);
 // Novice entry page: the landing "Start here" CTA destination. /freestyle/learn
 // stays the broader educational-pathways index.

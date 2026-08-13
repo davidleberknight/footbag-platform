@@ -52,6 +52,7 @@ const STATIC_PUBLIC_PATHS = [
   '/freestyle/notation-article',
   '/freestyle/observational',
   '/freestyle/insights',
+  '/freestyle/by-the-numbers',
   '/freestyle/learn',
   '/freestyle/start',
   '/freestyle/add-analysis',

@@ -166,14 +166,14 @@ describe('Glossary — Operators & Modifiers histogram (shared landing-band mode
     expect(html.toLowerCase()).not.toContain('modifier-depth');
   });
 
-  it('renders the same operator counts as the Freestyle landing band (one shared model)', async () => {
+  it('renders the same operator counts as the By the Numbers page (one shared model)', async () => {
     const glossSlice = sectionSlice(await glossary());
-    const landing = await request(await createApp()).get('/freestyle');
-    expect(landing.status).toBe(200);
-    // The landing "Body movements" card and the glossary operator group read the
-    // same shared aggregation, so a movement operator's count matches on both.
-    const landingSpinning = landing.text.match(/spinning[\s\S]{0,200}?by-numbers-bar-count">(\d+)</i);
-    expect(landingSpinning, 'landing renders a spinning count').not.toBeNull();
-    expect(Number(landingSpinning![1])).toBe(countFor(glossSlice, 'spinning'));
+    const numbers = await request(await createApp()).get('/freestyle/by-the-numbers');
+    expect(numbers.status).toBe(200);
+    // The "Body movements" card and the glossary operator group read the same
+    // shared aggregation, so a movement operator's count matches on both.
+    const numbersSpinning = numbers.text.match(/spinning[\s\S]{0,200}?by-numbers-bar-count">(\d+)</i);
+    expect(numbersSpinning, 'By the Numbers renders a spinning count').not.toBeNull();
+    expect(Number(numbersSpinning![1])).toBe(countFor(glossSlice, 'spinning'));
   });
 });

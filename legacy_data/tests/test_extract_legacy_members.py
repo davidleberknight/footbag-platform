@@ -256,30 +256,16 @@ def test_dump_level_counts(tmp_path):
         "legacy_email2": 1,   # 11983
         "legacy_email3": 1,   # 12000
     }
-    # No board code is configured, so no row resolves to board at cutover.
-    assert stats["board_at_cutover"] == 0
 
-
-def test_board_at_cutover_inert_without_configured_code(tmp_path):
-    # The shipped board-code set is empty, so every row is non-board regardless
-    # of its IFPA tier value; nothing is guessed from the tier code.
+def test_board_columns_are_never_derived_from_legacy_data(tmp_path):
+    # Board / Tier 3 standing is an administrator-set flag on the live member
+    # row, not something the extractor infers. Every row carries a definite
+    # non-board flag and no underlying paid tier, whatever its IFPA tier value.
+    # The fixture spans Tier 1, Tier 2 and an absent tier code.
     _, rows, _, _ = _run(tmp_path)
     for r in rows:
         assert r["legacy_was_board_at_cutover"] == "0"
         assert r["legacy_board_underlying_paid_tier"] == ""
-
-
-def test_derive_board_at_cutover_maps_configured_code():
-    # A board member resolves to ("1", "none") (the underlying paid tier the
-    # board status reverts to is not reconstructable from the tier code alone);
-    # any other or absent code is non-board. The codes here are synthetic: no
-    # real tier code denotes board, which is why the shipped set stays empty.
-    codes = frozenset({"DIRECTOR", "3"})
-    assert elm.derive_board_at_cutover("3", codes) == ("1", "none")
-    assert elm.derive_board_at_cutover("DIRECTOR", codes) == ("1", "none")
-    assert elm.derive_board_at_cutover("2", codes) == ("0", "")
-    assert elm.derive_board_at_cutover("", codes) == ("0", "")
-    assert elm.derive_board_at_cutover("3", frozenset()) == ("0", "")
 
 
 def test_derive_ever_paid_tier2():

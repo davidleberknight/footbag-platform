@@ -16,7 +16,8 @@
  *     /freestyle/compositional-sets (getCompositionalSetsPage).
  *   - Analysis: /freestyle/records (getRecordsPage), /freestyle/leaders (getLeadersPage),
  *     /freestyle/competition, /freestyle/partnerships, /freestyle/insights, /freestyle/add-analysis
- *     (getAddAnalysisPage), /freestyle/combo-analysis (getComboAnalysisPage).
+ *     (getAddAnalysisPage), /freestyle/combo-analysis (getComboAnalysisPage),
+ *     /freestyle/by-the-numbers (getByTheNumbersPage).
  *   - Pedagogy: /freestyle/learn (getSymbolicLearnPage), /freestyle/progression/walking-family,
  *     /freestyle/about, /freestyle/history.
  *
@@ -147,7 +148,7 @@ import {
 import {
   CORE_TRICK_SPEC,
 } from '../content/freestyleLandingContent';
-import { TRICKS_MOSAIC, isFoundationLinkReady } from '../content/freestyleTricksMosaic';
+import { TRICKS_MOSAIC } from '../content/freestyleTricksMosaic';
 import { HISTORY_NARRATIVE, type HistoryNarrative } from '../content/freestyleHistoryNarrative';
 import { TERMINAL_DERIVED_COHORTS, TERMINAL_OF_MEMBER } from '../content/freestyleTerminalCohorts';
 import { loadSiteVideo, loadMosaicVideo } from './siteMediaService';
@@ -590,16 +591,14 @@ export interface FreestyleCoreTrickCard {
 // "Featured" strip. The
 // strip merges what were two separate sections (Competition Formats +
 // Demonstrations) into one curated grid. Both kinds use the same shape;
-// competition-format identity comes from the title (Routine / Circle /
-// Sick 3 / Shred 30), not from a separate field. Tags optional: format
-// cards typically have none (title carries the format anchor); curated
-// demonstrations carry source/creator/quality chips.
+// competition-format identity comes from the title (Circle / Sick 3 /
+// Shred 30), not from a separate field. The cards carry no hashtag chips:
+// the strip is a showcase, and tag browsing has its own entrances.
 export interface FreestyleFeaturedItem {
-  key:     string;             // stable id for anchors (e.g., "routine", "conlon-1998")
-  title:   string;             // display heading (e.g., "Routine", "Footbag 2026: San Marino")
+  key:     string;             // stable id for anchors (e.g., "circle", "conlon-1998")
+  title:   string;             // display heading (e.g., "Circle", "Footbag 2026: San Marino")
   caption: string | null;      // optional one-line context; never a paragraph
   media:   VideoMedia;         // video-facade payload (required; never null)
-  tags:    MediaTagDisplay[];  // optional chips; empty on format cards
 }
 
 // One displayable media-tag chip. `kind` drives optional CSS tier styling.
@@ -607,19 +606,6 @@ export interface FreestyleFeaturedItem {
 export interface MediaTagDisplay {
   display: string;   // verbatim including '#' prefix (e.g., "#torque")
   kind:    'trick' | 'source' | 'creator' | 'content-type' | 'event' | 'quality' | 'discipline';
-}
-
-export interface FreestyleMosaicCell {
-  slug: string;
-  label: string;
-  // Media view page for this clip in the Foundations of Freestyle gallery;
-  // null when the clip is not seeded (cell renders as an inert placeholder).
-  href: string | null;
-  mp4Url: string | null;
-  posterUrl: string | null;
-  // "Learn" destination: the atom's family page (family parents) or trick page;
-  // null when the destination is not yet worth linking (isFoundationLinkReady).
-  trickHref: string | null;
 }
 
 // "Freestyle by the Numbers" landing band: six summary cards, each a different
@@ -640,13 +626,20 @@ export interface FreestyleByNumbersCard {
   bars: FreestyleByNumbersBar[];
 }
 
+// "Freestyle by the Numbers" page: the histogram cards plus the shared
+// denominator note naming the population every card is a share of.
+export interface FreestyleByTheNumbersContent {
+  cards: FreestyleByNumbersCard[];
+  note: string;
+}
+
 // The pedagogical display grouping that splits the systems chart into two
 // readable columns: named launch/set systems in one, movement operators in the
 // other. This is a chart reading aid, not the canonical operator classification.
 // The authoritative per-operator role lives in freestyleOperatorReference; by that
 // doctrine paradox and symposium are operators, and they sit in this set-systems
 // column only so the chart can show how launch systems and body operators spread
-// differently across the vocabulary. The landing "by the numbers" band and the
+// differently across the vocabulary. The "Freestyle by the Numbers" page and the
 // glossary systems histogram both read this one set, so the two surfaces cannot
 // disagree about which column a system falls in.
 const MODIFIER_SET_SYSTEM_SLUGS: ReadonlySet<string> = new Set([
@@ -655,8 +648,8 @@ const MODIFIER_SET_SYSTEM_SLUGS: ReadonlySet<string> = new Set([
 
 // The two operator/set groups, each a share-of-dictionary histogram over the
 // public trick universe. Produced once by buildFreestyleByNumbers and consumed
-// by both the landing band and the glossary, so the counts, ordering, width
-// buckets, and labels are identical on both surfaces.
+// by both the by-the-numbers page and the glossary, so the counts, ordering,
+// width buckets, and labels are identical on both surfaces.
 export interface OperatorSystemGroups {
   operators:  FreestyleByNumbersBar[];   // movement / body / entry / suspension operators
   setSystems: FreestyleByNumbersBar[];   // named launch / set systems
@@ -787,15 +780,9 @@ export interface FreestyleLandingContent {
   // Featured strip — competition formats + curated demonstrations rendered
   // in one compact grid. Empty array hides the section content.
   featured: FreestyleFeaturedItem[];
-  // Lower enrichment band: 12 labelled core-atom cells, each loading a curated
-  // loop or showing a labelled empty tile. tricksMosaicHasClips is false until any
-  // clip is curated, which the landing uses to keep the band quiet meanwhile.
-  tricksMosaic: FreestyleMosaicCell[];
+  // False until at least one core-atom clip is curated. The landing links to the
+  // foundations media gallery only when the gallery has something in it.
   tricksMosaicHasClips: boolean;
-  // "Freestyle by the Numbers" band: six live histogram summary cards + a
-  // shared denominator note (all cards normalized to the trick-kind total).
-  byTheNumbers: FreestyleByNumbersCard[];
-  byTheNumbersNote: string;
   // Coming-soon gating for the Start Here / Go Deeper portal cards.
   totalTricks: number;
   totalRecords: number;
@@ -11929,6 +11916,43 @@ export const freestyleService = {
     };
   },
 
+  /**
+   * "Freestyle by the Numbers": the histogram cards that summarize how the
+   * dictionary distributes across difficulty, dexterity count, entry set,
+   * family ending, and body movement. Each card is a gateway into the browse
+   * view it counts, and every card shares one denominator so the cards are
+   * directly comparable.
+   */
+  getByTheNumbersPage(): PageViewModel<FreestyleByTheNumbersContent> {
+    const trickRows = runSqliteRead('freestyleTricks.listAll', () =>
+      freestyleTricks.listAll.all() as FreestyleTrickRow[],
+    );
+    const linkRows = runSqliteRead('freestyleTrickModifiers.listTricksByModifier', () =>
+      freestyleTrickModifiers.listTricksByModifier.all() as FreestyleTrickModifierLinkRow[],
+    );
+    const { cards, note } = buildFreestyleByNumbers(trickRows, linkRows);
+
+    return {
+      seo: {
+        title: 'Freestyle by the Numbers',
+        description: 'How the freestyle trick dictionary breaks down by difficulty, dexterity count, entry set, family ending, and body movement.',
+      },
+      page: {
+        sectionKey: 'freestyle',
+        pageKey:    'freestyle_by_the_numbers',
+        title:      'Freestyle by the Numbers',
+        intro:      'How the trick dictionary breaks down. Each card opens the browse view it counts.',
+      },
+      navigation: {
+        breadcrumbs: [
+          { label: 'Freestyle', href: '/freestyle' },
+          { label: 'Freestyle by the Numbers' },
+        ],
+      },
+      content: { cards, note },
+    };
+  },
+
   getLandingPage(): PageViewModel<FreestyleLandingContent> {
     const typeCounts = runSqliteRead('freestyleRecords.countPublicByType', () =>
       freestyleRecords.countPublicByType.all() as { record_type: string; n: number }[],
@@ -11940,33 +11964,10 @@ export const freestyleService = {
 
     const totalRecords = typeCounts.reduce((sum, r) => sum + r.n, 0);
 
-    const tricksMosaic = TRICKS_MOSAIC.map((atom) => {
-      const clip = loadMosaicVideo(atom.slug);
-      return {
-        slug: atom.slug,
-        label: atom.label,
-        // Each clip opens its media view page in the Foundations of Freestyle
-        // gallery (id must match curated/galleries/foundations_of_freestyle.json),
-        // so the mosaic behaves like every other video grid; null when unseeded.
-        href: clip ? `/media/gallery_foundations_of_freestyle/${clip.mediaId}` : null,
-        mp4Url: clip?.mp4Url ?? null,
-        posterUrl: clip?.posterUrl ?? null,
-        // Learn link to the atom's own page, shown only when the destination
-        // teaches something worthwhile; family parents link to their family page.
-        trickHref: isFoundationLinkReady(atom.slug)
-          ? (isOfficialFamilyParent(atom.slug)
-              ? `/freestyle/families/${atom.slug}`
-              : `/freestyle/tricks/${atom.slug}`)
-          : null,
-      };
-    });
-
-    const { cards: byTheNumbers, note: byTheNumbersNote } = buildFreestyleByNumbers(
-      trickRows,
-      runSqliteRead('freestyleTrickModifiers.listTricksByModifier', () =>
-        freestyleTrickModifiers.listTricksByModifier.all() as FreestyleTrickModifierLinkRow[],
-      ),
-    );
+    // The foundations clips are curated into their own media gallery, which the
+    // landing links to rather than embedding. The link renders only once at
+    // least one clip exists, so it never opens an empty gallery.
+    const tricksMosaicHasClips = TRICKS_MOSAIC.some((atom) => loadMosaicVideo(atom.slug) !== null);
 
     return {
       seo: {
@@ -11977,7 +11978,7 @@ export const freestyleService = {
         sectionKey: 'freestyle',
         pageKey:    'freestyle_landing',
         title:      'Freestyle Footbag',
-        intro: 'Learn the movements, watch the sport, and explore the trick vocabulary.',
+        intro: 'Learn the movements, watch videos, and explore the vocabulary.',
       },
       content: {
         mascotSrc: '/img/freestyle-mascot.svg',
@@ -11995,83 +11996,57 @@ export const freestyleService = {
           ],
         },
         demoVideo: loadSiteVideo('freestyle_demo'),
-        // Merged Featured strip:
-        // Competition Formats (4) + Demonstrations (2) rendered as one
-        // compact curated grid. Formats lead because they're conceptual
-        // anchors of the vocabulary; demonstrations follow as exemplars.
+        // Merged Featured strip: competition formats and demonstrations in one
+        // compact curated grid. Formats lead because they're conceptual anchors
+        // of the vocabulary; demonstrations follow as exemplars.
         // No prose paragraphs — captions are one-line context max.
         featured: [
-          {
-            key:     'routine',
-            title:   'Routine',
-            caption: 'Choreographed performance to music.',
-            media:   expandYouTubeVideo('Z-KkyOpoBhM', 'Yoshihito Yamamoto, Worlds Online 2020 Qualification Routine'),
-            tags:    [],
-          },
           {
             key:     'circle',
             title:   'Circle',
             caption: 'Turn-based show-off format.',
             media:   expandYouTubeVideo('aMr5e5wlgeE', 'Worlds 2017 Open Circle Finals'),
-            tags:    [],
           },
           {
             key:     'sick3',
             title:   'Sick 3',
             caption: 'Best-trick chain of three.',
             media:   expandYouTubeVideo('h6F0aPIpC1o', 'World Footbag Championships 2022: Sick 3'),
-            tags:    [],
           },
           {
             key:     'shred30',
             title:   'Shred 30',
             caption: 'Thirty-second technical scoring.',
             media:   expandYouTubeVideo('wb75xzvAs68', 'Taishi Ishida, World Footbag Championships 2020 Shred 30'),
-            tags:    [],
           },
           {
             key:     'reese-1988',
             title:   '1988 World Footbag Championships: Freestyle Routine',
             caption: 'Featuring Rick Reese (a representative of early freestyle).',
             media:   expandYouTubeVideo('Zdplm0_RaNY', 'Rick Reese, Worlds 1988 Freestyle Routine'),
-            tags:    shapeMediaTagsForBrowse(
-                       ['#freestyle', '#footbag_hof_archive', '#worlds_1988'],
-                     ),
           },
           {
             key:     'conlon-1998',
             title:   "1998 World Footbag Championships Women's Freestyle Finals",
             caption: 'Samantha Conlon and Carol Wedemeyer.',
             media:   expandYouTubeVideo('2URvZFuxBls', "1998 Worlds Women's Freestyle Finals"),
-            tags:    shapeMediaTagsForBrowse(
-                       ['#freestyle', '#footbag_hof_archive'],
-                     ),
           },
           {
             key:     'worlds-2023-team',
             title:   'World Footbag Championships 2023: Team Freestyle Finals (1st Place)',
             caption: 'Scott Davidson and Tuan Vu. Medellín, Colombia.',
             media:   expandYouTubeVideo('xoDEvsbQDYk', 'Worlds 2023 Team Freestyle Finals, 1st Place'),
-            tags:    shapeMediaTagsForBrowse(
-                       ['#freestyle', '#worlds_2023', '#team'],
-                     ),
           },
           {
             key:     'san-marino-2026',
             title:   'Footbag 2026: San Marino',
             caption: 'Featuring Jim Penske; footage by jay7bah.',
             media:   expandYouTubeVideo('U6J2LXxUWro', 'Footbag 2026: San Marino'),
-            tags:    shapeMediaTagsForBrowse(
-                       ['#freestyle', '#by_jay7bah'],
-                     ),
           },
         ],
         totalTricks:  trickRows.length,
         totalRecords,
-        tricksMosaic,
-        tricksMosaicHasClips: tricksMosaic.some((c) => c.mp4Url !== null),
-        byTheNumbers,
-        byTheNumbersNote,
+        tricksMosaicHasClips,
       },
     };
   },

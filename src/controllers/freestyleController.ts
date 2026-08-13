@@ -169,6 +169,16 @@ export const freestyleController = {
     }
   },
 
+  /** GET /freestyle/by-the-numbers */
+  byTheNumbers(_req: Request, res: Response, next: NextFunction): void {
+    try {
+      const vm = freestyleService.getByTheNumbersPage();
+      res.render('freestyle/by-the-numbers', vm);
+    } catch (err) {
+      handleControllerError(err, res, next, 'freestyle controller');
+    }
+  },
+
   /** GET /freestyle/about */
   about(_req: Request, res: Response, next: NextFunction): void {
     try {

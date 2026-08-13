@@ -299,26 +299,24 @@ describe('GET /freestyle/combo-analysis — wording discipline', () => {
   });
 });
 
-describe('Landing portal-card inbound link to combo-analysis', () => {
-  it('freestyle landing portal-cards grid links to /freestyle/combo-analysis', async () => {
+describe('Freestyle landing inbound links to the analysis pages', () => {
+  it('freestyle landing links to /freestyle/combo-analysis', async () => {
     const res = await request(createApp()).get('/freestyle');
     expect(res.status).toBe(200);
     expect(res.text).toContain('href="/freestyle/combo-analysis"');
   });
 
-  it('add-analysis and combo-analysis co-locate inside exactly one Go Deeper card', async () => {
-    // Structural invariant: the two-band landing groups
-    // /freestyle/add-analysis and /freestyle/combo-analysis into a
-    // single "Scoring & Combos" Go Deeper card. Splitting on
-    // `<div class="card` yields one chunk per card; exactly one chunk
-    // must contain both hrefs.
+  it('both analysis surfaces are reachable, each as its own titled landing tile', async () => {
+    // Durable contract: the freestyle landing offers ADD Analysis and
+    // Scoring & Combos as separate labelled destinations, so a reader can
+    // reach either without knowing the other exists. Which landing section
+    // each tile sits in is an editorial placement, not a contract.
     const res = await request(createApp()).get('/freestyle');
-    const cards = res.text.split('<div class="card');
-    const cardsWithBoth = cards.filter(
-      (c) =>
-        c.includes('href="/freestyle/add-analysis"') &&
-        c.includes('href="/freestyle/combo-analysis"'),
+    expect(res.text).toMatch(
+      /<a class="banner-tile" href="\/freestyle\/add-analysis">\s*<span class="banner-tile-title">ADD Analysis<\/span>/,
     );
-    expect(cardsWithBoth).toHaveLength(1);
+    expect(res.text).toMatch(
+      /<a class="banner-tile" href="\/freestyle\/combo-analysis">\s*<span class="banner-tile-title">Scoring &amp; Combos<\/span>/,
+    );
   });
 });

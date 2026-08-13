@@ -2045,7 +2045,7 @@ describe('Landing — legacy landing grids retired', () => {
 describe('Freestyle landing — Featured strip', () => {
   // Competition Formats +
   // Demonstrations render as one compact `Featured` strip. Format names
-  // (Routine / Circle / Sick 3 / Shred 30) are the card titles; curated
+  // (Circle / Sick 3 / Shred 30) are the card titles; curated
   // demonstrations follow as exemplars. Empty array hides section content.
   it('renders the Featured heading + grid', async () => {
     const res = await request(createApp()).get('/freestyle');
@@ -2053,9 +2053,8 @@ describe('Freestyle landing — Featured strip', () => {
     expect(res.text).toMatch(/<h2>Featured Videos<\/h2>/);
   });
 
-  it('renders all four competition-format names as card titles', async () => {
+  it('renders every competition-format name as a card title', async () => {
     const res = await request(createApp()).get('/freestyle');
-    expect(res.text).toMatch(/>Routine</);
     expect(res.text).toMatch(/>Circle</);
     expect(res.text).toMatch(/>Sick 3</);
     expect(res.text).toMatch(/>Shred 30</);
