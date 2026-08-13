@@ -51,7 +51,8 @@ empty state, and notice / coming-soon block. A new page
 joins the standard only if it can be expressed through these. A genuinely new reusable primitive is
 added to the standard first, then applied across the relevant pages, never invented per page.
 
-The page hero carries only its own parts (eyebrow, title, subtitle, notice). Primary navigation, back
+The page hero carries only its own parts (eyebrow, title, subtitle, notice, and at most one
+call-to-action button, rendered with the dark-panel button treatment). Primary navigation, back
 links, and item pagers belong in the page body, never in the hero. Never render the same action's
 label twice on one page (for example a "Back to results" link in both the hero and the pager); one
 control reads cleaner. Keep visible spacing between the hero and the first content block, and between
