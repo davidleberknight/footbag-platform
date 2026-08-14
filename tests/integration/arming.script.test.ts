@@ -68,6 +68,15 @@ const BASE_TFVARS = [
   'email_send_armed = "dark"',
 ];
 
+// A dry run resolves the values file before it prints anything, and the real
+// one is a gitignored symlink into the maintainers' private checkout, so it is
+// absent on any machine that does not hold that checkout. Every dry run under
+// test therefore supplies a synthetic values file; without one the script exits
+// on the missing path and none of the plan text these tests read is produced.
+function dryRun(args: string[], tfvarsLines: string[] = BASE_TFVARS): RunResult {
+  return run(ARMING, [...args, '--tfvars', writeTfvars(tfvarsLines), '--dry-run']);
+}
+
 describe('arming.sh — argument validation', () => {
   it('rejects an unknown argument', () => {
     const res = run(ARMING, ['--bogus']);
@@ -102,7 +111,7 @@ describe('arming.sh — argument validation', () => {
 
 describe('arming.sh — the plan states the safe order', () => {
   it('disarming puts the Stripe endpoint first, before anything local changes', () => {
-    const res = run(ARMING, ['--target', 'production', '--state', 'dark', '--dry-run']);
+    const res = dryRun(['--target', 'production', '--state', 'dark']);
     expect(res.exitCode).toBe(0);
     const endpointStep = res.stdout.indexOf('DISABLED in the dashboard');
     const tfvarsStep = res.stdout.indexOf('Rewrite payments_armed');
@@ -115,20 +124,20 @@ describe('arming.sh — the plan states the safe order', () => {
   });
 
   it('arming skips the endpoint-disable step, which applies only to going dark', () => {
-    const res = run(ARMING, ['--target', 'production', '--state', 'armed', '--dry-run']);
+    const res = dryRun(['--target', 'production', '--state', 'armed']);
     expect(res.exitCode).toBe(0);
     expect(res.stdout).toMatch(/no provider-side precondition/);
     expect(res.stdout).not.toMatch(/DISABLED in the dashboard/);
   });
 
   it('never plans a data-replacing deploy', () => {
-    const res = run(ARMING, ['--target', 'production', '--state', 'dark', '--dry-run']);
+    const res = dryRun(['--target', 'production', '--state', 'dark']);
     expect(res.stdout).toMatch(/code-only; never --all-data/);
     expect(res.stdout).not.toMatch(/--soup-to-nuts|--from-csv/);
   });
 
   it('warns that disarming manufactures one false reconciliation issue', () => {
-    const res = run(ARMING, ['--target', 'production', '--state', 'dark', '--dry-run']);
+    const res = dryRun(['--target', 'production', '--state', 'dark']);
     expect(res.stdout).toMatch(/false reconciliation issue/);
   });
 });
@@ -267,18 +276,20 @@ describe('arming.sh — the email switch', () => {
     // Arming email without the feedback key does not fail to send mail, it
     // stops the process starting. That is the one fact an operator must have
     // before they run this, so the plan has to state it.
-    const res = run(ARMING, [
-      '--target', 'production', '--switch', 'email', '--state', 'armed', '--dry-run',
-    ]);
+    const res = dryRun(
+      ['--target', 'production', '--switch', 'email', '--state', 'armed'],
+      EMAIL_TFVARS,
+    );
     expect(res.exitCode).toBe(0);
     expect(res.stdout).toMatch(/REFUSES TO BOOT/);
     expect(res.stdout).toMatch(/SES_FEEDBACK_WEBHOOK_KEY/);
   });
 
   it('warns that arming email withdraws the on-screen verification link', () => {
-    const res = run(ARMING, [
-      '--target', 'production', '--switch', 'email', '--state', 'armed', '--dry-run',
-    ]);
+    const res = dryRun(
+      ['--target', 'production', '--switch', 'email', '--state', 'armed'],
+      EMAIL_TFVARS,
+    );
     expect(res.stdout).toMatch(/verification\s+link on screen/);
   });
 
@@ -313,9 +324,10 @@ describe('arming.sh — the email switch', () => {
   });
 
   it('does not ask about the Stripe endpoint when the switch is email', () => {
-    const res = run(ARMING, [
-      '--target', 'production', '--switch', 'email', '--state', 'dark', '--dry-run',
-    ]);
+    const res = dryRun(
+      ['--target', 'production', '--switch', 'email', '--state', 'dark'],
+      EMAIL_TFVARS,
+    );
     expect(res.stdout).not.toMatch(/DISABLED in the dashboard/);
     expect(res.stdout).toMatch(/no provider-side precondition/);
   });
