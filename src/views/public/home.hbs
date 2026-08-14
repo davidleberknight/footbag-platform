@@ -2,7 +2,6 @@
   <div>
     <h1>{{hero.heading}}</h1>
     {{#if hero.subheading}}<p>{{hero.subheading}}</p>{{/if}}
-    {{#if hero.cta}}<a href="{{hero.cta.href}}" class="btn btn-inverse mt-4">{{hero.cta.label}}</a>{{/if}}
     {{#if page.notice}}<div class="notice">{{page.notice}}</div>{{/if}}
   </div>
 </div>
@@ -18,7 +17,7 @@
         <div class="card">
           <div class="card-title">{{label}}</div>
           <p class="card-description">{{description}}</p>
-          <a href="{{href}}" class="btn {{#if (eq variant 'primary')}}btn-primary{{else}}btn-outline{{/if}}">{{#if ctaLabel}}{{ctaLabel}}{{else}}{{label}}{{/if}}</a>
+          <a href="{{href}}" class="btn {{#if (eq variant 'primary')}}btn-primary{{else}}btn-outline{{/if}}">{{label}}</a>
         </div>
       {{/each}}
       {{#each comingSoonSections}}

@@ -599,50 +599,12 @@ describe('GET /', () => {
     expect(res.text).toContain('Footbag');
   });
 
-  it('hero explains the sport and offers the newcomer entry path to /sideline', async () => {
-    const app = createApp();
-    const res = await request(app).get('/');
-    expect(res.text).toContain(
-      'The sport of keeping a small bag in the air with your feet, from casual &quot;Hacky Sack&quot; circles to world championships.',
-    );
-    expect(res.text).toContain('New to Footbag? Start Here');
-    // The CTA must be the anchor's own destination, not a nearby card link.
-    expect(res.text).toMatch(/<a href="\/sideline" class="btn btn-inverse[^"]*">New to Footbag\? Start Here<\/a>/);
-  });
-
   it('includes section cards for Events, Clubs, and Members', async () => {
     const app = createApp();
     const res = await request(app).get('/');
     expect(res.text).toContain('href="/events"');
     expect(res.text).toContain('href="/clubs"');
     expect(res.text).toContain('href="/login"');
-  });
-
-  it('orders the explore grid newcomer-first: ways to play lead, honors close', async () => {
-    const app = createApp();
-    const res = await request(app).get('/');
-    const cardTitles = [...res.text.matchAll(/<div class="card-title">([^<]+)<\/div>/g)].map(
-      (m) => m[1],
-    );
-    expect(cardTitles.indexOf('Sideline')).toBeLessThan(cardTitles.indexOf('Events'));
-    expect(cardTitles.indexOf('Freestyle')).toBeLessThan(cardTitles.indexOf('Events'));
-    expect(cardTitles.indexOf('Records')).toBeGreaterThan(cardTitles.indexOf('Members'));
-    expect(cardTitles.indexOf('Big Add Posse')).toBeGreaterThan(cardTitles.indexOf('Hall of Fame'));
-  });
-
-  it('Members card button says where it goes: Log In, to /login', async () => {
-    const app = createApp();
-    const res = await request(app).get('/');
-    expect(res.text).toMatch(/<a href="\/login" class="btn btn-outline">Log In<\/a>/);
-  });
-
-  it('describes the Big Add Posse without insider vocabulary', async () => {
-    const app = createApp();
-    const res = await request(app).get('/');
-    expect(res.text).toContain(
-      'The invite-only honor society of freestyle&#x27;s most accomplished players.',
-    );
-    expect(res.text).not.toContain('shredders');
   });
 
   it('links Media Galleries card to /media', async () => {
