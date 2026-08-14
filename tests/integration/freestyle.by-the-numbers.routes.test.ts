@@ -36,7 +36,7 @@ describe('GET /freestyle/by-the-numbers', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('Freestyle by the Numbers');
     expect(res.text).toContain('by-numbers-grid');
-    for (const title of ['ADD', 'Dexterity', 'Entry sets', 'Family endings', 'Body movements']) {
+    for (const title of ['ADD', 'Dexterity', 'Entry elements', 'Family endings', 'Body movements']) {
       expect(res.text).toContain(title);
     }
     expect(res.text).toContain('Clipper Stall');

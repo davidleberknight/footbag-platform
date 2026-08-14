@@ -6,14 +6,14 @@
  *      renders modifier-grouped trick lists, NOT the Set Encyclopedia surface.
  *   2. Set Encyclopedia remains separate at `/freestyle/sets` (sets-
  *      encyclopedia.hbs template), and is the canonical set-specific surface.
- *   6. `?view=modifier` is not a supported view value: it falls through to the
- *      default ADD view, with no alias and no redirect, and no rendered page
- *      links to it.
  *   3. Ecosystem findability: fairy / spinning / stepping / quantum /
  *      ducking sections each surface their modifier-linked tricks.
  *   4. `spinning-paradox-mirage` reaches both spinning and paradox sections.
  *   5. No raw operational notation leaks outside the dictionary-trick-card
  *      partial's standardized JOB block.
+ *   6. `?view=sets` is not a supported view value: it falls through to the
+ *      default ADD view, with no alias and no redirect, and no rendered page
+ *      links to it.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';

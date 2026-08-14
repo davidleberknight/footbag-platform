@@ -3616,6 +3616,11 @@ a.hashtag--media:hover {
 .trick-view-toggle a:hover { color: var(--primary-dk); }
 .trick-view-toggle-active { font-weight: 600; color: var(--text); }
 .trick-view-toggle-sep { margin: 0 6px; opacity: 0.5; }
+/* "Other views" disclosure inside the view toggle: the specialist browse views
+   sit behind one native-marker summary so the prominent row stays short. */
+.trick-view-toggle-other { margin-top: 6px; }
+.trick-view-toggle-other summary { cursor: pointer; color: var(--primary); }
+.trick-view-toggle-other-row { display: inline-block; padding: 4px 0 0 18px; }
 
 /* The ADD section count reads as words beside the heading ("39 tricks"), so it
    needs no pill: the tint and border were carrying meaning the noun now
@@ -3637,6 +3642,7 @@ a.hashtag--media:hover {
   padding: 20px 0 0;
 }
 .trick-modifier-group { margin-bottom: 28px; }
+.trick-set-group { margin-bottom: 28px; }
 
 .trick-list {
   list-style: none;
@@ -6835,27 +6841,6 @@ a.trick-hero-meta-chip--media:hover {
   font-size: 0.9rem;
   color: var(--earth-450);
   margin-top: 0.4rem;
-  line-height: 1.45;
-}
-
-/* PassBack "Set List" historical chart on the Set Encyclopedia landing.
-   Large enough to read on desktop, responsive on mobile (global img rule
-   keeps it within the container). */
-.setlist-figure {
-  margin: 1.5rem auto 2rem auto;
-  max-width: 900px;
-  text-align: center;
-}
-.setlist-figure img {
-  width: 100%;
-  height: auto;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-}
-.setlist-figure figcaption {
-  font-size: 0.9rem;
-  color: var(--earth-450);
-  margin-top: 0.5rem;
   line-height: 1.45;
 }
 

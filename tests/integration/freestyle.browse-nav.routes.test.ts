@@ -2,13 +2,21 @@
  * Browse-shell top-nav consistency guard.
  *
  * The view-toggle nav (`<nav class="trick-view-toggle">`) is a single shared
- * template block rendered identically on every primary browse view. This test
- * pins that consistency so a future change can't reintroduce a per-view nav
- * variant, reorder the items, or revert "By modifier" to the old "By set".
+ * template block rendered identically on every primary browse view. The
+ * prominent row carries only the primary browse axes; the specialist views
+ * live behind an "Other views" disclosure that renders open when the active
+ * view is inside it. This test pins that consistency so a future change can't
+ * reintroduce a per-view nav variant, reorder the items, or promote a
+ * specialist view back into the prominent row.
  *
- * Canonical order (one source of truth in tricks.hbs):
- *   By ADD · By family · By movement system · Movement Neighborhoods ·
+ * Canonical structure (one source of truth in tricks.hbs):
+ *   Prominent: By ADD · By family · By set
+ *   Other views (disclosure): By movement system · Movement Neighborhoods ·
  *   By dex count · By modifier
+ *
+ * "By set" is its own first-class view (?view=set, the set / uptime systems
+ * only); the modifier view keeps its "By modifier" label and its broader
+ * operator scope. The two labels never collapse onto one view.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -40,15 +48,20 @@ afterAll(() => cleanupTestDb(dbPath));
 const VIEWS: Array<[string, string]> = [
   ['add', 'By ADD'],
   ['family', 'By family'],
+  ['set', 'By set'],
   ['movement-system', 'By movement system'],
   ['topology', 'Movement Neighborhoods'],
   ['dex-count', 'By dex count'],
   ['modifier', 'By modifier'],
 ];
 
+// The specialist views that live inside the "Other views" disclosure.
+const OTHER_VIEWS = new Set(['movement-system', 'topology', 'dex-count', 'modifier']);
+
 const CANONICAL_ORDER = [
   'By ADD',
   'By family',
+  'By set',
   'By movement system',
   'Movement Neighborhoods',
   'By dex count',
@@ -85,6 +98,36 @@ describe('Browse-shell nav — consistency across all six primary views', () => 
     }
   });
 
+  it('the specialist views sit inside the "Other views" disclosure', async () => {
+    for (const [view] of VIEWS) {
+      const nav = await fetchNav(view);
+      const details = nav.match(/<details class="trick-view-toggle-other"[^>]*>.*?<\/details>/s);
+      expect(details, `${view} nav has the Other views disclosure`).not.toBeNull();
+      expect(details![0]).toContain('<summary>Other views</summary>');
+      // Every specialist label is inside the disclosure, and the two prominent
+      // labels are outside it.
+      const inside = details![0];
+      for (const label of ['By movement system', 'Movement Neighborhoods', 'By dex count', 'By modifier']) {
+        expect(inside, `"${label}" lives inside the disclosure`).toContain(label);
+      }
+      const outside = nav.replace(inside, '');
+      for (const label of ['By ADD', 'By family', 'By set']) {
+        expect(outside, `"${label}" stays in the prominent row`).toContain(label);
+      }
+      for (const label of ['By movement system', 'Movement Neighborhoods', 'By dex count', 'By modifier']) {
+        expect(outside, `"${label}" does not also render outside the disclosure`).not.toContain(label);
+      }
+    }
+  });
+
+  it('the disclosure renders open exactly when the active view lives inside it', async () => {
+    for (const [view] of VIEWS) {
+      const nav = await fetchNav(view);
+      const isOpen = /<details class="trick-view-toggle-other" open>/.test(nav);
+      expect(isOpen, `${view}: disclosure open state`).toBe(OTHER_VIEWS.has(view));
+    }
+  });
+
   it('each view marks the correct active nav item', async () => {
     for (const [view, activeLabel] of VIEWS) {
       const nav = await fetchNav(view);
@@ -97,21 +140,17 @@ describe('Browse-shell nav — consistency across all six primary views', () => 
     }
   });
 
-  it('nav uses "By modifier" wording, never the old "By set"', async () => {
+  it('"By set" and "By modifier" stay two distinct entries with their own views, and no legacy label returns', async () => {
+    const LEGACY_LABELS = [/>By category</, />By component</, />By topology</, />Topology</];
     for (const [view] of VIEWS) {
       const nav = await fetchNav(view);
       expect(nav, `${view} nav includes "By modifier"`).toContain('By modifier');
-      expect(nav, `${view} nav must not say "By set"`).not.toMatch(/>By set</);
-    }
-  });
-
-  it('no view renders a unique or legacy nav variant', async () => {
-    // Same separator count (5 between 6 items) and no retired labels anywhere.
-    const LEGACY_LABELS = [/>By set</, />By category</, />By component</, />By topology</, />Topology</];
-    for (const [view] of VIEWS) {
-      const nav = await fetchNav(view);
-      const sepCount = (nav.match(/class="trick-view-toggle-sep"/g) ?? []).length;
-      expect(sepCount, `${view} separator count`).toBe(CANONICAL_ORDER.length - 1);
+      expect(nav, `${view} nav includes "By set"`).toContain('By set');
+      // "By set" resolves to ?view=set only, never to the modifier view.
+      expect(nav).not.toMatch(/href="\/freestyle\/tricks\?view=modifier"[^>]*>By set</);
+      if (view !== 'set') {
+        expect(nav, `${view} nav links By set to ?view=set`).toMatch(/href="\/freestyle\/tricks\?view=set"[^>]*>By set</);
+      }
       for (const legacy of LEGACY_LABELS) {
         expect(nav, `${view} nav must not contain a legacy label ${legacy}`).not.toMatch(legacy);
       }

@@ -55,6 +55,12 @@ describe('GET /freestyle/start — novice page contract', () => {
     expect(html).toContain('Getting Started with Freestyle');
   });
 
+  it('carries no demo video: the clip renders on the freestyle landing alone', async () => {
+    const html = await page('/freestyle/start');
+    expect(html).not.toContain('demo-video');
+    expect(html).not.toContain('<video');
+  });
+
   it('defines stall, set, catch, and dexterity before the Mirage section', async () => {
     const html = await page('/freestyle/start');
     const mirageAt = html.indexOf('Your first named trick');

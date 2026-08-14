@@ -145,29 +145,42 @@
       <a title="{{content.navSection.viewTitles.family}}" href="/freestyle/tricks?view=family">By family</a>
     {{/if}}
     <span class="trick-view-toggle-sep">·</span>
-    {{#if (eq content.activeView "movement-system")}}
-      <span title="{{content.navSection.viewTitles.movementSystem}}" class="trick-view-toggle-active">By movement system</span>
+    {{#if (eq content.activeView "set")}}
+      <span title="{{content.navSection.viewTitles.set}}" class="trick-view-toggle-active">By set</span>
     {{else}}
-      <a title="{{content.navSection.viewTitles.movementSystem}}" href="/freestyle/tricks?view=movement-system">By movement system</a>
+      <a title="{{content.navSection.viewTitles.set}}" href="/freestyle/tricks?view=set">By set</a>
     {{/if}}
-    <span class="trick-view-toggle-sep">·</span>
-    {{#if (eq content.activeView "topology")}}
-      <span title="{{content.navSection.viewTitles.topology}}" class="trick-view-toggle-active">Movement Neighborhoods</span>
-    {{else}}
-      <a title="{{content.navSection.viewTitles.topology}}" href="/freestyle/tricks?view=topology">Movement Neighborhoods</a>
-    {{/if}}
-    <span class="trick-view-toggle-sep">·</span>
-    {{#if (eq content.activeView "dex-count")}}
-      <span title="{{content.navSection.viewTitles.dexCount}}" class="trick-view-toggle-active">By dex count</span>
-    {{else}}
-      <a title="{{content.navSection.viewTitles.dexCount}}" href="/freestyle/tricks?view=dex-count">By dex count</a>
-    {{/if}}
-    <span class="trick-view-toggle-sep">·</span>
-    {{#if (eq content.activeView "modifier")}}
-      <span title="{{content.navSection.viewTitles.modifier}}" class="trick-view-toggle-active">By modifier</span>
-    {{else}}
-      <a title="{{content.navSection.viewTitles.modifier}}" href="/freestyle/tricks?view=modifier">By modifier</a>
-    {{/if}}
+    {{! The specialist views stay reachable behind one disclosure so the
+        prominent row carries only the primary browse axes. Rendered open when
+        the active view lives inside it, so the active entry is visible. }}
+    <details class="trick-view-toggle-other"{{#if content.navSection.otherViewsOpen}} open{{/if}}>
+      <summary>Other views</summary>
+      <span class="trick-view-toggle-other-row">
+        {{#if (eq content.activeView "movement-system")}}
+          <span title="{{content.navSection.viewTitles.movementSystem}}" class="trick-view-toggle-active">By movement system</span>
+        {{else}}
+          <a title="{{content.navSection.viewTitles.movementSystem}}" href="/freestyle/tricks?view=movement-system">By movement system</a>
+        {{/if}}
+        <span class="trick-view-toggle-sep">·</span>
+        {{#if (eq content.activeView "topology")}}
+          <span title="{{content.navSection.viewTitles.topology}}" class="trick-view-toggle-active">Movement Neighborhoods</span>
+        {{else}}
+          <a title="{{content.navSection.viewTitles.topology}}" href="/freestyle/tricks?view=topology">Movement Neighborhoods</a>
+        {{/if}}
+        <span class="trick-view-toggle-sep">·</span>
+        {{#if (eq content.activeView "dex-count")}}
+          <span title="{{content.navSection.viewTitles.dexCount}}" class="trick-view-toggle-active">By dex count</span>
+        {{else}}
+          <a title="{{content.navSection.viewTitles.dexCount}}" href="/freestyle/tricks?view=dex-count">By dex count</a>
+        {{/if}}
+        <span class="trick-view-toggle-sep">·</span>
+        {{#if (eq content.activeView "modifier")}}
+          <span title="{{content.navSection.viewTitles.modifier}}" class="trick-view-toggle-active">By modifier</span>
+        {{else}}
+          <a title="{{content.navSection.viewTitles.modifier}}" href="/freestyle/tricks?view=modifier">By modifier</a>
+        {{/if}}
+      </span>
+    </details>
   </nav>
   {{! Reference surfaces that are NOT dictionary browse axes, so they never
       belong in the View row above. This carried the browse grid's two
@@ -318,6 +331,42 @@
   {{else}}
   <section class="content-section">
     <p class="detail-muted"><em>No tricks currently link to a registered modifier. As the dictionary expands, this view populates from <code>freestyle_trick_modifier_links</code>.</em></p>
+  </section>
+  {{/if}}
+  {{/if}}
+
+  {{! ── By set view — the set / uptime systems as first-class sections
+      ("which tricks begin with this set?"). Split from the modifier view
+      along the set-uptime cluster seam; body and timing operators stay in
+      ?view=modifier, and the Set Encyclopedia at /freestyle/sets remains the
+      set-definition reference. Same two-line row contract as the other
+      row-density views. }}
+  {{#if (eq content.activeView "set")}}
+  {{#if content.setViewIntro}}<p class="browse-view-intro">{{content.setViewIntro}} For what each set actually is, see the <a href="/freestyle/sets">Set Encyclopedia</a>. For body and timing operators, use <a href="/freestyle/tricks?view=modifier">By modifier</a>.</p>{{/if}}
+  {{#if content.setScale}}<p class="browse-view-scale">{{content.setScale}}</p>{{/if}}
+  {{#if content.setViewGroups.length}}
+  <nav class="jump-bar jump-bar--inline" aria-label="Set jump">
+    {{#each content.setViewGroups}}
+      <a href="#set-{{slug}}">{{label}}</a>{{#unless @last}} <span class="jump-bar-sep">·</span> {{/unless}}
+    {{/each}}
+  </nav>
+
+  {{#each content.setViewGroups}}
+  <section class="content-section trick-set-group" id="set-{{slug}}" data-anchor-style="solid">
+    <div class="section-heading">
+      <h2><a href="/freestyle/tricks?view=set#set-{{slug}}">{{label}}</a></h2>
+      <span class="section-count">{{trickCount}}</span>
+    </div>
+    <div class="dict-trick-row-stack">
+      {{#each cards}}
+        {{> dictionary-trick-row}}
+      {{/each}}
+    </div>
+  </section>
+  {{/each}}
+  {{else}}
+  <section class="content-section">
+    <p class="detail-muted"><em>No tricks currently link to a named set. As the dictionary expands, this view populates from <code>freestyle_trick_modifier_links</code>.</em></p>
   </section>
   {{/if}}
   {{/if}}

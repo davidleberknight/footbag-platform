@@ -740,7 +740,11 @@ function buildFreestyleByNumbers(
     // tricks, and the card note carries the derived pending-notation count.
     { key: 'dexterity', eyebrow: 'How many dexes define tricks?', title: 'Dexterity',
       viewKey: 'dex-count', footnote: null, bars: ordered(dex, ['0', '1', '2', '3+']) },
-    { key: 'entry', eyebrow: 'How do tricks begin?', title: 'Entry sets',
+    // "Entry elements" by design: this chart counts what a trick begins with
+    // as a functional category (catch surfaces, launch sets, and the entry
+    // operators paradox and symposium together), deliberately not the
+    // set/modifier taxonomy, whose authority stays in operatorReference.
+    { key: 'entry', eyebrow: 'How do tricks begin?', title: 'Entry elements',
       viewKey: 'modifier', footnote: null, bars: top(entry, 20) },
     { key: 'terminal', eyebrow: 'How do tricks finish?', title: 'Family endings',
       viewKey: 'family', footnote: null, bars: histTop(FAMILY_HISTOGRAM, 20) },
@@ -2808,7 +2812,7 @@ export interface DictionaryTrickCard {
   firstClassChainIncomplete:   boolean;
 }
 
-export type FreestyleTricksActiveView = 'add' | 'family' | 'category' | 'modifier' | 'component' | 'topology' | 'movement-system' | 'dex-count';
+export type FreestyleTricksActiveView = 'add' | 'family' | 'set' | 'category' | 'modifier' | 'component' | 'topology' | 'movement-system' | 'dex-count';
 
 export type SetSubtypeKey =
   | 'true-core'
@@ -3057,6 +3061,17 @@ export interface FreestyleModifierGroup {
   trickCount: number;
 }
 
+// One section of the first-class "By set" browse view (?view=set): a named
+// set / uptime system and the tricks that open with it. Split from the
+// modifier-view machinery along the set-uptime cluster seam, so body and
+// timing operators stay in ?view=modifier and never appear here.
+export interface FreestyleSetViewGroup {
+  slug: string;          // set modifier slug; drives the `set-{slug}` anchor
+  label: string;         // display-cased set name (e.g. "Pixie")
+  cards: DictionaryTrickCard[];
+  trickCount: number;
+}
+
 // Cross-link from a family-filtered dictionary view to a section in the
 // ?view=modifier projection. Surfaces the modifiers used by tricks in the
 // active family. Driven entirely by freestyle_trick_modifier_links —
@@ -3215,6 +3230,9 @@ export interface FreestyleTricksIndexContent {
   // ?view=modifier cluster grouping (organizational): non-empty clusters in display
   // order, each wrapping its active modifier groups.
   modifierClusterView: ModifierClusterView[];
+  // First-class "By set" view (?view=set): the set / uptime systems only, in
+  // the cluster's declared order, each with its trick rows. Empty groups drop.
+  setViewGroups: FreestyleSetViewGroup[];
   // Component view (?view=component). Body + set modifier axes only.
   componentView: ComponentBrowseView;
   // Topology view (?view=topology). Six pedagogically-
@@ -3245,11 +3263,13 @@ export interface FreestyleTricksIndexContent {
   movementSystemScale: string | null;
   modifierScale: string | null;
   topologyScale: string | null;
+  setScale: string | null;
   // Per-view section intros, service-shaped like familyViewIntro so the copy
   // standard holds (no hardcoded section copy in the template). The dex-count
   // and modifier views carried theirs inline before.
   dexCountIntro: string | null;
   modifierIntro: string | null;
+  setViewIntro: string | null;
   // Per-view intro for the movement-system view, service-shaped so copy has a
   // single source of truth (the template appends the cross-links).
   movementSystemIntro: string | null;
@@ -3276,9 +3296,14 @@ export interface FreestyleTricksIndexContent {
     heading: string;
     viewLabel: string;
     sortLabel: string;
+    // True when the active view is one of the specialist views living inside
+    // the "Other views" disclosure, so the disclosure renders open and the
+    // active entry is visible without a click.
+    otherViewsOpen: boolean;
     viewTitles: {
       add: string;
       family: string;
+      set: string;
       movementSystem: string;
       topology: string;
       dexCount: string;
@@ -8945,7 +8970,7 @@ export const freestyleService = {
     const documentedUniverseTotal = OBSERVATIONAL_UNIVERSE_STATS.universeTotal;
 
     // ---- View toggle --------------------------------------------------
-    const allowedViews: FreestyleTricksActiveView[] = ['add', 'family', 'category', 'modifier', 'component', 'topology', 'movement-system', 'dex-count'];
+    const allowedViews: FreestyleTricksActiveView[] = ['add', 'family', 'set', 'category', 'modifier', 'component', 'topology', 'movement-system', 'dex-count'];
     const requestedView = (view ?? 'add') as FreestyleTricksActiveView;
     // A value outside the allow-list falls through to the default ADD view
     // rather than erroring. The soft-retired component view keeps resolving
@@ -9484,6 +9509,22 @@ export const freestyleService = {
       })
       .filter(c => c.bands.length > 0);
 
+    // First-class "By set" browse view: the set / uptime systems only, split
+    // from the modifier machinery along the set-uptime cluster seam. Sections
+    // follow the cluster's declared order; rows reuse the modifier groups'
+    // structural ordering (family, then ADD, then rung, then name). Body and
+    // timing operators stay in ?view=modifier.
+    const setClusterSlugs = MODIFIER_CLUSTERS.find(c => c.key === 'set-uptime')?.modifiers ?? [];
+    const setViewGroups: FreestyleSetViewGroup[] = setClusterSlugs
+      .map(slug => modifierGroups.find(g => g.modifierSlug === slug))
+      .filter((g): g is FreestyleModifierGroup => g !== undefined && g.cards.length > 0)
+      .map(g => ({
+        slug:       g.modifierSlug,
+        label:      g.modifierName.charAt(0).toUpperCase() + g.modifierName.slice(1),
+        cards:      g.cards,
+        trickCount: g.trickCount,
+      }));
+
     // Per-view scale sentences. Counts are derived from the SAME group arrays
     // the templates render, so they always match the visible sections/cards.
     const plural = (n: number, one: string, many: string): string => (n === 1 ? one : many);
@@ -9516,6 +9557,14 @@ export const freestyleService = {
         : '');
     const modifierIntro =
       'Tricks grouped by the set or body modifier they use. Each section answers: which tricks use this set or modifier?';
+
+    const setViewIntro =
+      'Tricks grouped by the named set they open with. Each section answers: which tricks begin with this set?';
+    const setMemberships = setViewGroups.reduce((n, g) => n + g.cards.length, 0);
+    const setScale =
+      `${setViewGroups.length} ${plural(setViewGroups.length, 'set', 'sets')} · ` +
+      `${setMemberships} trick-row ${plural(setMemberships, 'membership', 'memberships')} shown. ` +
+      'A trick that uses more than one set appears under each.';
 
     const movementMemberships = movementSystemView.axes.reduce(
       (n, a) => n + a.cards.length, 0);
@@ -9592,6 +9641,7 @@ export const freestyleService = {
         familyJumpIndex,
         modifierGroups,
         modifierClusterView,
+        setViewGroups,
         componentView,
         topologyView,
         movementSystemView,
@@ -9639,9 +9689,11 @@ export const freestyleService = {
           heading:   'Navigate the Trick Dictionary',
           viewLabel: 'View:',
           sortLabel: 'Sort:',
+          otherViewsOpen: (['movement-system', 'topology', 'dex-count', 'modifier'] as FreestyleTricksActiveView[]).includes(activeView),
           viewTitles: {
             add:            'How layered is the trick?',
             family:         'What core movement pattern does the trick build on?',
+            set:            'Which named set does the trick open with?',
             movementSystem: 'Which broad movement style does it belong to?',
             topology:       'Tricks that move alike, even across different families.',
             dexCount:       'How many dexterity moves does it have?',
@@ -9683,8 +9735,10 @@ export const freestyleService = {
         movementSystemScale,
         modifierScale,
         topologyScale,
+        setScale,
         dexCountIntro,
         modifierIntro,
+        setViewIntro,
         movementSystemIntro,
         familyFilterIntro,
       },
@@ -9837,9 +9891,11 @@ export const freestyleService = {
 
   /** The novice entry page: a first session for a visitor with no freestyle
    *  background. Copy lives in the template (static, like About); the service
-   *  supplies the frame plus the reused landing demo video. The educational
-   *  pathways index at /freestyle/learn stays the broader vocabulary surface. */
-  getStartPage(): PageViewModel<{ demoVideo: FreestyleDemoVideo | null }> {
+   *  supplies only the frame. The demo video renders on the freestyle landing
+   *  alone, so the two pages a newcomer crosses in sequence do not repeat it.
+   *  The educational pathways index at /freestyle/learn stays the broader
+   *  vocabulary surface. */
+  getStartPage(): PageViewModel<Record<string, never>> {
     return {
       seo: {
         title: 'Getting Started',
@@ -9858,7 +9914,7 @@ export const freestyleService = {
           { label: 'Getting Started' },
         ],
       },
-      content: { demoVideo: loadSiteVideo('freestyle_demo') },
+      content: {},
     };
   },
 

@@ -520,14 +520,16 @@ describe('GET /freestyle — two-band landing', () => {
   });
 
   // The demo clip starts on its own and loops forever, so the visitor needs a
-  // way to stop it; the native controls are that mechanism. Both surfaces draw
-  // the same clip, so both carry the obligation.
-  it('gives the looping demo clip controls on the landing and start pages', async () => {
+  // way to stop it; the native controls are that mechanism. The clip renders
+  // on the freestyle landing alone: the start page deliberately carries no
+  // copy of it, so the two pages a newcomer crosses in sequence never repeat
+  // the same video.
+  it('gives the looping demo clip controls on the landing, and keeps the start page video-free', async () => {
     const landing = await request(createApp()).get('/freestyle');
     expect(landing.text).toMatch(/<video[^>]*\bautoplay\b[^>]*\bcontrols\b/);
 
     const start = await request(createApp()).get('/freestyle/start');
-    expect(start.text).toMatch(/<video[^>]*\bautoplay\b[^>]*\bcontrols\b/);
+    expect(start.text).not.toContain('<video');
   });
 
   // ── Removed surfaces — must not regress back onto the landing ────────────
