@@ -133,6 +133,38 @@ describe('paymentService.getPaymentCancelPage', () => {
     expect(vm.content.reason).toBe('unknown');
     expect(vm.content.tryAgain).toBeNull();
   });
+
+  // A donor was not changing a membership tier, so telling them it is unchanged
+  // answers a question they did not ask and leaves the one they did ask, whether
+  // they were charged, unanswered.
+  it('tells a donor they were not charged, not that their tier is unchanged', () => {
+    const donation = membershipRow({
+      status: 'canceled',
+      payment_type: 'donation',
+      purchased_tier_status: null,
+    });
+    const vm = pay.paymentService.getPaymentCancelPage(
+      donation,
+      { continueHref: '/members/won', slug: 'won' },
+    );
+    expect(vm.content.message).toBe('Your payment was not completed. You have not been charged.');
+    expect(vm.content.message).not.toMatch(/membership tier/);
+    expect(vm.content.tryAgain).toBeNull();
+  });
+
+  it('uses the same donor wording on a failed donation', () => {
+    const donation = membershipRow({
+      status: 'failed',
+      payment_type: 'donation',
+      purchased_tier_status: null,
+    });
+    const vm = pay.paymentService.getPaymentCancelPage(
+      donation,
+      { continueHref: '/members/won', slug: 'won' },
+    );
+    expect(vm.content.message).toBe('Your payment could not be completed. You have not been charged.');
+    expect(vm.content.message).not.toMatch(/membership tier/);
+  });
 });
 
 describe('paymentService.getPaymentHistoryPage', () => {

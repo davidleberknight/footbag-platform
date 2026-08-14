@@ -384,3 +384,161 @@ describe('activate-payments.sh — webhook-secret rotation', () => {
     expect(result.stdout).toMatch(/no rotation window to close/);
   });
 });
+
+// ── the order of writes, and the temp file that holds the key ────────────────
+//
+// The Parameter Store write is the one irreversible act in this script: it uses
+// --overwrite and the replaced value cannot be recovered from here. It therefore
+// has to come after every refusal that could still abort the run, and it must
+// not be able to leave the plaintext key behind if the run is interrupted.
+// Neither property can be executed in CI, because the write path needs AWS and
+// the synthetic mode deliberately skips it, so both are pinned against the
+// source. The behaviour that IS executable, the new flag, is exercised directly.
+
+describe('activate-payments.sh — write ordering and key-file hygiene', () => {
+  const source = readFileSync(SCRIPT, 'utf-8');
+
+  it('writes the Stripe key only after every refusal that can abort the run', () => {
+    const keyWrite = source.indexOf('put_ssm_secret "$SSM_PARAM" "$STRIPE_KEY"');
+    expect(keyWrite).toBeGreaterThan(-1);
+    for (const refusal of [
+      'Stripe secret keys start with sk_live_ or sk_test_',
+      'webhook signing secrets start with whsec_',
+      'SECRETS_ADAPTER=live is not set in the host env file',
+      'plain activation will not overwrite it',
+    ]) {
+      const at = source.indexOf(refusal);
+      expect(at, refusal).toBeGreaterThan(-1);
+      expect(at, refusal).toBeLessThan(keyWrite);
+    }
+  });
+
+  it('the temp file holding the key is the one the trap actually shreds', () => {
+    // The previous trap named KEY_TMP while the function assigned a local, so an
+    // interrupt between creating the file and shredding it left the plaintext
+    // secret behind.
+    expect(source).toMatch(/KEY_TMP="\$\(mktemp \/tmp\/footbag-ssm-val\.XXXXXX\)"/);
+    expect(source).toMatch(/trap 'shred -u "\$\{KEY_TMP:-\}"/);
+    expect(source).toMatch(/--value "file:\/\/\$KEY_TMP"/);
+  });
+
+  it('refuses to replace an existing Stripe key unless told to', () => {
+    expect(source).toMatch(/already holds a different Stripe API key/);
+    expect(source).toMatch(/Re-run with --replace-key/);
+  });
+
+  it('accepts --replace-key as an argument', () => {
+    const result = runScript(['--target', 'production', '--replace-key', '--dry-run']);
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).not.toMatch(/unknown argument/);
+  });
+
+  it('the printed plan states that the checks precede the writes', () => {
+    const result = runScript(['--target', 'production', '--dry-run']);
+    const checks = result.stdout.indexOf('Check every refusal BEFORE anything is written');
+    const keyPut = result.stdout.indexOf('--name /footbag/production/secrets/stripe_secret_key');
+    expect(checks).toBeGreaterThan(-1);
+    expect(keyPut).toBeGreaterThan(checks);
+  });
+});
+
+/**
+ * Deactivation is what keeps a test-mode exercise from closing a door. The
+ * signing secret it installs otherwise outlives disarming, because the deploy
+ * re-syncs it from Parameter Store whatever the arming state, and a later plain
+ * activation then refuses to replace a secret already in service while the
+ * rotation refuses for want of the live adapter disarming removed. Returning
+ * both host lines and all three parameters to their pre-activation state makes
+ * the next activation a first activation.
+ */
+describe('activate-payments.sh — deactivation leaves nothing behind', () => {
+  const DARK_HOST = [
+    'FOOTBAG_ENV=production',
+    'SECRETS_ADAPTER=live',
+    'PAYMENT_ADAPTER=stub',
+    'STRIPE_WEBHOOK_SECRET=whsec_fromtheexercise',
+    'STRIPE_WEBHOOK_SECRET_STUB=whsec_stub_abc',
+    'SESSION_SECRET=unrelated',
+  ];
+
+  it('removes both signing-secret lines and keeps everything else', () => {
+    const envFile = writeEnvFile([...DARK_HOST, 'STRIPE_WEBHOOK_SECRET_PREVIOUS=whsec_older']);
+
+    const result = runScript(['--target', 'production', '--env-file', envFile, '--deactivate']);
+    const after = readFileSync(envFile, 'utf-8');
+
+    expect(result.exitCode).toBe(0);
+    expect(after).not.toMatch(/^STRIPE_WEBHOOK_SECRET=/m);
+    expect(after).not.toMatch(/^STRIPE_WEBHOOK_SECRET_PREVIOUS=/m);
+    expect(after).toMatch(/^SESSION_SECRET=unrelated$/m);
+    expect(after).toMatch(/^SECRETS_ADAPTER=live$/m);
+  });
+
+  it('leaves the stub twin in place, because a dark host verifies against it', () => {
+    const envFile = writeEnvFile(DARK_HOST);
+
+    runScript(['--target', 'production', '--env-file', envFile, '--deactivate']);
+
+    expect(readFileSync(envFile, 'utf-8')).toMatch(/^STRIPE_WEBHOOK_SECRET_STUB=whsec_stub_abc$/m);
+  });
+
+  it('refuses on a host still running the live adapter, and changes nothing', () => {
+    const envFile = writeEnvFile([
+      'FOOTBAG_ENV=production',
+      'SECRETS_ADAPTER=live',
+      'PAYMENT_ADAPTER=live',
+      'STRIPE_WEBHOOK_SECRET=whsec_inservice',
+    ]);
+    const before = readFileSync(envFile, 'utf-8');
+
+    const result = runScript(['--target', 'production', '--env-file', envFile, '--deactivate']);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toMatch(/disarm payments before removing/);
+    expect(result.stderr).toMatch(/--switch payments --state dark/);
+    expect(readFileSync(envFile, 'utf-8')).toEqual(before);
+  });
+
+  it('is a no-op on a host that never held a secret', () => {
+    const envFile = writeEnvFile([
+      'FOOTBAG_ENV=production',
+      'SECRETS_ADAPTER=live',
+      'PAYMENT_ADAPTER=stub',
+    ]);
+    const before = readFileSync(envFile, 'utf-8');
+
+    const result = runScript(['--target', 'production', '--env-file', envFile, '--deactivate']);
+
+    expect(result.exitCode).toBe(0);
+    expect(readFileSync(envFile, 'utf-8')).toEqual(before);
+  });
+
+  it('needs no secret in the environment, unlike activation', () => {
+    const envFile = writeEnvFile(DARK_HOST);
+
+    const result = runScript(['--target', 'production', '--env-file', envFile, '--deactivate']);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).not.toMatch(/STRIPE_SECRET_KEY_VALUE/);
+  });
+
+  it('plans all three parameters back to the placeholder, and the refusal that guards it', () => {
+    const result = runScript(['--target', 'production', '--deactivate', '--dry-run']);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain('/footbag/production/secrets/stripe_secret_key');
+    expect(result.stdout).toContain('/footbag/production/secrets/stripe_webhook_secret');
+    expect(result.stdout).toContain('/footbag/production/secrets/stripe_webhook_secret_previous');
+    expect(result.stdout).toMatch(/REFUSE if\s*\n?\s*PAYMENT_ADAPTER=live/);
+    expect(result.stdout).toContain('REMOVE PAYMENT CREDENTIALS');
+  });
+
+  it('resets the parameters before touching the host, so a deploy between the two cannot undo it', () => {
+    const result = runScript(['--target', 'production', '--deactivate', '--dry-run']);
+    const params = result.stdout.indexOf('Return all three parameters to the placeholder');
+    const host = result.stdout.indexOf('Remove the STRIPE_WEBHOOK_SECRET and');
+
+    expect(params).toBeGreaterThan(-1);
+    expect(host).toBeGreaterThan(params);
+  });
+});

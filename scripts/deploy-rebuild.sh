@@ -411,6 +411,21 @@ if [[ -n "$LOCAL_ADMIN_FILE" && -f "$LOCAL_ADMIN_FILE" ]]; then
   ' "$LOCAL_ADMIN_FILE" | paste -sd, -)
 fi
 
+# Deploy provenance, same shape the code-only path records. This deploy rsyncs
+# the local working tree, not a tagged artifact, so the commit alone understates
+# what shipped. It matters more here than on the code-only path, not less: this
+# is the deploy that replaces the database, so it is the one after which "what is
+# running, and what produced this data" is hardest to reconstruct from anything
+# else. The dirty list is capped because it is a breadcrumb, not a diff.
+DEPLOY_COMMIT="$(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+DEPLOY_DIRTY_PATHS="$(git -C "$REPO_ROOT" status --porcelain 2>/dev/null | cut -c4- | head -40 | paste -sd, -)"
+DEPLOY_DIRTY_COUNT="$(git -C "$REPO_ROOT" status --porcelain 2>/dev/null | wc -l | tr -d ' ')"
+DEPLOY_PROVENANCE="commit=$DEPLOY_COMMIT dirty=$DEPLOY_DIRTY_COUNT paths=${DEPLOY_DIRTY_PATHS:-none}"
+echo "==> Shipping working tree at commit $DEPLOY_COMMIT with $DEPLOY_DIRTY_COUNT uncommitted path(s)."
+if [[ "$DEPLOY_DIRTY_COUNT" != "0" ]]; then
+  echo "    uncommitted: ${DEPLOY_DIRTY_PATHS}"
+fi
+
 echo "==> Running remote-as-root rebuild deploy via cat-pipe..."
 # printf emits the password line; the EXPECTED_*_IMAGE_LAYERS assignments give
 # the remote-half the layer DiffIDs to verify against the docker-loaded images;
@@ -428,6 +443,7 @@ echo "==> Running remote-as-root rebuild deploy via cat-pipe..."
   printf 'DEPLOY_TARGET=%q\n'                "$REMOTE"
   printf 'FOOTBAG_DEV_INITIAL_ADMIN_EMAILS=%q\n' "$INITIAL_ADMIN_EMAILS_CSV"
   printf 'SEED_TEST_PERSONAS=%q\n'          "${SEED_TEST_PERSONAS:-no}"
+  printf 'DEPLOY_PROVENANCE=%q\n'            "$DEPLOY_PROVENANCE"
   # The guards run first inside the root session: on a post-cutover host, a
   # live-marked production, or a production database holding real members,
   # they exit non-zero before the remote half, so nothing live is touched.

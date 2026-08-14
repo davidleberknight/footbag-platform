@@ -67,6 +67,14 @@ const PAYMENT_RECEIPT_FIELDS = [
 
 const RECURRING_DONATION_FIELDS = ['amountDisplay', 'notePhrase', 'referenceId'] as const;
 
+// The setup confirmation carries a date; the later lifecycle notices do not.
+// The donation story requires amount, date, interval and reference on the
+// confirmation a donor receives after setting a recurring gift up, and the
+// interval is carried by the template's own wording rather than a merge field.
+const RECURRING_DONATION_STARTED_FIELDS = [
+  'amountDisplay', 'notePhrase', 'startedDate', 'referenceId',
+] as const;
+
 export const TEMPLATE_VARIANTS = {
   account_verify:                  v('restricted',   ['verifyUrl', 'ttlPhrase']),
   account_exists_notice:           v('restricted',   ['loginUrl', 'resetUrl']),
@@ -87,7 +95,8 @@ export const TEMPLATE_VARIANTS = {
   payment_receipt_succeeded_tier2: v('confidential', PAYMENT_RECEIPT_FIELDS),
   payment_receipt_succeeded:       v('confidential', PAYMENT_RECEIPT_FIELDS),
   payment_receipt_failed:          v('confidential', PAYMENT_RECEIPT_FIELDS),
-  donation_subscription_started:            v('confidential', RECURRING_DONATION_FIELDS),
+  payment_receipt_failed_membership: v('confidential', PAYMENT_RECEIPT_FIELDS),
+  donation_subscription_started:            v('confidential', RECURRING_DONATION_STARTED_FIELDS),
   donation_subscription_cancel_requested:   v('confidential', RECURRING_DONATION_FIELDS),
   donation_subscription_charge_failed:      v('confidential', RECURRING_DONATION_FIELDS),
   donation_subscription_canceled:           v('confidential', RECURRING_DONATION_FIELDS),
@@ -123,6 +132,8 @@ interface RecurringDonationParams {
   amountDisplay: string;
   donationNote: string | null;
   referenceId: string;
+  /** Rendered only by the setup confirmation; the lifecycle notices ignore it. */
+  startedDate: string;
 }
 
 function recurringDonationMerge(p: RecurringDonationParams): Record<string, string> {
@@ -190,8 +201,11 @@ const SHAPERS = {
     purchasedTier: 'tier1' | 'tier2' | null;
     referenceId: string;
   }): ShapedEmail => ({
+    // Failure branches on what was being bought, for the same reason the
+    // success side branches on the tier: a donor told their membership tier was
+    // not changed is being answered about something they were not doing.
     variant: p.outcome === 'failed'
-      ? 'payment_receipt_failed'
+      ? (p.isMembership ? 'payment_receipt_failed_membership' : 'payment_receipt_failed')
       : p.isMembership && p.purchasedTier === 'tier1'
         ? 'payment_receipt_succeeded_tier1'
         : p.isMembership && p.purchasedTier === 'tier2'
@@ -207,7 +221,7 @@ const SHAPERS = {
   }),
   donation_subscription_started: (p: RecurringDonationParams): ShapedEmail => ({
     variant: 'donation_subscription_started',
-    merge: recurringDonationMerge(p),
+    merge: { ...recurringDonationMerge(p), startedDate: p.startedDate },
   }),
   donation_subscription_cancel_requested: (p: RecurringDonationParams): ShapedEmail => ({
     variant: 'donation_subscription_cancel_requested',

@@ -54,11 +54,30 @@
 #     delivery signs with the new secret, returning its parameter to the
 #     placeholder. Idempotent.
 #
+# --deactivate is the reverse of activation, and exists so a test-mode exercise
+# on pre-cutover production leaves nothing behind. Without it the exercise closes
+# a door: the signing secret it installs survives disarming, because the deploy
+# re-syncs it from Parameter Store on every run whatever the arming state, and a
+# later plain activation then refuses to replace a secret already in service and
+# sends the operator to the rotation, which in turn refuses because it requires
+# the live payment adapter that disarming has just removed. Deactivation returns
+# both Stripe parameters and the rotation twin to the placeholder and removes the
+# signing-secret lines from the host env file, so the next activation is a first
+# activation again. It requires the host to be dark already: removing the secret
+# from a live-adapter host would fail signature verification immediately and
+# refuse to boot on the next restart. It reads no secret and prompts for none.
+#
 # Usage:
 #   scripts/activate-payments.sh --target production --profile <prod-profile>
 #   scripts/activate-payments.sh --target production --dry-run
 #   scripts/activate-payments.sh --target production --profile <p> --rotate-webhook-secret
 #   scripts/activate-payments.sh --target production --profile <p> --complete-webhook-rotation
+#   scripts/activate-payments.sh --target production --profile <p> --deactivate
+#
+#   --replace-key allows activation to overwrite a Stripe API key parameter that
+#   already holds a different real key. Without it, activation refuses: the
+#   current value cannot be recovered from here, and hosts keep using the old key
+#   until their next deploy, so a silent replacement is invisible and one-way.
 #
 # Synthetic mode (CI tests only; operators never use these):
 #   --env-file <path> treats the local file as the host env, skips ssh and
@@ -72,6 +91,7 @@ SSH_ALIAS=""
 AWS_PROFILE_ARG=""
 ENV_FILE_OVERRIDE=""
 DRY_RUN=0
+REPLACE_KEY=0
 MODE="activate"
 HOST_ENV_PATH="/srv/footbag/env"
 
@@ -116,6 +136,14 @@ while [[ $# -gt 0 ]]; do
       ;;
     --dry-run)
       DRY_RUN=1
+      shift
+      ;;
+    --replace-key)
+      REPLACE_KEY=1
+      shift
+      ;;
+    --deactivate)
+      MODE="deactivate"
       shift
       ;;
     --rotate-webhook-secret)
@@ -175,23 +203,46 @@ SSM_PLACEHOLDER="TODO-set-via-cli-after-apply"
 # process table by any account on this host; the file is shredded on every exit
 # path including a failed put.
 put_ssm_secret() {
-  local param_name="$1" param_value="$2" tmp
+  local param_name="$1" param_value="$2"
   umask 077
-  tmp="$(mktemp /tmp/footbag-ssm-val.XXXXXX)"
-  printf '%s' "$param_value" > "$tmp"
+  # KEY_TMP is deliberately global. A trap cannot see a function-local, and the
+  # window that matters is between creating this file and shredding it: an
+  # interrupt there used to leave the plaintext secret in /tmp, because the only
+  # trap in this script named a variable nothing ever assigned. The trap that
+  # covers it is installed immediately below this definition, and the later
+  # cleanup_remote trap that replaces it shreds the same variable, so the window
+  # stays covered across both.
+  KEY_TMP="$(mktemp /tmp/footbag-ssm-val.XXXXXX)"
+  printf '%s' "$param_value" > "$KEY_TMP"
   if ! aws ssm put-parameter \
     --name "$param_name" \
-    --value "file://$tmp" \
+    --value "file://$KEY_TMP" \
     --type SecureString \
     --key-id "$KMS_ALIAS" \
     --overwrite \
     --profile "$AWS_PROFILE_ARG" >/dev/null; then
-    shred -u "$tmp" 2>/dev/null || true
+    shred -u "$KEY_TMP" 2>/dev/null || true
+    KEY_TMP=""
     echo "ERROR: failed to write $param_name to Parameter Store." >&2
     return 1
   fi
-  shred -u "$tmp" 2>/dev/null || true
+  shred -u "$KEY_TMP" 2>/dev/null || true
+  KEY_TMP=""
   echo "  stored $param_name"
+}
+KEY_TMP=""
+trap 'shred -u "${KEY_TMP:-}" 2>/dev/null || true' EXIT INT TERM
+
+# Reads a Parameter Store value without decrypting it into a variable any longer
+# than the comparison needs. Returns empty when the parameter is absent or
+# unreadable; callers that must distinguish those cases check the exit status.
+read_ssm_secret() {
+  aws ssm get-parameter \
+    --name "$1" \
+    --with-decryption \
+    --query 'Parameter.Value' \
+    --output text \
+    --profile "$AWS_PROFILE_ARG" 2>/dev/null
 }
 
 if (( DRY_RUN )); then
@@ -202,20 +253,23 @@ if (( DRY_RUN )); then
       echo "Would run, in order:"
       echo "  1. Prompt (silent) for the Stripe secret API key"
       echo "     (sk_test_ while the production-live marker reads pre-live; sk_live_ from the canary on)"
-      echo "  2. aws ssm put-parameter --name $SSM_PARAM --type SecureString \\"
-      echo "       --key-id $KMS_ALIAS --overwrite --profile <profile> --value file://<0600 temp>"
-      echo "  3. Pause: create the webhook endpoint in the Stripe Dashboard"
+      echo "  2. Pause: create the webhook endpoint in the Stripe Dashboard"
       echo "     (PUBLIC_BASE_URL + /payments/webhook), then prompt (silent) for its whsec_ secret"
-      echo "  4. Stage $HOST_ENV_PATH down from $SSH_ALIAS (ssh -t + sudo install)"
-      echo "  5. aws ssm put-parameter --name $SSM_WEBHOOK_PARAM --type SecureString \\"
+      echo "  3. Stage $HOST_ENV_PATH down from $SSH_ALIAS (ssh -t + sudo install)"
+      echo "  4. Check every refusal BEFORE anything is written: key shape, whsec_ shape,"
+      echo "     SECRETS_ADAPTER=live on the host, no signing secret already in service, and"
+      echo "     no different Stripe key already in $SSM_PARAM (override: --replace-key)"
+      echo "  5. aws ssm put-parameter --name $SSM_PARAM --type SecureString \\"
       echo "       --key-id $KMS_ALIAS --overwrite --profile <profile> --value file://<0600 temp>"
-      echo "  6. Rewrite STRIPE_WEBHOOK_SECRET=... (requires SECRETS_ADAPTER=live; the deploy"
+      echo "  6. aws ssm put-parameter --name $SSM_WEBHOOK_PARAM --type SecureString \\"
+      echo "       --key-id $KMS_ALIAS --overwrite --profile <profile> --value file://<0600 temp>"
+      echo "  7. Rewrite STRIPE_WEBHOOK_SECRET=... (the deploy"
       echo "     derives PAYMENT_ADAPTER from the arming flag, so it is not written here)"
-      echo "  7. Show a secret-masked diff, confirm, push back (no .bak left on host)"
-      echo "  8. Run the PAYMENTS-BOOT gate against the updated file"
-      echo "  9. Print the deploy (./deploy_to_aws.sh) and checkout+refund verification steps"
+      echo "  8. Show a secret-masked diff, confirm, push back (no .bak left on host)"
+      echo "  9. Run the PAYMENTS-BOOT gate against the updated file"
+      echo " 10. Print the deploy (./deploy_to_aws.sh) and checkout+refund verification steps"
       echo ""
-      echo "The webhook endpoint (step 3) must be created in the Stripe Dashboard with:"
+      echo "The webhook endpoint (step 2) must be created in the Stripe Dashboard with:"
       print_endpoint_requirements
       ;;
     rotate)
@@ -239,6 +293,26 @@ if (( DRY_RUN )); then
       echo "$SSM_WEBHOOK_PREV_PARAM to its placeholder, and remove the"
       echo "STRIPE_WEBHOOK_SECRET_PREVIOUS line (idempotent: a no-op when no"
       echo "rotation window is open), then push back and run the PAYMENTS-BOOT gate."
+      ;;
+    deactivate)
+      echo "== dry run: remove payment credentials from $TARGET (ssh alias: $SSH_ALIAS) =="
+      echo ""
+      echo "Would run, in order:"
+      echo "  1. Require the typed phrase REMOVE PAYMENT CREDENTIALS"
+      echo "  2. Stage $HOST_ENV_PATH down from $SSH_ALIAS and REFUSE if"
+      echo "     PAYMENT_ADAPTER=live: disarm payments first, or the host fails every"
+      echo "     delivery at once and refuses to boot on its next restart"
+      echo "  3. Return all three parameters to the placeholder:"
+      echo "       $SSM_PARAM"
+      echo "       $SSM_WEBHOOK_PARAM"
+      echo "       $SSM_WEBHOOK_PREV_PARAM"
+      echo "  4. Remove the STRIPE_WEBHOOK_SECRET and STRIPE_WEBHOOK_SECRET_PREVIOUS"
+      echo "     lines from the host env file (the stub twin is left alone; a dark"
+      echo "     host verifies against it)"
+      echo "  5. Show a secret-masked diff, confirm, push back, run the PAYMENTS-BOOT gate"
+      echo ""
+      echo "Point of the mode: a test-mode exercise leaves nothing behind, so the next"
+      echo "activation is a first activation rather than a rotation."
       ;;
   esac
   exit 0
@@ -275,6 +349,9 @@ if [[ -n "$ENV_FILE_OVERRIDE" ]]; then
     complete)
       : # completing a rotation only clears an env line; no secret is read
       ;;
+    deactivate)
+      : # deactivation only removes env lines and resets parameters
+      ;;
   esac
 else
   # Every real-host mode now writes Parameter Store, so every one needs a
@@ -300,6 +377,18 @@ else
     read -rs STRIPE_KEY
     echo ""
   fi
+  if [[ "$MODE" == "deactivate" ]]; then
+    echo "This removes the Stripe payment credentials from $TARGET: both parameters"
+    echo "and the rotation twin go back to the placeholder, and the signing-secret"
+    echo "lines are removed from the host env file. The next activation will be a"
+    echo "first activation again. Nothing else is touched, and no money is involved."
+    printf "Type 'REMOVE PAYMENT CREDENTIALS' to continue: "
+    read -r CONFIRM
+    if [[ "$CONFIRM" != "REMOVE PAYMENT CREDENTIALS" ]]; then
+      echo "Aborted: confirmation phrase not entered." >&2
+      exit 1
+    fi
+  fi
 fi
 
 if [[ "$MODE" == "activate" ]]; then
@@ -314,16 +403,12 @@ if [[ "$MODE" == "activate" ]]; then
   fi
 fi
 
-# -----------------------------------------------------------------------------
-# Step 1: Stripe key into SSM (activate only; skipped in --env-file mode).
-# The key goes through a 0600 temp file (file:// value) so it never lands in
-# shell history or the aws CLI's argv; the trap removes it on every exit path.
-# -----------------------------------------------------------------------------
-if [[ "$MODE" == "activate" && -z "$ENV_FILE_OVERRIDE" ]]; then
-  echo ""
-  echo "Storing the Stripe API key in Parameter Store..."
-  put_ssm_secret "$SSM_PARAM" "$STRIPE_KEY"
-fi
+# The Stripe key is NOT written here. It used to be, and that put the one
+# irreversible write in this script ahead of three refusals that can still abort
+# it: the webhook-secret shape check below, the SECRETS_ADAPTER check, and the
+# refusal to replace a signing secret already in service. An abort at any of
+# them left the key parameter already replaced with no way back to the previous
+# value. Both secrets are now written together, after every check has passed.
 
 # Step 2: the Stripe Dashboard part cannot be scripted; pause for it. Activation
 # creates the endpoint; rotation rolls its signing secret. Completion supplies
@@ -346,7 +431,9 @@ if [[ ( "$MODE" == "activate" || "$MODE" == "rotate" ) && -z "$ENV_FILE_OVERRIDE
   echo ""
 fi
 
-if [[ "$MODE" != "complete" ]]; then
+# Only the modes that install a secret validate its shape. Completion and
+# deactivation supply none: they remove lines and reset parameters.
+if [[ "$MODE" != "complete" && "$MODE" != "deactivate" ]]; then
   if [[ "$WEBHOOK_SECRET" != whsec_* ]]; then
     echo "ERROR: webhook signing secrets start with whsec_." >&2
     exit 1
@@ -441,6 +528,21 @@ case "$MODE" in
       exit 0
     fi
     ;;
+  deactivate)
+    # A live host verifies every incoming delivery against this secret, and the
+    # boot gate refuses the live adapter without one, so removing it here would
+    # fail deliveries at once and stop the host coming back on its next restart.
+    # Disarming is what makes removal safe, and it is a separate deliberate step.
+    if grep -qE '^PAYMENT_ADAPTER=["'"'"']?live["'"'"']?$' "$OLD_LOCAL"; then
+      echo "ERROR: PAYMENT_ADAPTER=live on this host; disarm payments before removing" >&2
+      echo "       the credentials. Disable the Stripe webhook endpoint in the Dashboard," >&2
+      echo "       then: scripts/arming.sh --target $TARGET --switch payments --state dark" >&2
+      exit 1
+    fi
+    if [[ -z "$CURRENT_WS" && -z "$PREVIOUS_WS" ]]; then
+      echo "No STRIPE_WEBHOOK_SECRET on the host; resetting the parameters only."
+    fi
+    ;;
 esac
 
 # Parameter Store is the declared source for the signing secrets and the deploy
@@ -453,6 +555,26 @@ if [[ -z "$ENV_FILE_OVERRIDE" ]]; then
   echo "Storing the webhook signing secret(s) in Parameter Store..."
   case "$MODE" in
     activate)
+      # The API key parameter is written with --overwrite, so a re-run replaces
+      # whatever is there. That is right for a first activation and wrong for a
+      # second one: the previous key is not recoverable from here, and a running
+      # host keeps working against the old key until the next deploy, so a silent
+      # replacement is a change nobody can see and nobody can undo. Refuse unless
+      # the operator says explicitly that replacement is the intent. Matches the
+      # protection the signing secret already has.
+      CURRENT_KEY="$(read_ssm_secret "$SSM_PARAM" || true)"
+      if [[ -n "$CURRENT_KEY" && "$CURRENT_KEY" != TODO-* && "$CURRENT_KEY" != "$STRIPE_KEY" ]]; then
+        if (( REPLACE_KEY )); then
+          echo "  --replace-key given: replacing the existing Stripe API key."
+        else
+          echo "ERROR: $SSM_PARAM already holds a different Stripe API key." >&2
+          echo "Activation will not replace it silently: the current value cannot be recovered" >&2
+          echo "from here, and hosts keep using the old key until their next deploy." >&2
+          echo "Re-run with --replace-key if replacing it is what you mean to do." >&2
+          exit 1
+        fi
+      fi
+      put_ssm_secret "$SSM_PARAM" "$STRIPE_KEY"
       put_ssm_secret "$SSM_WEBHOOK_PARAM" "$WEBHOOK_SECRET"
       ;;
     rotate)
@@ -467,6 +589,17 @@ if [[ -z "$ENV_FILE_OVERRIDE" ]]; then
       # Back to the placeholder rather than deleted: Terraform declares the
       # parameter, so removing it would be reverted on the next apply, and the
       # deploy reads the placeholder as "no outgoing secret".
+      put_ssm_secret "$SSM_WEBHOOK_PREV_PARAM" "$SSM_PLACEHOLDER"
+      ;;
+    deactivate)
+      # All three back to the placeholder, for the same reason completion resets
+      # its twin: Terraform declares them, so a delete would be reverted on the
+      # next apply. The parameters go first and the host env second, matching
+      # activation's order, because a deploy landing between the two steps reads
+      # a placeholder and leaves the host alone, whereas the reverse order would
+      # let that deploy reinstall the secret this run is removing.
+      put_ssm_secret "$SSM_PARAM" "$SSM_PLACEHOLDER"
+      put_ssm_secret "$SSM_WEBHOOK_PARAM" "$SSM_PLACEHOLDER"
       put_ssm_secret "$SSM_WEBHOOK_PREV_PARAM" "$SSM_PLACEHOLDER"
       ;;
   esac
@@ -517,6 +650,18 @@ case "$MODE" in
     # Drop every STRIPE_WEBHOOK_SECRET_PREVIOUS line; keep the rest verbatim.
     awk '
       /^STRIPE_WEBHOOK_SECRET_PREVIOUS=/ { next }
+      { print }
+    ' "$OLD_LOCAL" > "$NEW_LOCAL"
+    ;;
+  deactivate)
+    # Drop both signing-secret lines and keep the rest verbatim. The stub twin
+    # STRIPE_WEBHOOK_SECRET_STUB stays: it is what a dark host verifies against,
+    # the deploy seeds it when absent, and it is not a Stripe value. The Stripe
+    # API key is never written to the host env file by this script, so there is
+    # no key line to remove; its parameter reset above is the whole of it.
+    awk '
+      /^STRIPE_WEBHOOK_SECRET_PREVIOUS=/ { next }
+      /^STRIPE_WEBHOOK_SECRET=/ { next }
       { print }
     ' "$OLD_LOCAL" > "$NEW_LOCAL"
     ;;
@@ -572,7 +717,20 @@ else
 fi
 
 echo ""
-FOOTBAG_ENV_FILE="$GATE_FILE" bash scripts/validate-payments-boot.sh
+# The boot gate asks whether the live adapter is configured and bootable, which
+# is the right question after every mode that installs credentials and the wrong
+# one after deactivation, whose intended end state is a dark host holding no
+# Stripe secret. Running it here would fail on success. Deactivation asserts its
+# own end state instead.
+if [[ "$MODE" == "deactivate" ]]; then
+  if grep -qE '^STRIPE_WEBHOOK_SECRET(_PREVIOUS)?=' "$GATE_FILE"; then
+    echo "ERROR: a Stripe signing secret is still present after deactivation." >&2
+    exit 1
+  fi
+  echo "GATE: no Stripe signing secret remains in the env file."
+else
+  FOOTBAG_ENV_FILE="$GATE_FILE" bash scripts/validate-payments-boot.sh
+fi
 
 echo ""
 case "$MODE" in
@@ -586,10 +744,15 @@ case "$MODE" in
     echo "     the flag. Until then the host stays dark on the stub adapter."
     echo "  2. Verify per the two-stage doctrine: test-mode end-to-end while the"
     echo "     production-live marker reads pre-live; then, with the live key, one"
-    echo "     real checkout (smallest tier), webhook signature validation in the"
-    echo "     logs, payment row 'succeeded' plus the tier grant, then refund from"
-    echo "     the Stripe Dashboard and confirm the row moves to 'refunded' with"
-    echo "     the tier grant preserved."
+    echo "     real checkout (smallest tier), payment row 'succeeded' plus the tier"
+    echo "     grant, then refund from the Stripe Dashboard and confirm the row"
+    echo "     moves to 'refunded' with the tier grant preserved. Verify from the"
+    echo "     admin payment screens and the Dashboard's own delivery status, NOT"
+    echo "     from the logs: production runs at warn level and a successful"
+    echo "     webhook logs nothing, so silence reads exactly like failure."
+    echo "  3. After a test-mode exercise, --deactivate returns the parameters and"
+    echo "     the host env to their pre-activation state, so installing the live"
+    echo "     credentials later is a first activation rather than a rotation."
     ;;
   rotate)
     echo "== webhook signing secret rotated for $TARGET =="
@@ -606,6 +769,20 @@ case "$MODE" in
     echo ""
     echo "STRIPE_WEBHOOK_SECRET_PREVIOUS is cleared; only the current secret verifies."
     echo "Next step: deploy / restart: ./deploy_to_aws.sh"
+    ;;
+  deactivate)
+    echo "== payment credentials removed from $TARGET =="
+    echo ""
+    echo "Both Stripe parameters and the rotation twin read the placeholder again,"
+    echo "and the host env file carries no Stripe signing secret. The next"
+    echo "activation is a first activation: it will not meet the refusal that"
+    echo "protects a secret already in service, so no rotation is needed to install"
+    echo "live credentials later."
+    echo "Next steps:"
+    echo "  1. Confirm with: scripts/bringup-status.sh --target $TARGET --profile <profile>"
+    echo "     Expect the Stripe key to read placeholder and payments to read dark."
+    echo "  2. Disable the Stripe webhook endpoint in the Dashboard if it is still"
+    echo "     enabled; nothing here reaches the provider."
     ;;
 esac
 exit 0

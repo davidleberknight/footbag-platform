@@ -18,7 +18,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
-import { mkdtempSync, writeFileSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, readFileSync, rmSync, symlinkSync, chmodSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -126,11 +126,25 @@ describe('arming.sh — the plan states the safe order', () => {
   it('arming skips the endpoint-disable step, which applies only to going dark', () => {
     const res = dryRun(['--target', 'production', '--state', 'armed']);
     expect(res.exitCode).toBe(0);
-    expect(res.stdout).toMatch(/no provider-side precondition/);
     expect(res.stdout).not.toMatch(/DISABLED in the dashboard/);
   });
 
-  it('never plans a data-replacing deploy', () => {
+  // Arming has its own precondition, and it is not the endpoint. An armed
+  // production refuses to boot without the Stripe credentials, so arming ahead
+  // of activation takes the site down rather than turning payments on. This
+  // direction used to state that it had no precondition at all.
+  it('arming states the credential precondition and does not claim there is none', () => {
+    const res = dryRun(['--target', 'production', '--state', 'armed']);
+    expect(res.exitCode).toBe(0);
+    expect(res.stdout).toMatch(/REFUSES TO BOOT/);
+    expect(res.stdout).toMatch(/Parameter Store/);
+    expect(res.stdout).not.toMatch(/no provider-side precondition/);
+  });
+
+  // This reads the printed plan only. What the deploy step actually runs is
+  // pinned by the executed-invocation suite below; the two are separate claims
+  // and only the second one is evidence.
+  it('the printed plan says the deploy is code-only', () => {
     const res = dryRun(['--target', 'production', '--state', 'dark']);
     expect(res.stdout).toMatch(/code-only; never --all-data/);
     expect(res.stdout).not.toMatch(/--soup-to-nuts|--from-csv/);
@@ -139,6 +153,62 @@ describe('arming.sh — the plan states the safe order', () => {
   it('warns that disarming manufactures one false reconciliation issue', () => {
     const res = dryRun(['--target', 'production', '--state', 'dark']);
     expect(res.stdout).toMatch(/false reconciliation issue/);
+  });
+});
+
+describe('arming.sh — the deploy it actually runs', () => {
+  // The printed plan and the executed command are two different things, and only
+  // this suite reads the second. A bare wrapper invocation is the single form
+  // that offers to replace the deployed database on schema drift, with that
+  // prompt defaulting to yes; -k routes the same drift to a prompt defaulting to
+  // no. Arming must therefore never invoke the wrapper bare, and no answer at any
+  // prompt may turn arming into a data-replacing deploy.
+  function runDeployStep(state: string): { args: string[]; res: RunResult } {
+    fileCounter += 1;
+    const recorder = join(tmpDir, `recorder-${fileCounter}.sh`);
+    const argsFile = join(tmpDir, `recorded-args-${fileCounter}.txt`);
+    writeFileSync(recorder, `#!/usr/bin/env bash\nprintf '%s\\n' "$@" > ${argsFile}\nexit 0\n`);
+    chmodSync(recorder, 0o755);
+    const result = spawnSync(
+      'bash',
+      [ARMING, '--target', 'production', '--state', state, '--from-step', '4',
+        '--tfvars', writeTfvars(BASE_TFVARS)],
+      {
+        cwd: process.cwd(),
+        encoding: 'utf-8',
+        input: '',
+        env: { ...process.env, ARMING_DEPLOY_CMD: recorder },
+        ...SPAWN_GUARD,
+      },
+    );
+    const res: RunResult = {
+      exitCode: result.status ?? 1,
+      stdout: result.stdout ?? '',
+      stderr: result.stderr ?? '',
+    };
+    let args: string[] = [];
+    try {
+      args = readFileSync(argsFile, 'utf-8').split('\n').filter((l) => l.length > 0);
+    } catch {
+      args = [];
+    }
+    return { args, res };
+  }
+
+  it('passes the explicit code-only flag, so schema drift cannot escalate to a rebuild', () => {
+    const { args, res } = runDeployStep('dark');
+    expect(res.exitCode).toBe(0);
+    expect(args).toContain('-k');
+  });
+
+  it('passes no data-replacing flag on either direction', () => {
+    for (const state of ['dark', 'armed']) {
+      const { args } = runDeployStep(state);
+      expect(args).not.toContain('--from-csv');
+      expect(args).not.toContain('--soup-to-nuts');
+      expect(args).not.toContain('--all-data');
+      expect(args).not.toContain('-r');
+    }
   });
 });
 
@@ -170,7 +240,8 @@ describe('arming.sh — tfvars rewrite', () => {
     const res = run(
       ARMING,
       ['--target', 'production', '--state', 'armed', '--tfvars', tfvars],
-      'yes\n',
+      // Arming's own step-1 attestation, then the tfvars diff confirmation.
+      'CREDENTIALS IN PLACE\nyes\n',
     );
     expect(res.exitCode).toBe(0);
     const after = readFileSync(tfvars, 'utf-8');
@@ -185,7 +256,8 @@ describe('arming.sh — tfvars rewrite', () => {
     const res = run(
       ARMING,
       ['--target', 'production', '--state', 'armed', '--tfvars', tfvars],
-      'yes\n',
+      // Arming's own step-1 attestation, then the tfvars diff confirmation.
+      'CREDENTIALS IN PLACE\nyes\n',
     );
     expect(res.stdout).toMatch(/stopping before terraform and deploy/);
   });
@@ -202,7 +274,8 @@ describe('arming.sh — tfvars rewrite', () => {
     const res = run(
       ARMING,
       ['--target', 'production', '--state', 'armed', '--tfvars', tfvars],
-      'yes\n',
+      // Arming's own step-1 attestation, then the tfvars diff confirmation.
+      'CREDENTIALS IN PLACE\nyes\n',
     );
     expect(res.exitCode).toBe(1);
     expect(res.stderr).toMatch(/no payments_armed assignment found/);
@@ -214,7 +287,7 @@ describe('arming.sh — tfvars rewrite', () => {
     const res = run(
       ARMING,
       ['--target', 'production', '--state', 'armed', '--tfvars', tfvars],
-      'no\n',
+      'CREDENTIALS IN PLACE\nno\n',
     );
     expect(res.exitCode).toBe(1);
     expect(res.stderr).toMatch(/tfvars not changed/);

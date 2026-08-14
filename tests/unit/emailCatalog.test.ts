@@ -90,10 +90,11 @@ const CATALOG: CatalogEntry[] = [
     { params: { descriptor: 'd', amountDisplay: '$1.00 USD', paymentDate: '1 January 2030', intervalPhrase: 'One-time payment', outcome: 'succeeded', isMembership: true, purchasedTier: 'tier1', referenceId: 'r' }, variant: 'payment_receipt_succeeded_tier1' },
     { params: { descriptor: 'd', amountDisplay: '$1.00 USD', paymentDate: '1 January 2030', intervalPhrase: 'One-time payment', outcome: 'succeeded', isMembership: true, purchasedTier: 'tier2', referenceId: 'r' }, variant: 'payment_receipt_succeeded_tier2' },
     { params: { descriptor: 'd', amountDisplay: '$1.00 USD', paymentDate: '1 January 2030', intervalPhrase: 'Yearly recurring donation', outcome: 'succeeded', isMembership: false, purchasedTier: null, referenceId: 'r' }, variant: 'payment_receipt_succeeded' },
-    { params: { descriptor: 'd', amountDisplay: '$1.00 USD', paymentDate: '1 January 2030', intervalPhrase: 'One-time payment', outcome: 'failed', isMembership: true, purchasedTier: 'tier1', referenceId: 'r' }, variant: 'payment_receipt_failed' },
+    { params: { descriptor: 'd', amountDisplay: '$1.00 USD', paymentDate: '1 January 2030', intervalPhrase: 'One-time payment', outcome: 'failed', isMembership: true, purchasedTier: 'tier1', referenceId: 'r' }, variant: 'payment_receipt_failed_membership' },
+    { params: { descriptor: 'd', amountDisplay: '$1.00 USD', paymentDate: '1 January 2030', intervalPhrase: 'One-time payment', outcome: 'failed', isMembership: false, purchasedTier: null, referenceId: 'r' }, variant: 'payment_receipt_failed' },
   ] },
   { template: 'donation_subscription_started', services: ['paymentService'], samples: [
-    { params: { amountDisplay: '$25.00 USD', donationNote: 'HoF Fund', referenceId: 'r' }, variant: 'donation_subscription_started' },
+    { params: { amountDisplay: '$25.00 USD', donationNote: 'HoF Fund', referenceId: 'r', startedDate: '1 January 2030' }, variant: 'donation_subscription_started' },
   ] },
   { template: 'donation_subscription_cancel_requested', services: ['paymentService'], samples: [
     { params: { amountDisplay: '$25.00 USD', donationNote: null, referenceId: 'r' }, variant: 'donation_subscription_cancel_requested' },
@@ -170,6 +171,40 @@ describe('email catalog', () => {
   it('every registered logical key is catalogued and vice versa', () => {
     const cataloged = CATALOG.map((e) => e.template).sort();
     expect(cataloged).toEqual(listEmailLogicalKeys());
+  });
+
+  // The sweeps above compare a shaped merge map against declared fields. They
+  // cannot see the sidecar body, so a field can be declared, computed, and never
+  // rendered. These pin the two payment bodies whose wording is load-bearing:
+  // one told donors their membership tier was unchanged when they were not
+  // buying membership, the other promised a date it never carried.
+  it('the payment failure bodies address the right purchase', () => {
+    const read = (key: string) =>
+      JSON.parse(
+        readFileSync(join(process.cwd(), 'curated/email_templates', `${key}.json`), 'utf-8'),
+      ) as { bodyTemplate: string };
+
+    const donation = read('payment_receipt_failed').bodyTemplate;
+    expect(donation).not.toMatch(/membership tier/i);
+    expect(donation).toMatch(/No charge was applied/);
+
+    const membership = read('payment_receipt_failed_membership').bodyTemplate;
+    expect(membership).toMatch(/membership tier was not changed/);
+  });
+
+  it('the recurring-donation confirmation renders every field it declares', () => {
+    const body = (
+      JSON.parse(
+        readFileSync(
+          join(process.cwd(), 'curated/email_templates/donation_subscription_started.json'),
+          'utf-8',
+        ),
+      ) as { bodyTemplate: string }
+    ).bodyTemplate;
+    for (const field of emailTemplateMergeFields('donation_subscription_started') ?? []) {
+      expect(body, field).toContain(`{${field}}`);
+    }
+    expect(body).toContain('{startedDate}');
   });
 
   it('every registered variant key is reachable from a catalogued sample', () => {

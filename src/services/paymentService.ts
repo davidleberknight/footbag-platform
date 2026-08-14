@@ -2481,6 +2481,10 @@ function enqueueSubscriptionEmail(
         amountDisplay: formatAmount(sub.amount_cents, sub.currency),
         donationNote: sub.donation_comment,
         referenceId: sub.id,
+        // Rendered by the setup confirmation only. The date the gift was set
+        // up, not the date of this notice, so a later lifecycle notice cannot
+        // restate it as something that happened today.
+        startedDate: formatDateDisplay(sub.created_at, { style: 'long' }),
       },
       recipientEmail: contact.loginEmail,
       recipientMemberId: sub.member_id,
@@ -2648,9 +2652,16 @@ function getPaymentCancelPage(
   const reason: CancelContent['reason'] =
     payment?.status === 'failed' ? 'failed' :
     payment?.status === 'canceled' ? 'canceled' : 'unknown';
+  // The reassurance has to match what the member was actually buying. A donor
+  // who abandons checkout is told nothing about a membership tier, because they
+  // were not changing one; saying so reads as a reply to someone else's question
+  // and leaves them unsure whether they were charged.
+  const reassurance = payment?.payment_type === 'membership'
+    ? 'Your membership tier has not changed.'
+    : 'You have not been charged.';
   const message = reason === 'failed'
-    ? 'Your payment could not be completed. Your membership tier has not changed.'
-    : 'Your payment was not completed. Your membership tier has not changed.';
+    ? `Your payment could not be completed. ${reassurance}`
+    : `Your payment was not completed. ${reassurance}`;
   return {
     seo:  { title: 'Payment not completed' },
     page: { sectionKey: '', pageKey: 'payment_cancel', title: 'Payment not completed' },

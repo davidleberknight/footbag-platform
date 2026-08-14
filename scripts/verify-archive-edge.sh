@@ -47,7 +47,8 @@
 # Flags:
 #   --env staging|production   Target environment (required).
 #   --profile <p>              AWS profile; else ambient AWS_PROFILE.
-#   --signing-key <pem>        Private key (default ~/AWS/archive-signing-key.pem).
+#   --signing-key <pem>        Private key (default the environment's own,
+#                              ~/AWS/archive-signing-key-<env>.pem).
 #   --check-logs               Also assert access-log delivery.
 set -euo pipefail
 
@@ -56,11 +57,14 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 TARGET_ENV=""
 AWS_PROFILE_ARG=""
-SIGNING_KEY="${HOME}/AWS/archive-signing-key.pem"
+# Resolved after --env is parsed, because the default carries the environment:
+# each environment signs with its own keypair, so a default fixed at assignment
+# time would sign this proof with whichever key happened to be provisioned first.
+SIGNING_KEY=""
 CHECK_LOGS=0
 
 usage() {
-  sed -n '2,51p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,52p' "$0" | sed 's/^# \{0,1\}//'
   exit 2
 }
 
@@ -88,6 +92,8 @@ if [[ "$TARGET_ENV" != "staging" && "$TARGET_ENV" != "production" ]]; then
   echo "ERROR: --env must be 'staging' or 'production'" >&2
   exit 2
 fi
+
+: "${SIGNING_KEY:=${HOME}/AWS/archive-signing-key-${TARGET_ENV}.pem}"
 
 AWS_ARGS=()
 if [[ -n "$AWS_PROFILE_ARG" ]]; then

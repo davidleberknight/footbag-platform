@@ -491,23 +491,26 @@ if (( MODE_CODE_ONLY == 1 )) \
     echo "" >&2
     if [[ "${FOOTBAG_KEEP_DB_ACK_SCHEMA_DRIFT:-}" == "1" ]]; then
       echo "  FOOTBAG_KEEP_DB_ACK_SCHEMA_DRIFT=1 → proceeding code-only despite schema drift." >&2
-    elif (( HAS_MODE == 0 )) && [[ -r /dev/tty ]]; then
-      # Bare default: offer to rebuild now. Re-exec as --from-csv, preserving the
-      # operator's other flags (drop the code-only mode flags that would conflict).
-      printf "  Rebuild + replace the deployed DB now (--from-csv) instead of code-only? [Y/n] " >&2
-      read -r _ans </dev/tty || _ans=""
-      if [[ -z "$_ans" || "$_ans" =~ ^[Yy] ]]; then
-        _rebuild_args=()
-        for _a in "${EXPANDED_ARGS[@]+"${EXPANDED_ARGS[@]}"}"; do
-          case "$_a" in
-            -k|--keep-staging-db|-r|--reuse-local-db) ;;
-            *) _rebuild_args+=("$_a") ;;
-          esac
-        done
-        echo "  → Re-running as a DB-rebuild deploy (--from-csv)..." >&2
-        exec bash "$0" --from-csv "${_rebuild_args[@]+"${_rebuild_args[@]}"}"
-      fi
-      echo "  → Proceeding with the code-only deploy at operator's risk." >&2
+    elif (( HAS_MODE == 0 )); then
+      # A bare invocation states no intent about the database, so on drift there
+      # is no answer this script can supply for the operator. It used to offer a
+      # rebuild here with the prompt defaulting to yes, which meant a keystroke
+      # meant as "get on with the deploy" re-ran the whole thing as a deploy that
+      # replaces the deployed database. Declining was no better: it shipped code
+      # against a schema it does not match, which the warning above says will
+      # crash at runtime. Neither outcome is one an empty answer should be able
+      # to select, so both now require the operator to say which they mean. This
+      # is the same refusal the no-terminal branch below already makes, and it is
+      # why that branch is no longer a special case.
+      echo "ERROR: schema drift detected and this deploy states no intent for the database." >&2
+      echo "Choose one explicitly and re-run:" >&2
+      echo "  bash deploy_to_aws.sh -k         ship code only, leaving the deployed DB alone" >&2
+      echo "  bash deploy_to_aws.sh --from-csv rebuild and REPLACE the deployed DB" >&2
+      echo "" >&2
+      echo "Code-only against a drifted schema is expected to crash at runtime; the rebuild" >&2
+      echo "destroys the deployed database. Neither is a safe default, which is why there" >&2
+      echo "is no longer one." >&2
+      exit 1
     elif [[ -r /dev/tty ]]; then
       # Explicit -k: operator deliberately chose code-only. Confirm, default no.
       printf "  Proceed with code-only deploy despite schema drift? [y/N] " >&2

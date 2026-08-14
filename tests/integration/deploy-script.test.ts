@@ -589,6 +589,87 @@ describe('remote-half script production refusal guards (static-text)', () => {
   });
 });
 
+// ── no prompt in the wrapper defaults to the destructive answer ──────────────
+//
+// Permanent contract: no keystroke in the deploy wrapper can select a database
+// replacement. A bare invocation states no intent about the database, so on
+// schema drift it refuses and names the two explicit commands instead of
+// offering a default. Every remaining prompt in the file defaults to no. The
+// drift path itself needs a reachable host, so it cannot be executed in CI; what
+// is checked here is that no yes-defaulting prompt exists to be reached.
+
+describe('deploy wrapper has no yes-defaulting prompt (static-text)', () => {
+  const wrapper = fs.readFileSync(path.join(REPO_ROOT, 'deploy_to_aws.sh'), 'utf8');
+
+  it('offers no [Y/n] prompt anywhere', () => {
+    expect(wrapper).not.toMatch(/\[Y\/n\]/);
+  });
+
+  it('never re-executes itself as a database rebuild', () => {
+    expect(wrapper).not.toMatch(/exec bash "\$0" --from-csv/);
+  });
+
+  it('refuses a bare deploy on schema drift and names both explicit choices', () => {
+    expect(wrapper).toMatch(/schema drift detected and this deploy states no intent/);
+    expect(wrapper).toMatch(/deploy_to_aws\.sh -k\s+ship code only/);
+    expect(wrapper).toMatch(/deploy_to_aws\.sh --from-csv rebuild and REPLACE/);
+  });
+});
+
+// ── deploy provenance, both paths (static text scan) ─────────────────────────
+//
+// Permanent contract: every deploy records what it shipped to
+// /srv/footbag/deployed-from, so "what is running" is a question with an answer
+// afterwards rather than an inference. This used to hold on the code-only path
+// only, which left the gap on the rebuild path, the one deploy that replaces the
+// database and therefore the one after which the question is hardest to answer
+// any other way.
+
+describe('deploy provenance is recorded by both deploy paths (static-text)', () => {
+  it.each([
+    'scripts/deploy-code.sh',
+    'scripts/deploy-rebuild.sh',
+  ])('%s composes and forwards DEPLOY_PROVENANCE', (relPath) => {
+    const content = fs.readFileSync(path.join(REPO_ROOT, relPath), 'utf8');
+    expect(content).toMatch(/DEPLOY_PROVENANCE="commit=\$DEPLOY_COMMIT dirty=\$DEPLOY_DIRTY_COUNT/);
+    expect(content).toMatch(/printf 'DEPLOY_PROVENANCE=%q\\n'/);
+  });
+
+  it.each([
+    'scripts/internal/deploy-code-remote.sh',
+    'scripts/internal/deploy-rebuild-remote.sh',
+  ])('%s writes it to the host, last and world-readable', (relPath) => {
+    const content = fs.readFileSync(path.join(REPO_ROOT, relPath), 'utf8');
+    expect(content).toMatch(/mv "\$provenance_tmp" \/srv\/footbag\/deployed-from/);
+    expect(content).toMatch(/chmod 644 "\$provenance_tmp"/);
+  });
+});
+
+// ── wrapper-side production gate (static text scan) ──────────────────────────
+//
+// The remote-half refusal above is the backstop, and it fires late: by the time
+// it runs, the release has been promoted and the host env file rewritten, so a
+// production deploy from a workstation holding a non-empty
+// .local/initial-admins.txt aborts with the declared state and the running state
+// disagreeing. Permanent contract: both wrappers stop reading the file at all
+// when the target is production, so the value is never sent and the backstop is
+// never reached in normal operation.
+
+describe('deploy wrappers do not read the dev admin allowlist for production (static-text)', () => {
+  it.each([
+    'scripts/deploy-rebuild.sh',
+    'scripts/deploy-code.sh',
+  ])('%s clears the allowlist path when the target is production', (relPath) => {
+    const content = fs.readFileSync(path.join(REPO_ROOT, relPath), 'utf8');
+    expect(content).toMatch(
+      /if\s*\[\[\s*"\$REMOTE"\s*==\s*"footbag-production"\s*\]\];\s*then\s*\n\s*LOCAL_ADMIN_FILE=""/,
+    );
+    // The read itself must be conditional on the path still being set, or
+    // clearing it above achieves nothing.
+    expect(content).toMatch(/\[\[\s*-n\s*"\$LOCAL_ADMIN_FILE"\s*&&\s*-f\s*"\$LOCAL_ADMIN_FILE"\s*\]\]/);
+  });
+});
+
 // ── stub webhook signing secret (static-text) ────────────────────────────────
 
 describe('deploy-rebuild-remote.sh stub webhook signing secret', () => {
@@ -723,6 +804,19 @@ describe('Stripe webhook-secret sync from Parameter Store (both remote halves)',
   it.each(halves)('$file refuses a stub-prefixed secret and clears a placeholder', ({ content }) => {
     expect(content).toMatch(/whsec_stub\* \]\]/);
     expect(content).toMatch(/TODO-\* \]\]; then value=""/);
+  });
+
+  // A failed Parameter Store read and a placeholder value are different facts.
+  // Treating them alike leaves a stale signing secret on a host the same deploy
+  // is arming, and reports success. Every other parameter read in these scripts
+  // aborts on a failed call; this one must too, while the placeholder keeps its
+  // deliberate leave-alone behaviour.
+  it.each(halves)('$file aborts on a failed read rather than continuing', ({ content }) => {
+    expect(content).toMatch(/if ! value=\$\(/);
+    expect(content).toMatch(/ERROR: could not read \$param from Parameter Store/);
+    expect(content).not.toMatch(/\) \|\| value=""/);
+    // The placeholder branch must no longer claim to cover an unreadable value.
+    expect(content).not.toMatch(/still the placeholder or unreadable/);
   });
 });
 

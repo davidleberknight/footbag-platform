@@ -7,11 +7,15 @@
 # private half signs them and must reach SSM without ever passing through a
 # process argument or shell history.
 #
-#   generate   Create the 2048-bit RSA keypair in the operator key directory
-#              (default ~/AWS), 0600 on the private half. Refuses to overwrite
-#              an existing key: a replaced key invalidates every cookie signed
-#              with the old one, so rotation is deliberate (--force) and
-#              follows the additive two-key rotation in the ops guide.
+#   generate   Create this environment's 2048-bit RSA keypair in the operator
+#              key directory (default ~/AWS), named archive-signing-key-<env>
+#              .pem and .pub, 0600 on the private half. Refuses to overwrite an
+#              existing key: a replaced key invalidates every cookie signed with
+#              the old one, so rotation is deliberate (--force) and follows the
+#              additive two-key rotation in the ops guide. Every environment
+#              gets its own keypair, because a shared one makes one
+#              environment's CloudFront key group validate cookies signed by a
+#              key another environment's Parameter Store holds.
 #   store      Upload the private half to the environment's SSM SecureString.
 #              The value travels as a file:// reference, never as an argument.
 #   tfvars     Print the archive_signing_public_key assignment in the exact
@@ -45,7 +49,7 @@ FORCE=0
 ACTION=""
 
 usage() {
-  sed -n '2,44p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,42p' "$0" | sed 's/^# \{0,1\}//'
   exit 2
 }
 
@@ -79,10 +83,41 @@ if [[ -z "$ACTION" ]]; then
   exit 2
 fi
 
-PRIVATE_KEY="${KEY_DIR}/archive-signing-key.pem"
-PUBLIC_KEY="${KEY_DIR}/archive-signing-key.pub"
+# The key file carries the environment, exactly as the parameter name and the
+# KMS alias below do. It did not, once, and every action still reported success:
+# a second environment's `generate` met the refuse-to-overwrite branch, which
+# reads as protective, and `store` and `tfvars` then carried the first
+# environment's key onward. The result is one environment's CloudFront key group
+# validating cookies signed by a key another environment's Parameter Store holds,
+# which is the cross-environment bridge the per-environment secret scoping exists
+# to prevent.
+PRIVATE_KEY="${KEY_DIR}/archive-signing-key-${TARGET_ENV}.pem"
+PUBLIC_KEY="${KEY_DIR}/archive-signing-key-${TARGET_ENV}.pub"
+UNSCOPED_PRIVATE_KEY="${KEY_DIR}/archive-signing-key.pem"
 PARAM_NAME="/footbag/${TARGET_ENV}/secrets/archive_signing_private_key"
 KMS_ALIAS="alias/footbag-${TARGET_ENV}"
+
+# A key from before the filename carried the environment belongs to whichever
+# environment it was registered with, and nothing on this workstation records
+# which. Guessing either strands a working environment or hands its key to
+# another, so every action that would consume a key refuses until the operator
+# resolves it by name. Renaming is safe and sufficient: the file's contents are
+# what CloudFront and Parameter Store already hold.
+refuse_unscoped_key() {
+  [[ -e "$PRIVATE_KEY" || ! -e "$UNSCOPED_PRIVATE_KEY" ]] && return 0
+  echo "ERROR: no ${PRIVATE_KEY}, but ${UNSCOPED_PRIVATE_KEY} exists." >&2
+  echo "That key predates per-environment key filenames and may belong to a" >&2
+  echo "different environment; this script cannot tell which, and using it here" >&2
+  echo "would make ${TARGET_ENV} trust a key another environment can read." >&2
+  echo "" >&2
+  echo "Resolve it by name, then re-run:" >&2
+  echo "  - if it is ${TARGET_ENV}'s key, rename it to ${PRIVATE_KEY}" >&2
+  echo "    (and its .pub alongside), which changes nothing it is registered with;" >&2
+  echo "  - otherwise rename it to the environment it does belong to, and run" >&2
+  echo "    the generate action here for a key of this environment's own." >&2
+  echo "The status action reports whether a local key matches the stored one." >&2
+  exit 1
+}
 
 needs_aws() {
   AWS_ARGS=()
@@ -98,6 +133,7 @@ needs_aws() {
 }
 
 do_generate() {
+  refuse_unscoped_key
   if [[ -e "$PRIVATE_KEY" && "$FORCE" -ne 1 ]]; then
     echo "REFUSING: ${PRIVATE_KEY} already exists." >&2
     echo "Replacing the key invalidates every cookie signed with it, so members" >&2
@@ -118,6 +154,7 @@ do_generate() {
 }
 
 do_store() {
+  refuse_unscoped_key
   needs_aws
   if [[ ! -r "$PRIVATE_KEY" ]]; then
     echo "ERROR: ${PRIVATE_KEY} not readable; run the generate action first." >&2
@@ -144,6 +181,7 @@ do_store() {
 }
 
 do_tfvars() {
+  refuse_unscoped_key
   if [[ ! -r "$PUBLIC_KEY" ]]; then
     echo "ERROR: ${PUBLIC_KEY} not readable; run the generate action first." >&2
     exit 1
@@ -162,6 +200,11 @@ do_status() {
     echo "  local private key: present (${PRIVATE_KEY}, mode ${perms})"
   else
     echo "  local private key: ABSENT (${PRIVATE_KEY})"
+    if [[ -e "$UNSCOPED_PRIVATE_KEY" ]]; then
+      echo "  unscoped key:      ${UNSCOPED_PRIVATE_KEY} exists and is NOT used here;"
+      echo "                     rename it to the environment it belongs to (the other"
+      echo "                     actions refuse until it is resolved by name)"
+    fi
   fi
   [[ -r "$PUBLIC_KEY" ]] \
     && echo "  local public key:  present (${PUBLIC_KEY})" \

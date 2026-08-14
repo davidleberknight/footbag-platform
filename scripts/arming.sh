@@ -63,6 +63,16 @@ AWS_PROFILE_ARG=""
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+# The deploy command and its flags live in one place so the preview printed in
+# synthetic mode and the command actually run in step 4 cannot drift apart. The
+# flags are a safety property, not a convenience: see the note at the invocation.
+# ARMING_DEPLOY_CMD exists only so a test can execute step 4 against a recorder
+# and assert the real argument list; it is never set in operator use, and while
+# it is set the script refuses to run terraform at all, so it can only ever
+# invoke the injected command.
+DEPLOY_CMD="${ARMING_DEPLOY_CMD:-$REPO_ROOT/deploy_to_aws.sh}"
+DEPLOY_ARGS=(-k)
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --target)
@@ -218,9 +228,29 @@ WEBHOOK_PATH="/payments/webhook"
 PRECONDITION=""
 if [[ "$SWITCH" == "payments" && "$STATE" == "dark" ]]; then
   PRECONDITION="stripe-endpoint"
+elif [[ "$SWITCH" == "payments" && "$STATE" == "armed" ]]; then
+  PRECONDITION="payments-readiness"
 elif [[ "$SWITCH" == "email" && "$STATE" == "armed" ]]; then
   PRECONDITION="ses-readiness"
 fi
+
+# Reads a secret parameter's value only to classify it: present and real, still
+# the bootstrap placeholder, or unreadable. The value itself is never printed.
+classify_secret_param() {
+  local param="/footbag/$TARGET/secrets/$1" value
+  if ! value=$(
+    aws ssm get-parameter --name "$param" --with-decryption \
+      --query 'Parameter.Value' --output text \
+      --profile "$AWS_PROFILE_ARG" 2>/dev/null
+  ); then
+    echo "unreadable"
+    return 0
+  fi
+  case "$value" in
+    ''|TODO-*) echo "placeholder" ;;
+    *)         echo "set" ;;
+  esac
+}
 
 echo "== $SWITCH arming: $TARGET -> $STATE =="
 echo ""
@@ -235,6 +265,12 @@ if (( DRY_RUN )); then
       echo "  1. Confirm the Stripe webhook endpoint has been DISABLED in the dashboard"
       echo "     (endpoint path $WEBHOOK_PATH). Disarming first leaves Stripe retrying"
       echo "     against a host that can no longer validate signatures."
+      ;;
+    payments-readiness)
+      echo "  1. Confirm the Stripe credentials are actually in Parameter Store. An"
+      echo "     armed production REFUSES TO BOOT unless the payment adapter is live"
+      echo "     with a webhook secret present, so arming before activation has"
+      echo "     finished takes production down instead of turning payments on."
       ;;
     ses-readiness)
       echo "  1. Confirm every SES precondition, one at a time. The live SES adapter"
@@ -293,6 +329,44 @@ if (( FROM_STEP <= 1 )) && [[ "$PRECONDITION" == "ses-readiness" ]]; then
     echo "state: the check-email page keeps rendering the verification link on" >&2
     echo "screen, so registration still works end to end." >&2
     exit 1
+  fi
+  echo ""
+fi
+
+if (( FROM_STEP <= 1 )) && [[ "$PRECONDITION" == "payments-readiness" ]]; then
+  echo "-- step 1: Stripe credentials --"
+  echo ""
+  echo "Arming payments makes the deploy derive PAYMENT_ADAPTER=live. A production"
+  echo "host refuses to boot with the live adapter unless the Stripe webhook secret"
+  echo "is present, so arming before activation has finished does not turn payments"
+  echo "on: it takes the site down, and getting back up means editing the values"
+  echo "file, applying, and deploying again while it stays down."
+  echo ""
+  if [[ -z "$AWS_PROFILE_ARG" ]]; then
+    echo "No --profile was given, so this cannot be checked from here. Re-run with"
+    echo "--profile to have it checked, or attest to it."
+    echo ""
+    printf "Type 'CREDENTIALS IN PLACE' only if activation has already run: "
+    read -r TYPED
+    if [[ "$TYPED" != "CREDENTIALS IN PLACE" ]]; then
+      echo "Aborted: nothing has been changed. Run scripts/activate-payments.sh first." >&2
+      exit 1
+    fi
+  else
+    KEY_STATE="$(classify_secret_param stripe_secret_key)"
+    WS_STATE="$(classify_secret_param stripe_webhook_secret)"
+    echo "  Stripe API key parameter:      $KEY_STATE"
+    echo "  Stripe webhook secret parameter: $WS_STATE"
+    echo ""
+    if [[ "$KEY_STATE" != "set" || "$WS_STATE" != "set" ]]; then
+      echo "Aborted: nothing has been changed. Arming now would stop the host booting." >&2
+      echo "Run scripts/activate-payments.sh --target $TARGET --profile <profile> first," >&2
+      echo "then re-run this. If a parameter reads unreadable, fix the credentials rather" >&2
+      echo "than arming past it: this check is the only thing standing between a missing" >&2
+      echo "secret and a production outage." >&2
+      exit 1
+    fi
+    echo "  Both parameters hold real values."
   fi
   echo ""
 fi
@@ -357,11 +431,22 @@ if (( FROM_STEP <= 2 )); then
   echo ""
 fi
 
-if [[ -n "$TFVARS_OVERRIDE" ]]; then
+SYNTHETIC=0
+[[ -n "$TFVARS_OVERRIDE" ]] && SYNTHETIC=1
+
+if (( SYNTHETIC )); then
   echo "-- synthetic mode: stopping before terraform and deploy --"
   echo "Would next run:"
   echo "  terraform -chdir=$TF_DIR apply"
-  echo "  DEPLOY_TARGET=$SSH_ALIAS ./deploy_to_aws.sh"
+  echo "  DEPLOY_TARGET=$SSH_ALIAS $DEPLOY_CMD ${DEPLOY_ARGS[*]}"
+  # Test seam. With an injected deploy command, run that one command so its
+  # argument list is observable, then stop. Nothing else in the real sequence
+  # runs: no terraform, no SSH, no host probe, and not the egress lookup either.
+  # The flags carried here are a safety property, so a test that cannot execute
+  # this line can only ever assert the sentence above it.
+  if [[ -n "${ARMING_DEPLOY_CMD:-}" ]]; then
+    DEPLOY_TARGET="$SSH_ALIAS" "$DEPLOY_CMD" "${DEPLOY_ARGS[@]}"
+  fi
   exit 0
 fi
 
@@ -421,7 +506,14 @@ if (( FROM_STEP <= 4 )); then
   echo ""
   echo "  Running a CODE-ONLY deploy. Expect 15-25 seconds of degraded service."
   echo ""
-  if ! DEPLOY_TARGET="$SSH_ALIAS" "$REPO_ROOT/deploy_to_aws.sh"; then
+  # The -k in DEPLOY_ARGS is load-bearing, not decoration. A bare wrapper
+  # invocation is the one form that treats schema drift as an invitation to
+  # rebuild: it offers to replace the deployed database and that prompt defaults
+  # to yes, so an operator pressing enter to get past it re-runs the whole deploy
+  # as a data-replacing one. With -k the same drift routes to a prompt that
+  # defaults to no and aborts. Arming must never be able to become a database
+  # replace, whatever is answered here.
+  if ! DEPLOY_TARGET="$SSH_ALIAS" "$DEPLOY_CMD" "${DEPLOY_ARGS[@]}"; then
     echo "ERROR: the deploy failed. SSM already declares \"$STATE\" but the host does not" >&2
     echo "       yet run it. Resume with --from-step 4." >&2
     exit 1

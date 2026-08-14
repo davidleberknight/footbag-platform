@@ -665,7 +665,7 @@ if [[ "$FOOTBAG_ENV_VAL" == "production" ]]; then
   # deploy-rebuild-remote.sh: a real value in the parameter is authoritative
   # and overwrites the host line on every deploy, so the secret is never
   # hand-pasted onto a host; while the parameter still holds its bootstrap
-  # placeholder (or is unreadable) the sync leaves any existing host value
+  # placeholder the sync leaves any existing host value
   # untouched, so a value installed by the payments activation or rotation
   # script survives deploys until the parameter carries the real secret.
   # The _previous twin carries the outgoing secret during a Stripe secret roll.
@@ -674,17 +674,30 @@ if [[ "$FOOTBAG_ENV_VAL" == "production" ]]; then
     local param="/footbag/${FOOTBAG_ENV_VAL}/secrets/${param_suffix}"
     local value
     echo "==> Syncing ${env_key} from ${param} ..."
-    value=$(
+    # A failed read and a placeholder are different facts and must not share a
+    # branch. Every other parameter read in this script aborts the deploy when
+    # the call fails; this one used to swallow the failure and continue, so a
+    # transient throttle or a credentials hiccup left a stale secret on the host
+    # while the adapter went live, and the deploy still reported success. Both
+    # parameters are declared in this environment's Terraform, so a read that
+    # fails here means the call failed, not that there is nothing to read.
+    if ! value=$(
       AWS_PROFILE="$AWS_PROFILE_VAL" aws ssm get-parameter \
         --region "$AWS_REGION_VAL" \
         --name "$param" \
         --with-decryption \
         --query 'Parameter.Value' \
         --output text 2>/dev/null
-    ) || value=""
+    ); then
+      echo "ERROR: could not read $param from Parameter Store." >&2
+      echo "       Refusing to continue: the host would keep whatever ${env_key} it already has" >&2
+      echo "       while the rest of the deploy proceeds, which is how a stale signing secret" >&2
+      echo "       survives into an armed host. Fix the credentials or the parameter, then redeploy." >&2
+      exit 1
+    fi
     if [[ "$value" == TODO-* ]]; then value=""; fi
     if [[ -z "$value" ]]; then
-      echo "    ${param} still the placeholder or unreadable; leaving any existing ${env_key} in place."
+      echo "    ${param} still the placeholder; leaving any existing ${env_key} in place."
       return 0
     fi
     if [[ "$value" != whsec_* ]]; then
