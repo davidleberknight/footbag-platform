@@ -61,7 +61,9 @@ function v(classification: EmailPiiClass, mergeFields: readonly string[]): Varia
   return { classification, mergeFields };
 }
 
-const PAYMENT_RECEIPT_FIELDS = ['descriptor', 'amountDisplay', 'referenceId'] as const;
+const PAYMENT_RECEIPT_FIELDS = [
+  'descriptor', 'amountDisplay', 'paymentDate', 'intervalPhrase', 'referenceId',
+] as const;
 
 const RECURRING_DONATION_FIELDS = ['amountDisplay', 'notePhrase', 'referenceId'] as const;
 
@@ -181,6 +183,8 @@ const SHAPERS = {
   payment_receipt: (p: {
     descriptor: string;
     amountDisplay: string;
+    paymentDate: string;
+    intervalPhrase: string;
     outcome: 'succeeded' | 'failed';
     isMembership: boolean;
     purchasedTier: 'tier1' | 'tier2' | null;
@@ -193,7 +197,13 @@ const SHAPERS = {
         : p.isMembership && p.purchasedTier === 'tier2'
           ? 'payment_receipt_succeeded_tier2'
           : 'payment_receipt_succeeded',
-    merge: { descriptor: p.descriptor, amountDisplay: p.amountDisplay, referenceId: p.referenceId },
+    merge: {
+      descriptor: p.descriptor,
+      amountDisplay: p.amountDisplay,
+      paymentDate: p.paymentDate,
+      intervalPhrase: p.intervalPhrase,
+      referenceId: p.referenceId,
+    },
   }),
   donation_subscription_started: (p: RecurringDonationParams): ShapedEmail => ({
     variant: 'donation_subscription_started',

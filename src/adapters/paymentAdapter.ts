@@ -368,6 +368,19 @@ function buildStubEventObject(
         },
       };
     }
+    // A recurring checkout the member walked away from expires; it does not
+    // delete a subscription, because the provider never created one. The two
+    // are different events against different identifiers, and only the expiry
+    // carries the checkout session, which is what the handler matches an
+    // unresolved local row on.
+    if (session.outcome === 'cancel') {
+      return {
+        id: eventId,
+        type: 'checkout.session.expired',
+        created,
+        data: { object: { id: session.sessionId, metadata: meta } },
+      };
+    }
     return {
       id: eventId,
       type: 'customer.subscription.deleted',

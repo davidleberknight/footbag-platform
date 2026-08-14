@@ -86,10 +86,16 @@ if [[ "${FOOTBAG_ENV:-}" == "production" ]]; then
     echo "       (read: '$PROD_LIVE_MARKER'). Pre-live is the only state in which the" >&2
     echo "       production database may be replaced; from the go-live flip onward the" >&2
     echo "       full-refresh deploy is forbidden permanently, and a missing or" >&2
-    echo "       unreadable marker refuses too (fail closed). If production is still" >&2
-    echo "       pre-live, run terraform apply for the production tree (which seeds the" >&2
-    echo "       marker \"false\") or fix the host's AWS profile, then retry. Use" >&2
-    echo "       scripts/deploy-code.sh for code deploys. There is no bypass flag." >&2
+    echo "       unreadable marker refuses too (fail closed)." >&2
+    echo "" >&2
+    echo "       Terraform cannot fix this: the marker resource carries ignore_changes on" >&2
+    echo "       its value, so an apply leaves it exactly where it is. Check what the" >&2
+    echo "       marker actually reads, and move it deliberately if production really is" >&2
+    echo "       still pre-live:" >&2
+    echo "         scripts/production-live-marker.sh --status --profile <prod-profile>" >&2
+    echo "         scripts/production-live-marker.sh --set pre-live --profile <prod-profile>" >&2
+    echo "       An unreadable marker is usually the host's AWS profile, not the value." >&2
+    echo "       Use scripts/deploy-code.sh for code deploys. There is no bypass flag." >&2
     exit 1
   fi
 

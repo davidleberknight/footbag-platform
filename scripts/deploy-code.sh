@@ -270,9 +270,25 @@ if [[ -f "$LOCAL_ADMIN_FILE" ]]; then
   ' "$LOCAL_ADMIN_FILE" | paste -sd, -)
 fi
 
+# Deploy provenance. This deploy rsyncs the local working tree, not a tagged
+# artifact, so the commit alone does not describe what is running: uncommitted
+# edits ship too. Record the commit AND the dirty paths on the host, so "what
+# is deployed right now" is a question with an answer afterwards instead of an
+# inference from whoever last ran this. The dirty list is capped because it is
+# a breadcrumb, not a diff.
+DEPLOY_COMMIT="$(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+DEPLOY_DIRTY_PATHS="$(git -C "$REPO_ROOT" status --porcelain 2>/dev/null | cut -c4- | head -40 | paste -sd, -)"
+DEPLOY_DIRTY_COUNT="$(git -C "$REPO_ROOT" status --porcelain 2>/dev/null | wc -l | tr -d ' ')"
+DEPLOY_PROVENANCE="commit=$DEPLOY_COMMIT dirty=$DEPLOY_DIRTY_COUNT paths=${DEPLOY_DIRTY_PATHS:-none}"
+echo "==> Shipping working tree at commit $DEPLOY_COMMIT with $DEPLOY_DIRTY_COUNT uncommitted path(s)."
+if [[ "$DEPLOY_DIRTY_COUNT" != "0" ]]; then
+  echo "    uncommitted: ${DEPLOY_DIRTY_PATHS}"
+fi
+
 echo "==> Running remote-as-root deploy (promote, restart)..."
 {
   printf '%s\n' "$SUDO_PASS"
+  printf 'DEPLOY_PROVENANCE=%q\n'            "$DEPLOY_PROVENANCE"
   printf 'EXPECTED_WEB_IMAGE_LAYERS=%q\n'    "$WEB_IMAGE_LAYERS"
   printf 'EXPECTED_WORKER_IMAGE_LAYERS=%q\n' "$WORKER_IMAGE_LAYERS"
   printf 'EXPECTED_IMAGE_IMAGE_LAYERS=%q\n'  "$IMAGE_IMAGE_LAYERS"

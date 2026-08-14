@@ -363,6 +363,15 @@ describe('webhook correlation fallback (deferred PaymentIntent creation)', () =>
       expect(receipt!.recipient_member_id).toBe(M_RECEIPT);
       expect(receipt!.subject).toContain('Payment received');
       expect(receipt!.body_text).toContain('Thank you for your payment.');
+
+      // A receipt states when the money moved and whether it repeats, so the
+      // member can file it without opening the site.
+      const { created_at: paidAt } = db
+        .prepare('SELECT created_at FROM payments WHERE id = ?')
+        .get(paymentId) as { created_at: string };
+      const { formatDateDisplay } = await import('../../src/services/dateFormat');
+      expect(receipt!.body_text).toContain(formatDateDisplay(paidAt, { style: 'long' }));
+      expect(receipt!.body_text).toContain('One-time payment');
     } finally {
       db.close();
     }

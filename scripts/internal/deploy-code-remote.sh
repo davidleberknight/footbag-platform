@@ -864,3 +864,18 @@ if [[ "${REFRESH_TEST_PERSONAS:-no}" == "yes" ]]; then
     exit 1
   fi
 fi
+
+# Record what this deploy actually shipped. The rsync carries the operator's
+# working tree, so the commit on its own can understate it and the dirty paths
+# are recorded alongside it. Written last, so the file describes a deploy that
+# completed rather than one that started. Not a secret: mode 0644, so reading
+# the host to answer "what is running" does not need root.
+if [[ -n "${DEPLOY_PROVENANCE:-}" ]]; then
+  provenance_tmp=$(mktemp /srv/footbag/.deployed-from.tmp.XXXXXX)
+  printf 'deployed_at=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$provenance_tmp"
+  printf '%s\n' "$DEPLOY_PROVENANCE" >> "$provenance_tmp"
+  chmod 644 "$provenance_tmp"
+  chown root:root "$provenance_tmp"
+  mv "$provenance_tmp" /srv/footbag/deployed-from
+  echo "==> Recorded deploy provenance in /srv/footbag/deployed-from"
+fi

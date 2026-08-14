@@ -10,7 +10,13 @@
 # without an explicit production profile and an explicit confirmation flag.
 set -euo pipefail
 
-SENDER="noreply@footbag.org"   # canonical transactional sender
+# Canonical transactional sender. Overridable with --sender because the sender
+# identity is not always the canonical one: it must be an address SES has
+# verified, and the canonical address cannot be verified until mail for the
+# domain is reachable. While production sends under an interim identity, this
+# script has to send under the same one or it proves nothing about the running
+# configuration.
+SENDER="noreply@footbag.org"
 REGION="us-east-1"             # SES identity region
 SIMULATOR="success@simulator.amazonses.com"
 BOUNCE_SIMULATOR="bounce@simulator.amazonses.com"
@@ -20,12 +26,13 @@ CONFIRMED=0
 BOUNCE_PROBE=0
 
 usage() {
-  echo "Usage: $0 --profile <aws-profile> --confirm-production [--inbox <address>] [--bounce-probe]" >&2
+  echo "Usage: $0 --profile <aws-profile> --confirm-production [--sender <address>] [--inbox <address>] [--bounce-probe]" >&2
 }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --profile) PROFILE="$2"; shift 2 ;;
+    --sender) SENDER="$2"; shift 2 ;;
     --inbox) INBOX="$2"; shift 2 ;;
     --confirm-production) CONFIRMED=1; shift ;;
     --bounce-probe) BOUNCE_PROBE=1; shift ;;
@@ -58,6 +65,23 @@ send_one() {
     --profile "$PROFILE" \
     --query MessageId --output text
 }
+
+# Fail before sending rather than after: SES refuses an unverified sender with
+# an error that reads like a permissions problem, and the operator is left
+# guessing which of the two it is.
+SENDER_VERIFIED=$(
+  aws sesv2 get-email-identity \
+    --email-identity "$SENDER" \
+    --region "$REGION" \
+    --profile "$PROFILE" \
+    --query VerifiedForSendingStatus --output text 2>/dev/null
+) || SENDER_VERIFIED="absent"
+if [[ "$SENDER_VERIFIED" != "True" && "$SENDER_VERIFIED" != "true" ]]; then
+  echo "ERROR: sender '$SENDER' is not a verified SES identity in $REGION (status: $SENDER_VERIFIED)." >&2
+  echo "       Verify it, or pass --sender with the identity production is configured to send from." >&2
+  exit 1
+fi
+echo "Sender identity: $SENDER (verified)"
 
 echo "Sending to mailbox simulator ($SIMULATOR)..."
 echo "  MessageId: $(send_one "$SIMULATOR")"

@@ -767,8 +767,12 @@ export interface RecurringDonationSubscriptionOverrides {
   id?: string;
   member_id: string;
   stripe_customer_id?: string;
-  stripe_subscription_id?: string;
-  status?: 'active' | 'past_due' | 'canceled';
+  stripe_subscription_id?: string | null;
+  /** The checkout session that opened the row. Only an unresolved row carries
+   *  one, so it defaults to null and is set explicitly when building one. */
+  checkout_session_id?: string | null;
+  created_at?: string;
+  status?: 'incomplete' | 'active' | 'past_due' | 'canceled';
   amount_cents?: number;
   currency?: string;
   started_at?: string;
@@ -790,17 +794,21 @@ export function insertRecurringDonationSubscription(
   db.prepare(`
     INSERT INTO recurring_donation_subscriptions (
       id, created_at, created_by, updated_at, updated_by, version,
-      member_id, stripe_customer_id, stripe_subscription_id,
+      member_id, stripe_customer_id, stripe_subscription_id, checkout_session_id,
       status, amount_cents, currency, billing_interval,
       started_at, status_updated_at,
       is_cancel_at_period_end, cancel_requested_at, canceled_at,
       donation_comment, failure_count, last_stripe_event_created
-    ) VALUES (?, ?, 'system', ?, 'system', 1, ?, ?, ?, ?, ?, ?, 'yearly', ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, 'system', ?, 'system', 1, ?, ?, ?, ?, ?, ?, ?, 'yearly', ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
-    id, startedAt, startedAt,
+    id, o.created_at ?? startedAt, startedAt,
     o.member_id,
-    o.stripe_customer_id ?? `cus-test-${uid()}`,
-    o.stripe_subscription_id ?? `sub-test-${uid()}`,
+    // An unresolved checkout has neither provider identifier yet, and the
+    // table's CHECK enforces that only such a row may lack them, so the
+    // defaults have to follow the status the same way canceled_at does.
+    o.stripe_customer_id ?? (status === 'incomplete' ? null : `cus-test-${uid()}`),
+    o.stripe_subscription_id ?? (status === 'incomplete' ? null : `sub-test-${uid()}`),
+    o.checkout_session_id ?? (status === 'incomplete' ? `cs-test-${uid()}` : null),
     status,
     o.amount_cents ?? 2500,
     o.currency ?? 'USD',

@@ -19,6 +19,10 @@
   {{/if}}
 
   {{#if content.galleries.length}}
+    {{! Seven columns including two tag lists and the row actions. Scrolls
+        inside its own container so the page body never does, and so the
+        controls at the end of each row stay reachable at phone width. }}
+    <div class="records-table-wrap">
     <table class="curator-list">
       <thead>
         <tr>
@@ -72,6 +76,7 @@
         {{/each}}
       </tbody>
     </table>
+    </div>
   {{else}}
     {{#if content.teaching}}
       {{> _teaching-empty-state teaching=content.teaching uploadMediaHref=content.uploadMediaHref}}

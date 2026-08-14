@@ -184,7 +184,7 @@ describe('GET /payments/checkout/:sessionId (stub adapter)', () => {
       .get(checkoutUrl)
       .set('Cookie', memberCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('IFPA Tier 1 Membership');
+    expect(res.text).toContain('Membership: Tier 1 IFPA Member');
     expect(res.text).toContain('Confirm and Pay');
   });
 

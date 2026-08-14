@@ -6,8 +6,11 @@
  * so local subscription state moves only in response to a webhook; each handler
  * claims the Stripe event id inside the same transaction as the state change it
  * guards, so a redelivery is a no-op duplicate and a failure leaves nothing
- * half-applied; and a recurring checkout writes nothing locally until the
- * created event arrives, so an abandoned checkout leaves no trace.
+ * half-applied; and a recurring checkout records its subscription row before
+ * the redirect, in an unresolved state, so an abandoned checkout leaves a trace
+ * rather than nothing. The created event promotes that row and the expiry event
+ * closes it out; an unresolved row is invisible to the member and to the
+ * provider comparison, and is raised for a human only once it goes stale.
  */
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 
@@ -26,9 +29,14 @@ const M_OTHER = 'don-other';
 const M_FAIL_AGAIN = 'don-fail-again';
 const M_UPDATE_AGAIN = 'don-update-again';
 const M_SIGNUP = 'don-signup';
+const M_PROMOTE = 'don-promote';
+const M_LEDGER = 'don-ledger';
+const M_EXPIRE = 'don-expire';
+const M_EXPIRE_AGAIN = 'don-expire-again';
 const ALL_MEMBERS = [
   M_PLAIN, M_HOF, M_BAP, M_BOTH, M_OTHER,
   M_FAIL_AGAIN, M_UPDATE_AGAIN, M_SIGNUP,
+  M_PROMOTE, M_LEDGER, M_EXPIRE, M_EXPIRE_AGAIN,
 ];
 
 beforeAll(async () => {
@@ -262,15 +270,120 @@ describe('startDonation: one-time gift', () => {
   });
 });
 
-describe('startDonation: recurring gift writes nothing until Stripe confirms', () => {
-  it('leaves no local subscription row when the checkout is abandoned', async () => {
+describe('startDonation: a recurring gift is recorded from the moment checkout opens', () => {
+  it('writes an unresolved subscription row before the member is redirected', async () => {
     const paymentService = await svc();
     await stubAdapter();
-    const started = await paymentService.startDonation(M_PLAIN, 2500, null, true, '/x');
-    expect(readSubscription(started.reference)).toBeUndefined();
+    const started = await paymentService.startDonation(M_PLAIN, 2500, 'For the kids', true, '/x');
+
+    const sub = readSubscription(started.reference)!;
+    expect(sub).toBeDefined();
+    expect(sub.status).toBe('incomplete');
+    expect(sub.amount_cents).toBe(2500);
+    expect(sub.donation_comment).toBe('For the kids');
+    // The provider mints both of these during checkout, so neither can exist
+    // yet; the session is the only handle the row has until it is confirmed.
+    expect(sub.stripe_subscription_id).toBeNull();
+    expect(sub.checkout_session_id).toBe(started.sessionId);
+
+    // A recurring gift is a subscription, never a payment row of its own; the
+    // charges arrive later as invoices.
     expect(countRows('SELECT COUNT(*) AS c FROM payments WHERE id = ?', started.reference)).toBe(0);
   });
 
+  it('keeps an unresolved checkout out of the member-facing history', async () => {
+    const paymentService = await svc();
+    await stubAdapter();
+    const started = await paymentService.startDonation(M_PLAIN, 2500, null, true, '/x');
+
+    const page = paymentService.getPaymentHistoryPage(M_PLAIN, 'plain-member');
+    const references = page.content.recurringRows.map((r) => r.reference);
+    expect(references).not.toContain(started.reference);
+  });
+
+  it('keeps an unresolved checkout out of the active-subscription view', async () => {
+    const paymentService = await svc();
+    await stubAdapter();
+    const started = await paymentService.startDonation(M_PLAIN, 2500, null, true, '/x');
+
+    expect(countRows(
+      'SELECT COUNT(*) AS c FROM recurring_donation_subscriptions_active WHERE id = ?',
+      started.reference,
+    )).toBe(0);
+    expect(countRows(
+      'SELECT COUNT(*) AS c FROM recurring_donation_subscriptions WHERE id = ?',
+      started.reference,
+    )).toBe(1);
+  });
+});
+
+describe('resolving the row a recurring checkout opened', () => {
+  it('promotes the row checkout wrote rather than creating a second one', async () => {
+    const { subscriptionId, stripeSubscriptionId } = await activateSubscription(M_PROMOTE, {
+      amountCents: 4000,
+    });
+
+    // One row, not two: the created event has to recognise the row already
+    // written at checkout, or a member ends up with a phantom duplicate gift.
+    expect(countRows(
+      'SELECT COUNT(*) AS c FROM recurring_donation_subscriptions WHERE member_id = ?',
+      M_PROMOTE,
+    )).toBe(1);
+
+    const sub = readSubscription(subscriptionId)!;
+    expect(sub.status).toBe('active');
+    expect(sub.stripe_subscription_id).toBe(stripeSubscriptionId);
+    // The session that opened it stays on the row: it is how an expiry arriving
+    // late is matched, and how the checkout is traced in the dashboard.
+    expect(sub.checkout_session_id).not.toBeNull();
+    // version moves because this is an update of an existing row.
+    expect(sub.version).toBe(2);
+  });
+
+  it('records the promotion in the ledger as coming from the unresolved state', async () => {
+    const { subscriptionId } = await activateSubscription(M_LEDGER);
+    expect(countRows(
+      `SELECT COUNT(*) AS c FROM recurring_donation_subscription_transitions
+       WHERE recurring_subscription_id = ? AND old_status = 'incomplete' AND new_status = 'active'`,
+      subscriptionId,
+    )).toBe(1);
+  });
+
+  it('closes the row out when the checkout expires instead of completing', async () => {
+    const paymentService = await svc();
+    const stub = await stubAdapter();
+    const started = await paymentService.startDonation(M_EXPIRE, 2500, null, true, '/x');
+
+    stub.overrideSessionOutcome(started.sessionId, 'cancel');
+    const expired = stub.buildSignedStubWebhookEvent(started.sessionId);
+    expect(paymentService.handleWebhook(expired.rawBody, expired.signature)).toEqual({
+      outcome: 'processed',
+    });
+
+    const sub = readSubscription(started.reference)!;
+    expect(sub.status).toBe('canceled');
+    expect(sub.canceled_at).not.toBeNull();
+    // Closed out, never deleted: the row is the evidence the member tried.
+    expect(countRows(
+      'SELECT COUNT(*) AS c FROM recurring_donation_subscriptions WHERE id = ?',
+      started.reference,
+    )).toBe(1);
+  });
+
+  it('treats a redelivered expiry as a duplicate rather than moving the row again', async () => {
+    const paymentService = await svc();
+    const stub = await stubAdapter();
+    const started = await paymentService.startDonation(M_EXPIRE_AGAIN, 2500, null, true, '/x');
+
+    stub.overrideSessionOutcome(started.sessionId, 'cancel');
+    const first = stub.buildSignedStubWebhookEvent(started.sessionId);
+    paymentService.handleWebhook(first.rawBody, first.signature);
+    const versionAfterFirst = readSubscription(started.reference)!.version;
+
+    const again = stub.buildSignedStubWebhookEvent(started.sessionId);
+    paymentService.handleWebhook(again.rawBody, again.signature);
+    expect(readSubscription(started.reference)!.version).toBe(versionAfterFirst);
+  });
 });
 
 describe('customer.subscription.created', () => {
@@ -365,6 +478,31 @@ describe('invoice.payment_succeeded', () => {
       "SELECT COUNT(*) AS c FROM recurring_donation_subscription_transitions WHERE recurring_subscription_id = ? AND lifecycle_event_code = 'charge_succeeded'",
       subscriptionId,
     )).toBe(1);
+  });
+
+  it('tells the member in the receipt that this gift repeats yearly', async () => {
+    const paymentService = await svc();
+    const stub = await stubAdapter();
+    const { sessionId, subscriptionId } = await activateSubscription(M_PLAIN);
+
+    const invoice = stub.buildSignedStubSubscriptionEvent(sessionId, 'invoice_succeeded');
+    expect(paymentService.handleWebhook(invoice.rawBody, invoice.signature)).toEqual({ outcome: 'processed' });
+
+    const db = openDb();
+    try {
+      const charge = db.prepare(
+        'SELECT id, created_at FROM payments WHERE recurring_subscription_id = ?',
+      ).get(subscriptionId) as { id: string; created_at: string };
+      const receipt = db.prepare(
+        'SELECT body_text FROM outbox_emails WHERE idempotency_key = ?',
+      ).get(`payment_receipt:${charge.id}:succeeded`) as { body_text: string } | undefined;
+      expect(receipt).toBeDefined();
+      const { formatDateDisplay } = await import('../../src/services/dateFormat');
+      expect(receipt!.body_text).toContain(formatDateDisplay(charge.created_at, { style: 'long' }));
+      expect(receipt!.body_text).toContain('Yearly recurring donation');
+    } finally {
+      db.close();
+    }
   });
 
   it('creates only one payment row when Stripe redelivers the same invoice event', async () => {

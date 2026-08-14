@@ -100,7 +100,8 @@ export type ReconciliationIssueType =
   | 'subscription_missing_at_provider'
   | 'provider_subscription_missing_locally'
   | 'subscription_status_mismatch'
-  | 'invoice_charge_missing_locally';
+  | 'invoice_charge_missing_locally'
+  | 'subscription_checkout_unresolved';
 
 export interface ReconciliationRunResult {
   windowStart: string;
@@ -131,7 +132,12 @@ interface LocalPaymentRow {
 interface LocalSubscriptionRow {
   id: string;
   member_id: string;
-  stripe_subscription_id: string;
+  /** Null on an unresolved checkout row, which has no provider subscription
+   *  behind it yet. Every row the comparison passes see is confirmed, so only
+   *  the unresolved-checkout sweep encounters the null. */
+  stripe_subscription_id: string | null;
+  checkout_session_id: string | null;
+  created_at: string;
   status: string;
   amount_cents: number;
   currency: string;
@@ -250,10 +256,24 @@ export const paymentReconciliationService = {
     );
     const graceCutoff = new Date(now.getTime() - graceMinutes * MINUTE_MS).toISOString();
 
+    // A recurring checkout writes its row before the redirect and something is
+    // expected to resolve it: the created event promotes it, or the expiry
+    // event closes it out. One that is still unresolved long afterwards means
+    // neither arrived, and the benign reading (the member wandered off and the
+    // expiry was lost) cannot be told apart from the costly one (the provider
+    // has a live subscription charging a card that this platform has no record
+    // of). That ambiguity is exactly what a human needs to look at, and it is
+    // invisible everywhere else because unresolved rows are filtered out of the
+    // active view, the member's history, and the comparison above.
+    const staleIncomplete = subsDb.listStaleIncomplete.all(
+      graceCutoff,
+    ) as LocalSubscriptionRow[];
+
     const drafts: IssueDraft[] = [
       ...comparePayments(localPayments, providerIntents, graceCutoff),
       ...compareSubscriptions(localSubscriptions, providerSubscriptions),
       ...compareInvoices(localPayments, providerInvoices, localSubscriptions, graceCutoff),
+      ...flagUnresolvedCheckouts(staleIncomplete),
     ];
 
     let raised = 0;
@@ -634,6 +654,7 @@ const ISSUE_TYPE_LABELS: Record<ReconciliationIssueType, string> = {
   provider_subscription_missing_locally: 'Provider subscription with no local record',
   subscription_status_mismatch: 'Subscription status disagrees',
   invoice_charge_missing_locally: 'Provider renewal charge with no local record',
+  subscription_checkout_unresolved: 'Recurring checkout never resolved either way',
 };
 
 export interface AdminPaymentQuery {
@@ -960,6 +981,34 @@ function comparePayments(
   return drafts;
 }
 
+/**
+ * Pass 2b: recurring checkouts that never resolved.
+ *
+ * Not a comparison against the provider ledger, because there is nothing to
+ * compare with: the row carries no subscription id. It is a check that the
+ * local state machine finished. A row still unresolved past the grace cutoff
+ * either lost its expiry event (harmless) or lost its created event (a live
+ * subscription this platform cannot see), and only a human can tell which by
+ * looking the session up in the dashboard.
+ */
+function flagUnresolvedCheckouts(stale: LocalSubscriptionRow[]): IssueDraft[] {
+  return stale.map((sub) => ({
+    issueType: 'subscription_checkout_unresolved' as const,
+    paymentId: null,
+    stripePaymentIntentId: null,
+    stripeSubscriptionId: null,
+    stripeInvoiceId: null,
+    details: {
+      reason: 'a recurring checkout was opened and neither confirmed nor expired',
+      subscription_record_id: sub.id,
+      checkout_session_id: sub.checkout_session_id,
+      opened_at: sub.created_at,
+      amount_cents: sub.amount_cents,
+      currency: sub.currency,
+    },
+  }));
+}
+
 /** Pass 2a: local subscriptions against provider subscriptions. */
 function compareSubscriptions(
   local: LocalSubscriptionRow[],
@@ -970,6 +1019,11 @@ function compareSubscriptions(
   const localByStripeId = new Map(local.map((s) => [s.stripe_subscription_id, s]));
 
   for (const sub of local) {
+    // The active view excludes unresolved checkouts, so every row here carries
+    // a subscription id. Skipping the null rather than asserting keeps this
+    // pass correct if that view ever widens: an unresolved row has its own
+    // sweep and must not be reported as missing at the provider.
+    if (!sub.stripe_subscription_id) continue;
     const remote = providerById.get(sub.stripe_subscription_id);
     if (!remote) {
       drafts.push({

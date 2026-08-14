@@ -1004,6 +1004,14 @@ CREATE TABLE ses_events (
 -- Current-state mirror of a member's recurring donation subscription in Stripe.
 -- One row per active-or-historical subscription; updated on each relevant
 -- webhook event. Lifecycle history is in the transitions table below.
+--
+-- The row is written when checkout opens, not when the provider confirms, so a
+-- recurring gift is never invisible locally. That is why the two provider
+-- identifiers are nullable and why 'incomplete' exists: at the moment of the
+-- redirect there is a checkout session and nothing else, and a member who
+-- abandons the page leaves an 'incomplete' row rather than no trace at all.
+-- Only an 'incomplete' row may lack the provider identifiers; the CHECK below
+-- enforces that, so a confirmed subscription can never be missing them.
 -- ---------------------------------------------------------------------------
 
 CREATE TABLE recurring_donation_subscriptions (
@@ -1016,16 +1024,25 @@ CREATE TABLE recurring_donation_subscriptions (
 
   member_id TEXT NOT NULL REFERENCES members(id),
 
-  stripe_customer_id     TEXT NOT NULL,
-  stripe_subscription_id TEXT NOT NULL,
+  -- Null only while the row is 'incomplete': the provider mints the customer
+  -- and the subscription during checkout, so neither exists at the redirect.
+  stripe_customer_id     TEXT,
+  stripe_subscription_id TEXT,
+  -- The checkout session the row was opened with. It is the only handle an
+  -- abandoned recurring gift has, and it is what checkout.session.expired
+  -- matches on to close the row out.
+  checkout_session_id    TEXT,
   last_stripe_event_id   TEXT REFERENCES stripe_events(event_id),
   -- Creation time (ISO-8601 UTC) of the provider event that last moved this row.
   -- The provider does not guarantee delivery order, so an event older than the
   -- one already applied must not overwrite the newer state.
   last_stripe_event_created TEXT,
 
-  -- Current state; updated on each relevant webhook event
-  status TEXT NOT NULL CHECK (status IN ('active','past_due','canceled')),
+  -- Current state; updated on each relevant webhook event. 'incomplete' is the
+  -- opening state, written before the redirect and left behind by an abandoned
+  -- checkout; it is excluded from the active view so it never reads as a gift
+  -- the member actually made.
+  status TEXT NOT NULL CHECK (status IN ('incomplete','active','past_due','canceled')),
   amount_cents     INTEGER NOT NULL,
   currency         TEXT NOT NULL DEFAULT 'USD',
   billing_interval TEXT NOT NULL CHECK (billing_interval IN ('yearly')),
@@ -1041,19 +1058,35 @@ CREATE TABLE recurring_donation_subscriptions (
   metadata_json    TEXT NOT NULL DEFAULT '{}',
 
   CHECK (canceled_at IS NULL OR status = 'canceled'),
-  CHECK (cancel_requested_at IS NULL OR is_cancel_at_period_end = 1)
+  CHECK (cancel_requested_at IS NULL OR is_cancel_at_period_end = 1),
+  -- A row the provider is billing must name what it is billing. Without this a
+  -- promotion that half-applied would leave a row reading 'active' with no
+  -- subscription behind it, which every downstream read would believe.
+  -- 'canceled' is deliberately outside the rule in both directions: it is where
+  -- an abandoned checkout ends, having never been given the identifiers, and
+  -- also where a real subscription ends, still carrying them.
+  CHECK (
+    status NOT IN ('active', 'past_due')
+    OR (stripe_subscription_id IS NOT NULL AND stripe_customer_id IS NOT NULL)
+  )
 );
 
+-- Both unique indexes tolerate repeated NULLs in SQLite, which is what lets an
+-- unconfirmed row exist with no subscription id and a confirmed one exist with
+-- no session id (the pre-checkout rows are the only ones carrying a session).
 CREATE UNIQUE INDEX ux_recurring_subs_stripe  ON recurring_donation_subscriptions(stripe_subscription_id);
+CREATE UNIQUE INDEX ux_recurring_subs_session ON recurring_donation_subscriptions(checkout_session_id);
 CREATE INDEX        idx_recurring_subs_member ON recurring_donation_subscriptions(member_id);
 CREATE INDEX        idx_recurring_subs_status ON recurring_donation_subscriptions(status);
 
--- recurring_donation_subscriptions_active: non-canceled subscriptions.
--- Named explicitly so that the WHERE clause is visible in the view name.
--- Use the table directly to query canceled rows.
+-- recurring_donation_subscriptions_active: subscriptions that are live for the
+-- member. Excludes canceled, and excludes 'incomplete' because a checkout that
+-- was opened and never completed is not a donation: showing one on the member's
+-- page, or reconciling it against the provider, would both be wrong. Query the
+-- table directly for canceled or unconfirmed rows.
 CREATE VIEW recurring_donation_subscriptions_active AS
   SELECT * FROM recurring_donation_subscriptions
-  WHERE status <> 'canceled';
+  WHERE status NOT IN ('canceled', 'incomplete');
 
 -- ---------------------------------------------------------------------------
 -- RECURRING DONATION SUBSCRIPTION TRANSITIONS
@@ -1088,7 +1121,11 @@ CREATE TABLE recurring_donation_subscription_transitions (
       'cancel_requested','canceled','updated'
     )),
 
-  old_status TEXT CHECK (old_status IN ('active','past_due','canceled')),
+  -- 'incomplete' appears as an old_status only: it is where a row opened by
+  -- checkout starts, and the ledger records the promotion and the abandonment
+  -- that lead out of it. Nothing transitions into it, because the row is
+  -- inserted in that state rather than moved to it.
+  old_status TEXT CHECK (old_status IN ('incomplete','active','past_due','canceled')),
   new_status TEXT CHECK (new_status IN ('active','past_due','canceled')),
   occurred_at     TEXT NOT NULL,
   reason_text     TEXT,

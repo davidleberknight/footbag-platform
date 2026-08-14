@@ -176,12 +176,15 @@ resource "aws_ssm_parameter" "stripe_secret_key" {
 }
 
 # ── Stripe webhook signing secret (operator-supplied) ────────────────────────
-# Same shell-with-placeholder pattern. The deploy sync writes the value into
-# the host env so the secret is never hand-pasted onto a host; while the
-# value is the TODO placeholder the sync clears the env var instead, which a
-# live-payment boot refuses loudly. The _previous twin holds the outgoing
-# secret during a Stripe secret roll (Stripe signs with both for the roll
-# window) and stays on the placeholder outside one.
+# Same shell-with-placeholder pattern. A real value here is authoritative: the
+# deploy sync writes it into the host env on every run, so the secret is never
+# hand-pasted onto a host and the running value always has a declared source.
+# While the value is the TODO placeholder the sync leaves any existing host
+# value untouched rather than clearing it, so a secret installed by the
+# payments activation script survives deploys; clearing it would strip the only
+# copy from a host and refuse the next live-payment boot. The _previous twin
+# holds the outgoing secret during a Stripe secret roll (Stripe signs with both
+# for the roll window) and returns to the placeholder when the roll completes.
 resource "aws_ssm_parameter" "stripe_webhook_secret" {
   name   = "${local.ssm_prefix}/secrets/stripe_webhook_secret"
   type   = "SecureString"

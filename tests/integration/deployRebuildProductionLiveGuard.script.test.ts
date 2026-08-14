@@ -109,6 +109,16 @@ describe('production-live guard: marker check', () => {
     expect(res.stderr).toContain('no bypass flag');
   });
 
+  it('offers recovery advice that can actually move the marker, not a terraform apply', () => {
+    // The marker resource carries ignore_changes on its value, so an apply
+    // cannot move it in either direction. Advising one leaves the operator
+    // running a command that changes nothing and a deploy still refused.
+    const res = runGuard({ FAKE_SSM_VALUE: 'true' });
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain('scripts/production-live-marker.sh');
+    expect(res.stderr).not.toMatch(/run terraform apply/);
+  });
+
   it('refuses any marker value other than exactly "false"', () => {
     const res = runGuard({ FAKE_SSM_VALUE: 'False' });
     expect(res.status).toBe(1);

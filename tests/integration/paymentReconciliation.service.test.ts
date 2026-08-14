@@ -230,6 +230,43 @@ describe('pass 2: subscriptions and renewal invoices', () => {
     expect(issueTypes()).toContain('subscription_missing_at_provider');
   });
 
+  it('reports a recurring checkout that was never confirmed and never expired', async () => {
+    // The benign reading is that the member walked away and the expiry event
+    // was lost. The costly one is that the provider has a live subscription
+    // charging a card that this platform never heard about. Nothing here can
+    // tell them apart, which is exactly why it goes to a human.
+    seed((db) => {
+      insertRecurringDonationSubscription(db, {
+        member_id: MEMBER, status: 'incomplete', created_at: BEFORE_WINDOW,
+      });
+    });
+    await (await svc()).runReconciliation({ now: NOW });
+    expect(issueTypes()).toContain('subscription_checkout_unresolved');
+  });
+
+  it('does not report an unconfirmed checkout as a subscription missing at the provider', async () => {
+    // It has no subscription id to be missing. Reporting it under that type
+    // would tell an administrator to look for something that never existed.
+    seed((db) => {
+      insertRecurringDonationSubscription(db, {
+        member_id: MEMBER, status: 'incomplete', created_at: BEFORE_WINDOW,
+      });
+    });
+    await (await svc()).runReconciliation({ now: NOW });
+    expect(issueTypes()).not.toContain('subscription_missing_at_provider');
+  });
+
+  it('leaves a checkout opened moments ago alone, the same as every other record', async () => {
+    // Inside the grace window the member may still be on the Stripe page.
+    seed((db) => {
+      insertRecurringDonationSubscription(db, {
+        member_id: MEMBER, status: 'incomplete', created_at: NOW.toISOString(),
+      });
+    });
+    const result = await (await svc()).runReconciliation({ now: NOW });
+    expect(result.issuesRaised).toBe(0);
+  });
+
   it('reports a live provider subscription with no local mirror', async () => {
     const adapter = await stub();
     adapter.setLedgerSubscription({

@@ -9885,7 +9885,8 @@ export const payments = {
 
   get listByMember() { return db.prepare(`
     SELECT id, created_at, payment_type, amount_cents, currency,
-           status, descriptor, purchased_tier_status
+           status, descriptor, purchased_tier_status,
+           donation_note, recurring_subscription_id
     FROM payments
     WHERE member_id = ?
     ORDER BY created_at DESC
@@ -9965,6 +9966,47 @@ export const recurringDonationSubscriptions = {
     ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, 'active', ?, ?, 'yearly', ?, ?, ?)
   `); },
 
+  // Written when checkout opens, before the member is redirected, so an
+  // abandoned recurring gift leaves a trace. Neither provider identifier
+  // exists yet; the checkout session is the only handle the row has.
+  get insertPendingSubscription() { return db.prepare(`
+    INSERT INTO recurring_donation_subscriptions (
+      id, created_at, created_by, updated_at, updated_by, version,
+      member_id, stripe_customer_id, checkout_session_id,
+      status, amount_cents, currency, billing_interval,
+      started_at, status_updated_at, donation_comment
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, 'incomplete', ?, ?, 'yearly', ?, ?, ?)
+  `); },
+
+  // Promotes the row the checkout opened once the provider confirms the
+  // subscription. Guarded on the current status so a redelivered created-event
+  // cannot re-promote a row that has since moved on, and so the promotion of a
+  // row that was already confirmed reports no change rather than silently
+  // rewriting live state.
+  get promoteFromCheckout() { return db.prepare(`
+    UPDATE recurring_donation_subscriptions
+    SET status = 'active',
+        stripe_subscription_id = ?,
+        stripe_customer_id = ?,
+        last_stripe_event_id = ?,
+        started_at = ?,
+        status_updated_at = ?,
+        updated_at = ?, updated_by = ?, version = version + 1
+    WHERE id = ? AND status = 'incomplete'
+  `); },
+
+  // Closes out a checkout that expired without completing. Guarded the same
+  // way: only an unconfirmed row can be abandoned.
+  get markIncompleteAbandoned() { return db.prepare(`
+    UPDATE recurring_donation_subscriptions
+    SET status = 'canceled',
+        canceled_at = ?,
+        status_updated_at = ?,
+        last_stripe_event_id = ?,
+        updated_at = ?, updated_by = ?, version = version + 1
+    WHERE id = ? AND status = 'incomplete'
+  `); },
+
   get findById() { return db.prepare(`
     SELECT * FROM recurring_donation_subscriptions WHERE id = ?
   `); },
@@ -9973,11 +10015,26 @@ export const recurringDonationSubscriptions = {
     SELECT * FROM recurring_donation_subscriptions WHERE stripe_subscription_id = ?
   `); },
 
+  get findByCheckoutSessionId() { return db.prepare(`
+    SELECT * FROM recurring_donation_subscriptions WHERE checkout_session_id = ?
+  `); },
+
+  // An unconfirmed row older than the cutoff means the provider confirmed a
+  // subscription we never heard about, or the member abandoned the page and
+  // the expiry event never arrived. Either way it needs a human look: the
+  // first case is a live subscription charging a card with no local record.
+  get listStaleIncomplete() { return db.prepare(`
+    SELECT * FROM recurring_donation_subscriptions
+    WHERE status = 'incomplete' AND created_at < ?
+    ORDER BY created_at
+  `); },
+
   // Member-facing history lists canceled subscriptions too, so this reads the
-  // base table rather than the active view.
+  // base table rather than the active view. Unconfirmed rows are excluded: a
+  // checkout the member walked away from is not a donation they made.
   get listByMember() { return db.prepare(`
     SELECT * FROM recurring_donation_subscriptions
-    WHERE member_id = ?
+    WHERE member_id = ? AND status <> 'incomplete'
     ORDER BY started_at DESC
   `); },
 

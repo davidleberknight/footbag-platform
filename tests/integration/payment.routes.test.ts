@@ -38,7 +38,7 @@ function insertPaymentWithSession(
        member_id, payment_type, amount_cents, currency, status, descriptor,
        purchased_tier_status, stripe_checkout_session_id
      ) VALUES (?, ?, 'system', ?, 'system', 1, ?, 'membership', 1000, 'USD', ?,
-       'IFPA Tier 1 Membership', 'tier1', ?)`,
+       'Membership: Tier 1 IFPA Member', 'tier1', ?)`,
   ).run(o.id, TS, TS, o.memberId, o.status, o.sessionId);
 }
 
@@ -48,6 +48,10 @@ beforeAll(async () => {
   seedPersona(db, { slug: OTHER, displayName: 'Pay Other', tier: 'tier1', coverageNotes: ['payment routes other'] });
   // History rows (resolved by member, not session).
   insertPayment(db, { id: 'pay-hist-1', member_id: OWNER_ID, status: 'succeeded' });
+  insertPayment(db, {
+    id: 'pay-hist-2', member_id: OWNER_ID, status: 'succeeded', payment_type: 'donation',
+    descriptor: 'Donation: HoF Fund', donation_note: 'HoF Fund',
+  });
   // Session-backed rows for the success and cancel pages.
   insertPaymentWithSession(db, { id: 'pay-ok', memberId: OWNER_ID, sessionId: OWNER_SESSION, status: 'succeeded' });
   insertPaymentWithSession(db, { id: 'pay-other', memberId: OTHER_ID, sessionId: OTHER_SESSION, status: 'failed' });
@@ -61,6 +65,14 @@ describe('GET /members/:memberKey/payments (owner-only history)', () => {
   it('serves the owner their own history', async () => {
     const res = await request(createApp()).get(`/members/${OWNER}/payments`).set('Cookie', cookie(OWNER_ID));
     expect(res.status).toBe(200);
+  });
+  it('shows the payment type and the donation note as their own columns', async () => {
+    const res = await request(createApp()).get(`/members/${OWNER}/payments`).set('Cookie', cookie(OWNER_ID));
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('<th>Type</th>');
+    expect(res.text).toContain('<th>Note</th>');
+    expect(res.text).toContain('<td>Donation</td>');
+    expect(res.text).toContain('<td>HoF Fund</td>');
   });
   it('404s a member viewing another member history', async () => {
     const res = await request(createApp()).get(`/members/${OTHER}/payments`).set('Cookie', cookie(OWNER_ID));

@@ -10,6 +10,12 @@
  * two-step webhook-secret rotation (shift current to previous, install new;
  * then clear previous), the refusal to overwrite an in-service secret outside
  * that rotation, and the masking of every secret-named line in the shown diff.
+ *
+ * Parameter Store is the declared source for both signing secrets and the
+ * deploy syncs them onto the host, so every real-host mode writes those
+ * parameters and therefore needs an AWS profile. The synthetic mode reaches no
+ * AWS at all, so the parameter writes are pinned through the printed plan and
+ * through the refusal that fires before any host is touched.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
@@ -101,6 +107,65 @@ describe('activate-payments.sh — argument validation', () => {
     const result = runScript(['--target', 'staging', '--dry-run']);
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toMatch(/staging never activates live payments/);
+  });
+});
+
+describe('activate-payments.sh — the signing secret is written to Parameter Store', () => {
+  it('activation plans a write of the webhook-secret parameter under the environment KMS alias', () => {
+    const result = runScript(['--target', 'production', '--dry-run']);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toMatch(
+      /aws ssm put-parameter --name \/footbag\/production\/secrets\/stripe_webhook_secret/,
+    );
+    expect(result.stdout).toMatch(/alias\/footbag-production/);
+  });
+
+  it('rotation plans a write of both the current and the outgoing secret parameters', () => {
+    const result = runScript(['--target', 'production', '--dry-run', '--rotate-webhook-secret']);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toMatch(/\/footbag\/production\/secrets\/stripe_webhook_secret\b/);
+    expect(result.stdout).toMatch(/\/footbag\/production\/secrets\/stripe_webhook_secret_previous/);
+  });
+
+  it('completing a rotation plans a return of the outgoing parameter to its placeholder', () => {
+    const result = runScript([
+      '--target',
+      'production',
+      '--dry-run',
+      '--complete-webhook-rotation',
+    ]);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toMatch(/\/footbag\/production\/secrets\/stripe_webhook_secret_previous/);
+    expect(result.stdout).toMatch(/placeholder/);
+  });
+
+  it('rotation against a real host refuses without an AWS profile, before touching the host', () => {
+    const result = runScript(['--target', 'production', '--rotate-webhook-secret']);
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr).toMatch(/--profile is required/);
+    expect(result.stderr).toMatch(/stripe_\*/);
+  });
+
+  it('completing a rotation against a real host refuses without an AWS profile', () => {
+    const result = runScript(['--target', 'production', '--complete-webhook-rotation']);
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr).toMatch(/--profile is required/);
+  });
+
+  it('the synthetic mode still reaches no AWS, so rotation there needs no profile', () => {
+    const envFile = writeEnvFile([
+      'SECRETS_ADAPTER=live',
+      'PAYMENT_ADAPTER=live',
+      'STRIPE_WEBHOOK_SECRET=whsec_inservice000',
+    ]);
+    const result = runScript(
+      ['--target', 'staging', '--env-file', envFile, '--rotate-webhook-secret'],
+      { STRIPE_WEBHOOK_SECRET_VALUE: 'whsec_rolled111' },
+    );
+    expect(result.exitCode).toBe(0);
+    const written = readFileSync(envFile, 'utf-8');
+    expect(written).toMatch(/^STRIPE_WEBHOOK_SECRET=whsec_rolled111$/m);
+    expect(written).toMatch(/^STRIPE_WEBHOOK_SECRET_PREVIOUS=whsec_inservice000$/m);
   });
 });
 

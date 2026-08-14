@@ -79,14 +79,20 @@
  *     collecting nothing and the mirror has no paused state. That reading cannot
  *     distinguish a pause from a failed charge, so a pause additionally raises a
  *     work-queue item rather than being left to be inferred from the status.
- *   - A recurring checkout writes nothing locally: the subscription row id is
- *     minted at checkout only as the correlation key carried in Stripe
- *     subscription metadata, and the row is inserted by
- *     customer.subscription.created, so an abandoned checkout leaves no trace.
- *     That same id rides back on the success URL, because the confirmation page
- *     resolves a one-time payment by checkout-session id and a recurring
- *     donation has no such row to find; the reference is request-derived and is
- *     shown only when it belongs to the viewer.
+ *   - A recurring checkout writes its subscription row before the redirect, in
+ *     the opening 'incomplete' state, so an abandoned checkout leaves a trace
+ *     instead of nothing at all. The row carries the checkout session and no
+ *     provider identifiers, because the customer and the subscription are
+ *     minted during checkout; customer.subscription.created promotes it to
+ *     active and fills them in, and checkout.session.expired closes it out as
+ *     canceled. An 'incomplete' row is excluded from the active view, from the
+ *     member's history and from reconciliation, so it never reads as a gift
+ *     that was made; one that stays 'incomplete' past the staleness cutoff is
+ *     raised as a discrepancy, because the case it cannot be distinguished from
+ *     is a live subscription whose created-event never arrived.
+ *     The row id also rides back on the success URL, because the confirmation
+ *     page resolves a one-time payment by checkout-session id; the reference is
+ *     request-derived and is shown only when it belongs to the viewer.
  *   - Only events this platform originated are processed. A one-time checkout
  *     stamps paymentId onto its PaymentIntent and a recurring checkout stamps
  *     subscriptionRecordId onto its Subscription, so an event carrying neither
@@ -117,6 +123,13 @@
  *     succeeded, so nothing else in the system would ever notice. Each one raises
  *     an audit entry and a work-queue item carrying the identifiers and amounts
  *     an administrator needs; no payment status moves.
+ *   - The charge that opened a recurring donation is identified by age, not by a
+ *     stored marker: the provider bills the first period on creation, so that
+ *     charge is an ordinary invoice and the row records nothing distinguishing
+ *     it. The member's history therefore reads the oldest charge carrying a
+ *     given subscription id as the setup and every later one as a renewal, which
+ *     the story requires the member to be able to tell apart. The receipt email
+ *     draws its one-time or yearly wording from the same subscription link.
  *   - A per-cycle donation charge is inserted pending and then transitioned to
  *     succeeded inside the same transaction, so it writes a
  *     payment_status_transitions row like every other status change.
@@ -215,6 +228,7 @@ import {
   type StripeWebhookEvent,
 } from '../adapters/paymentAdapter';
 import { emailService } from './emailService';
+import { formatDateDisplay } from './dateFormat';
 import { workQueueService } from './workQueueService';
 import { isSafePath } from '../lib/safePath';
 import type { PageViewModel } from '../types/page';
@@ -236,10 +250,17 @@ export interface PaymentHistoryItem {
   status: 'pending' | 'succeeded' | 'failed' | 'canceled' | 'refunded';
   descriptor: string;
   purchasedTierStatus: 'tier1' | 'tier2' | null;
+  /** The member's own note on a donation; null on every other payment type. */
+  donationNote: string | null;
+  /** The subscription a per-cycle donation charge settles; null on every other
+   *  row. Present so the member's history can tell the charge that opened a
+   *  recurring donation from the annual renewals that followed it. */
+  recurringSubscriptionId: string | null;
 }
 
 export interface PaymentRow {
   id: string;
+  created_at: string;
   member_id: string;
   payment_type: 'membership' | 'donation' | 'event_registration';
   amount_cents: number;
@@ -252,22 +273,38 @@ export interface PaymentRow {
    *  One payment row per invoice, so this identifies the row a later payment
    *  event against the same invoice restates. */
   stripe_invoice_id: string | null;
+  /** The recurring donation a per-cycle charge settles; null on every other row.
+   *  It is what tells a receipt whether the gift repeats yearly or was one-off. */
+  recurring_subscription_id: string | null;
   purchased_tier_status: 'tier1' | 'tier2' | null;
   /** Creation time of the most recent provider event applied to this row, used
    *  to recognise an out-of-order delivery. Null until the first event lands. */
   last_stripe_event_created: string | null;
 }
 
-export type SubscriptionStatus = 'active' | 'past_due' | 'canceled';
+/** `incomplete` is the opening state: the row exists because checkout was
+ *  opened, and the provider has not confirmed a subscription behind it. Every
+ *  other state means the provider has. */
+export type SubscriptionStatus = 'incomplete' | 'active' | 'past_due' | 'canceled';
 
 /** Local mirror of a Stripe Subscription backing a recurring annual donation.
  *  Stripe owns the billing schedule and the retry policy; every field here is
- *  set from a webhook event, never from a platform-side schedule. */
+ *  set from a webhook event, never from a platform-side schedule. The one
+ *  exception is the opening row, which checkout writes before the redirect so
+ *  an abandoned recurring gift is not invisible; on that row alone the provider
+ *  identifiers are still null. */
 export interface RecurringSubscriptionRow {
   id: string;
   member_id: string;
-  stripe_customer_id: string;
-  stripe_subscription_id: string;
+  /** Null only while the row is `incomplete`; the provider mints both of these
+   *  during checkout. */
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
+  /** The checkout session that opened the row, and the only handle an abandoned
+   *  recurring gift has. Null on a row this platform did not open through
+   *  checkout. */
+  checkout_session_id: string | null;
+  created_at: string;
   status: SubscriptionStatus;
   amount_cents: number;
   currency: string;
@@ -323,7 +360,13 @@ export interface CancelContent {
 
 export interface PaymentHistoryRow {
   date: string;
+  /** Donation, Membership or Event Registration, so the kind of payment reads
+   *  from its own column instead of having to be inferred from the descriptor. */
+  typeLabel: string;
   descriptor: string;
+  /** The member's own donation note, shown so they can confirm it was recorded;
+   *  empty on every payment that carries no note. */
+  noteDisplay: string;
   amountDisplay: string;
   status: string;
   /** Stable payment reference (the payment id) so support/admins can
@@ -463,8 +506,8 @@ function getTierPriceDisplay(tier: 'tier1' | 'tier2'): string {
 
 function tierDescriptor(tier: 'tier1' | 'tier2'): string {
   return tier === 'tier1'
-    ? 'IFPA Tier 1 Membership'
-    : 'IFPA Tier 2 Organizer Membership';
+    ? 'Membership: Tier 1 IFPA Member'
+    : 'Membership: Tier 2 IFPA Organizer Member';
 }
 
 function isPurchasableTier(value: unknown): value is 'tier1' | 'tier2' {
@@ -1531,12 +1574,82 @@ function handlePayoutFailed(event: StripeWebhookEvent): WebhookOutcome {
   return { outcome: 'processed' };
 }
 
+/**
+ * An abandoned recurring checkout: the session expired before the provider
+ * confirmed a subscription behind it.
+ *
+ * The row closes to canceled rather than being deleted. It is the evidence that
+ * the member tried, which is the whole reason the row is written before the
+ * redirect, and the transitions ledger is append-only in any case.
+ */
+function handleRecurringCheckoutExpired(
+  event: StripeWebhookEvent,
+  subscription: RecurringSubscriptionRow,
+): WebhookOutcome {
+  if (subscription.status !== 'incomplete') {
+    // The provider confirmed it after all, or it has since been canceled.
+    // Either way the expiry is stale and must not move a live subscription.
+    return recordIdempotentNoop(event, 'duplicate');
+  }
+
+  const claimed = transaction(() => {
+    if (!claimEvent(event)) return false;
+    const now = new Date().toISOString();
+    subsDb.markIncompleteAbandoned.run(
+      now, now, event.id, now, 'payment_service', subscription.id,
+    );
+    recordSubscriptionTransition({
+      subscriptionId: subscription.id,
+      memberId: subscription.member_id,
+      // The provider never minted one, so there is no id to record here.
+      stripeSubscriptionId: '',
+      stripeEventId: event.id,
+      stripeInvoiceId: null,
+      eventType: event.type,
+      lifecycleEventCode: 'canceled',
+      oldStatus: 'incomplete',
+      newStatus: 'canceled',
+      reasonText: 'checkout.session.expired',
+    });
+    return true;
+  });
+  if (!claimed) return { outcome: 'duplicate' };
+
+  appendAuditEntry({
+    actionType: 'payment.recurring_donation_checkout_abandoned',
+    category: 'payment',
+    actorType: 'system',
+    actorMemberId: null,
+    entityType: 'recurring_donation_subscription',
+    entityId: subscription.id,
+    reasonText: 'checkout.session.expired',
+    metadata: {
+      member_id: subscription.member_id,
+      stripe_event_id: event.id,
+      amount_cents: subscription.amount_cents,
+      currency: subscription.currency,
+    },
+  });
+  return { outcome: 'processed' };
+}
+
 function handleCheckoutExpired(event: StripeWebhookEvent): WebhookOutcome {
   const obj = event.data?.object as { id?: string; payment_intent?: string } | undefined;
   const sessionId = typeof obj?.id === 'string' ? obj.id : null;
   if (!sessionId) {
     throw new Error(`checkout.session.expired event ${event.id} is missing data.object.id`);
   }
+  // A recurring checkout writes a subscription row, not a payment row, so an
+  // expiry has to be matched against both. Without this the abandoned
+  // subscription would sit 'incomplete' until the staleness sweep raised it as
+  // a discrepancy, which is the wrong signal: the member simply walked away.
+  const openedSubscription = subsDb.findByCheckoutSessionId.get(sessionId) as
+    | RecurringSubscriptionRow
+    | undefined;
+  if (openedSubscription) {
+    return handleRecurringCheckoutExpired(event, openedSubscription);
+  }
+
   const payment = paymentsDb.findBySessionId.get(sessionId) as PaymentRow | undefined;
   if (!payment) {
     // Session issued for a payment row we never wrote (live-mode glare). Ack so
@@ -1600,6 +1713,12 @@ function enqueueReceiptEmail(payment: PaymentRow, outcome: 'succeeded' | 'failed
       params: {
         descriptor: payment.descriptor,
         amountDisplay: `$${(payment.amount_cents / 100).toFixed(2)} ${payment.currency}`,
+        paymentDate: formatDateDisplay(payment.created_at, { style: 'long' }),
+        // A charge carrying a subscription is one cycle of a yearly gift; every
+        // other payment on this platform is charged once.
+        intervalPhrase: payment.recurring_subscription_id
+          ? 'Yearly recurring donation'
+          : 'One-time payment',
         outcome,
         isMembership: payment.payment_type === 'membership',
         purchasedTier:
@@ -1756,21 +1875,42 @@ function handleSubscriptionCreated(event: StripeWebhookEvent): WebhookOutcome {
   const donationNote = typeof meta.comment === 'string' ? meta.comment : null;
   const now = new Date().toISOString();
 
+  // Checkout writes the row before the redirect, so the ordinary case here is a
+  // promotion of a row that already exists rather than an insert. The insert
+  // stays as the fallback for the row that is somehow absent: a checkout opened
+  // before this became true, or a local write that was lost. Losing the gift
+  // because its opening row went missing would be the worse failure.
+  const opened = subsDb.findById.get(subscriptionRecordId) as
+    | RecurringSubscriptionRow
+    | undefined;
+
   const claimed = transaction(() => {
     if (!claimEvent(event)) return false;
-    subsDb.insertSubscription.run(
-      subscriptionRecordId,
-      now, 'payment_service', now, 'payment_service',
-      memberId,
-      stripeCustomerId,
-      stripeSubscriptionId,
-      event.id,
-      amountCents,
-      CURRENCY,
-      now,
-      now,
-      donationNote,
-    );
+    if (opened && opened.status === 'incomplete') {
+      subsDb.promoteFromCheckout.run(
+        stripeSubscriptionId,
+        stripeCustomerId,
+        event.id,
+        now,
+        now,
+        now, 'payment_service',
+        subscriptionRecordId,
+      );
+    } else {
+      subsDb.insertSubscription.run(
+        subscriptionRecordId,
+        now, 'payment_service', now, 'payment_service',
+        memberId,
+        stripeCustomerId,
+        stripeSubscriptionId,
+        event.id,
+        amountCents,
+        CURRENCY,
+        now,
+        now,
+        donationNote,
+      );
+    }
     recordSubscriptionTransition({
       subscriptionId: subscriptionRecordId,
       memberId,
@@ -1779,7 +1919,9 @@ function handleSubscriptionCreated(event: StripeWebhookEvent): WebhookOutcome {
       stripeInvoiceId: null,
       eventType: event.type,
       lifecycleEventCode: 'activated',
-      oldStatus: null,
+      // The ledger records where the row actually came from: 'incomplete' when
+      // checkout opened it, null when this event created it outright.
+      oldStatus: opened && opened.status === 'incomplete' ? 'incomplete' : null,
       newStatus: 'active',
       reasonText: null,
     });
@@ -2367,6 +2509,8 @@ function getPaymentHistoryForMember(memberId: string): PaymentHistoryItem[] {
     status: 'pending' | 'succeeded' | 'failed' | 'canceled' | 'refunded';
     descriptor: string;
     purchased_tier_status: 'tier1' | 'tier2' | null;
+    donation_note: string | null;
+    recurring_subscription_id: string | null;
   }>;
   return rows.map((r) => ({
     id: r.id,
@@ -2377,6 +2521,8 @@ function getPaymentHistoryForMember(memberId: string): PaymentHistoryItem[] {
     status: r.status,
     descriptor: r.descriptor,
     purchasedTierStatus: r.purchased_tier_status,
+    donationNote: r.donation_note,
+    recurringSubscriptionId: r.recurring_subscription_id,
   }));
 }
 
@@ -2513,6 +2659,10 @@ function getPaymentCancelPage(
 }
 
 const SUBSCRIPTION_STATUS_LABELS: Record<SubscriptionStatus, string> = {
+  // An unconfirmed row never reaches the member's page: the history statement
+  // filters it out. The label exists so the map stays total over the status
+  // vocabulary, which is what makes adding a status a compile error here.
+  incomplete: 'Not completed',
   active: 'Active',
   past_due: 'Payment overdue',
   canceled: 'Ended',
@@ -2543,9 +2693,12 @@ function shapeRecurringRow(
  * resolve by checkout-session id until its first invoice arrives.
  *
  * Two shapes, because the browser redirect from checkout races Stripe's webhook:
- * once the subscription is mirrored the member sees the confirmed amount; before
- * then they see a truthful "being set up" message rather than a not-found page
- * after having just paid. A reference naming another member's subscription is
+ * once the provider has confirmed the subscription the member sees the confirmed
+ * amount; before then they see a truthful "being set up" message rather than a
+ * not-found page after having just paid. Presence of the row is not the test,
+ * because checkout writes it before the redirect and it is therefore always
+ * there by the time this page renders; the test is whether the provider has
+ * confirmed it. A reference naming another member's subscription is
  * indistinguishable from an unknown one: both show the generic being-set-up
  * page, so the parameter reveals nothing about who owns a subscription.
  */
@@ -2560,7 +2713,8 @@ function getDonationSuccessPage(
   // Confirmed only for the owner's own mirrored subscription. A missing row and
   // a row owned by someone else both fall through to the same generic page, so
   // the reference cannot be used to probe another member's subscription.
-  const confirmed = sub !== undefined && sub.member_id === memberId;
+  const confirmed =
+    sub !== undefined && sub.member_id === memberId && sub.status !== 'incomplete';
   return {
     seo: { title: 'Thank you' },
     page: { sectionKey: '', pageKey: 'payment_success', title: 'Thank you' },
@@ -2580,14 +2734,53 @@ function getDonationSuccessPage(
   };
 }
 
+const PAYMENT_TYPE_LABEL = {
+  donation: 'Donation',
+  membership: 'Membership',
+  event_registration: 'Event Registration',
+} as const;
+
+/**
+ * The ids of the charges that opened a recurring donation, one per subscription.
+ *
+ * Stripe bills the first period on subscription creation, so the opening charge
+ * is an ordinary invoice indistinguishable from a renewal in the row itself.
+ * The history arrives newest-first, so the last row seen for a subscription is
+ * its oldest charge, and that is the one the member set the donation up with.
+ */
+function openingChargeIds(items: PaymentHistoryItem[]): Set<string> {
+  const oldestBySubscription = new Map<string, string>();
+  for (const p of items) {
+    if (p.recurringSubscriptionId) oldestBySubscription.set(p.recurringSubscriptionId, p.id);
+  }
+  return new Set(oldestBySubscription.values());
+}
+
+/**
+ * What the item cell says. A donation's stored descriptor carries the member's
+ * note, which now has a column of its own, so the donation kinds are composed
+ * here instead and the note is not printed twice on one row.
+ */
+function historyItemText(p: PaymentHistoryItem, isOpeningCharge: boolean): string {
+  if (p.paymentType !== 'donation') return p.descriptor;
+  if (!p.recurringSubscriptionId) return 'Donation';
+  return isOpeningCharge
+    ? 'Recurring Annual Donation (first payment)'
+    : 'Recurring Annual Donation (annual renewal)';
+}
+
 function getPaymentHistoryPage(
   memberId: string,
   memberKey: string,
   opts: { cancelConfirmed?: boolean } = {},
 ): PageViewModel<PaymentHistoryContent> {
-  const rows: PaymentHistoryRow[] = getPaymentHistoryForMember(memberId).map((p) => ({
+  const items = getPaymentHistoryForMember(memberId);
+  const opening = openingChargeIds(items);
+  const rows: PaymentHistoryRow[] = items.map((p) => ({
     date: p.createdAt.slice(0, 10),
-    descriptor: p.descriptor,
+    typeLabel: PAYMENT_TYPE_LABEL[p.paymentType],
+    descriptor: historyItemText(p, opening.has(p.id)),
+    noteDisplay: p.donationNote ?? '',
     amountDisplay: formatAmount(p.amountCents, p.currency),
     status: p.status,
     reference: p.id,
@@ -2654,11 +2847,12 @@ function getDonatePage(
  *
  * A one-time gift writes its `pending` payments row immediately and is carried
  * to a terminal status by the same `payment_intent.*` handlers that serve
- * membership purchases. A recurring gift writes nothing locally: the
- * subscription row is minted here only as a correlation id, stamped into the
- * Stripe Subscription's metadata, and the row itself is inserted when
- * `customer.subscription.created` arrives. An abandoned recurring checkout
- * therefore leaves no local trace at all.
+ * membership purchases. A recurring gift writes its subscription row here too,
+ * in the opening `incomplete` state, carrying the checkout session and the
+ * correlation id that is also stamped into the Stripe Subscription's metadata.
+ * `customer.subscription.created` promotes that row; `checkout.session.expired`
+ * closes it out. Both paths therefore leave a local trace from the moment
+ * checkout opens, and neither depends on the member coming back.
  */
 async function startDonation(
   memberId: string,
@@ -2696,6 +2890,7 @@ async function startDonation(
 
   if (recurring) {
     const subscriptionRecordId = newSubscriptionId();
+    const openedAt = new Date().toISOString();
     const result = await adapter.createSubscriptionCheckoutSession({
       memberId,
       paymentId: subscriptionRecordId,
@@ -2718,6 +2913,22 @@ async function startDonation(
         amountCents: String(amount),
       },
     });
+
+    // Written after the provider call and before the redirect, exactly as the
+    // one-time path below orders its own insert. The row opens 'incomplete'
+    // and carries no provider identifiers yet: the customer and the
+    // subscription are minted during checkout, and the session id is the only
+    // handle this gift has until customer.subscription.created promotes it.
+    subsDb.insertPendingSubscription.run(
+      subscriptionRecordId,
+      openedAt, memberId, openedAt, memberId,
+      memberId,
+      profile.stripeCustomerId,
+      result.sessionId,
+      amount, CURRENCY,
+      openedAt, openedAt,
+      note,
+    );
 
     appendAuditEntry({
       actionType: 'payment.donation_checkout_started',

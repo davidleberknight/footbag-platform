@@ -1299,7 +1299,7 @@ Story: As a Tier 0 Member, I can upgrade to Tier 1 IFPA Member lifetime membersh
 Success Criteria:
 
 - Member must be logged in (Tier 0 members can purchase, visitors must register first).
-- Member sees a clear "Upgrade to Tier 1 IFPA Member" option from their account/dashboard when eligible.
+- Member sees a clear "Upgrade to Tier 1" option from their account/dashboard when eligible.
 - The configured Tier 1 price is shown beside that option, so the member knows the amount before being handed to the payment page.
 - System creates Stripe Checkout Session with configurable amount.
 - Member redirects to Stripe-hosted payment page.
@@ -1320,7 +1320,7 @@ Story: As a Tier 0 or Tier 1 member, I can purchase Tier 2 IFPA Organizer Member
 Success Criteria:
 
 - Member must be logged in (Tier 0 or Tier 1 members can purchase, visitors must register first).
-- Eligible members see a clear "Upgrade to Tier 2 IFPA Organizer Member" option.
+- Eligible members see a clear "Upgrade to Tier 2" option.
 - The configured Tier 2 price is shown beside that option, so the member knows the amount before being handed to the payment page.
 - System creates Stripe Checkout Session using the configured Tier 2 price.
 - Member redirects to Stripe-hosted payment page.
@@ -1345,7 +1345,7 @@ Success Criteria:
 - Page shows current membership tier with badge display: "Tier 0 Registered Member", "Tier 1 IFPA Member", "Tier 2 IFPA Organizer Member", or "Tier 3 IFPA Director".
 - Page shows whether the member currently has Active Player status. If current, the page shows the Active Player expiry date and explains that Active Player gives a Tier 0 member Tier 1 benefits while current. If expired, the page indicates that Tier 1 benefits and Official IFPA Roster inclusion have ended.
 - Page describes, at a high level, the benefits associated with the current membership tier and, separately, Active Player status.
-- Page provides a clear "Upgrade Now" button (where applicable) that initiates Stripe Checkout flow. Tier 0 members see upgrade options for Tier 1 and Tier 2; Tier 1 members see an upgrade option for Tier 2; Tier 2 and Tier 3 members do not see upgrade prompts.
+- Page provides a clear "Upgrade to Tier 1" or "Upgrade to Tier 2" button (where applicable) that initiates Stripe Checkout flow. Tier 0 members see upgrade options for Tier 1 and Tier 2; Tier 1 members see an upgrade option for Tier 2; Tier 2 and Tier 3 members do not see upgrade prompts.
 - Membership tiers have no expiry date.
 - Tier 3 members see their underlying membership tier, which is the tier they will revert to when Tier 3 governance status ends.
 - Membership tier badges and current Active Player badges visible to logged-in members on: profiles, club rosters, event participant lists, search results, media author info.

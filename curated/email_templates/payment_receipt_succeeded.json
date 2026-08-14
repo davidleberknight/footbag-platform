@@ -1,7 +1,7 @@
 {
   "templateKey": "payment_receipt_succeeded",
   "subjectTemplate": "Payment received: {descriptor}",
-  "bodyTemplate": "Thank you for your payment.\n\nItem:    {descriptor}\nAmount:  {amountDisplay}\n\nReference: {referenceId}",
+  "bodyTemplate": "Thank you for your payment.\n\nItem:     {descriptor}\nAmount:   {amountDisplay}\nDate:     {paymentDate}\nInterval: {intervalPhrase}\n\nReference: {referenceId}",
   "piiClassification": "confidential",
   "isEnabled": true
 }

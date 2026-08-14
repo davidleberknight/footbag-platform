@@ -10,7 +10,13 @@
 #   2. Pause for the one step that cannot be scripted: creating the webhook
 #      endpoint in the Stripe Dashboard and copying its whsec_... signing
 #      secret, which is then prompted silently.
-#   3. Rewrite /srv/footbag/env on the host: STRIPE_WEBHOOK_SECRET=<value>,
+#   3. Store the signing secret in Parameter Store too
+#      (/footbag/<target>/secrets/stripe_webhook_secret). Parameter Store is the
+#      one canonical source for every secret in an environment, and the deploy
+#      syncs this value into the host env file on every run; writing only the
+#      host would leave the canonical parameter on its placeholder and the
+#      running value with no declared source.
+#   4. Rewrite /srv/footbag/env on the host: STRIPE_WEBHOOK_SECRET=<value>,
 #      replace-or-append with duplicate assignments collapsed. A secret-masked
 #      diff is shown for confirmation before the push, and no backup copy is
 #      left on the host: the deploy rebuilds that file from the parameter
@@ -19,7 +25,7 @@
 #      written here: the deploy derives it from the SSM payments arming flag
 #      (armed -> live, dark -> stub), so activation provisions credentials and
 #      arming is the separate Terraform step (tfvars flip + apply + deploy).
-#   4. Run the PAYMENTS-BOOT gate (validate-payments-boot.sh) against the
+#   5. Run the PAYMENTS-BOOT gate (validate-payments-boot.sh) against the
 #      updated file, then print the arming and verification steps.
 #
 # Activation targets production only: the config loader refuses the live
@@ -39,11 +45,14 @@
 # roll, so no delivery is dropped while both the old and new secrets are briefly
 # valid:
 #   --rotate-webhook-secret shifts the current STRIPE_WEBHOOK_SECRET to
-#     STRIPE_WEBHOOK_SECRET_PREVIOUS and installs a new one. It touches no SSM
-#     and no Stripe API key. Plain activation refuses to overwrite an existing
+#     STRIPE_WEBHOOK_SECRET_PREVIOUS and installs a new one, in the host env
+#     file and in the two Parameter Store entries alike, so a deploy during the
+#     roll window reinstalls the pair rather than reverting it. It touches no
+#     Stripe API key. Plain activation refuses to overwrite an existing
 #     differing secret and points here instead.
 #   --complete-webhook-rotation clears STRIPE_WEBHOOK_SECRET_PREVIOUS once every
-#     delivery signs with the new secret. Idempotent.
+#     delivery signs with the new secret, returning its parameter to the
+#     placeholder. Idempotent.
 #
 # Usage:
 #   scripts/activate-payments.sh --target production --profile <prod-profile>
@@ -153,7 +162,37 @@ if [[ -z "$SSH_ALIAS" ]]; then
 fi
 
 SSM_PARAM="/footbag/$TARGET/secrets/stripe_secret_key"
+SSM_WEBHOOK_PARAM="/footbag/$TARGET/secrets/stripe_webhook_secret"
+SSM_WEBHOOK_PREV_PARAM="/footbag/$TARGET/secrets/stripe_webhook_secret_previous"
 KMS_ALIAS="alias/footbag-$TARGET"
+# The value Terraform seeds into a secret parameter it does not own. The deploy
+# treats it as "no value yet", and clearing a rotation window means putting it
+# back rather than deleting a parameter Terraform declares.
+SSM_PLACEHOLDER="TODO-set-via-cli-after-apply"
+
+# Writes one secret to Parameter Store. The value travels through a 0600 temp
+# file passed as file://, never as an argument, so it cannot be read out of the
+# process table by any account on this host; the file is shredded on every exit
+# path including a failed put.
+put_ssm_secret() {
+  local param_name="$1" param_value="$2" tmp
+  umask 077
+  tmp="$(mktemp /tmp/footbag-ssm-val.XXXXXX)"
+  printf '%s' "$param_value" > "$tmp"
+  if ! aws ssm put-parameter \
+    --name "$param_name" \
+    --value "file://$tmp" \
+    --type SecureString \
+    --key-id "$KMS_ALIAS" \
+    --overwrite \
+    --profile "$AWS_PROFILE_ARG" >/dev/null; then
+    shred -u "$tmp" 2>/dev/null || true
+    echo "ERROR: failed to write $param_name to Parameter Store." >&2
+    return 1
+  fi
+  shred -u "$tmp" 2>/dev/null || true
+  echo "  stored $param_name"
+}
 
 if (( DRY_RUN )); then
   case "$MODE" in
@@ -168,11 +207,13 @@ if (( DRY_RUN )); then
       echo "  3. Pause: create the webhook endpoint in the Stripe Dashboard"
       echo "     (PUBLIC_BASE_URL + /payments/webhook), then prompt (silent) for its whsec_ secret"
       echo "  4. Stage $HOST_ENV_PATH down from $SSH_ALIAS (ssh -t + sudo install)"
-      echo "  5. Rewrite STRIPE_WEBHOOK_SECRET=... (requires SECRETS_ADAPTER=live; the deploy"
+      echo "  5. aws ssm put-parameter --name $SSM_WEBHOOK_PARAM --type SecureString \\"
+      echo "       --key-id $KMS_ALIAS --overwrite --profile <profile> --value file://<0600 temp>"
+      echo "  6. Rewrite STRIPE_WEBHOOK_SECRET=... (requires SECRETS_ADAPTER=live; the deploy"
       echo "     derives PAYMENT_ADAPTER from the arming flag, so it is not written here)"
-      echo "  6. Show a secret-masked diff, confirm, push back (no .bak left on host)"
-      echo "  7. Run the PAYMENTS-BOOT gate against the updated file"
-      echo "  8. Print the deploy (./deploy_to_aws.sh) and checkout+refund verification steps"
+      echo "  7. Show a secret-masked diff, confirm, push back (no .bak left on host)"
+      echo "  8. Run the PAYMENTS-BOOT gate against the updated file"
+      echo "  9. Print the deploy (./deploy_to_aws.sh) and checkout+refund verification steps"
       echo ""
       echo "The webhook endpoint (step 3) must be created in the Stripe Dashboard with:"
       print_endpoint_requirements
@@ -181,18 +222,21 @@ if (( DRY_RUN )); then
       echo "== dry run: rotate the webhook signing secret on $TARGET (ssh alias: $SSH_ALIAS) =="
       echo ""
       echo "Would run, in order:"
-      echo "  1. Prompt (silent) for the NEW whsec_ signing secret (no SSM, no API key)"
+      echo "  1. Prompt (silent) for the NEW whsec_ signing secret (no API key is read)"
       echo "  2. Stage $HOST_ENV_PATH down from $SSH_ALIAS"
       echo "  3. Refuse unless STRIPE_WEBHOOK_SECRET is already set, PAYMENT_ADAPTER=live,"
       echo "     no rotation window is already open, and the new secret differs"
-      echo "  4. Shift the current secret to STRIPE_WEBHOOK_SECRET_PREVIOUS and install"
+      echo "  4. Write the new secret to $SSM_WEBHOOK_PARAM and the outgoing one to"
+      echo "     $SSM_WEBHOOK_PREV_PARAM, so a deploy mid-roll reinstalls the pair"
+      echo "  5. Shift the current secret to STRIPE_WEBHOOK_SECRET_PREVIOUS and install"
       echo "     the new STRIPE_WEBHOOK_SECRET (secrets masked in the diff)"
-      echo "  5. Confirm, push back, run the PAYMENTS-BOOT gate, print the completion step"
+      echo "  6. Confirm, push back, run the PAYMENTS-BOOT gate, print the completion step"
       ;;
     complete)
       echo "== dry run: complete a webhook-secret rotation on $TARGET (ssh alias: $SSH_ALIAS) =="
       echo ""
-      echo "Would stage $HOST_ENV_PATH from $SSH_ALIAS and remove the"
+      echo "Would stage $HOST_ENV_PATH from $SSH_ALIAS, return"
+      echo "$SSM_WEBHOOK_PREV_PARAM to its placeholder, and remove the"
       echo "STRIPE_WEBHOOK_SECRET_PREVIOUS line (idempotent: a no-op when no"
       echo "rotation window is open), then push back and run the PAYMENTS-BOOT gate."
       ;;
@@ -233,11 +277,16 @@ if [[ -n "$ENV_FILE_OVERRIDE" ]]; then
       ;;
   esac
 else
+  # Every real-host mode now writes Parameter Store, so every one needs a
+  # profile: rotation and completion move the signing-secret parameters just as
+  # activation does, and a roll that updated only the host would be undone by
+  # the next deploy's sync.
+  if [[ -z "$AWS_PROFILE_ARG" ]]; then
+    echo "ERROR: --profile is required (the AWS profile that may write the" >&2
+    echo "       /footbag/$TARGET/secrets/stripe_* parameters)" >&2
+    exit 2
+  fi
   if [[ "$MODE" == "activate" ]]; then
-    if [[ -z "$AWS_PROFILE_ARG" ]]; then
-      echo "ERROR: --profile is required (the AWS profile that may write $SSM_PARAM)" >&2
-      exit 2
-    fi
     if [[ "$TARGET" == "production" ]]; then
       echo "This activates LIVE Stripe payments on production."
       printf "Type 'ACTIVATE LIVE PAYMENTS' to continue: "
@@ -271,21 +320,9 @@ fi
 # shell history or the aws CLI's argv; the trap removes it on every exit path.
 # -----------------------------------------------------------------------------
 if [[ "$MODE" == "activate" && -z "$ENV_FILE_OVERRIDE" ]]; then
-  umask 077
-  KEY_TMP="$(mktemp /tmp/footbag-stripe-key.XXXXXX)"
-  trap 'shred -u "$KEY_TMP" 2>/dev/null || true' EXIT INT TERM
-  printf '%s' "$STRIPE_KEY" > "$KEY_TMP"
   echo ""
-  echo "Storing the key in SSM ($SSM_PARAM)..."
-  aws ssm put-parameter \
-    --name "$SSM_PARAM" \
-    --value "file://$KEY_TMP" \
-    --type SecureString \
-    --key-id "$KMS_ALIAS" \
-    --overwrite \
-    --profile "$AWS_PROFILE_ARG" >/dev/null
-  shred -u "$KEY_TMP"
-  echo "Stored."
+  echo "Storing the Stripe API key in Parameter Store..."
+  put_ssm_secret "$SSM_PARAM" "$STRIPE_KEY"
 fi
 
 # Step 2: the Stripe Dashboard part cannot be scripted; pause for it. Activation
@@ -405,6 +442,35 @@ case "$MODE" in
     fi
     ;;
 esac
+
+# Parameter Store is the declared source for the signing secrets and the deploy
+# syncs both into the host env file on every run, so they are written here
+# before the host is touched: an abort after this point converges on the next
+# deploy, whereas writing only the host would be reverted by it. Skipped
+# entirely in the synthetic --env-file mode, which reaches no AWS.
+if [[ -z "$ENV_FILE_OVERRIDE" ]]; then
+  echo ""
+  echo "Storing the webhook signing secret(s) in Parameter Store..."
+  case "$MODE" in
+    activate)
+      put_ssm_secret "$SSM_WEBHOOK_PARAM" "$WEBHOOK_SECRET"
+      ;;
+    rotate)
+      # Both halves of the roll window are declared, so a deploy landing between
+      # the roll and its completion reinstalls the pair that is actually in
+      # service rather than dropping the outgoing secret and failing deliveries
+      # Stripe is still signing with it.
+      put_ssm_secret "$SSM_WEBHOOK_PARAM" "$WEBHOOK_SECRET"
+      put_ssm_secret "$SSM_WEBHOOK_PREV_PARAM" "$CURRENT_WS"
+      ;;
+    complete)
+      # Back to the placeholder rather than deleted: Terraform declares the
+      # parameter, so removing it would be reverted on the next apply, and the
+      # deploy reads the placeholder as "no outgoing secret".
+      put_ssm_secret "$SSM_WEBHOOK_PREV_PARAM" "$SSM_PLACEHOLDER"
+      ;;
+  esac
+fi
 
 umask 077
 NEW_LOCAL="$(mktemp /tmp/footbag-env-new.XXXXXX)"

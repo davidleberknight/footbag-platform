@@ -461,7 +461,9 @@ Same-status no-ops are allowed (idempotent webhook redelivery). No backward tran
 
 > **Vocabulary note:** The US uses the term "completed" for a successfully processed one-time payment. This schema uses `'succeeded'` to align with Stripe's `payment_intent` status vocabulary and avoid ambiguity with the event `status` value `'completed'`. This is an intentional deviation from US terminology, documented here.
 
-**Recurring donations** (Stripe Subscriptions): keyed by `stripe_subscription_id` + `stripe_invoice_id`. State management is application-enforced (see APP-005); the DB does not restrict subscription status transitions.
+**Recurring donations** (Stripe Subscriptions): keyed by `stripe_subscription_id` + `stripe_invoice_id` once the provider has confirmed the subscription. State management is application-enforced (see APP-005); the DB does not restrict subscription status transitions.
+
+The row is written when checkout opens, before the provider has minted anything, so a recurring gift is never invisible locally and an abandoned checkout leaves a trace. That opening row carries `status = 'incomplete'`, no provider identifiers, and the `checkout_session_id` as its only handle. `customer.subscription.created` promotes it and fills the identifiers in; `checkout.session.expired` closes it out as canceled. A table CHECK enforces that only a row the provider is not billing may lack the identifiers, so a confirmed subscription can never be missing them.
 
 #### Stripe timestamp fields
 `stripe_events.stripe_created` and `payments.last_stripe_event_created` are stored as **ISO-8601 UTC TEXT** (consistent with the schema's universal timestamp convention). Stripe delivers these as Unix epoch integers; the application must convert at write time:
@@ -474,8 +476,8 @@ strftime('%Y-%m-%dT%H:%M:%fZ', stripe_event.created, 'unixepoch')
 `stripe_events` deduplicates all incoming webhook events by `event_id` (Stripe's globally unique event ID), regardless of payment model. The row is claimed inside the same transaction as the state change it guards, so a handler that throws rolls the claim back and leaves no row: a redelivery then re-runs cleanly rather than being mistaken for a duplicate. A row therefore exists only for an event that was processed, and the table records just the event's identity, type, Stripe creation time, and the moment it was processed. Delivery failures are counted from the structured `webhook.delivery_failed` log line the webhook controller emits, which feeds a CloudWatch metric filter.
 
 #### Recurring subscriptions view
-- `recurring_donation_subscriptions_active`: `WHERE status <> 'canceled'`. Use for active-subscription queries.
-- Query the bare `recurring_donation_subscriptions` table directly when canceled subscriptions are relevant (e.g., reactivation, reporting).
+- `recurring_donation_subscriptions_active`: `WHERE status NOT IN ('canceled', 'incomplete')`. Use for active-subscription queries. `incomplete` is excluded because a checkout that was opened and never completed is not a donation: it must not reach the member's history, the admin surfaces, or the provider comparison.
+- Query the bare `recurring_donation_subscriptions` table directly when canceled or unconfirmed subscriptions are relevant (e.g., reactivation, reporting, or the reconciliation sweep for checkouts that resolved neither way).
 
 #### Subscription lifecycle event codes (controlled vocabulary)
 `lifecycle_event_code` values in `recurring_donation_subscription_transitions`:
@@ -1404,7 +1406,7 @@ These apply a meaningful `WHERE` clause; always understand the filter before usi
 | `clubs_open` | `status IN ('active','inactive')` | Render club lists and lookups (excludes archived clubs) |
 | `clubs_active` | `status = 'active'` | Public club directory listings (index + country pages); inactive clubs stay reachable by direct link |
 | `email_templates_enabled` | `is_enabled = 1` | Templates active for automated email flows |
-| `recurring_donation_subscriptions_active` | `status <> 'canceled'` | Active subscription queries |
+| `recurring_donation_subscriptions_active` | `status NOT IN ('canceled', 'incomplete')` | Active subscription queries |
 | `media_items_linkable_video` | `media_type = 'video' AND moderation_status = 'active' AND not tagged '#unavailable_embed'` | The only `media_items` read surface for whether a subject has watchable video (the hashtag-index surfaces decide media presence from `tag_stats` usage counts instead). Both the dictionary browse coverage query and the trick detail reference-media query read it, so the two cannot diverge on what counts as media. |
 
 ### Multi-condition search view

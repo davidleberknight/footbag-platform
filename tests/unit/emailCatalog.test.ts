@@ -87,10 +87,10 @@ const CATALOG: CatalogEntry[] = [
     { params: { displayDate: 'January 1, 2030', isDayOf: true }, variant: 'active_player_expiry_day_of' },
   ] },
   { template: 'payment_receipt', services: ['paymentService'], samples: [
-    { params: { descriptor: 'd', amountDisplay: '$1.00 USD', outcome: 'succeeded', isMembership: true, purchasedTier: 'tier1', referenceId: 'r' }, variant: 'payment_receipt_succeeded_tier1' },
-    { params: { descriptor: 'd', amountDisplay: '$1.00 USD', outcome: 'succeeded', isMembership: true, purchasedTier: 'tier2', referenceId: 'r' }, variant: 'payment_receipt_succeeded_tier2' },
-    { params: { descriptor: 'd', amountDisplay: '$1.00 USD', outcome: 'succeeded', isMembership: false, purchasedTier: null, referenceId: 'r' }, variant: 'payment_receipt_succeeded' },
-    { params: { descriptor: 'd', amountDisplay: '$1.00 USD', outcome: 'failed', isMembership: true, purchasedTier: 'tier1', referenceId: 'r' }, variant: 'payment_receipt_failed' },
+    { params: { descriptor: 'd', amountDisplay: '$1.00 USD', paymentDate: '1 January 2030', intervalPhrase: 'One-time payment', outcome: 'succeeded', isMembership: true, purchasedTier: 'tier1', referenceId: 'r' }, variant: 'payment_receipt_succeeded_tier1' },
+    { params: { descriptor: 'd', amountDisplay: '$1.00 USD', paymentDate: '1 January 2030', intervalPhrase: 'One-time payment', outcome: 'succeeded', isMembership: true, purchasedTier: 'tier2', referenceId: 'r' }, variant: 'payment_receipt_succeeded_tier2' },
+    { params: { descriptor: 'd', amountDisplay: '$1.00 USD', paymentDate: '1 January 2030', intervalPhrase: 'Yearly recurring donation', outcome: 'succeeded', isMembership: false, purchasedTier: null, referenceId: 'r' }, variant: 'payment_receipt_succeeded' },
+    { params: { descriptor: 'd', amountDisplay: '$1.00 USD', paymentDate: '1 January 2030', intervalPhrase: 'One-time payment', outcome: 'failed', isMembership: true, purchasedTier: 'tier1', referenceId: 'r' }, variant: 'payment_receipt_failed' },
   ] },
   { template: 'donation_subscription_started', services: ['paymentService'], samples: [
     { params: { amountDisplay: '$25.00 USD', donationNote: 'HoF Fund', referenceId: 'r' }, variant: 'donation_subscription_started' },
