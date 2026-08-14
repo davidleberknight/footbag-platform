@@ -149,11 +149,13 @@ describe('JOB-block rendering across browse views (no raw operational notation o
     expectTwoLineJob(res.text, 'quantum_mirage');
   });
 
-  it('By set: cards with operational notation render the JOB-block label', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=modifier');
-    expect(res.status).toBe(200);
-    expectJobBlockRender(res.text, 'fairy_mirage');
-    expectJobBlockRender(res.text, 'spinning_paradox_mirage');
+  it('By set and By modifier: cards with operational notation render the JOB-block label', async () => {
+    const setRes = await request(await createApp()).get('/freestyle/tricks?view=set');
+    expect(setRes.status).toBe(200);
+    expectJobBlockRender(setRes.text, 'fairy_mirage');
+    const modRes = await request(await createApp()).get('/freestyle/tricks?view=modifier');
+    expect(modRes.status).toBe(200);
+    expectJobBlockRender(modRes.text, 'spinning_paradox_mirage');
   });
 
   it('a trick with BOTH an equivalence reading AND operational notation renders BOTH (no either/or)', async () => {
@@ -192,11 +194,13 @@ describe('JOB-block rendering across browse views (no raw operational notation o
 
 describe('/freestyle/tricks?view=modifier — shared rows (not bare hashtags)', () => {
   it('offers a separate Detail control for each listed trick', async () => {
-    const res = await request(await createApp()).get('/freestyle/tricks?view=modifier');
     // The name opens the trick's page and so does the Detail control; the two
-    // agree on the destination, which is what a reader relies on.
-    expect(res.text).toMatch(/<a[^>]*href="\/freestyle\/tricks\/fairy_mirage"[^>]*>\s*Detail\s*<\/a>/);
+    // agree on the destination, which is what a reader relies on. Set-linked
+    // tricks list on By set; body-modifier tricks list on By modifier.
+    const res = await request(await createApp()).get('/freestyle/tricks?view=modifier');
     expect(res.text).toMatch(/<a[^>]*href="\/freestyle\/tricks\/spinning_paradox_mirage"[^>]*>\s*Detail\s*<\/a>/);
+    const setRes = await request(await createApp()).get('/freestyle/tricks?view=set');
+    expect(setRes.text).toMatch(/<a[^>]*href="\/freestyle\/tricks\/fairy_mirage"[^>]*>\s*Detail\s*<\/a>/);
   });
 
   it('renders the difficulty value + hashtag per row (no green chip), and the derivation on the page', async () => {
@@ -217,11 +221,11 @@ describe('/freestyle/tricks?view=modifier — shared rows (not bare hashtags)', 
 
   it('renders the trick name first, then the hashtag, then the Detail control', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=modifier');
-    const slugIdx = res.text.indexOf('data-trick-slug="fairy_mirage"');
+    const slugIdx = res.text.indexOf('data-trick-slug="ducking_toe_stall"');
     expect(slugIdx).toBeGreaterThan(-1);
     const window = res.text.substring(slugIdx, slugIdx + 2000);
     const titleIdx   = window.indexOf('class="dict-trick-row-title"');
-    const hashtagIdx = window.indexOf('>#fairy_mirage<');
+    const hashtagIdx = window.indexOf('>#ducking_toe_stall<');
     const detailIdx  = window.search(/<a[^>]*>\s*Detail\s*<\/a>/);
     expect(titleIdx).toBeGreaterThan(-1);
     expect(hashtagIdx).toBeGreaterThan(-1);
@@ -233,16 +237,17 @@ describe('/freestyle/tricks?view=modifier — shared rows (not bare hashtags)', 
 });
 
 describe('Movement-system / By-set axis disambiguation', () => {
-  it('Movement System intro names the four movement-system groupings + cross-links to By set', async () => {
+  it('Movement System intro names the four broad groupings + cross-links to By set and By modifier', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=movement-system');
-    expect(res.text).toMatch(/four big movement families/i);
-    expect(res.text).toMatch(/how you enter/i);
+    expect(res.text).toMatch(/four broad movement groupings/i);
+    expect(res.text).toMatch(/href="\/freestyle\/tricks\?view=set"/);
     expect(res.text).toMatch(/href="\/freestyle\/tricks\?view=modifier"/);
   });
 
-  it('By modifier intro names "which tricks use this set or modifier?" + cross-links to Set Encyclopedia', async () => {
+  it('By modifier intro names "which tricks use this modifier?" + cross-links to By set and the Set Encyclopedia', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=modifier');
-    expect(res.text).toMatch(/which tricks use this set or modifier/i);
+    expect(res.text).toMatch(/which tricks use this modifier/i);
+    expect(res.text).toMatch(/href="\/freestyle\/tricks\?view=set"/);
     expect(res.text).toMatch(/href="\/freestyle\/sets"/);
   });
 });

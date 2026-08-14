@@ -449,7 +449,7 @@ describe('GET /freestyle/tricks — one orienting lede per state', () => {
   it('a secondary view shows its own state-specific lede', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=movement-system');
     expect(res.status).toBe(200);
-    expect(res.text).toMatch(/four big movement families/i);
+    expect(res.text).toMatch(/four broad movement groupings/i);
   });
 
   it('the family filter shows the family header', async () => {

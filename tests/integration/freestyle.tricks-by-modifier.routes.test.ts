@@ -2,13 +2,16 @@
  * /freestyle/tricks?view=modifier — the modifier-grouped browse view.
  *
  * Pins the behavior:
- *   1. `?view=modifier` answers "which tricks use this set or modifier?" —
- *      renders modifier-grouped trick lists, NOT the Set Encyclopedia surface.
+ *   1. `?view=modifier` answers "which tricks use this modifier?" — clusters
+ *      organize the page, and every modifier is its own subsection with a
+ *      `modifier-{slug}` anchor. NOT the Set Encyclopedia surface.
  *   2. Set Encyclopedia remains separate at `/freestyle/sets` (sets-
  *      encyclopedia.hbs template), and is the canonical set-specific surface.
- *   3. Ecosystem findability: fairy / spinning / stepping / quantum /
- *      ducking sections each surface their modifier-linked tricks.
- *   4. `spinning-paradox-mirage` reaches both spinning and paradox sections.
+ *   3. The launch sets (fairy / stepping / quantum / pixie ...) do not render
+ *      sections here: their tricks browse at `?view=set`. Body and timing
+ *      modifiers (spinning / paradox / ducking ...) render here.
+ *   4. `spinning-paradox-mirage` reaches both the spinning and paradox
+ *      subsections.
  *   5. No raw operational notation leaks outside the dictionary-trick-card
  *      partial's standardized JOB block.
  *   6. `?view=sets` is not a supported view value: it falls through to the
@@ -140,9 +143,56 @@ beforeAll(async () => {
     operational_notation: 'CLIP > DUCK [BOD] > SAME IN [DEX] > SAME TOE [DEL]',
     review_status: 'expert_reviewed', is_active: 1,
   });
+  // Two more ducking tricks whose families and ADDs discriminate the row
+  // order inside a subsection: family-first would yield butterfly(4),
+  // legover(2), mirage(3); the contract is ADD ascending then alphabetical:
+  // legover(2), mirage(3), butterfly(4).
+  insertFreestyleTrick(db, {
+    slug: 'ducking-legover', canonical_name: 'ducking legover', adds: '2',
+    base_trick: 'legover', trick_family: 'legover', category: 'compound',
+    notation: 'DUCKING LEGOVER',
+    operational_notation: 'SET > DUCK [BOD] > SAME TOE [DEL]',
+    review_status: 'expert_reviewed', is_active: 1,
+  });
+  insertFreestyleTrick(db, {
+    slug: 'ducking-butterfly', canonical_name: 'ducking butterfly', adds: '4',
+    base_trick: 'butterfly', trick_family: 'butterfly', category: 'compound',
+    notation: 'DUCKING BUTTERFLY',
+    operational_notation: 'SET > DUCK [BOD] > OP OUT [DEX] > OP CLIP [XBD] [DEL]',
+    review_status: 'expert_reviewed', is_active: 1,
+  });
   db.prepare(`
     INSERT INTO freestyle_trick_modifier_links (trick_slug, modifier_slug, apply_order)
-    VALUES ('ducking-mirage', 'ducking', 1)
+    VALUES ('ducking-mirage', 'ducking', 1), ('ducking-legover', 'ducking', 1), ('ducking-butterfly', 'ducking', 1)
+  `).run();
+
+  // Outside the first-class roster: whirling (held pending the set-versus-
+  // modifier ruling; has a Set Encyclopedia page) and backside (documented by
+  // no reference surface). Both render only in the Other tracked groups band.
+  db.prepare(`
+    INSERT INTO freestyle_trick_modifiers
+      (slug, modifier_name, modifier_type, add_bonus, add_bonus_rotational, notes, loaded_at)
+    VALUES
+      ('whirling', 'whirling', 'body', 1, 1, 'Intermediate whirl carried mid-chain.', ?),
+      ('backside', 'backside', 'body', 1, 1, 'Behind-the-body execution qualifier.', ?)
+  `).run('2026-05-27T00:00:00.000Z', '2026-05-27T00:00:00.000Z');
+  insertFreestyleTrick(db, {
+    slug: 'whirling-osis', canonical_name: 'whirling osis', adds: '5',
+    base_trick: 'osis', trick_family: 'osis', category: 'compound',
+    notation: 'WHIRLING OSIS',
+    operational_notation: 'SET > OP IN [DEX] > OP CLIP [XBD] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]',
+    review_status: 'expert_reviewed', is_active: 1,
+  });
+  insertFreestyleTrick(db, {
+    slug: 'backside-mirage', canonical_name: 'backside mirage', adds: '3',
+    base_trick: 'mirage', trick_family: 'mirage', category: 'compound',
+    notation: 'BACKSIDE MIRAGE',
+    operational_notation: 'SET > OP IN [DEX] > OP TOE [DEL]',
+    review_status: 'expert_reviewed', is_active: 1,
+  });
+  db.prepare(`
+    INSERT INTO freestyle_trick_modifier_links (trick_slug, modifier_slug, apply_order)
+    VALUES ('whirling-osis', 'whirling', 1), ('backside-mirage', 'backside', 1)
   `).run();
 
   db.close();
@@ -158,9 +208,10 @@ describe('/freestyle/tricks?view=modifier — modifier-grouped trick lists (not 
     expect(res.text).toContain('class="trick-view-toggle-active">By modifier<');
   });
 
-  it('intro explains the page answers "which tricks use this set?"', async () => {
+  it('intro explains the page answers "which tricks use this modifier?" and points set-seekers at By set', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=modifier');
-    expect(res.text).toMatch(/which tricks use this set or modifier/i);
+    expect(res.text).toMatch(/which tricks use this modifier/i);
+    expect(res.text).toMatch(/href="\/freestyle\/tricks\?view=set"/);
   });
 
   it('cross-links to /freestyle/sets for the Set Encyclopedia', async () => {
@@ -177,12 +228,20 @@ describe('/freestyle/tricks?view=modifier — modifier-grouped trick lists (not 
     expect(res.text).not.toContain('Derived systems:');
   });
 
-  it('renders a section per modifier cluster', async () => {
+  it('renders a section per modifier cluster, with no set-uptime cluster (the sets browse at ?view=set)', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=modifier');
-    expect(res.text).toContain('id="cluster-set-uptime"');
+    expect(res.text).not.toContain('id="cluster-set-uptime"');
     expect(res.text).toContain('id="cluster-rotational-body"');
     expect(res.text).toContain('id="cluster-no-plant-timing"');
     expect(res.text).toContain('id="cluster-dexterity-structural"');
+  });
+
+  it('renders a per-modifier subsection with a self-anchored heading for each rendered modifier', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks?view=modifier');
+    for (const slug of ['spinning', 'paradox', 'ducking']) {
+      expect(res.text).toContain(`id="modifier-${slug}"`);
+      expect(res.text).toContain(`href="/freestyle/tricks?view=modifier#modifier-${slug}"`);
+    }
   });
 
   it('renders the two-line dict-trick-row stack per section', async () => {
@@ -194,45 +253,76 @@ describe('/freestyle/tricks?view=modifier — modifier-grouped trick lists (not 
 });
 
 describe('/freestyle/tricks?view=modifier — findability of representative ecosystem tricks', () => {
-  it('rotational-body cluster includes spinning-paradox-mirage', async () => {
+  it('the spinning subsection includes spinning-paradox-mirage', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=modifier');
-    expect(res.text).toMatch(/id="cluster-rotational-body"[\s\S]+?spinning-paradox-mirage/);
+    expect(res.text).toMatch(/id="modifier-spinning"[\s\S]+?spinning-paradox-mirage/);
   });
 
-  it('no-plant-timing cluster also includes spinning-paradox-mirage (multi-modifier surfacing)', async () => {
+  it('the paradox subsection also includes spinning-paradox-mirage (multi-modifier surfacing)', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=modifier');
-    expect(res.text).toMatch(/id="cluster-no-plant-timing"[\s\S]+?spinning-paradox-mirage/);
+    expect(res.text).toMatch(/id="modifier-paradox"[\s\S]+?spinning-paradox-mirage/);
   });
 
-  it('set-uptime cluster includes fairy-mirage and fairy-butterfly', async () => {
+  it('the ducking subsection includes ducking-mirage', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=modifier');
-    const section = res.text.match(/id="cluster-set-uptime"[\s\S]+?(?=<section class="content-section" id="cluster-|$)/);
+    expect(res.text).toMatch(/id="modifier-ducking"[\s\S]+?ducking-mirage/);
+  });
+
+  it('rows within a subsection order by ADD ascending, then alphabetically, and the intro says so', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks?view=modifier');
+    const section = res.text.match(/id="modifier-ducking"[\s\S]*?<\/section>/);
     expect(section).not.toBeNull();
-    expect(section![0]).toContain('fairy-mirage');
-    expect(section![0]).toContain('fairy-butterfly');
+    const order = ['ducking-legover', 'ducking-mirage', 'ducking-butterfly']
+      .map(slug => section![0].indexOf(`data-trick-slug="${slug}"`));
+    expect(order.every(i => i > -1), 'all three ducking tricks render').toBe(true);
+    expect([...order].sort((a, b) => a - b), 'ADD ascending then alphabetical').toEqual(order);
+    expect(res.text).toContain('ordered by ADD, then alphabetically');
   });
 
-  it('set-uptime cluster includes stepping-eggbeater', async () => {
+  it('the launch sets render no sections here: their tricks browse at ?view=set', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=modifier');
-    expect(res.text).toMatch(/id="cluster-set-uptime"[\s\S]+?stepping-eggbeater/);
+    for (const slug of ['fairy', 'stepping', 'quantum', 'pixie']) {
+      expect(res.text, `no modifier-${slug} subsection`).not.toContain(`id="modifier-${slug}"`);
+    }
+    for (const trick of ['fairy-mirage', 'fairy-butterfly', 'stepping-eggbeater', 'quantum-mirage']) {
+      expect(res.text, `${trick} not listed on the modifier view`).not.toContain(`data-trick-slug="${trick}"`);
+    }
+    const setView = await request(await createApp()).get('/freestyle/tricks?view=set');
+    for (const trick of ['fairy-mirage', 'fairy-butterfly', 'stepping-eggbeater', 'quantum-mirage']) {
+      expect(setView.text, `${trick} listed on the set view`).toContain(`data-trick-slug="${trick}"`);
+    }
   });
 
-  it('set-uptime cluster includes quantum-mirage', async () => {
+  it('the modifier jump index lists every rendered modifier with its count, paradox included', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=modifier');
-    expect(res.text).toMatch(/id="cluster-set-uptime"[\s\S]+?quantum-mirage/);
+    expect(res.text).toContain('aria-label="Modifier jump"');
+    expect(res.text).toMatch(/href="#modifier-spinning">spinning \(\d+\)</);
+    expect(res.text).toMatch(/href="#modifier-paradox">paradox \(\d+\)</);
+    expect(res.text).toMatch(/href="#modifier-ducking">ducking \(\d+\)</);
+    expect(res.text).not.toMatch(/href="#modifier-fairy"/);
+    expect(res.text).not.toMatch(/href="#modifier-whirling"/);
   });
 
-  it('dexterity-structural cluster includes ducking-mirage', async () => {
+  it('a group outside the first-class roster renders in the Other tracked groups band, not as a section', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=modifier');
-    expect(res.text).toMatch(/id="cluster-dexterity-structural"[\s\S]+?ducking-mirage/);
+    expect(res.text).not.toContain('id="modifier-whirling"');
+    expect(res.text).not.toContain('data-trick-slug="whirling-osis"');
+    const band = res.text.match(/id="modifier-other-groups"[\s\S]*?<\/section>/);
+    expect(band, 'Other tracked groups band present').not.toBeNull();
+    // whirling has a Set Encyclopedia page, so its band entry links there;
+    // backside has no documenting reference surface, so it renders plain.
+    expect(band![0]).toMatch(/<a href="\/freestyle\/sets\/whirling">whirling<\/a>/);
+    expect(band![0]).toMatch(/backside/);
+    expect(band![0]).not.toMatch(/<a[^>]*>backside<\/a>/);
   });
 
-  it('cluster jump nav surfaces the clusters', async () => {
+  it('renders the collapsed "Why these modifier groups?" disclosure linking the Operators & Modifiers reference', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=modifier');
-    expect(res.text).toContain('aria-label="Modifier cluster jump"');
-    expect(res.text).toMatch(/href="#cluster-set-uptime"/);
-    expect(res.text).toMatch(/href="#cluster-rotational-body"/);
-    expect(res.text).toMatch(/href="#cluster-no-plant-timing"/);
+    const details = res.text.match(/<details class="browse-view-why">[\s\S]*?<\/details>/);
+    expect(details, 'rationale disclosure present').not.toBeNull();
+    expect(details![0]).not.toContain('<details class="browse-view-why" open');
+    expect(details![0]).toContain('Why these modifier groups?');
+    expect(details![0]).toContain('href="/freestyle/operators"');
   });
 });
 
@@ -248,7 +338,7 @@ describe('/freestyle/sets — Set Encyclopedia remains separate', () => {
   it('/freestyle/sets does NOT include the By modifier browse-view markup', async () => {
     const res = await request(await createApp()).get('/freestyle/sets');
     expect(res.text).not.toContain('class="trick-view-toggle-active">By modifier<');
-    expect(res.text).not.toContain('aria-label="Modifier cluster jump"');
+    expect(res.text).not.toContain('aria-label="Modifier jump"');
   });
 });
 
@@ -275,14 +365,12 @@ describe('/freestyle/tricks?view=modifier — card formatting standardization', 
     expect(m![0]).toMatch(/aria-label="Difficulty value">\(\d+\)</);
   });
 
-  it('cluster section count + complexity-band headings render', async () => {
+  it('cluster and subsection counts render, and the cluster count dedupes across its modifiers', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=modifier');
-    // rotational-body has 1 trick (spinning-paradox-mirage, a 2-operator compound).
+    // rotational-body holds one distinct trick (spinning-paradox-mirage).
     expect(res.text).toMatch(/id="cluster-rotational-body"[\s\S]+?<span class="section-count">1<\/span>/);
-    // set-uptime groups its four 1-operator tricks under a "1 operator" band.
-    const setUptime = res.text.match(/id="cluster-set-uptime"[\s\S]+?(?=<section class="content-section" id="cluster-|$)/);
-    expect(setUptime).not.toBeNull();
-    expect(setUptime![0]).toContain('1 operator');
+    // The spinning subsection carries its own count chip.
+    expect(res.text).toMatch(/id="modifier-spinning"[\s\S]{0,300}<span class="section-count">1<\/span>/);
   });
 });
 
@@ -292,7 +380,7 @@ describe('?view=sets is not a supported browse value', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('class="trick-view-toggle-active">By ADD<');
     expect(res.text).not.toContain('class="trick-view-toggle-active">By modifier<');
-    expect(res.text).not.toContain('aria-label="Modifier cluster jump"');
+    expect(res.text).not.toContain('aria-label="Modifier jump"');
   });
 
   it('no rendered page emits a ?view=sets link', async () => {

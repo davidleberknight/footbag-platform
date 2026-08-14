@@ -206,7 +206,7 @@ import {
 } from '../content/freestyleFamilyTiers';
 import { JOBS_NOTATION_ARTICLE, JOBS_NOTATION_ARTICLE_TITLE } from '../content/jobsNotationArticle';
 import { FAMILY_HISTOGRAM, ENTRY_HISTOGRAM, type TopologyHistogramRow } from '../content/freestyleTopologyHistograms';
-import { MODIFIER_CLUSTERS, clusterForModifier, clusterLabelForModifier } from '../content/freestyleModifierClusters';
+import { MODIFIER_CLUSTERS, FIRST_CLASS_BROWSE_MODIFIERS, clusterForModifier, clusterLabelForModifier } from '../content/freestyleModifierClusters';
 import { quantityLadderFor } from '../content/freestyleQuantityLadders';
 import {
   CANONICAL_SETS,
@@ -3228,8 +3228,17 @@ export interface FreestyleTricksIndexContent {
   // use. Drives ?view=modifier. Empty when no active tricks have modifier_links.
   modifierGroups: FreestyleModifierGroup[];
   // ?view=modifier cluster grouping (organizational): non-empty clusters in display
-  // order, each wrapping its active modifier groups.
+  // order, each wrapping its FIRST-CLASS modifier groups (curated roster). The
+  // set-uptime cluster is deliberately absent: the launch sets browse at
+  // ?view=set.
   modifierClusterView: ModifierClusterView[];
+  // Flat per-modifier jump index for ?view=modifier, in render order.
+  modifierJumpIndex: ModifierJumpChip[];
+  // Compact "Other tracked groups" band: linked groups outside the first-class
+  // roster, name + count, each linking to its existing reference surface when
+  // one documents it (null href renders a plain name).
+  modifierOtherGroups: { slug: string; name: string; count: number; href: string | null }[];
+  modifierWhyDisclosure: { summary: string; paragraphs: string[] };
   // First-class "By set" view (?view=set): the set / uptime systems only, in
   // the cluster's declared order, each with its trick rows. Empty groups drop.
   setViewGroups: FreestyleSetViewGroup[];
@@ -3255,6 +3264,10 @@ export interface FreestyleTricksIndexContent {
   // familyViewIntro: per-view context note for the advanced family browse view.
   // Absence = silence (template branches on the truthy string).
   familyViewIntro: string | null;
+  // Compact collapsed "Why these groups?" rationale disclosures for the family
+  // and set views: the curation principle in plain words, closed by default.
+  familyWhyDisclosure: { summary: string; paragraphs: string[] };
+  setWhyDisclosure:    { summary: string; paragraphs: string[] };
   // Per-view scale sentences (browse-shell cleanup). Each is computed from the
   // same group arrays the template renders, so the counts always match the
   // visible sections/cards. Rendered once in the corresponding view's intro.
@@ -3346,18 +3359,31 @@ export interface DictionaryLandingOnboarding {
 // Higher-level modifier cluster for the grouped ?view=modifier page (organizational
 // UX; individual modifier groups nest underneath). Reversible content grouping,
 // not ontology — see freestyleModifierClusters.ts.
-export interface ModifierClusterBand {
-  rung:  number;                // 1 / 2 / 3 (3 = "3+")
-  label: string;                // "1 operator" / "2 operators" / "3+ operators"
-  cards: DictionaryTrickCard[]; // alphabetical within the band
+// One per-modifier subsection inside a cluster: the deep-link granularity of
+// the modifier browse, so "all paradox tricks" is one anchor, not a scan.
+export interface ModifierClusterGroup {
+  slug:       string;               // modifier slug; drives the `modifier-{slug}` anchor
+  name:       string;               // modifier display name
+  cards:      DictionaryTrickCard[];
+  trickCount: number;
 }
 
 export interface ModifierClusterView {
   key:        string;               // `cluster-{key}` section anchor
   label:      string;
   blurb:      string;
-  bands:      ModifierClusterBand[];     // tricks banded by operator count (complexity)
-  trickCount: number;                // total tricks across the cluster (deduped)
+  groups:     ModifierClusterGroup[];  // per-modifier subsections, declared order
+  trickCount: number;                // distinct tricks across the cluster (deduped)
+}
+
+// Flat jump-index entry for the modifier browse: every rendered modifier as a
+// chip with its count, so common modifiers (paradox, symposium) are findable
+// on arrival without scrolling the cluster sections.
+export interface ModifierJumpChip {
+  slug:   string;
+  name:   string;
+  count:  number;
+  anchor: string;   // `#modifier-{slug}`
 }
 
 export interface FreestyleMinorLineage {
@@ -9382,10 +9408,9 @@ export const freestyleService = {
 
     const movementSystemView: MovementSystemBrowseView = {
       observationalNote:
-        'Four axes for navigating the freestyle movement language: how the set initiates ' +
-        '(Set / Uptime), how the body enters (Entry Topologies), what the body does during the dex ' +
-        '(Midtime Body), and discipline around plant and landing (No-Plant & Suspension). ' +
-        'Within each axis, tricks are ordered by ADD, then alphabetically.',
+        'An exploratory, unofficial lens: four broad groupings describing movement character, ' +
+        'never a canonical classification. Within each grouping, tricks are ordered by ADD, ' +
+        'then alphabetically.',
       axes: MOVEMENT_SYSTEM_AXES
         .map(axis => {
           const { cards, addBands } = buildMovementSystemAxisCards(axis.modifierSlugs);
@@ -9410,13 +9435,17 @@ export const freestyleService = {
     // projection. The accumulator is already family-scoped (allRows was
     // filtered by activeFamily upstream), so a non-empty bucket means at least
     // one in-family trick links to that modifier.
+    // A launch set deep-links into its By-set section; every other modifier
+    // deep-links into its per-modifier subsection of the modifier browse.
     const relatedModifierGroups: FreestyleRelatedModifierLink[] = activeFamily
       ? [...modifierGroupAccumulator.values()].map(b => ({
           modifierSlug: b.modifierSlug,
           modifierName: b.modifierName,
           modifierType: b.modifierType,
           count:        b.tricks.length,
-          href:         `/freestyle/tricks?view=modifier#set-${b.modifierSlug}`,
+          href:         clusterForModifier(b.modifierSlug) === 'set-uptime'
+            ? `/freestyle/tricks?view=set#set-${b.modifierSlug}`
+            : `/freestyle/tricks?view=modifier#modifier-${b.modifierSlug}`,
         }))
       : [];
 
@@ -9465,49 +9494,94 @@ export const freestyleService = {
       hasMinorLineages: minorLineages.length > 0,
     };
 
-    // Modifier clusters (organizational UX): bucket the active modifier modifierGroups
-    // into curated higher-level clusters for the By-modifier jump menu + the
-    // grouped sets page. Reversible content map; modifiers not listed in a
-    // cluster fall through to 'other'; empty clusters are dropped.
-    // Cluster → complexity bands (operator count) → alphabetical. Tricks are
-    // unioned across the cluster's modifiers and deduped, then banded by
-    // operator rung. Cluster membership implies at least one operator, so the
-    // bands are 1 / 2 / 3+ operators (no Core band).
-    const clusterBandOf = (n: number): { rung: number; label: string } =>
-      n <= 1 ? { rung: 1, label: '1 operator' }
-      : n === 2 ? { rung: 2, label: '2 operators' }
-      : { rung: 3, label: '3+ operators' };
+    // Modifier clusters (organizational UX): bucket the active modifier groups
+    // into curated higher-level clusters for the By-modifier browse. Reversible
+    // content map; modifiers not listed in a cluster fall through to 'other';
+    // empty clusters are dropped. The set-uptime cluster is skipped: the launch
+    // sets are first-class ?view=set sections and do not repeat here.
+    // Cluster → per-modifier subsections (the deep-link granularity), in the
+    // cluster's declared modifier order, unlisted stragglers alphabetical.
+    // Each subsection reuses the already-shaped modifier group's cards, so the
+    // structural within-group ordering matches the rest of the dictionary.
+    // Standard within-group row order for the set and modifier browse
+    // sections: ADD ascending, then name alphabetical. The modifier groups'
+    // own structural (family-first) order predates the per-modifier
+    // subsections and reads as no order without visible family boundaries.
+    const byAddThenName = (a: DictionaryTrickCard, b: DictionaryTrickCard): number => {
+      const aAdd = a.adds === null ? Number.POSITIVE_INFINITY : Number(a.adds);
+      const bAdd = b.adds === null ? Number.POSITIVE_INFINITY : Number(b.adds);
+      if (aAdd !== bAdd) return aAdd - bAdd;
+      return a.displayName.localeCompare(b.displayName, undefined, { sensitivity: 'base' });
+    };
+
     const modifierClusterView: ModifierClusterView[] = MODIFIER_CLUSTERS
+      .filter(c => c.key !== 'set-uptime')
       .map(c => {
-        const seen = new Set<string>();
-        const rows: FreestyleTrickRowWithStatus[] = [];
-        for (const b of modifierGroupAccumulator.values()) {
-          if (clusterForModifier(b.modifierSlug) !== c.key) continue;
-          for (const t of b.tricks) {
-            if (seen.has(t.slug)) continue;
-            seen.add(t.slug);
-            rows.push(t);
-          }
-        }
-        // Alphabetical first, so cards land alphabetically within each band.
-        rows.sort((x, y) => x.canonical_name.localeCompare(y.canonical_name, undefined, { sensitivity: 'base' }));
-        const bandMap = new Map<number, { rung: number; label: string; rows: FreestyleTrickRowWithStatus[] }>();
-        for (const r of rows) {
-          const band = clusterBandOf(rungOf(r.slug));
-          const entry = bandMap.get(band.rung) ?? { rung: band.rung, label: band.label, rows: [] };
-          entry.rows.push(r);
-          bandMap.set(band.rung, entry);
-        }
-        const bands: ModifierClusterBand[] = [...bandMap.values()]
-          .sort((a, b) => a.rung - b.rung)
-          .map(band => ({
-            rung:  band.rung,
-            label: band.label,
-            cards: band.rows.map(r => shapeDictionaryTrickCard(r, shapeTrickIndexRow(r, ctx), null, ctx)),
-          }));
-        return { key: c.key, label: c.label, blurb: c.blurb, bands, trickCount: rows.length };
+        const declared = new Map(c.modifiers.map((s, i) => [s, i] as const));
+        const inCluster = modifierGroups
+          .filter(g => FIRST_CLASS_BROWSE_MODIFIERS.has(g.modifierSlug)
+            && clusterForModifier(g.modifierSlug) === c.key && g.cards.length > 0)
+          .sort((a, b) => {
+            const da = declared.get(a.modifierSlug);
+            const db2 = declared.get(b.modifierSlug);
+            if (da !== undefined && db2 !== undefined) return da - db2;
+            if (da !== undefined) return -1;
+            if (db2 !== undefined) return 1;
+            return a.modifierName.localeCompare(b.modifierName, undefined, { sensitivity: 'base' });
+          });
+        const groups: ModifierClusterGroup[] = inCluster.map(g => ({
+          slug:       g.modifierSlug,
+          name:       g.modifierName,
+          cards:      [...g.cards].sort(byAddThenName),
+          trickCount: g.trickCount,
+        }));
+        const distinct = new Set(inCluster.flatMap(g => g.cards.map(card => card.slug))).size;
+        return { key: c.key, label: c.label, blurb: c.blurb, groups, trickCount: distinct };
       })
-      .filter(c => c.bands.length > 0);
+      .filter(c => c.groups.length > 0);
+
+    // Flat per-modifier jump index in render order (cluster order, then the
+    // per-cluster declared order), so every rendered modifier is one click
+    // from the top of the view.
+    const modifierJumpIndex: ModifierJumpChip[] = modifierClusterView.flatMap(c =>
+      c.groups.map(g => ({
+        slug:   g.slug,
+        name:   g.name,
+        count:  g.trickCount,
+        anchor: `#modifier-${g.slug}`,
+      })));
+
+    // Compact "Other tracked groups" band: every linked group outside the
+    // first-class roster and outside By set, count descending. Each entry
+    // links to the existing reference surface that documents it under its
+    // current classification (the Set Encyclopedia page when one exists);
+    // a group no surface documents renders as a plain name, and the missing
+    // reference entry is a recorded follow-up gap, not something this band
+    // invents a page for.
+    const modifierOtherGroups = modifierGroups
+      .filter(g => !FIRST_CLASS_BROWSE_MODIFIERS.has(g.modifierSlug)
+        && clusterForModifier(g.modifierSlug) !== 'set-uptime'
+        && g.cards.length > 0)
+      .sort((a, b) => b.trickCount - a.trickCount
+        || a.modifierName.localeCompare(b.modifierName, undefined, { sensitivity: 'base' }))
+      .map(g => ({
+        slug:  g.modifierSlug,
+        name:  g.modifierName,
+        count: g.trickCount,
+        href:  findCanonicalSetBySlug(g.modifierSlug) ? `/freestyle/sets/${g.modifierSlug}` : null,
+      }));
+
+    const modifierWhyDisclosure = {
+      summary: 'Why these modifier groups?',
+      paragraphs: [
+        'These sections are chosen for useful browsing, not as a complete taxonomy.',
+        'A modifier gets a section when it answers a question players actually ask, like '
+          + 'show me all paradox tricks, with enough member tricks to be worth browsing and '
+          + 'a recognizable identity across them.',
+        'Launch sets browse under By set, and smaller tracked groups sit in the compact '
+          + 'band below instead of full sections.',
+      ],
+    };
 
     // First-class "By set" browse view: the set / uptime systems only, split
     // from the modifier machinery along the set-uptime cluster seam. Sections
@@ -9521,7 +9595,7 @@ export const freestyleService = {
       .map(g => ({
         slug:       g.modifierSlug,
         label:      g.modifierName.charAt(0).toUpperCase() + g.modifierName.slice(1),
-        cards:      g.cards,
+        cards:      [...g.cards].sort(byAddThenName),
         trickCount: g.trickCount,
       }));
 
@@ -9556,13 +9630,44 @@ export const freestyleService = {
           'notation authoring and cannot be counted yet; they appear in the other browse views with an incomplete badge.'
         : '');
     const modifierIntro =
-      'Tricks grouped by the set or body modifier they use. Each section answers: which tricks use this set or modifier?';
+      'Tricks grouped by the modifier they use. Each section answers: which tricks use this '
+      + 'modifier? Within each modifier, tricks are ordered by ADD, then alphabetically.';
 
     const setViewIntro =
-      'Tricks grouped by the named set they open with. Each section answers: which tricks begin with this set?';
+      'Tricks grouped by the named set they open with. These sections are the major set ' +
+      'groupings used for browsing, not the whole set vocabulary. Within each set, tricks ' +
+      'are ordered by ADD, then alphabetically.';
+
+    // "Why these groups?" rationale copy for the family and set views: the
+    // curation principle in plain words. Membership itself is curated doctrine
+    // elsewhere (the public-family roster and the set-group ruling); this copy
+    // only explains the principle, and deliberately names no rejected
+    // candidates.
+    const familyWhyDisclosure = {
+      summary: 'Why these family groups?',
+      paragraphs: [
+        'These sections are chosen for useful browsing, not as a complete taxonomy.',
+        'A family gets a section when it has enough member tricks to be worth browsing and a '
+          + 'conserved identity: its members keep a recognizable shared signature even as '
+          + 'modifiers stack.',
+        'Groupings too broad to tell tricks apart, like the universal catch surfaces, do not '
+          + 'get sections. Smaller conserved lineages appear in the compact Minor Lineages band.',
+      ],
+    };
+    const setWhyDisclosure = {
+      summary: 'Why these set groups?',
+      paragraphs: [
+        'These sections are chosen for useful browsing, not as a complete taxonomy.',
+        'Very broad entry elements, such as the toe and clipper sets, would list most of the '
+          + 'dictionary in one section, so they are left out. Very small groups fall below the '
+          + 'browsing floor.',
+        'A set does not earn a section on count alone: each grouping here is a deliberate '
+          + 'curatorial ruling.',
+      ],
+    };
     const setMemberships = setViewGroups.reduce((n, g) => n + g.cards.length, 0);
     const setScale =
-      `${setViewGroups.length} ${plural(setViewGroups.length, 'set', 'sets')} · ` +
+      `${setViewGroups.length} set ${plural(setViewGroups.length, 'group', 'groups')} · ` +
       `${setMemberships} trick-row ${plural(setMemberships, 'membership', 'memberships')} shown. ` +
       'A trick that uses more than one set appears under each.';
 
@@ -9574,9 +9679,14 @@ export const freestyleService = {
       'plus a separately-grouped Alternative Surfaces layer below the axes. ' +
       'A compound can appear under more than one axis or modifier.';
 
-    const modifierMemberships = modifierGroups.reduce((n, g) => n + g.cards.length, 0);
+    // Counts derive from the SAME cluster groups the template renders (the
+    // launch sets browse at ?view=set and are not counted here), so the scale
+    // always equals the sum of the rendered subsection counts.
+    const modifierCount = modifierClusterView.reduce((n, c) => n + c.groups.length, 0);
+    const modifierMemberships = modifierClusterView.reduce(
+      (n, c) => n + c.groups.reduce((m, g) => m + g.cards.length, 0), 0);
     const modifierScale =
-      `${modifierGroups.length} ${plural(modifierGroups.length, 'modifier', 'modifiers')} · ` +
+      `${modifierCount} ${plural(modifierCount, 'modifier', 'modifiers')} · ` +
       `${modifierMemberships} trick-row ${plural(modifierMemberships, 'membership', 'memberships')} shown. ` +
       'A trick that uses more than one modifier appears under each.';
 
@@ -9605,10 +9715,9 @@ export const freestyleService = {
     // Movement-system view intro, service-shaped like the other per-view intros
     // so the copy lives in one place; the template appends the cross-links.
     const movementSystemIntro =
-      'By movement system groups tricks into four big movement families: sets and uptime, '
-      + 'how you enter, mid-air body moves, and airborne. Each grouping gathers the modifiers '
-      + 'that belong to it. Tricks caught on an unusual part of the body are listed separately as '
-      + 'Alternative surfaces below the four groupings.';
+      'By movement system groups tricks into four broad movement groupings, with tricks caught '
+      + 'on an unusual part of the body listed separately as Alternative surfaces. Open a '
+      + 'grouping to browse its tricks.';
 
     return {
       seo: {
@@ -9641,6 +9750,9 @@ export const freestyleService = {
         familyJumpIndex,
         modifierGroups,
         modifierClusterView,
+        modifierJumpIndex,
+        modifierOtherGroups,
+        modifierWhyDisclosure,
         setViewGroups,
         componentView,
         topologyView,
@@ -9689,7 +9801,7 @@ export const freestyleService = {
           heading:   'Navigate the Trick Dictionary',
           viewLabel: 'View:',
           sortLabel: 'Sort:',
-          otherViewsOpen: (['movement-system', 'topology', 'dex-count', 'modifier'] as FreestyleTricksActiveView[]).includes(activeView),
+          otherViewsOpen: (['movement-system', 'topology', 'dex-count'] as FreestyleTricksActiveView[]).includes(activeView),
           viewTitles: {
             add:            'How layered is the trick?',
             family:         'What core movement pattern does the trick build on?',
@@ -9730,6 +9842,8 @@ export const freestyleService = {
           'regardless of family) and the Movement System view (which clusters by the modifier ' +
           'axes that transform a base). The shared terminal structure under each family ' +
           'heading below is the invariant that makes the cohort cohere.',
+        familyWhyDisclosure,
+        setWhyDisclosure,
         familyScale,
         dexCountScale,
         movementSystemScale,

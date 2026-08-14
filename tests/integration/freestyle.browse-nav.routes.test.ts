@@ -10,13 +10,14 @@
  * specialist view back into the prominent row.
  *
  * Canonical structure (one source of truth in tricks.hbs):
- *   Prominent: By ADD · By family · By set
+ *   Prominent: By ADD · By family · By set · By modifier
  *   Other views (disclosure): By movement system · Movement Neighborhoods ·
- *   By dex count · By modifier
+ *   By dex count
  *
- * "By set" is its own first-class view (?view=set, the set / uptime systems
- * only); the modifier view keeps its "By modifier" label and its broader
- * operator scope. The two labels never collapse onto one view.
+ * Family, Set, and Modifier are the curated first-class browse axes and sit
+ * in the prominent row; the disclosure carries the specialist / analytical
+ * lenses. "By set" and "By modifier" are distinct views and their labels
+ * never collapse onto one view.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -56,16 +57,16 @@ const VIEWS: Array<[string, string]> = [
 ];
 
 // The specialist views that live inside the "Other views" disclosure.
-const OTHER_VIEWS = new Set(['movement-system', 'topology', 'dex-count', 'modifier']);
+const OTHER_VIEWS = new Set(['movement-system', 'topology', 'dex-count']);
 
 const CANONICAL_ORDER = [
   'By ADD',
   'By family',
   'By set',
+  'By modifier',
   'By movement system',
   'Movement Neighborhoods',
   'By dex count',
-  'By modifier',
 ];
 
 function navBlock(html: string): string {
@@ -107,14 +108,14 @@ describe('Browse-shell nav — consistency across all six primary views', () => 
       // Every specialist label is inside the disclosure, and the two prominent
       // labels are outside it.
       const inside = details![0];
-      for (const label of ['By movement system', 'Movement Neighborhoods', 'By dex count', 'By modifier']) {
+      for (const label of ['By movement system', 'Movement Neighborhoods', 'By dex count']) {
         expect(inside, `"${label}" lives inside the disclosure`).toContain(label);
       }
       const outside = nav.replace(inside, '');
-      for (const label of ['By ADD', 'By family', 'By set']) {
+      for (const label of ['By ADD', 'By family', 'By set', 'By modifier']) {
         expect(outside, `"${label}" stays in the prominent row`).toContain(label);
       }
-      for (const label of ['By movement system', 'Movement Neighborhoods', 'By dex count', 'By modifier']) {
+      for (const label of ['By movement system', 'Movement Neighborhoods', 'By dex count']) {
         expect(outside, `"${label}" does not also render outside the disclosure`).not.toContain(label);
       }
     }

@@ -32,8 +32,14 @@ const { dbPath } = setTestEnv('3527');
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
 const BROWSE_VIEWS = [
-  'add', 'family', 'category', 'modifier', 'component', 'topology', 'movement-system', 'dex-count',
+  'add', 'family', 'set', 'category', 'modifier', 'component', 'topology', 'movement-system', 'dex-count',
 ];
+
+// Per-view non-vacuousness witness: a genuine compound that must stay
+// browsable on that view. The modifier view lists only body/timing-modifier
+// tricks (the launch sets browse at ?view=set), so its witness is the
+// paradox-linked compound rather than the quantum-linked one.
+const WITNESS: Record<string, string> = { modifier: 'blur' };
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -76,8 +82,10 @@ beforeAll(async () => {
     notation: 'BLUR', operational_notation: 'SET > OP IN [DEX] > OP OUT [DEX] > OP TOE [DEL]',
     review_status: 'expert_reviewed', is_active: 1,
   });
-  // Modifier registry + link so the ?view=modifier projection renders a quantum
-  // group whose MEMBER is the compound, never the quantum row itself.
+  // Modifier registry + links so the projections render groups whose MEMBERS
+  // are the compounds, never the quantum / paradox rows themselves: the
+  // quantum link feeds the ?view=set quantum group, and the paradox link
+  // feeds the ?view=modifier paradox subsection.
   insertFreestyleTrickModifier(db, {
     slug: 'quantum', modifier_name: 'quantum', add_bonus: 1, modifier_type: 'set',
   });
@@ -85,6 +93,7 @@ beforeAll(async () => {
     slug: 'paradox', modifier_name: 'paradox', add_bonus: 1, modifier_type: 'body',
   });
   insertFreestyleTrickModifierLink(db, 'quantum-mirage', 'quantum');
+  insertFreestyleTrickModifierLink(db, 'blur', 'paradox');
 
   db.close();
   createApp = await importApp();
@@ -101,8 +110,8 @@ describe('operator / set / modifier rows are never trick members in browse views
       // set row nor the modifier row may carry one anywhere in the view.
       expect(res.text).not.toContain('data-trick-slug="quantum"');
       expect(res.text).not.toContain('data-trick-slug="paradox"');
-      // The genuine compound stays browsable, so the guard is not vacuous.
-      expect(res.text).toContain('data-trick-slug="quantum-mirage"');
+      // A genuine compound stays browsable, so the guard is not vacuous.
+      expect(res.text).toContain(`data-trick-slug="${WITNESS[view] ?? 'quantum-mirage'}"`);
     });
   }
 

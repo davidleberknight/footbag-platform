@@ -114,6 +114,21 @@ describe('GET /freestyle/tricks?view=movement-system — axes + groups', () => {
     expect(res.text).toMatch(/aria-label="Movement System axes"/);
   });
 
+  it('each axis renders as a collapsed disclosure whose summary carries name, count, and definition', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks?view=movement-system');
+    for (const anchor of ['movement-axis-set-uptime', 'movement-axis-entry-topology', 'movement-axis-midtime-body', 'movement-axis-no-plant-suspension']) {
+      const m = res.text.match(new RegExp(`<details class="content-section trick-movement-axis" id="${anchor}"[^>]*>[\\s\\S]*?<\\/summary>`));
+      expect(m, `${anchor} is a details element`).not.toBeNull();
+      // Collapsed by default: no open attribute on the details tag.
+      expect(m![0]).not.toMatch(/<details[^>]*\bopen\b/);
+      expect(m![0]).toContain('class="section-count"');
+      expect(m![0]).toContain('class="movement-axis-definition"');
+    }
+    // Alternative surfaces takes the same collapsed treatment when it renders
+    // (this fixture seeds none): the old always-open section form never returns.
+    expect(res.text).not.toContain('<section class="content-section alt-surfaces"');
+  });
+
   it('renders all four axis sections in canonical declaration order', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=movement-system');
     const i1 = res.text.indexOf('id="movement-axis-set-uptime"');

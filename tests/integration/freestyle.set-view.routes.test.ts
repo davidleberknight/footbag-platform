@@ -76,7 +76,32 @@ beforeAll(async () => {
     review_status: 'expert_reviewed', is_active: 1,
   });
 
+  // Three more pixie tricks whose families and ADDs discriminate the row
+  // order: family-first would yield butterfly(4), legover(2), mirage(3),
+  // whirl(4); the contract is ADD ascending then alphabetical, so
+  // legover(2), mirage(3), butterfly(4), whirl(4).
+  insertFreestyleTrick(db, {
+    slug: 'pixie_legover', canonical_name: 'pixie legover', adds: '2',
+    base_trick: 'legover', trick_family: 'legover', category: 'compound',
+    notation: 'PIXIE LEGOVER', operational_notation: 'TOE > SAME IN [DEX] > SAME TOE [DEL]',
+    review_status: 'expert_reviewed', is_active: 1,
+  });
+  insertFreestyleTrick(db, {
+    slug: 'pixie_butterfly', canonical_name: 'pixie butterfly', adds: '4',
+    base_trick: 'butterfly', trick_family: 'butterfly', category: 'compound',
+    notation: 'PIXIE BUTTERFLY', operational_notation: 'TOE > SAME IN [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]',
+    review_status: 'expert_reviewed', is_active: 1,
+  });
+  insertFreestyleTrick(db, {
+    slug: 'pixie_whirl', canonical_name: 'pixie whirl', adds: '4',
+    base_trick: 'whirl', trick_family: 'whirl', category: 'compound',
+    notation: 'PIXIE WHIRL', operational_notation: 'TOE > SAME IN [DEX] > OP IN [DEX] > OP CLIP [XBD] [DEL]',
+    review_status: 'expert_reviewed', is_active: 1,
+  });
   insertFreestyleTrickModifierLink(db, 'pixie_mirage', 'pixie');
+  insertFreestyleTrickModifierLink(db, 'pixie_legover', 'pixie');
+  insertFreestyleTrickModifierLink(db, 'pixie_butterfly', 'pixie');
+  insertFreestyleTrickModifierLink(db, 'pixie_whirl', 'pixie');
   insertFreestyleTrickModifierLink(db, 'stepping_mirage', 'stepping');
   insertFreestyleTrickModifierLink(db, 'quantum_mirage', 'quantum');
   insertFreestyleTrickModifierLink(db, 'paradox_mirage', 'paradox');
@@ -135,5 +160,46 @@ describe('GET /freestyle/tricks?view=set', () => {
     const html = await page();
     expect(html).toMatch(/browse-view-intro[^<]*<\/p>|browse-view-intro/);
     expect(html).toContain('href="/freestyle/sets"');
+  });
+
+  it('renders the collapsed "Why these set groups?" disclosure with the encyclopedia link, and the family view its parallel', async () => {
+    const html = await page();
+    const details = html.match(/<details class="browse-view-why">[\s\S]*?<\/details>/);
+    expect(details, 'set-view rationale disclosure present').not.toBeNull();
+    expect(details![0]).not.toContain('<details class="browse-view-why" open');
+    expect(details![0]).toContain('Why these set groups?');
+    expect(details![0]).toContain('href="/freestyle/sets"');
+    expect(details![0]).toMatch(/count alone/);
+
+    const fam = await request(await createApp()).get('/freestyle/tricks?view=family');
+    expect(fam.status).toBe(200);
+    const famDetails = fam.text.match(/<details class="browse-view-why">[\s\S]*?<\/details>/);
+    expect(famDetails, 'family-view rationale disclosure present').not.toBeNull();
+    expect(famDetails![0]).toContain('Why these family groups?');
+    expect(famDetails![0]).toMatch(/Minor Lineages/);
+  });
+
+  it('rows within a set order by ADD ascending, then alphabetically, and the intro says so', async () => {
+    const html = await page();
+    const section = html.match(/id="set-pixie"[\s\S]*?(?=<section class="content-section trick-set-group"|<\/div>\s*<\/section>\s*<section)/);
+    expect(section).not.toBeNull();
+    const order = ['pixie_legover', 'pixie_mirage', 'pixie_butterfly', 'pixie_whirl']
+      .map(slug => section![0].indexOf(`data-trick-slug="${slug}"`));
+    expect(order.every(i => i > -1), 'all four pixie tricks render').toBe(true);
+    expect([...order].sort((a, b) => a - b), 'ADD ascending then alphabetical').toEqual(order);
+    expect(html).toContain('ordered by ADD, then alphabetically');
+  });
+
+  it('the scale line total equals the sum of the rendered section counts', async () => {
+    const html = await page();
+    const scale = html.match(/class="browse-view-scale">(\d+) set groups? · (\d+) trick-row/);
+    expect(scale, 'scale line present').not.toBeNull();
+    const sections = Array.from(
+      html.matchAll(/id="set-[a-z_]+"[\s\S]{0,300}?<span class="section-count">(\d+)<\/span>/g),
+      m => Number(m[1]),
+    );
+    expect(sections.length, 'set sections found').toBe(Number(scale![1]));
+    const total = sections.reduce((n, c) => n + c, 0);
+    expect(total, 'section counts sum to the scale total').toBe(Number(scale![2]));
   });
 });

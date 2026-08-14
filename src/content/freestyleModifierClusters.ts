@@ -67,7 +67,9 @@ export const MODIFIER_CLUSTERS: readonly ModifierCluster[] = [
     // Miraging and barraging are deliberately absent: miraging is descriptive
     // standalone-movement language and barraging is a legacy name for the
     // Furious set, so neither may sit in an active-operator cluster.
-    modifiers: ['terraging', 'tapping', 'ducking', 'diving', 'weaving', 'flailing'],
+    // Zulu sits here with its duck/dive/weave cohort (the head-and-body-passage
+    // family on the operator board).
+    modifiers: ['terraging', 'tapping', 'ducking', 'diving', 'weaving', 'zulu', 'flailing'],
   },
   {
     key:   'surface-specialized',
@@ -82,6 +84,20 @@ export const MODIFIER_CLUSTERS: readonly ModifierCluster[] = [
     modifiers: [],
   },
 ];
+
+/**
+ * Curated first-class roster for the By-modifier browse (explicit admission,
+ * mirroring the first-class family roster: a modifier gets a full browse
+ * section because it has been ruled a useful, recognizable browse grouping,
+ * never because its live count crossed a number). Everything else that carries
+ * links renders in the compact "Other tracked groups" band. Whirling and
+ * swirling are deliberately absent pending the set-versus-modifier ruling;
+ * that hold is not a judgment on their usefulness.
+ */
+export const FIRST_CLASS_BROWSE_MODIFIERS: ReadonlySet<string> = new Set([
+  'symposium', 'ducking', 'spinning', 'paradox', 'gyro',
+  'diving', 'weaving', 'zulu', 'tapping', 'inspinning',
+]);
 
 /** Map a modifier slug to its cluster key; '' when unlisted (caller routes to `other`). */
 const SLUG_TO_CLUSTER: ReadonlyMap<string, string> = new Map(

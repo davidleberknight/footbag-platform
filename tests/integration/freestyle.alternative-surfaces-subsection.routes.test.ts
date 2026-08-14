@@ -66,11 +66,13 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('Movement System view: alternative-surfaces subsection', () => {
-  it('renders the Alternative surfaces section on ?view=movement-system', async () => {
+  it('renders the Alternative surfaces section on ?view=movement-system as a collapsed disclosure', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=movement-system');
     expect(res.status).toBe(200);
     expect(res.text).toContain('id="alt-surfaces"');
-    expect(res.text).toContain('<h2>Alternative surfaces</h2>');
+    // Collapsed details whose summary carries the heading, count, and intro.
+    expect(res.text).toMatch(/<details class="content-section alt-surfaces" id="alt-surfaces"(?![^>]*\bopen\b)/);
+    expect(res.text).toMatch(/Alternative surfaces <span class="section-count">\d+<\/span>/);
     expect(res.text).toContain('These tricks use other surfaces');
   });
 
@@ -107,7 +109,7 @@ describe('Movement System view: alternative-surfaces subsection', () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('id="alt-surfaces"');
-    expect(res.text).not.toContain('<h2>Alternative surfaces</h2>');
+    expect(res.text).not.toMatch(/Alternative surfaces <span class="section-count">/);
   });
 
   it('does NOT render the Alternative surfaces section on ?view=family', async () => {

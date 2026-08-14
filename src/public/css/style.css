@@ -3621,6 +3621,12 @@ a.hashtag--media:hover {
 .trick-view-toggle-other { margin-top: 6px; }
 .trick-view-toggle-other summary { cursor: pointer; color: var(--primary); }
 .trick-view-toggle-other-row { display: inline-block; padding: 4px 0 0 18px; }
+/* Compact "Why these groups?" rationale disclosures on the family and set
+   views: closed by default, native marker, muted short paragraphs. */
+.browse-view-why { margin: 6px 0 14px; font-size: 0.9rem; }
+.browse-view-why summary { cursor: pointer; color: var(--primary); }
+.browse-view-why-body { padding: 6px 0 0 18px; color: var(--text-muted); }
+.browse-view-why-body p { margin: 0 0 6px; }
 
 /* The ADD section count reads as words beside the heading ("39 tricks"), so it
    needs no pill: the tint and border were carrying meaning the noun now
@@ -9424,6 +9430,22 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 .trick-movement-axis {
   margin-top: 36px;
 }
+/* Progressive-disclosure summaries on the Movement System view: the axis name,
+   count, and one-line definition stay visible; the rows expand on demand. */
+.trick-movement-axis-summary { cursor: pointer; }
+.trick-movement-axis-name {
+  display: inline;
+  font-size: 1.25rem;
+  margin: 0;
+}
+.trick-movement-axis-summary .movement-axis-definition {
+  display: block;
+  margin: 4px 0 0;
+}
+.trick-movement-axis[open] > .trick-movement-axis-summary,
+.alt-surfaces[open] > .trick-movement-axis-summary {
+  margin-bottom: 14px;
+}
 .movement-axis-definition {
   margin: -4px 0 18px 0;
   font-size: 0.9rem;
@@ -11404,10 +11426,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   background: var(--bg-subtle);
   border-radius: var(--radius-2xs);
   color: var(--text-secondary);
-}
-.modifier-view-total {
-  margin: 4px 0 18px;
-  font-size: 0.9rem;
 }
 .set-subtype-section {
   margin-top: 24px;

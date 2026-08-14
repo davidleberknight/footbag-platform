@@ -540,8 +540,9 @@ describe('GET /freestyle/tricks?family=… — hashtag filter', () => {
     // Whirl-family fixture seeds spinning-whirl with a modifier_link to spinning.
     expect(res.text).toContain('class="related-modifier-groups"');
     expect(res.text).toContain('Related set/modifier groups:');
-    // Deep-link into the modifier projection at the matching anchor.
-    expect(res.text).toContain('href="/freestyle/tricks?view=modifier#set-spinning"');
+    // Deep-link into the modifier projection at the matching per-modifier
+    // anchor (a launch set would deep-link into its ?view=set section instead).
+    expect(res.text).toContain('href="/freestyle/tricks?view=modifier#modifier-spinning"');
     // Link surface shows the modifier name and a count chip.
     expect(res.text).toMatch(/related-modifier-group-link[^>]*>spinning <span class="related-modifier-group-count">\(1\)<\/span>/);
   });
