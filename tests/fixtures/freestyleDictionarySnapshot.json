@@ -10,7 +10,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "CLIPPER",
-"operational_notation": "CLIP [XBD]",
+"operational_notation": "CLIP [XBD] [KICK]",
 "sort_order": 0
 },
 {
@@ -491,7 +491,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "FLYING INSIDE",
-"operational_notation": "FLYING [BOD] > SAME INSIDE",
+"operational_notation": "FLYING [BOD] > SAME INSIDE [KICK]",
 "sort_order": 1003
 },
 {
@@ -504,7 +504,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "FLYING OUTSIDE",
-"operational_notation": "FLYING [BOD] > SAME OUTSIDE",
+"operational_notation": "FLYING [BOD] > SAME OUTSIDE [KICK]",
 "sort_order": 1004
 },
 {

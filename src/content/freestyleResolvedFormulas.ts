@@ -1505,8 +1505,8 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
     baseAdd:     1,
     totalAdd:    1,
     derivation:  'xbody(1) = 1 ADD',
-    operationalNotation: 'OP CLIP [XBD]',  // 1-ADD body kick into clipper position; user-spec operational form; not Red-confirmed.
-    provenance:  'Foundational-vocabulary polish. The existing clipper row (1-ADD body kick into clipper position) lacked operational notation; OP CLIP [XBD] derived per user spec (cross-body event without terminal stall). Curator-published; not Red-confirmed.',
+    operationalNotation: 'OP CLIP [XBD] [KICK]',  // 1-ADD body kick into clipper position; user-spec operational form; not Red-confirmed.
+    provenance:  'Foundational-vocabulary polish. The existing clipper row (1-ADD body kick into clipper position) lacked operational notation; OP CLIP [XBD] derived per user spec (cross-body event without terminal stall). Kick-terminal marker per the 2026-08-13 kick-terminal consistency ruling ([KICK] non-scoring). Curator-published; not Red-confirmed.',
   },
   {
     slug:        'triple_around_the_world',
