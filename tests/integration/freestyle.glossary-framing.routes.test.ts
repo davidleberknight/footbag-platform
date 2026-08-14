@@ -70,11 +70,12 @@ describe('Glossary framing — Reading the dictionary section', () => {
     expect(html).toMatch(/no separate per-row ADD chip/);
   });
 
-  it('renders a browse-semantics table covering all six views with links', async () => {
+  it('renders a browse-semantics table covering all seven views with links, plus the curation principle', async () => {
     const html = await glossary();
     for (const [label, view] of [
       ['By ADD', 'view=add'],
       ['By family', 'view=family'],
+      ['By set', 'view=set'],
       ['By modifier', 'view=modifier'],
       ['By movement system', 'view=movement-system'],
       ['Movement Neighborhoods', 'view=topology'],
@@ -83,7 +84,12 @@ describe('Glossary framing — Reading the dictionary section', () => {
       expect(html, `browse label ${label}`).toContain(label);
       expect(html, `browse link ${view}`).toContain(`/freestyle/tricks?${view}`);
     }
-    expect(html).toMatch(/Same rows, six lenses/);
+    expect(html).toMatch(/Same rows, seven lenses/);
+    // Curated-browse principle + the two broader reference surfaces.
+    expect(html).toMatch(/curated for useful\s+browsing/);
+    expect(html).toMatch(/broader modifier and operator\s+vocabulary/);
+    expect(html).toContain('href="/freestyle/sets"');
+    expect(html).toContain('href="/freestyle/operators"');
   });
 
   it('renders the five-way ontology distinction table', async () => {
