@@ -836,6 +836,16 @@ export function createStubPaymentAdapter(): StubPaymentAdapter {
  *
  * The webhook endpoint's own API version is configured at Stripe and must be
  * kept equal to this.
+ *
+ * Current: the registered test-mode endpoint runs two versions ahead of this
+ * pin, because a newly created Stripe account offers only versions from around
+ * its own creation date and will not accept the pinned one. Every change across
+ * the intervening versions is additive for the event families handled here, so
+ * the endpoint sends supersets of the fields these shapes read.
+ * Target: the installed SDK, this constant, the activation script and every
+ * registered endpoint name one version. Moving this constant alone does not get
+ * there: the SDK pins its own version and the payload-shape test asserts the two
+ * agree, so the package upgrade leads and this follows.
  */
 export const STRIPE_API_VERSION = '2026-05-27.dahlia';
 
