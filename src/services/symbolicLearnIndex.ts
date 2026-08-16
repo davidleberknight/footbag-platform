@@ -62,14 +62,14 @@ export interface SymbolicLearnIndexContent {
 const FOUNDATIONAL_PATH: FoundationalPath = {
   heading: 'Six lessons: how the vocabulary fits together',
   intro:
-    'A guided tour of freestyle\'s movement vocabulary. Read these six pages in order: each teaches one idea about how tricks, families, and names are organized. For your first physical steps with a bag, start with the getting-started page instead.',
+    'A guided tour of freestyle\'s movement vocabulary. Read these six pages in order: each teaches one idea about how tricks, families, sets, and modifiers are organized. For your first physical steps with a bag, start with the getting-started page instead.',
   steps: [
-    { step: 1, name: 'Mirage',    lesson: 'The simplest dexterity, and the idea most of freestyle is built from.',  href: '/freestyle/families/mirage' },
-    { step: 2, name: 'Butterfly', lesson: 'A dexterity flowing into a cross-body clipper catch.',                   href: '/freestyle/families/butterfly' },
-    { step: 3, name: 'Whirl',     lesson: 'The connector a combo keeps returning to.',                              href: '/freestyle/families/whirl' },
-    { step: 4, name: 'Osis',      lesson: 'The ending a whole branch of tricks grows from.',                        href: '/freestyle/families/osis' },
-    { step: 5, name: 'Swirl',     lesson: 'How the vocabulary grows: sibling cells in one movement matrix.',        href: '/freestyle/families/swirl' },
-    { step: 6, name: 'Down',      lesson: 'How tricks are organized: four famous names, one family.',               href: '/freestyle/families/down' },
+    { step: 1, name: 'Around the World', lesson: 'What a dexterity is: the plainest circling motion in the vocabulary, the same leg orbiting the bag and the same toe catching it.', href: '/freestyle/tricks/around_the_world' },
+    { step: 2, name: 'Mirage',           lesson: 'A complete trick: set, opposite-leg dexterity, and a catch back on the setting toe, the full loop every trick shares.',            href: '/freestyle/tricks/mirage' },
+    { step: 3, name: 'Butterfly',        lesson: 'The catch is structure: the same one-dex idea resolving to a cross-body clipper catch, so how a trick ends is part of what it is.', href: '/freestyle/families/butterfly' },
+    { step: 4, name: 'Whirl',            lesson: 'One structure grows a family: a stable clipper ending inherited by a whole family of variations.',                                 href: '/freestyle/families/whirl' },
+    { step: 5, name: 'Pixie',            lesson: 'Sets are how tricks begin: one named launch structure that opens terraging, sailing, frantic, and more.',                          href: '/freestyle/sets/pixie' },
+    { step: 6, name: 'Spinning',         lesson: 'Modifiers multiply the vocabulary: a full-body rotation layered through a trick, taught with a progression built on the whirl.',   href: '/freestyle/modifier/spinning' },
   ],
 };
 

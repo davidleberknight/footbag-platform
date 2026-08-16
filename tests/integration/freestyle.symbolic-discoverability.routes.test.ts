@@ -67,12 +67,20 @@ describe('GET /freestyle/learn', () => {
   it('renders the six-lesson vocabulary tour: the six lessons in reading order, linked, above the advanced pathways', async () => {
     const res = await request(createApp()).get('/freestyle/learn');
     expect(res.text).toContain('Six lessons: how the vocabulary fits together');
-    // The six lessons appear in reading order, each linked to its family page.
-    const order = ['mirage', 'butterfly', 'whirl', 'osis', 'swirl', 'down'];
+    // The six lessons appear in reading order, each linked to its concept
+    // page: dexterity, complete trick, catch structure, family, set, modifier.
+    const order = [
+      '/freestyle/tricks/around_the_world',
+      '/freestyle/tricks/mirage',
+      '/freestyle/families/butterfly',
+      '/freestyle/families/whirl',
+      '/freestyle/sets/pixie',
+      '/freestyle/modifier/spinning',
+    ];
     let last = -1;
-    for (const slug of order) {
-      const at = res.text.indexOf(`href="/freestyle/families/${slug}"`);
-      expect(at, slug).toBeGreaterThan(last);
+    for (const href of order) {
+      const at = res.text.indexOf(`href="${href}"`);
+      expect(at, href).toBeGreaterThan(last);
       last = at;
     }
     // The lesson tour sits above the more advanced Progressions section.
