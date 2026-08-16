@@ -222,8 +222,8 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     slug: 'pixie', hashtag: '#set_pixie', displayName: 'Pixie', subtype: 'true-core',
     formula: 'TOE > SAME IN [DEX] >',
     movementExplanation:
-      'A toe set with a same-side inward dex; the basic ATW-style entry and the ' +
-      'directional mirror of fairy.',
+      'A toe set with a same-side inward dex; the basic around-the-world-style ' +
+      'entry and the directional mirror of fairy.',
     equivalenceNotes: [],
     derivedSystems: [
       { slug: 'terraging', label: 'Terraging' },

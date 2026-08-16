@@ -92,10 +92,10 @@ describe('Glossary — core trick atoms band', () => {
     }
   });
 
-  it('ATW reveal separates terminal-contact variants from direction reversal without naming a family', async () => {
+  it('Around the World reveal separates terminal-contact variants from direction reversal without naming a family', async () => {
     const atw = card(await glossary(), 'around_the_world');
-    expect(atw).toContain('Inside ATW');
-    expect(atw).toContain('Outside ATW');
+    expect(atw).toContain('Inside Around the World');
+    expect(atw).toContain('Outside Around the World');
     expect(atw).toContain('separate canonical tricks');
     expect(atw.toLowerCase()).toContain('ending contact');
     // The contact variants are explicitly not a family.

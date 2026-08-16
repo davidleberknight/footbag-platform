@@ -368,12 +368,12 @@ const WORKED_EXAMPLES: readonly AddAnalysisWorkedExample[] = [
     whyNote:    'Same arithmetic as mirage. Mechanically distinct (mid-flight rotation through the dex) but the ADD components are identical.',
   },
   {
-    trickName:  'Around-the-world (ATW)',
+    trickName:  'Around the World',
     trickSlug:  'around_the_world',
     addLabel:   '2 ADD',
     components: 'Operational chain: toe > ss in dex > ss toe. One dexterity event that travels fully around the bag, finishing on a toe stall.',
     derivation: 'dex(1) + stall(1) = 2 ADD',
-    whyNote:    'The foot carries the bag in a complete orbit before the catch. The circular path is what makes it around-the-world, but for the count it is one dexterity finishing in one stall: the same two-component shape as mirage. Reverse ATW reaches the same 2 ADD; "reverse" is a direction marker (+0), not an additive operator. Orbit is the equivalent name for reverse ATW.',
+    whyNote:    'The foot carries the bag in a complete orbit before the catch. The circular path is what makes it around-the-world, but for the count it is one dexterity finishing in one stall: the same two-component shape as mirage. Orbit, the same circle traced in the reverse direction, reaches the same 2 ADD; "reverse" is a direction marker (+0), not an additive operator.',
   },
 
   // ── 3 ADD foundational atoms (three primitives) ───────────────────────

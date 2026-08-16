@@ -196,7 +196,7 @@ describe('GET /freestyle/add-analysis — worked examples', () => {
       'Legover',
       'Pickup',
       'Illusion',
-      'Around-the-world (ATW)',
+      'Around the World',
       // 3 ADD foundational atoms
       'Whirl',
       'Swirl',
@@ -337,9 +337,9 @@ describe('GET /freestyle/add-analysis', () => {
     expect(res.text).toContain('href="/freestyle/tricks/clipper_stall"');
   });
 
-  it('ATW worked-example surfaces its operational chain and reads as dex + stall', async () => {
+  it('Around the World worked-example surfaces its operational chain and reads as dex + stall', async () => {
     const res = await request(createApp()).get('/freestyle/add-analysis');
-    const start = res.text.indexOf('Around-the-world');
+    const start = res.text.indexOf('Around the World');
     expect(start).toBeGreaterThan(0);
     const region = res.text.slice(start, start + 900);
     expect(region).toMatch(/toe &gt; ss in dex &gt; ss toe/);

@@ -77,11 +77,11 @@ export const CORE_ATOM_EDUCATIONAL: readonly CoreAtomEducationalCard[] = [
   },
   {
     slug:        'around_the_world',
-    displayName: 'Around-the-World (ATW)',
+    displayName: 'Around the World',
     adds:        '2',
     line:        "Formula: toe set + same-side circling dex + same-side toe catch. The foot carries the bag in a full circle around the outside of the leg and catches it again on the same toe, without crossing the body.",
     relates:     "A same-side atom: the working foot stays on its own side, unlike mirage and illusion, which travel to the opposite side. Its direction mirror is orbit, the same circle traced the other way; the two are a direction pair, both same-side toe atoms. It is the cleanest picture of a full dexterity loop, which the shorter dexes read as pieces of.",
-    reveal:      "Two independent switches change an Around the World, and they are not the same move. Reverse its direction and you get orbit, its mirror. Change its terminal contact instead and you get a different object: Inside ATW and Outside ATW are separate canonical tricks, not styles of one, because they finish on different contacts. Direction and ending contact are separate axes, so the loop branches either way without either branch being a family.",
+    reveal:      "Two independent switches change an Around the World, and they are not the same move. Reverse its direction and you get orbit, its mirror. Change its terminal contact instead and you get a different object: Inside Around the World and Outside Around the World are separate canonical tricks, not styles of one, because they finish on different contacts. Direction and ending contact are separate axes, so the loop branches either way without either branch being a family.",
   },
   {
     slug:        'orbit',
