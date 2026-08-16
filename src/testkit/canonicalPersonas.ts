@@ -501,7 +501,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     dimension: 'Club roles (authorization)',
     purpose: 'Tier 0 whose current Active Player grant (not a paid tier) is what qualifies it to hold a live co-leader row.',
     testingUsage: 'Confirm a Tier 0 member whose current Active Player grant supplies Tier 1 benefits can hold and exercise a co-leader role.',
-    activePlayer: { expiresAt: '2027-12-31T00:00:00.000Z' },
+    activePlayer: { expiresInDays: 365 },
     club: { clubName: 'Lakeside Footbag', role: 'co-leader' },
     coverageNotes: [
       'tier0 with a current Active Player grant and no paid tier',
@@ -629,7 +629,9 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     dimension: 'Active Player',
     purpose: 'Current (non-expired) Active Player grant.',
     testingUsage: 'Confirm a current Active Player grant unlocks the Tier 1 benefits it confers on a Tier 0 member.',
-    activePlayer: { expiresAt: '2027-12-31T00:00:00.000Z' },
+    // Well clear of both pre-expiry reminder offsets, so this persona models a
+    // settled current grant rather than one part-way through a reminder cycle.
+    activePlayer: { expiresInDays: 365 },
     coverageNotes: ['current (non-expired) Active Player grant'],
   },
   {
@@ -639,8 +641,28 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     dimension: 'Active Player',
     purpose: 'Recently-expired Active Player grant: the expiry-boundary partner of ap_active.',
     testingUsage: 'Confirm a recently-expired Active Player shows the expiry surface and has lost the conferred Tier 1 benefits.',
-    activePlayer: { expiresAt: '2024-06-01T00:00:00.000Z', reasonCode: 'official_event_attendance' },
+    // Recent enough to sit inside any plausible just-lapsed window, so the
+    // persona keeps meaning what its purpose says however long the catalog
+    // stands.
+    activePlayer: { expiresInDays: -7, reasonCode: 'official_event_attendance' },
     coverageNotes: ['recently-expired Active Player', 'M_Active_Player_Expiry surface'],
+  },
+  {
+    slug: 'ap_expiring',
+    displayName: 'Sue Nset',
+    tier: 'tier0',
+    dimension: 'Active Player',
+    purpose: 'Active Player grant inside the pre-expiry reminder window: current, but close enough that the daily job has a reminder due.',
+    testingUsage: 'Run the Active Player expiry job and confirm this persona receives the second pre-expiry reminder while still holding the benefits, and that the wording predicts an expiry rather than confirming one.',
+    // Seven days out, which is the second configured reminder offset's default.
+    // The settled persona sits a year out and the lapsed one a week past, so
+    // between them nothing was ever in the state the reminders and the ending
+    // notice act on, which is the state most of that job's behaviour lives in.
+    activePlayer: { expiresInDays: 7 },
+    coverageNotes: [
+      'current Active Player inside the pre-expiry reminder window',
+      'SYS_Check_Active_Player_Expiry reminder path, as distinct from the ending notice',
+    ],
   },
 
   // ── Member-owned galleries and media (authorization) ──────────────────────
@@ -684,7 +706,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     purpose: 'Owns a gallery created while an Active Player grant supplied the Tier 1 benefits, and that grant has since expired. Viewing the gallery must still work while editing it must not: the resource outlives the permission that created it.',
     testingUsage: 'Confirm this persona can still see its own gallery and item, and that editing, deleting, or uploading into it is refused now the Active Player grant has expired.',
     negative: true,
-    activePlayer: { expiresAt: '2024-06-01T00:00:00.000Z', reasonCode: 'official_event_attendance' },
+    activePlayer: { expiresInDays: -60, reasonCode: 'official_event_attendance' },
     gallery: { name: 'Lena\'s Archive', description: 'Gallery outliving the benefits that created it.' },
     coverageNotes: [
       'owned gallery whose Tier 1 benefits lapsed with an expired Active Player grant',

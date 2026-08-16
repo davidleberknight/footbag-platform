@@ -48,7 +48,7 @@ describe('getOwnProfile().content.membership', () => {
     db.close();
     const vm = memberServiceMod.memberService.getOwnProfile(m.slug);
     expect(vm.content.membership!.tierBadgeText).toBe('Tier 0 Registered Member');
-    expect(vm.content.membership!.activePlayer).toEqual({ isCurrent: false, expiresAtDisplay: null, hasLapsed: false, lapsedExplanation: null });
+    expect(vm.content.membership!.activePlayer).toEqual({ isCurrent: false, expiresAtDisplay: null, hasLapsed: false, currentExplanation: null, lapsedExplanation: null });
     expect(vm.content.membership!.underlyingTierBadgeText).toBeNull();
     expect(vm.content.membership!.showTier1Upgrade).toBe(true);
     expect(vm.content.membership!.showTier2Upgrade).toBe(true);
@@ -73,7 +73,12 @@ describe('getOwnProfile().content.membership', () => {
     // Locale-aware format includes year + month abbreviation + day.
     expect(vm.content.membership!.activePlayer?.expiresAtDisplay).toMatch(/2099/);
     expect(vm.content.membership!.activePlayer?.expiresAtDisplay).toMatch(/Sep/);
-    expect(vm.content.membership!.benefitsBlurb).toMatch(/Tier 1 benefits while Active Player/);
+    // The tier description and the Active Player description are separate
+    // fields: a Tier 0 Active Player reads both, because the status is
+    // temporary and the tier under it is not.
+    expect(vm.content.membership!.benefitsBlurb).toMatch(/You can browse the platform/);
+    expect(vm.content.membership!.activePlayer?.currentExplanation)
+      .toMatch(/Tier 1 benefits while Active Player/);
   });
 
   it('tier1: no AP block; only Tier 2 upgrade CTA', () => {

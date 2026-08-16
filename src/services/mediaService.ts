@@ -86,7 +86,14 @@
  *     profile only for a signed-in viewer (profiles are member-only); the name
  *     shows unlinked otherwise. A `#by_*` chip is a different control and always
  *     links to that member's public gallery, for every viewer, so a signed-out
- *     visitor never meets a dead name.
+ *     visitor never meets a dead name. The item viewer's uploader credit carries
+ *     the uploader's badges on the same principle: the membership tier and
+ *     Active Player status are member-visible and render for a signed-in viewer
+ *     only, while Hall of Fame, Big Add Posse and Board are public wherever the
+ *     member appears and render for everyone. Both are read from
+ *     `member_membership_status_current` and `members_active` in the same lookup
+ *     that resolves the `#by_<slug>` display name, so the credit costs no extra
+ *     query.
  *
  * Service shape: singleton object (storage adapter used only to construct
  * read URLs).
@@ -109,6 +116,7 @@ import {
   queryTagIdsByNormalized,
   resolveTrickTags,
 } from '../db/db';
+import { tierBadgeShort } from './membershipTieringService';
 import { CANONICAL_SETS, resolveCanonicalSetAlias } from '../content/freestyleCanonicalSets';
 import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
 import { isSafePath } from '../lib/safePath';
@@ -143,14 +151,41 @@ export interface ViewerContext {
   authenticated: boolean;
 }
 
-function collectMemberNamesForByTags(tagDisplays: string[]): Map<string, string> {
+/** Standing behind an uploader credit. The tier and Active Player halves are
+ *  for signed-in readers; the honours are public wherever the member appears,
+ *  so they carry no viewer condition. */
+interface MemberBadges {
+  tierBadge: string | null;
+  isActivePlayer: boolean;
+  isHof: boolean;
+  isBap: boolean;
+  isBoard: boolean;
+}
+
+// One read resolves both halves of a `#by_<slug>` tag: the display name every
+// surface renders, and the membership standing only the item viewer's uploader
+// credit renders. Keeping them in one lookup means the credit costs no extra
+// query.
+function collectMemberInfoForByTags(tagDisplays: string[]): {
+  names: Map<string, string>;
+  badges: Map<string, MemberBadges>;
+} {
   const slugs = new Set<string>();
   for (const t of tagDisplays) {
     if (t.startsWith(UPLOADER_TAG_PREFIX)) slugs.add(t.slice(UPLOADER_TAG_PREFIX.length));
   }
-  if (slugs.size === 0) return new Map();
+  if (slugs.size === 0) return { names: new Map(), badges: new Map() };
   const rows = queryMemberDisplayNamesBySlugs([...slugs]);
-  return new Map(rows.map((r) => [r.slug, r.display_name]));
+  return {
+    names: new Map(rows.map((r) => [r.slug, r.display_name])),
+    badges: new Map(rows.map((r) => [r.slug, {
+      tierBadge: tierBadgeShort(r.tier_status),
+      isActivePlayer: r.is_active_player === 1,
+      isHof: r.is_hof === 1,
+      isBap: r.is_bap === 1,
+      isBoard: r.is_board === 1,
+    }])),
+  };
 }
 
 // `buildOtherHref`, when supplied, sets the chip href for non-`#by_*`
@@ -501,6 +536,18 @@ export interface NamedGalleryContent {
 // from. Prev/next walk the context's ordered set and wrap modulo; `showPager` is
 // false for a one-item set, hiding the pager. uploadedBy lifts the item's
 // `#by_<slug>` tag to a member chip; tags are the item's remaining hashtags.
+// The uploader credit on the item viewer: the member chip every viewer sees,
+// the honours every viewer sees, and the membership standing only a signed-in
+// reader sees. `tierBadge` is null and `isActivePlayer` false for an anonymous
+// viewer and for a Tier 0 uploader holding no Active Player status.
+export interface UploaderAttribution extends TagChip {
+  tierBadge: string | null;
+  isActivePlayer: boolean;
+  isHof: boolean;
+  isBap: boolean;
+  isBoard: boolean;
+}
+
 export interface MediaItemContent {
   title: string;
   itemTitle: string | null;
@@ -508,9 +555,10 @@ export interface MediaItemContent {
   backLabel: string;
   item: GalleryItem;
   // Attribution: `uploadedBy` is the member uploader chip (display name linked
-  // to that member's public gallery); `curatedHref`, when set, marks a curated
-  // item and links to the full curated collection. They are mutually exclusive.
-  uploadedBy: TagChip | null;
+  // to that member's public gallery, plus their membership badges for a
+  // signed-in reader); `curatedHref`, when set, marks a curated item and links
+  // to the full curated collection. They are mutually exclusive.
+  uploadedBy: UploaderAttribution | null;
   curatedHref: string | null;
   tags: TagChip[];
   showPager: boolean;
@@ -940,9 +988,10 @@ function buildItemPage(
   const row = set.rows[set.index];
 
   const itemTagRows = queryCuratorMediaTags([mediaId]);
-  const memberNamesBySlug = collectMemberNamesForByTags(itemTagRows.map((r) => r.tag_display));
+  const { names: memberNamesBySlug, badges: memberBadgesBySlug } =
+    collectMemberInfoForByTags(itemTagRows.map((r) => r.tag_display));
 
-  let uploadedBy: TagChip | null = null;
+  let uploadedBy: UploaderAttribution | null = null;
   let isCurated = false;
   const tags: TagChip[] = [];
   for (const tr of itemTagRows) {
@@ -952,8 +1001,22 @@ function buildItemPage(
       // attribution), so `#curated` is lifted out rather than also listed as a tag.
       isCurated = true;
     } else if (tr.tag_display.startsWith(UPLOADER_TAG_PREFIX)) {
-      if (uploadedBy === null && memberNamesBySlug.has(tr.tag_display.slice(UPLOADER_TAG_PREFIX.length))) {
-        uploadedBy = shapeTagChip(tr.tag_display, viewer, memberNamesBySlug);
+      const slug = tr.tag_display.slice(UPLOADER_TAG_PREFIX.length);
+      if (uploadedBy === null && memberNamesBySlug.has(slug)) {
+        const chip = shapeTagChip(tr.tag_display, viewer, memberNamesBySlug);
+        const badges = memberBadgesBySlug.get(slug);
+        uploadedBy = {
+          ...chip,
+          // Tier and Active Player are member-visible standing, so an anonymous
+          // visitor gets the uploader's name and gallery link and nothing about
+          // where they sit in the membership. The honours are public wherever
+          // the member appears and carry no such condition.
+          tierBadge: viewer.authenticated ? (badges?.tierBadge ?? null) : null,
+          isActivePlayer: viewer.authenticated && badges?.isActivePlayer === true,
+          isHof: badges?.isHof === true,
+          isBap: badges?.isBap === true,
+          isBoard: badges?.isBoard === true,
+        };
       }
     } else {
       tags.push(shapeTagChip(tr.tag_display, viewer, memberNamesBySlug, () => tagToBrowseHref(tr.tag_normalized)));
@@ -1304,7 +1367,7 @@ export const mediaService = {
       // Member-name lookup must cover both gallery-level criteria/exclude
       // `#by_*` tags AND item-level `#by_*` chips, so each tile chip lifts
       // to the member display name.
-      const memberNamesBySlug = collectMemberNamesForByTags([
+      const { names: memberNamesBySlug } = collectMemberInfoForByTags([
         ...tagRows.map((r) => r.tag_display),
         ...excludeTagRows.map((r) => r.tag_display),
         ...itemTagRows.map((r) => r.tag_display),
@@ -1539,7 +1602,7 @@ export const mediaService = {
 
       const itemTagRows = rows.length > 0 ? queryCuratorMediaTags(rows.map((r) => r.id)) : [];
 
-      const memberNamesBySlug = collectMemberNamesForByTags([
+      const { names: memberNamesBySlug } = collectMemberInfoForByTags([
         ...allCriteriaDisplays,
         ...itemTagRows.map((r) => r.tag_display),
       ]);

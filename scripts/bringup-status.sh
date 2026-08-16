@@ -32,6 +32,12 @@
 #   skips ssh, terraform, and aws entirely.
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/host-env-expectations.sh
+source "${SCRIPT_DIR}/lib/host-env-expectations.sh"
+# shellcheck source=lib/email-template-digest.sh
+source "${SCRIPT_DIR}/lib/email-template-digest.sh"
+
 TARGET="staging"
 SSH_ALIAS=""
 AWS_PROFILE_ARG=""
@@ -91,6 +97,7 @@ fi
 # -----------------------------------------------------------------------------
 declare -A P=(
   [ENV_FETCHED]=no
+  [DEPLOYED_EMAIL_TEMPLATES]=""
   [ENV_TRUST_PROXY]=""
   [ENV_BACKUP_S3_BUCKET]=unset
   [ENV_PAYMENT_ADAPTER]=""
@@ -153,6 +160,13 @@ else
         P[ENV_EMAIL_SEND_ARMED]="$(get_env EMAIL_SEND_ARMED)"
         [[ -n "$(get_env STRIPE_WEBHOOK_SECRET)" ]] && P[ENV_WEBHOOK_SECRET]=set
         [[ -n "$(get_env STRIPE_WEBHOOK_SECRET_PREVIOUS)" ]] && P[ENV_WEBHOOK_SECRET_PREVIOUS]=set
+      fi
+      # Mode 0644 by design, so this needs no root and rides the same session.
+      # It is what the last rebuild deploy recorded, and the rebuild is the only
+      # deploy that reseeds email wording.
+      PROVENANCE_RAW="$(ssh -o BatchMode=yes "$SSH_ALIAS" "cat /srv/footbag/deployed-from" 2>/dev/null || true)"
+      if [[ -n "$PROVENANCE_RAW" ]]; then
+        P[DEPLOYED_EMAIL_TEMPLATES]="$(grep -oE 'email_templates=[a-f0-9]+' <<< "$PROVENANCE_RAW" | tail -1 | cut -d= -f2 || true)"
       fi
       if [[ -n "$REPORT_RAW" ]]; then
         P[TIMER_ACTIVE]="$(awk 'NR==1' <<< "$REPORT_RAW")"
@@ -267,7 +281,7 @@ if [[ "${P[ENV_FETCHED]}" != "yes" ]]; then
   row 1 "Host env file" UNKNOWN "could not read $HOST_ENV_PATH"
   next_cmd "scripts/verify-staging-env.sh --target $TARGET"
 else
-  EXPECTED_HOPS=$([[ "$TARGET" == "production" ]] && echo "3 (2 after DNS handover)" || echo "2")
+  EXPECTED_HOPS="$(expected_trust_proxy_note "$TARGET")"
   MISSING=""
   [[ "${P[ENV_TRUST_PROXY]}" =~ ^[0-9]+$ ]] || MISSING+="TRUST_PROXY (integer hop count, $TARGET: $EXPECTED_HOPS) "
   [[ "${P[ENV_BACKUP_S3_BUCKET]}" == "set" ]] || MISSING+="BACKUP_S3_BUCKET "
@@ -275,7 +289,7 @@ else
     row 1 "Host env file" DONE "TRUST_PROXY=${P[ENV_TRUST_PROXY]}, BACKUP_S3_BUCKET set"
   else
     row 1 "Host env file" PENDING "missing/invalid: $MISSING"
-    next_cmd "edit $HOST_ENV_PATH on $SSH_ALIAS, then scripts/verify-staging-env.sh --target $TARGET"
+    next_cmd "scripts/set-host-env.sh --target $TARGET${AWS_PROFILE_ARG:+ --profile <profile>}"
   fi
 fi
 
@@ -391,6 +405,24 @@ elif grep -q "web" <<< "${P[CONTAINERS]}" && grep -q "nginx" <<< "${P[CONTAINERS
 else
   row 8 "Deployed runtime" PENDING "containers: ${P[CONTAINERS]}"
   next_cmd "./deploy_to_aws.sh   (ships the local working tree)"
+fi
+
+# 9. Email wording. The rows a running environment renders from are seeded by
+# the full-rebuild deploy only, so a sidecar edit reaches nothing that is
+# deployed until one runs. This compares what that deploy recorded against the
+# sidecars as they read now; it never reads the deployed database, so wording an
+# administrator changed through the template editor is invisible here and stays
+# the operator's business rather than being reported as drift.
+LOCAL_EMAIL_TEMPLATES="$(email_template_digest "${SCRIPT_DIR}/../curated/email_templates" 2>/dev/null || echo "")"
+if [[ -z "${P[DEPLOYED_EMAIL_TEMPLATES]}" ]]; then
+  row 9 "Email wording" UNKNOWN "no seeded-template record on the host (predates the record, or the host was not probed)"
+elif [[ -z "$LOCAL_EMAIL_TEMPLATES" ]]; then
+  row 9 "Email wording" UNKNOWN "no sidecars found under curated/email_templates"
+elif [[ "${P[DEPLOYED_EMAIL_TEMPLATES]}" == "$LOCAL_EMAIL_TEMPLATES" ]]; then
+  row 9 "Email wording" DONE "seeded from the sidecars as they read now"
+else
+  row 9 "Email wording" PENDING "the host was seeded from different sidecar text; a code-only deploy will not change it"
+  next_cmd "change the wording in the admin email-template editor, or reseed with a full-rebuild deploy"
 fi
 
 echo ""

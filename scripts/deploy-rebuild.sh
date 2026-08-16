@@ -420,7 +420,14 @@ fi
 DEPLOY_COMMIT="$(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)"
 DEPLOY_DIRTY_PATHS="$(git -C "$REPO_ROOT" status --porcelain 2>/dev/null | cut -c4- | head -40 | paste -sd, -)"
 DEPLOY_DIRTY_COUNT="$(git -C "$REPO_ROOT" status --porcelain 2>/dev/null | wc -l | tr -d ' ')"
-DEPLOY_PROVENANCE="commit=$DEPLOY_COMMIT dirty=$DEPLOY_DIRTY_COUNT paths=${DEPLOY_DIRTY_PATHS:-none}"
+# This is the only deploy that reseeds email_templates from the sidecars, so it
+# is the only one that can say which wording the environment now holds. Recorded
+# beside the commit so the bring-up status view can tell a stale rendering from a
+# current one without reading the deployed database.
+# shellcheck source=lib/email-template-digest.sh
+source "${REPO_ROOT}/scripts/lib/email-template-digest.sh"
+EMAIL_TEMPLATE_DIGEST="$(email_template_digest "${REPO_ROOT}/curated/email_templates" || echo unknown)"
+DEPLOY_PROVENANCE="commit=$DEPLOY_COMMIT dirty=$DEPLOY_DIRTY_COUNT paths=${DEPLOY_DIRTY_PATHS:-none} email_templates=$EMAIL_TEMPLATE_DIGEST"
 echo "==> Shipping working tree at commit $DEPLOY_COMMIT with $DEPLOY_DIRTY_COUNT uncommitted path(s)."
 if [[ "$DEPLOY_DIRTY_COUNT" != "0" ]]; then
   echo "    uncommitted: ${DEPLOY_DIRTY_PATHS}"

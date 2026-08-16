@@ -8,6 +8,9 @@
  *   - Admin tier corrections
  *   - Admin-role grant and revoke (story A_Manage_Admin_Role)
  *   - `getTierStatus(memberId)` -- the sole authoritative membership-tier read path
+ *   - `tierBadgeShort(tierStatus)` -- the one home for the row-level tier badge
+ *     label, so the club roster, member search and media uploader credit cannot
+ *     drift apart on what a tier is called in a list
  *
  * Does not own:
  *   - Payment row writes and Stripe webhook processing (PaymentService).
@@ -94,6 +97,24 @@ const ADMIN_ROLE_REASON_MAX = 500;
 
 export type MemberTier = 'tier0' | 'tier1' | 'tier2' | 'tier3';
 export type UnderlyingTier = 'tier1' | 'tier2';
+
+// Concise tier badge for a row-level chip: a club roster entry, a member search
+// result, a media uploader credit. Tier 0 carries no badge, so a row shows a
+// badge only when the member holds a purchased or governance tier. The fuller
+// label ("Tier 1 IFPA Member") belongs to the profile's own membership block,
+// where there is room for it; this is the one home for the short form so the
+// three row surfaces cannot drift apart.
+export const TIER_BADGE_SHORT: Partial<Record<MemberTier, string>> = {
+  tier1: 'Tier 1',
+  tier2: 'Tier 2',
+  tier3: 'Tier 3 Director',
+};
+
+/** The row-level tier badge, or null for Tier 0 and for an unknown value. */
+export function tierBadgeShort(tierStatus: string | null | undefined): string | null {
+  if (!tierStatus) return null;
+  return TIER_BADGE_SHORT[tierStatus as MemberTier] ?? null;
+}
 
 export interface TierStatus {
   tier_status: MemberTier;

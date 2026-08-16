@@ -67,6 +67,31 @@ describe('email template sidecars conform to the registry', () => {
     }
   });
 
+  it('two variants of one send key never share a body: each says its own thing', () => {
+    // Variant keys exist precisely because the wording differs; two variants
+    // with the same body means the shaper is choosing between identical
+    // messages and one of them is not doing its job. The Active Player pair is
+    // the case that motivated the check: the notice sent once the status has
+    // ended must not repeat the reminder sent while it was still current.
+    const bodies = new Map<string, string>();
+    for (const [stem, s] of sidecars) {
+      const normalized = s.bodyTemplate.trim();
+      const twin = bodies.get(normalized);
+      expect(twin, `${stem} and ${twin} carry identical bodies`).toBeUndefined();
+      bodies.set(normalized, stem);
+    }
+  });
+
+  it('the Active Player ending notice speaks in the past tense', () => {
+    const dayOf = sidecars.get('active_player_expiry_day_of')!;
+    expect(dayOf.bodyTemplate).toContain('ended on {displayDate}');
+    expect(dayOf.bodyTemplate).not.toContain('expires on');
+    expect(dayOf.subjectTemplate).not.toContain('expires');
+    // It must also name what the member can no longer do, not merely announce
+    // the ending.
+    expect(dayOf.bodyTemplate).toContain('Official IFPA Roster');
+  });
+
   it('no sidecar carries conditional-syntax artifacts', () => {
     for (const [stem, s] of sidecars) {
       for (const text of [s.subjectTemplate, s.bodyTemplate]) {

@@ -5484,6 +5484,8 @@ export interface MemberSearchRow {
   is_board: number;
   gender: string | null;
   show_gender: number;
+  tier_status: string | null;
+  is_active_player: number | null;
 }
 
 export interface IdentityLinksRow {
@@ -5758,10 +5760,13 @@ export const account = {
   `); },
 
   get searchMembers() { return db.prepare(`
-    SELECT slug, display_name, country, is_hof, is_bap, is_board, gender, show_gender
-    FROM members_searchable
-    WHERE display_name_normalized LIKE '%' || ? || '%' ESCAPE '\\'
-    ORDER BY display_name_normalized
+    SELECT m.slug, m.display_name, m.country, m.is_hof, m.is_bap, m.is_board,
+           m.gender, m.show_gender,
+           s.tier_status, s.is_active_player
+    FROM members_searchable m
+    LEFT JOIN member_membership_status_current s ON s.member_id = m.id
+    WHERE m.display_name_normalized LIKE '%' || ? || '%' ESCAPE '\\'
+    ORDER BY m.display_name_normalized
     LIMIT ?
   `); },
 
@@ -7466,17 +7471,27 @@ export function queryCooccurringTags(
   ) as { id: string; tag_normalized: string; tag_display: string; n: number }[];
 }
 
-export function queryMemberDisplayNamesBySlugs(
-  slugs: string[],
-): { slug: string; display_name: string }[] {
+export interface MemberByTagRow {
+  slug: string;
+  display_name: string;
+  tier_status: string | null;
+  is_active_player: number | null;
+  is_hof: number;
+  is_bap: number;
+  is_board: number;
+}
+
+export function queryMemberDisplayNamesBySlugs(slugs: string[]): MemberByTagRow[] {
   if (slugs.length === 0) return [];
   const placeholders = slugs.map(() => '?').join(',');
   return db.prepare(`
-    SELECT slug, display_name
-    FROM members_active
-    WHERE slug IN (${placeholders})
-      AND personal_data_purged_at IS NULL
-  `).all(...slugs) as { slug: string; display_name: string }[];
+    SELECT m.slug, m.display_name, m.is_hof, m.is_bap, m.is_board,
+           s.tier_status, s.is_active_player
+    FROM members_active m
+    LEFT JOIN member_membership_status_current s ON s.member_id = m.id
+    WHERE m.slug IN (${placeholders})
+      AND m.personal_data_purged_at IS NULL
+  `).all(...slugs) as MemberByTagRow[];
 }
 
 export const mediaTags = {

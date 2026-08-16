@@ -260,14 +260,32 @@ export interface PersonaLegacyClubCandidateSpec {
 }
 
 /**
- * An Active Player grant. A past `expiresAt` models a recently-expired Active
- * Player status (exercising M_Active_Player_Expiry). Active Player lives on its
- * own ledger; membership tiers do not expire.
+ * An Active Player grant, expressed as a distance from seed time because every
+ * persona holding one claims a time-relative state: current, or recently
+ * expired. A fixed calendar date cannot hold either claim, since a future date
+ * eventually arrives and turns a current-status persona into an expired one
+ * without a word, and a past date drifts further from "recent" every day. The
+ * deletion-grace personas already compute their windows this way; this is the
+ * same rule. Active Player lives on its own ledger; membership tiers do not
+ * expire.
  */
 export interface PersonaActivePlayerSpec {
-  /** ISO timestamp for active_player_grants.new_active_player_expires_at. */
-  expiresAt: string;
+  /**
+   * Days from seed time to `active_player_grants.new_active_player_expires_at`.
+   * Positive is a current grant, negative a lapsed one.
+   */
+  expiresInDays: number;
   reasonCode?: string;
+}
+
+const DAY_MS = 86_400_000;
+
+/** Resolve an Active Player spec's day offset against seed time. */
+export function activePlayerExpiresAt(
+  spec: PersonaActivePlayerSpec,
+  now: number = Date.now(),
+): string {
+  return new Date(now + spec.expiresInDays * DAY_MS).toISOString();
 }
 
 export interface PersonaMailingListSpec {
@@ -600,7 +618,7 @@ export function seedPersona(
     insertActivePlayerGrant(db, {
       member_id: memberId,
       change_type: 'grant',
-      new_active_player_expires_at: spec.activePlayer.expiresAt,
+      new_active_player_expires_at: activePlayerExpiresAt(spec.activePlayer),
       ...(spec.activePlayer.reasonCode ? { reason_code: spec.activePlayer.reasonCode } : {}),
     });
   }

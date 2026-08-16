@@ -173,6 +173,36 @@ describe('canonical persona catalog', () => {
     expect(leader?.role, 'live club_leaders co-leader row').toBe('co-leader');
   });
 
+  it('the Active Player trio spans the three states the expiry job distinguishes', () => {
+    // Settled, inside the reminder window, and lapsed. The job reads a different
+    // branch for each, so a catalog missing the middle one leaves the reminder
+    // path with no persona at all.
+    const read = (slug: string) =>
+      db
+        .prepare(`SELECT is_active_player, active_player_expires_at
+                    FROM member_active_player_current WHERE member_id = ?`)
+        .get(`member_persona_${slug}`) as
+        | { is_active_player: number; active_player_expires_at: string | null }
+        | undefined;
+    const days = (iso: string) =>
+      Math.round((new Date(iso).getTime() - Date.now()) / 86_400_000);
+
+    const settled = read('ap_active');
+    expect(settled?.is_active_player, 'ap_active is current').toBe(1);
+    expect(days(settled!.active_player_expires_at!), 'ap_active sits clear of both offsets')
+      .toBeGreaterThan(30);
+
+    const expiring = read('ap_expiring');
+    expect(expiring?.is_active_player, 'ap_expiring is still current').toBe(1);
+    const expiringDays = days(expiring!.active_player_expires_at!);
+    expect(expiringDays, 'ap_expiring is inside the reminder window').toBeLessThanOrEqual(30);
+    expect(expiringDays, 'ap_expiring has not already lapsed').toBeGreaterThan(0);
+
+    const lapsed = read('ap_expired');
+    expect(lapsed?.is_active_player, 'ap_expired has lapsed').toBe(0);
+    expect(days(lapsed!.active_player_expires_at!), 'ap_expired is in the past').toBeLessThan(0);
+  });
+
   it('tier0 bootstrap-leader holds a bootstrap claim with no live co-leader row', () => {
     const memberId = 'member_persona_t0_bootstrap_leader';
     const bootstrap = db
@@ -248,7 +278,7 @@ describe('canonical persona catalog', () => {
         expect(member!.legacy_member_id, `${spec.slug} legacy linked`).not.toBeNull();
       }
       if (spec.activePlayer) {
-        const expectActive = new Date(spec.activePlayer.expiresAt).getTime() > Date.now() ? 1 : 0;
+        const expectActive = spec.activePlayer.expiresInDays > 0 ? 1 : 0;
         const ap = apOf.get(id) as { is_active_player: number } | undefined;
         expect(ap?.is_active_player ?? 0, `${spec.slug} active-player`).toBe(expectActive);
       }

@@ -166,16 +166,34 @@ describe('seedPersona — composition by dimension', () => {
     expect(legacy.claimed_by_member_id).toBe(p.memberId);
   });
 
-  it('activePlayer spec writes an Active Player grant with the given expiry', () => {
+  it('a negative activePlayer offset writes a lapsed Active Player grant', () => {
+    const before = Date.now();
     const p = seedPersona(db, {
       slug: 'fac_ap', displayName: 'Fac AP', tier: 'tier0',
-      activePlayer: { expiresAt: '2024-06-01T00:00:00.000Z' }, coverageNotes: ['expired AP'],
+      activePlayer: { expiresInDays: -7 }, coverageNotes: ['expired AP'],
     });
     const grant = db.prepare(
       `SELECT change_type, new_active_player_expires_at FROM active_player_grants WHERE member_id = ?`,
     ).get(p.memberId) as { change_type: string; new_active_player_expires_at: string } | undefined;
     expect(grant?.change_type).toBe('grant');
-    expect(grant?.new_active_player_expires_at).toBe('2024-06-01T00:00:00.000Z');
+    const expiry = new Date(grant!.new_active_player_expires_at).getTime();
+    // Seven days before seed time, to the day: the offset is resolved against
+    // the clock at seed time, not a date frozen into the catalog.
+    expect(Math.round((before - expiry) / 86_400_000)).toBe(7);
+  });
+
+  it('a positive activePlayer offset writes a grant that is still current', () => {
+    const before = Date.now();
+    const p = seedPersona(db, {
+      slug: 'fac_ap_current', displayName: 'Fac AP Current', tier: 'tier0',
+      activePlayer: { expiresInDays: 365 }, coverageNotes: ['current AP'],
+    });
+    const grant = db.prepare(
+      `SELECT new_active_player_expires_at FROM active_player_grants WHERE member_id = ?`,
+    ).get(p.memberId) as { new_active_player_expires_at: string } | undefined;
+    const expiry = new Date(grant!.new_active_player_expires_at).getTime();
+    expect(expiry).toBeGreaterThan(before);
+    expect(Math.round((expiry - before) / 86_400_000)).toBe(365);
   });
 
   it('clubs spec writes one affiliation per club with current/former flags', () => {

@@ -40,8 +40,7 @@ import BetterSqlite3 from 'better-sqlite3';
 import { existsSync } from 'node:fs';
 import { TEST_PERSONA_SEED_PASSWORD_LITERAL } from './personaSecrets';
 import { CANONICAL_PERSONAS } from './canonicalPersonas';
-import { seedPersona } from './personaFactory';
-import { SEEDED_PERSONA_MEMBER_ID_PREFIX } from '../lib/personaGuards';
+import { seedPersonas, type SeedPersonasResult } from './personaSeedCore';
 import { parseDbArg } from './seedCli';
 
 export async function main(): Promise<number> {
@@ -65,79 +64,14 @@ export async function main(): Promise<number> {
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
 
-  const findBySlug = db.prepare(
-    `SELECT password_hash AS passwordHash FROM members WHERE slug = ?`,
-  );
-  // Re-hash a persona whose stored hash predates the current argon2id scheme,
-  // in place, without disturbing the persona's accumulated rows. The seed is
-  // idempotent by slug, so an old persona kept by successive code-only deploys
-  // would otherwise carry a stale hash forever; this heals it on every seed run
-  // so no rebuild or manual refresh is needed.
-  const rehashBySlug = db.prepare(
-    `UPDATE members
-        SET password_hash = ?, password_changed_at = ?, password_version = password_version + 1,
-            updated_at = ?, updated_by = 'system', version = version + 1
-      WHERE slug = ?`,
-  );
-  const isCurrentScheme = (hash: unknown): boolean =>
-    typeof hash === 'string' && hash.startsWith('$argon2id$');
-
-  let created = 0;
-  let healed = 0;
-  let skipped = 0;
-  let skippedBlocked = 0;
-  const failedSlugs: string[] = [];
-  let orphanSlugs: string[] = [];
+  let result: SeedPersonasResult;
   try {
-    for (const spec of specs) {
-      if (spec.blockedBy) {
-        // The persona's feature is not built yet, so there is nothing to seed.
-        // It still lives in the catalog and renders greyed on /dev/personas.
-        skippedBlocked += 1;
-        console.log(`[persona-seed] skip (blocked: ${spec.blockedBy}): ${spec.slug}`);
-        continue;
-      }
-      const existing = findBySlug.get(spec.slug) as { passwordHash: unknown } | undefined;
-      if (existing) {
-        if (isCurrentScheme(existing.passwordHash)) {
-          skipped += 1;
-          console.log(`[persona-seed] skip (slug exists): ${spec.slug}`);
-        } else {
-          const now = new Date().toISOString();
-          rehashBySlug.run(passwordHash, now, now, spec.slug);
-          healed += 1;
-          console.log(`[persona-seed] re-hashed stale password: ${spec.slug}`);
-        }
-        continue;
-      }
-      try {
-        db.transaction(() => seedPersona(db, spec, { passwordHash }))();
-        created += 1;
-        console.log(`[persona-seed] seeded persona: ${spec.slug} (${spec.tier})`);
-      } catch (err) {
-        // Name the persona that failed and keep going. Its transaction rolled
-        // back on its own, so the database holds no partial persona; the run
-        // exits non-zero below once every offender has been reported.
-        failedSlugs.push(spec.slug);
-        const detail = err instanceof Error ? err.message : String(err);
-        console.error(`[persona-seed] FAILED ${spec.slug}: ${detail}`);
-      }
-    }
-
-    // A persona present under a slug the catalog no longer carries. It survives
-    // every future seed run (the loop only visits current specs), so it goes on
-    // answering to /dev/switch as a persona nothing in code describes.
-    const catalogSlugs = new Set(specs.map((s) => s.slug));
-    orphanSlugs = (
-      db
-        .prepare(`SELECT slug FROM members WHERE id LIKE ? ORDER BY slug`)
-        .all(`${SEEDED_PERSONA_MEMBER_ID_PREFIX}%`) as { slug: string }[]
-    )
-      .map((r) => r.slug)
-      .filter((slug) => !catalogSlugs.has(slug));
+    result = seedPersonas(db, specs, passwordHash);
   } finally {
     db.close();
   }
+
+  const { created, healed, skipped, skippedBlocked, orphanSlugs, failedSlugs } = result;
 
   for (const slug of orphanSlugs) {
     console.log(`[persona-seed] orphan (no longer in the catalog): ${slug}`);

@@ -37,6 +37,9 @@
 # reintroduces the same early-close race.
 set -euo pipefail
 
+# shellcheck source=lib/host-env-expectations.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/host-env-expectations.sh"
+
 TARGET="staging"
 SSH_ALIAS=""
 HOST_ENV_PATH="/srv/footbag/env"
@@ -551,7 +554,7 @@ echo "Advisory:"
 if [[ "${HOST_ENV[TRUST_PROXY]:-}" =~ ^[0-9]+$ ]]; then
   check_pass "trust proxy: TRUST_PROXY=${HOST_ENV[TRUST_PROXY]} (integer hop count)"
 else
-  check_warn "trust proxy: TRUST_PROXY is not an integer XFF hop count (staging: 2); rate limiting degrades to coarse per-edge buckets under the named-range fallback"
+  check_warn "trust proxy: TRUST_PROXY is not an integer XFF hop count ($TARGET: $(expected_trust_proxy_note "$TARGET")); rate limiting degrades to coarse per-edge buckets under the named-range fallback. Set it with scripts/set-host-env.sh --target $TARGET"
 fi
 
 # BACKUP_S3_BUCKET feeds the footbag-backup systemd timer, not app boot:

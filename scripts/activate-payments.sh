@@ -100,7 +100,7 @@ HOST_ENV_PATH="/srv/footbag/env"
 # editing one side without the others fails the suite. An endpoint subscribed to
 # a narrower list silently drops the rest: money moves and nothing records it.
 REQUIRED_WEBHOOK_EVENTS="payment_intent.succeeded payment_intent.payment_failed charge.refunded charge.dispute.created charge.dispute.closed charge.dispute.funds_withdrawn payout.failed checkout.session.expired customer.subscription.created customer.subscription.updated customer.subscription.deleted invoice.payment_succeeded invoice.payment_failed"
-STRIPE_API_VERSION="2026-05-27.dahlia"
+STRIPE_API_VERSION="2026-07-29.dahlia"
 
 # Prints the Stripe Dashboard webhook-endpoint setup an operator must complete
 # by hand: the endpoint path, the exact API version to pin, and every event the

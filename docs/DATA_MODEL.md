@@ -709,7 +709,7 @@ Deceased members are excluded from this operational roster because US `A_Mark_Me
 
 **Table:** `active_player_reminder_sent`
 
-Append-only ledger recording that an Active Player expiry reminder was sent to a member at a given pre-expiry offset, so the same reminder is not re-sent for the same expiry. Columns: `member_id` (FK to `members`), `expires_at` (the AP expiry the reminder concerns), `offset_label` (CHECK: `days_1`, `days_2`, `day_of`), and `sent_at`. Rows are immutable; UPDATE and DELETE are blocked by triggers (see §7).
+Append-only ledger recording that an Active Player expiry notice was sent to a member under a given offset label, either one of the two configured pre-expiry reminders or the built-in notice that the status has ended, so the same notice is not re-sent for the same expiry. Columns: `member_id` (FK to `members`), `expires_at` (the AP expiry the notice concerns), `offset_label` (CHECK: `days_1`, `days_2`, `day_of`), and `sent_at`. Rows are immutable; UPDATE and DELETE are blocked by triggers (see §7).
 
 ### 4.14 Members & Authentication
 

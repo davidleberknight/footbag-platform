@@ -146,7 +146,11 @@ describe('bringup-status.sh — pending steps name their next command', () => {
     const result = runScript(['--target', 'staging', '--probe-file', probe]);
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toMatch(/1\. Host env file\s+PENDING/);
-    expect(result.stdout).toMatch(/scripts\/verify-staging-env\.sh --target staging/);
+    // The host env row points at the setter that writes those values, not at
+    // the verifier that only reports on them: an operator following the next
+    // command should end up with the row DONE rather than told again that it
+    // is not.
+    expect(result.stdout).toMatch(/scripts\/set-host-env\.sh --target staging/);
     expect(result.stdout).toMatch(/2\. Terraform\s+PENDING/);
     expect(result.stdout).toMatch(/terraform -chdir=terraform\/staging plan/);
     expect(result.stdout).toMatch(/terraform import/);
@@ -246,5 +250,67 @@ describe('bringup-status.sh — webhook-secret rotation window', () => {
     const result = runScript(['--target', 'production', '--probe-file', probe]);
     expect(result.stdout).toMatch(/3\. Payments\s+DONE/);
     expect(result.stdout).not.toMatch(/rotation window open/);
+  });
+});
+
+describe('bringup-status.sh — email wording row', () => {
+  // The wording a running environment renders comes from rows the full-rebuild
+  // deploy seeds, so a sidecar edit reaches nothing deployed until one runs.
+  // This row is the only thing that says so; before it, production rendered
+  // wording nobody knew was stale.
+  const currentDigest = (): string => {
+    const r = spawnSync(
+      'bash',
+      [
+        '-c',
+        `source "${join(process.cwd(), 'scripts/lib/email-template-digest.sh')}"; ` +
+          `email_template_digest "${join(process.cwd(), 'curated/email_templates')}"`,
+      ],
+      { encoding: 'utf-8', ...SPAWN_GUARD },
+    );
+    return (r.stdout ?? '').trim();
+  };
+
+  it('reports agreement when the host was seeded from the sidecars as they read now', () => {
+    const probe = writeProbeFile([
+      ...ALL_DONE_PRODUCTION,
+      `DEPLOYED_EMAIL_TEMPLATES=${currentDigest()}`,
+    ]);
+    const result = runScript(['--target', 'production', '--probe-file', probe]);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toMatch(/9\. Email wording\s+DONE/);
+  });
+
+  it('reports a difference, and names a remedy that does not rebuild the database', () => {
+    const probe = writeProbeFile([...ALL_DONE_PRODUCTION, 'DEPLOYED_EMAIL_TEMPLATES=0000badf00d']);
+    const result = runScript(['--target', 'production', '--probe-file', probe]);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toMatch(/9\. Email wording\s+PENDING/);
+    expect(result.stdout, 'says why a code-only deploy will not fix it').toMatch(
+      /code-only deploy will not change it/,
+    );
+    expect(result.stdout).toMatch(/admin email-template editor/);
+  });
+
+  it('is UNKNOWN rather than DONE when the host records nothing', () => {
+    const probe = writeProbeFile(ALL_DONE_PRODUCTION);
+    const result = runScript(['--target', 'production', '--probe-file', probe]);
+    expect(result.exitCode).toBe(0);
+    // Silence is what this row exists to remove, so an absent record must not
+    // read as agreement.
+    expect(result.stdout).toMatch(/9\. Email wording\s+UNKNOWN/);
+  });
+
+  it('the digest ignores the directory it is reached by, so both sides agree', () => {
+    const viaRelative = spawnSync(
+      'bash',
+      [
+        '-c',
+        `source "${join(process.cwd(), 'scripts/lib/email-template-digest.sh')}"; ` +
+          `email_template_digest "${join(process.cwd(), 'scripts/../curated/email_templates')}"`,
+      ],
+      { encoding: 'utf-8', ...SPAWN_GUARD },
+    );
+    expect((viaRelative.stdout ?? '').trim()).toBe(currentDigest());
   });
 });

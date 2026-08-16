@@ -16,7 +16,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-import { insertMember } from '../fixtures/factories';
+import { insertMember, createMemberAtTier, createTestSessionJwt } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3131');
 
@@ -24,7 +24,21 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 
 const SYSTEM_ID = 'member-item-system-001';
 const REGULAR_ID = 'member-item-regular-001';
+const VIEWER_ID = 'member-item-viewer-001';
 const TS = '2026-04-29T12:00:00.000Z';
+
+function viewerCookie(): string {
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: VIEWER_ID })}`;
+}
+
+// Badge assertions read the uploader credit alone: the site header links to the
+// Hall of Fame, so a page-wide search for the honour label matches whether or
+// not the credit carries it.
+function uploaderCredit(html: string): string {
+  const start = html.indexOf('<p class="gallery-item-uploader">');
+  if (start === -1) return '';
+  return html.slice(start, html.indexOf('</p>', start));
+}
 
 // Ordered set under #wrapset, upload_desc: C (newest), B, A (oldest).
 const ITEM_A = 'media_item_a';
@@ -88,7 +102,16 @@ function attachTag(db: BetterSqlite3.Database, mediaId: string, tagId: string, t
 beforeAll(async () => {
   const db = createTestDb(dbPath);
   insertMember(db, { id: SYSTEM_ID, slug: 'item_system', is_system: 1, real_name: 'Footbag Hacky', display_name: 'Footbag Hacky' });
-  insertMember(db, { id: REGULAR_ID, slug: 'item_regular', display_name: 'Item Regular' });
+  // The uploader holds a purchased tier and an honour, so one item exercises
+  // both halves of the credit: standing a signed-in reader sees, and honours
+  // every reader sees.
+  createMemberAtTier(db, {
+    id: REGULAR_ID,
+    slug: 'item_regular',
+    tier: 'tier2',
+    memberOverrides: { display_name: 'Item Regular', is_hof: 1 },
+  });
+  insertMember(db, { id: VIEWER_ID, slug: 'item_viewer', display_name: 'Item Viewer' });
 
   WRAP_TAG_ID = insertFreeformTag(db, '#wrapset', '#wrapset');
   SOLO_TAG_ID = insertFreeformTag(db, '#soloset', '#soloset');
@@ -215,6 +238,28 @@ describe('GET /media/item/:mediaId — tag-query context', () => {
     // The attribution-link change never touches the pager links.
     expect(res.text).toContain('rel="prev"');
     expect(res.text).toContain('rel="next"');
+  });
+
+  it('shows the uploader membership badges to a signed-in reader', async () => {
+    const res = await request(createApp())
+      .get(`/media/item/${ITEM_B}?tag=wrapset`)
+      .set('Cookie', viewerCookie());
+    expect(res.status).toBe(200);
+    const credit = uploaderCredit(res.text);
+    expect(credit).toContain('Item Regular');
+    expect(credit).toContain('badge badge-tier">Tier 2<');
+    expect(credit).toContain('>HoF<');
+  });
+
+  it('keeps the uploader membership tier from an anonymous viewer, and keeps the honour', async () => {
+    const res = await request(createApp()).get(`/media/item/${ITEM_B}?tag=wrapset`);
+    expect(res.status).toBe(200);
+    const credit = uploaderCredit(res.text);
+    expect(credit).toContain('Item Regular');
+    // Membership standing is member-visible; the honour is public wherever the
+    // member appears.
+    expect(credit).not.toContain('badge badge-tier');
+    expect(credit).toContain('>HoF<');
   });
 });
 

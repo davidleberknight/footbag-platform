@@ -58,7 +58,7 @@
 
       <div class="media-layout-rail">
         {{#if content.uploadedBy}}
-          <p class="gallery-item-uploader">Uploaded by {{#if content.uploadedBy.href}}<a href="{{content.uploadedBy.href}}" class="tag-chip-link">{{content.uploadedBy.display}}</a>{{else}}{{content.uploadedBy.display}}{{/if}}</p>
+          <p class="gallery-item-uploader">Uploaded by {{#if content.uploadedBy.href}}<a href="{{content.uploadedBy.href}}" class="tag-chip-link">{{content.uploadedBy.display}}</a>{{else}}{{content.uploadedBy.display}}{{/if}}{{#if content.uploadedBy.tierBadge}} <span class="badge badge-tier">{{content.uploadedBy.tierBadge}}</span>{{/if}}{{#if content.uploadedBy.isActivePlayer}} <span class="badge badge-honor">Active Player</span>{{/if}}{{#if content.uploadedBy.isHof}} <span class="badge badge-honor">HoF</span>{{/if}}{{#if content.uploadedBy.isBap}} <span class="badge badge-honor">BAP</span>{{/if}}{{#if content.uploadedBy.isBoard}} <span class="badge badge-honor">Board</span>{{/if}}</p>
         {{/if}}
 
         {{#if content.curatedHref}}

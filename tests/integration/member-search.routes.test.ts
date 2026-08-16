@@ -9,7 +9,13 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createHash } from 'crypto';
 import request from 'supertest';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-import { insertMember, insertHistoricalPerson, createTestSessionJwt } from '../fixtures/factories';
+import {
+  insertMember,
+  insertHistoricalPerson,
+  insertActivePlayerGrant,
+  createMemberAtTier,
+  createTestSessionJwt,
+} from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3063');
 
@@ -18,6 +24,17 @@ const SEARCHER_SLUG = 'searcher_user';
 
 function searcherCookie(): string {
   return `__Host-footbag_session=${createTestSessionJwt({ memberId: SEARCHER_ID })}`;
+}
+
+// The search block sits on the searcher's own profile, which carries its own
+// membership badge, so a badge assertion has to look inside the results list or
+// it would read the searcher's own standing back to itself.
+function resultsBlock(html: string): string {
+  const start = html.indexOf('<div class="search-box-results">');
+  if (start === -1) return '';
+  // The search block is the last section on the page, so everything from here
+  // on is results plus the site footer, which carries no badges.
+  return html.slice(start);
 }
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
@@ -35,6 +52,22 @@ beforeAll(async () => {
 
   // HoF member (honor badge should appear)
   insertMember(db, { display_name: 'Jane Legend', real_name: 'Jane Legend', slug: 'jane_legend', is_hof: 1 });
+
+  // A purchased tier and a Tier 0 Active Player: the two membership badges a
+  // result row owes a signed-in searcher.
+  createMemberAtTier(db, {
+    id: 'member-organizer-001',
+    slug: 'jane_organizer',
+    tier: 'tier2',
+    memberOverrides: { display_name: 'Jane Organizer', real_name: 'Jane Organizer' },
+  });
+  insertMember(db, { id: 'member-active-001', display_name: 'Jane Active', real_name: 'Jane Active', slug: 'jane_active' });
+  insertActivePlayerGrant(db, {
+    member_id: 'member-active-001',
+    change_type: 'grant',
+    new_active_player_expires_at: '2099-09-15T12:00:00.000Z',
+    reason_code: 'official_event_attendance',
+  });
 
   // Opted-out member (searchable=0)
   insertMember(db, { display_name: 'Jane Hidden', real_name: 'Jane Hidden', slug: 'jane_hidden', searchable: 0 });
@@ -177,6 +210,34 @@ describe('GET /members/<slug>?q= — member search on personal home', () => {
     const app = createApp();
     const res = await request(app).get(`/members/${SEARCHER_SLUG}?q=jane+le`).set('Cookie', searcherCookie());
     expect(res.text).toContain('HoF');
+  });
+
+  it('shows the membership-tier badge on a result row', async () => {
+    const app = createApp();
+    const res = await request(app).get(`/members/${SEARCHER_SLUG}?q=jane+or`).set('Cookie', searcherCookie());
+    const results = resultsBlock(res.text);
+    expect(results).toContain('Jane Organizer');
+    expect(results).toMatch(/badge badge-tier">Tier 2</);
+  });
+
+  it('shows the Active Player badge on a Tier 0 Active Player row, with no tier badge', async () => {
+    const app = createApp();
+    const res = await request(app).get(`/members/${SEARCHER_SLUG}?q=jane+ac`).set('Cookie', searcherCookie());
+    const results = resultsBlock(res.text);
+    expect(results).toContain('Jane Active');
+    expect(results).toContain('Active Player');
+    // Tier 0 is the unbadged baseline: a badge would say the member holds a
+    // membership tier they have not bought or been granted.
+    expect(results).not.toContain('badge badge-tier');
+  });
+
+  it('an unclaimed historical row carries no membership badges', async () => {
+    const app = createApp();
+    const res = await request(app).get(`/members/${SEARCHER_SLUG}?q=mocking`).set('Cookie', searcherCookie());
+    const results = resultsBlock(res.text);
+    expect(results).toContain('Dave Mockingbird');
+    expect(results).not.toContain('badge badge-tier');
+    expect(results).not.toContain('Active Player');
   });
 
   it('links to member profile for current members', async () => {

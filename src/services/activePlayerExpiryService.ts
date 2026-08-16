@@ -3,9 +3,22 @@
  *
  * Scans Tier 0 members whose latest Active Player grant carries a still-active
  * `new_active_player_expires_at`, enqueues a reminder email at each
- * administrator-configured pre-expiry offset (default 30 and 7 days) plus a
- * built-in T+0 day-of reminder, and invokes `applyExpiry` for any grant whose
- * expiry has lapsed and has no `expire`/`end` ledger row yet.
+ * administrator-configured pre-expiry offset (default 30 and 7 days), and
+ * invokes `applyExpiry` for any grant whose expiry has lapsed and has no
+ * `expire`/`end` ledger row yet.
+ *
+ * Day-of notice: the built-in message confirming the status has ended carries
+ * no lead time, unlike the configured pre-expiry reminders, and is enqueued by
+ * the same pass that writes the `expire` ledger row. Following the transition
+ * rather than the calendar date is what lets it speak in the past tense, and it
+ * is what makes it reach every member: an expiry timestamp earlier in the day
+ * than the run's clock time takes the expiry branch, which no date-keyed
+ * reminder check could see. It therefore inherits the same dispatch latency as
+ * the ledger row, landing on the expiry date when the run follows the timestamp
+ * and on the next run when it does not; the member's own surfaces do not wait
+ * for either, because the current-status view compares the stored timestamp to
+ * the clock on every read. A grant whose expire row was written on an earlier
+ * pass sends nothing, so enabling this can never produce a retrospective send.
  *
  * Idempotency: a per-(member, expires_at, offset) row in
  * active_player_reminder_sent prevents duplicate sends when the worker runs
@@ -88,8 +101,12 @@ export function daysUntilUtcDay(expiresAtIso: string, nowIso: string): number {
 }
 
 /**
- * Decide which reminder offset (if any) is due today for the given expiry.
- * T+0 day-of is built-in; pre-expiry offsets come from system_config.
+ * Decide which pre-expiry reminder offset (if any) is due today for the given
+ * expiry. Offsets come from system_config and only look forward: an offset at
+ * or below zero is ignored, because a reminder sent on or after the expiry date
+ * would announce a future expiry that has already happened. The message for
+ * that moment is the day-of notice, which the expiry pass sends once the status
+ * has actually ended.
  * Returns null when today does not match any offset's window.
  */
 export function decideReminderDue(
@@ -98,11 +115,9 @@ export function decideReminderDue(
   offsets: OffsetSpec[],
 ): OffsetSpec | null {
   const days = daysUntilUtcDay(expiresAtIso, nowIso);
-  if (days === 0) {
-    return { label: 'day_of', days: 0 };
-  }
+  if (days <= 0) return null;
   for (const o of offsets) {
-    if (days === o.days) return o;
+    if (o.days > 0 && days === o.days) return o;
   }
   return null;
 }
@@ -162,12 +177,67 @@ function tryRecordReminderSent(
 }
 
 /**
- * Execute one daily pass: applyExpiry for lapsed grants, then per-offset
- * reminder enqueue with full dedup. Returns counters for observability.
+ * Gate and enqueue one notice for a candidate: a pre-expiry reminder, or the
+ * day-of notice that the status has ended. Every outcome lands in exactly one
+ * counter bucket, so a caller adds nothing of its own.
  *
- * The reminder enqueue + dedup row write are wrapped in a transaction so a
- * later enqueue failure rolls back the dedup row, leaving the next pass free
- * to retry.
+ * The enqueue + dedup row write are wrapped in a transaction so a later enqueue
+ * failure rolls back the dedup row, leaving the next pass free to retry.
+ */
+function enqueueNotice(
+  c: ActivePlayerExpiryCandidateRow,
+  label: OffsetLabel,
+  nowIso: string,
+  result: RunDailyPassResult,
+): void {
+  // Re-confirm tier. The candidate snapshot used tier_status='tier0'; an
+  // in-flight upgrade between the query and now must suppress the send.
+  const tier = getTierStatus(c.member_id);
+  if (tier.tier_status !== 'tier0') {
+    result.skipped_non_tier0 += 1;
+    return;
+  }
+  if (!c.login_email) {
+    result.skipped_missing_email += 1;
+    return;
+  }
+  if (c.email_status !== 'ok') {
+    result.skipped_email_suppressed += 1;
+    return;
+  }
+  if (!isSubscribed(c.member_id)) {
+    result.skipped_unsubscribed += 1;
+    return;
+  }
+
+  const sent = transaction(() => {
+    const recorded = tryRecordReminderSent(c.member_id, c.expires_at, label, nowIso);
+    if (!recorded) return false;
+    emailService.send({
+      template: 'active_player_expiry_reminder',
+      params: {
+        displayDate: formatExpiryDate(c.expires_at),
+        isDayOf: label === 'day_of',
+      },
+      recipientEmail:    c.login_email!,
+      recipientMemberId: c.member_id,
+      mailingListId:     MAILING_LIST_SLUG,
+      idempotencyKey:    `ap-reminder:${c.member_id}:${c.expires_at}:${label}`,
+    });
+    return true;
+  }) as boolean;
+
+  if (sent) {
+    result.reminders_enqueued += 1;
+  } else {
+    result.skipped_already_sent += 1;
+  }
+}
+
+/**
+ * Execute one daily pass: applyExpiry plus the day-of notice for lapsed grants,
+ * then per-offset reminder enqueue with full dedup. Returns counters for
+ * observability.
  */
 export function runDailyPass(opts: RunOpts = {}): RunDailyPassResult {
   const now    = opts.now ?? new Date();
@@ -199,70 +269,36 @@ export function runDailyPass(opts: RunOpts = {}): RunDailyPassResult {
     // idempotent (no-op when the latest row is already expire/end). Pass the
     // worker's `now` through so the expiry decision aligns with the run.
     //
-    // When expiry was applied, this candidate's reminder window has already
-    // closed (the grant just expired today or earlier). Skip the reminder-
-    // eligibility check entirely to keep the counter buckets disjoint:
+    // The day-of notice rides on that transition rather than on the calendar
+    // day, so it can say the status has ended and be telling the truth, and so
+    // every member gets it. Keying it on the date instead meant the notice
+    // reached only the members whose expiry timestamp happened to fall after
+    // the run's clock time that day, and never reached the rest: the pass
+    // returned here before the reminder check could run. Sending only when
+    // applyExpiry reports it wrote the row keeps a grant expired on an earlier
+    // pass from producing a retrospective notice.
+    //
     // expiry_rows_applied counts "we wrote an expire row" and
     // skipped_outside_window counts "we did NOT write expiry AND did NOT
-    // enqueue a reminder." Counting one candidate in both was a reporting
-    // bug; per-bucket totals must be independently meaningful for ops to
-    // read details_json correctly.
+    // enqueue a notice", so those two buckets stay disjoint and each remains
+    // independently meaningful when ops reads details_json.
     if (c.expires_at < nowIso) {
       const r = applyExpiry(c.member_id, now);
-      if (r.expired) result.expiry_rows_applied += 1;
+      if (r.expired) {
+        result.expiry_rows_applied += 1;
+        enqueueNotice(c, 'day_of', nowIso, result);
+      }
       continue;
     }
 
-    // Step 2: reminder eligibility.
+    // Step 2: pre-expiry reminder eligibility.
     const offset = decideReminderDue(c.expires_at, nowIso, offsets);
     if (!offset) {
       result.skipped_outside_window += 1;
       continue;
     }
 
-    // Re-confirm tier. The candidate snapshot used tier_status='tier0'; an
-    // in-flight upgrade between the query and now must suppress the send.
-    const tier = getTierStatus(c.member_id);
-    if (tier.tier_status !== 'tier0') {
-      result.skipped_non_tier0 += 1;
-      continue;
-    }
-
-    if (!c.login_email) {
-      result.skipped_missing_email += 1;
-      continue;
-    }
-    if (c.email_status !== 'ok') {
-      result.skipped_email_suppressed += 1;
-      continue;
-    }
-    if (!isSubscribed(c.member_id)) {
-      result.skipped_unsubscribed += 1;
-      continue;
-    }
-
-    const sent = transaction(() => {
-      const recorded = tryRecordReminderSent(c.member_id, c.expires_at, offset.label, nowIso);
-      if (!recorded) return false;
-      emailService.send({
-        template: 'active_player_expiry_reminder',
-        params: {
-          displayDate: formatExpiryDate(c.expires_at),
-          isDayOf: offset.label === 'day_of',
-        },
-        recipientEmail:    c.login_email!,
-        recipientMemberId: c.member_id,
-        mailingListId:     MAILING_LIST_SLUG,
-        idempotencyKey:    `ap-reminder:${c.member_id}:${c.expires_at}:${offset.label}`,
-      });
-      return true;
-    }) as boolean;
-
-    if (sent) {
-      result.reminders_enqueued += 1;
-    } else {
-      result.skipped_already_sent += 1;
-    }
+    enqueueNotice(c, offset.label, nowIso, result);
   }
 
   logger.info('SYS_Check_Active_Player_Expiry run', {

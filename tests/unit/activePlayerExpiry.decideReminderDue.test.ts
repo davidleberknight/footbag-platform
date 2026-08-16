@@ -1,6 +1,9 @@
 /**
  * Pure-function tests for the SYS_Check_Active_Player_Expiry offset decision.
- * Covers UTC day-boundary math and the T+0 / pre-expiry offset windows.
+ * Covers UTC day-boundary math and the pre-expiry offset windows. The decision
+ * looks strictly forward: the message for the expiry date itself is the day-of
+ * ending notice, which the expiry pass sends, not a reminder this function
+ * selects.
  */
 import { describe, it, expect } from 'vitest';
 import {
@@ -37,13 +40,22 @@ describe('daysUntilUtcDay', () => {
 });
 
 describe('decideReminderDue', () => {
-  it('T+0 day-of returns built-in day_of label even if not in offsets', () => {
+  it('T+0 returns null: the expiry date carries the ending notice, not a reminder', () => {
     const r = decideReminderDue(
       '2099-09-15T08:00:00.000Z',
       '2099-09-15T18:00:00.000Z',
       DEFAULT_OFFSETS,
     );
-    expect(r).toEqual({ label: 'day_of', days: 0 });
+    expect(r).toBeNull();
+  });
+
+  it('T+0 returns null even before the expiry timestamp that same day', () => {
+    const r = decideReminderDue(
+      '2099-09-15T18:00:00.000Z',
+      '2099-09-15T08:00:00.000Z',
+      DEFAULT_OFFSETS,
+    );
+    expect(r).toBeNull();
   });
 
   it('T-30 matches days_1', () => {
@@ -100,12 +112,21 @@ describe('decideReminderDue', () => {
     expect(r).toEqual({ label: 'days_1', days: 14 });
   });
 
-  it('day-of takes precedence over a configured days_1=0 (defensive)', () => {
+  it('a configured offset of 0 is ignored, so no reminder fires on the expiry date', () => {
     const r = decideReminderDue(
       '2099-09-15T12:00:00.000Z',
       '2099-09-15T00:00:00.000Z',
       [{ label: 'days_1', days: 0 }],
     );
-    expect(r?.label).toBe('day_of');
+    expect(r).toBeNull();
+  });
+
+  it('a configured negative offset is ignored', () => {
+    const r = decideReminderDue(
+      '2099-09-14T12:00:00.000Z',
+      '2099-09-15T12:00:00.000Z',
+      [{ label: 'days_1', days: -1 }],
+    );
+    expect(r).toBeNull();
   });
 });

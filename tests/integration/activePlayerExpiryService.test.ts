@@ -195,15 +195,15 @@ describe('runDailyPass — reminder enqueue per offset', () => {
     expect(readReminderSentCountForMember(m.id)).toBe(1);
   });
 
-  it('Tier 0 expiring today (T+0) enqueues a day_of reminder with the day-of subject', () => {
+  it('an expiry later the same day sends nothing: the status is still current', () => {
     const now = nextNow();
     const m = seedMember({ expires_at: isoDayOffset(now, 0, 14) });
 
     expirySvc.runDailyPass({ now });
 
-    expect(readOutboxForMember(m.id)).toBe(1);
-    const row = readOutboxRowForMember(m.id)!;
-    expect(row.subject).toMatch(/expires today/);
+    expect(readOutboxForMember(m.id)).toBe(0);
+    expect(readReminderSentCountForMember(m.id)).toBe(0);
+    expect(readLatestGrantChangeType(m.id)).toBe('grant');
   });
 
   it('Tier 0 between offsets (T-15) sends no reminder', () => {
@@ -214,6 +214,43 @@ describe('runDailyPass — reminder enqueue per offset', () => {
 
     expect(readOutboxForMember(m.id)).toBe(0);
     expect(readReminderSentCountForMember(m.id)).toBe(0);
+  });
+});
+
+describe('runDailyPass — the day-of ending notice', () => {
+  it('an expiry earlier the same day sends the ending notice with the expire row', () => {
+    const now = nextNow();
+    const m = seedMember({ expires_at: isoDayOffset(now, 0, 8) });
+
+    expirySvc.runDailyPass({ now });
+
+    expect(readLatestGrantChangeType(m.id)).toBe('expire');
+    expect(readOutboxForMember(m.id)).toBe(1);
+    const row = readOutboxRowForMember(m.id)!;
+    expect(row.subject).toMatch(/has ended/);
+    expect(row.body_text).toMatch(/ended on/);
+    expect(row.body_text).not.toMatch(/expires on/);
+  });
+
+  it('an expiry several days old still sends the ending notice, once', () => {
+    const now = nextNow();
+    const m = seedMember({ expires_at: isoDayOffset(now, -3) });
+
+    expirySvc.runDailyPass({ now });
+    expirySvc.runDailyPass({ now });
+
+    expect(readOutboxForMember(m.id)).toBe(1);
+    expect(readReminderSentCountForMember(m.id)).toBe(1);
+  });
+
+  it('an unsubscribed member is expired but not mailed', () => {
+    const now = nextNow();
+    const m = seedMember({ expires_at: isoDayOffset(now, -1), subscribe_status: 'unsubscribed' });
+
+    expirySvc.runDailyPass({ now });
+
+    expect(readLatestGrantChangeType(m.id)).toBe('expire');
+    expect(readOutboxForMember(m.id)).toBe(0);
   });
 });
 

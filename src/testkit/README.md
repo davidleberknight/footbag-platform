@@ -31,6 +31,8 @@ Affordances under `/dev`:
   the persona catalog, the row builders (the same builders the test factories re-export), and the
   generic real-flow claim journey the build-claim route runs.
 - `seedCli.ts`, `personaSeedRunner.ts`, `personaRefreshRunner.ts` — seed/build entry points.
+- `personaSeedCore.ts` — the seed pass itself, kept out of the runner so its tests can import it
+  without tripping the persona-secret import guard the runner inherits.
 - `devOutboxCaptureClient.ts` — the outbox-capture client behind `/dev/outbox`.
 - `personaSecrets.ts` — the single persona password literal (see below).
 - `assets/` — seed fixtures.

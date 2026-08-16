@@ -28,7 +28,11 @@
  *     on top of `members_active` or the bare `members` table for search.
  *   - `searchMembers` is authenticated Tier 0+ only; never callable from public
  *     routes. Minimum 2-character query; substring match on display name; 20-result
- *     cap with `hasMore` flag; no browse-all pagination. It enforces a per-IP and
+ *     cap with `hasMore` flag; no browse-all pagination. A live-member row carries
+ *     the row-level tier badge and the Active Player badge, which the search
+ *     statement reads by joining `member_membership_status_current`; an unclaimed
+ *     historical row carries neither, because a membership tier belongs to a live
+ *     account. It enforces a per-IP and
  *     per-member rate limit (config keys member_search_rate_limit_max_per_ip /
  *     _per_member / _window_minutes) and writes an immutable, privacy-safe audit
  *     row per query carrying the actor member id, a one-way query hash, and the
@@ -79,7 +83,9 @@
  *     thumb and display sizes, and atomically replaces any existing avatar.
  *
  * Persistence:
- *   members, members_active, members_all, members_searchable, member_links,
+ *   members, members_active, members_all, members_searchable,
+ *   member_membership_status_current (read-only; the tier and Active Player
+ *   badges on a search result row), member_links,
  *   member_declared_anchors (deleted on PII purge and deceased scrub),
  *   legacy_members (claim-state columns cleared on PII purge),
  *   erasure_log (append-only; one row per applied erasure shape),
@@ -110,7 +116,7 @@ import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
 import { PageViewModel } from '../types/page';
 import { groupPlayerResults } from './playerShaping';
 import type { PlayerEventGroup, PlayerHeroData } from '../types/playerProfile';
-import { getTierStatus, type MemberTier, type UnderlyingTier } from './membershipTieringService';
+import { getTierStatus, tierBadgeShort, type MemberTier, type UnderlyingTier } from './membershipTieringService';
 import { getStatus as getActivePlayerStatus } from './activePlayerService';
 import { mayCreateClub } from './tierPredicates';
 import { paymentService } from './paymentService';
@@ -164,6 +170,11 @@ export interface MemberSearchEntry {
   displayName: string;
   country: string | null;
   href: string;
+  /** Row-level membership-tier badge; null for Tier 0 and for unclaimed
+   *  historical rows, which carry no membership tier of their own. */
+  tierBadge: string | null;
+  /** True when the claimed member currently holds Active Player status. */
+  isActivePlayer: boolean;
   isHof: boolean;
   isBap: boolean;
   isBoard: boolean;
@@ -188,6 +199,10 @@ export interface ActivePlayerView {
   // current), as opposed to never having earned it. Drives the expired badge
   // and the explanation of which benefits ended.
   hasLapsed: boolean;
+  /** What Active Player status gives the member while it is current; null when
+   *  it is not held. Sits beside the tier's own description rather than
+   *  replacing it, so a Tier 0 Active Player can see both. */
+  currentExplanation: string | null;
   lapsedExplanation: string | null;
 }
 
@@ -1388,6 +1403,8 @@ export const memberService = {
         displayName: r.display_name,
         country: r.country,
         href: `/members/${r.slug}`,
+        tierBadge: tierBadgeShort(r.tier_status),
+        isActivePlayer: r.is_active_player === 1,
         isHof: Boolean(r.is_hof),
         isBap: Boolean(r.is_bap),
         isBoard: Boolean(r.is_board),
@@ -1406,6 +1423,11 @@ export const memberService = {
         displayName: r.person_name,
         country: r.country,
         href: isClaimed ? `/members/${r.linked_member_slug}` : `/history/${r.person_id}`,
+        // A historical row carries the person's honours, never a membership
+        // tier: the tier belongs to a live member account, and any live account
+        // that would show one has already been emitted by the member branch above.
+        tierBadge: null,
+        isActivePlayer: false,
         isHof: Boolean(r.hof_member),
         isBap: Boolean(r.bap_member),
         isBoard: false,
@@ -1486,10 +1508,14 @@ function welcomeTierContent(): MemberWelcomeTier[] {
   ];
 }
 
-function tierBenefitsBlurb(tier: MemberTier, isAp: boolean): string {
-  if (tier === 'tier0' && isAp) {
-    return 'You enjoy Tier 1 benefits while Active Player status is current, including Official IFPA Roster inclusion.';
-  }
+// What the member's own membership tier gives them. Active Player status is
+// described separately, in `currentExplanation` on the Active Player block, so
+// a Tier 0 Active Player reads both: the status is temporary and the tier is
+// not, which is exactly the member for whom the two must not be conflated.
+const ACTIVE_PLAYER_CURRENT_EXPLANATION =
+  'You enjoy Tier 1 benefits while Active Player status is current, including Official IFPA Roster inclusion.';
+
+function tierBenefitsBlurb(tier: MemberTier): string {
   switch (tier) {
     case 'tier0':
       return 'You can browse the platform, search the membership, and earn Active Player status through qualifying event attendance, vouching, or a one-time club-join grant.';
@@ -1526,6 +1552,7 @@ function buildTierStatusView(memberId: string, slug: string): TierStatusView {
         ? formatExpiryDate(ap.active_player_expires_at)
         : null,
       hasLapsed,
+      currentExplanation: isAp ? ACTIVE_PLAYER_CURRENT_EXPLANATION : null,
       lapsedExplanation: hasLapsed
         ? 'Your Active Player status has ended, so your Tier 1 benefits and your Official IFPA Roster listing have ended. Earn Active Player status again through qualifying event attendance, a vouch, or a one-time club-join grant.'
         : null,
@@ -1543,7 +1570,7 @@ function buildTierStatusView(memberId: string, slug: string): TierStatusView {
 
   return {
     tierBadgeText: TIER_BADGE_TEXT[tier.tier_status],
-    benefitsBlurb: tierBenefitsBlurb(tier.tier_status, isAp),
+    benefitsBlurb: tierBenefitsBlurb(tier.tier_status),
     activePlayer,
     underlyingTierBadgeText,
     showTier1Upgrade,

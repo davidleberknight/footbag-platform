@@ -133,7 +133,7 @@ import { ConflictError, NotFoundError, ValidationError } from './serviceErrors';
 import { validateExternalUrl } from '../lib/externalUrlValidator';
 import { appendAuditEntry } from './auditService';
 import { applyClubJoinInTx as applyActivePlayerClubJoinInTx, getStatus as getActivePlayerStatus } from './activePlayerService';
-import { getTierStatus } from './membershipTieringService';
+import { getTierStatus, tierBadgeShort } from './membershipTieringService';
 import { runSqliteRead } from './sqliteRetry';
 import { PageViewModel } from '../types/page';
 import { countryCode, subdivisionsForCountry } from './countryUtils';
@@ -431,13 +431,6 @@ export interface ClubMemberSummary {
    *  neither is on file or the row is an unclaimed historical person. */
   location: string | null;
 }
-
-// Concise tier badges for the club roster; Tier 0 carries no badge.
-const ROSTER_TIER_BADGE: Record<string, string> = {
-  tier1: 'Tier 1',
-  tier2: 'Tier 2',
-  tier3: 'Tier 3 Director',
-};
 
 export type ClubLeaderStatus = 'provisional' | 'claimed' | 'verified';
 
@@ -823,7 +816,7 @@ function toClubMemberSummary(row: AffiliationRow): ClubMemberSummary {
     row.member_show_gender === 1 && (row.member_gender === 'male' || row.member_gender === 'female')
       ? (row.member_gender === 'male' ? 'Male' : 'Female')
       : null;
-  const tierBadge = row.member_tier_status ? (ROSTER_TIER_BADGE[row.member_tier_status] ?? null) : null;
+  const tierBadge = tierBadgeShort(row.member_tier_status);
   const locationParts = [row.member_city, row.member_country].filter(
     (p): p is string => typeof p === 'string' && p.trim() !== '',
   );
