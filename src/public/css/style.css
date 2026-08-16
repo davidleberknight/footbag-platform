@@ -3830,7 +3830,26 @@ a.hashtag--media:hover {
   scroll-margin-top: 80px;
 }
 
-/* ── Freestyle history: narrative thesis + on-site link lists ─────────── */
+/* ── Long-form article measure (shared) ───────────────────────────────── */
+/* Reading measure for long-form and learning pages (history, start-here,
+   learn, about, the notation article, progressions, modifier teaching
+   pages): article prose carries a wide 95ch measure instead of the 70ch
+   reference-page default. Scoped to direct-child p so lists, tables, and
+   component-owned prose keep their own caps; smaller screens stay narrower
+   because the wrapper's own width binds first. Carries the .page-freestyle
+   prefix for specificity: the sitewide 70ch rule sits later in this sheet
+   and would win a tie. */
+.page-freestyle .longform-article .content-section > p {
+  max-width: 95ch;
+}
+/* Disclosure sections stacked in an article (the history chronology) sit
+   outside the glossary's tile grid; the grid's 12px gap becomes a plain
+   vertical margin so adjacent cards never butt together. */
+.longform-article .dict-tile {
+  margin: 12px 0;
+}
+
+/* ── Freestyle history: narrative thesis ──────────────────────────────── */
 .history-thesis {
   font-family: var(--font-body);
   font-size: 1.25rem;
@@ -3840,15 +3859,6 @@ a.hashtag--media:hover {
   border-left: 3px solid var(--secondary);
   padding: 6px 0 6px 18px;
   margin: 0 0 20px 0;
-}
-.history-link-list {
-  list-style: disc;
-  padding-left: 22px;
-  margin: 8px 0 0 0;
-}
-.history-link-list li {
-  padding: 2px 0;
-  font-size: 1rem;
 }
 
 /* ── Freestyle landing: three-layer reference orientation list ──────────── */
