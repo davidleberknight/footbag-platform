@@ -23,7 +23,14 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
-import { insertFreestyleTrick, insertFreestyleTrickModifier, insertFreestyleTrickModifierLink } from '../fixtures/factories';
+import {
+  insertFreestyleTrick,
+  insertFreestyleTrickAlias,
+  insertFreestyleTrickModifier,
+  insertFreestyleTrickModifierLink,
+  insertMember,
+  insertTtLesson,
+} from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3221');
 
@@ -44,6 +51,19 @@ beforeAll(async () => {
     review_status: 'expert_reviewed', is_active: 1,
   });
   insertFreestyleTrickModifierLink(db, 'pixie_mirage', 'pixie');
+
+  // This example trick's only footage is tagged under a retired structural
+  // name folded onto it, and nothing carries its canonical slug. The set
+  // page's example row must link on the tag the clip actually has, or it
+  // sends the visitor to an empty gallery the way the browse rows and the
+  // trick detail page once did.
+  insertFreestyleTrickAlias(db, 'pixie_symposium_mirage_folded', 'pixie_mirage');
+  insertTtLesson(db, {
+    uploader_member_id: insertMember(db, { id: 'm-setdetail1', slug: 'setdetail_uploader' }),
+    ttNumber: 9,
+    trickSlug: 'pixie_symposium_mirage_folded',
+    videoId: 'setaliasvid1',
+  });
 
   // Stepping set-education page resolves progression + representative-trick
   // slugs against the dictionary for clickable links (underscore slugs, as in
@@ -133,6 +153,13 @@ describe('GET /freestyle/sets/:slug — set detail page', () => {
     const res = await request(await createApp()).get('/freestyle/sets/pixie');
     expect(res.text).toContain('class="set-detail-trick-list"');
     expect(res.text).toMatch(/href="\/freestyle\/tricks\/pixie_mirage"/);
+  });
+
+  it('links an example trick covered only through an alias on the tag its clip carries', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets/pixie');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('/media/browse?context&#x3D;pixie_symposium_mirage_folded');
+    expect(res.text).not.toContain('/media/browse?context&#x3D;pixie_mirage');
   });
 
   it('renders example-tricks empty state for holden-only sets with no linked tricks', async () => {

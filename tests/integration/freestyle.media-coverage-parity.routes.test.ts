@@ -31,6 +31,7 @@ import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/
 import {
   insertMember,
   insertFreestyleTrick,
+  insertFreestyleTrickAlias,
   insertFreestyleRecord,
   insertTtLesson,
   insertMemberSubmittedVideo,
@@ -47,6 +48,11 @@ const CURATED       = 'curatedmediatrick';
 const RECORD_SOURCE = 'recordsourcetrick';
 const RECORD_ONLY   = 'recordonlytrick';
 const NO_MEDIA      = 'nomediatrick';
+// Clips tagged only under a folded structural name, never under the canonical.
+const ALIAS_ONLY    = 'aliasonlytrick';
+const FOLDED_ALIAS  = 'foldedstructuralname';
+// A tag whose curator-typed display form differs from its normalized form.
+const MIXED_CASE    = 'mixedcasetrick';
 
 function trick(slug: string) {
   return {
@@ -91,6 +97,28 @@ beforeAll(async () => {
   insertFreestyleTrick(db, trick(RECORD_SOURCE));
   insertFreestyleTrick(db, trick(RECORD_ONLY));
   insertFreestyleTrick(db, trick(NO_MEDIA));
+  insertFreestyleTrick(db, trick(ALIAS_ONLY));
+  insertFreestyleTrick(db, trick(MIXED_CASE));
+
+  // A retired structural name folded onto this folk-named canonical, with the
+  // only footage tagged under that alias and nothing under the canonical slug.
+  insertFreestyleTrickAlias(db, FOLDED_ALIAS, ALIAS_ONLY);
+  insertTtLesson(db, {
+    uploader_member_id: uploader,
+    ttNumber: 4,
+    trickSlug: FOLDED_ALIAS,
+    videoId: 'aliasonlyvid1',
+  });
+
+  // The curator typed the tag with different capitalisation, so the media row's
+  // denormalized display copy differs from the tag's normalized form. Only the
+  // normalized column is constrained to lowercase, so nothing rejects this.
+  insertTtLesson(db, {
+    uploader_member_id: uploader,
+    ttNumber: 5,
+    trickSlug: 'MixedCaseTrick',
+    videoId: 'mixedcasevid1',
+  });
 
   // Only footage is a member upload: no media source at all.
   insertMemberSubmittedVideo(db, {
@@ -194,6 +222,54 @@ describe('trick media coverage agrees between the dictionary browse rows and the
     const detail = await request(app).get(`/freestyle/tricks/${NO_MEDIA}`);
     expect(detail.status).toBe(200);
     expect(detail.text).not.toContain(galleryHref(NO_MEDIA));
+  });
+});
+
+describe('a trick covered only through an alias slug links to a gallery holding its clip', () => {
+  it('reports coverage on both surfaces and links on the tag the clip carries', async () => {
+    const app = createApp();
+
+    const browse = await request(app).get('/freestyle/tricks?view=add');
+    const row = browseRow(browse.text, ALIAS_ONLY);
+    expect(row).toContain('hashtag--media');
+    // The link is the alias tag, because that is the tag the gallery can
+    // resolve; the canonical slug would open the empty gallery.
+    expect(row).toContain(galleryHref(FOLDED_ALIAS));
+    expect(row).not.toContain(galleryHref(ALIAS_ONLY));
+
+    const detail = await request(app).get(`/freestyle/tricks/${ALIAS_ONLY}`);
+    expect(detail.status).toBe(200);
+    expect(detail.text).toContain('See All Videos for');
+    expect(detail.text).toContain(galleryHref(FOLDED_ALIAS));
+    expect(detail.text).not.toContain(galleryHref(ALIAS_ONLY));
+  });
+
+  it('renders the clip in the gallery both controls link to, rather than the empty state', async () => {
+    const gallery = await request(createApp()).get(`/media/browse?context=${FOLDED_ALIAS}`);
+    expect(gallery.status).toBe(200);
+    expect(gallery.text).toContain('aliasonlyvid1');
+    expect(gallery.text).not.toContain('No media');
+  });
+
+  it('keeps the canonical slug as the link for a trick whose own tag carries the clip', async () => {
+    const browse = await request(createApp()).get('/freestyle/tricks?view=add');
+    expect(browseRow(browse.text, CURATED)).toContain(galleryHref(CURATED));
+  });
+});
+
+describe('a tag whose display form differs from its normalized form cannot split the two surfaces', () => {
+  it('agrees on coverage when the curator typed the tag with different capitalisation', async () => {
+    const app = createApp();
+
+    const browse = await request(app).get('/freestyle/tricks?view=add');
+    const row = browseRow(browse.text, MIXED_CASE);
+    expect(row).toContain('hashtag--media');
+    expect(row).toContain(galleryHref(MIXED_CASE));
+
+    const detail = await request(app).get(`/freestyle/tricks/${MIXED_CASE}`);
+    expect(detail.status).toBe(200);
+    expect(detail.text).toContain('See All Videos for');
+    expect(detail.text).toContain(galleryHref(MIXED_CASE));
   });
 });
 

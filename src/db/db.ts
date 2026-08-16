@@ -2944,10 +2944,16 @@ export const freestyleMediaLinks = {
   // member-uploaded clip, which is coverage exactly as a curator-published
   // clip is. Reading the linkable-video view rather than the bare table is
   // what keeps this answer identical to the trick detail page's.
+  // media_tag is the tag the clip actually carries, which is the canonical
+  // slug tag on the first arm and an alias slug tag on the second. The
+  // gallery filters on one literal token and never expands aliases, so a
+  // link built from the canonical slug of an alias-only-tagged trick lands
+  // on an empty gallery; the caller picks a tag from here that resolves.
   get listCoveredTrickSlugsWithSource() { return db.prepare(`
     SELECT DISTINCT
-      ft.slug       AS slug,
-      mi.source_id  AS source_id
+      ft.slug          AS slug,
+      mi.source_id     AS source_id,
+      t.tag_normalized AS media_tag
     FROM media_items_linkable_video mi
     INNER JOIN media_tags mt ON mt.media_id = mi.id
     INNER JOIN tags t        ON t.id        = mt.tag_id
@@ -2957,8 +2963,9 @@ export const freestyleMediaLinks = {
     -- Media tagged with a trick's alias slug (e.g. a retired structural name
     -- folded onto its folk-named canonical) is coverage for that canonical.
     SELECT DISTINCT
-      ft.slug       AS slug,
-      mi.source_id  AS source_id
+      ft.slug          AS slug,
+      mi.source_id     AS source_id,
+      t.tag_normalized AS media_tag
     FROM media_items_linkable_video mi
     INNER JOIN media_tags mt ON mt.media_id = mi.id
     INNER JOIN tags t        ON t.id        = mt.tag_id
@@ -2972,6 +2979,9 @@ export interface FreestyleMediaCoveredSourceRow {
   // NULL for a member-uploaded clip: the source registry names curated
   // channels and series, and a member's own clip belongs to none of them.
   source_id: string | null;
+  // The '#'-prefixed normalized tag the clip carries: the trick's canonical
+  // slug tag, or one of its alias slug tags.
+  media_tag: string;
 }
 
 export interface FreestyleModifierUsageRow {
@@ -6593,14 +6603,21 @@ export const media = {
   // (e.g. /freestyle/tricks/:slug includes TT items; the public gallery
   // grouping path excludes them). Reading the linkable-video view is what
   // keeps this answer identical to the dictionary browse rows'.
+  // The tag is identified through tags.tag_normalized, the same column the
+  // browse coverage query matches on. media_tags.tag_display is a
+  // denormalized copy carrying whatever form the curator typed, and only
+  // tag_normalized is constrained to the lowercase '#'-prefixed form, so
+  // matching on the display copy lets one oddly-cased tag make this read and
+  // the browse read disagree with nothing to signal it.
   get listMediaByTrickTag() { return db.prepare(`
     SELECT mi.id, mi.video_id, mi.video_url, mi.thumbnail_url, mi.caption,
            mi.video_platform, mi.uploaded_at, mi.source_id,
            ms.source_name, ms.creator AS source_creator, ms.url AS source_url
     FROM media_items_linkable_video mi
     JOIN media_tags mt ON mt.media_id = mi.id
+    JOIN tags t ON t.id = mt.tag_id
     LEFT JOIN media_sources ms ON ms.source_id = mi.source_id
-    WHERE mt.tag_display = ?
+    WHERE t.tag_normalized = ?
     ORDER BY mi.uploaded_at DESC, mi.id ASC
   `); },
 
