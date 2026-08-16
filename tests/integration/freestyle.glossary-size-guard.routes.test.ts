@@ -60,6 +60,15 @@
  *                  headroom: the next glossary addition of any size will trip
  *                  the guard and must raise the ceiling with its own explained
  *                  baseline entry.
+ *   330,159 bytes  the Reading the Dictionary chapter corrected for the
+ *                  current dictionary model: ADD described as component
+ *                  accounting rather than execution difficulty (plus the
+ *                  same-ADD-is-not-same-difficulty caution), the object table
+ *                  split from five kinds to six (sets and modifiers as
+ *                  separate kinds), and the compound-name decoder softened to
+ *                  a convention with the three-dimensions note on the
+ *                  Whirling Swirl / Swirling Whirl pair. Ceiling raised to
+ *                  335,000, about 4,800 bytes (~1.5%) of headroom.
  */
 import { readFileSync } from 'fs';
 import path from 'path';
@@ -82,8 +91,8 @@ const { dbPath } = setTestEnv('3565');
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
 // Ceiling set with modest documented headroom above the representative render
-// (currently 328,802 bytes). See the baseline history in the file header.
-const CEILING = 330_000;
+// (currently 330,159 bytes). See the baseline history in the file header.
+const CEILING = 335_000;
 
 interface Snapshot {
   tricks: Record<string, unknown>[];

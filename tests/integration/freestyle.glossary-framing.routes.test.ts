@@ -92,21 +92,39 @@ describe('Glossary framing — Reading the dictionary section', () => {
     expect(html).toContain('href="/freestyle/operators"');
   });
 
-  it('renders the five-way ontology distinction table', async () => {
+  it('renders the six-way ontology distinction table, with sets and modifiers as separate kinds', async () => {
     const html = await glossary();
     for (const kind of [
       'Canonical family',
-      'Modifier ecosystem',
+      'Set / set system',
+      'Modifier / operator',
       'Alternative surface',
       'Movement neighborhood',
-      'Alias / decomposition label',
+      'Alias / decomposition reading',
     ]) {
       expect(html, `ontology kind ${kind}`).toContain(kind);
     }
+    // The introductory object table keeps sets and modifiers as separate
+    // kinds; the combined "Modifier ecosystem" framing survives only in the
+    // later family-vs-modifier comparison material, never in this table.
+    const kindsStart = html.indexOf('Six kinds of object');
+    const kindsEnd = html.indexOf('Reading a compound name');
+    expect(kindsStart).toBeGreaterThan(-1);
+    expect(kindsEnd).toBeGreaterThan(kindsStart);
+    expect(html.slice(kindsStart, kindsEnd)).not.toContain('Modifier ecosystem');
     // Explains WHY older vocabularies conflated them.
     expect(html).toMatch(/flattened families, modifiers, surfaces/);
     // Sharpens the interpretation-vs-modifier boundary.
-    expect(html).toMatch(/does not make the read-as name a productive modifier/);
+    expect(html).toMatch(/does not make the read-as name a\s+productive modifier/);
+  });
+
+  it('teaches ADD as component accounting, never a direct measure of execution difficulty', async () => {
+    const html = await glossary();
+    expect(html).toContain('component accounting');
+    expect(html).toMatch(/not a direct measure of execution difficulty/);
+    expect(html).toMatch(/not necessarily equally difficult to\s+perform/);
+    // The compound-name pair holds the three dimensions apart explicitly.
+    expect(html).toMatch(/structural identity, ADD accounting,\s+and execution difficulty are three different dimensions/);
   });
 });
 

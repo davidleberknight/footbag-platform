@@ -2,10 +2,11 @@
  * Integration tests for the "Reading a compound name" decoder on
  * GET /freestyle/glossary, rendered in the Reading the Dictionary chapter.
  *
- * The decoder teaches that a compound trick name is read from the end: the last
- * word is the base trick and its family, and the leading words are modifiers. It
- * uses the Whirling Swirl / Swirling Whirl minimal pair, where the same two
- * words in the opposite order name a swirl and a whirl (two different families).
+ * The decoder teaches the read-from-the-end convention: for many compositional
+ * names the final term identifies the base trick and its family, and the
+ * leading terms describe structures applied to it. It uses the Whirling Swirl /
+ * Swirling Whirl minimal pair, where the same two words in the opposite order
+ * name a swirl and a whirl (two different families).
  * The copy is static, so it renders independent of fixture data.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -47,11 +48,11 @@ function row(html: string, nameSlug: string): string {
 }
 
 describe('Glossary — reading a compound name (read from the end)', () => {
-  it('renders the decoder heading and the read-from-the-end rule in the Reading the Dictionary chapter', async () => {
+  it('renders the decoder heading and the read-from-the-end convention in the Reading the Dictionary chapter', async () => {
     const html = await glossary();
     expect(html).toContain('Reading a compound name');
-    expect(html).toContain('read from the end');
-    expect(html).toContain('The <strong>last word</strong>');
+    expect(html).toContain('can be read from the end');
+    expect(html).toMatch(/The\s+<strong>final term<\/strong>/);
     // Sits inside Reading the Dictionary, before Movement Basics.
     const readingAt = html.indexOf('id="section-reading-the-dictionary"');
     const decoderAt = html.indexOf('Reading a compound name');
