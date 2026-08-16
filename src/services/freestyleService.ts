@@ -2925,8 +2925,8 @@ export type EncyclopediaCardRole =
   | 'rooted';
 
 export interface EncyclopediaCrossLinks {
-  dictionaryModifierLabel:    string;
-  dictionaryModifierHref:     string;
+  dictionarySetLabel:      string;
+  dictionarySetHref:       string;
   compositionalHubLabel:   string;
   compositionalHubHref:    string;
   operatorsPageLabel:      string;
@@ -9784,7 +9784,8 @@ export const freestyleService = {
           lenses: [
             { label: 'By difficulty (ADD)', note: 'easiest to hardest' },
             { label: 'By family', note: 'grouped by the base move' },
-            { label: 'By modifier / set', note: 'grouped by the layers added' },
+            { label: 'By set', note: 'grouped by useful launch-set groupings' },
+            { label: 'By modifier', note: 'grouped by useful body and timing modifiers' },
           ],
           // Title Case, and each ends in a full stop except the one that asks
           // a question and keeps its question mark.
@@ -11611,8 +11612,8 @@ export const freestyleService = {
     }));
 
     const crossLinks: EncyclopediaCrossLinks = {
-      dictionaryModifierLabel:  'Trick Dictionary: tricks grouped by modifier',
-      dictionaryModifierHref:   '/freestyle/tricks?view=modifier',
+      dictionarySetLabel:  'Trick Dictionary: tricks grouped by set',
+      dictionarySetHref:   '/freestyle/tricks?view=set',
       compositionalHubLabel: 'Compositional Sets hub (family / ladder groupings)',
       compositionalHubHref:  '/freestyle/compositional-sets',
       operatorsPageLabel:    'Operators & Modifiers',
@@ -11649,7 +11650,7 @@ export const freestyleService = {
           'A set is how a freestyle trick begins: the launch or entry that sets up the rest ' +
           'of the movement. This encyclopedia treats each named set as its own subject; tap ' +
           'any card for the deep reading. For which tricks use a given set, see the Trick ' +
-          'Dictionary\'s By Modifier view.',
+          'Dictionary\'s By Set view.',
         totalSets: subtypeSections.reduce((n, s) => n + s.count, 0),
         subtypeSections,
         subtypeMiniToc,
@@ -12055,7 +12056,7 @@ export const freestyleService = {
             // band covers compositional grammar in depth. No em dashes,
             // no historical filler, no overconfident atom counts.
             'Freestyle footbag is a movement discipline. Players link sequences of tricks: body actions like spins, jumps, and ducks layered over circling motions of the legs around a small bag held aloft by repeated foot contact. The bag traces an unbroken path through the air; the body moves around it.',
-            'Trick names are compositional. A name like "spinning whirl" literally encodes structure: a body spin layered on top of the whirl base. Once you know the parts, you can read most trick names before you have ever seen the trick performed.',
+            'Trick names are compositional. A name like "spinning whirl" literally encodes structure: a body spin layered on top of the whirl base. Once you know the parts, you can read many descriptive trick names before you have ever seen the trick performed.',
             'The vocabulary builds from a small set of foundational moves that compose richly. Stalls (the bag at rest on the top of the foot, the side of the foot, or other body surfaces). Dexterities (circling motions of a leg around the bag). Body modifiers (spins, ducks, jumps, steps). Structural sets (the launching motion that opens the trick). Combinations are nearly endless, and the language of freestyle is what makes the combinations legible.',
           ],
         },

@@ -139,8 +139,8 @@ export const SET_SUBTYPE_SPECS: readonly SubtypeSpec[] = [
     key:   'true-core',
     label: 'True core sets',
     intro:
-      'Foundational single-dex primitives. One dexterity step over a single set surface, ' +
-      'no body modifier inside the chain, no second dex. Reusable structures the ' +
+      'Foundational entry primitives: the basic toe and clipper entry surfaces plus the ' +
+      'principal single-dex launch structures built from them. Reusable structures the ' +
       'rest of the language composes from.',
   },
   {

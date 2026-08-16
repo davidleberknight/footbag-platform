@@ -226,7 +226,7 @@ describe('Glossary framing — row-contract and non-final-reading notes (additiv
 
   it('explains why a trick appears in several browse views at once', async () => {
     const html = await glossary();
-    expect(html).toContain('The same trick appears in several of these views at once');
+    expect(html).toContain('A trick may appear in several of these views at once');
   });
 
   it('frames the family kind on two independent axes: lineage position and display tier', async () => {

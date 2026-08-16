@@ -44,7 +44,7 @@ describe('/freestyle/sets — subtype intro one-liners', () => {
     const res = await request(await createApp()).get('/freestyle/sets');
     // Spot-check a phrase from each subtype's intro (sourced verbatim
     // from SET_SUBTYPE_SPECS in freestyleCanonicalSets.ts)
-    expect(res.text).toMatch(/Foundational single-dex primitives/i);          // true-core
+    expect(res.text).toMatch(/Foundational entry primitives/i);               // true-core
     expect(res.text).toMatch(/Multi-dex chains and derived entry topologies/i); // composite-derived
     expect(res.text).toMatch(/SPIN body token inside the set chain/i);          // rotational
     expect(res.text).toMatch(/CLIP-anchored cross-body rotational sets/i);      // whirl-swirl

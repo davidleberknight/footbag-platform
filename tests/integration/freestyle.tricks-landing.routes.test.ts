@@ -347,10 +347,11 @@ describe('GET /freestyle/tricks — beginner orientation bridge', () => {
     for (const add of ['1 ADD', '2 ADD', '3 ADD', '4 ADD']) {
       expect(res.text).toContain(add);
     }
-    // The three exploration lenses in beginner wording.
+    // The four exploration lenses in beginner wording.
     expect(res.text).toContain('By difficulty (ADD)');
     expect(res.text).toContain('grouped by the base move');
-    expect(res.text).toContain('grouped by the layers added');
+    expect(res.text).toContain('grouped by useful launch-set groupings');
+    expect(res.text).toContain('grouped by useful body and timing modifiers');
   });
 
   it('defines the four entry terms (ADD / Dex / Family / Modifier) in plain words', async () => {
