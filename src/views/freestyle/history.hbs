@@ -14,7 +14,7 @@
   </div>
 </div>
 
-<div class="wrapper">
+<div class="wrapper longform-article">
 
   {{! ── Thesis + opening ─────────────────────────────────────────────── }}
   <section class="content-section">
@@ -22,19 +22,43 @@
     {{#each content.intro}}<p>{{this}}</p>{{/each}}
   </section>
 
-  {{! ── The narrative, one section per idea, each evidence for the thesis ── }}
+  {{! ── The narrative, one section per idea, each evidence for the thesis.
+      A section with a summaryLine is a closed chronological disclosure: its
+      header carries the heading plus the one-line gist, so the arc reads
+      without opening everything. Sections are independent details elements,
+      never an exclusive accordion. A section without a summaryLine renders
+      open as plain prose. }}
   {{#each content.sections}}
+  {{#if summaryLine}}
+  <details class="dict-tile" id="{{id}}">
+    <summary class="dict-tile-summary">
+      <h2 class="dict-tile-title">{{heading}}</h2>
+      <span class="dict-tile-hint">{{summaryLine}}</span>
+    </summary>
+    <div class="dict-tile-body">
+      <section class="content-section">
+        {{#each paragraphs}}<p>{{this}}</p>{{/each}}
+        {{#if links.length}}
+        <div class="card-actions">
+          {{#each links}}<a class="btn btn-outline" href="{{href}}">{{label}}</a>{{/each}}
+        </div>
+        {{/if}}
+      </section>
+    </div>
+  </details>
+  {{else}}
   <section id="{{id}}" class="content-section">
     <div class="section-heading">
       <h2>{{heading}}</h2>
     </div>
     {{#each paragraphs}}<p>{{this}}</p>{{/each}}
     {{#if links.length}}
-    <ul class="history-link-list">
-      {{#each links}}<li><a href="{{href}}">{{label}}</a></li>{{/each}}
-    </ul>
+    <div class="card-actions">
+      {{#each links}}<a class="btn btn-outline" href="{{href}}">{{label}}</a>{{/each}}
+    </div>
     {{/if}}
   </section>
+  {{/if}}
   {{/each}}
 
   {{! ── Sources on this site ──────────────────────────────────────────── }}
@@ -46,9 +70,9 @@
         This history is drawn from the encyclopedia's own pages. Follow them for the fuller record.
       </p>
     </div>
-    <ul class="history-link-list">
-      {{#each content.references}}<li><a href="{{href}}">{{label}}</a></li>{{/each}}
-    </ul>
+    <div class="card-actions">
+      {{#each content.references}}<a class="btn btn-outline" href="{{href}}">{{label}}</a>{{/each}}
+    </div>
   </section>
   {{/if}}
 
@@ -58,9 +82,9 @@
     <div class="section-heading">
       <h2>Where to go next</h2>
     </div>
-    <ul class="history-link-list">
-      {{#each content.whereNext}}<li><a href="{{href}}">{{label}}</a></li>{{/each}}
-    </ul>
+    <div class="card-actions">
+      {{#each content.whereNext}}<a class="btn btn-outline" href="{{href}}">{{label}}</a>{{/each}}
+    </div>
   </section>
   {{/if}}
 
