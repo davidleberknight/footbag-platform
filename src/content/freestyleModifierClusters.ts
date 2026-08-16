@@ -91,8 +91,11 @@ export const MODIFIER_CLUSTERS: readonly ModifierCluster[] = [
  * section because it has been ruled a useful, recognizable browse grouping,
  * never because its live count crossed a number). Everything else that carries
  * links renders in the compact "Other tracked groups" band. Whirling and
- * swirling are deliberately absent pending the set-versus-modifier ruling;
- * that hold is not a judgment on their usefulness.
+ * swirling are deliberately absent because they are ruled legitimate sets
+ * whose taxonomic home is the Set Encyclopedia: the By-modifier roster never
+ * promotes them, their tracked-group rendering does not reclassify them, and
+ * whether they join the curated By Set roster is a separate browse-curation
+ * decision.
  */
 export const FIRST_CLASS_BROWSE_MODIFIERS: ReadonlySet<string> = new Set([
   'symposium', 'ducking', 'spinning', 'paradox', 'gyro',

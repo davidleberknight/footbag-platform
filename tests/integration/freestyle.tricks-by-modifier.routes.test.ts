@@ -166,9 +166,10 @@ beforeAll(async () => {
     VALUES ('ducking-mirage', 'ducking', 1), ('ducking-legover', 'ducking', 1), ('ducking-butterfly', 'ducking', 1)
   `).run();
 
-  // Outside the first-class roster: whirling (held pending the set-versus-
-  // modifier ruling; has a Set Encyclopedia page) and backside (documented by
-  // no reference surface). Both render only in the Other tracked groups band.
+  // Outside the first-class roster: whirling (ruled a legitimate set; its
+  // reference home is its Set Encyclopedia page, so it is never a first-class
+  // modifier group) and backside (documented by no reference surface). Both
+  // render only in the Other tracked groups band.
   db.prepare(`
     INSERT INTO freestyle_trick_modifiers
       (slug, modifier_name, modifier_type, add_bonus, add_bonus_rotational, notes, loaded_at)

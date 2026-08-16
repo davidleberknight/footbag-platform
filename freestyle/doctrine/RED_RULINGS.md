@@ -129,6 +129,17 @@ silently reshaping either side.
 - **1-ADD delay and body tricks are included** in the dictionary; **Spyro is a
   trick, not a general modifier concept** (naming has largely shifted toward
   Inspin); **Gyro = spinning and dexing with the same foot that set the bag**.
+- **Whirling and Swirling are legitimate sets** (maintainer ruling). Both are
+  whirl-family launch sets; their taxonomic and reference home is the Set
+  Encyclopedia (subtype `whirl-swirl`), and their set-versus-modifier status is
+  settled, not pending. They are not first-class By-modifier browse groups.
+  Existing modifier-link relationships may remain available through secondary
+  tracked-group surfaces, and doing so does not reclassify them as modifiers.
+  Admission to the curated By Set browse roster is a separate browse-curation
+  decision, not settled by this ruling. The separately documented mid-chain
+  whirling operator reading (the injected rotational dex in the operator
+  reference) is unaffected. This ruling covers only whirling and swirling; it
+  reclassifies no other token.
 
 ## Operator rulings in force
 
