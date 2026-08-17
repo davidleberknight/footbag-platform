@@ -219,14 +219,13 @@ export function attachMediaTag(
   return id;
 }
 
-// ── Member named gallery + one matching media item ────────────────────────────
+// ── Member named gallery ──────────────────────────────────────────────────────
 //
 // Seeds a member-owned named gallery (is_default=0, so it is a deliberately
-// named gallery rather than the auto-default Personal Gallery) plus one uploaded
-// media item that resolves into it. The gallery's sole criteria tag is the
-// owner's `#by_<slug>` uploader tag and the media item carries the same tag, so
-// the gallery resolves to exactly one item through the standard tag-AND query.
-// The uploader tag is freeform (is_standard=0); insertTag only produces standard
+// named gallery rather than the auto-default Personal Gallery). The gallery's
+// sole criteria tag is the owner's `#by_<slug>` uploader tag, so anything that
+// member uploads resolves into it through the standard tag-AND query. The
+// uploader tag is freeform (is_standard=0); insertTag only produces standard
 // tags, so the tag is inlined here.
 export interface PersonaNamedGalleryOverrides {
   galleryId: string;
