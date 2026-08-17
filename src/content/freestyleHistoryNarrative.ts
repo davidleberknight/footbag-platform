@@ -101,6 +101,7 @@ export const HISTORY_NARRATIVE: HistoryNarrative = {
       paragraphs: [
         'Freestyle traditionally counts recognized trick components in ADD; combinations with more counted components receive higher ADD totals, though equal ADD does not imply equal execution difficulty. The record of the hardest documented sequences reads like a moving ceiling: a seven-trick run scored in the low twenties in the late 2000s, with a cluster of the next-hardest sequences spread across two decades of play.',
         'Each generation pushed that ceiling higher, and it could only rise because the vocabulary underneath it kept expanding. A single new modifier could lift the whole scale: when blurry, which adds a fast rotation to tricks players already knew, came into the vocabulary, it raised the top of the difficulty curve, and runs in which every trick cleared a high ADD threshold became the new mark of a top performance. Difficulty is not separate from the language; it is the language getting richer, measured.',
+        'The frontier keeps moving. The unique Fearless record, the most distinct tricks of 5 ADD or higher landed in a single run, is documented at 19 in 2005, then 20 in 2006, 21 in 2014, 22 in 2017, and 25 in 2023. A threshold that once sat near twenty contacts kept climbing across nearly two decades, and nothing in the record suggests it has stopped.',
       ],
       links: [
         { label: 'ADD Analysis', href: '/freestyle/add-analysis' },

@@ -1707,6 +1707,13 @@ describe('Glossary improvements + history refresh', () => {
     expect(res.text).not.toContain('history-add-system-decomposition-note');
   });
 
+  it('history difficulty section carries the documented unique-Fearless frontier progression', async () => {
+    const res = await request(createApp()).get('/freestyle/history');
+    expect(res.text).toMatch(/The frontier keeps moving/);
+    expect(res.text).toMatch(/19 in 2005/);
+    expect(res.text).toMatch(/25 in 2023/);
+  });
+
   it('history page explains the vocabulary expanding by composition', async () => {
     const res = await request(createApp()).get('/freestyle/history');
     expect(res.text).toContain('id="vocabulary"');
