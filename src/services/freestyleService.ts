@@ -250,9 +250,6 @@ import {
   getTrickProgressiveReadings,
 } from '../content/freestyleTrickProgressiveReadings';
 import {
-  isUnresolvedCompound,
-} from '../content/freestyleUnresolvedCompounds';
-import {
   FREESTYLE_ADD_ANALYSIS_CONTENT,
   type AddAnalysisContent,
 } from '../content/freestyleAddAnalysisContent';
