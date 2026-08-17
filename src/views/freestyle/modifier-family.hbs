@@ -29,6 +29,10 @@
 
     <p class="modifier-subtitle">{{content.pageSubtitle}}</p>
 
+    {{#if content.workingModelNote}}
+    <p class="page-philosophy">{{content.workingModelNote}}</p>
+    {{/if}}
+
     {{#if content.baseAtom}}
     <p class="detail-muted">Base trick: <a href="{{content.baseAtom.href}}">{{content.baseAtom.label}}</a></p>
     {{/if}}

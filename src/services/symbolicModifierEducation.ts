@@ -65,6 +65,10 @@ export interface ModifierEducationInput {
   displayName:          string;     // e.g., "Spinning"
   pageTitle:            string;
   pageSubtitle:         string;     // sits below the H1; one-line frame
+  // Prominent working-model framing rendered under the subtitle. Set where the
+  // operational reading is the encyclopedia's consistent model rather than
+  // settled community consensus (paradox / cross-body).
+  workingModelNote?:    string;
   // ── Concept-first frozen template (the standard for operator pages) ──
   // What it is. Tier-1 operators leave this unset: their canonical definition
   // line comes from the operator reference at build time. A local value is
@@ -115,6 +119,7 @@ export interface ModifierFamilyPageContent {
   displayName:          string;
   pageTitle:            string;
   pageSubtitle:         string;
+  workingModelNote?:    string;
   // Concept-first frozen template (present when the page is on the standard).
   definition?:          string;
   whyItExists?:         string;
@@ -294,6 +299,8 @@ const PARADOX_CONTENT: ModifierEducationInput = {
   displayName: 'Paradox',
   pageTitle:   'Paradox',
   pageSubtitle: 'An operator that changes the relationship between the body, the support leg, and the dexterity.',
+  workingModelNote:
+    'The relationships described here are the working model this encyclopedia uses for consistent notation and indexing. Experienced players do not agree on every Paradox and cross-body case, and exceptions or alternate readings exist.',
   whyItExists:
     'Paradox exists to distinguish tricks whose dexterity is performed from the opposite body relationship. The dexterity itself is unchanged; what changes is how the body and support leg are positioned relative to it. That structural relationship is significant enough to score independently as [PDX].',
   howItChangesBase:
@@ -1328,6 +1335,7 @@ export function buildModifierFamilyPage(
     displayName:        input.displayName,
     pageTitle:          input.pageTitle,
     pageSubtitle:       input.pageSubtitle,
+    workingModelNote:   input.workingModelNote,
     // The canonical Tier-1 definition wins; a local value only covers operators
     // the operator reference does not define.
     definition:         getTier1OperatorDefinition(input.slug)?.definition ?? input.definition,

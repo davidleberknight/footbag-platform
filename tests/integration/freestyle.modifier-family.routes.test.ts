@@ -246,6 +246,15 @@ describe('GET /freestyle/modifier/paradox — happy path', () => {
     expect(res.text).toMatch(/changes the relationship between the body, the support leg, and the dexterity/);
   });
 
+  it('carries the prominent working-model caveat: our consistent reading, not universal community consensus', async () => {
+    const res = await request(createApp()).get('/freestyle/modifier/paradox');
+    expect(res.text).toMatch(/working model this encyclopedia uses for consistent notation and indexing/);
+    expect(res.text).toMatch(/do not agree on every Paradox and cross-body case/);
+    // The caveat is paradox-specific; pages whose doctrine is settled carry none.
+    const spinning = await request(createApp()).get('/freestyle/modifier/spinning');
+    expect(spinning.text).not.toContain('working model this encyclopedia uses');
+  });
+
   it('renders the concept-first sections, teaching the concept before execution', async () => {
     const res = await request(createApp()).get('/freestyle/modifier/paradox');
     expect(res.text).toContain('<h2>What it is</h2>');
