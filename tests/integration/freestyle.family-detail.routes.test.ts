@@ -396,7 +396,7 @@ describe('GET /freestyle/families/mirage — the reduction lesson (foundational 
   it('answers why to learn Mirage first, with a pictureable physical description', async () => {
     const res = await request(await createApp()).get('/freestyle/families/mirage');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('the simplest complete dexterity movement');
+    expect(res.text).toContain('a complete dexterity movement');
     expect(res.text).toContain('the bag returns to the same toe that set it');
     expect(res.text).toContain('the circling leg performs the dexterity but does not make the catch');
     expect(res.text).toContain('Much of freestyle grows from Mirage');

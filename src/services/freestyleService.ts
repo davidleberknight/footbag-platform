@@ -9807,11 +9807,12 @@ export const freestyleService = {
         totalTricks: canonicalCount,
         landingOnboarding: {
           intro: [
-            'This is a reference for tricks: the named moves players do. Every trick is a base move with modifiers layered on top, and the more you layer, the harder it gets.',
-            'That difficulty has a score called ADD (added difficulty). The simplest moves are 1 or 2; layer enough on and a trick can reach 7 or more.',
+            'This is a reference for tricks: the named moves players do. Many documented tricks can be understood as a base movement with sets, modifiers, or other structures layered around it; additional recognized components increase the ADD total.',
+            'That count is called ADD (added difficulty), freestyle\'s traditional component accounting. Foundational moves are 1 or 2; layer enough on and a trick can reach 7 or more.',
+            'Freestyle is generative: new combinations remain possible, community terminology continues to evolve, and no dictionary can claim to enumerate every trick that has been performed or could be performed. This dictionary records the tricks and structures we can document well enough to describe consistently.',
           ],
           definitions: [
-            { term: 'ADD', plain: 'how hard a trick is, as a number; the more you layer on, the higher it goes.' },
+            { term: 'ADD', plain: 'a count of the trick\'s recognized components; the more you layer on, the higher it goes.' },
             { term: 'Dex', plain: 'a dexterity move, where your leg circles the bag.' },
             { term: 'Family', plain: 'a group of tricks built on the same base move.' },
             { term: 'Modifier', plain: 'a twist you add to a base move, like a spin, a hip-pivot, or a change of timing.' },
@@ -9826,7 +9827,7 @@ export const freestyleService = {
             ],
           },
           lenses: [
-            { label: 'By difficulty (ADD)', note: 'easiest to hardest' },
+            { label: 'By ADD', note: 'lowest to highest component count' },
             { label: 'By family', note: 'grouped by the base move' },
             { label: 'By set', note: 'grouped by useful launch-set groupings' },
             { label: 'By modifier', note: 'grouped by useful body and timing modifiers' },
@@ -9868,12 +9869,12 @@ export const freestyleService = {
           titleLabel: 'Emerging Vocabulary',
           titleHref:  '/freestyle/observational',
           sentence:
-            'the cutting edge. New trick names from PassBack, Footbag.org, ' +
-            'FootbagMoves, and Stanford, still taking shape.',
+            'trick names and readings still being confirmed, from PassBack, ' +
+            'Footbag.org, FootbagMoves, and Stanford.',
         },
         dictionaryStats:
-          `Most tricks here come with a full page: what the move is, how it's done, and how hard ` +
-          `it is. ${fmtCount(canonicalCount)} have one, and public search also finds them through ` +
+          `Most tricks here come with a full page: what the move is, how it's done, and how its ` +
+          `ADD is built. ${fmtCount(canonicalCount)} have one, and public search also finds them through ` +
           `${fmtCount(searchableAliasCount)} aliases and alternate names. The wider documented trick-name universe spans ` +
           `${fmtCount(documentedUniverseTotal)} names from across the community; the ones still being written ` +
           'up are gathered under Emerging Vocabulary. That historical universe is preserved as names resolve ' +

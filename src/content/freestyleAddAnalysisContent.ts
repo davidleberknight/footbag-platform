@@ -137,7 +137,7 @@ export interface AddAnalysisContent {
 
 const PHILOSOPHY_PARAGRAPH =
   'The IFPA (International Footbag Players Association) attempts to provide a structural reading for every accepted trick. ' +
-  'Some readings are exact: settled by community rulings over many years. ' +
+  'Some readings are exact: working rulings adopted by this encyclopedia and applied consistently. ' +
   'Some are approximate: readable through known operator vocabulary but ' +
   'not yet settled. Some are observational: names the community ' +
   'uses for tricks whose breakdown is still under discussion. Many ' +

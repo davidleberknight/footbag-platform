@@ -294,9 +294,9 @@ export const ROOT_TERMINAL_FAMILIES: readonly GlossaryFamilyCard[] = [
       },
     ],
     teaching: {
-      hook: 'A great first dexterity to learn: Mirage is one of the simplest complete dexterity movements, and the idea much of freestyle is built from.',
+      hook: 'Mirage is among the first complete dexterity tricks many players learn, and the idea much of freestyle is built from.',
       physicalDescription:
-        'A Mirage is one of the simplest complete dexterity movements. The opposite leg circles the bag once, from inside to outside, and the bag returns to the same toe that set it; the circling leg performs the dexterity but does not make the catch. That is the whole trick, which is why it is usually one of the first dexterities a player learns.',
+        'A Mirage is a complete dexterity movement. The opposite leg circles the bag once, from inside to outside, and the bag returns to the same toe that set it; the circling leg performs the dexterity but does not make the catch. That is the whole trick, which is why it is usually one of the first dexterities a player learns.',
       importance:
         'Much of freestyle grows from Mirage. Once you understand it, a large part of the harder material becomes combinations or modifications of the same idea: add an operator, change the surface, or stack it, and you have dozens of tricks that all rest on the mirage you already know.',
       variantsIntro:

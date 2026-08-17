@@ -176,7 +176,7 @@ describe('Mirage teaching copy does not overclaim its position', () => {
     });
   }
   it('the glossary family card uses the approved non-exclusive phrasing', () => {
-    expect(GLOSSARY).toContain('one of the simplest complete dexterity movements');
+    expect(GLOSSARY).toContain('among the first complete dexterity tricks many players learn');
     expect(GLOSSARY).toContain('one of the first dexterities a player learns');
   });
 });

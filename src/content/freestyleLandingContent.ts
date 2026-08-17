@@ -105,7 +105,8 @@ export interface CoreTrickSpec {
   operationalNotation: string;
 }
 
-// Twelve irreducible core tricks per the curator-authoritative atom registry.
+// Twelve foundational core tricks per the curator-authoritative atom registry
+// (the encyclopedia's working teaching basis, not a closed primitive set).
 //
 // Equivalence arrays are empty: synonym trivia like `≡ ATW`,
 // `≡ outside-in mirage`, `≡ reverse around-the-world` is not symbolic

@@ -97,9 +97,9 @@ export const HISTORY_NARRATIVE: HistoryNarrative = {
     {
       id: 'difficulty',
       heading: 'Difficulty became a moving ceiling',
-      summaryLine: 'ADD gives difficulty a number, and each generation pushes the ceiling higher.',
+      summaryLine: 'Freestyle counts trick components in ADD, and each generation pushes the ceiling higher.',
       paragraphs: [
-        'Difficulty in freestyle has a name and a number. A trick\'s added difficulty is measured in ADD, and the harder the combination, the higher the score. The record of the hardest documented sequences reads like a moving ceiling: a seven-trick run scored in the low twenties in the late 2000s, with a cluster of the next-hardest sequences spread across two decades of play.',
+        'Freestyle traditionally counts recognized trick components in ADD; combinations with more counted components receive higher ADD totals, though equal ADD does not imply equal execution difficulty. The record of the hardest documented sequences reads like a moving ceiling: a seven-trick run scored in the low twenties in the late 2000s, with a cluster of the next-hardest sequences spread across two decades of play.',
         'Each generation pushed that ceiling higher, and it could only rise because the vocabulary underneath it kept expanding. A single new modifier could lift the whole scale: when blurry, which adds a fast rotation to tricks players already knew, came into the vocabulary, it raised the top of the difficulty curve, and runs in which every trick cleared a high ADD threshold became the new mark of a top performance. Difficulty is not separate from the language; it is the language getting richer, measured.',
       ],
       links: [

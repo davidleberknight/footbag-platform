@@ -1698,11 +1698,12 @@ describe('Glossary improvements + history refresh', () => {
     expect(res.text).not.toContain('The Two-Phase Story');
   });
 
-  it('history page frames difficulty as a moving ceiling measured in ADD', async () => {
+  it('history page frames difficulty as a moving ceiling counted in ADD, never equating ADD with execution difficulty', async () => {
     const res = await request(createApp()).get('/freestyle/history');
     expect(res.text).toContain('id="difficulty"');
     expect(res.text).toMatch(/Difficulty became a moving ceiling/);
-    expect(res.text).toMatch(/measured in ADD/);
+    expect(res.text).toMatch(/counts recognized trick components in ADD/);
+    expect(res.text).toMatch(/equal ADD does not imply equal execution difficulty/);
     expect(res.text).not.toContain('history-add-system-decomposition-note');
   });
 

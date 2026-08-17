@@ -307,8 +307,8 @@ describe('GET /freestyle/tricks — browse axes and their explanations', () => {
     // count and no review-queue framing on this surface; the observational
     // page itself carries the detail.
     expect(res.text).toContain('class="dict-emerging-line"');
-    expect(res.text).toMatch(/<a href="\/freestyle\/observational">Emerging Vocabulary<\/a>: the cutting edge\./);
-    expect(res.text).toContain('PassBack, Footbag.org, FootbagMoves, and Stanford, still taking shape.');
+    expect(res.text).toMatch(/<a href="\/freestyle\/observational">Emerging Vocabulary<\/a>: trick names and readings still being confirmed/);
+    expect(res.text).toContain('from PassBack, Footbag.org, FootbagMoves, and Stanford.');
     expect(res.text).not.toContain('unconfirmed names');
   });
 
@@ -347,8 +347,10 @@ describe('GET /freestyle/tricks — beginner orientation bridge', () => {
     for (const add of ['1 ADD', '2 ADD', '3 ADD', '4 ADD']) {
       expect(res.text).toContain(add);
     }
-    // The four exploration lenses in beginner wording.
-    expect(res.text).toContain('By difficulty (ADD)');
+    // The four exploration lenses in beginner wording; ADD framed as a
+    // component count, never as an execution-difficulty ranking.
+    expect(res.text).toContain('By ADD');
+    expect(res.text).toContain('lowest to highest component count');
     expect(res.text).toContain('grouped by the base move');
     expect(res.text).toContain('grouped by useful launch-set groupings');
     expect(res.text).toContain('grouped by useful body and timing modifiers');
@@ -362,8 +364,9 @@ describe('GET /freestyle/tricks — beginner orientation bridge', () => {
     for (const term of ['ADD', 'Dex', 'Family', 'Modifier']) {
       expect(defs, `term ${term}`).toContain(`<dt>${term}</dt>`);
     }
-    // Plain-language glosses, not insider phrasing.
-    expect(defs).toContain('how hard a trick is');
+    // Plain-language glosses, not insider phrasing; ADD glossed as a
+    // component count rather than a difficulty measure.
+    expect(defs).toContain('a count of the trick');
     expect(defs).toContain('your leg circles the bag');
     expect(defs).toContain('built on the same base move');
     expect(defs).toContain('a twist you add to a base move');
