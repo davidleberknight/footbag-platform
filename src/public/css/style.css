@@ -5146,6 +5146,45 @@ a.hashtag--media:hover {
   margin-bottom: 8px;
 }
 
+/* Curator upload status line. The upload script writes progress and refusals
+   here, including the browser-side size refusal that stops an oversized video
+   before any of it leaves the page. It takes the same notice treatment as the
+   server-side banners on this form, because a refusal set in plain body text
+   reads as ordinary form copy and the curator clicks Upload again. Empty until
+   the script writes to it, so it occupies nothing at rest. */
+.upload-form [data-async-status] {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+  font-size: 1rem;
+  margin-bottom: 24px;
+}
+.upload-form [data-async-status]:empty {
+  display: none;
+}
+.upload-form [data-async-status][data-kind='info'] {
+  background: var(--info-bg);
+  border-left: 4px solid var(--info-accent);
+  color: var(--info-text);
+}
+.upload-form [data-async-status][data-kind='error'] {
+  background: var(--danger-bg);
+  border-color: var(--danger-border);
+  border-left: 4px solid var(--danger-accent);
+  color: var(--danger-text);
+}
+.upload-form [data-async-status][data-kind='success'] {
+  background: var(--success-bg);
+  border-color: var(--success-border);
+  border-left: 4px solid var(--success-accent);
+  color: var(--success-text);
+}
+.upload-form [data-async-progress] {
+  display: block;
+  width: 100%;
+  margin-bottom: 24px;
+}
+
 /* Sort indicator on admin curator media list column headers. */
 .curator-list .sort-indicator {
   font-size: 0.9em;

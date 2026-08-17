@@ -13,11 +13,21 @@
  *
  * The suite runs against the smallest cap the configuration admits so the
  * oversized case is a couple of megabytes rather than a couple of hundred.
+ *
+ * The last block covers the browser-side half of the same contract. It takes
+ * the form exactly as the server renders it, evaluates the real upload script
+ * against that markup, and drives a real oversized file through it. Asserting
+ * the script's logic against hand-written markup would not do: the enhancement
+ * once shipped selecting its form on an attribute the markup never carried, so
+ * it returned immediately and refused nothing, and nothing that tested the two
+ * halves separately could see it. Only the rendered page and the shipped script
+ * together prove the refusal reaches a curator.
  */
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { Readable } from 'node:stream';
+import { Window } from 'happy-dom';
 
 const TEST_DB_PATH = path.join(os.tmpdir(), `footbag-test-curator-oversize-${Date.now()}.db`);
 const TEST_MEDIA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-media-oversize-'));
@@ -147,5 +157,80 @@ describe('POST /admin/curator/upload with a file over the per-file ceiling', () 
     expect(res.status).toBe(200);
     expect(res.text).toContain(`up to ${CAP_LABEL.replace(' ', '&nbsp;')}`);
     expect(res.text).toContain(`data-video-max-bytes="${CAP_BYTES}"`);
+  });
+});
+
+const UPLOAD_SCRIPT = path.join(process.cwd(), 'src', 'public', 'js', 'admin-curator-upload.js');
+
+/**
+ * The upload page as the server renders it, with the shipped upload script
+ * evaluated against it. External resources are left unfetched: the only script
+ * that runs is the one under test, evaluated explicitly.
+ */
+async function renderedFormWithScript() {
+  const app = createApp();
+  const res = await request(app).get('/admin/curator/upload').set('Cookie', adminCookie());
+  expect(res.status).toBe(200);
+
+  const window = new Window({
+    settings: { disableJavaScriptFileLoading: true, disableCSSFileLoading: true },
+  });
+  window.document.write(res.text);
+  window.document.close();
+  window.eval(fs.readFileSync(UPLOAD_SCRIPT, 'utf8'));
+  // The script defers to DOMContentLoaded while the document is still parsing.
+  if (window.document.readyState === 'loading') {
+    window.document.dispatchEvent(new window.Event('DOMContentLoaded'));
+  }
+  return window;
+}
+
+/** A file of a given size, which is all the size check reads. */
+function fileOfSize(window: InstanceType<typeof Window>, bytes: number, name: string) {
+  return new window.File([new Uint8Array(bytes)], name, { type: 'video/mp4' });
+}
+
+function chooseVideo(window: InstanceType<typeof Window>, file: unknown) {
+  const input = window.document.querySelector('.upload-tab-panel-video input[name="mediaFile"]');
+  expect(input, 'the video panel input the script scopes its lookups to').not.toBeNull();
+  Object.defineProperty(input, 'files', { value: [file], configurable: true });
+  input!.dispatchEvent(new window.Event('change', { bubbles: true }));
+}
+
+describe('the upload page and the upload script, together', () => {
+  it('refuses an oversized video in the page, before any of it is sent', async () => {
+    const window = await renderedFormWithScript();
+    const form = window.document.querySelector('form[action="/admin/curator/upload"]');
+    expect(form, 'the form the script selects on').not.toBeNull();
+
+    chooseVideo(window, fileOfSize(window, CAP_BYTES * 3, 'too-big.mp4'));
+
+    const status = window.document.querySelector('[data-async-status]');
+    expect(status!.textContent).toBe(
+      `That video is 3.0 MB. The maximum is ${CAP_LABEL.replace('1 MB', '1.0 MB')}. Pick a smaller file.`,
+    );
+    expect((status as unknown as HTMLElement).dataset.kind).toBe('error');
+
+    const submit = new window.Event('submit', { bubbles: true, cancelable: true });
+    form!.dispatchEvent(submit);
+    expect(submit.defaultPrevented, 'the submit that would have sent the file').toBe(true);
+
+    await window.happyDOM.close();
+  });
+
+  it('lets a file under the cap through, so the refusal is not a blanket block', async () => {
+    const window = await renderedFormWithScript();
+    const form = window.document.querySelector('form[action="/admin/curator/upload"]');
+
+    chooseVideo(window, fileOfSize(window, 1024, 'small-enough.mp4'));
+
+    const status = window.document.querySelector('[data-async-status]');
+    expect(status!.textContent).toBe('');
+
+    const submit = new window.Event('submit', { bubbles: true, cancelable: true });
+    form!.dispatchEvent(submit);
+    expect(submit.defaultPrevented, 'a submit the page had no reason to stop').toBe(false);
+
+    await window.happyDOM.close();
   });
 });
