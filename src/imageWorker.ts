@@ -32,7 +32,7 @@ import {
   type TranscodedVideo,
   type VideoTranscodeTuning,
 } from './lib/videoProcessing';
-import { readHostMemAvailableBytes } from './lib/hostMemory';
+import { readHostMemAvailableBytes, TRANSCODE_ADMISSION_REFUSAL } from './lib/hostMemory';
 import { Semaphore } from './lib/semaphore';
 
 // Whitelisted libx264 preset names. Off-list values are rejected at boot to
@@ -317,7 +317,7 @@ export function createImageWorkerApp(opts: ImageWorkerOptions = {}): express.Exp
         }) + '\n',
       );
       res.set('Retry-After', '60');
-      res.status(503).json({ error: 'host memory below transcode admission floor' });
+      res.status(503).json({ error: TRANSCODE_ADMISSION_REFUSAL });
       return true;
     }
     return false;

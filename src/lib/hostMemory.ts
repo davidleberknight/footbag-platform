@@ -12,6 +12,17 @@
 import { readFileSync } from 'node:fs';
 
 /**
+ * The refusal the media container answers with when the host is below the
+ * floor. Defined here because both sides of the HTTP boundary need it and this
+ * module is the one leaf both may load: the media container writes it into the
+ * 503 body, and the dispatcher recognises it to tell a host-memory refusal
+ * apart from a saturated worker. Two literals would drift, and the drift would
+ * be silent, showing only as a misleading failure sentence on an admin's
+ * screen.
+ */
+export const TRANSCODE_ADMISSION_REFUSAL = 'host memory below transcode admission floor';
+
+/**
  * MemAvailable in bytes, or null when /proc/meminfo is unreadable or has no
  * parseable MemAvailable line (a non-Linux dev machine, an exotic kernel).
  * Callers decide the null posture; the reader itself never throws.

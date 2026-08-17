@@ -531,6 +531,44 @@ describe('busy-refusal waits', () => {
     }
   });
 
+  it('names the host memory floor when that, and not saturation, was the refusal', async () => {
+    vi.useFakeTimers();
+    try {
+      expectLoggedError('transcodeWorker: finalize failed');
+      const jobId = seedExpiredProcessing();
+      const events: CapturedEvent[] = [];
+      const w = makeWorker({
+        finalize: async () => {
+          // The shape the adapter builds from the media worker's 503 body.
+          throw new VideoTranscodingError(
+            'video worker returned 503: {"error":"host memory below transcode admission floor"}',
+            503,
+            60,
+          );
+        },
+        events,
+        maxRetries: 1,
+      });
+
+      await w.reapExpiredProcessing();
+      await vi.advanceTimersByTimeAsync(400_000);
+      await w.pendingForTests();
+
+      const row = readRow(jobId);
+      expect(row?.state).toBe('failed');
+      // Waiting and re-uploading is the answer to a saturated worker and not to
+      // a starved host, which refuses the next upload exactly the same way, so
+      // the two refusals must not share one sentence.
+      expect(row?.last_error).toBe(
+        'the host stayed below its transcode memory floor through every retry; ' +
+          'uploads keep being refused until the host has more memory free',
+      );
+      expect(row?.last_error).not.toContain('503');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('a non-busy failure still fails through the retry path unchanged', async () => {
     expectLoggedError('transcodeWorker: finalize failed');
     const jobId = seedExpiredProcessing();

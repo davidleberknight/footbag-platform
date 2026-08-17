@@ -32,6 +32,7 @@ import {
 } from './config/env';
 import { VideoTranscodingError } from './adapters/videoTranscodingAdapter';
 import { Semaphore } from './lib/semaphore';
+import { TRANSCODE_ADMISSION_REFUSAL } from './lib/hostMemory';
 import {
   getMediaJobService,
   MEDIA_JOB_LAST_ERROR_MAX_LENGTH,
@@ -119,6 +120,30 @@ function defaultPostEvent(secret: string | undefined): WebEventPoster {
       });
     }
   };
+}
+
+/**
+ * The admin-facing sentence for a busy refusal that outlasted every wait, or
+ * null when the failure was not a busy refusal at all. A short actionable
+ * sentence replaces the wrapped HTTP body, because the admin's lever is what to
+ * do next, not the transport detail.
+ *
+ * The two refusals are told apart because they ask different things of whoever
+ * reads them. A saturated worker clears on its own, so waiting and re-uploading
+ * is the whole answer. A host that stayed under its transcode memory floor will
+ * refuse the next upload the same way, and pointing that reader at "wait and
+ * try again" sends them round a loop that cannot end until the host is given
+ * more free memory.
+ */
+function busyRefusalMessage(err: unknown): string | null {
+  if (!(err instanceof VideoTranscodingError) || err.status !== 503) return null;
+  if (err.message.includes(TRANSCODE_ADMISSION_REFUSAL)) {
+    return (
+      'the host stayed below its transcode memory floor through every retry; ' +
+      'uploads keep being refused until the host has more memory free'
+    );
+  }
+  return 'the media worker stayed busy through every retry; wait a few minutes and re-upload';
 }
 
 function defaultFinalize(): FinalizeImpl {
@@ -239,16 +264,13 @@ export function createTranscodeWorker(opts: TranscodeWorkerOptions = {}): Transc
           // Bounded once here: this string is persisted as last_error and
           // rides the retrying/failed events to the admin's browser, and an
           // upstream failure can arrive carrying a wrapped response body of
-          // arbitrary size. A busy refusal that outlasted every wait gets a
-          // short actionable sentence instead of the wrapped HTTP body: the
-          // admin's lever is when to re-upload, not the transport detail.
+          // arbitrary size.
           const message =
-            err instanceof VideoTranscodingError && err.status === 503
-              ? 'the media worker stayed busy through every retry; wait a few minutes and re-upload'
-              : (err instanceof Error ? err.message : String(err)).slice(
-                  0,
-                  MEDIA_JOB_LAST_ERROR_MAX_LENGTH,
-                );
+            busyRefusalMessage(err) ??
+            (err instanceof Error ? err.message : String(err)).slice(
+              0,
+              MEDIA_JOB_LAST_ERROR_MAX_LENGTH,
+            );
           logger.error('transcodeWorker: finalize failed', { jobId: attempt.id, error: message });
           let terminal = false;
           try {

@@ -179,6 +179,106 @@ cmd_all_logs()    { banner "all logs --tail=${1:-80}";    compose logs        --
 # ---------------- Host ----------------
 
 cmd_mem()     { banner "free -h"; free -h; }
+
+# One /proc/meminfo figure in kB, empty when the line is absent. The key names
+# carry no digits, so stripping everything but digits leaves the value.
+meminfo_kb() {
+  local line
+  line=$(grep -m1 "^${1}:" /proc/meminfo 2>/dev/null || true)
+  [[ -n "$line" ]] || { printf ''; return; }
+  printf '%s' "$line" | tr -dc '0-9'
+}
+
+# Where the host's RAM actually goes. The transcode admission gate compares
+# MemAvailable against a floor, so a host that sits below its floor admits no
+# encode at all, and the floor can only be chosen honestly against a full
+# account of the consumers: the containers, the container runtime and system
+# services, and any in-RAM compressed swap store, which holds real RAM that
+# never appears as available. Swap is reported with priorities because which
+# device takes a page first decides whether a spike lands on disk or in RAM.
+cmd_memory_detail() {
+  banner "free -h"
+  free -h
+
+  banner "/proc/meminfo (the figures the admission floor is compared against)"
+  grep -E '^(MemTotal|MemFree|MemAvailable|Buffers|Cached|SReclaimable|Shmem|SwapTotal|SwapFree):' /proc/meminfo
+
+  banner "Swap devices, in priority order (higher priority takes pages first)"
+  sudo swapon --show 2>/dev/null || echo "(no swap devices)"
+
+  banner "Compressed in-RAM swap store"
+  # Reported as empty rather than silent: an operator reading this has to be
+  # able to tell "no such device" from "the command printed nothing".
+  local out
+  if command -v zramctl >/dev/null 2>&1; then
+    out=$(sudo zramctl 2>/dev/null || true)
+    [[ -n "$out" ]] && echo "$out" || echo "(no zram devices)"
+  else
+    echo "(zramctl not installed)"
+  fi
+  echo ""
+  echo "Units:"
+  out=$(systemctl list-units --all --no-pager --no-legend '*zram*' 2>/dev/null || true)
+  [[ -n "$out" ]] && echo "$out" || echo "(no zram units)"
+  echo ""
+  echo "Generator configuration (decides whether it comes back after a reboot):"
+  for f in /etc/systemd/zram-generator.conf /usr/lib/systemd/zram-generator.conf; do
+    if [[ -f "$f" ]]; then
+      echo "--- $f"
+      cat "$f"
+    else
+      echo "--- $f (absent)"
+    fi
+  done
+
+  banner "Top 15 processes by resident set"
+  ps -eo rss,pid,user,comm --sort=-rss 2>/dev/null | head -16
+
+  banner "Per-container memory"
+  sudo docker stats --no-stream 2>/dev/null || echo "(docker stats unavailable)"
+}
+
+# Samples available memory across a window and reports the minimum reached.
+# The floor has to clear the deepest dip an encode actually causes, and a
+# steady-state reading taken before or after one does not show that dip; only
+# a sample running through the encode does.
+cmd_memory_watch() {
+  local seconds="${1:-300}"
+  local interval=2
+  if [[ -z "$(meminfo_kb MemAvailable)" ]]; then
+    echo "ERROR: /proc/meminfo has no MemAvailable line; nothing to sample." >&2
+    exit 2
+  fi
+  banner "Sampling host memory every ${interval}s for ${seconds}s"
+  echo "Start the upload now. The minimum reached is the figure the admission floor must clear."
+  echo ""
+  printf '%-9s %16s %13s\n' 'elapsed' 'MemAvailable' 'SwapFree'
+  local start=$SECONDS
+  local elapsed avail_kb swapfree_kb
+  local min_avail_kb='' min_swapfree_kb=''
+  while (( SECONDS - start < seconds )); do
+    elapsed=$(( SECONDS - start ))
+    avail_kb=$(meminfo_kb MemAvailable)
+    swapfree_kb=$(meminfo_kb SwapFree)
+    [[ -n "$avail_kb" ]] || avail_kb=0
+    [[ -n "$swapfree_kb" ]] || swapfree_kb=0
+    printf '%-9s %13s MB %10s MB\n' "${elapsed}s" "$(( avail_kb / 1024 ))" "$(( swapfree_kb / 1024 ))"
+    if [[ -z "$min_avail_kb" ]] || (( avail_kb < min_avail_kb )); then
+      min_avail_kb=$avail_kb
+    fi
+    if [[ -z "$min_swapfree_kb" ]] || (( swapfree_kb < min_swapfree_kb )); then
+      min_swapfree_kb=$swapfree_kb
+    fi
+    sleep "$interval"
+  done
+  banner "Minimum reached over ${seconds}s"
+  echo "MemAvailable: $(( min_avail_kb / 1024 )) MB"
+  echo "SwapFree    : $(( min_swapfree_kb / 1024 )) MB"
+  echo ""
+  echo "A swap figure that fell during the window means the encode's working set"
+  echo "went to disk, which costs encode time against the ffmpeg budget."
+}
+
 cmd_disk() {
   banner "df -h /"
   df -h /
@@ -758,6 +858,10 @@ staging_diagnostics.sh — subcommands
 
   Host
     mem                      free -h
+    memory-detail            where the RAM goes: meminfo, swap priorities,
+                             compressed in-RAM swap, top processes, containers
+    memory-watch [seconds]   sample available memory across an upload and report
+                             the minimum reached (default 300s)
     disk                     df -h plus DB file sizes
     systemd                  systemctl status footbag.service
 
@@ -845,6 +949,8 @@ main() {
     all-logs)             cmd_all_logs "${1:-80}" ;;
 
     mem)                  cmd_mem ;;
+    memory-detail)        cmd_memory_detail ;;
+    memory-watch)         cmd_memory_watch "${1:-300}" ;;
     disk)                 cmd_disk ;;
     systemd)              cmd_systemd ;;
 
