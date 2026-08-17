@@ -18,7 +18,7 @@ This file does not duplicate:
 
 ## 2. Philosophy and non-negotiables
 
-The operational non-negotiables (tests verify user-story intent and not accidental current code behavior, tests describe long-term contracts not sprint-scoped probes, coverage thresholds set in `vitest.config.ts` are non-negotiable floors that ratchet up over time, `.skip` and `.todo` and `xit` are forbidden) live in `.claude/rules/testing.md` and `.claude/rules/doc-governance.md` and apply unchanged. The two non-negotiables that belong specifically to this strategic document are stated below.
+The operational non-negotiables (tests verify user-story intent and not accidental current code behavior, tests describe long-term contracts not sprint-scoped probes, coverage thresholds set in `vitest.config.ts` are floors enforced by a CI job and raised deliberately, `.skip` and `.todo` and `xit` are forbidden) live in `.claude/rules/testing.md` and `.claude/rules/doc-governance.md` and apply unchanged. The two non-negotiables that belong specifically to this strategic document are stated below.
 
 ### 2.1 Privacy and secrets handling are part of the test contract
 
@@ -787,10 +787,8 @@ The db-load smoke gate runs the loader pipeline against fixed fixtures on every 
 
 Tests that fail intermittently are quarantined, not ignored. The quarantine mechanism:
 
-- A flaky test is tagged `@quarantined` with a comment giving the reason and a tracking issue in the maintainers' private tracker (per §4.5 gap-tracking format).
-- Quarantined tests have a 7-day deadline. The maintainer is notified at the deadline. The test is either fixed or the underlying surface is patched.
-- Quarantined tests do not block merge but are reported as a separate CI signal.
-- The quarantine count is a health metric. Sustained growth indicates test-suite or surface decay and triggers a maintenance pass.
+- A flaky test in the browser suite is tagged `@quarantined` with a comment giving the reason and a tracking issue in the maintainers' private tracker (per §4.5 gap-tracking format). The browser-suite config excludes the tag from every default run, so a quarantined test runs only when selected by name. The main suite has no quarantine mechanism: a flaky test there is fixed or deleted.
+- A quarantine is temporary by intent, and the tracking issue is what carries the deadline. Quarantine count is a health signal the maintainer reads off those issues; sustained growth means the suite or the surface is decaying.
 - `.skip`, `.todo`, and `xit` remain forbidden per `.claude/rules/testing.md`. Quarantine is the only legitimate skip path, and it is time-bounded.
 - Test retries to mask flake are not used. A test that needs retries to pass is a test that does not deserve to pass.
 
@@ -812,7 +810,7 @@ The project is AI-assisted. Every test-run output is tokens in the agent's conte
 | Pre-commit | Before commit | Tests touching files in the uncommitted diff, plus lint + typecheck | `npx vitest run --changed && npm run lint && npx tsc --noEmit` |
 | Pre-push | Before push to remote | Full unit + integration suite | `npm test` |
 | CI on push | Automated | Full suite + `audit-ci --moderate` + full Playwright e2e + CodeQL | CI workflow |
-| On-demand deep audits | Operator-invoked when a covered surface changes | Mutation short list, header walk, production-residue audit, optional ZAP | `npm run test:pentest:heavy` and per-audit scripts |
+| On-demand deep audits | Operator-invoked when a covered surface changes | Mutation short list, header walk, production-residue audit, optional ZAP | `npm run test:mutation` for the mutation short list; `npm run test:pentest:heavy` and per-audit scripts for the rest |
 | Post-deploy smoke gate | Every staging or production deploy | `scripts/smoke-local.sh` + `scripts/smoke-security.sh`, invoked by the deploy scripts | Automatic |
 | Staging-AWS adapter smoke | After changes to staging AWS identity, keys, or IAM | `npm run test:smoke` | Operator-invoked |
 
@@ -832,7 +830,7 @@ CI logs, CI artifacts, Playwright reports, traces, screenshots, and failure outp
 
 Coverage thresholds set in `vitest.config.ts` are floors per `.claude/rules/testing.md`. They are a leading indicator of test absence, not of test quality. A surface at one hundred percent line coverage with no adversarial tests is still under-tested.
 
-Overall coverage is an aspirational, best-effort goal, not a fixed percentage; the enforced ratchet floor (fail-on-drop) lives in `vitest.config.ts`. Catastrophic-severity surfaces (auth, session, member privacy, payments, identity claim) target 100% coverage and are verified by inspection of the tests themselves, not just by the coverage number. For general code, 100% is not a blanket target; forcing coverage of error branches and dead-code paths produces contrived tests without catching real bugs.
+Overall coverage is an aspirational, best-effort goal, not a fixed percentage; the floor that a drop trips lives in `vitest.config.ts` and is enforced by the CI coverage job. Catastrophic-severity surfaces (auth, session, member privacy, payments, identity claim) are verified by inspection of the tests themselves rather than by a per-surface percentage, since a percentage is satisfied by any test that executes the line. For general code, 100% is not a blanket target; forcing coverage of error branches and dead-code paths produces contrived tests without catching real bugs.
 
 Quarantine count (§11.3) is a separate signal; sustained growth is a maintenance issue.
 
@@ -843,7 +841,7 @@ Uncovered branches are also a read-targeting signal: they are where both the tes
 Property-based testing (fast-check) and mutation testing (Stryker) are not universal tier-promotion requirements. They are tools to reach for when a specific surface justifies the cost.
 
 - fast-check: useful for validators, encoders, anti-enumeration helpers, idempotency invariants, and security-critical pure functions. Install and adopt on the slice that introduces the first property-shaped surface; do not pre-install for hypothetical future need.
-- Stryker: useful for security-critical pure functions and parsers when there is evidence the existing test suite is structurally weak on that module. Adopted for the authorization guards on exactly that evidence, and scoped to them; widen one subtree at a time, only once the current scope holds its score. Never part of a quick loop — the runner forces single-threaded test execution, so a baseline pass costs several minutes however little is mutated.
+- Stryker: useful for security-critical pure functions and parsers when there is evidence the existing test suite is structurally weak on that module. Adopted for the authorization guards on exactly that evidence, and scoped to them; widen one subtree at a time, only once the current scope holds its score. Never part of a quick loop, and the cost is hours rather than minutes: the run executes the whole suite once with coverage tracking before it tests a single mutant, which is about a quarter-hour on its own however little is mutated, and it then re-runs, per mutant, every test that executes the mutated line. A module on the request hot path is executed by most of the suite, so mutating one costs hours and re-measures the same tests thousands of times. Scope a sweep to the leaf modules of a subtree and leave the hot-path modules out of it; those are assessed by reading their branches and breaking a chosen few by hand, which answers the same question at a cost that fits inside a working session. Give the run the machine to itself: CPU contention produces timeout-based false kills, and a false kill inflates the score the run exists to measure.
 
 Decisions to adopt either tool, and the specific surface they target, are tracked in the maintainers' private tracker, not here.
 
@@ -861,7 +859,7 @@ Before writing tests for a surface, the AI reads the relevant `docs/USER_STORIES
 
 ### 13.2 Human review is required
 
-No AI-written test lands without human review. Branch protection enforces this at the merge gate. The human review covers:
+No AI-written test lands without human review. The maintainer reviews every change before it is committed, which is where this is enforced; nothing in the platform's automation can vouch for a test's intent. The human review covers:
 
 - The user story success criterion has been understood and is reflected in test names and assertions.
 - For catastrophic-severity surfaces, applicable STRIDE categories (§4.2) are covered, and the verification floor (§4.5) is met or its gap is tracked in the maintainers' private tracker.
@@ -948,7 +946,7 @@ The platform's testing toolchain consists of:
 - *Playwright.* Browser automation. Config at `tests/playwright.config.ts`. Single-worker chromium-only headless lightweight suite.
 - *Test fixtures.* `tests/fixtures/factories.ts` (synthetic row factories), `tests/fixtures/testDb.ts` (DB setup and teardown), `tests/fixtures/personas.ts` (member plus tier grant plus JWT plus Playwright cookie composition).
 - *fast-check.* Property-based testing for TypeScript. Selective use for validators, encoders, anti-enumeration helpers, idempotency invariants, and security-critical pure functions. Not a universal test-tier requirement; introduced on a per-surface basis when an invariant-shaped assertion benefits from it.
-- *Stryker (TypeScript).* Mutation testing: breaks a guard one edit at a time and reports whether any test notices, which is the measure coverage cannot give. Wired as an opt-in gate (`--with-mutation`, included in `--full`), scoped to the authorization guards rather than the whole codebase, with its sandbox and report written outside the repository. Config in `stryker.config.json`; test selection in `vitest.mutation.config.ts`.
+- *Stryker (TypeScript).* Mutation testing: breaks a guard one edit at a time and reports whether any test notices, which is the measure coverage cannot give. Wired as an opt-in gate (`--with-mutation`, which no other flag implies, `--full` included), scoped to the authorization guards rather than the whole codebase, with its sandbox and report written outside the repository. Config in `stryker.config.json`; test selection in `vitest.mutation.config.ts`.
 - *@axe-core/playwright.* Accessibility automated checks for the lightweight Playwright suite per §14.1, tagged `@a11y`, plus the smoke-tagged subset on high-traffic public pages.
 - *OWASP ZAP.* Heavyweight pentest scanner. Used in the on-demand heavyweight pentest gate per §9.3. Scripted invocation against the local stack or a dedicated pentest staging environment; report aggregation; findings produce regression tests per §9.6.
 - *Pairwise generator.* PICT, ACTS, or an equivalent. Used by the technique selector per §4.4 for matrix-shaped threats. May be hand-derived for small matrices; the generator becomes mandatory when the role-by-surface-by-method matrix exceeds 32 combinations.
@@ -1186,5 +1184,5 @@ A periodic audit of test completeness walks this checklist top to bottom. Each l
 9. **Admin operational surfaces.** Work-queue resolution, club cleanup, leadership reassignment, curator media, audit-log view, and system-config each have allow and deny authorization cells (the matrix, §4.6) and audit-emission assertions. Pass: no admin state-changing route lacks a deny cell or an audit assertion.
 10. **UI and design conformance (§14).** The no-nested-forms convention gate (`scripts/ci/assert_conventions.sh`) plus the e2e primary-form-submission check; the card-uniformity contract across browse views; and accessibility axe `@a11y` checks on business-critical surfaces against WCAG 2.1 AA. Automated visual-diff regression is deferred (§14.3). Pass: the convention gate is green, the card contract holds, and `@a11y` runs in CI on every push and in the full local suite.
 11. **Cross-cutting generative sweeps.** CSRF Origin-pin over the live route table, the route-by-persona authorization matrix (allow, deny, and adjacent-owner), ledger-immutability triggers, anti-enumeration equivalence, and session and token temporal contracts. Pass: each sweep enumerates from the live route table or schema, so a newly added surface is covered by construction rather than by memory.
-12. **Coverage floor (§12).** The `vitest.config.ts` thresholds hold, and catastrophic surfaces are verified by inspection of the tests, not by the number alone. Pass: thresholds are met, or the shortfall is a tracked item in the maintainers' private tracker.
+12. **Coverage floor (§12).** The `vitest.config.ts` thresholds are enforced by the CI coverage job, and catastrophic surfaces are verified by inspection of the tests rather than by a number. Pass: the coverage job is wired into the aggregate gate and green, and no threshold has been lowered to admit new code.
 13. **Email catalog (§5.9).** Every promised email has a registered template — a typed shaper, its variant keys, and a committed sidecar — covered by the catalog and conformance sweeps, plus a per-email enqueue test; the shared drain, retry, dead-letter, and idempotency mechanics are covered once over `communicationService`. Pass: the firing sweep enumerates the catalog and every entry has its send site and enqueue test, or the gap is a tracked item in the maintainers' private tracker.

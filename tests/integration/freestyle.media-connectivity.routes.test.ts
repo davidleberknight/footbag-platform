@@ -1,9 +1,13 @@
 /**
  * Media connectivity: the family-detail and set-detail pages surface the media
- * the platform already owns. A family member (or set example trick) that has
- * curated reference media renders a gallery link to /media/browse?context=<slug>,
- * and the page shows a single "watch a clip from this family/set" representative
- * link to the strongest-covered member. Members without media render no link.
+ * the platform already owns, one member trick at a time. A family member (or set
+ * example trick) that has curated reference media renders a gallery link to
+ * /media/browse?context=<slug>; a member without media renders no link.
+ *
+ * Neither page promotes one member's gallery as the family's or the set's own
+ * clip. The media hashtag vocabulary is trick-scoped, so no family-level or
+ * set-level gallery exists to link to, and a page-level "watch a clip" link
+ * could only borrow one arbitrary member's gallery and mislabel it.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -49,25 +53,38 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('Family detail surfaces its members\' media', () => {
-  it('renders a gallery link for a covered member and a representative-media link', async () => {
+  it('renders a gallery link for a covered member and none for an uncovered one', async () => {
     const res = await request(await createApp()).get('/freestyle/families/whirl');
     expect(res.status).toBe(200);
     const html = res.text;
     // Per-member gallery link (Handlebars escapes '=' to &#x3D;).
     expect(html).toContain('/media/browse?context&#x3D;paradox_whirl');
-    // The family-level "watch a clip" representative link.
-    expect(html).toContain('Watch a clip from this family');
     // The uncovered member renders no gallery link.
     expect(html).not.toContain('/media/browse?context&#x3D;spinning_whirl');
+  });
+
+  it('promotes no single member gallery as the family\'s own clip', async () => {
+    const res = await request(await createApp()).get('/freestyle/families/whirl');
+    const html = res.text;
+    expect(html).not.toContain('Watch a clip from this family');
+    // The invented coverage vocabulary reached a visitor only here.
+    expect(html).not.toContain('Tutorial available');
+    expect(html).not.toContain('Demo available');
   });
 });
 
 describe('Set detail surfaces its example tricks\' media', () => {
-  it('renders a gallery link for a covered example trick and a representative-media link', async () => {
+  it('renders a gallery link for a covered example trick', async () => {
     const res = await request(await createApp()).get('/freestyle/sets/atomic');
     expect(res.status).toBe(200);
+    expect(res.text).toContain('/media/browse?context&#x3D;atomic_mirage');
+  });
+
+  it('promotes no single example gallery as the set\'s own clip', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets/atomic');
     const html = res.text;
-    expect(html).toContain('/media/browse?context&#x3D;atomic_mirage');
-    expect(html).toContain('Watch a clip from this set');
+    expect(html).not.toContain('Watch a clip from this set');
+    expect(html).not.toContain('Tutorial available');
+    expect(html).not.toContain('Demo available');
   });
 });

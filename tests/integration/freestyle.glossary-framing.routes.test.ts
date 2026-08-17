@@ -61,7 +61,8 @@ describe('Glossary framing — Reading the dictionary section', () => {
     expect(block).toMatch(/canonical trick name/);
     expect(block).toMatch(/#hashtag/);
     expect(block).toMatch(/interpretation \/ decomposition/);
-    expect(block).toMatch(/media badge/);
+    // The row carries a Media link when the trick has clips, not a badge.
+    expect(block).toMatch(/Media<\/a> link when the trick has clips/);
     // Line 2 slots
     expect(block).toContain('Line 2');
     expect(block).toMatch(/JOB/);
@@ -485,7 +486,7 @@ describe('Glossary — media claim-scope (L6)', () => {
     expect(html).toContain('href="/media"');
   });
 
-  it('is reachable from the line-1 media badge mention', async () => {
+  it('is reachable from the line-1 media mention', async () => {
     const html = await glossary();
     expect(html).toContain('href="#section-media-claim-scope"');
   });

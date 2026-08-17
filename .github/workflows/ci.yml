@@ -191,6 +191,37 @@ jobs:
       - name: Run integration tests
         run: npm run test:integration
 
+  coverage:
+    name: Coverage thresholds
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Set up Python
+        # The coverage run is the whole unit + integration suite, which includes
+        # the test that drives the legacy club extractors as real subprocesses.
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: legacy_data/requirements.txt
+
+      - name: Install Python pipeline dependencies
+        run: python3 -m pip install -r legacy_data/requirements.txt
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run the suite with coverage and enforce the thresholds
+        run: npm run test:coverage
+
   db-load-smoke:
     name: DB load smoke (loader regression gate)
     runs-on: ubuntu-latest
@@ -335,7 +366,7 @@ jobs:
 
   ci-complete:
     name: Type-check and test
-    needs: [typecheck, lint, dependency-audit, secret-scan, conventions, harness, unit-tests, integration-tests, db-load-smoke, e2e, security-probes, codeql, terraform]
+    needs: [typecheck, lint, dependency-audit, secret-scan, conventions, harness, unit-tests, integration-tests, coverage, db-load-smoke, e2e, security-probes, codeql, terraform]
     runs-on: ubuntu-latest
     if: always()
 
@@ -350,6 +381,7 @@ jobs:
              [ "${{ needs.harness.result }}" != "success" ] || \
              [ "${{ needs.unit-tests.result }}" != "success" ] || \
              [ "${{ needs.integration-tests.result }}" != "success" ] || \
+             [ "${{ needs.coverage.result }}" != "success" ] || \
              [ "${{ needs.db-load-smoke.result }}" != "success" ] || \
              [ "${{ needs.e2e.result }}" != "success" ] || \
              [ "${{ needs.security-probes.result }}" != "success" ] || \
@@ -364,6 +396,7 @@ jobs:
             echo "  harness: ${{ needs.harness.result }}"
             echo "  unit-tests: ${{ needs.unit-tests.result }}"
             echo "  integration-tests: ${{ needs.integration-tests.result }}"
+            echo "  coverage: ${{ needs.coverage.result }}"
             echo "  db-load-smoke: ${{ needs.db-load-smoke.result }}"
             echo "  e2e: ${{ needs.e2e.result }}"
             echo "  security-probes: ${{ needs.security-probes.result }}"

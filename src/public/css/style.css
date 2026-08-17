@@ -9063,28 +9063,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   font-style: italic;
 }
 
-.dict-card-media-chip {
-  display: inline-block;
-  margin: 8px 0 0 0;
-  font-size: 0.9rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: 2px 8px;
-  border-radius: var(--radius-2xs);
-}
-.dict-card-media-chip--tutorial {
-  background: var(--success-tint);       /* green-100 */
-  color: var(--success-text);            /* green-800 */
-}
-.dict-card-media-chip--demo {
-  background: var(--warn-tint);       /* amber-100 */
-  color: var(--warn-text);            /* amber-800 */
-}
-.dict-card-media-chip--record {
-  background: var(--bg-subtle);
-  color: var(--text-secondary);
-}
-
 /* Small italic pill for curator-flagged folk-derived
  * / mechanically-ambiguous rows. Renders inline with the ADD chip; muted
  * tone so it never competes with the trick title or notation row.
@@ -9165,7 +9143,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   text-indent: 0;
   padding-inline-start: 0;
 }
-.dict-card--registry .dict-card-media-chip,
 .dict-card--registry .dict-card-status-badge {
   font-size: 0.9rem;
   padding: 1px 6px;
@@ -9213,10 +9190,9 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   line-height: 1.5;
 }
 .dict-card--browse .dict-card-equivalence .sem-token + .sem-token { margin-left: 0.35em; }
-/* ADD chip + media chip + status badge sit on their own row each in browse
-   density, in DOM order. inline-block keeps the chip compact (not full-width). */
+/* ADD chip + status badge sit on their own row each in browse density, in DOM
+   order. inline-block keeps the chip compact (not full-width). */
 .dict-card--browse .dict-card-add,
-.dict-card--browse .dict-card-media-chip,
 .dict-card--browse .dict-card-status-badge {
   display: inline-block;
 }
@@ -11940,10 +11916,6 @@ a.set-detail-trick-media {
 }
 a.set-detail-trick-media:hover {
   text-decoration: underline;
-}
-/* Family / set page "watch a clip" representative-media link. */
-.family-representative-media {
-  font-size: 0.9rem;
 }
 .set-detail-examples-empty {
   font-style: italic;

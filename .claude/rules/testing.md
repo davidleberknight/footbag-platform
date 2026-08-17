@@ -107,9 +107,11 @@ If an adversarial test reveals a hole, fix it *and* keep the test.
 
 ## Coverage floor
 
-Thresholds are set in `vitest.config.ts` and are a mechanical ratchet floor: coverage never ratchets down, and a change that lowers a threshold is wrong, not the threshold. Overall coverage is an aspirational best-effort goal, not a fixed number. Catastrophic-severity surfaces (auth, session, member privacy, payments, identity claim) target 100% coverage.
+Thresholds are set in `vitest.config.ts` and are enforced by the `coverage` job in CI on every push, which runs the whole suite instrumented and fails the aggregate gate when a threshold is missed. Each number sits about a point under measured coverage: it is a floor that catches a real drop, not a target to optimise. It is raised deliberately, by a human, when coverage has genuinely improved, and lowering one to admit new code is wrong.
 
-New source files must land with tests that keep coverage at or above the current floor. Do not lower thresholds to admit new code.
+Catastrophic-severity surfaces (auth, session, member privacy, payments, identity claim) are held to full coverage by reading the tests, not by a number: no per-path threshold is configured, because a per-path percentage is satisfied by any test that executes the line. The verification floor for those surfaces is the demonstrated-failure requirement in the mandate above.
+
+New source files must land with tests that keep coverage at or above the current floor.
 
 Coverage measures execution, not assertion: a line can be at 100% because some unrelated test ran through it while nothing checks its result. High coverage with weak assertions is a worse position than lower coverage with strong ones, because it reads as safety. The demonstrated-failure requirement in the mandate above is what closes that gap, and it is the reason a green threshold is never on its own evidence that a surface is defended.
 

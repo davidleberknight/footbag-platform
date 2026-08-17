@@ -9,8 +9,7 @@
  *     1. trick title (.dict-card-title)
  *     2. symbolic formula (.dict-card-equivalence  OR  .dict-card-notation)
  *     3. ADD chip (.dict-card-add)
- *     4. media chip (.dict-card-media-chip)
- *     5. status badge (.dict-card-status-badge)
+ *     4. status badge (.dict-card-status-badge)
  *
  *   Density modes (`registry` / `browse`) may differ in:
  *     - element wrapping types (<span> vs <p>)
@@ -18,11 +17,10 @@
  *     - font sizes / weights / paddings
  *
  *   Density modes MUST NOT differ in:
- *     - DOM order of the five canonical slots above
+ *     - DOM order of the four canonical slots above
  *     - title link href / display name
  *     - ADD label string
  *     - first-reading token text
- *     - media chip label
  *
  *   The DOM order is enforced by asserting positional ordering: for each
  *   pilot trick, the FIRST occurrence of each class-name marker within the

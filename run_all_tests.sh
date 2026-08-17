@@ -3,9 +3,11 @@
 #
 # Runs every CI gate that is SAFE to run on a developer workstation: type-check,
 # lint, dependency audit, convention gate, secret scan, unit + integration
-# (vitest), the legacy-data pipeline suite (pytest), e2e (Playwright), and
-# terraform fmt/validate. Prints a per-gate pass/fail summary and exits non-zero
-# if any gate fails.
+# (vitest), the coverage thresholds, the blocking security probes, the
+# legacy-data pipeline suite (pytest), e2e (Playwright), and terraform
+# fmt/validate. Prints a per-gate pass/fail summary and exits non-zero if any
+# gate fails. Under --full the set of gates matches CI, save for the three CI
+# jobs listed below that cannot run here.
 #
 # SAFE BY DESIGN — never touches real data:
 #   - It NEVER invokes the loader-pipeline scripts (scripts/reset-local-db.sh,
@@ -17,10 +19,17 @@
 #     writes real data fails the run instead of clobbering.
 #   The test suites themselves write only to os.tmpdir() / mktemp.
 #
-# The live-AWS adapter smoke suite (test:smoke) and the db-load-smoke loader
-# gate are NOT part of the default run:
+# Three CI jobs have no local counterpart here, by design or by tooling:
 #   - db-load-smoke: CI-only (writes legacy_data fixtures; safe only on an empty
-#     checkout). Do not run it locally.
+#     checkout). Do not run it locally. The real-data safety rule outranks
+#     gate-for-gate parity with CI.
+#   - CodeQL static analysis: GitHub-hosted, and its findings are triaged in the
+#     repository's code-scanning view rather than at a terminal.
+#   - dependency-review: a GitHub Action over a pull request's dependency diff,
+#     with no standalone form; the audit gate here covers the whole tree.
+#
+# The live-AWS adapter smoke suite (test:smoke) is likewise not part of the
+# default run:
 #   - test:smoke: operator workstation against staging AWS; opt in with
 #     --with-smoke (needs the staging AWS profile and an initialized
 #     terraform/staging; the entry point sets its own vitest gating).
@@ -28,12 +37,12 @@
 #     (boots a throwaway stack; the OWASP ZAP leg needs Docker, else it skips).
 #
 # Usage:
-#   ./run_all_tests.sh              # full safe suite: build, lint, audit, conventions, generated-content, secret-scan, unit, integration, python-pipeline, e2e, terraform
+#   ./run_all_tests.sh              # default safe suite: build, lint, audit, conventions, harness, generated-content, secret-scan, unit, integration, e2e, terraform
 #   ./run_all_tests.sh --quick      # fast loop: skips e2e + terraform
 #   ./run_all_tests.sh --with-smoke # additionally run the staging-AWS adapter smoke suite
 #   ./run_all_tests.sh --with-realdata-invariants # read-only whole-population invariants over a loaded real dataset (dev load or staging)
 #   ./run_all_tests.sh --pentest    # additionally run the heavyweight pentest harness (boots a stack; ZAP leg needs Docker)
-#   ./run_all_tests.sh --full       # everything a non-operator can run: full suite + pentest (the operator-only staging-AWS smoke shows as SKIP)
+#   ./run_all_tests.sh --full       # everything a non-operator can run: full suite + coverage + security probes + pentest (the operator-only staging-AWS smoke shows as SKIP)
 #   ./run_all_tests.sh --fail-fast  # stop at the first failing gate
 #   ./run_all_tests.sh --help
 
@@ -85,8 +94,8 @@ Usage: ./run_all_tests.sh [--quick] [--with-smoke] [--with-persona-crawl] [--wit
 Canonical local full-suite test runner. Runs the CI gates that are safe on a
 workstation and summarizes the results.
 
-Default (no flags): build, lint, audit, conventions, generated-content,
-secret-scan, unit, integration, e2e, terraform.
+Default (no flags): build, lint, audit, conventions, harness,
+generated-content, secret-scan, unit, integration, e2e, terraform.
 
 Options:
   --quick       Fast inner loop: skips e2e + terraform.
@@ -127,8 +136,11 @@ Options:
                 the security-header walk, internal-route, and upload-abuse
                 probes plus the Docker-gated OWASP ZAP baseline. Opt-in because
                 it is slow and the ZAP leg needs Docker; CI does not run it.
-  --full        Everything a non-operator can run: the full suite plus --pentest
-                and the persona crawl. The staging-AWS adapter smoke is
+  --full        Everything a non-operator can run: the full suite plus the
+                coverage thresholds, the blocking security probes, --pentest
+                and the persona crawl. With it, the gate set matches CI apart
+                from db-load-smoke, CodeQL, and dependency-review (see the
+                header). The staging-AWS adapter smoke is
                 operator-only and never part of --full; it shows as a SKIP row.
                 Run it deliberately with --with-smoke (operator workstation). The persona crawl
                 likewise SKIPs (with a warning) when the dev DB lacks the operator
@@ -148,6 +160,8 @@ trees before/after to prove nothing changed.
 
 Not run here:
   - db-load-smoke (loader pipeline): runs in CI on every push (clean checkout).
+  - CodeQL static analysis and the pull-request dependency review: GitHub-hosted,
+    with no local form.
   - test:smoke (live staging AWS): opt in with --with-smoke from the operator
     workstation.
   - test:pentest:heavy (heavyweight pentest): opt in with --pentest; boots a
@@ -415,6 +429,42 @@ gate_pentest() {
   reclaim_port 3000
   reclaim_port 4001
   npm run test:pentest:heavy
+}
+
+gate_security_probes() {
+  # The blocking security probes both deploy scripts run against a deployed
+  # target (auth-gate enforcement, anti-enumeration response equivalence, the
+  # dev-surface environment contract), pointed at a throwaway local stack so the
+  # same contract is checked before a push rather than only after a deploy. The
+  # anti-enumeration probe needs the canonical personas registered, which is why
+  # the refresh call runs before the probes. The stack writes only to
+  # os.tmpdir(), so the no-real-data guard stays satisfied.
+  reclaim_port 3000
+  reclaim_port 4001
+  bash scripts/e2e/start-stack.sh &
+  local stack_pid=$! rc=0 i
+  for i in $(seq 1 60); do
+    curl -fsS http://127.0.0.1:3000/health/ready >/dev/null 2>&1 && break
+    sleep 1
+  done
+  if curl -fsS http://127.0.0.1:3000/health/ready >/dev/null 2>&1; then
+    curl -fsS -X POST -H "Origin: http://127.0.0.1:3000" \
+      http://127.0.0.1:3000/dev/personas/refresh >/dev/null || rc=$?
+    if (( rc == 0 )); then
+      BASE_URL=http://127.0.0.1:3000 SMOKE_ENV=development \
+        bash scripts/smoke-security.sh || rc=$?
+    fi
+  else
+    echo "  stack never became ready — failing the gate." >&2
+    rc=1
+  fi
+  # The gate owns the stack it started: tear it down on every path, including
+  # failure, so no leaked server holds the port for the next gate or the next run.
+  kill -TERM "$stack_pid" 2>/dev/null || true
+  wait "$stack_pid" 2>/dev/null || true
+  reclaim_port 3000
+  reclaim_port 4001
+  return "$rc"
 }
 
 gate_persona_crawl() {
@@ -732,6 +782,17 @@ fi
 
 if (( PENTEST == 1 )); then
   run_gate pentest    gate_pentest
+fi
+
+# The coverage thresholds and the security probes mirror their CI jobs, and run
+# under --full only. Coverage re-runs the whole unit and integration suite with
+# instrumentation, several minutes on top of the suites the default run has
+# already executed, and it enforces a floor that catches a cliff (a deleted
+# suite, a large untested module) rather than measuring assertion strength,
+# which is the mutation gate's job. The probes boot a second throwaway stack.
+if (( FULL == 1 )); then
+  run_gate coverage        npm run test:coverage
+  run_gate security-probes gate_security_probes
 fi
 
 # The legacy-data pipeline suite runs under --full only. CI runs it on every

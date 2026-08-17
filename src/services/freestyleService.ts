@@ -1087,9 +1087,10 @@ export const SOURCE_LABELS: Readonly<Record<string, string>> = {
 //
 // Tier semantics:
 //   - TUTORIAL:      explicit teaching intent (technique cues, breakdown).
-//                    Drives "Tutorial available" badge and tutorialMedia bucket.
+//                    Drives the 'tutorial' coverage state and the tutorialMedia
+//                    bucket.
 //   - DEMONSTRATION: single-clip "what the trick looks like done well",
-//                    no teaching intent. Drives "Demo only" badge.
+//                    no teaching intent. Drives the 'demo' coverage state.
 //   - RECORD:        competitive consecutive-completion clips. Surfaced via
 //                    /freestyle/records and the Passback Records table on
 //                    trick-detail; never appears in the Reference Media
@@ -2653,8 +2654,8 @@ export type TrickMediaCoverage = 'tutorial' | 'demo' | 'record' | 'none';
 // there, whatever its source. The one coverage state that does not link is a
 // trick whose only footage is a competition record's own video: that video sits
 // on the record row rather than in the media library, so /media/browse?context=
-// <slug> would open an empty gallery. It renders a plain, non-clickable token
-// (and its own "Record video" chip), never a dead link. This is the single
+// <slug> would open an empty gallery. It renders a plain, non-clickable token,
+// never a dead link. This is the single
 // authoritative linkable-coverage predicate shared by the browse cards and the
 // set-detail example rows, and it agrees with the trick-detail gallery gate.
 function hasLinkableMediaCoverage(coverage: TrickMediaCoverage): boolean {
@@ -2690,7 +2691,6 @@ export interface FreestyleTrickIndexRow {
   recordHref: string | null;    // kept for backwards compatibility — same as detailHref when hasRecords
   hasMedia: boolean;            // back-compat boolean; equals (mediaCoverage !== 'none')
   mediaCoverage: TrickMediaCoverage;  // tier-aware coverage classification
-  mediaCoverageLabel: string;   // pre-shaped chip text: 'Tutorial available' / 'Demo available' / '' (none)
   isExternalOnly: boolean;      // true when row is is_active=0 + review_status='pending' (external placeholder)
   statusBadge: string | null;   // pre-shaped status text; null for plain canonical rows
   placeholderNote: string | null; // pre-shaped note rendered under the row when isExternalOnly = true
@@ -2785,9 +2785,8 @@ export interface DictionaryTrickCard {
   statusBadge:                string | null;                 // adjudication-state badge for external placeholders
   placeholderNote:            string | null;                 // adjudication-state explainer (status, not prose description)
   hasRecords:                 boolean;                       // tiny indicator only; not visually load-bearing
-  hasReferenceMedia:          boolean;                       // true when any media badge applies (tutorial, demo, or a record's own video)
-  mediaCoverage:              TrickMediaCoverage;            // 'tutorial' | 'demo' | 'record' | 'none' — drives optional chip
-  mediaCoverageLabel:         string;                        // pre-shaped chip text: 'Tutorial available' / 'Demo available' / 'Record video' / '' (none)
+  hasReferenceMedia:          boolean;                       // true when media of any kind covers the trick (tutorial, demo, or a record's own video)
+  mediaCoverage:              TrickMediaCoverage;            // 'tutorial' | 'demo' | 'record' | 'none'; rendered as the row's data-media-coverage attribute
   trickFamily:                string | null;                 // reserved for future family-axis affordance
   // Curator-authored flag for folk-derived /
   // mechanically-ambiguous rows. Drives a small italic pill on the
@@ -2970,9 +2969,6 @@ export interface FreestyleSetDetailContent {
   relatedSystems:       readonly SlugLinkVM[];
   exampleTricks:        readonly SetDetailExampleTrick[];
   hasExampleTricks:     boolean;
-  // A single "watch a clip from this set" link: the strongest-covered example
-  // trick's gallery, or null when no example trick has curated media.
-  representativeMedia:  { label: string; coverageLabel: string; href: string } | null;
   crossLinks:           SetDetailCrossLinks;
   source:               CanonicalSetSourceKey;
   sourceLabel:          string;
@@ -3015,7 +3011,6 @@ export interface SetDetailExampleTrick {
   operationalNotation: string;
   // Media-gallery destination for this trick's clips, or null when it has none.
   mediaHref:           string | null;
-  mediaLabel:          string;   // 'Tutorial available' / 'Demo available' / ''
 }
 
 export interface SetDetailCrossLinks {
@@ -3477,7 +3472,6 @@ export interface FamilyDetailMemberLink {
   // or null when the member has no curated reference media. Surfaces the media
   // the platform already owns on the family page, matching the browse-row hashtag.
   mediaHref: string | null;
-  mediaLabel: string;      // 'Tutorial available' / 'Demo available' / '' (none)
 }
 
 // One operator-depth band of member tricks (Core / 1 operator / ...).
@@ -3544,9 +3538,6 @@ export interface FreestyleFamilyDetailContent {
   // The family anchor trick's detail link, when the anchor is a dictionary
   // member (the Down umbrella has no anchor trick of its own).
   anchorTrick: { displayName: string; href: string } | null;
-  // A single "watch a clip from this family" link: the strongest-covered
-  // member's media gallery, or null when no family member has curated media.
-  representativeMedia: { label: string; coverageLabel: string; href: string } | null;
   sharedStructure: string | null;  // family invariant one-liner
   evolutionSteps: FamilyDetailEvolutionStep[];
   hasEvolution: boolean;
@@ -6111,7 +6102,6 @@ function shapeDictionaryTrickCard(
     hasRecords:                 indexRow.hasRecords,
     hasReferenceMedia:          indexRow.mediaCoverage !== 'none',
     mediaCoverage:              indexRow.mediaCoverage,
-    mediaCoverageLabel:         indexRow.mediaCoverageLabel,
     trickFamily:                indexRow.trickFamily,
     pendingDecomposition:       isUnresolvedCompound(indexRow.slug),
     coreAtomLabel,
@@ -6174,15 +6164,6 @@ function shapeTrickIndexRow(
     recordHref:      hasRecords ? detailHref : null,  // backwards compat
     hasMedia,
     mediaCoverage,
-    // Vocabulary normalized to `Tutorial available` /
-    // `Demo available`. The 'none' branch returns '' because the card
-    // partial gates the chip block on `hasReferenceMedia` — the prior
-    // 'No video yet' string was unreachable noise.
-    mediaCoverageLabel:
-      mediaCoverage === 'tutorial' ? 'Tutorial available'
-      : mediaCoverage === 'demo'   ? 'Demo available'
-      : mediaCoverage === 'record' ? 'Record video'
-      :                              '',
     isExternalOnly,
     statusBadge,
     placeholderNote,
@@ -11003,19 +10984,7 @@ export const freestyleService = {
       href:        card.href,
       addsLabel:   card.addsLabel,
       mediaHref:   card.hashtagHref,
-      mediaLabel:  card.mediaCoverageLabel,
     });
-
-    // Representative family media: the strongest-covered member (a tutorial over
-    // a demo), used for a single "watch a clip from this family" link near the
-    // top of the page. Pure projection over the coverage the browse rows use.
-    const pickRepresentativeMedia = (cards: DictionaryTrickCard[]) => {
-      const pick = cards.find(c => c.mediaCoverage === 'tutorial')
-        ?? cards.find(c => c.mediaCoverage === 'demo');
-      return pick && pick.hashtagHref
-        ? { label: pick.displayName, coverageLabel: pick.mediaCoverageLabel, href: pick.hashtagHref }
-        : null;
-    };
 
     // Umbrella family: a roster root with variant branches and no raw
     // trick_family rows of its own. Its members group by variant (the ruled
@@ -11065,12 +11034,6 @@ export const freestyleService = {
     const descendantCount = isUmbrella
       ? variantGroups.reduce((n, v) => n + v.memberCount, 0)
       : group.cards.length;
-
-    const representativeMedia = pickRepresentativeMedia(
-      isUmbrella
-        ? variantBranches.flatMap(b => buildFamilyGroup(b.slug, familyMap.get(b.slug) ?? [], ctx, rungOf).cards)
-        : group.cards,
-    );
 
     const rowBySlug = new Map(allRows.map(r => [r.slug, r]));
     const teaching: FamilyDetailTeaching | null = card?.teaching
@@ -11174,7 +11137,6 @@ export const freestyleService = {
         anchorTrick: anchorRow
           ? { displayName: anchorRow.canonical_name, href: `/freestyle/tricks/${anchorRow.slug}` }
           : null,
-        representativeMedia,
         sharedStructure: group.sharedStructure,
         evolutionSteps,
         hasEvolution:    evolutionSteps.length > 0,
@@ -11258,20 +11220,15 @@ export const freestyleService = {
       freestyleTricks.listAllWithPending.all() as FreestyleTrickRowWithStatus[],
     );
     const { ctx: setCtx } = buildTrickIndexShapingContext(allWithPending);
-    const mediaHrefFor = (s: string): { href: string | null; label: string } => {
+    // Record-only coverage gets no gallery link: a record's own video is not a
+    // curated gallery item, so the link would dead-end on an empty gallery. The
+    // linkable case resolves its gallery token the same way the browse rows and
+    // the trick detail page do, so a trick whose clips are tagged only under a
+    // folded alias links on that alias rather than on a canonical slug the
+    // gallery holds nothing under.
+    const mediaHrefFor = (s: string): string | null => {
       const cov = setCtx.mediaCoverageBySlug.get(s) ?? 'none';
-      if (cov === 'none') return { href: null, label: '' };
-      const label = cov === 'tutorial' ? 'Tutorial available'
-        : cov === 'demo' ? 'Demo available'
-        : cov === 'record' ? 'Record video'
-        : '';
-      // Record-only coverage keeps its informational label but no gallery link:
-      // a record's own video is not a curated gallery item, so the link would
-      // dead-end on an empty gallery. The linkable case resolves its gallery
-      // token the same way the browse rows and the trick detail page do, so a
-      // trick whose clips are tagged only under a folded alias links on that
-      // alias rather than on a canonical slug the gallery holds nothing under.
-      return { href: hasLinkableMediaCoverage(cov) ? galleryHrefForTrick(s, setCtx) : null, label };
+      return hasLinkableMediaCoverage(cov) ? galleryHrefForTrick(s, setCtx) : null;
     };
     const linkedTrickSlugs = new Set<string>(
       linkRows.filter(l => l.modifier_slug === set.slug).map(l => l.trick_slug),
@@ -11280,26 +11237,15 @@ export const freestyleService = {
       .map(s => rowsBySlug.get(s))
       .filter((r): r is FreestyleTrickRow => r !== undefined)
       .sort((a, b) => a.canonical_name.localeCompare(b.canonical_name))
-      .map(row => {
-        const m = mediaHrefFor(row.slug);
-        return {
-          slug:                row.slug,
-          displayName:         row.canonical_name,
-          href:                `/freestyle/tricks/${row.slug}`,
-          adds:                row.adds ?? null,
-          addsLabel:           row.adds ? `${row.adds} ADD` : '? ADD',
-          operationalNotation: row.operational_notation ?? '',
-          mediaHref:           m.href,
-          mediaLabel:          m.label,
-        };
-      });
-    // Representative set media: the strongest-covered example (tutorial over demo).
-    const setRepTrick =
-      exampleTricks.find(t => t.mediaLabel === 'Tutorial available')
-      ?? exampleTricks.find(t => t.mediaHref !== null);
-    const representativeMedia = setRepTrick && setRepTrick.mediaHref
-      ? { label: setRepTrick.displayName, coverageLabel: setRepTrick.mediaLabel, href: setRepTrick.mediaHref }
-      : null;
+      .map(row => ({
+        slug:                row.slug,
+        displayName:         row.canonical_name,
+        href:                `/freestyle/tricks/${row.slug}`,
+        adds:                row.adds ?? null,
+        addsLabel:           row.adds ? `${row.adds} ADD` : '? ADD',
+        operationalNotation: row.operational_notation ?? '',
+        mediaHref:           mediaHrefFor(row.slug),
+      }));
 
     // Compositional-sets anchor — map subtype → family key on /freestyle/compositional-sets.
     const compositionalFamilyKey: Record<SetSubtypeKey, string> = {
@@ -11390,7 +11336,6 @@ export const freestyleService = {
           href:  `/freestyle/sets/${r.slug}`,
         })),
         exampleTricks,
-        representativeMedia,
         hasExampleTricks:      exampleTricks.length > 0,
         crossLinks,
         source:                set.source,
