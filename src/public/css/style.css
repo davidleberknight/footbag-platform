@@ -71,6 +71,15 @@
   --radius-pill: 20px;
   --radius-full: 999px;
 
+  /* Clearance for a deep-linked target under the sticky site header. Every
+     anchored target on the site scrolls to this offset, so the heading a
+     reader followed the link to is the first thing they see rather than
+     something already hidden behind the header. The value must exceed the
+     header's real height, which is not one number: the nav row wraps at the
+     768px breakpoint and the header grows, so the override below matches it.
+     Measured against the rendered header, with a small gap on top. */
+  --anchor-offset: 100px;
+
   /* Hashtag token. A trick's hashtag is a link exactly when the trick has
      media, so the live and resting states must be told apart at a glance
      rather than by comparing two tokens. The live state steps up one size
@@ -291,6 +300,13 @@
   --blockers-brick: #a44a2c;
   --incomplete-gold: #c0b683;
   --composite-mauve: #5e3a55;
+}
+
+/* At and below the 768px breakpoint the header's nav row wraps to a second
+   line and the header grows by about 40px, so a deep-linked target needs the
+   larger clearance or it lands behind the taller header. */
+@media (max-width: 768px) {
+  :root { --anchor-offset: 145px; }
 }
 
 /* ── Base ───────────────────────────────────────────────────── */
@@ -694,11 +710,11 @@ th.sortable:hover { color: var(--primary); }
 .club-slug-group input { flex: 1; }
 
 /* ── Find Members card (member dashboard) ───────────────────── */
-.search-box-card { padding: 16px; scroll-margin-top: 80px; }
+.search-box-card { padding: 16px; scroll-margin-top: var(--anchor-offset); }
 /* A heading sitting in the card's flex row is a row item, not a stacked block:
    its bottom margin would push the input and buttons off centre. */
 .search-box-section .card-title { margin-bottom: 0; }
-#find-members { scroll-margin-top: 80px; }
+#find-members { scroll-margin-top: var(--anchor-offset); }
 .search-box-section { margin-bottom: 8px; }
 .search-box-card-results-head {
   display: flex;
@@ -3596,16 +3612,6 @@ a.hashtag--media:hover {
   text-decoration: underline;
   text-underline-offset: 2px;
 }
-/* External vocabulary not yet adjudicated into the canon: dashed rather than
-   solid, so a visible tag never implies the name is official. */
-.dict-card--external-placeholder .hashtag {
-  color: var(--text-subtle);
-  border: 1px dashed var(--border);
-  border-radius: var(--radius-2xs);
-  padding: 0 5px;
-  font-style: italic;
-}
-
 /* ── Trick dictionary: ADD-grouped beginner view ─────────────────────────── */
 .trick-view-toggle {
   font-size: 0.9rem;
@@ -3827,7 +3833,7 @@ a.hashtag--media:hover {
   border-left: 3px solid var(--warn-deep);
   padding-left: 8px;
   border-radius: var(--radius-2xs);
-  scroll-margin-top: 80px;
+  scroll-margin-top: var(--anchor-offset);
 }
 
 /* ── Long-form article measure (shared) ───────────────────────────────── */
@@ -4334,7 +4340,7 @@ a.hashtag--media:hover {
   font-size: 0.9rem;
 }
 .legal-section {
-  scroll-margin-top: 20px;
+  scroll-margin-top: var(--anchor-offset);
 }
 .legal-section p {
   margin: 8px 0 12px;
@@ -5925,79 +5931,6 @@ a.hashtag--media:hover {
 .trick-equivalence-topology-role-badge--historical { border-color: var(--historical-umber); color: var(--historical-umber-strong); }
 .trick-equivalence-topology-role-badge--doctrine-locked-alternate { border-color: var(--slate-400); color: var(--slate-600); }
 .trick-equivalence-topology-role-badge--deprecated { border-color: var(--deprecated-stone); color: var(--earth-300); font-style: italic; }
-
-/* Browse-card secondary row: surfaces the OPERATIONAL/JOB chain +
-   ADD breakdown beneath the primary card content for pilot first-class
-   slugs only. Compact + neutral; sits below the primary card body
-   without competing with non-first-class siblings on the same view.
-   Layout: row-direction flex so JOB and ADD sit side-by-side on wide
-   screens (one compact strip instead of two stacked blocks). In the
-   registry-density grid context the wrapper spans all columns so its
-   contents don't collapse into a single narrow grid cell. Stacks back
-   to vertical on narrow widths via the 520px media query below. */
-.dict-card-first-class-row {
-  margin: 6px 0 0 0;
-  padding: 6px 0 0 0;
-  border-top: 1px dashed var(--parch-300);
-  font-size: 0.9rem;
-  line-height: 1.4;
-  color: var(--earth-650);
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 2px 20px;
-}
-.dict-card--registry .dict-card-first-class-row {
-  grid-column: 1 / -1;
-}
-.dict-card-first-class-line {
-  margin: 0;
-  display: flex;
-  gap: 6px;
-  align-items: baseline;
-  flex-wrap: wrap;
-}
-.dict-card-first-class-label {
-  flex: 0 0 auto;
-  font-size: 0.9rem;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  color: var(--earth-gold);
-  text-transform: uppercase;
-}
-.dict-card-first-class-value {
-  flex: 1 1 auto;
-  min-width: 0;
-  background: transparent;
-  padding: 0;
-  font-size: 0.9rem;
-  color: var(--earth-650);
-  word-break: break-word;
-}
-/* Honest incomplete-state line: rendered when a first-class trick has
- * no upstream operational/Job notation. Visually muted so the row
- * reads as "row is here but data is genuinely absent" rather than
- * competing with the curator-authored Job/ADD content. */
-.dict-card-first-class-line--incomplete .dict-card-first-class-label {
-  color: var(--muted-gold);
-}
-.dict-card-first-class-incomplete {
-  flex: 1 1 auto;
-  min-width: 0;
-  font-size: 0.9rem;
-  font-style: italic;
-  color: var(--earth-300);
-  letter-spacing: 0.01em;
-}
-/* On narrow widths the side-by-side JOB/ADD strip stacks back to a
-   two-line block so the value can't squeeze; the side-by-side layout
-   above already wraps naturally on mid widths via flex-wrap. */
-@media (max-width: 480px) {
-  .dict-card-first-class-row {
-    flex-direction: column;
-    gap: 2px;
-  }
-}
 
 /* ── Compact content section ──────────────────────────────────────────────
    The dense variant of the content-section primitive. A page that stacks
@@ -8146,7 +8079,7 @@ a.trick-hero-meta-chip--media:hover {
 }
 
 /* /freestyle/observational: observational-layer cards.
- * Visually distinct from canonical dict-card to make the layer
+ * Visually distinct from a canonical dictionary row to make the layer
  * separation immediately legible. To keep observational entries from
  * reading as official: NO hashtag chip, NO ADD chip
  * with canonical styling, NO trick-detail link. */
@@ -8735,109 +8668,7 @@ a.trick-hero-meta-chip--media:hover {
  * case templates allowed.
  * ────────────────────────────────────────────────────────────────────── */
 
-/* Dictionary cards are the dictionary's surface of the shared symbolic-
-   object visual system. Same typography hierarchy as .core-trick-object
-   on the landing page and the glossary compression-flow: #slug (primary)
-   → ≡ equivalence (secondary, future) → notation (subordinate) → ADD chip.
-   The dictionary surface adds metadata rows below the symbolic-core
-   (aliases, media-coverage chip, status badge), the only
-   surface-specific extension. */
-.dict-card {
-  padding: 12px 14px 10px 14px;
-  margin-bottom: 14px;
-  background: transparent;
-  /* Container heaviness lifted: typography + whitespace carry object identity. */
-}
-.dict-card--external-placeholder {
-  opacity: 0.65;
-}
-
-/* No .dict-card-header wrapper is emitted.
-   Browse density stacks children directly so field order matches registry density:
-   title → formula → ADD chip → media chip → status badge → placeholder note. */
-.dict-card-title {
-  font-family: var(--font-body);
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: var(--secondary);
-  letter-spacing: 0.01em;
-  text-decoration: none;
-}
-.dict-card-detail,
-.dict-card-media {
-  font-family: var(--font-body);
-  font-size: var(--dict-control-size);
-  font-weight: 500;
-  color: var(--text-muted);
-  text-decoration: none;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-.dict-card-media:hover,
-.dict-card-detail:hover {
-  color: var(--secondary);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-.dict-card-add {
-  display: inline-block;
-  font-family: var(--font-body);
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--secondary);
-  background: transparent;
-  border: 1px solid var(--primary);
-  border-radius: var(--radius-2xs);
-  padding: 1px 7px;
-  letter-spacing: 0.02em;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.dict-card-add--unrated {
-  color: var(--text-subtle);
-  border-color: transparent;
-  font-style: italic;
-  font-weight: 500;
-}
-
-/* Equivalence readings inside dict cards. Inherits all typography from the
-   shared .core-trick-equivalence class. The .dict-card-equivalence modifier
-   adds a tiny top margin so ≡ lines breathe slightly from the header above. */
-.dict-card-equivalence {
-  margin-top: 4px;
-}
-.dict-card-equivalence:first-of-type {
-  margin-top: 6px;
-}
-.dict-card-aliases {
-  margin-top: 4px;
-  font-size: 0.9rem;
-  color: var(--text-muted);
-}
-/* Successive ≡ lines hug each other (same tight-stack rule as
-   .core-trick-equivalence on landing). */
-
-/* Notation is subordinate technical detail: clearly dimmer than the slug,
-   and (post-equivalence-rollout) clearly dimmer than equivalence readings. */
-.dict-card-notation {
-  display: block;
-  font-family: var(--font-body);
-  font-weight: 600;
-  font-size: 0.9rem;
-  line-height: 1.55;
-  background: transparent;
-  color: var(--secondary);
-  letter-spacing: 0.02em;
-  /* Hanging indent so wrapped continuation lines sit under the leading token. */
-  text-indent: -1.4em;
-  padding-inline-start: 1.4em;
-  word-break: normal;
-  overflow-wrap: break-word;
-  margin: 0;
-}
-
-/* ── ADD-view two-line row contract ──────────────────────────
+/* ── Browse-view two-line row contract ───────────────────────
    Every /freestyle/tricks?view=add row: line 1 = name/hashtag/≡/media;
    line 2 = JOB: + ADD:. No green ADD chip. Uniform structure across rows. */
 .dict-trick-row-stack {
@@ -8980,249 +8811,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   color: var(--text-muted);
 }
 
-/* JOB block container: wraps the operational-notation row with a small
-   "JOB" label prefix so the notation reads as a labeled metadata block,
-   consistent with the detail page's "Set notation" section, NOT as
-   loose body text. Applies across all browse views (ADD / family /
-   movement-system / sets / dex-count). */
-.dict-card-notation-block {
-  display: flex;
-  align-items: baseline;
-  gap: 0.4em;
-  margin: 0.25rem 0 0.1rem;
-}
-.dict-card-notation-block .dict-card-notation {
-  flex: 1 1 auto;
-  margin: 0;
-}
-.dict-card-notation-label {
-  flex: 0 0 auto;
-  font-family: var(--font-body);
-  font-size: 0.9rem;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  background: var(--bg-subtle);
-  padding: 0.06rem 0.4rem;
-  border-radius: var(--radius-2xs);
-  user-select: none;
-}
-.dict-card--registry .dict-card-notation-block {
-  display: inline-flex;
-  margin: 0;
-  gap: 0.35em;
-}
-.dict-card--registry .dict-card-notation-block .dict-card-notation {
-  display: inline;
-  text-indent: 0;
-  padding-inline-start: 0;
-}
-.dict-card-notation .op-token {
-  display: inline-block;
-  white-space: nowrap;       /* prevent mid-token wrapping (incl. fused tokens like "front whirl") */
-}
-.dict-card-notation--pending {
-  font-family: inherit;
-  font-style: italic;
-  color: var(--earth-300);
-  text-indent: 0;
-  padding-inline-start: 0;
-}
-
-.dict-card-aliases {
-  margin: 8px 0 0 0;
-  font-size: 0.9rem;
-  color: var(--earth-400);
-  line-height: 1.5;
-}
-.dict-card-aliases-label {
-  font-size: 0.9rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--earth-300);
-  margin-right: 4px;
-}
-
-.dict-card-status-badge {
-  margin: 8px 0 0 0;
-  font-size: 0.9rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--earth-400);
-  background: var(--parch-200);
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: var(--radius-2xs);
-}
-.dict-card-placeholder-note {
-  margin: 6px 0 0 0;
-  font-size: 0.9rem;
-  color: var(--earth-400);
-  line-height: 1.5;
-  font-style: italic;
-}
-
-/* Small italic pill for curator-flagged folk-derived
- * / mechanically-ambiguous rows. Renders inline with the ADD chip; muted
- * tone so it never competes with the trick title or notation row.
- * Source: freestyleUnresolvedCompounds.ts. Restraint: no severity scale,
- * no tooltip, no link, no category, strictly a binary honest hedge. */
-.dict-card-pending-pill {
-  display: inline-block;
-  margin: 0 0 0 6px;
-  font-size: 0.9rem;
-  color: var(--earth-400);
-  font-style: italic;
-  white-space: nowrap;
-}
-.dict-card-pending-pill em {
-  font-style: italic;
-}
-
-/* ─── Browse registry surface ────────────────────────────────
-   Registry density + semantic tokens + family-anchor emphasis.
-   Restraint discipline: 4-color budget; no decorative color; unknown
-   tokens neutral. */
-
-/* Semantic browse tokens. Four roles. Lowercase, body font (not mono).
-   Persistent across registry + browse densities. */
-.sem-token {
-  display: inline-block;
-  white-space: nowrap;
-  letter-spacing: 0.01em;
-}
-.sem-token--base-anchor      { color: var(--fern-500); font-weight: 500; }   /* core-family green */
-.sem-token--modifier         { color: var(--earth-gold); }                     /* modifier olive */
-.sem-token--side-positional  { color: var(--earth-300); font-size: 0.9em; }  /* neutral, slightly subordinate */
-.sem-token--unknown          { color: inherit; }
-
-/* Family-anchor emphasis. Solid underline on canonical-family + component
-   surfaces; dotted on observational topology. Data-anchor-style on the
-   group section drives the variant: purely declarative, no JS. */
-[data-anchor-style="solid"] .sem-token[data-anchor="true"] {
-  border-bottom: 1.5px solid var(--fern-500);
-  padding-bottom: 1px;
-  font-weight: 600;
-}
-[data-anchor-style="dotted"] .sem-token[data-anchor="true"] {
-  border-bottom: 1.5px dotted var(--fern-500);
-  padding-bottom: 1px;
-}
-
-/* ── Registry density: single-line cards for dense scanning ─────────────── */
-.dict-card-stack--registry {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.dict-card--registry {
-  display: grid;
-  grid-template-columns: minmax(8rem, max-content) 1fr max-content auto;
-  align-items: baseline;
-  column-gap: 0.85rem;
-  padding: 6px 10px;
-  margin-bottom: 0;
-  border-bottom: 1px solid var(--parch-150);
-}
-.dict-card--registry:last-child { border-bottom: none; }
-.dict-card--registry .dict-card-title {
-  font-size: 1rem;
-  font-weight: 500;
-  /* less dominant than browse-density title: slug becomes secondary identifier. */
-}
-.dict-card--registry .dict-card-add {
-  font-size: 0.9rem;
-}
-/* Operational-notation fallback when no ≡ reading is curated. Inline so it
-   stays on the registry row; reuses op-token coloring. */
-.dict-card-notation--inline {
-  font-size: 0.9rem;
-  background: transparent;
-  color: var(--text-subtle);
-  text-indent: 0;
-  padding-inline-start: 0;
-}
-.dict-card--registry .dict-card-status-badge {
-  font-size: 0.9rem;
-  padding: 1px 6px;
-}
-.dict-card-tokenized-reading {
-  font-size: 1rem;
-  line-height: 1.45;
-  display: inline;
-}
-.dict-card-tokenized-reading .sem-token + .sem-token { margin-left: 0.35em; }
-
-/* Registry-density inline ≡ reading: same class as browse, layout inline.
-   ≡ sigil markup is preserved (test-class contract) but visually suppressed
-   so the structural sentence reads cleanly in single-line layout. */
-.dict-card-equivalence--inline {
-  display: inline;
-  margin: 0;
-  font-size: 1rem;
-  line-height: 1.45;
-}
-.dict-card-equivalence--inline .core-trick-equiv-sigil {
-  display: none;
-}
-.dict-card-equivalence--inline .sem-token + .sem-token { margin-left: 0.35em; }
-
-/* ── Browse density: vertical stack, same field order as registry ──────────
-   The browse card stacks its direct children top-to-bottom in DOM order,
-   matching registry: title → formula → ADD → media → status → placeholder. */
-.dict-card--browse {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
-  padding: 8px 0;
-  border-bottom: 1px solid var(--parch-150);
-}
-.dict-card--browse:last-child { border-bottom: none; }
-.dict-card--browse .dict-card-title {
-  font-size: 1rem;
-  font-weight: 500;
-  /* notation becomes primary on the card (sem-token row); slug demotes to identifier. */
-}
-.dict-card--browse .dict-card-equivalence {
-  font-size: 1.25rem;
-  line-height: 1.5;
-}
-.dict-card--browse .dict-card-equivalence .sem-token + .sem-token { margin-left: 0.35em; }
-/* ADD chip + status badge sit on their own row each in browse density, in DOM
-   order. inline-block keeps the chip compact (not full-width). */
-.dict-card--browse .dict-card-add,
-.dict-card--browse .dict-card-status-badge {
-  display: inline-block;
-}
-
-/* Mobile: registry stacks to two lines (slug + ADD on row 1; reading on row 2). */
-@media (max-width: 480px) {
-  .dict-card--registry {
-    grid-template-columns: 1fr max-content;
-    grid-template-areas:
-      "title add"
-      "reading reading";
-    row-gap: 2px;
-  }
-  .dict-card--registry .dict-card-title { grid-area: title; }
-  .dict-card--registry .dict-card-add { grid-area: add; }
-  .dict-card-tokenized-reading {
-    grid-area: reading;
-    font-size: 1rem;
-  }
-  /* Both the symbolic-equivalence row AND the
-   * operational-notation fallback must explicitly land in the named
-   * "reading" grid area at mobile widths. Without these assignments
-   * the formula falls through grid-auto-flow placement and overlaps
-   * the title row. */
-  .dict-card--registry .dict-card-equivalence--inline,
-  .dict-card--registry .dict-card-notation--inline {
-    grid-area: reading;
-  }
-}
-
 /* Family-heading cross-link to a symbolic educational surface (e.g.
  * walking-progression), rendered on the By Family browse view. */
 .trick-family-cross-link {
@@ -9284,7 +8872,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 
 /* Component view. Two axes (body modifiers + set modifiers);
  * intentional duplication; axis-jump nav at top; per-group heading with
- * one-line body-mechanics definition above the dict-card-stack.
+ * one-line body-mechanics definition above the shared trick-row stack.
  *
  * Soft-retired: the retirement notice sits above the
  * duplication note when the view is reached directly. */
@@ -9397,41 +8985,9 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 .trick-component-group {
   margin: 28px 0 12px 0;
 }
-.component-group-heading {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  margin: 0 0 6px 0;
-}
-.component-group-heading h3 {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--earth-800);
-}
-.component-group-heading h3 a {
-  color: inherit;
-  text-decoration: none;
-}
-.component-group-heading h3 a:hover { text-decoration: underline; }
-.component-group-definition {
-  margin: 0 0 14px 0;
-  font-size: 0.9rem;
-  font-style: italic;
-  color: var(--earth-500);
-  line-height: 1.55;
-}
 
 @media (max-width: 480px) {
   .jump-bar { font-size: 0.9rem; }
-  .component-group-heading {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 2px;
-  }
 }
 
 /* Movement System view.
@@ -9477,57 +9033,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   line-height: 1.55;
   color: var(--earth-600);
 }
-.trick-movement-group {
-  margin: 24px 0 12px 0;
-}
-.movement-group-heading {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  margin: 0 0 6px 0;
-}
-.movement-group-heading h3 {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--earth-800);
-}
-.movement-group-heading h3 a {
-  color: inherit;
-  text-decoration: none;
-}
-.movement-group-heading h3 a:hover { text-decoration: underline; }
-.movement-group-definition {
-  margin: 0 0 14px 0;
-  font-size: 0.9rem;
-  font-style: italic;
-  color: var(--earth-500);
-  line-height: 1.55;
-}
-/* Per-modifier educational composition gloss.
- * Single italic line above the trick-card stack that reinforces that
- * modifiers like paradox read as compositional systems, not terminal
- * families. Sourced from MODIFIER_COMPOSITION_GLOSSES; null suppresses. */
-.movement-group-composition-gloss {
-  margin: -8px 0 14px 0;
-  font-size: 0.9rem;
-  color: var(--earth-600);
-  line-height: 1.55;
-  padding-left: 10px;
-  border-left: 2px solid var(--parch-400);
-}
-
-@media (max-width: 480px) {
-  .movement-group-heading {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 2px;
-  }
-}
-
 /* Topology view. Observational symbolic-grammar layer.
  * Six pedagogically-grounded educational groups; layer attribution visible. */
 .topology-view-note {
@@ -9544,20 +9049,15 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 .trick-topology-group {
   margin-top: 28px;
 }
-.topology-group-definition {
+/* One-line definition beneath a browse group's heading. Shared by every view
+   that carries one, so a group definition reads the same wherever it appears. */
+.topology-group-definition,
+.component-group-definition {
   margin: 0 0 14px 0;
   font-size: 0.9rem;
   font-style: italic;
   color: var(--earth-500);
   line-height: 1.55;
-}
-
-/* Mobile: scale title / ADD / notation slightly down. Browse density
- * already stacks its children, with no .dict-card-header to reflow. */
-@media (max-width: 480px) {
-  .dict-card-title { font-size: 1rem; }
-  .dict-card-add { font-size: 0.9rem; }
-  .dict-card-notation { font-size: 0.9rem; }
 }
 
 /* ── Freestyle landing: The Language of Freestyle Footbag ──────────
@@ -10562,18 +10062,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 /* ── Dictionary-to-glossary cross-links ────────────────────────────────────
    Cross-link affordances between dictionary and glossary surfaces.
 
-   Linked semantic tokens preserve the role-color and drop the underline so
-   the token reads as inline content not a screaming link. Underline appears
-   only on hover, signalling navigation without visual noise on every card. */
-.sem-token--linked {
-  text-decoration: none;
-}
-.sem-token--linked:hover,
-.sem-token--linked:focus {
-  text-decoration: underline;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 2px;
-}
 
 /* "See tricks using X →" deep-link footer on each modifier-feel card. */
 .glossary-modifier-card-tricks-link {
@@ -12228,7 +11716,7 @@ a.set-detail-trick-media:hover {
 /* The page's closing control, left-aligned with the content column above it. */
 .dict-back-to-top { margin: 24px 0 0; }
 /* Clears the sticky header so the anchor does not land under it. */
-#dictionary-top { scroll-margin-top: 80px; }
+#dictionary-top { scroll-margin-top: var(--anchor-offset); }
 /* Emerging Vocabulary: one quiet forward-looking line at the foot of the
    browse tile; the observational page carries the detail. */
 .dict-emerging-line {
@@ -12338,7 +11826,7 @@ a.set-detail-trick-media:hover {
 .trick-add-analysis,
 .trick-equivalence-topology,
 .notation-grammar-panel {
-  scroll-margin-top: 80px;
+  scroll-margin-top: var(--anchor-offset);
 }
 
 /* Tier-4 ADD derivation field list. */
@@ -12397,17 +11885,26 @@ a.set-detail-trick-media:hover {
 /* Deep-linkable browse and feature sections clear the sticky header. */
 .compositional-sets-audit,
 .freestyle-featured,
+/* Every browse-view group section is a deep-link target: the in-page jump bars
+   point at it, and readers share the anchor. The site header is sticky, so a
+   target with no offset scrolls its own heading underneath the header and the
+   reader lands mid-list with no idea which group they are in. One offset for
+   every group section on the page, so no view behaves differently from its
+   neighbours. */
+.trick-add-group,
 .trick-dex-count-group,
 .trick-family-group,
-.trick-category-group {
-  scroll-margin-top: 80px;
-}
-
-/* Card stack container (shared layout; the --registry variant tunes it). */
-.dict-card-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+.trick-category-group,
+.trick-set-group,
+.trick-modifier-cluster-section,
+.trick-modifier-group,
+.trick-topology-group,
+.trick-component-axis,
+.trick-component-group,
+.trick-movement-axis,
+.alt-surfaces,
+.alt-surface-group {
+  scroll-margin-top: var(--anchor-offset);
 }
 
 /* Modifier-cluster jump nav. */

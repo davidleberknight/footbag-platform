@@ -317,14 +317,14 @@
   </nav>
 
   {{#each content.modifierClusterView}}
-  <section class="content-section" id="cluster-{{key}}" data-anchor-style="solid">
+  <section class="content-section trick-modifier-cluster-section" id="cluster-{{key}}">
     <div class="section-heading">
       <h2>{{label}}</h2>
       <span class="section-count">{{trickCount}}</span>
     </div>
     <p class="modifier-cluster-blurb detail-muted">{{blurb}}</p>
     {{#each groups}}
-    <section class="trick-modifier-group" id="modifier-{{slug}}" data-anchor-style="dotted">
+    <section class="trick-modifier-group" id="modifier-{{slug}}">
       <div class="section-heading">
         <h3><a href="/freestyle/tricks?view=modifier#modifier-{{slug}}">{{name}}</a></h3>
         <span class="section-count">{{trickCount}}</span>
@@ -387,7 +387,7 @@
   </nav>
 
   {{#each content.setViewGroups}}
-  <section class="content-section trick-set-group" id="set-{{slug}}" data-anchor-style="solid">
+  <section class="content-section trick-set-group" id="set-{{slug}}">
     <div class="section-heading">
       <h2><a href="/freestyle/tricks?view=set#set-{{slug}}">{{label}}</a></h2>
       <span class="section-count">{{trickCount}}</span>
@@ -445,7 +445,7 @@
   {{/if}}
   {{#if content.familyGroups.length}}
   {{#each content.familyGroups}}
-  <section class="content-section trick-family-group" id="family-{{familySlug}}" data-anchor-style="solid">
+  <section class="content-section trick-family-group" id="family-{{familySlug}}">
     <div class="section-heading">
       <h2><a href="/freestyle/tricks?family={{familySlug}}">{{familyName}} family</a></h2>
       <span class="section-count">{{cards.length}}</span>
@@ -500,7 +500,9 @@
   {{/if}}
   {{/if}}
 
-  {{! ── Component view — symbolic trick cards ──────────────────────────────
+  {{! ── Component view — two-line row contract.
+       Same generalized dictionary-trick-row partial as every other browse
+       view; only the grouping (modifier groups under three axes) differs.
        Soft-retired: the toggle entry is absent from the view-toggle row
        above, so the only paths reaching this view are bookmarked or
        external links, which must keep resolving.
@@ -536,20 +538,19 @@
     <section class="content-section trick-component-axis" id="{{anchorId}}">
       <div class="section-heading">
         <h2>{{axisLabel}}</h2>
-        <span class="section-count">{{groups.length}}</span>
       </div>
       {{#each groups}}
-      <section class="trick-component-group" id="{{anchorId}}" data-anchor-style="solid">
-        <div class="component-group-heading">
+      <section class="trick-component-group" id="{{anchorId}}">
+        <div class="section-heading">
           <h3><a href="/freestyle/tricks?view=component#{{anchorId}}">{{componentName}}</a></h3>
           <span class="section-count">{{memberCount}}</span>
         </div>
         {{#if bodyDefinition}}
         <p class="component-group-definition">{{bodyDefinition}}</p>
         {{/if}}
-        <div class="dict-card-stack dict-card-stack--registry">
+        <div class="dict-trick-row-stack">
           {{#each cards}}
-            {{> dictionary-trick-card density="registry"}}
+            {{> dictionary-trick-row}}
           {{/each}}
         </div>
       </section>
@@ -573,7 +574,9 @@
   {{/unless}}
   {{/if}}
 
-  {{! ── Category view — registry density (dense tag-based scan) ────────────
+  {{! ── Category view — two-line row contract.
+       Same generalized dictionary-trick-row partial as every other browse
+       view; only the grouping (grammatical buckets) differs.
        Soft-retired: the toggle entry is absent from the view-toggle row
        above; the route still resolves so bookmarks and external links
        keep working. Family + Movement System are the canonical
@@ -601,9 +604,9 @@
       <h2><a href="/freestyle/tricks?view=category#{{anchorId}}">{{label}}</a></h2>
       <span class="section-count">{{cards.length}}</span>
     </div>
-    <div class="dict-card-stack dict-card-stack--registry">
+    <div class="dict-trick-row-stack">
       {{#each cards}}
-        {{> dictionary-trick-card density="registry"}}
+        {{> dictionary-trick-row}}
       {{/each}}
     </div>
   </section>
@@ -627,7 +630,7 @@
     {{/each}}
   </nav>
   {{#each content.topologyView.groups}}
-  <section class="content-section trick-topology-group" id="{{anchorId}}" data-anchor-style="dotted">
+  <section class="content-section trick-topology-group" id="{{anchorId}}">
     <div class="section-heading">
       <h2><a href="/freestyle/tricks?view=topology#{{anchorId}}">{{topologyName}}</a></h2>
       <span class="section-count">{{memberCount}}</span>

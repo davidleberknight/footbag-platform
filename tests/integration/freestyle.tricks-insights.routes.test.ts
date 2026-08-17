@@ -428,11 +428,11 @@ describe('public dictionary presentation', () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=category');
     expect(res.status).toBe(200);
-    // The category view has no Notation column header. The shared
-    // dict-card-stack renders operational notation via role-tagged
-    // token spans on each card, not in a table column.
+    // The category view has no Notation column header. The shared row
+    // renders operational notation via role-tagged token spans in its
+    // notation column, not in a table column.
     expect(res.text).not.toContain('<th>Notation</th>');
-    expect(res.text).toContain('dict-card-stack');
+    expect(res.text).toContain('dict-trick-row-stack');
   });
 
   it('renders notation inline in the default ADD view (no table header)', async () => {

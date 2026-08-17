@@ -114,7 +114,7 @@ fi
 echo "[conventions] check: inline style/script in src/views/**"
 # Regex anchored to attribute boundary: `style=` must be at line-start or
 # preceded by whitespace. Prevents false positives on attribute NAMES that
-# end with `-style` (e.g. `data-anchor-style="solid"`, SVG `font-style=`,
+# end with `-style` (e.g. a `data-*-style` hook, SVG `font-style=`,
 # `border-style=`). The CSP rule targets the HTML `style` attribute on a
 # rendered element, not any attribute whose name happens to contain "style".
 style_hits=$(grep -rn --include='*.hbs' -E '(^|[[:space:]])style="[^"]*"' src/views/ || true)

@@ -267,17 +267,25 @@ describe('component view — group rendering', () => {
     expect(res.text).toMatch(/<h3><a href="\/freestyle\/tricks\?view=component#component-paradox">paradox<\/a><\/h3>/);
   });
 
-  it('group renders the shared dictionary-trick-card partial', async () => {
+  it('group renders the shared dictionary-trick-row partial', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=component');
     const paradoxStart = res.text.indexOf('id="component-paradox"');
     const nextGroupStart = res.text.indexOf('id="component-', paradoxStart + 1);
     const paradoxBlock = res.text.slice(paradoxStart, nextGroupStart > paradoxStart ? nextGroupStart : paradoxStart + 2500);
-    // The component view uses registry
-    // density (same as the ADD view). Stack wrapper carries both base + density classes.
-    expect(paradoxBlock).toContain('class="dict-card-stack dict-card-stack--registry"');
+    // The same row stack every other browse view renders, so a trick reads
+    // identically whichever view the reader arrived through.
+    expect(paradoxBlock).toContain('class="dict-trick-row-stack"');
     expect(paradoxBlock).toContain('data-trick-slug="paradox-mirage"');
     expect(paradoxBlock).toContain('data-trick-slug="paradox-whirl"');
     expect(paradoxBlock).toContain('data-trick-slug="paradox-blender"');
+  });
+
+  it('group heading uses the site section-heading system, not a bespoke one', async () => {
+    // Every other browse view draws a sub-group heading this way. A heading
+    // system of this view's own is the same defect as a row system of its own.
+    const res = await request(createApp()).get('/freestyle/tricks?view=component');
+    expect(res.text).toMatch(/<section class="trick-component-group" id="component-paradox">\s*<div class="section-heading">/);
+    expect(res.text).not.toContain('component-group-heading');
   });
 
   it('cards within a group sort ADD ascending then trick name (paradox-mirage 3 before paradox-whirl 4 before paradox-blender 5)', async () => {

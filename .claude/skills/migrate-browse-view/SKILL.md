@@ -1,6 +1,6 @@
 ---
 name: migrate-browse-view
-description: Migrate one dictionary browse view (any `?view=` surface) onto the shared `<dictionary-trick-card>` partial. Use when a task adds a new browse view or moves a legacy view off inline markup. Preserves the card-uniformity contract (mechanically tested across all browse views).
+description: Add or change a dictionary browse view (any `?view=` surface) on the shared `<dictionary-trick-row>` partial. Use when a task adds a new browse view, moves a legacy view off inline markup, or changes grouping or ordering on an existing one. Preserves the row contract, which is mechanically tested across every browse view.
 ---
 
 # Migrate Browse View
@@ -10,90 +10,98 @@ description: Migrate one dictionary browse view (any `?view=` surface) onto the 
 Use this skill (not general editing) when a task does any of the following:
 
 - Adds a new browse view at `/freestyle/tricks?view={new}`
-- Migrates an existing browse view off legacy markup (table, spreadsheet, inline `<li>` rows) onto the shared `<dictionary-trick-card>` partial
-- Renames a legacy view (e.g., the historical `?view=sets → ?view=component` precedent)
+- Moves an existing browse view off legacy markup (table, spreadsheet, inline `<li>` rows) onto the shared `<dictionary-trick-row>` partial
+- Renames a view (the historical `?view=sets → ?view=component` is the precedent)
 - Adds a new grouping wrapper that consumes existing `DictionaryTrickCard[]` data
 - Changes within-group ordering rules for any browse view
 
 Do **not** use this skill to:
-- Modify the `<dictionary-trick-card>` partial itself (that's a card-spec change; route through `extend-service-contract` + `add-public-page`)
-- Touch ontology, ADD math, parser, alias, or schema (forbidden across every browse-view slice)
+- Modify the `<dictionary-trick-row>` partial itself. That changes every browse view at once, so it is a row-contract change: route through `extend-service-contract` + `add-public-page`
+- Touch ontology, ADD math, parser, alias, or schema (forbidden across every browse-view change)
 - Add new modifier-link types or new symbolic-grammar groups (curator-track work)
 
 ## The pattern this skill encodes
 
-Every browse view shipped to date (the `allowedViews` set in `src/services/freestyleService.ts`) follows the same six-step recipe. The contract is mechanically tested by `freestyle.dictionary-trick-card.routes.test.ts`: each view must render the density it implements, and a view rendering the wrong density fails the regression guard.
+Every browse view in the `allowedViews` set in `src/services/freestyleService.ts` renders the same
+row. There is no per-view density choice and no view-specific row variant: a trick reads the same
+way whichever view a visitor arrived through, and that is the whole point. A view that grows a
+rendering of its own is the defect this skill exists to prevent.
 
 ```
-Step 1 → READ existing patterns          (no writing yet)
-Step 2 → SERVICE: extend group type + builder
-Step 3 → TEMPLATE: replace markup with partial
-Step 4 → CSS: minimal additions (no card-internal CSS)
-Step 5 → TESTS: per-slice integration test
-Step 6 → REPORT: slice implementation report
+Step 1 → READ the row contract and one shipped view   (no writing yet)
+Step 2 → SERVICE: group type + builder
+Step 3 → TEMPLATE: grouping wrapper around the shared row
+Step 4 → CSS: group-wrapper level only
+Step 5 → TESTS: per-view integration test + the shared guard
+Step 6 → VERIFY and hand off
 ```
 
-## Step 1: Read the precedent before writing
+## Step 1: Read the contract before writing
 
-Read the most recent migration's report so the new slice matches established conventions. Skim, don't deeply read:
+- `src/views/partials/dictionary-trick-row.hbs`: the shared partial every view renders. Its header
+  comment is the row contract: two columns, what a row may carry, and what it may never carry.
+- `tests/integration/freestyle.browse-row-contract.routes.test.ts`: the guard that pins that
+  contract across every view. Read it before changing a view; it is what will fail if the change
+  breaks uniformity.
+- One shipped view whose shape resembles the new work, read in `src/views/freestyle/tricks.hbs`:
+  By modifier for cluster-then-group nesting, By family for banded sub-groups, By component for
+  axis-then-group nesting, Movement System for progressive disclosure.
+- The existing group type for the view being changed (`FreestyleTrickAddGroup`,
+  `FreestyleFamilyGroup`, `FreestyleTrickGroup`, `ComponentGroup`, `TopologyGroup`).
 
-- `exploration/dictionary-symbolic-card/UNIFIED_DICTIONARY_VIEW_PLAN.md`: the architectural target every migration approaches
-- `exploration/dictionary-symbolic-card/SYMBOLIC_CARD_SPEC.md`: the partial's contract (do NOT modify; consume only)
-- `src/views/partials/dictionary-trick-card.hbs`: the shared partial all views render
-- The existing group type for the view being migrated (e.g., `FreestyleTrickAddGroup`, `FreestyleFamilyGroup`, `FreestyleTrickGroup`, `ComponentGroup`, `TopologyGroup`): to see how prior slices extended their group types
+A new browse view needs curator approval before it joins `allowedViews`. That is a decision for the
+human, not something this skill authorises.
 
-If migrating a brand-new view, also read `exploration/dictionary-symbolic-card/SEMANTIC_NAVIGATION_STRATEGIC_REVIEW.md` for background: a new browse view needs curator approval before it is added to the current set.
+## Step 2: The service group type and builder
 
-## Step 2: Extend the service group type + builder
-
-Two patterns to follow exactly:
-
-### 2a. Existing-view migration (off legacy markup)
-
-Extend the existing group interface with two fields:
+A group type carries its identity, its label, its anchor, and its rows:
 
 ```ts
 export interface FreestyleSomeGroup {
-  // ... existing fields stay ...
-  tricks: FreestyleTrickIndexRow[];   // legacy; preserved for backward compat
-  // NEW:
-  cards: DictionaryTrickCard[];
-  anchorId: string;                    // `{view}-{slug}`: used in template ids
+  label:     string;
+  anchorId:  string;                    // `{view}-{slug}`: used in template ids
+  cards:     DictionaryTrickCard[];     // the shared row view-model, ADD ascending then name
 }
 ```
 
-Then refactor the group-construction code so it emits both `tricks` (legacy) and `cards` (new) in parallel:
+Build it from sorted rows, shaping each row through the one helper:
 
 ```ts
 const buildGroup = (key: string, rows: FreestyleTrickRowWithStatus[]): FreestyleSomeGroup => {
-  const sorted = rows.slice().sort(/* per-view ordering rule */);
+  const sorted    = rows.slice().sort(/* per-view ordering rule */);
   const indexRows = sorted.map(r => shapeTrickIndexRow(r, ctx));
   return {
-    // ...
-    tricks: indexRows,
-    cards:  sorted.map((r, i) => shapeDictionaryTrickCard(r, indexRows[i]!)),
+    label:    labelFor(key),
     anchorId: `{view}-${key}`,
+    cards:    sorted.map((r, i) => shapeDictionaryTrickCard(r, indexRows[i]!, ctx)),
   };
 };
 ```
 
-### 2b. New-view introduction
-
-Add a fresh `*BrowseView` interface in `freestyleService.ts`. Build it alongside existing view shapes. Add the new view key to `FreestyleTricksActiveView` and `allowedViews`. Add it to `FreestyleTricksIndexContent`. Reference precedents:
-- `ComponentBrowseView` (slice 3A): multi-axis with priority ordering
-- `TopologyBrowseView` (topology slice): single axis, observational-layer attribution
+For a brand-new view, add a `*BrowseView` interface in `freestyleService.ts`, add the view key to
+`FreestyleTricksActiveView` and `allowedViews`, and add the view model to
+`FreestyleTricksIndexContent`. `ComponentBrowseView` is the multi-axis precedent;
+`TopologyBrowseView` is the single-axis observational one.
 
 ### Required invariants (every browse view)
 
-- **Sort within groups: ADD ascending, then trick name alphabetical** (unless an explicit per-view exception is documented: family view uses "anchor first then ADD asc"; component view uses "priority order then alphabetical fallthrough" for groups but ADD-asc-then-name within groups)
-- **Empty groups hidden** via `entries.length > 0` filter (every shipped view; explicit per-view exceptions require curator approval)
-- **Modifier-stub rows excluded** at the row-filtering step (modifier rows are FK targets, not public tricks; they never render on browse views)
-- **Cards built via `shapeDictionaryTrickCard()`**: do NOT inline card shaping; do NOT bypass the helper
-- **`FreestyleTrickRowWithStatus`** is the row type the card builder needs (operational_notation column lives there, not on the base `FreestyleTrickRow`)
+- **Sort within groups: ADD ascending, then trick name alphabetical.** Documented per-view
+  exceptions: the family view puts the family anchor first, then ADD ascending; the component view
+  orders its groups by priority then alphabetically, while rows inside a group keep ADD-then-name.
+- **Empty groups hidden** via an `entries.length > 0` filter. A per-view exception needs curator
+  approval.
+- **Modifier-stub rows excluded** at the row-filtering step. Modifier rows are foreign-key targets,
+  not public tricks, and never render on a browse view.
+- **Rows built via `shapeDictionaryTrickCard()`.** Never inline the shaping, never bypass the helper.
+- **`FreestyleTrickRowWithStatus`** is the row type the shaper needs; the operational-notation column
+  lives there, not on the base `FreestyleTrickRow`.
+- **Browse builders filter to active rows.** An inactive row never reaches a browse view, so any
+  branch keyed on an inactive-only state is unreachable there and must not be written.
 
-## Step 3: Replace the template branch with the shared partial
+## Step 3: The template branch wraps the shared row
 
-In `src/views/freestyle/tricks.hbs`, locate the existing `{{#if (eq content.activeView "...")}}` branch for the view (or add a new branch for a fresh view). Replace inline markup with:
+In `src/views/freestyle/tricks.hbs`, each view is a `{{#if (eq content.activeView "...")}}` branch.
+The branch owns grouping, headings and prose; the row owns everything inside a row:
 
 ```handlebars
 {{#if (eq content.activeView "{view}")}}
@@ -104,11 +112,11 @@ In `src/views/freestyle/tricks.hbs`, locate the existing `{{#if (eq content.acti
     <span class="section-count">{{cards.length}}</span>
   </div>
   {{#if bodyDefinition}}
-  <p class="trick-{view}-group-definition">{{bodyDefinition}}</p>
+  <p class="{view}-group-definition">{{bodyDefinition}}</p>
   {{/if}}
-  <div class="dict-card-stack">
+  <div class="dict-trick-row-stack">
     {{#each cards}}
-      {{> dictionary-trick-card}}
+      {{> dictionary-trick-row}}
     {{/each}}
   </div>
 </section>
@@ -116,125 +124,136 @@ In `src/views/freestyle/tricks.hbs`, locate the existing `{{#if (eq content.acti
 {{/if}}
 ```
 
-### Template gotchas (load-bearing)
+### Template rules (load-bearing)
 
-- **Static URL prefixes only.** When building `href` values that contain `?view=...`, write the URL as a static template prefix with slug-only interpolation: `href="/freestyle/tricks?view={view}#{view}-{{slug}}"`. Handlebars HTML-escapes `=` to `&#x3D;` when interpolated as part of a single mustache value; tests asserting the URL will fail. The static-prefix convention is used in every shipped view.
-- **Section ID format: `{view}-{slug}`.** Anchor IDs are public API: once shipped, never rename without coordinated cross-link updates.
-- **Heading wraps the label in a self-anchored `<a>` link.** Lets users copy a deep-link to a specific group.
-- **Update the view toggle.** Add a new `<a href="/freestyle/tricks?view={view}">By {view}</a>` entry to the toggle nav at the top of `tricks.hbs`. If the view is a rename of an existing view, also add server-side alias resolution in the service (`{old} → {new}`).
-- **No card-internal markup.** The template never directly renders title / ADD / operational notation / aliases. That's the partial's job.
+- **One heading system.** A group heading is the site `.section-heading` with an `<h2>` (or `<h3>`
+  for a sub-group) and a `.section-count` chip. Never a per-view heading class: a view with its own
+  heading treatment fails uniformity exactly as a view with its own row would.
+- **Static URL prefixes only.** Write a `?view=` href as a static prefix with slug-only
+  interpolation: `href="/freestyle/tricks?view={view}#{view}-{{slug}}"`. Handlebars escapes `=` to
+  `&#x3D;` when the whole URL is interpolated through one mustache, and tests asserting the URL fail.
+- **Section ID format `{view}-{slug}`.** Anchor IDs are public API. Never rename one without
+  updating every cross-link in the same change.
+- **Heading wraps the label in a self-anchored link**, so a reader can copy a deep link to a group.
+- **Update the view toggle** unless the view is deliberately unlisted. A renamed view also needs
+  server-side alias resolution in the service.
+- **No row-internal markup.** The template never renders a name, difficulty value, hashtag, control
+  or notation itself. That is the partial's job.
 
-## Step 4: CSS additions only at the group-wrapper level
+## Step 4: CSS at the group-wrapper level only
 
-The card itself has stable CSS (`.dict-card`, `.dict-card-title`, etc.). The slice adds CSS only for:
+The row has stable CSS (`.dict-trick-row`, `.dict-trick-row-identity`, `.dict-trick-row-notation`).
+A view adds CSS only for:
 
-- The group-wrapper class (`.trick-{view}-group`)
-- The group heading variant if needed
-- Any one-line definition rendering (`.trick-{view}-group-definition`)
-- Observational-layer styling if the view is observational (badge + footer)
-- Mobile media-query adjustments (single-column under 640px)
+- The group-wrapper class (`.trick-{view}-group`), including its `scroll-margin-top`
+- Any one-line definition rendering
+- Framing prose or footer styling if the view is observational
 
 Do **not** touch:
-- `.dict-card` rules
-- `.dict-card-stack` rules
+- `.dict-trick-row*` rules
+- `.dict-trick-row-stack`
 - `.op-token--*` rules
+- `.section-heading` or `.section-count`
 - Any rule shared across browse views
 
-If the new CSS exceeds ~80 lines, the slice is probably reshaping the card itself: that's out of scope; route to a card-spec change.
+Use `var(--anchor-offset)` for a group's `scroll-margin-top`, never a literal. The site header is
+sticky and its height changes at the 768px breakpoint, so a literal offset lands the heading behind
+the header at one width or the other.
+
+If the new CSS exceeds ~40 lines, the change is probably reshaping the row: that is out of scope.
 
 ## Step 5: Tests
 
-Each browse-view slice ships a focused integration test file at `tests/integration/freestyle.{view}-view.routes.test.ts`. The test file covers:
+Each view ships a focused integration test at
+`tests/integration/freestyle.{view}-view.routes.test.ts` covering:
 
-1. **Route + view toggle**: returns 200; "By {view}" is the active toggle entry
-2. **Grouping wrapper structure**: anchor IDs render; heading-wrapped self-anchor link present; count chip present
-3. **Within-group ordering**: verify ADD-asc-then-name sort (or the view-specific rule); pick an example with 3+ tricks at different ADD values to assert ordering
-4. **Empty-group hiding** (when applicable): assert that groups with zero members do NOT render their anchor
-5. **Intentional duplication** (when applicable): for views where a trick can appear in multiple groups (component, topology), verify multi-group rendering
-6. **Card-density contract**: verify the view renders the density it implements (`dict-card-stack` for card-density views, `dict-trick-row` for row views, `compact-list` for the modifier view) and at least one `data-trick-slug=` attribute (the partial's identity marker)
-7. **Observational-layer attribution** (when applicable): for observational views, verify the badge + footer render
+1. **Route + view toggle**: returns 200; the view's toggle entry is active (or deliberately absent)
+2. **Grouping wrapper**: anchor IDs render; the heading carries its self-anchor link and count chip
+3. **Heading system**: the group heading uses `.section-heading`, so a bespoke one cannot creep back
+4. **Within-group ordering**: assert the sort with an example spanning three or more ADD values
+5. **Empty-group hiding**: groups with zero members render no anchor
+6. **Intentional duplication** where a trick can appear in several groups (component, topology)
+7. **Row contract**: the view renders `dict-trick-row-stack` and at least one `data-trick-slug=`
 
-Then update `tests/integration/freestyle.dictionary-trick-card.routes.test.ts`:
+Then add the view to the shared guard in
+`tests/integration/freestyle.browse-row-contract.routes.test.ts`, which loops every browse view and
+asserts the row markup, the control-separation rule and the alias slot. There is no exclusion list
+and no view may be added to one.
 
-```ts
-it('the dict-card-stack browse views use the shared dictionary-trick-card partial', async () => {
-  // Card-density views render the shared card. Row views (?view=add, family)
-  // render dict-trick-row; ?view=modifier uses compact-list; ?view=topology asserts
-  // NOT dict-card-stack. A new view joins whichever density contract it implements.
-  for (const view of ['category', 'component']) {
-    const res = await request(createApp()).get(`/freestyle/tricks?view=${view}`);
-    expect(res.status).toBe(200);
-    expect(res.text, `${view} must render dict-card-stack`).toContain('dict-card-stack');
-  }
-});
-```
+`tests/integration/freestyle.browse-row-rendering.routes.test.ts` holds the cross-view rendering
+contracts (required row slots, sparse and deep tricks through one template, group placement, no
+authoring status, no accounting prose). Update it when a change affects what a row renders anywhere.
 
-If migrating off legacy markup, also locate the OLD assertions for that view (most likely in `tests/integration/freestyle.tricks-insights.routes.test.ts`) and update or retire them: they'll be testing markup that no longer exists.
+If moving off legacy markup, find the old assertions for that view, most likely in
+`tests/integration/freestyle.tricks-insights.routes.test.ts`, and update or retire them.
 
 ### Test seeding requirements
 
-- Modifier links: use `insertFreestyleTrickModifier` + `insertFreestyleTrickModifierLink`. Required when the view's membership depends on links (component, topology).
-- Operational notation: set `operational_notation: '[clip] > ...'` on seeded tricks so the card renders role-tagged token spans (the test for "renders dict-card-stack" only checks the wrapper; richer assertions require populated notation).
-- Anchor coverage: seed at least one trick per group you want to assert is rendered.
+- Modifier links: `insertFreestyleTrickModifier` + `insertFreestyleTrickModifierLink`, required when
+  membership depends on links (component, topology, set, modifier, movement-system).
+- Operational notation: set `operational_notation` on seeded tricks so the row renders role-tagged
+  token spans; the stack assertion alone only checks the wrapper.
+- Anchor coverage: seed at least one trick per group you assert renders.
+- A view whose groups this fixture does not populate renders its empty state, so assert the positive
+  only for views the fixture actually fills.
 
-## Step 6: Slice implementation report
+## Step 6: Verify and hand off
 
-Produce a report at `exploration/dictionary-symbolic-card/DSC2_{VIEW}_VIEW_REPORT.md` (or `DSC2_{VIEW}_VIEW_SLICE{NUM}_REPORT.md`). The report covers:
+- `npm run build`: clean.
+- The view's own suite, the shared row-contract guard, and the cross-view rendering suite, named
+  explicitly.
+- `npm run test:pre-pr` as the gate, since the row partial and the row view-model are shared.
+- Every new assertion demonstrated red before it goes green.
+- A view change is UI work: run `./run_dev.sh` and read the view in a browser beside a neighbouring
+  view at desktop and at 480px, confirming row rhythm, heading weight, count-chip treatment and the
+  controls all match. The stylesheet is read once at boot and memoized, so a CSS edit needs a restart
+  to be visible.
+- List the changed files for the human to stage. Claude never stages, commits or pushes.
 
-1. **Before / after**: describe what the legacy rendering looked like and what the new structure is
-2. **Within-group ordering**: explicit ordering rule + verification reference
-3. **Files changed**: table of files + delta line counts
-4. **Tests passed**: new test count + full-suite pass count + tsc clean
-5. **Activation matrix** (when applicable): for views with priority/curator-tagged groupings (component, topology), list each group + status
-6. **Known visual concerns / curator follow-ups**: non-blocking gaps
-7. **Constraints honoured**: explicit list of no-schema / no-ontology / etc.
-8. **Recommendation for next slice**: which view to migrate next, why
-9. **Stop confirmation**: "stopping after this slice per the slice cadence"
+## Constraints (every browse-view change)
 
-Reports for prior slices are the format-of-truth; match the most recent archived slice report.
+The change MUST NOT:
 
-## Step 7: Stage and hand off
-
-Run:
-- `npx tsc -p tsconfig.json --noEmit`: must be clean
-- `npx vitest run --exclude "tests/e2e/**" --exclude "tests/smoke/**"`: full suite green
-- List the changed files (services / templates / CSS / tests / report) for the human to stage
-- Surface the stage-and-commit commands to the user (Claude never stages or commits; the human owns all git writes)
-
-## Constraints (every browse-view slice)
-
-The slice MUST NOT:
-
-- Modify the `<dictionary-trick-card>` partial itself
+- Modify the `<dictionary-trick-row>` partial
+- Give one view a row, heading, or density of its own
 - Add ontology / ADD / parser / alias / schema changes
 - Introduce a new modifier-link type or new symbolic-grammar group (curator track)
-- Bypass `shapeDictionaryTrickCard()` for card construction
-- Render card-internal markup inline in the template
-- Introduce per-view CSS that affects shared card rules
-- Render authoring status on a browse row: no INCOMPLETE badge and no pending placeholder; a row renders notation tokens when they exist and nothing otherwise, and status lives on the trick detail page
-- Add a new browse view without curator approval (the current set is `allowedViews` in `src/services/freestyleService.ts`; see `SEMANTIC_NAVIGATION_STRATEGIC_REVIEW.md` for background)
+- Bypass `shapeDictionaryTrickCard()` for row construction
+- Render row-internal markup inline in the template
+- Introduce per-view CSS that affects shared row rules
+- Render authoring status on a browse row: no incomplete badge, no pending placeholder, no
+  decomposition-under-review pill. A row renders notation when it exists and nothing otherwise;
+  status lives on the trick detail page
+- Add a new browse view without curator approval
 
 ## Naming convention
 
-- View key: lowercase single word (`add`, `family`, `category`, `component`, `topology`)
+- View key: lowercase, hyphenated when compound (`add`, `family`, `set`, `category`, `modifier`,
+  `component`, `topology`, `movement-system`, `dex-count`)
 - URL: `/freestyle/tricks?view={key}`
-- Anchor ID format: `{key}-{slug}` for groups; `axis-{name}` for sub-axes when applicable
+- Anchor ID: `{key}-{slug}` for groups; `axis-{name}` for sub-axes
 - Group wrapper class: `.trick-{key}-group`
-- CSS group-internal classes: `.trick-{key}-group-{element}` (e.g., `-heading`, `-definition`)
+- Group-internal classes: `.{key}-group-{element}` (for example `-definition`)
 
 ## Observational vs canonical view check
 
 Before adding a new view, decide its layer:
 
-- **Canonical view** (ADD, family, category): groups derived from canonical columns (`adds`, `trick_family`, `category`). No badge required.
-- **Observational view** (component, topology, future symbolic axes): groups derived from observational data (modifier links, curator-tagged bases, symbolic-grammar CSVs). Required: observational badge + footer; framing prose at top; cross-reference to canonical view in the footer ("does not override canonical IFPA family classifications").
+- **Canonical view** (ADD, family, category, set): groups derived from canonical columns. No framing
+  needed beyond an ordinary intro.
+- **Observational view** (component, topology, movement-system, future symbolic axes): groups
+  derived from observational data such as modifier links or curator-tagged bases. Required: a
+  status label at the top of the view stating in plain words that it is exploratory and not an
+  official grouping, and a closing footer cross-referencing the canonical view.
 
-Observational badge convention: `<span class="symbolic-layer-badge" title="...">observational</span>`. Footer convention: `<p class="symbolic-layer-footer">...</p>`.
+The shipped conventions are `<p class="browse-view-status-label">` for the label and
+`<p class="symbolic-layer-footer">` for the footer. The `symbolic-layer-badge` chip belongs to the
+trick-detail and glossary surfaces, not to a browse view.
 
 ## Cross-references
 
-- `exploration/dictionary-symbolic-card/SYMBOLIC_CARD_SPEC.md`: the partial's contract
-- `exploration/dictionary-symbolic-card/UNIFIED_DICTIONARY_VIEW_PLAN.md`: the architectural target
-- `exploration/dictionary-symbolic-card/SEMANTIC_NAVIGATION_STRATEGIC_REVIEW.md`: background on the semantic-navigation architecture and the curator-approval gate for adding a browse view
-- `src/views/partials/dictionary-trick-card.hbs`: the shared partial; never modify in a browse-view slice
-- `tests/integration/freestyle.dictionary-trick-card.routes.test.ts`: the card-uniformity regression guard
+- `src/views/partials/dictionary-trick-row.hbs`: the row contract; never modified here
+- `tests/integration/freestyle.browse-row-contract.routes.test.ts`: the uniformity guard
+- `tests/integration/freestyle.browse-row-rendering.routes.test.ts`: cross-view rendering contracts
+- `src/views/freestyle/tricks.hbs`: every view's grouping branch
+- `.claude/rules/view-layer.md`: the site's action hierarchy, section systems and CSS vocabulary

@@ -4,25 +4,22 @@
  *
  * Long-term contract pinned:
  *
- *   1. SemanticBrowseToken carries a `glossaryAnchor` field. Modifier-
- *      role tokens with a §6 modifier-feel-card map to
+ *   1. The semantic-token shaper resolves a glossary anchor per token:
+ *      modifier-role tokens with a modifier-feel card map to
  *      `/freestyle/glossary#modifier-{slug}`; base-anchor-role tokens
  *      for known core atoms map to `/freestyle/glossary#term-{slug}`.
- *      Side-positional / unknown / unlisted slugs receive null and
- *      stay rendered as plain spans.
+ *      Side-positional / unknown / unlisted slugs receive null.
  *
- *   2. Each glossary §6 modifier-feel card carries a "See tricks using X
- *      →" deep-link to /freestyle/tricks?view=component#component-{slug}.
+ *   2. Each glossary modifier-feel card carries a "Browse X tricks"
+ *      deep-link into the dictionary.
  *
  *   3. Freestyle heroes are breadcrumb + title + subhead only — no
  *      cross-link CTA inside the hero. The glossary body still
- *      references the trick dictionary in prose; in-content
- *      dictionary↔glossary linking is rebuilt separately.
+ *      references the trick dictionary in prose.
  *
- * Four-layer compliance: glossaryAnchor is a NAVIGATION reference (layer
- * 3 → layer 4 jump), not a content collapse. Token text / role / slug
- * remain pure symbolic-decomposition content. CSS adds `.sem-token--linked`
- * class only when the anchor is set; non-linked tokens stay span elements.
+ *   4. No browse view renders chain tokens. A chain reading is structural
+ *      content belonging to the trick's own page, so the shared browse row
+ *      carries identity and notation only.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -34,9 +31,6 @@ import {
   importApp,
 } from '../fixtures/testDb';
 import { insertFreestyleTrick } from '../fixtures/factories';
-import {
-  shapeSemanticNotation,
-} from '../../src/services/semanticNotationRendering';
 
 const { dbPath } = setTestEnv('3100');
 
@@ -129,104 +123,23 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('SemanticBrowseToken.glossaryAnchor — resolver behavior', () => {
-  it('emits modifier-anchor URL for modifier-role tokens with a §6 card', () => {
-    const tokens = shapeSemanticNotation('paradox whirl');
-    expect(tokens).toHaveLength(2);
-    expect(tokens[0]!.text).toBe('paradox');
-    expect(tokens[0]!.role).toBe('modifier');
-    expect(tokens[0]!.glossaryAnchor).toBe('/freestyle/glossary#modifier-paradox');
-  });
-
-  it('emits term-anchor URL for base-anchor tokens with a §5 entry', () => {
-    const tokens = shapeSemanticNotation('paradox whirl');
-    expect(tokens[1]!.text).toBe('whirl');
-    expect(tokens[1]!.role).toBe('base-anchor');
-    expect(tokens[1]!.glossaryAnchor).toBe('/freestyle/glossary#term-whirl');
-  });
-
-  it('returns null for side-positional tokens', () => {
-    const tokens = shapeSemanticNotation('stepping near butterfly');
-    // [stepping (modifier), near (side-positional), butterfly (base-anchor)]
-    expect(tokens[1]!.text).toBe('near');
-    expect(tokens[1]!.role).toBe('side-positional');
-    expect(tokens[1]!.glossaryAnchor).toBeNull();
-  });
-
-  it('returns null for unknown tokens', () => {
-    const tokens = shapeSemanticNotation('zorglub whirl');
-    expect(tokens[0]!.text).toBe('zorglub');
-    expect(tokens[0]!.role).toBe('unknown');
-    expect(tokens[0]!.glossaryAnchor).toBeNull();
-  });
-
-  it('returns null for registered modifier roles WITHOUT a feel card (e.g. gyro)', () => {
-    // gyro is in the MODIFIERS registry but has no §6 modifier-feel card,
-    // so the resolver intentionally returns null rather than emit a dead
-    // anchor.
-    const tokens = shapeSemanticNotation('gyro torque');
-    expect(tokens[0]!.text).toBe('gyro');
-    expect(tokens[0]!.role).toBe('modifier');
-    expect(tokens[0]!.glossaryAnchor).toBeNull();
-  });
-});
-
-describe('Trick-card rendering — tokens wrap in anchor links when glossaryAnchor is set', () => {
-  // ripwalk is the rendering target: paradox-whirl is in
-  // FIRST_CLASS_TIER_2, which suppresses its tautological chain
-  // reading on the rendered card, and blurry-whirl's tautological
-  // chain "blurry whirl" is suppressed by the universal tautological
-  // filter. ripwalk's chain reading "stepping butterfly" survives the
-  // filter and exercises the SemanticBrowseToken anchor-link
-  // contract this describe block validates.
-  it('renders the stepping token as an anchor on the ripwalk card', async () => {
+describe('Browse rows carry no chain tokens on any view', () => {
+  // A browse row carries identity and notation. A chain reading is structural
+  // content and reads on the trick's own page, so no browse view renders one,
+  // and none renders the glossary-linked token markup that used to accompany
+  // it. ripwalk is the probe: its chain reading "stepping butterfly" survives
+  // the tautological filter, so if any view still rendered chain tokens, this
+  // is the trick that would show them.
+  it('no browse view renders a chain token', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks?view=category');
-    expect(res.status).toBe(200);
-    const card = res.text.match(
-      /data-trick-slug="ripwalk"[\s\S]*?<\/article>/,
-    );
-    expect(card).not.toBeNull();
-    expect(card![0]).toMatch(
-      /<a class="sem-token[^"]*sem-token--linked"[^>]*href="\/freestyle\/glossary#[^"]+"[^>]*>stepping<\/a>/,
-    );
-  });
-
-  it('renders the butterfly token as an anchor on the ripwalk card', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks?view=category');
-    const card = res.text.match(
-      /data-trick-slug="ripwalk"[\s\S]*?<\/article>/,
-    );
-    expect(card).not.toBeNull();
-    expect(card![0]).toMatch(
-      /<a class="sem-token[^"]*sem-token--linked"[^>]*href="\/freestyle\/glossary#[^"]+"[^>]*>butterfly<\/a>/,
-    );
-  });
-
-  it('preserves data-token-slug on linked tokens', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks?view=category');
-    const card = res.text.match(
-      /data-trick-slug="ripwalk"[\s\S]*?<\/article>/,
-    );
-    expect(card).not.toBeNull();
-    expect(card![0]).toMatch(
-      /<a class="sem-token[^"]*sem-token--linked"[^>]*data-token-slug="butterfly"[^>]*>butterfly<\/a>/,
-    );
-  });
-
-  it('keeps chain tokens off the row-density views entirely', async () => {
-    // The row views carry identity and notation; a chain reading is
-    // structural content and reads on the trick's own page. A linked chain
-    // token must therefore never appear on a row.
-    const app = createApp();
-    for (const view of ['add', 'family', 'dex-count']) {
+    // The views this fixture places ripwalk in; the component and
+    // movement-system views group by modifier link, which ripwalk has none of.
+    for (const view of ['add', 'family', 'category', 'dex-count']) {
       const res = await request(app).get(`/freestyle/tricks?view=${view}`);
       expect(res.status).toBe(200);
-      const card = res.text.match(/data-trick-slug="ripwalk"[\s\S]*?<\/article>/);
-      expect(card, `ripwalk row missing in ${view} view`).not.toBeNull();
-      expect(card![0], `${view} row carries a chain token`).not.toMatch(/sem-token/);
+      const row = res.text.match(/data-trick-slug="ripwalk"[\s\S]*?<\/article>/);
+      expect(row, `ripwalk row missing in ${view} view`).not.toBeNull();
+      expect(row![0], `${view} row carries a chain token`).not.toMatch(/sem-token/);
     }
   });
 });

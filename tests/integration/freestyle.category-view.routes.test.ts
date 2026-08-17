@@ -1,18 +1,18 @@
 /**
- * Integration tests for the By Category view. The view uses the shared symbolic
- * trick-card partial: each category renders a `<section class="trick-category-group">`
- * containing a `<div class="dict-card-stack">` of the shared
- * `dictionary-trick-card.hbs` partial, not a tabular
+ * Integration tests for the By Category view. The view uses the shared trick
+ * row: each category renders a `<section class="trick-category-group">`
+ * containing a `<div class="dict-trick-row-stack">` of the shared
+ * `dictionary-trick-row.hbs` partial, not a tabular
  * Trick / ADD / Description / Notation / Aliases layout.
  *
  * Verifies:
  *   - /freestyle/tricks?view=category returns 200
  *   - The legacy `<th>` table headers are gone
  *   - Each category section has id="category-{slug}" + a self-anchored heading link
- *   - Cards within a category sort ADD ascending then trick name
+ *   - Rows within a category sort ADD ascending then trick name
  *   - Modifier-category rows are excluded (existing rule preserved)
  *   - Empty categories don't render
- *   - The shared dict-card-stack renders the dictionary-trick-card partial
+ *   - The view renders the same shared row as every other browse view
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -124,9 +124,9 @@ describe('GET /freestyle/tricks?view=category — route + spreadsheet retirement
     expect(res.text).not.toContain('<th>Also known as</th>');
   });
 
-  it('renders the dict-card-stack container instead of a records-table', async () => {
+  it('renders the shared row stack instead of a records-table', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=category');
-    expect(res.text).toContain('dict-card-stack');
+    expect(res.text).toContain('dict-trick-row-stack');
     expect(res.text).not.toContain('records-table-wrap');
   });
 });
@@ -203,18 +203,18 @@ describe('category view — modifier exclusion', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────
-// 5. Card uniformity
+// 5. Row uniformity
 // ─────────────────────────────────────────────────────────────────────────
 
-describe('category view — shared dictionary-trick-card partial', () => {
-  it('cards in the category view carry the same data attributes as the ADD / Family / Component views', async () => {
+describe('category view — shared dictionary-trick-row partial', () => {
+  it('rows in the category view carry the same data attributes as every other view', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=category');
-    expect(res.text).toMatch(/<article class="dict-card[^"]*"\s+data-trick-slug="ripwalk"/);
-    // data-media-coverage is emitted on every card root regardless of view.
+    expect(res.text).toMatch(/<article class="dict-trick-row[^"]*"\s+data-trick-slug="ripwalk"/);
+    // data-media-coverage is emitted on every row root regardless of view.
     expect(res.text).toMatch(/data-media-coverage="(?:tutorial|demo|none)"/);
   });
 
-  it('cards render operational notation (role-tagged tokens) when populated', async () => {
+  it('rows render operational notation (role-tagged tokens) when populated', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=category');
     expect(res.text).toContain('class="op-token op-token--component-flag');
   });

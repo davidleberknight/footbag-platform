@@ -89,10 +89,6 @@ import {
   shapeOperationalNotationDisplay,
 } from './operationalNotationRendering';
 import {
-  SemanticBrowseToken,
-  shapeSemanticNotations,
-} from './semanticNotationRendering';
-import {
   FreestyleRelatedTrick,
   FreestyleNextTrick,
   FreestylePreviousTrick,
@@ -2699,8 +2695,7 @@ export interface FreestyleTrickIndexRow {
 export interface FreestyleTrickGroup {
   category: string;
   label: string;
-  tricks: FreestyleTrickIndexRow[];
-  // Shared symbolic trick cards, ADD ascending then trick name alphabetical.
+  // Shared trick rows, ADD ascending then trick name alphabetical.
   cards: DictionaryTrickCard[];
   anchorId: string;   // `category-{slug}`
 }
@@ -2712,10 +2707,7 @@ export interface FreestyleTrickAddGroup {
   addLabel: string;            // pre-shaped: '1 ADD', '2 ADD', '0 ADD', 'Unrated / unresolved'
   countLabel: string;          // pre-shaped '39 tricks' / '1 trick'; a bare number beside the heading says nothing about what it counts
   anchorId: string;            // pre-shaped section anchor: 'add-0'..'add-N', 'add-unrated'. Avoids the 0-is-falsy template footgun and stays correct for future 8/9 ADD buckets.
-  tricks: FreestyleTrickIndexRow[];
-  // Shared symbolic trick cards. Built alongside the legacy
-  // `tricks` rows so views not yet on the dictionary-trick-card partial
-  // can continue rendering inline markup.
+  // Shared trick rows, ADD ascending then trick name alphabetical.
   cards: DictionaryTrickCard[];
   // The same cards partitioned into lineage-root sub-bands (Mirage-derived,
   // Osis-derived with torque/blender folded in, ...) so a large ADD bucket
@@ -2758,71 +2750,20 @@ export interface DictionaryTrickCard {
   displayName:                string;                        // canonical_name; plain-English words, rendered as display text (never a link)
   href:                       string;                        // /freestyle/tricks/:slug ; the separate "Trick Detail" link target; suppressed when external-only placeholder
   adds:                       string | null;                 // numeric string for display; null when unrated
-  addsLabel:                  string;                        // pre-shaped: '4 ADD' / '? ADD' (never empty)
-  // Symbolic-equivalence readings rendered as `≡ <reading>` lines above the
-  // notation row. Merged from two sources, both curator-authored and
-  // restraint-governed (no DB-data leakage):
-  //   1. freestyleSymbolicEquivalences.ts — compound chains (mobius, etc.)
-  //   2. freestyleAliasGovernance.ts — atom-level canonical aliases (ATW, etc.)
-  // Empty array when neither source has an entry; the template suppresses
-  // the row in that case.
-  symbolicEquivalences:       string[];
-  // Tokenized form of each ≡ reading,
-  // parallel to `symbolicEquivalences`. Each inner array is one reading's
-  // tokens; the template renders role-classified spans. `isFamilyAnchor` is
-  // true on tokens that match the active view's anchor (family / component /
-  // topology slug) — drives the underline emphasis in browse density.
-  // Registry density renders only the first reading's tokens for one-line
-  // discipline; browse density renders all readings.
-  tokenizedEquivalences:      SemanticBrowseToken[][];
+  addsLabel:                  string;                        // pre-shaped: '4 ADD' / '? ADD' (never empty); consumed by the family- and set-detail member lists
   operationalNotation:        OperationalNotation | null;    // role-tagged tokens; null when pending
-  operationalNotationStatus:  'available' | 'pending';
-  // Folk names / spelling variants / common aliases for the "Also called:" line,
-  // kept distinct from the structural ≡ readings: anything already shown as a ≡
-  // reading, the canonical name/slug, and governance-suppressed aliases are removed.
+  // Folk names / spelling variants / common aliases for the row's inline
+  // nicknames, kept distinct from the structural ≡ readings: anything already
+  // shown as a ≡ reading, the canonical name/slug, and governance-suppressed
+  // aliases are removed.
   commonAliases:              string[];
   isExternalOnly:             boolean;                       // suppresses href; renders placeholder shell
-  statusBadge:                string | null;                 // adjudication-state badge for external placeholders
   placeholderNote:            string | null;                 // adjudication-state explainer (status, not prose description)
-  hasRecords:                 boolean;                       // tiny indicator only; not visually load-bearing
-  hasReferenceMedia:          boolean;                       // true when media of any kind covers the trick (tutorial, demo, or a record's own video)
   mediaCoverage:              TrickMediaCoverage;            // 'tutorial' | 'demo' | 'record' | 'none'; rendered as the row's data-media-coverage attribute
-  trickFamily:                string | null;                 // reserved for future family-axis affordance
-  // Curator-authored flag for folk-derived /
-  // mechanically-ambiguous rows. Drives a small italic pill on the
-  // card. Read from freestyleUnresolvedCompounds.ts; never auto-derived.
-  pendingDecomposition:       boolean;
-  // Editorial atom reading
-  // populated from CORE_TRICK_SPEC.equivalences[0] when the slug is in
-  // the curator-authoritative core-atom set AND no chain reading or
-  // op-notation exists. Provides a neutral "core atom — <description>"
-  // line so foundational atom cards don't render visually emptier than
-  // the compounds they decompose to. Empty string when no atom reading
-  // applies. The compact partial renders this only as a fallback.
-  coreAtomLabel:              string;
-  // First-class display fields (FC polish slice). Populated only for
-  // slugs in FIRST_CLASS_TIER_1 ∪ FIRST_CLASS_TIER_2. When isFirstClass=true the partial
-  // renders a compact secondary row beneath the primary card content
-  // showing the OPERATIONAL/JOB chain (when meaningful) + the ADD
-  // breakdown. Empty fields suppress their corresponding row.
-  isFirstClass:                boolean;
-  firstClassChainLabel:        'JOB' | 'OPERATIONAL' | null;  // null suppresses the chain row
+  // A first-class trick's chain, as a plain curator string. These rows
+  // deliberately carry no tokenized operational notation, so the row renders
+  // this in the notation column instead. Null for every other trick.
   firstClassChainValue:        string | null;
-  firstClassAddBreakdown:      string | null;
-  // ADD-view two-line row contract. The line-2 "ADD:"
-  // formula string, derived in priority order: curator RESOLVED_FORMULAS
-  // → atomic decomposition → mechanical modifier-link derivation
-  // (sum-verified against canonical adds) → null. When null the ADD-view
-  // partial renders a bare "ADD: N" (honest; never fabricated). Used only
-  // by the ADD-view density; other views ignore it.
-  addViewFormula:              string | null;
-  // True when the trick is first-class but its operational/Job chain is
-  // genuinely absent upstream (no curator op-notation in DB, no atomic
-  // flag-decomposition chain, no derivable form). Triggers an honest
-  // "Job notation pending" line in the first-class summary partial,
-  // rather than silently hiding the row and leaving the card looking
-  // truncated next to osis-parity entries.
-  firstClassChainIncomplete:   boolean;
 }
 
 export type FreestyleTricksActiveView = 'add' | 'family' | 'set' | 'category' | 'modifier' | 'component' | 'topology' | 'movement-system' | 'dex-count';
@@ -5883,34 +5824,9 @@ function deriveModifierLinkFormula(
   return sum === totalAdds ? parts.join(' + ') : null;
 }
 
-function deriveAddViewFormula(
-  row: FreestyleTrickRowWithStatus,
-  indexRow: FreestyleTrickIndexRow,
-  ctx?: TrickIndexShapingContext,
-): string | null {
-  const published = RESOLVED_FORMULAS_BY_SLUG.get(indexRow.slug);
-  if (published) return stripDerivationAddTerminator(published.derivation);
-  const atomic = ATOMIC_FLAG_DECOMPOSITIONS.get(indexRow.slug);
-  if (atomic) return stripDerivationAddTerminator(atomic.decomposition);
-  const links = ctx?.modifierLinksByTrickSlug?.get(indexRow.slug);
-  const baseSlug = row.base_trick;
-  const totalAdds = Number(indexRow.adds);
-  if (links && links.length && baseSlug && baseSlug !== indexRow.slug && ctx?.addsBySlug) {
-    const baseAdds = ctx.addsBySlug.get(baseSlug);
-    if (baseAdds !== undefined) {
-      // Render the base by its canonical display name (spaced), never the raw
-      // underscore slug; the slug stays the identity/lookup key above.
-      const baseDisplay = ctx.namesBySlug?.get(baseSlug) ?? baseSlug.replace(/[-_]+/g, ' ');
-      return deriveModifierLinkFormula(totalAdds, baseDisplay, baseAdds, links);
-    }
-  }
-  return null;
-}
-
 function shapeDictionaryTrickCard(
   row: FreestyleTrickRowWithStatus,
   indexRow: FreestyleTrickIndexRow,
-  groupAnchor: string | null = null,
   ctx?: TrickIndexShapingContext,
 ): DictionaryTrickCard {
   // When the row is one of
@@ -5993,94 +5909,35 @@ function shapeDictionaryTrickCard(
     alsoCalled.push(alias);
   }
 
-  // Tokenize each ≡ reading. `groupAnchor` is the
-  // active view's anchor slug (family / component / topology); tokens matching
-  // it carry isFamilyAnchor=true for underline emphasis at render time.
-  // By ADD + By Category pass null (no anchor; registry density).
-  //
-  // For core atoms (coreAtomSpec set), suppress the tokenized ≡ readings on
-  // browse cards so the curator-authored operational notation takes the
-  // visible slot. Aliases like 'ATW' remain accessible on the trick-detail
-  // page + glossary; they no longer compete with op-notation on browse.
-  //
-  // The universal tautological filter
-  // above (chainReadings) already drops readings that just echo the
-  // canonical name (e.g. "reverse whirl" on rev-whirl, "double around
-  // the world" on DATW). Genuine folk-name compound readings (ripwalk ≡
-  // "stepping butterfly") survive that filter — they ARE the kind of
-  // "human-readable compound reading" the curator's audit said to keep
-  // visible. (Drifter and DLO readings are held for curator review.) The op-notation chip
-  // (which DID duplicate the JOB row) is suppressed separately above.
-  const tokenizedEquivalences = coreAtomSpec
-    ? []
-    : shapeSemanticNotations(symbolicEquivalences, groupAnchor);
-
-  // Atom reading fallback. When a
-  // row's slug matches a curator-authoritative core atom AND no chain or
-  // op-notation surfaces, fall back to the CORE_TRICK_SPEC editorial reading.
-  // With operationalNotation sourced
-  // from the curator content module for atoms, this fallback rarely fires
-  // (only when an atom has no curator op-notation, which the 12-atom set
-  // shouldn't). Preserved for safety + non-public utility per CR-5.
-  const coreAtomLabel =
-    coreAtomSpec
-    && coreAtomSpec.equivalences.length > 0
-    && tokenizedEquivalences.length === 0
-    && !operationalNotation
-      ? coreAtomSpec.equivalences[0]
-      : '';
-
-  // First-class display fields. Populated only for slugs in
-  // FIRST_CLASS_TIER_1 ∪ FIRST_CLASS_TIER_2. The browse-card secondary
-  // row shows the operational/Job chain (when meaningful — not equal
-  // to the trick name) and the published ADD breakdown. Curator-internal
-  // language never surfaces.
-  const firstClassFlag = isFirstClass(indexRow.slug);
-  let firstClassChainLabel: 'JOB' | 'OPERATIONAL' | null = null;
+  // A first-class trick's chain, as a plain curator string. These rows carry no
+  // tokenized operational notation of their own, so without this the notation
+  // column would be empty for the whole first-class cohort.
   let firstClassChainValue: string | null = null;
-  let firstClassAddBreakdown: string | null = null;
-  if (firstClassFlag) {
+  if (isFirstClass(indexRow.slug)) {
     const atomic = ATOMIC_FLAG_DECOMPOSITIONS.get(indexRow.slug);
-    const published = RESOLVED_FORMULAS_BY_SLUG.get(indexRow.slug);
     const compactLower = (row.notation ?? indexRow.canonicalName).toLowerCase().trim();
     const canonicalLower = indexRow.canonicalName.toLowerCase().trim();
     // Chain: prefer DB operational_notation → fall back to atomic chain.
     let chainValue: string | null = null;
-    let chainSource: 'curator' | 'atomic' | null = null;
     if (opNotationRaw && opNotationRaw.trim()) {
       chainValue = opNotationRaw;
-      chainSource = 'curator';
     } else if (atomic?.operationalChain) {
       chainValue = atomic.operationalChain;
-      chainSource = 'atomic';
     }
     if (chainValue) {
       const chainLower = chainValue.toLowerCase().trim();
       // Sui-generis self-token primitives (double-knee, …) carry a
-      // canonical JOB equal to the trick name itself. The tautology
-      // guard would otherwise mute that as "notation pending", which
-      // misrepresents curator intent — these slugs are exempted.
+      // canonical chain equal to the trick name itself. The tautology
+      // guard would otherwise drop that, which misrepresents curator
+      // intent — these slugs are exempted.
       const isSelfTokenJob = SUI_GENERIS_SELF_TOKEN_SLUGS.has(indexRow.slug);
       const tautological = !isSelfTokenJob
         && (chainLower === compactLower || chainLower === canonicalLower);
       if (!tautological) {
-        firstClassChainLabel = chainSource === 'atomic' ? 'OPERATIONAL' : 'JOB';
         firstClassChainValue = chainValue;
       }
     }
-    if (published) {
-      firstClassAddBreakdown = stripDerivationAddTerminator(published.derivation);
-    } else if (atomic) {
-      firstClassAddBreakdown = stripDerivationAddTerminator(atomic.decomposition);
-    }
   }
-
-  // First-class incomplete-state flag: when the trick is first-class but
-  // the operational/Job chain has no upstream source (no curator
-  // op-notation in DB, no atomic flag-decomposition chain). Used by the
-  // partial to render an honest "Job notation pending" line instead of
-  // silently hiding the chain row.
-  const firstClassChainIncomplete = firstClassFlag && firstClassChainLabel === null;
 
   return {
     kind:                       resolveTrickKind(indexRow.slug),
@@ -6091,26 +5948,12 @@ function shapeDictionaryTrickCard(
     href:                       indexRow.detailHref,
     adds:                       indexRow.adds,
     addsLabel:                  indexRow.adds ? `${indexRow.adds} ADD` : '? ADD',
-    symbolicEquivalences,
-    tokenizedEquivalences,
     operationalNotation,
-    operationalNotationStatus:  operationalNotation ? 'available' : 'pending',
     commonAliases:              alsoCalled,
     isExternalOnly:             indexRow.isExternalOnly,
-    statusBadge:                indexRow.statusBadge,
     placeholderNote:            indexRow.placeholderNote,
-    hasRecords:                 indexRow.hasRecords,
-    hasReferenceMedia:          indexRow.mediaCoverage !== 'none',
     mediaCoverage:              indexRow.mediaCoverage,
-    trickFamily:                indexRow.trickFamily,
-    pendingDecomposition:       isUnresolvedCompound(indexRow.slug),
-    coreAtomLabel,
-    isFirstClass:               firstClassFlag,
-    firstClassChainLabel,
     firstClassChainValue,
-    firstClassAddBreakdown,
-    firstClassChainIncomplete,
-    addViewFormula:             deriveAddViewFormula(row, indexRow, ctx),
   };
 }
 
@@ -6420,7 +6263,7 @@ function buildFamilyGroup(
   // Pass the familySlug as the group anchor
   // so semantic tokens matching it carry isFamilyAnchor=true (solid
   // underline at render time).
-  const cards   = sorted.map((r, i) => shapeDictionaryTrickCard(r, members[i]!, familySlug, ctx));
+  const cards   = sorted.map((r, i) => shapeDictionaryTrickCard(r, members[i]!, ctx));
   // Display name resolution: the curated public-family label wins
   // (e.g. 'double-leg-over' → 'Double Legover'); then the curator override;
   // otherwise default capitalize.
@@ -6864,8 +6707,7 @@ const TOPOLOGY_GROUPS: TopologyGroupDef[] = [
 // Per-trick reverse semantic-membership lookup. Used by the trick-detail
 // page to close the discovery loop between browse views and trick pages.
 //
-// Reuses the same TOPOLOGY_GROUPS predicates the dictionary index uses;
-// component memberships read off the trick's existing modifier links.
+// Reuses the same TOPOLOGY_GROUPS predicates the dictionary index uses.
 // No new query; the modifier links are already loaded by the caller.
 // ─────────────────────────────────────────────────────────────────────────
 
@@ -6876,16 +6718,8 @@ export interface TrickTopologyMembership {
   href:               string;
 }
 
-export interface TrickComponentMembership {
-  componentSlug: string;
-  componentName: string;
-  axisKey:       'body' | 'set';
-  href:          string;
-}
-
 export interface TrickSemanticMemberships {
   topology:  TrickTopologyMembership[];
-  component: TrickComponentMembership[];
 }
 
 function computeTrickSymbolicMemberships(
@@ -6904,24 +6738,7 @@ function computeTrickSymbolicMemberships(
       href:               `/freestyle/tricks?view=topology#topology-${def.slug}`,
     }));
 
-  // Component memberships from modifier links. Filter to body + set axes;
-  // sort deterministically (axis then component name) so the rendered list
-  // is stable across requests.
-  const component: TrickComponentMembership[] = modifierLinks
-    .filter(l => l.type === 'body' || l.type === 'set')
-    .map(l => ({
-      componentSlug: l.slug,
-      componentName: l.name,
-      axisKey:       l.type as 'body' | 'set',
-      href:          `/freestyle/tricks?view=component#component-${l.slug}`,
-    }))
-    .sort((a, b) => {
-      // Body axis first, then set axis; within axis, alphabetical by name.
-      if (a.axisKey !== b.axisKey) return a.axisKey === 'body' ? -1 : 1;
-      return a.componentName.localeCompare(b.componentName, undefined, { sensitivity: 'base' });
-    });
-
-  return { topology, component };
+  return { topology };
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -8850,11 +8667,10 @@ export const freestyleService = {
     const buildCategoryGroup = (cat: string, rows: FreestyleTrickRowWithStatus[]): FreestyleTrickGroup => {
       const sorted = sortCategoryRows(rows);
       const indexRows = sorted.map(r => shapeTrickIndexRow(r, ctx));
-      const cards = sorted.map((r, i) => shapeDictionaryTrickCard(r, indexRows[i]!, null, ctx));
+      const cards = sorted.map((r, i) => shapeDictionaryTrickCard(r, indexRows[i]!, ctx));
       return {
         category: cat,
         label:    CATEGORY_LABELS[cat] ?? cat,
-        tricks:   indexRows,
         cards,
         anchorId: `category-${cat}`,
       };
@@ -8930,7 +8746,7 @@ export const freestyleService = {
       entries: AddBucketEntry[],
     ): FreestyleTrickAddGroup => {
       const sorted = entries.slice().sort((a, b) => byCanonicalNameAlpha(a.indexRow, b.indexRow));
-      const cardOf = (e: AddBucketEntry) => shapeDictionaryTrickCard(e.row, e.indexRow, null, ctx);
+      const cardOf = (e: AddBucketEntry) => shapeDictionaryTrickCard(e.row, e.indexRow, ctx);
       // Group each entry under its NEAREST public family, using the same
       // nearest-anchor model the Family view uses: FAMILY_OVERRIDES, then the
       // DB trick_family, resolved by resolveDisplayFamily. NO walk to the root
@@ -8976,7 +8792,6 @@ export const freestyleService = {
         addLabel,
         countLabel: `${sorted.length} ${sorted.length === 1 ? 'trick' : 'tricks'}`,
         anchorId: addNumeric != null ? `add-${addNumeric}` : 'add-unrated',
-        tricks: sorted.map(e => e.indexRow),
         cards:  sorted.map(cardOf),
         lineageBands,
         showLineageBands: lineageBands.length > 0,
@@ -9080,7 +8895,7 @@ export const freestyleService = {
         if (aa !== ba) return aa - ba;
         return byCanonicalNameAlpha(a.indexRow, b.indexRow);
       });
-      const cards = sorted.map(e => shapeDictionaryTrickCard(e.row, e.indexRow, null, ctx));
+      const cards = sorted.map(e => shapeDictionaryTrickCard(e.row, e.indexRow, ctx));
       return {
         dexCount,
         dexLabel,
@@ -9172,7 +8987,7 @@ export const freestyleService = {
         return x.canonical_name.localeCompare(y.canonical_name, undefined, { sensitivity: 'base' });
       });
       const indexRows = sorted.map(r => shapeTrickIndexRow(r, ctx));
-      const cards     = sorted.map((r, i) => shapeDictionaryTrickCard(r, indexRows[i]!, null, ctx));
+      const cards     = sorted.map((r, i) => shapeDictionaryTrickCard(r, indexRows[i]!, ctx));
       return {
         modifierSlug: b.modifierSlug,
         modifierName: b.modifierName,
@@ -9273,7 +9088,7 @@ export const freestyleService = {
         bodyDefinition: COMPONENT_DEFINITIONS[bucket.modifierSlug] ?? null,
         memberCount:    sorted.length,
         anchorId:       `component-${bucket.modifierSlug}`,
-        cards:          sorted.map(e => shapeDictionaryTrickCard(e.row, e.indexRow, bucket.modifierSlug, ctx)),
+        cards:          sorted.map(e => shapeDictionaryTrickCard(e.row, e.indexRow, ctx)),
       };
     };
 
@@ -9326,7 +9141,7 @@ export const freestyleService = {
           return a.canonical_name.localeCompare(b.canonical_name, undefined, { sensitivity: 'base' });
         });
       const indexRows = matched.map(r => shapeTrickIndexRow(r, ctx));
-      const cards = matched.map((r, i) => shapeDictionaryTrickCard(r, indexRows[i]!, def.slug, ctx));
+      const cards = matched.map((r, i) => shapeDictionaryTrickCard(r, indexRows[i]!, ctx));
       // Pass the topology-slug as the group anchor.
       // Template renders dotted-underline emphasis on topology surfaces
       // (observational, not canonical) via ancestor-class selector.
@@ -9405,7 +9220,7 @@ export const freestyleService = {
         if (aa !== ba) return aa - ba;
         return byCanonicalNameAlpha(a.indexRow, b.indexRow);
       });
-      const cards = entries.map(e => shapeDictionaryTrickCard(e.row, e.indexRow, null, ctx));
+      const cards = entries.map(e => shapeDictionaryTrickCard(e.row, e.indexRow, ctx));
       return {
         cards,
         addBands: bandCardsByAdd(entries.map((e, i) => ({ adds: e.row.adds, card: cards[i]! }))),
@@ -9422,7 +9237,7 @@ export const freestyleService = {
         const rows = group.tricks
           .map(slug => allActiveTrickRowsBySlug.get(slug))
           .filter((row): row is FreestyleTrickRowWithStatus => row !== undefined);
-        const cards = rows.map(row => shapeDictionaryTrickCard(row, shapeTrickIndexRow(row, ctx), null, ctx));
+        const cards = rows.map(row => shapeDictionaryTrickCard(row, shapeTrickIndexRow(row, ctx), ctx));
         return {
           slug:   `alt-surface-${group.slug}`,
           label:  group.label,

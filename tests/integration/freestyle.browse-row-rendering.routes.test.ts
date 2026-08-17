@@ -1,13 +1,11 @@
 /**
- * Dictionary browse-view card and row rendering.
+ * Dictionary browse-view row rendering.
  *
- * The browse views split across two rendering contracts:
- *   - By ADD (the /freestyle/tricks default) and By Family render the two-line
- *     dict-trick-row contract (dict-trick-row-stack), NOT the shared card.
- *   - By Category and By Component render the shared dictionary-trick-card
- *     partial (dict-card-stack).
- *   - By modifier uses its own compact-list density and is outside the
- *     card-uniformity contract.
+ * Every browse view renders the one shared two-line row: the name links to the
+ * trick's page, a separate Detail control agrees with it, the hashtag signals
+ * media, and the difficulty value and movement notation ride the second column.
+ * By modifier keeps its own compact-list density for the group index above its
+ * rows and is outside the uniformity assertions here.
  *
  * Sample tricks:
  *   - toe stall   — sparse base trick, low ADD
@@ -19,14 +17,13 @@
  *   - torque      — null operational notation but present in the equivalence chain registry
  *
  * Invariants verified:
- *   - Every browse view returns 200
- *   - By ADD / By Family render the two-line dict-trick-row stack, not the shared card
- *   - By Category / By Component render the shared dictionary-trick-card partial
- *   - A card renders: plain-text title, separate Trick Detail link, #slug chip,
- *     ADD label, tokenized notation or ≡ equivalence readings; never prose description
- *   - Sparse and deep tricks render through the one shared card template
- *   - Cards are grouped under their ADD / family / category section anchors
- *   - Tier-4 executable-accounting prose stays off non-first-class browse cards
+ *   - Every browse view returns 200 and renders the two-line row stack
+ *   - A row renders: linked name, #slug chip, separate Detail control, the
+ *     difficulty value and the notation; never a prose description, and never
+ *     an authoring-status marker
+ *   - Sparse and deep tricks render through the one shared row template
+ *   - Rows are grouped under their ADD / family / category section anchors
+ *   - Tier-4 executable-accounting prose stays off browse rows
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -159,7 +156,7 @@ beforeAll(async () => {
   });
 
   // Minimal modifier-link seeding so the component view renders
-  // at least one body-modifier group, exercising the dict-card-stack assertion
+  // at least one body-modifier group, exercising the row-stack assertion
   // in the per-view rendering guard below.
   insertFreestyleTrickModifier(db, { slug: 'spinning', modifier_name: 'spinning', modifier_type: 'body', add_bonus: 1, add_bonus_rotational: 1 });
   insertFreestyleTrickModifierLink(db, 'mobius',  'spinning', 1);
@@ -181,9 +178,8 @@ describe('GET /freestyle/tricks (By ADD) — route stability', () => {
     expect(res.status).toBe(200);
   });
 
-  it('renders the ADD-view two-line row stack container', async () => {
-    // The ADD view uses its own two-line dict-trick-row contract (NOT the shared
-    // dict-card-stack; that lives on the other browse views).
+  it('renders the two-line row stack container', async () => {
+    // The same contract every browse view holds; the ADD view is not special.
     const res = await request(createApp()).get('/freestyle/tricks?view=add');
     expect(res.text).toContain('dict-trick-row-stack');
     expect(res.text).not.toContain('dict-card-stack');
@@ -203,75 +199,65 @@ describe('GET /freestyle/tricks (By ADD) — route stability', () => {
 // 2. Card structure
 // ─────────────────────────────────────────────────────────────────────────
 
-describe('dictionary-trick-card — required slots', () => {
-  it('renders the trick name as plain text and a separate Trick Detail link', async () => {
+describe('dictionary trick row — required slots', () => {
+  it('links the trick name to its page and offers a separate Detail control', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=category');
-    // The plain-English name is display text only, never a link.
-    expect(res.text).toContain('<span class="dict-card-title">ripwalk</span>');
-    expect(res.text).toContain('<span class="dict-card-title">mobius</span>');
-    expect(res.text).toContain('<span class="dict-card-title">montage</span>');
-    // A distinct Trick Detail control resolves to the detail page.
-    expect(res.text).toMatch(/<a class="dict-card-detail" href="\/freestyle\/tricks\/ripwalk">Detail<\/a>/);
-    expect(res.text).toMatch(/<a class="dict-card-detail" href="\/freestyle\/tricks\/mobius">Detail<\/a>/);
-    expect(res.text).toMatch(/<a class="dict-card-detail" href="\/freestyle\/tricks\/montage">Detail<\/a>/);
+    // The plain-English name is the route to the trick's page, the way every
+    // other entity list on the site links its title.
+    expect(res.text).toMatch(/<a class="dict-trick-row-title" href="\/freestyle\/tricks\/ripwalk">ripwalk<\/a>/);
+    expect(res.text).toMatch(/<a class="dict-trick-row-title" href="\/freestyle\/tricks\/mobius">mobius<\/a>/);
+    expect(res.text).toMatch(/<a class="dict-trick-row-title" href="\/freestyle\/tricks\/montage">montage<\/a>/);
+    // A distinct Detail control resolves to the same page, so the two agree.
+    expect(res.text).toMatch(/<a class="tag-chip tag-chip--sm" href="\/freestyle\/tricks\/ripwalk">Detail<\/a>/);
+    expect(res.text).toMatch(/<a class="tag-chip tag-chip--sm" href="\/freestyle\/tricks\/mobius">Detail<\/a>/);
+    expect(res.text).toMatch(/<a class="tag-chip tag-chip--sm" href="\/freestyle\/tricks\/montage">Detail<\/a>/);
   });
 
-  it('renders the #slug tag-identity chip on every card', async () => {
+  it('renders the #slug tag-identity chip on every row', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=category');
     expect(res.text).toContain('<span class="hashtag" aria-label="Tag identity">#ripwalk</span>');
     expect(res.text).toContain('<span class="hashtag" aria-label="Tag identity">#mobius</span>');
     expect(res.text).toContain('<span class="hashtag" aria-label="Tag identity">#montage</span>');
   });
 
-  it('renders ADD label slot for every seeded trick', async () => {
+  it('renders the difficulty value on every row, in parentheses beside the notation', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=category');
-    expect(res.text).toMatch(/<span class="dict-card-add[^"]*"[^>]*>1 ADD<\/span>/);
-    expect(res.text).toMatch(/<span class="dict-card-add[^"]*"[^>]*>2 ADD<\/span>/);
-    expect(res.text).toMatch(/<span class="dict-card-add[^"]*"[^>]*>4 ADD<\/span>/);
-    expect(res.text).toMatch(/<span class="dict-card-add[^"]*"[^>]*>5 ADD<\/span>/);
-    expect(res.text).toMatch(/<span class="dict-card-add[^"]*"[^>]*>7 ADD<\/span>/);
+    // The value is the number alone. Spelling out "N ADD" per row would
+    // restate the grouping header on the one view that already says it, so
+    // the row carries the compact form on every view alike.
+    for (const value of ['(1)', '(2)', '(4)', '(5)', '(7)']) {
+      expect(res.text, `the row must carry the ${value} difficulty value`)
+        .toMatch(new RegExp(`<span class="dict-trick-row-add" aria-label="Difficulty value">\\${value[0]}${value.slice(1, -1)}\\)</span>`));
+    }
   });
 
-  it('op-notation chip suppressed on browse cards for first-class tricks (renders only via first-class JOB row)', async () => {
-    // The op-notation chip between hashtag and ADD chip would duplicate
-    // the JOB row in the first-class secondary row below, so the chip is
-    // suppressed for first-class tricks; non-first-class tricks still get
-    // it. The op-token role taxonomy itself is exercised on trick-detail
-    // pages and on the first-class secondary row's JOB line, which both
-    // tokenize via the same renderer.
+  it('a first-class trick renders its curator chain in the notation column', async () => {
+    // A first-class trick carries no tokenized operational notation of its
+    // own; its chain is a plain curator string. Without it the whole
+    // first-class cohort would render an empty notation column.
     const res = await request(createApp()).get('/freestyle/tricks?view=category');
-    // Atoms (toe-stall, mirage, etc.) are first-class — their op-notation
-    // chip is suppressed on browse cards.
-    const toeStallCard = res.text.match(/data-trick-slug="toe_stall"[\s\S]*?<\/article>/);
-    expect(toeStallCard).not.toBeNull();
-    expect(toeStallCard![0]).not.toMatch(/<code class="dict-card-notation/);
-    // First-class secondary row still carries the JOB line.
-    expect(toeStallCard![0]).toMatch(/dict-card-first-class-label[^>]*>JOB:/);
+    const toeStallRow = res.text.match(/data-trick-slug="toe_stall"[\s\S]*?<\/article>/);
+    expect(toeStallRow).not.toBeNull();
+    expect(toeStallRow![0]).toMatch(/<code class="dict-trick-row-notation-value">/);
+    expect(toeStallRow![0]).toMatch(/SET[\s\S]*?TOE/);
   });
 
-  it('renders ≡ symbolic-equivalence readings from the curator chain registry', async () => {
-    // Every browse view renders registry density. The equivalence wrapper
-    // picks up the --inline modifier class. The token text content is
-    // identical to what ADD View shows.
-    const res = await request(createApp()).get('/freestyle/tricks?view=category');
-    // Ripwalk: chain reading 'stepping butterfly'
-    expect(res.text).toMatch(/class="core-trick-equivalence dict-card-equivalence[^"]*"[^>]*>[\s\S]*?stepping[\s\S]*?butterfly/i);
-    // Mobius: 'gyro torque' reading
-    expect(res.text).toMatch(/class="core-trick-equivalence dict-card-equivalence[^"]*"[^>]*>[\s\S]*?gyro[\s\S]*?torque/i);
-    // The ≡ structural readings and the "Also called" folk-name line are two
-    // separate slots. A trick can carry either, both, or neither, so the presence
-    // of a reading never implies an alias line and never suppresses one.
+  it('renders no authoring-status marker on any browse row', async () => {
+    // A row states what a trick is, never how far along our own authoring of
+    // it has got. Status belongs on the trick detail page.
+    for (const view of ['add', 'family', 'category', 'component', 'topology']) {
+      const res = await request(createApp()).get(`/freestyle/tricks?view=${view}`);
+      expect(res.text, `${view} must render no decomposition-under-review pill`)
+        .not.toContain('decomposition under review');
+      expect(res.text, `${view} must render no incomplete badge`)
+        .not.toContain('dict-badge-incomplete');
+    }
   });
 
   it('"Notation pending" placeholder is silent across all browse views', async () => {
-    // Every browse view uses registry density. Registry density renders
-    // the formula slot silently
-    // when neither a curator chain nor operational notation exists — no
-    // "Notation pending" italic anywhere on browse cards. This applies
-    // uniformly to ADD / Family / Component / Topology / Category views.
-    //
-    // Cards still indicate their data state via title + ADD chip + (optional)
-    // media chip. The pending state is data-coverage, not a render contract.
+    // A row renders its notation when there is notation and nothing at all
+    // otherwise. Absent notation is data coverage, not something a browse row
+    // announces, so no placeholder appears on any view.
     for (const url of [
       '/freestyle/tricks?view=add',
       '/freestyle/tricks?view=family',
@@ -280,8 +266,8 @@ describe('dictionary-trick-card — required slots', () => {
       '/freestyle/tricks?view=topology',
     ]) {
       const res = await request(createApp()).get(url);
-      expect(res.text).not.toContain('dict-card-notation--pending');
       expect(res.text).not.toMatch(/<em>Notation pending<\/em>/);
+      expect(res.text).not.toContain('Notation pending');
     }
   });
 
@@ -382,32 +368,27 @@ describe('dictionary-trick-card — required slots', () => {
     }
   });
 
-  it('F4 — suppresses "Notation pending" when ≡ symbolic equivalences carry the structural information', async () => {
-    // F4: cards with chain-registry equivalences should not also display
-    // the pending-notation cue; the ≡ readings already convey structural
-    // composition. Tested in browse density where the placeholder can
-    // appear at all.
+  it('a trick with no notation renders an empty notation column, not a placeholder', async () => {
+    // torque carries no operational notation at all. The row shows its
+    // difficulty value and stops; it never announces the absence.
     const res = await request(createApp()).get('/freestyle/tricks?view=category');
     const torqueStart = res.text.indexOf('data-trick-slug="torque"');
     expect(torqueStart).toBeGreaterThan(-1);
     const torqueEnd = res.text.indexOf('</article>', torqueStart);
     const torqueRegion = res.text.substring(torqueStart, torqueEnd);
-    // ≡ chain readings render.
-    expect(torqueRegion).toMatch(/core-trick-equivalence dict-card-equivalence/);
-    // Notation pending placeholder does NOT render inside this card.
+    expect(torqueRegion).toContain('dict-trick-row-add');
     expect(torqueRegion).not.toContain('Notation pending');
-    expect(torqueRegion).not.toContain('dict-card-notation--pending');
   });
 
-  it('does NOT render prose description in the browse card', async () => {
+  it('does NOT render prose description in the browse row', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=add');
-    // The legacy By ADD view emitted .trick-description; the migrated card never renders it.
+    // The legacy By ADD view emitted .trick-description; the row never does.
     expect(res.text).not.toContain('trick-description');
   });
 
-  it('renders the dict-card article element for every seeded trick', async () => {
+  it('renders a row article element for every seeded trick', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=add');
-    // Each card renders as <article class="dict-card" data-trick-slug="...">.
+    // Each row renders as <article class="dict-trick-row" data-trick-slug="...">.
     const slugAttrCount = (res.text.match(/data-trick-slug="/g) ?? []).length;
     expect(slugAttrCount).toBeGreaterThanOrEqual(6);
   });
@@ -417,30 +398,19 @@ describe('dictionary-trick-card — required slots', () => {
 // 3. Sparse + deep cards through the SAME card
 // ─────────────────────────────────────────────────────────────────────────
 
-describe('dictionary-trick-card — sparse and deep render through the same template', () => {
-  it('Toe Stall (sparse) renders cleanly: title + ADD + first-class JOB row', async () => {
-    // The standalone op-notation chip on browse cards is suppressed for
-    // first-class tricks (it would duplicate the JOB row below). toe-stall
-    // is a core atom + first-class, so its op-notation surfaces via the
-    // first-class secondary row's labeled "JOB:" line instead.
+describe('dictionary trick row — sparse and deep render through the same template', () => {
+  it('Toe Stall (sparse) renders cleanly: linked name, Detail control, chain', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=category');
-    expect(res.text).toContain('<span class="dict-card-title">toe stall</span>');
-    expect(res.text).toMatch(/<a class="dict-card-detail" href="\/freestyle\/tricks\/toe_stall">Detail<\/a>/);
-    const toeStallCard = res.text.match(/data-trick-slug="toe_stall"[\s\S]*?<\/article>/);
-    expect(toeStallCard).not.toBeNull();
-    // No op-notation chip between hashtag and ADD chip.
-    expect(toeStallCard![0]).not.toMatch(/<code class="dict-card-notation/);
-    // First-class secondary row carries the JOB:
-    expect(toeStallCard![0]).toMatch(/dict-card-first-class-label[^>]*>JOB:/);
-    expect(toeStallCard![0]).toMatch(/SET[\s\S]*?TOE/);
+    expect(res.text).toMatch(/<a class="dict-trick-row-title" href="\/freestyle\/tricks\/toe_stall">toe stall<\/a>/);
+    expect(res.text).toMatch(/<a class="tag-chip tag-chip--sm" href="\/freestyle\/tricks\/toe_stall">Detail<\/a>/);
+    const toeStallRow = res.text.match(/data-trick-slug="toe_stall"[\s\S]*?<\/article>/);
+    expect(toeStallRow).not.toBeNull();
+    expect(toeStallRow![0]).toMatch(/SET[\s\S]*?TOE/);
   });
 
-  it('Montage (deep) renders cleanly: title + ADD + tokenized structural reading', async () => {
-    // Deep compounds in browse density render their tokenized ≡ reading
-    // (semantic tokens, not operational tokens). Operational tokens are
-    // suppressed when a ≡ reading is present; op-token markup lives on
-    // cards without ≡ readings (atoms / fallback) and on the trick-detail
-    // page.
+  it('Montage (deep) renders cleanly: the same two columns, no extra apparatus', async () => {
+    // A seven-operator compound gets no richer treatment than a one-operator
+    // trick: the depth lives in the notation, not in extra rows or chrome.
     const res = await request(createApp()).get('/freestyle/tricks?view=category');
     const montageStart = res.text.indexOf('data-trick-slug="montage"');
     expect(montageStart).toBeGreaterThan(-1);
@@ -448,20 +418,14 @@ describe('dictionary-trick-card — sparse and deep render through the same temp
     expect(montageEnd).toBeGreaterThan(montageStart);
     const montageRegion = res.text.substring(montageStart, montageEnd);
 
-    // Title + ADD
     expect(montageRegion).toContain('montage');
-    expect(montageRegion).toContain('7 ADD');
-    // Multi-modifier semantic tokens render (each as a sem-token span).
-    expect(montageRegion).toMatch(/spinning/);
-    expect(montageRegion).toMatch(/ducking/);
-    expect(montageRegion).toMatch(/paradox/);
-    expect(montageRegion).toMatch(/symposium/);
-    // Each operator carries a sem-token class (semantic-browse tokenization).
-    // Modifier + base-anchor tokens whose slug has a
-    // glossary anchor render as <a class="sem-token ... sem-token--linked">;
-    // other tokens stay <span class="sem-token ...">. Both element forms
-    // satisfy this contract.
-    const tokenElements = (montageRegion.match(/<(?:span|a) class="sem-token /g) ?? []);
+    expect(montageRegion).toContain('(7)');
+    // Identity column then notation column, and nothing else.
+    expect(montageRegion).toContain('dict-trick-row-identity');
+    expect(montageRegion).toContain('dict-trick-row-notation');
+    // The operator vocabulary reaches the row through the notation tokens.
+    expect(montageRegion).toMatch(/<code class="dict-trick-row-notation-value">/);
+    const tokenElements = (montageRegion.match(/<span class="op-token /g) ?? []);
     expect(tokenElements.length).toBeGreaterThanOrEqual(4);
   });
 });
@@ -499,7 +463,7 @@ describe('dictionary-trick-card — grouping', () => {
 // By Family view
 // ─────────────────────────────────────────────────────────────────────────
 
-describe('GET /freestyle/tricks?view=family — symbolic trick cards', () => {
+describe('GET /freestyle/tricks?view=family — trick rows', () => {
   it('renders family sections with anchor IDs', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
@@ -514,10 +478,7 @@ describe('GET /freestyle/tricks?view=family — symbolic trick cards', () => {
 
   it('family section renders the two-line dict-trick-row stack', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=family');
-    // Family view uses the generalized two-line row contract, not the shared
-    // dict-card-stack.
     expect(res.text).toContain('dict-trick-row-stack');
-    expect(res.text).not.toContain('dict-card-stack');
     // The rows inside the family section carry data-trick-slug from our seeded set.
     expect(res.text).toContain('data-trick-slug="butterfly"');
     expect(res.text).toContain('data-trick-slug="ripwalk"');
@@ -549,44 +510,46 @@ describe('other dictionary views — per-view rendering contract', () => {
   it('/freestyle/tricks?view=family returns 200 and uses the two-line row contract', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
-    // Family view uses the generalized dict-trick-row, not the shared dict-card.
     expect(res.text).toContain('dict-trick-row-stack');
     expect(res.text).not.toContain('dict-card-stack');
   });
 
-  it('/freestyle/tricks?view=component returns 200 and uses the shared card', async () => {
+  it('/freestyle/tricks?view=component returns 200 and uses the two-line row contract', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=component');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('dict-card-stack');
+    expect(res.text).toContain('dict-trick-row-stack');
   });
 
   it('/freestyle/tricks?view=modifier returns 200 (the modifier browse)', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=modifier');
     expect(res.status).toBe(200);
     // ?view=modifier renders the modifier-grouped browse, not a component
-    // alias (compact-list density, NOT dict-card-stack registry density).
-    // Active-toggle marker confirms the routing.
+    // alias. Active-toggle marker confirms the routing.
     expect(res.text).toMatch(/class="trick-view-toggle-active">By modifier</);
   });
 
-  it('/freestyle/tricks?view=category returns 200 and uses the shared card', async () => {
+  it('/freestyle/tricks?view=category returns 200 and uses the two-line row contract', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=category');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('dict-card-stack');
+    expect(res.text).toContain('dict-trick-row-stack');
   });
 
-  it('the dict-card-stack browse views continue to use the shared dictionary-trick-card partial', async () => {
-    // ?view=modifier is outside this card-uniformity contract (it uses
-    // compact-list density, not the dictionary-trick-card partial).
-    // ?view=add and ?view=family are also outside it — both render the
-    // two-line dict-trick-row contract, not the shared dict-card-stack.
-    // The card-uniformity contract holds for the views that use the
-    // shared card (category / component).
-    for (const view of ['category', 'component']) {
+  it('no browse view falls back to a second row system', async () => {
+    // One row contract, no exceptions. A view reintroducing card-density
+    // markup fails here rather than shipping a page where the same trick
+    // reads two different ways depending on how the reader arrived. The
+    // negative holds for every view; the positive is asserted only where this
+    // fixture seeds members, since a view with no matching trick correctly
+    // renders its empty state instead of a stack.
+    const POPULATED = new Set(['add', 'family', 'category', 'component', 'topology', 'movement-system', 'dex-count']);
+    for (const view of ['add', 'family', 'set', 'category', 'component', 'topology', 'movement-system', 'dex-count']) {
       const url = `/freestyle/tricks?view=${view}`;
       const res = await request(createApp()).get(url);
       expect(res.status).toBe(200);
-      expect(res.text, `${url} must render dict-card-stack`).toContain('dict-card-stack');
+      expect(res.text, `${url} must not render card-density markup`).not.toContain('dict-card-stack');
+      if (POPULATED.has(view)) {
+        expect(res.text, `${url} must render the shared row stack`).toContain('dict-trick-row-stack');
+      }
     }
   });
 });

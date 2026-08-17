@@ -208,11 +208,12 @@ presentation-level (`inconsistent`), never `broken` — calibrate severity accor
 
 ### §F12 Browse-view contract
 
-Every browse view renders the shared dictionary trick card (the card-uniformity contract,
-mechanically pinned by the dictionary-trick-card route test): cards shaped only by the
-service card shaper, no card-internal markup in templates, ADD-ascending-then-name sort,
-empty groups hidden, modifier-stub rows excluded, observational views carrying their badge
-and non-override footer.
+Every browse view renders the shared dictionary trick row (the row contract, mechanically
+pinned by the browse-row-contract route test, which loops every view and holds no exclusion
+list): rows shaped only by the service row shaper, no row-internal markup in templates,
+ADD-ascending-then-name sort, empty groups hidden, modifier-stub rows excluded, one heading
+system across views, no authoring status on a row, and observational views carrying their
+exploratory status label and non-override footer.
 
 ### §F13 Generated-content drift
 

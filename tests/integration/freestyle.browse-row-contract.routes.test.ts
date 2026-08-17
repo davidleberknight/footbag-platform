@@ -1,14 +1,15 @@
 /**
  * Browse-shell row-contract stability guard.
  *
- * After the six-view two-line migration, ALL primary browse views must render
- * the generalized two-line `dictionary-trick-row.hbs` partial (`dict-trick-row-*`)
- * and must NOT fall back to the legacy shared `dictionary-trick-card`
- * (`dict-card-stack` / `dict-card--registry`). This test pins that contract so
- * a future change can't silently regress one view to the old shared card.
+ * Every browse view renders the generalized two-line `dictionary-trick-row.hbs`
+ * partial (`dict-trick-row-*`). There is no per-view exception: a trick reads
+ * the same way whichever view a visitor arrived through, which is the whole
+ * point of a shared row. This test pins that contract so a future change cannot
+ * silently give one view a rendering of its own.
  *
- * The soft-retired `category` / `component` views are intentionally excluded:
- * they may still use the legacy shared card until they are removed.
+ * The card-density markup a browse view must never emit (`dict-card-stack`,
+ * `dict-card--registry`, the per-row ADD chip) is asserted absent as well, so
+ * reintroducing a second row system fails here rather than shipping.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -68,18 +69,23 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-// The six primary browse views (UI labels in comments).
-const PRIMARY_VIEWS: Array<[string, string]> = [
+// Every browse view the dictionary offers, by query value and UI label. The two
+// soft-retired views sit in this list on the same terms as the rest: a view no
+// longer promoted in the toggle still renders rows the same way for anyone
+// arriving on a bookmark or an external link.
+const BROWSE_VIEWS: Array<[string, string]> = [
   ['add', 'By ADD'],
   ['family', 'By family'],
   ['dex-count', 'By dex count'],
   ['movement-system', 'Movement System'],
   ['modifier', 'By Modifier'],
   ['topology', 'Movement Neighborhoods'],
+  ['category', 'By category'],
+  ['component', 'By component'],
 ];
 
-describe('Browse-shell row-contract stability guard — all six primary views use the two-line dict-trick-row', () => {
-  for (const [view, label] of PRIMARY_VIEWS) {
+describe('Browse-shell row-contract stability guard — every browse view uses the two-line dict-trick-row', () => {
+  for (const [view, label] of BROWSE_VIEWS) {
     it(`${label} (?view=${view}) renders the two-line dict-trick-row stack`, async () => {
       const res = await request(await createApp()).get(`/freestyle/tricks?view=${view}`);
       expect(res.status).toBe(200);
@@ -104,7 +110,7 @@ describe('Browse-shell row-contract stability guard — all six primary views us
 // distinct controls. No trick in this fixture set carries media, so every hashtag
 // here is expected in its plain-token form.
 describe('Control-separation rule — name opens the page, Detail agrees with it, hashtag signals media', () => {
-  for (const [view, label] of PRIMARY_VIEWS) {
+  for (const [view, label] of BROWSE_VIEWS) {
     it(`${label} (?view=${view}) links the trick name to that trick's detail page`, async () => {
       const res = await request(await createApp()).get(`/freestyle/tricks?view=${view}`);
       expect(res.status).toBe(200);
@@ -144,18 +150,11 @@ describe('Control-separation rule — name opens the page, Detail agrees with it
   }
 });
 
-// The two soft-retired views draw their rows with the shared card at registry
-// density rather than the two-line row, which is why they sit outside the guard
-// above. That is a difference in layout, not in what a row may omit: a trick's
-// folk names belong on every browse view, whichever partial draws it.
-const ALL_BROWSE_VIEWS: Array<[string, string]> = [
-  ...PRIMARY_VIEWS,
-  ['category', 'By category'],
-  ['component', 'By component'],
-];
-
+// A trick's folk names belong on every browse view. Kept as its own contract
+// rather than folded into the row assertions above, because it is about what a
+// row may omit rather than which partial drew it.
 describe('Alias slot uniformity — every browse view surfaces a trick\'s folk names', () => {
-  for (const [view, label] of ALL_BROWSE_VIEWS) {
+  for (const [view, label] of BROWSE_VIEWS) {
     it(`${label} (?view=${view}) renders the "Also called" slot`, async () => {
       const res = await request(await createApp()).get(`/freestyle/tricks?view=${view}`);
       expect(res.status).toBe(200);
