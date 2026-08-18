@@ -50,8 +50,8 @@ The Core Rule above describes DATA layers (which table, which file). This sectio
 |---|---|---|
 | **Canonical names** | Official trick naming. The community labels. | `freestyle_tricks.canonical_name`, dictionary card titles, family slugs |
 | **Symbolic decomposition** | Structural tokenization. Operators + bases + side-positionals composed into formulas. | `tokenizedEquivalences`, semantic notation tokens, `≡` readings |
-| **Glossary pedagogy** | Educational explanation. Coach-tone primer prose, modifier-feel cards, definitions. | `/freestyle/glossary`, modifier feel cards, dex direction prose |
-| **Embodied movement analogy** | Descriptive movement relationships. How body parts move; movement neighborhoods; feel. | Glossary feel-card "feel" + "intuition" fields, future movement-archetype layer |
+| **Glossary pedagogy** | Educational explanation. Coach-tone primer prose, modifier-feel cards, definitions. | `/freestyle/concepts` (Freestyle Concepts, the chapter-based conceptual reference), modifier feel cards, dex direction prose; `/freestyle/glossary` is the separate alphabetical A–Z term lookup (short definitions that link into Concepts) |
+| **Embodied movement analogy** | Descriptive movement relationships. How body parts move; movement neighborhoods; feel. | Concepts feel-card "feel" + "intuition" fields, future movement-archetype layer |
 
 **Rules:**
 
@@ -171,6 +171,8 @@ Definitions: Tiltless = all tricks 2+ ADD; Guiltless = 3+; Tripless = 4+; Fearle
 
 Rules: do not store glossary terms in `freestyle_tricks` or `freestyle_trick_modifiers`; prefer editorial markdown / static content first; only create a glossary DB table if there is a clear product need.
 
+Public surfaces for this layer: `/freestyle/glossary` is the alphabetical A–Z term lookup (a TS content module of one-line definitions, each linking to its deeper home); `/freestyle/concepts` (Freestyle Concepts) is the chapter-based conceptual reference where those terms are explained in depth. The trick dictionary stays at `/freestyle/tricks`. Glossary entries shorten existing Concepts / operator-reference copy and never introduce doctrine of their own.
+
 ---
 
 ## 5. Sequence / Combo Layer
@@ -234,7 +236,7 @@ All public queries on `freestyle_tricks` MUST filter `is_active = 1`. Enforced i
 
 `freestyle_tricks` rows with `category='modifier'` (paradox, gyro, barraging, blazing) are excluded from public category groupings; they exist only as FK targets for `freestyle_trick_modifier_links`. The proper rules table for modifier ADD bonuses is `freestyle_trick_modifiers`; do not derive modifier ADD math from `freestyle_tricks` rows.
 
-**The Modifier Reference does not render on the trick pages** (neither the trick dictionary index `tricks.hbs` nor the trick detail `trick-shell.hbs` carries a Modifier Reference section — editorial decision). The reference table renders on `/freestyle/glossary` (the `freestyle-modifier-reference` partial). Do not add it to the trick pages without explicit human approval. Public modifier editorial content belongs on `/freestyle/glossary` only, in plain language.
+**The Modifier Reference does not render on the trick pages** (neither the trick dictionary index `tricks.hbs` nor the trick detail `trick-shell.hbs` carries a Modifier Reference section — editorial decision). The reference table renders on `/freestyle/concepts` (Freestyle Concepts, via the `freestyle-modifier-reference` partial) and on `/freestyle/operators`. Do not add it to the trick pages without explicit human approval. Public modifier editorial content belongs on `/freestyle/concepts` only, in plain language; the A–Z `/freestyle/glossary` carries one-line definitions that link there.
 
 ---
 

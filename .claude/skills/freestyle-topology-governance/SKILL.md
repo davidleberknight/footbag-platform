@@ -184,7 +184,7 @@ When triggered, read THIS skill before `footbag-freestyle-dictionary` for the co
 ## When this skill does NOT apply
 
 - Pure rendering work that doesn't touch classification (CSS, layout, density modes)
-- Token-level navigation (glossary anchor links, token underlining)
+- Token-level navigation (Freestyle Concepts anchor links, token underlining)
 - Trick-content edits that don't reshape grouping (description prose, alias additions, ADD value corrections)
 - Pipeline / loader / import work below the public surface
 

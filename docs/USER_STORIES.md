@@ -650,12 +650,14 @@ Success Criteria:
 
 Access: Any visitor can read the reference layer without logging in.
 
-Story: As a visitor, I can read the freestyle reference layer (glossary, operators, notation article, scoring and combo analysis, corpus insights) so that I can learn the movement language and how difficulty is derived.
+Story: As a visitor, I can read the freestyle reference layer (the A–Z glossary, Freestyle Concepts, operators, notation article, scoring and combo analysis, corpus insights) so that I can learn the movement language and how difficulty is derived.
 
 Success Criteria:
 
-- `/freestyle/glossary` defines the movement vocabulary (surfaces, dexterities, sets, operators, families, notation, composition) as pedagogy layered over the canonical data: it explains canonical facts and links to them, and never contradicts or redefines them.
-- Deep links into the glossary (term and section anchors) land on content the reader can see; a link into a collapsed region opens it.
+- `/freestyle/glossary` is the alphabetical A–Z term lookup: one entry per freestyle term with a concise plain-English definition and, where deeper material exists, a link to it. Entries are ordered alphabetically and deterministically; the page coins no doctrine of its own.
+- `/freestyle/concepts` (Freestyle Concepts) is the chapter-based conceptual reference: it defines the movement vocabulary (surfaces, dexterities, sets, operators, families, notation, composition) as pedagogy layered over the canonical data: it explains canonical facts and links to them, and never contradicts or redefines them.
+- "Reading the Dictionary" (the trick-row contract, the browse views, and the kinds of object the platform keeps separate) lives on `/freestyle/tricks` as a collapsed disclosure above the browse controls, not on the Concepts page.
+- Deep links into Freestyle Concepts (term and section anchors) land on content the reader can see; a link into a collapsed region opens it.
 - `/freestyle/operators` presents the operator and modifier reference derived from the canonical operator registry, the single authority for operator difficulty contribution and structure.
 - `/freestyle/modifier/{slug}` renders a modifier's detail page: a visitor can open it to read its definition, scoring and structural role, related examples, and any clearly labeled stub state when fuller teaching content is not yet available.
 - `/freestyle/notation-article` reproduces Ben Job's notation article verbatim with its source attribution.

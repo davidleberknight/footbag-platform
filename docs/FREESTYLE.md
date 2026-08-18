@@ -17,7 +17,7 @@ pieces:
 
 - **Public reader surfaces.** The trick index and per-trick detail pages, the
   family pages, the set encyclopedia, the operators and per-modifier pages, the
-  glossary, the learn path, freestyle search, the world-records and
+  A–Z glossary and the Freestyle Concepts chapters, the learn path, freestyle search, the world-records and
   consecutive-kicks records pages, and curated media. These are read-only
   projections of the dictionary tables, shaped by `src/services/freestyleService.ts`
   and its helpers.
@@ -244,7 +244,8 @@ the sources do not agree on.
 One sentence answers who owns a term's meaning. Canonical structure and scoring
 are owned by the dictionary tables and the operator reference
 (`freestyleOperatorReference.ts` for operator ADD, structure, and X-Dex). The
-reader-facing explanation of terms is the public glossary page. `docs/GLOSSARY.md`
+reader-facing explanation of terms is the public Freestyle Concepts page, with the
+public A–Z glossary giving each term a one-line definition that links there. `docs/GLOSSARY.md`
 is the project technical glossary. This guide points to those homes and never
 copies their content, so a term's meaning has exactly one authoritative source.
 
@@ -252,7 +253,7 @@ One class of terms is owned here directly, because it describes runs, never
 individual tricks, and therefore lives in no dictionary table: the run-quality
 ladder. Tiltless means every trick in the run is 2+ ADD; Guiltless 3+; Tripless
 4+; Fearless 5+; Beastly 6+; Godly 7+. Genuine is Guiltless excluding the BOP
-tricks (Butterfly, Osis, Paradox Mirage). The public glossary page renders these
+tricks (Butterfly, Osis, Paradox Mirage). The public A–Z glossary and Freestyle Concepts render these
 for readers; this guide is their authoritative definition.
 
 ## 9. Operational safety
@@ -281,7 +282,7 @@ Each document owns one thing:
 - `freestyle/doctrine/` (and its `README.md` index) - the doctrine of record.
 - `src/content/freestyleOperatorReference.ts` - the operator ADD, structure, and
   X-Dex authority.
-- The public glossary page and `docs/GLOSSARY.md` - reader-facing and technical
+- The public A–Z glossary and Freestyle Concepts pages, and `docs/GLOSSARY.md` - reader-facing and technical
   term explanation.
 - `freestyle/README.md` - the pipeline runbook (a local-development tool).
 - The freestyle skills and the path-scoped `.claude/rules/*` - the agent-facing
