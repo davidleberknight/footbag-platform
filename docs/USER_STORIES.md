@@ -123,6 +123,18 @@ document follows.
     - [EO_Upload_Results](#eo_upload_results)
   - [4.5 Music Operations](#45-music-operations)
     - [EO_Play_Routine_Music](#eo_play_routine_music)
+  - [4.6 Tournament Operations](#46-tournament-operations)
+    - [EO_Configure_Tournament_Divisions](#eo_configure_tournament_divisions)
+    - [EO_Manage_Division_Entries](#eo_manage_division_entries)
+    - [EO_Check_In_Competitors](#eo_check_in_competitors)
+    - [EO_Seed_Division](#eo_seed_division)
+    - [EO_Generate_Draw](#eo_generate_draw)
+    - [EO_Schedule_Matches](#eo_schedule_matches)
+    - [EO_Record_Match_Result](#eo_record_match_result)
+    - [EO_Correct_Match_Result](#eo_correct_match_result)
+    - [EO_Print_Tournament_Sheets](#eo_print_tournament_sheets)
+    - [V_Follow_Live_Tournament](#v_follow_live_tournament)
+    - [EO_Finalize_Division_Results](#eo_finalize_division_results)
 - [5. Club Leader Stories](#5-club-leader-stories)
   - [5.1 Club Lifecycle](#51-club-lifecycle)
     - [M_Create_Club](#m_create_club)
@@ -2080,7 +2092,7 @@ For events officially registered through the IFPA website (including sanctioned 
 
 ## 4.5 Music Operations
 
-Organizer-side audio operations during events. The initial scope is routine-music playback; the subsection's scope is expected to broaden over time to cover other tournament operations (bracket draws, judging sheets, live scoring, projection control) when those features are added.
+Organizer-side audio operations during events. The scope is routine-music playback; draws, seeding, scheduling, live scoring and the rest of the tournament day are in Tournament Operations below.
 
 ### EO_Play_Routine_Music
 
@@ -2097,6 +2109,228 @@ Success Criteria:
 - Files persist indefinitely on the member's S3 library (see `M_Upload_Routine_Music`); organizer access is gated by the attachment row remaining present and the organizer being assigned to the event.
 - If a competitor deletes a library file that was attached to a past or current registration, the corresponding entry in this list shows a tombstone "Deleted by competitor" with no playback or download. The attachment metadata (event, category, competitor identity, label) is preserved for audit and historical reference.
 - All listing, play, and download actions are audit-logged with organizer ID, event ID, file ID, action, timestamp.
+
+## 4.6 Tournament Operations
+
+<< V3 SCOPE >> Native tournament-day operations are version-three scope, to be complete in time
+for Worlds 2027. These stories are design intent for that build and are not part of the v1 launch.
+They are written first against net, because net is the discipline run on seeded pools and
+elimination draws; freestyle judging and golf scoring are different formats that the same
+machinery must not preclude.
+
+Until this build lands, IFPA net championships run on an external tournament product under an
+IFPA organization account, and their draws, match scores and cross-event player history live
+there rather than on the platform.
+
+### EO_Configure_Tournament_Divisions
+
+Access: Event organizers and co-organizers, for events they organize.
+
+Story: As an event organizer, I can define the divisions my tournament actually contests so that
+entries, seeding, draws, scheduling and results all hang off one division list.
+
+Success Criteria:
+
+- A division names its discipline, its format (singles, doubles, mixed doubles), and its skill
+  class (open, intermediate, novice, or a class the organizer names). An event carries as many
+  divisions as it contests, and a competitor may enter more than one.
+- A division carries its match format: how many games decide a match, the points that win a game,
+  whether a game must be won by two, and any points cap. Defaults come from the IFPA published
+  rules for that discipline, an organizer may vary them for the division, and the variation is
+  recorded with the division's results.
+- Divisions can be combined, split, or renamed after entries open, and every entry, draw and
+  result follows the change rather than being re-keyed by hand.
+- Division setup and every later change to it are audit-logged.
+
+### EO_Manage_Division_Entries
+
+Access: Event organizers and co-organizers, for events they organize.
+
+Story: As an event organizer, I can manage who is entered in each division, including doubles
+pairs, so that the draw is made from an accurate entry list.
+
+Success Criteria:
+
+- An entry is one competitor for a singles division and one team for a doubles or mixed division.
+  A team is an entity in its own right: it has its own entry, seed, draw position and result.
+- A team entry survives the day: a partner can be added, replaced, or removed after entry, an
+  entry can sit incomplete while a partner is sought, and the change is recorded rather than
+  overwriting the original pairing silently.
+- An entry links to a platform member where one exists and otherwise records a display name and
+  country, because non-members compete and partners are found on site.
+- Entries carry the state the day needs: entered, waitlisted, checked in, withdrawn, no-show.
+- Entry caps, entry deadlines and withdrawal deadlines are per division.
+- Entry changes are audit-logged with who made them.
+
+### EO_Check_In_Competitors
+
+Access: Event organizers and co-organizers, for events they organize.
+
+Story: As an event organizer, I can check competitors in per division before the draw is made so
+that no-shows do not end up in the bracket.
+
+Success Criteria:
+
+- Check-in is per division and per entry, works from a phone at the venue, and shows who is still
+  outstanding as the deadline approaches.
+- An entry not checked in by the division's check-in deadline is marked no-show and is excluded
+  from the draw, and the organizer can reverse that up until the draw is made.
+- Check-in state is visible to every organizer of the event at once.
+
+### EO_Seed_Division
+
+Access: Event organizers and co-organizers, for events they organize.
+
+Story: As an event organizer, I can seed a division so that the strongest competitors do not meet
+in the first round.
+
+Success Criteria:
+
+- The system proposes a seeding order from the IFPA rankings where the division's discipline
+  carries them, and from prior results at the same event series otherwise. The proposal is a
+  starting point, never a lock.
+- The organizer can set, reorder and remove seeds by hand, and the final seeding is what the draw
+  uses.
+- The number of seeds is the organizer's choice within what the draw size allows.
+- Separation rules are applied when the draw is made: seeds are distributed across pools or
+  bracket quarters, and the organizer can additionally ask that competitors from the same country
+  or the same club be separated where the entry count allows.
+- The seeding used for a division is retained with its results, so a later ranking computation
+  and a later dispute both have the input that was actually used.
+
+### EO_Generate_Draw
+
+Access: Event organizers and co-organizers, for events they organize.
+
+Story: As an event organizer, I can generate the draw for a division so that play can start.
+
+Success Criteria:
+
+- A division's draw is one of: round-robin pools that qualify competitors into a main elimination
+  draw, a single elimination draw, or a round robin that stands alone and decides placement on
+  standings.
+- Pool play supports uneven pool sizes, and the number of pools and the number qualifying from
+  each are the organizer's choice.
+- An elimination draw supports byes, a consolation or back draw, and a third-place playoff.
+- Pool standings are computed and shown: matches played, won and lost, match record, game record,
+  total points for and against, and standings points. The tiebreak order is explicit and is
+  applied in order: match record, then head-to-head between the tied competitors, then game
+  difference, then point difference. A tie that survives all of them is surfaced for the organizer
+  to break rather than resolved silently.
+- A draw can be regenerated before its first match is played, and after that it is edited rather
+  than regenerated: an entry can be replaced by an alternate, and a walkover, retirement or
+  disqualification is recorded on the match rather than by rewriting the bracket.
+- Draw generation records the seeding and the method used, and is audit-logged.
+
+### EO_Schedule_Matches
+
+Access: Event organizers and co-organizers, for events they organize.
+
+Story: As an event organizer, I can schedule matches onto courts and times so that the event runs
+without collisions.
+
+Success Criteria:
+
+- The event carries its playing surfaces (courts or fields) and their availability windows, and a
+  match is assigned to a surface and a time slot or to a running order on that surface.
+- The schedule refuses, or warns on, a competitor assigned to two matches at once, including a
+  competitor entered in more than one division, and a match scheduled before the match that feeds
+  it has been played.
+- The order of play is publishable and re-orderable during the day, because tournaments run late.
+- An official can be assigned to a match where the division uses officials.
+
+### EO_Record_Match_Result
+
+Access: Event organizers, co-organizers, and anyone an organizer designates as a scorer for a
+surface or a division.
+
+Story: As whoever is running a court, I can enter a match result from my phone as it finishes so
+that the draw advances and spectators see it immediately.
+
+Success Criteria:
+
+- Entry is per game, in the division's match format, and the match's winner and the advancement
+  that follows are computed rather than typed.
+- A match can also be closed as a walkover, a retirement, a disqualification or a no-show, with
+  the reason recorded.
+- Entering a result advances the winner into the next draw position and recomputes the affected
+  pool standings without any further step.
+- The screen is usable one-handed at the side of a court, shows only the match being scored and
+  what comes next on that surface, and needs no page hunting between matches.
+- A result entered while the connection is down is held on the device and submitted when the
+  connection returns, and the person entering it can see which of their results have landed.
+- Every result carries who entered it and when.
+
+### EO_Correct_Match_Result
+
+Access: Event organizers and co-organizers, for events they organize.
+
+Story: As an event organizer, I can correct a result that was entered wrongly so that the draw and
+the standings are right, without losing what was originally recorded.
+
+Success Criteria:
+
+- A committed result can be corrected, including after the winner has advanced, and every
+  downstream draw position and pool standing recomputes.
+- A correction that would unmake a match already played is refused, and the organizer is told what
+  blocks it and what to undo first.
+- The original result, the correction, and who made each are all retained and audit-logged.
+
+### EO_Print_Tournament_Sheets
+
+Access: Event organizers and co-organizers, for events they organize.
+
+Story: As an event organizer, I can print the paperwork the day runs on so that the tournament
+survives a venue with no usable network.
+
+Success Criteria:
+
+- Printable, page-sized output for: the draw sheet of a division, its pool sheets, blank and
+  partly filled match score sheets, the order of play for a surface, and the entry list of a
+  division.
+- Output is a document the organizer can save and reprint, and it carries the event, division,
+  and the time it was produced, so a stale sheet on a wall is identifiable as stale.
+- Printed sheets are produced from the current state of the draw at the moment they are made, and
+  producing them changes nothing.
+
+### V_Follow_Live_Tournament
+
+Access: Public. This is the public surface of the tournament-operations build.
+
+Story: As anyone following the event, I can watch the draws, scores and standings update as the
+tournament is played.
+
+Success Criteria:
+
+- The event page carries, per division, the current draw, the pool standings, the completed match
+  scores, and what is on court now or next, and it updates as results are entered without the
+  reader reloading.
+- Each competitor shown links to their platform profile where they have one, and carries their
+  country.
+- The page is usable on a phone at the venue and readable on a projection screen at the site.
+- What is shown is what has been committed by a scorer; nothing provisional is public.
+
+### EO_Finalize_Division_Results
+
+Access: Event organizers and co-organizers, for events they organize.
+
+Story: As an event organizer, I can finalize a division so that its placements become the event's
+published results.
+
+Success Criteria:
+
+- Finalizing computes every competitor's placement down to last place from the draw and the pool
+  standings, applying the IFPA tie convention that tied competitors take the same, lower place and
+  the next place is skipped.
+- The organizer reviews the computed placements and commits them, and committing writes the same
+  event results the platform already publishes, so a tournament run natively and a tournament
+  whose results were uploaded from elsewhere are indistinguishable to everything downstream,
+  including attendance, Active Player grants, participant profiles and ranking computation.
+- The match scores that produced the placements are retained with them, not discarded at
+  finalization.
+- A division cannot be finalized while any of its matches is unplayed, unless the organizer
+  records why (an abandoned division, a format cut short) and that reason is retained.
+- Finalization is audit-logged, and a finalized division can be reopened by an administrator.
 
 # 5. Club Leader Stories
 
