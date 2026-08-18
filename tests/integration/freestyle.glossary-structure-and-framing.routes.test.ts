@@ -1,16 +1,17 @@
 /**
- * Integration tests for three glossary prose additions:
+ * Integration tests for three Freestyle Concepts prose additions on
+ * GET /freestyle/concepts:
  *
- *   (a) "How to read this glossary" subsection in §1
+ *   (a) "Reading the layer labels" subsection in the Movement Basics chapter
  *       (publication-state vocabulary)
- *   (b) "Family-anchor trick" terminology paragraph in §5 intro
+ *   (b) "Family-anchor trick" terminology paragraph in the Families intro
  *       (family vs trick clarity)
- *   (c) "Generative insight" subsection in §7
+ *   (c) "Generative insight" subsection in the notation chapter
  *       (Jobs notation compositional-completeness framing)
  *
  * Contract under test:
  *   - Each subsection's anchor + heading renders.
- *   - The publication-state vocabulary surfaces in §1 (six states
+ *   - The publication-state vocabulary surfaces in Movement Basics (six states
  *     enumerated by name: canonical / observational / doctrine-
  *     sensitive / historical / alternate derivation / pending).
  *   - The family-anchor terminology is defined and exemplified.
@@ -43,18 +44,18 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('GET /freestyle/glossary — Reading the layer labels section', () => {
+describe('GET /freestyle/concepts — Reading the layer labels section', () => {
   it('renders the subsection anchor and heading', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     expect(res.status).toBe(200);
-    // Anchor preserved; the heading was retitled off the duplicate "How to read
-    // this glossary" (that title now belongs only to the top intro card).
+    // Anchor preserved; the heading is "Reading the layer labels", distinct
+    // from the top intro card's title.
     expect(res.text).toMatch(/id="how-to-read"/);
     expect(res.text).toMatch(/Reading the layer labels/);
   });
 
   it('enumerates the six publication-state vocabulary terms', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     const startIdx = res.text.indexOf('glossary-publication-states');
     expect(startIdx).toBeGreaterThan(0);
     const endIdx = res.text.indexOf('</dl>', startIdx);
@@ -68,7 +69,7 @@ describe('GET /freestyle/glossary — Reading the layer labels section', () => {
   });
 
   it('does NOT leak curator-internal vocabulary', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     const startIdx = res.text.indexOf('id="how-to-read"');
     const endIdx = res.text.indexOf('id="derivation-atlas"', startIdx);
     const region = res.text.slice(startIdx, endIdx);
@@ -78,15 +79,15 @@ describe('GET /freestyle/glossary — Reading the layer labels section', () => {
   });
 });
 
-describe('GET /freestyle/glossary — Family-anchor terminology (§5)', () => {
-  it('defines family-anchor trick in the §5 intro', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+describe('GET /freestyle/concepts — Family-anchor terminology (Families chapter)', () => {
+  it('defines family-anchor trick in the Families intro', async () => {
+    const res = await request(createApp()).get('/freestyle/concepts');
     expect(res.text).toMatch(/family-anchor trick/i);
     expect(res.text).toMatch(/canonical trick that[\s\S]{0,80}productive root/i);
   });
 
   it('exemplifies family-anchor tricks and counter-examples', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     // Root-family examples from the two-axis Family entry.
     expect(res.text).toMatch(/Mirage, Whirl, Swirl/);
     // Counter-examples (tricks that are NOT family-anchors)
@@ -94,26 +95,26 @@ describe('GET /freestyle/glossary — Family-anchor terminology (§5)', () => {
   });
 
   it('cross-links to the dictionary browse views', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     expect(res.text).toContain('href="/freestyle/tricks"');
   });
 });
 
-describe('GET /freestyle/glossary — Generative insight (§7)', () => {
+describe('GET /freestyle/concepts — Generative insight (notation chapter)', () => {
   it('renders the subsection anchor and heading', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     expect(res.text).toMatch(/id="generative-insight"/);
     expect(res.text).toMatch(/Generative insight/);
   });
 
   it('frames the compositional system as combinatorially generative', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     expect(res.text).toMatch(/<strong>enumerable<\/strong>/);
     expect(res.text).toMatch(/curated subset/i);
   });
 
   it('renders the canonical structural formula', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     // The canonical formula tokens:
     //   (toe | clip) > [(same | op)(in | out)dexterity]* > (same | op)(toe | clip)
     expect(res.text).toMatch(/\(toe \| clip\)/);
@@ -123,21 +124,21 @@ describe('GET /freestyle/glossary — Generative insight (§7)', () => {
   });
 
   it('does NOT name individuals beyond the codified notation tradition', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     const startIdx = res.text.indexOf('id="generative-insight"');
     const endIdx = startIdx + 3000;
     const region = res.text.slice(startIdx, endIdx);
     // The subsection deliberately AVOIDS biographical attribution; the
-    // existing §7 framing carries the Jobs-notation tradition reference.
+    // existing notation-chapter framing carries the Jobs-notation tradition reference.
     expect(region).not.toMatch(/Ben Job/);
     expect(region).not.toMatch(/Husted/);
     expect(region).not.toMatch(/Steve\b/);
   });
 });
 
-describe('GET /freestyle/glossary — no curator-internal language across new subsections', () => {
+describe('GET /freestyle/concepts — no curator-internal language across new subsections', () => {
   it('the full page does not expose pt## tags, Wave-N tracking, or sprint labels', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     // Public prose must not carry pt##/Red/James/adjudication/dated
     // curator-review language. The subsections this suite covers must
     // not introduce such language.

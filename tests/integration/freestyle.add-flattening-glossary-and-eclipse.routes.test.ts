@@ -1,9 +1,9 @@
 /**
- * ADD-flattening glossary note and eclipse: routes and rendering.
+ * ADD-flattening Freestyle Concepts note and eclipse: routes and rendering.
  *
  * Two concerns:
  *
- * 1. Glossary §8 (ADD Accounting) carries a new advanced-tier note
+ * 1. The Freestyle Concepts ADD Accounting chapter carries an advanced-tier note
  *    explaining that historically-assigned ADD values can flatten
  *    execution-difficulty differences. The held-delay leg-over family
  *    (hop-over / walk-over / wrap) is the worked example.
@@ -86,9 +86,9 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('Glossary §8 — ADD-flattening note', () => {
-  it('/freestyle/glossary renders the advanced-tier ADD-flattening note in the ADD Accounting section', async () => {
-    const res = await request(await createApp()).get('/freestyle/glossary');
+describe('Freestyle Concepts ADD Accounting — ADD-flattening note', () => {
+  it('/freestyle/concepts renders the advanced-tier ADD-flattening note in the ADD Accounting section', async () => {
+    const res = await request(await createApp()).get('/freestyle/concepts');
     expect(res.status).toBe(200);
     // The ADD Accounting section anchor must be present
     expect(res.text).toContain('id="section-add-accounting"');
@@ -97,14 +97,14 @@ describe('Glossary §8 — ADD-flattening note', () => {
   });
 
   it('the note cites hop-over / walk-over / wrap as the 2-ADD held-delay leg-over family example', async () => {
-    const res = await request(await createApp()).get('/freestyle/glossary');
+    const res = await request(await createApp()).get('/freestyle/concepts');
     expect(res.text).toMatch(/hop-over[\s\S]*walk-over[\s\S]*wrap/);
     // Allow whitespace (incl. newlines from HTML wrapping) between tokens
     expect(res.text).toMatch(/held-delay\s+leg-over chassis/);
   });
 
   it('the note preserves the doctrine framing (historical ADD stays canonical; structural / mechanical relationships discussed separately)', async () => {
-    const res = await request(await createApp()).get('/freestyle/glossary');
+    const res = await request(await createApp()).get('/freestyle/concepts');
     expect(res.text).toContain('preserves historical ADD doctrine');
     expect(res.text).toContain('structural and mechanical relationships');
   });
@@ -207,9 +207,9 @@ describe('Curator rulings — double-knee + peak-stall + multi-bag doctrine', ()
   });
 });
 
-describe('Glossary §8 — multi-bag governing rule', () => {
-  it('/freestyle/glossary renders the multi-bag boundary-doctrine note in the ADD Accounting section', async () => {
-    const res = await request(await createApp()).get('/freestyle/glossary');
+describe('Freestyle Concepts ADD Accounting — multi-bag governing rule', () => {
+  it('/freestyle/concepts renders the multi-bag boundary-doctrine note in the ADD Accounting section', async () => {
+    const res = await request(await createApp()).get('/freestyle/concepts');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Multi-bag governing rule');
     expect(res.text).toContain('one additional ADD for each');
@@ -220,7 +220,7 @@ describe('Glossary §8 — multi-bag governing rule', () => {
   });
 
   it('the multi-bag note explicitly notes the single-bag dictionary axes do NOT classify multi-bag rows', async () => {
-    const res = await request(await createApp()).get('/freestyle/glossary');
+    const res = await request(await createApp()).get('/freestyle/concepts');
     expect(res.text).toMatch(/single-bag dictionary axes[\s\S]*do not classify multi-bag rows/);
   });
 });

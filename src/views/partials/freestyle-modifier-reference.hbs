@@ -1,7 +1,7 @@
 {{!--
   modifier-reference.hbs — shared partial rendering the modifier vocabulary
-  reference (formerly /freestyle/glossary §6). Used by both:
-    - /freestyle/glossary §6 (inline within the larger glossary flow)
+  reference. Used by both:
+    - /freestyle/concepts, Operators & Modifiers chapter (inline within the larger chapter flow)
     - /freestyle/operators (standalone page)
 
   Required view-model fields on parent `content`:
@@ -12,14 +12,14 @@
     - setModifiers: FreestyleSetModifierEntry[]
 
   Caller renders the surrounding <section> + heading (h1 for the operators
-  page, h2 for the §6 glossary section). This partial provides body only.
+  page, h2 for the Concepts chapter). This partial provides body only.
 
   Anchor IDs preserved verbatim from the prior inline rendering so deep
   links from elsewhere on the site continue to resolve.
 --}}
 
 {{! Operator-board visual orientation lives on the freestyle landing page; the
-    glossary's role here is terminology and execution detail, not visual taxonomy. }}
+    role here is terminology and execution detail, not visual taxonomy. }}
 
 <p class="glossary-compositional-layering-note">
   Each modifier layered onto a base introduces a <em>simultaneous additional
@@ -41,7 +41,7 @@
   <li>Paradox Whirl = whirl (base) + paradox (modifier).</li>
   <li>Ripwalk = butterfly (base) + stepping (modifier).</li>
 </ul>
-<p>The glossary explains terms; the dictionary defines exact structure.</p>
+<p>This reference explains terms; the dictionary defines exact structure.</p>
 <p class="detail-muted">
   Some modifier weights have varied historically by era, region, and judge;
   the values below reflect the consensus IFPA currently uses. For the

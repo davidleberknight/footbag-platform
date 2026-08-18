@@ -1,7 +1,7 @@
 /**
- * Integration tests for the Family Encyclopedia topic on GET /freestyle/glossary.
+ * Integration tests for the Family Encyclopedia topic on GET /freestyle/concepts.
  *
- * After Foundations the glossary presents a shelf of major topics. Each topic is
+ * After Foundations, Freestyle Concepts presents a shelf of major topics. Each topic is
  * a details whose summary is a destination card; opening the card unfolds the
  * whole topic section in place. The Family Encyclopedia topic wraps the entire
  * families section (its teaching prose and its reference bulk together) behind
@@ -30,15 +30,15 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-async function glossary(): Promise<string> {
-  const res = await request(await createApp()).get('/freestyle/glossary');
+async function concepts(): Promise<string> {
+  const res = await request(await createApp()).get('/freestyle/concepts');
   expect(res.status).toBe(200);
   return res.text;
 }
 
-describe('Glossary — Family Encyclopedia topic (destination card + in-topic content)', () => {
+describe('Freestyle Concepts — Family Encyclopedia topic (destination card + in-topic content)', () => {
   it('wraps the whole family section in a topic details behind a destination card', async () => {
-    const html = await glossary();
+    const html = await concepts();
 
     const topicAt     = html.indexOf('id="chapter-family-encyclopedia"');
     const teachingAt  = html.indexOf('What makes a family?');
@@ -60,7 +60,7 @@ describe('Glossary — Family Encyclopedia topic (destination card + in-topic co
   });
 
   it('keeps all the family reference content present (nothing dropped by wrapping)', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toContain('id="edge-cases-special-structures"');
     expect(html).toContain('Other foundational atoms');
     expect(html).toContain('id="section-families"'); // the section element is preserved

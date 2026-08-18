@@ -1,6 +1,6 @@
 /**
  * Integration tests for the "Reading a compound name" decoder on
- * GET /freestyle/glossary, rendered in the Reading the Dictionary chapter.
+ * GET /freestyle/tricks, rendered inside the Reading the Dictionary disclosure.
  *
  * The decoder teaches the read-from-the-end convention: for many compositional
  * names the final term identifies the base trick and its family, and the
@@ -31,8 +31,8 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-async function glossary(): Promise<string> {
-  const res = await request(await createApp()).get('/freestyle/glossary');
+async function dictionary(): Promise<string> {
+  const res = await request(await createApp()).get('/freestyle/tricks');
   expect(res.status).toBe(200);
   return res.text;
 }
@@ -47,23 +47,25 @@ function row(html: string, nameSlug: string): string {
   return html.slice(start, end);
 }
 
-describe('Glossary — reading a compound name (read from the end)', () => {
-  it('renders the decoder heading and the read-from-the-end convention in the Reading the Dictionary chapter', async () => {
-    const html = await glossary();
+describe('Trick Dictionary — reading a compound name (read from the end)', () => {
+  it('renders the decoder heading and the read-from-the-end convention inside the Reading the Dictionary disclosure', async () => {
+    const html = await dictionary();
     expect(html).toContain('Reading a compound name');
     expect(html).toContain('can be read from the end');
     expect(html).toMatch(/The\s+<strong>final term<\/strong>/);
-    // Sits inside Reading the Dictionary, before Movement Basics.
+    // Sits inside the Reading the Dictionary disclosure, before the browse controls.
+    const disclosureAt = html.indexOf('id="reading-the-dictionary"');
     const readingAt = html.indexOf('id="section-reading-the-dictionary"');
     const decoderAt = html.indexOf('Reading a compound name');
-    const basicsAt = html.indexOf('id="chapter-movement-basics"');
-    expect(readingAt).toBeGreaterThan(-1);
+    const disclosureEnd = html.indexOf('</details>', readingAt);
+    expect(disclosureAt).toBeGreaterThan(-1);
+    expect(readingAt).toBeGreaterThan(disclosureAt);
     expect(decoderAt).toBeGreaterThan(readingAt);
-    expect(basicsAt).toBeGreaterThan(decoderAt);
+    expect(disclosureEnd).toBeGreaterThan(decoderAt);
   });
 
   it('shows the minimal pair, each linked to its trick page', async () => {
-    const html = await glossary();
+    const html = await dictionary();
     expect(html).toContain('>Whirling Swirl</a>');
     expect(html).toContain('>Swirling Whirl</a>');
     expect(html).toContain('href="/freestyle/tricks/whirling_swirl"');
@@ -71,7 +73,7 @@ describe('Glossary — reading a compound name (read from the end)', () => {
   });
 
   it('attributes each compound to the base named by its last word', async () => {
-    const html = await glossary();
+    const html = await dictionary();
     // Whirling Swirl reads as a swirl (base = swirl), not a whirl.
     const whirlingSwirl = row(html, 'whirling_swirl');
     expect(whirlingSwirl).toContain('href="/freestyle/tricks/swirl"');

@@ -1,5 +1,5 @@
 /**
- * Integration tests for the two structural chapters on GET /freestyle/glossary:
+ * Integration tests for the two structural chapters on GET /freestyle/concepts:
  * Structural Analysis (how a trick name is written and read) and ADD Accounting
  * (where a trick's difficulty number comes from), each its own top-level chapter
  * card.
@@ -35,15 +35,15 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-async function glossary(): Promise<string> {
-  const res = await request(await createApp()).get('/freestyle/glossary');
+async function concepts(): Promise<string> {
+  const res = await request(await createApp()).get('/freestyle/concepts');
   expect(res.status).toBe(200);
   return res.text;
 }
 
-describe('Glossary — Structural Analysis and ADD Accounting chapters', () => {
+describe('Freestyle Concepts — Structural Analysis and ADD Accounting chapters', () => {
   it('keeps the notation material in the Structural Analysis chapter', async () => {
-    const html = await glossary();
+    const html = await concepts();
 
     const topicAt   = html.indexOf('id="chapter-structural-analysis"');
     const cardAt    = html.indexOf('id="concept-add"');
@@ -60,7 +60,7 @@ describe('Glossary — Structural Analysis and ADD Accounting chapters', () => {
   });
 
   it('gives the ADD accounting a top-level chapter card of its own', async () => {
-    const html = await glossary();
+    const html = await concepts();
 
     const chapterAt    = html.indexOf('id="chapter-add-accounting"');
     const accountingAt = html.indexOf('id="section-add-accounting"');
@@ -77,7 +77,7 @@ describe('Glossary — Structural Analysis and ADD Accounting chapters', () => {
   });
 
   it('preserves both chapters\' anchors and inbound-link targets', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toContain('id="section-notation"');        // notation chapter section
     expect(html).toContain('id="section-add-accounting"');  // ADD chapter section
     expect(html).toContain('id="traditional-reference"');   // history.hbs inbound link
@@ -86,7 +86,7 @@ describe('Glossary — Structural Analysis and ADD Accounting chapters', () => {
   });
 
   it('reconciles the ADD expansion to one term and states the checksum only once', async () => {
-    const html = await glossary();
+    const html = await concepts();
     // single reconciled expansion
     expect(html).toContain('ADD (Additional Degree of Difficulty)');
     // the accounting prose no longer restates the bracket-count checksum

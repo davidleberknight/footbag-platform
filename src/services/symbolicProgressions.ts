@@ -19,7 +19,7 @@
  */
 import type { FreestyleTrickRow } from '../db/db';
 import { slugToHashtag } from './freestyleRecordShaping';
-import { glossaryHrefForTerm } from './glossaryAnchors';
+import { conceptsHrefForTerm } from './conceptsAnchors';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Types
@@ -30,7 +30,7 @@ export interface WalkingProgressionStepInput {
   modifierAdded:  string;   // e.g., "anchor", "stepping body modifier"
   rationale:      string;   // educational prose
   symbolicNote:   string;   // topology / mechanic attribution
-  glossaryTerms:  string[]; // related glossary terms (linked separately)
+  conceptsTerms:  string[]; // related Freestyle Concepts terms (linked separately)
   isAnchor:       boolean;
 }
 
@@ -44,7 +44,7 @@ export interface WalkingProgressionStep {
   modifierAdded: string;
   rationale:     string;
   symbolicNote:  string;
-  glossaryLinks: Array<{ term: string; href: string }>;
+  conceptsLinks: Array<{ term: string; href: string }>;
   isAnchor:      boolean;
 }
 
@@ -74,7 +74,7 @@ const WALKING_FAMILY_STEPS: WalkingProgressionStepInput[] = [
       'The wing-motion foundation. A toe set, an outside-wing dex flick, and a cross-body clipper recovery. The wing pattern + cross-body finish is the defining mechanical shape that every step below extends.',
     symbolicNote:
       'Anchor of the butterfly-wing topology. The wing-motion dex + cross-body clipper is the topological signature shared across the entire walking family.',
-    glossaryTerms: ['butterfly', 'clipper', 'cross-body'],
+    conceptsTerms: ['butterfly', 'clipper', 'cross-body'],
     isAnchor: true,
   },
   {
@@ -84,7 +84,7 @@ const WALKING_FAMILY_STEPS: WalkingProgressionStepInput[] = [
       'Adding a stepping motion mid-wing: the supporting foot moves to a new position between the two kicks. Same wing arc as butterfly, with the support relocating instead of holding still. Natural-direction travel.',
     symbolicNote:
       'Stepping modifier on the butterfly base; preserves wing-motion topology with a mid-arc foot relocation.',
-    glossaryTerms: ['stepping', 'butterfly'],
+    conceptsTerms: ['stepping', 'butterfly'],
     isAnchor: false,
   },
   {
@@ -94,7 +94,7 @@ const WALKING_FAMILY_STEPS: WalkingProgressionStepInput[] = [
       'Same wing shape, different modifier discipline. Pixie compaction tightens the dex moment: the foot path through the wing is shorter, the bag arc more enclosed. A modifier swap, not a structural change.',
     symbolicNote:
       'Pixie modifier on the butterfly base. Same topology as ripwalk; modifier compaction replaces the stepping action.',
-    glossaryTerms: ['pixie', 'butterfly'],
+    conceptsTerms: ['pixie', 'butterfly'],
     isAnchor: false,
   },
   {
@@ -104,7 +104,7 @@ const WALKING_FAMILY_STEPS: WalkingProgressionStepInput[] = [
       'Same modifier as ripwalk (stepping), executed with same-side direction throughout. The body holds same-side commitment across both wing arcs instead of crossing through neutral. Direction is a canonical-row distinguisher.',
     symbolicNote:
       'Mirror of ripwalk on the direction axis. The walking family treats direction as a structural distinguisher; same kick mechanics, opposite directional travel.',
-    glossaryTerms: ['stepping', 'butterfly'],
+    conceptsTerms: ['stepping', 'butterfly'],
     isAnchor: false,
   },
   {
@@ -114,7 +114,7 @@ const WALKING_FAMILY_STEPS: WalkingProgressionStepInput[] = [
       'The same kick-and-recovery shape as ripwalk, executed with the supporting foot stationary throughout. No stepping action, no pixie compaction, no modifier at all: the body absorbs the full wing arc without the help of a relocated base.',
     symbolicNote:
       'Self-atom in the butterfly-walking family. Topology-equivalent to ripwalk; the differentiator is the absence of any foot plant during the wing motion.',
-    glossaryTerms: ['butterfly'],
+    conceptsTerms: ['butterfly'],
     isAnchor: false,
   },
   {
@@ -124,7 +124,7 @@ const WALKING_FAMILY_STEPS: WalkingProgressionStepInput[] = [
       'A heavier modifier raises the wing-motion compound from four ADD to five. Nuclear combines paradox (hip pivot from cross-body set) with a downtime illusioning dex in a single composed motion. Same wing topology; higher discipline.',
     symbolicNote:
       'Nuclear modifier on the butterfly base. Demonstrates how a multi-component modifier (paradox + illusion) raises compound ADD without changing the underlying wing topology.',
-    glossaryTerms: ['paradox', 'butterfly'],
+    conceptsTerms: ['paradox', 'butterfly'],
     isAnchor: false,
   },
   {
@@ -134,7 +134,7 @@ const WALKING_FAMILY_STEPS: WalkingProgressionStepInput[] = [
       'Two body modifiers stacked on the butterfly base: pixie compaction plus ducking head movement between the two kicks. The wing topology persists; the trick now teaches modifier stacking explicitly.',
     symbolicNote:
       'Multi-modifier compound on the butterfly base. Pixie compaction + ducking head-motion stacked on the wing-motion topology. Five ADD; flagship-density teaching case.',
-    glossaryTerms: ['pixie', 'ducking', 'butterfly'],
+    conceptsTerms: ['pixie', 'ducking', 'butterfly'],
     isAnchor: false,
   },
 ];
@@ -176,9 +176,9 @@ export function buildWalkingFamilyProgression(
       modifierAdded: def.modifierAdded,
       rationale:     def.rationale,
       symbolicNote:  def.symbolicNote,
-      glossaryLinks: def.glossaryTerms.map(term => ({
+      conceptsLinks: def.conceptsTerms.map(term => ({
         term,
-        href: glossaryHrefForTerm(term),
+        href: conceptsHrefForTerm(term),
       })),
       isAnchor: def.isAnchor,
     });

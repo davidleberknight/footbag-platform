@@ -5,7 +5,7 @@
  * with wide content scrolling inside its own container, never the page body.
  * This spec drives a phone-sized browser context (no Playwright project or
  * config change) over the landing, the trick dictionary index, one seeded trick
- * detail, the records page, and the glossary, asserting each renders with its
+ * detail, the records page, the glossary, and Freestyle Concepts, asserting each renders with its
  * main content and without horizontal document overflow. Assertions stay
  * structural; no screenshots.
  *
@@ -46,6 +46,7 @@ test('freestyle public pages render at phone width without horizontal overflow',
     `/freestyle/tricks/${slug}`,
     '/records',
     '/freestyle/glossary',
+    '/freestyle/concepts',
   ];
   const overflows: string[] = [];
   for (const mobilePath of pages) {

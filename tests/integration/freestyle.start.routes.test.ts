@@ -12,7 +12,7 @@
  *     never as a synonym for an ordinary inside kick.
  *   - Butterfly is gated behind clipper control and never described as two
  *     dexterities.
- *   - The page hands off to Learn, the dictionary, and the glossary.
+ *   - The page hands off to Learn, the dictionary, the glossary, and Freestyle Concepts.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -95,11 +95,12 @@ describe('GET /freestyle/start — novice page contract', () => {
     expect(html).not.toMatch(/two dexterities/i);
   });
 
-  it('hands off to Learn, the dictionary, and the glossary', async () => {
+  it('hands off to Learn, the dictionary, the glossary, and Freestyle Concepts', async () => {
     const html = await page('/freestyle/start');
     expect(html).toContain('href="/freestyle/learn"');
     expect(html).toContain('href="/freestyle/tricks"');
     expect(html).toContain('href="/freestyle/glossary"');
+    expect(html).toContain('href="/freestyle/concepts"');
     expect(html).toContain('href="/freestyle/families/mirage"');
   });
 });

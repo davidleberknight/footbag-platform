@@ -2,7 +2,8 @@
  * freestyleGlossaryFamilyCards.ts
  * ================================
  *
- * Curator-authored family card data for /freestyle/glossary §5 (Core
+ * Curator-authored family card data for the /freestyle/concepts Family
+ * Encyclopedia chapter (Core
  * Trick Families). Two cohorts (`kind`):
  *
  *   - 'root-terminal' = parent families: top-level lineages with their

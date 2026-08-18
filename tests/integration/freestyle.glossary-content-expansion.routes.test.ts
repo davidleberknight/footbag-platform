@@ -1,5 +1,5 @@
 /**
- * Integration tests for glossary content expansion.
+ * Integration tests for Freestyle Concepts content expansion.
  *
  * Long-term contract pinned:
  *
@@ -46,10 +46,10 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('Glossary §3 — Direction subsection', () => {
+describe('Freestyle Concepts §3 — Direction subsection', () => {
   it('renders the in-dex term anchor and definition', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     expect(res.status).toBe(200);
     expect(res.text).toContain('id="term-in-dex"');
     expect(res.text).toMatch(/In-dex/);
@@ -57,7 +57,7 @@ describe('Glossary §3 — Direction subsection', () => {
 
   it('renders the out-dex term anchor and definition', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     expect(res.status).toBe(200);
     expect(res.text).toContain('id="term-out-dex"');
     expect(res.text).toMatch(/Out-dex/);
@@ -65,7 +65,7 @@ describe('Glossary §3 — Direction subsection', () => {
 
   it('renders the rev(0) direction-reversal explainer naming its base pairs', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     expect(res.status).toBe(200);
     expect(res.text).toContain('id="term-rev-zero"');
     expect(res.text).toMatch(/rev\(0\)/);
@@ -77,7 +77,7 @@ describe('Glossary §3 — Direction subsection', () => {
 
   it('positions the Direction subsection between Motion style and Execution window', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     const motionIdx    = res.text.indexOf('>Motion style<');
     const directionIdx = res.text.indexOf('>Direction<');
     const windowIdx    = res.text.indexOf('>Execution window<');
@@ -87,17 +87,17 @@ describe('Glossary §3 — Direction subsection', () => {
   });
 });
 
-describe('Glossary §7 — visible glyph quick-reference', () => {
+describe('Freestyle Concepts §7 — visible glyph quick-reference', () => {
   it('renders the glyph quick-reference container at the top of §7', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     expect(res.status).toBe(200);
     expect(res.text).toContain('class="glossary-glyph-quickref"');
   });
 
   it('renders all three operator-board tier strips inside the quick-reference', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     expect(res.text).toContain('glossary-glyph-quickref-tier--set');
     expect(res.text).toContain('glossary-glyph-quickref-tier--body');
     expect(res.text).toContain('glossary-glyph-quickref-tier--structural');
@@ -108,7 +108,7 @@ describe('Glossary §7 — visible glyph quick-reference', () => {
     // operator-board-cell-count (13), pinned in the portal
     // test file; here we just verify the cohort is present.
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     expect(res.text).toMatch(/glossary-glyph-quickref-glyph">PIX</);
     expect(res.text).toMatch(/glossary-glyph-quickref-glyph">SPIN</);
     expect(res.text).toMatch(/glossary-glyph-quickref-glyph">XBODY</);
@@ -116,7 +116,7 @@ describe('Glossary §7 — visible glyph quick-reference', () => {
 
   it('positions the quick-reference BEFORE the prose explainer', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     const quickrefIdx = res.text.indexOf('class="glossary-glyph-quickref"');
     const proseIdx    = res.text.indexOf('The longer you stack operators on a base');
     expect(quickrefIdx).toBeGreaterThan(0);
@@ -124,17 +124,17 @@ describe('Glossary §7 — visible glyph quick-reference', () => {
   });
 });
 
-describe('Glossary §8 — walking-family progression', () => {
+describe('Freestyle Concepts §8 — walking-family progression', () => {
   it('renders the walking-family progression heading and anchor', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     expect(res.text).toContain('id="walking-family-progression"');
     expect(res.text).toMatch(/Walking-family progression/);
   });
 
   it('renders all seven canonical compounds with detail-page links', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     const compounds = [
       'butterfly', 'ripwalk', 'dimwalk', 'sidewalk',
       'dada_curve', 'matador', 'phoenix',
@@ -153,7 +153,7 @@ describe('Glossary §8 — walking-family progression', () => {
     // interleaves between tokens. Match token-by-token rather than
     // contiguous-substring.
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     expect(res.text).toMatch(/notation-token[^>]*>stepping<[\s\S]*?notation-token[^>]*>butterfly</);
     expect(res.text).toMatch(/notation-token[^>]*>pixie<[\s\S]*?notation-token[^>]*>butterfly</);
     expect(res.text).toMatch(/notation-token[^>]*>stepping<[\s\S]*?notation-token[^>]*>near<[\s\S]*?notation-token[^>]*>butterfly</);
@@ -166,28 +166,28 @@ describe('Glossary §8 — walking-family progression', () => {
   });
 });
 
-describe('Glossary §9 — representative-selection framing', () => {
+describe('Freestyle Concepts §9 — representative-selection framing', () => {
   it('renders the "representative selection, not comprehensive" framing', async () => {
     // The framing is deliberate: the section presents itself as "not a
     // comprehensive topology atlas" and is explicitly marked
     // "intentionally incomplete".
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     expect(res.text).toMatch(/representative selection/i);
     expect(res.text).toMatch(/not a comprehensive|intentionally incomplete/i);
   });
 });
 
-describe('Glossary §12 — named source families', () => {
+describe('Freestyle Concepts §12 — named source families', () => {
   it('renders the source-families list', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     expect(res.text).toContain('class="glossary-sources-list"');
   });
 
   it('names the five source families inline', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     expect(res.text).toContain('footbag.org');
     expect(res.text).toContain('PassBack');
     expect(res.text).toContain('Stanford shorthand');
@@ -198,7 +198,7 @@ describe('Glossary §12 — named source families', () => {
 
   it('source-family bullets are depersonalized; individual acknowledgements live in the dedicated paragraph', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     // Source bullets should not carry personal attributions; PassBack and
     // Stanford shorthand bullets in particular were depersonalized.
     expect(res.text).not.toMatch(/Matt Kemmer's conceptual tutorial series/);

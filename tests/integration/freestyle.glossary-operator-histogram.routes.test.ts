@@ -1,11 +1,11 @@
 /**
- * The Operators & Modifiers histogram on GET /freestyle/glossary.
+ * The Operators & Modifiers histogram on GET /freestyle/concepts.
  *
  * This histogram is a second rendering surface for the one shared model the
  * Freestyle landing band computes (buildFreestyleByNumbers): the same public
  * trick universe, the same explicit-modifier-link counts, the same operator vs
  * set-system classification. This suite locks that it reuses that model rather
- * than reimplementing a glossary-only aggregate, that it counts only public
+ * than reimplementing a Concepts-only aggregate, that it counts only public
  * canonical tricks with explicit modifier links (no aliases, no inactive rows,
  * no modifier stubs), that the two object-type groups render separately in
  * descending order, and that the coverage caveat and accessible labels are
@@ -90,15 +90,15 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-async function glossary(): Promise<string> {
-  const res = await request(await createApp()).get('/freestyle/glossary');
+async function concepts(): Promise<string> {
+  const res = await request(await createApp()).get('/freestyle/concepts');
   expect(res.status).toBe(200);
   return res.text;
 }
 
-describe('Glossary — Operators & Modifiers histogram (shared landing-band model)', () => {
+describe('Freestyle Concepts — Operators & Modifiers histogram (shared landing-band model)', () => {
   it('renders the section once, in the Operators & Modifiers chapter, with two separated groups', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect((html.match(/id="how-widely-systems-appear"/g) ?? []).length).toBe(1);
     const slice = sectionSlice(html);
     expect(slice).toContain('Body and movement operators');
@@ -108,7 +108,7 @@ describe('Glossary — Operators & Modifiers histogram (shared landing-band mode
   });
 
   it('counts only public canonical tricks with explicit modifier links (no aliases, inactive, or modifier stubs)', async () => {
-    const slice = sectionSlice(await glossary());
+    const slice = sectionSlice(await concepts());
     // spinning links a,b,c = 3; the inactive trick and the modifier stub also
     // link spinning but are excluded, so the count is 3, not 5.
     expect(countFor(slice, 'spinning')).toBe(3);
@@ -119,7 +119,7 @@ describe('Glossary — Operators & Modifiers histogram (shared landing-band mode
   });
 
   it('places movement operators and set-system-classified slugs in the correct groups', async () => {
-    const slice = sectionSlice(await glossary());
+    const slice = sectionSlice(await concepts());
     const opStart = slice.indexOf('Body and movement operators');
     const setStart = slice.indexOf('Entry, launch, and support systems');
     const opGroup = slice.slice(opStart, setStart);
@@ -137,7 +137,7 @@ describe('Glossary — Operators & Modifiers histogram (shared landing-band mode
   });
 
   it('orders each group by descending count', async () => {
-    const slice = sectionSlice(await glossary());
+    const slice = sectionSlice(await concepts());
     const opStart = slice.indexOf('Body and movement operators');
     const setStart = slice.indexOf('Entry, launch, and support systems');
     const opGroup = slice.slice(opStart, setStart);
@@ -151,7 +151,7 @@ describe('Glossary — Operators & Modifiers histogram (shared landing-band mode
   });
 
   it('carries the documented-coverage caveat and accessible labels', async () => {
-    const slice = sectionSlice(await glossary());
+    const slice = sectionSlice(await concepts());
     const flat = slice.replace(/\s+/g, ' ');   // collapse HTML line-wrapping
     expect(flat).toMatch(/documented decomposition coverage across the public canonical vocabulary/i);
     expect(flat).toMatch(/explicit editorial decomposition links/i);
@@ -161,19 +161,19 @@ describe('Glossary — Operators & Modifiers histogram (shared landing-band mode
   });
 
   it('does not render a modifier-depth histogram', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html.toLowerCase()).not.toContain('modifier depth');
     expect(html.toLowerCase()).not.toContain('modifier-depth');
   });
 
   it('renders the same operator counts as the By the Numbers page (one shared model)', async () => {
-    const glossSlice = sectionSlice(await glossary());
+    const conceptsSlice = sectionSlice(await concepts());
     const numbers = await request(await createApp()).get('/freestyle/by-the-numbers');
     expect(numbers.status).toBe(200);
-    // The "Body movements" card and the glossary operator group read the same
+    // The "Body movements" card and the Concepts operator group read the same
     // shared aggregation, so a movement operator's count matches on both.
     const numbersSpinning = numbers.text.match(/spinning[\s\S]{0,200}?by-numbers-bar-count">(\d+)</i);
     expect(numbersSpinning, 'By the Numbers renders a spinning count').not.toBeNull();
-    expect(Number(numbersSpinning![1])).toBe(countFor(glossSlice, 'spinning'));
+    expect(Number(numbersSpinning![1])).toBe(countFor(conceptsSlice, 'spinning'));
   });
 });

@@ -1,8 +1,9 @@
 /**
- * Glossary deep-link opener (progressive enhancement).
+ * Collapsed-region deep-link opener (progressive enhancement).
  *
- * The glossary presents its content as independently collapsible chapters
- * (<details> elements). Content inside a closed <details> is not rendered, so a
+ * Freestyle Concepts presents its content as independently collapsible chapters
+ * (<details> elements), and the Trick Dictionary folds "Reading the Dictionary"
+ * into one such disclosure. Content inside a closed <details> is not rendered, so a
  * deep link or in-page anchor to an id inside a collapsed chapter would land on
  * hidden content. When the URL carries a fragment, this opens every <details>
  * ancestor of the target and scrolls to it, on load and whenever the fragment
@@ -18,10 +19,11 @@
  * and the content. Every chapter remains reachable without it by opening the
  * chapter directly; only the deep-linked jump degrades.
  *
- * Scoped to the glossary page via the .glossary-page guard, and inert elsewhere.
+ * Scoped to the Concepts / Glossary pages (the .glossary-page guard) and to any
+ * page carrying the Reading the Dictionary disclosure; inert elsewhere.
  */
 (function () {
-  if (!document.querySelector('.glossary-page')) return;
+  if (!document.querySelector('.glossary-page, #reading-the-dictionary')) return;
 
   function revealTarget() {
     var hash = window.location.hash;

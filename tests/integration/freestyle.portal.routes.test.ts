@@ -378,6 +378,7 @@ describe('GET /freestyle — two-band landing', () => {
     for (const href of [
       '/freestyle/tricks',
       '/freestyle/glossary',
+      '/freestyle/concepts',
       '/freestyle/sets',
       '/freestyle/operators',
       '/freestyle/observational',

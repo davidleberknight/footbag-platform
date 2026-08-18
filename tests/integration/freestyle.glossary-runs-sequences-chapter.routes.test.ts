@@ -1,5 +1,5 @@
 /**
- * Integration tests for the Runs & Sequences topic on GET /freestyle/glossary:
+ * Integration tests for the Runs & Sequences topic on GET /freestyle/concepts:
  * the former Symbolic Composition and Run Architecture sections, merged into one
  * section and presented as a major topic behind a destination card.
  *
@@ -32,15 +32,15 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-async function glossary(): Promise<string> {
-  const res = await request(await createApp()).get('/freestyle/glossary');
+async function concepts(): Promise<string> {
+  const res = await request(await createApp()).get('/freestyle/concepts');
   expect(res.status).toBe(200);
   return res.text;
 }
 
-describe('Glossary — Runs & Sequences chapter (Composition + Run Architecture merge)', () => {
+describe('Freestyle Concepts — Runs & Sequences chapter (Composition + Run Architecture merge)', () => {
   it('renames the section away from Composition and folds it into one topic', async () => {
-    const html = await glossary();
+    const html = await concepts();
 
     // renamed heading (resolves the collision with the trick-level Composition card);
     // the old "Symbolic Composition" name is gone from the page entirely (heading and
@@ -66,7 +66,7 @@ describe('Glossary — Runs & Sequences chapter (Composition + Run Architecture 
   });
 
   it('preserves the merged anchors, facts, and the combo-analysis link', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toContain('id="section-composition"');       // merged section keeps this id
     expect(html).toContain('id="section-run-architecture"');   // preserved on a div
     expect(html).toContain('id="derivation-atlas"');
@@ -77,7 +77,7 @@ describe('Glossary — Runs & Sequences chapter (Composition + Run Architecture 
   });
 
   it('removes the duplicated run framing (stated once now)', async () => {
-    const html = await glossary();
+    const html = await concepts();
     const matches = html.match(/Above the single-trick level/g) ?? [];
     expect(matches.length).toBe(1);
   });

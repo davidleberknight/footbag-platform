@@ -37,18 +37,18 @@ describe('Jobs notation article page', () => {
   });
 });
 
-describe('Glossary Jobs-notation section — source-location prose removed', () => {
-  const glossary = async () => (await request(createApp()).get('/freestyle/glossary')).text;
+describe('Freestyle Concepts Jobs-notation section — source-location prose removed', () => {
+  const concepts = async () => (await request(createApp()).get('/freestyle/concepts')).text;
 
   it('links to the article page and keeps only the historical citation', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toContain('href="/freestyle/notation-article"');
     expect(html).toContain('To See the Entire Article, Press Here.');
     expect(html).toContain('Source: Ben Job');
   });
 
   it('no longer prints the source-link or reproduction-location prose', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).not.toContain('Read Ben Job');
     expect(html).not.toContain('reproduced under');
   });

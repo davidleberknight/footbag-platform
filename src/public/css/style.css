@@ -6603,38 +6603,6 @@ a.trick-hero-meta-chip--media:hover {
   margin-left: 6px;
 }
 
-/* Glossary tier badges: lightweight orientation labels on section headings.
-   Three tiers (beginner / intermediate / advanced) shape a learner's
-   reading path; visually restrained so the page reads as a primer first
-   and a tier-graded reference second. */
-.glossary-tier-badge {
-  display: inline-block;
-  font-size: 0.9rem;
-  font-weight: 500;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  padding: 1px 7px;
-  border-radius: var(--radius-2xs);
-  vertical-align: middle;
-  margin-left: 8px;
-  border: 1px solid transparent;
-}
-.glossary-tier-badge--beginner {
-  background: var(--gray-200);
-  color: var(--fern-500);
-  border-color: var(--fern-150);
-}
-.glossary-tier-badge--intermediate {
-  background: var(--gray-200);
-  color: var(--slate-600);
-  border-color: var(--sec-border);
-}
-.glossary-tier-badge--advanced {
-  background: var(--parch-150);
-  color: var(--earth-500);
-  border-color: var(--parch-450);
-}
-
 /* Glossary page layout: a single content column. The page's navigation is the
    chapter cards themselves (collapsible details in the shared card grid), so
    there is no sidebar rail; the .wrapper class constrains overall width. */
@@ -6645,6 +6613,56 @@ a.trick-hero-meta-chip--media:hover {
   /* Content column inside .glossary-page wrapper. The wrapper is
      .wrapper, which already constrains overall page width. */
 }
+
+/* A–Z Glossary (/freestyle/glossary): a letter jump-row, then one section per
+   letter holding the shared term/definition <dl>. Reading-measure cap on the
+   definitions so a long entry wraps like body prose. */
+.glossary-az-orientation {
+  margin: 20px 0 12px;
+  max-width: 72ch;
+}
+.glossary-az-letter-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 2px;
+  margin: 0 0 20px;
+  font-weight: 600;
+}
+/* Each letter is a touch target in its own right, not a bare glyph: padding
+   gives it a comfortable hit area at phone width without a visible chip. */
+.glossary-az-letter-nav a {
+  display: inline-block;
+  min-width: 28px;
+  padding: 4px 6px;
+  text-align: center;
+}
+.glossary-az-letter {
+  padding: 12px 0 4px;
+  border-top: 1px solid var(--border);
+  /* Same clearance as the site's other anchored targets, so a letter jump
+     lands below the sticky header instead of underneath it. */
+  scroll-margin-top: 80px;
+}
+.glossary-az-letter-heading {
+  margin: 0;
+  font-size: 1.25rem;
+}
+.glossary-az-entry {
+  max-width: 72ch;
+  scroll-margin-top: 80px;
+}
+/* Aliases ride on the term line in the muted colour and normal weight, so a
+   reader scanning the left edge still sees one bold term per entry. */
+.glossary-az-aliases {
+  font-weight: 400;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+/* A "see X" cross-reference is a pointer, not a definition: its term stays in
+   the list's normal weight and its one-line body sits in the muted colour, so
+   the eye reads it as a signpost between real entries. */
+.glossary-az-see dt { font-weight: 500; }
+.glossary-az-see dd { color: var(--text-muted); }
 
 /* ── Trick-detail scoring notes ────────────
    Where competition doctrine diverges, the note stays factual, brief, and
@@ -11663,6 +11681,10 @@ a.set-detail-trick-media:hover {
   background: var(--bg);
   border: 1px solid var(--border);
   box-shadow: var(--shadow-sm);
+  /* A grid item defaults to min-width:auto, so a wide table inside an opened
+     tile would push the whole track past the viewport at phone width; letting
+     the tile shrink keeps the table scrolling inside its own wrap instead. */
+  min-width: 0;
 }
 /* The opened card spans every column, at every width: the media steps below
    change the track size, never the span. */

@@ -1,17 +1,19 @@
 /**
- * Integration tests for the additive glossary framing sections.
+ * Integration tests for the additive Freestyle Concepts framing sections and
+ * the Reading the Dictionary disclosure.
  *
- * GET /freestyle/glossary gains five additive, static orientation pieces that
- * synchronize the glossary with the modern platform ontology WITHOUT rewriting
- * the §Families taxonomy (that is a separate, post-ruling slice):
- *   1. the two-line trick-row contract explainer
- *   2. the six-view browse-semantics table
- *   3. the five-way ontology distinction table
- *   4. the family-hierarchy direction note (labels transitional)
- *   5. modifier-ecosystem framing
+ * GET /freestyle/tricks carries the "Reading the Dictionary" disclosure (the
+ * two-line trick-row contract explainer, the browse-semantics table, and the
+ * ontology distinction table). GET /freestyle/concepts carries the chapter
+ * content that synchronizes the reference with the modern platform ontology
+ * WITHOUT rewriting the §Families taxonomy (that is a separate, post-ruling
+ * slice):
+ *   1. the family-hierarchy direction note (labels transitional)
+ *   2. modifier-ecosystem framing
+ *   3. the interpretation and modifier-ecosystem doctrine notes
  *
  * These are static explainer content; they render independent of fixture data.
- * A minimal trick is seeded only so the page renders realistically.
+ * A minimal trick is seeded only so the pages render realistically.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -37,22 +39,32 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-async function glossary(): Promise<string> {
-  const res = await request(await createApp()).get('/freestyle/glossary');
+async function concepts(): Promise<string> {
+  const res = await request(await createApp()).get('/freestyle/concepts');
   expect(res.status).toBe(200);
   return res.text;
 }
 
-describe('Glossary framing — Reading the dictionary section', () => {
-  it('renders the "Reading the Dictionary" orientation section', async () => {
-    const html = await glossary();
+async function dictionary(): Promise<string> {
+  const res = await request(await createApp()).get('/freestyle/tricks');
+  expect(res.status).toBe(200);
+  return res.text;
+}
+
+describe('Trick Dictionary — Reading the Dictionary disclosure', () => {
+  it('renders the "Reading the Dictionary" orientation disclosure', async () => {
+    const html = await dictionary();
+    expect(html).toContain('id="reading-the-dictionary"');
     expect(html).toContain('id="section-reading-the-dictionary"');
-    // The chapter card's own heading names the section; it is not repeated inside.
+    // The disclosure's own heading names the section; it is not repeated inside.
     expect(html).toMatch(/<h2 class="dict-tile-title">Reading the Dictionary<\/h2>/);
+    // Its chapter deep links point at Freestyle Concepts.
+    expect(html).toContain('href="/freestyle/concepts#section-families"');
+    expect(html).toContain('href="/freestyle/concepts#section-modifiers"');
   });
 
   it('explains the two-line trick-row contract (line 1 + line 2 slots)', async () => {
-    const html = await glossary();
+    const html = await dictionary();
     const m = html.match(/<div class="glossary-row-contract">[\s\S]*?<\/div>/);
     expect(m, 'row-contract block').not.toBeNull();
     const block = m![0];
@@ -72,7 +84,7 @@ describe('Glossary framing — Reading the dictionary section', () => {
   });
 
   it('renders a browse-semantics table covering all seven views with links, plus the curation principle', async () => {
-    const html = await glossary();
+    const html = await dictionary();
     for (const [label, view] of [
       ['By ADD', 'view=add'],
       ['By family', 'view=family'],
@@ -94,7 +106,7 @@ describe('Glossary framing — Reading the dictionary section', () => {
   });
 
   it('renders the six-way ontology distinction table, with sets and modifiers as separate kinds', async () => {
-    const html = await glossary();
+    const html = await dictionary();
     for (const kind of [
       'Canonical family',
       'Set / set system',
@@ -120,7 +132,7 @@ describe('Glossary framing — Reading the dictionary section', () => {
   });
 
   it('teaches ADD as component accounting, never a direct measure of execution difficulty', async () => {
-    const html = await glossary();
+    const html = await dictionary();
     expect(html).toContain('component accounting');
     expect(html).toMatch(/not a direct measure of execution difficulty/);
     expect(html).toMatch(/not necessarily equally difficult to\s+perform/);
@@ -129,9 +141,9 @@ describe('Glossary framing — Reading the dictionary section', () => {
   });
 });
 
-describe('Glossary framing — settled family-root test note', () => {
+describe('Freestyle Concepts framing — settled family-root test note', () => {
   it('renders the settled family-root rule inside the families section', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toMatch(/family-root test is settled/);
     expect(html).toMatch(/curated first-class roster/);
     expect(html).toMatch(/editorial classification/);
@@ -141,9 +153,9 @@ describe('Glossary framing — settled family-root test note', () => {
   });
 });
 
-describe('Glossary framing — no obsolete family-tier threshold claims', () => {
-  it('the rendered glossary carries none of the removed count-threshold claims', async () => {
-    const html = await glossary();
+describe('Freestyle Concepts framing — no obsolete family-tier threshold claims', () => {
+  it('the rendered Concepts page carries none of the removed count-threshold claims', async () => {
+    const html = await concepts();
     expect(html).not.toMatch(/more than 10 documented descendants/);
     expect(html).not.toMatch(/fewer than the current threshold/);
     expect(html).not.toMatch(/rather than being hand-picked/);
@@ -154,16 +166,16 @@ describe('Glossary framing — no obsolete family-tier threshold claims', () => 
   });
 });
 
-describe('Glossary framing — modifier-ecosystem framing', () => {
+describe('Freestyle Concepts framing — modifier-ecosystem framing', () => {
   it('frames modifiers as ecosystems, not families', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toMatch(/Modifiers form <strong>ecosystems<\/strong>/);
     expect(html).toMatch(/An ecosystem is\s+<strong>not a family<\/strong>/);
     expect(html).toMatch(/pixie appears across\s+pixie-illusion/);
   });
 
   it('the atomic set definition states the single-dex +1 doctrine, not the retired double-dexterity reading', async () => {
-    const html = await glossary();
+    const html = await concepts();
     // Atomic is set vocabulary, defined in the Timing & Sets chapter. Settled
     // doctrine: the outward dex realized as a set, +1, with any X-Dex as a
     // separate event; not the retired double-dexterity (+2-conflation) framing.
@@ -176,7 +188,7 @@ describe('Glossary framing — modifier-ecosystem framing', () => {
   });
 
   it('frames paradox as an entry / dex relationship cross-linked to Dexterities, not a set or body movement', async () => {
-    const html = await glossary();
+    const html = await concepts();
     // Paradox is the Entry Topologies axis; dex side relationships are owned by
     // the Dexterities chapter, which Operators cross-links rather than
     // re-teaching. The modifier-paradox deep-link anchor is preserved.
@@ -186,34 +198,39 @@ describe('Glossary framing — modifier-ecosystem framing', () => {
   });
 
   it('the modifier weights table lists the full +1 body family (head-movement + spin siblings)', async () => {
-    const html = await glossary();
+    const html = await concepts();
     for (const slug of ['ducking', 'weaving', 'diving', 'zulu', 'spinning', 'gyro', 'inspinning']) {
       expect(html, `weights row ${slug}`).toContain(`<tr><td>${slug}</td><td>+1</td>`);
     }
   });
 
   it('the modifier weights table classes paradox as a dex relationship, whirling and stepping as sets', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toContain('<tr><td>paradox</td><td>+1</td><td>dex relationship</td></tr>');
     expect(html).toContain('<tr><td>whirling</td><td>+1</td><td>set</td></tr>');
     expect(html).toContain('<tr><td>stepping</td><td>+1</td><td>set</td></tr>');
   });
 
-  it('does not call paradox a body modifier on the glossary (it is a dex relationship)', async () => {
-    const html = await glossary();
+  it('does not call paradox a body modifier on the Concepts page (it is a dex relationship)', async () => {
+    const html = await concepts();
     expect(html).toContain('Paradox (dex relationship)');          // PDX abbreviation
     expect(html).not.toContain('Paradox (body modifier)');
     expect(html).not.toMatch(/<code>paradox<\/code> body modifier/); // notation-flag prose
   });
 });
 
-describe('Glossary framing — chapter navigation + non-regression', () => {
+describe('Freestyle Concepts framing — chapter navigation + non-regression', () => {
   it('navigates by the chapter stack, with no sidebar', async () => {
-    const html = await glossary();
+    const html = await concepts();
     // the sidebar rail is gone; the collapsible chapters are the navigation
     expect(html).not.toContain('glossary-sidebar');
-    expect(html).toContain('id="chapter-reading-the-dictionary"');
+    // Reading the Dictionary lives on the trick dictionary, not here; the
+    // chapter stack opens with Movement Basics.
+    expect(html).not.toContain('id="chapter-reading-the-dictionary"');
+    expect(html).not.toContain('id="section-reading-the-dictionary"');
     expect(html).toContain('id="chapter-movement-basics"');
+    const firstChapter = html.match(/<details class="dict-tile" id="chapter-([a-z-]+)"/);
+    expect(firstChapter?.[1]).toBe('movement-basics');
     expect(html).toContain('id="chapter-family-encyclopedia"');
     expect(html).toContain('id="chapter-structural-analysis"');
     // the chapters still wrap their original sections (deep-link targets preserved)
@@ -223,7 +240,7 @@ describe('Glossary framing — chapter navigation + non-regression', () => {
   });
 
   it('§families groups the family cards by display tier, then lineage position', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toContain('Family Parents');
     expect(html).toContain('Minor Lineages');
     // Within a tier the cards split by lineage position.
@@ -236,35 +253,37 @@ describe('Glossary framing — chapter navigation + non-regression', () => {
   });
 });
 
-describe('Glossary framing — row-contract and non-final-reading notes (additive, anchor-safe)', () => {
+describe('Trick Dictionary — Reading the Dictionary row-contract and non-final-reading notes (additive, anchor-safe)', () => {
   it('row-contract note distinguishes aliases from interpretations and flags non-final readings', async () => {
-    const html = await glossary();
+    const html = await dictionary();
     expect(html).toMatch(/is <em>not<\/em> an interpretation/);
     expect(html).toMatch(/not always settled doctrine/);
   });
 
   it('explains why a trick appears in several browse views at once', async () => {
-    const html = await glossary();
+    const html = await dictionary();
     expect(html).toContain('A trick may appear in several of these views at once');
   });
 
   it('frames the family kind on two independent axes: lineage position and display tier', async () => {
-    const html = await glossary();
+    const html = await dictionary();
     expect(html).toMatch(/lineage position/i);
     expect(html).toMatch(/display tier/i);
     // The stale drifter-as-descendant-lineage framing is gone (drifter is a Family Parent now).
     expect(html).not.toMatch(/such as the drifter lineage/);
   });
+});
 
+describe('Freestyle Concepts framing — surfaces and advanced-reference notes (additive, anchor-safe)', () => {
   it('§surfaces frames foundational vs alternative surfaces with the movement-vs-surface WHY', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toContain('Surfaces split into two roles');
     expect(html).toMatch(/<strong>movement structure<\/strong>/);
     expect(html).toMatch(/surface groupings, not canonical families/);
   });
 
   it('§surfaces adds an Implied-contacts subsection with the clipper / flying-clipper asymmetry', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toContain('id="implicit-contacts"');
     expect(html).toMatch(/<h3[^>]*>Implied contacts<\/h3>/);
     // spin → kick implied; clipper → stall default; flying clipper → kick default.
@@ -277,14 +296,14 @@ describe('Glossary framing — row-contract and non-final-reading notes (additiv
   });
 
   it('advanced-reference adds a "tracking is not canonization" governance note', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toContain('id="tracking-vs-canonization"');
     expect(html).toMatch(/<strong>Documentation is not canonization\.<\/strong>/);
     expect(html).toMatch(/<strong>promoted<\/strong>/);
   });
 
   it('advanced-reference adds the source-divergence case study (cohort vs single-trick)', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toContain('id="source-divergence"');
     // Single-trick case (Big Apple Sauce) contrasted with a systematic cohort
     // (furious / railing) whose source over-count is a convention, not an error.
@@ -295,28 +314,28 @@ describe('Glossary framing — row-contract and non-final-reading notes (additiv
   });
 });
 
-describe('Glossary framing — Phase D2 step 5 (interpretation doctrine)', () => {
+describe('Freestyle Concepts framing — Phase D2 step 5 (interpretation doctrine)', () => {
   it('names the interpretation doctrine and states the descriptive-not-productive core', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toMatch(/<strong>interpretation doctrine<\/strong>/);
     expect(html).toMatch(/<em>descriptive, never a recipe<\/em>/);
   });
 
   it('states historical derivation is not a productive modifier, with eggbeater as the flagship', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toMatch(/a historical derivation is[\s\S]*?not a productive modifier/);
     // The boundary: you cannot "apply" a historical reading.
     expect(html).toMatch(/eggbeater-ing/);
   });
 
   it('uses blender as the compositional-descent reading example', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toMatch(/<strong>compositional descent<\/strong>/);
     expect(html).toMatch(/&equiv; whirling osis/);
   });
 
   it('enumerates the reading provenances (editorial / historical / compositional / parser / policy)', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toMatch(/<strong>editorial equivalence<\/strong>/);
     expect(html).toMatch(/<strong>historical derivation<\/strong>/);
     expect(html).toMatch(/<strong>structural parse<\/strong>/);
@@ -324,7 +343,7 @@ describe('Glossary framing — Phase D2 step 5 (interpretation doctrine)', () =>
   });
 
   it('preserves the existing four-relationship taxonomy + its legacy anchors', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toContain('id="vocabulary-relationships"');
     expect(html).toContain('id="compression-vs-alternate-derivation"');
     expect(html).toContain('id="symbolic-compression-flow"');
@@ -334,15 +353,15 @@ describe('Glossary framing — Phase D2 step 5 (interpretation doctrine)', () =>
   });
 });
 
-describe('Glossary framing — Phase D2 step 4 (modifier ecosystem doctrine)', () => {
+describe('Freestyle Concepts framing — Phase D2 step 4 (modifier ecosystem doctrine)', () => {
   it('renders the lineage-vs-ecosystem test with the "can you do it on its own?" tell', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toContain('id="lineage-or-ecosystem"');
     expect(html).toMatch(/<em>can you do it on its own\?<\/em>/);
   });
 
   it('renders the lineage-vs-ecosystem contrast table', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toContain('Productive lineage');
     expect(html).toContain('Modifier ecosystem');
     expect(html).toContain('Own terminal mechanic');
@@ -350,16 +369,16 @@ describe('Glossary framing — Phase D2 step 4 (modifier ecosystem doctrine)', (
   });
 
   it('names symposium and paradox as ecosystem hard cases with a transitional caveat', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toMatch(/<strong>Hard cases: symposium and paradox\.<\/strong>/);
     // Not over-hardened: the classification is flagged curator-confirmable.
     expect(html).toMatch(/curator-confirmable/);
   });
 });
 
-describe('Glossary §families — Phase D2 step 3 (parent/child/descendant-lineage rewrite)', () => {
+describe('Freestyle Concepts §families — Phase D2 step 3 (parent/child/descendant-lineage rewrite)', () => {
   it('embeds the "What makes a family?" explainer with the whirl model + the two non-family failure modes', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toContain('What makes a family?');
     expect(html).toMatch(/Whirl is the model/);
     expect(html).toMatch(/Foundational Terminal Surfaces<\/strong> \(toe, clipper\)/);
@@ -370,7 +389,7 @@ describe('Glossary §families — Phase D2 step 3 (parent/child/descendant-linea
   });
 
   it('teaches the family-ish kinds with a two-axis Family entry (family / atom / ecosystem / anchor)', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toContain('<dt>Family</dt>');
     expect(html).toContain('<dt>Atom / primitive</dt>');
     expect(html).toContain('<dt>Modifier ecosystem</dt>');
@@ -385,14 +404,14 @@ describe('Glossary §families — Phase D2 step 3 (parent/child/descendant-linea
   });
 
   it('carries the fuzzy-boundary humility clause', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toMatch(/<strong>Where the edges blur\.<\/strong>/);
     expect(html).toMatch(/whirl \/ swirl \/ twirl/);
     expect(html).toMatch(/a future ruling may move them/);
   });
 
   it('renders the first-class roster from the dictionary source, ATW excluded as a primitive', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toContain('Family Parents');
     // The ratified roster renders as ?family= links from the same source the
     // dictionary "By family" browse uses (freestylePublicFamilies.ts).
@@ -410,7 +429,7 @@ describe('Glossary §families — Phase D2 step 3 (parent/child/descendant-linea
   });
 
   it('promotes six empirically-admitted family parents and nests derived branches under their roots', async () => {
-    const html = await glossary();
+    const html = await concepts();
     for (const slug of ['swirl', 'inside_stall', 'torque', 'blender', 'double_leg_over', 'eggbeater']) {
       expect(html, `promoted family ${slug}`).toContain(`href="/freestyle/tricks?family=${slug}"`);
     }
@@ -429,13 +448,13 @@ describe('Glossary §families — Phase D2 step 3 (parent/child/descendant-linea
   });
 
   it('routes a future leggy super-family to the neighborhood axis, not a parent merge', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toMatch(/leggy super-family is ever[\s\S]{0,20}recognized, it belongs on the/);
     expect(html).toMatch(/movement-neighborhood/);
   });
 
   it('renders the family histogram with the two surface roots leading the families', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toContain('gloss-histogram');
     // The two grandparent surfaces lead, marked as a distinct tier with a full bar.
     expect(html).toMatch(/gloss-histogram-row--surface[\s\S]{0,200}Clipper Stall[\s\S]{0,200}gloss-bar-count">328/);
@@ -450,7 +469,7 @@ describe('Glossary §families — Phase D2 step 3 (parent/child/descendant-linea
   });
 
   it('renders the entry histogram in the timing-and-sets section', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toContain('How tricks begin');
     expect(html).toMatch(/<dt>Toe set<\/dt>[\s\S]{0,200}gloss-bar-count">207/);
     for (const label of ['Symposium', 'Pixie', 'Stepping', 'Furious']) {
@@ -460,53 +479,53 @@ describe('Glossary §families — Phase D2 step 3 (parent/child/descendant-linea
   });
 });
 
-describe('Glossary — media claim-scope (L6)', () => {
+describe('Freestyle Concepts — media claim-scope (L6)', () => {
   it('renders the media claim-scope section', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toContain('id="section-media-claim-scope"');
     expect(html).toMatch(/What a video can and can/);
   });
 
   it('states the media-is-not-ontology firewall', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toMatch(/teaching layer/);
     expect(html).toMatch(/never overrides the dictionary/);
   });
 
   it('defines the three claim scopes (tutorial / demonstration / record)', async () => {
-    const html = await glossary();
+    const html = await concepts();
     for (const term of ['Tutorial', 'Demonstration', 'Record']) {
       expect(html, `claim scope ${term}`).toContain(`<dt>${term}</dt>`);
     }
   });
 
   it('frames media as teaching-without-resolving and links out to the galleries', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toMatch(/teaches without resolving/);
     expect(html).toContain('href="/media"');
   });
 
-  it('is reachable from the line-1 media mention', async () => {
-    const html = await glossary();
-    expect(html).toContain('href="#section-media-claim-scope"');
+  it('is reachable from the line-1 media mention in Reading the Dictionary on the trick dictionary', async () => {
+    const html = await dictionary();
+    expect(html).toContain('href="/freestyle/concepts#section-media-claim-scope"');
   });
 });
 
-describe('Glossary — L3 folk/structural projections + equivalence mechanism', () => {
+describe('Freestyle Concepts — L3 folk/structural projections + equivalence mechanism', () => {
   it('renders the two-projections subsection', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toContain('id="two-projections"');
     expect(html).toMatch(/two projections of the same move/);
   });
 
   it('states the structure-not-strings equivalence mechanism', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toMatch(/decomposed structure/);
     expect(html).toMatch(/on <em>structure<\/em>, never on <em>strings<\/em>/);
   });
 
   it('uses the live-verified canonical-surface examples (both directions)', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toContain('href="/freestyle/tricks/gauntlet"');
     expect(html).toContain('href="/freestyle/tricks/gyro_ducking_symposium_torque"');
     expect(html).toMatch(/stepping-ducking-paradox-torque/);
@@ -514,27 +533,27 @@ describe('Glossary — L3 folk/structural projections + equivalence mechanism', 
   });
 });
 
-describe('Glossary edge-case classification notes', () => {
+describe('Freestyle Concepts edge-case classification notes', () => {
   it('documents the swing-element exception (Pendulum / Rake) to the terminate-in-contact rule', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toContain('swing element');
     expect(html).toContain('Pendulum and Rake');
   });
 
   it('disambiguates the overloaded clipper terminology', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toContain('is a flying (no-stall) clipper kick');
     expect(html).toContain('clipper naming lineage');
   });
 
   it('notes swirl has no kick variant and grows through structural variants', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toContain('Swirl behaves differently from most dex families');
     expect(html).toContain('no recognized kick variant');
   });
 
   it('gathers the exceptions under one "Edge cases and special structures" heading', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toContain('id="edge-cases-special-structures"');
     expect(html).toContain('Swing-element tricks');
     // the terminate-in-contact rule keeps a pointer to the consolidated section
@@ -542,9 +561,9 @@ describe('Glossary edge-case classification notes', () => {
   });
 });
 
-describe('Glossary foundational frame — Tricks / Sets / Modifiers + register notes', () => {
+describe('Freestyle Concepts foundational frame — Tricks / Sets / Modifiers + register notes', () => {
   it('renders the Tricks/Sets/Modifiers orientation frame with the four-surface split', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toContain('id="tricks-sets-modifiers"');
     expect(html).toContain('<dt>Trick</dt>');
     expect(html).toContain('<dt>Set</dt>');
@@ -553,13 +572,13 @@ describe('Glossary foundational frame — Tricks / Sets / Modifiers + register n
   });
 
   it('makes the set-vs-trick contrast explicit and gives the modifier tell', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toContain('initiate movement rather than terminate it');
     expect(html).toContain('Swirling is a modifier; Swirl is a trick');
   });
 
   it('frames Continuous-Control Lineage as an observational grouping, not a formal family', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toContain('Continuous-Control Lineage');
     expect(html).toContain('observational grouping');
     expect(html).toContain('closely related expressions');
@@ -567,16 +586,16 @@ describe('Glossary foundational frame — Tricks / Sets / Modifiers + register n
   });
 
   it('introduces the educational-approximation register with Twirl in the decomposition table', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toContain('educational approximation');
     expect(html).toContain('Swirl + Spin');
     expect(html).toContain('Reverse Swirling Osis');
   });
 });
 
-describe('Glossary family roster — three display tiers', () => {
+describe('Freestyle Concepts family roster — three display tiers', () => {
   it('splits the roster into Family Parents, Minor Lineages, and Foundational Terminal Surfaces', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toContain('Family Parents');
     expect(html).toContain('Minor lineages');
     expect(html).toContain('Foundational terminal surfaces');
@@ -586,21 +605,21 @@ describe('Glossary family roster — three display tiers', () => {
   });
 
   it('lists demoted families under Minor Lineages with their ?family= routes intact', async () => {
-    const html = await glossary();
+    const html = await concepts();
     for (const slug of ['flurry', 'eclipse', 'barrage']) {
       expect(html, `minor lineage ${slug}`).toContain(`href="/freestyle/tricks?family=${slug}"`);
     }
   });
 });
 
-describe('Glossary family cards — lineage position and tier as independent labels', () => {
+describe('Freestyle Concepts family cards — lineage position and tier as independent labels', () => {
   const cardSlice = (html: string, slug: string): string => {
     const i = html.indexOf(`id="term-${slug}"`);
     return i < 0 ? '' : html.slice(i, i + 400);
   };
 
   it('labels each card with a separate lineage chip and tier chip', async () => {
-    const html = await glossary();
+    const html = await concepts();
     // Root lineage + Family Parent.
     expect(cardSlice(html, 'swirl')).toMatch(/Root lineage/);
     expect(cardSlice(html, 'swirl')).toMatch(/Family Parent/);
@@ -621,15 +640,15 @@ describe('Glossary family cards — lineage position and tier as independent lab
   });
 
   it('retires the collapsed single chip that conflated ancestry and tier', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).not.toContain('descendant lineage / sub-family');
     expect(html).not.toContain('glossary-family-card-type-chip');
   });
 });
 
-describe('Glossary X-Dex term — notation-authoritative', () => {
+describe('Freestyle Concepts X-Dex term — notation-authoritative', () => {
   it('defines X-Dex as scored from the [XDEX] notation flag, not a crossed-body position', async () => {
-    const html = await glossary();
+    const html = await concepts();
     const i = html.indexOf('id="term-x-dex"');
     expect(i, 'X-Dex term present').toBeGreaterThanOrEqual(0);
     const dd = html.slice(i, i + 1600);
@@ -646,7 +665,7 @@ describe('Glossary X-Dex term — notation-authoritative', () => {
   });
 
   it('carries the beginner examples keyed to the [XDEX] flag', async () => {
-    const html = await glossary();
+    const html = await concepts();
     const i = html.indexOf('id="term-x-dex"');
     const dd = html.slice(i, i + 1600);
     expect(dd).toMatch(/Atom Smasher<\/a> carries <code>\[XDEX\]<\/code>/);
@@ -654,7 +673,7 @@ describe('Glossary X-Dex term — notation-authoritative', () => {
   });
 
   it('rewrites the [XDEX] flag away from the full-circle-dex framing', async () => {
-    const html = await glossary();
+    const html = await concepts();
     const i = html.indexOf('id="op-flag-xdex"');
     expect(i, 'XDEX flag entry present').toBeGreaterThanOrEqual(0);
     const dd = html.slice(i, i + 400);
@@ -663,12 +682,12 @@ describe('Glossary X-Dex term — notation-authoritative', () => {
   });
 
   it('no longer claims X-Dex eligibility is an open per-base question anywhere on the page', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).not.toMatch(/open per-base question/);
   });
 
   it('marks the X-Dex trigger as ratified, links the term, and does not gate it by operator name', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toMatch(/<a href="#term-x-dex">X-Dex<\/a> trigger/);
     // X-Dex is notation-driven ([XDEX]), not an atomic/quantum operator whitelist.
     expect(html).not.toMatch(/atomic \/ quantum <a href="#term-x-dex">X-Dex/);

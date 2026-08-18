@@ -164,7 +164,8 @@ test('Public nav surfaces all render without Service Unavailable', { tag: ['@smo
 });
 
 // The freestyle public walk: landing, dictionary index, one seeded trick
-// detail, both records surfaces, glossary, learn, and the media hub. One
+// detail, both records surfaces, glossary, Freestyle Concepts, learn, and the
+// media hub. One
 // looping test in this file's nav-reachability style: does each page render
 // with its main content, not does every control work.
 test('Freestyle public surfaces render end-to-end for an anonymous visitor', { tag: ['@smoke'] }, async ({ page }) => {
@@ -184,6 +185,7 @@ test('Freestyle public surfaces render end-to-end for an anonymous visitor', { t
     '/freestyle/records',
     '/records',
     '/freestyle/glossary',
+    '/freestyle/concepts',
     '/freestyle/learn',
     '/freestyle/media',
   ];

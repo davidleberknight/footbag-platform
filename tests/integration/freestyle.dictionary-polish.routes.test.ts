@@ -95,8 +95,8 @@ describe('Torque teaches the canonical set as its scoring label, not the nicknam
     expect(html).not.toContain('miraging Osis');
   });
 
-  it('glossary compression table reads Torque as Quantum Osis', async () => {
-    const res = await request(await createApp()).get('/freestyle/glossary');
+  it('Freestyle Concepts compression table reads Torque as Quantum Osis', async () => {
+    const res = await request(await createApp()).get('/freestyle/concepts');
     expect(res.status).toBe(200);
     expect(res.text).toContain('<td>Quantum Osis</td>');
     expect(res.text).not.toContain('<td>Miraging Osis</td>');

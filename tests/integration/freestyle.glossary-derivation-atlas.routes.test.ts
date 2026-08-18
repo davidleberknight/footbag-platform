@@ -1,5 +1,5 @@
 /**
- * Integration tests for the decomposition table inside /freestyle/glossary
+ * Integration tests for the decomposition table inside /freestyle/concepts
  * (Symbolic Composition section).
  *
  * The compact table replaces the former five-panel derivation atlas. It reads a
@@ -30,21 +30,21 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-async function glossary(): Promise<string> {
-  const res = await request(await createApp()).get('/freestyle/glossary');
+async function concepts(): Promise<string> {
+  const res = await request(await createApp()).get('/freestyle/concepts');
   expect(res.status).toBe(200);
   return res.text;
 }
 
-describe('GET /freestyle/glossary — decomposition table', () => {
+describe('GET /freestyle/concepts — decomposition table', () => {
   it('renders the decomposition table at the preserved derivation-atlas anchor', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toContain('id="derivation-atlas"');
     expect(html).toContain('Decomposition table');
   });
 
   it('reads the key tricks as their structural decompositions', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toContain('Quantum Osis');            // Torque
     expect(html).toContain('Whirling Osis');            // Blender
     expect(html).toContain('Gyro Quantum Osis');        // Mobius ladder
@@ -54,7 +54,7 @@ describe('GET /freestyle/glossary — decomposition table', () => {
   });
 
   it('distinguishes the structural-equivalence and educational-approximation registers', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toContain('&equiv;');
     expect(html).toContain('&asymp;');
     // The approximation row (Twirl) carries the movement-feel reading.
@@ -62,21 +62,21 @@ describe('GET /freestyle/glossary — decomposition table', () => {
   });
 
   it('links each trick row to its detail page', async () => {
-    const html = await glossary();
+    const html = await concepts();
     for (const slug of ['torque', 'blender', 'mobius', 'ripwalk', 'blur', 'twirl']) {
       expect(html, `link ${slug}`).toContain(`href="/freestyle/tricks/${slug}"`);
     }
   });
 
   it('renders the decomposition table with its deep-link anchor and heading', async () => {
-    const html = await glossary();
+    const html = await concepts();
     // the table lives inside the Runs & Sequences chapter, reachable by its anchor
     expect(html).toContain('id="derivation-atlas"');
     expect(html).toContain('Decomposition table');
   });
 
   it('does not name individuals in the table section', async () => {
-    const html = await glossary();
+    const html = await concepts();
     const idx = html.indexOf('id="derivation-atlas"');
     expect(idx).toBeGreaterThan(0);
     // Scope to the table itself (heading + intro + rows).
@@ -89,7 +89,7 @@ describe('GET /freestyle/glossary — decomposition table', () => {
 });
 
 describe('GET /freestyle/derivation-pilot — retired', () => {
-  it('returns 404 (route removed; content now lives in the glossary)', async () => {
+  it('returns 404 (route removed; content now lives in Freestyle Concepts)', async () => {
     const app = await createApp();
     const res = await request(app).get('/freestyle/derivation-pilot');
     expect(res.status).toBe(404);

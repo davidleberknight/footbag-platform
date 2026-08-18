@@ -1,5 +1,5 @@
 /**
- * Parity guard for the glossary family-card tier overrides.
+ * Parity guard for the Freestyle Concepts family-card tier overrides.
  *
  * A small map (CARD_ONLY_FAMILY_LINEAGE) sets the tier, and where applicable a
  * lineage parent, for card-only lineages that are not in the public roster
@@ -38,8 +38,8 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-async function glossary(): Promise<string> {
-  const res = await request(await createApp()).get('/freestyle/glossary');
+async function concepts(): Promise<string> {
+  const res = await request(await createApp()).get('/freestyle/concepts');
   expect(res.status).toBe(200);
   return res.text;
 }
@@ -50,9 +50,9 @@ function familyCard(html: string, slug: string): string {
   return m![0];
 }
 
-describe('Glossary — family-card tier parity (card-only lineage overrides apply)', () => {
+describe('Freestyle Concepts — family-card tier parity (card-only lineage overrides apply)', () => {
   it('renders Rev Whirl as an independent Minor Lineage, not a Family Parent and not a Whirl branch', async () => {
-    const card = familyCard(await glossary(), 'rev_whirl');
+    const card = familyCard(await concepts(), 'rev_whirl');
     // demoted to minor lineage (the slug-mismatch bug rendered it a family parent root)
     expect(card).toContain('glossary-family-card-tier-chip--minor-lineage');
     expect(card).not.toContain('tier-chip--family-parent');
@@ -63,7 +63,7 @@ describe('Glossary — family-card tier parity (card-only lineage overrides appl
   });
 
   it('demotes every card-only override from Family Parent, guarding against slug drift', async () => {
-    const html = await glossary();
+    const html = await concepts();
     for (const slug of ['rev_whirl', 'blur', 'phoenix']) {
       const card = familyCard(html, slug);
       expect(card, `${slug} tier`).toContain('glossary-family-card-tier-chip--minor-lineage');

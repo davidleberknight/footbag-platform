@@ -48,6 +48,7 @@ const STATIC_PUBLIC_PATHS = [
   '/freestyle/sets/reference',
   '/freestyle/compositional-sets',
   '/freestyle/glossary',
+  '/freestyle/concepts',
   '/freestyle/operators',
   '/freestyle/notation-article',
   '/freestyle/observational',

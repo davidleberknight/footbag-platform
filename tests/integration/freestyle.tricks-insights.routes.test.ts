@@ -887,9 +887,13 @@ describe('GET /freestyle/tricks — ADD-grouped view (default beginner view)', (
     const res = await request(app).get('/freestyle/tricks?view=add');
     // An equivalence reading is structural content: it reads on the trick's
     // own page, in its Equivalent readings section, not beside the name in a
-    // list a reader is scanning for a trick.
+    // list a reader is scanning for a trick. The Reading the Dictionary
+    // disclosure above the list may explain the ≡ symbol, so the check is
+    // scoped to the trick rows themselves.
     expect(res.text).not.toMatch(/class="dict-trick-row-interpretation"/);
-    expect(res.text).not.toMatch(/&equiv;/);
+    const listStart = res.text.indexOf('data-trick-slug=');
+    expect(listStart).toBeGreaterThan(-1);
+    expect(res.text.slice(listStart)).not.toMatch(/&equiv;/);
   });
 
   it('suppresses "Notation pending" placeholder in registry density', async () => {

@@ -10,7 +10,7 @@
  *   - Non-membership = decomposable. Missing structural data on a non-core
  *     trick is a curation gap, not proof of atomicity.
  *   - This registry is NOT the same as `FOUNDATIONAL_TRICK_TERMS` in
- *     `glossaryAnchors.ts` — that constant scopes glossary anchor de-duping
+ *     `conceptsAnchors.ts` — that constant scopes Concepts anchor de-duping
  *     and includes terms (clipper, pixie, fairy) that are NOT atoms here.
  *     The two registries have legitimately different scopes and may diverge.
  *   - orbit is a canonical dictionary slug; reverse-around-the-world and

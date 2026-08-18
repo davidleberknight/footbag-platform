@@ -14,7 +14,7 @@
  *   - Observational-layer badge + footer rendered
  *   - Progression first step marked as anchor
  *   - Cross-base examples link to detail pages when slug is pilot
- *   - Glossary link present
+ *   - Freestyle Concepts link present
  *   - Route ordering: /freestyle/modifier/X does NOT collide with
  *     /freestyle/tricks/:slug
  */
@@ -223,9 +223,9 @@ describe('GET /freestyle/modifier/spinning — happy path', () => {
     expect(res.text).toMatch(/does not change the official IFPA family classifications/i);
   });
 
-  it('renders glossary link deep-linking to the §13 spinning connective panel', async () => {
+  it('renders Freestyle Concepts link deep-linking to the spinning connective panel', async () => {
     const res = await request(createApp()).get('/freestyle/modifier/spinning');
-    expect(res.text).toContain('href="/freestyle/glossary#glossary-panel-spinning"');
+    expect(res.text).toContain('href="/freestyle/concepts#glossary-panel-spinning"');
   });
 
   it('breadcrumb back to /freestyle', async () => {

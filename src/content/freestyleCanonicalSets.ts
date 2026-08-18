@@ -1156,20 +1156,20 @@ export function resolveCanonicalSetAlias(slug: string): string | null {
  * Old /freestyle/sets/:slug routes for retired concepts that are NOT confirmed
  * sets and name no single canonical set: Illusioning is a standalone movement,
  * and Miraging is a descriptive inward-dex name with no single set destination.
- * Their old set URLs redirect to the glossary term explaining each as a non-set
- * concept, so existing deep links resolve without teaching a set page. A retired
- * nickname that names exactly one canonical set (barraging names the Furious set)
- * redirects to that set page instead, resolved ahead of this map. Only fires for
- * slugs that are not themselves a live canonical set.
+ * Their old set URLs redirect to the Freestyle Concepts term explaining each as
+ * a non-set concept, so existing deep links resolve without teaching a set page.
+ * A retired nickname that names exactly one canonical set (barraging names the
+ * Furious set) redirects to that set page instead, resolved ahead of this map.
+ * Only fires for slugs that are not themselves a live canonical set.
  */
-const SET_ROUTE_GLOSSARY_REDIRECTS: ReadonlyMap<string, string> = new Map([
-  ['illusioning', '/freestyle/glossary#term-illusioning'],
-  ['miraging',    '/freestyle/glossary#term-miraging-not-a-set'],
+const SET_ROUTE_CONCEPTS_REDIRECTS: ReadonlyMap<string, string> = new Map([
+  ['illusioning', '/freestyle/concepts#term-illusioning'],
+  ['miraging',    '/freestyle/concepts#term-miraging-not-a-set'],
 ]);
 
 export function resolveSetRouteRedirect(slug: string): string | null {
   if (SETS_BY_SLUG.has(slug)) return null;
-  return SET_ROUTE_GLOSSARY_REDIRECTS.get(slug) ?? null;
+  return SET_ROUTE_CONCEPTS_REDIRECTS.get(slug) ?? null;
 }
 
 export function canonicalSetsBySubtype(subtype: SetSubtype): readonly CanonicalSet[] {

@@ -103,7 +103,7 @@ describe('GET /freestyle/learn', () => {
     expect(res.text).toMatch(/href="\/freestyle\/modifier\/spinning"[^>]*>Spinning/);
     expect(res.text).toMatch(/href="\/freestyle\/modifier\/paradox"[^>]*>Paradox/);
     expect(res.text).toMatch(/href="\/freestyle\/modifier\/ducking"[^>]*>Ducking/);
-    expect(res.text).toContain('href="/freestyle/glossary#connective-panels"');
+    expect(res.text).toContain('href="/freestyle/concepts#connective-panels"');
   });
 
   it('no entries render with the planned status badge (all three modifier pages now ship)', async () => {
@@ -126,6 +126,7 @@ describe('GET /freestyle/learn', () => {
   it('layer footer references canonical surfaces, not symbolic-layer ones', async () => {
     const res = await request(createApp()).get('/freestyle/learn');
     expect(res.text).toContain('/freestyle/tricks');
+    expect(res.text).toContain('/freestyle/concepts');
     expect(res.text).toContain('/freestyle/glossary');
   });
 });
@@ -145,7 +146,7 @@ describe('GET /freestyle/learn — operator-board onboarding surface', () => {
     expect(res.text).not.toMatch(/learn these .* first/i);
   });
 
-  it('does not render the landing- or glossary-surface operator-board prose', async () => {
+  it('does not render the landing- or Concepts-surface operator-board prose', async () => {
     const res = await request(createApp()).get('/freestyle/learn');
     expect(res.text).not.toContain('The operators of freestyle');
     expect(res.text).not.toContain('The compositional vocabulary');
@@ -178,14 +179,14 @@ describe('GET /freestyle/learn — operator-board onboarding surface', () => {
   });
 
   it('renders eleven restrained operator-card deep-links onboarding to mature surfaces', async () => {
-    // Eleven, not ten: the BL operator carries a GLOSSARY('blurry') deeplink
-    // (from the Blender to Blurry rename).
+    // Eleven, not ten: the BL operator carries a Concepts-entry deeplink to
+    // the blurry term.
     const res = await request(createApp()).get('/freestyle/learn');
     const matches = res.text.match(/class="operator-card-deeplink"/g) ?? [];
     expect(matches.length).toBe(11);
-    // Spot-check one destination per category (notation / glossary / pedagogy).
+    // Spot-check one destination per category (notation / Concepts / pedagogy).
     expect(res.text).toContain('href="/freestyle/sets/reference#move-pixie"');
-    expect(res.text).toContain('href="/freestyle/glossary#term-stepping"');
+    expect(res.text).toContain('href="/freestyle/concepts#term-stepping"');
     expect(res.text).toContain('href="/freestyle/modifier/ducking"');
   });
 });

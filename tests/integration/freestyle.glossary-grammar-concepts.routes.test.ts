@@ -1,6 +1,6 @@
 /**
  * Integration tests for the Set vs Operator and Composition Core Concept cards on
- * GET /freestyle/glossary, rendered in place at the top of the Operators &
+ * GET /freestyle/concepts, rendered in place at the top of the Operators &
  * Modifiers section.
  *
  * Set vs Operator is an insight home (Line + "How it relates" + "What it
@@ -30,8 +30,8 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-async function glossary(): Promise<string> {
-  const res = await request(await createApp()).get('/freestyle/glossary');
+async function concepts(): Promise<string> {
+  const res = await request(await createApp()).get('/freestyle/concepts');
   expect(res.status).toBe(200);
   return res.text;
 }
@@ -42,9 +42,9 @@ function card(html: string, anchorId: string): string {
   return m![0];
 }
 
-describe('Glossary — Operators & Modifiers grammar concept cards', () => {
+describe('Freestyle Concepts — Operators & Modifiers grammar concept cards', () => {
   it('renders the Set-role vs standalone-role card as an insight home: line, relates, and a reveal', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toContain('id="concept-set-vs-operator"');
     const svo = card(html, 'concept-set-vs-operator');
     expect(svo).toContain('realized two ways'); // the Line
@@ -57,7 +57,7 @@ describe('Glossary — Operators & Modifiers grammar concept cards', () => {
   });
 
   it('renders the Composition card as connective: line and relates, no reveal', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toContain('id="concept-composition"');
     const comp = card(html, 'concept-composition');
     expect(comp).toContain('base move with operators'); // the Line
@@ -66,7 +66,7 @@ describe('Glossary — Operators & Modifiers grammar concept cards', () => {
   });
 
   it('keeps the section modifier-ecosystem content intact', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toContain('id="lineage-or-ecosystem"');
     expect(html).toContain('Modifiers form');
   });

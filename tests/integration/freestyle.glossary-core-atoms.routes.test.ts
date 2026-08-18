@@ -1,5 +1,5 @@
 /**
- * Integration tests for the twelve core trick atoms band on GET /freestyle/glossary.
+ * Integration tests for the twelve core trick atoms band on GET /freestyle/concepts.
  *
  * The band renders the curator-authored CORE_ATOM_EDUCATIONAL entries as
  * three-layer cards: a `line` always visible, a "How it relates" collapsible on
@@ -33,8 +33,8 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-async function glossary(): Promise<string> {
-  const res = await request(await createApp()).get('/freestyle/glossary');
+async function concepts(): Promise<string> {
+  const res = await request(await createApp()).get('/freestyle/concepts');
   expect(res.status).toBe(200);
   return res.text;
 }
@@ -45,7 +45,7 @@ function card(html: string, slug: string): string {
   return m![0];
 }
 
-// Scope collapsible counts to the atoms band. Other glossary sections (the
+// Scope collapsible counts to the atoms band. Other Concepts sections (the
 // Dexterities Core Concept cards) reuse the same "How it relates" / "What it
 // reveals" summaries, so a page-wide count would include them.
 function atomsBand(html: string): string {
@@ -56,16 +56,16 @@ function atomsBand(html: string): string {
   return html.slice(start, end);
 }
 
-describe('Glossary — core trick atoms band', () => {
+describe('Freestyle Concepts — core trick atoms band', () => {
   it('renders the core trick atoms band with atom anchors', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toContain('id="core-trick-atoms"');
     expect(html).toContain('id="atom-toe_stall"');
     expect(html).toContain('id="atom-osis"');
   });
 
   it('renders each atom as a three-layer card: line visible, relates collapsible', async () => {
-    const html = await glossary();
+    const html = await concepts();
     const band = atomsBand(html);
     const cardCount    = (html.match(/class="glossary-core-atom-card"/g) ?? []).length;
     const lineCount    = (html.match(/class="glossary-core-atom-lead"/g) ?? []).length;
@@ -78,7 +78,7 @@ describe('Glossary — core trick atoms band', () => {
   });
 
   it('carries a Reveal on every one of the twelve atoms', async () => {
-    const html = await glossary();
+    const html = await concepts();
     const revealCount = (atomsBand(html).match(/<summary>What it reveals<\/summary>/g) ?? []).length;
     expect(revealCount).toBe(12);
 
@@ -93,7 +93,7 @@ describe('Glossary — core trick atoms band', () => {
   });
 
   it('Around the World reveal separates terminal-contact variants from direction reversal without naming a family', async () => {
-    const atw = card(await glossary(), 'around_the_world');
+    const atw = card(await concepts(), 'around_the_world');
     expect(atw).toContain('Inside Around the World');
     expect(atw).toContain('Outside Around the World');
     expect(atw).toContain('separate canonical tricks');
@@ -103,7 +103,7 @@ describe('Glossary — core trick atoms band', () => {
   });
 
   it('whirl and swirl reveals keep the deferred surface-frame reading hidden', async () => {
-    const html = await glossary();
+    const html = await concepts();
     for (const slug of ['whirl', 'swirl']) {
       expect(card(html, slug).toLowerCase(), `${slug} reveal`).not.toContain('surface frame');
       expect(card(html, slug).toLowerCase(), `${slug} reveal`).not.toContain('surface-frame');

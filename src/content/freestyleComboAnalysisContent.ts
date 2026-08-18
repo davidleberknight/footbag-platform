@@ -420,9 +420,14 @@ const CROSS_LINKS: readonly ComboAnalysisCrossLink[] = [
     description: 'Browse individual tricks by ADD, family, movement system, or topology.',
   },
   {
+    href:        '/freestyle/concepts',
+    label:       'Freestyle Concepts',
+    description: 'Movement-language primer; trick-level vocabulary and operator notation, chapter by chapter.',
+  },
+  {
     href:        '/freestyle/glossary',
     label:       'Freestyle Glossary',
-    description: 'Movement-language primer; trick-level vocabulary and operator notation.',
+    description: 'Short definitions of freestyle terms, A to Z.',
   },
   {
     href:        '/freestyle/insights',

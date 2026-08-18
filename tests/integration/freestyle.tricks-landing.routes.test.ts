@@ -372,23 +372,31 @@ describe('GET /freestyle/tricks — beginner orientation bridge', () => {
     expect(defs).toContain('a twist you add to a base move');
   });
 
-  it('the bridge links into the glossary primer sections', async () => {
+  it('the bridge links into the Freestyle Concepts primer sections, the in-page Reading the Dictionary tile, and the glossary', async () => {
     const res = await request(createApp()).get('/freestyle/tricks');
     const start = res.text.indexOf('class="dict-onboarding-links"');
     expect(start).toBeGreaterThan(-1);
-    const links = res.text.slice(start, start + 700);
-    expect(links).toContain('href="/freestyle/glossary#section-add-accounting"');
+    const links = res.text.slice(start, start + 800);
+    expect(links).toContain('href="/freestyle/concepts#section-add-accounting"');
     expect(links).toContain('What Is an ADD?');
-    expect(links).toContain('#section-notation');
-    expect(links).toContain('#section-reading-the-dictionary');
-    expect(links).toContain('#section-core-concepts');
+    expect(links).toContain('href="/freestyle/concepts#section-notation"');
+    expect(links).toContain('href="/freestyle/tricks#reading-the-dictionary"');
+    expect(links).toContain('href="/freestyle/concepts#section-core-concepts"');
+    expect(links).toContain('Movement Basics.');
+    expect(links).toContain('href="/freestyle/glossary"');
+    expect(links).toContain('Look Up a Term in the Glossary.');
+    expect(links).not.toContain('Beginner Glossary.');
   });
 
-  it('does not render the orientation tiles on secondary or filtered views', async () => {
+  it('does not render the orientation tiles on secondary or filtered views (Reading the Dictionary still renders)', async () => {
     const family = await request(createApp()).get('/freestyle/tricks?view=family');
-    expect(family.text).not.toContain('class="dict-tile-grid"');
+    expect(family.text).not.toContain('aria-label="About the dictionary"');
+    expect(family.text).not.toContain('class="dict-onboarding-links"');
+    expect(family.text).toContain('id="reading-the-dictionary"');
     const filtered = await request(createApp()).get('/freestyle/tricks?family=whirl');
-    expect(filtered.text).not.toContain('class="dict-tile-grid"');
+    expect(filtered.text).not.toContain('aria-label="About the dictionary"');
+    expect(filtered.text).not.toContain('class="dict-onboarding-links"');
+    expect(filtered.text).toContain('id="reading-the-dictionary"');
   });
 
   it('softens internal ontology terms to beginner entry vocabulary', async () => {
@@ -462,10 +470,10 @@ describe('GET /freestyle/tricks — one orienting lede per state', () => {
     expect(res.text).toContain('finish with a whirl');
   });
 
-  it('secondary views keep beginner help reachable via a glossary link', async () => {
+  it('secondary views keep beginner help reachable via the Reading the Dictionary tile, the glossary, and Freestyle Concepts', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('New to the dictionary? Start with the <a href="/freestyle/glossary">glossary</a>');
+    expect(res.text).toContain('New to the dictionary? Start with <a href="#reading-the-dictionary">Reading the Dictionary</a> above, look up a term in the <a href="/freestyle/glossary">Glossary</a>, or read the <a href="/freestyle/concepts">Freestyle Concepts</a> chapters.');
   });
 });
 

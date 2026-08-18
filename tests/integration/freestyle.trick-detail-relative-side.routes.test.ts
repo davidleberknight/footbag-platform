@@ -2,14 +2,14 @@
  * GET /freestyle/tricks/:slug — relative-side variants callout.
  *
  * A trick that is part of a base / same-side / far group shows a small callout
- * linking its sibling variants and the glossary explainer for SAME vs OP. The
+ * linking its sibling variants and the Freestyle Concepts explainer for SAME vs OP. The
  * callout is a display projection over slugs (same side-stripped stem); it does
  * not change identity or slug normalization.
  *
  * Behaviors pinned:
  *   1. A trick in a multi-side group renders the callout with every sibling,
  *      ordered base → same-side → far, marking the current trick.
- *   2. The callout deep-links to the relative-side glossary anchor.
+ *   2. The callout deep-links to the relative-side Freestyle Concepts anchor.
  *   3. A trick with no relative-side sibling renders no callout.
  *   4. An unrelated trick is never absorbed into the group.
  */
@@ -63,8 +63,8 @@ describe('GET /freestyle/tricks/:slug — relative-side variants', () => {
     // Side labels present.
     expect(res.text).toContain('Same-side variant');
     expect(res.text).toContain('Far variant');
-    // Glossary deep-link to the relative-side explainer.
-    expect(res.text).toContain('href="/freestyle/glossary#term-same-side"');
+    // Freestyle Concepts deep-link to the relative-side explainer.
+    expect(res.text).toContain('href="/freestyle/concepts#term-same-side"');
     // The current trick is marked, not linked to itself.
     expect(res.text).toContain('(this trick)');
   });

@@ -1,6 +1,6 @@
 /**
  * Integration tests for the Direction and Side Core Concept cards on
- * GET /freestyle/glossary, rendered in place in the Dexterities section.
+ * GET /freestyle/concepts, rendered in place in the Dexterities section.
  *
  * Each concept renders as a three-layer card: a `line` always visible plus a
  * "How it relates" collapsible, and (for the insight-home Side concept) a "What
@@ -30,8 +30,8 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-async function glossary(): Promise<string> {
-  const res = await request(await createApp()).get('/freestyle/glossary');
+async function concepts(): Promise<string> {
+  const res = await request(await createApp()).get('/freestyle/concepts');
   expect(res.status).toBe(200);
   return res.text;
 }
@@ -42,9 +42,9 @@ function card(html: string, anchorId: string): string {
   return m![0];
 }
 
-describe('Glossary — Dexterities section Core Concept cards', () => {
+describe('Freestyle Concepts — Dexterities section Core Concept cards', () => {
   it('renders the Direction concept card: line plus a How-it-relates collapsible, no reveal', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toContain('id="concept-direction"');
     const direction = card(html, 'concept-direction');
     expect(direction).toContain('inward or outward'); // the Line
@@ -54,7 +54,7 @@ describe('Glossary — Dexterities section Core Concept cards', () => {
   });
 
   it('renders the Side concept card: line, How-it-relates, and a What-it-reveals collapsible', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toContain('id="concept-side"');
     const side = card(html, 'concept-side');
     expect(side).toContain('read against the most recent side-bearing component'); // the Line
@@ -65,7 +65,7 @@ describe('Glossary — Dexterities section Core Concept cards', () => {
   });
 
   it('keeps the existing notation term glossaries in both subsections', async () => {
-    const html = await glossary();
+    const html = await concepts();
     // Direction subsection term anchors
     expect(html).toContain('id="term-in-dex"');
     expect(html).toContain('id="term-out-dex"');

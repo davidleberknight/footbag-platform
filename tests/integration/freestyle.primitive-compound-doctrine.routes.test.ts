@@ -10,7 +10,7 @@
  *     re-verified here as a doctrine surface).
  *   - Compound trick-detail pages with a ratified equivalence-topology
  *     entry render the doctrine footer note inside the panel.
- *   - The glossary's "Primitives and compounds" doctrine section is
+ *   - The Freestyle Concepts "Primitives and compounds" doctrine section is
  *     present at the canonical anchor #primitives-and-compounds
  *     with the locked terminology (atom / primitive / compound /
  *     compositional structure).
@@ -73,8 +73,8 @@ describe('Primitive vs Compound — atom-page callout', () => {
     expect(res.text).toContain('Core movement atom');
     expect(res.text).toContain('Foundational primitive');
     expect(res.text).toContain('functions as a compositional base rather than a recursively decomposed structure');
-    // Cross-link to the glossary doctrine section.
-    expect(res.text).toContain('href="/freestyle/glossary#primitives-and-compounds"');
+    // Cross-link to the Freestyle Concepts doctrine section.
+    expect(res.text).toContain('href="/freestyle/concepts#primitives-and-compounds"');
   });
 
   it('whirl page renders the same callout (locked wording across all atoms)', async () => {
@@ -112,10 +112,10 @@ describe('Primitive vs Compound — equivalence-topology suppression on atoms', 
   });
 });
 
-describe('Primitive vs Compound — glossary doctrine section', () => {
-  it('glossary renders the "Primitives and compounds" section at the canonical anchor', async () => {
+describe('Primitive vs Compound — Freestyle Concepts doctrine section', () => {
+  it('Freestyle Concepts renders the "Primitives and compounds" section at the canonical anchor', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     expect(res.status).toBe(200);
     // Canonical anchor for deep-link stability.
     expect(res.text).toContain('id="primitives-and-compounds"');
@@ -125,7 +125,7 @@ describe('Primitive vs Compound — glossary doctrine section', () => {
 
   it('doctrine prose names all four locked terms (atom / primitive / compound / compositional structure)', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     expect(res.status).toBe(200);
     // Terminology surfaces (case-insensitive, since prose mixes inline emphasis).
     expect(res.text).toMatch(/foundational primitive/i);
@@ -136,7 +136,7 @@ describe('Primitive vs Compound — glossary doctrine section', () => {
 
   it('doctrine prose names each of the 12 core atoms', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     expect(res.status).toBe(200);
     // Each atom enumerated by name in the doctrine paragraph.
     for (const atom of [
@@ -150,7 +150,7 @@ describe('Primitive vs Compound — glossary doctrine section', () => {
 
   it('doctrine prose preserves the constraint framing (not difficulty / not ADD)', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     expect(res.status).toBe(200);
     // The "decomposition is a structural claim, not a difficulty claim"
     // paragraph is the doctrine's key guardrail — assert verbatim.
@@ -160,7 +160,7 @@ describe('Primitive vs Compound — glossary doctrine section', () => {
 
   it('renders the primitives-and-compounds section with its deep-link anchor', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     expect(res.status).toBe(200);
     expect(res.text).toContain('id="primitives-and-compounds"');
   });

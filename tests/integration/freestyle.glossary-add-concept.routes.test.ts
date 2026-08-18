@@ -1,5 +1,5 @@
 /**
- * Integration tests for the ADD Core Concept card on GET /freestyle/glossary,
+ * Integration tests for the ADD Core Concept card on GET /freestyle/concepts,
  * rendered in place in the Trick Naming & Notation section.
  *
  * ADD is an insight home, and because the card sits in the notation section, its
@@ -30,8 +30,8 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-async function glossary(): Promise<string> {
-  const res = await request(await createApp()).get('/freestyle/glossary');
+async function concepts(): Promise<string> {
+  const res = await request(await createApp()).get('/freestyle/concepts');
   expect(res.status).toBe(200);
   return res.text;
 }
@@ -42,9 +42,9 @@ function card(html: string, anchorId: string): string {
   return m![0];
 }
 
-describe('Glossary — Notation section ADD concept card', () => {
+describe('Freestyle Concepts — Notation section ADD concept card', () => {
   it('renders the ADD card as an insight home: line, relates, and the checksum reveal', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toContain('id="concept-add"');
     const add = card(html, 'concept-add');
     expect(add).toContain('difficulty score'); // the Line
@@ -54,7 +54,7 @@ describe('Glossary — Notation section ADD concept card', () => {
   });
 
   it('keeps the existing notation section content intact', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toContain('id="compositional-premise"');
     expect(html).toContain('id="section-notation"');
   });

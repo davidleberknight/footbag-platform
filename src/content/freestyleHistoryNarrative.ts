@@ -78,7 +78,7 @@ export const HISTORY_NARRATIVE: HistoryNarrative = {
       ],
       links: [
         { label: 'Operators', href: '/freestyle/operators' },
-        { label: 'Glossary', href: '/freestyle/glossary' },
+        { label: 'Freestyle Concepts', href: '/freestyle/concepts' },
       ],
     },
     {
@@ -118,7 +118,7 @@ export const HISTORY_NARRATIVE: HistoryNarrative = {
       ],
       links: [
         { label: 'Ben Job\'s 1995 Notation Paper', href: '/freestyle/notation-article' },
-        { label: 'How Trick Names Work', href: '/freestyle/glossary#section-notation' },
+        { label: 'How Trick Names Work', href: '/freestyle/concepts#section-notation' },
       ],
     },
     {
@@ -144,7 +144,7 @@ export const HISTORY_NARRATIVE: HistoryNarrative = {
       ],
       links: [
         { label: 'Trick Dictionary', href: '/freestyle/tricks' },
-        { label: 'Glossary', href: '/freestyle/glossary' },
+        { label: 'Freestyle Concepts', href: '/freestyle/concepts' },
       ],
     },
     {

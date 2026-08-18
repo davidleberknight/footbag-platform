@@ -15,7 +15,7 @@
  *     (conflictNote rendered)
  *   - Cross-links exist in both directions: /freestyle/sets ↔
  *     /freestyle/compositional-sets
- *   - Glossary §7 "Compositional premise" subsection renders at the
+ *   - Freestyle Concepts notation chapter "Compositional premise" subsection renders at the
  *     canonical anchor #compositional-premise with the Ben Job
  *     attribution and the forward-link to /freestyle/compositional-sets
  */
@@ -224,10 +224,10 @@ describe('/freestyle/compositional-sets — cross-links + sources', () => {
     expect(res.text).toContain('href="/freestyle/sets/reference"');
   });
 
-  it('cross-links to /freestyle/operators and glossary notation primer', async () => {
+  it('cross-links to /freestyle/operators and the Freestyle Concepts notation primer', async () => {
     const res = await request(createApp()).get('/freestyle/compositional-sets');
     expect(res.text).toContain('href="/freestyle/operators"');
-    expect(res.text).toContain('href="/freestyle/glossary#operational-notation"');
+    expect(res.text).toContain('href="/freestyle/concepts#operational-notation"');
   });
 
   it('source attribution names Ben Job + Chris Holden explicitly', async () => {
@@ -309,29 +309,29 @@ describe('/freestyle/sets/reference — flat Holden table', () => {
   });
 });
 
-describe('/freestyle/glossary — compositional-premise §7 subsection', () => {
+describe('/freestyle/concepts — compositional-premise subsection of the notation chapter', () => {
   it('renders the new h3 at the canonical anchor #compositional-premise', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     expect(res.status).toBe(200);
     expect(res.text).toContain('id="compositional-premise"');
     expect(res.text).toMatch(/The compositional premise.*every trick as formula.*Ben Job, 1995/);
   });
 
   it('attributes Ben Job + softened-scope wording', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     expect(res.text).toMatch(/Ben Job \(footbag discussion list, 1995\)/);
-    // Multi-line HTML in the glossary; whitespace-tolerant match.
+    // Multi-line HTML on the Concepts page; whitespace-tolerant match.
     expect(res.text).toMatch(/extending it with additional\s+movement\s+primitives and modifiers/);
     expect(res.text).toMatch(/torque-class hybrids/);
   });
 
   it('forward-links to /freestyle/compositional-sets', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     expect(res.text).toContain('href="/freestyle/compositional-sets"');
   });
 
   it('renders the 4 worked examples (Pixie / Stepping / Blurry / Mobius)', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     expect(res.text).toContain('class="glossary-compositional-premise-examples"');
     // Each example's notation renders.
     expect(res.text).toMatch(/TOE &gt; SAME IN \[DEX\] &gt;/);
@@ -341,7 +341,7 @@ describe('/freestyle/glossary — compositional-premise §7 subsection', () => {
   });
 
   it('renders the compositional-premise section with its deep-link anchor', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     expect(res.text).toContain('id="compositional-premise"');
   });
 });

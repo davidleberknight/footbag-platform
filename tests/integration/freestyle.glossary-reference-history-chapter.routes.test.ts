@@ -1,5 +1,5 @@
 /**
- * Integration tests for the Reference & History topic on GET /freestyle/glossary:
+ * Integration tests for the Reference & History topic on GET /freestyle/concepts:
  * the reference and history material (observational panels, the movement-neighborhood
  * case study, advanced reference concepts, media-claim scope, community and historical
  * vocabulary, and sources) presented as a major topic behind a destination card.
@@ -30,15 +30,15 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-async function glossary(): Promise<string> {
-  const res = await request(await createApp()).get('/freestyle/glossary');
+async function concepts(): Promise<string> {
+  const res = await request(await createApp()).get('/freestyle/concepts');
   expect(res.status).toBe(200);
   return res.text;
 }
 
-describe('Glossary — Reference & History topic (destination card + in-topic tail)', () => {
+describe('Freestyle Concepts — Reference & History topic (destination card + in-topic tail)', () => {
   it('folds the whole reference and history section into one topic behind a card', async () => {
-    const html = await glossary();
+    const html = await concepts();
 
     const topicAt   = html.indexOf('id="chapter-reference-history"');
     const sectionAt = html.indexOf('id="section-reference-history"');
@@ -58,7 +58,7 @@ describe('Glossary — Reference & History topic (destination card + in-topic ta
   });
 
   it('preserves every tail anchor and their order', async () => {
-    const html = await glossary();
+    const html = await concepts();
     const order = [
       'connective-panels',
       'inside-clipper-neighborhood',
@@ -80,7 +80,7 @@ describe('Glossary — Reference & History topic (destination card + in-topic ta
   });
 
   it('replaces the End of Pedagogy tier-break divider', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).not.toContain('End of Pedagogy');
   });
 });

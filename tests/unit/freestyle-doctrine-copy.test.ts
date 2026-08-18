@@ -3,7 +3,7 @@
  * authoritative teaching surfaces, and does not reintroduce the specific false
  * constructions the audit corrected.
  *
- * This suite inspects the exact token definitions, glossary entries, reusable
+ * This suite inspects the exact token definitions, Freestyle Concepts entries, reusable
  * operator copy, and known teaching surfaces. It asserts the required positive
  * meanings and rejects the specific false constructions; it is deliberately NOT
  * a repository-wide banned-word scan, and it proves that legitimate execution
@@ -39,7 +39,7 @@ describe('SAME/OP are component-relative and not synonyms for near/far', () => {
   const opRender = read('src/services/operationalNotationRendering.ts');
   const core = read('src/content/freestyleGlossaryCoreConcepts.ts');
   const moves = read('src/views/freestyle/moves.hbs');
-  const glossary = read('src/views/freestyle/glossary.hbs');
+  const concepts = read('src/views/freestyle/concepts.hbs');
 
   it('the SS/OP short-code definitions are component-relative', () => {
     const ss = lineWith(svc, "short: 'SS'");
@@ -71,10 +71,10 @@ describe('SAME/OP are component-relative and not synonyms for near/far', () => {
     expect(core).not.toMatch(/travels relative to your plant leg/);
   });
 
-  it('the set-notation side prose and glossary Sides block are component-relative', () => {
+  it('the set-notation side prose and Freestyle Concepts Sides block are component-relative', () => {
     expect(lineWith(moves, 'SAME or OP')).toMatch(/most recent side-bearing component/);
     expect(lineWith(moves, 'SAME or OP')).not.toMatch(/same side as the plant foot/);
-    expect(glossary).toMatch(/most recent side-bearing component/);
+    expect(concepts).toMatch(/most recent side-bearing component/);
   });
 });
 
@@ -98,13 +98,13 @@ describe('entry-topology surfaces distinguish SAME/OP from near/far', () => {
 });
 
 describe('[XBD] is cross-body and independent of SAME/OP', () => {
-  const glossary = read('src/views/freestyle/glossary.hbs');
+  const concepts = read('src/views/freestyle/concepts.hbs');
   const edu = read('src/services/symbolicModifierEducation.ts');
 
-  it('the glossary XBD entry is independent of SAME/OP, not plant-foot opposite-side', () => {
-    expect(glossary).toMatch(/records a cross-body configuration or traversal across the body's centreline/);
-    expect(glossary).toMatch(/independent of the component's SAME\/OP relation; both SAME and OP components can be cross-body/);
-    expect(glossary).not.toMatch(/opposite-side surface from the plant foot/);
+  it('the Freestyle Concepts XBD entry is independent of SAME/OP, not plant-foot opposite-side', () => {
+    expect(concepts).toMatch(/records a cross-body configuration or traversal across the body's centreline/);
+    expect(concepts).toMatch(/independent of the component's SAME\/OP relation; both SAME and OP components can be cross-body/);
+    expect(concepts).not.toMatch(/opposite-side surface from the plant foot/);
   });
 
   it('XBD teaching copy does not share a centreline-crossing definition with paradox', () => {
@@ -114,8 +114,8 @@ describe('[XBD] is cross-body and independent of SAME/OP', () => {
 });
 
 describe('OP is a component-relative leg relation, separate from near/far and from X-Dex', () => {
-  const glossary = read('src/views/freestyle/glossary.hbs');
-  const dd = lineWith(glossary, 'separate positional and naming axis');
+  const concepts = read('src/views/freestyle/concepts.hbs');
+  const dd = lineWith(concepts,'separate positional and naming axis');
 
   it('describes OP as a component-relative leg relation', () => {
     expect(dd).toMatch(/component-relative leg relation/);
@@ -140,18 +140,18 @@ describe('[PDX] is a paradox-relationship marker, not a direction or a fixed for
   const opRender = read('src/services/operationalNotationRendering.ts');
   const notation = read('src/services/notationRendering.ts');
   const svc = read('src/services/freestyleService.ts');
-  const glossary = read('src/views/freestyle/glossary.hbs');
+  const concepts = read('src/views/freestyle/concepts.hbs');
 
   it('no PDX token surface calls it a direction', () => {
-    for (const f of [opRender, notation, svc, glossary]) {
+    for (const f of [opRender, notation, svc, concepts]) {
       expect(f).not.toMatch(/paradox-direction/);
     }
   });
 
-  it('the glossary PDX entry frames CLIP > OP IN [DEX] as an example, not the definition', () => {
-    expect(glossary).toMatch(/marks the paradox relationship on a dexterity/);
-    expect(glossary).toMatch(/is not an IN\/OUT direction/);
-    expect(glossary).toMatch(/common entry example, not the definition/);
+  it('the Freestyle Concepts PDX entry frames CLIP > OP IN [DEX] as an example, not the definition', () => {
+    expect(concepts).toMatch(/marks the paradox relationship on a dexterity/);
+    expect(concepts).toMatch(/is not an IN\/OUT direction/);
+    expect(concepts).toMatch(/common entry example, not the definition/);
   });
 });
 
@@ -211,31 +211,31 @@ describe('legitimate execution prose is not banned', () => {
 });
 
 describe('glossary side section, clipper, XBD labels, and side-variant cards', () => {
-  const glossary = read('src/views/freestyle/glossary.hbs');
+  const concepts = read('src/views/freestyle/concepts.hbs');
   const opRender = read('src/services/operationalNotationRendering.ts');
   const svc = read('src/services/freestyleService.ts');
   const related = read('src/services/freestyleRelatedTricks.ts');
   const variantCard = read('src/views/partials/trick-relative-side.hbs');
 
-  it('the glossary side definitions are component-relative and not implied by the entry surface', () => {
-    expect(glossary).not.toMatch(/implied for clipper-led tricks/);
-    expect(glossary).not.toMatch(/implied for toe-led tricks/);
-    expect(glossary).toMatch(/acts on the same leg as the most recent side-bearing component/);
-    expect(glossary).toMatch(/acts on the opposite leg from the most recent side-bearing component/);
+  it('the Freestyle Concepts side definitions are component-relative and not implied by the entry surface', () => {
+    expect(concepts).not.toMatch(/implied for clipper-led tricks/);
+    expect(concepts).not.toMatch(/implied for toe-led tricks/);
+    expect(concepts).toMatch(/acts on the same leg as the most recent side-bearing component/);
+    expect(concepts).toMatch(/acts on the opposite leg from the most recent side-bearing component/);
   });
 
-  it('the glossary Paradox entry is a dexterity relationship, not a third SAME/OP value', () => {
-    expect(glossary).toMatch(/Paradox marks a distinct relationship on a dexterity/);
-    expect(glossary).toMatch(/not a third SAME\/OP value/);
-    expect(glossary).not.toMatch(/third side relationship/);
-    expect(glossary).not.toMatch(/the body switches sides between dex events/);
+  it('the Freestyle Concepts Paradox entry is a dexterity relationship, not a third SAME/OP value', () => {
+    expect(concepts).toMatch(/Paradox marks a distinct relationship on a dexterity/);
+    expect(concepts).toMatch(/not a third SAME\/OP value/);
+    expect(concepts).not.toMatch(/third side relationship/);
+    expect(concepts).not.toMatch(/the body switches sides between dex events/);
   });
 
-  it('the glossary Clipper definition does not claim an implicit SS relation', () => {
-    expect(glossary).toMatch(/canonical Clipper Stall reads/);
-    expect(glossary).toMatch(/SET &gt; OP CLIP \[XBD\] \[DEL\]/);
-    expect(glossary).toMatch(/component-relative and is not fixed merely by the contact surface/);
-    expect(glossary).not.toMatch(/Clipper stalls implicitly involve a same-side/);
+  it('the Freestyle Concepts Clipper definition does not claim an implicit SS relation', () => {
+    expect(concepts).toMatch(/canonical Clipper Stall reads/);
+    expect(concepts).toMatch(/SET &gt; OP CLIP \[XBD\] \[DEL\]/);
+    expect(concepts).toMatch(/component-relative and is not fixed merely by the contact surface/);
+    expect(concepts).not.toMatch(/Clipper stalls implicitly involve a same-side/);
   });
 
   it('both XBD token labels state independence from SAME/OP with no opposite-side-surface definition', () => {

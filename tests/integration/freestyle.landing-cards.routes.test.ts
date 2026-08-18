@@ -50,6 +50,7 @@ describe('GET /freestyle with no tricks or records loaded', () => {
   it('still renders the always-available banner destinations', async () => {
     const res = await request(createApp()).get('/freestyle');
     expect(res.text).toContain('href="/freestyle/glossary"');
+    expect(res.text).toContain('href="/freestyle/concepts"');
     expect(res.text).toContain('href="/freestyle/competition"');
   });
 });

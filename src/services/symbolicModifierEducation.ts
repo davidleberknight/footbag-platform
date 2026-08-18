@@ -23,7 +23,7 @@
  * stays authored locally.
  */
 import type { FreestyleTrickRow } from '../db/db';
-import { glossaryHrefForTerm } from './glossaryAnchors';
+import { conceptsHrefForTerm } from './conceptsAnchors';
 import { getTier1OperatorDefinition } from '../content/freestyleOperatorReference';
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -138,7 +138,7 @@ export interface ModifierFamilyPageContent {
     examples:    ModifierCrossBaseExampleResolved[];
   };
   relatedModifiers:     ModifierRelatedModifier[];
-  glossaryHref:         string;
+  conceptsHref:         string;
   layerSource:          'observational';
   /** Operator -> base-atom cross-link (spinning -> spin); null when none. Set by
    *  the freestyle service, which owns the atom<->operator map. */
@@ -1355,7 +1355,7 @@ export function buildModifierFamilyPage(
       examples:    resolvedCrossBase,
     },
     relatedModifiers: input.relatedModifiers,
-    glossaryHref:     glossaryHrefForTerm(input.slug),
+    conceptsHref:     conceptsHrefForTerm(input.slug),
     layerSource:      'observational',
     // Defaulted null here; the freestyle service overrides with the operator's
     // base-atom cross-link (it owns the atom<->operator map).

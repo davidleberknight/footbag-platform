@@ -95,7 +95,11 @@ describe('Dictionary browse — family-view intro paragraph', () => {
 
   it('familyViewIntro does NOT appear on other views', async () => {
     const addRes = await request(createApp()).get('/freestyle/tricks?view=add');
-    expect(addRes.text).not.toMatch(/conserved terminal mechanic/i);
+    // The intro paragraph itself is absent; the phrase "conserved terminal
+    // mechanic" is not a safe proxy any more because the Reading the
+    // Dictionary disclosure names it in its browse-views table on every view.
+    expect(addRes.text).not.toMatch(/class="browse-view-intro"/);
+    expect(addRes.text).not.toMatch(/ADD view/i);
   });
 });
 

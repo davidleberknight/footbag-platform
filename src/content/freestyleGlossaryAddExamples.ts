@@ -2,8 +2,8 @@
  * freestyleGlossaryAddExamples.ts
  * ================================
  *
- * Curator-authored ADD-accounting worked examples for /freestyle/glossary
- * §8. Five compact educational cards illustrate how ADD math composes
+ * Curator-authored ADD-accounting worked examples for the /freestyle/concepts
+ * ADD Accounting chapter. Five compact educational cards illustrate how ADD math composes
  * for compound tricks, including composite-modifier decomposition,
  * doctrine-pending cases, and atom-level breakdowns.
  *

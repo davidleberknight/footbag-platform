@@ -7,7 +7,7 @@
  * categories:
  *   - Progressions (curated chains)
  *   - Modifier pedagogy (per-modifier teaching pages)
- *   - Reference (glossary connective panels)
+ *   - Reference (Freestyle Concepts connective panels)
  *
  * Observational layer only. No DB writes; no canonical references modified.
  */
@@ -117,7 +117,7 @@ const MODIFIER_PEDAGOGY_SECTION: LearnIndexSection = {
 
 const REFERENCE_SECTION: LearnIndexSection = {
   heading:    'Reference surfaces',
-  introBlurb: 'Authoritative reference pages for the symbolic vocabulary itself: the glossary connective panels for high-value terms, and the set-notation reference that names the operational language.',
+  introBlurb: 'Authoritative reference pages for the symbolic vocabulary itself: the Freestyle Concepts connective panels for high-value terms, and the set-notation reference that names the operational language.',
   entries: [
     {
       title:      'Set notation reference',
@@ -127,8 +127,8 @@ const REFERENCE_SECTION: LearnIndexSection = {
       isShipped:  true,
     },
     {
-      title:      'Glossary movement-topology panels',
-      href:       '/freestyle/glossary#connective-panels',
+      title:      'Freestyle Concepts movement-topology panels',
+      href:       '/freestyle/concepts#connective-panels',
       shortBlurb: 'Paradox, symposium, ducking, spinning, whirl, pixie: each as a short panel pointing to where the term lives in practice across the dictionary.',
       status:     'shipped',
       isShipped:  true,

@@ -1,5 +1,5 @@
 /**
- * Integration tests for the Cross-body Core Concept card on GET /freestyle/glossary,
+ * Integration tests for the Cross-body Core Concept card on GET /freestyle/concepts,
  * rendered in place in the Surfaces section's "Foundational surfaces" subsection.
  *
  * Cross-body is a connective concept, so it renders as a two-layer card: a `line`
@@ -29,8 +29,8 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-async function glossary(): Promise<string> {
-  const res = await request(await createApp()).get('/freestyle/glossary');
+async function concepts(): Promise<string> {
+  const res = await request(await createApp()).get('/freestyle/concepts');
   expect(res.status).toBe(200);
   return res.text;
 }
@@ -41,9 +41,9 @@ function card(html: string, anchorId: string): string {
   return m![0];
 }
 
-describe('Glossary — Surfaces section Cross-body concept card', () => {
+describe('Freestyle Concepts — Surfaces section Cross-body concept card', () => {
   it('renders the Cross-body card: line plus a How-it-relates collapsible, no reveal', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toContain('id="concept-cross-body"');
     const crossBody = card(html, 'concept-cross-body');
     expect(crossBody).toContain('reaches across'); // the Line
@@ -53,7 +53,7 @@ describe('Glossary — Surfaces section Cross-body concept card', () => {
   });
 
   it('keeps the foundational surface terms in the subsection', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toContain('id="term-toe"');
     expect(html).toContain('id="term-clipper"');
   });

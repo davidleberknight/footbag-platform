@@ -1,6 +1,6 @@
 /**
  * Integration tests for the "eight closest relatives" movement-neighbor figure
- * on GET /freestyle/glossary, rendered in the Dexterities section.
+ * on GET /freestyle/concepts, rendered in the Dexterities section.
  *
  * The figure shows the eight foundational one-dex toe tricks, each with the
  * three tricks one movement change away. It reads the movement-neighbor relation
@@ -47,8 +47,8 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-async function glossary(): Promise<string> {
-  const res = await request(await createApp()).get('/freestyle/glossary');
+async function concepts(): Promise<string> {
+  const res = await request(await createApp()).get('/freestyle/concepts');
   expect(res.status).toBe(200);
   return res.text;
 }
@@ -64,9 +64,9 @@ function neighborCard(html: string, slug: string): string {
   return nextAt === -1 ? rest : rest.slice(0, nextAt);
 }
 
-describe('Glossary — eight closest relatives (movement-neighbor figure)', () => {
+describe('Freestyle Concepts — eight closest relatives (movement-neighbor figure)', () => {
   it('renders the figure with its heading, framing, and teaching caption in the Dexterities section', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toContain('The eight closest relatives');
     expect(html).toContain('class="glossary-neighbor-figure"');
     // Pre-figure framing: the eight are variations of one movement pattern,
@@ -85,7 +85,7 @@ describe('Glossary — eight closest relatives (movement-neighbor figure)', () =
   });
 
   it('renders all eight foundational tricks as cards linking to their trick pages', async () => {
-    const html = await glossary();
+    const html = await concepts();
     for (const [slug, name] of ATOMS) {
       expect(html, slug).toContain(`class="glossary-neighbor-card-trick" href="/freestyle/tricks/${slug}"`);
       expect(html, name).toContain(`>${name}</a>`);
@@ -93,14 +93,14 @@ describe('Glossary — eight closest relatives (movement-neighbor figure)', () =
   });
 
   it('labels every move with the closed change vocabulary', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toContain('Reverse the direction the leg circles');
     expect(html).toContain('Switch the side the leg circles on');
     expect(html).toContain('Switch the side the bag comes down on');
   });
 
   it('teaches the verified adjacency: mirage reaches illusion, pixie, and pickup by one change', async () => {
-    const html = await glossary();
+    const html = await concepts();
     const card = neighborCard(html, 'mirage');
     expect(card).toContain('class="glossary-neighbor-dest" href="/freestyle/tricks/illusion"');
     expect(card).toContain('class="glossary-neighbor-dest" href="/freestyle/tricks/pixie"');
@@ -110,7 +110,7 @@ describe('Glossary — eight closest relatives (movement-neighbor figure)', () =
   });
 
   it('gives each card exactly three moves', async () => {
-    const html = await glossary();
+    const html = await concepts();
     for (const [slug] of ATOMS) {
       const card = neighborCard(html, slug);
       const moves = card.match(/class="glossary-neighbor-move"/g) ?? [];
@@ -121,7 +121,7 @@ describe('Glossary — eight closest relatives (movement-neighbor figure)', () =
 
 describe('Dexterities teaching spine — mindset, counterparts, repetition', () => {
   it('opens the relatives figure with the mindset sentence, before the figure', async () => {
-    const html = await glossary();
+    const html = await concepts();
     const mindset = html.indexOf('makes the rest of freestyle much easier to learn');
     const figure = html.indexOf('class="glossary-neighbor-figure"');
     expect(mindset).toBeGreaterThan(0);
@@ -129,7 +129,7 @@ describe('Dexterities teaching spine — mindset, counterparts, repetition', () 
   });
 
   it('renders the clipper-counterparts table directly after the figure with all six pairs', async () => {
-    const html = await glossary();
+    const html = await concepts();
     const figure = html.indexOf('class="glossary-neighbor-figure"');
     const bridge = html.indexOf('Clipper counterparts');
     expect(bridge).toBeGreaterThan(figure);
@@ -151,7 +151,7 @@ describe('Dexterities teaching spine — mindset, counterparts, repetition', () 
   });
 
   it('renders the repetition callout with its three ladders after the counterparts table', async () => {
-    const html = await glossary();
+    const html = await concepts();
     const bridge = html.indexOf('Clipper counterparts');
     const repeat = html.indexOf('One common way freestyle vocabulary grows is by repeating an existing');
     expect(repeat).toBeGreaterThan(bridge);
@@ -160,8 +160,13 @@ describe('Dexterities teaching spine — mindset, counterparts, repetition', () 
     }
   });
 
-  it('the compound-name table clarifies coordinated movements, not reordered sequences', async () => {
-    const html = await glossary();
-    expect(html).toContain('coordinated movements whose identities differ because the base');
+  it('the compound-name table (in Reading the Dictionary on the trick dictionary) clarifies coordinated movements, not reordered sequences', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks');
+    expect(res.status).toBe(200);
+    const html = res.text;
+    const disclosureAt = html.indexOf('id="reading-the-dictionary"');
+    const tableAt = html.indexOf('coordinated movements whose identities differ because the base');
+    expect(disclosureAt).toBeGreaterThan(-1);
+    expect(tableAt).toBeGreaterThan(disclosureAt);
   });
 });

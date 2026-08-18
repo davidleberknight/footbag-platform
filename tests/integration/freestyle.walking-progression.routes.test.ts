@@ -5,7 +5,7 @@
  *   - Route registered and returns 200
  *   - All 7 hand-authored steps render in fixed order
  *   - Per-step content: step number / canonical name / ADD / modifier / rationale
- *     / symbolic note / glossary links
+ *     / symbolic note / Freestyle Concepts links
  *   - butterfly step is marked anchor
  *   - Observational-layer attribution rendered
  *   - Page degrades gracefully when chain slugs missing (returns 200 with
@@ -134,11 +134,11 @@ describe('GET /freestyle/progression/walking-family', () => {
     expect(res.text).toContain('Symbolic note');
   });
 
-  it('renders related glossary links for each step (deep-linked via fragments)', async () => {
+  it('renders related Freestyle Concepts links for each step (deep-linked via fragments)', async () => {
     const res = await request(createApp()).get('/freestyle/progression/walking-family');
-    expect(res.text).toMatch(/Related glossary terms:/);
-    // All step-glossary links deep-link via fragment (#term-X or #glossary-panel-X).
-    const fragmentLinks = res.text.match(/href="\/freestyle\/glossary#[^"]+"/g) ?? [];
+    expect(res.text).toMatch(/Related concepts:/);
+    // All step-concept links deep-link via fragment (#term-X or #glossary-panel-X).
+    const fragmentLinks = res.text.match(/href="\/freestyle\/concepts#[^"]+"/g) ?? [];
     expect(fragmentLinks.length).toBeGreaterThanOrEqual(7);
   });
 

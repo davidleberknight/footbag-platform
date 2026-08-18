@@ -339,7 +339,7 @@ export function buildRelatedTricks(
 //
 // A relative-side variant set is the same underlying trick performed with a
 // different side relationship between a dex and its reference: the unqualified
-// base, its same-side variant, and its far variant. The glossary
+// base, its same-side variant, and its far variant. Freestyle Concepts
 // explains the relationship (SAME / OP); this surfaces the actual sibling rows
 // so a reader on one variant can see and reach the others.
 //
@@ -364,8 +364,8 @@ export interface FreestyleRelativeSideVariant {
 }
 
 export interface FreestyleRelativeSideVariants {
-  // Deep-link to the relative-side glossary explainer (SAME / OP / not X-Dex).
-  glossaryHref: string;
+  // Deep-link to the relative-side Concepts explainer (SAME / OP / not X-Dex).
+  conceptsHref: string;
   variants:     FreestyleRelativeSideVariant[];
 }
 
@@ -379,7 +379,7 @@ const RELATIVE_SIDE_RANK: Record<RelativeSide, number> = {
   'base': 0, 'same-side': 1, 'far': 2,
 };
 
-const RELATIVE_SIDE_GLOSSARY_HREF = '/freestyle/glossary#term-same-side';
+const RELATIVE_SIDE_CONCEPTS_HREF = '/freestyle/concepts#term-same-side';
 
 // Strip whole-segment side qualifiers (prefix, suffix, or infix) from a slug,
 // returning the stem and the side the qualifier denoted. `same` / `near` / `ss`
@@ -441,7 +441,7 @@ export function buildRelativeSideVariants(
       isCurrent:     m.row.slug === current.slug,
     }));
 
-  return { glossaryHref: RELATIVE_SIDE_GLOSSARY_HREF, variants };
+  return { conceptsHref: RELATIVE_SIDE_CONCEPTS_HREF, variants };
 }
 
 // ---------------------------------------------------------------------------

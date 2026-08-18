@@ -299,11 +299,21 @@ export const freestyleController = {
     }
   },
 
-  /** GET /freestyle/glossary */
+  /** GET /freestyle/glossary — the A–Z term list. */
   glossary(_req: Request, res: Response, next: NextFunction): void {
     try {
       const vm = freestyleService.getGlossaryPage();
       res.render('freestyle/glossary', vm);
+    } catch (err) {
+      handleControllerError(err, res, next, 'freestyle controller');
+    }
+  },
+
+  /** GET /freestyle/concepts — the chapter-based Freestyle Concepts reference. */
+  concepts(_req: Request, res: Response, next: NextFunction): void {
+    try {
+      const vm = freestyleService.getConceptsPage();
+      res.render('freestyle/concepts', vm);
     } catch (err) {
       handleControllerError(err, res, next, 'freestyle controller');
     }

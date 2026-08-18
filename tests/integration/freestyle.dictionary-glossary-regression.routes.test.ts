@@ -1,7 +1,7 @@
 /**
- * Freestyle dictionary / glossary / observational regression suite.
+ * Freestyle dictionary / Freestyle Concepts / observational regression suite.
  *
- * Pins ten dictionary / glossary / observational contract items:
+ * Pins ten dictionary / Freestyle Concepts / observational contract items:
  *
  *   1. Dictionary landing browse-tab strip carries no Observed Tricks
  *      link (the duplicate of the Go Deeper card was removed).
@@ -11,7 +11,7 @@
  *   3. The Watch & Learn PassBack tutorials link on the freestyle
  *      landing is an active anchor with the correct href; the Media
  *      index also renders an active anchor for the same gallery.
- *   4. The glossary contains a dedicated Jobs notation section
+ *   4. Freestyle Concepts contains a dedicated Jobs notation section
  *      anchored at #jobs-notation, with an explicit reference to the
  *      historical Jobs notation source archive.
  *   5. The compound-description slot does not duplicate the JOB
@@ -23,7 +23,7 @@
  *   7. Rake renders curator-locked JOB notation `SET > SWING TOE [DEL]`
  *      and is not labelled "canonical decomposition pending".
  *   8. "unusual surface" no longer appears in ADD-accounting displays;
- *      `UNS(1)` is the bucket token. The glossary explains UNS.
+ *      `UNS(1)` is the bucket token. Freestyle Concepts explains UNS.
  *   9. double_around_the_world and double_leg_over surface JOB
  *      notation + ADD calculation rows from the resolved-formulas
  *      content module.
@@ -238,11 +238,11 @@ describe('Item 3: Freestyle Media section reachable from landing and media hub',
   });
 });
 
-// ── Item 4 — Glossary Jobs notation section ──────────────────────────────
-describe('Item 4: glossary has Jobs notation section with archive reference', () => {
+// ── Item 4 — Freestyle Concepts Jobs notation section ────────────────────
+describe('Item 4: Freestyle Concepts has Jobs notation section with archive reference', () => {
   it('renders an h3 with id=jobs-notation', async () => {
     const app = await createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/id="jobs-notation"/);
     expect(res.text).toContain('Jobs notation');
@@ -250,7 +250,7 @@ describe('Item 4: glossary has Jobs notation section with archive reference', ()
 
   it('cites Ben Job\'s article without leaking an internal repo path', async () => {
     const app = await createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     expect(res.text).not.toContain('exploration/fborg/JobsNotation.txt');
     expect(res.text).toContain('Source: Ben Job');
     expect(res.text).toContain('href="/freestyle/notation-article"');
@@ -361,11 +361,11 @@ describe('Item 7: rake has curator-locked JOB notation', () => {
   });
 });
 
-// ── Item 8 — UNS in glossary abbreviations ───────────────────────────────
-describe('Item 8: glossary explains the UNS abbreviation', () => {
-  it('the glossary §7 operational-token table lists UNS', async () => {
+// ── Item 8 — UNS in Freestyle Concepts abbreviations ─────────────────────
+describe('Item 8: Freestyle Concepts explains the UNS abbreviation', () => {
+  it('the Freestyle Concepts operational-token table lists UNS', async () => {
     const app = await createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     expect(res.status).toBe(200);
     expect(res.text).toContain('UNS');
     expect(res.text).toMatch(/Unusual surface\.?\s+Non-standard/i);

@@ -1,13 +1,13 @@
 /**
- * Integration tests for the glossary connective panels.
+ * Integration tests for the Freestyle Concepts connective panels.
  *
- * Verifies that GET /freestyle/glossary renders 6 observational panels for
+ * Verifies that GET /freestyle/concepts renders 6 observational panels for
  * paradox / symposium / ducking / spinning / whirl / pixie. Each panel
  * surfaces a short definition + related-tricks chips + related symbolic
  * groups + a notation hint + (when available) a deep-link to a modifier-
  * family page.
  *
- * Existing glossary content above the panel section MUST remain untouched.
+ * Existing Concepts content above the panel section MUST remain untouched.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -80,21 +80,21 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('GET /freestyle/glossary — connective panels section', () => {
+describe('GET /freestyle/concepts — connective panels section', () => {
   it('renders the Family & Topology Concepts section heading and anchor', async () => {
     // The id="connective-panels" anchor is preserved (anchor-preservation
-    // forever-rule). Glossary headings carry no numeric section
+    // forever-rule). Concepts headings carry no numeric section
     // prefixes.
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/Family &amp; Topology Concepts/);
     expect(res.text).toContain('id="connective-panels"');
   });
 
   it('preserves the primer + reference sections above and below the panels', async () => {
-    // The glossary opens with "Movement Basics"; ADD Accounting
-    // holds the per-trick ADD definition; Sources closes the glossary.
-    const res = await request(createApp()).get('/freestyle/glossary');
+    // Concepts opens with "Movement Basics"; ADD Accounting
+    // holds the per-trick ADD definition; Sources closes the page.
+    const res = await request(createApp()).get('/freestyle/concepts');
     expect(res.text).toMatch(/Movement Basics/);
     expect(res.text).toMatch(/ADD Accounting/);
     expect(res.text).toMatch(/ADD \(Additional Degree of Difficulty\)/);
@@ -102,7 +102,7 @@ describe('GET /freestyle/glossary — connective panels section', () => {
   });
 
   it('renders all 6 panels with correct anchor IDs', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     expect(res.text).toContain('id="glossary-panel-paradox"');
     expect(res.text).toContain('id="glossary-panel-symposium"');
     expect(res.text).toContain('id="glossary-panel-ducking"');
@@ -112,7 +112,7 @@ describe('GET /freestyle/glossary — connective panels section', () => {
   });
 
   it('observational badge + footer rendered for the panel section', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     // Two badges: section heading + (no others by design); check at minimum one rendered
     const badgeCount = (res.text.match(/symbolic-layer-badge/g) ?? []).length;
     expect(badgeCount).toBeGreaterThanOrEqual(1);
@@ -120,7 +120,7 @@ describe('GET /freestyle/glossary — connective panels section', () => {
   });
 
   it('each panel includes a coach-tone definition', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     const text = decodeEntities(res.text);
     expect(text).toMatch(/hip pivot that switches the body's side across one dex/i);
     expect(text).toMatch(/no-plant body discipline/i);
@@ -131,7 +131,7 @@ describe('GET /freestyle/glossary — connective panels section', () => {
   });
 
   it('renders related-tricks chips for each panel that has members', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     // paradox panel should link to paradox_mirage or paradox_whirl
     const paradoxStart = res.text.indexOf('id="glossary-panel-paradox"');
     const symposiumStart = res.text.indexOf('id="glossary-panel-symposium"');
@@ -142,20 +142,20 @@ describe('GET /freestyle/glossary — connective panels section', () => {
   });
 
   it('each panel includes a "Used in these tricks" section label when tricks present', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     const usedInCount = (res.text.match(/Used in these tricks/g) ?? []).length;
     // 6 panels should all have at least some related tricks given the test seed
     expect(usedInCount).toBeGreaterThanOrEqual(4);
   });
 
   it('each panel includes related symbolic groups', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     const groupSectionCount = (res.text.match(/Related symbolic groups/g) ?? []).length;
     expect(groupSectionCount).toBe(6);
   });
 
   it('each panel includes a notation hint', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     const hintCount = (res.text.match(/Notation hint/g) ?? []).length;
     expect(hintCount).toBe(6);
     // Specific operator references. The paradox hint surfaces the
@@ -172,7 +172,7 @@ describe('GET /freestyle/glossary — connective panels section', () => {
     // The connective-panel deep-link phrasing is the standardized
     // "Modifier reference →" via the .panel-deep-link.glossary-
     // outward-link class.
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     const spinningStart = res.text.indexOf('id="glossary-panel-spinning"');
     const whirlStart = res.text.indexOf('id="glossary-panel-whirl"');
     const spinningSlice = res.text.substring(spinningStart, whirlStart);
@@ -181,7 +181,7 @@ describe('GET /freestyle/glossary — connective panels section', () => {
   });
 
   it('non-spinning panels do NOT include modifier-family deep-link', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     // paradox/symposium/ducking/whirl/pixie panels should NOT have a modifier-family link
     const paradoxStart = res.text.indexOf('id="glossary-panel-paradox"');
     const symposiumStart = res.text.indexOf('id="glossary-panel-symposium"');
@@ -190,25 +190,25 @@ describe('GET /freestyle/glossary — connective panels section', () => {
   });
 
   it('panel grid renders in a 2-column responsive grid', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     expect(res.text).toContain('glossary-connective-grid');
     expect(res.text).toContain('glossary-connective-panel');
   });
 });
 
-describe('GET /freestyle/glossary — connective panels do not break existing content', () => {
-  it('glossary intro still renders alongside the connective panels (smoke check)', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
-    // The opening glossary section is a welcoming "Movement Basics" intro.
+describe('GET /freestyle/concepts — connective panels do not break existing content', () => {
+  it('Concepts intro still renders alongside the connective panels (smoke check)', async () => {
+    const res = await request(createApp()).get('/freestyle/concepts');
+    // The opening Concepts section is a welcoming "Movement Basics" intro.
     expect(res.text).toMatch(/the language of freestyle footbag/);
   });
 
-  it('renders the glossary section spine in reading order', async () => {
+  it('renders the Concepts section spine in reading order', async () => {
     // Section anchors in reading order: the Foundations spine (ending in
     // Modifiers) precedes the major topics (Families, then Notation, then
     // Composition, then the reference and history tail). Section ids are unique,
     // so monotonic ordering on the anchors is a robust spine check.
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     const orderedAnchors = [
       'id="section-core-concepts"',
       'id="section-surfaces"',
@@ -236,16 +236,16 @@ describe('GET /freestyle/glossary — connective panels do not break existing co
   });
 });
 
-describe('GET /freestyle/glossary — inside-delay stationary-transition case study', () => {
+describe('GET /freestyle/concepts — inside-delay stationary-transition case study', () => {
   it('renders the case-study section heading + anchor', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     expect(res.status).toBe(200);
     expect(res.text).toContain('id="inside-clipper-neighborhood"');
     expect(res.text).toMatch(/inside-delay stationary-transition neighborhood/i);
   });
 
   it('renders all four neighborhood tricks with detail-page links', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     expect(res.text).toContain('href="/freestyle/tricks/wrap"');
     expect(res.text).toContain('href="/freestyle/tricks/walk_over"');
     expect(res.text).toContain('href="/freestyle/tricks/hop_over"');
@@ -256,7 +256,7 @@ describe('GET /freestyle/glossary — inside-delay stationary-transition case st
   });
 
   it('is badged observational and disclaims canonical-family change', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     const start = res.text.indexOf('id="inside-clipper-neighborhood"');
     const end = res.text.indexOf('id="section-advanced-reference"');
     const slice = res.text.substring(start, end);
@@ -267,7 +267,7 @@ describe('GET /freestyle/glossary — inside-delay stationary-transition case st
   it('renders eclipse as an explicitly unsettled reading (alignment-rule guard)', async () => {
     // The observational case study must NOT harden eclipse's decomposition into a
     // canonical claim, and must not contradict the detail page's op_notation / ADD.
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     const start = res.text.indexOf('id="inside-clipper-neighborhood"');
     const end = res.text.indexOf('id="section-advanced-reference"');
     const slice = res.text.substring(start, end);
@@ -276,7 +276,7 @@ describe('GET /freestyle/glossary — inside-delay stationary-transition case st
   });
 
   it('renders the neighborhood section with its deep-link anchor', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     expect(res.text).toContain('id="inside-clipper-neighborhood"');
   });
 });

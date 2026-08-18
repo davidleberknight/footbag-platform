@@ -7,7 +7,8 @@
  *   - Trick dictionary: GET /freestyle/tricks (getFreestyleTricksIndexPage),
  *     GET /freestyle/tricks/:slug (getTrickDetailPage), GET /freestyle/families/:slug
  *     (getFamilyDetailPage; first-class Family Parents only).
- *   - Reference: GET /freestyle/glossary (getGlossaryPage), /freestyle/operators
+ *   - Reference: GET /freestyle/glossary (getGlossaryPage; the A–Z term list),
+ *     /freestyle/concepts (getConceptsPage; the chapter-based reference), /freestyle/operators
  *     (getOperatorsPage), /freestyle/modifier/:slug (getModifierDetail -> teaching | stub),
  *     /freestyle/notation-article (getJobsNotationArticlePage), /freestyle/observational
  *     (getObservationalLayerPage).
@@ -153,6 +154,7 @@ import {
   isCoreAtom,
 } from '../content/freestyleCoreAtomEducational';
 import { GLOSSARY_CORE_CONCEPTS_BY_KEY } from '../content/freestyleGlossaryCoreConcepts';
+import { GLOSSARY_TERMS, GLOSSARY_CROSS_REFERENCES, type GlossaryTerm, type GlossaryCrossReference } from '../content/freestyleGlossaryTerms';
 import {
   getDoctrineDivergence,
 } from '../content/freestyleTrickDoctrine';
@@ -818,7 +820,7 @@ export interface OperatorBoardData {
 // Surface tag for the connective-prose lookup. The tiers are surface-invariant;
 // only heading + lede change. Default is 'landing' to keep the original call
 // site (FreestyleService.getLandingPage) unchanged.
-export type OperatorBoardSurface = 'landing' | 'glossary' | 'learn';
+export type OperatorBoardSurface = 'landing' | 'concepts' | 'learn';
 const OPERATOR_BOARD_PROSE: Record<OperatorBoardSurface, { heading: string; lede: string }> = {
   // Ledes are one short sentence each; the tier eyebrow + card grid
   // do the structural teaching.
@@ -826,7 +828,7 @@ const OPERATOR_BOARD_PROSE: Record<OperatorBoardSurface, { heading: string; lede
     heading: 'The operators of freestyle',
     lede:    'Named sets, body movements, and structural relationships. Combine them to build every named trick.',
   },
-  glossary: {
+  concepts: {
     heading: 'The compositional vocabulary',
     lede:    'Named sets, body movements, and structural relationships. The sections below define each in depth.',
   },
@@ -1035,7 +1037,7 @@ export interface FreestyleCompositionalSetsContent {
   crossLinks: {
     setsReferenceHref:    string;
     operatorsHref:        string;
-    glossaryNotationHref: string;
+    conceptsNotationHref: string;
   };
 }
 
@@ -2443,7 +2445,7 @@ function tokenizeEquivalenceReading(reading: string): SemanticNotationToken[] {
       const expanded = expandS5Abbreviation(token);
       const normalized = expanded.toLowerCase();
       if (RECOGNIZED_LINK_SLUGS.has(normalized)) {
-        return { kind: 'link', text: expanded, href: `/freestyle/glossary#term-${normalized}` };
+        return { kind: 'link', text: expanded, href: `/freestyle/concepts#term-${normalized}` };
       }
       return { kind: 'plain', text: expanded, href: null };
     });
@@ -3497,7 +3499,7 @@ export interface FreestyleFamilyDetailContent {
   familyCrossLink: { label: string; href: string } | null;
   crossLinks: {
     familyBrowseHref: string;      // /freestyle/tricks?view=family#family-{slug}
-    glossaryHref: string;          // /freestyle/glossary#term-{slug}
+    conceptsHref: string;          // /freestyle/concepts#term-{slug}
     movementSystemsHref: string;
   };
 }
@@ -4035,7 +4037,99 @@ function shapeMovementNeighbors(allDictRows: FreestyleTrickRow[]): GlossaryMovem
   return { cards };
 }
 
+// The A–Z Glossary (/freestyle/glossary): one alphabetical list of terms, each
+// a short definition plus an optional deeper link. Grouped by first letter so
+// the template renders letter headings without deriving them.
+// One line of the A–Z list: either a defined term or a "see X" cross-reference
+// (isSee) that carries no definition and points at the canonical entry.
+export interface FreestyleGlossaryEntry {
+  term:       string;
+  anchorId:   string;        // term-{slug} for a definition, see-{slug} for a pointer
+  isSee:      boolean;
+  seeTerm:    string | null; // the canonical entry's term, pointers only
+  seeHref:    string | null; // #term-{slug} of the canonical entry, pointers only
+  definition: string;        // empty for a pointer
+  // Other spellings / abbreviations, joined for display ("also: ss, near");
+  // empty string when the term has none, so the template branches on hasAliases.
+  hasAliases: boolean;
+  aliasText:  string;
+  hasMore:    boolean;
+  moreHref:   string | null;
+  moreLabel:  string | null;
+}
+export interface FreestyleGlossaryLetterGroup {
+  letter:  string;           // 'A'..'Z'
+  entries: FreestyleGlossaryEntry[];
+}
 export interface FreestyleGlossaryContent {
+  entryCount:          number;   // defined terms
+  crossReferenceCount: number;   // "see" pointers
+  letters:             FreestyleGlossaryLetterGroup[];
+  // Letter jump-links: every group's letter with its in-page anchor.
+  letterNav:   { letter: string; href: string }[];
+  crossLinks:  { conceptsHref: string; dictionaryHref: string; operatorsHref: string };
+}
+
+// Deterministic A–Z order: case-insensitive, accent-insensitive, digits before
+// letters, with the anchor slug as the tiebreak so two spellings that collate
+// equal still land in one fixed order.
+function compareGlossaryLines(a: { term: string; slug: string }, b: { term: string; slug: string }): number {
+  const byTerm = a.term.localeCompare(b.term, 'en', { sensitivity: 'base', numeric: true });
+  return byTerm !== 0 ? byTerm : a.slug.localeCompare(b.slug, 'en');
+}
+
+export function shapeGlossaryLetterGroups(
+  terms: readonly GlossaryTerm[],
+  crossReferences: readonly GlossaryCrossReference[] = [],
+): FreestyleGlossaryLetterGroup[] {
+  const bySlug = new Map(terms.map(t => [t.slug, t]));
+  const lines: { term: string; slug: string; entry: FreestyleGlossaryEntry }[] = [];
+  for (const t of terms) {
+    lines.push({ term: t.term, slug: t.slug, entry: {
+      term:       t.term,
+      anchorId:   `term-${t.slug}`,
+      isSee:      false,
+      seeTerm:    null,
+      seeHref:    null,
+      definition: t.definition,
+      hasAliases: (t.aliases?.length ?? 0) > 0,
+      aliasText:  (t.aliases ?? []).join(', '),
+      hasMore:    t.moreHref !== undefined,
+      moreHref:   t.moreHref ?? null,
+      moreLabel:  t.moreLabel ?? null,
+    } });
+  }
+  for (const x of crossReferences) {
+    const target = bySlug.get(x.seeSlug);
+    if (!target) continue; // the content module already asserts this never happens
+    lines.push({ term: x.term, slug: x.slug, entry: {
+      term:       x.term,
+      anchorId:   `see-${x.slug}`,
+      isSee:      true,
+      seeTerm:    target.term,
+      seeHref:    `#term-${target.slug}`,
+      definition: '',
+      hasAliases: false,
+      aliasText:  '',
+      hasMore:    false,
+      moreHref:   null,
+      moreLabel:  null,
+    } });
+  }
+  lines.sort(compareGlossaryLines);
+  const groups: FreestyleGlossaryLetterGroup[] = [];
+  for (const line of lines) {
+    const letter = line.term.charAt(0).toUpperCase();
+    const last = groups[groups.length - 1];
+    if (last && last.letter === letter) last.entries.push(line.entry);
+    else groups.push({ letter, entries: [line.entry] });
+  }
+  return groups;
+}
+
+// Freestyle Concepts (/freestyle/concepts): the chapter-based reference. The
+// section (§) references in the field comments name chapters of that page.
+export interface FreestyleConceptsContent {
   // Operator-board orientation strip embedded in §3 ("How Tricks Are Built").
   // Shared partial with the landing page; surface-specific heading + lede.
   operatorBoard:    OperatorBoardData;
@@ -4097,7 +4191,7 @@ export interface FreestyleGlossaryContent {
   otherFoundationalAtoms: FreestyleCoreTrickCard[];
   // The ratified first-class family roster, sourced from the same module as
   // the dictionary's "By family" browse (PUBLIC_DISPLAY_FAMILIES) so the
-  // glossary roster always matches the dictionary's. Not every entry has a
+  // Concepts roster always matches the dictionary's. Not every entry has a
   // rich family card above; uncarded first-class families still appear here.
   firstClassFamilyRoster: readonly { slug: string; label: string; branches: readonly { slug: string; label: string }[] }[];
   // Minor lineages: conserved-terminal families that are not first-class, shown
@@ -4355,7 +4449,8 @@ function shapeObservationalCard(
 }
 
 // /freestyle/operators view-model. Pure URL promotion of the modifier-
-// reference content that lives inside /freestyle/glossary §6. Both pages
+// reference content that lives inside the /freestyle/concepts Operators &
+// Modifiers chapter. Both pages
 // render the same shared partial `freestyle/partials/modifier-reference`;
 // the operators page wraps it with its own hero + breadcrumbs so it can
 // serve as a standalone discoverable destination.
@@ -9629,10 +9724,11 @@ export const freestyleService = {
           // a question and keeps its question mark.
           links: [
             { label: 'Start With the Six Vocabulary Lessons.', href: '/freestyle/learn' },
-            { label: 'What Is an ADD?', href: '/freestyle/glossary#section-add-accounting' },
-            { label: 'How Trick Names Work.', href: '/freestyle/glossary#section-notation' },
-            { label: 'How to Read the Dictionary.', href: '/freestyle/glossary#section-reading-the-dictionary' },
-            { label: 'Beginner Glossary.', href: '/freestyle/glossary#section-core-concepts' },
+            { label: 'What Is an ADD?', href: '/freestyle/concepts#section-add-accounting' },
+            { label: 'How Trick Names Work.', href: '/freestyle/concepts#section-notation' },
+            { label: 'How to Read the Dictionary.', href: '/freestyle/tricks#reading-the-dictionary' },
+            { label: 'Movement Basics.', href: '/freestyle/concepts#section-core-concepts' },
+            { label: 'Look Up a Term in the Glossary.', href: '/freestyle/glossary' },
           ],
         },
         searchSection: { heading: 'Look up a trick' },
@@ -9909,7 +10005,7 @@ export const freestyleService = {
       navigation: {
         breadcrumbs: [
           { label: 'Freestyle', href: '/freestyle' },
-          { label: 'Glossary', href: '/freestyle/glossary' },
+          { label: 'Freestyle Concepts', href: '/freestyle/concepts' },
           { label: 'Notation article' },
         ],
       },
@@ -10025,9 +10121,9 @@ export const freestyleService = {
     };
   },
 
-  getGlossaryPage(): PageViewModel<FreestyleGlossaryContent> {
+  getConceptsPage(): PageViewModel<FreestyleConceptsContent> {
     // Build the same lookup context the trick-detail renderer uses, so the
-    // glossary's notation examples are classified by the SAME role registries
+    // Concepts page's notation examples are classified by the SAME role registries
     // — keeping the page's claim ("color-coded structural roles") visibly
     // true at the site of the claim.
     const allDictRows = runSqliteRead('freestyleTricks.listAll', () =>
@@ -10077,34 +10173,34 @@ export const freestyleService = {
     const coreTricks: FreestyleCoreTrickCard[] = shapeCoreTricks(allDictRows);
 
     // Set-primitive grid for the Modifiers & Operators section. Pixie and Fairy
-    // are the set-tier primitives whose glossary term-anchor lives nowhere else;
+    // are the set-tier primitives whose Concepts term-anchor lives nowhere else;
     // the decomposable set operators and Stepping are rendered by their own
     // surfaces (intermediate-operators list, body-modifier reference) so each
     // operator's anchor stays on a single element.
     const setModifiers: FreestyleSetModifierEntry[] = shapeSetModifiers(
-      this.getOperatorBoard('glossary'),
+      this.getOperatorBoard('concepts'),
     );
 
     return {
       seo: {
-        title: 'Freestyle Glossary',
+        title: 'Freestyle Concepts',
         description:
-          'Glossary of freestyle footbag terminology: the ADD system, run-quality labels, set components, and common abbreviations.',
+          'Chapter-based reference to freestyle footbag concepts: movement basics, contact surfaces, dexterities, sets, operators and modifiers, families, notation, and ADD accounting.',
       },
       page: {
         sectionKey: 'freestyle',
-        pageKey:    'freestyle_glossary',
-        title:      'Freestyle Glossary',
-        intro:      'Definitions of technical jargon and specialized terminology that players use when describing tricks.',
+        pageKey:    'freestyle_concepts',
+        title:      'Freestyle Concepts',
+        intro:      'In-depth chapters on how freestyle tricks are built, named, and scored. For a quick definition, use the Glossary.',
       },
       navigation: {
         breadcrumbs: [
           { label: 'Freestyle', href: '/freestyle' },
-          { label: 'Glossary' },
+          { label: 'Freestyle Concepts' },
         ],
       },
       content: {
-        operatorBoard:         this.getOperatorBoard('glossary'),
+        operatorBoard:         this.getOperatorBoard('concepts'),
         intermediateOperators: OPERATOR_REFERENCE_ENTRIES.map(e => ({
           ...e,
           isHistoricalNickname: e.category === 'historical-nickname',
@@ -10186,6 +10282,40 @@ export const freestyleService = {
         addConcept:           shapeGlossaryConcept('add'),
         // The numeric run-quality ladder, from the combo-analysis authority.
         runQualityLadder:     RUN_QUALITY_LADDER,
+      },
+    };
+  },
+
+  getGlossaryPage(): PageViewModel<FreestyleGlossaryContent> {
+    const letters = shapeGlossaryLetterGroups(GLOSSARY_TERMS, GLOSSARY_CROSS_REFERENCES);
+    return {
+      seo: {
+        title: 'Freestyle Glossary',
+        description:
+          'A to Z glossary of freestyle footbag terms: sets, dexterities, contact surfaces, operators, modifiers, notation, and abbreviations, each with a short definition.',
+      },
+      page: {
+        sectionKey: 'freestyle',
+        pageKey:    'freestyle_glossary',
+        title:      'Freestyle Glossary',
+        intro:      'Short definitions of the terms players use when describing tricks, A to Z. Each entry links to the page that explains it in depth.',
+      },
+      navigation: {
+        breadcrumbs: [
+          { label: 'Freestyle', href: '/freestyle' },
+          { label: 'Glossary' },
+        ],
+      },
+      content: {
+        entryCount:          GLOSSARY_TERMS.length,
+        crossReferenceCount: GLOSSARY_CROSS_REFERENCES.length,
+        letters,
+        letterNav: letters.map(g => ({ letter: g.letter, href: `#letter-${g.letter}` })),
+        crossLinks: {
+          conceptsHref:   '/freestyle/concepts',
+          dictionaryHref: '/freestyle/tricks',
+          operatorsHref:  '/freestyle/operators',
+        },
       },
     };
   },
@@ -10973,7 +11103,7 @@ export const freestyleService = {
         familyCrossLink:    group.crossLink,
         crossLinks: {
           familyBrowseHref:    `/freestyle/tricks?view=family#family-${slug}`,
-          glossaryHref:        `/freestyle/glossary#term-${slug}`,
+          conceptsHref:        `/freestyle/concepts#term-${slug}`,
           movementSystemsHref: '/freestyle/tricks?view=movement-system',
         },
       },
@@ -11265,7 +11395,7 @@ export const freestyleService = {
 
     // Flagship-foundational cohort: the 6 literal-primitive true-core sets
     // that anchor most of the compositional vocabulary. Mirrors the
-    // flagship-marker discipline on /freestyle/glossary.
+    // flagship-marker discipline on /freestyle/concepts.
     const FLAGSHIP_SET_TOOLTIPS: Record<string, string> = {
       pixie:    'Flagship set: the simplest +1 set entry; anchors terraging / sailing / frantic.',
       fairy:    "Flagship set: pixie's directional mirror (out-dex); anchors the fairy-spinning family.",
@@ -11708,7 +11838,7 @@ export const freestyleService = {
         crossLinks: {
           setsReferenceHref:    '/freestyle/sets/reference',
           operatorsHref:        '/freestyle/operators',
-          glossaryNotationHref: '/freestyle/glossary#operational-notation',
+          conceptsNotationHref: '/freestyle/concepts#operational-notation',
         },
       },
     };
@@ -11735,7 +11865,7 @@ export const freestyleService = {
       hrefLabel: destination?.label     ?? null,
     });
     const NOTATION    = (slug: string) => ({ href: `/freestyle/sets/reference#move-${slug}`, label: 'Notation reference' });
-    const GLOSSARY    = (slug: string) => ({ href: `/freestyle/glossary#term-${slug}`,     label: 'Glossary entry'     });
+    const CONCEPTS    = (slug: string) => ({ href: `/freestyle/concepts#term-${slug}`,     label: 'Concepts entry'     });
     const MOD_PEDAGOGY = (slug: string) => ({ href: `/freestyle/modifier/${slug}`,          label: 'Modifier page'      });
 
     // Every action string
@@ -11754,9 +11884,9 @@ export const freestyleService = {
             op('PIX',   'Pixie',    'Same-side, in-direction toe-set dex.',          'PIX + BUTTERFLY',         'DIMWALK',            NOTATION('pixie')),
             op('AT',    'Atomic',   'Opposite-side, out-direction toe-set dex.',     'AT + MIRAGE',             'ATOM SMASHER',       NOTATION('atomic')),
             op('Q',     'Quantum',  'Opposite-side, in-direction toe-set dex.',      'Q + MIRAGE',              'TOE BLUR',           NOTATION('quantum')),
-            op('BL',    'Blurry',   'Stepping + Paradox; flat +1 ADD.',              'BLURRY + WHIRL',          'BLURRY WHIRL',       GLOSSARY('blurry')),
+            op('BL',    'Blurry',   'Stepping + Paradox; flat +1 ADD.',              'BLURRY + WHIRL',          'BLURRY WHIRL',       CONCEPTS('blurry')),
             op('FAIRY', 'Fairy',    'Same-side, out-direction toe-set dex.',         'FAIRY + DRIFTER',         'FAIRY DRIFTER',      NOTATION('fairy')),
-            op('STEP',  'Stepping', 'Plant foot relocates between set and catch.',   'STEP + BUTTERFLY',        'RIPWALK',            GLOSSARY('stepping')),
+            op('STEP',  'Stepping', 'Plant foot relocates between set and catch.',   'STEP + BUTTERFLY',        'RIPWALK',            CONCEPTS('stepping')),
           ],
         },
         {
@@ -11769,7 +11899,7 @@ export const freestyleService = {
             op('GY',    'Gyro',       'Half-rotation body modifier (180°).',           'GY + TORQUE',             'MOBIUS',             NOTATION('gyro')),
             op('DUCK',  'Duck / Dive','Head dip or arc; duck/dive/weave/zulu family.', 'PIX + DUCK + BUTTERFLY', 'PHOENIX',           MOD_PEDAGOGY('ducking')),
             op('PDX',   'Paradox',    'Hip pivot on a single dex; body switches sides.', 'PDX + LEG-OVER',     'PARADOX LEG-OVER',   MOD_PEDAGOGY('paradox')),
-            op('SYMP',  'Symposium',  'Active leg jumps + lands solo while the other holds.', 'SYMP + ILLUSION', 'FLAIL',              GLOSSARY('symposium'), true),
+            op('SYMP',  'Symposium',  'Active leg jumps + lands solo while the other holds.', 'SYMP + ILLUSION', 'FLAIL',              CONCEPTS('symposium'), true),
           ],
         },
         {

@@ -290,11 +290,11 @@ describe('/freestyle/sets routes render directly', () => {
   });
 });
 
-describe('GET /freestyle/sets/:slug — non-set slug redirects to its glossary term', () => {
-  it('illusioning is not a set; its old link 301s to the illusioning glossary term, not atomic', async () => {
+describe('GET /freestyle/sets/:slug — non-set slug redirects to its Freestyle Concepts term', () => {
+  it('illusioning is not a set; its old link 301s to the illusioning Concepts term, not atomic', async () => {
     const res = await request(await createApp()).get('/freestyle/sets/illusioning').redirects(0);
     expect(res.status).toBe(301);
-    expect(res.headers['location']).toBe('/freestyle/glossary#term-illusioning');
+    expect(res.headers['location']).toBe('/freestyle/concepts#term-illusioning');
   });
 
   it('a live canonical set is never redirected', async () => {
@@ -344,7 +344,7 @@ describe('GET /freestyle/sets/:slug — "Equivalent names" (doctrine set-name eq
 
 // Under current doctrine Furious is the confirmed two-dex set page.
 // Barraging and Miraging are not sets and their old set URLs redirect to their
-// glossary terms; Illusioning redirects to its glossary term, not to Atomic.
+// Freestyle Concepts terms; Illusioning redirects to its Concepts term, not to Atomic.
 describe('GET /freestyle/sets/:slug — set vs non-set concepts', () => {
   it('furious renders a set detail page for the two-dex set concept', async () => {
     const res = await request(await createApp()).get('/freestyle/sets/furious').redirects(0);
@@ -361,16 +361,16 @@ describe('GET /freestyle/sets/:slug — set vs non-set concepts', () => {
     expect(res.headers['location']).toBe('/freestyle/sets/furious');
   });
 
-  it('miraging does not render a set page; it redirects to its glossary term', async () => {
+  it('miraging does not render a set page; it redirects to its Freestyle Concepts term', async () => {
     const res = await request(await createApp()).get('/freestyle/sets/miraging').redirects(0);
     expect(res.status).toBe(301);
-    expect(res.headers['location']).toBe('/freestyle/glossary#term-miraging-not-a-set');
+    expect(res.headers['location']).toBe('/freestyle/concepts#term-miraging-not-a-set');
   });
 
-  it('illusioning redirects to its glossary term, not to atomic', async () => {
+  it('illusioning redirects to its Freestyle Concepts term, not to atomic', async () => {
     const res = await request(await createApp()).get('/freestyle/sets/illusioning').redirects(0);
     expect(res.status).toBe(301);
-    expect(res.headers['location']).toBe('/freestyle/glossary#term-illusioning');
+    expect(res.headers['location']).toBe('/freestyle/concepts#term-illusioning');
   });
 });
 
@@ -438,14 +438,14 @@ describe('GET /freestyle/sets/:slug — section order mirrors the trick-detail s
 
 describe('Set detail — X-Dex receiver note (atomic / quantum / nuclear only)', () => {
   for (const slug of ['atomic', 'quantum', 'nuclear']) {
-    it(`renders the X-Dex receiver note and glossary cross-link on ${slug}`, async () => {
+    it(`renders the X-Dex receiver note and Freestyle Concepts cross-link on ${slug}`, async () => {
       const res = await request(await createApp()).get(`/freestyle/sets/${slug}`);
       expect(res.status).toBe(200);
       expect(res.text).toContain('X-Dex behavior');
       // The note is notation-authoritative: X-Dex is scored from the [XDEX] flag,
-      // not inferred from the set or base. The full rule lives in the glossary.
+      // not inferred from the set or base. The full rule lives in Freestyle Concepts.
       expect(res.text).toMatch(/marked \[XDEX\] in the notation/);
-      expect(res.text).toContain('href="/freestyle/glossary#term-x-dex"');
+      expect(res.text).toContain('href="/freestyle/concepts#term-x-dex"');
     });
   }
 

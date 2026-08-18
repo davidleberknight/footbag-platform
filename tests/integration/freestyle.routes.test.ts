@@ -515,9 +515,9 @@ describe('GET /freestyle/sets/reference (flat Holden table)', () => {
 // ---------------------------------------------------------------------------
 
 describe('Set-notation reference cross-links', () => {
-  it('glossary §3 intermediate-operators block links to /freestyle/sets/reference', async () => {
+  it('Concepts §3 intermediate-operators block links to /freestyle/sets/reference', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     const intermediateIdx = res.text.indexOf('id="intermediate-operators"');
     const linkIdx         = res.text.indexOf('href="/freestyle/sets/reference"', intermediateIdx);
     expect(intermediateIdx).toBeGreaterThan(0);
@@ -548,7 +548,7 @@ describe('GET /freestyle/operators — compact modifier index + advanced referen
   // The operators page is a compact, browseable index of the modifier
   // vocabulary (in the shared dict-trick-row idiom) with the advanced
   // decomposition reference retained below it via a shared sub-partial. The
-  // modifier feel cards now live only in glossary §6.
+  // modifier feel cards live only in Freestyle Concepts §6.
 
   it('returns 200 with page title', async () => {
     const res = await request(createApp()).get('/freestyle/operators');
@@ -798,51 +798,60 @@ describe('GET /freestyle/operators — orientation lede', () => {
   });
 });
 
-describe('GET /freestyle/glossary §6 is the per-modifier reference home (operators is the index)', () => {
-  it('glossary §6 keeps the full per-modifier reference + anchors; operators carries only the minimal tail', async () => {
-    const glossary  = await request(createApp()).get('/freestyle/glossary');
+describe('GET /freestyle/concepts §6 is the per-modifier reference home (operators is the index)', () => {
+  it('Concepts §6 keeps the full per-modifier reference + anchors; operators carries only the minimal tail', async () => {
+    const concepts  = await request(createApp()).get('/freestyle/concepts');
     const operators = await request(createApp()).get('/freestyle/operators');
-    // The full per-modifier reference + its #term-{slug} anchors live in the
-    // glossary (the load-bearing anchor home that semantic tokens link to).
+    // The full per-modifier reference + its #term-{slug} anchors live in
+    // Freestyle Concepts (the load-bearing anchor home that semantic tokens link to).
     for (const anchor of [
       'id="term-paradox"',
       'id="intermediate-operators"',
       'id="set-modifiers-tier-1"',
     ]) {
-      expect(glossary.text,  `glossary missing ${anchor}`).toContain(anchor);
+      expect(concepts.text,  `concepts missing ${anchor}`).toContain(anchor);
       expect(operators.text, `operators should not carry ${anchor}`).not.toContain(anchor);
     }
     // The operators page keeps only the cross-cutting tail.
     expect(operators.text).toContain('id="how-operators-combine"');
     expect(operators.text).toContain('id="notation-components"');
-    // Feel cards are glossary-only.
-    expect(glossary.text).toContain('class="glossary-modifier-card"');
+    // Feel cards are Concepts-only.
+    expect(concepts.text).toContain('class="glossary-modifier-card"');
     expect(operators.text).not.toContain('class="glossary-modifier-card"');
   });
 
-  it('glossary §6 heading carries an "Open standalone" link to /freestyle/operators', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+  it('Concepts §6 heading carries an "Open standalone" link to /freestyle/operators', async () => {
+    const res = await request(createApp()).get('/freestyle/concepts');
     expect(res.text).toMatch(/<a class="glossary-section-canonical-link" href="\/freestyle\/operators">/);
   });
 });
 
-describe('GET /freestyle/glossary', () => {
-  it('returns 200 with page title', async () => {
+describe('GET /freestyle/glossary (A-to-Z term list)', () => {
+  it('returns 200 with the Freestyle Glossary heading', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/glossary');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Freestyle Glossary');
+    expect(res.text).toMatch(/<h1[^>]*>\s*Freestyle Glossary\s*<\/h1>/);
+  });
+});
+
+describe('GET /freestyle/concepts', () => {
+  it('returns 200 with page title', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/concepts');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Freestyle Concepts');
   });
 
   it('renders breadcrumb back to /freestyle', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     expect(res.text).toContain('href="/freestyle"');
   });
 
   it('contains ADD-system core terms', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     expect(res.text).toContain('Delay');
     expect(res.text).toContain('Dexterity');
     expect(res.text).toContain('BOP');
@@ -850,7 +859,7 @@ describe('GET /freestyle/glossary', () => {
 
   it('contains run-quality floor labels', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     expect(res.text).toContain('Guiltless');
     expect(res.text).toContain('Fearless');
     expect(res.text).toContain('Tiltless');
@@ -859,14 +868,14 @@ describe('GET /freestyle/glossary', () => {
 
   it('contains play-quality adjectives', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     expect(res.text).toContain('Slurry');
     expect(res.text).toContain('Froggy');
   });
 
   it('contains run / combo / style vocabulary', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     expect(res.text).toContain('Connector Trick');
     expect(res.text).toContain('Shred Circle');
     expect(res.text).toContain('Density');
@@ -874,7 +883,7 @@ describe('GET /freestyle/glossary', () => {
 
   it('contains common abbreviations', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     expect(res.text).toContain('PDX');
     expect(res.text).toContain('PS Whirl');
     expect(res.text).toContain('SS');
@@ -882,7 +891,7 @@ describe('GET /freestyle/glossary', () => {
 
   it('contains structural-compression and core-trick concepts', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     // §7 carries the notation thesis (with Jobs notation reference
     // preserved as the historical name of the semantic layer); §composition
     // hosts the worked structural-compression treatment as part of the
@@ -897,7 +906,7 @@ describe('GET /freestyle/glossary', () => {
 
   it('does not expose review-status or source-discussion content', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     expect(res.text).not.toContain('Pending Red');
     expect(res.text).not.toContain('Community-only');
     expect(res.text).not.toContain('review_status');
@@ -906,24 +915,24 @@ describe('GET /freestyle/glossary', () => {
 
 // ---------------------------------------------------------------------------
 
-describe('GET /freestyle/glossary — operator board is NOT rendered in §3 (authority boundary)', () => {
+describe('GET /freestyle/concepts — operator board is NOT rendered in §3 (authority boundary)', () => {
   // The operator-board partial lives on the landing page (movement-language overview)
-  // and /freestyle/learn (educational pathways). The glossary's role is terminology
-  // and execution detail, not visual taxonomy; rendering it here was a duplication.
-  it('does not render the operator-board partial on the glossary page', async () => {
+  // and /freestyle/learn (educational pathways). The Concepts page's role is terminology
+  // and execution detail, not visual taxonomy; rendering it here would be a duplication.
+  it('does not render the operator-board partial on the Concepts page', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     expect(res.text).not.toContain('class="operator-board ');
     expect(res.text).not.toContain('class="operator-glyph"');
   });
 
   it('§6 (Modifiers & Operators) renders without embedding the operator-board partial', async () => {
-    // V5: the operator-board orientation strip is intentionally left to the
-    // landing page and /freestyle/learn. The glossary's §6 carries the
+    // The operator-board orientation strip is intentionally left to the
+    // landing page and /freestyle/learn. The Concepts page's §6 carries the
     // modifier-reference + intermediate-operator + execution-mechanics
     // content without the operator-board visual taxonomy.
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     const sec6Idx = res.text.indexOf('id="section-modifiers"');
     const sec7Idx = res.text.indexOf('id="section-notation"');
     expect(sec6Idx).toBeGreaterThan(0);
@@ -933,17 +942,17 @@ describe('GET /freestyle/glossary — operator board is NOT rendered in §3 (aut
 
 // ---------------------------------------------------------------------------
 
-describe('GET /freestyle/glossary — intermediate-operator reference subsection (§3)', () => {
+describe('GET /freestyle/concepts — intermediate-operator reference subsection (§3)', () => {
   it('renders the intermediate-operators subsection heading and anchor', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     expect(res.text).toContain('id="intermediate-operators"');
     expect(res.text).toMatch(/Intermediate operators/);
   });
 
   it('renders every authored operator entry with its term anchor', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     const expectedSlugs = [
       'atomic', 'blurry', 'quantum', 'nuclear',
       'barraging', 'inspinning', 'whirling', 'double',
@@ -958,7 +967,7 @@ describe('GET /freestyle/glossary — intermediate-operator reference subsection
 
   it('renders the locked decomposition strings on confirmed entries', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     expect(res.text).toContain('stepping paradox');
     expect(res.text).toContain('compressed atomic');
     expect(res.text).toContain('paradox + illusion');
@@ -966,7 +975,7 @@ describe('GET /freestyle/glossary — intermediate-operator reference subsection
 
   it('flags pending entries with the inline pending badge', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     const pendingFlags = res.text.match(/class="glossary-operator-pending-flag"/g) ?? [];
     // double is the one remaining pending entry (high folded into barraging).
     expect(pendingFlags.length).toBe(1);
@@ -974,7 +983,7 @@ describe('GET /freestyle/glossary — intermediate-operator reference subsection
 
   it('renders a plain lineage line on the nuclear entry (no curator-workflow language)', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     expect(res.text).toContain('A settled decomposition.');
     expect(res.text).not.toContain('Curator-adjudicated');
   });
@@ -984,7 +993,7 @@ describe('GET /freestyle/glossary — intermediate-operator reference subsection
     // historical name for it. The entry names Furious as the set and does not
     // reintroduce the old "distinct by timing, pending audit" framing.
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     const idx = res.text.indexOf('id="term-barraging"');
     expect(idx).toBeGreaterThan(0);
     const slice = res.text.slice(idx, idx + 2000);
@@ -996,7 +1005,7 @@ describe('GET /freestyle/glossary — intermediate-operator reference subsection
     // The reference makes the official-set-vs-nickname split explicit: Barraging
     // and Miraging carry a "historical name" flag; official sets do not.
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     const entry = (slug: string) => {
       const i = res.text.indexOf(`id="term-${slug}"`);
       return i < 0 ? '' : res.text.slice(i, i + 500);
@@ -1007,7 +1016,7 @@ describe('GET /freestyle/glossary — intermediate-operator reference subsection
 
   it('renders entries in pedagogical order: set-tier first, body next, quantifier last', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     const idxAtomic    = res.text.indexOf('id="term-atomic"');
     const idxWhirling  = res.text.indexOf('id="term-whirling"');
     const idxDouble    = res.text.indexOf('id="term-double"');
@@ -1018,7 +1027,7 @@ describe('GET /freestyle/glossary — intermediate-operator reference subsection
 
   it('renders the inspinning term anchor inside the intermediate-operators block', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     const intermediateIdx = res.text.indexOf('id="intermediate-operators"');
     expect(intermediateIdx).toBeGreaterThan(0);
     const inspinIdx = res.text.indexOf('id="term-inspinning"', intermediateIdx);
@@ -1027,7 +1036,7 @@ describe('GET /freestyle/glossary — intermediate-operator reference subsection
 
   it('renders inspinning as a resolved entry (no pending badge)', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     const inspinIdx = res.text.indexOf('id="term-inspinning"');
     expect(inspinIdx).toBeGreaterThan(0);
     // Slice from inspinning's <dt> to the next <dt> (or end of <dl>) and confirm
@@ -1042,7 +1051,7 @@ describe('GET /freestyle/glossary — intermediate-operator reference subsection
     // Any spin contributes +1 ADD, so inspinning (a forward-rotation spin)
     // renders as +1 — superseding the earlier +0 directional-only reading.
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     const inspinIdx = res.text.indexOf('id="term-inspinning"');
     expect(inspinIdx).toBeGreaterThan(0);
     const slice = res.text.slice(inspinIdx, inspinIdx + 2000);
@@ -1052,7 +1061,7 @@ describe('GET /freestyle/glossary — intermediate-operator reference subsection
 
   it('orders inspinning before whirling within the body-tier subsequence', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     const idxInspinning = res.text.indexOf('id="term-inspinning"');
     const idxWhirling   = res.text.indexOf('id="term-whirling"');
     expect(idxInspinning).toBeGreaterThan(0);
@@ -1245,16 +1254,16 @@ describe('GET /freestyle/tricks/:slug — operational notation block (O1a)', () 
     if (structIdx > -1) expect(opIdx).toBeLessThan(structIdx);
   });
 
-  it('renders the notation glossary deeplink below the notation block', async () => {
+  it('renders the notation Concepts deeplink below the notation block', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks/op-notation-seeded');
     expect(res.text).toContain('class="notation-glossary-link"');
     // Anchored on the pairing a visitor relies on, the control's visible label
-    // and where it resolves to. The deeplink targets the glossary's notation
-    // section anchor, which must exist in glossary.hbs (a missing anchor lands
-    // at the page top).
+    // and where it resolves to. The deeplink targets the Freestyle Concepts
+    // notation section anchor, which must exist on that page (a missing anchor
+    // lands at the page top).
     expect(res.text).toMatch(
-      /<a[^>]*href="\/freestyle\/glossary#section-notation"[^>]*>\s*How to read this notation\s*<\/a>/,
+      /<a[^>]*href="\/freestyle\/concepts#section-notation"[^>]*>\s*How to read this notation\s*<\/a>/,
     );
   });
 
@@ -1321,7 +1330,7 @@ describe('GET /freestyle/tricks/:slug — semantic-notation fallback ladder', ()
     // quantum is a registered operator, so it auto-links like atomic.
     expect(res.text).toMatch(/>quantum<\/a>\s*<span[^>]*>opposite</);          // reading 2 (op → opposite)
     // Last reading: tokenized; osis is a CORE atom → auto-linked
-    expect(res.text).toMatch(/href="\/freestyle\/glossary#term-osis"[^>]*>osis</);
+    expect(res.text).toMatch(/href="\/freestyle\/concepts#term-osis"[^>]*>osis</);
     // Ordering: depth-0 before depth-1 before depth-2
     const d0 = res.text.indexOf('equivalent-reading-depth-0');
     const d1 = res.text.indexOf('equivalent-reading-depth-1');
@@ -1387,26 +1396,26 @@ describe('GET /freestyle/tricks/:slug — semantic-notation fallback ladder', ()
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks/mobius');
     // 'osis' is a CORE atom → linked
-    expect(res.text).toMatch(/href="\/freestyle\/glossary#term-osis"/);
+    expect(res.text).toMatch(/href="\/freestyle\/concepts#term-osis"/);
     // 'gyro' is a Tier-1 operator-board primitive but NOT in
     // OPERATOR_REFERENCE_ENTRIES → must stay plain
-    expect(res.text).not.toMatch(/href="\/freestyle\/glossary#term-gyro"/);
+    expect(res.text).not.toMatch(/href="\/freestyle\/concepts#term-gyro"/);
     // 'spinning' is operator-board Tier-1 (not operator-reference) → plain
-    expect(res.text).not.toMatch(/href="\/freestyle\/glossary#term-spinning"/);
+    expect(res.text).not.toMatch(/href="\/freestyle\/concepts#term-spinning"/);
     // 'ss' is operational notation → plain
-    expect(res.text).not.toMatch(/href="\/freestyle\/glossary#term-ss"/);
+    expect(res.text).not.toMatch(/href="\/freestyle\/concepts#term-ss"/);
   });
 });
 
 // ---------------------------------------------------------------------------
 
 // ─────────────────────────────────────────────────────────────────────────
-// O1c — operational notation glossary subsection on
-// /freestyle/glossary. Adds §9 "Operational Notation" with per-token
-// anchor IDs for deep-linking from trick-detail Token-reference link.
+// Operational notation subsection on /freestyle/concepts: an "Operational
+// Notation" reference with per-token anchor IDs for deep-linking from the
+// trick-detail Token-reference link.
 // ─────────────────────────────────────────────────────────────────────────
 
-describe('GET /freestyle/glossary — operational notation subsection (O1c)', () => {
+describe('GET /freestyle/concepts — operational notation subsection', () => {
   it('renders the Operational Notation subsection with its deep-link target id', async () => {
     // Operational notation lives as an Advanced Reference subsection
     // under §7 (Symbolic Notation), not as a top-level section. The deep-
@@ -1417,7 +1426,7 @@ describe('GET /freestyle/glossary — operational notation subsection (O1c)', ()
     // lives in the <summary>. All #op-* child anchors remain reachable
     // (browsers auto-open <details> when navigating to a child anchor).
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     expect(res.status).toBe(200);
     expect(res.text).toContain('id="operational-notation"');
     // Anchor proximity to title text.
@@ -1429,7 +1438,7 @@ describe('GET /freestyle/glossary — operational notation subsection (O1c)', ()
 
   it('defines per-token anchors for the 6 component flags', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     for (const flag of ['dex', 'del', 'bod', 'xbd', 'pdx', 'xdex']) {
       expect(res.text).toContain(`id="op-flag-${flag}"`);
     }
@@ -1437,14 +1446,14 @@ describe('GET /freestyle/glossary — operational notation subsection (O1c)', ()
 
   it('defines per-token anchors for both sides (SAME, OP)', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     expect(res.text).toContain('id="op-side-same"');
     expect(res.text).toContain('id="op-side-op"');
   });
 
   it('defines anchors for sequence operators and pre-states', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     expect(res.text).toContain('id="op-seq-minor"');
     expect(res.text).toContain('id="op-seq-major"');
     expect(res.text).toContain('id="op-prestate-back"');
@@ -1457,19 +1466,19 @@ describe('GET /freestyle/glossary — operational notation subsection (O1c)', ()
     // is §12, Historical Terms is §13, and Sources is §14. The
     // trick-level ADD definition lives in §8.
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     expect(res.text).toContain('id="section-add-accounting"');
     expect(res.text).toContain('id="section-community"');
     expect(res.text).toContain('id="section-sources"');
   });
 });
 
-describe('Glossary and history — anchor preservation + cross-link contracts', () => {
+describe('Freestyle Concepts and history — anchor preservation + cross-link contracts', () => {
   it('ADD Accounting section carries id="traditional-reference" + #run-quality anchor (history.hbs inbound link)', async () => {
     // The traditional-reference + run-quality anchors are preserved
     // (anchor-preservation forever-rule), living inside §8 ADD
     // Accounting.
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     expect(res.text).toContain('id="traditional-reference"');
     expect(res.text).toContain('id="run-quality"');
   });
@@ -1479,7 +1488,7 @@ describe('Glossary and history — anchor preservation + cross-link contracts', 
     // dedicated subsections + worked examples. The cross-link to
     // combo-analysis for run-quality / format vocabulary is preserved
     // at the section footer.
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     expect(res.text).toContain('href="/freestyle/combo-analysis"');
     // §10 Run Architecture is the explicit anchor section for run-
     // level material; its cross-link to combo-analysis must also exist.
@@ -1493,6 +1502,7 @@ describe('Glossary and history — anchor preservation + cross-link contracts', 
     // The narrative history page no longer routes readers through a run-quality anchor.
     expect(res.text).not.toContain('/freestyle/combo-analysis#run-quality');
     expect(res.text).not.toContain('/freestyle/glossary#run-quality');
+    expect(res.text).not.toContain('/freestyle/concepts#run-quality');
   });
 
   it('history page links to the whirl family page and the operators reference', async () => {
@@ -1502,19 +1512,19 @@ describe('Glossary and history — anchor preservation + cross-link contracts', 
     expect(res.text).not.toContain('href="/freestyle/tricks?view=movement-system"');
   });
 
-  it('glossary source-families list keeps the legacy citations as prose, never a live footbag.org hyperlink', async () => {
+  it('Concepts source-families list keeps the legacy citations as prose, never a live footbag.org hyperlink', async () => {
     // The legacy footbag.org site goes dark at cutover, so the sources list
     // names it as a citation without linking to it; the surviving outbound
     // reference site stays hyperlinked.
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     expect(res.text).toContain('<strong>Footbag.org</strong>');
     expect(res.text).toContain('historical per-trick move list');
     expect(res.text).not.toContain('href="https://www.footbag.org');
     expect(res.text).toContain('href="https://www.footbagmoves.com/"');
   });
 
-  it('glossary surviving outbound links carry rel="noopener noreferrer" + target="_blank"', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+  it('Concepts surviving outbound links carry rel="noopener noreferrer" + target="_blank"', async () => {
+    const res = await request(createApp()).get('/freestyle/concepts');
     // Each verified outbound URL should appear with both attributes.
     const checks = [
       'https://www.footbagmoves.com/',
@@ -1530,7 +1540,7 @@ describe('Glossary and history — anchor preservation + cross-link contracts', 
   });
 
   it('§11 spyro is documented as a modifier-only descriptor, not an inspin synonym', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     // Spyro is a modifier-only folk descriptor (not a standalone dictionary
     // trick); it is explicitly NOT equated to inspin.
     expect(res.text).toMatch(/modifier-only folk descriptor/);
@@ -1555,39 +1565,36 @@ describe('Glossary and history — anchor preservation + cross-link contracts', 
   });
 });
 
-describe('Glossary improvements + history refresh', () => {
-  // High and medium priority glossary improvements plus the condensed
-  // history-page sections.
-  //
-  // Glossary recommendations implemented:
-  //   #1 §1 vocabulary-stabilization framing
-  //   #2 §6 compositional layering opening + evolved-ADD-value annotation
-  //   #3 whirl network-attractor note (§5)
-  //   #4 §10 anchor IDs (Sick3 / Shred:30 / BOP and run-quality tiers)
-  //   #5 §10 additive-structural-accounting rewrite
-  //   #6 §7 operator-notation framing paragraph
-  //   #7 §12 "About this glossary" closing
+describe('Freestyle Concepts framing paragraphs + history page contracts', () => {
+  // The Concepts chapters carry framing prose that must keep rendering:
+  //   §1 vocabulary-stabilization framing
+  //   §6 compositional layering opening + evolved-ADD-value annotation
+  //   §5 whirl network-attractor note
+  //   §10 anchor IDs (Sick3 / Shred:30 / BOP and run-quality tiers)
+  //   §10 additive-structural-accounting framing
+  //   §7 operator-notation framing paragraph
+  //   §12 "About this reference" closing
   //
   // The history assertions here now cover the narrative History page (thesis,
   // the composition and structure sections, the institutions, and the onward
   // links); the earlier condensed-history assertions were retired with that page.
 
-  it('glossary §1 carries the vocabulary-stabilization framing paragraph', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+  it('Concepts §1 carries the vocabulary-stabilization framing paragraph', async () => {
+    const res = await request(createApp()).get('/freestyle/concepts');
     expect(res.text).toMatch(/vocabulary stabilized by roughly 2007.{0,15}2008/);
     expect(res.text).toContain('glossary-vocabulary-stabilization-note');
     expect(res.text).toContain('href="/freestyle/history"');
   });
 
-  it('glossary §6 carries the compositional-layering opening paragraph', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+  it('Concepts §6 carries the compositional-layering opening paragraph', async () => {
+    const res = await request(createApp()).get('/freestyle/concepts');
     expect(res.text).toContain('glossary-compositional-layering-note');
     expect(res.text).toMatch(/simultaneous additional\s+constraint/);
     expect(res.text).toMatch(/usually harder than the\s+sum of their parts/);
   });
 
-  it('glossary §6 acknowledges evolved-ADD-value conventions with cross-link to add-analysis', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+  it('Concepts §6 acknowledges evolved-ADD-value conventions with cross-link to add-analysis', async () => {
+    const res = await request(createApp()).get('/freestyle/concepts');
     expect(res.text).toMatch(/modifier weights have varied historically/);
     // Cross-link to add-analysis from §6 (one of several inbound surfaces).
     const sec6Idx = res.text.indexOf('id="section-modifiers"');
@@ -1596,25 +1603,25 @@ describe('Glossary improvements + history refresh', () => {
     expect(slice).toContain('href="/freestyle/add-analysis"');
   });
 
-  it('glossary §5 carries the whirl resolution-point note exactly once', async () => {
+  it('Concepts §5 carries the whirl resolution-point note exactly once', async () => {
     // The note lives solely on the whirl family card's observationalNote;
     // a prior standalone static duplicate (before the family-tree block)
     // was removed. Guard against the duplicate returning.
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     expect(res.text).toContain('Why whirl anchors combinations');
     const occurrences = (res.text.match(/Why whirl anchors combinations/g) ?? []).length;
     expect(occurrences, 'whirl resolution-point note renders exactly once').toBe(1);
   });
 
   it('whirl family card no longer presents an unsupported network / most-documented claim', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     expect(res.text).not.toMatch(/most documented two-trick/);
     expect(res.text).not.toMatch(/22 years of Sick3/);
     expect(res.text).not.toMatch(/most common opening element/);
   });
 
   it('whirl family card is mechanically accurate: cross-body clipper terminal, no clipper entry claim', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     // Canonical whirl uses generic SET (may enter from toe or clipper), so the card
     // must describe only the terminal, never a fixed clipper entry or a "lands where
     // it began" relationship.
@@ -1624,18 +1631,18 @@ describe('Glossary improvements + history refresh', () => {
     expect(res.text).not.toMatch(/lands where it beg|resolves where it beg|whirl sets from a clipper/i);
   });
 
-  it('glossary keeps internal/developer jargon out of user-facing prose', async () => {
+  it('Concepts keeps internal/developer jargon out of user-facing prose', async () => {
     // Public-facing prose hygiene: registry names, sprint/ruling refs, and
-    // internal tooling words must not leak onto the rendered glossary.
-    const res = await request(createApp()).get('/freestyle/glossary');
+    // internal tooling words must not leak onto the rendered Concepts page.
+    const res = await request(createApp()).get('/freestyle/concepts');
     expect(res.text).not.toMatch(/MODIFIER_COMPOSITIONS/);
     expect(res.text).not.toMatch(/\bpt8\b/);
     expect(res.text).not.toMatch(/Red pt\d/);
     expect(res.text).not.toMatch(/[Ww]orkbook/);
   });
 
-  it('glossary §7 carries the operator-notation framing paragraph', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+  it('Concepts §7 carries the operator-notation framing paragraph', async () => {
+    const res = await request(createApp()).get('/freestyle/concepts');
     expect(res.text).toContain('glossary-operator-notation-framing');
     expect(res.text).toMatch(/compact symbolic shorthand for trick\s+composition/);
     // Worked paradox example with op-tokens.
@@ -1643,19 +1650,19 @@ describe('Glossary improvements + history refresh', () => {
     expect(res.text).toMatch(/OP IN/);
   });
 
-  it('glossary §8 carries the additive-structural-accounting framing + mobius worked example', async () => {
+  it('Concepts §8 carries the additive-structural-accounting framing + mobius worked example', async () => {
     // The "additive structural accounting"
     // definition lives in the §8 philosophy paragraph; the
     // mobius worked example is a structured card in the §8 worked-
     // examples grid (compactNotation "gyro torque" + derivation visible).
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     expect(res.text).toMatch(/additive structural accounting/);
     expect(res.text).toContain('id="add-example-mobius"');
     expect(res.text).toMatch(/gyro torque/);
   });
 
-  it('glossary §8 worked-example status chips render the shaped label, never the raw code', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+  it('Concepts §8 worked-example status chips render the shaped label, never the raw code', async () => {
+    const res = await request(createApp()).get('/freestyle/concepts');
     // Visible chip text is the pre-shaped statusLabel; the raw status
     // code never appears as element text (the 'pending-doctrine' label
     // form is 'pending doctrine' whenever an example carries it).
@@ -1666,7 +1673,7 @@ describe('Glossary improvements + history refresh', () => {
   it('combo-analysis page carries anchor IDs on each run-quality tier + format term', async () => {
     // /freestyle/combo-analysis is the canonical home for run-level
     // vocabulary, so these anchors live there rather than on the
-    // glossary. The combo-analysis route-test file also covers these;
+    // Concepts page. The combo-analysis route-test file also covers these;
     // the assertion here pins the canonical-home contract.
     const res = await request(createApp()).get('/freestyle/combo-analysis');
     const ids = [
@@ -1680,11 +1687,11 @@ describe('Glossary improvements + history refresh', () => {
     }
   });
 
-  it('glossary §14 Sources carries the "About this glossary" framing paragraph', async () => {
+  it('Concepts §14 Sources carries the "About this reference" framing paragraph', async () => {
     // The framing is a single sentence. The .glossary-about-framing
     // hook + the "footbag community built informally" attribution are
     // preserved for inbound deep-links + community-attribution semantics.
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     expect(res.text).toContain('glossary-about-framing');
     expect(res.text).toMatch(/footbag community built informally/);
   });
@@ -1733,11 +1740,12 @@ describe('Glossary improvements + history refresh', () => {
     expect(res.text).not.toContain('Movement Language as the Modern Vocabulary');
   });
 
-  it('history page links onward to the learning path, dictionary, and glossary', async () => {
+  it('history page links onward to the learning path, dictionary, glossary, and Freestyle Concepts', async () => {
     const res = await request(createApp()).get('/freestyle/history');
     expect(res.text).toContain('href="/freestyle/learn"');
     expect(res.text).toContain('href="/freestyle/tricks"');
     expect(res.text).toContain('href="/freestyle/glossary"');
+    expect(res.text).toContain('href="/freestyle/concepts"');
   });
 });
 
@@ -1814,8 +1822,8 @@ describe('Formula accountability contracts', () => {
     expect(res.text).toMatch(new RegExp(`gyro\\(\\+1\\)\\s*\\+\\s*torque\\(4\\)\\s*${eq}\\s*5 ADD`));
   });
 
-  it('paradox term entry in glossary §3 surfaces the canonical formula visibly', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+  it('paradox term entry in Concepts §3 surfaces the canonical formula visibly', async () => {
+    const res = await request(createApp()).get('/freestyle/concepts');
     const paradoxIdx = res.text.indexOf('id="term-paradox"');
     expect(paradoxIdx).toBeGreaterThan(0);
     // Read forward to the close of the <dd>.
@@ -1829,7 +1837,7 @@ describe('Formula accountability contracts', () => {
   });
 
   it('paradox connective panel notation hint carries the canonical formula', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     const panelIdx = res.text.indexOf('id="glossary-panel-paradox"');
     expect(panelIdx).toBeGreaterThan(0);
     const nextPanelIdx = res.text.indexOf('id="glossary-panel-', panelIdx + 50);
@@ -1874,9 +1882,9 @@ describe('Formula accountability contracts', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Landing + glossary stabilization invariants
+// Landing + Freestyle Concepts stabilization invariants
 
-describe('Freestyle IA realignment — Batch 1 contract', () => {
+describe('Freestyle IA realignment — landing and Concepts contract', () => {
   it('landing retires the "Glossary, Dictionary, and Notation — three layers" framing', async () => {
     const res = await request(createApp()).get('/freestyle');
     expect(res.text).not.toContain('Glossary, Dictionary, and Notation');
@@ -1884,7 +1892,7 @@ describe('Freestyle IA realignment — Batch 1 contract', () => {
     expect(res.text).not.toContain('The Freestyle Reference');
   });
 
-  it('landing surfaces Trick Dictionary + Glossary + Set Encyclopedia via the Language banner', async () => {
+  it('landing surfaces Trick Dictionary + Glossary + Freestyle Concepts + Set Encyclopedia via the Language banner', async () => {
     const res = await request(createApp()).get('/freestyle');
     // The retired top-reference-jump band must be gone.
     expect(res.text).not.toContain('class="freestyle-top-reference-jump"');
@@ -1892,6 +1900,7 @@ describe('Freestyle IA realignment — Batch 1 contract', () => {
     // Reachable via the Language banner tiles.
     expect(res.text).toContain('href="/freestyle/tricks"');
     expect(res.text).toContain('href="/freestyle/glossary"');
+    expect(res.text).toContain('href="/freestyle/concepts"');
     expect(res.text).toContain('href="/freestyle/sets"');
     expect(res.text).not.toContain('Where to go next');
   });
@@ -1903,14 +1912,14 @@ describe('Freestyle IA realignment — Batch 1 contract', () => {
     expect(res.text).not.toMatch(/>Browse tricks\s*&rarr;/);
   });
 
-  it('glossary retires the "Glossary, Dictionary, and Notation — three layers" heading', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+  it('Concepts retires the "Glossary, Dictionary, and Notation — three layers" heading', async () => {
+    const res = await request(createApp()).get('/freestyle/concepts');
     expect(res.text).not.toContain('Glossary, Dictionary, and Notation');
     expect(res.text).not.toContain('three complementary layers');
   });
 
-  it('glossary intro links to dictionary and set-notation reference without three-layer rhetoric', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+  it('Concepts intro links to dictionary and set-notation reference without three-layer rhetoric', async () => {
+    const res = await request(createApp()).get('/freestyle/concepts');
     expect(res.text).toContain('href="/freestyle/tricks"');
     expect(res.text).toContain('href="/freestyle/sets/reference"');
   });
@@ -1931,7 +1940,7 @@ describe('Freestyle IA realignment — Batch 1 contract', () => {
     // (with the pixie/fairy set-modifier grid) now precedes families in the
     // Foundations spine, so the family grid is bounded by the families section on
     // the low side and the Notation topic on the high side.
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     const familiesAt = res.text.indexOf('id="section-families"');
     const notationAt = res.text.indexOf('id="section-notation"');
     expect(familiesAt).toBeGreaterThan(0);
@@ -1953,12 +1962,12 @@ describe('Freestyle IA realignment — Batch 1 contract', () => {
   });
 
   it('set-modifiers grid renders only the pixie/fairy set primitives; each operator owns a single anchor', async () => {
-    // The grid is the glossary anchor home only for the set primitives no other
+    // The grid is the Concepts anchor home only for the set primitives no other
     // Modifiers & Operators surface owns. Pixie and Fairy qualify; the
     // decomposable set/compound operators and Stepping are rendered by the
     // intermediate-operators list and the body-modifier reference, so rendering
     // them here too would put each operator's term-{slug} anchor on two elements.
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     expect(res.text).toContain('id="set-modifiers-tier-1"');
     const gridStart = res.text.indexOf('class="glossary-set-modifiers-grid"');
     expect(gridStart).toBeGreaterThan(0);
@@ -1986,7 +1995,7 @@ describe('Freestyle IA realignment — Batch 1 contract', () => {
     // Retired prose / classes: glossary-compression-one-liner,
     // glossary-compression-expanded text-muted (content lives in a <li>
     // inside glossary-equivalence-worked-example).
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
     expect(flowIdx).toBeGreaterThan(0);
     const nextH4 = res.text.indexOf('glossary-equivalence-worked-heading', flowIdx + 1);
@@ -2031,7 +2040,7 @@ describe('Freestyle landing — portal IA', () => {
 // retired. The rich grids do not render on /freestyle; the two-band
 // landing carries Start Here / Go Deeper portal
 // cards. The component + core-trick content lives canonically on the
-// glossary and the trick dictionary.
+// Freestyle Concepts page and the trick dictionary.
 
 describe('Landing — legacy landing grids retired', () => {
   it('Basic Components grid does NOT render on /freestyle', async () => {
@@ -2087,14 +2096,14 @@ describe('Freestyle landing — Featured strip', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Glossary pedagogy + compositional teaching flow invariants
+// Freestyle Concepts pedagogy + compositional teaching flow invariants
 
-describe('Freestyle glossary — [PDX] component-flag definition', () => {
+describe('Freestyle Concepts — [PDX] component-flag definition', () => {
   it('renders the [PDX] flag definition as mechanical (not circular)', async () => {
     // The definition marks the paradox relationship on a dexterity, states its
     // independence from [XBD] and from IN/OUT direction, and frames
     // CLIP > OP IN [DEX] as an entry example rather than the definition.
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     const pdxIdx = res.text.indexOf('id="op-flag-pdx"');
     expect(pdxIdx).toBeGreaterThan(0);
     const slice = res.text.slice(pdxIdx, pdxIdx + 800);
@@ -2108,21 +2117,21 @@ describe('Freestyle glossary — [PDX] component-flag definition', () => {
   });
 });
 
-describe('Freestyle glossary — intro philosophy', () => {
+describe('Freestyle Concepts — intro philosophy', () => {
   it('renders the welcoming Movement Basics intro + compositional framing', async () => {
-    // The opening glossary section is a welcoming "Movement Basics" intro.
-    const res = await request(createApp()).get('/freestyle/glossary');
+    // The opening Concepts chapter is a welcoming "Movement Basics" intro.
+    const res = await request(createApp()).get('/freestyle/concepts');
     expect(res.text).toMatch(/the language of freestyle footbag/);
     expect(res.text).toMatch(/vocabulary is compositional/);
     expect(res.text).toMatch(/shortest clear name/);
   });
 });
 
-describe('Freestyle glossary — Symbolic Notation / Compression layer', () => {
+describe('Freestyle Concepts — Symbolic Notation / Compression layer', () => {
   it('§7 Jobs / Operational Notation carries the thesis sentence', async () => {
     // §7 is titled "Jobs / Operational Notation" and carries the
     // thesis sentence.
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     expect(res.text).toContain('id="section-notation"');
     expect(res.text).toMatch(
       /The language evolves by compressing recurring compositional structures\s+into shorter readable symbolic forms\./,
@@ -2132,18 +2141,18 @@ describe('Freestyle glossary — Symbolic Notation / Compression layer', () => {
   it('§7 cross-links to the §9 symbolic-compression flow', async () => {
     // The worked compression-flow lives in §9 (Symbolic Composition).
     // Anchor #symbolic-compression-flow preserved.
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     expect(res.text).toContain('href="#symbolic-compression-flow"');
   });
 });
 
-describe('Freestyle glossary — Structural compression subsection', () => {
+describe('Freestyle Concepts — Structural compression subsection', () => {
   it('renders the symbolic-compression-flow anchor inside §composition (above §connective-panels)', async () => {
     // The worked compression renders as an h4 inside the
     // Vocabulary Relationships subsection of §composition (Symbolic
     // Composition). Anchor #symbolic-compression-flow is preserved on
     // that h4 for inbound deep-links.
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
     const topologyIdx = res.text.indexOf('id="connective-panels"');
     expect(flowIdx).toBeGreaterThan(0);
@@ -2156,7 +2165,7 @@ describe('Freestyle glossary — Structural compression subsection', () => {
     // same-side torque → spinning quantum same-side osis. The deepest
     // reading is where the "compositional transformations" wow-moment
     // lands pedagogically.
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
     const topologyIdx = res.text.indexOf('id="connective-panels"');
     const slice = res.text.slice(flowIdx, topologyIdx);
@@ -2175,7 +2184,7 @@ describe('Freestyle glossary — Structural compression subsection', () => {
   });
 
   it('links to the ADD Accounting & Analysis page for deeper explanation', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
     const topologyIdx = res.text.indexOf('id="connective-panels"');
     const slice = res.text.slice(flowIdx, topologyIdx);
@@ -2185,7 +2194,7 @@ describe('Freestyle glossary — Structural compression subsection', () => {
   it('frames the wow-moment as "oh, these are compositional transformations"', async () => {
     // Replaces the prior "Three names. One trick." framing. The new
     // prose explicitly names the pedagogical pivot.
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
     const topologyIdx = res.text.indexOf('id="connective-panels"');
     const slice = res.text.slice(flowIdx, topologyIdx);
@@ -2194,9 +2203,9 @@ describe('Freestyle glossary — Structural compression subsection', () => {
   });
 });
 
-describe('Freestyle glossary — Batch 3: §9 semantic-vs-operational contrast (C-3-E)', () => {
+describe('Freestyle Concepts — §9 semantic-vs-operational contrast', () => {
   it('renders the layer-contrast table inside §9 with semantic + operational rows', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     const sec9Idx = res.text.indexOf('id="operational-notation"');
     expect(sec9Idx).toBeGreaterThan(0);
     const after = res.text.slice(sec9Idx, sec9Idx + 2500);
@@ -2207,11 +2216,11 @@ describe('Freestyle glossary — Batch 3: §9 semantic-vs-operational contrast (
   });
 });
 
-describe('Freestyle glossary — Execution mechanics subsection', () => {
+describe('Freestyle Concepts — Execution mechanics subsection', () => {
   it('renders the Execution mechanics subsection heading and anchor (no source attribution)', async () => {
     // V5 editorial sweep: repetitive PassBack attribution removed; the
     // execution-mechanics anchor + heading are preserved.
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     expect(res.text).toContain('id="execution-mechanics"');
     expect(res.text).toMatch(/id="execution-mechanics"[^>]*>\s*Execution mechanics/);
     // The per-entry "PassBack glossary" attribution spans must be gone.
@@ -2222,7 +2231,7 @@ describe('Freestyle glossary — Execution mechanics subsection', () => {
     // V5: alpine / symposium-mech / symple / muted live in §6 under
     // "Execution mechanics"; dex-window / hippy-leggy live in §3
     // (Dexterities); phases-sides lives in §4 (Timing Layers).
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     expect(res.text).toContain('id="term-alpine"');
     expect(res.text).toContain('id="term-symposium-mech"');
     expect(res.text).toContain('id="term-symple"');
@@ -2235,7 +2244,7 @@ describe('Freestyle glossary — Execution mechanics subsection', () => {
   it('§3 "the" entry carries the PassBack pronunciation disambiguation + missed-component definition', async () => {
     // "the" ("thuh", not "thee") is a real footbag term per the PassBack
     // glossary, not a typo: a component attempted but completely missed.
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     const idx = res.text.indexOf('id="term-the"');
     expect(idx).toBeGreaterThan(0);
     const slice = res.text.slice(idx, idx + 400);
@@ -2244,7 +2253,7 @@ describe('Freestyle glossary — Execution mechanics subsection', () => {
   });
 
   it('§3 Motion style includes the full-vs-half dex fullness entry', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     expect(res.text).toContain('id="term-full-half-dex"');
     const idx = res.text.indexOf('id="term-full-half-dex"');
     const slice = res.text.slice(idx, idx + 400);
@@ -2256,7 +2265,7 @@ describe('Freestyle glossary — Execution mechanics subsection', () => {
     // Reconciled to the PassBack glossary: pulled and slurry are synonyms
     // (bag dragged through an uptime dex/spin before the intended component);
     // froggy is specifically a pulled spin.
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     const pulled = res.text.slice(res.text.indexOf('id="term-pulled"'), res.text.indexOf('id="term-pulled"') + 400);
     expect(pulled).toMatch(/dragged through an uptime dex/);
     const froggy = res.text.slice(res.text.indexOf('id="term-froggy"'), res.text.indexOf('id="term-froggy"') + 400);
@@ -2264,24 +2273,24 @@ describe('Freestyle glossary — Execution mechanics subsection', () => {
   });
 
   it('§3 carries the new PassBack dex/duck-quality terms', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     for (const id of [
       'term-dexless', 'term-ducking', 'term-weaving',
       'term-diving', 'term-zulu', 'term-crowny',
     ]) {
-      expect(res.text, `glossary carries ${id}`).toContain(`id="${id}"`);
+      expect(res.text, `Concepts carries ${id}`).toContain(`id="${id}"`);
     }
   });
 
   it('§4 Timing carries the PassBack "attack" term', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     expect(res.text).toContain('id="term-attack"');
     const idx = res.text.indexOf('id="term-attack"');
     expect(res.text.slice(idx, idx + 400)).toMatch(/how quickly/i);
   });
 
   it('Symposium-mechanic micro-entry carries the single-leg-jump definition', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     const idx = res.text.indexOf('id="term-symposium-mech"');
     expect(idx).toBeGreaterThan(0);
     const slice = res.text.slice(idx, idx + 600);
@@ -2290,7 +2299,7 @@ describe('Freestyle glossary — Execution mechanics subsection', () => {
 
   it('Execution mechanics subsection sits inside §6, above §7', async () => {
     // execution-mechanics is a §6 subsection (modifiers/operators).
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     const sec6Idx     = res.text.indexOf('id="section-modifiers"');
     const execIdx     = res.text.indexOf('id="execution-mechanics"');
     const sec7Idx     = res.text.indexOf('id="section-notation"');
@@ -2300,13 +2309,13 @@ describe('Freestyle glossary — Execution mechanics subsection', () => {
   });
 });
 
-describe('Freestyle glossary — §11 Family & Topology Concepts (connective panels)', () => {
+describe('Freestyle Concepts — §11 Family & Topology Concepts (connective panels)', () => {
   it('renders the §11 Family & Topology Concepts section with the observational badge', async () => {
     // The six connective panels
     // live in §11 (Family & Topology Concepts). The
     // id="connective-panels" anchor is preserved for inbound links
     // (anchor-preservation forever-rule).
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     const panelIdx = res.text.indexOf('id="connective-panels"');
     expect(panelIdx).toBeGreaterThan(0);
     const slice = res.text.slice(panelIdx, panelIdx + 2000);
@@ -2327,15 +2336,15 @@ describe('Freestyle glossary — §11 Family & Topology Concepts (connective pan
 // trick-slug / .core-trick-equivalence / core-trick-add-pending classes
 // pinned the landing Core Tricks grid which no longer renders. The
 // `core-tricks-grid` Handlebars partial is still in use on the
-// glossary page (§5 "Other foundational atoms"), where the class
+// Concepts page (§5 "Other foundational atoms"), where the class
 // contract is preserved and tested.
 
-describe('Freestyle glossary — compression-flow visual continuity (compact form)', () => {
+describe('Freestyle Concepts — compression-flow visual continuity (compact form)', () => {
   it('symbolic-compression-flow renders zero per-step cards (collapsed to one-liner)', async () => {
     // The compression flow renders as a one-row equivalence, not the
     // retired three .core-trick-object cards. This test
     // asserts the cascade is gone; the current contract is covered above.
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
     expect(flowIdx).toBeGreaterThan(0);
     const sec9Idx = res.text.indexOf('9. Movement Neighborhoods');
@@ -2345,7 +2354,7 @@ describe('Freestyle glossary — compression-flow visual continuity (compact for
   });
 
   it('thesis sentence in §8 still renders with the .glossary-thesis class', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+    const res = await request(createApp()).get('/freestyle/concepts');
     expect(res.text).toContain('class="glossary-thesis"');
   });
 });

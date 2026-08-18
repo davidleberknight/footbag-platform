@@ -36,6 +36,179 @@
     </div>
   </div>
 
+  {{! ── Reading the Dictionary: platform-ontology orientation, folded closed
+      above the browse controls on every view. Explains the trick-row
+      contract, the browse views, and the kinds of object the platform
+      deliberately keeps separate. Foundational orientation only; do NOT
+      harden family-hierarchy language here, the family taxonomy framing is
+      curator-owned. Deep links land on the <details> id; the inner section
+      keeps its own id so both anchor forms resolve. }}
+  <div class="dict-tile-grid" aria-label="Reading the Dictionary">
+  <details class="dict-tile" id="reading-the-dictionary">
+    <summary class="dict-tile-summary">
+      <h2 class="dict-tile-title">Reading the Dictionary</h2>
+      <span class="dict-tile-hint">How the dictionary describes every trick and the kinds of object it keeps separate.</span>
+    </summary>
+    <div class="dict-tile-body">
+  <section class="content-section" id="section-reading-the-dictionary">
+    <p>
+      Three things about how the dictionary
+      presents tricks: the <strong>row</strong> every trick shares, the
+      <strong>browse views</strong> that regroup those rows, and the six
+      <strong>kinds of object</strong> the platform keeps separate, where
+      older footbag vocabularies often used one flat name for all of them.
+    </p>
+
+    <h3 class="section-heading">The trick row</h3>
+    <p class="detail-muted">Every documented trick uses the same two-line row in the browse views; only the grouping around it changes.</p>
+    <div class="glossary-row-contract">
+      <p class="glossary-row-contract-line"><span class="glossary-row-contract-label">Line 1</span> canonical trick name &middot; <code>#hashtag</code> &middot; optional <strong>&equiv;</strong> interpretation / decomposition reading &middot; a <a href="/freestyle/concepts#section-media-claim-scope">Media</a> link when the trick has clips</p>
+      <p class="glossary-row-contract-line"><span class="glossary-row-contract-label">Line 2</span> <strong>JOB</strong> operational notation &middot; <strong>ADD</strong> component accounting (the traditional additive score; not a direct measure of execution difficulty)</p>
+    </div>
+    <p class="detail-muted">
+      There is no separate per-row ADD chip. In <strong>By ADD</strong>, the
+      section heading supplies the ADD total and the line-2
+      <strong>ADD</strong> expression shows how that total is accounted for; in
+      the other browse views, the same ADD expression remains part of the trick
+      row. JOB (<a href="/freestyle/concepts#section-notation">notation</a>) and ADD
+      (<a href="/freestyle/concepts#section-add-accounting">accounting</a>) are the two halves of
+      line 2; both are explained in full in Freestyle Concepts.
+    </p>
+    <p class="detail-muted">
+      Two cautions about line 1. An <strong>alias</strong> (a second name for the
+      same trick, e.g. catwalk = eclipse) is <em>not</em> an interpretation;
+      it is the same trick under another name, with no
+      <strong>&equiv;</strong> reading implied. And an interpretation is
+      <em>not always settled doctrine</em>: some <strong>&equiv;</strong> readings
+      are ratified structure, others are observational or depend on a curator
+      ruling and may change. The <strong>&equiv;</strong> shows the reading; it
+      does not promise the reading is final.
+    </p>
+
+    <h3 class="section-heading">The browse views</h3>
+    <p class="detail-muted">Same rows, seven lenses. Each answers a different question. By ADD, By family, By set, and By modifier are the main views; the other three sit behind the <strong>Other views</strong> control below.</p>
+    <div class="glossary-add-weight-table-wrap">
+      <table class="glossary-add-weight-table">
+        <thead><tr><th>View</th><th>Groups by</th><th>Reveals</th></tr></thead>
+        <tbody>
+          <tr><td><a href="/freestyle/tricks?view=add">By ADD</a></td><td>ADD total</td><td>how the scoring system counts the trick&rsquo;s components</td></tr>
+          <tr><td><a href="/freestyle/tricks?view=family">By family</a></td><td>conserved terminal mechanic</td><td>structural lineage</td></tr>
+          <tr><td><a href="/freestyle/tricks?view=set">By set</a></td><td>the named launch set the trick opens with</td><td>how tricks begin</td></tr>
+          <tr><td><a href="/freestyle/tricks?view=modifier">By modifier</a></td><td>the body or timing modifier used</td><td>what transforms the base</td></tr>
+          <tr><td><a href="/freestyle/tricks?view=movement-system">By movement system</a></td><td>four conceptual axes (+ alternative surfaces)</td><td>the compositional system</td></tr>
+          <tr><td><a href="/freestyle/tricks?view=topology">Movement Neighborhoods</a></td><td>&ldquo;feels mechanically similar&rdquo;</td><td>exploratory similarity, not a canonical taxonomy</td></tr>
+          <tr><td><a href="/freestyle/tricks?view=dex-count">By dex count</a></td><td>number of <a href="/freestyle/concepts#section-dexterities">dex</a> events</td><td>mechanical complexity</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="detail-muted">
+      Tricks with the same ADD total are not necessarily equally difficult to
+      perform; ADD counts recognized components rather than every factor that
+      affects execution difficulty.
+    </p>
+    <p class="detail-muted">
+      A trick may appear in several of these views at once. Each lens asks a
+      different question about the same trick.
+    </p>
+    <p class="detail-muted">
+      The Family, Set, and Modifier views are <strong>curated for useful
+      browsing</strong>, not for listing every taxonomic term. Each shows the
+      groupings worth browsing and explains its choices in a small
+      &ldquo;Why these groups?&rdquo; note on the page. For everything beyond
+      the browse groupings, two reference surfaces go deeper: the
+      <a href="/freestyle/sets">Set Encyclopedia</a> covers the full set
+      vocabulary, and the <a href="/freestyle/operators">Operators &amp;
+      Modifiers reference</a> covers the broader modifier and operator
+      vocabulary.
+    </p>
+
+    <h3 class="section-heading">Six kinds of object (and why they stay separate)</h3>
+    <p>
+      Older footbag vocabularies flattened families, modifiers, surfaces,
+      aliases, and decompositions into one undifferentiated name-space. The
+      platform keeps them separate because each is a <em>different kind of
+      thing</em>, governed by different rules; conflating them is what
+      makes a flat vocabulary confusing.
+    </p>
+    <div class="glossary-add-weight-table-wrap">
+      <table class="glossary-add-weight-table">
+        <thead><tr><th>Kind</th><th>What it is</th><th>Example</th><th>Where it lives</th></tr></thead>
+        <tbody>
+          <tr><td>Canonical family</td><td>a true structural lineage sharing a conserved terminal mechanic</td><td>whirl, mirage, legover</td><td>By family</td></tr>
+          <tr><td>Set / set system</td><td>a named launch or entry structure that opens a trick</td><td>pixie, stepping, atomic</td><td>By set; the <a href="/freestyle/sets">Set Encyclopedia</a> goes deeper</td></tr>
+          <tr><td>Modifier / operator</td><td>a movement idea applied to a base; transforms many bases, with no terminal mechanic of its own</td><td>paradox, symposium, spinning, ducking</td><td>By modifier; <a href="/freestyle/operators">Operators &amp; Modifiers</a> goes deeper</td></tr>
+          <tr><td>Alternative surface</td><td>an unusual catch surface, not a movement lineage</td><td>sole, heel, cloud, cross-body sole</td><td>Movement system &rarr; Alternative surfaces</td></tr>
+          <tr><td>Movement neighborhood</td><td>tricks that <em>feel</em> mechanically similar (an exploratory lens, not a taxonomy)</td><td>Hippy downtime dex</td><td>Movement Neighborhoods</td></tr>
+          <tr><td>Alias / decomposition reading</td><td>another name for, or a structural reading of, an existing trick (descriptive, not a new trick)</td><td>catwalk = eclipse; eggbeater &equiv; atomic legover</td><td>(no own view; shown on the trick)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="detail-muted">
+      The boundaries: a <strong>canonical family</strong> has its own terminal
+      mechanic; a <strong>set</strong> is how a trick begins; a
+      <strong>modifier</strong> transforms a base and has no terminal mechanic
+      of its own; an <strong>alternative surface</strong> is a contact surface,
+      not a lineage; a <strong>neighborhood</strong> is &ldquo;feels
+      similar,&rdquo; not &ldquo;is structurally the same&rdquo;; and an
+      <strong>interpretation reading</strong> (the <strong>&equiv;</strong> on
+      line 1) describes an equivalence; it does not make the read-as name a
+      productive modifier.
+    </p>
+    <p class="detail-muted">
+      The <strong>family</strong> kind is not flat. A family is read on two
+      independent axes: its <strong>lineage position</strong> (a root, or a branch
+      of another family) and its <strong>display tier</strong> (a Family Parent, or
+      a Minor Lineage below the descendant-count threshold). The
+      <a href="/freestyle/concepts#section-families">Families</a> chapter of Freestyle Concepts maps both.
+    </p>
+
+    <h3 class="section-heading">Reading a compound name</h3>
+    <p>
+      Many compositional trick names can be read from the end. The
+      <strong>final term</strong> often identifies the base trick, and with it
+      the <a href="/freestyle/concepts#section-families">family</a> the trick belongs to, while
+      the terms before it describe
+      <a href="/freestyle/concepts#section-modifiers">structures applied</a> to that base. For
+      names built this way, the ending says what the trick fundamentally is,
+      and the leading words say what has been done to it.
+    </p>
+    <p class="detail-muted">
+      Word order carries the meaning, not just the words. The same two words in
+      the opposite order name two different tricks in two different families.
+      These are not the same two movements performed in a different sequence:
+      they are coordinated movements whose identities differ because the base
+      trick differs.
+    </p>
+    <div class="glossary-add-weight-table-wrap">
+      <table class="glossary-add-weight-table">
+        <thead><tr><th>Compound name</th><th>Reads as</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><a href="/freestyle/tricks/whirling_swirl">Whirling Swirl</a></td>
+            <td>a <a href="/freestyle/tricks/swirl">swirl</a> (the base), with whirling applied</td>
+          </tr>
+          <tr>
+            <td><a href="/freestyle/tricks/swirling_whirl">Swirling Whirl</a></td>
+            <td>a <a href="/freestyle/tricks/whirl">whirl</a> (the base), with swirling applied</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="detail-muted">
+      Reversing the words flips the base from swirl to whirl, so the family
+      flips too, and a <a href="/freestyle/tricks/whirl">whirl</a> and a
+      <a href="/freestyle/tricks/swirl">swirl</a> are genuinely different
+      families. The pair also shows that structural identity, ADD accounting,
+      and execution difficulty are three different dimensions: the two names
+      carry the same ADD total, yet the movements can differ substantially in
+      how hard they are to perform. Read the last word first and the rest of a
+      compositional name usually falls into place.
+    </p>
+  </section>
+    </div>
+  </details>
+  </div>
+
   {{! ── Orientation tiles: one wrapping row of three closed disclosures holding
       the beginner links, the how-tricks-are-built primer, and what the
       dictionary contains, ordered beginner to expert. Every tile in the row
@@ -110,7 +283,7 @@
 
   {{#if content.activeFamily}}
   <p class="browse-view-intro">{{content.familyFilterIntro}}
-    <a class="dictionary-intro-glossary-link" href="/freestyle/glossary">New to the dictionary? Open the glossary</a>
+    <a class="dictionary-intro-glossary-link" href="#reading-the-dictionary">New to the dictionary? Read "Reading the Dictionary" above</a>
     &nbsp;<a href="/freestyle/tricks">Clear the filter</a> to see the full dictionary.</p>
   {{#if content.relatedModifierGroups.length}}
   <nav class="related-modifier-groups" aria-label="Related set or modifier groups">
@@ -187,7 +360,7 @@
       belong in the View row above. This carried the browse grid's two
       cross-links, which is why it now renders on every view rather than only
       the secondary ones. }}
-  <p class="trick-view-toggle-aside">New to the dictionary? Start with the <a href="/freestyle/glossary">glossary</a>. For modifier and operator vocabulary, see the <a href="/freestyle/operators">Operators &amp; Modifiers reference</a> (not a dictionary browse axis; it's vocabulary that helps you read trick names). For set systems as first-class objects (what is pixie / stepping / atomic as a system?), see the <a href="/freestyle/sets">Set Encyclopedia</a>.</p>
+  <p class="trick-view-toggle-aside">New to the dictionary? Start with <a href="#reading-the-dictionary">Reading the Dictionary</a> above, look up a term in the <a href="/freestyle/glossary">Glossary</a>, or read the <a href="/freestyle/concepts">Freestyle Concepts</a> chapters. For modifier and operator vocabulary, see the <a href="/freestyle/operators">Operators &amp; Modifiers reference</a> (not a dictionary browse axis; it's vocabulary that helps you read trick names). For set systems as first-class objects (what is pixie / stepping / atomic as a system?), see the <a href="/freestyle/sets">Set Encyclopedia</a>.</p>
 
   {{#if (eq content.activeView "add")}}
   {{! Within-tier browse mode: Alphabetical (default, flat A-Z for lookup) or

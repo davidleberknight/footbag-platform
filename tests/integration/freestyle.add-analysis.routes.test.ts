@@ -8,7 +8,7 @@
  *   - All 10 discrepancy case anchors render
  *   - 2 edge-case brief mentions render
  *   - Philosophy paragraph + editorial-truth rule render
- *   - Cross-links to /freestyle/tricks + /freestyle/glossary + /freestyle/history present
+ *   - Cross-links to /freestyle/tricks + /freestyle/concepts + /freestyle/history present
  *   - Wording lexicon: no "{source} is wrong" framing
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -150,8 +150,8 @@ describe('GET /freestyle/add-analysis — component-contribution table', () => {
     // axis-aligned rows (Set / Entry / Midtime / Positional)
     // labeled as a pedagogical organizing convention — NOT canonical
     // taxonomy — mirroring the operator-board grouping on the
-    // /freestyle/tricks?view=movement-system surface and the glossary
-    // §6 modifier reference.
+    // /freestyle/tricks?view=movement-system surface and the Freestyle
+    // Concepts modifier reference chapter.
     const res = await request(createApp()).get('/freestyle/add-analysis');
     const components = [
       // 5 atomic-flag primitives
@@ -466,10 +466,10 @@ describe('GET /freestyle/add-analysis — interpretation notes + cross-links', (
   it('renders the cross-links inventory', async () => {
     const res = await request(createApp()).get('/freestyle/add-analysis');
     expect(res.text).toContain('href="/freestyle/tricks"');
-    // Both glossary cross-links must target anchors that exist in
-    // glossary.hbs: the notation section and the ADD Accounting heading.
-    expect(res.text).toContain('href="/freestyle/glossary#section-notation"');
-    expect(res.text).toContain('href="/freestyle/glossary#traditional-reference"');
+    // Both Freestyle Concepts cross-links must target anchors that exist on
+    // the Concepts page: the notation section and the ADD Accounting heading.
+    expect(res.text).toContain('href="/freestyle/concepts#section-notation"');
+    expect(res.text).toContain('href="/freestyle/concepts#traditional-reference"');
     expect(res.text).toContain('href="/freestyle/history"');
   });
 });
@@ -488,8 +488,8 @@ describe('ADD Analysis discoverability — inbound links', () => {
     expect(note).toContain('href="/freestyle/add-analysis"');
   });
 
-  it('freestyle glossary §8 compact-equivalence block links to ADD analysis', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+  it('Freestyle Concepts ADD Accounting compact-equivalence block links to ADD analysis', async () => {
+    const res = await request(createApp()).get('/freestyle/concepts');
     const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
     expect(flowIdx).toBeGreaterThan(0);
     const sec9Idx = res.text.indexOf('9. Movement Neighborhoods');

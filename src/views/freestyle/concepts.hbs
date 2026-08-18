@@ -1,0 +1,2683 @@
+{{! /freestyle/concepts — Freestyle Concepts: the chapter-based movement-language
+    primer + traditional reference. The A–Z term list is /freestyle/glossary. }}
+
+<div class="hero hero-sm">
+  <div>
+    {{#if navigation.breadcrumbs}}
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      {{#each navigation.breadcrumbs}}
+        {{#if href}}<a href="{{href}}">{{label}}</a> <span class="breadcrumb-sep">/</span> {{else}}<span>{{label}}</span>{{/if}}
+      {{/each}}
+    </nav>
+    {{/if}}
+    <h1>{{page.title}}</h1>
+    {{#if page.intro}}<p class="hero-subtitle">{{page.intro}}</p>{{/if}}
+  </div>
+</div>
+
+<div class="wrapper glossary-page">
+
+  <div class="glossary-main-column">
+
+  {{! The chapter cards: one grid of closed disclosures, each opening in place
+      to the whole chapter. An opened card spans the grid and the closed ones
+      reflow around it, so the page never leaves the reader scrolling past
+      chapters they did not open. }}
+  <div class="dict-tile-grid">
+
+  {{! "Reading the Dictionary" (the trick-row contract, the browse views, and
+      the kinds of object the platform keeps separate) lives on the Trick
+      Dictionary page itself, folded in above the browse controls; it is not
+      repeated here. }}
+  <details class="dict-tile" id="chapter-movement-basics">
+    <summary class="dict-tile-summary">
+      <h2 class="dict-tile-title">Movement Basics</h2>
+      <span class="dict-tile-hint">Twelve foundational atoms and the movement vocabulary the dictionary teaches from.</span>
+    </summary>
+    <div class="dict-tile-body">
+  <section class="content-section" id="section-core-concepts">
+    <p>
+      Welcome to the language of freestyle footbag: the words players use
+      for the moves. These chapters name the surfaces you catch the bag on, the
+      leg-circles and body-turns that shape a trick, and the families those
+      tricks grow into.
+    </p>
+    <p>
+      Freestyle's vocabulary is compositional: small movements combine into
+      named tricks, and tricks combine into longer runs. The same trick can
+      often be named at several depths; the shortest clear name is the
+      one players use. For the full catalog of named tricks, see the
+      <a href="/freestyle/tricks">trick dictionary</a>; for set systems as
+      first-class objects (what is pixie / stepping / atomic as a system?),
+      see the <a href="/freestyle/sets">Set Encyclopedia</a>; for set-notation
+      reference, see <a href="/freestyle/sets/reference">/freestyle/sets/reference</a>.
+    </p>
+    <p class="detail-muted glossary-vocabulary-stabilization-note">
+      The competitive freestyle vocabulary stabilized by roughly 2007&ndash;2008;
+      no genuinely new base tricks have appeared in the corpus since. Current
+      work refines and recombines rather than expands. See the
+      <a href="/freestyle/history">freestyle history page</a> for the
+      two-phase story.
+    </p>
+
+    {{!-- Single-authority rule: operator / modifier ADD values, structure, and X-Dex
+          behavior are canonical in src/content/freestyleOperatorReference.ts. Any
+          operator/modifier wording on this page (this section, the X-Dex term, the
+          modifier feel cards) is secondary and must stay consistent with it; edit
+          operatorReference first, then reconcile here. --}}
+    <h3 class="section-heading" id="tricks-sets-modifiers">Tricks, sets, and modifiers</h3>
+    <p>
+      Three kinds of named thing make up the vocabulary, and the four parts of
+      this site are organized around them. They are related but not
+      interchangeable.
+    </p>
+    <dl class="glossary-term-list">
+      <dt>Trick</dt>
+      <dd>
+        A recognized movement pattern that resolves to a defined outcome, usually
+        a stall or kick (Mirage, Butterfly, Osis, Torque). A small number resolve
+        through a swing element instead (Pendulum, Rake). Tricks are catalogued in
+        the <a href="/freestyle/tricks">trick dictionary</a>.
+      </dd>
+      <dt>Set</dt>
+      <dd>
+        An entry mechanism that launches into another movement (Pixie, Fairy,
+        Stepping, Atomic, Quantum). Sets are generally not classified as tricks
+        because they initiate movement rather than terminate it; a set normally
+        becomes a trick only when combined with a terminal outcome such as a stall
+        or kick (Pixie Set &rarr; Pixie, Fairy Set &rarr; Fairy). That is why the
+        same word can refer to both a set and a trick depending on context. Sets
+        have their own <a href="/freestyle/sets">Set Encyclopedia</a>.
+      </dd>
+      <dt>Modifier</dt>
+      <dd>
+        A transformation applied to an existing trick, not normally performed on
+        its own (Spinning, Ducking, Symposium, Paradox, Swirling). The one-line
+        tell: <strong>Swirling is a modifier; Swirl is a trick.</strong> Modifiers
+        live on <a href="/freestyle/operators">Operators &amp; Modifiers</a> and in
+        the <a href="#section-modifiers">modifiers section</a> below.
+      </dd>
+    </dl>
+    <p class="detail-muted">
+      The whole site follows this split: the trick dictionary holds tricks, the
+      Set Encyclopedia holds sets, Operators &amp; Modifiers holds the
+      transformations that act on tricks, the <a href="/freestyle/glossary">Glossary</a>
+      gives each term a short definition, and these chapters explain the
+      concepts in depth. For the finer distinction between kinds of family-ish
+      object, see <a href="/freestyle/tricks#reading-the-dictionary">Reading the
+      Dictionary</a> on the Trick Dictionary page.
+    </p>
+
+    {{!-- ── Core trick atoms — pedagogical onboarding cards ───────────────
+         Curator-authoritative twelve atoms. Each card leads
+         with movement-physical intuition + foundational/cultural note;
+         compositional / family-role pointers are explicitly secondary.
+         Distinct from §10's compact symbolic-object grid (same atoms,
+         different presentation). --}}
+    {{#if content.coreAtomEducationalCards.length}}
+    <div class="glossary-core-atoms-band" id="core-trick-atoms">
+      <h3 class="section-heading">Twelve foundational trick atoms</h3>
+      <p class="glossary-core-atoms-lede">
+        Under the documented vocabulary sits a small working alphabet of
+        foundational atoms: two resting stalls and ten single-dex moves.
+        They are the teaching basis this encyclopedia uses to explain a large
+        part of the documented vocabulary, not a fixed, irreducible alphabet,
+        and not a claim that every possible trick decomposes into them. Each
+        card opens with what the movement is; open a card's panels for how it
+        relates and, for a few, what it reveals.
+      </p>
+      <div class="glossary-core-atoms-grid">
+        {{#each content.coreAtomEducationalCards}}
+        <article class="glossary-core-atom-card" id="atom-{{slug}}" data-trick-slug="{{slug}}">
+          <header class="glossary-core-atom-header">
+            <h4 class="glossary-core-atom-name">
+              <a href="{{detailHref}}">{{displayName}}</a>
+            </h4>
+            <span class="glossary-core-atom-adds" aria-label="{{adds}}">{{adds}}</span>
+          </header>
+          <p class="glossary-core-atom-lead">{{line}}</p>
+          <details class="glossary-core-atom-collapsible">
+            <summary>How it relates</summary>
+            <p>{{relates}}</p>
+          </details>
+          {{#if hasReveal}}
+          <details class="glossary-core-atom-collapsible">
+            <summary>What it reveals</summary>
+            <p>{{reveal}}</p>
+          </details>
+          {{/if}}
+        </article>
+        {{/each}}
+      </div>
+      <p class="glossary-core-atoms-tail detail-muted">
+        Read these alongside the operator vocabulary; the
+        <a href="/freestyle/operators">operators and modifiers page</a>
+        lists the transformations that turn each of these atoms into the
+        hundreds of named tricks documented across the sport. The
+        <a href="#section-families">trick families</a> section below maps
+        which atoms anchor which family trees.
+      </p>
+    </div>
+    {{/if}}
+  </section>
+    </div>
+  </details>
+
+  <details class="dict-tile" id="chapter-contact-surfaces">
+    <summary class="dict-tile-summary">
+      <h2 class="dict-tile-title">Contact Surfaces &amp; Delays</h2>
+      <span class="dict-tile-hint">The surfaces a trick lands on and how each one controls the bag.</span>
+    </summary>
+    <div class="dict-tile-body">
+  <section class="content-section" id="section-surfaces">
+    <p>
+      A <strong>contact surface</strong> is where the foot or body meets the
+      bag. A <strong>stall</strong> (or <strong>delay</strong>) holds the bag
+      on a surface; a <strong>kick</strong> redirects it. Most stalls are
+      1 ADD.
+    </p>
+    <p>
+      Surfaces split into two roles, and the split governs how the dictionary
+      groups tricks. <strong>Foundational surfaces</strong> (toe and
+      clipper) are where <em>most</em> tricks terminate: base primitives,
+      central to notation, but <strong>not browse families</strong> (grouping by
+      &ldquo;everything that ends on clipper&rdquo; would bury the whole
+      dictionary together). Every other surface here is an <strong>alternative
+      surface</strong>: an unusual catch surface, a different <em>axis</em>
+      from families. The platform separates <strong>movement structure</strong>
+      (the mechanic a lineage conserves) from <strong>contact-surface
+      variation</strong> (where the bag is caught), because older vocabularies
+      often blurred them: whirl, osis, mirage, butterfly, and legover are
+      productive lineages defined by their mechanic, while sole, cloud, knee,
+      cross-body sole, and the head/neck/shoulder and flying-surface variants are
+      surface groupings, not canonical families. Browse the alternative surfaces
+      together under <a href="/freestyle/tricks?view=movement-system">Movement
+      system</a>.
+    </p>
+
+    <h3 class="section-heading">Foundational surfaces</h3>
+    <p>The two daily-driver surfaces that anchor most named tricks are the toe and the clipper. The clipper is a cross-body surface, so it helps to know what cross-body means first.</p>
+    <div class="glossary-concept" id="concept-cross-body">
+      <p>{{content.crossBodyConcept.line}}</p>
+      <details class="glossary-core-atom-collapsible">
+        <summary>How it relates</summary>
+        <p>{{content.crossBodyConcept.relates}}</p>
+      </details>
+    </div>
+    <dl class="glossary-term-list">
+      <dt id="term-toe">Toe</dt>
+      <dd>Top of the shoe, near the toe-box. The default surface for sets and many stalls. Often abbreviated <code>TOE</code> in operational notation.</dd>
+      <dt id="term-clipper">Clipper</dt>
+      <dd>Clipper is a cross-body contact surface. The canonical Clipper Stall reads <code>SET &gt; OP CLIP [XBD] [DEL]</code>; its SAME/OP relation is component-relative and is not fixed merely by the contact surface. Often abbreviated <code>CLIP</code>.</dd>
+    </dl>
+
+    <p class="glossary-note">
+      <strong>&ldquo;Clipper&rdquo; names several things.</strong> The
+      <strong>clipper stall</strong> is the inside cross-body catch surface above.
+      The <strong>clipper</strong> base trick kicks into that position.
+      <strong>Flying clipper</strong> is a flying (no-stall) clipper kick.
+      <strong>Toe clipper</strong> and <strong>knee clipper</strong> inherit the
+      clipper naming lineage (the cross-body, tucked-behind-the-support-leg shape)
+      even though the contact is the toe or knee, not a literal clipper stall.
+    </p>
+
+    <h3 class="section-heading">Foot surfaces</h3>
+    <p>Less common as catch surfaces; appear regularly in specialized delays and named compounds.</p>
+    <dl class="glossary-term-list">
+      <dt id="term-inside">Inside</dt>
+      <dd>The inner side of the foot. Used in inside-stall delays and as a transitional contact in compounds that travel across the body.</dd>
+      <dt id="term-outside">Outside</dt>
+      <dd>The outer side of the foot. Used in outside-stall delays; pairs with inside in same-foot transitions.</dd>
+      <dt id="term-sole">Sole</dt>
+      <dd>Bottom of the shoe. Stylistic and specialized; the surface for sole stalls and a number of cross-body variants.</dd>
+      <dt id="term-heel">Heel</dt>
+      <dd>Back of the shoe. Rare as a catch surface; appears in stylistic stalls and certain trick variants.</dd>
+    </dl>
+
+    <h3 class="section-heading">Body-region surfaces</h3>
+    <p>Stylistic and specialized surfaces; most appear in named compounds rather than as default contact points.</p>
+    <dl class="glossary-term-list">
+      <dt id="term-knee">Knee</dt>
+      <dd>Top of the knee. Used in knee stalls and knee-balanced positions during routines.</dd>
+      <dt id="term-shin">Shin</dt>
+      <dd>Front of the lower leg. Surface for shin stalls; see <a href="#term-cloud">cloud stall</a> for the canonical-active variant name.</dd>
+      <dt id="term-neck">Neck</dt>
+      <dd>Back-of-neck stall. Multiple variants distinguished by which side the bag enters and how the head tilts; most appear in routine choreography.</dd>
+      <dt id="term-shoulder">Shoulder</dt>
+      <dd>Top of the shoulder. Stylistic; appears in routine work and stall-chaining sequences.</dd>
+      <dt id="term-chest">Chest</dt>
+      <dd>Upper-chest stall. Stylistic and routine-oriented.</dd>
+      <dt id="term-back">Back</dt>
+      <dd>Upper-back stall. Specialized and rare; appears in advanced freestyle routines.</dd>
+      <dt id="term-head">Head</dt>
+      <dd>Top-of-head stall. Stylistic; appears in head-balance sequences and routine work.</dd>
+    </dl>
+
+    <h3 class="section-heading">Specialized variants &amp; alternative names</h3>
+    <p>Named variants for specific surface-and-position combinations that the community treats as their own thing.</p>
+    <dl class="glossary-term-list">
+      <dt id="term-flapper">Flapper</dt>
+      <dd>A cross-body sole stall (<code>XBD</code> + sole). The community name for the cross-body variant of a sole delay.</dd>
+      <dt id="term-cloud">Cloud (cloud stall)</dt>
+      <dd>The canonical-active name for a shin stall. &ldquo;Cloud&rdquo; is the surface label readers will see on trick pages; &ldquo;shin stall&rdquo; is the descriptive form.</dd>
+    </dl>
+    <h3 class="section-heading" id="implicit-contacts">Implied contacts</h3>
+    <p>
+      Freestyle names routinely leave out a terminal contact the community
+      treats as obvious. Reading a name correctly means restoring the implied
+      part; the convention is not symmetric:
+    </p>
+    <dl class="glossary-term-list">
+      <dt>spin</dt>
+      <dd>means a spinning <strong>kick</strong>: the kick is implied; &ldquo;spin&rdquo; names the rotation and the contact is understood.</dd>
+      <dt>spinning</dt>
+      <dd>by itself is <strong>not a trick</strong>: a modifier with no terminal contact. A trick needs an ending; &ldquo;spinning&rdquo; needs a base to spin.</dd>
+      <dt>clipper</dt>
+      <dd>means a clipper <strong>stall</strong>: a bare surface name defaults to a stall (which is why the dictionary reads a bare surface as a stall and makes kicks name themselves). Clipper stall became a foundational base, so the bare word resolves to the stall.</dd>
+      <dt>flying clipper</dt>
+      <dd>conventionally means a flying clipper <strong>kick</strong> (the opposite default) because flying clipper stayed associated with a kicking motion. <strong>Flying clipper stall</strong> states &ldquo;stall&rdquo; explicitly precisely because it has to contrast the implied kick.</dd>
+      <dt>toe clipper and knee clipper</dt>
+      <dd>read not as separate lineages but as flying-clipper-style motions with a <strong>contact substitution</strong>: the motion architecture stays close to the flying clipper mechanic, while the contact surface (toe or knee) changes.</dd>
+    </dl>
+    <p class="detail-muted">
+      The rule: a bare surface defaults to a <strong>stall</strong>; a motion
+      word (spin, spinning) implies a <strong>kick</strong> or needs a base; and
+      a name spells out the contact only when the default reading would mislead.
+      Nearly every documented trick terminates in a contact (the swing endings
+      below are the documented exception); the twelve
+      <a href="#primitives-and-compounds">core atoms</a> each carry their own
+      implied stall or kick. Swapping the contact (a knee for a flying clipper)
+      is a <em>surface variation</em>, not a new movement lineage.
+    </p>
+    <p class="detail-muted">
+      <strong>Swing endings.</strong> Pendulum and Rake are unusual because a
+      controlled swing can complete the trick instead of an ordinary stall or
+      kick. They use the same toe-and-swing elements in opposite order: Pendulum
+      moves from toe into the swing; Rake moves through the swing into the toe
+      contact. Swing is a movement element, not a contact surface; its ADD
+      accounting is explained under Structural Analysis, and the consolidated
+      treatment sits under <a href="#edge-cases-special-structures">Edge cases
+      and special structures</a>.
+    </p>
+    <p class="detail-muted">
+      <strong>Thigh catch.</strong> A thigh catch traps the bag between the
+      thighs, an unusual landing surface rather than a foot surface. It is the
+      thigh-surface sibling of the squeeze (also called the pincher stall), which
+      traps the bag in the crook of the leg; both score as unusual-surface stalls,
+      written <code>THIGH [UNS] [DEL]</code> and <code>PINCHER [UNS] [DEL]</code>
+      (2 ADD each).
+    </p>
+  </section>
+    </div>
+  </details>
+
+  <details class="dict-tile" id="chapter-dexterities">
+    <summary class="dict-tile-summary">
+      <h2 class="dict-tile-title">Dexterities</h2>
+      <span class="dict-tile-hint">The leg motions that shape the middle of a trick.</span>
+    </summary>
+    <div class="dict-tile-body">
+  <section class="content-section" id="section-dexterities">
+    <p>
+      A <strong>dex</strong> (dexterity) is a motion where the foot circles
+      around the bag. The dex is the heart of freestyle; almost every
+      named compound trick contains at least one.
+    </p>
+    <ul>
+      <li>Mirage uses one dex.</li>
+      <li>Double Around the World uses two dexes.</li>
+    </ul>
+
+    <h3 class="section-heading">The eight closest relatives</h3>
+    <p>
+      These movements are usually learned one at a time. Understanding how they
+      relate makes the rest of freestyle much easier to learn.
+    </p>
+    <p>
+      These eight tricks are not eight unrelated moves. They are closely related
+      variations of the same underlying movement pattern: a single dex shaped by
+      three simple choices, the direction the leg circles, the side it circles
+      on, and the side the bag comes down on. Every one of the eight is just one
+      movement change away from three of the others, as the figure below shows.
+    </p>
+    <figure class="glossary-neighbor-figure">
+      <figcaption class="glossary-neighbor-figure-caption">
+        Start with any of the eight. Change just one of those three choices, and
+        you land on another of the eight.
+      </figcaption>
+      <ul class="glossary-neighbor-grid">
+        {{#each content.movementNeighbors.cards}}
+        <li class="glossary-neighbor-card">
+          <a class="glossary-neighbor-card-trick" href="{{href}}">{{name}}</a>
+          <ul class="glossary-neighbor-moves">
+            {{#each moves}}
+            <li class="glossary-neighbor-move">
+              <span class="glossary-neighbor-change">{{changeLabel}}</span>
+              <a class="glossary-neighbor-dest" href="{{toHref}}">{{toName}}</a>
+            </li>
+            {{/each}}
+          </ul>
+        </li>
+        {{/each}}
+      </ul>
+    </figure>
+
+    <h3 class="section-heading">Clipper counterparts</h3>
+    <p>
+      Each of the eight has a closely related clipper counterpart: a
+      corresponding movement that finishes on a clipper instead of a toe. If
+      you know the toe movement, its counterpart is already half familiar.
+      Whirl is easier to understand if you already know Mirage.
+    </p>
+    <div class="glossary-add-weight-table-wrap">
+      <table class="glossary-add-weight-table">
+        <thead><tr><th>Toe movement</th><th>Clipper counterpart</th></tr></thead>
+        <tbody>
+          <tr><td><a href="/freestyle/tricks/mirage">Mirage</a></td><td><a href="/freestyle/tricks/whirl">Whirl</a></td></tr>
+          <tr><td><a href="/freestyle/tricks/illusion">Illusion</a></td><td><a href="/freestyle/tricks/rev_whirl">Reverse Whirl</a></td></tr>
+          <tr><td><a href="/freestyle/tricks/pickup">Pickup</a></td><td><a href="/freestyle/tricks/drifter">Drifter</a></td></tr>
+          <tr><td><a href="/freestyle/tricks/legover">Legover</a></td><td><a href="/freestyle/tricks/reverse_drifter">Reverse Drifter</a></td></tr>
+          <tr><td><a href="/freestyle/tricks/around_the_world">Around the World</a></td><td><a href="/freestyle/tricks/rev_swirl">Reverse Swirl</a></td></tr>
+          <tr><td><a href="/freestyle/tricks/orbit">Orbit</a></td><td><a href="/freestyle/tricks/swirl">Swirl</a></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      Read down the table and the clipper vocabulary suddenly shrinks: every
+      entry is the counterpart of something you already know.
+    </p>
+
+    <h3 class="section-heading">Repeating a movement</h3>
+    <p>
+      One common way freestyle vocabulary grows is by repeating an existing
+      movement. Three familiar ladders show the idea:
+    </p>
+    <ul>
+      <li><a href="/freestyle/tricks/swirl">Swirl</a> &rarr; <a href="/freestyle/tricks/ripstein">Ripstein</a> &rarr; <a href="/freestyle/tricks/triple_swirl">Triple Swirl</a></li>
+      <li><a href="/freestyle/tricks/around_the_world">Around the World</a> &rarr; <a href="/freestyle/tricks/double_around_the_world">Double Around the World</a> &rarr; <a href="/freestyle/tricks/triple_around_the_world">Triple Around the World</a></li>
+      <li><a href="/freestyle/tricks/orbit">Orbit</a> &rarr; <a href="/freestyle/tricks/double_orbit">Double Orbit</a> &rarr; <a href="/freestyle/tricks/triple_orbit">Triple Orbit</a></li>
+    </ul>
+
+    <dl class="glossary-term-list">
+      <dt id="term-dexless">Dexless</dt>
+      <dd>A trick or component that contains no dex. Dexes are so central to freestyle that the absence of one is itself a named category.</dd>
+    </dl>
+
+    <h3 class="section-heading">Motion style</h3>
+    <dl class="glossary-term-list">
+      <dt id="term-hippy-leggy">Hippy vs leggy</dt>
+      <dd>Every dex is one of two motion styles. A <em>hippy</em> dex draws its motion from the hip: the thigh circles the bag. A <em>leggy</em> dex draws its motion from the knee: the calf circles the bag.</dd>
+
+      <dt id="term-full-half-dex">Full vs half dex</dt>
+      <dd>A dex's <em>fullness</em> is how far the leg circles the bag. A <em>full</em> dex circles the bag entirely: the leg starts on one side, circles, and returns to the same side. A <em>half</em> dex circles only partway, finishing on the opposite side.</dd>
+
+      <dt id="term-x-dex">X-Dex</dt>
+      <dd>An extra dexterity worth +1. It is scored wherever the operational notation carries the <code>[XDEX]</code> marker on a dex; the notation is the source of truth. For example, the <a href="/freestyle/tricks/atom_smasher">Atom Smasher</a> carries <code>[XDEX]</code> and scores the extra +1, while <a href="/freestyle/tricks/atomic_miraging_butterfly">Atomic Miraging Butterfly</a> does not. X-Dex is its own component: it is never part of a modifier's own weight, and it is never assumed from an operator name. (Historically, <code>[XDEX]</code> was recorded on the far form of certain bases such as mirage, illusion, whirl, torque, and drifter; the notation now carries that judgement directly, so a dex scores X-Dex only where <code>[XDEX]</code> is written.)</dd>
+    </dl>
+
+    <h3 class="section-heading">Direction</h3>
+    <div class="glossary-concept" id="concept-direction">
+      <p>{{content.directionConcept.line}}</p>
+      <details class="glossary-core-atom-collapsible">
+        <summary>How it relates</summary>
+        <p>{{content.directionConcept.relates}}</p>
+      </details>
+    </div>
+    <dl class="glossary-term-list">
+      <dt id="term-in-dex">In-dex</dt>
+      <dd>A dex that travels <em>inward</em>: the bag arcs toward the body's center line. Paired with in-direction set primitives (pixie, quantum) and visible in compounds like <a href="/freestyle/tricks/dimwalk">Dimwalk</a> (pixie butterfly) and Toe Blur (<a href="/freestyle/tricks/quantum_mirage">quantum mirage</a>).</dd>
+
+      <dt id="term-out-dex">Out-dex</dt>
+      <dd>A dex that travels <em>outward</em>: the bag arcs away from the body's center line. Paired with out-direction set primitives (atomic, fairy) and visible in compounds like Atom Smasher (atomic mirage).</dd>
+
+      <dt id="term-rev-zero">Direction reversal (<code>rev(0)</code>)</dt>
+      <dd>The operator that reverses a dex's in&harr;out direction while adding no difficulty. Putting <code>rev(0)</code> in front of a trick names its direction-reversed sibling: <a href="/freestyle/tricks/illusion">illusion</a> is the reverse of <a href="/freestyle/tricks/mirage">mirage</a>, pickup the reverse of legover, and orbit the reverse of around-the-world. A reversal preserves entry, terminal, side configuration, and structural role, and keeps the <em>same</em> ADD when direction is the only changed dimension; it never moves a trick between the set and standalone roles. The same direction reversal relates the standalone movement names: illusioning is reversed miraging, exactly as the illusion trick is the reverse of mirage. Hippy and leggy execution notes are stylistic; a reversed pair differs only in dex direction once those are set aside.</dd>
+    </dl>
+
+    <h3 class="section-heading">Relative-side relationships</h3>
+    <div class="glossary-concept" id="concept-side">
+      <p>{{content.sideConcept.line}}</p>
+      <details class="glossary-core-atom-collapsible">
+        <summary>How it relates</summary>
+        <p>{{content.sideConcept.relates}}</p>
+      </details>
+      {{#if content.sideConcept.hasReveal}}
+      <details class="glossary-core-atom-collapsible">
+        <summary>What it reveals</summary>
+        <p>{{content.sideConcept.reveal}}</p>
+      </details>
+      {{/if}}
+    </div>
+    <dl class="glossary-term-list">
+      <dt id="term-same-side"><code>SAME</code> (same-side)</dt>
+      <dd>The dex acts on the same leg as the most recent side-bearing component (<code>ss</code> is the abbreviation), read against that reference. It is not implied by a clipper or toe entry.</dd>
+
+      <dt id="term-opposite-side"><code>OP</code> (opposite)</dt>
+      <dd>The dex acts on the opposite leg from the most recent side-bearing component (<code>op</code> abbreviated), read against that reference. <code>SAME</code> and <code>OP</code> are genuinely different executions even when they score the same, and neither is implied by a toe or clipper entry.</dd>
+
+      <dt id="term-paradox-side">Paradox (<code>PDX</code>)</dt>
+      <dd>Paradox marks a distinct relationship on a dexterity. It is not a third SAME/OP value; <code>[PDX]</code> can coexist with <code>SAME</code> or <code>OP</code>, and independently with <code>[XDEX]</code>.</dd>
+
+      <dt id="term-op-not-xdex"><code>OP</code> is not X-Dex</dt>
+      <dd><code>OP</code> is a component-relative leg relation: the dex acts on the opposite leg from the most recent side-bearing component. Near and far are a separate positional and naming axis, not synonyms for <code>SAME</code> and <code>OP</code>. An <code>OP</code> relation does not by itself add difficulty. <a href="#term-x-dex">X-Dex</a> is a separate +1, scored only where the operational notation carries <code>[XDEX]</code>.</dd>
+    </dl>
+
+    <h3 class="section-heading">Execution window</h3>
+    <p>The phantom space the leg draws around the bag while the dex is performed. The terms below describe where in that space the dex lives.</p>
+    <dl class="glossary-term-list">
+      <dt id="term-dex-window">Dex window</dt>
+      <dd>The phantom space itself. The other terms in this subsection locate the dex within it.</dd>
+
+      <dt id="term-deep">Deep</dt>
+      <dd>A dex that sits high in the window, well away from the shoe. Controlled and clearly executed; the bag travels through a generous arc around the leg.</dd>
+
+      <dt id="term-thin">Thin</dt>
+      <dd>A dex that sits at the edge of the window, close to the shoe. The bag barely clears the leg; legal and counted, but the safety margin is small.</dd>
+
+      <dt id="term-shoey">Shoey</dt>
+      <dd>A dex that grazes the shoe surface during the circle. Distinct from a clean thin dex by the audible / visible shoe contact.</dd>
+
+      <dt id="term-the">The</dt>
+      <dd>Pronounced &ldquo;thuh,&rdquo; not &ldquo;thee.&rdquo; A component that is attempted but completely missed: a dex that misses the window entirely, or a duck done completely above the head. Typically counted as a fault.</dd>
+
+      <dt id="term-scoopy">Scoopy</dt>
+      <dd>A dex with extra under-bag character, where the leg cups beneath the bag during the circle rather than circling cleanly around it.</dd>
+    </dl>
+
+    <h3 class="section-heading">Execution quality</h3>
+    <dl class="glossary-term-list">
+      <dt id="term-clean">Clean</dt>
+      <dd>Fully controlled, clearly executed. The reference quality every other label is measured against.</dd>
+
+      <dt id="term-sloppy">Sloppy</dt>
+      <dd>Poorly controlled execution. The dex completes but the motion is unclear or the bag's path is uneven.</dd>
+
+      <dt id="term-pulled">Pulled</dt>
+      <dd>A set where the bag is dragged through an uptime dex or a spin before the intended component happens, for example a stepping set where the leg passes over the bag while it stays on the set foot. Used interchangeably with <a href="#term-slurry">slurry</a>.</dd>
+
+      <dt id="term-slurry">Slurry</dt>
+      <dd>Synonym for a <a href="#term-pulled">pulled</a> set: the bag is dragged through an uptime dex or spin before the intended component fires.</dd>
+
+      <dt id="term-froggy">Froggy</dt>
+      <dd>A pulled spin: a spin that drags the bag through before the intended component happens.</dd>
+
+      <dt id="term-over-dexed">Over-dexed</dt>
+      <dd>A dex with too much motion for what the trick requires: extra leg travel that doesn't serve the structure. Common in early learners working a new dex pattern.</dd>
+    </dl>
+
+    <h3 class="section-heading">Ducks</h3>
+    <p>A <strong>duck</strong> dips the head so the bag passes around the neck. Four directional variations differ by which way the head moves and where the bag ends up (the <a href="#section-modifiers">ducking ecosystem</a> covers how these modify a base):</p>
+    <dl class="glossary-term-list">
+      <dt id="term-ducking">Ducking</dt>
+      <dd>Head moves toward the bag; the bag falls to the opposite side from the head.</dd>
+
+      <dt id="term-weaving">Weaving</dt>
+      <dd>A ducking set in which the bag is caught on the same foot that performed the set.</dd>
+
+      <dt id="term-diving">Diving</dt>
+      <dd>Head moves over the bag and back under to its original position; the bag falls to the same side as the initial head movement.</dd>
+
+      <dt id="term-zulu">Zulu</dt>
+      <dd>A ducking set in which the bag travels across the body, under the chin, before the duck.</dd>
+
+      <dt id="term-crowny">Crowny</dt>
+      <dd>A duck-quality term: a duck performed with just the very top of the head, the duck-world parallel to a thin or <a href="#term-shoey">shoey</a> dex.</dd>
+    </dl>
+  </section>
+    </div>
+  </details>
+
+  <details class="dict-tile" id="chapter-timing-sets">
+    <summary class="dict-tile-summary">
+      <h2 class="dict-tile-title">Timing &amp; Sets</h2>
+      <span class="dict-tile-hint">Where each move happens during a trick, and the sets that begin it.</span>
+    </summary>
+    <div class="dict-tile-body">
+  <section class="content-section" id="section-timing-sets">
+    <p>
+      A trick has a clock. The <strong>set</strong> positions the bag; the
+      bag rises, peaks, falls; the trick catches. Modifiers (see the
+      Operators &amp; Modifiers section, below) are classified by which
+      beat they transform.
+    </p>
+
+    {{! ── Timing-clock visual ──────────────────────────────────────────
+        Horizontal "trick clock": the bag's parabolic arc maps onto the
+        four-beat structure. Inline SVG; no client JS. Restrained palette
+        consistent with the notation-token colors (#7f9a6b core-family green). }}
+    <figure class="glossary-timing-clock-figure" aria-labelledby="timing-clock-caption">
+      <svg viewBox="0 0 600 200" role="img" aria-label="A horizontal timeline showing the four-beat structure of a freestyle trick: set, uptime, midtime (peak), downtime, catch. The bag's path is drawn as a rising-and-falling arc." class="glossary-timing-clock">
+        <line x1="50" y1="160" x2="550" y2="160" stroke="#bdb6a3" stroke-width="1.25" />
+        <path d="M 80 160 Q 300 30, 520 160" fill="none" stroke="#7f9a6b" stroke-width="2.5" stroke-linecap="round" />
+        <circle cx="80"  cy="160" r="5" fill="#7f9a6b" />
+        <circle cx="190" cy="95"  r="5" fill="#7f9a6b" />
+        <circle cx="300" cy="50"  r="6" fill="#5a7b48" />
+        <circle cx="410" cy="95"  r="5" fill="#7f9a6b" />
+        <circle cx="520" cy="160" r="5" fill="#7f9a6b" />
+        <g font-family="inherit" font-size="13" fill="#3f3f3f" text-anchor="middle">
+          <text x="80"  y="183">Set</text>
+          <text x="190" y="118">Uptime</text>
+          <text x="300" y="33"  font-weight="600">Midtime</text>
+          <text x="410" y="118">Downtime</text>
+          <text x="520" y="183">Catch</text>
+        </g>
+        <g font-family="inherit" font-size="11" fill="#8a8470" font-style="italic" text-anchor="middle">
+          <text x="190" y="135">bag rising</text>
+          <text x="300" y="68">peak</text>
+          <text x="410" y="135">bag falling</text>
+        </g>
+      </svg>
+      <figcaption class="glossary-timing-clock-caption" id="timing-clock-caption">
+        The four-beat clock: a trick begins with a set, the bag rises through uptime, peaks at midtime, falls through downtime, and ends in a catch (stall or kick).
+      </figcaption>
+    </figure>
+
+    <dl class="glossary-term-list">
+      <dt id="term-set">Set</dt>
+      <dd>The launch action that begins the trick and positions the bag. A dex performed as part of that launch is realized as a set; the same movement performed independently after the launch, before the terminal, is a standalone realization. Which role a trick uses follows its established structure and execution, not a single timing instant.</dd>
+      <dt id="term-set-realization">Set realization</dt>
+      <dd>A dex performed as part of launching and positioning the bag. It can terminate immediately on a toe and still be a genuine set; a following component often makes the role easier to recognize but is not required. The inward and outward movement patterns realized as sets are named Quantum and Atomic.</dd>
+      <dt id="term-standalone-realization">Standalone realization</dt>
+      <dd>A dex movement realized independently after the bag is launched, before the terminal. The inward and outward standalone trick patterns are Mirage and Illusion. Miraging and Illusioning may describe those movement patterns in independently established names such as Miraging Kick and Illusioning Kick, but they are not reusable scored operators and do not automatically license arbitrary compounds.</dd>
+      <dt id="term-uptime">Uptime</dt>
+      <dd>Before the peak. The bag is rising.</dd>
+      <dt id="term-midtime">Midtime (hangtime)</dt>
+      <dd>At the peak. The brief no-plant moment.</dd>
+      <dt id="term-downtime">Downtime</dt>
+      <dd>After the peak. The bag is falling toward the catch.</dd>
+      <dt id="term-phases-sides">Phases and sides</dt>
+      <dd>Tricks break into the three phases above by bag direction. A <strong>side modifier</strong>, <code>ss</code> (same leg) or <code>op</code> (opposite leg), connects each component to its predecessor, read against the most recent side-bearing component. Neither is implied by a clipper or toe entry.</dd>
+      <dt id="term-attack">Attack</dt>
+      <dd>How quickly a player begins the next phase's component. A transition that has to fire aggressively (like attacking the mirage quickly after the stepping set in Blur) is said to need a fast attack.</dd>
+    </dl>
+
+    {{! Entry histogram: measured set frequency }}
+    <h3 class="section-heading">How tricks begin</h3>
+    <dl class="gloss-histogram" aria-label="Set surfaces and set systems by number of documented tricks">
+      {{#each content.entryHistogram}}
+      <div class="gloss-histogram-row gloss-histogram-row--{{tier}}">
+        <dt>{{label}}</dt>
+        <dd><span class="gloss-bar" aria-hidden="true"><span class="gloss-bar-fill gloss-bar-fill--w{{widthBucket}}"></span></span> <span class="gloss-bar-count">{{count}}</span></dd>
+      </div>
+      {{/each}}
+    </dl>
+    <p>
+      Two set surfaces dominate how tricks begin: toe (207) and clipper (197).
+      The launch sets Pixie, Fairy, and Stepping recur widely, with operators
+      such as Paradox and Symposium layered alongside them. The set surface
+      itself is too broad to be a system; the systems are what players layer on
+      top of it. Remember this shape, because the ending mirrors it.
+    </p>
+
+    <h3 class="section-heading" id="set-surface-vs-named-set">Set surface vs named set</h3>
+    <dl class="glossary-term-list">
+      <dt id="term-toe-set">Toe set</dt>
+      <dd>A set launched from a toe delay.</dd>
+      <dt id="term-clip-set">Clip set (clipper set)</dt>
+      <dd>A set launched from a clipper stall.</dd>
+    </dl>
+    <p>
+      Three ideas sit close together and are easy to confuse. A <strong>set
+      surface</strong> (toe or clip) is simply where the set begins. A
+      <strong>named set</strong> (pixie, atomic, and the others below) is a
+      specific launch system layered on that surface. <strong>Execution
+      timing</strong> (uptime, midtime, downtime) describes when a motion
+      happens. On its own, timing does not decide whether a dex has a set role
+      or a standalone role; that follows the trick's established structure and
+      execution. Miraging and Illusioning are descriptive movement terms, not
+      launch sets or independently scored operators.
+    </p>
+
+    {{! Named-set vocabulary. This is the home for the confirmed set terms, not
+        Operators & Modifiers. The confirmed sets mirror the Set Encyclopedia;
+        the not-set timing terms carry stable anchors so old /freestyle/sets/:slug
+        routes for non-set concepts redirect here. }}
+    <h3 class="section-heading">The named sets</h3>
+    <p>
+      A set launches the trick: it opens the movement before the base runs.
+      Several sets are named vocabulary in their own right, and this is where they
+      are defined. Some of them also broadcast across other bases as a set
+      modifier, but their definitions live here.
+    </p>
+    <dl class="glossary-term-list">
+      <dt id="term-set-launches">Pixie, fairy, stepping</dt>
+      <dd>The core launch sets. Pixie and fairy are toe-anchored; stepping is clipper-anchored. Each opens a trick and can also broadcast across other bases as a set modifier. Pixie is the Around-the-World movement realized with a set role, and Fairy is the Orbit movement realized with a set role. They preserve those directional movement shapes while integrating the dex into the bag's launch.</dd>
+      <dt id="term-set-atomic">Atomic</dt>
+      <dd>The outward dex realized as a set, contributing +1; any X-Dex is a separate event, not part of atomic. Hippy Atomic and leggy Atomic are execution styles of Atomic, not separate tricks.</dd>
+      <dt id="term-set-quantum">Quantum</dt>
+      <dd>The inward dex realized as a set; the direction-reversed sibling of Atomic on the inward side.</dd>
+      <dt id="term-set-furious">Furious</dt>
+      <dd>A two-dex set beginning from clipper with an opposite-side inward dex followed by a same-side inward dex. Barraging is a legacy name pattern for this same Furious set, not a separate timing-defined operator; barraging-named tricks resolve to Furious.</dd>
+      <dt id="term-set-blurry">Blurry</dt>
+      <dd>A set modifier that adds one dex as part of the set. Some named blurry compounds, such as Blur, expand to a deeper decomposition rather than a flat blurry-plus-base sum.</dd>
+      <dt id="term-set-nuclear">Nuclear</dt>
+      <dd>A two-dex set (2 ADD): a paradox dex followed by a downtime illusioning dex.</dd>
+    </dl>
+
+    <h3 class="section-heading">Related terms that are not launch sets</h3>
+    <p>
+      A few terms sit near the set vocabulary but are <strong>not</strong> launch
+      sets: they are standalone realizations or legacy names.
+    </p>
+    <dl class="glossary-term-list">
+      <dt id="term-illusioning">Illusioning</dt>
+      <dd>A descriptive name for the outward standalone dex movement, as preserved in Illusioning Kick. It is not equivalent to Atomic: Atomic names the same directional movement pattern when it has a set role. Illusioning is not a reusable scored operator.</dd>
+      <dt id="term-miraging-not-a-set">Miraging</dt>
+      <dd>A descriptive name for the inward standalone dex movement, as preserved in Miraging Kick. Quantum names the same directional movement pattern when it has a set role. Miraging is not a launch set or a reusable scored operator.</dd>
+      <dt id="term-barraging-not-a-set">Barraging</dt>
+      <dd>A legacy name pattern for the Furious two-dex set, not a separate set or operator; barraging-named tricks resolve to Furious, and their rows and aliases are preserved for name continuity.</dd>
+      <dt id="term-barrage-not-a-set">Barrage</dt>
+      <dd>A separate standalone base trick concept, not the same as Barraging.</dd>
+    </dl>
+    <p class="detail-muted" id="term-set-source-language">
+      Some instructional and historical sources describe sets by reference to
+      familiar downtime motions, for example illusioning, miraging, or barraging
+      language, because those shapes are easy for players to picture. The
+      encyclopedia preserves those descriptions as source language and teaching
+      shorthand, and many are the attested name a trick is still known by; its
+      canonical set taxonomy simply uses the modern set names. A descriptive
+      reading is not automatically an equivalent canonical set name.
+    </p>
+  </section>
+    </div>
+  </details>
+
+  <details class="dict-tile" id="chapter-operators-modifiers">
+    <summary class="dict-tile-summary">
+      <h2 class="dict-tile-title">Operators &amp; Modifiers</h2>
+      <span class="dict-tile-hint">The transformations that turn a base trick into new tricks.</span>
+    </summary>
+    <div class="dict-tile-body">
+  <section class="content-section" id="section-modifiers">
+    {{! The standalone link navigates away, so it stays in the body: the cards
+        in the grid above all open in place, and a control that leaves the page
+        must not sit among them. }}
+    <p><a class="glossary-section-canonical-link" href="/freestyle/operators">Open standalone</a></p>
+
+    <div class="glossary-concept" id="concept-set-vs-operator">
+      <p>{{content.setVsOperatorConcept.line}}</p>
+      <details class="glossary-core-atom-collapsible">
+        <summary>How it relates</summary>
+        <p>{{content.setVsOperatorConcept.relates}}</p>
+      </details>
+      {{#if content.setVsOperatorConcept.hasReveal}}
+      <details class="glossary-core-atom-collapsible">
+        <summary>What it reveals</summary>
+        <p>{{content.setVsOperatorConcept.reveal}}</p>
+      </details>
+      {{/if}}
+    </div>
+    <div class="glossary-concept" id="concept-composition">
+      <p>{{content.compositionConcept.line}}</p>
+      <details class="glossary-core-atom-collapsible">
+        <summary>How it relates</summary>
+        <p>{{content.compositionConcept.relates}}</p>
+      </details>
+    </div>
+
+    <div class="glossary-note" id="paradox-symposium-compare">
+      <h3>Paradox and Symposium, side by side</h3>
+      <p>
+        Two operators new players meet early and often confuse, because both
+        change how the body carries a dex rather than adding one.
+      </p>
+      <ul>
+        <li><strong>Paradox</strong> changes the body-and-support relationship
+          around a particular dex: the hips pivot and the body switches sides
+          mid-trick. It scores +1, and <code>[PDX]</code> marks the affected dex.
+          It does not add another dex, and it is not simply a far or cross-body
+          dex.</li>
+        <li><strong>Symposium</strong> imposes a no-replant discipline: the
+          support leg stays off the ground through the dex. It scores +1.</li>
+      </ul>
+      <p>
+        They stack, as in paradox symposium whirl, because they constrain
+        different aspects of the same dex: paradox the side the body works on,
+        symposium the support leg.
+      </p>
+    </div>
+
+    <p>
+      Modifiers form <strong>ecosystems</strong>. A single modifier transforms
+      <em>many</em> different base tricks: body and rotational ecosystems
+      (ducking, gyro, spinning) reshape the midtime. The named sets (pixie,
+      fairy, stepping, atomic, quantum, and furious) are set
+      vocabulary, defined in the
+      <a href="#section-timing-sets">Timing &amp; Sets section</a>; several of
+      them also broadcast across other bases as a set modifier, which is why
+      pixie appears across pixie-illusion, pixie-mobius, and symposium-pixie
+      rather than as a family of its own. An ecosystem is
+      <strong>not a family</strong>: it has no terminal mechanic of its own; it
+      modifies a base that does. Browse a launch-set ecosystem under
+      <a href="/freestyle/tricks?view=set">By set</a> and a body or timing
+      ecosystem under <a href="/freestyle/tricks?view=modifier">By modifier</a>.
+    </p>
+
+    {{! Operator/set-system histogram: a second rendering of the shared landing-band
+        model (buildFreestyleByNumbers operatorGroups), bucketed on one scale by the
+        same topologyHistogramRows helper the family/entry histograms use. }}
+    <h3 class="section-heading" id="how-widely-systems-appear">How widely the systems appear</h3>
+    <p>
+      The same set and modifier systems recur across many unrelated base tricks.
+      These live counts show how much of the documented vocabulary carries each
+      system: documented decomposition coverage across the public canonical
+      vocabulary, read from the same shared data as the live charts on the
+      <a href="/freestyle">Freestyle overview</a>.
+    </p>
+    <p class="detail-muted">
+      The split into two groups below is a pedagogical reading aid for this chart,
+      not a canonical classification. A system&rsquo;s authoritative role lives in the
+      <a href="/freestyle/operators">Operators &amp; Modifiers reference</a>; the chart
+      separates launch sets from body operators only to show how differently the two
+      kinds of system spread across the vocabulary.
+    </p>
+
+    <h4>Body and movement operators</h4>
+    <p class="detail-muted">Transformations layered on a base trick already under way.</p>
+    <dl class="gloss-histogram" aria-label="Body and movement operators by number of documented tricks">
+      {{#each content.operatorSystemHistogram.operators}}
+      <div class="gloss-histogram-row gloss-histogram-row--{{tier}}">
+        <dt>{{label}}</dt>
+        <dd><span class="gloss-bar" aria-hidden="true"><span class="gloss-bar-fill gloss-bar-fill--w{{widthBucket}}"></span></span> <span class="gloss-bar-count">{{count}}</span></dd>
+      </div>
+      {{/each}}
+    </dl>
+
+    <h4>Entry, launch, and support systems</h4>
+    <p class="detail-muted">Named systems that shape how a trick begins or constrain the body and support relationship around its dexes. This group includes launch sets as well as Paradox and Symposium, which are operators rather than sets.</p>
+    <dl class="gloss-histogram" aria-label="Entry, launch, and support systems by number of documented tricks">
+      {{#each content.operatorSystemHistogram.setSystems}}
+      <div class="gloss-histogram-row gloss-histogram-row--{{tier}}">
+        <dt>{{label}}</dt>
+        <dd><span class="gloss-bar" aria-hidden="true"><span class="gloss-bar-fill gloss-bar-fill--w{{widthBucket}}"></span></span> <span class="gloss-bar-count">{{count}}</span></dd>
+      </div>
+      {{/each}}
+    </dl>
+
+    <p class="detail-muted">
+      These counts use explicit editorial decomposition links. Some structurally
+      compound tricks do not yet carry a complete link record, so the chart shows
+      documented coverage rather than every possible occurrence.
+    </p>
+
+
+    <h3 class="section-heading" id="lineage-or-ecosystem">Lineage or ecosystem? A test you can apply</h3>
+    <p>
+      A <strong>lineage</strong> (a <a href="#section-families">family</a> or a
+      descendant lineage) has an ending of its own; an <strong>ecosystem</strong>
+      is a transformation you apply to someone else&rsquo;s ending. One quick
+      test settles most cases: <em>can you do it on its own?</em> You can do
+      &ldquo;a whirl&rdquo; or &ldquo;an osis&rdquo;; they land. You cannot
+      do &ldquo;a ducking,&rdquo; only a <em>ducking-something</em> (ducking-osis,
+      ducking-mirage, ducking-clipper). The ecosystem has no landing of its own.
+    </p>
+    <p>
+      The set primitives are the edge case. <strong>Pixie</strong> and
+      <strong>fairy</strong> broadcast across other bases like an ecosystem
+      (pixie-illusion, symposium-pixie), yet each also lands as its own trick
+      when taken to a toe stall: &ldquo;a pixie&rdquo; is the set to an
+      opposite-toe stall, a real 2-ADD trick. They read as both, depending on
+      how they are used.
+    </p>
+    <div class="glossary-add-weight-table-wrap">
+      <table class="glossary-add-weight-table">
+        <thead><tr><th></th><th>Productive lineage</th><th>Modifier ecosystem</th></tr></thead>
+        <tbody>
+          <tr><td>Own terminal mechanic</td><td>yes</td><td>no</td></tr>
+          <tr><td>What it contributes</td><td>a base trick to build on</td><td>a transformation of a base</td></tr>
+          <tr><td>Spread</td><td>a coherent family tree</td><td>broadcast across many unrelated bases</td></tr>
+          <tr><td>Example</td><td>whirl, osis</td><td>ducking, spinning, blurry</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="detail-muted">
+      <strong>Hard cases: symposium and paradox.</strong> Both behave like
+      ecosystems (they transform many bases and have no terminal mechanic
+      of their own) even though older usage sometimes spoke of them as if
+      they were families. The platform classifies them as ecosystems for that
+      reason. That classification is curator-confirmable and may be refined, but
+      the test above is what decides it: neither lands on its own.
+    </p>
+
+    {{> freestyle-modifier-reference}}
+  </section>
+    </div>
+  </details>
+
+  <details class="dict-tile" id="chapter-family-encyclopedia">
+    <summary class="dict-tile-summary">
+      <h2 class="dict-tile-title">Family Encyclopedia</h2>
+      <span class="dict-tile-hint">How tricks organize into lineages.</span>
+    </summary>
+    <div class="dict-tile-body">
+  <section class="content-section" id="section-families">
+    <p>
+      A <strong>family</strong> is a <strong>productive movement lineage</strong>:
+      a group of tricks that share a conserved <strong>terminal mechanic</strong>,
+      decompose into the same skeleton, and carry a substantial set of named
+      descendants the community actually reasons about. A family is not merely
+      &ldquo;any trick that has spin-offs.&rdquo; Its terminal mechanic is
+      <em>inherited</em>: every descendant still ends the family&rsquo;s way
+      (paradox-whirl is still a whirl). Modifier and topology systems
+      (paradox, symposium, spinning, ducking; all defined under
+      <a href="#section-modifiers">Modifiers</a>) are entry layers that are
+      <em>used</em>, not inherited as identity (not families).
+    </p>
+
+    <h3 class="section-heading">What makes a family?</h3>
+    <p>
+      Whirl is the model: every whirl ends <em>leggy-in dexterity into a
+      same-side cross-body clipper</em>, and dozens of tricks are built on that
+      ending. Two things look like families but are not.
+      <strong>Foundational Terminal Surfaces</strong> (toe, clipper) are where
+      <em>most</em> tricks end, so grouping by them would bury everything
+      together and teach nothing; they live under
+      <a href="#section-surfaces">contact surfaces</a>, not here.
+      <strong>Modifier ecosystems</strong> (ducking, spinning) reshape a
+      trick but have no ending of their own; they live under
+      <a href="#section-modifiers">modifiers</a>.
+    </p>
+    <p>
+      Several different kinds of object get loosely called &ldquo;families,&rdquo;
+      and keeping them apart is the key to reading the dictionary:
+    </p>
+    <dl class="glossary-compositional-premise-examples">
+      <dt>Family</dt>
+      <dd>A <strong>conserved-terminal lineage</strong>: a structure tricks
+        land into, whose signature descendants keep even as modifiers stack
+        (paradox-whirl still <em>is</em> a whirl). Every family is read on two
+        independent axes. Its <strong>lineage position</strong> is either a
+        <em>root</em> (Mirage, Whirl, Swirl) or a <em>branch</em> of another family
+        (Torque and Blender branch from Osis). Its <strong>display tier</strong> is
+        either <strong>Family Parent</strong>, a curated first-class lineage taught
+        through its own standalone page, or <strong>Minor Lineage</strong>, which
+        remains browsable in the family view without a standalone page. The two axes are independent: a branch can be a Family Parent (Torque),
+        and a root can be a Minor Lineage (Eclipse). The family cards below carry
+        both as separate chips.</dd>
+      <dt>Atom / primitive</dt>
+      <dd>A foundational building block performed <em>within</em> tricks (an
+        entry, orbit, or swing move), never a terminal lineage.
+        Around-the-world and orbit are the clearest cases.</dd>
+      <dt>Modifier ecosystem</dt>
+      <dd>Transforms many bases and has no terminal of its own: both
+        <em>sets</em> (pixie, fairy) and <em>body modifiers</em> (ducking, spinning).
+        They live under <a href="#section-modifiers">modifiers</a>.</dd>
+      <dt>Family anchor</dt>
+      <dd>A per-group jump-link in the
+        <a href="/freestyle/tricks?view=family">By family</a> browse. The browse
+        renders the family roster (the same Family Parents and their
+        derived branches shown above), so the browse and this chapter always
+        match. Tricks whose terminal is not a family stay reachable through the
+        family filter but form no section of their own.</dd>
+    </dl>
+
+    <p class="detail-muted">
+      A <strong>family-anchor trick</strong> is a canonical trick that also acts
+      as the productive root of a family; it has its own trick-detail page.
+      Not every trick is a family anchor (flurry, witchdoctor, and paradox-mirage
+      are tricks, not anchors). The cards below render anchors; the dictionary's
+      <a href="/freestyle/tricks?view=family">family-view browse</a> renders the
+      registered family roster, and every trick, in or out of a family, remains
+      findable in the <a href="/freestyle/tricks">main dictionary</a> and search.
+    </p>
+
+    <p class="glossary-note">
+      <strong>The family-root test is settled; fine-grained labels are still
+      tidying.</strong> A <strong>Family Parent</strong> conserves a recognizable
+      terminal identity that descendants inherit and appears on an explicit curated
+      first-class roster. First-class status is an editorial classification and is
+      not determined automatically by the number of tricks in the lineage.
+      Conserved-terminal lineages that are not on that roster are
+      <strong>Minor Lineages</strong>, real and
+      browsable but not Family Parents; some legacy &ldquo;families&rdquo; are really
+      <a href="#section-modifiers">modifier ecosystems</a>, surfaces, or aliases
+      (see <a href="/freestyle/tricks#reading-the-dictionary">the kinds of object</a> in Reading the Dictionary).
+      The root test is now fixed; the carded labels keep consolidating toward it.
+    </p>
+
+    <p class="glossary-note">
+      <strong>Where the edges blur.</strong> Some groupings are pragmatic, not
+      provable. The rotational cluster <strong>whirl / swirl / twirl</strong> is
+      grouped together because the community reasons about them together, not
+      because there is one airtight mechanic. <strong>illusion / pickup /
+      legover</strong> share a leggy-over feel that resists a single boundary;
+      they stay three separate parents (if a leggy super-family is ever
+      recognized, it belongs on the
+      <a href="/freestyle/tricks?view=topology">movement-neighborhood</a> axis,
+      not as a parent-family merge).
+      <strong>eclipse / butterfly-swirl</strong> and the <strong>drifter</strong>
+      lineage are historical and cultural clusters as much as structural ones.
+      The browse is a learning aid; some of its lines are drawn by usage and
+      judgement, and a future ruling may move them, which is why some
+      labels still render as their own groups.
+    </p>
+
+    <h3 class="section-heading" id="edge-cases-special-structures">Edge cases and special structures</h3>
+    <p class="detail-muted">
+      A few recognized structures sit outside the standard model (a trick resolves
+      to a stall or kick; a family conserves a terminal identity). They are gathered
+      here so they read as deliberate exceptions, not as gaps.
+    </p>
+
+    <p class="glossary-note">
+      <strong>Swing-element tricks.</strong> A small number of recognized tricks
+      terminate through a controlled swing element rather than a stall or kick: the
+      swing motion itself completes the trick, which may then settle into a stall, a
+      kick, a catch, or a follow-on move. Pendulum and Rake are the primary examples
+      (the same toe-and-swing pair in reversed order: toe then swing, swing then toe).
+      In notation the swing appears as a <code>SWING</code> token, scored as a dex
+      only when it carries <code>[DEX]</code> (as in Rake, <code>SET &gt; SWING [DEX]
+      &gt; SAME TOE [DEL]</code>); Pendulum's <code>TOE SWING (SET)</code> carries no
+      bracket flags, so its difficulty is taken from the trick's recorded ADD rather
+      than derived from the notation.
+    </p>
+
+    <p class="glossary-note">
+      <strong>Swirl behaves differently from most dex families.</strong> A swirl
+      resolves naturally to a clipper delay, and unlike most dexterity families it
+      has no recognized kick variant. The family grows through structural variants
+      (whirling swirl, reverse swirling) rather than kick forms.
+    </p>
+
+    <p class="glossary-note">
+      <strong>Continuous-Control Lineage</strong> (an observational grouping, not
+      a formal family). Walkover and Wrap represent closely related expressions of
+      the same underlying movement idea.
+      <a href="/freestyle/tricks/hop_over">Hopover</a> adds an airborne crossing
+      action, and <a href="/freestyle/tricks/eclipse">Eclipse</a> extends the
+      pattern into a symposium-style airborne form. All four
+      (<a href="/freestyle/tricks/walk_over">walkover</a>,
+      <a href="/freestyle/tricks/wrap">wrap</a>, hopover, eclipse) begin from an
+      inside delay and stay under continuous control, resolving to a clipper
+      position; they are distinguished by the body movement around the support leg.
+    </p>
+
+    <h3 class="section-heading">Family roster</h3>
+    <p class="detail-muted">
+      The dictionary&rsquo;s Family Parents: a <strong>Family Parent</strong>
+      conserves a recognizable terminal identity across its descendants and appears
+      on the curated first-class roster. First-class status is an editorial
+      classification, not a trick-count threshold. The two
+      dominant catch surfaces (toe-stall, clipper-stall) are
+      <strong>Foundational Terminal Surfaces</strong>: nearly every trick resolves
+      to one, so they are too broad to teach as a lineage and are excluded
+      regardless of count. Also excluded are modifier ecosystems (pixie, fairy) and
+      entry primitives (around-the-world, orbit). A Family Parent that inherits a
+      parent&rsquo;s terminal identity is shown as a branch in parentheses; a
+      conserved-terminal lineage below the threshold is a
+      <strong>Minor Lineage</strong>. This is the same set the dictionary&rsquo;s
+      <a href="/freestyle/tricks?view=family">By family</a> browse uses, so this
+      roster and the dictionary roster always match:
+    </p>
+
+    {{! Family histogram: measured terminal frequency }}
+    <dl class="gloss-histogram" aria-label="Terminal surfaces and family lineages by recursive descendant count">
+      {{#each content.familyHistogram}}
+      <div class="gloss-histogram-row gloss-histogram-row--{{tier}}">
+        <dt>{{label}}</dt>
+        <dd><span class="gloss-bar" aria-hidden="true"><span class="gloss-bar-fill gloss-bar-fill--w{{widthBucket}}"></span></span> <span class="gloss-bar-count">{{count}}</span></dd>
+      </div>
+      {{/each}}
+    </dl>
+    <p>
+      Just as two surfaces dominate how tricks begin, two dominate how they end:
+      clipper stall (328) and toe stall (252) catch nearly every trick. The
+      families below are the largest distinct lineages that resolve onto those
+      two surfaces, which are themselves too broad to be families (that is why
+      they are not family cards). This roster is not curator-picked; it is what
+      the documented vocabulary measures. Sub-families such as Torque and
+      Blender are nested under a root family, so their tricks are counted within
+      the parent&rsquo;s bar as well.
+    </p>
+    <p class="detail-muted glossary-family-roster">
+      {{#each content.firstClassFamilyRoster}}{{#unless @first}} &middot; {{/unless}}<a href="/freestyle/tricks?family={{slug}}">{{label}}</a>{{#if branches.length}} ({{#each branches}}{{#unless @first}}, {{/unless}}<a href="/freestyle/tricks?family={{slug}}">{{label}}</a>{{/each}}){{/if}}{{/each}}
+    </p>
+    <p class="detail-muted glossary-family-roster">
+      <strong>Minor lineages</strong> ({{content.minorLineageRoster.length}}): conserved-terminal lineages
+      that are not on the curated first-class roster. They remain real and browsable
+      in the family view but do not have standalone family pages.
+      {{#each content.minorLineageRoster}}{{#unless @first}} &middot; {{/unless}}<a href="/freestyle/tricks?family={{slug}}">{{label}}</a>{{/each}}
+    </p>
+    <p class="detail-muted">
+      <strong>Foundational terminal surfaces.</strong> Clipper Stall and Toe Stall are excluded from
+      family status: nearly every trick resolves to one of them, so they are too broad to teach as a
+      lineage rather than because they are surfaces.
+    </p>
+    <p class="detail-muted">
+      Every family below has an educational card, grouped by tier (Family
+      Parents first, then Minor Lineages) and within each tier by lineage
+      position (root lineages, then branches under their parent). The chips on each
+      card carry the same two facts.
+    </p>
+    {{#each content.familyCardGroups}}
+    <h3 class="section-heading">{{tierLabel}}</h3>
+    {{#each subGroups}}
+    <p class="glossary-family-subgroup-label">{{label}}</p>
+    <div class="glossary-family-card-grid" aria-label="{{../tierLabel}}: {{label}}">
+      {{#each cards}}
+      {{> glossary-family-card}}
+      {{/each}}
+    </div>
+    {{/each}}
+    {{/each}}
+
+    {{! Core atoms registry — preserved for #term-{slug} anchor stability
+        on atom slugs that do not map 1:1 to a family card (clipper-stall /
+        orbit / around-the-world; ATW is an entry primitive, not a family).
+        The family cards carry the terminal-family anchors
+        (#term-whirl / -butterfly / -mirage / -osis / -illusion / -legover /
+        -pickup) plus the descendant/sub-family anchors
+        (#term-swirl / -rev-whirl / -torque / -blender / -drifter / -barrage /
+        -blur / -phoenix); the service excludes family-card slugs from this
+        grid, so each #term-{slug} renders exactly once. }}
+    <h3 class="section-heading">Other foundational atoms</h3>
+    <p class="detail-muted">
+      Atomic structures that sit alongside the families above: surfaces,
+      pickups, and reversal variants whose canonical row in the dictionary
+      is the atom itself.
+    </p>
+    {{> core-tricks-grid tricks=content.otherFoundationalAtoms idPrefix="term-"}}
+
+    {{#if content.familyTrees.length}}
+    <details class="glossary-family-card-observational">
+      <summary class="glossary-family-card-observational-summary">
+        <span class="glossary-family-card-observational-title">Family-tree visualizations (4 pilot families)</span>
+        <span class="glossary-layer-badge glossary-layer-badge--advanced">advanced</span>
+      </summary>
+      <div class="glossary-family-trees" aria-label="Family-tree examples">
+        {{#each content.familyTrees}}
+        <div class="glossary-family-tree" id="family-tree-{{anchorSlug}}">
+          <p class="glossary-family-tree-anchor">
+            {{anchorDisplay}}
+            {{#if anchorAdds}}<span class="glossary-family-tree-anchor-adds">{{anchorAdds}}</span>{{/if}}
+          </p>
+          {{#if members.length}}
+          <ul class="glossary-family-tree-members">
+            {{#each members}}
+            <li>
+              <a href="{{href}}">{{display}}</a>{{#if adds}}<span class="glossary-family-tree-member-adds">{{adds}}</span>{{/if}}
+            </li>
+            {{/each}}
+          </ul>
+          {{/if}}
+        </div>
+        {{/each}}
+      </div>
+      <p class="glossary-note">
+        Four pilot families shown. The
+        <a href="/freestyle/tricks?view=family">family-view browse</a> groups all
+        tricks by family; the trick-detail page for any compound shows its
+        family ladder so you can see siblings at a glance.
+      </p>
+    </details>
+    {{/if}}
+  </section>
+    </div>
+  </details>
+
+  <details class="dict-tile" id="chapter-structural-analysis">
+    <summary class="dict-tile-summary">
+      <h2 class="dict-tile-title">Structural Analysis</h2>
+      <span class="dict-tile-hint">How to read any trick name as a formula.</span>
+    </summary>
+    <div class="dict-tile-body">
+  <section class="content-section" id="section-notation">
+
+    {{! No in-section mini-TOC here: the section's anchors are deep-link
+        targets inside this collapsed chapter, revealed on arrival by the
+        glossary deep-link opener. }}
+    <p class="glossary-thesis">
+      The language evolves by compressing recurring compositional structures
+      into shorter readable symbolic forms.
+    </p>
+
+    <p class="glossary-operator-notation-framing">
+      Operational notation is the compact symbolic shorthand for trick
+      composition. A trick like <em>paradox</em> reads as
+      <code class="notation-display-tokens"><span class="notation-token">CLIP</span> &gt; <span class="notation-token">OP IN</span> <span class="notation-token">[DEX]</span></code>:
+      "clipper set, then a far in-out dex." The notation lets
+      readers reconstruct the body mechanics from the trick name without
+      having to memorize each compound separately. For the full operational
+      grammar and worked decompositions see
+      <a href="/freestyle/add-analysis">ADD Accounting &amp; Analysis</a>.
+    </p>
+
+    <div class="glossary-concept" id="concept-add">
+      <p>{{content.addConcept.line}}</p>
+      <details class="glossary-core-atom-collapsible">
+        <summary>How it relates</summary>
+        <p>{{content.addConcept.relates}}</p>
+      </details>
+      {{#if content.addConcept.hasReveal}}
+      <details class="glossary-core-atom-collapsible">
+        <summary>What it reveals</summary>
+        <p>{{content.addConcept.reveal}}</p>
+      </details>
+      {{/if}}
+    </div>
+
+
+    {{! ── Compositional premise — Ben Job (1995) ───────────────────────────
+        Concise primer naming Ben Job's notation contribution explicitly
+        (per the codified notation-tradition exception). Frames the
+        premise + 4 examples + forward-link to /freestyle/compositional-sets
+        for the systematic exploration. The canonical formula itself lives
+        in Generative insight below; this subsection refers there rather
+        than duplicating. }}
+    <h3 class="section-heading" id="compositional-premise">The compositional premise: every trick as formula (Ben Job, 1995)</h3>
+    <p>
+      The notation system descends from grammar work originating with
+      Ben Job (footbag discussion list, 1995). Job proposed that every
+      freestyle trick can be expressed as a small grammar of set-type,
+      side, direction, and dexterity tokens. The base shape is documented
+      formally under <a href="#generative-insight">Generative insight</a>
+      below.
+    </p>
+    <p>
+      The dictionary's operational notation system descends from this
+      compositional grammar, extending it with additional movement
+      primitives and modifiers: swirl/twirl, body modifiers
+      (ducking, diving, spinning), no-plant variants (symposium), unusual
+      surfaces, and torque-class hybrids. The base grammar covers a large
+      central region of the trick language; the extensions reach into the
+      rest.
+    </p>
+    <p>
+      Within that scope, several named "sets" turn out to be recognizable
+      trick structures under a different reading: <em>blurry</em> decomposes
+      to stepping with a paradox second dex. <em>Miraging</em> is retained as
+      descriptive language for the inward standalone movement, including the
+      established Miraging Kick name; the same directional movement pattern with
+      a set role is <em>quantum</em>. The systematic exploration of these
+      compositional relationships lives at
+      <a href="/freestyle/compositional-sets">Compositional Sets</a>.
+    </p>
+    <p class="glossary-note">
+      These are <strong>documented readings</strong>, not all settled doctrine; a
+      decomposition records how a name is structurally understood today, which is not the
+      same as a canonical ruling. See <a href="#tracking-vs-canonization">Tracking is not
+      canonization</a>.
+    </p>
+    <dl class="glossary-compositional-premise-examples">
+      <dt>Pixie</dt>    <dd><code>TOE &gt; SAME IN [DEX] &gt;</code></dd>
+      <dt>Stepping</dt> <dd><code>CLIP &gt; OP IN [DEX] &gt;</code></dd>
+      <dt>Blurry</dt>   <dd><code>CLIP &gt; OP IN [DEX] &gt; OP OUT [DEX] &gt;</code></dd>
+      <dt>Mobius</dt>   <dd><code>CLIP &gt;&gt; (back) SPIN [BOD] &gt;&gt; SAME IN [DEX] &gt; (front) SPIN [BOD] &gt; OP CLIP [XBD] [DEL]</code></dd>
+    </dl>
+
+    {{! ── Jobs notation (historical source) ────────────────────────────────
+        Dedicated reference section for Job's original 1995 notation
+        proposal, the gold-standard historical source for the grammar
+        lineage. Quoted material below is verbatim from the project
+        archive of the article; the rendered paragraph cites the article by
+        title, with no internal path on this public surface. Per the codified
+        notation-tradition exception, naming Ben Job is permitted here. }}
+    <h3 class="section-heading" id="jobs-notation">Jobs notation</h3>
+    <p>
+      Jobs notation refers to the original compositional grammar for
+      footbag freestyle tricks proposed by Ben Job. The article is the
+      authoritative historical source for the grammar lineage.
+    </p>
+    <p>
+      Job's original proposal sets out the core grammar:
+    </p>
+    <pre><code class="font-mono">(toe | clip) &gt;
+[(same | op)(in | out) dexterity]* &gt;
+(same | op)(toe | clip)</code></pre>
+    <p>
+      Read informally: a trick starts with a set surface (toe or clip),
+      contains zero or more dex events with same/op side and in/out
+      direction, and terminates with a catch surface. The original
+      article notes that <em>same</em>, <em>op</em>, and <em>no plant</em>
+      are all relative to the leg previously referred to.
+    </p>
+    <p>
+      A selection of Job's original named examples:
+    </p>
+    <dl>
+      <dt>Mirage</dt>           <dd><code>toe &gt; op in dex &gt; op toe</code></dd>
+      <dt>Eggbeater</dt>        <dd><code>toe &gt; op out dex &gt; op out dex &gt; same toe</code></dd>
+      <dt>Symposium Mirage</dt> <dd><code>toe &gt; (no plant while) &gt; op in dex &gt; op toe</code></dd>
+      <dt>Symposium Whirl</dt>  <dd><code>toe &gt; (no plant while) &gt; op in dex &gt; op clip</code></dd>
+      <dt>Ripwalk</dt>          <dd><code>clip &gt; op in dex &gt; op out dex &gt; op clip</code></dd>
+      <dt>Double Pickup</dt>    <dd><code>clip &gt; op in dex &gt; same in dex &gt; same toe</code></dd>
+    </dl>
+    <p>
+      The article anticipates the modifier extensions later codified by
+      this dictionary: Pogo / Symposium / Spinning / Gyro,
+      Stomping, Blind, hop-over, Carry (Wrap), duck, dive,
+      jumping/flying, Swirl/Twirl cross-body dex, and swing (Pendulum,
+      Rake), noting that the set of primitives is finite and the
+      space of tricks they generate is effectively complete.
+    </p>
+    <p class="text-muted">
+      Source: Ben Job, <em>By the Way, Not the Name</em>, message to
+      <code>footbag@footbag.org</code>, October 31, 1995.
+    </p>
+    <p>
+      Pendulum and Rake show how the same elements can name two distinct
+      primitives. Both are swing tricks built from a swing and a toe catch:
+      Pendulum reads as toe then swing, Rake as swing then toe. The element
+      order is reversed while the arithmetic is unchanged, so the two share
+      an identical ADD.
+    </p>
+    <p class="mt-2">
+      <a class="action-link" href="/freestyle/notation-article">To See the Entire Article, Press Here.</a>
+    </p>
+
+    {{! ── Generative Insight ───────────────────────────────────────────────
+        Surfaces the compositional-completeness framing that's implicit in
+        the notation but never stated explicitly. Two paragraphs + the
+        canonical structural formula. Honors the notation tradition
+        without biographical attribution. }}
+    <h3 class="section-heading" id="generative-insight">Generative insight</h3>
+    <p>
+      The notation carries a stronger claim than mere shorthand. A
+      small set of primitive movement operators (a starting
+      surface, a finite sequence of dex events, a terminating surface)
+      generates the entire freestyle trick space combinatorially.
+      The set of nameable tricks is, in principle,
+      <strong>enumerable</strong>: pick a starting surface, pick a
+      finite sequence of operators, read off the resulting formula.
+      The community-named tricks are the formulas the community found
+      worth naming. Many unnamed-but-structurally-valid tricks exist;
+      naming follows usage, not exhaustive enumeration.
+    </p>
+    <p>
+      The canonical structural form of a footbag trick is:
+    </p>
+    <p class="glossary-generative-formula">
+      <code class="notation-display-tokens"><span class="notation-token">(toe | clip)</span> &gt; [<span class="notation-token">(same | op)</span> <span class="notation-token">(in | out)</span> <span class="notation-token">dexterity</span>]<sup>*</sup> &gt; <span class="notation-token">(same | op)</span> <span class="notation-token">(toe | clip)</span></code>
+    </p>
+    <p>
+      A surface kick or stall opens the trick; zero or more dex events
+      compose the middle; a surface kick or stall closes it. The
+      <code>*</code> marks the iterable interior: one dex
+      produces a simple compound, two produces a deeper one,
+      three-and-up produces the named families
+      (<em>blurry</em>, <em>barraging</em>, <em>flurry</em>) that
+      compress longer chains under a single folk name. The trick
+      dictionary is a <em>curated subset</em> of this formula's
+      generative output, not its full closure. Modifiers (paradox,
+      symposium, spinning, ducking) modulate the
+      <code>(same | op)(in | out)</code> choices and the body
+      configuration during the dex events; their effects layer onto
+      the same generative skeleton.
+    </p>
+
+    {{! ── Glyph quick-reference ──────────────────────────────────────────
+        Visible-symbol strip at the top of §7 so the section opens with
+        concrete glyphs rather than prose. Data sourced from
+        content.operatorBoard.tiers; tier colors match the shared
+        operator-board partial's tier palette. }}
+    <div class="glossary-glyph-quickref" aria-label="Operator glyph quick reference">
+      {{#each content.operatorBoard.tiers}}
+      <div class="glossary-glyph-quickref-tier glossary-glyph-quickref-tier--{{key}}">
+        <span class="glossary-glyph-quickref-tier-label">{{title}}</span>
+        <ul class="glossary-glyph-quickref-list">
+          {{#each operators}}
+          <li class="glossary-glyph-quickref-cell">
+            <span class="glossary-glyph-quickref-glyph">{{glyph}}</span>
+            <span class="glossary-glyph-quickref-name">{{name}}</span>
+          </li>
+          {{/each}}
+        </ul>
+      </div>
+      {{/each}}
+    </div>
+
+    {{! Notation in practice — three compact symbol-first examples.
+        Static content; opens §7 with concrete tokenized formulas before
+        the prose explainer. }}
+    <div class="glossary-notation-in-practice" aria-label="Notation in practice: three compact examples">
+      <p class="glossary-notation-row">
+        <span class="glossary-notation-label">single base anchor</span>
+        <code class="notation-display-tokens glossary-inline-notation"><span class="notation-token notation-core-family">whirl</span></code>
+      </p>
+      <p class="glossary-notation-row">
+        <span class="glossary-notation-label">modifier + base</span>
+        <code class="notation-display-tokens glossary-inline-notation"><span class="notation-token notation-modifier">paradox</span> <span class="notation-token notation-core-family">whirl</span></code>
+      </p>
+      <p class="glossary-notation-row">
+        <span class="glossary-notation-label">deep compound</span>
+        <code class="notation-display-tokens glossary-inline-notation"><span class="notation-token notation-modifier">stepping</span> <span class="notation-token notation-modifier">ducking</span> <span class="notation-token notation-modifier">paradox</span> <span class="notation-token notation-core-family">torque</span></code>
+        <span class="glossary-notation-shorthand">&equiv; <strong>gauntlet</strong> (7 ADD)</span>
+      </p>
+    </div>
+
+    <p>
+      The longer you stack operators on a base, the longer the name,
+      until the community converges on a shorter shorthand. Jobs notation
+      is that shorthand made legible. A trick called &ldquo;<a href="/freestyle/tricks/mobius">mobius</a>&rdquo;
+      decompresses to &ldquo;spinning ss torque&rdquo;, and further to
+      &ldquo;spinning ss quantum osis&rdquo;. All three forms are
+      legitimate; the community uses the shortest readable one. See the
+      <a href="#symbolic-compression-flow">symbolic-compression flow</a>
+      for a worked example.
+    </p>
+    {{! Operator → named-compound block. Five compact compositions, all
+        visible-token, demonstrate how operators stacked on bases produce
+        the named tricks that appear in the dictionary. }}
+    <p>Notation makes composition visible. Operator + base &rarr; named compound:</p>
+    <div class="glossary-notation-mappings" aria-label="Operator → named compound mappings">
+      <p class="glossary-notation-row">
+        <code class="notation-display-tokens glossary-inline-notation"><span class="notation-token notation-set">pixie</span> + <span class="notation-token notation-core-family">butterfly</span></code>
+        <span class="glossary-notation-shorthand">&rarr; <strong><a href="/freestyle/tricks/dimwalk">DIMWALK</a></strong></span>
+      </p>
+      <p class="glossary-notation-row">
+        <code class="notation-display-tokens glossary-inline-notation"><span class="notation-token notation-modifier">stepping</span> + <span class="notation-token notation-core-family">butterfly</span></code>
+        <span class="glossary-notation-shorthand">&rarr; <strong><a href="/freestyle/tricks/ripwalk">RIPWALK</a></strong></span>
+      </p>
+      <p class="glossary-notation-row">
+        <code class="notation-display-tokens glossary-inline-notation"><span class="notation-token notation-modifier">paradox</span> + <span class="notation-token notation-core-family">whirl</span></code>
+        <span class="glossary-notation-shorthand">&rarr; <strong><a href="/freestyle/tricks/paradox_whirl">PARADOX WHIRL</a></strong></span>
+      </p>
+      <p class="glossary-notation-row">
+        <code class="notation-display-tokens glossary-inline-notation"><span class="notation-token notation-set">pixie</span> + <span class="notation-token notation-modifier">ducking</span> + <span class="notation-token notation-core-family">butterfly</span></code>
+        <span class="glossary-notation-shorthand">&rarr; <strong><a href="/freestyle/tricks/phoenix">PHOENIX</a></strong></span>
+      </p>
+      <p class="glossary-notation-row">
+        <code class="notation-display-tokens glossary-inline-notation"><span class="notation-token notation-modifier">gyro</span> + <span class="notation-token notation-core-family">torque</span></code>
+        <span class="glossary-notation-shorthand">&rarr; <strong><a href="/freestyle/tricks/mobius">MOBIUS</a></strong></span>
+      </p>
+    </div>
+
+    <h3>A beginner example: <code class="notation-display-tokens glossary-inline-notation">{{#with content.notationExamples.whirl}}{{#each tokens}}<span class="notation-token notation-{{cssRole}}" data-role="{{role}}" title="{{label}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}{{/with}}</code></h3>
+    <p>
+      A trick whose notation is just <code class="notation-display-tokens glossary-inline-notation">{{#with content.notationExamples.whirl}}{{#each tokens}}<span class="notation-token notation-{{cssRole}}" data-role="{{role}}" title="{{label}}">{{text}}</span>{{/each}}{{/with}}</code>
+      is itself the family anchor. It carries one body rotation and resolves
+      at its catch: no modifiers stacked on, no set primitive prefacing it.
+      A single token tells you: this is the structural root.
+    </p>
+
+    <h3>A compound example: <code class="notation-display-tokens glossary-inline-notation">{{#with content.notationExamples.paradoxWhirl}}{{#each tokens}}<span class="notation-token notation-{{cssRole}}" data-role="{{role}}" title="{{label}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}{{/with}}</code></h3>
+    <p>
+      The paradox modifier on a whirl base. The modifier (yellow-olive)
+      shapes the body position; the base anchor (green) carries the
+      rotation and family identity. +1 ADD on top of whirl.
+    </p>
+
+    <h3>A modifier-heavy example: <code class="notation-display-tokens glossary-inline-notation">{{#with content.notationExamples.gauntlet}}{{#each tokens}}<span class="notation-token notation-{{cssRole}}" data-role="{{role}}" title="{{label}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}{{/with}}</code></h3>
+    <p>
+      Three body modifiers stacked on a torque base; the community calls
+      it Gauntlet, 7 ADD. Each modifier contributes its own +1 above the
+      base.
+    </p>
+
+    <h3 id="notation-roles">Color-coded structural roles</h3>
+    <p>
+      The visual hierarchy is restrained: only the four primary roles
+      (core family, set, rotation, body modifier) carry color saturation.
+      Hover any token on a trick page to see its role and resolved family name.
+    </p>
+
+    <h3 id="abbreviations">Abbreviations</h3>
+    <p>Shorthand commonly seen in trick names and in operational notation. The two lists below separate the two contexts; a few abbreviations appear in both, listed under their primary domain.</p>
+
+    <h4>Trick-name shorthand</h4>
+    <p class="freestyle-section-sub">The shorthand that appears in trick titles and composition prose.</p>
+    <div class="moves-table-wrap">
+      <table class="moves-table">
+        <thead>
+          <tr><th>Abbreviation</th><th>Meaning</th></tr>
+        </thead>
+        <tbody>
+          {{#each content.abbreviations.trickNames}}
+          <tr><td><code>{{short}}</code></td><td>{{meaning}}</td></tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+
+    <h4>Operational-notation tokens</h4>
+    <p class="freestyle-section-sub">The bracket-flagged component tokens that appear inside operational notation strings.</p>
+    <div class="moves-table-wrap">
+      <table class="moves-table">
+        <thead>
+          <tr><th>Abbreviation</th><th>Meaning</th></tr>
+        </thead>
+        <tbody>
+          {{#each content.abbreviations.operationalTokens}}
+          <tr><td><code>{{short}}</code></td><td>{{meaning}}</td></tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+
+    {{! ── Operational notation: advanced subsection ───────────────────────
+        Reference for the bracket-flag operational notation token vocabulary.
+        Collapsed by default so §7 reads primer-first; direct
+        navigation to #operational-notation or any #op-* child anchor
+        auto-opens the details element. }}
+    <details class="glossary-operational-details" id="operational-notation">
+      <summary class="glossary-operational-details-summary">
+        <span class="glossary-operational-details-title">Operational notation</span>
+        <span class="glossary-operational-details-hint">Bracket-flag token vocabulary: click to expand</span>
+      </summary>
+
+    <table class="glossary-layer-contrast">
+      <thead>
+        <tr><th>Layer</th><th>Describes</th><th>Renders as</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Semantic</strong></td>
+          <td>Compositional structure: what the trick <em>is</em></td>
+          <td>Operator stack (e.g., <code>stepping ducking paradox torque</code>)</td>
+        </tr>
+        <tr>
+          <td><strong>Operational</strong></td>
+          <td>Execution mechanics: what the body <em>does</em></td>
+          <td>Bracket-flagged sequence (e.g., <code>CLIP &gt; OP IN [DEX] &gt; OP OUT [DEX] &gt; [DEL] CLIP</code>)</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>
+      The two layers are complementary, not interchangeable. The same trick
+      may be named at several semantic stopping depths yet still have a
+      single canonical operational form. Trick-detail pages render both
+      side-by-side when both are authored.
+    </p>
+    <p class="detail-muted">
+      Operational notation lives behind the &ldquo;Execution notation&rdquo; section on per-trick pages. The reference below is the token vocabulary for that surface.
+    </p>
+
+    <h4>Component flags</h4>
+    <p>Square-bracket annotations on a move that mark which structural component is in play. Multiple flags may stack on a single move.</p>
+    <dl class="operational-glossary">
+      <dt id="op-flag-dex"><code>[DEX]</code></dt>
+      <dd>Dexterity component: the move involves bag-foot interaction (the foot circles around or contacts the bag).</dd>
+      <dt id="op-flag-del"><code>[DEL]</code></dt>
+      <dd>Delay component: the move ends in a stall on a foot or surface. Typically the final segment of an operational notation string.</dd>
+      <dt id="op-flag-bod"><code>[BOD]</code></dt>
+      <dd>Body-position component: the move includes a body pose change (spin, duck, dive, paradox).</dd>
+      <dt id="op-flag-xbd"><code>[XBD]</code></dt>
+      <dd>Cross-body component: <code>[XBD]</code> records a cross-body configuration or traversal across the body's centreline. It is independent of the component's SAME/OP relation; both SAME and OP components can be cross-body. Typically appears with <code>[DEL]</code> on the landing.</dd>
+      <dt id="op-flag-pdx"><code>[PDX]</code></dt>
+      <dd>Paradox component: marks the paradox relationship on a dexterity. It is independent of <code>[XBD]</code> and is not an IN/OUT direction. <code>CLIP &gt; OP IN [DEX]</code> is a common entry example, not the definition &mdash; a later mid-trick dexterity can also carry <code>[PDX]</code>. Equivalent to the <code>paradox</code> dex relationship in semantic notation.</dd>
+      <dt id="op-flag-xdex"><code>[XDEX]</code></dt>
+      <dd>X-Dex component. Marks the conditional +1 a dex scores when the notation carries <code>[XDEX]</code> (see <a href="#term-x-dex">X-Dex</a>). Recorded only where the notation carries it; some external references use the flag more broadly.</dd>
+      <dt id="op-flag-uns"><code>[UNS]</code></dt>
+      <dd>Unusual-surface component: the delay lands on a non-standard surface (sole, knee, head, neck, shoulder, forehead, cloud) rather than a toe or clipper. Scores like any delay; the flag records that the landing surface is unusual.</dd>
+      <dt id="op-flag-kick"><code>[KICK]</code></dt>
+      <dd>Kick action marker: the move ends in a kick rather than a stall. Non-scoring on its own; the kick carries no ADD, so a trick that ends <code>[KICK]</code> rather than <code>[DEL]</code> does not add a component for the kick.</dd>
+    </dl>
+
+    <h4>Sides</h4>
+    <p>The side prefix on a move is relative to the previously referenced leg (the
+      most recent side-bearing component), not to a fixed plant foot: <code>SAME</code>
+      and <code>OP</code> say which leg acts compared with the leg that component
+      used. A component that names no leg does not reset the reference. Because each
+      side reads against the last one, the relationship chains, and two <code>OP</code>
+      steps in a row come back to the original leg.</p>
+    <dl class="operational-glossary">
+      <dt id="op-side-same"><code>SAME</code></dt>
+      <dd>The same leg as the most recent side-bearing component. Roughly equivalent to the <code>SS</code> abbreviation seen in some trick names.</dd>
+      <dt id="op-side-op"><code>OP</code></dt>
+      <dd>The opposite leg from the most recent side-bearing component. The other leg performs the move.</dd>
+    </dl>
+    <p>Worked example, tracking which leg acts as you read left to right:</p>
+    <pre><code class="font-mono">LEFT set &gt; OP dex   = RIGHT dex
+RIGHT dex &gt; OP catch = LEFT catch</code></pre>
+    <p>So a set and a catch that are each <code>OP</code> relative to the step before
+      them land back on the setting leg, not on the opposite one.</p>
+
+    <h4>Directions</h4>
+    <p>The arc-direction tokens describe the bag's path during the dex.</p>
+    <dl class="operational-glossary">
+      <dt id="op-direction-in"><code>IN</code></dt>
+      <dd>Inward arc: the bag travels toward the body.</dd>
+      <dt id="op-direction-out"><code>OUT</code></dt>
+      <dd>Outward arc: the bag travels away from the body.</dd>
+      <dt id="op-direction-front"><code>FRONT</code> / <code>BACK</code></dt>
+      <dd>
+        Forward / backward direction. Standalone <code>FRONT</code> or
+        <code>BACK</code> describes the arc; when followed by
+        <code>WHIRL</code> or <code>SWIRL</code>, the two tokens fuse
+        into a single rotational-variant move (e.g.
+        <code>FRONT WHIRL</code>, <code>FRONT SWIRL</code>).
+      </dd>
+    </dl>
+
+    <h4 id="op-sequence-operators">Sequence operators</h4>
+    <p>The arrow tokens segment the operational notation into discrete sub-actions.</p>
+    <dl class="operational-glossary">
+      <dt id="op-seq-minor"><code>&gt;</code></dt>
+      <dd>Sub-step boundary: continuous flow within a beat group. The next move follows directly from the previous one without major pause or replant.</dd>
+      <dt id="op-seq-major"><code>&gt;&gt;</code></dt>
+      <dd>Major step boundary: often signals a no-plant break, a beat change, or a body-action transition. Visually heavier than <code>&gt;</code>; typically pairs with <code>(no plant while)</code> on a following move.</dd>
+    </dl>
+
+    <h4 id="op-pre-states">Pre-move state flags</h4>
+    <p>Lowercase parenthesized annotations that describe the body state during the next move.</p>
+    <dl class="operational-glossary">
+      <dt id="op-prestate-back"><code>(back)</code> / <code>(front)</code></dt>
+      <dd>Backward / forward direction of the next body action. Most often seen with <code>SPIN</code>: <code>(back) SPIN [BOD]</code> = backward body spin.</dd>
+      <dt id="op-prestate-no-plant"><code>(no plant while)</code></dt>
+      <dd>The support leg does not plant during this segment. Common in dense compounds where the body is mid-air during the move.</dd>
+      <dt id="op-prestate-rooted"><code>(rooted)</code></dt>
+      <dd>Held / rooted position; no plant. Corresponds to the <code>rooted</code> set primitive (see the <a href="/freestyle/sets/reference">Set notation reference</a>).</dd>
+    </dl>
+
+    <h4 id="op-surfaces">Surfaces &amp; body actions (reference)</h4>
+    <p>The remaining vocabulary is small enough to list verbatim:</p>
+    <ul>
+      <li><code>CLIP</code>, <code>TOE</code>: standard plant or landing surfaces; <code>INSIDE</code>, <code>OUTSIDE</code>, <code>SOLE</code>, <code>KNEE</code>, <code>HEEL</code>, <code>HEAD</code>, <code>NECK</code>, <code>SHOULDER</code>, <code>FOREHEAD</code>, <code>CLOUD</code>: unusual landing surfaces (flagged <code>[UNS]</code>)</li>
+      <li><code>SPIN</code>, <code>DUCK</code>, <code>DIVE</code>, <code>JUMP</code>, <code>FLYING</code>: body actions</li>
+      <li><code>SWING</code>: a controlled swing element (Pendulum, Rake); <code>SYMP</code>: the symposium dex movement</li>
+      <li><code>KICK</code>: a terminating kick, non-scoring (flagged <code>[KICK]</code>)</li>
+      <li><code>FRONT WHIRL</code> / <code>BACK WHIRL</code> / <code>FRONT SWIRL</code>: rotational dex variants on a rotational base (the plain swirl and reverse-swirl dexes are written with the ordinary IN / OUT vocabulary)</li>
+    </ul>
+
+    <p class="detail-muted">
+      For the broader set notation reference (set primitives like Pixie,
+      Fairy, Atomic, Quantum and how they decompose), see
+      <a href="/freestyle/sets/reference">Set notation reference</a>.
+    </p>
+    </details>
+  </section>
+    </div>
+  </details>
+
+  <details class="dict-tile" id="chapter-add-accounting">
+    <summary class="dict-tile-summary">
+      <h2 class="dict-tile-title" id="traditional-reference">ADD Accounting</h2>
+      <span class="dict-tile-hint">Where a trick's difficulty number comes from, and how the weights add up.</span>
+    </summary>
+    <div class="dict-tile-body">
+    <section class="content-section" id="section-add-accounting">
+
+    <h3 id="run-quality">ADD philosophy</h3>
+    <p>
+      ADD is <em>additive structural accounting</em>: a trick's total is the
+      sum of its base weight and each modifier's weight. The scored
+      bracket-flags in operational notation are
+      <code>[BOD]</code> / <code>[DEX]</code> / <code>[XBD]</code> /
+      <code>[DEL]</code> / <code>[UNS]</code> / <code>[XDEX]</code> (the last
+      scored only where the notation carries it); <code>[PDX]</code> marks a
+      dex's side relationship and <code>[KICK]</code> marks a non-scoring kick,
+      so neither adds on its own. The same additive logic lets the
+      dictionary read <em><a href="/freestyle/tricks/mobius">mobius</a></em> as
+      &ldquo;gyro torque&rdquo; and arrive at the same total either way.
+    </p>
+
+    {{!-- The 9-ADD wording is deliberately anonymized: it names no witness and
+          claims no record. Nine-ADD landings are reported but unverified and
+          disputed, so the highest video-corroborated ceiling is stated at 8. --}}
+    <p class="glossary-note" id="difficulty-frontier">
+      <strong>The difficulty frontier.</strong> Eight ADD is the highest currently
+      video-corroborated landing represented in the dictionary. Carousel (Surging
+      Ducking Paradox Symposium Whirling Rake) is its video-documented example;
+      Surging Ducking Paradox Blender and Surging Ducking Paradox Torque are close
+      8-ADD contenders. Nine-ADD landings survive only as unverified, disputed
+      historical reports, and none is identified as verified without new
+      corroborating footage.
+    </p>
+
+    <h3 id="add-provenance">Where do ADD values come from?</h3>
+    <p>
+      A trick's ADD can come from three places, and they do not always match.
+      The <strong>source-stated</strong> value is the number an external
+      catalogue recorded. The <strong>derived</strong> value is what the platform
+      computes from the trick's structure, summing each scoring element. The
+      <strong>structural-derivation</strong> value is the sum of a named
+      compound's parts (eggbeater = atomic + legover + stall = 3). When the
+      stated and derived numbers disagree, the derived value is canonical and the
+      source number is recorded as a divergence.
+    </p>
+    <p>
+      This happens for two reasons. Sometimes a source counts a different thing:
+      PassBack records dexes, while the platform counts ADD, so a mirage is one
+      dex but two ADD (dex plus stall) and a butterfly is one dex but three ADD.
+      Neither is wrong; they measure different things. Other times a catalogue
+      carries a convention that diverges from structure, as with Big Apple Sauce
+      and the furious and railing families (see <a href="#source-divergence">Source
+      divergence</a>, and the source hierarchy under <a href="#section-sources">Sources</a>).
+      Ontology can override a catalogue number because the catalogue records what
+      was observed, while the structural ADD states what the move is made of.
+    </p>
+
+    <h3>Base trick weights</h3>
+    <p>
+      The twelve canonical atoms each have a fixed ADD value; modifier
+      stacks compose onto them.
+    </p>
+    <div class="glossary-add-weight-table-wrap">
+      <table class="glossary-add-weight-table">
+        <thead><tr><th>Atom</th><th>ADD</th><th>Role</th></tr></thead>
+        <tbody>
+          <tr><td>toe-stall</td><td>1</td><td>foundational delay</td></tr>
+          <tr><td>clipper-stall</td><td>2</td><td>cross-body traversal + stall</td></tr>
+          <tr><td>around-the-world</td><td>2</td><td>1-dex atom</td></tr>
+          <tr><td>orbit</td><td>2</td><td>reverse around-the-world</td></tr>
+          <tr><td>legover</td><td>2</td><td>1-dex toe terminal</td></tr>
+          <tr><td>pickup</td><td>2</td><td>reverse legover</td></tr>
+          <tr><td>mirage</td><td>2</td><td>dex-anchored entry topology</td></tr>
+          <tr><td>illusion</td><td>2</td><td>reverse mirage</td></tr>
+          <tr><td>butterfly</td><td>3</td><td>dex+xbody+stall</td></tr>
+          <tr><td>osis</td><td>3</td><td>body+xbody+stall</td></tr>
+          <tr><td>whirl</td><td>3</td><td>dex+xbody+stall</td></tr>
+          <tr><td>swirl</td><td>3</td><td>swirl+xbody+stall</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Modifier weights</h3>
+    <p>
+      Most modifiers add a fixed ADD weight on every base. An X-Dex is a
+      separate +1 scored wherever the operational notation carries
+      <code>[XDEX]</code> on a dex; it is never part of a modifier's own weight.
+      Blurry is the exception: it is a folk shorthand scored per trick, reading
+      as stepping with a paradox second dex (+2) where the trick's notation
+      carries that second dex and as stepping alone (+1) where it does not, so
+      its contribution follows the trick's own notation rather than a single
+      global value.
+    </p>
+    <div class="glossary-add-weight-table-wrap">
+      <table class="glossary-add-weight-table">
+        <thead><tr><th>Modifier</th><th>ADD</th><th>Class</th></tr></thead>
+        <tbody>
+          <tr><td>paradox</td><td>+1</td><td>dex relationship</td></tr>
+          <tr><td>stepping</td><td>+1</td><td>set</td></tr>
+          <tr><td>ducking</td><td>+1</td><td>body</td></tr>
+          <tr><td>weaving</td><td>+1</td><td>body</td></tr>
+          <tr><td>diving</td><td>+1</td><td>body</td></tr>
+          <tr><td>zulu</td><td>+1</td><td>body</td></tr>
+          <tr><td>symposium</td><td>+1</td><td>body (no-plant)</td></tr>
+          <tr><td>spinning</td><td>+1</td><td>body (rotation)</td></tr>
+          <tr><td>gyro</td><td>+1</td><td>body (rotation)</td></tr>
+          <tr><td>inspinning</td><td>+1</td><td>body (rotation)</td></tr>
+          <tr><td>whirling</td><td>+1</td><td>set</td></tr>
+          <tr><td>atomic</td><td>+1</td><td>set</td></tr>
+          <tr><td>furious</td><td>+2</td><td>two-dex set (barraging is a legacy name for this same set, not a separate operator)</td></tr>
+          <tr><td>nuclear</td><td>+2</td><td>set (composite ≡ paradox+illusion)</td></tr>
+          <tr><td>blurry</td><td>+1 / +2</td><td>set (folk shorthand, scored per trick)</td></tr>
+          <tr><td>pixie</td><td>+1</td><td>set</td></tr>
+          <tr><td>fairy</td><td>+1</td><td>set</td></tr>
+          <tr><td>quantum</td><td>+1</td><td>set</td></tr>
+          <tr><td>pogo</td><td>+1</td><td>set (the standalone pogo set scores 0)</td></tr>
+          <tr><td>shooting</td><td>+3</td><td>set (outlier magnitude)</td></tr>
+          <tr><td>rooted</td><td>0</td><td>set (non-scoring)</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Additive formulas</h3>
+    <p>
+      ADD = base + modifier stack. Example:
+      <code>paradox(+1) + mirage(2) = 3 ADD</code>. The operational
+      notation chain mirrors the formula's term order.
+    </p>
+
+    <h3>Complementary formulas</h3>
+    <p>
+      Some compound modifier labels are folk shorthand for two-operator
+      stacks. <em>Blurry</em> is the canonical example:
+      <code>blurry = stepping + paradox</code>. Composite labels like this are
+      decomposed into their underlying operators so the additive math surfaces
+      at the atom level (see <a href="/freestyle/tricks/blur">Blur</a> below).
+    </p>
+
+    <h3>Decomposition chains</h3>
+    <p>
+      Multi-modifier compounds derive ADD by walking the chain outward
+      from the base. <em>Stepping paradox whirl</em> =
+      <code>stepping(+1) + paradox(+1) + whirl(3) = 5 ADD</code>. The
+      same chain doubles as the trick's compositional reading on its
+      detail page.
+    </p>
+
+    <h3>Worked examples</h3>
+    <p>
+      Five examples cover the additive pattern, composite-modifier
+      shorthand, and currently-open doctrine cases. Each card shows
+      compact notation, official ADD, and derivation; commentary
+      collapses behind the card title.
+    </p>
+    <div class="glossary-add-examples-grid">
+      {{#each content.addWorkedExamples}}
+      <article class="glossary-add-example-card" id="add-example-{{slug}}">
+        <header class="glossary-add-example-head">
+          <h4 class="glossary-add-example-title">{{displayName}}</h4>
+          <span class="glossary-add-example-status glossary-add-example-status--{{status}}">{{statusLabel}}</span>
+        </header>
+        <dl class="glossary-add-example-fields">
+          <dt>Compact</dt>
+          <dd>{{compactNotation}}</dd>
+          <dt>Official ADD</dt>
+          <dd class="glossary-add-example-add">{{officialAdd}}</dd>
+          <dt>Derivation</dt>
+          <dd><code>{{derivation}}</code></dd>
+        </dl>
+        {{#if observationalNote}}
+        <details class="glossary-family-card-observational">
+          <summary class="glossary-family-card-observational-summary">
+            <span class="glossary-family-card-observational-title">Why it matters</span>
+            <span class="glossary-layer-badge glossary-layer-badge--observational">observational</span>
+          </summary>
+          <p class="glossary-family-card-observational-body">{{observationalNote}}</p>
+        </details>
+        {{/if}}
+      </article>
+      {{/each}}
+    </div>
+
+    <details class="glossary-family-card-observational">
+      <summary class="glossary-family-card-observational-summary">
+        <span class="glossary-family-card-observational-title">Discrepancy cases &amp; policy-dependent semantics</span>
+        <span class="glossary-layer-badge glossary-layer-badge--advanced">advanced</span>
+      </summary>
+      <p class="glossary-family-card-observational-body">
+        Some compounds show a gap between the naïvely computed ADD and the
+        official value (for example sumo, via an X-Dex on the following dex).
+        These are settled cases where the mechanism is known, and trick-detail
+        pages render the official value with the divergence noted. The counting-frame
+        doctrine (whether [PDX] is independently flag-counted vs absorbed
+        into the dex flag) is the main remaining source of multi-source
+        disagreement; see <a href="/freestyle/add-analysis">ADD Accounting &amp;
+        Analysis</a> for case-by-case adjudication.
+      </p>
+    </details>
+
+    <details>
+      <summary>
+        <span class="glossary-layer-badge glossary-layer-badge--advanced">[advanced]</span>
+        Multi-bag governing rule (boundary doctrine)
+      </summary>
+      <p>
+        Multi-bag freestyle (controlling more than one bag at a time) is a
+        boundary object relative to the single-bag freestyle dictionary that
+        the rest of these chapters describe. The platform's governing rule
+        for multi-bag ADD accounting is: <strong>one additional ADD for each
+        simultaneously controlled bag</strong>. Two-bag juggling reads as
+        <code>TOE &gt; TOE</code> with <code>delay(2) = 2 ADD</code>; three-bag
+        juggling reads as <code>TOE &gt; TOE &gt; TOE</code> with
+        <code>delay(3) = 3 ADD</code>; and so on. Each simultaneously
+        controlled bag contributes one delay ADD.
+      </p>
+      <p>
+        Multi-bag rows currently sit under <code>category=multi-bag</code> and
+        ontology status "boundary object" pending a future dedicated
+        multi-bag freestyle module. The single-bag dictionary axes (family,
+        movement system, topology, sets) do not classify multi-bag rows.
+      </p>
+    </details>
+
+    <details>
+      <summary>
+        <span class="glossary-layer-badge glossary-layer-badge--advanced">[advanced]</span>
+        ADD value can flatten execution difficulty
+      </summary>
+      <p>
+        Some historically assigned ADD values flatten major differences in
+        execution difficulty or athletic demand. The clearest example sits at
+        the 2 ADD layer: hop-over, walk-over, and wrap are all historically
+        classified as 2-ADD moves despite substantial differences in balance,
+        timing, mobility, and aerial coordination. Hop-over carries a body
+        jump over a held delay (mid-air clearance, single landing leg);
+        walk-over passes the opposite leg over a grounded delay (balance, not
+        jump); wrap pulls the bag around the support leg into a cross-body
+        position (no body event at all). The three share the held-delay
+        leg-over chassis but otherwise have very different physical demands.
+      </p>
+      <p>
+        The platform preserves historical ADD doctrine (the published value
+        stays canonical) while allowing structural and mechanical relationships
+        to be discussed separately on the per-trick detail pages and via the
+        movement-system, family, and topology browse axes. The same pattern
+        recurs at other ADD layers (1-ADD body kicks vs anatomical stalls;
+        3-ADD compounds whose execution difficulty diverges from their flat
+        ADD-arithmetic). ADD is one axis of difficulty, not all of it.
+      </p>
+    </details>
+
+    <p>
+      For the full mechanical walkthrough with all resolved formulas,
+      see <a href="/freestyle/add-analysis">ADD Accounting &amp; Analysis</a>.
+    </p>
+
+    <h4 class="section-heading" id="run-quality-ladder">Run-quality ladder</h4>
+    <p class="detail-muted">
+      A run-quality tier describes a whole run, not a single trick. Each tier
+      asks every trick in the run to clear a minimum ADD, so the
+      <strong>lowest-ADD trick in the run sets the tier</strong>: one easy trick
+      caps the whole run.
+    </p>
+    <dl class="glossary-term-list">
+      {{#each content.runQualityLadder}}
+      <dt>{{term}}</dt>
+      <dd>{{definition}}</dd>
+      {{/each}}
+    </dl>
+    <p class="detail-muted">
+      Example: a run of ADD 5, 3, and 6 tricks is <strong>Guiltless</strong>
+      (every trick reaches at least 3), not Fearless, because the ADD-3 trick is
+      the floor.
+    </p>
+    <p class="detail-muted">
+      <strong>Genuine</strong> and <strong>BOP</strong> are related terms, not
+      rungs of this numeric ladder: Genuine is Guiltless excluding BOP tricks,
+      and BOP is the Butterfly, Osis, and Paradox Mirage set. For applying these
+      tiers and the competitive formats (Sick3, Shred:30, Circle) to real runs,
+      see <a href="/freestyle/combo-analysis">Combo Analysis</a>.
+    </p>
+    </section>
+    </div>
+  </details>
+
+  <details class="dict-tile" id="chapter-runs-sequences">
+    <summary class="dict-tile-summary">
+      <h2 class="dict-tile-title">Runs &amp; Sequences</h2>
+      <span class="dict-tile-hint">How individual tricks combine into runs.</span>
+    </summary>
+    <div class="dict-tile-body">
+  <section class="content-section" id="section-composition">
+    <p>
+      Above the single-trick level, tricks combine into longer sequences. The
+      vocabulary below describes how tricks are <em>used</em>, not how they
+      are defined.
+    </p>
+    <ul>
+      <li><strong>Run</strong>: a continuous sequence of tricks.</li>
+      <li><strong>Shuffle</strong>: alternating sides rhythmically.</li>
+      <li><strong>Link / Transition</strong>: the connection between tricks.</li>
+      <li><strong>Connector Trick</strong>: a trick commonly used to maintain flow. Whirl-family tricks often act as connectors.</li>
+      <li><strong>Dropless</strong>: a run without drops.</li>
+      <li><strong>Density</strong>: average ADD per trick in a run.</li>
+      <li><strong>Shred Circle</strong>: a group format where players take turns performing runs.</li>
+    </ul>
+
+
+    {{! ── Decomposition table — the key structural readings in one compact
+        place. Sits this late in the page because it belongs after the reader
+        knows families, modifiers, notation, and ADD. The `derivation-atlas`
+        anchor is preserved for inbound deep-links. }}
+    <h3 class="section-heading glossary-derivation-atlas-heading" id="derivation-atlas">
+      Decomposition table
+    </h3>
+    <p class="glossary-derivation-atlas-intro">
+      The most useful structural readings in one place. Each row reads a named
+      trick as the operators and base it is built from. A <strong>&equiv;</strong>
+      row is a structural equivalence; a <strong>&asymp;</strong> row is an
+      educational approximation that communicates movement feel without replacing
+      the formal classification.
+    </p>
+    <div class="glossary-add-weight-table-wrap">
+      <table class="glossary-add-weight-table">
+        <thead>
+          <tr><th>Trick</th><th>Reads as</th><th>Register</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><a href="/freestyle/tricks/torque">Torque</a></td><td>Quantum Osis</td><td>&equiv;</td></tr>
+          <tr><td><a href="/freestyle/tricks/blender">Blender</a></td><td>Whirling Osis</td><td>&equiv;</td></tr>
+          <tr><td><a href="/freestyle/tricks/mobius">Mobius</a></td><td>Gyro Torque &equiv; Gyro Quantum Osis</td><td>&equiv;</td></tr>
+          <tr><td><a href="/freestyle/tricks/ripwalk">Ripwalk</a></td><td>Stepping Butterfly</td><td>&equiv;</td></tr>
+          <tr><td><a href="/freestyle/tricks/blur">Blur</a></td><td>Stepping Paradox Mirage</td><td>&equiv;</td></tr>
+          <tr><td><a href="/freestyle/tricks/twirl">Twirl</a></td><td>Reverse Swirling Osis <span class="detail-muted">&asymp; Swirl + Spin (movement feel)</span></td><td>&equiv; / &asymp;</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    {{! ── Vocabulary relationships — four ways trick names can relate ───────
+        Replaces the prior #compression-vs-alternate-derivation subsection
+        and the standalone #symbolic-compression-flow mobius example, which
+        fold into the new structure. Both anchors preserved (on the h3 and
+        on the Structural compression h4) for inbound deep-links from
+        external references.
+
+        Curator-authored: four relationship types
+        (pure alias / structural compression / equivalent derivation /
+        ontology relationship) explained with concrete movement-centered
+        examples. Movement-language pedagogy, not academic ontology;
+        avoids parser/AST terminology. Worked examples (flurry +
+        witchdoctor) fold into Equivalent derivations subsection. }}
+    <h3 class="section-heading" id="vocabulary-relationships">Vocabulary relationships: four ways trick names can relate</h3>
+    {{! Preserve legacy anchor for deep-links; the prior subsection lived here. }}
+    <a id="compression-vs-alternate-derivation"></a>
+    <p>
+      Freestyle vocabulary doesn&rsquo;t behave like ordinary
+      dictionary words. The same trick may go by several names, and a
+      single name may package a longer movement formula or admit
+      alternate derivational routes. When a trick page shows a
+      <strong>&equiv;</strong> reading (line 1), that reading is an
+      <strong>interpretation</strong>, and the platform&rsquo;s
+      <strong>interpretation doctrine</strong> is one rule: an interpretation
+      is <em>descriptive, never a recipe</em>. It tells you what a trick can be
+      read as; it does not hand you something to apply to other tricks.
+    </p>
+    <p>
+      The boundary older vocabularies lost: <strong>a historical derivation is
+      not a productive modifier.</strong>
+      <a href="/freestyle/tricks/eggbeater">eggbeater</a> &equiv; atomic legover
+      <span class="glossary-flagship-marker" title="Flagship: a historical reading is descriptive, not a productive operator">&#9733;</span>
+      is two vocabularies describing one movement; it does <em>not</em>
+      make &ldquo;eggbeater&rdquo; an operator you can apply (there is no
+      &ldquo;eggbeater-ing&rdquo; another base). A genuine
+      <a href="#section-modifiers">modifier ecosystem</a> (pixie, ducking) is
+      the opposite: it <em>does</em> apply across many bases. A reading says
+      what a trick <em>is equivalent to</em>; a modifier says what you can
+      <em>do to</em> a base.
+    </p>
+    <p>
+      Readings also arrive by different routes, and the route is worth knowing:
+      an <strong>editorial equivalence</strong> (smear &equiv; pixie mirage), a
+      <strong>historical derivation</strong> (eggbeater &equiv; atomic legover),
+      a <strong>compositional descent</strong>
+      (<a href="/freestyle/tricks/blender">blender</a> &equiv; whirling osis
+      <span class="glossary-flagship-marker" title="Flagship: a named structure built from canonical tricks, a compositional descendant, not a primitive family">&#9733;</span>,
+      a named structure built from canonical tricks), a
+      <strong>structural parse</strong> (the reading the notation itself yields),
+      or a <strong>policy-dependent</strong> reading (one that holds only under a
+      curator ruling). None of these is a productive modifier, and
+      <strong>an interpretation is not always settled</strong>: some
+      &equiv; readings are ratified structure, others are observational or
+      ruling-dependent and may change. Four kinds of relationship recur often
+      enough to name separately.
+    </p>
+
+    <h4 class="glossary-equivalence-worked-heading">1. Pure aliases: different names, same trick</h4>
+    <p>
+      The simplest case. The same operational structure carries
+      multiple names, usually for historical reasons. Before the word
+      <em>quantum</em> entered the vocabulary, players said <em>toe</em>
+      for the same set of compounds; that older naming was later retired.
+    </p>
+    <ul class="glossary-equivalence-worked-example">
+      <li><strong>toe blur</strong> &equiv; <a href="/freestyle/tricks/quantum_mirage">quantum mirage</a></li>
+      <li><strong>toe blizzard</strong> &equiv; <a href="/freestyle/tricks/quantum_illusion">quantum illusion</a></li>
+    </ul>
+    <p>
+      Aliases don&rsquo;t expose movement structure. They&rsquo;re
+      naming, not composition. The two names refer to the same
+      physical sequence.
+    </p>
+
+    {{! Preserve legacy anchor for deep-links to the mobius compression flow. }}
+    <h4 class="glossary-equivalence-worked-heading" id="symbolic-compression-flow">2. Structural compression: names that encode composition</h4>
+    <p>
+      A trick name can compress a longer compositional reading into a
+      single word. As freestyle vocabulary evolved, many commonly
+      repeated compositions acquired compressed names that eventually
+      became more familiar than their expanded structural readings:
+      the short name is the everyday speech form; the
+      expansion reveals how the trick is built from operators and
+      bases.
+    </p>
+    <ul class="glossary-equivalence-worked-example">
+      <li><strong><a href="/freestyle/tricks/smear">smear</a></strong> &equiv; pixie mirage</li>
+      <li><strong><a href="/freestyle/tricks/ripwalk">ripwalk</a></strong> <span class="glossary-flagship-marker" title="Flagship teaching example: clean atom-level structural compression">&#9733;</span> &equiv; stepping butterfly</li>
+      <li><strong><a href="/freestyle/tricks/atom_smasher">atom smasher</a></strong> &equiv; atomic mirage</li>
+      <li><strong><a href="/freestyle/tricks/eggbeater">eggbeater</a></strong> &equiv; atomic legover</li>
+      <li>
+        <strong><a href="/freestyle/tricks/mobius">mobius</a></strong> <span class="glossary-flagship-marker" title="Flagship teaching example: multi-depth compression ladder">&#9733;</span>
+        &equiv; gyro torque
+        &equiv; spinning same-side torque
+        &equiv; spinning quantum same-side osis
+        <em>(a compression ladder: same structure at four reading depths)</em>
+      </li>
+    </ul>
+    <p>
+      Unlike aliases, these names <em>are</em> structural. Reading
+      <em>ripwalk</em> as <em>stepping butterfly</em> makes the
+      move&rsquo;s ancestry legible. A compressed name can sit at
+      multiple expansion depths; mobius walks shallow-to-deep through
+      four readings of the same trick, and the deepest reading is
+      where the wow-moment lands: &ldquo;oh, these are
+      compositional transformations.&rdquo; For a step-by-step
+      walkthrough of how operators stack and how ADD totals are
+      derived, see
+      <a href="/freestyle/add-analysis">ADD Accounting &amp; Analysis</a>.
+    </p>
+
+
+    <h4 class="glossary-equivalence-worked-heading">3. Equivalent derivations: multiple valid paths</h4>
+    <p>
+      Some tricks admit more than one structural reading:
+      different operator compositions that arrive at the same trick
+      with the same ADD. Both paths are pedagogically live; neither is
+      wrong.
+    </p>
+    <ul class="glossary-equivalence-worked-example">
+      <li>
+        <strong><a href="/freestyle/tricks/flurry">flurry</a></strong> <span class="glossary-flagship-marker" title="Flagship teaching example: two valid derivations of the same trick">&#9733;</span>
+        &equiv; <em>barraging legover</em>
+        <span class="text-muted">(furious(+2) + legover(2) = 4 ADD)</span>
+        &equiv; <em>paradox + paradox legover</em>
+        <span class="text-muted">(paradox(+1) + paradox-legover(3) = 4 ADD)</span>
+      </li>
+      <li>
+        <strong><a href="/freestyle/tricks/witchdoctor">witchdoctor</a></strong>
+        &equiv; <em><a href="/freestyle/tricks/atom_smasher">atom-smasher</a> + symposium</em>
+        <span class="text-muted">(atom-smasher(4) + symposium(+1) = 5 ADD; current canonical)</span>
+        &equiv; <em>atomic symposium mirage</em>
+        <span class="text-muted">(historical reading, preserved as context)</span>
+      </li>
+    </ul>
+    <p>
+      When trick-detail pages show an &ldquo;Alternate
+      derivations&rdquo; panel, this is what they&rsquo;re showing:
+      structurally distinct routes through the movement
+      language that converge on the same trick.
+      <a href="/freestyle/tricks/flurry">See flurry</a>
+      <a href="/freestyle/tricks/witchdoctor">See witchdoctor</a>
+    </p>
+    <p>
+      Some equivalent derivations survive primarily as
+      <strong>historical readings</strong>: older community
+      language the trick was originally taught in, preserved even
+      after a different canonical decomposition becomes preferred.
+      Witchdoctor&rsquo;s <em>atomic symposium mirage</em> reading,
+      the retired <em>toe</em>-prefixed naming
+      (toe blur, toe blizzard), and several
+      barrage-family decompositions all sit here. The historical
+      reading is kept because it keeps older community language
+      navigable, not because it&rsquo;s a competing claim against the
+      current canonical.
+    </p>
+
+    <h4 class="glossary-equivalence-worked-heading">4. Ontology relationships: family ancestry and transformations</h4>
+    <p>
+      Beyond compression and equivalence, tricks relate by ancestry:
+      a base trick anchors a family of related compounds that
+      share structural DNA, and modifiers transform one trick into
+      another along well-worn paths.
+    </p>
+    <ul class="glossary-equivalence-worked-example">
+      <li>The <strong><a href="/freestyle/tricks/butterfly">butterfly family</a></strong> anchors a walking progression (butterfly &rarr; ducking butterfly &rarr; spinning butterfly &rarr; &hellip;) where each step swaps or adds one operator.</li>
+      <li>The <strong>legover family</strong> (<a href="/freestyle/tricks/legover">legover</a>, <a href="/freestyle/tricks/double_leg_over">double-leg-over</a>, <a href="/freestyle/tricks/eggbeater">eggbeater</a>, <a href="/freestyle/tricks/schmoe">schmoe</a>) share the same body event (leg over the bag) under different setup vehicles.</li>
+      <li>The <strong>whirl family</strong> (<a href="/freestyle/tricks/whirl">whirl</a>, <a href="/freestyle/tricks/rev_whirl">rev-whirl</a>, <a href="/freestyle/tricks/gyro_whirl">gyro-whirl</a>, <a href="/freestyle/tricks/spinning_whirl">spinning-whirl</a>, <a href="/freestyle/tricks/paradox_whirl">paradox-whirl</a>) share the same rotational dex with different prefixes.</li>
+      <li><strong><a href="/freestyle/tricks/eclipse">eclipse</a> &rarr; <a href="/freestyle/tricks/hop_over">hop-over</a></strong>: eclipse is the airborne evolution of hop-over&rsquo;s grounded held-delay leg-over chassis.</li>
+    </ul>
+    <p>
+      These aren&rsquo;t aliases (different names refer to different
+      tricks) and they aren&rsquo;t compression (the family member is
+      a distinct trick, not just a renaming). They&rsquo;re
+      transformational: one trick is reachable from another by
+      applying a structural modifier: add a body event, add a
+      rotation, lift airborne.
+    </p>
+
+    <table class="glossary-equivalence-distinctions">
+      <thead>
+        <tr><th>Relationship</th><th>Same trick?</th><th>Same structure?</th><th>What it asserts</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Pure alias</td><td>yes</td><td>yes</td><td>different name, identical sequence</td></tr>
+        <tr><td>Structural compression</td><td>yes</td><td>yes (compressed)</td><td>the short name packages a compositional formula</td></tr>
+        <tr><td>Equivalent derivation</td><td>yes</td><td>different structural reading/path (movement converges; derivation differs)</td><td>different operator paths arrive at the same trick &amp; ADD</td></tr>
+        <tr><td>Ontology relationship</td><td>no (distinct trick)</td><td>related</td><td>linked by family ancestry or structural transformation</td></tr>
+      </tbody>
+    </table>
+
+    <p>
+      Advanced freestyle names can sound compressed, cryptic, or seem
+      to admit multiple interpretations because the notation system
+      isn&rsquo;t just labeling tricks; it&rsquo;s describing
+      relationships between movement structures. Knowing which kind of
+      relationship you&rsquo;re looking at tells you how to read the
+      name: vocabulary, composition, derivation, or family.
+    </p>
+
+    <h4 class="glossary-equivalence-worked-heading" id="two-projections">Two projections of one move, and which name becomes official</h4>
+    <p>
+      Underneath all four relationships sits one idea. A trick has two ways of being
+      named, and they are <strong>two projections of the same move</strong>, not two
+      different things. One projection is the <strong>folk name</strong> the community
+      speaks; the other is the <strong>structural decomposition</strong>: the
+      operators and base the move is built from. Neither is more &ldquo;real&rdquo; than
+      the other; they point at the same physical sequence from two directions.
+    </p>
+    <p>
+      That is also how the platform decides two names mean the same trick: it compares
+      the <strong>decomposed structure</strong>, not the spelling. Two names that look
+      nothing alike are the same move when they decompose to the same operators and base;
+      the match is on <em>structure</em>, never on <em>strings</em>.
+    </p>
+    <ul class="glossary-equivalence-worked-example">
+      <li><strong><a href="/freestyle/tricks/gauntlet">gauntlet</a></strong> &equiv; <em>stepping-ducking-paradox-torque</em>: a folk name and its structural reading, one 7-ADD move.</li>
+      <li><strong><a href="/freestyle/tricks/gyro_ducking_symposium_torque">gyro-ducking-symposium-torque</a></strong> &equiv; <em>alpine-big-apple</em>: a structural name and its folk reading, one 7-ADD move.</li>
+    </ul>
+    <p>
+      Which projection becomes the <strong>canonical</strong> (displayed) name is decided
+      by which one the community actually uses, and it goes both ways. For
+      <em>gauntlet</em> the folk name won, and the structural reading rides along as the
+      alias; for <em>gyro-ducking-symposium-torque</em> the structural name won, and
+      <em>alpine-big-apple</em> is the alias. The other projection is never discarded;
+      it stays attached so either name still finds the trick.
+    </p>
+
+    {{! ── Walking-family progression ────────────────────────────────────────
+        Pedagogical pathway: seven named compounds that branch off the
+        butterfly base, each adding or swapping one operator. Surfaces
+        within §8 as a worked example of how a base trick anchors a
+        family of compositionally-related tricks. Readings sourced from
+        freestyleSymbolicEquivalences.ts. }}
+    <h3 class="section-heading" id="walking-family-progression">Walking-family progression: a family worked example</h3>
+    <p>
+      Seven canonical compounds, each branching off the butterfly base
+      by adding or swapping one operator. Read top-to-bottom for a tour
+      of how the butterfly family climbs the difficulty ladder.
+    </p>
+    <ol class="glossary-walking-family-progression">
+      <li>
+        <strong><a href="/freestyle/tricks/butterfly">butterfly</a></strong>
+        <span class="glossary-walking-family-formula"><span class="notation-token notation-core-family">butterfly</span> <em>(base, 3 ADD)</em></span>
+      </li>
+      <li>
+        <strong><a href="/freestyle/tricks/ripwalk">ripwalk</a></strong>
+        <span class="glossary-walking-family-formula">&equiv; <span class="notation-token notation-modifier">stepping</span> <span class="notation-token notation-core-family">butterfly</span> <em>(4 ADD)</em></span>
+      </li>
+      <li>
+        <strong><a href="/freestyle/tricks/dimwalk">dimwalk</a></strong>
+        <span class="glossary-walking-family-formula">&equiv; <span class="notation-token notation-set">pixie</span> <span class="notation-token notation-core-family">butterfly</span> <em>(4 ADD)</em></span>
+      </li>
+      <li>
+        <strong><a href="/freestyle/tricks/sidewalk">sidewalk</a></strong>
+        <span class="glossary-walking-family-formula">&equiv; <span class="notation-token notation-modifier">stepping</span> <span class="notation-token notation-directionality">near</span> <span class="notation-token notation-core-family">butterfly</span> <em>(4 ADD)</em></span>
+      </li>
+      <li>
+        <strong><a href="/freestyle/tricks/dada_curve">dada-curve</a></strong>
+        <span class="glossary-walking-family-formula"><em class="text-muted">(4 ADD; decomposition held for curator review)</em></span>
+      </li>
+      <li>
+        <strong><a href="/freestyle/tricks/matador">matador</a></strong>
+        <span class="glossary-walking-family-formula">&equiv; <span class="notation-token notation-set">nuclear</span> <span class="notation-token notation-core-family">butterfly</span> <em>(5 ADD)</em></span>
+      </li>
+      <li>
+        <strong><a href="/freestyle/tricks/phoenix">phoenix</a></strong>
+        <span class="glossary-walking-family-formula">&equiv; <span class="notation-token notation-set">pixie</span> <span class="notation-token notation-modifier">ducking</span> <span class="notation-token notation-core-family">butterfly</span> <em>(5 ADD)</em></span>
+      </li>
+    </ol>
+    <p class="glossary-walking-family-note">
+      One base, seven named branches. Each operator added is also defined
+      in the Operators &amp; Modifiers section; each compound has its own
+      detail page with related-trick navigation back to the family.
+    </p>
+
+    {{! Future-facing note: run-level vocabulary (connector tricks,
+        transitions, flow systems) is acknowledged so readers see the
+        trajectory beyond single-trick composition. }}
+    <p class="glossary-future-note">
+      <strong>Forthcoming:</strong> the next layer beyond
+      single-trick composition is run-level composition:
+      connector tricks, transitions, shuffle structures, flow
+      systems, transition-heavy families. These concepts are
+      already implicit in the dictionary&apos;s family + invariant
+      surfaces but do not yet have a dedicated chapter here. A
+      future expansion will surface them here.
+    </p>
+    <div id="section-run-architecture">
+    <h3 class="section-heading">Run architecture</h3>
+    <ul class="glossary-run-architecture-topics">
+      <li><strong>Combo flow basics</strong>: how a trick's terminal stall sets up the next trick's entry; the &ldquo;chain language&rdquo; between adjacent tricks.</li>
+      <li><strong>Run-quality tiers</strong> (Tiltless, Guiltless, Tripless, Fearless, Beastly, Godly, Genuine, BOP): the qualitative ladder for evaluating whole runs.</li>
+      <li><strong>Competitive formats</strong> (Routine, Circle, Sick 3, Shred 30): the rule sets for competitive freestyle runs.</li>
+    </ul>
+    <p>
+      Full run-architecture reference (per-tier definitions, format
+      specifications, combo-flow analysis, dropless/dropful classification,
+      sequence-architecture observations) lives at
+      <a href="/freestyle/combo-analysis">Combo Analysis</a>.
+    </p>
+    </div>
+  </section>
+    </div>
+  </details>
+
+  <details class="dict-tile" id="chapter-reference-history">
+    <summary class="dict-tile-summary">
+      <h2 class="dict-tile-title">Reference &amp; History</h2>
+      <span class="dict-tile-hint">Where the vocabulary comes from.</span>
+    </summary>
+    <div class="dict-tile-body">
+  <section class="content-section" id="section-reference-history">
+    <p>
+      Nothing below is required to understand the system; it is lookup. It
+      matters because freestyle's vocabulary carries its own history: folk and
+      historical names, movement-neighborhood lenses, and the source
+      acknowledgements behind the canonical readings.
+    </p>
+
+  {{#if content.connectivePanels.length}}
+  <section class="content-section glossary-connective-section" id="connective-panels">
+    <h2 class="section-heading">
+      Family &amp; Topology Concepts
+      <span class="symbolic-layer-badge" title="Observational symbolic-grammar layer: supplementary; does not change canonical classifications">observational</span>
+    </h2>
+    <p class="section-intro">
+      Observational <em>movement neighborhoods</em>: relationship
+      browsing for a selected cohort of high-value terms. Each
+      panel surfaces how a term lives in practice: tricks that use it,
+      related symbolic groups, and (where relevant) operational notation.
+      The canonical entries above remain authoritative.
+    </p>
+    <p class="section-intro detail-muted">
+      <strong>This section is intentionally incomplete.</strong> The
+      panels below are a <em>representative selection</em>, not a
+      comprehensive atlas; the curator will extend coverage as patterns
+      stabilize. They describe shared mechanics across tricks but do not
+      override the canonical family classifications in the trick
+      dictionary.
+    </p>
+    <div class="glossary-connective-grid">
+      {{#each content.connectivePanels}}
+      <div class="glossary-connective-panel" id="{{anchorId}}">
+        <h3>{{displayName}}</h3>
+        <p class="panel-definition">{{shortDefinition}}</p>
+
+        {{#if relatedTricks.length}}
+        <span class="panel-section-label">Used in these tricks</span>
+        <ul class="panel-tricks">
+          {{#each relatedTricks}}
+          <li><a href="{{detailHref}}">{{canonicalName}}</a>{{#if adds}}<span class="panel-trick-adds">{{adds}}</span>{{/if}}</li>
+          {{/each}}
+        </ul>
+        {{/if}}
+
+        {{#if relatedSymbolicGroups.length}}
+        <span class="panel-section-label">Related symbolic groups</span>
+        <p class="panel-symbolic-groups">
+          {{#each relatedSymbolicGroups}}<span title="{{axis}} axis">{{displayName}}</span>{{/each}}
+        </p>
+        {{/if}}
+
+        {{#if notationHint}}
+        <span class="panel-section-label">Notation hint</span>
+        <p class="panel-notation-hint">{{{notationHint}}}</p>
+        {{/if}}
+
+        {{#if modifierFamilyHref}}
+        <a class="panel-deep-link glossary-outward-link" href="{{modifierFamilyHref}}">Modifier reference</a>
+        {{/if}}
+      </div>
+      {{/each}}
+    </div>
+    <p class="symbolic-layer-footer symbolic-layer-footer--glossary">Observational symbolic-grammar layer. These panels surface mechanical and educational connections; the canonical glossary sections above are the authoritative reference for terminology.</p>
+  </section>
+  {{/if}}
+
+  {{! ── Observational case study — inside-delay stationary-transition neighborhood ──
+      Curator-authored embodied-movement comparison (wrap / walk-over / hop-over / eclipse).
+      Observational layer: groups by player-felt movement envelope, NOT canonical family —
+      all four keep their own trick_family. Must stay semantically compatible with the four
+      trick detail pages: never contradicts their op_notation, ADD accounting, or family, and
+      the eclipse +1 mechanism renders as an explicitly open reading (commonly read as
+      symposium; decomposition unsettled). If a detail page's canonical doctrine changes,
+      update this section in lockstep. }}
+  <section class="content-section glossary-connective-section" id="inside-clipper-neighborhood">
+    <h2 class="section-heading">
+      Case study: the inside-delay stationary-transition neighborhood
+      <span class="symbolic-layer-badge" title="Observational movement-neighborhood lens: supplementary; does not change canonical classifications">observational</span>
+    </h2>
+    <p class="section-intro">
+      Wrap, walk-over / step-over, hop-over, and eclipse are <em>embodied cousins</em>:
+      they share a distinctive <strong>inside-delay stationary transition</strong>, in which
+      the support-side body moves around a relatively stationary bag rather than sending the
+      bag through space. To a newer player they look nearly identical, yet they earn
+      their difficulty in fundamentally different ways. That tension is the lesson:
+      <strong>ADD is not a pure difficulty metric, and embodied movement is its own axis</strong>.
+    </p>
+    <div class="glossary-add-weight-table-wrap">
+      <table class="glossary-add-weight-table">
+        <thead><tr><th>Trick</th><th>Dominant mechanism</th><th>ADD logic</th><th>Observational feel</th></tr></thead>
+        <tbody>
+          <tr><td><a href="/freestyle/tricks/wrap">Wrap</a></td><td>dexterity</td><td>stall + dex</td><td>compact dex around a stationary bag</td></tr>
+          <tr><td><a href="/freestyle/tricks/walk_over">Walk-over</a> / Step-over</td><td>dexterity</td><td>stall + dex</td><td>stepping body-over motion</td></tr>
+          <tr><td><a href="/freestyle/tricks/hop_over">Hop-over</a></td><td>body</td><td>stall + body</td><td>full-body transition around the bag</td></tr>
+          <tr><td><a href="/freestyle/tricks/eclipse">Eclipse</a></td><td>extended hop-over topology</td><td>hop-over + additional commitment</td><td>symposium-like escalation of hop-over mechanics</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="glossary-note">
+      <strong>Why it matters.</strong> As the mechanism column shows, these visually
+      similar tricks earn their difficulty in different ways. Hop-over is widely felt as
+      harder than the dex-based 2-ADD variants despite the identical ADD, a clean example
+      of ADD diverging from practical difficulty. The accounting that keeps all three at
+      2 ADD is in the <a href="#section-add-accounting">ADD Accounting</a> section.
+    </p>
+    <p class="glossary-note">
+      <strong>Eclipse.</strong> Eclipse occupies the same movement neighborhood as hop-over,
+      adding an additional commitment layer (commonly interpreted as symposium / body commitment),
+      though the precise decomposition remains <strong>doctrinally unsettled</strong>. The parser
+      notation can be technically accurate while still not expressing this embodied relationship;
+      the two readings coexist. See <a href="#tracking-vs-canonization">Tracking is not
+      canonization</a>.
+    </p>
+    <p class="symbolic-layer-footer symbolic-layer-footer--glossary">
+      Observational movement-neighborhood lens. Grouping is by player-felt movement envelope;
+      the canonical family classifications (wrap, walk-over, hop-over, and eclipse each anchor
+      their own family) are unchanged.
+    </p>
+  </section>
+
+  {{! ── Advanced Reference Concepts — the publication-state vocabulary.
+      Sits this late in the page because it is reference
+      machinery, not onboarding; the `how-to-read` anchor is preserved for
+      inbound deep-links. }}
+  <section class="content-section" id="section-advanced-reference">
+    <h2 class="section-heading">Advanced Reference Concepts</h2>
+    <p>
+      The sections above use a small set of reference distinctions to mark
+      what kind of claim each entry makes. They matter for deep reference and
+      curation work; a first read of these chapters does not need them.
+    </p>
+
+    <h3 class="section-heading" id="primitives-and-compounds">Primitives and compounds</h3>
+    <p>
+      Two kinds of trick coexist in the freestyle dictionary, and these
+      chapters, the trick-detail surfaces, and ontology tooling all branch on
+      the distinction.
+    </p>
+    <p>
+      A <strong>foundational primitive</strong> (also called a
+      <em>core atom</em> or simply an <em>atom</em>) is an irreducible
+      movement. The platform treats it as a single unit rather than as a
+      composition of smaller parts. The twelve core atoms are toe-stall,
+      clipper-stall, around-the-world, orbit, legover, mirage, pickup,
+      illusion, butterfly, osis, whirl, and swirl. Each carries an internal
+      structural reading (xbody + dex + stall, for instance) that names the
+      components of the motion, but the trick itself is the floor of the
+      system: there is no shallower trick that the atom decomposes into.
+    </p>
+    <p>
+      A <strong>compound</strong> (also called a
+      <em>compositional structure</em>) is a trick built by applying
+      modifiers, operators, or composition rules to one or more atoms.
+      Paradox-mirage, atomsmasher, <a href="/freestyle/tricks/mobius">mobius</a>, <a href="/freestyle/tricks/blur">blur</a>, and baroque are all
+      compounds. Compound tricks can be read as decomposition chains, may
+      have multiple equivalence paths to the same reading, and surface
+      those alternate derivations in the trick-detail
+      &ldquo;Alternate derivations&rdquo; panel.
+    </p>
+    <p>
+      The distinction matters in two places:
+    </p>
+    <dl class="glossary-primitives-compounds">
+      <dt>Equivalence and compression analysis applies to compounds, not primitives.</dt>
+      <dd>
+        When a compound has more than one structurally-valid decomposition,
+        the trick-detail page surfaces both readings as alternate
+        derivations. Atoms intentionally omit this layer; they are
+        the substrate the compositions are built from, not themselves
+        further compressible.
+      </dd>
+      <dt>Decomposition is a structural claim, not a difficulty claim.</dt>
+      <dd>
+        Primitive vs compound is about ontology, not difficulty or scoring.
+        Some atoms are mechanically demanding; some compounds are easier
+        than the atoms they are built on. ADD values are independent of
+        the distinction: atoms span 1&ndash;3 ADD, compounds span 2
+        to 8+ ADD, and primitive-vs-compound tracks movement structure,
+        not scored complexity.
+      </dd>
+    </dl>
+    <p class="detail-muted">
+      The same primitive/compound distinction applies to modifiers and
+      operators. Stepping, paradox, atomic, and the other named modifiers
+      are primitive operators; blurry (= stepping paradox) and the other
+      operator-compositions are compound operators. The doctrine is the
+      same in either case: primitives compose, compounds decompose.
+    </p>
+
+    <h3 class="section-heading" id="how-to-read">Reading the layer labels</h3>
+    <p>
+      These chapters mix several kinds of claim. Canonical material is
+      authoritative; supplementary layers (observational, doctrine,
+      historical) surface alongside it with explicit labels. Knowing the
+      distinction lets a reader scan any section and know what kind of
+      claim a given entry makes.
+    </p>
+    <dl class="glossary-publication-states">
+      <dt>Canonical</dt>
+      <dd>Community-sanctioned; single-valued; authoritative. Default text style, no badge. Lives in the trick dictionary and in the family cards.</dd>
+      <dt>Observational</dt>
+      <dd>Curator-derived movement-neighborhood lens. Supplements canonical without overriding it. Marked with an <em>observational</em> badge; lives in the Family &amp; Topology Concepts section and in expandable panels on family cards.</dd>
+      <dt>Doctrine-sensitive</dt>
+      <dd>A reading governed by a published doctrine. The canonical ADD or decomposition holds; the doctrine explains <em>why</em>.</dd>
+      <dt>Historical</dt>
+      <dd>An older or community interpretation preserved as context, not as a competing claim. Lives in the Historical Terms section and inside trick-detail &ldquo;Alternate derivations&rdquo; panels.</dd>
+      <dt>Alternate derivation (equivalence topology)</dt>
+      <dd>A different structural route to the same trick, reaching the same ADD. Both readings are pedagogically live. Lives in the Runs &amp; Sequences section and in trick-detail panels.</dd>
+      <dt>Pending</dt>
+      <dd>Curator-confirm-pending; not yet ratified. Surfaces with an <em>advanced</em> badge or, on dictionary cards, a &ldquo;decomposition under review&rdquo; pill. Never claimed as canonical.</dd>
+    </dl>
+    <p class="detail-muted">
+      <strong>The settled/pending boundary is now well-defined.</strong> The
+      modifier weights, the <a href="#term-x-dex">X-Dex</a> trigger (scored
+      wherever the operational notation carries <code>[XDEX]</code>, not by
+      operator name), and the
+      named-compound decompositions are <strong>ratified</strong>; the pending
+      set is small: chiefly the counting-frame doctrine (how the
+      <code>[PDX]</code> flag is tallied) and a few source-divergence cases where
+      an external corpus disagrees with the IFPA-derived value. Anything still
+      open renders with a pending state above and is never presented as final.
+    </p>
+    <p class="detail-muted">
+      The shortest readable form of a trick name is the one the community
+      uses; deeper readings remain available for readers who want to see the
+      structure. Multiple readings often coexist legitimately. This reference
+      preserves all of them and marks which kind each one is.
+    </p>
+
+    <h3 class="section-heading" id="tracking-vs-canonization">Tracking is not canonization</h3>
+    <p>
+      Not every name in the dictionary is at the same stage. Here is what each
+      label means, what you see, and why it is there:
+    </p>
+    <div class="moves-table-wrap">
+      <table class="moves-table">
+        <thead>
+          <tr><th>State</th><th>In plain words</th><th>What you see</th><th>Why it is here</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Canonical</td><td>A settled trick the community agrees on</td><td>Normal name, no badge</td><td>Its name and its structure are both resolved</td></tr>
+          <tr><td>Tracked</td><td>A name people really use, written down but not yet ruled on</td><td>Listed, flagged not-yet-canonical</td><td>A complete record kept before the case is settled (for example &ldquo;Big Applesauce&rdquo;, &ldquo;Alpine Big Apple&rdquo;)</td></tr>
+          <tr><td>Under review</td><td>A real trick whose breakdown is not confirmed</td><td>A &ldquo;decomposition under review&rdquo; pill, or an <em>advanced</em> badge</td><td>The move exists; its structure is still open</td></tr>
+          <tr><td>Observational</td><td>A &ldquo;feels-similar&rdquo; grouping or alternate reading, offered as a hint</td><td>An <em>observational</em> badge</td><td>It helps you see connections; it is not an official ruling</td></tr>
+          <tr><td>Alias / duplicate</td><td>A second name for a trick that already has one</td><td>Resolves to the main trick</td><td>Two names that decompose to the same move; one is displayed, the other kept so either still finds it</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      The platform records more names than it endorses, on purpose.
+      <strong>Documentation is not canonization.</strong> A name can be seen in
+      the corpus and <strong>tracked</strong> for completeness, surfaced as an
+      <strong>observational</strong> reading, or left <strong>unresolved</strong>
+      while its structure is still open, none of which makes it a
+      <strong>canonical</strong> trick. A name moves toward canonical only by
+      being <strong>promoted</strong> after a ruling. Recording a name is
+      evidence it exists in the culture, not a claim that it is settled
+      structure.
+    </p>
+    <p>
+      <strong>When does a trick get published?</strong> A name becomes a
+      canonical, published trick only when it can be written in the symbolic
+      notation; when its structure (which operators, which base) is reconciled,
+      not just its number; when it is discoverable across the browse views with
+      its aliases governed; and when nothing about its structure is invented
+      (missing pieces are shown honestly, not guessed). A settled difficulty
+      number is never enough on its own: a trick whose ADD everyone agrees on
+      but whose structure is still contested is held, not published. That is the
+      contract working as designed, not a gap.
+    </p>
+    <p class="detail-muted">
+      In full, six requirements gate promotion: (1) symbolic representation;
+      (2) structural composition, with the operator and base decomposition
+      reconciled; (3) discoverability across the browse views; (4) alias and
+      equivalence governance; (5) honest incompleteness, marking unknown
+      structure as unknown rather than filling it in; and (6) no fabricated
+      structure. Arithmetic validity and structural certainty are independent
+      gates: a clean ADD never licenses asserting a decomposition the sources do
+      not agree on.
+    </p>
+
+    <h3 class="section-heading" id="source-divergence">Source divergence: a number versus a grammar</h3>
+    <p>
+      When one source records a different difficulty than the platform, it can
+      be a one-off miscount. <strong>Big Apple Sauce</strong> is such a case:
+      FootbagMoves lists it at 9, the structure derives 8, and the platform
+      publishes the 8 with the disagreement noted.
+    </p>
+    <p>
+      But difficulty disagreements can also be systematic. The platform fixes
+      the <code>furious</code> operator at 2 ADD, because Fury (Furious Paradox
+      Mirage) is a settled 5, and 5 minus paradox (1) minus mirage (2) leaves 2.
+      FootbagMoves, however, scores every furious trick about two points
+      higher: Furious Whirl at 7 where the structure gives 5, Furious Eggbeater
+      the same, and so on across the whole family. The same pattern appears
+      independently on <code>railing</code> (<a href="/freestyle/sets/reference">rooted
+      plus sailing</a>, structurally 2), which FootbagMoves also scores about two
+      points high.
+    </p>
+    <p>
+      <strong>The cohort test.</strong> A single trick whose number differs from
+      its catalogue value could be an error; an entire cohort moving together in
+      one direction is a convention. Big Apple Sauce above is the single-trick
+      case: publish the structural value, note the one-off. The furious and
+      railing families are the cohort case: publish the structural value, and
+      record the shared convention as a named divergence. The platform never
+      adopts a weight its grammar does not support. This is the difference
+      between cataloguing a number and understanding a grammar.
+    </p>
+  </section>
+
+  <section class="content-section" id="section-media-claim-scope">
+    <h2 class="section-heading">
+      What a video can and can&rsquo;t tell you
+    </h2>
+    <p>
+      Curated video is a <strong>teaching layer</strong>, not a structural one. A
+      clip shows you how a move looks and feels; it does <em>not</em> settle
+      that move&rsquo;s canonical structure, ADD, or family. Those live in the
+      <a href="/freestyle/tricks">trick dictionary</a> and its decompositions; a
+      video is evidence the move is performed in the culture, never a ruling on how
+      it decomposes.
+    </p>
+    <p>
+      Each clip carries a <strong>claim scope</strong> (what kind of thing it
+      asserts), shown as its media badge:
+    </p>
+    <dl class="glossary-publication-states">
+      <dt>Tutorial</dt>
+      <dd>Instructional: walks through how to perform the trick. The strongest teaching claim: the &ldquo;how-to&rdquo; for a move.</dd>
+      <dt>Demonstration</dt>
+      <dd>Shows the trick performed cleanly without a teaching breakdown: proof of the shape, not a lesson.</dd>
+      <dt>Record</dt>
+      <dd>A record-attempt clip with countable repetitions. Evidence of an achievement, not instruction; it never stands in for a tutorial.</dd>
+    </dl>
+    <p>
+      The distinction matters because media <strong>teaches without resolving</strong>.
+      A tutorial can clearly teach a move whose decomposition the dictionary still
+      lists as open (see <a href="#tracking-vs-canonization">Tracking is not
+      canonization</a>): the clip shows the movement; it does not close the
+      structural question, and it never overrides the dictionary&rsquo;s canonical
+      ADD or family.
+    </p>
+    <p>
+      Where to find it: each trick page surfaces its own clips in a
+      <strong>Reference Media</strong> block, and broader collections live in the
+      <a href="/media">media galleries</a>.
+    </p>
+    <p class="glossary-note">
+      A clip is tagged with the trick it shows. A future refinement may also mark a
+      clip as <em>teaching a concept</em> or <em>covering components</em> of a move
+      it doesn&rsquo;t directly name: an indirect-coverage idea reserved for
+      later, not yet built.
+    </p>
+  </section>
+
+  <section class="content-section" id="section-community">
+    <h2 class="section-heading">
+      Community Vocabulary
+    </h2>
+    <p>
+      Folk names and community variants still actively used in the modern
+      vocabulary. Canonical equivalents live in the sections above.
+    </p>
+    <div class="moves-table-wrap">
+      <table class="moves-table">
+        <thead>
+          <tr><th>Folk name</th><th>Canonical equivalent</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Spyro</td><td>A modifier-only folk descriptor for a spinning-class rotation; treated as a body modifier (+1) <span class="detail-muted">(not a standalone dictionary trick, and <strong>not</strong> a synonym for inspin)</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="glossary-note">
+      Will expand with additional folk names and regional variants as curator
+      review continues.
+    </p>
+  </section>
+
+  <section class="content-section" id="section-historical">
+    <h2 class="section-heading">
+      Historical Terms
+    </h2>
+    <p>
+      Retired or era-specific vocabulary preserved for cultural and historical
+      record. These names are no longer in active use; the modern canonical
+      equivalent supersedes them.
+    </p>
+    <div class="moves-table-wrap">
+      <table class="moves-table">
+        <thead>
+          <tr><th>Older name</th><th>Canonical equivalent</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Toe Blur</td><td>Quantum Mirage</td></tr>
+          <tr><td>Toe Blizzard</td><td>Quantum Illusion</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="content-section" id="section-sources">
+    <h2 class="section-heading">Sources</h2>
+    <p class="glossary-about-framing">
+      This reference records vocabulary the footbag community built informally over four decades. Authoritative trick-level definitions live in the <a href="/freestyle/tricks">Trick Dictionary</a>; the source families below contribute to the language documented here.
+    </p>
+    <ul class="glossary-sources-list">
+      <li><strong>Footbag.org</strong>: the long-running community archive; trick lists, event records, and the foundational vocabulary catalogued there. See also the historical per-trick move list.</li>
+      <li><strong>PassBack</strong>: conceptual tutorial series which introduced and formalised much of the modern compositional vocabulary (set / modifier / body operator framings).</li>
+      <li><strong>Stanford shorthand</strong>: compact symbolic notation, an alternative encoding of the compositional grammar that exposes structural symmetries the spelled-out names sometimes obscure.</li>
+      <li><strong><a href="https://www.footbagmoves.com/" target="_blank" rel="noopener noreferrer">FootbagMoves</a></strong>: observational catalogue of named tricks, alternate names, and rotational variants; informs the symbolic-grammar layer of this reference.</li>
+      <li><strong>AnzTrikz</strong>: Australian / New Zealand demonstration series; canonical references for many compound rotational variants.</li>
+      <li><strong>Footbag Finland</strong>: Finnish freestyle demonstration footage; visual references for several dictionary entries.</li>
+    </ul>
+    <p class="glossary-about-framing">
+      <strong>Where authority comes from.</strong> These sources do not carry
+      equal weight. When they conflict, the platform resolves in a fixed order:
+      a curator ruling first; then the structural grammar, where a trick's
+      difficulty is what its movement composition adds up to; then community
+      usage, which decides the displayed name; and last an external catalogue's
+      recorded number. An external source is strong evidence that a trick exists
+      and is performed, but it does not override how a trick decomposes or what
+      its structural ADD is. That is why FootbagMoves listing Big Apple Sauce at
+      9 while the structure derives 8 publishes as 8 with the 9 noted, and why
+      the furious and railing families publish at their structural values (see
+      <a href="#source-divergence">Source divergence</a>). A source number is
+      evidence, not authority.
+    </p>
+    <p class="glossary-about-framing">
+      The vocabulary documented here rests on decades of foundational work
+      by many people. The project owes particular thanks to Ben Job, Steve
+      Goldberg, Adrian Dick, Damian Coventry, Stuart MacFerson, Chris Holden,
+      Red Husted, Matt Kemmer, and Ben Lynn, whose contributions to
+      freestyle's notation, archives, and movement language have been
+      indispensable to this reference and the dictionary it supports.
+    </p>
+    <p class="detail-muted">
+      Definitions integrate the above sources without quoting any single
+      one verbatim; where a term carries a contested decomposition, the
+      authoritative trick page surfaces the open question explicitly.
+    </p>
+  </section>
+  </section>
+    </div>
+  </details>
+
+  </div>{{! /.dict-tile-grid }}
+
+  </div>{{! /.glossary-main-column }}
+</div>

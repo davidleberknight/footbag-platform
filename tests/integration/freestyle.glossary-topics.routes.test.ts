@@ -1,13 +1,15 @@
 /**
- * Integration tests for the flat chapter architecture on GET /freestyle/glossary.
+ * Integration tests for the flat chapter architecture on GET /freestyle/concepts.
  *
- * The glossary is a compact reference manual: the body opens directly on one
+ * Freestyle Concepts is a compact reference manual: the body opens directly on one
  * grid of independently collapsible chapter cards, each a `<details class="dict-tile">`
  * whose summary carries the chapter title and a one-line description. There is
  * no Foundations-vs-topics split, no shelf header, and no sidebar; the chapter
  * grid is the table of contents. This suite pins that contract: the chapters
  * render as peers in reading order, each with a title and a description, and the
- * removed scaffolding stays gone.
+ * removed scaffolding stays gone. The "Reading the Dictionary" orientation is
+ * not a chapter here: it lives on the trick dictionary (/freestyle/tricks) as a
+ * closed disclosure, so Movement Basics is the first chapter.
  *
  * It deliberately does NOT assert a fixed chapter count or any open/closed
  * state, so a future chapter (Doctrine & Insights, The Frontier) can join and
@@ -35,14 +37,13 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-async function glossary(): Promise<string> {
-  const res = await request(await createApp()).get('/freestyle/glossary');
+async function concepts(): Promise<string> {
+  const res = await request(await createApp()).get('/freestyle/concepts');
   expect(res.status).toBe(200);
   return res.text;
 }
 
 const CHAPTER_IDS_IN_ORDER = [
-  'id="chapter-reading-the-dictionary"',
   'id="chapter-movement-basics"',
   'id="chapter-contact-surfaces"',
   'id="chapter-dexterities"',
@@ -55,9 +56,9 @@ const CHAPTER_IDS_IN_ORDER = [
   'id="chapter-reference-history"',
 ];
 
-describe('Glossary — flat chapter architecture (reference-manual table of contents)', () => {
+describe('Freestyle Concepts — flat chapter architecture (reference-manual table of contents)', () => {
   it('renders every major topic as an independently collapsible chapter, in reading order', async () => {
-    const html = await glossary();
+    const html = await concepts();
     let prev = -1;
     for (const id of CHAPTER_IDS_IN_ORDER) {
       const at = html.indexOf(id);
@@ -69,10 +70,25 @@ describe('Glossary — flat chapter architecture (reference-manual table of cont
     }
   });
 
+  it('opens on Movement Basics; Reading the Dictionary is not a chapter here but a disclosure on the trick dictionary', async () => {
+    const html = await concepts();
+    expect(html).not.toContain('id="chapter-reading-the-dictionary"');
+    expect(html).not.toContain('id="section-reading-the-dictionary"');
+    const firstChapterAt = html.indexOf('<details class="dict-tile" id="chapter-');
+    expect(firstChapterAt).toBeGreaterThan(-1);
+    expect(html.indexOf('<details class="dict-tile" id="chapter-movement-basics">')).toBe(firstChapterAt);
+
+    const res = await request(await createApp()).get('/freestyle/tricks');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('<details class="dict-tile" id="reading-the-dictionary">');
+    expect(res.text).toContain('id="section-reading-the-dictionary"');
+    expect(res.text).toContain('>Reading the Dictionary<');
+  });
+
   it('names each chapter exactly once, never repeating the title inside the card', async () => {
-    const html = await glossary();
+    const html = await concepts();
     const titles = [
-      'Reading the Dictionary', 'Movement Basics', 'Contact Surfaces &amp; Delays',
+      'Movement Basics', 'Contact Surfaces &amp; Delays',
       'Dexterities', 'Timing &amp; Sets', 'Operators &amp; Modifiers',
       'Family Encyclopedia', 'Structural Analysis', 'ADD Accounting',
       'Runs &amp; Sequences', 'Reference &amp; History',
@@ -84,7 +100,7 @@ describe('Glossary — flat chapter architecture (reference-manual table of cont
   });
 
   it('lays the chapter cards out in one grid', async () => {
-    const html = await glossary();
+    const html = await concepts();
     const gridAt = html.indexOf('class="dict-tile-grid"');
     expect(gridAt).toBeGreaterThan(-1);
     // every chapter sits inside that grid, so none escapes back to a full-width stack
@@ -94,11 +110,10 @@ describe('Glossary — flat chapter architecture (reference-manual table of cont
   });
 
   it('gives each chapter a title and a one-line description in its summary', async () => {
-    const html = await glossary();
+    const html = await concepts();
     expect(html).toContain('class="dict-tile-title"');
     expect(html).toContain('class="dict-tile-hint"');
     // titles
-    expect(html).toContain('>Reading the Dictionary<');
     expect(html).toContain('>Movement Basics<');
     expect(html).toContain('>Structural Analysis<');
     expect(html).toContain('>ADD Accounting<');
@@ -110,7 +125,7 @@ describe('Glossary — flat chapter architecture (reference-manual table of cont
   });
 
   it('keeps the Twelve Core Atoms inside Movement Basics, not a separate chapter', async () => {
-    const html = await glossary();
+    const html = await concepts();
     const basicsAt   = html.indexOf('id="section-core-concepts"');
     const atomsAt    = html.indexOf('id="core-trick-atoms"');
     const surfacesAt = html.indexOf('id="section-surfaces"');
@@ -123,7 +138,7 @@ describe('Glossary — flat chapter architecture (reference-manual table of cont
   });
 
   it('opens straight onto the chapters, with no intro prose or navigation scaffolding', async () => {
-    const html = await glossary();
+    const html = await concepts();
     // The hero subtitle orients the reader; the body opens on the chapters themselves.
     expect(html).not.toContain('A reference for freestyle');
     expect(html).not.toContain('glossary-intro-card');

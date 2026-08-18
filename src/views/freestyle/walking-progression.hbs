@@ -39,9 +39,9 @@
         </div>
         <p class="step-rationale">{{rationale}}</p>
         <p class="step-symbolic"><strong>Symbolic note:</strong> {{symbolicNote}}</p>
-        {{#if glossaryLinks.length}}
-        <p class="step-glossary-links">Related glossary terms:
-          {{#each glossaryLinks}}<a href="{{href}}">{{term}}</a>{{#unless @last}}, {{/unless}}{{/each}}.
+        {{#if conceptsLinks.length}}
+        <p class="step-glossary-links">Related concepts:
+          {{#each conceptsLinks}}<a href="{{href}}">{{term}}</a>{{#unless @last}}, {{/unless}}{{/each}}.
         </p>
         {{/if}}
       </li>

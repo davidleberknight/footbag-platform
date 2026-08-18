@@ -1,20 +1,20 @@
 /**
  * Integration tests for navigation cross-links between the dictionary
- * surface and the glossary surface.
+ * surface and the Freestyle Concepts surface.
  *
  * Long-term contract pinned:
  *
- *   1. The semantic-token shaper resolves a glossary anchor per token:
+ *   1. The semantic-token shaper resolves a Concepts anchor per token:
  *      modifier-role tokens with a modifier-feel card map to
- *      `/freestyle/glossary#modifier-{slug}`; base-anchor-role tokens
- *      for known core atoms map to `/freestyle/glossary#term-{slug}`.
+ *      `/freestyle/concepts#modifier-{slug}`; base-anchor-role tokens
+ *      for known core atoms map to `/freestyle/concepts#term-{slug}`.
  *      Side-positional / unknown / unlisted slugs receive null.
  *
- *   2. Each glossary modifier-feel card carries a "Browse X tricks"
- *      deep-link into the dictionary.
+ *   2. Each Freestyle Concepts modifier-feel card carries a "Browse X
+ *      tricks" deep-link into the dictionary.
  *
  *   3. Freestyle heroes are breadcrumb + title + subhead only — no
- *      cross-link CTA inside the hero. The glossary body still
+ *      cross-link CTA inside the hero. The Freestyle Concepts body still
  *      references the trick dictionary in prose.
  *
  *   4. No browse view renders chain tokens. A chain reading is structural
@@ -144,10 +144,10 @@ describe('Browse rows carry no chain tokens on any view', () => {
   });
 });
 
-describe('Glossary §6 modifier cards — "See tricks using X" deep-links', () => {
+describe('Freestyle Concepts modifier cards — "See tricks using X" deep-links', () => {
   it('renders a tricks-link footer on every set-modifier card', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     expect(res.status).toBe(200);
     // Each modifier card carries the tricks-link paragraph; spot-check the four
     // most pedagogically central ones. The movement-system view groups by axis,
@@ -156,20 +156,20 @@ describe('Glossary §6 modifier cards — "See tricks using X" deep-links', () =
     for (const slug of ['pixie', 'atomic', 'paradox', 'symposium']) {
       expect(
         res.text,
-        `glossary modifier card for '${slug}' missing tricks-link footer`,
+        `Concepts modifier card for '${slug}' missing tricks-link footer`,
       ).toContain('href="/freestyle/tricks?view=movement-system"');
     }
   });
 
   it('renders the tricks-link class wrapper on the footer paragraph', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     expect(res.text).toContain('class="glossary-modifier-card-tricks-link"');
   });
 
   it('preserves the modifier-pixie deep-link anchor, cross-linked to its set definition', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     // Pixie is set vocabulary, defined in the Timing & Sets chapter. Its feel
     // card moved there, but the modifier-pixie anchor that dictionary tokens
     // deep-link to survives as a thin cross-link so those deep links resolve.
@@ -181,12 +181,12 @@ describe('Glossary §6 modifier cards — "See tricks using X" deep-links', () =
 });
 
 describe('Freestyle heroes carry their own parts only, never navigation', () => {
-  it('the glossary hero holds no action link to another page', async () => {
+  it('the Freestyle Concepts hero holds no action link to another page', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     expect(res.status).toBe(200);
     const hero = res.text.match(/<div class="hero[^"]*"[\s\S]*?<\/div>\s*<div class="wrapper/);
-    expect(hero, 'glossary hero block').not.toBeNull();
+    expect(hero, 'Concepts hero block').not.toBeNull();
     expect(hero![0]).not.toContain('class="action-link"');
   });
 
@@ -199,9 +199,9 @@ describe('Freestyle heroes carry their own parts only, never navigation', () => 
     expect(hero![0]).not.toContain('class="action-link"');
   });
 
-  it('the glossary still cross-references the trick dictionary in its body', async () => {
+  it('Freestyle Concepts still cross-references the trick dictionary in its body', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
+    const res = await request(app).get('/freestyle/concepts');
     expect(res.text).toContain('href="/freestyle/tricks"');
   });
 });

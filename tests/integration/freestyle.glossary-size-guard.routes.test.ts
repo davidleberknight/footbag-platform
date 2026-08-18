@@ -1,12 +1,13 @@
 /**
- * Representative size guard for GET /freestyle/glossary.
+ * Representative size guard for GET /freestyle/concepts (Freestyle Concepts,
+ * the chapter reference).
  *
- * The glossary's rendered size scales with the dictionary: the family trees, the
+ * The Concepts page's rendered size scales with the dictionary: the family trees, the
  * connective panels, and the core-trick grids all fill out with real trick rows.
  * Measuring a sparse fixture under-counts the page a visitor actually loads, so
  * this guard renders against a full-dictionary snapshot (every active trick,
  * every modifier, every displayed alias) and caps the rendered byte count. It is
- * the authoritative re-bloat protection for the glossary.
+ * the authoritative re-bloat protection for the Concepts page.
  *
  * The snapshot lives in tests/fixtures/freestyleDictionarySnapshot.json, a
  * point-in-time export of the active dictionary. Regenerate it from the built
@@ -18,8 +19,8 @@
  *     add_bonus_rotational, modifier_type, notes
  *   - freestyle_trick_aliases WHERE alias_display=1: alias_text, trick_slug
  * The trick description and aliases_json columns are stored null in the fixture
- * because the glossary does not render them; nulling keeps the fixture compact
- * without changing the rendered byte count. If the glossary ever renders either,
+ * because the Concepts page does not render them; nulling keeps the fixture compact
+ * without changing the rendered byte count. If the Concepts page ever renders either,
  * regenerate with their real values so the guard stays representative.
  *
  * Maintenance contract for the snapshot:
@@ -27,7 +28,7 @@
  *     runtime, and no dictionary or naming decision is ever made from it.
  *   - Its regeneration path is the query above, run against the built database:
  *     deterministic and documented. The fixture is never hand-edited.
- *   - A dictionary change that affects the glossary regenerates the fixture
+ *   - A dictionary change that affects the Concepts page regenerates the fixture
  *     through that path, rather than editing rows in place.
  *   - A regenerated fixture is reviewed for its new rendered byte baseline, and
  *     the ceiling is bumped (with a new baseline entry) if the render grew past
@@ -57,7 +58,7 @@
  *                  406 displayed aliases (promotion waves and alias backfills
  *                  since the prior baseline; no new glossary sections). Ceiling
  *                  unchanged at 330,000, leaving about 1,200 bytes (~0.4%) of
- *                  headroom: the next glossary addition of any size will trip
+ *                  headroom: the next Concepts addition of any size will trip
  *                  the guard and must raise the ceiling with its own explained
  *                  baseline entry.
  *   330,159 bytes  the Reading the Dictionary chapter corrected for the
@@ -69,6 +70,12 @@
  *                  a convention with the three-dimensions note on the
  *                  Whirling Swirl / Swirling Whirl pair. Ceiling raised to
  *                  335,000, about 4,800 bytes (~1.5%) of headroom.
+ *   319,697 bytes  the chapter page renamed to Freestyle Concepts at
+ *                  /freestyle/concepts, with the Reading the Dictionary chapter
+ *                  moved out to the trick dictionary (/freestyle/tricks) as a
+ *                  closed disclosure; the remaining chapters are unchanged.
+ *                  Ceiling lowered to 325,000, about 5,300 bytes (~1.7%) of
+ *                  headroom, so the freed space is not absorbed silently.
  */
 import { readFileSync } from 'fs';
 import path from 'path';
@@ -91,8 +98,8 @@ const { dbPath } = setTestEnv('3565');
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
 // Ceiling set with modest documented headroom above the representative render
-// (currently 330,159 bytes). See the baseline history in the file header.
-const CEILING = 335_000;
+// (currently 319,697 bytes). See the baseline history in the file header.
+const CEILING = 325_000;
 
 interface Snapshot {
   tricks: Record<string, unknown>[];
@@ -116,11 +123,11 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('Freestyle glossary — representative re-bloat guard', () => {
-  it('rendered glossary body stays within the size ceiling against the full dictionary', async () => {
-    const res = await request(await createApp()).get('/freestyle/glossary');
+describe('Freestyle Concepts — representative re-bloat guard', () => {
+  it('rendered Concepts body stays within the size ceiling against the full dictionary', async () => {
+    const res = await request(await createApp()).get('/freestyle/concepts');
     expect(res.status).toBe(200);
     const bytes = res.text.length;
-    expect(bytes, `glossary rendered ${bytes} bytes; ceiling ${CEILING} bytes`).toBeLessThan(CEILING);
+    expect(bytes, `Concepts rendered ${bytes} bytes; ceiling ${CEILING} bytes`).toBeLessThan(CEILING);
   });
 });

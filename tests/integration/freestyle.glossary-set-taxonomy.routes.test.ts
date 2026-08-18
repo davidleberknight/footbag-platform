@@ -1,5 +1,5 @@
 /**
- * Glossary set-taxonomy home.
+ * Freestyle Concepts set-taxonomy home.
  *
  * Timing & Sets is the home for confirmed set vocabulary, not Operators &
  * Modifiers. The confirmed sets (pixie, fairy, stepping, atomic, quantum,
@@ -11,7 +11,7 @@
  * Set role is a function of a movement's structure, not a timing instant: a set
  * realization performs the dex as part of the launch, a standalone realization
  * performs it after the launch. Both single-home definitions live in Timing &
- * Sets, and no public glossary sentence presents miraging or illusioning as a
+ * Sets, and no public Concepts sentence presents miraging or illusioning as a
  * reusable modifier or scored operator.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -38,20 +38,20 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-async function glossary(): Promise<string> {
-  const res = await request(await createApp()).get('/freestyle/glossary');
+async function concepts(): Promise<string> {
+  const res = await request(await createApp()).get('/freestyle/concepts');
   expect(res.status).toBe(200);
   return res.text;
 }
 
-describe('GET /freestyle/glossary — Timing & Sets is the set-vocabulary home', () => {
+describe('GET /freestyle/concepts — Timing & Sets is the set-vocabulary home', () => {
   it('teaches that a set launches the trick', async () => {
-    const text = await glossary();
+    const text = await concepts();
     expect(text).toContain('A set launches the trick');
   });
 
   it('defines the confirmed named sets in Timing & Sets, including Furious', async () => {
-    const text = await glossary();
+    const text = await concepts();
     const timingIdx = text.indexOf('id="section-timing-sets"');
     const modifiersIdx = text.indexOf('id="section-modifiers"');
     expect(timingIdx).toBeGreaterThan(0);
@@ -66,7 +66,7 @@ describe('GET /freestyle/glossary — Timing & Sets is the set-vocabulary home',
   });
 
   it('defines set realization and standalone realization as the single home for the two roles', async () => {
-    const text = await glossary();
+    const text = await concepts();
     const timingIdx = text.indexOf('id="section-timing-sets"');
     const modifiersIdx = text.indexOf('id="section-modifiers"');
     const timingChapter = text.slice(timingIdx, modifiersIdx);
@@ -84,7 +84,7 @@ describe('GET /freestyle/glossary — Timing & Sets is the set-vocabulary home',
   });
 
   it('never presents miraging or illusioning as a reusable modifier or scored operator', async () => {
-    const text = await glossary();
+    const text = await concepts();
     // No sentence places either name immediately before "modifier"/"operator"
     // (the presenting-as-operator shape) or after them.
     expect(text).not.toMatch(/(illusioning|miraging)\s+(modifier|operator)/i);
@@ -95,7 +95,7 @@ describe('GET /freestyle/glossary — Timing & Sets is the set-vocabulary home',
   });
 
   it('renders the not-set timing terms with their own non-set anchors', async () => {
-    const text = await glossary();
+    const text = await concepts();
     for (const anchor of ['term-illusioning', 'term-miraging-not-a-set', 'term-barraging-not-a-set', 'term-barrage-not-a-set']) {
       expect(text).toContain(`id="${anchor}"`);
     }
@@ -104,7 +104,7 @@ describe('GET /freestyle/glossary — Timing & Sets is the set-vocabulary home',
   });
 
   it('Operators & Modifiers points set definitions to Timing & Sets rather than carrying them', async () => {
-    const text = await glossary();
+    const text = await concepts();
     const modifiersIdx = text.indexOf('id="section-modifiers"');
     const familiesIdx = text.indexOf('id="section-families"');
     expect(modifiersIdx).toBeGreaterThan(0);

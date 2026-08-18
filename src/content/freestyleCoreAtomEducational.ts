@@ -89,7 +89,7 @@ export const CORE_ATOM_EDUCATIONAL: readonly CoreAtomEducationalCard[] = [
     adds:        '2',
     line:        "Formula: toe set + same-side circling dex, reverse direction + same-side toe catch. It is Around the World traced the other way, the same same-side loop run in reverse.",
     relates:     "Orbit is Around the World's direction mirror, exactly as illusion mirrors mirage. Both are same-side toe atoms. Orbit being its own trick rather than a backwards Around the World is the point that direction is structural (the Mirror Law, home: Mirage).",
-    reveal:      "Orbit shows that a movement can be highly productive without becoming a canonical family. It can be repeated as Double Orbit or Triple Orbit and can contribute its shape to other names, but the glossary treats Orbit as a foundational movement atom used within tricks rather than as a conserved-terminal lineage. Productivity, repetition, and family status are separate ideas.",
+    reveal:      "Orbit shows that a movement can be highly productive without becoming a canonical family. It can be repeated as Double Orbit or Triple Orbit and can contribute its shape to other names, but the platform treats Orbit as a foundational movement atom used within tricks rather than as a conserved-terminal lineage. Productivity, repetition, and family status are separate ideas.",
   },
   {
     slug:        'legover',
