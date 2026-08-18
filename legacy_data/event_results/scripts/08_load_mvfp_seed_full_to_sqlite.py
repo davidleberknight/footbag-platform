@@ -83,7 +83,7 @@ def normalize_team_type(team_type: str, discipline_name: str = "") -> str:
 def map_event_status(seed_status: str, start_date: str, end_date: str) -> tuple[str, str]:
     s = (seed_status or "").strip().lower()
 
-    if s in {"draft", "pending_approval", "published", "registration_full", "closed", "completed", "canceled"}:
+    if s in {"draft", "pending_approval", "reg_open", "closed", "completed", "canceled"}:
         platform_status = s
     elif s in {"no_results", ""}:
         platform_status = "completed"
@@ -633,9 +633,9 @@ def main() -> None:
                   id, created_at, created_by, updated_at, updated_by, version,
                   title, description, start_date, end_date, city, region, country,
                   external_url, external_url_validated_at,
-                  registration_deadline, capacity_limit,
+                  registration_deadline,
                   is_attendee_registration_open, is_tshirt_size_collected,
-                  status, registration_status, published_at,
+                  status, registration_status,
                   sanction_status, sanction_requested_at, sanction_requested_by_member_id,
                   sanction_justification, sanction_decided_at, sanction_decided_by_member_id,
                   sanction_decision_reason,
@@ -646,9 +646,9 @@ def main() -> None:
                   ?, ?, ?, ?, ?, 1,
                   ?, '', ?, ?, ?, ?, ?,
                   NULL, NULL,
-                  NULL, NULL,
+                  NULL,
                   0, 0,
-                  ?, ?, NULL,
+                  ?, ?,
                   'none', NULL, NULL,
                   NULL, NULL, NULL,
                   NULL,
@@ -817,9 +817,9 @@ def main() -> None:
               id, created_at, created_by, updated_at, updated_by, version,
               title, description, start_date, end_date, city, region, country,
               external_url, external_url_validated_at,
-              registration_deadline, capacity_limit,
+              registration_deadline,
               is_attendee_registration_open, is_tshirt_size_collected,
-              status, registration_status, published_at,
+              status, registration_status,
               sanction_status, sanction_requested_at, sanction_requested_by_member_id,
               sanction_justification, sanction_decided_at, sanction_decided_by_member_id,
               sanction_decision_reason,
@@ -829,8 +829,8 @@ def main() -> None:
             ) VALUES (
               ?, ?, ?, ?, ?, 1,
               ?, '', ?, ?, ?, ?, ?,
-              NULL, NULL, NULL, NULL, 0, 0,
-              ?, ?, NULL,
+              NULL, NULL, NULL, 0, 0,
+              ?, ?,
               'none', NULL, NULL, NULL, NULL, NULL, NULL,
               0, NULL, NULL, 'USD', NULL, NULL,
               ?

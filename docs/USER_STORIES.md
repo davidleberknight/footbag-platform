@@ -1411,6 +1411,9 @@ Success Criteria:
 
 ## 3.7 Voting
 
+<< V2 SCOPE >> Voting and elections are version-two scope. The stories in this section are
+design intent for that build and are not part of the v1 launch.
+
 The following stories are for (non-admin) Members. More voting-related stories are given as Admin stories below (primarily A_Create_Vote).
 
 ### M_View_Vote_Options
@@ -2925,6 +2928,9 @@ Success Criteria:
 
 ## 7.4 Vote Management
 
+<< V2 SCOPE >> Voting and elections are version-two scope. The stories in this section are
+design intent for that build and are not part of the v1 launch.
+
 **Vote Status Lifecycle**
 
 All votes have a status field constrained to the following valid values. No other status values are valid.
@@ -2944,6 +2950,7 @@ Story: As an Administrator, I can create a vote (election or issue vote) so that
 Success Criteria:
 
 - Admin defines: title, description, vote type (Election / Issue), nomination window (optional), voting window, ballot type (single-choice / multi-choice), and background materials (text + links/attachments).
+- Admin selects the vote's bylaws validity rule, which fixes the thresholds the system checks at tally time: `membership_resolution` (adoption requires at least 10% of the eligible members to participate and a majority of the ballots cast), `bylaws_amendment` (the same 10% participation floor with a two-thirds affirmative share of the ballots cast), or `none` for a vote the bylaws thresholds do not bind. The rule is a configuration choice per vote, not a system constraint derived from vote type, and it is locked when the vote opens alongside the option set and the eligibility snapshot.
 - Admin defines eligibility rules using member attributes and flags (Tier status, HoF, BAP, Board flags) or an explicit inclusion list. The eligibility rule set also includes `members_of_group(group_id)`: when this rule is configured, eligible voters are members where `group_member_affiliations.group_id = group_id AND is_current = 1`, evaluated and snapshotted at vote-open time. Eligibility predicates can be combined (for example: Tier 2 AND `members_of_group(finance_committee)`).
 - System validates: date ordering, required fields, and that eligibility rules are internally consistent.
 - System generates a unique vote ID and audit-log record of creation.
@@ -2971,6 +2978,8 @@ Success Criteria:
 - Publish creates a news item linking to the vote results page.
 - System provides vote receipts/verification support as described in member voting stories.
 - Publishing results does NOT automatically change member roles/flags (e.g., boardMember). Admins apply outcomes manually outside the vote system.
+- The system computes the bylaws validity check for the vote's configured validity rule and displays it beside the tally: the eligible-member count taken from the vote's eligibility snapshot, the number of ballots cast, the participation share against the 10% floor, and the affirmative share against the majority or two-thirds threshold, each marked met or not met. A vote whose validity rule is `none` displays the participation figures with no threshold verdict.
+- The computed figures and the met/not-met outcome are recorded in the TALLY_VOTE_COMPLETE audit entry with the tally. The check is informational: it never blocks publication and never changes member roles or flags, and formally certifying the vote and acting on its outcome remain Board and secretary steps outside the system.
 - Tallying is permitted only when vote.status equals 'closed' AND current server timestamp exceeds vote.close_datetime. The system enforces both conditions to prevent early result access.
 - Audit records TALLY_VOTE_START event containing admin_id, vote_id, and start timestamp when tally operation begins. Individual decrypted ballots are never logged or stored in plaintext. The system aggregates vote totals in memory and discards individual ballot contents immediately after counting. Audit records TALLY_VOTE_COMPLETE event containing admin_id, vote_id, aggregate result summary (totals only, not individual votes), and completion timestamp.
 - Data Export / vote participation records: for each vote the member participated in, the export includes vote title, vote ID, and submission timestamp. The raw receipt token is not included in the export. Members who need to verify their ballot must use the receipt token from their original email.
@@ -3419,6 +3428,8 @@ Success Criteria:
 
 ### SYS_Open_Vote
 
+<< V2 SCOPE >> Ships with the voting subsystem in version two; not part of the v1 launch.
+
 Access: This scheduled process runs under the system role.
 
 Story: The system automatically opens votes at their configured open_datetime so that voting begins on schedule without manual admin action.
@@ -3432,6 +3443,8 @@ Success Criteria:
 - An admin-alerts email is sent for each automatically opened vote.
 
 ### SYS_Close_Vote
+
+<< V2 SCOPE >> Ships with the voting subsystem in version two; not part of the v1 launch.
 
 Access: This scheduled daily process runs under the system role.
 

@@ -3781,6 +3781,9 @@ Requirements:
 
 ## 6.9 Voting
 
+<< V2 SCOPE >> Voting and elections are version-two scope. This section is design intent for
+that build and is not part of the v1 launch.
+
 This is not an external service integration, except to the extent that we rely on AWS. Voting is implemented entirely in-house. This section is grouped with external services for structural convenience only; no third-party voting service is used. AWS KMS (an external service) is used for ballot encryption.
 
 Decision:

@@ -371,7 +371,10 @@ alias analysis tools under `legacy_data/pipeline/` not invoked by
 (`build_workbook_community.py`, separate v13 lineage), and the
 deprecated `mvfp` (not `mvfp_full`) seed lineage
 (`event_results/scripts/06_build_mvfp_seed.py` and `verify_mvfp_seed.py`)
-are not listed here. Each has a top-of-file docstring.
+are not listed here. The `mvfp` lineage is superseded by
+`event_results/scripts/07_build_mvfp_seed_full.py`, is wired into no
+orchestrator, and is kept only for audit traceability; `verify_mvfp_seed.py`
+reads the retired `seed/mvfp` directory and no longer runs.
 
 ---
 
