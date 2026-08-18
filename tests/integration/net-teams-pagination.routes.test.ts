@@ -26,7 +26,7 @@ beforeAll(async () => {
   const db = createTestDb(dbPath);
 
   const member = insertMember(db, { id: 'net-pg-member', slug: 'net_pg_member' });
-  const event = insertEvent(db, { title: 'Net Pagination Cup', status: 'published', start_date: '2012-06-01' });
+  const event = insertEvent(db, { title: 'Net Pagination Cup', status: 'reg_open', start_date: '2012-06-01' });
   const disc = insertDiscipline(db, event, { id: 'disc-net-pg', name: 'Open Doubles Net', discipline_category: 'net', team_type: 'doubles' });
   db.prepare(`
     INSERT INTO net_discipline_group (discipline_id, canonical_group, match_method, review_needed, conflict_flag, mapped_at, mapped_by)

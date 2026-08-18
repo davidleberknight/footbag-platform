@@ -17,10 +17,12 @@
  *   - Public eventKey parsing and validation live in this service. Public form
  *     `event_{year}_{event_slug}` maps to stored standard-tag `#event_{year}_{event_slug}`
  *     before DB lookup; no aliasing, no fuzzy match.
- *   - Status state machine: `draft -> pending_approval -> published -> registration_full
- *     | closed -> completed | canceled`. `completed` and `canceled` are terminal.
- *   - Public detail visibility limited to `published`, `registration_full`, `closed`,
- *     `completed`. Other statuses resolve through standard not-found behavior.
+ *   - Status state machine: `draft -> pending_approval -> reg_open -> closed ->
+ *     completed | canceled`; a rejected sanction request returns `pending_approval ->
+ *     draft`. `completed` and `canceled` are terminal. The status names the
+ *     registration lifecycle; results publication is a separate concern.
+ *   - Public detail visibility limited to `reg_open`, `closed`, `completed`. Other
+ *     statuses resolve through standard not-found behavior.
  *   - HD guard: events with public result rows are preserved permanently. Draft and
  *     canceled events HD immediately. Cannot delete an event with confirmed registrations.
  *   - Sanction approval requires organizer active Tier 2 at approval time.
@@ -79,7 +81,6 @@ export interface PublicEventSummary {
   hostClub: string | null;
   externalUrl: string | null;
   registrationDeadline: string | null;
-  capacityLimit: number | null;
   status: string;
   // Pre-shaped status presentation so templates never branch on or print
   // the raw enum: a new status value renders with a readable label and a
@@ -87,7 +88,7 @@ export interface PublicEventSummary {
   statusLabel: string;
   statusCssClass: string;
   registrationStatus: string;
-  publishedAt: string | null;
+  regOpenedAt: string | null;
   hashtagTagId: string;
   standardTagNormalized: string;
   standardTagDisplay: string;
@@ -213,15 +214,13 @@ function normalizePublicEventKeyToStoredTag(eventKey: string): string {
 const EVENT_STATUS_LABELS: Record<string, string> = {
   draft: 'Draft',
   pending_approval: 'Pending approval',
-  published: 'Published',
-  registration_full: 'Registration full',
-  closed: 'Closed',
+  reg_open: 'Registration open',
+  closed: 'Registration closed',
   completed: 'Completed',
   canceled: 'Canceled',
 };
 const EVENT_STATUS_BADGE_CLASSES: Record<string, string> = {
-  published: 'badge-published',
-  registration_full: 'badge-registration_full',
+  reg_open: 'badge-reg_open',
   closed: 'badge-closed',
   completed: 'badge-completed',
 };
@@ -240,12 +239,11 @@ function toPublicEventSummary(row: PublicEventSummaryRow): PublicEventSummary {
     hostClub: row.host_club,
     externalUrl: row.external_url,
     registrationDeadline: row.registration_deadline,
-    capacityLimit: row.capacity_limit,
     status: row.status,
     statusLabel: EVENT_STATUS_LABELS[row.status] ?? row.status,
     statusCssClass: EVENT_STATUS_BADGE_CLASSES[row.status] ?? 'badge-muted',
     registrationStatus: row.registration_status,
-    publishedAt: row.published_at,
+    regOpenedAt: row.reg_opened_at,
     hashtagTagId: row.hashtag_tag_id,
     standardTagNormalized: row.tag_normalized,
     standardTagDisplay: row.tag_display,

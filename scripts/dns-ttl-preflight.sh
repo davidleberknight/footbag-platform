@@ -1,20 +1,18 @@
 #!/usr/bin/env bash
-# scripts/dns-ttl-preflight.sh -- T-48h DNS TTL drop for the zone handover.
-# The go-live cutover is the webmaster's manual switch of apex/www on his own
-# authoritative bind9 zone; its TTL pre-shrink is his manual action there, not
-# this script, which drives Route 53 (not authoritative until the handover).
-# So this script is NOT part of the flip checklist; it serves the one
-# milestone that moves DNS in Route 53:
+# scripts/dns-ttl-preflight.sh -- T-48h DNS TTL drop before the apex/www switch.
+# The zone moves to Route 53 as go-live preparation and the operator applies
+# every record there afterwards; the webmaster applies no record after the move
+# and performs no DNS action at the cutover. This script drives Route 53, so it
+# runs after the zone move and ahead of the record switch at the write-freeze:
 #
-#   --phase handover  DNS handover milestone: drops TTL on the apex A/AAAA +
-#                     www records ahead of the zone move to Route 53.
+#   --phase handover  drops TTL on the apex A/AAAA + www records ahead of the
+#                     apex/www switch on Route 53.
 #                     Default records: "footbag.org.,www.footbag.org.".
 #
-# The email-day MX/TXT TTL pre-shrink is deliberately NOT done here: those
-# records live on the webmaster's authoritative zone until the handover, and
-# this script can only rewrite A/AAAA in Route 53, which is not authoritative
-# before then. The webmaster lowers the MX/TXT TTL by hand on his own zone
-# ahead of the mail swap.
+# The MX/TXT TTL pre-shrink before the mail cutover is a separate step on the
+# same zone, not done here: this script rewrites A/AAAA only. The apex MX TTL is
+# 1 day as served today, so that pre-shrink has to lead the MX flip by at least
+# that.
 #
 # Lowers the TTL on the selected records to 60 seconds, issued 48 hours
 # before the swap so the previously-cached TTL has expired by the moment.

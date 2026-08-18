@@ -250,8 +250,9 @@ Events use hard-delete (US `EO_Delete_Event`; DD §2.3). Events with result rows
 
 #### Event status lifecycle (application-managed)
 ```
-draft → pending_approval → published → registration_full | closed → completed | canceled
+draft → pending_approval → reg_open → closed → completed | canceled
 ```
+A rejected sanction request returns the event to `draft` for revision. The status names the registration lifecycle; results publication is separate, and `reg_opened_at` records when registration opened.
 
 #### Sanction status (application-managed)
 ```
@@ -838,6 +839,9 @@ URLs are validated by the application before insertion (must be `https`, well-fo
 #### Competitor registration completeness (APP-013)
 Before a competitor registration reaches `status = 'confirmed'`, the application must ensure at least one `registration_discipline_selections` row exists for that registration.
 
+#### Registration status
+`pending` means the registration is awaiting webhook-confirmed payment, or a required routine-music upload, or both. `confirmed` means neither is outstanding. `canceled` covers a member's own withdrawal, an organizer's or administrator's cancellation, and a registration abandoned when its checkout session expired; `cancel_reason` and `canceled_at` record why and when, and canceled registrations leave participant counts, exports, check-in, and event email.
+
 #### Attendance as Active Player source
 
 `registrations.attended_at` is the canonical event-attendance signal for Active Player grants and extensions. When an organizer marks a participant attended in `EO_View_Participants`, or when results upload auto-marks placing competitors in `EO_Upload_Results`, the service writes a row to `active_player_grants` (§4.13a) with `reason_code = 'official_event_attendance'` and `related_registration_id` set. The `ux_active_player_grants_registration_once` partial unique index ensures one Active Player grant per registration.
@@ -875,7 +879,7 @@ Possible row combinations (all legitimate):
 **Governance note:** Imported `historical_persons` rows are public historical record surfaces only. They do not confer member-account status, searchability, or contactability. The imported aggregate fields (`event_count`, `placement_count`, freestyle metrics, etc.) are migration-era metadata; not automatic public statistics. Any aggregate field shown publicly must satisfy the historian-value and completeness/caveat requirements in `docs/DATA_GOVERNANCE.md`. When `members.historical_person_id` links a current member to a historical person, the historical public pages must continue to show only historical-record data; the link does not escalate the historical identity into a searchable or contactable current-member account.
 
 #### Results
-`event_result_entries.discipline_id` is nullable (NULL = discipline-agnostic / general ranking). `UNIQUE(event_id, discipline_id, placement)` prevents duplicate placements for discipline-specific rows. For general-ranking rows (`discipline_id IS NULL`), the partial unique index `ux_result_entries_general_placement` on `(event_id, placement) WHERE discipline_id IS NULL` prevents duplicates; required because SQLite treats `NULL` values as distinct in `UNIQUE` constraints.
+`event_result_entries.discipline_id` is nullable (NULL = discipline-agnostic / general ranking). Placement is deliberately not unique within a discipline: the IFPA competition rules place tied competitors at the same, lower place and skip the next one, so two entries legitimately share a placement. Well-formedness is enforced where the results are entered, in the upload preview, which accepts a repeated placement only as a declared tie and rejects an accidental duplicate.
 
 #### Result participants and linkage semantics
 

@@ -87,10 +87,9 @@ export interface PublicEventSummaryRow {
   host_club: string | null;
   external_url: string | null;
   registration_deadline: string | null;
-  capacity_limit: number | null;
   status: string;
   registration_status: string;
-  published_at: string | null;
+  reg_opened_at: string | null;
   hashtag_tag_id: string;
   tag_normalized: string;
   tag_display: string;
@@ -269,10 +268,9 @@ export const publicEvents = {
       c.name AS host_club,
       e.external_url,
       e.registration_deadline,
-      e.capacity_limit,
       e.status,
       e.registration_status,
-      e.published_at,
+      e.reg_opened_at,
       e.hashtag_tag_id,
       t.tag_normalized,
       t.tag_display
@@ -334,10 +332,9 @@ export const publicEvents = {
       c.name AS host_club,
       e.external_url,
       e.registration_deadline,
-      e.capacity_limit,
       e.status,
       e.registration_status,
-      e.published_at,
+      e.reg_opened_at,
       e.hashtag_tag_id,
       t.tag_normalized,
       t.tag_display,
@@ -377,12 +374,11 @@ export const publicEvents = {
       c.name AS host_club,
       e.external_url,
       e.registration_deadline,
-      e.capacity_limit,
       e.is_attendee_registration_open,
       e.is_tshirt_size_collected,
       e.status,
       e.registration_status,
-      e.published_at,
+      e.reg_opened_at,
       e.sanction_status,
       e.payment_enabled,
       e.currency,
@@ -7812,7 +7808,7 @@ export const tagStats = {
     JOIN events e ON e.id = ere.event_id
     JOIN tags t ON t.id = e.hashtag_tag_id
     WHERE erep.member_id = ?
-      AND e.status IN ('published', 'completed')
+      AND e.status IN ('reg_open', 'completed')
     ORDER BY e.start_date DESC
     LIMIT ?
   `); },

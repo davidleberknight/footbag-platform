@@ -2952,7 +2952,7 @@ Outbound send is handled by AWS SES (see §5.4). Inbound receive for all role ad
 | `ifpa-treasurer@footbag.org` | IFPA treasurer contact for donation, sponsorship, and other financial correspondence | Receives | Carried over from the legacy site as an apex alias; published donations contact on the legacy site |
 | `noreply@footbag.org` | Transactional sender (account verification, password reset, receipts, system notifications); never monitored, never a reply target | Sends | `CommunicationService.processSendQueue` via SES |
 | `ops-alert@footbag.org` | Operational alarm recipient (system health, backup failures, worker errors, SES bounce/complaint thresholds) | Receives | Terraform alarms (CloudWatch), `OperationsPlatformService` alarm flows |
-| `sanctioning@footbag.org` | Event sanctioning contact for organizers applying for IFPA-sanctioned events and related correspondence | Receives | Carried over from the legacy site as an apex alias; the sanctioning committee's own published working contact is its list on the IFPA subdomain |
+| `sanctioning@footbag.org` | Correspondence about event sanctioning. Organizers apply in the platform rather than by mail, so this address carries questions and follow-up, not applications | Receives | Carried over from the legacy site as an apex alias; the sanctioning committee's own published working contact is its list on the IFPA subdomain |
 
 Rationale:
 

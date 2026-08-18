@@ -173,7 +173,7 @@ export interface EventOverrides {
   city?: string;
   region?: string | null;
   country?: string;
-  status?: 'draft' | 'published' | 'completed' | 'cancelled';
+  status?: 'draft' | 'reg_open' | 'closed' | 'completed' | 'canceled';
   registration_status?: string;
   sanction_status?: string;
   /** The club that hosted it, which is what gives a club its event history. */
@@ -201,7 +201,7 @@ export function insertEvent(db: BetterSqlite3.Database, o: EventOverrides = {}):
     o.city               ?? 'Testville',
     o.region             ?? null,
     o.country            ?? 'US',
-    o.status             ?? 'published',
+    o.status             ?? 'reg_open',
     o.registration_status ?? 'open',
     o.sanction_status    ?? 'none',
     o.host_club_id       !== undefined ? o.host_club_id : null,

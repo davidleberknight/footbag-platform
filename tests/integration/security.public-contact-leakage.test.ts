@@ -71,7 +71,7 @@ beforeAll(async () => {
   // Seed one club and one published event so the index routes render content
   // rather than empty-state placeholders.
   insertClub(db);
-  insertEvent(db, { status: 'published' });
+  insertEvent(db, { status: 'reg_open' });
   db.close();
   createApp = await importApp();
 });

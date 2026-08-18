@@ -104,9 +104,10 @@ CREATE UNIQUE INDEX ux_clubs_hashtag ON clubs(hashtag_tag_id);
 -- SECTION 3: EVENTS
 -- =============================================================================
 
--- Footbag events with lifecycle (draft → published → completed/canceled),
+-- Footbag events with lifecycle (draft → reg_open → closed → completed/canceled),
 -- optional sanctioning workflow, payment configuration, and registration controls.
--- Events use hard-delete; published events with results are preserved by
+-- The status names the registration lifecycle; results publication is separate.
+-- Events use hard-delete; events with results are preserved by
 -- application workflow constraints. Each event has a unique hashtag identity.
 CREATE TABLE events (
   id         TEXT PRIMARY KEY,
@@ -129,14 +130,13 @@ CREATE TABLE events (
   external_url_validated_at TEXT,
 
   registration_deadline             TEXT,
-  capacity_limit                    INTEGER,
   is_attendee_registration_open     INTEGER NOT NULL DEFAULT 0 CHECK (is_attendee_registration_open IN (0,1)),
   is_tshirt_size_collected          INTEGER NOT NULL DEFAULT 0 CHECK (is_tshirt_size_collected IN (0,1)),
 
   status TEXT NOT NULL DEFAULT 'draft'
-    CHECK (status IN ('draft','pending_approval','published','registration_full','closed','completed','canceled')),
+    CHECK (status IN ('draft','pending_approval','reg_open','closed','completed','canceled')),
   registration_status TEXT NOT NULL DEFAULT 'open' CHECK (registration_status IN ('open','closed')),
-  published_at TEXT,
+  reg_opened_at TEXT,
 
   sanction_status TEXT NOT NULL DEFAULT 'none'
     CHECK (sanction_status IN ('none','pending','approved','rejected')),
@@ -154,6 +154,12 @@ CREATE TABLE events (
   currency             TEXT NOT NULL DEFAULT 'USD',
   competitor_fee_cents INTEGER,
   attendee_fee_cents   INTEGER,
+
+  -- Set when the event moves to 'canceled'. The reason is mandatory at
+  -- cancellation and is included in the notice sent to every registrant.
+  canceled_at            TEXT,
+  cancel_reason          TEXT,
+  canceled_by_member_id  TEXT REFERENCES members(id),
 
   hashtag_tag_id TEXT NOT NULL REFERENCES tags(id)
 );
@@ -2110,10 +2116,11 @@ CREATE TABLE event_results_uploads (
 
 CREATE INDEX idx_results_uploads_event ON event_results_uploads(event_id);
 
--- One placement row per (event, discipline, placement) combination.
--- discipline_id is nullable (NULL = discipline-agnostic / general ranking).
--- A partial unique index prevents duplicate general placements where discipline_id IS NULL,
--- because SQLite treats NULLs as distinct in standard UNIQUE constraints.
+-- One row per placement within a discipline. discipline_id is nullable
+-- (NULL = discipline-agnostic / general ranking). Placement is deliberately not
+-- unique: IFPA competition rules place tied competitors at the same, lower place
+-- and skip the next one, so two rows legitimately share a placement. The upload
+-- flow validates that a repeated placement is a declared tie.
 CREATE TABLE event_result_entries (
   id         TEXT PRIMARY KEY,
   created_at TEXT NOT NULL,
@@ -2128,19 +2135,11 @@ CREATE TABLE event_result_entries (
   results_upload_id TEXT REFERENCES event_results_uploads(id),
 
   placement  INTEGER NOT NULL,
-  score_text TEXT,
-
-  UNIQUE(event_id, discipline_id, placement)
+  score_text TEXT
 );
 
 CREATE INDEX idx_result_entries_event      ON event_result_entries(event_id);
 CREATE INDEX idx_result_entries_discipline ON event_result_entries(discipline_id);
--- SQLite treats NULLs as distinct in UNIQUE constraints, so
--- UNIQUE(event_id, discipline_id, placement) does not prevent duplicate
--- general placements when discipline_id IS NULL. This partial index fills that gap.
-CREATE UNIQUE INDEX ux_result_entries_general_placement
-  ON event_result_entries(event_id, placement)
-  WHERE discipline_id IS NULL;
 
 -- Registry of historical competitive players imported from the legacy dataset.
 -- Populated by the data pipeline (08_load_mvfp_seed_full_to_sqlite.py).
@@ -2584,8 +2583,14 @@ CREATE TABLE registrations (
   registered_at  TEXT NOT NULL,
   registration_type TEXT NOT NULL
     CHECK (registration_type IN ('competitor','attendee_supporter')),
+  -- pending: awaiting webhook-confirmed payment or a required routine-music
+  -- upload. confirmed: neither is outstanding. canceled: withdrawn by the member,
+  -- canceled by an organizer or administrator, or abandoned when the member's
+  -- checkout session expired.
   status TEXT NOT NULL DEFAULT 'pending'
-    CHECK (status IN ('pending','confirmed','canceled','rejected')),
+    CHECK (status IN ('pending','confirmed','canceled')),
+  cancel_reason         TEXT,
+  canceled_at           TEXT,
   tshirt_size           TEXT,
   donation_amount_cents INTEGER,
   payment_id            TEXT REFERENCES payments(id),

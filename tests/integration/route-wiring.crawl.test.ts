@@ -123,7 +123,7 @@ beforeAll(async () => {
   // country links resolve even though the persona fixtures are excluded from it.
   insertClub(db, { id: 'club-crawlville-real', name: 'Crawlville Footbag', city: 'Crawlville', country: 'USA', hashtag_tag_id: clubTag });
 
-  insertEvent(db, { title: 'Crawl Open', status: 'published' });
+  insertEvent(db, { title: 'Crawl Open', status: 'reg_open' });
 
   insertHistoricalPerson(db, { person_name: 'Historic Crawler', hof_member: 1 });
 

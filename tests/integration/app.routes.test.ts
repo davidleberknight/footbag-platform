@@ -123,7 +123,7 @@ async function buildTestDatabase(): Promise<void> {
   insertEvent(db, {
     hashtag_tag_id: springTagId,
     title:          '2026 Spring Classic',
-    status:         'published',
+    status:         'reg_open',
     start_date:     '2026-06-15',
     end_date:       '2026-06-17',
     city:           'Portland',

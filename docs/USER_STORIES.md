@@ -59,6 +59,7 @@ This document is the Source of Truth for Functional Requirements, defining all U
     - [M_View_Club](#m_view_club)
   - [3.4 Event Participation](#34-event-participation)
     - [M_Register_For_Event](#m_register_for_event)
+    - [M_Withdraw_Registration](#m_withdraw_registration)
     - [M_Upload_Routine_Music](#m_upload_routine_music)
     - [M_Manage_Routine_Music_Library](#m_manage_routine_music_library)
     - [M_View_Event](#m_view_event)
@@ -99,11 +100,14 @@ This document is the Source of Truth for Functional Requirements, defining all U
   - [4.1 Event Lifecycle](#41-event-lifecycle)
     - [Event Status Lifecycle](#event-status-lifecycle)
     - [M_Create_Event](#m_create_event)
+    - [EO_Request_Sanction](#eo_request_sanction)
     - [EO_Edit_Event](#eo_edit_event)
     - [EO_Delete_Event](#eo_delete_event)
+    - [EO_Cancel_Event](#eo_cancel_event)
     - [EO_Manage_CoOrganizers](#eo_manage_coorganizers)
   - [4.2 Registration Management](#42-registration-management)
     - [EO_View_Participants](#eo_view_participants)
+    - [EO_Cancel_Registration](#eo_cancel_registration)
     - [EO_Close_Registration](#eo_close_registration)
     - [EO_Export_Participants](#eo_export_participants)
     - [EO_View_Registration_Summary](#eo_view_registration_summary)
@@ -143,6 +147,7 @@ This document is the Source of Truth for Functional Requirements, defining all U
     - [A_Reassign_Club_Leader](#a_reassign_club_leader)
     - [A_Reassign_Event_Organizer](#a_reassign_event_organizer)
     - [A_Fix_Event_Results](#a_fix_event_results)
+    - [A_Correct_Event_Data](#a_correct_event_data)
     - [A_Mark_Member_Deceased](#a_mark_member_deceased)
     - [A_Periodic_Club_Cleanup](#a_periodic_club_cleanup)
   - [7.3 Content Moderation](#73-content-moderation)
@@ -382,9 +387,10 @@ Success Criteria:
 - Main events landing page shows upcoming public events sorted by start date.
 - Each upcoming event card shows the fields needed for public browsing: title, date range, location, host club, description when present, and registration status.
 - Each publicly visible upcoming event links to the canonical public event page at `GET /events/:eventKey`.
-- Public canonical event pages are available only for events with status `published`, `registration_full`, `closed`, or `completed`.
+- Public canonical event pages are available only for events with status `reg_open`, `closed`, or `completed`.
 - Events with status `draft`, `pending_approval`, or `canceled` do not have public detail visibility.
 - Organizer contact details, registration actions, payment actions, and member-only state are excluded from this public slice.
+- The public event page shows how many competitors are registered in each discipline, as counts only. Registrant names are member-visible rather than public, and appear to authenticated members per `M_View_Event`.
 
 ### V_Browse_Past_Events
 
@@ -402,7 +408,7 @@ Success Criteria:
 - When no result rows exist for a completed public event, the year page still shows the event; the event detail page explicitly indicates that no results are available yet.
 - Each completed public event also has a canonical public page at `GET /events/:eventKey` for event-focused viewing and direct linking.
 - If a historical event page is opened and no result rows exist for that event, the page still shows the event and explicitly notes that no results are available yet.
-- Public canonical event pages are available only for events with status `published`, `registration_full`, `closed`, or `completed`.
+- Public canonical event pages are available only for events with status `reg_open`, `closed`, or `completed`.
 - Events with status `draft`, `pending_approval`, or `canceled` do not have public detail visibility.
 - Legacy archive content at `archive.footbag.org` is a separate repository and the historical event and results data hosted there must not be conflated with the public event browsing pages described here. Everything on `archive.footbag.org` is irrelevant to the canonical event/results route contract.
 
@@ -1174,7 +1180,7 @@ Story: As a member, I can register for an event so that I can participate.
 
 Success Criteria:
 
-- Event registration with participant tracking and (optional) capacity enforcement.
+- Event registration with participant tracking.
 - Registration confirmation email sent to member.
 - System confirms registration and sends reminder email one week before event.
 - After tournament, member profile will automatically link to event results page (for every event they have participated in that posted results).
@@ -1188,11 +1194,27 @@ Success Criteria:
 - Some events are free and others are paid.
 - For paid events, the member must complete the Stripe checkout process to be officially registered. Changes are applied only after webhook-confirmed success.
 - Event registration payments affect registration status only and do not directly change membership tier.
-- When the registered participant count reaches the event's (optional) capacity limit, the event status automatically changes to `registration_full`. Subsequent registration attempts receive the message: "This event has reached capacity and is no longer accepting registrations." No waitlist functionality exists.
+- A registration reaches `confirmed` once payment is webhook-confirmed (paid events) and any required routine-music upload is attached; until then it is `pending`. A member can withdraw their own registration up to the registration deadline, and an organizer or admin can cancel a registration with a reason; a canceled registration is excluded from participant counts, exports, check-in, and event email. When a checkout session expires, the pending registration it belongs to is canceled with it.
 - If the registrant selects a category where the event organizer has set `requires_routine_music=true` (a new boolean on event categories, settable in `EO_Edit_Event`), the registration is marked incomplete until the member uploads an mp3 routine-music file via `M_Upload_Routine_Music` for that registration entry.
 - If the registrant has not uploaded the required routine music by the event registration deadline, the registration remains incomplete and is treated as not-confirmed for participant counts, exports, and check-in.
 - Registrants receive an email reminder at admin-configurable offsets before the deadline (`routine_music_reminder_days_1` default 7 days, `routine_music_reminder_days_2` default 1 day) when a required upload is missing.
 - For doubles or team routine categories, the registering member uploads on behalf of the entire entry; partners do not have independent upload access at launch.
+
+### M_Withdraw_Registration
+
+Access: Members can withdraw their own registration from an event up to that event's registration deadline.
+
+Story: As a member, I can withdraw from an event I registered for so that the organizer knows I am not coming and my place is released.
+
+Success Criteria:
+
+- Member can withdraw a registration they hold while the event's registration deadline has not passed. After the deadline, withdrawal is handled by the organizer (see `EO_Cancel_Registration`).
+- Withdrawal sets the registration to `canceled`, so it is excluded from participant lists, exports, check-in, and event email.
+- The organizer is notified by email that the member withdrew.
+- For a paid registration, the withdrawal screen states that any refund is arranged by the IFPA Treasurer outside the platform.
+- A withdrawn member can register again while registration remains open; withdrawal is not a bar to re-entry.
+- Withdrawal is audit-logged with member ID, event ID, and timestamp.
+- Withdrawing a doubles or team entry withdraws the whole entry, and the registering member's partner information is retained on the canceled row for the organizer's reference.
 
 ### M_Upload_Routine_Music
 
@@ -1242,11 +1264,12 @@ Story: As a member, I see my own registered events in two sections: upcoming eve
 
 Success Criteria:
 
-- Upcoming Events section shows events where member is registered AND startDate greater than today AND status in (published, registration_full, closed).
+- Upcoming Events section shows events where member is registered AND startDate greater than today AND status in (reg_open, closed).
 - Past Events with Results section shows events where member participated AND the event has published results records.
 - Each entry shows event title, date, location, status or placement.
 - One-click access to event details, results, and media galleries.
 - For events the member is registered for, the event detail view displays the member’s registration type and selected categories/partner info (if applicable).
+- On any event detail page, an authenticated member sees who else is registered: display name, registration type, the disciplines each competitor entered, and partner or team information where the entry is a doubles or team entry. Only confirmed registrations are listed. Entering a competition is a public act within the community, so registrants appear on this list without an opt-out; the list carries no contact details.
 
 ## 3.5 Payments
 
@@ -1367,7 +1390,7 @@ Success Criteria:
 - The one-time club-join Active Player grant cannot be repeated after Active Player expiry; it is consumed by first use.
 - Active Player expiry events are audit-logged with member ID, previous Active Player expiry date, expiry processing date, and reason `active_player_expired`.
 - The actual expiry processing is performed automatically by the SYS_Check_Active_Player_Expiry system job; no manual admin action is required.
-- Event Organizer continuity: If the member is serving as an Event Organizer for events in `published`, `registration_full`, `closed`, or `completed` status when Active Player status expires, the member retains Event Organizer role permissions for those specific events until each event reaches `completed` status. This prevents organizers from being locked out of managing active events mid-lifecycle.
+- Event Organizer continuity: If the member is serving as an Event Organizer for events in `reg_open`, `closed`, or `completed` status when Active Player status expires, the member retains Event Organizer role permissions for those specific events until each event reaches `completed` status. This prevents organizers from being locked out of managing active events mid-lifecycle.
 
 ### M_Vouch_For_Active_Player
 
@@ -1774,13 +1797,14 @@ Valid event statuses and their transitions:
 
 - `draft`; initial state on creation.
 - `pending_approval`; paid or sanctioned event submitted for admin review (from `draft`).
-- `published`; visible and open for registration. Free events transition `draft → published` on creation. Paid/sanctioned events transition `pending_approval → published` on admin approval.
-- `registration_full`; capacity limit reached; no new registrations accepted (from `published`).
-- `closed`; registration deadline passed or organiser manually closed registration (from `published` or `registration_full`).
+- `reg_open`; visible and open for registration. Free events transition `draft → reg_open` on creation. Paid/sanctioned events transition `pending_approval → reg_open` on admin approval. A rejected request returns to `draft` (`pending_approval → draft`), where the organizer can revise it and resubmit.
+- `closed`; registration deadline passed or organiser manually closed registration (from `reg_open`).
 - `completed`; event has concluded and results may be posted (from `closed`). The `completed` state is terminal. Events with published results cannot be canceled, deleted, or transitioned to any other status.
 - `canceled`; event canceled at any point before `completed`; registrants are notified. The `canceled` state is terminal; canceled events cannot be re-opened or completed. A canceled event never surfaces publicly: no event detail page, no year-archive listing, and no result rows on any public results view (historical-person and player pages included), regardless of how result rows came to exist.
 
-No other status values are valid. All queries and conditional logic must use only these canonical strings.
+No other status values are valid. All queries and conditional logic must use only these canonical strings. The status names the registration lifecycle, distinct from results publication: `reg_open` means registration is open, and results are published separately once the event is `completed`.
+
+Every event created on the platform is an event officially registered through the IFPA website, which is the qualifying condition the IFPA membership structure sets for Active Player grants. Attendance marking therefore applies to every platform event.
 
 ### M_Create_Event
 
@@ -1792,7 +1816,7 @@ Success Criteria:
 
 - Members with Tier 1 benefits can create basic free events; Tier 2 or Tier 3 members can request sanctioned events and enable paid registration.
 
-Event creation form includes: title, description, start date, end date, location (city, state or province (optional), country), registration deadline, capacity limit (optional), competitor registration fee (optional, requires Tier 2 or Tier 3 and admin approval to set up), participant (spectator) fee (optional), t-shirt size (optional). Organizer defines a flexible list of event disciplines (freeform names such as shred-30 or ruler-of-the-court). For each discipline, organizer specifies whether it requires single/doubles/mixed doubles designation, and category (net, freestyle, golf, sideline). Sideline includes formats such as 2-square, 4-square, consecutive variants, one-pass, and social.
+Event creation form includes: title, description, start date, end date, location (city, state or province (optional), country), registration deadline, competitor registration fee (optional, requires Tier 2 or Tier 3 and admin approval to set up), participant (spectator) fee (optional), t-shirt size (optional). Organizer selects the event's disciplines from a curated list of the disciplines IFPA events actually run, and may add a custom discipline by name when an event runs something the list does not cover. For each discipline, organizer specifies whether it requires single/doubles/mixed doubles designation, and category (net, freestyle, golf, sideline). Sideline includes formats such as 2-square, 4-square, consecutive variants, one-pass, and social.
 
 - Members with Tier 1 benefits can create basic/local events without fees.
 - Tier 2 or Tier 3 members can request sanctioned events and configure paid registration (subject to admin approval). Payment configuration (if enabled): competitor registration fee, (optional) spectator fee.
@@ -1801,18 +1825,26 @@ Event creation form includes: title, description, start date, end date, location
 - Organizer sees clear error messages for validation failures with hints about what to fix.
 - Member gains Event Organizer status for this event (only).
 - An Event Organizer may organize more than one event at a time.
-- For free events, event status changes to published, Email sent to all event organizers to confirm. News item is created. Event will appear in Upcoming Events list. For paid events, these actions must wait for Admin approval.
+- For free events, event status changes to `reg_open`, Email sent to all event organizers to confirm. News item is created. Event will appear in Upcoming Events list. For paid events, these actions must wait for Admin approval.
 
-As an event organizer with Tier 2 or Tier 3 membership, I can select the sanctioned option for my event so that it gains credibility and access to paid features (upon admin approval).
+### EO_Request_Sanction
+
+Access: Event organizers with Tier 2 or Tier 3 membership can request IFPA sanctioning for an event they organize.
+
+Story: As an event organizer with Tier 2 or Tier 3 membership, I can request IFPA sanctioning for my event so that it gains credibility and access to paid registration (upon admin approval).
+
+Success Criteria:
 
 - Only Tier 2 or Tier 3 organizers can request sanction.
-- Sanction request form includes: fee justification.
+- Sanctioning is requested and decided entirely in the platform. The organizer submits no application by email, and the request reaches the administrator as a work-queue item rather than as correspondence.
+- The request form carries the organizer's sanctioning attestation, which the organizer must affirm to submit: that the event will abide by IFPA's guidelines for sanctioned events, that it will use IFPA-approved formats and judging systems or disclose where it deviates, and that any alternative judging system will be communicated to all players in advance of competition.
+- The request form carries a fee justification when the organizer has configured registration fees.
 - Organizer receives email confirmation that request is pending.
 - Sanction status visible on event detail page: pending, approved, rejected.
-- Approved sanction enables: paid registration.
-- Rejected sanction includes admin reason for rejection.
+- Approved sanction enables paid registration when fees are configured; a sanctioned event that charges nothing is equally valid.
+- Rejected sanction includes admin reason for rejection, and the event returns to `draft` so the organizer can revise and resubmit.
 - All sanction requests audit-logged.
-- Selecting the sanctioned event option creates email to all Admins for review, and appears in the Admin work-to-do queue.
+- Submitting the request moves the event to `pending_approval`, notifies admins, and appears in the Admin work-to-do queue.
 
 ### EO_Edit_Event
 
@@ -1839,12 +1871,28 @@ Story: As an event organizer, I can delete my event so that I can remove cancele
 
 Success Criteria:
 
-- Cannot delete event with confirmed registrations (must close registration and contact participants first).
+- Cannot delete event with confirmed registrations; an event that has taken registrations is canceled rather than deleted (see `EO_Cancel_Event`), so the record and its registrants' history survive.
 - Deletion is permanent (hard delete). The event record is immediately removed from the database, except that events with published results are never deleted, as they are preserved permanently for historical record.
 - Deleted events are hidden from public listings immediately upon deletion.
 - All participants notified via email of event deletion.
 - Deletion audit-logged with organizer ID, reason, timestamp.
-- Organizer sees confirmation dialog before deletion: "Delete Event Name? This will cancel the event and notify all X registered participants."
+- Organizer sees confirmation dialog before deletion: "Delete Event Name? This permanently removes the event and notifies all X registered participants."
+
+### EO_Cancel_Event
+
+Access: Event organizers can cancel an event they organize at any status before `completed`. Administrators can cancel any event (see `A_Correct_Event_Data`).
+
+Story: As an event organizer, I can cancel my event so that registrants are told it is not happening and the event stops appearing publicly, while the record of it survives.
+
+Success Criteria:
+
+- Organizer can cancel an event in `draft`, `pending_approval`, `reg_open`, or `closed` status. A `completed` event cannot be canceled, and a canceled event cannot be re-opened.
+- Cancellation requires a reason entered by the organizer.
+- All registrants are notified by email of the cancellation, and the reason is included.
+- The event moves to `canceled` and stops surfacing publicly per the event-status lifecycle.
+- For an event with paid registrations, the confirmation screen states that refunds are arranged by the IFPA Treasurer outside the platform, so the organizer knows cancellation does not refund anyone by itself.
+- Cancellation is audit-logged with actor ID, event ID, reason, registrant count notified, and timestamp.
+- Organizer sees a confirmation dialog before cancelling: "Cancel Event Name? This notifies all X registered participants and cannot be undone."
 
 ### EO_Manage_CoOrganizers
 
@@ -1893,6 +1941,21 @@ When a participant is marked Attended:
 
 - Attendance marking never changes membership tier.
 
+### EO_Cancel_Registration
+
+Access: Event organizers can cancel a registration in an event they organize. Administrators can cancel any registration (see `A_Correct_Event_Data`).
+
+Story: As an event organizer, I can cancel a participant's registration so that my participant list matches who is actually coming.
+
+Success Criteria:
+
+- Organizer can cancel any registration in their event, at any point before the event reaches `completed`.
+- Cancellation requires a reason entered by the organizer.
+- The registration moves to `canceled` and leaves participant lists, exports, check-in, and event email.
+- The member is notified by email that their registration was canceled, and the reason is included.
+- For a paid registration, the confirmation screen states that any refund is arranged by the IFPA Treasurer outside the platform.
+- Cancellation is audit-logged with actor ID, affected member ID, event ID, reason, and timestamp.
+
 ### EO_Close_Registration
 
 Access: Event organizers can close registration for their events according to the registration rules.
@@ -1915,7 +1978,7 @@ Story: As an event organizer, I can export the participant list so that I can us
 Success Criteria:
 
 - Export generates CSV file with: member name, email (if opted in), city, country, registration date, membership tier and Active Player status, payment status.
-- Export includes only confirmed participants (not pending or rejected).
+- Export includes only confirmed participants (not pending or canceled).
 - Export filename: eventname_participants_YYYYMMDD.csv
 - Participant list and exports include registration type (Competitor/Attendee-Supporter), selected categories (if competitor), and partner/team fields (if applicable).
 
@@ -1923,12 +1986,12 @@ Success Criteria:
 
 Access: Event organizers can view a per-event registration summary dashboard for events they organize.
 
-Story: As an event organizer, I can view a registration summary dashboard for my event so that I can plan logistics, fees, t-shirts, and capacity at a glance.
+Story: As an event organizer, I can view a registration summary dashboard for my event so that I can plan logistics, fees, and t-shirts at a glance.
 
 Success Criteria:
 
 - Dashboard is scoped to a single event and accessible only to that event's organizer(s) and Admins.
-- Dashboard displays: total registered count, breakdown by registration type (Competitor / Attendee-Supporter), per-category registration counts, payment status summary (paid / pending / failed counts and amounts in the event's currency), capacity utilization vs configured capacity limit, registration timeline (count per day from registration open to current time).
+- Dashboard displays: total registered count, breakdown by registration type (Competitor / Attendee-Supporter), per-category registration counts, payment status summary (paid / pending / failed counts and amounts in the event's currency), registration timeline (count per day from registration open to current time).
 - Dashboard displays t-shirt size summary if the event collects t-shirt sizes.
 - For categories with `requires_routine_music=true`, dashboard displays a routine-music status summary: count of registrations with file uploaded vs missing.
 - Counts update via SQL query on demand; no caching beyond standard request scope.
@@ -1959,7 +2022,7 @@ Story: As an event organizer, I can send an email to all registered participants
 Success Criteria:
 
 - Email form includes: subject, message body, preview.
-- Email sent to all confirmed participants (not pending or rejected).
+- Email sent to all confirmed participants (not pending or canceled).
 - Emails sent via SES with proper headers and unsubscribe links.
 - Send rate limited to prevent abuse: maximum 1 email per event per day.
 - All bulk emails audit-logged with organizer ID, event ID, recipient count, subject, timestamp.
@@ -1972,19 +2035,25 @@ Success Criteria:
 
 ### EO_Upload_Results
 
-Access: Event organizers can upload results for events they organize, including sanctioned events where results feed into rankings.
+Access: Event organizers can upload results for events they organize.
 
-Story: As an event organizer, I can upload event results so that participants and the community can view outcomes.
+Story: As an event organizer, I can upload event results so that participants and the community can view outcomes, and so the results are recorded completely enough to compute rankings from later.
 
 Success Criteria:
 
 - Results upload accepts CSV with enough information to create `event_results_uploads`, `event_result_entries`, and `event_result_entry_participants` database rows for singles and multi-participant placements (if that data is available for the event).
-- Results visible on event detail page after upload.
+- The upload is a two-step flow: the file is parsed into a preview the organizer reviews, and nothing is written to the event's public results, no participant profile is touched, and no attendance step runs until the organizer commits that preview.
+- The preview reports, per row, whether each named participant matched a confirmed registration in that event. Matching is quality assurance rather than a gate: an unmatched participant is flagged for the organizer to correct or accept, and accepting one records the participant by display name without a member link. This is expected rather than exceptional, because partners change on the day, non-members compete, and competitors are moved between divisions as entries are combined or split at the event.
+- The preview refuses to commit a file that is malformed as results: a placement missing, a discipline the event does not carry and the organizer has not confirmed as contested, or a duplicate placement that the organizer has not declared as a tie.
+- Each group of results names the division actually contested, which is the event's own discipline where the entries match one, and the division as it ran where the event combined, split, or renamed one on the day.
+- Ties are recorded as a shared placement: tied competitors take the same, lower place and the next place is skipped, as the IFPA competition rules specify.
+- Results record every competitor's placement, down to last place, and carry the scores of matches played where the discipline produces them, so a later ranking computation has the inputs the IFPA rules require without the organizer being asked for the data twice.
+- Results visible on event detail page after commit.
 - Results displayed as sortable table.
 - Results also added to participant profiles (if participant linked to member account).
 - Results publication generates news feed item.
 - Only organizers can upload results.
-- Results upload audit-logged.
+- Results upload audit-logged, including the committed upload's row count and the count accepted without a registration match.
 - Results can be uploaded for any event (sanctioned status does not affect results posting).
 Impact:
 
@@ -2237,21 +2306,22 @@ Administrators are member volunteers with elevated privileges for platform opera
 
 ### A_Approve_Sanctioned_Event
 
-Access: Only admins can review and approve Stripe configuration for paid events. In this system, paid registration is only enabled after an event's sanction request is approved; sanction status and payment enablement are linked by policy.
+Access: Only admins can approve an event's sanction request. A single administrator decides, working the review checklist below; where a request needs an IFPA ruling rather than an administrative decision, the administrator coordinates with the IFPA board outside the platform and records the outcome in the approval reason. Paid registration is enabled only after an event's sanction request is approved, so an event that charges fees is always a sanctioned event; a sanctioned event that charges nothing is the ordinary case and needs no payment configuration.
 
-Story: As an admin, I can approve or reject an event's payment configuration so that paid events are controlled.
+Story: As an admin, I can approve or reject an event's sanction request, and with it any payment configuration the organizer has proposed, so that sanctioned events meet IFPA's requirements.
 
 Success Criteria:
 
-- Review event details and fee structure in approval queue.
+- Review event details, the organizer's sanctioning attestation, and any fee structure in the approval queue.
 - Approve or reject with reason.
-- On approval: event status changes to published, payment configuration enabled, Email sent to all event organizers to confirm. News item is created. Event will appear in Upcoming Events list.
-- On rejection: event status remains draft, Outbox sends organizer notification with reason.
+- On approval: event status changes to `reg_open`, payment configuration enabled where the organizer configured fees, Email sent to all event organizers to confirm. News item is created. Event will appear in Upcoming Events list.
+- On rejection: event status returns to `draft`, Outbox sends organizer notification with reason, and the organizer can revise and resubmit.
 - Payment approval is event-specific configuration, not persistent eventOrganizer permission (which is separate).
 - All approval actions logged.
 - Admin reviews pending sanction requests in queue (scan events where status === 'pending_approval').
-- Admin can see: event details, organizer history, fee amount, organizer tier status.
-- Approval simultaneously: marks event as sanctioned AND enables paid registration.
+- Admin can see: event details, organizer history, the organizer's sanctioning attestation, fee amount where fees are configured, organizer tier status.
+- Approval marks the event as sanctioned, and enables paid registration when the organizer configured fees.
+- A single administrator's approval completes the decision; no second approver and no in-app committee step is required.
 - All approval/rejection decisions audit-logged with admin ID, decision, reason, timestamp.
 - Admin cannot approve sanction if organizer lacks Tier 2 or Tier 3 status.
 - Admin sees a clear success message when approval/rejection completes successfully.
@@ -2410,6 +2480,23 @@ Success Criteria:
 - Each correction is recorded in an audit log that includes before/after values, admin identity, timestamp, and the reason for correction.
 - Participants and organizers see the corrected results in all normal views; where appropriate.
 - Corrections do not bypass normal publishing or sanctioning rules: only events that are otherwise valid (for example sanctioned where required) can have their official results corrected.
+
+### A_Correct_Event_Data
+
+Access: Only admins can correct event and registration data outside the organizer's own tools.
+
+Story: As an administrator, I can correct any event or registration record when an organizer or member has left it wrong and cannot fix it themselves, so that data problems arising from ordinary use have a remedy without database access.
+
+Success Criteria:
+
+- Admin can edit any event's fields, including fields the organizer is barred from changing after the fact, such as an event's sanctioned status or a discipline whose entries are already confirmed.
+- Admin can cancel any event, with the same registrant notification, reason, and audit trail the organizer's own cancellation carries.
+- Admin can cancel any registration, with the same member notification, reason, and audit trail the organizer's own cancellation carries.
+- Admin can assign an event organizer from the member base where an event has none (see `A_Reassign_Event_Organizer`).
+- Every correction requires a reason entered by the admin, and writes an audit row carrying the before and after values, the admin's identity, the timestamp, and the reason.
+- Corrections appear in the normal public and member-facing views immediately, with no separate publication step.
+- Purpose-built surfaces remain the ordinary path: an organizer edits their own event, results corrections go through `A_Fix_Event_Results`, and member records go through `A_Override_Member_Data`. This story is the backstop for what those do not reach.
+- Four record classes are outside this story, each protected by its own design: audit logs are append-only and are never corrected retroactively; payment records follow the payment provider through reconciliation rather than free-hand edits; imported historical results are corrected at their source and rebuilt; and vote records carry their own integrity model.
 
 ### A_Mark_Member_Deceased
 

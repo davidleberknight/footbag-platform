@@ -49,6 +49,7 @@ Before any message containing "?":
 8. State the load-bearing assumptions behind the recommendation, so a wrong one can be corrected before you act.
 9. Propose any surgical edit as literal BEFORE/AFTER text, verbatim with enough surrounding context to locate it, never an abstract description.
 10. When presenting a doc or canonical-text draft, show only the literal text plus a one-line approval prompt, with no trailing style or conformance commentary.
+11. In a multi-question pass, present exactly one question per message, headed "Question N of M: " plus a short bold title, and never finalize a plan while any queued question remains unasked.
 
 A Stop hook (`.claude/hooks/guard-question-quality.sh`) blocks a question still carrying a section
 sign, a state number, a documentation-file pointer, or a code used as a bare label. It is a

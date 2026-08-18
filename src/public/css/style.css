@@ -1535,8 +1535,7 @@ button.tag-suggestion {
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
-.badge-published      { background: var(--green-soft); color: var(--green-deep); }
-.badge-registration_full { background: var(--orange-soft); color: var(--orange-deep); }
+.badge-reg_open       { background: var(--green-soft); color: var(--green-deep); }
 .badge-closed         { background: var(--gray-150); color: var(--gray-700); }
 .badge-completed      { background: var(--indigo-soft); color: var(--indigo-deep); }
 .badge-tier           { background: var(--info-teal-bg); color: var(--secondary); }

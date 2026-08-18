@@ -38,7 +38,7 @@ beforeAll(async () => {
   insertEvent(db, {
     hashtag_tag_id:      upcomingTag,
     title:               '2026 Autumn Open',
-    status:              'published',
+    status:              'reg_open',
     start_date:          '2026-11-01',
     end_date:            '2026-11-02',
     city:                'Riverton',
