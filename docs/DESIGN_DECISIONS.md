@@ -6,6 +6,10 @@ This document captures technical decisions and rationale so that volunteers can 
 
 Scoping note: Numeric values in this document may represent fixed technical constants, deployment/infrastructure resource allocations and thresholds, or implementation notes. For Administrator-configurable operational, security, reminder, pricing, and retention values, normative defaults are defined in the User Stories document and loaded via configuration seeds. DD may describe parameterization, ranges, and ownership, but if a value is Administrator-configurable, DD does not define the normative default. Any numeric value in this document that conflicts with the User Stories normative defaults section is an error; User Stories wins.
 
+Version markers: a section headed `<< V2 SCOPE >>` or `<< V3 SCOPE >>` is design intent for a
+post-launch build and is not part of the v1 launch; a section with no marker is v1. The allocation
+is decided in the Migration Plan's feature-scope-by-version section, which this document follows.
+
 Current implementation status and accepted temporary deviations are tracked in the maintainers' private tracker. This document is the long-term architecture reference only.
 
 ## Table of Contents
@@ -1682,6 +1686,9 @@ Impact:
 
 
 ## 3.7 Ballot Encryption with AWS KMS
+
+<< V2 SCOPE >> Ballot encryption ships with the voting subsystem in version two. This section is
+design intent for that build and is not part of the v1 launch.
 
 Decision:
 
