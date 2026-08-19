@@ -60,9 +60,12 @@
  *   - Every admin-provisioning path (steady-state grant plus the bootstrap and
  *     dev-repair callers of the Tier 2 invariant grant) subscribes the member to
  *     `admin-alerts`, so the work-queue fan-out reaches every admin.
- *   - The administrator-loss alert is idempotent per administrator: while an
- *     open item names that member, a further raise is a no-op, which is what
- *     makes the daily sweep safe to re-run. The revoke-time raise commits inside
+ *   - The administrator-loss alert is idempotent per administrator: once an item
+ *     names that member, a further raise is a no-op, which is what makes the
+ *     daily sweep safe to re-run. Dismissing the item settles the loss and keeps
+ *     it settled, since the states the sweep reads outlive the alert; only a
+ *     sign-in after the dismissal makes that administrator alertable again. The
+ *     revoke-time raise commits inside
  *     the revoke transaction so the role change and its alert cannot separate;
  *     the sweep raises each administrator in its own transaction so one failing
  *     row cannot abort the pass. The sweep reads and alerts only: it changes no
@@ -580,6 +583,20 @@ const ADMIN_LOSS_REASON_TEXT: Record<AdminLossReason, string> = {
   inactive:        'Administrator has not signed in within the inactivity window; recruit a replacement admin volunteer.',
 };
 
+/** Whether a fresh alert is owed for an administrator who already has one on
+ *  record. An open alert is the matter still queued; a closed one is an
+ *  administrator's ruling that the loss was settled, which stands until that
+ *  administrator signs in again and is lost a second time. A closed alert
+ *  carrying no resolution timestamp cannot be dated against a sign-in, so it
+ *  counts as settled rather than reopening on a missing value. Both timestamps
+ *  are the same ISO form, so a string compare orders them. */
+function isLossAlertReRaisable(prior: {
+  status: string; resolved_at: string | null; last_login_at: string | null;
+}): boolean {
+  if (prior.status === 'open' || prior.resolved_at === null) return false;
+  return prior.last_login_at !== null && prior.last_login_at > prior.resolved_at;
+}
+
 /**
  * Raise the administrator-loss recruitment alert for one lost administrator, so
  * the remaining administrators are prompted to recruit rather than letting the
@@ -587,17 +604,28 @@ const ADMIN_LOSS_REASON_TEXT: Record<AdminLossReason, string> = {
  *
  * Synchronous DB writes only, so a caller that already holds a transaction can
  * fold the raise into it and have the loss and its alert commit together. The
- * open-item guard makes the raise idempotent per administrator, which is what
- * lets the daily sweep re-run harmlessly: while an item for that member is open,
- * a second call is a no-op and no second email goes out.
+ * prior-alert guard makes the raise idempotent per administrator, which is what
+ * lets the daily sweep re-run harmlessly: a second call is a no-op and no second
+ * email goes out.
+ *
+ * The guard counts a closed alert, not only an open one. Three of the four loss
+ * reasons describe a state that outlives the alert -- a deceased, deleted, or
+ * lapsed administrator is still all three tomorrow -- so a guard that looked
+ * only for an open item would raise the same alert every day forever and make
+ * dismissing it meaningless. Dismissal is the administrator's ruling that the
+ * loss is settled, and it sticks. A sign-in after that ruling is what starts the
+ * clock again: an administrator who came back and then lapsed a second time has
+ * been lost afresh, and is alerted afresh.
  */
 function raiseAdminLossAlertInTx(
   lostMemberId: string,
   reason: AdminLossReason,
   actorId: string,
 ): { raised: boolean } {
-  const existing = workQueue.findOpenByEntity.get(ADMIN_LOSS_TASK_TYPE, 'member', lostMemberId);
-  if (existing !== undefined) return { raised: false };
+  const prior = workQueue.findLatestMemberItemWithLastLogin.get(
+    ADMIN_LOSS_TASK_TYPE, lostMemberId,
+  ) as { status: string; resolved_at: string | null; last_login_at: string | null } | undefined;
+  if (prior !== undefined && !isLossAlertReRaisable(prior)) return { raised: false };
 
   const { id } = workQueueService.enqueue({
     actorId,
@@ -644,8 +672,9 @@ export function adminInactivityAlertDays(): number {
  * granting and revoking are deliberate human acts under A_Manage_Admin_Role and
  * an inactivity finding is a prompt for the remaining administrators, not a
  * verdict. Each administrator is raised in its own transaction so one bad row
- * cannot abort the pass, and the open-item guard inside the raise makes a
- * re-run produce nothing new.
+ * cannot abort the pass, and the prior-alert guard inside the raise makes a
+ * re-run produce nothing new, whether the earlier alert is still queued or has
+ * already been dismissed.
  */
 export function runAdminLossSweep(): { examined: number; raised: number; failed: number } {
   const cutoffIso = new Date(Date.now() - adminInactivityAlertDays() * 86_400_000).toISOString();

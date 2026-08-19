@@ -9,8 +9,10 @@
  * marked deceased, and a sign-in that has lapsed past the configured window are
  * all found by the daily sweep instead, because they have no in-app action to
  * hang the raise on. The sweep reads and alerts: it changes no admin role, and
- * an administrator whose alert is already open is skipped, so re-running it
- * raises nothing new.
+ * an administrator who already has an alert on record is skipped, so re-running
+ * it raises nothing new. That guard outlives the alert being closed, because the
+ * states the sweep reads persist after a dismissal: dismissing settles the loss
+ * and keeps it settled until that administrator signs in again and lapses afresh.
  */
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
@@ -40,9 +42,17 @@ const LONG_AGO = new Date(Date.now() - (INACTIVITY_DAYS + 30) * DAY_MS).toISOStr
 /** Comfortably inside it, for the administrators who must be left alone. */
 const RECENTLY = new Date(Date.now() - 2 * DAY_MS).toISOString();
 
+/** An administrator who was written off, came back, and lapsed a second time:
+ *  the dismissal predates the sign-in, and the sign-in still predates the
+ *  window's cutoff, so the loss is genuinely new rather than the settled one. */
+const DISMISSED_BEFORE_RETURN = new Date(Date.now() - (INACTIVITY_DAYS + 110) * DAY_MS).toISOString();
+const RETURNED_THEN_LAPSED    = new Date(Date.now() - (INACTIVITY_DAYS + 60) * DAY_MS).toISOString();
+
 let testDb: BetterSqlite3.Database;
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 let tiering: typeof import('../../src/services/membershipTieringService');
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+let adminQueue: typeof import('../../src/services/adminWorkQueueService');
 
 interface QueueRow {
   entity_id: string;
@@ -62,6 +72,23 @@ function openAlerts(): QueueRow[] {
 
 function alertedMemberIds(): string[] {
   return openAlerts().map((r) => r.entity_id);
+}
+
+/** Every alert ever raised about one administrator, open or closed, which is
+ *  what tells a suppressed re-raise apart from a card that was merely closed. */
+function alertCountFor(memberId: string): number {
+  const row = testDb.prepare(
+    `SELECT COUNT(*) AS c FROM work_queue_items WHERE task_type = ? AND entity_id = ?`,
+  ).get(TASK_TYPE, memberId) as { c: number };
+  return row.c;
+}
+
+function openAlertIdFor(memberId: string): string {
+  const row = testDb.prepare(
+    `SELECT id FROM work_queue_items WHERE task_type = ? AND entity_id = ? AND status = 'open'`,
+  ).get(TASK_TYPE, memberId) as { id: string } | undefined;
+  if (row === undefined) throw new Error(`no open alert for ${memberId}`);
+  return row.id;
 }
 
 function recruitmentEmailCount(): number {
@@ -103,7 +130,8 @@ beforeAll(async () => {
   }
 
   await importApp();
-  tiering = await import('../../src/services/membershipTieringService');
+  tiering    = await import('../../src/services/membershipTieringService');
+  adminQueue = await import('../../src/services/adminWorkQueueService');
 });
 
 afterAll(() => {
@@ -126,6 +154,7 @@ beforeEach(() => {
   }
   testDb.prepare('UPDATE members SET last_login_at = ? WHERE id IN (?, ?, ?, ?)')
     .run(RECENTLY, ACTOR, REVOKED, DECEASED, DELETED);
+  testDb.prepare('UPDATE members SET last_login_at = ? WHERE id = ?').run(LONG_AGO, LAPSED);
 });
 
 describe('revoking the admin role raises the recruitment alert', () => {
@@ -246,6 +275,50 @@ describe('the daily sweep finds administrators who can no longer serve', () => {
 
     expect(result.examined).toBe(4);
     expect(alertedMemberIds().filter((id) => id === REVOKED)).toHaveLength(1);
+  });
+});
+
+// Dismissing is the administrator's ruling that the loss is settled. The states
+// the sweep reads outlive that ruling -- a lapsed administrator is still lapsed
+// tomorrow -- so a guard that only skipped open items would reopen the same card
+// every day and make dismissing pointless.
+describe('dismissing an alert settles the loss for good', () => {
+  it('raises nothing further for an administrator whose alert has been dismissed', () => {
+    tiering.runAdminLossSweep();
+    adminQueue.adminWorkQueueService.dismiss({
+      queueItemId:   openAlertIdFor(LAPSED),
+      adminMemberId: ACTOR,
+      note:          'Replacement recruited.',
+    });
+    const emailsBefore = recruitmentEmailCount();
+
+    tiering.runAdminLossSweep();
+
+    expect(alertCountFor(LAPSED)).toBe(1);
+    expect(alertedMemberIds()).not.toContain(LAPSED);
+    expect(recruitmentEmailCount()).toBe(emailsBefore);
+  });
+
+  it('raises afresh for an administrator who signed in after the dismissal and then lapsed again', () => {
+    tiering.runAdminLossSweep();
+    adminQueue.adminWorkQueueService.dismiss({
+      queueItemId:   openAlertIdFor(LAPSED),
+      adminMemberId: ACTOR,
+      note:          'Replacement recruited.',
+    });
+    // The dismissal is stamped at this instant, so it is aged backwards to sit
+    // before the sign-in it must be compared against. Only the order of the two
+    // timestamps decides the outcome, and the sign-in stays outside the window
+    // so the administrator is genuinely lapsed a second time.
+    testDb.prepare(
+      `UPDATE work_queue_items SET resolved_at = ? WHERE task_type = ? AND entity_id = ?`,
+    ).run(DISMISSED_BEFORE_RETURN, TASK_TYPE, LAPSED);
+    testDb.prepare('UPDATE members SET last_login_at = ? WHERE id = ?').run(RETURNED_THEN_LAPSED, LAPSED);
+
+    tiering.runAdminLossSweep();
+
+    expect(alertCountFor(LAPSED)).toBe(2);
+    expect(alertedMemberIds()).toContain(LAPSED);
   });
 });
 

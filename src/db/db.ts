@@ -9302,6 +9302,25 @@ export const workQueue = {
     LIMIT 1
   `); },
 
+  // Latest item of a task type for one member, with that member's last sign-in,
+  // for callers whose re-raise guard must survive the item being closed. An
+  // open item means the matter is already queued; a closed one means an
+  // administrator settled it, and settling must stick even while the condition
+  // that triggered it persists. The sign-in timestamp is what distinguishes a
+  // settled matter from a genuinely new one: a member who signed in after the
+  // item was closed and then met the condition again has lapsed afresh. Joins
+  // members_all rather than members_active because a soft-deleted member is one
+  // of the states a caller may be alerting on, and the join is LEFT so an item
+  // whose member row is gone still reports the item.
+  get findLatestMemberItemWithLastLogin() { return db.prepare(`
+    SELECT wq.status, wq.resolved_at, m.last_login_at
+    FROM work_queue_items AS wq
+    LEFT JOIN members_all AS m ON m.id = wq.entity_id
+    WHERE wq.task_type = ? AND wq.entity_type = 'member' AND wq.entity_id = ?
+    ORDER BY wq.opened_at DESC
+    LIMIT 1
+  `); },
+
   // Member-side rate limiter for contact-IFPA-admin requests: caps the number
   // of open items a single member can hold open at a time, across task_types.
   get countOpenForMember() { return db.prepare(`
