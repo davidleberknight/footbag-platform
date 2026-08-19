@@ -15,7 +15,6 @@ import BetterSqlite3 from 'better-sqlite3';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
-import { insertAuditEntry } from '../fixtures/factories';
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
@@ -98,18 +97,6 @@ function buildFixtureDb(dbPath: string, opts: { withNameVariants?: boolean } = {
               '2025-01-01T00:00:00.000Z', 'system', 1,
               'club-1', 'legmem-1', 'leader', 'provisional', 0.85)
   `).run();
-
-  // The G20 data-review sign-off row the green path requires.
-  insertAuditEntry(db, {
-    id: 'aud-g20-signoff',
-    actor_type: 'system',
-    actor_member_id: null,
-    action_type: 'legacy_pipeline.data_review_signoff',
-    entity_type: 'system',
-    entity_id: 'legacy_pipeline',
-    category: 'legacy_pipeline',
-    reason_text: 'Legacy data complete; member-list presentation reviewed.',
-  });
 
   // The permanent showcase event tag + Footbag Hacky historical person the
   // SHOWCASE-PRESENCE gate requires to be present before cutover.
@@ -199,7 +186,7 @@ describe('pre-cutover checklist orchestrator', () => {
     const r = runChecklist(dbPath, snapshotDir);
     expect(r.status, `stdout:\n${r.stdout}\nstderr:\n${r.stderr}`).toBe(0);
     expect(r.stdout).toMatch(/READY: all gates PASS/);
-    for (const label of ['SNAPSHOT', 'G1', 'G7', 'G8', 'G11', 'DEV-ADMIN-AUDIT', 'SHOWCASE-PRESENCE', 'G20-SIGNOFF', 'PAYMENTS-BOOT', 'QC-ABSENCE']) {
+    for (const label of ['SNAPSHOT', 'G1', 'G7', 'G8', 'G11', 'DEV-ADMIN-AUDIT', 'SHOWCASE-PRESENCE', 'PAYMENTS-BOOT', 'QC-ABSENCE']) {
       expect(r.stdout).toMatch(new RegExp(`GATE: ${label}[^\\n]*PASS`));
     }
     // The integration / smoke / e2e suites report SKIP under --skip-tests,

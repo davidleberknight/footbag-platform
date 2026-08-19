@@ -89,6 +89,16 @@ async function activePlayerExpiryLoop(): Promise<void> {
         error: err instanceof Error ? err.message : String(err),
       });
     }
+    // Administrators who can no longer serve are surfaced on the same daily
+    // cadence; the sweep only reads and raises, and an already-open alert makes
+    // a repeat tick a no-op, so it rides this tick rather than owning a loop.
+    try {
+      await operationsPlatformService.runAdminLossSweep();
+    } catch (err) {
+      logger.error('worker: admin-loss sweep unexpected error', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
     // The PII purge-eligibility scan is daily by design and idempotent
     // (erasure_log guards), so it rides the same tick.
     try {

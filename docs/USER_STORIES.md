@@ -265,7 +265,7 @@ All UI labels and system-generated messages are English-only at launch. User-ent
 
 Reporting scope: Any dashboards/metrics described here are operational metrics (health, payment volume, job success/failure), not advanced BI or custom analytics.
 
-Admin work-queue notifications are routed by urgency, never broadcast per event to every administrator. Task types classified urgent (security or data-integrity events needing same-day action) send an immediate email to the admin-alerts mailing list when enqueued. Routine task types send no per-event email: administrators read them on the work-queue dashboard, and a periodic digest emails each administrator a rollup of open routine items. An administrator who claims an item removes it from the other administrators' digests; an item unclaimed past a configured stale threshold escalates once with a single email to admin-alerts naming the item. Every such notification contains task type and entity ID only (no sensitive member data such as email addresses, payment amounts, personal information, or content details). Queue items can be viewed after resolution with status, admin who resolved, resolution timestamp, decision label, and reason text.
+Admin work-queue notifications are routed by urgency, never broadcast per event to every administrator. Task types classified urgent (security, data-integrity, or administrative-continuity events needing same-day action) send an immediate email to the admin-alerts mailing list when enqueued. Routine task types send no per-event email: administrators read them on the work-queue dashboard, and a periodic digest emails each administrator a rollup of open routine items. An administrator who claims an item removes it from the other administrators' digests; an item unclaimed past a configured stale threshold escalates once with a single email to admin-alerts naming the item. Every such notification contains task type and entity ID only (no sensitive member data such as email addresses, payment amounts, personal information, or content details). Queue items can be viewed after resolution with status, admin who resolved, resolution timestamp, decision label, and reason text.
 
 Member action items follow the mirror-image rule. Anything the platform is waiting on a member for surfaces on that member's dashboard (`M_View_Dashboard`), which is where every login lands, so a member is shown what they owe rather than having to remember where to look for it. Urgency is set by the part of the platform that owns the obligation, since only it knows its deadline: needs-attention-now items lead the dashboard's action block and put a compact banner on every other member page, while pending items sit quietly on the dashboard alone. Neither the block nor the banner carries private content; each item shows a headline, an optional non-private detail line, and its options, and anything private is read on the owner-only surface the item links to. Notification email is unchanged by this: each obligation keeps whatever reminder its own story specifies, and members receive no rollup digest.
 
@@ -3356,6 +3356,7 @@ Success Criteria:
 - All role changes audit-logged with admin ID, target member ID, action, reason, timestamp.
 - Granting the admin role automatically subscribes the member to the Admin mailing list used for admin alerts.
 - Revoking the admin role automatically unsubscribes the member from the Admin mailing list, without changing any of their other email subscriptions.
+- Revoking the admin role raises the administrator-loss recruitment alert in the same transaction, per SYS_Detect_Admin_Loss.
 
 ### A_Bootstrap_First_Admin
 
@@ -3451,6 +3452,7 @@ Seed these defaults into the database-backed configuration store during initial 
 - `reconciliation_summary_interval_days = 7` (cadence in days for the automated reconciliation digest email sent to admins)
 - `admin_queue_digest_interval_days = 1` (cadence in days for the admin work-queue digest of open routine items sent to each admin)
 - `admin_queue_stale_escalation_days = 3` (days an unclaimed routine work-queue item may stay open before a one-time escalation email to all admins)
+- `admin_inactivity_alert_days = 180 days` (days without a sign-in before an administrator is surfaced for recruitment follow-up, per `SYS_Detect_Admin_Loss`; valid `>= 1`)
 - `work_queue_resolve_rate_limit_per_hour = 120` (maximum work-queue resolutions per admin per hour)
 - `primary_snapshot_version_days = 30` (number of days of point-in-time snapshot versions retained in the primary S3 backup bucket; governs the S3 versioning lifecycle setting)
 - `cross_region_backup_retention_days = 90` (Object Lock retention window for backup objects in the cross-region disaster-recovery bucket)
@@ -3662,6 +3664,22 @@ Success Criteria:
 - Each expiry writes an audit entry identifying the candidate and the member; no identity table is touched.
 - The sweep is idempotent: re-running it produces no further state change for already-resolved candidates.
 - If the candidate's anchors still match when staging next runs, the candidate may be staged again; expiry never blocks a future re-stage the way a decline does.
+
+### SYS_Detect_Admin_Loss
+
+Access: This scheduled process runs under the system role.
+
+Story: The system notices when the platform loses an administrator and prompts the remaining administrators to recruit a replacement, so that administrative capacity is renewed by a deliberate decision rather than eroding until only the break-glass re-bootstrap path remains.
+
+Success Criteria:
+
+- An administrator counts as lost in any of these cases: their admin role is revoked; their member account is soft-deleted or marked deceased while they still hold the role; or they have not signed in within an administrator-configurable inactivity window (default 180 days, keyed by `admin_inactivity_alert_days`), measured from their last sign-in, or from account creation for an administrator who has yet to sign in.
+- A revocation raises the alert immediately, in the same transaction as the role change. The other cases are found by a daily sweep, so a loss whose triggering action has no in-app surface is still caught.
+- Each loss raises one open work-queue item in the system category, naming the lost administrator and the loss reason, and sends one email to the Admin mailing list asking the remaining administrators to recruit a new admin volunteer as soon as possible. The email carries the task type and the entity identifier, matching every other admin notification; the administrator's name and the loss reason are read on the queue card.
+- The sweep is idempotent: while an item for that administrator is open, re-running it leaves that item as the single open record.
+- Role changes stay deliberate human acts under A_Manage_Admin_Role. An inactivity finding is a prompt for the remaining administrators to act on, and the sweep's own writes are the queue item, its audit entry, and the notification.
+- An administrator closes the item by dismissing it once a replacement is recruited or the loss is otherwise settled. The dismissal is audit-logged and is an internal record, so it emails no member.
+- Each raise writes an audit entry identifying the lost administrator and the loss reason, and the run is recorded with its status and counts so an operator can see when it ran and what it did.
 
 ### SYS_Send_Email
 

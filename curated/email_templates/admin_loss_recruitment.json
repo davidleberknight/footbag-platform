@@ -1,0 +1,7 @@
+{
+  "templateKey": "admin_loss_recruitment",
+  "subjectTemplate": "IFPA admin team: please recruit a new admin volunteer",
+  "bodyTemplate": "The platform has lost an administrator, so the admin team is smaller than it was.\n\nAdministrator member ID: {entityId}\n\nPlease recruit a new admin volunteer as soon as possible. The work-queue item explaining what happened is at {queueUrl}.",
+  "piiClassification": "internal",
+  "isEnabled": true
+}

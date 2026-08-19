@@ -48,8 +48,8 @@ const CATALOG: CatalogEntry[] = [
     { params: { verifyUrl: 'https://x/anchors/verify/t', ttlHours: 24 }, variant: 'mailbox_link_confirm' },
   ] },
   // Admin-alerts fan-out, sent from the single work-queue enqueue path.
-  { template: 'admin_queue_alert', services: ['workQueueService'], samples: [
-    { params: { taskType: 't', entityId: 'e' }, variant: 'admin_queue_alert' },
+  { template: 'admin_loss_recruitment', services: ['workQueueService'], samples: [
+    { params: { entityId: 'e', queueUrl: 'https://x/admin/work-queue' }, variant: 'admin_loss_recruitment' },
   ] },
   // Routine work-queue items: the per-admin digest and the one-time stale
   // escalation, both sent from the work-queue service's scheduled passes.

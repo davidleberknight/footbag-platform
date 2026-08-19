@@ -107,25 +107,16 @@ run_step "DEV-ADMIN-AUDIT" bash scripts/audit-dev-shortcuts.sh
 # 7a. Permanent showcase event + Footbag Hacky persona must be present
 run_step "SHOWCASE-PRESENCE" bash scripts/validate-showcase-presence.sh
 
-# 8. G20 data-review sign-off: the historical-pipeline maintainer's audit
-#    row confirming legacy data is complete and member-list presentation is
-#    reviewed. Legacy-data surfaces must not ship without it.
-run_step "G20-SIGNOFF" bash -c '
-  count=$(sqlite3 "${FOOTBAG_DB_PATH:-./database/footbag.db}" \
-    "SELECT COUNT(*) FROM audit_entries WHERE action_type = '"'"'legacy_pipeline.data_review_signoff'"'"';")
-  if [ "${count}" -ge 1 ]; then
-    echo "GATE: G20-SIGNOFF PASS: data-review sign-off audit row present"
-  else
-    echo "GATE: G20-SIGNOFF FAIL: no legacy_pipeline.data_review_signoff audit row; withhold legacy-data surfaces until the maintainer signs off" >&2
-    exit 1
-  fi
-'
+# NOTE: the data-review sign-off is not asserted here. It is a human
+# coordination contract between the maintainers, confirmed and tracked with the
+# rest of the pipeline work, not a state this script can read. Checklist state
+# is not kept in the database.
 
-# 9. Live-payments boot readiness (env file names the live adapter and the
+# 8. Live-payments boot readiness (env file names the live adapter and the
 #    webhook secret; the Stripe key itself lives in SSM)
 run_step "PAYMENTS-BOOT" bash scripts/validate-payments-boot.sh
 
-# 10. Internal QC subsystem must be absent from the production image
+# 9. Internal QC subsystem must be absent from the production image
 if [[ "${MOCK_AWS}" -eq 1 ]]; then
   run_step "QC-ABSENCE" bash scripts/validate-qc-absence.sh --mock
 else

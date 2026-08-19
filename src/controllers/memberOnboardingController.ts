@@ -730,8 +730,15 @@ export const memberOnboardingController = {
     const birthDate = String(req.body.birthDate ?? '');
     const gender = String(req.body.gender ?? '');
     const yearValue = String(req.body.year ?? '');
+    // The form pairs a hidden "0" with the checkbox's "1" so an unchecked box
+    // still submits a value, which means a checked box submits both and the
+    // body carries an array. The checkbox is written second, so the last value
+    // is the member's answer.
+    const rawShowCompetitiveResults = Array.isArray(req.body.showCompetitiveResults)
+      ? req.body.showCompetitiveResults[req.body.showCompetitiveResults.length - 1]
+      : req.body.showCompetitiveResults;
     const showCompetitiveResults =
-      req.body.showCompetitiveResults === '1' || req.body.showCompetitiveResults === 'true';
+      rawShowCompetitiveResults === '1' || rawShowCompetitiveResults === 'true';
     await dispatch<PersonalDetailsFormState>(req, res, next, 'personal_details', {
       action: () => memberOnboardingService.processPersonalDetailsSubmit(
         req.user!.userId, city, region, country, birthDate, gender, yearValue, showCompetitiveResults),

@@ -2,9 +2,11 @@
  * The admin work-queue service: enqueue routing, claim, and the two scheduled
  * notification passes.
  *
- * Enqueue routes by urgency: a routine task type (every shipped type today)
- * inserts the work_queue_items row and sends NO per-event email; admins read it
- * on the dashboard and the digest. An administrator claims an item to signal
+ * Enqueue routes by urgency: a routine task type inserts the work_queue_items
+ * row and sends NO per-event email; admins read it on the dashboard and the
+ * digest. An urgent task type also emails the admin list on enqueue, and is left
+ * out of both the digest and the stale escalation because it has already
+ * broadcast. An administrator claims an item to signal
  * they are handling it, which drops the item from every other administrator's
  * digest. An item left open and unclaimed past the stale threshold escalates
  * once with a single email to all admins. Every notification carries task type

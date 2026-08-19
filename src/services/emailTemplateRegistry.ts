@@ -112,7 +112,7 @@ export const TEMPLATE_VARIANTS = {
   club_coleader_invite:            v('confidential', ['leaderName', 'inviteeName', 'clubName']),
   club_leaderless_contact:         v('confidential', ['memberName', 'clubName']),
   contact_request_resolution:      v('confidential', ['memberName', 'displayDecision', 'note']),
-  admin_queue_alert:               v('internal',     ['taskType', 'entityId']),
+  admin_loss_recruitment:          v('internal',     ['entityId', 'queueUrl']),
   admin_queue_digest:              v('internal',     ['countPhrase', 'itemLines', 'queueUrl']),
   admin_queue_stale_escalation:    v('internal',     ['taskType', 'entityId', 'agePhrase', 'queueUrl']),
 } satisfies Record<string, VariantDef>;
@@ -294,9 +294,12 @@ const SHAPERS = {
     variant: 'contact_request_resolution',
     merge: { memberName: p.memberName, displayDecision: p.displayDecision, note: p.note },
   }),
-  admin_queue_alert: (p: { taskType: string; entityId: string }): ShapedEmail => ({
-    variant: 'admin_queue_alert',
-    merge: { taskType: p.taskType, entityId: p.entityId },
+  // The lost administrator is named by member id only: this fans out to the
+  // whole admin list, and the name and the reason belong on the queue card the
+  // link leads to, not in a broadcast.
+  admin_loss_recruitment: (p: { entityId: string; queueUrl: string }): ShapedEmail => ({
+    variant: 'admin_loss_recruitment',
+    merge: { entityId: p.entityId, queueUrl: p.queueUrl },
   }),
   admin_queue_digest: (p: { openCount: number; itemLines: string; queueUrl: string }): ShapedEmail => ({
     variant: 'admin_queue_digest',

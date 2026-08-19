@@ -3375,6 +3375,15 @@ VALUES
   ),
 
   (
+   'seed-admin-inactivity-alert-days',
+   '2000-01-01T00:00:00.000Z',
+   'admin_inactivity_alert_days', '180',
+   '2000-01-01T00:00:00.000Z',
+   'Days without a sign-in before an administrator is surfaced for recruitment follow-up (default: 180).',
+   NULL
+  ),
+
+  (
    'seed-work-queue-resolve-rate-limit-per-hour',
    '2000-01-01T00:00:00.000Z',
    'work_queue_resolve_rate_limit_per_hour', '120',

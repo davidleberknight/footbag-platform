@@ -209,17 +209,17 @@ describe('POST /admin/email-templates/:key/edit', () => {
 
   it('an unchecked enabled box disables the template', async () => {
     const res = await request(createApp())
-      .post('/admin/email-templates/admin_queue_alert/edit')
+      .post('/admin/email-templates/admin_loss_recruitment/edit')
       .set('Cookie', admin())
       .type('form')
       .send({
-        subjectTemplate: 'New admin queue item: {taskType}',
-        bodyTemplate: 'Task type: {taskType}\nEntity ID: {entityId}',
+        subjectTemplate: 'IFPA admin team: please recruit a new admin volunteer',
+        bodyTemplate: 'Administrator member ID: {entityId}\nWork queue: {queueUrl}',
         piiClassification: 'internal',
         // isEnabled omitted: an unchecked checkbox posts nothing.
       });
     expect(res.status).toBe(303);
-    expect(templateRow('admin_queue_alert').is_enabled).toBe(0);
+    expect(templateRow('admin_loss_recruitment').is_enabled).toBe(0);
   });
 
   it('ignores overposted privileged fields (key, id, version stay server-owned)', async () => {

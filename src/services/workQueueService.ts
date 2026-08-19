@@ -9,15 +9,17 @@
  *
  * Notification policy (routing by urgency, never a per-event broadcast to every
  * administrator): a task type on the urgent allowlist emails the admin-alerts
- * mailing list immediately on enqueue; every other (routine) task type sends no
- * per-event email and is read on the work-queue dashboard, with a periodic
- * digest per administrator rolling up the open routine items. An administrator
- * who claims an item drops it from every other administrator's digest. An item
- * left open and unclaimed past the stale threshold escalates once with a single
- * email to admin-alerts. Every notification carries task type and entity id
- * only (no member personal data). The urgent allowlist is currently empty: no
- * shipped task type meets the same-day security-or-data-integrity bar, so a
- * future such task type opts in by joining the set.
+ * mailing list immediately on enqueue, using the notification the allowlist
+ * pairs with it; every other (routine) task type sends no per-event email and is
+ * read on the work-queue dashboard, with a periodic digest per administrator
+ * rolling up the open routine items. An administrator who claims an item drops
+ * it from every other administrator's digest. An item left open and unclaimed
+ * past the stale threshold escalates once with a single email to admin-alerts,
+ * which an urgent type skips because it already broadcast on enqueue. Every
+ * notification carries task type and entity id only (no member personal data).
+ * The administrator-loss recruitment alert is the one shipped type on the
+ * allowlist; a future task type meeting the same-day security, data-integrity,
+ * or continuity bar opts in by joining it with its own notification.
  *
  * Transaction discipline: `enqueue` and `claim` perform only synchronous DB
  * writes and never open their own transaction; call them inside the caller's
@@ -56,16 +58,33 @@ export interface WorkQueueEnqueueInput {
 }
 
 /**
- * Task types that email every administrator immediately on enqueue (a security
- * or data-integrity event needing same-day action). Empty today: every shipped
- * work-queue task type is routine and read on the dashboard plus the digest. A
- * future urgent task type joins this set to opt into the immediate broadcast.
+ * The work-queue task type raised when the platform loses an administrator, so
+ * the remaining administrators are prompted to recruit a replacement.
  */
-const URGENT_TASK_TYPES = new Set<string>([]);
+export const ADMIN_LOSS_TASK_TYPE = 'admin_loss_recruitment';
 
 function adminQueueUrl(): string {
   return `${config.publicBaseUrl}/admin/work-queue`;
 }
+
+/**
+ * Task types that email every administrator immediately on enqueue (a security,
+ * data-integrity, or administrative-continuity event needing same-day action),
+ * each paired with the notification it sends. A task type outside this map is
+ * routine: it sends no per-event email and is read on the dashboard plus the
+ * digest. Losing an administrator is the one shipped type that meets the bar,
+ * because the people who must act on it are exactly the shrinking set the loss
+ * is about, and a digest entry days later is too late to be that prompt.
+ */
+const URGENT_TASK_EMAILS: ReadonlyMap<string, (entityId: string, idempotencyKeyPrefix: string) => void> = new Map([
+  [ADMIN_LOSS_TASK_TYPE, (entityId: string, idempotencyKeyPrefix: string) => {
+    emailService.sendToAdmins({
+      template: 'admin_loss_recruitment',
+      params: { entityId, queueUrl: adminQueueUrl() },
+      idempotencyKeyPrefix,
+    });
+  }],
+]);
 
 interface DigestRow {
   id: string;
@@ -127,12 +146,9 @@ export const workQueueService = {
       input.reasonText,
       input.detailText,
     );
-    if (URGENT_TASK_TYPES.has(input.taskType)) {
-      emailService.sendToAdmins({
-        template: 'admin_queue_alert',
-        params: { taskType: input.taskType, entityId: input.entityId },
-        idempotencyKeyPrefix: `admin-alerts:${input.taskType}:${id}`,
-      });
+    const sendUrgent = URGENT_TASK_EMAILS.get(input.taskType);
+    if (sendUrgent) {
+      sendUrgent(input.entityId, `admin-alerts:${input.taskType}:${id}`);
     }
     return { id };
   },
@@ -157,7 +173,7 @@ export const workQueueService = {
    *  batch. Idempotent within a calendar day via a per-administrator key. */
   sendAdminQueueDigests(): { admins: number; sent: number; openRoutineItems: number } {
     const open = workQueue.listOpenForDigest.all() as DigestRow[];
-    const routine = open.filter((i) => !URGENT_TASK_TYPES.has(i.task_type));
+    const routine = open.filter((i) => !URGENT_TASK_EMAILS.has(i.task_type));
     if (routine.length === 0) return { admins: 0, sent: 0, openRoutineItems: 0 };
 
     const admins = mailingListSubscriptions.listActiveSubscribersBySlug.all('admin-alerts') as AdminSubscriberRow[];
@@ -209,7 +225,7 @@ export const workQueueService = {
     const queueUrl = adminQueueUrl();
     let escalated = 0;
     for (const item of stale) {
-      if (URGENT_TASK_TYPES.has(item.task_type)) continue;
+      if (URGENT_TASK_EMAILS.has(item.task_type)) continue;
       const ageDays = Math.max(1, Math.floor((Date.now() - Date.parse(item.opened_at)) / 86_400_000));
       const result = emailService.sendToAdmins({
         template: 'admin_queue_stale_escalation',

@@ -10,8 +10,9 @@
  *     charge declined, recurring paused): decision label + admin note, recorded
  *     with admin identity and timestamp, and NO member email
  *   - Dismissal of internal-review items that have no member reply (the
- *     birth-date-conflict flag): closes the row with an audit entry and sends
- *     NO member email, unlike contact-request resolution
+ *     birth-date-conflict flag, the low-confidence auto-link match, and the
+ *     administrator-loss recruitment alert): closes the row with an audit entry
+ *     and sends NO member email, unlike contact-request resolution
  *   - Admin work-queue page shaping (all open items grouped by category,
  *     including structured link-help payload display) and the per-category
  *     summary for the admin dashboard work-queue card
@@ -49,7 +50,8 @@
  *
  * Side effects:
  *   - audit_entries append (support.contact_request_submitted / _resolved;
- *     payment.queue_item_resolved on a payments-task resolution;
+ *     payment.queue_item_resolved on a payments-task resolution; and the
+ *     dismissal event each internal-review task type names for itself, such as
  *     legacy.dob_conflict_reviewed on a birth-date-conflict dismissal)
  *   - outbox_emails enqueue (admin-alerts fan-out on submit; member
  *     notification on a contact-request resolve; NONE on a payments-task
@@ -242,6 +244,7 @@ const WORK_QUEUE_TASK_TYPE_LABELS: Record<string, string> = {
   charge_dispute_review: 'Card dispute raised against a payment',
   payout_failed: 'Payout to the bank account failed',
   recurring_donation_paused: 'Recurring donation paused at Stripe',
+  admin_loss_recruitment: 'Administrator lost; recruit a replacement',
 };
 
 // Internal-review items an admin closes with a dismissal (no member reply, no
@@ -262,6 +265,12 @@ const DISMISSIBLE_REVIEW_AUDIT: ReadonlyMap<string, { actionType: string; catego
     category:   'identity',
     reasonText: 'Low-confidence auto-link match reviewed; no link applied.',
     hint:       'No link was applied, so there is nothing to undo. To link this member, use the member link-help path.',
+  }],
+  ['admin_loss_recruitment', {
+    actionType: 'admin.loss_alert_dismissed',
+    category:   'admin',
+    reasonText: 'Administrator-loss recruitment alert reviewed and closed.',
+    hint:       'Dismiss this once a replacement admin volunteer is recruited, or once the team agrees the current admin roster is sufficient. Granting the role to the replacement is done on the admin roles page.',
   }],
 ]);
 

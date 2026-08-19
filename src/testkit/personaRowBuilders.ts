@@ -79,6 +79,12 @@ export interface MemberOverrides {
   email_status?: 'ok' | 'bounced' | 'complained' | 'suppressed';
   whatsapp?: string | null;
   whatsapp_visible?: 0 | 1;
+  /** Last successful sign-in. Null by default, matching an account that has
+   *  never signed in; set it to age a member for a sign-in-recency rule. */
+  last_login_at?: string | null;
+  /** Account creation stamp. Fixed by default; set it where a rule measures
+   *  from account age, such as an administrator who has yet to sign in. */
+  created_at?: string;
   /**
    * Membership is an authorization level: an account is pending until every
    * onboarding task completes, and only a member reaches member capabilities
@@ -131,9 +137,9 @@ export function insertMember(db: BetterSqlite3.Database, o: MemberOverrides = {}
       searchable,
       deleted_at, deletion_requested_at, deletion_grace_expires_at, personal_data_purged_at,
       show_competitive_results, show_first_competition_year, gender, show_gender, legacy_member_id, historical_person_id, first_competition_year,
-      stripe_customer_id, whatsapp, whatsapp_visible,
+      stripe_customer_id, whatsapp, whatsapp_visible, last_login_at,
       created_at, created_by, updated_at, updated_by, version
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
   `).run(
     id, slug,
     email, emailNormalized, emailVerifiedAt, o.email_status ?? 'ok',
@@ -151,8 +157,8 @@ export function insertMember(db: BetterSqlite3.Database, o: MemberOverrides = {}
     o.deleted_at ?? null, o.deletion_requested_at ?? null, o.deletion_grace_expires_at ?? null, purged,
     o.show_competitive_results ?? 1, o.show_first_competition_year ?? 0, o.gender ?? null, o.show_gender ?? 0, o.legacy_member_id ?? null, o.historical_person_id ?? null, o.first_competition_year ?? null,
     o.stripe_customer_id ?? null,
-    o.whatsapp ?? null, o.whatsapp_visible ?? 0,
-    TS, SYS, TS, SYS,
+    o.whatsapp ?? null, o.whatsapp_visible ?? 0, o.last_login_at ?? null,
+    o.created_at ?? TS, SYS, TS, SYS,
   );
   if ((o.onboarding ?? 'complete') === 'complete') {
     completeOnboarding(db, id);

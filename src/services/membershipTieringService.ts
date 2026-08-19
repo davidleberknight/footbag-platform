@@ -7,6 +7,9 @@
  *   - Tier 3 governance set/remove
  *   - Admin tier corrections
  *   - Admin-role grant and revoke (story A_Manage_Admin_Role)
+ *   - The administrator-loss recruitment alert: the revoke-time raise and the
+ *     daily sweep that finds administrators who can no longer serve (story
+ *     SYS_Detect_Admin_Loss)
  *   - `getTierStatus(memberId)` -- the sole authoritative membership-tier read path
  *   - `tierBadgeShort(tierStatus)` -- the one home for the row-level tier badge
  *     label, so the club roster, member search and media uploader credit cannot
@@ -57,19 +60,29 @@
  *   - Every admin-provisioning path (steady-state grant plus the bootstrap and
  *     dev-repair callers of the Tier 2 invariant grant) subscribes the member to
  *     `admin-alerts`, so the work-queue fan-out reaches every admin.
+ *   - The administrator-loss alert is idempotent per administrator: while an
+ *     open item names that member, a further raise is a no-op, which is what
+ *     makes the daily sweep safe to re-run. The revoke-time raise commits inside
+ *     the revoke transaction so the role change and its alert cannot separate;
+ *     the sweep raises each administrator in its own transaction so one failing
+ *     row cannot abort the pass. The sweep reads and alerts only: it changes no
+ *     `is_admin` value, because granting and revoking stay deliberate human acts.
  *   - Tier 0 Active Player ending on purchase or Tier 3 grant runs in the same
  *     transaction as the tier write (calls `ActivePlayerService.endOnTierUpgrade`
  *     or `endOnTier3Grant`).
  *
  * Persistence:
  *   member_tier_grants, member_tier_current, members (flag and role fields),
- *   audit_entries, outbox_emails, mailing_list_subscriptions.
+ *   audit_entries, outbox_emails, mailing_list_subscriptions, work_queue_items.
  *
  * Side effects:
  *   - audit_entries append
- *   - outbox_emails enqueue (tier change, congratulatory HoF/BAP, admin-role change)
+ *   - outbox_emails enqueue (tier change, congratulatory HoF/BAP, admin-role
+ *     change, admin-alerts fan-out on an administrator-loss raise)
  *   - mailing_list_subscriptions upsert (admin-alerts subscribe on admin
  *     provisioning/grant; unsubscribe on revoke)
+ *   - work_queue_items insert (administrator-loss recruitment alert)
+ *   - operational-error audit + alarm on a failed sweep row
  *
  * Service shape: singleton object (no external adapters).
  */
@@ -77,6 +90,7 @@ import {
   adminRole,
   mailingListSubscriptions,
   memberTier,
+  workQueue,
   transaction,
   type MemberTierCurrentRow,
   type MemberTierGrantLatestRow,
@@ -85,6 +99,9 @@ import { appendAuditEntry, type AuditActorType } from './auditService';
 import { emailService } from './emailService';
 import { ConflictError, NotFoundError, ValidationError } from './serviceErrors';
 import { endOnTier3Grant, endOnTierUpgrade } from './activePlayerService';
+import { workQueueService, ADMIN_LOSS_TASK_TYPE } from './workQueueService';
+import { readIntConfig } from './configReader';
+import { recordOperationalError } from './operationalErrors';
 import { uuidv7Hex } from './uuidv7';
 
 const REASON_TEXT_MAX_LENGTH = 4000;
@@ -552,13 +569,125 @@ export function assertRevokeAdminRoleAllowed(
   return { trimmedReason };
 }
 
+/** Why an administrator is no longer able to serve, as recorded on the queue
+ *  card and in the raise's audit row. */
+export type AdminLossReason = 'revoked' | 'deceased' | 'account_deleted' | 'inactive';
+
+const ADMIN_LOSS_REASON_TEXT: Record<AdminLossReason, string> = {
+  revoked:         'Admin role revoked; recruit a replacement admin volunteer.',
+  deceased:        'Administrator marked deceased; recruit a replacement admin volunteer.',
+  account_deleted: 'Administrator deleted their account; recruit a replacement admin volunteer.',
+  inactive:        'Administrator has not signed in within the inactivity window; recruit a replacement admin volunteer.',
+};
+
+/**
+ * Raise the administrator-loss recruitment alert for one lost administrator, so
+ * the remaining administrators are prompted to recruit rather than letting the
+ * team shrink unremarked (story SYS_Detect_Admin_Loss).
+ *
+ * Synchronous DB writes only, so a caller that already holds a transaction can
+ * fold the raise into it and have the loss and its alert commit together. The
+ * open-item guard makes the raise idempotent per administrator, which is what
+ * lets the daily sweep re-run harmlessly: while an item for that member is open,
+ * a second call is a no-op and no second email goes out.
+ */
+function raiseAdminLossAlertInTx(
+  lostMemberId: string,
+  reason: AdminLossReason,
+  actorId: string,
+): { raised: boolean } {
+  const existing = workQueue.findOpenByEntity.get(ADMIN_LOSS_TASK_TYPE, 'member', lostMemberId);
+  if (existing !== undefined) return { raised: false };
+
+  const { id } = workQueueService.enqueue({
+    actorId,
+    queueCategory: 'system',
+    taskType:      ADMIN_LOSS_TASK_TYPE,
+    entityType:    'member',
+    entityId:      lostMemberId,
+    priority:      5,
+    reasonText:    ADMIN_LOSS_REASON_TEXT[reason],
+    detailText:    null,
+  });
+  audit({
+    actionType: 'admin.loss_alert_raised',
+    category:   'admin',
+    actorType:  actorId === 'system' ? 'system' : 'admin',
+    actorId:    actorId === 'system' ? null : actorId,
+    memberId:   lostMemberId,
+    reasonText: ADMIN_LOSS_REASON_TEXT[reason],
+    metadata:   { loss_reason: reason, work_queue_item_id: id },
+  });
+  return { raised: true };
+}
+
+interface LostAdministratorRow {
+  id: string;
+  deleted_at: string | null;
+  is_deceased: number;
+  last_login_at: string | null;
+  created_at: string;
+}
+
+/** The inactivity window, in days, after which an administrator with no sign-in
+ *  is surfaced for recruitment follow-up. */
+export function adminInactivityAlertDays(): number {
+  return readIntConfig('admin_inactivity_alert_days', 180);
+}
+
+/**
+ * Daily pass: find every administrator who can no longer serve while still
+ * holding the role, and raise the recruitment alert for each (story
+ * SYS_Detect_Admin_Loss).
+ *
+ * The pass reads and alerts; the role itself is left exactly as it is, because
+ * granting and revoking are deliberate human acts under A_Manage_Admin_Role and
+ * an inactivity finding is a prompt for the remaining administrators, not a
+ * verdict. Each administrator is raised in its own transaction so one bad row
+ * cannot abort the pass, and the open-item guard inside the raise makes a
+ * re-run produce nothing new.
+ */
+export function runAdminLossSweep(): { examined: number; raised: number; failed: number } {
+  const cutoffIso = new Date(Date.now() - adminInactivityAlertDays() * 86_400_000).toISOString();
+  const rows = adminRole.listLostAdministrators.all(cutoffIso) as LostAdministratorRow[];
+
+  let raised = 0;
+  let failed = 0;
+  for (const row of rows) {
+    // Ordered by severity of the signal, so an administrator who is both
+    // deceased and lapsed is described by the fact that explains the lapse.
+    const reason: AdminLossReason = row.deleted_at !== null
+      ? 'account_deleted'
+      : row.is_deceased === 1
+        ? 'deceased'
+        : 'inactive';
+    try {
+      const result = transaction(() => raiseAdminLossAlertInTx(row.id, reason, 'system'));
+      if (result.raised) raised += 1;
+    } catch (err) {
+      failed += 1;
+      recordOperationalError({
+        actionType: 'admin.loss_alert_failed',
+        category:   'admin',
+        entityType: 'member',
+        entityId:   row.id,
+        reasonText: 'Administrator-loss recruitment alert could not be raised.',
+        cause:      err,
+        metadata:   { loss_reason: reason },
+      });
+    }
+  }
+  return { examined: rows.length, raised, failed };
+}
+
 /**
  * Revoke the platform admin role from a member (story A_Manage_Admin_Role). An
  * admin cannot revoke their own role, so at least one admin always remains. In
  * one transaction this sets `is_admin=0`, appends an admin-actor audit row with
- * the mandatory reason, and unsubscribes the member from admin-alerts only,
- * leaving their other list subscriptions untouched. The affected-member email
- * enqueues after commit.
+ * the mandatory reason, unsubscribes the member from admin-alerts only, leaving
+ * their other list subscriptions untouched, and raises the administrator-loss
+ * recruitment alert so the shrinking admin team is prompted to recruit. The
+ * affected-member email enqueues after commit.
  */
 export function revokeAdminRole(
   adminMemberId: string,
@@ -581,6 +710,7 @@ export function revokeAdminRole(
       reasonText: trimmedReason,
       metadata: { event_id: eventId },
     });
+    raiseAdminLossAlertInTx(targetMemberId, 'revoked', adminMemberId);
   });
 
   emailService.sendToMember({

@@ -206,6 +206,61 @@ describe('POST /register/wizard/personal_details/submit — collects details and
     expect(row.show_competitive_results).toBe(1);
   });
 
+  it('stores the checked results-visibility box when the form submits the hidden default alongside it', async () => {
+    // The form pairs a hidden "0" with the checkbox's "1", so a checked box
+    // sends both values and the body carries an array. Submitting a bare "1"
+    // is not what a browser sends and hides whether the pair is read correctly.
+    const stamp = Date.now();
+    const memberId = insertMember(testDb, { onboarding: 'none', slug: `wiz_pd_pair_${stamp}`, login_email: `wiz-pd-pair-${stamp}@example.com` });
+    await request(createApp())
+      .get('/register/wizard/personal_details')
+      .set('Cookie', cookieFor(memberId));
+
+    const res = await request(createApp())
+      .post('/register/wizard/personal_details/submit')
+      .set('Cookie', cookieFor(memberId))
+      .type('form')
+      .send({
+        city: 'Eugene',
+        region: 'OR',
+        country: 'USA',
+        birthDate: '1990-05-05',
+        showCompetitiveResults: ['0', '1'],
+      });
+    expect(res.status).toBe(303);
+
+    const row = testDb.prepare(
+      'SELECT show_competitive_results FROM members WHERE id = ?',
+    ).get(memberId) as { show_competitive_results: number };
+    expect(row.show_competitive_results).toBe(1);
+  });
+
+  it('stores the unchecked results-visibility box when only the hidden default is submitted', async () => {
+    const stamp = Date.now();
+    const memberId = insertMember(testDb, { onboarding: 'none', slug: `wiz_pd_unchecked_${stamp}`, login_email: `wiz-pd-unchecked-${stamp}@example.com` });
+    await request(createApp())
+      .get('/register/wizard/personal_details')
+      .set('Cookie', cookieFor(memberId));
+
+    const res = await request(createApp())
+      .post('/register/wizard/personal_details/submit')
+      .set('Cookie', cookieFor(memberId))
+      .type('form')
+      .send({
+        city: 'Eugene',
+        region: 'OR',
+        country: 'USA',
+        birthDate: '1990-05-05',
+        showCompetitiveResults: '0',
+      });
+    expect(res.status).toBe(303);
+
+    const row = testDb.prepare(
+      'SELECT show_competitive_results FROM members WHERE id = ?',
+    ).get(memberId) as { show_competitive_results: number };
+    expect(row.show_competitive_results).toBe(0);
+  });
+
   it('rejects an impossible calendar date (Feb 30) rather than rolling it forward and storing it', async () => {
     const stamp = Date.now();
     const memberId = insertMember(testDb, { onboarding: 'none', slug: `wiz_pd_baddate_${stamp}`, login_email: `wiz-pd-baddate-${stamp}@example.com` });

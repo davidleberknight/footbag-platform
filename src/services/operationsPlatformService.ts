@@ -9,9 +9,9 @@
  *     succeeded/failed on completion, stale-running reap for crash recovery
  *   - Worker-loop entry points and their config-tunable intervals: outbox
  *     drain, Active Player expiry, staged-candidate expiry, batch auto-link,
- *     PII purge scan, hashtag-stats rebuild, payment reconciliation, its digest
- *     and the resolved-issue purge (self-gated: reconciliation to once per UTC
- *     day, the digest to its configured interval)
+ *     PII purge scan, hashtag-stats rebuild, administrator-loss sweep, payment
+ *     reconciliation, its digest and the resolved-issue purge (self-gated:
+ *     reconciliation to once per UTC day, the digest to its configured interval)
  *   - Batch auto-link routing: classify unlinked Tier-0 members; stage
  *     high/medium-confidence candidates, queue low-confidence ones with an
  *     admin alert
@@ -23,7 +23,8 @@
  *
  * Does not own:
  *   - The delegated job bodies (ActivePlayerExpiryService,
- *     IdentityAccessService classification/staging, CommunicationService drain)
+ *     IdentityAccessService classification/staging, CommunicationService drain,
+ *     MembershipTieringService administrator-loss sweep)
  *   - Outbox row mechanics (CommunicationService)
  *   - Row-level PII erasure (MemberService primitives)
  *
@@ -77,6 +78,7 @@ import {
   type RunOpts as ActivePlayerExpiryRunOpts,
 } from './activePlayerExpiryService';
 import { identityAccessService } from './identityAccessService';
+import { runAdminLossSweep } from './membershipTieringService';
 
 export interface PiiPurgeScanResult {
   deleted: {
@@ -586,6 +588,19 @@ export class OperationsPlatformService {
     return this.recordJobRun('SYS_Staged_Candidate_Expiry', () =>
       identityAccessService.expireStagedCandidates(),
     );
+  }
+
+  /**
+   * SYS_Detect_Admin_Loss sweep. Finds administrators who can no longer serve
+   * while still holding the role (account soft-deleted, member deceased, or no
+   * sign-in within the configured inactivity window) and raises the recruitment
+   * alert for each, so the remaining administrators are prompted to recruit.
+   * The sweep reads and alerts; it changes no `is_admin` value. Idempotent: an
+   * administrator with the alert already open is skipped, so re-running raises
+   * nothing new. Runs on the worker daily tick alongside the other daily jobs.
+   */
+  async runAdminLossSweep(): Promise<{ examined: number; raised: number; failed: number }> {
+    return this.recordJobRun('SYS_Detect_Admin_Loss', () => runAdminLossSweep());
   }
 
   /**

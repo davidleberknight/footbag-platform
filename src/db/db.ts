@@ -9247,6 +9247,25 @@ export const adminRole = {
   get getIsAdmin() { return db.prepare(`
     SELECT is_admin FROM members_active WHERE id = ?
   `); },
+
+  // Administrators who can no longer serve while still holding the role: the
+  // account is gone (soft-deleted), the person is gone (deceased), or the
+  // sign-in has lapsed past the caller's cutoff. Reads members_all rather than
+  // members_active precisely because a soft-deleted administrator is one of the
+  // cases being looked for, and members_active would hide it. An administrator
+  // who has never signed in is measured from account creation, so a fresh grant
+  // is not reported the day it is made.
+  get listLostAdministrators() { return db.prepare(`
+    SELECT id, deleted_at, is_deceased, last_login_at, created_at
+    FROM members_all
+    WHERE is_admin = 1
+      AND (
+        deleted_at IS NOT NULL
+        OR is_deceased = 1
+        OR COALESCE(last_login_at, created_at) < ?
+      )
+    ORDER BY id
+  `); },
 };
 
 export const workQueue = {
