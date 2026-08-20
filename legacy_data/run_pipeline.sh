@@ -55,6 +55,106 @@ MODE="${1:-full}"
 python "${REPO_ROOT}/scripts/lib/db_cutover_guard.py" "${REPO_ROOT}/database/footbag.db"
 
 # =============================================================================
+# CURATED-TREE GUARD
+# =============================================================================
+# Three trees hold hand-authored data that every stage may read and no stage may
+# write: the corrections and overrides, the curated pre-1997 intake, and the
+# frozen identity lock. CLAUDE.md states that invariant; this makes it
+# mechanical, because a correction silently reverted by a rebuild is a failure
+# this pipeline has already produced.
+#
+# Prevention first: the write bit comes off for the duration of the run, so a
+# stage that tries to write fails at that instant naming its own path rather
+# than succeeding quietly. Detection second: a per-file SHA-256 manifest is
+# recompared on the way out, so a write that lands anyway cannot pass unseen.
+#
+# Prevention rather than detection alone because a handful of identity-lock
+# snapshots are gitignored and exist only on the machine that made them. For
+# those, a report after the fact would arrive with nothing left to restore.
+#
+# The EXIT trap restores the recorded modes on every path out, including a
+# failed stage, a signal and Ctrl-C, so the operator is never left with a
+# read-only tree and nothing to remember.
+CURATED_TREES=(
+    "${SCRIPT_DIR}/overrides"
+    "${SCRIPT_DIR}/inputs/curated"
+    "${SCRIPT_DIR}/inputs/identity_lock"
+)
+CURATED_MODES="$(mktemp -t footbag-curated-modes.XXXXXX)"
+CURATED_HASHES_BEFORE="$(mktemp -t footbag-curated-hashes.XXXXXX)"
+CURATED_HASHES_AFTER="$(mktemp -t footbag-curated-hashes.XXXXXX)"
+
+curated_present_trees() {
+    local t
+    for t in "${CURATED_TREES[@]}"; do
+        [ -d "$t" ] && printf '%s\n' "$t"
+    done
+    # Always succeed. A checkout without one of these trees is supported, and
+    # under `set -euo pipefail` a trailing failed test would abort the whole
+    # run from inside a command substitution, with no output to explain it.
+    return 0
+}
+
+curated_hashes() {
+    local t
+    curated_present_trees | while read -r t; do
+        find "$t" -type f -print0
+    done | LC_ALL=C sort -z | xargs -0 --no-run-if-empty sha256sum
+}
+
+curated_lock() {
+    local t bad
+    # Whitespace in these paths would break the manifest parsing below. Refuse
+    # rather than mis-parse: a guard that quietly compares the wrong thing is
+    # worse than no guard.
+    bad="$(curated_present_trees | while read -r t; do find "$t" -name '* *' -o -name '*	*'; done)"
+    if [ -n "$bad" ]; then
+        echo "ERROR: curated guard cannot run — whitespace in a protected path:" >&2
+        echo "$bad" >&2
+        exit 1
+    fi
+    curated_present_trees | while read -r t; do find "$t" -printf '%m %p\n'; done > "$CURATED_MODES"
+    curated_hashes > "$CURATED_HASHES_BEFORE"
+    curated_present_trees | while read -r t; do chmod -R a-w "$t"; done
+    echo "── Curated-tree guard ─────────────────────────────────────────────────"
+    echo "  $(wc -l < "$CURATED_HASHES_BEFORE") hand-authored file(s) locked read-only for this run."
+}
+
+curated_unlock_and_verify() {
+    local rc=$? mode path drift
+    # Restore first, unconditionally, so no exit path can leave the trees locked.
+    if [ -s "$CURATED_MODES" ]; then
+        # `if` rather than `&&`: under `set -e` a trailing false test would end
+        # the trap early and leave the rest of the trees locked, which is the
+        # one outcome this function exists to make impossible.
+        while read -r mode path; do
+            if [ -e "$path" ]; then
+                chmod "$mode" "$path"
+            fi
+        done < "$CURATED_MODES"
+    fi
+    if [ -s "$CURATED_HASHES_BEFORE" ]; then
+        curated_hashes > "$CURATED_HASHES_AFTER"
+        if ! drift="$(diff "$CURATED_HASHES_BEFORE" "$CURATED_HASHES_AFTER")"; then
+            echo "" >&2
+            echo "FATAL: a pipeline stage changed hand-authored data." >&2
+            echo "  These trees are read-only inputs. A correction written into one of" >&2
+            echo "  them is the only durable home it has; a stage rewriting one destroys" >&2
+            echo "  work no rebuild can reproduce. Lines starting '<' were there before" >&2
+            echo "  this run, lines starting '>' are what is there now:" >&2
+            echo "$drift" >&2
+            rm -f "$CURATED_MODES" "$CURATED_HASHES_BEFORE" "$CURATED_HASHES_AFTER"
+            exit 1
+        fi
+    fi
+    rm -f "$CURATED_MODES" "$CURATED_HASHES_BEFORE" "$CURATED_HASHES_AFTER"
+    return $rc
+}
+
+trap curated_unlock_and_verify EXIT
+curated_lock
+
+# =============================================================================
 # PREFLIGHT
 # =============================================================================
 run_alias_registry_preflight() {

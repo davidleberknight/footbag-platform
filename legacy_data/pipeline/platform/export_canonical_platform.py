@@ -202,7 +202,8 @@ def load_csv(path: Path) -> tuple[list[str], list[dict]]:
 def write_csv(path: Path, fieldnames: list[str], rows: list[dict]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
+        w = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore",
+                           lineterminator="\n")
         w.writeheader()
         w.writerows(rows)
 

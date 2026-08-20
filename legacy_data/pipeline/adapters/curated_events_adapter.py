@@ -882,7 +882,8 @@ def main() -> int:
     # Write
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with open(out_path, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=STAGE1_FIELDNAMES, extrasaction="ignore")
+        writer = csv.DictWriter(f, fieldnames=STAGE1_FIELDNAMES, extrasaction="ignore",
+                                lineterminator="\n")
         writer.writeheader()
         writer.writerows(all_stage1_rows)
 

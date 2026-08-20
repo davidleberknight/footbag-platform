@@ -596,7 +596,8 @@ def write_stage1_csv(records: list[dict], out_path: Path) -> None:
     ]
 
     with open(out_path, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
+        writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore",
+                                lineterminator="\n")
         writer.writeheader()
         writer.writerows(records)
 

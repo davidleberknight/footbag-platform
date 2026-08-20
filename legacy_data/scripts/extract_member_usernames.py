@@ -111,7 +111,7 @@ def main() -> int:
         for mid, alias in sorted(mapping.items(), key=lambda p: int(p[0]))
     ]
     with open(OUTPUT_CSV, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=FIELDNAMES)
+        writer = csv.DictWriter(f, fieldnames=FIELDNAMES, lineterminator="\n")
         writer.writeheader()
         writer.writerows(out_rows)
 

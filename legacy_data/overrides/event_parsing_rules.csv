@@ -6,5 +6,6 @@ event_id,rule_name,rule_value,notes
 857874500,pre_parse_fixup,two_column_oregon_1997,1997 U of Oregon — two-column tabular layout
 859787898,pre_parse_fixup,heart_of_footbag_1997,1997 Heart of Footbag — ALL-CAPS ordinals no separator
 947196813,pre_parse_fixup,nz_champs_2000,2000 NZ Championships — up to 3-column tabular layout
+1727756195,pre_parse_fixup,polish_2024_golf,2024 Polish Championships Krakow — Open Golf split into two score-sorted blocks, second restarting at 1
 1721817655,file,legacy_data/event_results/1721817655.txt,2024 VI Basque — narrative round-date headers misread as placements 9 and 11
 1721817655,replace,true,2024 VI Basque — replace entirely with clean Classification section

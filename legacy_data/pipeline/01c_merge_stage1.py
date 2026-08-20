@@ -123,7 +123,7 @@ def main():
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with open(out_path, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=canonical_header)
+        writer = csv.DictWriter(f, fieldnames=canonical_header, lineterminator="\n")
         writer.writeheader()
         writer.writerows(all_rows)
 

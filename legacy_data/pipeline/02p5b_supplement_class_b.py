@@ -231,7 +231,8 @@ def build_new_rows(
 
 def write_pf(existing_rows: list[dict], new_rows: list[dict]) -> None:
     with open(PF_PATH, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=PF_COLS, extrasaction="ignore")
+        writer = csv.DictWriter(f, fieldnames=PF_COLS, extrasaction="ignore",
+                                lineterminator="\n")
         writer.writeheader()
         for row in existing_rows:
             writer.writerow(row)

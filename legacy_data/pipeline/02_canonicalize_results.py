@@ -663,6 +663,88 @@ def fixup_two_column_oregon_1997(text: str) -> str:
     return '\n'.join(left_lines + right_lines)
 
 
+# Divider rule the legacy pages print between the podium and the rest of a
+# field. Em-dashes on this page; hyphens and en-dashes appear elsewhere.
+_GOLF_DIVIDER_RE = re.compile(r"^\s*[—–\-]{3,}\s*$")
+# "1. Michal Klimczak 15" — place, name, trailing stroke score.
+_GOLF_ENTRY_RE = re.compile(r"^\s*(\d{1,3})\s*[.)\-:]?\s+(.+?)\s+(\d{1,3})\s*$")
+
+
+def fixup_polish_2024_golf(text: str) -> str:
+    """
+    2024 Polish Footbag Championships Krakow (event 1727756195): rank Open Golf
+    by stroke score instead of by printed position.
+
+    The page prints Open Golf as two score-sorted blocks split by the divider
+    rule, and the second block restarts its numbering at 1:
+
+        Open Golf:
+        1. Michal Klimczak 15
+        2. Przemek Pietrzycki 16
+        3. Maciej Niczyporuk 16
+        ————————————
+        1. Marcin Czech 17
+        2. Kuba Mosciszewski 17
+        ...
+
+    Golf is one field ranked by score (lowest wins), so the printed numbers are
+    positions within a block, not places. Read literally the parser emits two
+    firsts; sequentialising the field 1..10 instead flattens the two genuine
+    ties. Standard competition ranking over the trailing scores gives
+    1, 2, 2, 4, 4, 6, 7, 8, 9, 10, which is what the committed canonical output
+    carries.
+
+    Scoped to the Open Golf section by its header. The 2 Squares and net
+    sections on the same page carry the same divider but number continuously
+    across it, are already read correctly, and are deliberately untouched.
+
+    Inert unless the numbering actually restarts, so a corrected source page
+    passes through unchanged rather than being re-derived.
+    """
+    lines = text.split("\n")
+    for i, line in enumerate(lines):
+        if line.strip().lower().rstrip(":") != "open golf":
+            continue
+
+        # The section runs to the first line that is neither an entry, the
+        # divider, nor blank. Blank lines are skipped rather than treated as the
+        # end, because the mirrored page prints one directly under the header
+        # and the raw block reaches this parser with them intact.
+        entries: list[tuple[int, str, int]] = []
+        end = i + 1
+        for j in range(i + 1, len(lines)):
+            if not lines[j].strip() or _GOLF_DIVIDER_RE.match(lines[j]):
+                continue
+            m = _GOLF_ENTRY_RE.match(lines[j])
+            if not m:
+                break
+            entries.append((int(m.group(1)), m.group(2).strip(), int(m.group(3))))
+            end = j + 1
+
+        if len(entries) < 2:
+            return text
+
+        # Only act on a restart; an already-continuous block is left alone.
+        places = [p for p, _, _ in entries]
+        if all(b > a for a, b in zip(places, places[1:])):
+            return text
+
+        # Standard competition ranking: ties share the earlier place and the
+        # next place skips by the size of the tie.
+        ranked = []
+        for idx, (_, name, score) in enumerate(entries):
+            if idx and score == entries[idx - 1][2]:
+                place = ranked[-1][0]
+            else:
+                place = idx + 1
+            ranked.append((place, name, score))
+
+        rebuilt = [f"{place}. {name} {score}" for place, name, score in ranked]
+        return "\n".join(lines[:i + 1] + rebuilt + lines[end:])
+
+    return text
+
+
 # Valid 3-letter country codes for merged team detection
 VALID_COUNTRY_CODES = {
     "ARG", "AUS", "AUT", "BEL", "BRA", "CAN", "CHI", "COL", "CZE", "DEN",
@@ -2860,6 +2942,8 @@ def parse_results_text(results_text: str, event_id: str, event_type: str = None)
         results_text = fixup_nz_champs_2000(results_text)
     elif pre_parse_fixup == "heart_of_footbag_1997":
         results_text = fixup_heart_of_footbag_1997(results_text)
+    elif pre_parse_fixup == "polish_2024_golf":
+        results_text = fixup_polish_2024_golf(results_text)
 
     # Track whether we're in a seeding section (should skip these entries)
     in_seeding_section = False
@@ -4297,7 +4381,8 @@ def write_stage2_csv(records: list[dict], out_path: Path) -> None:
     ]
 
     with open(out_path, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
+        writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore",
+                                lineterminator="\n")
         writer.writeheader()
         writer.writerows(records)
 
@@ -6561,7 +6646,8 @@ def main():
     # Write players registry
     players_path = out_dir / "stage2_players.csv"
     with open(players_path, "w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=["player_id", "player_name", "country_observed"])
+        w = csv.DictWriter(f, fieldnames=["player_id", "player_name", "country_observed"],
+                           lineterminator="\n")
         w.writeheader()
         for pid, rec in sorted(players.items(), key=lambda kv: kv[1]["player_name"].casefold()):
             countries = rec["countries"]

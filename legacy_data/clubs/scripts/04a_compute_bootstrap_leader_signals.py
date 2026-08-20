@@ -551,7 +551,7 @@ def main(argv: list[str] | None = None) -> int:
 
     args.out_csv.parent.mkdir(parents=True, exist_ok=True)
     with args.out_csv.open("w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=OUTPUT_COLUMNS)
+        w = csv.DictWriter(f, fieldnames=OUTPUT_COLUMNS, lineterminator="\n")
         w.writeheader()
         w.writerows(out_rows)
 

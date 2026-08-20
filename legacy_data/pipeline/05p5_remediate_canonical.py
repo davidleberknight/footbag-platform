@@ -117,7 +117,8 @@ def load(name: str) -> tuple[list[dict], list[str]]:
 def save(name: str, rows: list[dict], fieldnames: list[str]) -> None:
     CANONICAL.mkdir(parents=True, exist_ok=True)
     with open(CANONICAL / name, "w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
+        w = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore",
+                           lineterminator="\n")
         w.writeheader()
         w.writerows(rows)
     print(f"  Saved {name} ({len(rows):,} rows)")
@@ -579,7 +580,8 @@ def _emit_reshape_audit(fix_ek: str, fix_dk: str, reshape_result: dict) -> None:
         "reason",
     ]
     with open(audit_path, "w", newline="", encoding="utf-8") as af:
-        w = csv.DictWriter(af, fieldnames=fieldnames, extrasaction="ignore")
+        w = csv.DictWriter(af, fieldnames=fieldnames, extrasaction="ignore",
+                           lineterminator="\n")
         w.writeheader()
         for pl, winner, discarded, reason in reshape_result["resolved"]:
             w.writerow({

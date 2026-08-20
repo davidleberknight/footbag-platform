@@ -7,15 +7,15 @@ Modernizing footbag.org for the International Footbag Players Association (IFPA)
 ### Authority order : who wins when sources conflict
 
 1. An explicit human decision in the current task.
-2. The IFPA governing documents (`ifpa/*`) for membership, tiers, voting eligibility, and published-rules content. `docs/USER_STORIES.md` defers to them.
-3. Clear design intent, stated in documents that might be stale: `docs/DESIGN_DECISIONS.md`, `docs/USER_STORIES.md`, `docs/DATA_MODEL.md`, the path-scoped `.claude/rules/*`, and service file-header JSDoc. 
-4. Current code including the database schema, terraform and scripts: authoritative for *implemented behavior* only, never for design intent.
+2. The IFPA governing documents (`ifpa/*`) for membership, tiers, and published rules.
+3. Clear design intent: `docs/DESIGN_DECISIONS.md`, `docs/USER_STORIES.md`, `docs/DATA_MODEL.md`, the path-scoped `.claude/rules/*`, and service file-header JSDoc (these might be stale or incomplete).
+4. Current code including the schema, terraform and scripts: authoritative for *implemented behavior* only, never for design intent.
 
 The maintainers' private GitHub repository's issue tracker records current MVP scope, and known bugs. When code conflicts with design intent and no tracked deviation explains it, stop and ask: it may be a code bug, a stale doc, or an untracked deliberate deviation, and only the human decides.
 
 ### Read order : what to load first, to save tokens (not an authority ranking)
 
-Read the minimum the task requires to save tokens, focus context on the task at hand, but also ensure you know the design intent first, and then dig into the relevant design decisions and success criteria for the relevant user stories as required to ensure correct results.
+Read whatever the task requires, but to save tokens, focus on the task at hand, but also ensure you know the design intent, and so dig into the relevant design decisions and success criteria for the in-scope user stories as required to ensure correct results.
 
 Consider reading the following if required for task:
 

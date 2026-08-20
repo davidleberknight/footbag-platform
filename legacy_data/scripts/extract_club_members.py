@@ -135,7 +135,7 @@ def main():
         clubs_processed += 1
 
     with open(output_csv, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=FIELDNAMES)
+        writer = csv.DictWriter(f, fieldnames=FIELDNAMES, lineterminator="\n")
         writer.writeheader()
         writer.writerows(all_rows)
 

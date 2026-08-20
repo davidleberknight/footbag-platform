@@ -291,7 +291,7 @@ def main():
     # rejected every healthy run, because a mirror alone has never reproduced a
     # dump-enriched seed and is not supposed to.
     with open(output_csv, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=FIELDNAMES)
+        writer = csv.DictWriter(f, fieldnames=FIELDNAMES, lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
 

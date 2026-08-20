@@ -279,7 +279,8 @@ def derive_status(placements_count: int, coverage_flags: list[str]) -> str:
 
 def write_csv(path: Path, fieldnames: list[str], rows: list[dict]) -> None:
     with open(path, "w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
+        w = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore",
+                           lineterminator="\n")
         w.writeheader()
         w.writerows(rows)
     print(f"  Wrote {path.name} ({len(rows):,} rows)")
@@ -1704,7 +1705,8 @@ if _missing_pids:
     # Append backfill rows to persons.csv
     _persons_csv_path = CANONICAL / "persons.csv"
     with open(_persons_csv_path, "a", newline="", encoding="utf-8") as _f:
-        _w = csv.DictWriter(_f, fieldnames=_persons_csv_fields, extrasaction="ignore")
+        _w = csv.DictWriter(_f, fieldnames=_persons_csv_fields, extrasaction="ignore",
+                            lineterminator="\n")
         _w.writerows(_backfill_rows)
 
     print(f"  Backfilled {len(_backfill_rows)} missing persons from {_pt51_path.name}")
