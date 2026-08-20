@@ -38,6 +38,13 @@ variable "ses_sender_identity" {
 # Production owns the identity and both notification settings, because production
 # is what actually sends. Staging declares none of them.
 #
+# The domain-authentication family is production-only for the same reason and one
+# more: the SES domain identity, its verification, its DKIM records, its MAIL FROM
+# subdomain and the two domain-level bounce and complaint settings all hang off a
+# real domain in a hosted zone, and staging attaches no custom domain at all. It
+# serves on its unpublished default CloudFront name, so there is no domain here to
+# authenticate and no zone to publish the proving records into.
+#
 # Detaching them is what the blocks below do, and it is deliberately not the same
 # as declaring them and switching them off: a declared-but-off resource plans a
 # destroy, and destroying this identity would take away the verified address

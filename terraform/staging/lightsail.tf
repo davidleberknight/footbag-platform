@@ -50,6 +50,10 @@ resource "aws_lightsail_instance" "web" {
   # All host bootstrap (Docker CE install, /srv/footbag directory setup,
   # systemd service install) is performed manually via SSH after first apply.
   # See AWS_OPERATIONS.md (private GitHub repo), "Host bootstrap".
+
+  tags = {
+    Role = "web"
+  }
 }
 
 resource "aws_lightsail_static_ip" "web" {

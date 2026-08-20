@@ -2,15 +2,24 @@
 # S3 Buckets
 # - media:        processed photo objects and media assets
 # - snapshots:    5-minute SQLite WAL snapshots (primary backup)
-# - dr:           reserved cross-region DR target; no replication wired yet (staging is reset-tolerant)
+# - media_dr:     cross-region replication target for media (us-west-2)
 # - maintenance:  static maintenance page served by CloudFront during outages
+#
+# PARITY DIVERGENCE, DELIBERATE. Production carries a fourth durable bucket, a
+# snapshot DR target in the backup region with Object Lock enabled at creation,
+# together with the replication that fills it. Staging has none of the three,
+# because staging is reset-tolerant: its database can be rebuilt from a seed at
+# any time, so there is nothing here whose loss a second region would prevent,
+# and a same-region unlocked copy would rehearse none of what production's DR
+# actually does. Media replication is a different case and is at parity: it
+# exercises the media pipeline itself, so both trees replicate media to a
+# second region.
 # =============================================================================
 
 locals {
   buckets = {
     media       = "${local.prefix}-media"
     snapshots   = "${local.prefix}-snapshots"
-    dr          = "${local.prefix}-dr"
     maintenance = "${local.prefix}-maintenance"
   }
 }
@@ -31,14 +40,6 @@ resource "aws_s3_bucket" "snapshots" {
   lifecycle { prevent_destroy = true }
 }
 
-# Not yet wired: nothing replicates here and no Object Lock is configured. Kept
-# as a reserved DR target while staging is reset-tolerant; a candidate for
-# removal if it stays unused.
-resource "aws_s3_bucket" "dr" {
-  bucket = local.buckets.dr
-  lifecycle { prevent_destroy = true }
-}
-
 resource "aws_s3_bucket" "maintenance" {
   bucket = local.buckets.maintenance
 }
@@ -52,11 +53,6 @@ resource "aws_s3_bucket_versioning" "media" {
 
 resource "aws_s3_bucket_versioning" "snapshots" {
   bucket = aws_s3_bucket.snapshots.id
-  versioning_configuration { status = "Enabled" }
-}
-
-resource "aws_s3_bucket_versioning" "dr" {
-  bucket = aws_s3_bucket.dr.id
   versioning_configuration { status = "Enabled" }
 }
 
@@ -80,15 +76,6 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "snapshots" {
   }
 }
 
-resource "aws_s3_bucket_server_side_encryption_configuration" "dr" {
-  bucket = aws_s3_bucket.dr.id
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
-    }
-  }
-}
-
 # ── Block public access on all private buckets ────────────────────────────────
 
 resource "aws_s3_bucket_public_access_block" "media" {
@@ -101,14 +88,6 @@ resource "aws_s3_bucket_public_access_block" "media" {
 
 resource "aws_s3_bucket_public_access_block" "snapshots" {
   bucket                  = aws_s3_bucket.snapshots.id
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
-}
-
-resource "aws_s3_bucket_public_access_block" "dr" {
-  bucket                  = aws_s3_bucket.dr.id
   block_public_acls       = true
   block_public_policy     = true
   ignore_public_acls      = true
@@ -136,11 +115,19 @@ resource "aws_s3_bucket_lifecycle_configuration" "snapshots" {
       noncurrent_days = 90
     }
   }
-}
 
-# ── DR bucket: Object Lock for tamper-evident retention ──────────────────────
-# NOTE: Object Lock must be enabled at bucket creation time.
-# TODO: Add object_lock_configuration after confirming retention policy with ops.
+  # The routine backup producer runs on this host too, every five minutes, and
+  # writes a fresh timestamped key each time. Every object is therefore a
+  # current version, which the noncurrent rule above can never reach, so
+  # without this rule the stream accumulates forever. Thirty days matches
+  # production and is far longer than any staging restore reaches back.
+  rule {
+    id     = "expire-routine-stream"
+    status = "Enabled"
+    filter { prefix = "routine/" }
+    expiration { days = 30 }
+  }
+}
 
 # =============================================================================
 # Media DR bucket (us-west-2) — cross-region replication target for the

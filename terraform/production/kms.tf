@@ -42,7 +42,7 @@ resource "aws_kms_alias" "main" {
 
 # =============================================================================
 # JWT signing key — RSA-2048 asymmetric, SIGN_VERIFY.
-# Used by KmsJwtSigningAdapter (src/adapters/jwtSigningAdapter.ts) to sign
+# Used by the KMS JWT adapter (src/adapters/jwtSigningAdapter.ts) to sign
 # session JWTs. alg=RS256; JWT header.kid must equal this key's ARN or an
 # agreed-upon identifier for key rotation.
 # =============================================================================

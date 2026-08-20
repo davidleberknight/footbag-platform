@@ -1,16 +1,11 @@
 # =============================================================================
 # IAM — Runtime role for the application
 #
-# DEFERRED — bootstrap shortcut (NS-8):
-# Lightsail instances do NOT support EC2 instance profiles natively. These
-# resources are created as groundwork for future use but are not attached to
-# or used by the Lightsail instance in the current deployment.
-#
-# The current app reads process.env only and makes no runtime AWS API calls.
-# When the app begins calling AWS APIs (S3 for media, SES, SSM reads at
-# startup, etc.), the first step is to add credentials to /srv/footbag/env.
-# The longer-term plan is to wire up this role via a source-profile +
-# AssumeRole chain per service (web vs worker). See docs §33 and NS-8.
+# Lightsail does not support EC2 instance profiles natively. The runtime AWS
+# principal is a source-profile IAM user plus an AssumeRole chain into
+# `app-runtime`: the source-profile access keys live on the host at
+# /root/.aws/credentials (root-owned, 0600) and the app runs under
+# AWS_PROFILE=footbag-staging-runtime, which resolves via sts:AssumeRole.
 # =============================================================================
 
 resource "aws_iam_role" "app_runtime" {
@@ -138,11 +133,17 @@ resource "aws_iam_role_policy" "app_s3_media" {
 # JwtSigning grants here are redundant with the role-direct grant in the JWT
 # key policy (aws_kms_key.jwt_signing). Kept for parity with the live IAM
 # policy attached during the runtime AWS identity bring-up (AWS_OPERATIONS.md,
-# private GitHub repo) and to keep SES Send authorization
-# alongside the JWT signing grants in one statement set.
-# OutboundEmail uses identity/* because SES sandbox mode IAM-checks both
-# sender and recipient identities per send call; tighten to the sender ARN
-# only after SES production access lands.
+# private GitHub repo).
+#
+# PARITY DIVERGENCE, DELIBERATE. Production's copy of this policy carries a
+# second statement granting ses:SendEmail on the sender identity. Staging
+# carries none, because staging never sends: the deploy forces the stub SES
+# adapter onto every non-production host and the host-env check fails the host
+# if it reads anything else, so the only code path that reaches SendEmail is
+# production-only. A grant here would authorise a call this environment cannot
+# make, against an identity the production tree owns. The resource name keeps
+# its jwt-ses form so the address matches production's; renaming it would
+# replace the inline policy for nothing.
 resource "aws_iam_role_policy" "app_jwt_ses" {
   name = "${local.prefix}-app-runtime-jwt-ses"
   role = aws_iam_role.app_runtime.id
@@ -158,17 +159,6 @@ resource "aws_iam_role_policy" "app_jwt_ses" {
           "kms:GetPublicKey"
         ]
         Resource = aws_kms_key.jwt_signing.arn
-      },
-      {
-        Sid    = "OutboundEmail"
-        Effect = "Allow"
-        Action = "ses:SendEmail"
-        # Deliberate staging-only widening: while SES is in the sandbox, sends go
-        # from per-recipient verified identities rather than one domain identity,
-        # so this allows any identity in the account. Production scopes this to
-        # the single sender-identity ARN. Tighten staging to match once it leaves
-        # the SES sandbox and sends from a verified domain identity.
-        Resource = "arn:aws:ses:${var.aws_region}:${var.aws_account_id}:identity/*"
       }
     ]
   })

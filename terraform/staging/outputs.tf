@@ -29,11 +29,6 @@ output "snapshots_bucket_name" {
   value       = aws_s3_bucket.snapshots.bucket
 }
 
-output "dr_bucket_name" {
-  description = "Cross-region DR bucket for SQLite DB snapshots"
-  value       = aws_s3_bucket.dr.bucket
-}
-
 output "media_bucket_name" {
   description = "S3 bucket for processed photo objects (CloudFront /media-store/* origin)"
   value       = aws_s3_bucket.media.bucket

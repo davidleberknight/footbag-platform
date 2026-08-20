@@ -41,9 +41,13 @@ resource "aws_ssm_parameter" "app_email_send_armed" {
 # lives in the host env file.
 
 resource "aws_ssm_parameter" "app_db_path" {
-  name  = "${local.ssm_prefix}/app/db_path"
-  type  = "String"
+  name = "${local.ssm_prefix}/app/db_path"
+  type = "String"
+  # Matches the host bind mount the compose stack declares. Operators may move
+  # the path on the host during a maintenance window, and a re-apply must not
+  # clobber that without explicit intent, so the value is not reverted here.
   value = "/srv/footbag/db/footbag.db"
+  lifecycle { ignore_changes = [value] }
 }
 
 # Origin-bypass secret. CloudFront injects this as X-Origin-Verify; nginx
