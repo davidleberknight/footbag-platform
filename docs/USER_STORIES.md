@@ -1854,7 +1854,7 @@ Event creation form includes: title, description, start date, end date, location
 
 - Members with Tier 1 benefits can create basic/local events without fees.
 - Tier 2 or Tier 3 members can request sanctioned events and configure paid registration (subject to admin approval). Payment configuration (if enabled): competitor registration fee, (optional) spectator fee.
-- Sanction request sends notification to admins for review, and such events are only published upon approval.
+- Sanction request sends notification to admins for review and an email to the IFPA Sanctioning Director, and such events are only published upon approval.
 - Organizer sees a clear success message when event is created.
 - Organizer sees clear error messages for validation failures with hints about what to fix.
 - Member gains Event Organizer status for this event (only).
@@ -1871,6 +1871,7 @@ Success Criteria:
 
 - Only Tier 2 or Tier 3 organizers can request sanction.
 - Sanctioning is requested and decided entirely in the platform. The organizer submits no application by email, and the request reaches the administrator as a work-queue item rather than as correspondence.
+- Submitting the request emails the IFPA Sanctioning Director directly, carrying the event details and the organizer's details, so the officeholder can take it up with the organizer before the decision is made. The Sanctioning Director also holds an administrator account and sees the request in the admin work queue like any other administrator; the direct email is required in addition, because a queue entry alone does not reach the officeholder. It is addressed to the officeholder rather than to a role alias, so it is templated, logged, and bounce-tracked like every other platform mail.
 - The request form carries the organizer's sanctioning attestation, which the organizer must affirm to submit: that the event will abide by IFPA's guidelines for sanctioned events, that it will use IFPA-approved formats and judging systems or disclose where it deviates, and that any alternative judging system will be communicated to all players in advance of competition.
 - The request form carries a fee justification when the organizer has configured registration fees.
 - Organizer receives email confirmation that request is pending.

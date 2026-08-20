@@ -74,21 +74,6 @@ if [[ -z "$SSH_ALIAS" ]]; then
   SSH_ALIAS="footbag-$TARGET"
 fi
 
-# Operator-only preflight: fail fast with a plain message on a machine
-# without the deploy alias (a tester workstation), rather than a raw ssh
-# resolution error at the first remote step. Avoid `awk ... exit` (SIGPIPE
-# under pipefail); mirror the deploy wrapper. Skipped under --dry-run, whose
-# contract is a hermetic command plan with no host contact and no local
-# ssh-config requirement.
-if (( DRY_RUN == 0 )); then
-  RESOLVED_HOST=$(ssh -G "$SSH_ALIAS" 2>/dev/null | awk '/^hostname / {print $2}' | tail -1)
-  if [[ -z "$RESOLVED_HOST" || "$RESOLVED_HOST" == "$SSH_ALIAS" ]]; then
-    echo "ERROR: SSH alias '$SSH_ALIAS' is not configured; this installer is operator-only." >&2
-    echo "Recommendation: operators add the deploy alias stanza to ~/.ssh/config." >&2
-    exit 1
-  fi
-fi
-
 UNIT_SERVICE="ops/systemd/footbag-backup.service"
 UNIT_TIMER="ops/systemd/footbag-backup.timer"
 for unit in "$UNIT_SERVICE" "$UNIT_TIMER"; do
@@ -122,6 +107,13 @@ fi
 source "${SCRIPT_DIR}/lib/host-env-remote.sh"
 
 require_operator_stdin "scripts/install-backup-timer.sh --target $TARGET" || exit 1
+# Operator-only preflight: a plain message on a machine without the deploy
+# alias (a tester workstation), rather than a raw ssh resolution error at the
+# first remote step. It follows the credential guard, as in every sibling
+# script, so a run refused for a missing credential says so wherever it runs.
+# Below the --dry-run exit, whose contract is a hermetic command plan with no
+# host contact and no local ssh-config requirement.
+require_ssh_alias "$SSH_ALIAS" || exit 1
 
 [[ -r "$REMOTE_HALF" ]] || { echo "ERROR: missing remote half: $REMOTE_HALF" >&2; exit 1; }
 
