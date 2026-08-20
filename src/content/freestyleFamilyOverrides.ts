@@ -213,7 +213,8 @@ export function resolveFamilyDualMemberships(slug: string): readonly string[] {
  * Curator-authored display name overrides for family slugs whose
  * default capitalize-first-char doesn't read well. Most families use
  * the default ("whirl" → "Whirl"); hyphenated slugs need explicit
- * casing here ("rev-whirl" → "Rev Whirl").
+ * casing here ("rev-whirl" → "Reverse Whirl", which also spells the
+ * abbreviated slug out into the full display name).
  *
  * Restraint: this map is ONLY for slugs whose default rendering is
  * objectively wrong (e.g., "Rev-whirl family"). Other hyphenated
@@ -222,7 +223,7 @@ export function resolveFamilyDualMemberships(slug: string): readonly string[] {
  * audit warrants.
  */
 export const FAMILY_DISPLAY_NAMES: ReadonlyMap<string, string> = new Map([
-  ['rev_whirl', 'Rev Whirl'],
+  ['rev_whirl', 'Reverse Whirl'],
 ]);
 
 /**

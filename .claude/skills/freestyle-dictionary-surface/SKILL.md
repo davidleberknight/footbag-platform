@@ -102,11 +102,13 @@ Same source data; different curatorial choice. The family page wants breadth; th
 
 | Category | Render rule | Example |
 |---|---|---|
-| Common alias | Displayed when flagged | `Reverse Whirl` → rev_whirl; `PS Whirl` → paradox_symposium_whirl |
-| Historical name | Displayed when flagged; carries provenance | `Whirlwind` → spinning_symposium_whirl; `Whip` → rev_whirl |
+| Common alias | Displayed when flagged | `Whip` → rev_whirl; `Reverse Mirage` → illusion |
+| Historical name | Displayed when flagged; carries provenance | `Toe Delay` → toe_stall; `Clipper Delay` → clipper_stall |
 | **Structural alias** | Displayed when flagged, alongside the decomposition block | `Gyro Torque` → mobius; `Atomic Legover` → eggbeater; `Pixie DLO` → smog |
 | Technical decomposition | Search-only in practice; not flagged for display | `pdx_whirl`, `BW`, `bs_magellan` |
 | Typo / misspelling | Search-only; never flagged for display | `blury_whirl`, `m_bius`, `spinning_symposium_wirl` |
+
+Direction-reversed tricks are their own canonical entries, so a "Reverse X" string is only ever an alias when the folk name is canonical. `Reverse Whirl` is the canonical name of `rev_whirl`, not an alias of it; `Whip` is that row's displayed community alias. Where the folk name is canonical, the structural reading is the alias: `Reverse Around-the-World` is a displayed structural alias of `orbit`, and `Reverse Mirage` a displayed common alias of `illusion`.
 
 Categorization is in the schema: a curator sets an alias's type in the trick editor, and a separate display flag decides whether it reaches a reader. The heuristics below (length, vowel-edit-distance, word-count, abbreviation-token detection, known-name lookup) are authoring aids for classifying a new alias, not a runtime path.
 

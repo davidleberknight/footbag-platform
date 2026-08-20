@@ -577,7 +577,7 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
   },
   {
     slug:              'rev_whirl',
-    displayName:       'Rev Whirl',
+    displayName:       'Reverse Whirl',
     kind:              'branch',
     canonicalFormula:  'SET > OP OUT [DEX] > OP CLIP [XBD] [DEL]',
     familyAnchorAdds:  3,

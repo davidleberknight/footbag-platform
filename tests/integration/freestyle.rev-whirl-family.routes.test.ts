@@ -125,9 +125,10 @@ describe('Family override — content module', () => {
   });
 
   it('emits the curator display name for rev_whirl', () => {
-    // The default capitalize-first-char would yield "Rev-whirl"; the
-    // curator override renders "Rev Whirl" instead.
-    expect(resolveFamilyDisplayName('rev_whirl')).toBe('Rev Whirl');
+    // The default capitalize-first-char would yield "Rev-whirl"; the curator
+    // override spells the abbreviated slug out as "Reverse Whirl", matching the
+    // canonical display name the trick itself carries.
+    expect(resolveFamilyDisplayName('rev_whirl')).toBe('Reverse Whirl');
   });
 
   it('returns null for families without a display-name override', () => {

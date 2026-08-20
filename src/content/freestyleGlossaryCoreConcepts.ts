@@ -31,7 +31,7 @@ export const GLOSSARY_CORE_CONCEPTS: readonly GlossaryConceptCard[] = [
   {
     key:     'direction',
     line:    "A dexterity travels one of two ways around the leg, inward or outward. The direction is set the instant the foot starts the bag moving, and it is one of the two choices that make one dex a different move from another.",
-    relates: "Direction pairs with side to distinguish the two-point atoms. Reversing a dex's direction is not a softer or harder version of the trick, it is a different trick with its own name, trained and scored separately, which is the lesson mirage and illusion teach. Every atom has a direction mirror: around the world and orbit, mirage and illusion, whirl and whip.",
+    relates: "Direction pairs with side to distinguish the two-point atoms. Reversing a dex's direction is not a softer or harder version of the trick, it is a different trick with its own name, trained and scored separately, which is the lesson mirage and illusion teach. Every atom has a direction mirror: around the world and orbit, mirage and illusion, whirl and reverse whirl (also called whip).",
   },
   {
     key:     'side',

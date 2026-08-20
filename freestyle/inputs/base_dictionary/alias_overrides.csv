@@ -249,7 +249,7 @@ ratw,retype,technical,0,abbreviation of the canonical name
 red_wetter,retype,technical,0,spacing or spelling variant of the canonical name
 rev_atw,retype,technical,0,abbreviation of the canonical name
 rev_whirl_op,retype,positional,0,same-side / opposite-side marker on the canonical name
-reverse_around_the_world,retype,structural,0,modifier-stack decomposition rather than a nickname
+reverse_around_the_world,retype,structural,1,"structural name kept as an alias and surfaced publicly: orbit stays canonical, and a reader on the orbit page needs to see that the reverse-around-the-world reading names this trick"
 reverse_atw,retype,technical,0,abbreviation of the canonical name
 reverse_atw_kick,retype,technical,0,abbreviation of the canonical name
 reverse_swirl,retype,structural,0,modifier-stack decomposition rather than a nickname

@@ -84,8 +84,8 @@ describe('FAMILY_DUAL_MEMBERSHIPS (additive memberships)', () => {
 });
 
 describe('FAMILY_DISPLAY_NAMES', () => {
-  it('resolves rev-whirl to "Rev Whirl"', () => {
-    expect(resolveFamilyDisplayName('rev_whirl')).toBe('Rev Whirl');
+  it('spells the abbreviated rev-whirl slug out as "Reverse Whirl"', () => {
+    expect(resolveFamilyDisplayName('rev_whirl')).toBe('Reverse Whirl');
   });
 
   it('returns null for families that use default capitalization', () => {
