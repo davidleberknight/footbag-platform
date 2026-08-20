@@ -27,6 +27,11 @@ export const FLASH_KIND = {
   PROFILE_UPDATED: 'profile_updated',
   RECURRING_DONATION_CANCELED: 'recurring_donation_canceled',
   RECONCILIATION_RESOLVED: 'reconciliation_resolved',
+  ALARM_ACKNOWLEDGED: 'alarm_acknowledged',
+  // A second administrator submitting the same acknowledgment, or one submitting
+  // it after the condition cleared, changed nothing and must not be told they
+  // did.
+  ALARM_ALREADY_SETTLED: 'alarm_already_settled',
   // Stub-only: carries the just-registered recipient email across the
   // register/resend POST->303->GET so the simulated-email dev card can scope
   // to that recipient and never show another pending user's verify token.

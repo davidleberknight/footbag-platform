@@ -109,7 +109,9 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --help|-h)
-      sed -n '2,44p' "$0"
+      # Bounded by the first `set -eu` rather than a line number, so editing
+      # the header cannot silently truncate the help text.
+      sed -n '2,/^set -eu/{/^set -eu/d;p;}' "$0"
       exit 0
       ;;
     *)
@@ -162,16 +164,21 @@ fi
 TF_DIR="$REPO_ROOT/terraform/$TARGET"
 SSH_ALIAS="footbag-$TARGET"
 
-# The values file is a gitignored symlink into the maintainers' private
-# operations checkout, because it carries operator CIDR ranges. Writing a real
-# tfvars into this tree would commit those, so the resolved target must land
-# outside the repository or the rewrite is refused rather than redirected.
+# The values file carries operator CIDR ranges, so what matters is that git
+# cannot pick it up. That is gitignore's job, not the file's location: `*.tfvars`
+# is ignored, so the ordinary in-tree path is safe, and a path outside the tree
+# is unreachable by git anyway.
+#
+# Some machines symlink these files into a separate operations checkout. That is
+# a placement preference and is followed where it exists, never required: an
+# operator holding only a local credential file must be able to arm an
+# environment, and demanding a second repository to do it would stop them.
 resolve_tfvars() {
   local link resolved
   link="${TFVARS_OVERRIDE:-$TF_DIR/terraform.tfvars}"
   if [[ ! -e "$link" ]]; then
-    echo "ERROR: $link does not exist. The environment's values file is a symlink into the" >&2
-    echo "       private operations checkout; restore it before arming anything." >&2
+    echo "ERROR: $link does not exist. Create the environment's values file, or pass" >&2
+    echo "       --tfvars with a path that does." >&2
     exit 1
   fi
   # Resolved, not the link, and checked on both paths including the synthetic
@@ -183,10 +190,13 @@ resolve_tfvars() {
   fi
   case "$resolved" in
     "$REPO_ROOT"/*)
-      echo "ERROR: $link resolves to $resolved, which is inside this repository." >&2
-      echo "       The values file carries operator CIDR ranges and must live in the" >&2
-      echo "       private operations checkout. Refusing to write it here." >&2
-      exit 1
+      if ! git -C "$REPO_ROOT" check-ignore -q "$resolved" 2>/dev/null; then
+        echo "ERROR: $resolved is inside this repository and git does not ignore it." >&2
+        echo "       The values file carries operator CIDR ranges; writing it where git" >&2
+        echo "       can pick it up is how those get committed. Point --tfvars at an" >&2
+        echo "       ignored path (*.tfvars is ignored) or at one outside the tree." >&2
+        exit 1
+      fi
       ;;
   esac
   printf '%s' "$resolved"
@@ -309,7 +319,8 @@ if (( FROM_STEP <= 1 )) && [[ "$PRECONDITION" == "ses-readiness" ]]; then
   echo "  a. SES_FEEDBACK_WEBHOOK_KEY is installed on the host."
   echo "     Without it the process REFUSES TO BOOT under the live SES adapter, so"
   echo "     this takes production down rather than turning mail on. Install it"
-  echo "     with: scripts/activate-ses-feedback.sh --target $TARGET"
+  echo "     with: scripts/set-host-env.sh --target $TARGET  then"
+  echo "           scripts/activate-ses-feedback.sh --target $TARGET"
   echo "  b. The SNS feedback subscription exists, which means the URL that script"
   echo "     printed is set as the ses_feedback_webhook_url Terraform variable and"
   echo "     applied. Without it bounces and complaints reach nobody."
@@ -524,7 +535,22 @@ fi
 # ── Step 5: prove it, and say what happens next ──────────────────────────────
 echo "-- step 5: verify --"
 echo ""
-bash "$REPO_ROOT/scripts/bringup-status.sh" --target "$TARGET" ${AWS_PROFILE_ARG:+--profile "$AWS_PROFILE_ARG"} || true
+# The status view reads the host env file, which needs the sudo password on its
+# stdin. This script's own stdin is the operator's terminal, so pass the
+# credential file through when one was supplied; without it the remote probe
+# self-skips and the very rows this step tells the operator to confirm come back
+# UNKNOWN, which reads as a verification that ran rather than one that did not.
+if [[ -n "${AWS_OPERATOR_FILE:-}" && -r "${AWS_OPERATOR_FILE}" ]]; then
+  bash "$REPO_ROOT/scripts/bringup-status.sh" --target "$TARGET" ${AWS_PROFILE_ARG:+--profile "$AWS_PROFILE_ARG"} \
+    < "$AWS_OPERATOR_FILE" || true
+else
+  bash "$REPO_ROOT/scripts/bringup-status.sh" --target "$TARGET" ${AWS_PROFILE_ARG:+--profile "$AWS_PROFILE_ARG"} \
+    --skip-remote || true
+  echo ""
+  echo "The host-side rows were not read: this step needs the operator credential file."
+  echo "For the full picture, re-run:"
+  echo "  < <operator credential file> bash scripts/bringup-status.sh --target $TARGET${AWS_PROFILE_ARG:+ --profile $AWS_PROFILE_ARG}"
+fi
 echo ""
 echo "Confirm above that the host reads $SWITCH $STATE and that $ADAPTER_LABEL is"
 echo "$([[ "$STATE" == "armed" ]] && echo live || echo stub). The go-live marker is not touched by arming;"

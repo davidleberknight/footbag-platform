@@ -265,6 +265,8 @@ All UI labels and system-generated messages are English-only at launch. User-ent
 
 Reporting scope: Any dashboards/metrics described here are operational metrics (health, payment volume, job success/failure), not advanced BI or custom analytics.
 
+Times: every timestamp is stored and displayed in UTC, and every admin surface that renders one names the zone on the face of the figure (for example `2026-08-20 15:21:21 UTC`). The platform holds no per-member time zone and does not convert to a viewer's local clock: an admin reconstructing an incident, or reconciling against a payment provider's dashboard, must be able to read a time without knowing which clock produced it.
+
 Admin work-queue notifications are routed by urgency, never broadcast per event to every administrator. Task types classified urgent (security, data-integrity, or administrative-continuity events needing same-day action) send an immediate email to the admin-alerts mailing list when enqueued. Routine task types send no per-event email: administrators read them on the work-queue dashboard, and a periodic digest emails each administrator a rollup of open routine items. An administrator who claims an item removes it from the other administrators' digests; an item unclaimed past a configured stale threshold escalates once with a single email to admin-alerts naming the item. Every such notification contains task type and entity ID only (no sensitive member data such as email addresses, payment amounts, personal information, or content details). Queue items can be viewed after resolution with status, admin who resolved, resolution timestamp, decision label, and reason text.
 
 Member action items follow the mirror-image rule. Anything the platform is waiting on a member for surfaces on that member's dashboard (`M_View_Dashboard`), which is where every login lands, so a member is shown what they owe rather than having to remember where to look for it. Urgency is set by the part of the platform that owns the obligation, since only it knows its deadline: needs-attention-now items lead the dashboard's action block and put a compact banner on every other member page, while pending items sit quietly on the dashboard alone. Neither the block nor the banner carries private content; each item shows a headline, an optional non-private detail line, and its options, and anything private is read on the owner-only surface the item links to. Notification email is unchanged by this: each obligation keeps whatever reminder its own story specifies, and members receive no rollup digest.
@@ -480,7 +482,6 @@ Success Criteria:
 - The member-galleries list page at `/media/member-galleries` lists every member-owned named gallery in chronological order by creation date (oldest first); each entry shows the gallery name, description, item count, and owner attribution linking to the owner's profile. Auto-materialized per-member default galleries (Personal Gallery) are excluded from this list; they remain reachable at their `/media/{gallery_id}` URL for direct sharing.
 - Named-gallery URL bookmarks live at `/media/{gallery_id}` (e.g., `/media/gallery_curated_freestyle_tricks`, `/media/gallery_tricks_of_the_trade`). The `gallery_id` is the slug; the `member_galleries` row anchors a stable URL plus human-readable name, description, owner, and item-ordering preference (`sort_order`). Content membership is computed at request time by tag-AND match against the gallery's `member_gallery_tags` set, minus any item carrying a tag in the gallery's `member_gallery_exclude_tags` set; an item appears iff it carries every criteria tag AND no exclude tag.
 - Item ordering on a named-gallery page is governed by `member_galleries.sort_order` (`upload_desc` default, `upload_asc`, `caption_asc`). Use `caption_asc` for ordered series whose captions encode the position with a zero-padded prefix (e.g. "01 - <title>").
-- An admin gallery-management UX at `/admin/curator/galleries` lets the system administrator (acting as the FH system member) create, edit, and delete FH-owned named galleries: edit name, description, sort order, criteria tags, and exclude tags via `/admin/curator/galleries/:id/edit`; create a new gallery via `/admin/curator/galleries/new`; delete via the per-row Delete action. FH gallery writes (create, edit, delete) update the `member_galleries` rows directly; this DB write is the contract. Before go-live, where sidecar writes are enabled, the write also round-trips through the JSON sidecar at `/curated/galleries/<slug>.json` so the git-tracked authoring source stays in step, and the seeder loads the same files on each run. Admin moderation can also edit a member-owned gallery via the same admin URL.
 - Members can manage their own named galleries at `/members/{memberKey}/galleries`, including create, edit, and delete. Member-owned galleries are public, reached from the `/media` Member galleries card and its list page, but are stored in the database only (no `/curated/` JSON sidecar); the named-gallery hero links the owner display name to the member's profile.
 - Bookmark slug convention: `gallery_{descriptive_snake_case}`. The slug pattern keeps `/media/gallery_*` URLs distinguishable from S3-keyed media paths under `/media/{member-id}/...`, which matters at the CDN cache-behavior layer.
 - All content surfaces in a named gallery purely via tag-AND match against the gallery's criteria-tag set, minus the exclude set; both curator URL-reference content and member-uploaded content use the same mechanism. One media item can appear in many galleries when its tags satisfy each gallery's filter.
@@ -2787,13 +2788,13 @@ Success Criteria:
 
 - Admin can view the help-request queue (`work_queue_items` with `task_type='member_link_help_request'`). Each item shows the member's identity statement, any structured fields the member supplied (claimed legacy username, claimed legacy email, references to known board / club members who can vouch), and any attachments.
 - Admin can communicate with the member out-of-band if more information is needed; the form's outbound channel is the member's verified login email.
-- Admin can approve and apply the link. Approval writes an `audit_entries` row carrying `evidence_strength='admin_vetted_evidence'`. The link transaction follows the same field-level merge and tier-grant rules as a member-confirmed card claim.
+- Admin can approve and apply the link. Approval writes an `audit_entries` row carrying `evidence_strength='admin_vetted_evidence'`. The link transaction follows the same field-level merge and tier-grant rules as a member-confirmed card claim. An admin who is also the requesting member cannot approve their own request: admin-vetted evidence stands in for the surname check, so the approving admin must be someone other than the member being linked.
 - Post-onboarding linking is admin-only: self-serve legacy claiming is confined to the onboarding wizard, so a member who needs to link an identity after completing onboarding submits a request (via `M_Contact_IFPA_Admin` with the Identity-link issue category, or the wizard help-request form) and an admin performs the link on their behalf. Admin can link either target type — a `legacy_members` account or a `historical_persons` record — applying the same field-level merge and tier-grant rules as a wizard claim, including that a claim never lowers the member's existing tier.
 - Admin can reject with a reason. Rejection is audit-logged.
 - Admin can defer for further investigation.
 - Approval never auto-promotes legacy `is_admin` metadata to a live admin role.
 - The legacy banned flag is recorded as audit metadata only and does not gate admin approval; any disciplinary state on the new platform is handled by the new platform's discipline mechanisms.
-- Dispute reverts (member confirmed a wrong card or impersonator-confirmed claim): admin can revert a previously-confirmed claim, clearing the back-link columns and revoking the tier grant. The revert is audit-logged with the original-claim audit row identifier for traceability.
+- Dispute reverts (member confirmed a wrong card or impersonator-confirmed claim): admin can revert a previously-confirmed claim, clearing the back-link columns and revoking the tier grant. The admin names the disputed record — a `legacy_members` account or a `historical_persons` record — and the platform reverts whichever member currently holds it; the member to revert is never supplied directly. The record is bounded as well: a dispute records the conflicting records the platform detected when it was filed, together with who held each of them, and the revert refuses any record outside that set and any record that has since changed hands. A revert therefore reaches only the member the dispute was actually filed against, and a second dispute naming the same record cannot strip a holder an admin has since vetted onto it. Upholding a dispute clears the disputed record itself whatever its provenance, along with the rest of that member's claimed identity links and the tier grant they conferred. An admin cannot resolve a dispute they raised themselves. Where no member holds the record, the revert reports that there is nothing to revert and the queue item stays open. The revert is audit-logged with the original-claim audit row identifier for traceability.
 
 ### A_Periodic_Club_Cleanup
 
@@ -2858,10 +2859,13 @@ Success Criteria:
 - All actions append to immutable audit log with actor, reason, and affected mediaId.
 - System emails uploader with decision.
 - Administrators can set or unset any flags to maintain consistency; all changes audit-logged.
+- Moderation reaches a member's named gallery, not only individual items: an admin can edit a member-owned gallery — its name, description, item ordering, and criteria and exclude tag sets — through the same admin gallery URL that manages Footbag Hacky's own. This is moderation of a member's media, not curation; curation is an admin adding or editing Footbag Hacky's own media as the system member, specified in A_Upload_Curated_Media and A_Manage_Curated_Gallery. Deleting a member-owned gallery is not a moderation action and returns 404 there; removing a member's media is done per item through the takedown decision above. Every such edit appends an audit row naming the acting admin and the affected gallery.
 
 ### A_Upload_Curated_Media
 
 Access: Only admins can upload, edit, delete, or organize curated media on behalf of the system member account (the platform's curator identity, see DD §2.8). Members and visitors do not see these controls.
+
+Curation means an admin adding or editing Footbag Hacky's own media, acting as the system member. It is not editing a member's media, which A_Moderate_Media specifies separately.
 
 Story: As an admin, I can manage curated photos and videos that the platform attributes to the system member account, uploading, editing, deleting, and organizing them into category subdirectories, so that I publish and maintain curator content (landing-page demo loops, page illustrations, well-known event photos, freestyle trick reference videos, hero features, promotional assets, and similar items) without requiring a member to author them.
 
@@ -2923,6 +2927,8 @@ Story: As an admin, I can manage the system member account's named galleries —
 
 A named gallery is a saved tag query, not a fixed list of items: its membership is computed at request time by matching each media item's tags against the gallery's include set (every include tag must be present) minus its exclude set. Curator content joins a gallery by carrying the gallery's include tags, not by being individually attached, so the same item can appear in several galleries.
 
+Curation means an admin adding or editing Footbag Hacky's own media, acting as the system member. It is not editing a member's media, which A_Moderate_Media specifies separately. This story owns the admin surface at `/admin/curator/galleries` that creates and maintains Footbag Hacky's galleries; the member-facing view of them is described in V_View_Gallery.
+
 Success Criteria, List:
 
 - The gallery list is accessible only to authenticated admins. Non-admin authenticated members receive 403; unauthenticated visitors receive 302 to login.
@@ -2937,7 +2943,7 @@ Success Criteria, Create:
 
 Success Criteria, Edit:
 
-- The edit form has the same admin gate as the list. Editing a gallery that does not exist (or is not system-member-owned) returns 404.
+- The edit form has the same admin gate as the list. Editing a gallery that does not exist returns 404. Curation here means Footbag Hacky's own galleries, authored by an admin as the system member; a member-owned gallery reached through the same URL is not curation but moderation of a member's media, specified in A_Moderate_Media.
 - Editable fields are name, description, sort order, the include and exclude tag sets, and optional external links (each link URL validated at the service boundary per DD §3.17). The form previews the gallery's current contents so the admin can see the effect of a tag change.
 - Tag sets are rewritten atomically: the saved include and exclude sets are replaced by the submitted sets in a single transaction. The DB write is the contract. Invalid input re-renders the form with the error and the submitted values.
 - Before go-live, where sidecar writes are enabled, edit additionally writes through to the gallery's `/curated/galleries/` sidecar (DD §1.13) so the authoring source stays in step; after go-live the persistent DB is the source of truth and no sidecar is written.
@@ -3459,6 +3465,7 @@ Seed these defaults into the database-backed configuration store during initial 
 - `primary_snapshot_version_days = 30` (number of days of point-in-time snapshot versions retained in the primary S3 backup bucket; governs the S3 versioning lifecycle setting)
 - `cross_region_backup_retention_days = 90` (Object Lock retention window for backup objects in the cross-region disaster-recovery bucket)
 - `continuous_backup_interval_minutes = 5` (interval in minutes between continuous SQLite backup runs)
+- `system_health_window_hours = 24` (the recent window, in hours, that the system-health view aggregates outbound-email and scheduled-job counts over, per `A_View_System_Health`; valid `1`–`8760`)
 
 ## 7.8 Monitoring and Audit
 
@@ -3504,12 +3511,10 @@ Story: As an admin, I receive alerts on flagged media, webhook failures, backups
 
 Success Criteria:
 
-- Grid of metric cards: CPU, Memory, Storage, Backup Status, Cost.
-- Refresh button with auto-refresh toggle (default: every 5 minutes).
+- The health view is built only from data the platform records itself. Infrastructure health — processor, memory, storage, backup runs, origin availability, and spend against budget — is monitored outside the application and reaches an admin as an alarm under A_Acknowledge_Alarm, not as a card here. The application queries no infrastructure metric or billing service.
 - No direct links to AWS consoles (including CloudWatch), CLI tooling, or infrastructure controls are exposed in the Application Administrator UI.
-- Health view shows at least: Email delivery status (bounce and complaint rates). Email outbox status: pending, sent, failed, and dead-letter counts (for a configurable recent window), plus whether “pause sending” is currently enabled. Backup job status (last run time and success or failure). Origin availability / maintenance mode status (normal vs maintenance page), including current origin 5xx rate (or equivalent) and when the maintenance page was last served. Storage usage (e.g., S3 usage and trends).
+- Health view shows at least: Email delivery status, as bounce and complaint rates over a configurable recent window, counted by recipient rather than by notification and expressed against what was sent in that same window, with a dash rather than a rate when nothing was sent. Email outbox status: what was sent is counted over the window, because that is a volume figure, while everything waiting or in trouble (pending, sending, failed, dead-lettered, and held for manual review) is counted over all time, because a message stuck since before the window opened is exactly what this view exists to surface; plus whether “pause sending” is currently enabled. Every scheduled job with its last outcome, the age of its last success, and its runs and failures in the window, where a run the platform reaped after a crash counts as a failure. The number of alarms no admin has acknowledged.
 - Behind the aggregate outbox figures, admins can open a per-message outbound-email log: one row per message showing recipient, template, and delivery status (pending, sent, failed, or dead-lettered). Where a message has a body, it is shown as the underlying template with its data-merge fields left clearly unpopulated, so the log conveys what was sent without exposing the recipient's rendered personal data. The log is read-only.
-- Monthly cost projection vs budget (current spend and projected end-month spend).
 
 ### A_View_Audit_Logs
 
@@ -3540,8 +3545,11 @@ Success Criteria:
 
 - Alarm dashboard with acknowledge action.
 - Acknowledgment recorded in audit log.
-- Alarms include at least: Abnormally high email bounce or complaint rates. Backup failures or missed runs. Approaching or exceeding monthly cost thresholds.
+- Alarms include at least: Abnormally high email bounce or complaint rates. Backup failures or missed runs. Approaching or exceeding monthly cost thresholds. Processor, memory, or storage pressure on the host. Loss of origin availability.
 - When an alarm is acknowledged, the system records: Who acknowledged it. When it was acknowledged. An optional note describing actions taken.
+- Platform alarms reach the application over a signed notification webhook: the notification service posts each alarm state change to a dedicated endpoint authenticated by a shared secret carried in the subscription URL, by verification of the payload signature, and by the publishing topic matching the one the platform expects. A signature alone proves only that some topic in some account signed the payload, so all three are required and a feed with no expected topic configured refuses every delivery. Each notification, including a subscription confirmation, is processed exactly once by claiming its message identifier. Undelivered notifications are held in a dead-letter queue rather than discarded, because the sender retries an endpoint only briefly before dropping the message.
+- A state change into alarm is recorded as an active alarm naming the alarm and the reason given; a state change into insufficient-data is recorded the same way at warning severity; a state change back to normal clears the most recent recorded alarm of that name. A redelivered notification leaves the record as it stands.
+- An acknowledged alarm stays on record as acknowledged, clears when the platform reports that alarm back to normal, and a later recurrence of the same alarm is raised afresh for the admins to see.
 
 ## 7.9 Group Management
 

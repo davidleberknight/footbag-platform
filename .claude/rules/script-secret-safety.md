@@ -17,7 +17,7 @@ A secret MUST NEVER appear in any process's argv on any host: `ps -ef` (any read
 
 ## Rules
 
-- Read sudo passwords from stdin (`sudo -S -p ""`), never as an argument; feed the password as the first line of the same pipe.
+- Read sudo passwords from stdin (`sudo -k -S -p ""`), never as an argument; feed the password as the first line of the same pipe. `-k` ignores any cached sudo timestamp, so sudo always consumes exactly the one line the pipe supplies. Without it, a host whose operator recently used sudo consumes nothing, and the password falls through to whatever reads stdin next.
 - Pass secret values into a remote shell by appending them to the SSH stdin stream (shell-builtin `printf '%q'` assignments + cat-piped body), not via `ssh host "cmd $SECRET"`.
 - Never use `docker compose exec -e VAR=value` for secret content; pipe via `-T` stdin and reassign from `$(cat)` inside the container.
 - Write a secret destined for a file via a restricted (`umask 077` / mode `0600`) temp file and `install`/`file://`, then `shred` it; suppress shell history for any pasted-key step.
@@ -26,9 +26,28 @@ A secret MUST NEVER appear in any process's argv on any host: `ps -ef` (any read
 ## Do NOT
 
 - Put a secret in argv (`cmd --pass X`, `-e VAR=value`, `ssh host "... $SECRET"`).
-- Pipe `sudo -S` into a stdin-reading command (`tee`, `cat`): cached sudo credentials can let the password flow through into the target file. Use the user-tmp + `sudo install` pattern instead.
+- Pipe `sudo -S` into a stdin-consuming file writer (`tee`, `cat`, `dd`): if sudo consumes nothing, the password becomes the first line of the target file. Write the file from inside the remote half instead, through a root-side restricted temp file promoted with `install` (the `install_via_tmp` shape in `scripts/internal/install-cwagent-remote.sh`). `sudo -k -S -p "" bash` is not this case; it is the required form.
+- Reach a host's privileged state with `ssh -t` and an interactive sudo prompt. A TTY prompt cannot be driven by a test, it makes the operator hold a step in their head, and a tree carrying both forms drifts back to the weaker one. Every privileged remote step goes through the wire pattern below. This covers comments as well as code: a comment describing the interactive flow is how the superseded doctrine survived a revert and was later cited back as though it were the rule.
 - Write a secret to a world-readable file, or leave a keys file un-shredded.
 
-## Canonical pattern and enforcement
+## The required wire pattern
 
-`scripts/install-cwagent-staging.sh` is the model (stdin-piped sudo password + cat-piped remote-half + `printf %q` assignments); preserve that wire-pattern verbatim. Operator-facing rationale: DEVOPS_GUIDE.md (private GitHub repo), "CloudWatch agent install (one-time per host)" section. Enforced by code review.
+Every privileged remote step is one ssh session carrying one stream: the sudo password, then the values the root-side body needs, then the body itself.
+
+```bash
+{
+  printf '%s\n' "$SUDO_PASS"        # line 1, consumed by sudo -S
+  printf 'VAR=%q\n' "$VALUE"        # printf is a builtin: no fork, no argv
+  cat "$REMOTE_HALF"                # scripts/internal/<name>-remote.sh
+} | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash'
+```
+
+Read the password once with `IFS= read -r SUDO_PASS` when several sessions need it; a single stdin cannot serve two, because the first drains it. A confirmation prompt reads from `/dev/tty`, never stdin, which now belongs to the credential pipe.
+
+File content travels the same way, base64 on one line, rather than by `scp`: no host-side staging path, so no cleanup step for a crash or an interrupt to skip.
+
+`scripts/install-cwagent-staging.sh` is the model; `scripts/lib/host-env-remote.sh` is the shared implementation for host env-file reads and writes. Operator-facing rationale: DEVOPS_GUIDE.md (private GitHub repo), "CloudWatch agent install (one-time per host)" section.
+
+## Enforcement
+
+`scripts/ci/check_script_credentials.sh` runs inside `scripts/ci/assert_conventions.sh`, so it gates `npm run test:pre-pr` and CI. It blocks `--password` flags, credentials in URLs, `sudo -S` feeding a file writer, and any `ssh -t` under `scripts/`. Everything else here is enforced by code review.

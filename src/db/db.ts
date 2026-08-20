@@ -5895,6 +5895,13 @@ export const registration = {
   // concurrent claim finds an admin already present and changes zero rows.
   // This holds the single-admin-creation invariant in the database rather than
   // relying on the external SSM-token deletion winning the race.
+  //
+  // "An admin exists" means one who can actually sign in and act. Nothing ever
+  // clears the flag except another admin's revoke, so a sole administrator who
+  // dies or deletes their account leaves the row behind carrying is_admin = 1,
+  // and reading the bare table would wedge the break-glass path shut in exactly
+  // the total-admin-loss case it exists for, with the deliberately
+  // non-revealing failure giving the operator nothing to go on.
   get grantFirstAdmin() { return db.prepare(`
     UPDATE members
        SET is_admin   = 1,
@@ -5902,7 +5909,9 @@ export const registration = {
            updated_by = 'register_admin_bootstrap',
            version    = version + 1
      WHERE id = ?
-       AND NOT EXISTS (SELECT 1 FROM members WHERE is_admin = 1)
+       AND NOT EXISTS (
+         SELECT 1 FROM members_active WHERE is_admin = 1 AND is_deceased = 0
+       )
   `); },
 };
 
@@ -6187,6 +6196,10 @@ export function countAuditLog(filters: AuditLogFilters): number {
   return row.n;
 }
 
+// The categories in use, for the audit-log filter dropdown. Read on each render:
+// the one caller is an administrator page, the distinct scan walks an indexed
+// column, and a held copy would have to be invalidated by anything that writes a
+// new namespace, which is every audit append in the codebase.
 export function listAuditLogCategories(): string[] {
   const rows = db.prepare('SELECT DISTINCT category FROM audit_entries ORDER BY category').all() as Array<{ category: string }>;
   return rows.map((r) => r.category);
@@ -6291,6 +6304,44 @@ export const outbox = {
     SELECT COUNT(*) AS n FROM outbox_emails WHERE status IN ('pending','sending')
   `); },
 
+  // Outbound-email shape, one row per status present, for the admin health view.
+  // Grouped rather than one count per status so a new status added to the CHECK
+  // constraint shows up without a new statement.
+  //
+  // Two statements, because the window means different things to the two halves.
+  // What was SENT is a volume figure and belongs in the window. What is waiting
+  // or in trouble is a backlog figure counted over all time: a message pending
+  // since before the window is exactly what the page exists to surface, and
+  // windowing it reports an idle queue during the outage it should be shouting
+  // about.
+  get countSentInWindow() { return db.prepare(`
+    SELECT COUNT(*) AS n
+    FROM outbox_emails
+    WHERE status = 'sent' AND sent_at >= ?
+  `); },
+
+  get countByUnsentStatus() { return db.prepare(`
+    SELECT status, COUNT(*) AS n
+    FROM outbox_emails
+    WHERE status <> 'sent'
+    GROUP BY status
+  `); },
+
+  // The age of the oldest message still waiting to go out. A queue with items in
+  // it is normal operation; one whose oldest item predates the window is not.
+  get oldestPendingAt() { return db.prepare(`
+    SELECT MIN(created_at) AS oldest
+    FROM outbox_emails
+    WHERE status IN ('pending','sending')
+  `); },
+
+  // Dead-lettered messages over all time, not the window: a message that
+  // exhausted its retries still needs an operator's attention next week, and a
+  // windowed count would quietly drop it off the page once it aged out.
+  get countDeadLetterAllTime() { return db.prepare(`
+    SELECT COUNT(*) AS n FROM outbox_emails WHERE status = 'dead_letter'
+  `); },
+
   get insert() { return db.prepare(`
     INSERT INTO outbox_emails (
       id, created_at, created_by, updated_at, updated_by, version,
@@ -6384,11 +6435,18 @@ export const outbox = {
     WHERE id = ?
   `); },
 
+  // Dead-letter is the one terminal ending with no resend behind it, so the
+  // body goes the same way it does on a successful send: a rendered body can
+  // hold a live reset or verification token, and a dead-lettered row would
+  // otherwise keep it indefinitely. The manual-review endings deliberately
+  // keep theirs, because that status exists for an operator to read the
+  // message and decide whether to resend it.
   get markDeadLetter() { return db.prepare(`
     UPDATE outbox_emails
     SET status = 'dead_letter',
         retry_count = retry_count + 1,
         last_error = ?,
+        body_text = NULL,
         updated_at = ?,
         updated_by = 'system',
         version = version + 1
@@ -6409,6 +6467,36 @@ export const outbox = {
         version = version + 1
     WHERE status = 'sending'
       AND last_attempt_at < ?
+  `); },
+
+  // Erasure reach. An outbox row is addressed personal data in its own right:
+  // the address, the rendered body, and the subject, which several registered
+  // templates fill with the member's own name. The subject column is NOT NULL,
+  // so it takes a caller-supplied placeholder rather than a null. The member
+  // link is what survives, which is also what keeps the table's
+  // at-least-one-addressing-column CHECK satisfied.
+  //
+  // The WHERE guard makes a re-run a no-op, so the caller's row count is the
+  // number of rows this erasure actually changed.
+  // A row still waiting to go out is also settled here. Blanking its address
+  // while leaving it pending hands the sender an unsendable message that fails
+  // every attempt until it dead-letters, lighting the operator's attention badge
+  // over an erasure that worked exactly as intended. The drain reads only
+  // 'pending', so 'failed' is terminal and honest: the message never went out and
+  // never will.
+  get scrubForMember() { return db.prepare(`
+    UPDATE outbox_emails
+    SET recipient_email = NULL,
+        body_text       = NULL,
+        subject         = ?,
+        status          = CASE WHEN status IN ('pending','sending') THEN 'failed' ELSE status END,
+        last_error      = CASE WHEN status IN ('pending','sending')
+                            THEN 'recipient erased before delivery' ELSE last_error END,
+        updated_at      = ?,
+        updated_by      = 'system',
+        version         = version + 1
+    WHERE recipient_member_id = ?
+      AND (recipient_email IS NOT NULL OR body_text IS NOT NULL OR subject <> ?)
   `); },
 };
 
@@ -8819,6 +8907,7 @@ export const memberPurge = {
       )
     ORDER BY deceased_at
   `); },
+
 };
 
 // Append-only ledger of applied PII erasures. Restores from backup re-apply
@@ -9294,6 +9383,17 @@ export const workQueue = {
     WHERE entity_id = ? AND entity_type = 'member'
   `); },
 
+  // Replace the structured payload on an open item. A member who re-files a
+  // link-help request collapses onto the row they already have, so the row must
+  // take the newer statement: the payload also carries the records a dispute is
+  // about, which later bounds an administrator's revert, and a discarded update
+  // leaves that binding describing a conflict set that has moved on.
+  get updateOpenPayload() { return db.prepare(`
+    UPDATE work_queue_items
+    SET reason_text = ?, updated_at = ?, updated_by = ?, version = version + 1
+    WHERE id = ? AND status = 'open'
+  `); },
+
   // De-dupe probe for the batch auto-link pass: skip emitting a second open
   // item for the same (task_type, entity) pair when one is already queued.
   get findOpenByEntity() { return db.prepare(`
@@ -9395,11 +9495,16 @@ export const workQueue = {
   // Close an internal-review item (e.g. a birth-date-conflict flag) with no
   // member reply: transition to resolved without a decision label or a text
   // rewrite, leaving reason_text / detail_text intact for the audit trail.
+  // Close an internal-review item. The admin's dismissal note lands in
+  // reason_text, which erasure scrubs, rather than in the append-only ledger:
+  // the note is free text written about a member, and the ledger is exempt from
+  // the PII purge.
   get closeReview() { return db.prepare(`
     UPDATE work_queue_items
     SET status = 'resolved',
         resolved_at = ?,
         resolved_by_member_id = ?,
+        reason_text = ?,
         updated_at = ?,
         updated_by = ?,
         version = version + 1
@@ -9486,9 +9591,9 @@ export const systemJobRuns = {
   // Reaping for stale 'running' rows after a process kill / OOM. The
   // markSucceeded / markFailed UPDATEs only fire when the work callback
   // returns or throws cleanly; a SIGKILL leaves the row in 'running' state
-  // forever. The next runBatchAutoLink (or any caller of this) sweeps stale
-  // rows older than the threshold and marks them 'aborted' so admin tooling
-  // sees an accurate picture.
+  // forever. The next run of that same job sweeps its stale rows older than the
+  // threshold and marks them 'aborted', so admin tooling sees an accurate
+  // picture rather than a job that appears to be running still.
   get reapStaleRunning() { return db.prepare(`
     UPDATE system_job_runs
     SET status       = 'aborted',
@@ -9509,6 +9614,146 @@ export const systemJobRuns = {
     SELECT MAX(finished_at) AS last_success
     FROM system_job_runs
     WHERE job_name = ? AND status = 'succeeded'
+  `); },
+
+  // One row per job the platform has ever run, for the admin health view. The
+  // last-success time is deliberately unwindowed: a job that has not run at all
+  // during the window is the most alarming case there is, and a windowed query
+  // would report it as absent rather than as stale. The two counts are windowed,
+  // because "failed twice today" and "failed twice last year" are different
+  // facts. A reaped run counts as a failure alongside an ordinary one, matching
+  // how the run-history table badges it: two tables on one page must not
+  // disagree about whether the same run went wrong. The first two parameters
+  // are the window start, bound twice.
+  get summarizeByJob() { return db.prepare(`
+    SELECT r.job_name,
+           MAX(r.started_at) AS last_started_at,
+           MAX(CASE WHEN r.status = 'succeeded' THEN r.finished_at END) AS last_success_at,
+           SUM(CASE WHEN r.started_at >= ? THEN 1 ELSE 0 END) AS runs_in_window,
+           SUM(CASE WHEN r.started_at >= ? AND r.status IN ('failed','aborted') THEN 1 ELSE 0 END) AS failures_in_window,
+           (SELECT s.status FROM system_job_runs AS s
+             WHERE s.job_name = r.job_name
+             ORDER BY s.started_at DESC LIMIT 1) AS last_status
+    FROM system_job_runs AS r
+    GROUP BY r.job_name
+    ORDER BY r.job_name
+  `); },
+
+  // Newest runs across every job, bounded by the caller, for the run-history
+  // table beneath the per-job summary.
+  get listRecentRuns() { return db.prepare(`
+    SELECT id, job_name, started_at, finished_at, status, last_error
+    FROM system_job_runs
+    ORDER BY started_at DESC
+    LIMIT ?
+  `); },
+};
+
+export const systemAlarms = {
+  // Idempotency primitive for inbound alarm notifications, matching ses_events:
+  // PRIMARY KEY (message_id) makes this a no-op on redelivery, and the ingest
+  // service claims first inside its transaction and short-circuits on changes=0.
+  get claimMessageOrIgnore() { return db.prepare(`
+    INSERT OR IGNORE INTO sns_alarm_events
+      (message_id, created_at, alarm_name, processed_at)
+    VALUES (?, ?, ?, ?)
+  `); },
+
+  get insertAlarm() { return db.prepare(`
+    INSERT INTO system_alarm_events (
+      id, created_at, created_by, updated_at, updated_by, version,
+      alarm_type, severity, raised_at, status, details_json
+    ) VALUES (?, ?, 'system', ?, 'system', 1,
+              ?, ?, ?, 'active', ?)
+  `); },
+
+  // The alarm a clear or an acknowledgment applies to: the newest row for that
+  // name that has not been cleared. An acknowledged row is still eligible,
+  // because acknowledging records that an admin is handling the incident and
+  // the condition itself is what clears it.
+  //
+  // Ordered on the platform's own created_at, never on the raise time, which is
+  // taken from the notification payload: a future-dated raise would otherwise
+  // sort above every later row and absorb the clears meant for them.
+  get findLatestUncleared() { return db.prepare(`
+    SELECT id, alarm_type, severity, raised_at, status
+    FROM system_alarm_events
+    WHERE alarm_type = ? AND cleared_at IS NULL
+    ORDER BY created_at DESC
+    LIMIT 1
+  `); },
+
+  // Refresh the uncleared alarm of a name that fires again before it clears.
+  // The monitoring source is a state machine with one state per alarm, so the
+  // platform holds at most one uncleared row per name: inserting a second leaves
+  // the earlier one active forever, because a return to normal clears one row
+  // and no further notification is ever sent for the other.
+  get refreshUncleared() { return db.prepare(`
+    UPDATE system_alarm_events
+    SET severity     = ?,
+        raised_at    = ?,
+        details_json = ?,
+        updated_at   = ?,
+        updated_by   = 'system',
+        version      = version + 1
+    WHERE id = ?
+  `); },
+
+  get markCleared() { return db.prepare(`
+    UPDATE system_alarm_events
+    SET status     = 'cleared',
+        cleared_at = ?,
+        updated_at = ?,
+        updated_by = 'system',
+        version    = version + 1
+    WHERE id = ?
+  `); },
+
+  // Acknowledgment is one-shot: the WHERE clause admits only a row still in the
+  // active state, so a second submission of the same form reports no change
+  // instead of overwriting the first admin's name and note.
+  get markAcknowledged() { return db.prepare(`
+    UPDATE system_alarm_events
+    SET status                    = 'acknowledged',
+        acknowledged_by_member_id = ?,
+        acknowledged_at           = ?,
+        acknowledgment_note       = ?,
+        updated_at                = ?,
+        updated_by                = ?,
+        version                   = version + 1
+    WHERE id = ? AND status = 'active'
+  `); },
+
+  get findById() { return db.prepare(`
+    SELECT id, alarm_type, severity, raised_at, cleared_at, status,
+           acknowledged_by_member_id, acknowledged_at, acknowledgment_note, details_json
+    FROM system_alarm_events
+    WHERE id = ?
+  `); },
+
+  // Newest alarms first, bounded by the caller, joined to the acknowledging
+  // admin so the page can name them without a second read.
+  get listRecent() { return db.prepare(`
+    SELECT a.id, a.alarm_type, a.severity, a.raised_at, a.cleared_at, a.status,
+           a.acknowledged_at, a.acknowledgment_note, a.details_json,
+           m.display_name AS acknowledged_by_name,
+           m.slug         AS acknowledged_by_slug
+    FROM system_alarm_events AS a
+    LEFT JOIN members_all AS m ON m.id = a.acknowledged_by_member_id
+    ORDER BY a.created_at DESC
+    LIMIT ? OFFSET ?
+  `); },
+
+  // Total recorded alarms, so the page can say whether more exist beyond the
+  // one it is showing and offer a way to reach them.
+  get countAll() { return db.prepare(`
+    SELECT COUNT(*) AS n FROM system_alarm_events
+  `); },
+
+  // The dashboard badge counts what nobody has picked up yet; an acknowledged
+  // alarm is someone's open incident rather than an unattended one.
+  get countActiveUnacknowledged() { return db.prepare(`
+    SELECT COUNT(*) AS n FROM system_alarm_events WHERE status = 'active'
   `); },
 };
 
@@ -10355,8 +10600,21 @@ export const sesEvents = {
   // complaint does not re-flip status or append duplicate audit rows.
   get insertEventOrIgnore() { return db.prepare(`
     INSERT OR IGNORE INTO ses_events
-      (message_id, created_at, event_type, processed_at)
-    VALUES (?, ?, ?, ?)
+      (message_id, created_at, event_type, processed_at, recipient_count)
+    VALUES (?, ?, ?, ?, ?)
+  `); },
+
+  // Feedback volume over a recent window, one row per notification type, so the
+  // health view can express bounces and complaints as a share of what was sent
+  // in the same window. Summed over recipients rather than counted over rows:
+  // the idempotency claim guarantees one row per processed notification, and one
+  // notification can name several bounced addresses, so counting rows reports
+  // fewer bounces than actually happened.
+  get countByTypeSince() { return db.prepare(`
+    SELECT event_type, SUM(recipient_count) AS n
+    FROM ses_events
+    WHERE created_at >= ?
+    GROUP BY event_type
   `); },
 };
 

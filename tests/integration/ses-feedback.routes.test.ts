@@ -272,11 +272,14 @@ describe('SES feedback webhook', () => {
     expect(audits[0].metadata_json).not.toContain('sns.us-east-1.amazonaws.com');
   });
 
-  it('malformed payloads are acknowledged without effect', async () => {
+  it('refuses a malformed payload, because it cannot be authenticated', async () => {
+    // An unparseable body carries no publishing topic, so it cannot clear the
+    // topic check and is refused rather than acknowledged. The sender does not
+    // redeliver: a 401 is a permanent failure to it, only 5xx and 429 retry.
     const res = await request(createApp())
       .post(PATH_WITH_KEY())
       .type('text/plain')
       .send('this is not json');
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(401);
   });
 });

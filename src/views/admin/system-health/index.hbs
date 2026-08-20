@@ -1,0 +1,161 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    <p>How the platform is running right now: outbound email, delivery feedback, scheduled jobs, and open alarms. Counts cover {{content.windowLabel}} unless a row says otherwise. Read-only.</p>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+    <div class="section-heading">
+      <h2>Outbound Email</h2>
+      {{#if content.outbox.hasBacklog}}<span class="section-count">{{content.outbox.backlogCount}} waiting</span>{{/if}}
+    </div>
+
+    {{#if content.outbox.sendingPaused}}
+      <p class="form-notice" role="status">Sending is paused. Messages are still being queued and will go out when sending resumes.</p>
+    {{/if}}
+
+    <p class="card-meta">
+      Worker state: <span class="fw-600">{{content.outbox.pausedLabel}}</span>
+      &middot; Dead-lettered all time:
+      {{#if content.outbox.hasDeadLetter}}
+        <a href="{{content.outbox.deadLetterHref}}" class="fw-600">{{content.outbox.deadLetterCount}}</a>
+      {{else}}
+        <span class="fw-600">0</span>
+      {{/if}}
+    </p>
+
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Status</th>
+          <th>Messages</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each content.outbox.statuses}}
+          <tr>
+            <td>{{this.statusLabel}}</td>
+            <td>{{this.count}}</td>
+            <td><a href="{{this.href}}">View in email log</a></td>
+          </tr>
+        {{/each}}
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <div class="section-heading">
+      <h2>Delivery Feedback</h2>
+    </div>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Measure</th>
+          <th>Count</th>
+          <th>Share of sent</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Sent</td>
+          <td>{{content.delivery.sentInWindow}}</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>Hard bounces</td>
+          <td>{{content.delivery.bounceCount}}</td>
+          <td>{{content.delivery.bounceRateLabel}}</td>
+        </tr>
+        <tr>
+          <td>Complaints</td>
+          <td>{{content.delivery.complaintCount}}</td>
+          <td>{{content.delivery.complaintRateLabel}}</td>
+        </tr>
+      </tbody>
+    </table>
+    {{#unless content.delivery.hasSendVolume}}
+      <p class="text-muted">Nothing was sent in this window, so there is no share to report against. The counts are the feedback that arrived during it, which can include replies to mail sent earlier.</p>
+    {{/unless}}
+  </section>
+
+  <section>
+    <div class="section-heading">
+      <h2>Scheduled Jobs</h2>
+    </div>
+    {{#if content.jobs.hasSummaries}}
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Job</th>
+            <th>Last outcome</th>
+            <th>Last success</th>
+            <th>Runs</th>
+            <th>Failures</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.jobs.summaries}}
+            <tr>
+              <td>{{this.jobName}}</td>
+              <td>{{this.lastStatusLabel}}<br><span class="text-muted fs-sm">{{this.lastRunDisplay}}</span></td>
+              <td>
+                {{#if this.hasNeverSucceeded}}
+                  <span class="badge badge-warn">Never</span>
+                {{else}}
+                  {{this.lastSuccessAgeLabel}}<br><span class="text-muted fs-sm">{{this.lastSuccessDisplay}}</span>
+                {{/if}}
+              </td>
+              <td>{{this.runsInWindow}}</td>
+              <td>{{#if this.hasFailures}}<span class="fw-600">{{this.failuresInWindow}}</span>{{else}}0{{/if}}</td>
+            </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    {{else}}
+      <p class="text-muted">No scheduled job has run yet.</p>
+    {{/if}}
+
+    {{#if content.jobs.hasRecentRuns}}
+      <h3 class="mt-6">Recent Runs</h3>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Job</th>
+            <th>Started</th>
+            <th>Finished</th>
+            <th>Outcome</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.jobs.recentRuns}}
+            <tr>
+              <td>{{this.jobName}}</td>
+              <td>{{this.startedAtDisplay}}</td>
+              <td>{{#if this.finishedAtDisplay}}{{this.finishedAtDisplay}}{{else}}<span class="text-muted">still running</span>{{/if}}</td>
+              <td>
+                {{#if this.isFailure}}<span class="badge badge-warn">{{this.statusLabel}}</span>{{else}}{{this.statusLabel}}{{/if}}
+                {{#if this.lastError}}<br><span class="text-secondary fs-sm">{{this.lastError}}</span>{{/if}}
+              </td>
+            </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    {{/if}}
+  </section>
+
+  <section>
+    <div class="section-heading">
+      <h2>Alarms</h2>
+      {{#if content.alarms.hasActive}}<span class="section-count">{{content.alarms.activeCount}}</span>{{/if}}
+    </div>
+    {{#if content.alarms.hasActive}}
+      <p>{{content.alarms.activeCount}} alarm{{#unless (eq content.alarms.activeCount 1)}}s{{/unless}} nobody has picked up yet.</p>
+    {{else}}
+      <p class="text-muted">No alarm is waiting for an administrator.</p>
+    {{/if}}
+    <p><a href="{{content.alarms.href}}" class="action-link">Go to Platform Alarms</a></p>
+  </section>
+</div>

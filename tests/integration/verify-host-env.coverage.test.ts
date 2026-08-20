@@ -1,5 +1,5 @@
 /**
- * verify-staging-env.sh ↔ src/config/env.ts coverage drift detection.
+ * verify-host-env.sh ↔ src/config/env.ts coverage drift detection.
  *
  * The script's check matrix must cover every env var that env.ts treats as
  * required in production. Without this gate, adding a new `requireEnv()`
@@ -22,7 +22,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const ENV_TS_PATH = join(process.cwd(), 'src/config/env.ts');
-const SCRIPT_PATH = join(process.cwd(), 'scripts/verify-staging-env.sh');
+const SCRIPT_PATH = join(process.cwd(), 'scripts/verify-host-env.sh');
 
 const envTsSource = readFileSync(ENV_TS_PATH, 'utf-8');
 const scriptSource = readFileSync(SCRIPT_PATH, 'utf-8');
@@ -73,7 +73,7 @@ function extractScriptCheckedVars(src: string): Set<string> {
 }
 
 /**
- * Env vars in env.ts that are intentionally not in verify-staging-env.sh's
+ * Env vars in env.ts that are intentionally not in verify-host-env.sh's
  * check matrix. Add an entry only with a rationale that the next reader can
  * audit. The default expectation is that every required-in-prod env var has
  * a check; allowlist entries are exceptions, not "this would be too much
@@ -99,8 +99,8 @@ const ALLOWLIST: Map<string, string> = new Map([
   ['ARCHIVE_URL', 'rationale: required only when ARCHIVE_COOKIE_SIGNER is set, which staging does not set; on staging the deploy syncs ARCHIVE_URL from SSM and its absence just hides the card'],
 ]);
 
-describe('verify-staging-env.sh ↔ env.ts coverage drift', () => {
-  it('every env.ts production-required variable is checked by verify-staging-env.sh', () => {
+describe('verify-host-env.sh ↔ env.ts coverage drift', () => {
+  it('every env.ts production-required variable is checked by verify-host-env.sh', () => {
     const required = extractRequiredProdEnvVars(envTsSource);
     const checked = extractScriptCheckedVars(scriptSource);
 
@@ -114,7 +114,7 @@ describe('verify-staging-env.sh ↔ env.ts coverage drift', () => {
 
     expect(
       uncovered,
-      `env vars required in production by src/config/env.ts but NOT checked by scripts/verify-staging-env.sh: [${uncovered.join(', ')}]. Either add a check to the script, or add the var to the ALLOWLIST in this test with a rationale.`,
+      `env vars required in production by src/config/env.ts but NOT checked by scripts/verify-host-env.sh: [${uncovered.join(', ')}]. Either add a check to the script, or add the var to the ALLOWLIST in this test with a rationale.`,
     ).toEqual([]);
   });
 

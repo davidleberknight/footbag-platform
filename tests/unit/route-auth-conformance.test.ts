@@ -50,6 +50,7 @@ const UNGUARDED_BY_DESIGN = new Set([
   '/logout',
   'STRIPE_WEBHOOK_PATH',
   'SES_FEEDBACK_WEBHOOK_PATH',
+  'ALARM_WEBHOOK_PATH',
 ]);
 
 interface Registration {
@@ -140,6 +141,26 @@ describe('membership-authorization route conformance', () => {
   it('the admin router gates on requireMember before requireAdmin', () => {
     expect(ADMIN_ROUTES).toMatch(/adminRouter\.use\(\s*requireMember\s*,\s*requireAdmin\s*\)/);
     expect(ADMIN_ROUTES).not.toMatch(/\brequireAuth\b/);
+  });
+
+  // Matching the gate anywhere in the file says only that it is present. A route
+  // registered above it is ungated, and the bootstrap claim proves that position
+  // is a real place for a route to sit, so a new one added a line too high would
+  // reach every signed-in member with the check still green.
+  it('no admin route is registered above the gate, except the bootstrap claim', () => {
+    // The bootstrap claim is deliberately above it: the claimant is by
+    // definition not yet an administrator, so requiring the role would close the
+    // only path that creates one.
+    const ABOVE_GATE_BY_DESIGN = new Set(['/bootstrap-claim']);
+    const gateLine = ADMIN_ROUTES.split('\n')
+      .findIndex((l) => /adminRouter\.use\(\s*requireMember\s*,\s*requireAdmin\s*\)/.test(l)) + 1;
+    expect(gateLine).toBeGreaterThan(0);
+
+    const offenders = registrations(ADMIN_ROUTES)
+      .filter((r) => r.line < gateLine)
+      .filter((r) => !ABOVE_GATE_BY_DESIGN.has(r.target))
+      .map((r) => `line ${r.line}: ${r.method.toUpperCase()} ${r.target}`);
+    expect(offenders, offenders.join('\n')).toEqual([]);
   });
 
   it('the internal operator router gates on requireMember before requireAdmin', () => {

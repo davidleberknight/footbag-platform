@@ -1144,9 +1144,11 @@ A per-story charter names only the cases specific to that story; the cross-cutti
 
 **SYS_Handle_Stripe_Webhooks** (dims 1, 7, 12, 13, 15). Origin-exempt and signature-authenticated; an absent or invalid signature is rejected; replay is idempotent; the transition ledger is append-only.
 
+**A_Acknowledge_Alarm** alarm intake (dims 1, 7, 12, 13, 15). Origin-exempt and signature-authenticated; an absent or invalid signature is rejected even when the URL key is correct; redelivery is idempotent per message identifier; a return to normal clears the newest uncleared alarm of that name.
+
 ### 17.8 Charters: admin
 
-**A_View_Dashboard**, **A_View_System_Health**, and **A_View_Audit_Logs** (dims 1, 5, 14). Admin-only (the deny half is covered by the authorization matrix); audit logs are read-only.
+**A_View_Dashboard**, **A_View_System_Health**, **A_View_Audit_Logs**, and **A_Acknowledge_Alarm** (dims 1, 5, 14). Admin-only (the deny half is covered by the authorization matrix); audit logs are read-only, and an acknowledgment is one-shot and audited.
 
 **A_Override_Member_Data**, **A_Mark_Member_Deceased**, and **A_Manage_Admin_Role** (dims 1, 3, 5, 13, 15). Admin-only; validation; every override writes an audit row; an admin-role change never derives from a legacy flag.
 

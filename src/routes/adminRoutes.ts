@@ -9,6 +9,8 @@ import { adminAdminRolesController } from '../controllers/adminAdminRolesControl
 import { adminHonorGrantsController } from '../controllers/adminHonorGrantsController';
 import { adminAuditLogController } from '../controllers/adminAuditLogController';
 import { adminEmailLogController } from '../controllers/adminEmailLogController';
+import { adminSystemHealthController } from '../controllers/adminSystemHealthController';
+import { adminAlarmsController } from '../controllers/adminAlarmsController';
 import { adminPaymentsController } from '../controllers/adminPaymentsController';
 import { adminEmailTemplateController } from '../controllers/adminEmailTemplateController';
 import { adminFreestyleController } from '../controllers/adminFreestyleController';
@@ -56,6 +58,9 @@ adminRouter.get('/payments/:paymentId',               adminPaymentsController.de
 adminRouter.get('/audit-log',                 adminAuditLogController.index);
 adminRouter.get('/audit-log/export',          adminAuditLogController.exportLog);
 adminRouter.get('/email-log',                 adminEmailLogController.index);
+adminRouter.get('/system-health',             adminSystemHealthController.index);
+adminRouter.get('/alarms',                    adminAlarmsController.index);
+adminRouter.post('/alarms/:id/acknowledge',   adminAlarmsController.acknowledge);
 // Email-template editor: edit wording, enabled flag, and classification of the
 // registered outbound templates. Edit-only; template existence is code.
 adminRouter.get('/email-templates',           adminEmailTemplateController.index);

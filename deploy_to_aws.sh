@@ -302,24 +302,28 @@ if (( (DB_REBUILD_INVOLVED == 1) || (MODE_REUSE == 1) )) && command -v lsof >/de
   fi
 fi
 
-# Schema-drift preflight: catch the case where database/schema.sql evolved
-# (column added, table added) since database/footbag.db was last rebuilt.
-# Default mode (full pipeline csv_only) appends to the existing DB without
-# reapplying schema.sql, so a schema-touching commit silently fails mid-
-# pipeline (e.g. "table legacy_club_candidates has no column named
-# classification" in Phase G).
+# Schema-drift preflight for the one mode that ships a database it did not
+# build: -r / --reuse-local-db takes database/footbag.db as it stands and pushes
+# it, so a schema.sql that has moved on since that file was last rebuilt means
+# shipping a database the deployed code will crash against on the first query
+# touching a new column.
+#
+# It deliberately does NOT gate the rebuild modes. --from-csv, --soup-to-nuts,
+# --db-only and --all-data all drop the database file and reapply schema.sql
+# (see the mode table in scripts/deploy-local-data.sh), so drift in the current
+# file is exactly what they are about to fix. Gating them refused a deploy on
+# the grounds that it had not yet done the thing it was about to do, and sent
+# the operator to run the rebuild by hand first -- by hand, through a script the
+# testing rules forbid on a workstation holding real legacy data, when the mode
+# they had already chosen would have reached the same rebuild through the
+# sanctioned wrapper.
 #
 # We compare actual column-sets (not mtimes): a crashed pipeline run leaves
 # the live DB with a fresh mtime even though its schema is still stale, so
 # mtime-based checks pass silently after every failed attempt.
-if (( DB_REBUILD_INVOLVED == 1 || MODE_REUSE == 1 )) \
+if (( MODE_REUSE == 1 )) \
     && [[ "${FOOTBAG_SKIP_SCHEMA_DRIFT_CHECK:-}" != "1" ]] \
     && [[ -f database/footbag.db ]] && [[ -f database/schema.sql ]]; then
-# Both DB-rebuild (default) AND reuse-local (-r) modes ship the local DB
-# file to the host; both must verify the local DB's schema matches
-# database/schema.sql before pushing. -r without this gate silently
-# shipped a stale local DB that would crash the deployed app on any new
-# column or table.
   _drift_tmp_db=$(mktemp -t schema_check.XXXXXX.db)
   # shellcheck disable=SC2064
   trap "rm -f '${_drift_tmp_db}' '${_drift_tmp_db}-wal' '${_drift_tmp_db}-shm'" EXIT
@@ -367,38 +371,25 @@ if (( DB_REBUILD_INVOLVED == 1 || MODE_REUSE == 1 )) \
     done <<< "${_live_tables}"
     if (( ${#_drift_lines[@]} > 0 )); then
       echo "ERROR: database/footbag.db schema is out of sync with database/schema.sql." >&2
-      echo "       Drift detected (live DB is missing items declared in schema.sql):" >&2
+      echo "       Drift detected between the local DB and the declared schema:" >&2
       for _line in "${_drift_lines[@]}"; do echo "$_line" >&2; done
       echo "" >&2
-      echo "       The default rebuild appends to the existing DB without" >&2
-      echo "       reapplying schema.sql, so the load will crash mid-pipeline against" >&2
-      echo "       the stale schema (typically inside Phase G enrichment)." >&2
+      echo "       -r / --reuse-local-db ships this database as it stands, without" >&2
+      echo "       reapplying schema.sql, so the deployed application would crash on" >&2
+      echo "       the first query touching a column the file does not have." >&2
       echo "" >&2
-
-      # Offer to run the reset now and re-invoke this deploy with the original
-      # args. Honors FOOTBAG_AUTO_RESET_ON_DRIFT=1 for non-interactive auto-yes
-      # (CI / cron). Reads from /dev/tty so the credential-file stdin pipe at
-      # the end of this script is untouched.
-      _do_reset=0
-      if [[ "${FOOTBAG_AUTO_RESET_ON_DRIFT:-}" == "1" ]]; then
-        echo "  FOOTBAG_AUTO_RESET_ON_DRIFT=1 → auto-resetting." >&2
-        _do_reset=1
-      elif [[ -r /dev/tty ]]; then
-        printf "  Run 'bash scripts/reset-local-db.sh' now and re-deploy with current args? [y/N] " >&2
-        read -r _ans </dev/tty || _ans=""
-        [[ "${_ans:-}" =~ ^[Yy]$ ]] && _do_reset=1
-      fi
-      if (( _do_reset == 1 )); then
-        echo "  → Resetting local DB, then re-invoking deploy with same args..." >&2
-        rm -f "${_drift_tmp_db}" "${_drift_tmp_db}-wal" "${_drift_tmp_db}-shm"
-        trap - EXIT
-        bash scripts/reset-local-db.sh
-        exec bash "$0" "$@"
-      fi
-      echo "  Aborted. To fix:" >&2
-      echo "    bash scripts/reset-local-db.sh && bash deploy_to_aws.sh $*" >&2
-      echo "  Or set FOOTBAG_AUTO_RESET_ON_DRIFT=1 to auto-reset on drift." >&2
-      echo "  Or set FOOTBAG_SKIP_SCHEMA_DRIFT_CHECK=1 to bypass this check entirely." >&2
+      echo "  Aborted. Rebuild the local database with a mode that reapplies the" >&2
+      echo "  schema, then deploy that instead of reusing this file:" >&2
+      echo "    bash deploy_to_aws.sh --from-csv        (rebuild from canonical CSVs)" >&2
+      echo "    bash deploy_to_aws.sh --all-data        (the same, plus the member intake)" >&2
+      echo "" >&2
+      echo "  Both drop and rebuild the database before shipping it, so neither needs" >&2
+      echo "  a separate reset step first." >&2
+      echo "" >&2
+      echo "  To rebuild locally without deploying:" >&2
+      echo "    bash scripts/deploy-local-data.sh --from-csv" >&2
+      echo "" >&2
+      echo "  Or set FOOTBAG_SKIP_SCHEMA_DRIFT_CHECK=1 to ship this file anyway." >&2
       exit 1
     fi
   fi
@@ -467,14 +458,30 @@ if (( MODE_CODE_ONLY == 1 )) \
   rm -f "${_exp_db}" "${_exp_db}-wal" "${_exp_db}-shm"
 
   # Actual: the schema of the DB the host runs on. Resolve FOOTBAG_DB_PATH from
-  # the host env file, then fingerprint the live DB with the host's sqlite3. The
-  # query travels on ssh stdin (avoids remote quoting of the SQL string).
-  _host_fp=$(printf '%s\n' "${_schema_fp_query}" | ssh "$DEPLOY_TARGET" '
-    p=$(grep -E "^FOOTBAG_DB_PATH=" /srv/footbag/env 2>/dev/null | tail -1 | cut -d= -f2-)
-    [ -n "$p" ] && [ -f "$p" ] || exit 9
-    command -v sqlite3 >/dev/null 2>&1 || exit 8
-    sqlite3 "$p"
-  ' 2>/dev/null) || _host_fp="__UNREACHABLE__"
+  # the deployed DB, from inside the web container.
+  #
+  # This used to read /srv/footbag/env over a plain ssh to resolve
+  # FOOTBAG_DB_PATH, then run the host's sqlite3 against it. Neither half was
+  # reachable: the env file is root:root 0600 and the database is 0600 owned by
+  # another account, so the remote body exited before it read anything and the
+  # check took its "could not read" branch on every single deploy. A guard that
+  # cannot fire is worse than none, because its silence reads as agreement.
+  #
+  # The container is the one route needing no elevation: it already has the path
+  # in its environment and the file on a mount, and the operator is in the
+  # host's docker group. It has no sqlite3, so the fingerprint is taken with the
+  # driver the application itself bundles. Body cat-piped rather than quoted
+  # inline, the same way the remote halves travel.
+  _fp_js="scripts/internal/host-db-fingerprint.js"
+  if [[ -r "$_fp_js" ]]; then
+    _host_fp=$(ssh "$DEPLOY_TARGET" '
+      c=$(docker ps --filter "name=web" --format "{{.Names}}" 2>/dev/null | head -1)
+      [ -n "$c" ] || exit 9
+      docker exec -i "$c" node
+    ' < "$_fp_js" 2>/dev/null) || _host_fp="__UNREACHABLE__"
+  else
+    _host_fp="__UNREACHABLE__"
+  fi
 
   if [[ -z "$_expected_fp" ]]; then
     echo "WARNING: schema-sync check could not read database/schema.sql; skipping." >&2

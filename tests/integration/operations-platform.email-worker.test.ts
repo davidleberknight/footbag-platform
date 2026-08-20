@@ -61,6 +61,7 @@ describe('OperationsPlatformService.runEmailWorker', () => {
     const comms = getCommunicationService();
     comms.enqueueEmail({
       recipientEmail: 'worker-test@example.com',
+      recipientMemberId: 'member-log-sent',
       subject: 'Hello',
       bodyText: 'body',
     });
@@ -79,6 +80,7 @@ describe('OperationsPlatformService.runEmailWorker', () => {
     const comms = getCommunicationService();
     comms.enqueueEmail({
       recipientEmail: 'paused@example.com',
+      recipientMemberId: 'member-log-sent',
       subject: 'Hi',
       bodyText: 'x',
     });

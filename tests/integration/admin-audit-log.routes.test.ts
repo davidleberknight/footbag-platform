@@ -164,6 +164,63 @@ describe('GET /admin/audit-log/export', () => {
     expect(res.text).toContain('tier.purchase_grant');
   });
 
+  // The export carries member-chosen display names, and display-name validation
+  // constrains only length. A spreadsheet application treats a leading '=', '+',
+  // '-' or '@' as the start of a formula, so an unneutralised cell runs member
+  // input on the administrator's machine when they open the downloaded file.
+  it('CSV export neutralises a display name that would read as a spreadsheet formula', async () => {
+    const hostileId = 'al_member_formula';
+    withDb((db) => {
+      insertMember(db, {
+        id: hostileId, slug: 'al_member_formula', display_name: '=HYPERLINK("http://evil.example.com")',
+        real_name: 'Formula Person', login_email: 'al-formula@example.com',
+      });
+      insertAuditEntry(db, {
+        actor_type: 'member', actor_member_id: hostileId,
+        action_type: 'tier.purchase_grant', entity_type: 'member', entity_id: hostileId,
+        category: 'tier_change',
+      });
+    });
+    const app = createApp();
+    const res = await request(app).get('/admin/audit-log/export?format=csv').set('Cookie', adminCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain(`'=HYPERLINK`);
+    expect(res.text).not.toMatch(/(^|[,\n"])=HYPERLINK/);
+  });
+
+  // The export is capped. A handoff that silently drops its oldest rows reads as
+  // the complete set, which is the same failure mode the reconciliation digest
+  // already refuses to have.
+  it('says on the file itself when the export was capped, and stays silent when it was not', async () => {
+    withDb((db) => insertAuditEntry(db, {
+      actor_type: 'member', actor_member_id: MEMBER_ID,
+      action_type: 'tier.purchase_grant', entity_type: 'member', entity_id: MEMBER_ID,
+      category: 'tier_change',
+    }));
+    const app = createApp();
+    const whole = await request(app).get('/admin/audit-log/export?format=csv').set('Cookie', adminCookie());
+    expect(whole.text.split('\n')[0]).toMatch(/^occurred_at,/);
+    expect(whole.text).not.toContain('Narrow the filters');
+
+    // Past the export cap of 5000.
+    withDb((db) => {
+      const many = db.transaction(() => {
+        for (let i = 0; i < 5100; i += 1) {
+          insertAuditEntry(db, {
+            actor_type: 'member', actor_member_id: MEMBER_ID,
+            action_type: 'tier.purchase_grant', entity_type: 'member', entity_id: MEMBER_ID,
+            category: 'tier_change',
+          });
+        }
+      });
+      many();
+    });
+
+    const capped = await request(app).get('/admin/audit-log/export?format=csv').set('Cookie', adminCookie());
+    expect(capped.text.split('\n')[0]).toContain('Narrow the filters to export the rest.');
+    expect(capped.text).toContain('Showing the newest 5000 of 5101 matching entries.');
+  });
+
   it('JSON export → 200 application/json array', async () => {
     withDb((db) => insertAuditEntry(db, {
       actor_type: 'member', actor_member_id: MEMBER_ID,

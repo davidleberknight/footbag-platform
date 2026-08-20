@@ -261,6 +261,7 @@ describe('admin gate — POST (every state-changing admin route sits behind the 
     '/admin/admin-roles/grant/confirm',
     '/admin/admin-roles/ph/revoke',
     '/admin/admin-roles/ph/revoke/confirm',
+    '/admin/work-queue/ph/claim',
     '/admin/work-queue/ph/resolve',
     '/admin/work-queue/ph/dismiss',
     '/admin/work-queue/ph/link-help/approve',

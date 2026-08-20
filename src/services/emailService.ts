@@ -104,7 +104,8 @@ export type SendResult = EnqueueResult | { id: null; status: 'suppressed' };
 
 interface SendBase {
   recipientEmail: string;
-  recipientMemberId?: string | null;
+  /** Required: erasure reaches an outbox row only through this column. */
+  recipientMemberId: string;
   idempotencyKey?: string;
   /** Use the strict enqueue (surfaces transport failures as 503) for security-signal emails. */
   strict?: boolean;
@@ -123,7 +124,7 @@ export const emailService = {
     const comms = getCommunicationService();
     const enqueueInput = {
       recipientEmail: input.recipientEmail,
-      recipientMemberId: input.recipientMemberId ?? undefined,
+      recipientMemberId: input.recipientMemberId,
       subject: rendered.subject,
       bodyText: rendered.bodyText,
       templateKey: shaped.variant,

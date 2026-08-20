@@ -12,6 +12,13 @@
 # (stdin), never in process argv where `ps -ef` readers could capture them.
 # Preserve this pattern verbatim.
 #
+# `sudo -k` invalidates any cached sudo timestamp before the password is read.
+# Without it, a host where the operator had recently used sudo would have sudo
+# consume no stdin line at all, and the password would fall through to whatever
+# reads stdin next: into bash as a command here, or into the target file where
+# the consumer writes one. That fall-through is the leak the credential rules
+# name; -k closes it rather than depending on the timestamp having expired.
+#
 # Installs and configures the Amazon CloudWatch Agent on the staging
 # Lightsail host. Idempotent: safe to re-run on an already-configured host.
 #
@@ -118,7 +125,7 @@ echo "==> Running remote-as-root cwagent install via cat-pipe..."
   printf 'CWAGENT_AKID=%q\n' "$CWAGENT_AKID"
   printf 'CWAGENT_SAK=%q\n' "$CWAGENT_SAK"
   cat "$REMOTE_HALF"
-} | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -S -p "" bash'
+} | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash'
 
 echo
 echo "CloudWatch Agent install complete on $REMOTE."

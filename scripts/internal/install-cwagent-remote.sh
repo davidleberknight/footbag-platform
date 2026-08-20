@@ -6,7 +6,7 @@
 #     printf 'CWAGENT_AKID=%q\n' "$AKID";
 #     printf 'CWAGENT_SAK=%q\n' "$SAK";
 #     cat scripts/internal/install-cwagent-remote.sh;
-#   } | ssh REMOTE 'sudo -S -p "" bash'
+#   } | ssh REMOTE 'sudo -k -S -p "" bash'
 #
 # (cat consumes operator stdin = password line; the printf lines emit shell
 # variable assignments; the final cat appends this body. ssh stdin = password

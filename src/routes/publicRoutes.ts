@@ -302,6 +302,17 @@ publicRouter.post(
   express.text({ type: '*/*', limit: '1mb' }),
   ipcController.receiveSesFeedback,
 );
+
+// Platform-alarm webhook: the monitoring service's notification topic delivers
+// alarm state changes here in the same text/plain shape as the feedback
+// notifications, with the same query-key plus payload-signature auth, so it
+// takes the same parser and the same Origin-pin exemption.
+export const ALARM_WEBHOOK_PATH = '/webhooks/platform-alarm';
+publicRouter.post(
+  ALARM_WEBHOOK_PATH,
+  express.text({ type: '*/*', limit: '1mb' }),
+  ipcController.receiveAlarmNotification,
+);
 publicRouter.post(
   STRIPE_WEBHOOK_PATH,
   express.raw({ type: 'application/json', limit: '1mb' }),

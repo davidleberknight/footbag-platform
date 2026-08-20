@@ -37,9 +37,11 @@
 # use. The webhook secret must be a real whsec_ value; the stub adapter's
 # whsec_stub prefix is rejected.
 #
-# Sudo pattern for the host env file: user-tmp + `ssh -t` interactive sudo
-# install. The operator types the sudo password directly into sudo's noecho
-# prompt; it is never piped, captured, or logged.
+# The host env file is read and written through the shared wire in
+# lib/host-env-remote.sh: the sudo password is line one of the ssh stdin stream
+# and the root-side body follows it on the same stream, so nothing secret
+# reaches an argument list, no terminal is involved, and the host is left
+# holding no staged copy of the file.
 #
 # Webhook signing-secret rotation (after first-time activation) is a two-step
 # roll, so no delivery is dropped while both the old and new secrets are briefly
@@ -67,12 +69,13 @@
 # from a live-adapter host would fail signature verification immediately and
 # refuse to boot on the next restart. It reads no secret and prompts for none.
 #
-# Usage:
-#   scripts/activate-payments.sh --target production --profile <prod-profile>
+# Usage (every mode that touches the host reads the sudo password from stdin,
+# line 1; --dry-run opens no connection and needs no credential file):
+#   < <operator credential file> bash scripts/activate-payments.sh --target production --profile <prod-profile>
 #   scripts/activate-payments.sh --target production --dry-run
-#   scripts/activate-payments.sh --target production --profile <p> --rotate-webhook-secret
-#   scripts/activate-payments.sh --target production --profile <p> --complete-webhook-rotation
-#   scripts/activate-payments.sh --target production --profile <p> --deactivate
+#   < <operator credential file> bash scripts/activate-payments.sh --target production --profile <p> --rotate-webhook-secret
+#   < <operator credential file> bash scripts/activate-payments.sh --target production --profile <p> --complete-webhook-rotation
+#   < <operator credential file> bash scripts/activate-payments.sh --target production --profile <p> --deactivate
 #
 #   --replace-key allows activation to overwrite a Stripe API key parameter that
 #   already holds a different real key. Without it, activation refuses: the
@@ -85,6 +88,9 @@
 #   STRIPE_WEBHOOK_SECRET_VALUE instead of prompting. Rotation reads only
 #   STRIPE_WEBHOOK_SECRET_VALUE (the new secret); completion reads neither.
 set -euo pipefail
+
+# shellcheck source=lib/host-env-remote.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/host-env-remote.sh"
 
 TARGET="staging"
 SSH_ALIAS=""
@@ -155,7 +161,11 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --help|-h)
-      sed -n '2,49p' "$0"
+      # Bounded by the first `set -eu` rather than a line number, so editing
+      # the header cannot silently truncate the help text. It did: the usage
+      # block, the only place the credential-file invocation appears, sat past
+      # the old bound and was never printed.
+      sed -n '2,/^set -eu/{/^set -eu/d;p;}' "$0"
       exit 0
       ;;
     *)
@@ -255,7 +265,7 @@ if (( DRY_RUN )); then
       echo "     (sk_test_ while the production-live marker reads pre-live; sk_live_ from the canary on)"
       echo "  2. Pause: create the webhook endpoint in the Stripe Dashboard"
       echo "     (PUBLIC_BASE_URL + /payments/webhook), then prompt (silent) for its whsec_ secret"
-      echo "  3. Stage $HOST_ENV_PATH down from $SSH_ALIAS (ssh -t + sudo install)"
+      echo "  3. Read $HOST_ENV_PATH down from $SSH_ALIAS over the shared wire"
       echo "  4. Check every refusal BEFORE anything is written: key shape, whsec_ shape,"
       echo "     SECRETS_ADAPTER=live on the host, no signing secret already in service, and"
       echo "     no different Stripe key already in $SSM_PARAM (override: --replace-key)"
@@ -363,28 +373,41 @@ else
     echo "       /footbag/$TARGET/secrets/stripe_* parameters)" >&2
     exit 2
   fi
+
+  # Take the credential line before the first prompt, not at the first ssh.
+  # Checked later, this refuses only after the operator has typed the Stripe
+  # secret key, worked through the Stripe Dashboard, and typed the signing
+  # secret -- and then throws all of it away. Nothing is written either way, so
+  # the cost is the operator's time and a second trip to the Dashboard.
+  require_operator_stdin "scripts/activate-payments.sh --target $TARGET --profile <profile>" || exit 1
+  # Every prompt on this path reads from the terminal, never stdin. Stdin is the
+  # credential pipe, so a prompt reading from it would silently take the next
+  # line of the operator's credential file as the typed answer: a Stripe key
+  # that is really a password, accepted without anyone seeing it happen.
+  if [[ ! -r /dev/tty ]]; then
+    echo "ERROR: no terminal available; this mode has to prompt for secrets." >&2
+    exit 1
+  fi
   if [[ "$MODE" == "activate" ]]; then
     if [[ "$TARGET" == "production" ]]; then
       echo "This activates LIVE Stripe payments on production."
-      printf "Type 'ACTIVATE LIVE PAYMENTS' to continue: "
-      read -r CONFIRM
-      if [[ "$CONFIRM" != "ACTIVATE LIVE PAYMENTS" ]]; then
+      if ! confirm_from_tty "Type 'ACTIVATE LIVE PAYMENTS' to continue: " "ACTIVATE LIVE PAYMENTS"; then
+        echo ""
         echo "Aborted: confirmation phrase not entered." >&2
         exit 1
       fi
     fi
-    printf "Stripe secret API key (input hidden): "
-    read -rs STRIPE_KEY
-    echo ""
+    printf "Stripe secret API key (input hidden): " > /dev/tty
+    read -rs STRIPE_KEY < /dev/tty
+    echo "" > /dev/tty
   fi
   if [[ "$MODE" == "deactivate" ]]; then
     echo "This removes the Stripe payment credentials from $TARGET: both parameters"
     echo "and the rotation twin go back to the placeholder, and the signing-secret"
     echo "lines are removed from the host env file. The next activation will be a"
     echo "first activation again. Nothing else is touched, and no money is involved."
-    printf "Type 'REMOVE PAYMENT CREDENTIALS' to continue: "
-    read -r CONFIRM
-    if [[ "$CONFIRM" != "REMOVE PAYMENT CREDENTIALS" ]]; then
+    if ! confirm_from_tty "Type 'REMOVE PAYMENT CREDENTIALS' to continue: " "REMOVE PAYMENT CREDENTIALS"; then
+      echo ""
       echo "Aborted: confirmation phrase not entered." >&2
       exit 1
     fi
@@ -426,9 +449,10 @@ if [[ ( "$MODE" == "activate" || "$MODE" == "rotate" ) && -z "$ENV_FILE_OVERRIDE
   fi
   echo "Then copy the endpoint's signing secret (whsec_...)."
   echo ""
-  printf "Webhook signing secret (input hidden): "
-  read -rs WEBHOOK_SECRET
-  echo ""
+  # From the terminal, not stdin, for the reason given at the key prompt above.
+  printf "Webhook signing secret (input hidden): " > /dev/tty
+  read -rs WEBHOOK_SECRET < /dev/tty
+  echo "" > /dev/tty
 fi
 
 # Only the modes that install a secret validate its shape. Completion and
@@ -447,32 +471,35 @@ fi
 # -----------------------------------------------------------------------------
 # Step 3: fetch the host env file (or use the local override), rewrite it.
 # -----------------------------------------------------------------------------
+OLD_LOCAL_OWNED=0
+
+# Widens the earlier parameter-store trap to the env-file copies as well. Only
+# local copies need destroying: the wire leaves nothing on the host. The new copy
+# is always this script's own, so it always goes; the old copy is this script's
+# only when it fetched one, because under --env-file it is the caller's own file
+# and shredding that would destroy their input. Registered before either copy
+# exists, so no exit path can outrun it.
+cleanup_local() {
+  shred -u "${KEY_TMP:-}" "${NEW_LOCAL:-}" 2>/dev/null || true
+  if [[ "$OLD_LOCAL_OWNED" == "1" ]]; then
+    shred -u "${OLD_LOCAL:-}" 2>/dev/null || true
+  fi
+  return 0
+}
+trap cleanup_local EXIT INT TERM
+
 if [[ -n "$ENV_FILE_OVERRIDE" ]]; then
   OLD_LOCAL="$ENV_FILE_OVERRIDE"
 else
-  LOCAL_PID=$$
-  TMP_REMOTE="/tmp/footbag-env-activate-${LOCAL_PID}.env"
-  cleanup_remote() {
-    ssh -o BatchMode=yes "$SSH_ALIAS" "shred -u $TMP_REMOTE" 2>/dev/null || true
-    shred -u "${KEY_TMP:-}" "${OLD_LOCAL:-}" "${NEW_LOCAL:-}" 2>/dev/null || true
-  }
-  trap cleanup_remote EXIT INT TERM
+  # The credential line was already taken, before the first prompt.
+  require_ssh_alias "$SSH_ALIAS" || exit 1
 
-  echo ""
-  echo "Staging $HOST_ENV_PATH from $SSH_ALIAS via sudo install."
-  echo "You will be prompted for your sudo password on this terminal."
-  echo "The password is typed directly into sudo; it is NOT captured, NOT echoed, and NOT logged."
-  echo ""
-  if ! ssh -t "$SSH_ALIAS" "OP=\$(whoami); GROUP=\$(id -gn); sudo install -m 0600 -o \"\$OP\" -g \"\$GROUP\" $HOST_ENV_PATH $TMP_REMOTE"; then
-    echo "ERROR: failed to stage $HOST_ENV_PATH on $SSH_ALIAS." >&2
-    exit 1
-  fi
+  OLD_LOCAL_OWNED=1
   umask 077
   OLD_LOCAL="$(mktemp /tmp/footbag-env-old.XXXXXX)"
-  ssh -o BatchMode=yes "$SSH_ALIAS" "cat $TMP_REMOTE" > "$OLD_LOCAL" || {
-    echo "ERROR: staged temp file $TMP_REMOTE was unreadable on $SSH_ALIAS." >&2
-    exit 1
-  }
+  echo ""
+  echo "Reading $HOST_ENV_PATH from $SSH_ALIAS."
+  host_env_fetch "$SSH_ALIAS" "$OLD_LOCAL" "" "$HOST_ENV_PATH" || exit 1
 fi
 
 if ! grep -qE '^SECRETS_ADAPTER=["'"'"']?live["'"'"']?$' "$OLD_LOCAL"; then
@@ -688,31 +715,50 @@ if [[ -n "$ENV_FILE_OVERRIDE" ]]; then
   shred -u "$NEW_LOCAL"
   GATE_FILE="$ENV_FILE_OVERRIDE"
 else
-  printf "Push this change to %s on %s? (yes/no): " "$HOST_ENV_PATH" "$SSH_ALIAS"
-  read -r PUSH_CONFIRM
-  if [[ "$PUSH_CONFIRM" != "yes" ]]; then
+  # Confirmation reads from the terminal, not stdin: stdin is the credential
+  # pipe, and a prompt reading from it would swallow what follows the password.
+  if ! confirm_from_tty "Push this change to ${HOST_ENV_PATH} on ${SSH_ALIAS}? (yes/no): " "yes"; then
+    echo ""
     echo "Aborted: env file not pushed." >&2
-    if [[ "$MODE" == "activate" ]]; then
-      echo "The Stripe key in SSM is already updated." >&2
-    fi
-    exit 1
-  fi
-  if ! scp -q "$NEW_LOCAL" "$SSH_ALIAS:$TMP_REMOTE"; then
-    echo "ERROR: failed to copy the rewritten env file to $SSH_ALIAS." >&2
+    # Parameter Store is already written by this point, in every mode that
+    # writes it. Saying so is the whole value of this branch: the operator has
+    # just declined, and without being told they will reasonably assume
+    # declining undid the run.
+    case "$MODE" in
+      activate)
+        echo "Parameter Store is already updated: both the Stripe API key and the" >&2
+        echo "signing secret. The host still holds the previous signing secret." >&2
+        echo "Re-run to finish, or put the previous values back and deploy." >&2
+        ;;
+      rotate)
+        echo "Parameter Store already holds the new signing secret and the previous" >&2
+        echo "one as its twin. The host still signs with the old secret alone." >&2
+        echo "Re-run to finish the roll." >&2
+        ;;
+      deactivate)
+        echo "All three parameters are already back to the placeholder, but the host" >&2
+        echo "still holds its signing secret, and a deploy will NOT remove it: a" >&2
+        echo "placeholder parameter means 'no outgoing secret', so the deploy leaves" >&2
+        echo "the host's value alone. That is what keeps a deploy landing mid-run from" >&2
+        echo "reinstalling the secret, and it is why this state does not resolve by" >&2
+        echo "itself. Re-run --deactivate to finish removing it." >&2
+        ;;
+    esac
     exit 1
   fi
   # No backup copy is left behind. The only value this script writes is the
-  # Stripe webhook signing secret, and the deploy rebuilds the host env file
-  # from the parameter store on every run, so a backup here would be a second,
-  # staler copy of a file that is already fully re-derivable, holding the whole
-  # secret set at rest for as long as nobody remembered to delete it. To undo a
-  # bad activation, put the previous value back in the parameter store and
-  # deploy.
-  echo "Installing the rewritten env file via sudo..."
-  if ! ssh -t "$SSH_ALIAS" "sudo bash -c 'install -m 0600 -o root -g root $TMP_REMOTE $HOST_ENV_PATH'"; then
-    echo "ERROR: failed to install the rewritten env file on $SSH_ALIAS." >&2
-    exit 1
-  fi
+  # Stripe webhook signing secret, and the deploy re-syncs it from the parameter
+  # store on every run, so a backup here would be a second, staler copy of a file
+  # that is already re-derivable, holding the whole secret set at rest for as
+  # long as nobody remembered to delete it. To undo a bad activation, put the
+  # previous value back in the parameter store and deploy.
+  #
+  # That re-sync is what makes the host recoverable, and it has one deliberate
+  # gap: a parameter reading the placeholder means "no outgoing secret", so the
+  # deploy leaves the host's value alone rather than clearing it. Removal is
+  # therefore this script's job alone, not something a later deploy finishes.
+  echo "Installing the rewritten env file..."
+  host_env_install "$SSH_ALIAS" "$NEW_LOCAL" "$HOST_ENV_PATH" || exit 1
   GATE_FILE="$NEW_LOCAL"
 fi
 

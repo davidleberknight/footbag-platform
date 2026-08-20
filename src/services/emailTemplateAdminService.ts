@@ -85,8 +85,10 @@ interface EditPageOptions {
   fieldErrors?: Record<string, string>;
 }
 
+// Stored timestamps are UTC; naming the zone stops an admin reading the figure
+// as their own clock.
 function tsDisplay(iso: string): string {
-  return iso.slice(0, 19).replace('T', ' ');
+  return `${iso.slice(0, 19).replace('T', ' ')} UTC`;
 }
 
 const TOKEN_RE = /\{([a-z][a-zA-Z0-9]*)\}/g;

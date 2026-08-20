@@ -2,7 +2,7 @@
 # Root-side body of scripts/deploy-rebuild.sh.
 #
 # Invoked via:
-#   cat - scripts/internal/deploy-rebuild-remote.sh | ssh REMOTE 'sudo -S -p "" bash'
+#   cat - scripts/internal/deploy-rebuild-remote.sh | ssh REMOTE 'sudo -k -S -p "" bash'
 #
 # Runs as root for the full body; commands are bare (no per-line sudo).
 #
@@ -73,8 +73,13 @@ require_env() {
 # Must run after the release tree is promoted into $LIVE_DIR.
 seed_container_sizing() {
   local cfg="$LIVE_DIR/docker/env/${FOOTBAG_ENV}.env"
-  local key_re='^(NGINX|WEB|WORKER|IMAGE)_MEMORY_LIMIT$|^IMAGE_MAX_CONCURRENT$|^VIDEO_X264_(PRESET|THREADS|RC_LOOKAHEAD)$'
-  local line_re='^(NGINX|WEB|WORKER|IMAGE)_MEMORY_LIMIT=|^IMAGE_MAX_CONCURRENT=|^VIDEO_X264_(PRESET|THREADS|RC_LOOKAHEAD)='
+  # Identical to the code deploy's allowlist, and pinned equal by a test. They
+  # had drifted: this half accepted eight keys while the code deploy accepted
+  # eleven, so a host stood up by a rebuild never received VIDEO_MAX_HEIGHT and
+  # encoded at full source height on an instance sized for 720p, while the
+  # verifier checked only the same eight and could not see it.
+  local key_re='^(NGINX|WEB|WORKER|IMAGE)_MEMORY_LIMIT$|^IMAGE_MAX_CONCURRENT$|^VIDEO_X264_(PRESET|THREADS|RC_LOOKAHEAD)$|^VIDEO_MAX_HEIGHT$|^FFMPEG_TIMEOUT_SECONDS$|^VIDEO_TRANSCODE_TIMEOUT_MS$|^VIDEO_MIN_HOST_AVAILABLE_MB$'
+  local line_re='^(NGINX|WEB|WORKER|IMAGE)_MEMORY_LIMIT=|^IMAGE_MAX_CONCURRENT=|^VIDEO_X264_(PRESET|THREADS|RC_LOOKAHEAD)=|^VIDEO_MAX_HEIGHT=|^FFMPEG_TIMEOUT_SECONDS=|^VIDEO_TRANSCODE_TIMEOUT_MS=|^VIDEO_MIN_HOST_AVAILABLE_MB='
   if [[ ! -f "$cfg" ]]; then
     echo "ERROR: sizing config $cfg is missing; refusing to deploy with unmanaged container sizing." >&2
     exit 1

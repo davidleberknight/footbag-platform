@@ -50,7 +50,17 @@
  *   - Revert of a confirmed claim by its claim-audit id (idempotent), and
  *     the admin dispute revert that pairs claim.dispute_opened with
  *     claim.revert_applied in one transaction; covers legacy-linked and
- *     HP-only claims alike
+ *     HP-only claims alike. The revert is bound at three points: the resolving
+ *     administrator may not be the member who filed the dispute; the record may
+ *     only be one the dispute itself names, detected server-side when it was
+ *     filed; and the record must still be held by the member the dispute was
+ *     filed against, so an upheld dispute followed by a fresh admin-vetted link
+ *     cannot be stripped by a second dispute naming the same record. The member
+ *     whose claim is stripped is derived from whoever holds that record and is
+ *     never supplied by the caller. Without these bindings the action reached
+ *     any claimed member on the platform. A disputed historical record clears
+ *     whatever its provenance, so upholding a dispute always undoes the record
+ *     it was about rather than only the links that trace to a legacy account.
  *   - The claim-time field merge and its precedence ladder: the member's own
  *     answer beats every import, and the curated historical record beats the
  *     legacy dump. Inside one transaction that ladder is enforced by write
@@ -930,7 +940,9 @@ async function registerMember(
   // Same-name collision against already-claimed records, detected at the
   // earliest point. The wizard re-derives the prompt at render time; this
   // event records that the collision existed at signup.
-  const conflicts = detectRegistrationConflicts(id, trimmedRealName);
+  // Bounded like the card is: the ledger records that the collision happened,
+  // not an unbounded roster of everyone a common surname reached.
+  const conflicts = detectRegistrationConflicts(id, trimmedRealName, CONFLICT_CARD_LIMIT);
   if (conflicts.length > 0) {
     appendAuditEntry({
       actionType: 'legacy.registration_conflict_prompted',
@@ -942,7 +954,18 @@ async function registerMember(
       reasonText: null,
       metadata: {
         conflict_count: conflicts.length,
-        conflicts: conflicts.map((c) => ({ display_name: c.displayName, source: c.sourceLabel })),
+        // Records are named by identifier, never by the person's name. This
+        // ledger is append-only and erasure never reaches it, so a name written
+        // here would outlive the account it belongs to and survive the very
+        // anonymisation that is supposed to retire it -- and these are other
+        // people's names, recorded against a registrant they may have no
+        // connection to. An identifier resolves for anyone investigating, and
+        // stops resolving once the record behind it is erased.
+        conflicts: conflicts.map((c) => ({
+          legacy_member_id:     c.legacyMemberId,
+          historical_person_id: c.historicalPersonId,
+          source:               c.sourceLabel,
+        })),
       },
     });
   }
@@ -1176,14 +1199,40 @@ export interface RegistrationConflictRecord {
 }
 
 /**
+ * A detected conflict with the record identifier behind it. The identifier
+ * never reaches the page: the view model carries the display half only, so
+ * the prompt keeps disclosing nothing beyond the public handle it already
+ * shows. The full shape is what a filed dispute records, so the later admin
+ * revert can be bound to the records the member actually disputed.
+ */
+interface RegistrationConflictMatch extends RegistrationConflictRecord {
+  legacyMemberId:     string | null;
+  historicalPersonId: string | null;
+}
+
+/** How many conflicting records the registration card shows before it stops;
+ *  a common surname must not flood it. */
+const CONFLICT_CARD_LIMIT = 5;
+
+/**
  * Same-name collision check against ALREADY-CLAIMED records: a registrant
  * whose surname (current or declared former) matches a claimed legacy
  * account or a claimed historical person gets the inline "is one of these
  * you?" prompt, catching collisions and impersonation at the earliest
- * point. Capped so a common surname cannot flood the card.
+ * point.
+ *
+ * `limit` caps the card so a common surname cannot flood it. It is a display
+ * bound only: a filed dispute records the whole conflict set, because that set
+ * is what later bounds an administrator's revert. Capping there would scan the
+ * legacy accounts first, leave every historical record out once five legacy
+ * matches were found, and refuse a revert on a record genuinely in conflict.
  */
-function detectRegistrationConflicts(memberId: string, realName: string): RegistrationConflictRecord[] {
-  const out: RegistrationConflictRecord[] = [];
+function detectRegistrationConflicts(
+  memberId: string,
+  realName: string,
+  limit: number = Number.POSITIVE_INFINITY,
+): RegistrationConflictMatch[] {
+  const out: RegistrationConflictMatch[] = [];
   const claimedLegacy = declaredAnchors.listClaimedLegacyForConflictScan.all() as Array<{
     legacy_member_id: string; display_name: string | null;
   }>;
@@ -1194,8 +1243,13 @@ function detectRegistrationConflicts(memberId: string, realName: string): Regist
     const name = row.display_name;
     if (!name) continue;
     if (surnameMatchesWithAnchors(memberId, realName, name)) {
-      out.push({ displayName: name, sourceLabel: 'Claimed legacy footbag.org account' });
-      if (out.length >= 5) return out;
+      out.push({
+        displayName:        name,
+        sourceLabel:        'Claimed legacy footbag.org account',
+        legacyMemberId:     row.legacy_member_id,
+        historicalPersonId: null,
+      });
+      if (out.length >= limit) return out;
     }
   }
   const claimedHp = declaredAnchors.listClaimedHpForConflictScan.all() as Array<{
@@ -1203,11 +1257,27 @@ function detectRegistrationConflicts(memberId: string, realName: string): Regist
   }>;
   for (const row of claimedHp) {
     if (surnameMatchesWithAnchors(memberId, realName, row.person_name)) {
-      out.push({ displayName: row.person_name, sourceLabel: 'Claimed competition record' });
-      if (out.length >= 5) return out;
+      out.push({
+        displayName:        row.person_name,
+        sourceLabel:        'Claimed competition record',
+        legacyMemberId:     null,
+        historicalPersonId: row.person_id,
+      });
+      if (out.length >= limit) return out;
     }
   }
   return out;
+}
+
+/** The same detection keyed on the member alone, for callers that hold no
+ *  member row of their own. Returns nothing for a member that no longer
+ *  exists, which fails a dispute's record binding closed. */
+function detectRegistrationConflictsForMember(memberId: string): RegistrationConflictMatch[] {
+  const member = legacyClaim.findClaimingMember.get(memberId) as
+    | { real_name: string }
+    | undefined;
+  if (!member) return [];
+  return detectRegistrationConflicts(memberId, member.real_name);
 }
 
 function getAutoLinkClassificationForMember(memberId: string): AutoLinkClassification {
@@ -1579,7 +1649,11 @@ function getLinkHistoryView(
     // the card the user can act on, so suppress it.
     conflictPrompt: (() => {
       if (legacyLinked || hpLinked) return null;
-      const records = detectRegistrationConflicts(memberId, member.real_name);
+      // Display half only: the record identifiers stay in the service so the
+      // card discloses nothing beyond the public handle it already renders.
+      const records: RegistrationConflictRecord[] = detectRegistrationConflicts(
+        memberId, member.real_name, CONFLICT_CARD_LIMIT,
+      ).map((m) => ({ displayName: m.displayName, sourceLabel: m.sourceLabel }));
       return records.length > 0 ? { records } : null;
     })(),
     lowConfidenceBanner:
@@ -3815,10 +3889,20 @@ export type RevertAutoLinkResult =
 // Inner body: the CALLER owns the transaction. Composes plain statements only
 // (no nested transaction()), so it can run inside revertAutoLink's wrapper or
 // a future combined transaction (e.g. an admin dispute-revert flow).
+/**
+ * `disputedHistoricalPersonId` names a historical record an administrator is
+ * stripping on an upheld dispute. Without it the historical link clears only
+ * where it traces to the legacy account being reverted, so a member holding a
+ * legacy account and a separate historical record would keep the very record
+ * under dispute while losing the other one -- the revert would report success
+ * having undone nothing the dispute was about. Naming it here clears it whatever
+ * its provenance.
+ */
 function revertAutoLinkInTx(
   memberId: string,
   originalClaimAuditId: string,
   actor: RevertAutoLinkActor,
+  disputedHistoricalPersonId?: string | null,
 ): RevertAutoLinkResult {
     const member = legacyClaim.findClaimingMember.get(memberId) as
       | {
@@ -3842,7 +3926,9 @@ function revertAutoLinkInTx(
     // claim itself for a direct historical-record claim with no legacy link.
     let clearedHp = false;
     if (member.historical_person_id !== null) {
-      if (legacyMemberId === null) {
+      if (disputedHistoricalPersonId && member.historical_person_id === disputedHistoricalPersonId) {
+        clearedHp = true;
+      } else if (legacyMemberId === null) {
         clearedHp = true;
       } else {
         const hp = legacyClaim.findHistoricalPersonById.get(member.historical_person_id) as
@@ -3960,6 +4046,10 @@ export type DisputeRevertResult =
  * Opens the dispute and applies the revert in one transaction so the
  * forensic pair (claim.dispute_opened + claim.revert_applied) always lands
  * together with the state change.
+ *
+ * The caller names the DISPUTED RECORD, not the member to strip: the holder is
+ * derived from whoever currently claims that record. Two administrators' worth
+ * of separation is enforced as well, since the requester cannot be the resolver.
  */
 /**
  * Shared per-admin throttle for work-queue resolution actions, including
@@ -3980,7 +4070,7 @@ export function enforceWorkQueueResolveLimit(adminMemberId: string): void {
 function revertClaimForDispute(
   adminMemberId: string,
   workQueueItemId: string,
-  targetMemberId: string,
+  target: LinkHelpApproveTarget,
   reason: string,
 ): DisputeRevertResult {
   enforceWorkQueueResolveLimit(adminMemberId);
@@ -3988,20 +4078,86 @@ function revertClaimForDispute(
   if (!trimmed) {
     throw new ValidationError('A dispute reason is required.');
   }
-  // The revert is bound to an open dispute queue item: the item cannot name
-  // the holder itself (the disputed record is identified by member-typed free
-  // text), so the binding is that an open dispute must exist and every audit
-  // row names it. Without this, a forged holder id could revert any member's
-  // claim with no trace of which dispute justified it.
+  const legacyId = target.legacyMemberId?.trim() ?? '';
+  const personId = target.historicalPersonId?.trim() ?? '';
+  if ((legacyId && personId) || (!legacyId && !personId)) {
+    throw new ValidationError(
+      'Enter exactly one disputed record: a legacy account id or a historical person id.',
+    );
+  }
   const item = loadOpenLinkHelpItem(workQueueItemId);
-  if (!isDisputeLinkHelpPayload(item.reason_text)) {
+  const payload = parseDisputeLinkHelpPayload(item.reason_text);
+  if (!payload) {
     throw new ValidationError('That queue item is not a conflict dispute.');
+  }
+  // An administrator may not resolve their own dispute. Any authenticated member
+  // can raise one, so without this an administrator manufactures the very item
+  // that authorizes the revert.
+  if (item.entity_id === adminMemberId) {
+    throw new ValidationError(
+      'You cannot resolve your own dispute. Another administrator must review it.',
+    );
+  }
+  // The record must be one this dispute is actually ABOUT. Deriving the holder
+  // from the record (below) stops the caller naming a member directly, but on
+  // its own it still let an administrator name ANY claimed record while holding
+  // any open dispute, so the reach was unchanged. The dispute records the
+  // conflicting records at filing time; the revert may touch only those.
+  const disputedIds = legacyId
+    ? payload.disputed_legacy_member_ids
+    : payload.disputed_historical_person_ids;
+  if (!disputedIds.includes(legacyId || personId)) {
+    throw new ValidationError(
+      'That record is not one of the records this dispute is about.',
+    );
+  }
+  // The member whose claim is reverted is DERIVED from the disputed record, never
+  // supplied by the caller. Taking it from the request body bound the revert to
+  // nothing but "some open dispute exists", which let one request strip the claim
+  // of a member with no relationship to the dispute at all.
+  const targetMemberId = legacyId
+    ? ((legacyMembers.findByLegacyMemberId.get(legacyId) as
+        | { claimed_by_member_id: string | null }
+        | undefined)?.claimed_by_member_id ?? '')
+    : ((legacyClaim.findMemberClaimingHp.get(personId) as
+        | { id: string }
+        | undefined)?.id ?? '');
+  if (!targetMemberId) {
+    // Nobody holds the disputed record: it was never claimed, was already
+    // reverted, or is held by a deceased member whose link the contact scrub
+    // deliberately preserves.
+    return { status: 'nothing_to_revert' as const };
+  }
+  // The holder must be the one the dispute was filed against. Binding by record
+  // alone lets a still-open second dispute naming the same record strip whoever
+  // holds it now -- including the first dispute's filer, freshly linked by an
+  // administrator who vetted them. An absent entry refuses, so a dispute filed
+  // before this binding is re-filed rather than acted on blind.
+  if (payload.disputed_record_holders[legacyId || personId] !== targetMemberId) {
+    throw new ValidationError(
+      'That record is no longer held by the member this dispute was filed against. '
+      + 'Ask the member to file a fresh dispute so it names the current holder.',
+    );
   }
   const originalClaim = legacyClaim.findLatestClaimAuditForMember.get(targetMemberId) as
     | { id: string }
     | undefined;
   return transaction(() => {
     const actor = { actorType: 'admin' as const, actorMemberId: adminMemberId };
+    // The revert runs before either audit row is written. The database wrapper
+    // commits whatever the callback did unless it throws, so appending the
+    // dispute-opened row first would leave it committed on the branch below that
+    // reverts nothing -- one orphan row per resubmitted form, in a ledger that
+    // cannot be corrected.
+    const reverted = revertAutoLinkInTx(
+      targetMemberId, originalClaim?.id ?? 'unknown', actor, personId || null,
+    );
+    if (reverted.status === 'not_found') {
+      throw new NotFoundError('Member not found.');
+    }
+    if (reverted.status === 'already_reverted') {
+      return { status: 'nothing_to_revert' as const };
+    }
     appendAuditEntry({
       actionType:    'claim.dispute_opened',
       category:      'identity',
@@ -4015,13 +4171,6 @@ function revertClaimForDispute(
         work_queue_item_id:      item.id,
       },
     });
-    const reverted = revertAutoLinkInTx(targetMemberId, originalClaim?.id ?? 'unknown', actor);
-    if (reverted.status === 'not_found') {
-      throw new NotFoundError('Member not found.');
-    }
-    if (reverted.status === 'already_reverted') {
-      return { status: 'nothing_to_revert' as const };
-    }
     appendAuditEntry({
       actionType:    'claim.revert_applied',
       category:      'identity',
@@ -4039,13 +4188,43 @@ function revertClaimForDispute(
   });
 }
 
-function isDisputeLinkHelpPayload(reasonText: string | null): boolean {
-  if (!reasonText) return false;
+/**
+ * The dispute payload, or null when the item is not a conflict dispute.
+ *
+ * The disputed-record lists are read defensively: an item filed before this
+ * binding existed carries neither list, and an absent list reads as empty,
+ * which refuses every revert rather than falling back to the unbounded
+ * behaviour the binding replaced.
+ */
+function parseDisputeLinkHelpPayload(reasonText: string | null): LinkHelpRequestPayload | null {
+  if (!reasonText) return null;
+  let raw: Record<string, unknown>;
   try {
-    return (JSON.parse(reasonText) as Record<string, unknown>).is_dispute === true;
+    raw = JSON.parse(reasonText) as Record<string, unknown>;
   } catch {
-    return false;
+    return null;
   }
+  if (raw.is_dispute !== true) return null;
+  const idList = (v: unknown): string[] =>
+    Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && x.length > 0) : [];
+  const holderMap = (v: unknown): Record<string, string> => {
+    if (!v || typeof v !== 'object' || Array.isArray(v)) return {};
+    const out: Record<string, string> = {};
+    for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+      if (typeof val === 'string' && val.length > 0) out[k] = val;
+    }
+    return out;
+  };
+  return {
+    statement:               typeof raw.statement === 'string' ? raw.statement : '',
+    claimed_legacy_username: typeof raw.claimed_legacy_username === 'string' ? raw.claimed_legacy_username : null,
+    claimed_legacy_email:    typeof raw.claimed_legacy_email === 'string' ? raw.claimed_legacy_email : null,
+    vouchers:                typeof raw.vouchers === 'string' ? raw.vouchers : null,
+    is_dispute:              true,
+    disputed_legacy_member_ids:     idList(raw.disputed_legacy_member_ids),
+    disputed_historical_person_ids: idList(raw.disputed_historical_person_ids),
+    disputed_record_holders:        holderMap(raw.disputed_record_holders),
+  };
 }
 
 export interface ClaimedLegacyIdentity {
@@ -4540,11 +4719,53 @@ export interface LinkHelpRequestPayload {
   claimed_legacy_email: string | null;
   vouchers: string | null;
   is_dispute: boolean;
+  /**
+   * The records this dispute is ABOUT, detected server-side at filing time and
+   * never accepted from the browser. The admin revert may strip a claim only on
+   * a record named here: without it the revert was bound to nothing but "some
+   * open dispute exists", which let one request reach a member with no
+   * relationship to the dispute at all. Empty on a non-dispute request, and
+   * empty on a dispute whose conflict set went away between render and submit,
+   * which fails the revert closed rather than stranding the help request.
+   */
+  disputed_legacy_member_ids: string[];
+  disputed_historical_person_ids: string[];
+  /**
+   * Who held each named record when the dispute was filed. The record binding
+   * alone is by record, not by holder, so once a dispute is upheld and its
+   * filer is linked onto the record, a second dispute still naming that record
+   * would strip the newly vetted holder -- a member with no relationship to the
+   * second grievance. A revert therefore also requires the holder to be the one
+   * the dispute was filed against. An absent entry refuses the revert, the same
+   * fail-closed direction the record lists take.
+   */
+  disputed_record_holders: Record<string, string>;
 }
 
 export type SubmitLinkHelpRequestResult =
   | { status: 'submitted'; workQueueItemId: string }
   | { status: 'already_open'; workQueueItemId: string };
+
+/** Who holds each detected conflicting record right now, keyed by record id.
+ *  A dispute is filed against the holder of the moment; recording them lets the
+ *  later revert refuse a record whose holder has since changed. */
+function disputedRecordHolders(matches: RegistrationConflictMatch[]): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const m of matches) {
+    if (m.legacyMemberId) {
+      const row = legacyMembers.findByLegacyMemberId.get(m.legacyMemberId) as
+        | { claimed_by_member_id: string | null }
+        | undefined;
+      if (row?.claimed_by_member_id) out[m.legacyMemberId] = row.claimed_by_member_id;
+    } else if (m.historicalPersonId) {
+      const row = legacyClaim.findMemberClaimingHp.get(m.historicalPersonId) as
+        | { id: string }
+        | undefined;
+      if (row?.id) out[m.historicalPersonId] = row.id;
+    }
+  }
+  return out;
+}
 
 function submitLinkHelpRequest(
   memberId: string,
@@ -4572,12 +4793,23 @@ function submitLinkHelpRequest(
     if (t.length > 200) throw new ValidationError('Identifier fields must be under 200 characters.');
     return t || null;
   };
+  const isDispute = Boolean(input.isDispute);
+  // Re-run the same detection the conflict card was built from, so the filed
+  // dispute carries the records it is about. Re-detecting rather than trusting
+  // the form is the point: the browser never gets to say which record a later
+  // admin revert may strip.
+  const disputed = isDispute ? detectRegistrationConflictsForMember(memberId) : [];
   const payload: LinkHelpRequestPayload = {
     statement,
     claimed_legacy_username: clip(input.claimedLegacyUsername),
     claimed_legacy_email:    clip(input.claimedLegacyEmail),
     vouchers:                clip(input.vouchers),
-    is_dispute:              Boolean(input.isDispute),
+    is_dispute:              isDispute,
+    disputed_legacy_member_ids:     disputed
+      .map((m) => m.legacyMemberId).filter((v): v is string => v !== null),
+    disputed_historical_person_ids: disputed
+      .map((m) => m.historicalPersonId).filter((v): v is string => v !== null),
+    disputed_record_holders:        disputedRecordHolders(disputed),
   };
 
   // One open request per member: a re-submit collapses onto the open item
@@ -4586,6 +4818,53 @@ function submitLinkHelpRequest(
     | { id: string }
     | undefined;
   if (existing) {
+    // The newer submission replaces the payload on the row the member already
+    // has. Discarding it silently loses whatever they came back to add, and for
+    // a dispute it also loses the record set the revert is bound to, so a
+    // dispute filed before the conflicts changed could never be resolved.
+    const prior = workQueue.findById.get(existing.id) as { reason_text: string | null } | undefined;
+    const priorWasDispute = parseDisputeLinkHelpPayload(prior?.reason_text ?? null) !== null;
+    const nowIso = new Date().toISOString();
+    transaction(() => {
+      workQueue.updateOpenPayload.run(JSON.stringify(payload), nowIso, memberId, existing.id);
+      appendAuditEntry({
+        actionType:    'support.help_request_submitted',
+        category:      'identity',
+        actorType:     'member',
+        actorMemberId: memberId,
+        entityType:    'member',
+        entityId:      memberId,
+        reasonText:    null,
+        metadata: {
+          work_queue_item_id: existing.id,
+          is_dispute:         payload.is_dispute,
+        },
+      });
+      // The dispute pair records the transition, so a member re-filing an
+      // already-open dispute does not stack another copy of it.
+      if (payload.is_dispute && !priorWasDispute) {
+        appendAuditEntry({
+          actionType:    'claim.dispute_opened',
+          category:      'identity',
+          actorType:     'member',
+          actorMemberId: memberId,
+          entityType:    'member',
+          entityId:      memberId,
+          reasonText:    null,
+          metadata: { work_queue_item_id: existing.id, source: 'registration_conflict_prompt' },
+        });
+        appendAuditEntry({
+          actionType:    'legacy.registration_conflict_disputed',
+          category:      'identity',
+          actorType:     'member',
+          actorMemberId: memberId,
+          entityType:    'member',
+          entityId:      memberId,
+          reasonText:    null,
+          metadata: { work_queue_item_id: existing.id },
+        });
+      }
+    });
     return { status: 'already_open', workQueueItemId: existing.id };
   }
 
@@ -4681,6 +4960,17 @@ function approveLinkHelpRequest(
     );
   }
   const item = loadOpenLinkHelpItem(workQueueItemId);
+  // An administrator may not approve their own help request. This path links
+  // with 'admin_vetted_evidence', which skips the surname gate on the grounds
+  // that an administrator checked the identity against the record; that
+  // reasoning collapses when the approver and the requester are one person,
+  // leaving nothing at all between a member and an unclaimed record. Compromised
+  // -admin is this file's stated threat model, so the role never self-serves.
+  if (item.entity_id === adminMemberId) {
+    throw new ValidationError(
+      'You cannot approve your own help request. Another administrator must review it.',
+    );
+  }
   const now = new Date().toISOString();
   transaction(() => {
     if (legacyId) {
@@ -4703,13 +4993,19 @@ function approveLinkHelpRequest(
       entityType:    'member',
       entityId:      item.entity_id,
       reasonText:    null,
+      // The member's submitted payload stays out of the ledger. It carries their
+      // identity statement, a claimed legacy username, a raw email address and
+      // the names they offered as vouchers, and this same transaction overwrites
+      // the work-queue row that held the purgeable copy -- so recording it here
+      // would leave the ledger holding the only copy of personal data that
+      // erasure can never reach, and rendering it on the audit page and in its
+      // exports. The ids below reconstruct what was decided without it.
       metadata: {
         work_queue_item_id: workQueueItemId,
         ...(legacyId
           ? { legacy_member_id: legacyId }
           : { historical_person_id: personId }),
         evidence_strength:  'admin_vetted_evidence',
-        original_payload:   item.reason_text,
       },
     });
   });
@@ -4740,10 +5036,12 @@ function rejectLinkHelpRequest(
       actorMemberId: adminMemberId,
       entityType:    'member',
       entityId:      item.entity_id,
+      // The rejection reason is the administrator's own account of the decision,
+      // which the story requires the ledger to carry. The member's submitted
+      // payload is not: see the approval path above for why it stays out.
       reasonText:    trimmed,
       metadata: {
         work_queue_item_id: workQueueItemId,
-        original_payload:   item.reason_text,
       },
     });
   });

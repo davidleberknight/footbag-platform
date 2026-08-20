@@ -19,7 +19,7 @@ import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import { createTestDb } from '../fixtures/testDb';
 
-import { insertMember, insertMemberTierGrant, createTestSessionJwt } from '../fixtures/factories';
+import { insertMember, insertMemberTierGrant, insertMemberGallery, createTestSessionJwt } from '../fixtures/factories';
 
 // FH-owned gallery edits via POST /admin/curator/galleries/:id/edit now
 // write a JSON sidecar to /curated/galleries/<slug>.json after the DB
@@ -665,6 +665,32 @@ describe('POST /admin/curator/galleries/:id/delete', () => {
       .type('form')
       .send({ confirmed: '1' });
     expect(res.status).toBe(404);
+  });
+
+  // The curated list never links a member's own gallery, so this id can only
+  // arrive by being posted directly. Answering anything but not-found would let
+  // any administrator hard-delete a member's gallery from a surface that exists
+  // to manage the curated ones.
+  it("returns 404 for a member's own gallery, which is not this surface's to delete", async () => {
+    const db = new BetterSqlite3(TEST_DB_PATH);
+    insertMemberGallery(db, {
+      id: 'gallery_member_owned',
+      owner_member_id: MEMBER_ID,
+      name: 'Member Set',
+    });
+    db.close();
+
+    const res = await request(createApp())
+      .post('/admin/curator/galleries/gallery_member_owned/delete')
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ confirmed: '1' });
+    expect(res.status).toBe(404);
+
+    const check = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    const still = check.prepare('SELECT id FROM member_galleries WHERE id = ?').get('gallery_member_owned');
+    check.close();
+    expect(still).toBeDefined();
   });
 
   it('redirects unauthenticated requests to login', async () => {

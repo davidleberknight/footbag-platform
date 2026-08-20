@@ -2,12 +2,12 @@
 # set-host-env.sh
 #
 # Writes the operator-owned, non-secret values in /srv/footbag/env: the proxy
-# hop count and the database-snapshot bucket name. Every other value in that
-# file already arrives through a script -- the payments activation writes the
-# Stripe signing secret, the SES activation writes the feedback key, and the
-# deploy's remote halves seed the one-shot values and sync the ones Terraform
-# declares. These two had no owner, so they were hand-typed or forgotten, and
-# on production they are currently absent.
+# hop count, the database-snapshot bucket name, and the two SNS topic ARNs the
+# webhook feeds authenticate against. Every other value in that file already
+# arrives through a script -- the payments activation writes the Stripe signing
+# secret, the SES activation writes the feedback key, and the deploy's remote
+# halves seed the one-shot values and sync the ones Terraform declares. These
+# had no owner, so they were hand-typed or forgotten.
 #
 # What each value does, and what its absence costs:
 #
@@ -23,25 +23,42 @@
 #                     emitted, and the timer still reports healthy. Installing
 #                     the timer before this value is set produces a backup
 #                     pipeline that runs and uploads nothing.
+#   ALARM_TOPIC_ARN   the publishing topic the platform-alarm webhook accepts.
+#   SES_FEEDBACK_TOPIC_ARN
+#                     the same for the mail bounce and complaint feed. Each feed
+#                     authenticates on its shared key AND its publishing topic,
+#                     because a valid signature proves only that some topic in
+#                     some AWS account signed the payload. Absent, that feed
+#                     refuses every delivery, which reads as a quiet feed rather
+#                     than a broken one -- which is exactly why it is set here
+#                     rather than remembered.
 #
-# The bucket name is read from the Terraform output rather than typed, so it
-# cannot drift from the bucket that actually exists.
+# The bucket name and both ARNs are read from Terraform outputs rather than
+# typed, so they cannot drift from what actually exists.
 #
-# Usage:
-#   scripts/set-host-env.sh --target production --profile <prod-profile>
+# Usage (the sudo password is read from stdin, line 1):
+#   < <operator credential file> bash scripts/set-host-env.sh --target production --profile <prod-profile>
+#   < <operator credential file> bash scripts/set-host-env.sh --target staging --yes
 #   scripts/set-host-env.sh --target staging --dry-run
 #
-# --dry-run resolves both values and prints the command plan without touching
-# the host.
+# --dry-run resolves every value and prints the command plan without touching
+# the host, and needs no credential file because it opens no ssh session.
+#
+# --yes accepts the install confirmation instead of asking for it, the same way
+# the deploy wrapper's -y does, so this can run where there is no terminal to
+# type into. The diff is still printed.
 #
 # Synthetic mode (CI tests only; operators never use this):
 #   --env-file <path> treats the local file as the host env, skips ssh and
-#   terraform entirely, and takes the bucket name from BACKUP_S3_BUCKET_VALUE.
+#   terraform entirely, and takes the values from BACKUP_S3_BUCKET_VALUE,
+#   ALARM_TOPIC_ARN_VALUE and SES_FEEDBACK_TOPIC_ARN_VALUE.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=lib/host-env-expectations.sh
 source "${REPO_ROOT}/scripts/lib/host-env-expectations.sh"
+# shellcheck source=lib/host-env-remote.sh
+source "${REPO_ROOT}/scripts/lib/host-env-remote.sh"
 
 TARGET="staging"
 AWS_PROFILE_ARG=""
@@ -63,12 +80,18 @@ while [[ $# -gt 0 ]]; do
       ENV_FILE_OVERRIDE="${2:-}"
       shift 2 || { echo "ERROR: --env-file requires an argument" >&2; exit 2; }
       ;;
+    --yes)
+      ASSUME_YES="yes"
+      shift
+      ;;
     --dry-run)
       DRY_RUN=1
       shift
       ;;
     -h|--help)
-      sed -n '2,42p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+      # Bounded by the first `set -eu` rather than a line number, so editing
+      # the header cannot silently truncate the help text.
+      sed -n '2,/^set -eu/{/^set -eu/d;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
       exit 0
       ;;
     *)
@@ -99,6 +122,12 @@ if [[ -n "$ENV_FILE_OVERRIDE" ]]; then
     exit 2
   fi
   BUCKET_VALUE="$BACKUP_S3_BUCKET_VALUE"
+  ALARM_TOPIC_VALUE="${ALARM_TOPIC_ARN_VALUE:-}"
+  SES_TOPIC_VALUE="${SES_FEEDBACK_TOPIC_ARN_VALUE:-}"
+  if [[ -z "$ALARM_TOPIC_VALUE" || -z "$SES_TOPIC_VALUE" ]]; then
+    echo "ERROR: --env-file mode requires ALARM_TOPIC_ARN_VALUE and SES_FEEDBACK_TOPIC_ARN_VALUE." >&2
+    exit 2
+  fi
 else
   # The bucket name is whatever Terraform actually built. Reading it rather than
   # accepting one typed in is the difference between a timer that uploads and
@@ -114,6 +143,24 @@ else
     echo "ERROR: the snapshots_bucket_name output resolved empty for ${TARGET}." >&2
     exit 1
   fi
+
+  # The two SNS feeds authenticate on their publishing topic as well as their
+  # shared key, so the host needs the exact ARNs Terraform built. Read them for
+  # the same reason the bucket is read rather than typed: an ARN that does not
+  # match what published the message makes the feed refuse every delivery, and
+  # a refused feed looks quiet rather than broken.
+  if ! ALARM_TOPIC_VALUE="$("${TF_ENV[@]}" terraform -chdir="${REPO_ROOT}/terraform/${TARGET}" output -raw alarm_topic_arn 2>/dev/null)"; then
+    echo "ERROR: could not read alarm_topic_arn from terraform/${TARGET}." >&2
+    exit 1
+  fi
+  if ! SES_TOPIC_VALUE="$("${TF_ENV[@]}" terraform -chdir="${REPO_ROOT}/terraform/${TARGET}" output -raw ses_feedback_topic_arn 2>/dev/null)"; then
+    echo "ERROR: could not read ses_feedback_topic_arn from terraform/${TARGET}." >&2
+    exit 1
+  fi
+  if [[ -z "$ALARM_TOPIC_VALUE" || -z "$SES_TOPIC_VALUE" ]]; then
+    echo "ERROR: an SNS topic ARN output resolved empty for ${TARGET}." >&2
+    exit 1
+  fi
 fi
 
 echo "== set-host-env: ${TARGET} =="
@@ -121,6 +168,8 @@ echo ""
 echo "Resolved values:"
 echo "  TRUST_PROXY=${TRUST_PROXY_VALUE}    expected for ${TARGET}: $(expected_trust_proxy_note "$TARGET")"
 echo "  BACKUP_S3_BUCKET=${BUCKET_VALUE}"
+echo "  ALARM_TOPIC_ARN=${ALARM_TOPIC_VALUE}"
+echo "  SES_FEEDBACK_TOPIC_ARN=${SES_TOPIC_VALUE}"
 echo ""
 
 if [[ "$DRY_RUN" == "1" ]]; then
@@ -128,8 +177,8 @@ if [[ "$DRY_RUN" == "1" ]]; then
   if [[ -n "$ENV_FILE_OVERRIDE" ]]; then
     echo "  1. Rewrite ${ENV_FILE_OVERRIDE} in place"
   else
-    echo "  1. Stage ${HOST_ENV_PATH} down from ${SSH_ALIAS} (ssh -t + sudo install)"
-    echo "  2. Rewrite both assignments locally, collapsing any duplicates"
+    echo "  1. Read ${HOST_ENV_PATH} down from ${SSH_ALIAS} over the shared wire"
+    echo "  2. Rewrite every assignment locally, collapsing any duplicates"
     echo "  3. Show the diff and ask for confirmation"
     echo "  4. Install the result back as root:root mode 0600, leaving no backup"
     echo "  5. Remind you that the containers pick the values up on the next deploy"
@@ -142,13 +191,13 @@ fi
 umask 077
 OLD_LOCAL=""
 NEW_LOCAL=""
-TMP_REMOTE=""
 
+# Only local temp files need cleaning up: the wire leaves nothing on the host.
 cleanup() {
-  rm -f "${OLD_LOCAL:-}" "${NEW_LOCAL:-}" 2>/dev/null || true
-  if [[ -n "${TMP_REMOTE:-}" && -z "$ENV_FILE_OVERRIDE" ]]; then
-    ssh "$SSH_ALIAS" "rm -f '$TMP_REMOTE'" 2>/dev/null || true
-  fi
+  # shred, not rm: both copies are the host's entire secret set, not just the
+  # four non-secret values this script rewrites.
+  shred -u "${OLD_LOCAL:-}" "${NEW_LOCAL:-}" 2>/dev/null \
+    || rm -f "${OLD_LOCAL:-}" "${NEW_LOCAL:-}" 2>/dev/null || true
 }
 trap cleanup EXIT INT TERM
 
@@ -158,19 +207,11 @@ NEW_LOCAL="$(mktemp /tmp/footbag-hostenv-new.XXXXXX)"
 if [[ -n "$ENV_FILE_OVERRIDE" ]]; then
   cp "$ENV_FILE_OVERRIDE" "$OLD_LOCAL"
 else
-  TMP_REMOTE="/tmp/footbag-hostenv-stage.$$"
-  echo "Staging ${HOST_ENV_PATH} from ${SSH_ALIAS} via sudo install."
-  echo "You will be prompted for your sudo password on this terminal."
-  echo "The password is typed directly into sudo; it is NOT captured, NOT echoed, and NOT logged."
+  require_operator_stdin "scripts/set-host-env.sh --target $TARGET" || exit 1
+  require_ssh_alias "$SSH_ALIAS" || exit 1
+  echo "Reading ${HOST_ENV_PATH} from ${SSH_ALIAS}."
   echo ""
-  if ! ssh -t "$SSH_ALIAS" "OP=\$(whoami); GROUP=\$(id -gn); sudo install -m 0600 -o \"\$OP\" -g \"\$GROUP\" $HOST_ENV_PATH $TMP_REMOTE"; then
-    echo "ERROR: could not stage ${HOST_ENV_PATH} from ${SSH_ALIAS}." >&2
-    exit 1
-  fi
-  if ! scp -q "$SSH_ALIAS:$TMP_REMOTE" "$OLD_LOCAL"; then
-    echo "ERROR: could not copy the staged env file down." >&2
-    exit 1
-  fi
+  host_env_fetch "$SSH_ALIAS" "$OLD_LOCAL" "" "$HOST_ENV_PATH" || exit 1
 fi
 
 # ---- Rewrite ----------------------------------------------------------------
@@ -178,8 +219,9 @@ fi
 # Replace-or-append, collapsing duplicate assignments so the file's last-wins
 # parsing cannot diverge from the diff shown below. Values travel through the
 # environment rather than argv, so nothing lands in the process table.
-TP_VALUE="$TRUST_PROXY_VALUE" BK_VALUE="$BUCKET_VALUE" awk '
-  BEGIN { seen_tp = 0; seen_bk = 0 }
+TP_VALUE="$TRUST_PROXY_VALUE" BK_VALUE="$BUCKET_VALUE" \
+AT_VALUE="$ALARM_TOPIC_VALUE" ST_VALUE="$SES_TOPIC_VALUE" awk '
+  BEGIN { seen_tp = 0; seen_bk = 0; seen_at = 0; seen_st = 0 }
   /^TRUST_PROXY=/ {
     if (!seen_tp) { print "TRUST_PROXY=" ENVIRON["TP_VALUE"]; seen_tp = 1 }
     next
@@ -188,21 +230,36 @@ TP_VALUE="$TRUST_PROXY_VALUE" BK_VALUE="$BUCKET_VALUE" awk '
     if (!seen_bk) { print "BACKUP_S3_BUCKET=" ENVIRON["BK_VALUE"]; seen_bk = 1 }
     next
   }
+  /^ALARM_TOPIC_ARN=/ {
+    if (!seen_at) { print "ALARM_TOPIC_ARN=" ENVIRON["AT_VALUE"]; seen_at = 1 }
+    next
+  }
+  /^SES_FEEDBACK_TOPIC_ARN=/ {
+    if (!seen_st) { print "SES_FEEDBACK_TOPIC_ARN=" ENVIRON["ST_VALUE"]; seen_st = 1 }
+    next
+  }
   { print }
   END {
     if (!seen_tp) print "TRUST_PROXY=" ENVIRON["TP_VALUE"]
     if (!seen_bk) print "BACKUP_S3_BUCKET=" ENVIRON["BK_VALUE"]
+    if (!seen_at) print "ALARM_TOPIC_ARN=" ENVIRON["AT_VALUE"]
+    if (!seen_st) print "SES_FEEDBACK_TOPIC_ARN=" ENVIRON["ST_VALUE"]
   }
 ' "$OLD_LOCAL" > "$NEW_LOCAL"
 
 if diff -q "$OLD_LOCAL" "$NEW_LOCAL" >/dev/null 2>&1; then
-  echo "Both values already read as intended. Nothing to write."
+  echo "Every value already reads as intended. Nothing to write."
   exit 0
 fi
 
-echo "Diff (neither value is a secret, so both are shown in full):"
+# The four values this script writes are not secrets and are shown in full.
+# The file around them is not: diff prints unchanged neighbour lines, and an
+# append at the end prints the file's tail, so a session or webhook secret
+# sitting next to a rewritten line would be printed in the clear.
+echo "Diff (the four rewritten values are non-secret and shown in full;"
+echo "other secrets in the surrounding context are masked):"
 echo ""
-diff -u "$OLD_LOCAL" "$NEW_LOCAL" || true
+diff -u <(host_env_mask "$OLD_LOCAL") <(host_env_mask "$NEW_LOCAL") || true
 echo ""
 
 if [[ -n "$ENV_FILE_OVERRIDE" ]]; then
@@ -211,23 +268,19 @@ if [[ -n "$ENV_FILE_OVERRIDE" ]]; then
   exit 0
 fi
 
-read -r -p "Install this on ${SSH_ALIAS}? Type 'yes' to proceed: " CONFIRM
-if [[ "$CONFIRM" != "yes" ]]; then
+# The confirmation reads from the terminal, not stdin: stdin is the credential
+# pipe, and a prompt reading from it would swallow whatever follows the password.
+if ! confirm_from_tty "Install this on ${SSH_ALIAS}? Type 'yes' to proceed: " "yes"; then
+  echo ""
   echo "Aborted. The host is unchanged."
   exit 1
 fi
 
-if ! scp -q "$NEW_LOCAL" "$SSH_ALIAS:$TMP_REMOTE"; then
-  echo "ERROR: could not copy the rewritten env file up." >&2
-  exit 1
-fi
-echo "Installing the rewritten env file via sudo..."
-if ! ssh -t "$SSH_ALIAS" "sudo bash -c 'install -m 0600 -o root -g root $TMP_REMOTE $HOST_ENV_PATH'"; then
-  echo "ERROR: could not install the rewritten env file." >&2
-  exit 1
-fi
+echo ""
+echo "Installing the rewritten env file..."
+host_env_install "$SSH_ALIAS" "$NEW_LOCAL" "$HOST_ENV_PATH" || exit 1
 
 echo ""
-echo "Done. ${HOST_ENV_PATH} now carries both values."
+echo "Done. ${HOST_ENV_PATH} now carries every operator-owned value."
 echo "The running containers keep their current environment until the next deploy."
-echo "Confirm with: scripts/bringup-status.sh --target ${TARGET}${AWS_PROFILE_ARG:+ --profile $AWS_PROFILE_ARG}"
+echo "Confirm with: < <operator credential file> bash scripts/bringup-status.sh --target ${TARGET}${AWS_PROFILE_ARG:+ --profile $AWS_PROFILE_ARG}"

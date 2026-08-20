@@ -11,7 +11,10 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
-import { insertMember, insertLegacyMember, insertHistoricalPerson } from '../fixtures/factories';
+import {
+  insertMember, insertLegacyMember, insertHistoricalPerson,
+  insertOutboxEmail, insertMediaItem,
+} from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3201');
 
@@ -195,5 +198,35 @@ describe('memberService.scrubDeceasedMemberPII', () => {
     // Both shapes applied: every further erasure call is a no-op.
     expect(memberService.purgeAccountPII('scrub-upgrade').status).toBe('already_purged');
     expect(memberService.scrubDeceasedMemberPII('scrub-upgrade').status).toBe('already_purged');
+  });
+
+  it('scrubs their outbound mail but keeps their media, which the record still honors', () => {
+    seedDeceasedClaimedMember('scrub-media');
+    const d = db();
+    insertOutboxEmail(d, {
+      id: 'ob-deceased', recipient_member_id: 'scrub-media',
+      recipient_email: 'scrub-media@example.com',
+      subject: 'Your IFPA membership status was updated', body_text: 'contact detail',
+    });
+    const photo = insertMediaItem(d, { uploader_member_id: 'scrub-media' });
+    d.close();
+
+    expect(memberService.scrubDeceasedMemberPII('scrub-media').status).toBe('scrubbed');
+
+    const r = db();
+    const mail = r.prepare('SELECT * FROM outbox_emails WHERE id = ?').get('ob-deceased') as Record<string, unknown>;
+    const media = r.prepare('SELECT id FROM media_items WHERE id = ?').get(photo) as { id: string } | undefined;
+    r.close();
+
+    // Mail is contact data, and contact data is what this scrub exists to clear.
+    expect(mail.recipient_email).toBeNull();
+    expect(mail.body_text).toBeNull();
+    expect(mail.subject).toBe('(subject removed on erasure)');
+
+    // Media is NOT. Deleting a deceased member's photographs would contradict
+    // the whole purpose of a scrub that deliberately preserves identity; the
+    // hard-delete rule is written about a member deleting their account, which
+    // a death is not.
+    expect(media?.id).toBe(photo);
   });
 });

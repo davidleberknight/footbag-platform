@@ -11,15 +11,21 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
-import { insertEmailTemplate } from '../fixtures/factories';
+import { insertEmailTemplate, insertMember } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3187');
+
+// Every send names a recipient member: that column is erasure's only route to
+// an outbox row, so the service requires it. These tests are about rendering,
+// not addressing, so they all name the same member.
+const RECIPIENT_ID = 'email-render-recipient';
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 let email: typeof import('../../src/services/emailService');
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
+  insertMember(db, { id: RECIPIENT_ID, login_email: 'render-recipient@example.com' });
   db.close();
   email = await import('../../src/services/emailService');
 });
@@ -50,6 +56,7 @@ describe('emailService render-from-DB contract', () => {
       template: 'vouch_confirmation',
       params: { voucherName: 'Jane V', expiryDate: '2030-01-01' },
       recipientEmail: 'render-target@example.com',
+      recipientMemberId: RECIPIENT_ID,
     });
     expect(result.status).toBe('enqueued');
 
@@ -72,6 +79,7 @@ describe('emailService render-from-DB contract', () => {
       template: 'admin_loss_recruitment',
       params: { entityId: 'ee', queueUrl: 'https://x/admin/work-queue' },
       recipientEmail: 'edited-target@example.com',
+      recipientMemberId: RECIPIENT_ID,
     });
     const row = outboxRows().find((r) => r.subject === 'EDITED alert: ee');
     expect(row).toBeDefined();
@@ -87,6 +95,7 @@ describe('emailService render-from-DB contract', () => {
       template: 'password_changed',
       params: {},
       recipientEmail: 'suppressed-target@example.com',
+      recipientMemberId: RECIPIENT_ID,
     });
     expect(result).toEqual({ id: null, status: 'suppressed' });
     expect(outboxRows().some((r) => r.template_key === 'password_changed')).toBe(false);
@@ -101,6 +110,7 @@ describe('emailService render-from-DB contract', () => {
       template: 'password_reset_confirm',
       params: {},
       recipientEmail: 'missing-target@example.com',
+      recipientMemberId: RECIPIENT_ID,
     })).toThrow(/email_templates row missing .* 'password_reset_confirm'/);
   });
 
@@ -116,6 +126,7 @@ describe('emailService render-from-DB contract', () => {
       template: 'club_coleader_invite',
       params: { leaderName: 'L', inviteeName: 'I', clubName: 'C' },
       recipientEmail: 'stray-target@example.com',
+      recipientMemberId: RECIPIENT_ID,
     });
     expect(result.status).toBe('enqueued');
     const row = outboxRows().find((r) => r.template_key === 'club_coleader_invite');

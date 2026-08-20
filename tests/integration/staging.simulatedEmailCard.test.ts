@@ -71,4 +71,70 @@ describe('simulated-email card on staging (SES_ADAPTER=stub) renders like dev', 
     );
     expect(source).not.toMatch(/footbagEnv/);
   });
+
+  it('shows a message captured by the worker process, not just this one', async () => {
+    // The outbox loop runs in the worker container, so a message it drains is
+    // captured in ITS stub buffer and never appears in this process's. The card
+    // read only the local buffer, so it showed the mail or showed nothing
+    // depending on which process claimed the row first -- and reported a sent
+    // mail as "no messages" beside a hint blaming the address.
+    //
+    // Only reproducible with two processes, which a test cannot have: the
+    // worker is stood in for at the capture client, the same seam /dev/outbox
+    // uses. Nothing is put in the local buffer here, so the assertion can only
+    // pass if the card consulted the worker.
+    const captureMod = await import('../../src/testkit/devOutboxCaptureClient');
+    captureMod.setDevOutboxCaptureClientForTests({
+      async fetchWorkerCaptured() {
+        return [
+          {
+            to:          'worker-drained@example.com',
+            subject:     'Verify your IFPA Footbag account',
+            bodyText:    'Confirm: http://localhost/verify/worker-token-456',
+            from:        'noreply@example.test',
+            messageId:   'worker-msg-1',
+            deliveredAt: new Date().toISOString(),
+          },
+        ];
+      },
+    });
+
+    try {
+      const preview = await svcMod.simulatedEmailService.getEmailPreview();
+      expect(preview).not.toBeNull();
+      const hit = preview!.messages.find((m) => m.to === 'worker-drained@example.com');
+      expect(hit, 'a worker-captured message must reach the card').toBeDefined();
+      expect(hit!.firstUrl).toBe('http://localhost/verify/worker-token-456');
+    } finally {
+      captureMod.resetDevOutboxCaptureClientForTests();
+    }
+  });
+
+  it('still shows a locally captured message when the worker has none', async () => {
+    // The merge must not replace the local buffer, only add to it: a web-only
+    // dev run has no worker at all.
+    const captureMod = await import('../../src/testkit/devOutboxCaptureClient');
+    captureMod.setDevOutboxCaptureClientForTests({
+      async fetchWorkerCaptured() {
+        return [];
+      },
+    });
+
+    try {
+      sesMod.getStubSesAdapterForTests()!.sentMessages.push({
+        to:          'local-only@example.com',
+        subject:     'Verify your IFPA Footbag account',
+        bodyText:    'Confirm: http://localhost/verify/local-token-789',
+        from:        'noreply@example.test',
+        messageId:   'local-msg-1',
+        deliveredAt: new Date().toISOString(),
+      });
+
+      const preview = await svcMod.simulatedEmailService.getEmailPreview();
+      const hit = preview!.messages.find((m) => m.to === 'local-only@example.com');
+      expect(hit, 'a locally captured message must still reach the card').toBeDefined();
+    } finally {
+      captureMod.resetDevOutboxCaptureClientForTests();
+    }
+  });
 });

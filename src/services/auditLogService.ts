@@ -25,6 +25,7 @@ import {
   type AuditLogQueryRow,
 } from '../db/db';
 import { appendAuditEntry } from './auditService';
+import { runSqliteRead } from './sqliteRetry';
 import type { PageViewModel } from '../types/page';
 
 const PAGE_SIZE = 50;
@@ -131,9 +132,16 @@ function exportHref(q: AuditLogQuery, format: 'csv' | 'json'): string {
 }
 
 // Quote a CSV cell when it carries a delimiter, quote, or newline; an internal
-// quote is escaped by doubling, per RFC 4180.
+// quote is escaped by doubling, per RFC 4180. A leading '=', '+', '-', '@', tab
+// or carriage return is neutralised with a leading apostrophe first: spreadsheet
+// applications read those as the start of a formula, and this export carries
+// member-chosen display names, whose validation constrains only length. Without
+// it a member can plant a formula that runs on the administrator's machine when
+// they open the file.
+const FORMULA_LEAD = /^[=+\-@\t\r]/;
 function csvCell(v: string | null): string {
-  const s = v ?? '';
+  const raw = v ?? '';
+  const s = FORMULA_LEAD.test(raw) ? `'${raw}` : raw;
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
@@ -165,7 +173,9 @@ function metadataPreview(json: string): string | null {
 
 function shapeRow(row: AuditLogQueryRow): AuditEntryViewModel {
   return {
-    occurredAtDisplay: row.occurred_at.slice(0, 19).replace('T', ' '),
+    // Stored timestamps are UTC. The ledger's purpose is establishing a
+    // sequence, so the zone is on the face of the figure rather than assumed.
+    occurredAtDisplay: `${row.occurred_at.slice(0, 19).replace('T', ' ')} UTC`,
     actorType: row.actor_type,
     actorLabel: actorLabel(row),
     actorHref: row.actor_slug ? `/members/${row.actor_slug}` : null,
@@ -179,7 +189,14 @@ function shapeRow(row: AuditLogQueryRow): AuditEntryViewModel {
 }
 
 export const auditLogService = {
+  // A contended database renders the standard temporarily-unavailable page
+  // rather than falling to the generic handler, which shows the same page under
+  // a 500.
   getAuditLogPage(q: AuditLogQuery): PageViewModel<AuditLogContent> {
+    return runSqliteRead('admin audit log page', () => this.readAuditLogPage(q));
+  },
+
+  readAuditLogPage(q: AuditLogQuery): PageViewModel<AuditLogContent> {
     const { filters, page } = normalize(q);
     const total = countAuditLog(filters);
     const offset = (page - 1) * PAGE_SIZE;
@@ -231,6 +248,15 @@ export const auditLogService = {
   ): { contentType: string; filename: string; body: string; count: number } {
     const { filters } = normalize(q);
     const rows = queryAuditLog(filters, EXPORT_CAP, 0);
+    // The export is capped, and an incident handoff that silently loses its
+    // oldest rows reads as the complete set. Both formats say so on their face
+    // when the cap was reached, so the reader narrows the filters rather than
+    // drawing conclusions from a partial file.
+    const total = countAuditLog(filters);
+    const truncated = total > rows.length;
+    // JSON stays a bare array of entries, which is what a consumer parses; the
+    // truncation is recorded on the audit-of-audit row instead, so it is
+    // discoverable without changing the document's shape.
     if (format === 'json') {
       return {
         contentType: 'application/json',
@@ -243,7 +269,11 @@ export const auditLogService = {
       'occurred_at', 'actor_type', 'actor_member_id', 'actor_name', 'action_type',
       'category', 'entity_type', 'entity_id', 'entity_name', 'reason_text', 'metadata_json',
     ];
-    const lines = [header.join(',')];
+    const lines: string[] = [];
+    if (truncated) {
+      lines.push(`# Showing the newest ${rows.length} of ${total} matching entries. Narrow the filters to export the rest.`);
+    }
+    lines.push(header.join(','));
     for (const r of rows) {
       lines.push([
         r.occurred_at, r.actor_type, r.actor_member_id, r.actor_display_name, r.action_type,
@@ -272,6 +302,10 @@ export const auditLogService = {
       metadata: {
         format,
         count,
+        // Whether the export carried everything the filters matched. An incident
+        // handoff that quietly lost its oldest rows would otherwise read, later,
+        // as the complete set.
+        matching: countAuditLog(filters),
         member: filters.memberId ?? null,
         action_type: filters.actionType ?? null,
         category: filters.category ?? null,

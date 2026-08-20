@@ -657,6 +657,9 @@ CREATE TABLE outbox_emails (
 
 CREATE INDEX        idx_outbox_status     ON outbox_emails(status);
 CREATE INDEX        idx_outbox_scheduled  ON outbox_emails(status, scheduled_for);
+-- The admin health view counts what went out inside its window; without this it
+-- reads every row the table has ever held to answer one figure.
+CREATE INDEX        idx_outbox_sent       ON outbox_emails(status, sent_at);
 CREATE UNIQUE INDEX ux_outbox_idempotency
   ON outbox_emails(idempotency_key)
   WHERE idempotency_key IS NOT NULL;
@@ -920,6 +923,9 @@ CREATE TABLE system_job_runs (
 );
 
 CREATE INDEX idx_job_runs_job_name ON system_job_runs(job_name, started_at);
+-- The health page's run-history table is a newest-first read across every job,
+-- which the per-job index above cannot serve because it leads on the job name.
+CREATE INDEX idx_job_runs_started  ON system_job_runs(started_at);
 
 -- Infrastructure and operational alarms raised by the platform.
 -- Each alarm has a severity level, a lifecycle (active → acknowledged/cleared),
@@ -944,6 +950,22 @@ CREATE TABLE system_alarm_events (
 );
 
 CREATE INDEX idx_alarm_status ON system_alarm_events(status, severity);
+CREATE INDEX idx_alarm_type_raised ON system_alarm_events(alarm_type, raised_at);
+-- The alarms page reads newest-first by arrival, which is the platform's own
+-- clock rather than the raise time the notification carries.
+CREATE INDEX idx_alarm_created ON system_alarm_events(created_at);
+
+-- Idempotency claim for inbound alarm notifications. The notification service
+-- redelivers a message whenever it does not see a timely 200, so the same alarm
+-- state change can arrive more than once; claiming its message id in the same
+-- transaction as the alarm write makes the second delivery a no-op. Parallel to
+-- ses_events for SES feedback and stripe_events for payment webhooks.
+CREATE TABLE sns_alarm_events (
+  message_id   TEXT PRIMARY KEY,
+  created_at   TEXT NOT NULL,
+  alarm_name   TEXT NOT NULL,
+  processed_at TEXT NOT NULL
+);
 
 -- =============================================================================
 -- SECTION 10: PAYMENTS
@@ -1002,8 +1024,17 @@ CREATE TABLE ses_events (
   message_id   TEXT PRIMARY KEY,
   created_at   TEXT NOT NULL,
   event_type   TEXT NOT NULL,
-  processed_at TEXT NOT NULL
+  processed_at TEXT NOT NULL,
+  -- How many recipients this one notification covered. The mail provider reports
+  -- a bounce or complaint per notification, not per address, and a single
+  -- notification can name several. Counting rows would report a two-recipient
+  -- bounce as one, so the admin health view sums this instead.
+  recipient_count INTEGER NOT NULL DEFAULT 1
 );
+
+-- The admin health view scans this table by arrival time to express bounce and
+-- complaint volume over its window.
+CREATE INDEX idx_ses_events_created ON ses_events(created_at, event_type);
 
 -- ---------------------------------------------------------------------------
 -- RECURRING DONATION SUBSCRIPTIONS
@@ -3380,6 +3411,15 @@ VALUES
    'admin_inactivity_alert_days', '180',
    '2000-01-01T00:00:00.000Z',
    'Days without a sign-in before an administrator is surfaced for recruitment follow-up (default: 180).',
+   NULL
+  ),
+
+  (
+   'seed-system-health-window-hours',
+   '2000-01-01T00:00:00.000Z',
+   'system_health_window_hours', '24',
+   '2000-01-01T00:00:00.000Z',
+   'Recent window (hours) the admin system-health view aggregates outbound-email and scheduled-job counts over (default: 24).',
    NULL
   ),
 

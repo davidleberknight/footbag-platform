@@ -210,8 +210,12 @@ describe('adversarial: oversized queries', () => {
   });
 
   it('leaves the tables intact after oversized queries', async () => {
-    await searchPage('x'.repeat(100_000));
-    await suggest('a'.repeat(100_000));
+    // Both probes go through the reset-tolerant helper for the reason given
+    // above: the HTTP layer refuses a request line this size either with a
+    // status or by destroying the socket, and which one lands depends on how
+    // busy the machine is. What this case asserts is the line after them.
+    await oversizedRequest('/freestyle/search', 'x'.repeat(100_000));
+    await oversizedRequest('/freestyle/search/suggest', 'a'.repeat(100_000));
     const { text } = await searchPage('whirl');
     expect(text).toContain('href="/freestyle/tricks/whirl"');
   });

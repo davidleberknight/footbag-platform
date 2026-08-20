@@ -170,6 +170,13 @@ variable "ses_feedback_webhook_url" {
   sensitive   = true
 }
 
+variable "alarm_webhook_url" {
+  description = "Full HTTPS URL of the app's platform-alarm webhook, including the shared-secret query key (e.g. https://<host>/webhooks/platform-alarm?key=...). Set it once the app is serving that endpoint and its key is on the host; empty disables the subscription and alarms reach the operator mailbox only."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 # ── Production arming switches ────────────────────────────────────────────────
 # Each switch is published as an SSM app/* parameter and synced into the host
 # env by every deploy, which also derives the matching adapter on production

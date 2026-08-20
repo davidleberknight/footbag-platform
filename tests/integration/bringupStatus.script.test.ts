@@ -130,6 +130,45 @@ describe('bringup-status.sh — fully provisioned production', () => {
   });
 });
 
+describe('bringup-status.sh — a deactivation that did not finish', () => {
+  // Deactivation resets the Stripe parameters before it removes the host's
+  // copy, deliberately: a deploy landing between the two reads a placeholder
+  // and leaves the host alone, where the reverse order would let it reinstall
+  // the secret being removed. A run that stops in that window therefore leaves
+  // the parameters at placeholder while the host keeps a live signing secret,
+  // and no deploy converges it, because a placeholder means "no outgoing
+  // secret". Declining says so at the time; a crash says nothing, so the state
+  // has to be legible here.
+  const STUCK = [
+    'ENV_FETCHED=yes',
+    'ENV_PAYMENTS_ARMED=dark',
+    'ENV_PAYMENT_ADAPTER=stub',
+    'ENV_WEBHOOK_SECRET=set',
+    'SSM_STRIPE_KEY=placeholder',
+    'SSM_PRODUCTION_LIVE=false',
+  ];
+
+  it('reports the host still holding a signing secret the parameters say is gone', () => {
+    const probe = writeProbeFile(STUCK);
+    const result = runScript(['--target', 'production', '--probe-file', probe]);
+    expect(result.stdout).toMatch(/deactivation that did not finish/);
+  });
+
+  it('names finishing the deactivation as the next command, not arming', () => {
+    const probe = writeProbeFile(STUCK);
+    const result = runScript(['--target', 'production', '--probe-file', probe]);
+    expect(result.stdout).toMatch(/--deactivate/);
+    expect(result.stdout).not.toMatch(/arm payments when ready/);
+  });
+
+  it('stays quiet on an ordinary dark host that holds no secret', () => {
+    const probe = writeProbeFile(STUCK.map(l => l.replace('ENV_WEBHOOK_SECRET=set', 'ENV_WEBHOOK_SECRET=unset')));
+    const result = runScript(['--target', 'production', '--probe-file', probe]);
+    expect(result.stdout).not.toMatch(/deactivation that did not finish/);
+    expect(result.stdout).toMatch(/arm payments when ready/);
+  });
+});
+
 describe('bringup-status.sh — pending steps name their next command', () => {
   it('a bare staging host points at each bring-up script in order', () => {
     const probe = writeProbeFile([

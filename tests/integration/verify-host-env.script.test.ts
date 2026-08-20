@@ -1,5 +1,5 @@
 /**
- * scripts/verify-staging-env.sh — boundary value validation harness.
+ * scripts/verify-host-env.sh — boundary value validation harness.
  *
  * The ops script reads /srv/footbag/env on a deployed host and
  * compares against terraform-output expected values. To exercise the check
@@ -19,7 +19,7 @@ import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const SCRIPT = join(process.cwd(), 'scripts/verify-staging-env.sh');
+const SCRIPT = join(process.cwd(), 'scripts/verify-host-env.sh');
 
 const TF_ENV = {
   TF_JWT_KMS_KEY_ARN: 'arn:aws:kms:us-east-1:000000000000:key/abcd-efgh',
@@ -119,7 +119,7 @@ function liveSesEnv(): string {
     .replace('SES_ADAPTER=stub', 'SES_ADAPTER=live');
 }
 
-describe('verify-staging-env.sh — clean baseline', () => {
+describe('verify-host-env.sh — clean baseline', () => {
   it('clean staging env → exit 0, no FAILs, success summary', () => {
     const result = runScript({ envFilePath: writeEnvFile(CLEAN_STAGING_ENV) });
     expect(result.exitCode).toBe(0);
@@ -128,7 +128,7 @@ describe('verify-staging-env.sh — clean baseline', () => {
   });
 });
 
-describe('verify-staging-env.sh — critical invariant FAIL boundaries', () => {
+describe('verify-host-env.sh — critical invariant FAIL boundaries', () => {
   it('FOOTBAG_ENV unset → FAIL env discriminator', () => {
     const env = mutate(/^FOOTBAG_ENV=.*\n/m, '');
     const result = runScript({ envFilePath: writeEnvFile(env) });
@@ -160,14 +160,22 @@ describe('verify-staging-env.sh — critical invariant FAIL boundaries', () => {
     expect(result.stdout).toContain("contains 'changeme'");
   });
 
-  it('JWT_KMS_KEY_ID drift from terraform → FAIL', () => {
+  it('a JWT_KMS_KEY_ID that is neither the alias nor the built key → FAIL', () => {
     const env = mutate(
       /JWT_KMS_KEY_ID=.+/,
       'JWT_KMS_KEY_ID=arn:aws:kms:us-east-1:0:key/different',
     );
     const result = runScript({ envFilePath: writeEnvFile(env) });
     expect(result.exitCode).toBe(1);
-    expect(result.stdout).toMatch(/FAIL +JWT KMS key ARN matches terraform/);
+    expect(result.stdout).toMatch(/FAIL +JWT KMS key/);
+  });
+
+  it('an unset JWT_KMS_KEY_ID → FAIL', () => {
+    // The signer refuses to start without it, so this is not advisory.
+    const env = mutate(/JWT_KMS_KEY_ID=.+\n/, '');
+    const result = runScript({ envFilePath: writeEnvFile(env) });
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toMatch(/FAIL +JWT KMS key: JWT_KMS_KEY_ID is unset/);
   });
 
   it('SES_FROM_IDENTITY drift from terraform → FAIL (production, where live SES is checked)', () => {
@@ -271,7 +279,7 @@ describe('verify-staging-env.sh — critical invariant FAIL boundaries', () => {
   });
 });
 
-describe('verify-staging-env.sh — dev-shortcut posture per target', () => {
+describe('verify-host-env.sh — dev-shortcut posture per target', () => {
   it('FOOTBAG_DEV_INITIAL_ADMIN_EMAILS set on staging → PASS (staging-allowed)', () => {
     const env = CLEAN_STAGING_ENV + '\nFOOTBAG_DEV_INITIAL_ADMIN_EMAILS=admin@example.com';
     const result = runScript({ envFilePath: writeEnvFile(env) });
@@ -307,7 +315,27 @@ describe('verify-staging-env.sh — dev-shortcut posture per target', () => {
   });
 });
 
-describe('verify-staging-env.sh — advisory checks', () => {
+describe('verify-host-env.sh — advisory checks', () => {
+  it('the terraform-managed JWT alias is the expected value and passes clean', () => {
+    const env = mutate(/JWT_KMS_KEY_ID=.+/, 'JWT_KMS_KEY_ID=alias/footbag-staging-jwt');
+    const result = runScript({ envFilePath: writeEnvFile(env) });
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toMatch(/PASS +JWT KMS key: JWT_KMS_KEY_ID=alias\/footbag-staging-jwt/);
+    expect(result.stdout).not.toMatch(/WARN +JWT KMS key/);
+  });
+
+  it('the key ARN → WARN advisory, still exit 0, and says why it is worth moving', () => {
+    // It signs correctly, so failing the run would block a deploy over a value
+    // that works. But the adapter copies it into every session token's kid
+    // header, so the ARN publishes the AWS account id to every session holder,
+    // and correcting it invalidates those sessions.
+    const result = runScript({ envFilePath: writeEnvFile(CLEAN_STAGING_ENV) });
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toMatch(/WARN +JWT KMS key: JWT_KMS_KEY_ID is the key ARN/);
+    expect(result.stdout).toMatch(/account id/);
+    expect(result.stdout).toMatch(/invalidates every session/);
+  });
+
   it('TRUST_PROXY unset → WARN advisory (rate limiting degrades to coarse buckets), still exit 0', () => {
     const env = mutate(/^TRUST_PROXY=.*\n?/m, '');
     const result = runScript({ envFilePath: writeEnvFile(env) });
@@ -372,7 +400,7 @@ describe('verify-staging-env.sh — advisory checks', () => {
   });
 });
 
-describe('verify-staging-env.sh — CLI / fixture errors', () => {
+describe('verify-host-env.sh — CLI / fixture errors', () => {
   it('--target with invalid value → exit 2', () => {
     const result = spawnSync('bash', [SCRIPT, '--target', 'qa'], {
       encoding: 'utf-8',

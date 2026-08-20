@@ -209,6 +209,18 @@ export class OperationsPlatformService {
     startTime?: Date,
   ): Promise<T> {
     const startedAt = (startTime ?? new Date()).toISOString();
+    // Reap this job's stale 'running' rows before starting a new one. A kill,
+    // an out-of-memory stop, or a process replace leaves a row in 'running' for
+    // good, because the success and failure marks only fire on a clean return
+    // or throw. Every job runs through here, so every job is reaped: wiring the
+    // reap to one job left every other one reading as still running for ever on
+    // the health page, and never counted as a failure. The threshold sits well
+    // above any job's expected runtime and well below the point an operator
+    // would still believe it was running.
+    const STALE_RUNNING_THRESHOLD_MS = 60 * 60 * 1000;
+    const reapCutoffIso = new Date(Date.parse(startedAt) - STALE_RUNNING_THRESHOLD_MS).toISOString();
+    systemJobRuns.reapStaleRunning.run(startedAt, startedAt, jobName, reapCutoffIso);
+
     const jobRunId  = `jr_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
     systemJobRuns.insertRun.run(
       jobRunId,
@@ -441,22 +453,6 @@ export class OperationsPlatformService {
     skipped_none:            number;
     skipped_error:           number;
   }> {
-    // Reap any stale 'running' rows from a prior aborted invocation before
-    // starting a new one. SIGKILL / OOM / process-replace can leave a row in
-    // 'running' indefinitely because markSucceeded / markFailed only fire on
-    // a clean callback return / throw. Threshold of 1h is well above the
-    // expected runtime for this batch and well below "operator might want to
-    // see it as still running."
-    const STALE_RUNNING_THRESHOLD_MS = 60 * 60 * 1000;
-    const reapCutoffIso = new Date(Date.now() - STALE_RUNNING_THRESHOLD_MS).toISOString();
-    const reapNowIso = new Date().toISOString();
-    systemJobRuns.reapStaleRunning.run(
-      reapNowIso,
-      reapNowIso,
-      'SYS_Batch_Auto_Link',
-      reapCutoffIso,
-    );
-
     return this.recordJobRun('SYS_Batch_Auto_Link', () => {
       const result = {
         scanned: 0,

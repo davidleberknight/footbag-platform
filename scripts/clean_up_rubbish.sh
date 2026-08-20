@@ -72,7 +72,9 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --help|-h)
-      sed -n '2,33p' "$0"
+      # Bounded by the first `set -eu` rather than a line number, so editing the
+      # header cannot silently truncate the help text.
+      sed -n '2,/^set -eu/{/^set -eu/d;p;}' "$0"
       exit 0
       ;;
     *)

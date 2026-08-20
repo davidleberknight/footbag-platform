@@ -94,8 +94,12 @@ function hrefFor(q: EmailLogQuery, page: number): string {
   return qs ? `/admin/email-log?${qs}` : '/admin/email-log';
 }
 
+// Every stored timestamp is UTC, and this surface is read while reconstructing
+// when something happened. Rendering the bare figure invites an admin to read it
+// as their own clock and be wrong by their offset, so the zone is on the face of
+// it.
 function tsDisplay(iso: string | null): string | null {
-  return iso ? iso.slice(0, 19).replace('T', ' ') : null;
+  return iso ? `${iso.slice(0, 19).replace('T', ' ')} UTC` : null;
 }
 
 function recipientLabel(row: OutboxLogQueryRow): string {

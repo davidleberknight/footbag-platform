@@ -542,3 +542,65 @@ describe('activate-payments.sh — deactivation leaves nothing behind', () => {
     expect(host).toBeGreaterThan(params);
   });
 });
+
+describe('activate-payments.sh — a declined push says what is already written', () => {
+  const source = readFileSync(SCRIPT, 'utf-8');
+
+  it('names Parameter Store in every mode that has already written it', () => {
+    // Parameter Store is written before the host push in all three modes, by
+    // design: a deploy landing between the two reads a placeholder and leaves
+    // the host alone, where the reverse order would let it reinstall the secret
+    // being removed. The cost is that declining the push leaves a real
+    // divergence, and an operator who declined will assume it undid the run.
+    const abort = source.slice(source.indexOf('Aborted: env file not pushed'));
+    const branch = abort.slice(0, abort.indexOf('exit 1'));
+    expect(branch).toMatch(/activate\)/);
+    expect(branch).toMatch(/rotate\)/);
+    expect(branch).toMatch(/deactivate\)/);
+  });
+
+  it('tells a declined deactivation that no deploy will finish the removal', () => {
+    // The one case that does not resolve by itself: a placeholder parameter
+    // means "no outgoing secret", so the deploy skips the host rather than
+    // clearing it, and the host keeps a live signing secret indefinitely.
+    const abort = source.slice(source.indexOf('Aborted: env file not pushed'));
+    const branch = abort.slice(0, abort.indexOf('exit 1'));
+    expect(branch).toMatch(/will NOT remove it/);
+    expect(branch).toMatch(/Re-run --deactivate/);
+  });
+
+  it('no longer claims a deploy rebuilds the host env file unconditionally', () => {
+    // That claim is what made the divergence look self-healing.
+    expect(source).not.toMatch(/the deploy rebuilds the host env file\s*\n?\s*#?\s*from the parameter store on every run/);
+    expect(source).toMatch(/Removal is\s*\n\s*#\s*therefore this script's job alone/);
+  });
+});
+
+describe('activate-payments.sh — prompts never read the credential stream', () => {
+  const source = readFileSync(SCRIPT, 'utf-8');
+
+  it('reads every hidden secret from the terminal, not stdin', () => {
+    // Stdin carries the host sudo password on line one and the rest of the
+    // operator's credential file behind it. A prompt left reading stdin would
+    // take the next line of that file as the typed answer and install it as a
+    // Stripe key or signing secret, with nothing visible to say it happened.
+    const hidden = source.split('\n').filter((l) => /\bread -rs\b/.test(l));
+    expect(hidden.length).toBeGreaterThan(0);
+    hidden.forEach((line) => {
+      expect(line).toMatch(/< \/dev\/tty/);
+    });
+  });
+
+  it('routes the typed confirmation phrases through the terminal helper', () => {
+    expect(source).toMatch(/confirm_from_tty "Type 'ACTIVATE LIVE PAYMENTS'/);
+    expect(source).toMatch(/confirm_from_tty "Type 'REMOVE PAYMENT CREDENTIALS'/);
+    // No bare stdin read is left behind to catch a phrase.
+    expect(source).not.toMatch(/^\s*read -r CONFIRM\s*$/m);
+  });
+
+  it('refuses the real-host modes outright when there is no terminal to prompt on', () => {
+    // Better to stop than to fall through to a prompt that cannot be answered
+    // and consume the credential file instead.
+    expect(source).toMatch(/no terminal available; this mode has to prompt for secrets/);
+  });
+});

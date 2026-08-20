@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# verify-staging-env.sh
+# verify-host-env.sh
 #
 # Diff /srv/footbag/env on a deployed Lightsail host against the env contract
 # implied by terraform output + the production-hardening invariants enforced by
@@ -9,18 +9,15 @@
 # Run from the operator workstation. Reads terraform state locally via
 # `terraform -chdir=terraform/<target> output -raw <name>` (no AWS API calls
 # the operator hasn't already authorised). Reads /srv/footbag/env on the host
-# via the user-tmp + sudo install pattern: `ssh -t` allocates a remote PTY so
-# the remote sudo can prompt for the operator's password on the LOCAL terminal,
-# sudo install stages the file (root:0600) to an operator-owned 0600 temp path,
-# and a plain `ssh cat` reads it. The password is never piped or captured; the
-# operator types it directly into the sudo prompt (TTY noecho). A trap removes
-# the staged temp file on every exit path.
+# through the shared wire in lib/host-env-remote.sh: the sudo password is line
+# one of the ssh stdin stream and the root-side body is cat'd onto the same
+# stream, so nothing secret reaches any argument list and no terminal is
+# involved. The host keeps no staged copy, so there is nothing to clean up.
 #
-# Usage:
-#   scripts/verify-staging-env.sh                          # defaults to staging
-#   scripts/verify-staging-env.sh --target staging
-#   scripts/verify-staging-env.sh --target production
-#   scripts/verify-staging-env.sh --target staging --ssh-alias my-staging-host
+# Usage (the sudo password is read from stdin, line 1):
+#   < <operator credential file> bash scripts/verify-host-env.sh
+#   < <operator credential file> bash scripts/verify-host-env.sh --target production
+#   < <operator credential file> bash scripts/verify-host-env.sh --target staging --ssh-alias my-staging-host
 #
 # Why it exists: the operator-managed /srv/footbag/env file has no automatic
 # terraform reconciliation, so most deployed-host configuration drift reduces
@@ -39,6 +36,8 @@ set -euo pipefail
 
 # shellcheck source=lib/host-env-expectations.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/host-env-expectations.sh"
+# shellcheck source=lib/host-env-remote.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/host-env-remote.sh"
 
 TARGET="staging"
 SSH_ALIAS=""
@@ -65,7 +64,9 @@ while [[ $# -gt 0 ]]; do
       shift 2 || { echo "ERROR: --env-file requires an argument" >&2; exit 2; }
       ;;
     --help|-h)
-      sed -n '2,30p' "$0"
+      # Bounded by the first `set -eu` rather than a line number, so editing
+      # the header cannot silently truncate the help text.
+      sed -n '2,/^set -eu/{/^set -eu/d;p;}' "$0"
       exit 0
       ;;
     *)
@@ -130,30 +131,12 @@ fi
 # -----------------------------------------------------------------------------
 # Read the env file.
 #
-# Default path (ssh): use the canonical user-tmp + sudo install pattern.
-# /srv/footbag/env is root-owned 0600, so the operator's account cannot cat
-# it directly. The leak-resistant flow:
-#
-#   1. `ssh -t` allocates a remote PTY so the remote `sudo` can prompt for
-#      the operator's password on the LOCAL terminal. The password
-#      keystrokes are noecho'd by sudo and NEVER appear in any captured
-#      stream (we do not redirect stdout/stderr of this step, so the prompt
-#      reaches the operator's tty and the typed password reaches the remote
-#      sudo via the PTY's stdin direction only).
-#   2. `sudo install -m 0600 -o $OP -g $GROUP /srv/footbag/env $TMP_REMOTE`
-#      stages the file at a path the operator owns. $OP/$GROUP are captured
-#      OUTSIDE sudo's env-reset so they reflect the operator, not root.
-#   3. A plain `ssh` + `cat` (no -t, no sudo, BatchMode=yes) reads the
-#      staged file into HOST_ENV_RAW. No PTY needed; no secrets share a
-#      stream with prompts or diagnostics.
-#   4. A trap cleans up the staged file on every exit path (success,
-#      failure, interrupt) so secrets do not linger on the host disk if
-#      the verification crashes mid-run.
-#
-# We do NOT use `sudo -S` (project memory: piping a password into a
-# stdin-reading command leaks it into the consumer). We do NOT capture the
-# `ssh -t` step's stdout/stderr; sudo's prompt goes to the operator's tty
-# and the password input is noecho.
+# Default path (ssh): the shared wire in lib/host-env-remote.sh. /srv/footbag/env
+# is root-owned 0600, so something has to run as root to hand it over; the sudo
+# password rides the ssh stdin stream ahead of the root-side body, so it never
+# reaches an argument list and no terminal is involved. The file comes back
+# base64-encoded on its own line, and the host is left holding no staged copy,
+# so there is no cleanup for a crash or an interrupt to skip.
 #
 # Override mode (--env-file): read from the supplied local path. Used by
 # the synthetic-input test harness; never used in real ops.
@@ -165,37 +148,25 @@ if [[ -n "$ENV_FILE_OVERRIDE" ]]; then
   fi
   HOST_ENV_RAW="$(cat "$ENV_FILE_OVERRIDE")"
 else
-  LOCAL_PID=$$
-  TMP_REMOTE="/tmp/footbag-env-verify-${LOCAL_PID}.env"
-  cleanup_remote() {
-    ssh -o BatchMode=yes "$SSH_ALIAS" "shred -u $TMP_REMOTE" 2>/dev/null || true
-  }
-  trap cleanup_remote EXIT INT TERM
+  require_operator_stdin "scripts/verify-host-env.sh --target $TARGET" || exit 1
+  require_ssh_alias "$SSH_ALIAS" || exit 1
+
+  umask 077
+  ENV_LOCAL="$(mktemp /tmp/footbag-env-verify.XXXXXX)"
+  # shred, not rm: the fetched copy is the host's entire secret set.
+  cleanup_local() { shred -u "${ENV_LOCAL:-}" 2>/dev/null || rm -f "${ENV_LOCAL:-}"; }
+  trap cleanup_local EXIT INT TERM
 
   echo ""
-  echo "Staging $HOST_ENV_PATH on $SSH_ALIAS via sudo install."
-  echo "You will be prompted for your sudo password on this terminal."
-  echo "The password is typed directly into sudo; it is NOT captured, NOT echoed, and NOT logged."
-  echo ""
-
-  # Capture operator user/group OUTSIDE sudo so the install chown's to the
-  # operator, not root. The escaped \$ defers expansion to the REMOTE shell;
-  # the non-escaped $HOST_ENV_PATH / $TMP_REMOTE expand locally.
-  if ! ssh -t "$SSH_ALIAS" "OP=\$(whoami); GROUP=\$(id -gn); sudo install -m 0600 -o \"\$OP\" -g \"\$GROUP\" $HOST_ENV_PATH $TMP_REMOTE"; then
-    echo "" >&2
-    echo "ERROR: failed to stage $HOST_ENV_PATH on $SSH_ALIAS." >&2
+  echo "Reading $HOST_ENV_PATH from $SSH_ALIAS."
+  if ! host_env_fetch "$SSH_ALIAS" "$ENV_LOCAL" "" "$HOST_ENV_PATH"; then
     echo "Common causes:" >&2
-    echo "  - SSH alias '$SSH_ALIAS' not in ~/.ssh/config" >&2
-    echo "  - Sudo password entered incorrectly or canceled" >&2
+    echo "  - the credential file's first line is not the host sudo password" >&2
+    echo "  - the operator account lacks general sudo access on the host" >&2
     echo "  - $HOST_ENV_PATH does not exist (host bootstrap incomplete)" >&2
-    echo "  - Operator user lacks general sudo access on the host" >&2
     exit 1
   fi
-
-  HOST_ENV_RAW="$(ssh -o BatchMode=yes "$SSH_ALIAS" "cat $TMP_REMOTE" 2>&1)" || {
-    echo "ERROR: staged temp file $TMP_REMOTE was unreadable on $SSH_ALIAS." >&2
-    exit 1
-  }
+  HOST_ENV_RAW="$(cat "$ENV_LOCAL")"
 fi
 
 # -----------------------------------------------------------------------------
@@ -222,7 +193,10 @@ while IFS= read -r line; do
     fi
     HOST_ENV[$key]="$value"
   else
-    echo "WARN: unparseable line in $HOST_ENV_PATH: '$trimmed'" >&2
+    # The line is reported by shape, never by content. An unparseable line is
+    # most often a mangled assignment, so echoing it verbatim is the one path
+    # in this script that would print a secret value in the clear.
+    echo "WARN: unparseable line in $HOST_ENV_PATH (${#trimmed} chars, starts '${trimmed:0:12}'); value withheld" >&2
     PARSE_ERRORS=$((PARSE_ERRORS + 1))
   fi
 done <<< "$HOST_ENV_RAW"
@@ -398,7 +372,24 @@ fi
 
 # JWT signing.
 check_equals "JWT_SIGNER" "kms" "JWT signer"
-check_equals "JWT_KMS_KEY_ID" "$TF_JWT_KMS_KEY_ARN" "JWT KMS key ARN matches terraform"
+
+# The signing adapter stamps this value into every session token's `kid` header
+# and rejects any token whose `kid` differs, so it is both published to clients
+# and load-bearing. The alias is the intended form; the key's own ARN works, and
+# is therefore an advisory rather than a failure, but it publishes the AWS
+# account id and the key uuid to everyone holding a session, and moving off it
+# logs those sessions out. Anything else is neither.
+JWT_KEY_EXPECTED="$(expected_jwt_kms_key_id "$TARGET")"
+JWT_KEY_ACTUAL="${HOST_ENV[JWT_KMS_KEY_ID]:-}"
+if [[ "$JWT_KEY_ACTUAL" == "$JWT_KEY_EXPECTED" ]]; then
+  check_pass "JWT KMS key: JWT_KMS_KEY_ID=$JWT_KEY_EXPECTED"
+elif [[ -z "$JWT_KEY_ACTUAL" ]]; then
+  check_fail "JWT KMS key: JWT_KMS_KEY_ID is unset (expected '$JWT_KEY_EXPECTED')"
+elif [[ -n "$TF_JWT_KMS_KEY_ARN" && "$JWT_KEY_ACTUAL" == "$TF_JWT_KMS_KEY_ARN" ]]; then
+  check_warn "JWT KMS key: JWT_KMS_KEY_ID is the key ARN, not '$JWT_KEY_EXPECTED'; it signs correctly but publishes the AWS account id in every session token's kid header. Changing it invalidates every session on this host, so schedule it rather than doing it under load."
+else
+  check_fail "JWT KMS key: JWT_KMS_KEY_ID=$JWT_KEY_ACTUAL is neither the alias '$JWT_KEY_EXPECTED' nor the key ARN terraform built"
+fi
 
 # Arming switches. Deploy-synced from the SSM app/* parameters on every
 # deploy; a host missing them predates the sync and needs a redeploy.
@@ -475,6 +466,34 @@ elif [[ ${#SES_FEEDBACK_KEY_ACTUAL} -lt 32 ]]; then
   check_warn "ses feedback key: SES_FEEDBACK_WEBHOOK_KEY is ${#SES_FEEDBACK_KEY_ACTUAL} chars (suggest >= 32 for collision resistance)"
 else
   check_pass "ses feedback key: SES_FEEDBACK_WEBHOOK_KEY present, distinct from INTERNAL_EVENT_SECRET, not the dev default"
+fi
+
+# Expected publishing topic per SNS feed. The webhooks authenticate on the shared
+# key AND the topic, because a valid signature proves only that some topic in
+# some AWS account signed the payload. A host with the key and no topic refuses
+# every delivery, which looks like a dead feed rather than a misconfiguration,
+# so it is checked here alongside the key.
+SES_FEEDBACK_ARN_ACTUAL="${HOST_ENV[SES_FEEDBACK_TOPIC_ARN]:-}"
+if [[ "${HOST_ENV[SES_ADAPTER]:-}" != "live" ]]; then
+  check_pass "ses feedback topic: not required (SES_ADAPTER is not 'live')"
+elif [[ -z "$SES_FEEDBACK_ARN_ACTUAL" ]]; then
+  check_fail "ses feedback topic: SES_FEEDBACK_TOPIC_ARN is unset, so every feedback delivery is refused (run scripts/set-host-env.sh, which writes the topic ARNs from the Terraform outputs)"
+elif [[ ! "$SES_FEEDBACK_ARN_ACTUAL" =~ ^arn:aws:sns: ]]; then
+  check_fail "ses feedback topic: SES_FEEDBACK_TOPIC_ARN is not an SNS topic ARN"
+else
+  check_pass "ses feedback topic: SES_FEEDBACK_TOPIC_ARN present"
+fi
+
+ALARM_ARN_ACTUAL="${HOST_ENV[ALARM_TOPIC_ARN]:-}"
+ALARM_KEY_ACTUAL="${HOST_ENV[ALARM_WEBHOOK_KEY]:-}"
+if [[ -z "$ALARM_KEY_ACTUAL" && -z "$ALARM_ARN_ACTUAL" ]]; then
+  check_pass "alarm feed: not configured (endpoint refuses deliveries quietly; alarms still reach the operator mailbox)"
+elif [[ -z "$ALARM_ARN_ACTUAL" ]]; then
+  check_fail "alarm feed: ALARM_WEBHOOK_KEY is set but ALARM_TOPIC_ARN is not, so every alarm delivery is refused"
+elif [[ -z "$ALARM_KEY_ACTUAL" ]]; then
+  check_fail "alarm feed: ALARM_TOPIC_ARN is set but ALARM_WEBHOOK_KEY is not, so every alarm delivery is refused"
+else
+  check_pass "alarm feed: ALARM_WEBHOOK_KEY and ALARM_TOPIC_ARN both present"
 fi
 
 # Public-facing required vars.
@@ -574,8 +593,13 @@ fi
 # canonical compose defaults).
 # -----------------------------------------------------------------------------
 SIZING_CFG="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd)/docker/env/${TARGET}.env"
+# Every key both deploy halves are allowed to seed. A key a deploy seeds but
+# this list omits is drift nobody can see: the verifier passes while the host
+# runs a value the committed file never intended.
 SIZING_KEYS=(NGINX_MEMORY_LIMIT WEB_MEMORY_LIMIT WORKER_MEMORY_LIMIT IMAGE_MEMORY_LIMIT \
-             IMAGE_MAX_CONCURRENT VIDEO_X264_PRESET VIDEO_X264_THREADS VIDEO_X264_RC_LOOKAHEAD)
+             IMAGE_MAX_CONCURRENT VIDEO_X264_PRESET VIDEO_X264_THREADS VIDEO_X264_RC_LOOKAHEAD \
+             VIDEO_MAX_HEIGHT FFMPEG_TIMEOUT_SECONDS VIDEO_TRANSCODE_TIMEOUT_MS \
+             VIDEO_MIN_HOST_AVAILABLE_MB)
 if [[ -f "$SIZING_CFG" ]]; then
   declare -A SIZING_EXPECTED=()
   while IFS= read -r sline || [[ -n "$sline" ]]; do

@@ -953,3 +953,134 @@ describe('legacy_data script 20 graceful skip', () => {
     expect(combined).toMatch(/18_scrape_footbag_org_moves/);
   });
 });
+
+describe('schema-drift guards can actually fire, and gate only what they should', () => {
+  const wrapperSrc = fs.readFileSync(path.join(REPO_ROOT, 'deploy_to_aws.sh'), 'utf-8');
+
+  it('the local drift check gates only the mode that ships a database it did not build', () => {
+    // --from-csv, --soup-to-nuts, --db-only and --all-data all drop the file and
+    // reapply schema.sql, so drift in the current file is what they are about to
+    // fix. Gating them refused a deploy for not having done the thing it was
+    // about to do, and sent the operator to run the rebuild by hand first.
+    const gate = wrapperSrc.slice(wrapperSrc.indexOf('# Schema-drift preflight'));
+    const condition = gate.slice(0, gate.indexOf('then'));
+    expect(condition).toMatch(/MODE_REUSE == 1/);
+    expect(condition).not.toMatch(/DB_REBUILD_INVOLVED/);
+  });
+
+  it('the local drift remedy never sends a maintainer to the CI-only loader', () => {
+    // reset-local-db.sh is forbidden on a workstation holding the real
+    // legacy_data tree; recommending it there is worse than not warning at all.
+    const gate = wrapperSrc.slice(wrapperSrc.indexOf('database/footbag.db schema is out of sync'));
+    const branch = gate.slice(0, gate.indexOf('exit 1'));
+    expect(branch).not.toMatch(/reset-local-db\.sh/);
+    expect(branch).toMatch(/deploy_to_aws\.sh --from-csv/);
+    expect(branch).toMatch(/deploy-local-data\.sh --from-csv/);
+  });
+
+  it('the host drift check reads the database through the container, not the host', () => {
+    // /srv/footbag/env is root:root 0600 and the database is 0600 owned by
+    // another account, so the previous plain-ssh read exited before reading
+    // anything and the check reported "could not read" on every deploy. A guard
+    // that cannot fire is worse than none: its silence reads as agreement.
+    const check = wrapperSrc.slice(wrapperSrc.indexOf('# Code-only schema-sync'));
+    const block = check.slice(0, check.indexOf('_expected_fp'));
+    expect(block).not.toMatch(/grep -E "\^FOOTBAG_DB_PATH=" \/srv\/footbag\/env/);
+    expect(check).toMatch(/docker exec -i "\$c" node/);
+    expect(check).toMatch(/host-db-fingerprint\.js/);
+  });
+
+  it('the fingerprint body exists and reports failures rather than an empty result', () => {
+    // An empty fingerprint compared against a real one reads as total drift; an
+    // empty one on both sides would read as agreement. Neither may happen
+    // silently, so every failure path exits non-zero with a reason.
+    const js = fs.readFileSync(
+      path.join(REPO_ROOT, 'scripts/internal/host-db-fingerprint.js'),
+      'utf-8',
+    );
+    expect(js).toMatch(/FOOTBAG_DB_PATH is not set/);
+    expect(js).toMatch(/better-sqlite3 unavailable/);
+    expect(js).toMatch(/reported no tables/);
+    expect(js).toMatch(/process\.exit\(9\)/);
+    // Tables and columns only: indexes and triggers cannot cause the
+    // missing-column crash this guards against.
+    expect(js).toMatch(/m\.type = 'table'/);
+  });
+});
+
+describe('container-sizing allowlists agree across both deploys and the verifier', () => {
+  // Three lists decide which committed sizing values reach a host, and they had
+  // drifted: the rebuild deploy accepted eight keys where the code deploy
+  // accepted eleven. A host stood up by a rebuild therefore never received
+  // VIDEO_MAX_HEIGHT and encoded at full source height on an instance sized for
+  // 720p, and the verifier checked the same eight and could not see it. Nothing
+  // errored in any of the three.
+  const readFile = (p: string) => fs.readFileSync(path.join(REPO_ROOT, p), 'utf-8');
+
+  const EXPECTED = [
+    'NGINX_MEMORY_LIMIT',
+    'WEB_MEMORY_LIMIT',
+    'WORKER_MEMORY_LIMIT',
+    'IMAGE_MEMORY_LIMIT',
+    'IMAGE_MAX_CONCURRENT',
+    'VIDEO_X264_PRESET',
+    'VIDEO_X264_THREADS',
+    'VIDEO_X264_RC_LOOKAHEAD',
+    'VIDEO_MAX_HEIGHT',
+    'FFMPEG_TIMEOUT_SECONDS',
+    'VIDEO_TRANSCODE_TIMEOUT_MS',
+    'VIDEO_MIN_HOST_AVAILABLE_MB',
+  ];
+
+  function allowlistRegex(file: string): string {
+    const line = readFile(file)
+      .split('\n')
+      .find((l) => l.includes("local key_re='"));
+    expect(line, `${file} has no key_re allowlist`).toBeDefined();
+    return line as string;
+  }
+
+  it('both deploy halves seed exactly the same key set', () => {
+    expect(allowlistRegex('scripts/internal/deploy-rebuild-remote.sh').trim()).toBe(
+      allowlistRegex('scripts/internal/deploy-code-remote.sh').trim(),
+    );
+  });
+
+  it('the deploy allowlist names every key the committed env files can set', () => {
+    const re = allowlistRegex('scripts/internal/deploy-code-remote.sh');
+    EXPECTED.forEach((key) => {
+      // The memory limits and x264 knobs are matched by grouped alternations,
+      // so check the distinctive part of each name.
+      const needle = key.replace(/^(NGINX|WEB|WORKER|IMAGE)_MEMORY_LIMIT$/, '_MEMORY_LIMIT')
+        .replace(/^VIDEO_X264_(.+)$/, '$1');
+      expect(re, `${key} missing from the deploy allowlist`).toContain(needle);
+    });
+  });
+
+  it('the verifier checks every key the deploys can seed', () => {
+    const source = readFile('scripts/verify-host-env.sh');
+    const block = source.slice(source.indexOf('SIZING_KEYS=('));
+    const list = block.slice(0, block.indexOf(')'));
+    EXPECTED.forEach((key) => {
+      expect(list, `${key} missing from the verifier's sizing checks`).toContain(key);
+    });
+  });
+
+  it('every sizing key the committed staging env file sets is covered', () => {
+    // The concrete case that exposed the drift.
+    const staging = readFile('docker/env/staging.env');
+    const setKeys = staging
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => l && !l.startsWith('#') && l.includes('='))
+      .map((l) => l.split('=')[0]);
+    const sizing = setKeys.filter((k) => EXPECTED.includes(k));
+    expect(sizing).toContain('VIDEO_MAX_HEIGHT');
+    const re = allowlistRegex('scripts/internal/deploy-rebuild-remote.sh');
+    sizing.forEach((k) => {
+      const needle = k.replace(/^(NGINX|WEB|WORKER|IMAGE)_MEMORY_LIMIT$/, '_MEMORY_LIMIT')
+        .replace(/^VIDEO_X264_(.+)$/, '$1');
+      expect(re, `${k} is set in docker/env/staging.env but a rebuild deploy drops it`).toContain(needle);
+    });
+  });
+});

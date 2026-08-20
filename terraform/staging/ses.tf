@@ -28,8 +28,47 @@ variable "ses_sender_identity" {
   }
 }
 
-resource "aws_ses_email_identity" "sender" {
-  email = var.ses_sender_identity
+# PARITY DIVERGENCE, DELIBERATE. Both environments live in one AWS account and
+# both name the same sender address, and an SES identity plus its bounce and
+# complaint notification settings are per-identity and account-global. So these
+# are not two resources, they are one resource declared in two trees, and
+# whichever tree applies last silently wins. That is how staging came to be
+# planning a change of production's feedback topic to staging's own.
+#
+# Production owns the identity and both notification settings, because production
+# is what actually sends. Staging declares none of them.
+#
+# Detaching them is what the blocks below do, and it is deliberately not the same
+# as declaring them and switching them off: a declared-but-off resource plans a
+# destroy, and destroying this identity would take away the verified address
+# production sends through, which cannot be restored without someone opening a
+# fresh confirmation link. These blocks drop whatever a previous staging apply
+# recorded while leaving the real resources untouched, and stay afterwards as the
+# standing record of that handover. Should staging ever be given a sender address
+# of its own, the collision disappears and these come back as ordinary
+# declarations.
+removed {
+  from = aws_ses_email_identity.sender
+
+  lifecycle {
+    destroy = false
+  }
+}
+
+removed {
+  from = aws_ses_identity_notification_topic.sender_bounce
+
+  lifecycle {
+    destroy = false
+  }
+}
+
+removed {
+  from = aws_ses_identity_notification_topic.sender_complaint
+
+  lifecycle {
+    destroy = false
+  }
 }
 
 # =============================================================================
@@ -46,19 +85,11 @@ resource "aws_sns_topic" "ses_feedback" {
   name = "${local.prefix}-ses-feedback"
 }
 
-resource "aws_ses_identity_notification_topic" "sender_bounce" {
-  identity                 = aws_ses_email_identity.sender.arn
-  notification_type        = "Bounce"
-  topic_arn                = aws_sns_topic.ses_feedback.arn
-  include_original_headers = false
-}
-
-resource "aws_ses_identity_notification_topic" "sender_complaint" {
-  identity                 = aws_ses_email_identity.sender.arn
-  notification_type        = "Complaint"
-  topic_arn                = aws_sns_topic.ses_feedback.arn
-  include_original_headers = false
-}
+# The bounce and complaint notification settings that would publish into this
+# topic belong to the shared sender identity, so production declares them and
+# staging does not; the detachment is recorded above. The topic itself is this
+# environment's own, so it stays: the webhook subscription below is what staging
+# exercises.
 
 resource "aws_sns_topic_subscription" "ses_feedback_webhook" {
   count                  = var.ses_feedback_webhook_url == "" ? 0 : 1
@@ -66,4 +97,38 @@ resource "aws_sns_topic_subscription" "ses_feedback_webhook" {
   protocol               = "https"
   endpoint               = var.ses_feedback_webhook_url
   endpoint_auto_confirms = false
+
+  # SNS retries an HTTPS endpoint three times inside a one-hour ceiling and then
+  # discards the message, so without this a bounce arriving during a deploy is
+  # lost. The account-level suppression list still stops SES sending to a
+  # hard-bounced address, so the loss here is the platform's own record of which
+  # member bounced rather than a sending risk, but that record is what the admin
+  # surfaces read.
+  redrive_policy = jsonencode({
+    deadLetterTargetArn = aws_sqs_queue.ses_feedback_webhook_dlq[0].arn
+  })
+}
+
+resource "aws_sqs_queue" "ses_feedback_webhook_dlq" {
+  count                     = var.ses_feedback_webhook_url == "" ? 0 : 1
+  name                      = "${local.prefix}-ses-feedback-webhook-dlq"
+  message_retention_seconds = 1209600
+}
+
+resource "aws_sqs_queue_policy" "ses_feedback_webhook_dlq" {
+  count     = var.ses_feedback_webhook_url == "" ? 0 : 1
+  queue_url = aws_sqs_queue.ses_feedback_webhook_dlq[0].id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "sns.amazonaws.com" }
+      Action    = "sqs:SendMessage"
+      Resource  = aws_sqs_queue.ses_feedback_webhook_dlq[0].arn
+      Condition = {
+        ArnEquals = { "aws:SourceArn" = aws_sns_topic.ses_feedback.arn }
+      }
+    }]
+  })
 }

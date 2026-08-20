@@ -238,10 +238,10 @@ else
   # are kept. Best-effort: a reclaim failure must not abort the deploy.
   echo "==> Reclaiming host disk (journal vacuum + docker prune)..."
   printf '%s\n' "$SUDO_PASS" \
-    | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -S -p "" sh -c "journalctl --vacuum-time=7d; docker system prune -af"' \
+    | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" sh -c "journalctl --vacuum-time=7d; docker system prune -af"' \
     || echo "    WARNING: host disk-reclaim step failed; continuing." >&2
   { printf '%s\n' "$SUDO_PASS"; docker save docker-web docker-worker docker-image; } \
-    | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -S -p "" docker load'
+    | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" docker load'
 fi
 
 # ── Step 5: Run the remote-as-root deploy via cat-pipe ───────────────────────
@@ -310,7 +310,7 @@ echo "==> Running remote-as-root deploy (promote, restart)..."
   printf 'SEED_TEST_PERSONAS=%q\n'          "${SEED_TEST_PERSONAS:-no}"
   printf 'REFRESH_TEST_PERSONAS=%q\n'       "${REFRESH_TEST_PERSONAS:-no}"
   cat "$REMOTE_HALF"
-} | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -S -p "" bash'
+} | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash'
 
 # ── Step 5: Smoke check ───────────────────────────────────────────────────────
 # Smoke runs against the public CloudFront URL, not the direct Lightsail

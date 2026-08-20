@@ -7,7 +7,7 @@
  * cap-override reason; removal requires a mandatory reason and can strip the
  * affiliation. Non-admins never reach any of it.
  */
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
@@ -17,11 +17,19 @@ const { dbPath } = setTestEnv('3081');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 let db: BetterSqlite3.Database;
+// Imported after setTestEnv, like the app itself: a static import would open the
+// database module against the developer's own path before the test path is set.
+let leadershipService: typeof import('../../src/services/adminClubLeadershipService').adminClubLeadershipService;
+let ServiceUnavailableError: typeof import('../../src/services/serviceErrors').ServiceUnavailableError;
 
 beforeAll(async () => {
   db = createTestDb(dbPath);
   insertMember(db, { id: 'acl-admin', slug: 'acl_admin', login_email: 'acl-admin@example.com', is_admin: 1 });
   createApp = await importApp();
+  ({ adminClubLeadershipService: leadershipService } = await import(
+    '../../src/services/adminClubLeadershipService'
+  ));
+  ({ ServiceUnavailableError } = await import('../../src/services/serviceErrors'));
 });
 
 afterAll(() => {
@@ -74,6 +82,21 @@ describe('queue', () => {
 });
 
 describe('assign', () => {
+  // The error page is the club's own detail page, so rendering it means loading
+  // the club again. When the club is the thing that does not exist that load
+  // throws a second time from inside the handler's catch, where nothing catches
+  // it, and the visitor gets a server error where the same id answers 404 on a
+  // GET.
+  it('answers not-found for an unknown club id rather than a server error', async () => {
+    const memberId = seedMember();
+    const res = await request(createApp())
+      .post('/admin/clubs/club-that-does-not-exist/leadership/assign')
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ member_key: memberId, reason: 'Leadership gap remediation.' });
+    expect(res.status).toBe(404);
+  });
+
   it('assigns from the member base, creates the affiliation, supersedes bootstrap rows, audits with reason', async () => {
     const clubId = seedClub();
     const memberId = seedMember();
@@ -229,5 +252,28 @@ describe('demote', () => {
     expect(res.status).toBe(422);
     // The bogus mode neither removed the roster row nor the affiliation.
     expect(leaders(clubId)).toHaveLength(1);
+  });
+});
+
+// Rebuilding the detail page to carry an inline error can itself fail. Only a
+// club that is genuinely gone has no page to answer on; a database too busy to
+// serve the reload is a temporary condition, and reporting it as a club that
+// does not exist would send an admin looking for a deletion that never happened.
+describe('a failed page reload keeps its own answer', () => {
+  it('answers temporarily-unavailable when the reload finds the database busy', async () => {
+    const clubId = seedClub();
+    const spy = vi.spyOn(leadershipService, 'getClubLeadershipPage').mockImplementation(() => {
+      throw new ServiceUnavailableError('database is busy');
+    });
+    try {
+      const res = await request(createApp())
+        .post(`/admin/clubs/${clubId}/leadership/assign`)
+        .set('Cookie', adminCookie())
+        .type('form')
+        .send({ member_key: '', reason: '' });
+      expect(res.status).toBe(503);
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

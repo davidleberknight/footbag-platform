@@ -161,6 +161,13 @@ services:
       # because the subscription URL carries it in the query string, where
       # access logs capture it.
       SES_FEEDBACK_WEBHOOK_KEY: ${SES_FEEDBACK_WEBHOOK_KEY:-dev-ses-feedback-key-not-for-prod}
+      # Dedicated platform-alarm webhook key, separate for the same reason.
+      ALARM_WEBHOOK_KEY: ${ALARM_WEBHOOK_KEY:-dev-alarm-webhook-key-not-for-prod}
+      # Expected publishing topic per SNS feed; both feeds refuse every delivery
+      # when unset. There is no SNS in development, so they stay empty here and
+      # the endpoints are inert, which is the honest local state.
+      SES_FEEDBACK_TOPIC_ARN: ${SES_FEEDBACK_TOPIC_ARN:-}
+      ALARM_TOPIC_ARN: ${ALARM_TOPIC_ARN:-}
     volumes:
       # Directory bind mount so SQLite WAL/SHM sidecars live on the host and
       # are shared between web and worker containers. A file bind mount would
@@ -284,6 +291,13 @@ services:
       TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-}
       INTERNAL_EVENT_SECRET: ${INTERNAL_EVENT_SECRET:?set in .env or launch via npm run compose:dev (worker<->web auth)}
       SES_FEEDBACK_WEBHOOK_KEY: ${SES_FEEDBACK_WEBHOOK_KEY:-dev-ses-feedback-key-not-for-prod}
+      # Dedicated platform-alarm webhook key, separate for the same reason.
+      ALARM_WEBHOOK_KEY: ${ALARM_WEBHOOK_KEY:-dev-alarm-webhook-key-not-for-prod}
+      # Expected publishing topic per SNS feed; both feeds refuse every delivery
+      # when unset. There is no SNS in development, so they stay empty here and
+      # the endpoints are inert, which is the honest local state.
+      SES_FEEDBACK_TOPIC_ARN: ${SES_FEEDBACK_TOPIC_ARN:-}
+      ALARM_TOPIC_ARN: ${ALARM_TOPIC_ARN:-}
     volumes:
       # Directory bind mount — must match web so WAL/SHM sidecars are shared.
       - ../database:/app/db:rw

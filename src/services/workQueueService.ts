@@ -155,7 +155,13 @@ export const workQueueService = {
 
   /** Claim an open item for the given administrator. A second claim while
    *  another administrator's claim is still live (or the item is closed) is a
-   *  no-op; an item whose claim has gone stale is claimable again. */
+   *  no-op; an item whose claim has gone stale is claimable again.
+   *
+   *  No audit row is written, deliberately, as on the sibling club-cleanup
+   *  queue: a claim is a coordination hint, not a resolution. The row it
+   *  mutates already records who holds it and since when, the claim expires on
+   *  its own so it can never silence an item, and the act it precedes writes its
+   *  own audit row. */
   claim(input: { queueItemId: string; adminMemberId: string }): {
     status: 'claimed' | 'already_claimed_or_closed';
   } {

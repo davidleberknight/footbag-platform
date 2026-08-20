@@ -47,6 +47,17 @@
         <p class="card-description">Grant a Hall of Fame or Big Add Posse honoree their Tier 2 membership when a claim-time grant did not fire (a late roster link or a new induction). Confirmed, audited, and emailed; the same honor is granted only once.</p>
       </div>
       <div class="card">
+        <div class="card-title"><a href="/admin/system-health">System health</a>{{#if content.health.hasUrgent}} <span class="badge badge-warn">Needs attention</span>{{/if}}</div>
+        <p class="card-description">Outbound email backlog and dead-lettered messages, bounce and complaint rates, scheduled-job run history, and whether email sending is paused. Read-only.</p>
+        {{#if content.health.hasUrgent}}
+        <p class="card-meta">{{#each content.health.attentionNotes}}{{this}} {{/each}}</p>
+        {{/if}}
+      </div>
+      <div class="card">
+        <div class="card-title"><a href="/admin/alarms">Platform alarms</a>{{#if content.health.activeAlarmCount}} <span class="badge">{{content.health.activeAlarmCount}} active</span>{{/if}}</div>
+        <p class="card-description">Alarms reported by the monitoring service: high bounce or complaint rates, backup failures, cost thresholds. Acknowledge one with a note to record that you are handling it.</p>
+      </div>
+      <div class="card">
         <div class="card-title"><a href="/admin/audit-log">Audit log</a></div>
         <p class="card-description">Search the append-only audit trail by member, date, action type, or category to investigate a complaint or confirm a flow logged correctly. Read-only.</p>
       </div>

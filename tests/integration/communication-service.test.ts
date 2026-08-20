@@ -15,8 +15,15 @@ let createCommunicationService: typeof import('../../src/services/communicationS
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 let createStubSesAdapter: typeof import('../../src/adapters/sesAdapter').createStubSesAdapter;
 
+// Every enqueue names a recipient member: the id is the only column erasure can
+// reach an outbox row through, so the service requires it. The address and the
+// member are independent here -- the tests vary the address, and this member
+// exists purely to satisfy that contract.
+const RECIPIENT_ID = 'comms-recipient';
+
 beforeAll(async () => {
   const db = createTestDb(dbPath);
+  insertMember(db, { id: RECIPIENT_ID, login_email: 'comms-recipient@example.com' });
   db.close();
   const commsMod = await import('../../src/services/communicationService');
   const sesMod = await import('../../src/adapters/sesAdapter');
@@ -46,6 +53,7 @@ describe('enqueueEmail', () => {
     const svc = createCommunicationService(stub);
     const { id, status } = svc.enqueueEmail({
       recipientEmail: 'to@example.com',
+      recipientMemberId: RECIPIENT_ID,
       subject: 'Hi',
       bodyText: 'hello',
     });
@@ -60,11 +68,11 @@ describe('enqueueEmail', () => {
     const stub = createStubSesAdapter();
     const svc = createCommunicationService(stub);
     const first = svc.enqueueEmail({
-      recipientEmail: 'to@example.com', subject: 'A', bodyText: 'x',
+      recipientEmail: 'to@example.com', recipientMemberId: RECIPIENT_ID, subject: 'A', bodyText: 'x',
       idempotencyKey: 'idem-1',
     });
     const second = svc.enqueueEmail({
-      recipientEmail: 'to@example.com', subject: 'A', bodyText: 'x',
+      recipientEmail: 'to@example.com', recipientMemberId: RECIPIENT_ID, subject: 'A', bodyText: 'x',
       idempotencyKey: 'idem-1',
     });
     expect(first.status).toBe('enqueued');
@@ -80,15 +88,15 @@ describe('enqueueEmail', () => {
     const stub = createStubSesAdapter();
     const svc = createCommunicationService(stub);
     const first = svc.enqueueEmail({
-      recipientEmail: 'to@example.com', subject: 'A', bodyText: 'x',
+      recipientEmail: 'to@example.com', recipientMemberId: RECIPIENT_ID, subject: 'A', bodyText: 'x',
       idempotencyKey: 'idem-retry',
     });
     const second = svc.enqueueEmail({
-      recipientEmail: 'to@example.com', subject: 'A', bodyText: 'x',
+      recipientEmail: 'to@example.com', recipientMemberId: RECIPIENT_ID, subject: 'A', bodyText: 'x',
       idempotencyKey: 'idem-retry',
     });
     const third = svc.enqueueEmail({
-      recipientEmail: 'to@example.com', subject: 'A', bodyText: 'x',
+      recipientEmail: 'to@example.com', recipientMemberId: RECIPIENT_ID, subject: 'A', bodyText: 'x',
       idempotencyKey: 'idem-retry',
     });
     expect(second.id).toBe(first.id);
@@ -101,11 +109,11 @@ describe('enqueueEmail', () => {
     const stub = createStubSesAdapter();
     const svc = createCommunicationService(stub);
     const first = svc.enqueueEmail({
-      recipientEmail: 'original@example.com', subject: 'Original', bodyText: 'first body',
+      recipientEmail: 'original@example.com', recipientMemberId: RECIPIENT_ID, subject: 'Original', bodyText: 'first body',
       idempotencyKey: 'idem-diff',
     });
     const retry = svc.enqueueEmail({
-      recipientEmail: 'different@example.com', subject: 'Different', bodyText: 'other body',
+      recipientEmail: 'different@example.com', recipientMemberId: RECIPIENT_ID, subject: 'Different', bodyText: 'other body',
       idempotencyKey: 'idem-diff',
     });
     expect(retry.status).toBe('duplicate');
@@ -119,11 +127,11 @@ describe('enqueueEmail', () => {
     const stub = createStubSesAdapter();
     const svc = createCommunicationService(stub);
     const a = svc.enqueueEmail({
-      recipientEmail: 'to@example.com', subject: 'A', bodyText: 'x',
+      recipientEmail: 'to@example.com', recipientMemberId: RECIPIENT_ID, subject: 'A', bodyText: 'x',
       idempotencyKey: 'idem-A',
     });
     const b = svc.enqueueEmail({
-      recipientEmail: 'to@example.com', subject: 'B', bodyText: 'y',
+      recipientEmail: 'to@example.com', recipientMemberId: RECIPIENT_ID, subject: 'B', bodyText: 'y',
       idempotencyKey: 'idem-B',
     });
     expect(a.status).toBe('enqueued');
@@ -135,10 +143,10 @@ describe('enqueueEmail', () => {
     const stub = createStubSesAdapter();
     const svc = createCommunicationService(stub);
     const a = svc.enqueueEmail({
-      recipientEmail: 'to@example.com', subject: 'Hi', bodyText: 'x',
+      recipientEmail: 'to@example.com', recipientMemberId: RECIPIENT_ID, subject: 'Hi', bodyText: 'x',
     });
     const b = svc.enqueueEmail({
-      recipientEmail: 'to@example.com', subject: 'Hi', bodyText: 'x',
+      recipientEmail: 'to@example.com', recipientMemberId: RECIPIENT_ID, subject: 'Hi', bodyText: 'x',
     });
     expect(a.status).toBe('enqueued');
     expect(b.status).toBe('enqueued');
@@ -149,9 +157,9 @@ describe('enqueueEmail', () => {
     const { ValidationError } = await import('../../src/services/serviceErrors');
     const stub = createStubSesAdapter();
     const svc = createCommunicationService(stub);
-    expect(() => svc.enqueueEmail({ recipientEmail: '', subject: 's', bodyText: 'b' })).toThrow(ValidationError);
-    expect(() => svc.enqueueEmail({ recipientEmail: 'a@b.c', subject: '', bodyText: 'b' })).toThrow(ValidationError);
-    expect(() => svc.enqueueEmail({ recipientEmail: 'a@b.c', subject: 's', bodyText: '' })).toThrow(ValidationError);
+    expect(() => svc.enqueueEmail({ recipientEmail: '', recipientMemberId: RECIPIENT_ID, subject: 's', bodyText: 'b' })).toThrow(ValidationError);
+    expect(() => svc.enqueueEmail({ recipientEmail: 'a@b.c', recipientMemberId: RECIPIENT_ID, subject: '', bodyText: 'b' })).toThrow(ValidationError);
+    expect(() => svc.enqueueEmail({ recipientEmail: 'a@b.c', recipientMemberId: RECIPIENT_ID, subject: 's', bodyText: '' })).toThrow(ValidationError);
   });
 });
 
@@ -161,6 +169,7 @@ describe('enqueueEmailOrFail', () => {
     const svc = createCommunicationService(stub);
     const result = svc.enqueueEmailOrFail({
       recipientEmail: 'must-succeed@example.com',
+      recipientMemberId: RECIPIENT_ID,
       subject: 'Hi',
       bodyText: 'hello',
     });
@@ -176,6 +185,7 @@ describe('enqueueEmailOrFail', () => {
     const svc = createCommunicationService(stub);
     expect(() => svc.enqueueEmailOrFail({
       recipientEmail: '',
+      recipientMemberId: RECIPIENT_ID,
       subject: 'Hi',
       bodyText: 'hello',
     })).toThrow(ValidationError);
@@ -195,6 +205,7 @@ describe('enqueueEmailOrFail', () => {
     };
     expect(() => svc.enqueueEmailOrFail({
       recipientEmail: 'wrapped@example.com',
+      recipientMemberId: RECIPIENT_ID,
       subject: 'Hi',
       bodyText: 'hello',
     })).toThrow(ServiceUnavailableError);
@@ -234,6 +245,7 @@ describe('enqueueEmail mailbox suppression', () => {
     const svc = createCommunicationService(createStubSesAdapter());
     const res = svc.enqueueEmail({
       recipientEmail: 'Cased-Mailbox@Example.com',
+      recipientMemberId: RECIPIENT_ID,
       subject: 'Hi',
       bodyText: 'b',
     });
@@ -287,7 +299,7 @@ describe('processSendQueue', () => {
     const stub = createStubSesAdapter();
     const svc = createCommunicationService(stub);
     const { id } = svc.enqueueEmail({
-      recipientEmail: 'a@example.com', subject: 'Hi', bodyText: 'b',
+      recipientEmail: 'a@example.com', recipientMemberId: RECIPIENT_ID, subject: 'Hi', bodyText: 'b',
     });
     const res = await svc.processSendQueue();
     expect(res.sent).toBe(1);
@@ -304,6 +316,7 @@ describe('processSendQueue', () => {
     const svc = createCommunicationService(stub);
     const { id } = svc.enqueueEmail({
       recipientEmail: 'scrub@example.com',
+      recipientMemberId: RECIPIENT_ID,
       subject: 'Reset link',
       bodyText: 'Visit https://example.com/password/reset/raw-token-abc-123 to continue.',
     });
@@ -322,7 +335,7 @@ describe('processSendQueue', () => {
     const stub = createStubSesAdapter();
     const svc = createCommunicationService(stub);
     const { id } = svc.enqueueEmail({
-      recipientEmail: 'stranded@example.com', subject: 'Hi', bodyText: 'b',
+      recipientEmail: 'stranded@example.com', recipientMemberId: RECIPIENT_ID, subject: 'Hi', bodyText: 'b',
     });
     // Simulate a worker killed between markSending and markSent: the row sits
     // in 'sending' with a stale last_attempt_at, invisible to the pending
@@ -348,7 +361,7 @@ describe('processSendQueue', () => {
     const stub = createStubSesAdapter();
     const svc = createCommunicationService(stub);
     const { id } = svc.enqueueEmail({
-      recipientEmail: 'inflight@example.com', subject: 'Hi', bodyText: 'b',
+      recipientEmail: 'inflight@example.com', recipientMemberId: RECIPIENT_ID, subject: 'Hi', bodyText: 'b',
     });
     const db = new BetterSqlite3(dbPath);
     db.prepare(`
@@ -367,7 +380,7 @@ describe('processSendQueue', () => {
     const stub = createStubSesAdapter();
     const svc = createCommunicationService(stub);
     const { id } = svc.enqueueEmail({
-      recipientEmail: 'a@example.com', subject: 'Hi', bodyText: 'b',
+      recipientEmail: 'a@example.com', recipientMemberId: RECIPIENT_ID, subject: 'Hi', bodyText: 'b',
     });
     const before = new Date().toISOString();
     stub.failNext(new Error('boom'));
@@ -393,7 +406,7 @@ describe('processSendQueue', () => {
     const stub = createStubSesAdapter();
     const svc = createCommunicationService(stub);
     const { id } = svc.enqueueEmail({
-      recipientEmail: 'a@example.com', subject: 'Hi', bodyText: 'b',
+      recipientEmail: 'a@example.com', recipientMemberId: RECIPIENT_ID, subject: 'Hi', bodyText: 'b',
     });
     const db = new BetterSqlite3(dbPath);
     db.prepare('UPDATE outbox_emails SET retry_count = 4 WHERE id = ?').run(id!);
@@ -404,17 +417,20 @@ describe('processSendQueue', () => {
     const row = readRow(id!);
     expect(row.status).toBe('dead_letter');
     expect(row.retry_count).toBe(5);
-    // Dead-lettered rows RETAIN body_text for manual recovery; only a
-    // successful send scrubs it. A copy of the markSent scrub into
-    // markDeadLetter would silently destroy the recovery payload.
-    expect(row.body_text).toBe('b');
+    // Dead-letter scrubs the body, exactly as a successful send does. A
+    // rendered body can hold a live reset or verification token, and this
+    // ending has no resend behind it: nothing in the platform re-sends a
+    // dead-lettered row, so keeping the body only keeps the token. The
+    // manual-review endings are the ones that keep theirs, because an
+    // operator reads those to decide whether to resend.
+    expect(row.body_text).toBeNull();
   });
 
   it('provider throttling waits out a delay without consuming an attempt', async () => {
     const stub = createStubSesAdapter();
     const svc = createCommunicationService(stub);
     const { id } = svc.enqueueEmail({
-      recipientEmail: 'a@example.com', subject: 'Hi', bodyText: 'b',
+      recipientEmail: 'a@example.com', recipientMemberId: RECIPIENT_ID, subject: 'Hi', bodyText: 'b',
     });
     const throttle = new Error('Rate exceeded');
     throttle.name = 'ThrottlingException';
@@ -434,7 +450,7 @@ describe('processSendQueue', () => {
     const stub = createStubSesAdapter();
     const svc = createCommunicationService(stub);
     const { id } = svc.enqueueEmail({
-      recipientEmail: 'a@example.com', subject: 'Hi', bodyText: 'b',
+      recipientEmail: 'a@example.com', recipientMemberId: RECIPIENT_ID, subject: 'Hi', bodyText: 'b',
     });
     stub.failNext(new Error('Daily message quota exceeded'));
     await svc.processSendQueue();
@@ -448,7 +464,7 @@ describe('processSendQueue', () => {
     const stub = createStubSesAdapter();
     const svc = createCommunicationService(stub);
     const { id } = svc.enqueueEmail({
-      recipientEmail: 'a@example.com', subject: 'Hi', bodyText: 'b',
+      recipientEmail: 'a@example.com', recipientMemberId: RECIPIENT_ID, subject: 'Hi', bodyText: 'b',
     });
     const timeout = new Error('socket hang up') as Error & { code: string };
     timeout.code = 'ECONNRESET';
@@ -468,7 +484,7 @@ describe('processSendQueue', () => {
     const stub = createStubSesAdapter();
     const svc = createCommunicationService(stub);
     const { id } = svc.enqueueEmail({
-      recipientEmail: 'a@example.com', subject: 'Hi', bodyText: 'b',
+      recipientEmail: 'a@example.com', recipientMemberId: RECIPIENT_ID, subject: 'Hi', bodyText: 'b',
     });
     // Insert a later-effective system_config row setting paused=1.
     const db = new BetterSqlite3(dbPath);
@@ -506,7 +522,7 @@ describe('processSendQueue', () => {
     const stub = createStubSesAdapter();
     const svc = createCommunicationService(stub);
     const { id } = svc.enqueueEmail({
-      recipientEmail: 'paused@example.com', subject: 'Hi', bodyText: 'b',
+      recipientEmail: 'paused@example.com', recipientMemberId: RECIPIENT_ID, subject: 'Hi', bodyText: 'b',
     });
     // Strand the row in 'sending' with a reap-eligible (stale) attempt time,
     // then pause the queue with a config row effective after any prior one.
@@ -547,7 +563,7 @@ describe('processSendQueue', () => {
     const svc = createCommunicationService(stub);
     const future = new Date(Date.now() + 60 * 60 * 1000).toISOString();
     const { id } = svc.enqueueEmail({
-      recipientEmail: 'a@example.com', subject: 'Hi', bodyText: 'b',
+      recipientEmail: 'a@example.com', recipientMemberId: RECIPIENT_ID, subject: 'Hi', bodyText: 'b',
       scheduledFor: future,
     });
     const res = await svc.processSendQueue();

@@ -64,7 +64,9 @@ SIGNING_KEY=""
 CHECK_LOGS=0
 
 usage() {
-  sed -n '2,52p' "$0" | sed 's/^# \{0,1\}//'
+  # Bounded by the first `set -eu` rather than a line number, so editing the
+  # header cannot truncate the help text or run past it into the script body.
+  sed -n '2,/^set -eu/{/^set -eu/d;p;}' "$0" | sed 's/^# \{0,1\}//'
   exit 2
 }
 

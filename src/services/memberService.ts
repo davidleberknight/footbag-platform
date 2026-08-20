@@ -102,7 +102,7 @@
  * The profile Media section is delegated to `mediaService.getMemberProfileMedia`.
  */
 import { randomUUID, createHash } from 'crypto';
-import { account, publicPlayers, memberClubAffiliations, memberLinks, clubLeaders, clubs as clubsDb, clubInsightNotes, declaredAnchors, erasureLog, legacyMembers, memberPurge, workQueue, transaction, MemberProfileRow, MemberResultRow, MemberSearchRow, HistoricalPersonSearchRow, IdentityLinksRow } from '../db/db';
+import { account, publicPlayers, memberClubAffiliations, memberLinks, clubLeaders, clubs as clubsDb, clubInsightNotes, declaredAnchors, erasureLog, legacyMembers, memberPurge, outbox, workQueue, transaction, MemberProfileRow, MemberResultRow, MemberSearchRow, HistoricalPersonSearchRow, IdentityLinksRow } from '../db/db';
 import { validateExternalUrl } from '../lib/externalUrlValidator';
 import { validateBirthDate } from '../lib/birthDate';
 import { identityAccessService } from './identityAccessService';
@@ -721,6 +721,12 @@ function newErasureLogId(): string {
   return `erasure_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
 }
 
+// What an erased outbox row's subject reads as afterwards. The column is NOT
+// NULL and several registered templates render the member's own name into the
+// subject, so the value is replaced rather than preserved. It stays readable
+// because the admin email log renders it.
+const ERASED_SUBJECT_PLACEHOLDER = '(subject removed on erasure)';
+
 /**
  * Row-level PII erasure for a member whose grace period elapsed. Eligibility
  * (which members qualify, grace windows) is OperationsPlatformService's
@@ -737,6 +743,10 @@ function newErasureLogId(): string {
  *   - member-authored free text redacted wherever it lives outside the audit
  *     ledger: contact-request text, and the club insight notes left in the
  *     onboarding wizard (the text clears, the evidence row survives)
+ *   - outbound mail addressed to them scrubbed: recipient address and rendered
+ *     body to NULL, subject replaced (the column is NOT NULL and several
+ *     templates render the member's name into it). The member link survives,
+ *     which is what keeps the table's addressing CHECK satisfied
  *   - one erasure_log row (account_pii_purge) so backup restores re-apply
  *     the erasure
  *
@@ -780,6 +790,11 @@ function purgeAccountPII(memberId: string): PurgeAccountPIIResult {
     // member-authored free text too. The text clears; the row stays, so the
     // club evidence trail keeps its shape without keeping their words.
     const insightNotes = clubInsightNotes.clearNotesForMember.run(memberId);
+    // Every message the platform addressed to them: the address, the rendered
+    // body, and the subject, which several templates fill with their name.
+    const outboxRows = outbox.scrubForMember.run(
+      ERASED_SUBJECT_PLACEHOLDER, now, memberId, ERASED_SUBJECT_PLACEHOLDER,
+    );
     erasureLog.insert.run(newErasureLogId(), now, 'operations_purge', memberId, 'account_pii_purge');
 
     appendAuditEntry({
@@ -796,6 +811,7 @@ function purgeAccountPII(memberId: string): PurgeAccountPIIResult {
         cleared_historical_person_id: row.historical_person_id,
         anchors_deleted:              anchors.changes,
         club_insight_notes_cleared:   insightNotes.changes,
+        outbox_rows_scrubbed:         outboxRows.changes,
       },
     });
 
@@ -820,6 +836,9 @@ function purgeAccountPII(memberId: string): PurgeAccountPIIResult {
  *     (the members credential CHECK requires it once credentials are NULL)
  *   - every declared identity anchor deleted (member-asserted personal data,
  *     including declared old emails)
+ *   - outbound mail addressed to them scrubbed on the same terms as the full
+ *     purge: contact data is exactly what this scrub exists to clear, and
+ *     nothing about preserving identity requires keeping their mailbox
  *   - one member.deceased_pii_scrubbed audit row
  *   - one erasure_log row (deceased_contact_scrub) so backup restores
  *     re-apply the erasure
@@ -846,6 +865,12 @@ function scrubDeceasedMemberPII(memberId: string): ScrubDeceasedMemberPIIResult 
     // Same treatment for the wizard's club insight notes: the words go, the
     // evidence row stays.
     const insightNotes = clubInsightNotes.clearNotesForMember.run(memberId);
+    // Outbound mail is contact data: the address it was sent to and the body
+    // that was rendered for them. This scrub keeps identity, but nothing about
+    // identity requires keeping their mailbox or the messages sent to it.
+    const outboxRows = outbox.scrubForMember.run(
+      ERASED_SUBJECT_PLACEHOLDER, now, memberId, ERASED_SUBJECT_PLACEHOLDER,
+    );
     erasureLog.insert.run(newErasureLogId(), now, 'operations_purge', memberId, 'deceased_contact_scrub');
 
     appendAuditEntry({
@@ -859,6 +884,7 @@ function scrubDeceasedMemberPII(memberId: string): ScrubDeceasedMemberPIIResult 
       metadata: {
         anchors_deleted:            anchors.changes,
         club_insight_notes_cleared: insightNotes.changes,
+        outbox_rows_scrubbed:       outboxRows.changes,
       },
     });
 

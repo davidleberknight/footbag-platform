@@ -85,4 +85,21 @@ describe('runBatchAutoLink reaper writes status=aborted to stale running rows', 
     expect(after?.finished_at).not.toBeNull();
     expect(after?.last_error).toBe('stale_running_reaped');
   });
+
+  // Every scheduled job goes through the same lifecycle wrapper, so every one is
+  // reaped. Wiring the reap to a single job left every other one reading as
+  // still running for ever on the health page after a kill, and never counted
+  // among that job's failures.
+  it('reaps a stale row for any job the wrapper runs, not only the batch auto-link pass', async () => {
+    const staleStarted = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+    const staleId = 'sjr_stale_test_002';
+    insertStaleRunning(staleId, 'SYS_Rebuild_Hashtag_Stats', staleStarted);
+    expect(readById(staleId)?.status).toBe('running');
+
+    await ops.operationsPlatformService.runHashtagStatsRebuild();
+
+    const after = readById(staleId);
+    expect(after?.status).toBe('aborted');
+    expect(after?.last_error).toBe('stale_running_reaped');
+  });
 });

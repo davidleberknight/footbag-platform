@@ -1,14 +1,37 @@
 import { Request, Response, NextFunction } from 'express';
 import { adminClubLeadershipService } from '../services/adminClubLeadershipService';
 import { NotFoundError, ValidationError } from '../services/serviceErrors';
-import { handleControllerError } from '../lib/controllerErrors';
+import { handleControllerError, renderNotFound } from '../lib/controllerErrors';
 
-function renderDetailError(res: Response, clubId: string, err: ValidationError | NotFoundError): void {
-  if (err instanceof NotFoundError) {
-    res.status(404).render('admin/club-leadership/detail', adminClubLeadershipService.getClubLeadershipPage(clubId, { errorMessage: err.message }));
+// The detail page is rebuilt to carry the error, which means loading the club
+// again -- and when the club is the thing that does not exist, that load throws
+// the same not-found a second time, this time from inside the caller's catch
+// block, where nothing handles it and the visitor gets a 500 instead of the 404
+// the GET on the same id answers. A club that cannot be loaded has no page to
+// render the error on, so answer plainly.
+function renderDetailError(
+  res: Response,
+  next: NextFunction,
+  clubId: string,
+  err: ValidationError | NotFoundError,
+): void {
+  const status = err instanceof NotFoundError ? 404 : 422;
+  let page;
+  try {
+    page = adminClubLeadershipService.getClubLeadershipPage(clubId, { errorMessage: err.message });
+  } catch (reloadErr) {
+    // Only a club that is genuinely gone has no page to answer on. Any other
+    // reload failure keeps its own answer -- a contended database renders the
+    // temporary-unavailable page rather than telling the admin that a club
+    // which does exist does not.
+    if (reloadErr instanceof NotFoundError) {
+      renderNotFound(res);
+      return;
+    }
+    handleControllerError(reloadErr, res, next, 'admin club leadership controller');
     return;
   }
-  res.status(422).render('admin/club-leadership/detail', adminClubLeadershipService.getClubLeadershipPage(clubId, { errorMessage: err.message }));
+  res.status(status).render('admin/club-leadership/detail', page);
 }
 
 export const adminClubLeadershipController = {
@@ -44,7 +67,7 @@ export const adminClubLeadershipController = {
       res.redirect(303, `/admin/clubs/${clubId}/leadership`);
     } catch (err) {
       if (err instanceof ValidationError || err instanceof NotFoundError) {
-        renderDetailError(res, clubId, err);
+        renderDetailError(res, next, clubId, err);
         return;
       }
       handleControllerError(err, res, next, 'admin club leadership controller');
@@ -59,7 +82,7 @@ export const adminClubLeadershipController = {
       // rather than silently falling back to a demotion the admin did not pick.
       const mode = req.body.mode;
       if (mode !== 'to_member' && mode !== 'remove_affiliation') {
-        renderDetailError(res, clubId, new ValidationError('Choose how to demote the leader.'));
+        renderDetailError(res, next, clubId, new ValidationError('Choose how to demote the leader.'));
         return;
       }
       adminClubLeadershipService.demoteLeader(
@@ -72,7 +95,7 @@ export const adminClubLeadershipController = {
       res.redirect(303, `/admin/clubs/${clubId}/leadership`);
     } catch (err) {
       if (err instanceof ValidationError || err instanceof NotFoundError) {
-        renderDetailError(res, clubId, err);
+        renderDetailError(res, next, clubId, err);
         return;
       }
       handleControllerError(err, res, next, 'admin club leadership controller');

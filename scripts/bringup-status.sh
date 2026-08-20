@@ -11,10 +11,12 @@
 #
 # Probes, each skippable and each tolerant (unreachable = UNKNOWN, never a
 # crash):
-#   remote     one ssh session: /srv/footbag/env contents (staged via the
-#              user-tmp + interactive-sudo install pattern; the sudo password
-#              is typed directly into sudo's noecho prompt, never captured),
-#              backup-timer state, container summary
+#   remote     one ssh session: /srv/footbag/env contents, backup-timer state
+#              and container summary, read through the shared wire in
+#              lib/host-env-remote.sh. That wire needs the sudo password as
+#              line one of stdin, so without a credential file this probe
+#              reports as not-run rather than prompting or hanging: a dashboard
+#              that blocks on a password is not a dashboard.
 #   terraform  local: plan -detailed-exitcode for drift, state list for the
 #              gated resources (backup-stale alarm, cutover login alarm,
 #              SES feedback subscription)
@@ -22,9 +24,9 @@
 #              real; the value itself is never printed), first-admin
 #              bootstrap-token presence, BackupAgeMinutes datapoint recency
 #
-# Usage:
-#   scripts/bringup-status.sh --target staging
-#   scripts/bringup-status.sh --target production --profile <prod-profile>
+# Usage (the remote probe reads the sudo password from stdin, line 1):
+#   < <operator credential file> bash scripts/bringup-status.sh --target staging
+#   < <operator credential file> bash scripts/bringup-status.sh --target production --profile <prod-profile>
 #   scripts/bringup-status.sh --target production --skip-terraform --skip-remote
 #
 # Synthetic mode (CI tests only; operators never use this):
@@ -37,6 +39,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/host-env-expectations.sh"
 # shellcheck source=lib/email-template-digest.sh
 source "${SCRIPT_DIR}/lib/email-template-digest.sh"
+# shellcheck source=lib/host-env-remote.sh
+source "${SCRIPT_DIR}/lib/host-env-remote.sh"
 
 TARGET="staging"
 SSH_ALIAS=""
@@ -69,7 +73,9 @@ while [[ $# -gt 0 ]]; do
     --skip-aws) SKIP_AWS=1; shift ;;
     --skip-terraform) SKIP_TF=1; shift ;;
     --help|-h)
-      sed -n '2,33p' "$0"
+      # Bounded by the first `set -eu` rather than a line number, so editing
+      # the header cannot silently truncate the help text.
+      sed -n '2,/^set -eu/{/^set -eu/d;p;}' "$0"
       exit 0
       ;;
     *)
@@ -133,46 +139,60 @@ else
   PROBES_RUN=""
 
   # --- remote probe ---------------------------------------------------------
+  # Skipped rather than fatal when there is no credential file on stdin. This
+  # view is a dashboard, so a missing password costs the remote probe and
+  # nothing else; the terraform and aws probes still report, and the remote
+  # rows read UNKNOWN, which is what they already mean for an unreachable host.
+  if (( ! SKIP_REMOTE )) && [[ -t 0 ]]; then
+    echo "Skipping the remote probe: it needs the host sudo password on stdin."
+    echo "  Re-run as: < <operator credential file> bash scripts/bringup-status.sh --target $TARGET"
+    echo "  Or pass --skip-remote to stop this notice."
+    echo ""
+    SKIP_REMOTE=1
+  fi
+
   if (( ! SKIP_REMOTE )); then
     PROBES_RUN+="remote "
-    LOCAL_PID=$$
-    TMP_ENV="/tmp/footbag-bringup-env-${LOCAL_PID}"
-    TMP_REPORT="/tmp/footbag-bringup-report-${LOCAL_PID}"
-    cleanup_remote() {
-      ssh -o BatchMode=yes "$SSH_ALIAS" "rm -f $TMP_ENV $TMP_REPORT" 2>/dev/null || true
-    }
-    trap cleanup_remote EXIT INT TERM
+    umask 077
+    TMP_ENV="$(mktemp /tmp/footbag-bringup-env.XXXXXX)"
+    TMP_REPORT="$(mktemp /tmp/footbag-bringup-report.XXXXXX)"
+    # shred, not rm: the fetched copy is the host's entire secret set.
+    cleanup_local() { shred -u "${TMP_ENV:-}" "${TMP_REPORT:-}" 2>/dev/null || rm -f "${TMP_ENV:-}" "${TMP_REPORT:-}"; }
+    trap cleanup_local EXIT INT TERM
 
-    echo "Probing $SSH_ALIAS (one sudo prompt; the password is typed directly into sudo,"
-    echo "never captured or logged)..."
+    echo "Probing $SSH_ALIAS..."
     echo ""
-    REMOTE_CMD="OP=\$(whoami); GROUP=\$(id -gn); sudo bash -c \"install -m 0600 -o \$OP -g \$GROUP $HOST_ENV_PATH $TMP_ENV; { systemctl is-active footbag-backup.timer || true; echo '---'; docker ps --format '{{.Names}} {{.Status}}' || true; } > $TMP_REPORT; chown \$OP:\$GROUP $TMP_REPORT; chmod 600 $TMP_REPORT\""
-    if ssh -t "$SSH_ALIAS" "$REMOTE_CMD" 2>/dev/null; then
-      ENV_RAW="$(ssh -o BatchMode=yes "$SSH_ALIAS" "cat $TMP_ENV" 2>/dev/null || true)"
-      REPORT_RAW="$(ssh -o BatchMode=yes "$SSH_ALIAS" "cat $TMP_REPORT" 2>/dev/null || true)"
-      if [[ -n "$ENV_RAW" ]]; then
-        P[ENV_FETCHED]=yes
-        get_env() { grep -E "^$1=" <<< "$ENV_RAW" | tail -1 | cut -d= -f2- || true; }
-        P[ENV_TRUST_PROXY]="$(get_env TRUST_PROXY)"
-        [[ -n "$(get_env BACKUP_S3_BUCKET)" ]] && P[ENV_BACKUP_S3_BUCKET]=set
-        P[ENV_PAYMENT_ADAPTER]="$(get_env PAYMENT_ADAPTER)"
-        P[ENV_PAYMENTS_ARMED]="$(get_env PAYMENTS_ARMED)"
-        P[ENV_EMAIL_SEND_ARMED]="$(get_env EMAIL_SEND_ARMED)"
-        [[ -n "$(get_env STRIPE_WEBHOOK_SECRET)" ]] && P[ENV_WEBHOOK_SECRET]=set
-        [[ -n "$(get_env STRIPE_WEBHOOK_SECRET_PREVIOUS)" ]] && P[ENV_WEBHOOK_SECRET_PREVIOUS]=set
-      fi
-      # Mode 0644 by design, so this needs no root and rides the same session.
-      # It is what the last rebuild deploy recorded, and the rebuild is the only
-      # deploy that reseeds email wording.
-      PROVENANCE_RAW="$(ssh -o BatchMode=yes "$SSH_ALIAS" "cat /srv/footbag/deployed-from" 2>/dev/null || true)"
-      if [[ -n "$PROVENANCE_RAW" ]]; then
-        P[DEPLOYED_EMAIL_TEMPLATES]="$(grep -oE 'email_templates=[a-f0-9]+' <<< "$PROVENANCE_RAW" | tail -1 | cut -d= -f2 || true)"
-      fi
-      if [[ -n "$REPORT_RAW" ]]; then
-        P[TIMER_ACTIVE]="$(awk 'NR==1' <<< "$REPORT_RAW")"
-        P[CONTAINERS]="$(awk 'f{printf "%s%s", sep, $0; sep=", "} /^---$/{f=1}' <<< "$REPORT_RAW")"
-        [[ -z "${P[CONTAINERS]}" ]] && P[CONTAINERS]="none running"
-      fi
+    ENV_RAW=""
+    REPORT_RAW=""
+    if require_operator_stdin "scripts/bringup-status.sh --target $TARGET" \
+       && host_env_fetch "$SSH_ALIAS" "$TMP_ENV" "$TMP_REPORT" "$HOST_ENV_PATH"; then
+      ENV_RAW="$(cat "$TMP_ENV")"
+      REPORT_RAW="$(cat "$TMP_REPORT")"
+    fi
+    # Each block guards on its own payload, so a probe that came back empty
+    # leaves its rows UNKNOWN and the rest of the view still renders.
+    if [[ -n "$ENV_RAW" ]]; then
+      P[ENV_FETCHED]=yes
+      get_env() { grep -E "^$1=" <<< "$ENV_RAW" | tail -1 | cut -d= -f2- || true; }
+      P[ENV_TRUST_PROXY]="$(get_env TRUST_PROXY)"
+      [[ -n "$(get_env BACKUP_S3_BUCKET)" ]] && P[ENV_BACKUP_S3_BUCKET]=set
+      P[ENV_PAYMENT_ADAPTER]="$(get_env PAYMENT_ADAPTER)"
+      P[ENV_PAYMENTS_ARMED]="$(get_env PAYMENTS_ARMED)"
+      P[ENV_EMAIL_SEND_ARMED]="$(get_env EMAIL_SEND_ARMED)"
+      [[ -n "$(get_env STRIPE_WEBHOOK_SECRET)" ]] && P[ENV_WEBHOOK_SECRET]=set
+      [[ -n "$(get_env STRIPE_WEBHOOK_SECRET_PREVIOUS)" ]] && P[ENV_WEBHOOK_SECRET_PREVIOUS]=set
+    fi
+    # Mode 0644 by design, so this needs no root and no password. It is what
+    # the last rebuild deploy recorded, and the rebuild is the only deploy that
+    # reseeds email wording.
+    PROVENANCE_RAW="$(ssh -o BatchMode=yes "$SSH_ALIAS" "cat /srv/footbag/deployed-from" 2>/dev/null </dev/null || true)"
+    if [[ -n "$PROVENANCE_RAW" ]]; then
+      P[DEPLOYED_EMAIL_TEMPLATES]="$(grep -oE 'email_templates=[a-f0-9]+' <<< "$PROVENANCE_RAW" | tail -1 | cut -d= -f2 || true)"
+    fi
+    if [[ -n "$REPORT_RAW" ]]; then
+      P[TIMER_ACTIVE]="$(awk 'NR==1' <<< "$REPORT_RAW")"
+      P[CONTAINERS]="$(awk 'f{printf "%s%s", sep, $0; sep=", "} /^---$/{f=1}' <<< "$REPORT_RAW")"
+      [[ -z "${P[CONTAINERS]}" ]] && P[CONTAINERS]="none running"
     fi
   fi
 
@@ -279,7 +299,7 @@ echo ""
 # 1. Host env file
 if [[ "${P[ENV_FETCHED]}" != "yes" ]]; then
   row 1 "Host env file" UNKNOWN "could not read $HOST_ENV_PATH"
-  next_cmd "scripts/verify-staging-env.sh --target $TARGET"
+  next_cmd "< <operator credential file> bash scripts/verify-host-env.sh --target $TARGET"
 else
   EXPECTED_HOPS="$(expected_trust_proxy_note "$TARGET")"
   MISSING=""
@@ -313,17 +333,32 @@ ROTATION_NOTE=""
 if [[ "${P[ENV_WEBHOOK_SECRET_PREVIOUS]}" == "set" ]]; then
   ROTATION_NOTE="; rotation window open (STRIPE_WEBHOOK_SECRET_PREVIOUS set), close it with activate-payments.sh --complete-webhook-rotation"
 fi
+
+# A deactivation resets the parameters before it removes the host's copy, so a
+# run that stopped between the two leaves exactly this pair: parameters back to
+# the placeholder, host still holding a live signing secret. Nothing converges
+# it, because a placeholder means "no outgoing secret" and the deploy therefore
+# leaves the host's value alone. A decline says so at the time; a crash or a
+# dropped connection says nothing at all, which is why it is reported here.
+ABANDONED_DEACTIVATION=""
+if [[ "${P[SSM_STRIPE_KEY]}" == "placeholder" && "${P[ENV_WEBHOOK_SECRET]}" == "set" ]]; then
+  ABANDONED_DEACTIVATION="; the host still holds STRIPE_WEBHOOK_SECRET while the key parameter reads placeholder, which is a deactivation that did not finish -- re-run activate-payments.sh --deactivate"
+fi
 if [[ "$TARGET" == "staging" ]]; then
   row 3 "Payments" N-A "staging runs the stub adapter permanently; the live payment SDK boots only on production"
 elif [[ "${P[ENV_PAYMENTS_ARMED]}" == "dark" && "${P[ENV_PAYMENT_ADAPTER]}" != "live" ]]; then
-  DARK_DETAIL="payments dark (stub adapter; fake checkout, no real money). SSM key: ${P[SSM_STRIPE_KEY]}, production-live marker: ${P[SSM_PRODUCTION_LIVE]}"
+  DARK_DETAIL="payments dark (stub adapter; fake checkout, no real money). SSM key: ${P[SSM_STRIPE_KEY]}, production-live marker: ${P[SSM_PRODUCTION_LIVE]}${ABANDONED_DEACTIVATION}"
   row 3 "Payments" N-A "$DARK_DETAIL"
-  next_cmd "arm payments when ready: payments_armed = \"armed\" in tfvars + terraform apply + deploy"
+  if [[ -n "$ABANDONED_DEACTIVATION" ]]; then
+    next_cmd "< <operator credential file> bash scripts/activate-payments.sh --target $TARGET --profile <profile> --deactivate   (finish the deactivation the host is stuck part-way through)"
+  else
+    next_cmd "arm payments when ready: payments_armed = \"armed\" in tfvars + terraform apply + deploy"
+  fi
 elif [[ "${P[SSM_STRIPE_KEY]}" == "live" && "${P[ENV_PAYMENT_ADAPTER]}" == "live" && "${P[ENV_WEBHOOK_SECRET]}" == "set" ]]; then
   row 3 "Payments" DONE "armed: SSM key live, PAYMENT_ADAPTER=live, webhook secret set; production-live marker: ${P[SSM_PRODUCTION_LIVE]}${ROTATION_NOTE}"
   [[ -n "$ROTATION_NOTE" ]] && next_cmd "scripts/activate-payments.sh --target $TARGET --complete-webhook-rotation   (close the open rotation window)"
 else
-  DETAIL="PAYMENTS_ARMED: ${P[ENV_PAYMENTS_ARMED]:-unset}, SSM key: ${P[SSM_STRIPE_KEY]}, PAYMENT_ADAPTER: ${P[ENV_PAYMENT_ADAPTER]:-unset}, webhook secret: ${P[ENV_WEBHOOK_SECRET]}, production-live marker: ${P[SSM_PRODUCTION_LIVE]}${ROTATION_NOTE}"
+  DETAIL="PAYMENTS_ARMED: ${P[ENV_PAYMENTS_ARMED]:-unset}, SSM key: ${P[SSM_STRIPE_KEY]}, PAYMENT_ADAPTER: ${P[ENV_PAYMENT_ADAPTER]:-unset}, webhook secret: ${P[ENV_WEBHOOK_SECRET]}, production-live marker: ${P[SSM_PRODUCTION_LIVE]}${ROTATION_NOTE}${ABANDONED_DEACTIVATION}"
   row 3 "Payments" PENDING "$DETAIL"
   next_cmd "scripts/activate-payments.sh --target $TARGET --profile <profile>   (at the payments-activation milestone, not before)"
 fi

@@ -468,19 +468,38 @@ describe('profile update writes an audit row', () => {
     // The row exists to answer which field a member altered. Recording every
     // editable field on every save answers nothing, so a save that touches one
     // field must name that field alone.
-    await postEdit({ bio: 'Baseline bio', city: 'Baseville', phone: '555-0001' });
+    //
+    // The baseline save is a precondition, so its result is asserted. Left
+    // unchecked, a baseline that did not land makes the second save the first
+    // real change, which then correctly names all three fields — and the test
+    // fails on the field list rather than on the save that actually went wrong.
+    const baseline = await postEdit({ bio: 'Baseline bio', city: 'Baseville', phone: '555-0001' });
+    expect(baseline.status, 'the baseline save must land before the single-field save').toBe(303);
+
+    // Pin the ledger position rather than ordering by timestamp. Both rows can
+    // share a created_at second, which leaves the tiebreak deciding which row
+    // the assertion reads.
+    const before = new BetterSqlite3(dbPath, { readonly: true });
+    const priorMax = (before.prepare(
+      `SELECT COALESCE(MAX(rowid), 0) AS m FROM audit_entries
+        WHERE action_type = 'member.profile_updated' AND entity_id = ?`,
+    ).get(MEMBER_ID) as { m: number }).m;
+    before.close();
+
     const res = await postEdit({ bio: 'Only the bio moved', city: 'Baseville', phone: '555-0001' });
     expect(res.status).toBe(303);
 
     const db = new BetterSqlite3(dbPath, { readonly: true });
-    const row = db.prepare(
+    const rows = db.prepare(
       `SELECT metadata_json FROM audit_entries
-        WHERE action_type = 'member.profile_updated' AND entity_id = ?
-        ORDER BY created_at DESC, rowid DESC LIMIT 1`,
-    ).get(MEMBER_ID) as { metadata_json: string } | undefined;
+        WHERE action_type = 'member.profile_updated' AND entity_id = ? AND rowid > ?
+        ORDER BY rowid`,
+    ).all(MEMBER_ID, priorMax) as Array<{ metadata_json: string }>;
     db.close();
 
-    const meta = JSON.parse(row!.metadata_json) as { fields: string[] };
+    // Exactly one row, so a save that wrote none or several is named as such.
+    expect(rows).toHaveLength(1);
+    const meta = JSON.parse(rows[0].metadata_json) as { fields: string[] };
     expect(meta.fields).toEqual(['bio']);
   });
 });

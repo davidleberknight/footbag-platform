@@ -26,7 +26,7 @@
 # deploy scripts use — line 1 of $HOME/AWS/AWS_OPERATOR.txt (or
 # AWS_OPERATOR_PRODUCTION.txt for the production alias; AWS_OPERATOR_FILE
 # overrides both) — and travels only as the first line of the ssh stdin
-# stream into `sudo -S -p ""`, the same wire-pattern the deploy scripts use:
+# stream into `sudo -k -S -p ""`, the same wire-pattern the deploy scripts use:
 # never on any process's argv, never echoed, never logged, and the resolved
 # credential path is never printed.
 #
@@ -107,7 +107,7 @@ JS
 )"
 printf 'PERSONA_JSON:%s\n' "$json"
 REMOTE_BASH
-  } | ssh "$SSH_ALIAS" 'sudo -S -p "" bash'
+  } | ssh "$SSH_ALIAS" 'sudo -k -S -p "" bash'
 )"
 
 # Chrome (anything unmarked) to stderr; the sentinel-marked JSON line to stdout.

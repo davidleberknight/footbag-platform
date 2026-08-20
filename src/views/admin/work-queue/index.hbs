@@ -101,9 +101,24 @@
             {{#if linkHelp.isDispute}}
             <form method="POST" action="/admin/work-queue/{{id}}/link-help/dispute-revert" class="form-block">
               <div class="form-field">
-                <label for="dispute_holder_{{id}}">Current holder's member id (claim to revert)</label>
-                <input id="dispute_holder_{{id}}" name="holder_member_id" required maxlength="200" />
+                <label for="dispute_legacy_{{id}}">Disputed legacy account id</label>
+                <input id="dispute_legacy_{{id}}" name="target_legacy_member_id" maxlength="200" />
               </div>
+              <div class="form-field">
+                <label for="dispute_hp_{{id}}">Disputed historical person id</label>
+                <input id="dispute_hp_{{id}}" name="target_historical_person_id" maxlength="200" />
+              </div>
+              {{#if linkHelp.hasDisputedRecords}}
+                <p class="card-meta">Records this dispute named when it was filed:</p>
+                <ul class="card-meta">
+                  {{#each linkHelp.disputedRecords}}
+                    <li>{{this.kindLabel}}: {{this.recordId}}</li>
+                  {{/each}}
+                </ul>
+              {{else}}
+                <p class="card-meta">This dispute named no records, so no revert can be applied to it.</p>
+              {{/if}}
+              <p class="card-meta">Enter exactly one disputed record. The claim reverted is whoever currently holds it.</p>
               <div class="form-field">
                 <label for="dispute_reason_{{id}}">Dispute reason</label>
                 <textarea id="dispute_reason_{{id}}" name="reason" rows="2" maxlength="500" required></textarea>

@@ -326,4 +326,27 @@ describe('exportCsv', () => {
     // Display name appears wrapped in quotes with internal quotes doubled.
     expect(csv).toMatch(/"Sneaky, ""Display"""/);
   });
+
+  // Display-name validation constrains only length, and a spreadsheet reads a
+  // leading '=', '+', '-' or '@' as the start of a formula, so an unneutralised
+  // cell executes member input on the administrator's machine.
+  it('neutralises a display name that would read as a spreadsheet formula', () => {
+    const db = new BetterSqlite3(dbPath);
+    insertMember(db, {
+      id: 'm-formula', slug: 'formula_name',
+      display_name: '=cmd|calc',
+      login_email: 'formula@example.com',
+    });
+    insertMemberTierGrant(db, {
+      member_id: 'm-formula', new_tier_status: 'tier1',
+      reason_code: 'purchase.tier1',
+    });
+    db.close();
+
+    const { csv } = ors.exportCsv(ADMIN_ID);
+    const line = csv.split('\n').find((l) => l.startsWith('m-formula,'));
+    expect(line).toBeDefined();
+    expect(line).toContain(`'=cmd|calc`);
+    expect(line).not.toMatch(/,=cmd/);
+  });
 });

@@ -54,6 +54,11 @@ export function setTestEnv(port: string): { dbPath: string; sessionSecret: strin
   // Tests exercise the FH-owned gallery sidecar write/delete contract;
   // enable explicitly because the prod default for non-dev is off.
   process.env.ALLOW_CURATED_SIDECAR_WRITES = '1';
+  // Expected publishing topic per SNS feed. Both webhooks fail closed when these
+  // are unset, so the route suites need them to match their envelope fixtures;
+  // a suite asserting spoof rejection overrides the envelope, not these.
+  process.env.SES_FEEDBACK_TOPIC_ARN = 'arn:aws:sns:us-east-1:000:t';
+  process.env.ALARM_TOPIC_ARN        = 'arn:aws:sns:us-east-1:000:alarms';
 
   // JWT_LOCAL_KEYPAIR_PATH / JWT_SIGNER / SES_ADAPTER / AWS_REGION are set by
   // tests/setup-env.ts per-vitest-worker. Integration tests MUST NOT override

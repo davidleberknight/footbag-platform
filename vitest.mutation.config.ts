@@ -32,7 +32,7 @@ export default mergeConfig(
         // Excluding them removes nothing from the mutation measurement, which
         // is about the application's own guards.
         'tests/integration/personaSeed.passwordLeak.test.ts',
-        'tests/integration/verify-staging-env.script.test.ts',
+        'tests/integration/verify-host-env.script.test.ts',
       ],
     },
   }),

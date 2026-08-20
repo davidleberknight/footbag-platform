@@ -16,6 +16,7 @@ import { config } from '../config/env';
 import { logger } from '../config/logger';
 import { getSesAdapter, getStubSesAdapterForTests } from '../adapters/sesAdapter';
 import { operationsPlatformService } from './operationsPlatformService';
+import { getDevOutboxCaptureClient } from '../testkit/devOutboxCaptureClient';
 
 export interface SimulatedEmailMessage {
   to:          string;
@@ -89,9 +90,30 @@ export const simulatedEmailService = {
         );
       }
 
+      // sinceIndex is an index into THIS process's buffer, so it is applied
+      // there and nowhere else. Applying it to a merged list would cut at the
+      // wrong place the moment the worker's buffer is non-empty, which is
+      // precisely when the merge matters.
       const fromIdx = opts.sinceIndex ?? 0;
-      const all: SimulatedEmailMessage[] = stub.sentMessages
-        .slice(fromIdx)
+      const localSinceTurn = stub.sentMessages.slice(fromIdx);
+
+      // The email-outbox loop runs in the worker container, so a message it
+      // drains is captured in ITS stub buffer and never reaches this one. The
+      // local drain above only catches what the worker has not already claimed,
+      // so without this the card shows nothing whenever the worker got there
+      // first. Same client and same merge /dev/outbox has used since the
+      // cross-process capture was introduced.
+      //
+      // Worker captures carry no index to scope by; the urlPathPrefix and
+      // recipientEmail filters below are what keep a stale message from a
+      // previous turn off the card, and they apply to both sources equally.
+      const workerCaptured = await getDevOutboxCaptureClient().fetchWorkerCaptured();
+      const byId = new Map<string, (typeof stub.sentMessages)[number]>();
+      for (const m of localSinceTurn) byId.set(m.messageId, m);
+      for (const m of workerCaptured) byId.set(m.messageId, m as (typeof stub.sentMessages)[number]);
+
+      const all: SimulatedEmailMessage[] = [...byId.values()]
+        .sort((a, b) => (a.deliveredAt < b.deliveredAt ? -1 : a.deliveredAt > b.deliveredAt ? 1 : 0))
         .reverse()
         .map((m) => {
           const match = m.bodyText.match(URL_PATTERN);

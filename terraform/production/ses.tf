@@ -413,4 +413,38 @@ resource "aws_sns_topic_subscription" "ses_feedback_webhook" {
   protocol               = "https"
   endpoint               = var.ses_feedback_webhook_url
   endpoint_auto_confirms = false
+
+  # SNS retries an HTTPS endpoint three times inside a one-hour ceiling and then
+  # discards the message, so without this a bounce arriving during a deploy is
+  # lost. The account-level suppression list still stops SES sending to a
+  # hard-bounced address, so the loss here is the platform's own record of which
+  # member bounced rather than a sending risk, but that record is what the admin
+  # surfaces read.
+  redrive_policy = jsonencode({
+    deadLetterTargetArn = aws_sqs_queue.ses_feedback_webhook_dlq[0].arn
+  })
+}
+
+resource "aws_sqs_queue" "ses_feedback_webhook_dlq" {
+  count                     = var.ses_feedback_webhook_url == "" ? 0 : 1
+  name                      = "${local.prefix}-ses-feedback-webhook-dlq"
+  message_retention_seconds = 1209600
+}
+
+resource "aws_sqs_queue_policy" "ses_feedback_webhook_dlq" {
+  count     = var.ses_feedback_webhook_url == "" ? 0 : 1
+  queue_url = aws_sqs_queue.ses_feedback_webhook_dlq[0].id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "sns.amazonaws.com" }
+      Action    = "sqs:SendMessage"
+      Resource  = aws_sqs_queue.ses_feedback_webhook_dlq[0].arn
+      Condition = {
+        ArnEquals = { "aws:SourceArn" = aws_sns_topic.ses_feedback.arn }
+      }
+    }]
+  })
 }

@@ -158,6 +158,27 @@ describe('POST /admin/club-cleanup/:clubId/delist-residue — authorization', ()
     expect(res.status).toBe(403);
     expect(readStatus(aff.pendA1)).toBe('pending');
   });
+
+  // An unknown id stays the harmless no-op it has always been, but it must not
+  // reach the ledger: a de-listing recorded against a club that never existed is
+  // a row about nothing in an append-only table that can never be corrected.
+  it('an unknown club id writes nothing to the ledger', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .post('/admin/club-cleanup/club-no-such-thing/delist-residue')
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({});
+    expect(res.status).toBe(303);
+
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const n = db.prepare(
+      `SELECT COUNT(*) AS n FROM audit_entries
+       WHERE action_type = 'admin.club_cleanup.delist_residue' AND entity_id = ?`,
+    ).get('club-no-such-thing') as { n: number };
+    db.close();
+    expect(n.n).toBe(0);
+  });
 });
 
 describe('POST /admin/club-cleanup/:clubId/delist-residue — happy path', () => {

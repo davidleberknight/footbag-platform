@@ -84,6 +84,11 @@ output "alarm_topic_arn" {
   value       = aws_sns_topic.alarms.arn
 }
 
+output "ses_feedback_topic_arn" {
+  description = "ARN of the SNS topic carrying SES bounce and complaint notifications. The app checks an inbound notification's publishing topic against this value, so it is set on the host by scripts/set-host-env.sh."
+  value       = aws_sns_topic.ses_feedback.arn
+}
+
 output "lightsail_instance_name" {
   description = "Name of the Lightsail web instance. Used to retrieve the public DNS hostname after first apply."
   value       = aws_lightsail_instance.web.name

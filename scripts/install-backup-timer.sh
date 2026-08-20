@@ -12,16 +12,17 @@
 # prerequisite (BACKUP_S3_BUCKET unset in /srv/footbag/env, sqlite3 or aws
 # CLI absent) fails loudly here instead of silently on the first timer tick.
 #
-# Sudo pattern: `ssh -t` allocates a remote PTY so sudo prompts for the
-# operator's password on the local terminal; the password is typed directly
-# into sudo's noecho prompt and is never piped, captured, or logged. All
-# privileged steps run in a single sudo invocation so the operator is
-# prompted at most once.
+# Sudo pattern: the shared wire. The sudo password is line one of the ssh
+# stdin stream, both unit files follow as base64 assignments, and the root-side
+# body is cat'd onto the same stream. Nothing secret reaches an argument list,
+# no terminal is involved, and every privileged step runs in one elevated shell.
+# The units travel in the pipe rather than by scp, so the host never holds a
+# staging directory and there is nothing to clean up after a failure.
 #
-# Usage:
-#   scripts/install-backup-timer.sh --target staging
-#   scripts/install-backup-timer.sh --target production
-#   scripts/install-backup-timer.sh --target staging --ssh-alias my-host
+# Usage (the sudo password is read from stdin, line 1; --dry-run needs none):
+#   < <operator credential file> bash scripts/install-backup-timer.sh --target staging
+#   < <operator credential file> bash scripts/install-backup-timer.sh --target production
+#   < <operator credential file> bash scripts/install-backup-timer.sh --target staging --ssh-alias my-host
 #   scripts/install-backup-timer.sh --target staging --dry-run
 #
 # After the first two scheduled runs emit the BackupAgeMinutes metric, set
@@ -49,7 +50,9 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --help|-h)
-      sed -n '2,30p' "$0"
+      # Bounded by the first `set -eu` rather than a line number, so editing
+      # the header cannot silently truncate the help text.
+      sed -n '2,/^set -eu/{/^set -eu/d;p;}' "$0"
       exit 0
       ;;
     *)
@@ -95,61 +98,49 @@ for unit in "$UNIT_SERVICE" "$UNIT_TIMER"; do
   fi
 done
 
-REMOTE_STAGE_DIR="/tmp/footbag-backup-install-$$"
-
-# The privileged sequence, run as one sudo invocation:
-#   install both units -> reload systemd -> enable the timer -> run the
-#   service once -> show timer status and the last service journal lines.
-REMOTE_PRIVILEGED="install -m 0644 -o root -g root $REMOTE_STAGE_DIR/footbag-backup.service /etc/systemd/system/footbag-backup.service \
-&& install -m 0644 -o root -g root $REMOTE_STAGE_DIR/footbag-backup.timer /etc/systemd/system/footbag-backup.timer \
-&& systemctl daemon-reload \
-&& systemctl enable --now footbag-backup.timer \
-&& systemctl start footbag-backup.service \
-&& systemctl --no-pager --lines=0 status footbag-backup.timer \
-&& journalctl -u footbag-backup.service -n 10 --no-pager"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REMOTE_HALF="${SCRIPT_DIR}/internal/install-backup-timer-remote.sh"
 
 if (( DRY_RUN )); then
   echo "== dry run: install footbag-backup units on $TARGET (ssh alias: $SSH_ALIAS) =="
   echo ""
   echo "Would run, in order:"
-  echo "  1. ssh $SSH_ALIAS mkdir -p $REMOTE_STAGE_DIR"
-  echo "  2. scp $UNIT_SERVICE $UNIT_TIMER $SSH_ALIAS:$REMOTE_STAGE_DIR/"
-  echo "  3. ssh -t $SSH_ALIAS sudo bash -c '$REMOTE_PRIVILEGED'"
-  echo "  4. ssh $SSH_ALIAS rm -rf $REMOTE_STAGE_DIR"
+  echo "  1. Read the sudo password from stdin, line 1"
+  echo "  2. Pipe it, both unit files as base64 assignments, and the root-side"
+  echo "     body (${REMOTE_HALF#"$SCRIPT_DIR"/}) into one ssh session"
+  echo "  3. That body installs both units, reloads systemd, enables the timer,"
+  echo "     runs the service once, and prints the status and journal tail"
+  echo ""
+  echo "Nothing is staged on the host, so nothing needs cleaning up afterwards."
   echo ""
   echo "Follow-up after two BackupAgeMinutes datapoints:"
   echo "  set enable_backup_alarm = true in terraform/$TARGET/terraform.tfvars and apply"
   exit 0
 fi
 
-cleanup_remote() {
-  ssh -o BatchMode=yes "$SSH_ALIAS" "rm -rf $REMOTE_STAGE_DIR" 2>/dev/null || true
-}
-trap cleanup_remote EXIT INT TERM
+# shellcheck source=lib/host-env-remote.sh
+source "${SCRIPT_DIR}/lib/host-env-remote.sh"
+
+require_operator_stdin "scripts/install-backup-timer.sh --target $TARGET" || exit 1
+
+[[ -r "$REMOTE_HALF" ]] || { echo "ERROR: missing remote half: $REMOTE_HALF" >&2; exit 1; }
 
 echo "== installing footbag-backup units on $TARGET (ssh alias: $SSH_ALIAS) =="
 echo ""
 
-if ! ssh -o BatchMode=yes "$SSH_ALIAS" "mkdir -p $REMOTE_STAGE_DIR"; then
-  echo "ERROR: cannot reach $SSH_ALIAS (alias missing from ~/.ssh/config, or host down)" >&2
-  exit 1
-fi
+UNIT_SERVICE_B64="$(base64 -w0 < "$UNIT_SERVICE")"
+UNIT_TIMER_B64="$(base64 -w0 < "$UNIT_TIMER")"
 
-if ! scp -q "$UNIT_SERVICE" "$UNIT_TIMER" "$SSH_ALIAS:$REMOTE_STAGE_DIR/"; then
-  echo "ERROR: failed to copy unit files to $SSH_ALIAS:$REMOTE_STAGE_DIR" >&2
-  exit 1
-fi
-
-echo "Unit files staged. Installing via sudo; you will be prompted for your sudo password"
-echo "on this terminal. The password is typed directly into sudo; it is NOT captured,"
-echo "NOT echoed, and NOT logged."
-echo ""
-
-if ! ssh -t "$SSH_ALIAS" "sudo bash -c '$REMOTE_PRIVILEGED'"; then
+if ! {
+      printf '%s\n' "$SUDO_PASS"
+      printf 'UNIT_SERVICE_B64=%q\n' "$UNIT_SERVICE_B64"
+      printf 'UNIT_TIMER_B64=%q\n'   "$UNIT_TIMER_B64"
+      cat "$REMOTE_HALF"
+    } | ssh "${HOST_SSH_OPTS[@]}" "$SSH_ALIAS" 'sudo -k -S -p "" bash'; then
   echo "" >&2
   echo "ERROR: unit install or first backup run failed on $SSH_ALIAS." >&2
   echo "Common causes:" >&2
-  echo "  - Sudo password entered incorrectly or canceled" >&2
+  echo "  - the credential file's first line is not the host sudo password" >&2
   echo "  - BACKUP_S3_BUCKET unset in /srv/footbag/env (backup-db.sh refuses to run)" >&2
   echo "  - sqlite3 or aws CLI missing on the host" >&2
   echo "  - /srv/footbag/scripts/backup-db.sh absent (no deploy has shipped it yet)" >&2

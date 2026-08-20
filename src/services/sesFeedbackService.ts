@@ -9,9 +9,12 @@
  * Escalation-only writes: an admin-set 'suppressed' status is never
  * overwritten, and a complaint outranks a bounce. Subscription-confirmation
  * messages append a token-free audit row and surface the one-time SubscribeURL
- * only on the transient operator log line for out-of-band confirmation; the URL
- * is never persisted in the audit trail (it is a bearer token) and never
- * auto-fetched (auto-confirm would fetch an attacker-supplied URL).
+ * on the operator log line for out-of-band confirmation; the URL is never
+ * persisted in the audit trail (it is a bearer token, and the trail is
+ * admin-exportable and exempt from erasure) and never auto-fetched
+ * (auto-confirm would fetch an attacker-supplied URL). The log is not a void:
+ * it ships to CloudWatch and is retained, so the distinction being drawn is
+ * which surface holds the token, not whether it is written down at all.
  *
  * Idempotency: the inbound SNS MessageId is claimed in ses_events (INSERT OR
  * IGNORE) inside the same transaction as the status writes; a redelivery whose
@@ -27,10 +30,11 @@
 import { sesFeedback, mailingListSubscriptions, sesEvents, transaction } from '../db/db';
 import { appendAuditEntry } from './auditService';
 import { logger } from '../config/logger';
+import { safeSubscribeUrlForLog } from '../lib/snsSignature';
 
 export type SesFeedbackResult =
   | { status: 'processed'; kind: 'bounce' | 'complaint'; recipients: number; membersUpdated: number }
-  | { status: 'duplicate'; kind: 'bounce' | 'complaint' }
+  | { status: 'duplicate'; kind: 'bounce' | 'complaint' | 'subscription_confirmation' }
   | { status: 'subscription_pending' }
   | { status: 'ignored'; reason: 'transient_bounce' | 'unknown_type' | 'malformed' };
 
@@ -51,26 +55,47 @@ function processSnsMessage(rawBody: string): SesFeedbackResult {
   }
 
   if (envelope.Type === 'SubscriptionConfirmation') {
-    appendAuditEntry({
-      actionType:    'email.sns_subscription_pending',
-      category:      'system',
-      actorType:     'system',
-      actorMemberId: null,
-      entityType:    'system',
-      entityId:      'ses_feedback',
-      reasonText:    'SNS subscription confirmation received; operator confirms the subscription out-of-band.',
-      metadata: {
-        topic_arn:     typeof envelope.TopicArn === 'string' ? envelope.TopicArn : null,
-      },
+    // Claim the message id first, exactly as the notification path does. Without
+    // it every repeat of one confirmation writes another row into an
+    // append-only ledger that nothing can prune, which is a flooding primitive
+    // for anyone able to reach this endpoint.
+    const confirmationId = typeof envelope.MessageId === 'string' ? envelope.MessageId : null;
+    const seenAt = new Date().toISOString();
+    let outcome: SesFeedbackResult = { status: 'subscription_pending' };
+    transaction(() => {
+      if (confirmationId) {
+        const claim = sesEvents.insertEventOrIgnore.run(
+          confirmationId, seenAt, 'subscription_confirmation', seenAt, 0,
+        );
+        if (claim.changes === 0) {
+          outcome = { status: 'duplicate', kind: 'subscription_confirmation' };
+          return;
+        }
+      }
+      appendAuditEntry({
+        actionType:    'email.sns_subscription_pending',
+        category:      'system',
+        actorType:     'system',
+        actorMemberId: null,
+        entityType:    'system',
+        entityId:      'ses_feedback',
+        reasonText:    'SNS subscription confirmation received; operator confirms the subscription out-of-band.',
+        metadata: {
+          topic_arn:     typeof envelope.TopicArn === 'string' ? envelope.TopicArn : null,
+        },
+      });
+      // The one-time SubscribeURL is a bearer confirmation token, so it stays out
+      // of the admin-exportable, erasure-exempt audit trail and is surfaced on
+      // this operator log line instead. It is also attacker-chosen on a forged
+      // confirmation, so it is logged only when it is genuinely an SNS endpoint
+      // and within a length bound; the token is single-use and expires, which is
+      // what makes the log an acceptable home for it.
+      logger.warn('ses_feedback.subscription_confirmation_pending', {
+        topicArn:     envelope.TopicArn,
+        subscribeUrl: safeSubscribeUrlForLog(envelope.SubscribeURL),
+      });
     });
-    // The one-time SubscribeURL is a bearer confirmation token, so it stays out
-    // of the durable, admin-exportable audit trail and is surfaced only on this
-    // transient operator log line for immediate out-of-band confirmation.
-    logger.warn('ses_feedback.subscription_confirmation_pending', {
-      topicArn:     envelope.TopicArn,
-      subscribeUrl: envelope.SubscribeURL,
-    });
-    return { status: 'subscription_pending' };
+    return outcome;
   }
 
   if (envelope.Type !== 'Notification' || typeof envelope.Message !== 'string') {
@@ -126,7 +151,12 @@ function applyStatus(
     // written exactly once. A notification without a MessageId cannot be deduped
     // and is processed (dropping real feedback over a missing key is worse).
     if (messageId) {
-      const claim = sesEvents.insertEventOrIgnore.run(messageId, now, kind, now);
+      // The recipient count travels with the claim. One notification can name
+      // several bounced or complained addresses, and the health view reports
+      // recipients, not notifications, so counting rows would undercount.
+      const claim = sesEvents.insertEventOrIgnore.run(
+        messageId, now, kind, now, recipients.length,
+      );
       if (claim.changes === 0) {
         duplicate = true;
         return;

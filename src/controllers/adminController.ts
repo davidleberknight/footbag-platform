@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { clubCleanupService } from '../services/clubCleanupService';
 import { adminWorkQueueService } from '../services/adminWorkQueueService';
+import { systemHealthService } from '../services/systemHealthService';
 
 export const adminController = {
   index(_req: Request, res: Response, next: NextFunction): void {
@@ -11,6 +12,7 @@ export const adminController = {
         content: {
           backlog: clubCleanupService.getBacklogBadge(),
           workQueue: adminWorkQueueService.getWorkQueueSummary(),
+          health: systemHealthService.getHealthBadges(),
         },
       });
     } catch (err) {

@@ -1,0 +1,64 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    <p>Alarms the monitoring service has reported to the platform. Acknowledge one to record that you are handling it, with an optional note describing what you did. An alarm clears when the monitored condition returns to normal.</p>
+  </div>
+</div>
+
+<div class="wrapper">
+  {{#if content.showAcknowledgedNotice}}
+    <p class="form-success-banner" role="status">Alarm acknowledged.</p>
+  {{/if}}
+  {{#if content.showAlreadySettledNotice}}
+    <p class="form-error-banner" role="status">That alarm was already handled. Nothing was changed.</p>
+  {{/if}}
+
+  <p class="text-muted">{{content.resultSummary}}</p>
+
+  {{#unless content.hasAlarms}}
+    <section>
+      <p class="text-muted">Nothing has been reported yet. Alarms appear here as the monitoring service raises them.</p>
+    </section>
+  {{/unless}}
+
+  {{#each content.alarms}}
+    <div class="card mb-2">
+      <div class="card-title">
+        {{this.alarmLabel}}
+        {{#if this.isCritical}}
+          <span class="badge badge-warn">{{this.severityLabel}}</span>
+        {{else}}
+          <span class="badge badge-muted">{{this.severityLabel}}</span>
+        {{/if}}
+        <span class="badge">{{this.statusLabel}}</span>
+      </div>
+      <p class="card-meta">
+        Raised {{this.raisedAtDisplay}}
+        {{#if this.clearedAtDisplay}} &middot; cleared {{this.clearedAtDisplay}}{{/if}}
+      </p>
+      {{#if this.reasonText}}
+        <p>{{this.reasonText}}</p>
+      {{/if}}
+      {{#if this.acknowledgedSummary}}
+        <p class="card-meta">{{this.acknowledgedSummary}}</p>
+        {{#if this.acknowledgmentNote}}
+          <p class="text-secondary">{{this.acknowledgmentNote}}</p>
+        {{/if}}
+      {{/if}}
+      {{#if this.canAcknowledge}}
+        <form method="POST" action="{{this.acknowledgeHref}}" class="form-block">
+          <div class="form-field">
+            <label for="alarm_note_{{this.id}}">Response note (optional)</label>
+            <textarea id="alarm_note_{{this.id}}" name="note" rows="2" maxlength="500" placeholder="What you did about it"></textarea>
+          </div>
+          <button type="submit" class="btn btn-outline btn-sm">Acknowledge</button>
+        </form>
+      {{/if}}
+    </div>
+  {{/each}}
+
+  <p class="mt-4">
+    {{#if content.prevPageHref}}<a href="{{content.prevPageHref}}" class="btn btn-outline">Previous</a>{{/if}}
+    {{#if content.nextPageHref}}<a href="{{content.nextPageHref}}" class="btn btn-outline">Next</a>{{/if}}
+  </p>
+</div>

@@ -87,7 +87,7 @@ echo ""
 echo "  footbag dev stack"
 echo "    web          http://localhost:3000"
 echo "    workers      image :4001   outbox/jobs :3100"
-echo "    logs         development, human-readable, LOG_LEVEL=${LOG_LEVEL:-debug}"
+echo "    logs         development, human-readable, LOG_LEVEL=${LOG_LEVEL:-info} (set LOG_LEVEL=debug for per-request and heartbeat lines)"
 echo "    stop         Ctrl+C (stops all three)"
 echo ""
 

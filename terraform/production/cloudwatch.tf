@@ -49,8 +49,13 @@ resource "aws_cloudwatch_metric_alarm" "app_errors" {
   period              = 60
   threshold           = 1
   alarm_actions       = [aws_sns_topic.alarms.arn]
-  treat_missing_data  = "notBreaching"
-  alarm_description   = "One or more logger.error() calls observed in the app log within the last minute."
+  # The platform records an alarm when this fires and clears it when the monitor
+  # reports back to normal. Without the return-to-normal publication that clear
+  # never arrives, so the recorded alarm stays open on the admin dashboard for
+  # good and acknowledging it does not end it.
+  ok_actions         = [aws_sns_topic.alarms.arn]
+  treat_missing_data = "notBreaching"
+  alarm_description  = "One or more logger.error() calls observed in the app log within the last minute."
 }
 
 # ── Alarms ────────────────────────────────────────────────────────────────────
@@ -177,6 +182,9 @@ resource "aws_cloudwatch_metric_alarm" "cloudfront_5xx" {
   threshold           = 5 # Alert if >5% 5xx rate
   alarm_description   = "CloudFront 5xx error rate above 5%"
   alarm_actions       = [aws_sns_topic.alarms.arn]
+  # Published on the way back to normal as well, so the alarm the platform
+  # recorded can actually clear rather than sitting open for ever.
+  ok_actions = [aws_sns_topic.alarms.arn]
 
   dimensions = {
     DistributionId = aws_cloudfront_distribution.main[0].id

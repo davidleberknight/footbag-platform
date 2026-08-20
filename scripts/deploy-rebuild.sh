@@ -378,10 +378,10 @@ else
   # are kept. Best-effort: a reclaim failure must not abort the deploy.
   echo "==> Reclaiming host disk (journal vacuum + docker prune)..."
   printf '%s\n' "$SUDO_PASS" \
-    | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -S -p "" sh -c "journalctl --vacuum-time=7d; docker system prune -af"' \
+    | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" sh -c "journalctl --vacuum-time=7d; docker system prune -af"' \
     || echo "    WARNING: host disk-reclaim step failed; continuing." >&2
   { printf '%s\n' "$SUDO_PASS"; docker save docker-web docker-worker docker-image; } \
-    | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -S -p "" docker load'
+    | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" docker load'
 fi
 
 # Parse .local/initial-admins.txt into the FOOTBAG_DEV_INITIAL_ADMIN_EMAILS CSV
@@ -455,7 +455,7 @@ echo "==> Running remote-as-root rebuild deploy via cat-pipe..."
   # live-marked production, or a production database holding real members,
   # they exit non-zero before the remote half, so nothing live is touched.
   cat "$CUTOVER_GUARD" "$PROD_LIVE_GUARD" "$REMOTE_HALF"
-} | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -S -p "" bash'
+} | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash'
 
 # Smoke runs against the public CloudFront URL. No environment URL is
 # committed to the repo (the staging address is deliberately unpublished):

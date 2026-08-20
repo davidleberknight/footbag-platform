@@ -174,6 +174,38 @@ describe('POST /admin/work-queue/:id/claim', () => {
     expect(res.status).toBe(403);
   });
 
+  // An administrator can disable any template from the template editor. The send
+  // then reports suppression instead of throwing, and telling the administrator
+  // the member was notified sends them away believing the request is closed on
+  // both sides when nothing was ever enqueued.
+  it('says the item was resolved, not that the member was told, when the reply template is disabled', async () => {
+    const app = createApp();
+    const queueId = await postOneOpenRequest(app, MEMBER_ID, MEMBER_SLUG);
+    const db = new BetterSqlite3(dbPath);
+    db.prepare(`UPDATE email_templates SET is_enabled = 0 WHERE template_key = 'contact_request_resolution'`).run();
+    db.close();
+
+    const resolve = await request(app)
+      .post(`/admin/work-queue/${queueId}/resolve`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ decision_label: 'corrected', resolution_note: 'Handled out of band.' });
+    expect(resolve.status).toBe(303);
+
+    const flashCookie = ((resolve.headers['set-cookie'] as unknown as string[]) ?? [])
+      .map((c) => c.split(';')[0])
+      .join('; ');
+    const page = await request(app)
+      .get('/admin/work-queue')
+      .set('Cookie', [adminCookie(), flashCookie].filter(Boolean).join('; '));
+    expect(page.text).toContain('Item resolved.');
+    expect(page.text).not.toContain('email reply dispatched');
+
+    const check = new BetterSqlite3(dbPath);
+    check.prepare(`UPDATE email_templates SET is_enabled = 1 WHERE template_key = 'contact_request_resolution'`).run();
+    check.close();
+  });
+
   it('claiming an unknown id is a harmless no-op → 303', async () => {
     const app = createApp();
     const res = await request(app).post(`/admin/work-queue/wq_no_such_item/claim`).set('Cookie', adminCookie()).type('form').send({});
@@ -211,6 +243,13 @@ describe('POST /admin/work-queue/:id/resolve', () => {
     // The append-only ledger is exempt from PII purge, so the member's
     // free-text message must never be copied into resolution metadata.
     expect(String(audit!.metadata_json)).not.toContain('please fix my name');
+    // Nor the administrator's note. It is free text written about a member and
+    // is held in the purgeable work-queue row, which erasure can reach; a copy
+    // in the ledger would outlive that erasure. The decision survives instead.
+    expect(String(audit!.metadata_json)).not.toContain('Fixed your display name.');
+    expect(String(audit!.metadata_json)).toContain('corrected');
+    // The operational copy is still there for an administrator to read.
+    expect(row!.reason_text).toBeDefined();
 
     // Services enqueue notification emails via the outbox table; the SES
     // adapter is never called directly from a service or controller.
@@ -589,7 +628,11 @@ describe('POST /admin/work-queue/:id/resolve — payments tasks', () => {
         const meta = JSON.parse(audit!.metadata_json) as Record<string, unknown>;
         expect(meta.queue_item_id).toBe(queueId);
         expect(meta.decision_label).toBe('handled_in_stripe');
-        expect(meta.resolution_note).toBe('Refunded in the Stripe dashboard.');
+        // The note stays out of the append-only ledger: it is free text written
+        // about a member, and the ledger is exempt from PII purge, so a copy
+        // here would outlive the erasure that clears the work-queue row above.
+        // The decision label is what the ledger keeps.
+        expect(meta.resolution_note).toBeUndefined();
       } finally {
         db.close();
       }
@@ -927,6 +970,36 @@ describe('POST /admin/work-queue/:id/dismiss — low-confidence auto-link match'
 
     expect(auditCount('legacy.auto_link_match_reviewed', MEMBER_ID)).toBe(1);
     expect(auditCount('legacy.dob_conflict_reviewed', MEMBER_ID)).toBe(0);
+  });
+
+  // The note is free text an administrator writes about a member, so it belongs
+  // in the work-queue row that erasure scrubs, not in the append-only ledger the
+  // purge cannot reach.
+  it('the dismissal note is kept on the queue row and stays out of the audit ledger', async () => {
+    const app = createApp();
+    const queueId = await seedAutoLinkMatch(MEMBER_ID);
+    const note = 'Spoke to them; the 1998 account belongs to their brother.';
+    await request(app)
+      .post(`/admin/work-queue/${queueId}/dismiss`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ note });
+
+    const db = new BetterSqlite3(dbPath);
+    const row = db
+      .prepare('SELECT reason_text FROM work_queue_items WHERE id = ?')
+      .get(queueId) as { reason_text: string | null } | undefined;
+    const ledger = db
+      .prepare(`SELECT metadata_json, reason_text FROM audit_entries
+                WHERE action_type = 'legacy.auto_link_match_reviewed'
+                  AND metadata_json LIKE '%' || ? || '%'`)
+      .all(queueId) as Array<Record<string, unknown>>;
+    db.close();
+
+    expect(row?.reason_text).toBe(note);
+    expect(ledger).toHaveLength(1);
+    expect(`${String(ledger[0].metadata_json)} ${String(ledger[0].reason_text ?? '')}`)
+      .not.toContain(note);
   });
 
   it('its hint does not offer to undo a link, because none was applied', async () => {

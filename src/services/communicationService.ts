@@ -63,7 +63,13 @@ import { SesAdapter, getSesAdapter } from '../adapters/sesAdapter';
 
 export interface EnqueueEmailInput {
   recipientEmail: string;
-  recipientMemberId?: string;
+  /**
+   * Required, and deliberately not optional. Erasure reaches an outbox row
+   * through this column and nothing else: a row without it is personal data
+   * with no owner, unreachable by any scrub. Every current call site sets it;
+   * the type is what stops the next one from not setting it.
+   */
+  recipientMemberId: string;
   subject: string;
   bodyText: string;
   idempotencyKey?: string;
@@ -184,7 +190,7 @@ export function createCommunicationService(
           // member id, never the address itself.
           logger.warn('outbox enqueue suppressed: recipient mailbox is undeliverable', {
             mailboxMemberId: mailbox.id,
-            recipientMemberId: input.recipientMemberId ?? null,
+            recipientMemberId: input.recipientMemberId,
             emailStatus: mailbox.email_status,
             templateKey: input.templateKey ?? null,
           });
@@ -200,7 +206,7 @@ export function createCommunicationService(
           now,
           input.idempotencyKey ?? null,
           input.recipientEmail,
-          input.recipientMemberId ?? null,
+          input.recipientMemberId,
           input.mailingListId ?? null,
           null, // sender_member_id
           input.fromIdentity ?? defaultFrom ?? null,

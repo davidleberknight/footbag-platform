@@ -96,3 +96,8 @@ output "alarm_topic_arn" {
   description = "ARN of the SNS alarm notification topic"
   value       = aws_sns_topic.alarms.arn
 }
+
+output "ses_feedback_topic_arn" {
+  description = "ARN of the SNS topic carrying SES bounce and complaint notifications. The app checks an inbound notification's publishing topic against this value, so it is set on the host by scripts/set-host-env.sh."
+  value       = aws_sns_topic.ses_feedback.arn
+}

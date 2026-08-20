@@ -145,9 +145,17 @@ export function summary(actorId: string): RosterSummary {
  * an empty field. We do not escape unicode mischief beyond this; CSV
  * readers are responsible for character-set handling.
  */
+const FORMULA_LEAD = /^[=+\-@\t\r]/;
 function csvEscape(field: string | number | null): string {
   if (field === null) return '';
-  const s = typeof field === 'number' ? String(field) : field;
+  // A number is the platform's own value and is emitted as written; a negative
+  // one must not gain an apostrophe. Text comes from member-chosen names, whose
+  // validation constrains only length, so a leading '=', '+', '-', '@', tab or
+  // carriage return is neutralised: a spreadsheet application reads those as the
+  // start of a formula and would execute it when the administrator opens the file.
+  const s = typeof field === 'number'
+    ? String(field)
+    : (FORMULA_LEAD.test(field) ? `'${field}` : field);
   if (/[",\r\n]/.test(s)) {
     return `"${s.replace(/"/g, '""')}"`;
   }

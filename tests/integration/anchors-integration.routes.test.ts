@@ -457,3 +457,46 @@ describe('mailbox-control verification email enqueue failure', () => {
     expect(token!.used_at).toBeNull();
   });
 });
+
+// The prompt shown to a registrant names the people it found, because that is
+// the question it is asking them. The permanent ledger entry behind it must not:
+// erasure never reaches that table, so a name recorded there outlives the account
+// it belongs to, and these are other people's names held against a registrant who
+// may have no connection to them.
+describe('registration conflict ledger entry', () => {
+  it('names conflicting records by identifier, never by the person, and stays bounded', async () => {
+    insertLegacyMember(db, {
+      legacy_member_id: 'LM-ledger-1', legacy_email: 'ledger-claimed@old.example.com',
+      real_name: 'Ledger Ledgersson', display_name: 'Ledger Ledgersson',
+    });
+    insertMember(db, {
+      id: 'mem-ledger-owner', slug: 'mem_ledger_owner',
+      login_email: 'ledger-owner@example.com',
+      real_name: 'Ledger Ledgersson', display_name: 'Ledger Ledgersson',
+    });
+    identity.identityAccessService.claimLegacyAccount('mem-ledger-owner', 'LM-ledger-1');
+
+    const res = await request(createApp())
+      .post('/register')
+      .type('form')
+      .send({
+        email: 'ledger-new@example.com',
+        password: 'TestPassword123!',
+        confirmPassword: 'TestPassword123!',
+        realName: 'Newcomer Ledgersson',
+        displayName: 'Newcomer Ledgersson',
+      });
+    expect(res.status).toBe(303);
+
+    const registered = db.prepare('SELECT id FROM members WHERE login_email = ?')
+      .get('ledger-new@example.com') as { id: string };
+    const rows = audits(registered.id, 'legacy.registration_conflict_prompted');
+    expect(rows).toHaveLength(1);
+
+    const metadata = JSON.parse(rows[0].metadata_json as string);
+    expect(metadata.conflict_count).toBeGreaterThan(0);
+    expect(metadata.conflicts[0].legacy_member_id).toBe('LM-ledger-1');
+    expect(metadata.conflicts.length).toBeLessThanOrEqual(5);
+    expect(JSON.stringify(metadata)).not.toContain('Ledgersson');
+  }, 30000);
+});

@@ -5,7 +5,7 @@
 #
 #   scripts/set-host-env.sh        writes them
 #   scripts/bringup-status.sh      reports whether they are present and valid
-#   scripts/verify-staging-env.sh  warns when they are not
+#   scripts/verify-host-env.sh     warns when they are not
 #
 # The hop count in particular was previously written out in two of those
 # scripts, once as an inline conditional and once inside a warning string.
@@ -60,6 +60,34 @@ expected_trust_proxy_note() {
       ;;
     *)
       echo "expected_trust_proxy_note: unknown target '${target}'" >&2
+      return 1
+      ;;
+  esac
+}
+
+# expected_jwt_kms_key_id <staging|production>
+# The KMS identifier a host should hand to the signing adapter, which is the
+# terraform-managed alias rather than the key's ARN.
+#
+# The adapter stamps this exact string into every session token's `kid` header
+# and refuses any token whose `kid` does not match it. So the value is published
+# to every client holding a session, and changing it logs everyone out. The ARN
+# form would put the AWS account id and the key's uuid in that header for no
+# benefit; the alias names the same key without disclosing either. Referring to
+# KMS keys by alias is also what the rest of this project does.
+#
+# Where the alias points is not checked here and does not need to be: the alias
+# is a terraform resource, so a repoint is ordinary terraform drift and shows up
+# in the plan the bring-up view already runs. What belongs here is only whether
+# the host holds the identifier terraform declares.
+expected_jwt_kms_key_id() {
+  local target="${1:-}"
+  case "$target" in
+    staging|production)
+      echo "alias/footbag-${target}-jwt"
+      ;;
+    *)
+      echo "expected_jwt_kms_key_id: unknown target '${target}'" >&2
       return 1
       ;;
   esac

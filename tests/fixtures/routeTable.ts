@@ -64,7 +64,7 @@ export async function loadRouteTable(): Promise<RouteTable> {
   return {
     allRoutes: out,
     mutationRoutes: out.filter((r) => MUTATION_METHODS.has(r.method)),
-    exemptExact: [pub.STRIPE_WEBHOOK_PATH, pub.SES_FEEDBACK_WEBHOOK_PATH],
+    exemptExact: [pub.STRIPE_WEBHOOK_PATH, pub.SES_FEEDBACK_WEBHOOK_PATH, pub.ALARM_WEBHOOK_PATH],
   };
 }
 

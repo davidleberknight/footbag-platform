@@ -167,15 +167,16 @@ export const adminWorkQueueController = {
    * (which resolves the item) or reject it. */
   async linkHelpDisputeRevert(req: Request, res: Response, next: NextFunction): Promise<void> {
     const queueItemId = req.params['id'] ?? '';
-    const holderMemberId = String(req.body?.holder_member_id ?? '').trim();
+    const targetLegacyMemberId = String(req.body?.target_legacy_member_id ?? '');
+    const targetHistoricalPersonId = String(req.body?.target_historical_person_id ?? '');
     const reason = String(req.body?.reason ?? '');
     try {
-      if (!holderMemberId) {
-        throw new ValidationError('The current holder\'s member id is required.');
-      }
-      const result = identityAccessService.revertClaimForDispute(req.user!.userId, queueItemId, holderMemberId, reason);
+      const result = identityAccessService.revertClaimForDispute(req.user!.userId, queueItemId, {
+        legacyMemberId: targetLegacyMemberId,
+        historicalPersonId: targetHistoricalPersonId,
+      }, reason);
       if (result.status === 'nothing_to_revert') {
-        res.status(422).render('admin/work-queue/index', adminWorkQueueService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: 'That member holds no claim to revert.' }));
+        res.status(422).render('admin/work-queue/index', adminWorkQueueService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: 'Nobody currently holds that record, so there is no claim to revert.' }));
         return;
       }
       writeFlash(res, req, FLASH_KIND.WORK_QUEUE_RESOLVED, req.params['id'] ?? '');

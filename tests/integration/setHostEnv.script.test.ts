@@ -26,7 +26,7 @@ import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 const SCRIPT = join(process.cwd(), 'scripts/set-host-env.sh');
 const LIB = join(process.cwd(), 'scripts/lib/host-env-expectations.sh');
 const STATUS_SCRIPT = join(process.cwd(), 'scripts/bringup-status.sh');
-const VERIFY_SCRIPT = join(process.cwd(), 'scripts/verify-staging-env.sh');
+const VERIFY_SCRIPT = join(process.cwd(), 'scripts/verify-host-env.sh');
 
 interface RunResult {
   exitCode: number;
@@ -34,10 +34,19 @@ interface RunResult {
   stderr: string;
 }
 
+/** The two SNS topic ARNs the setter also writes. Real runs read them from the
+ *  Terraform outputs; synthetic mode takes them from the environment, and every
+ *  case below that is not about them supplies these so the suite stays about
+ *  the hop count and the bucket. A case that IS about them overrides. */
+const SYNTHETIC_ARNS = {
+  ALARM_TOPIC_ARN_VALUE: 'arn:aws:sns:us-east-1:000000000000:footbag-alarms',
+  SES_FEEDBACK_TOPIC_ARN_VALUE: 'arn:aws:sns:us-east-1:000000000000:footbag-ses-feedback',
+} as const;
+
 function run(args: string[], extraEnv: Record<string, string> = {}): RunResult {
   const r = spawnSync('bash', [SCRIPT, ...args], {
     cwd: process.cwd(),
-    env: { ...process.env, ...extraEnv },
+    env: { ...process.env, ...SYNTHETIC_ARNS, ...extraEnv },
     encoding: 'utf-8',
     ...SPAWN_GUARD,
   });
@@ -135,8 +144,14 @@ describe('set-host-env.sh rewrite contract', () => {
     });
   });
 
-  it('is a no-op when both values already read as intended', () => {
-    const contents = 'TRUST_PROXY=2\nBACKUP_S3_BUCKET=b\n';
+  it('is a no-op when every value already reads as intended', () => {
+    const contents = [
+      'TRUST_PROXY=2',
+      'BACKUP_S3_BUCKET=b',
+      `ALARM_TOPIC_ARN=${SYNTHETIC_ARNS.ALARM_TOPIC_ARN_VALUE}`,
+      `SES_FEEDBACK_TOPIC_ARN=${SYNTHETIC_ARNS.SES_FEEDBACK_TOPIC_ARN_VALUE}`,
+      '',
+    ].join('\n');
     withEnvFile(contents, (path) => {
       const r = run(['--target', 'staging', '--env-file', path], { BACKUP_S3_BUCKET_VALUE: 'b' });
       expect(r.exitCode).toBe(0);
@@ -170,7 +185,32 @@ describe('set-host-env.sh refusals', () => {
     });
   });
 
-  it('dry run resolves both values and writes nothing', () => {
+  it('writes both SNS topic ARNs, because a feed missing one refuses every delivery', () => {
+    withEnvFile('A=1\n', (path) => {
+      const r = run(['--target', 'staging', '--env-file', path], { BACKUP_S3_BUCKET_VALUE: 'b' });
+      expect(r.exitCode).toBe(0);
+      const out = readFileSync(path, 'utf-8');
+      expect(out).toContain(`ALARM_TOPIC_ARN=${SYNTHETIC_ARNS.ALARM_TOPIC_ARN_VALUE}`);
+      expect(out).toContain(`SES_FEEDBACK_TOPIC_ARN=${SYNTHETIC_ARNS.SES_FEEDBACK_TOPIC_ARN_VALUE}`);
+    });
+  });
+
+  it('refuses synthetic mode without the topic ARNs rather than writing empty ones', () => {
+    // An empty ARN is worse than an absent one: the webhook compares the
+    // publishing topic against it and refuses every delivery, quietly.
+    withEnvFile('A=1\n', (path) => {
+      const r = run(['--target', 'staging', '--env-file', path], {
+        BACKUP_S3_BUCKET_VALUE: 'b',
+        ALARM_TOPIC_ARN_VALUE: '',
+        SES_FEEDBACK_TOPIC_ARN_VALUE: '',
+      });
+      expect(r.exitCode).toBe(2);
+      expect(r.stderr).toContain('ALARM_TOPIC_ARN_VALUE');
+      expect(readFileSync(path, 'utf-8'), 'the file is untouched').toBe('A=1\n');
+    });
+  });
+
+  it('dry run resolves every value and writes nothing', () => {
     withEnvFile('A=1\n', (path) => {
       const r = run(['--target', 'production', '--dry-run', '--env-file', path], {
         BACKUP_S3_BUCKET_VALUE: 'b',

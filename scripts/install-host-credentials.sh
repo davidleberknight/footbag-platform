@@ -154,7 +154,7 @@ echo "== writing credential files via cat-pipe =="
   printf 'TARGET_ENV=%q\n' "$TARGET"
   printf 'AWS_REGION_VAL=%q\n' "$AWS_REGION_VAL"
   cat "$REMOTE_HALF"
-} | ssh "${SSH_OPTS[@]}" "$SSH_ALIAS" 'sudo -S -p "" bash'
+} | ssh "${SSH_OPTS[@]}" "$SSH_ALIAS" 'sudo -k -S -p "" bash'
 
 # Destroy the local copy here rather than telling the operator to. A cleanup
 # step a human has to remember is a cleanup step that eventually does not

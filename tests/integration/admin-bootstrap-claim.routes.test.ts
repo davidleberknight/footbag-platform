@@ -122,4 +122,26 @@ describe('bootstrap claim', () => {
     ).get() as { n: number };
     expect(audit.n).toBe(0);
   });
+
+  // Nothing ever clears the admin flag except another admin's revoke, so a sole
+  // administrator who dies or deletes their account leaves the row behind still
+  // carrying it. Counting that row as an administrator wedges the recovery path
+  // shut in exactly the total-loss case it exists for, and the deliberately
+  // non-revealing failure leaves the operator with nothing to diagnose.
+  it('grants when the only administrator left is a deleted or deceased account', async () => {
+    db.prepare(`UPDATE members SET deleted_at = '2026-05-01T00:00:00.000Z' WHERE id = ?`)
+      .run('boot-claimer');
+    insertMember(db, { id: 'boot-third', slug: 'boot_third', login_email: 'boot3@example.com' });
+    stub().setSecret(TOKEN_PARAM, 'one-shot-bootstrap-token');
+
+    const res = await request(createApp())
+      .post('/admin/bootstrap-claim')
+      .set('Cookie', cookieFor('boot-third'))
+      .type('form')
+      .send({ token: 'one-shot-bootstrap-token' });
+    expect(res.status).toBe(200);
+
+    const granted = db.prepare('SELECT is_admin FROM members WHERE id = ?').get('boot-third') as Record<string, unknown>;
+    expect(granted.is_admin).toBe(1);
+  });
 });

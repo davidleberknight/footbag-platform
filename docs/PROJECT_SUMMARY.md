@@ -479,7 +479,7 @@ The following design patterns solve fundamental distributed systems problems.
 
 **Transaction Safety:**
 
-SQLite ACID transactions provide the primary write-safety guarantees. SQLite serializes conflicting transactions automatically via busy_timeout. Application enforces a (configurable) 30-second transaction timeout to prevent runaway operations, and services use bounded retry handling for SQLITE_BUSY where appropriate (especially idempotent operations). Services wrap multi-step operations in the transaction helper.
+SQLite ACID transactions provide the primary write-safety guarantees. SQLite serializes conflicting transactions automatically via busy_timeout. Application enforces a (configurable) 30-second transaction timeout to prevent runaway operations, and a busy or locked database surfaces as a temporary-unavailable service error rendered as 503 rather than through a second application-level retry loop. Services wrap multi-step operations in the transaction helper.
 
 **Outbox Pattern (Reliable Email Delivery):**
 

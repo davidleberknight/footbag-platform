@@ -338,7 +338,18 @@ describe('identityAccessService.revertClaimForDispute (queue-item binding)', () 
     adminSeeded = true;
   }
 
-  function insertQueueItem(opts: { entityId: string; isDispute: boolean }): string {
+  function insertQueueItem(opts: {
+    entityId: string;
+    isDispute: boolean;
+    /** The records the dispute names. The service refuses a revert on any
+     *  record outside these lists, so a test reverting a record must name it. */
+    disputedLegacyMemberIds?: string[];
+    disputedHistoricalPersonIds?: string[];
+    /** Who held each named record when the dispute was filed. The revert also
+     *  refuses a record whose holder has changed since, so a test reverting a
+     *  record must say who it was filed against. */
+    disputedRecordHolders?: Record<string, string>;
+  }): string {
     const id = nextId('wq');
     const now = '2026-01-01T00:00:00.000Z';
     const payload = JSON.stringify({
@@ -347,8 +358,30 @@ describe('identityAccessService.revertClaimForDispute (queue-item binding)', () 
       claimed_legacy_email: null,
       vouchers: null,
       is_dispute: opts.isDispute,
+      disputed_legacy_member_ids: opts.disputedLegacyMemberIds ?? [],
+      disputed_historical_person_ids: opts.disputedHistoricalPersonIds ?? [],
     });
     const db = open();
+    // Default to whoever holds each named record right now, which is what a
+    // real filing records. A test can override to model a record that changed
+    // hands after the dispute was filed.
+    const holders: Record<string, string> = opts.disputedRecordHolders ?? {};
+    if (!opts.disputedRecordHolders) {
+      for (const legacyMemberId of opts.disputedLegacyMemberIds ?? []) {
+        const row = db.prepare('SELECT claimed_by_member_id FROM legacy_members WHERE legacy_member_id = ?')
+          .get(legacyMemberId) as { claimed_by_member_id: string | null } | undefined;
+        if (row?.claimed_by_member_id) holders[legacyMemberId] = row.claimed_by_member_id;
+      }
+      for (const personId of opts.disputedHistoricalPersonIds ?? []) {
+        const row = db.prepare('SELECT id FROM members WHERE historical_person_id = ?')
+          .get(personId) as { id: string } | undefined;
+        if (row?.id) holders[personId] = row.id;
+      }
+    }
+    const payloadWithHolders = JSON.stringify({
+      ...JSON.parse(payload) as Record<string, unknown>,
+      disputed_record_holders: holders,
+    });
     db.prepare(`
       INSERT INTO work_queue_items (
         id, created_at, created_by, updated_at, updated_by, version,
@@ -357,16 +390,16 @@ describe('identityAccessService.revertClaimForDispute (queue-item binding)', () 
       ) VALUES (?, ?, 'system', ?, 'system', 1,
         'membership', 'member_link_help_request', 'member', ?,
         'open', 5, ?, ?)
-    `).run(id, now, now, opts.entityId, now, payload);
+    `).run(id, now, now, opts.entityId, now, payloadWithHolders);
     db.close();
     return id;
   }
 
   it('refuses a revert not bound to any open help-request queue item', () => {
     seedAdmin();
-    const { memberId } = setupClaimed({ withHpBackLink: false });
+    const { memberId, legacyId } = setupClaimed({ withHpBackLink: false });
     expect(() =>
-      svc.revertClaimForDispute(ADMIN_ID, 'wq-does-not-exist', memberId, 'forged dispute'),
+      svc.revertClaimForDispute(ADMIN_ID, 'wq-does-not-exist', { legacyMemberId: legacyId }, 'forged dispute'),
     ).toThrow(/not found or already resolved/i);
     // The holder's claim must be untouched.
     expect(memberRow(memberId).legacy_member_id).not.toBeNull();
@@ -374,16 +407,40 @@ describe('identityAccessService.revertClaimForDispute (queue-item binding)', () 
 
   it('refuses a revert bound to an open help-request item that is not a dispute', () => {
     seedAdmin();
-    const { memberId } = setupClaimed({ withHpBackLink: false });
+    const { memberId, legacyId } = setupClaimed({ withHpBackLink: false });
     const requesterId = nextId('req');
     const db = open();
     insertMember(db, { id: requesterId, login_email: `${requesterId}@example.com` });
     db.close();
     const itemId = insertQueueItem({ entityId: requesterId, isDispute: false });
     expect(() =>
-      svc.revertClaimForDispute(ADMIN_ID, itemId, memberId, 'not actually disputed'),
+      svc.revertClaimForDispute(ADMIN_ID, itemId, { legacyMemberId: legacyId }, 'not actually disputed'),
     ).toThrow(/not a conflict dispute/i);
     expect(memberRow(memberId).legacy_member_id).not.toBeNull();
+  });
+
+  // Once one dispute is upheld and its filer is linked onto the record, a second
+  // dispute still naming that record would otherwise strip the freshly vetted
+  // holder, who has no relationship to the second grievance. The dispute is
+  // bound to the holder it was filed against, not to the record alone.
+  it('refuses a dispute whose named record has changed hands since it was filed', () => {
+    seedAdmin();
+    const { memberId, legacyId } = setupClaimed({ withHpBackLink: false });
+    const requesterId = nextId('req');
+    const db = open();
+    insertMember(db, { id: requesterId, login_email: `${requesterId}@example.com` });
+    db.close();
+    const itemId = insertQueueItem({
+      entityId: requesterId, isDispute: true,
+      disputedLegacyMemberIds: [legacyId],
+      disputedRecordHolders: { [legacyId]: 'a-different-member' },
+    });
+
+    expect(() =>
+      svc.revertClaimForDispute(ADMIN_ID, itemId, { legacyMemberId: legacyId }, 'stale dispute'),
+    ).toThrow(/no longer held by the member this dispute was filed against/i);
+    expect(memberRow(memberId).legacy_member_id).toBe(legacyId);
+    expect(listAuditEntries(memberId, 'claim.revert_applied')).toHaveLength(0);
   });
 
   it('reverts when bound to an open dispute item and records the queue-item id in both forensic audit rows', () => {
@@ -393,9 +450,11 @@ describe('identityAccessService.revertClaimForDispute (queue-item binding)', () 
     const db = open();
     insertMember(db, { id: requesterId, login_email: `${requesterId}@example.com` });
     db.close();
-    const itemId = insertQueueItem({ entityId: requesterId, isDispute: true });
+    const itemId = insertQueueItem({
+      entityId: requesterId, isDispute: true, disputedLegacyMemberIds: [legacyId],
+    });
 
-    const result = svc.revertClaimForDispute(ADMIN_ID, itemId, memberId, 'dispute upheld');
+    const result = svc.revertClaimForDispute(ADMIN_ID, itemId, { legacyMemberId: legacyId }, 'dispute upheld');
     expect(result.status).toBe('reverted');
 
     expect(memberRow(memberId).legacy_member_id).toBeNull();
@@ -407,6 +466,50 @@ describe('identityAccessService.revertClaimForDispute (queue-item binding)', () 
       const meta = JSON.parse(String(rows[0].metadata_json)) as Record<string, unknown>;
       expect(meta.work_queue_item_id).toBe(itemId);
     }
+  });
+
+  it('refuses a record the dispute does not name, leaving that holder untouched', () => {
+    seedAdmin();
+    // Two unrelated holders. The dispute names only the first one's record;
+    // deriving the holder from the record does NOT on its own stop an admin
+    // naming the second, which is what this asserts.
+    const disputed = setupClaimed({ withHpBackLink: false });
+    const bystander = setupClaimed({ withHpBackLink: false });
+    const requesterId = nextId('req');
+    const db = open();
+    insertMember(db, { id: requesterId, login_email: `${requesterId}@example.com` });
+    db.close();
+    const itemId = insertQueueItem({
+      entityId: requesterId, isDispute: true, disputedLegacyMemberIds: [disputed.legacyId],
+    });
+
+    expect(() =>
+      svc.revertClaimForDispute(
+        ADMIN_ID, itemId, { legacyMemberId: bystander.legacyId }, 'dispute upheld',
+      ),
+    ).toThrow(/not one of the records this dispute is about/i);
+
+    expect(memberRow(bystander.memberId).legacy_member_id).toBe(bystander.legacyId);
+    expect(legacyMemberRow(bystander.legacyId).claimed_by_member_id).toBe(bystander.memberId);
+    expect(listAuditEntries(bystander.memberId, 'claim.revert_applied')).toHaveLength(0);
+  });
+
+  it('refuses every record on a dispute filed before the records were bound', () => {
+    seedAdmin();
+    const { memberId, legacyId } = setupClaimed({ withHpBackLink: false });
+    const requesterId = nextId('req');
+    const db = open();
+    insertMember(db, { id: requesterId, login_email: `${requesterId}@example.com` });
+    db.close();
+    // No disputed-record lists at all: the shape of an item filed before the
+    // binding existed. It must fail closed rather than fall back to the
+    // unbounded behaviour the binding replaced.
+    const itemId = insertQueueItem({ entityId: requesterId, isDispute: true });
+
+    expect(() =>
+      svc.revertClaimForDispute(ADMIN_ID, itemId, { legacyMemberId: legacyId }, 'dispute upheld'),
+    ).toThrow(/not one of the records this dispute is about/i);
+    expect(memberRow(memberId).legacy_member_id).toBe(legacyId);
   });
 
   it('scrubs copied legacy PII on dispute revert but preserves member-entered fields and honors', () => {
@@ -468,9 +571,11 @@ describe('identityAccessService.revertClaimForDispute (queue-item binding)', () 
     const db2 = open();
     insertMember(db2, { id: requesterId, login_email: `${requesterId}@example.com` });
     db2.close();
-    const itemId = insertQueueItem({ entityId: requesterId, isDispute: true });
+    const itemId = insertQueueItem({
+      entityId: requesterId, isDispute: true, disputedLegacyMemberIds: [legacyId],
+    });
 
-    const result = svc.revertClaimForDispute(ADMIN_ID, itemId, memberId, 'dispute upheld');
+    const result = svc.revertClaimForDispute(ADMIN_ID, itemId, { legacyMemberId: legacyId }, 'dispute upheld');
     expect(result.status).toBe('reverted');
 
     const after = memberRow(memberId);

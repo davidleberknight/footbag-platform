@@ -28,12 +28,14 @@
  *   - Email delivery (CommunicationService outbox)
  *
  * Required patterns:
- *   - Member-authored free text never enters audit_entries metadata (the ledger
- *     is append-only and exempt from PII purge): audit carries only the category
- *     and message length. The full message is held once in the mutable
- *     work_queue_items.detail_text column, which the account-erasure purge and
- *     the deceased contact scrub redact. The resolution email is templated and
- *     does not echo the member's message back.
+ *   - Free text never enters audit_entries metadata (the ledger is append-only
+ *     and exempt from PII purge): audit carries only the category and message
+ *     length. That covers the member's own words and equally the administrator's
+ *     resolution or dismissal note, which is written about a member. The full
+ *     message is held once in the mutable work_queue_items.detail_text column and
+ *     the administrator's note in reason_text, both of which the account-erasure
+ *     purge and the deceased contact scrub redact. The resolution email is
+ *     templated and does not echo the member's message back.
  *   - Work-queue UPDATE and the resolution audit row commit in one
  *     transaction; the member notification enqueue happens after commit and
  *     records an operational error on failure instead of rolling back.
@@ -66,6 +68,7 @@ import { appendAuditEntry } from './auditService';
 import { emailService } from './emailService';
 import { workQueueService, claimIsLive, claimStaleCutoffIso } from './workQueueService';
 import { recordOperationalError } from './operationalErrors';
+import { runSqliteRead } from './sqliteRetry';
 import { NotFoundError, RateLimitedError, ValidationError } from './serviceErrors';
 import { PageViewModel } from '../types/page';
 
@@ -331,6 +334,11 @@ export interface WorkQueueViewItem {
     claimedLegacyEmail: string | null;
     vouchers: string | null;
     isDispute: boolean;
+    /** The records this dispute named when it was filed, detected server-side.
+     *  The revert accepts only one of these, so the card must show them: without
+     *  them an administrator has no way to learn an id the action will take. */
+    disputedRecords: Array<{ kindLabel: string; recordId: string }>;
+    hasDisputedRecords: boolean;
   } | null;
 }
 
@@ -374,12 +382,22 @@ function parseLinkHelpPayload(reasonText: string | null): WorkQueueViewItem['lin
   if (!reasonText) return null;
   try {
     const p = JSON.parse(reasonText) as Record<string, unknown>;
+    const idList = (v: unknown): string[] =>
+      Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && x.length > 0) : [];
+    const disputedRecords = [
+      ...idList(p.disputed_legacy_member_ids)
+        .map((recordId) => ({ kindLabel: 'Legacy account', recordId })),
+      ...idList(p.disputed_historical_person_ids)
+        .map((recordId) => ({ kindLabel: 'Competition record', recordId })),
+    ];
     return {
       statement:             typeof p.statement === 'string' ? p.statement : '',
       claimedLegacyUsername: typeof p.claimed_legacy_username === 'string' ? p.claimed_legacy_username : null,
       claimedLegacyEmail:    typeof p.claimed_legacy_email === 'string' ? p.claimed_legacy_email : null,
       vouchers:              typeof p.vouchers === 'string' ? p.vouchers : null,
       isDispute:             p.is_dispute === true,
+      disputedRecords,
+      hasDisputedRecords:    disputedRecords.length > 0,
     };
   } catch {
     return null;
@@ -482,14 +500,16 @@ async function resolveContactRequestItem(
       entityType:    'member',
       entityId:      row.entity_id,
       reasonText:    decisionLabel,
-      // Member-authored free text stays out of the metadata: the audit ledger is
-      // append-only and exempt from PII purge, so anything personal in the
-      // request prefix would survive erasure. The mutable work-queue row keeps
-      // the operational copy.
+      // Free text stays out of the metadata: the audit ledger is append-only
+      // and exempt from PII purge, so anything personal in it would survive
+      // erasure. That holds for the administrator's resolution note as much as
+      // for the member's own words -- the note is written about a member, and
+      // administrator messages are held in purgeable columns and cleared on
+      // erasure. The mutable work-queue row keeps the operational copy; the
+      // ledger keeps the decision.
       metadata:      {
         queue_item_id: input.queueItemId,
         decision_label: decisionLabel,
-        resolution_note: note,
       },
     });
   });
@@ -508,8 +528,14 @@ async function resolveContactRequestItem(
   // recordOperationalError pairs a *_notification_failed audit row with a
   // logger.error marker for operator triage. The terminal-state idempotency key
   // collapses re-enqueue attempts.
+  // The send reports suppression rather than throwing when the template has
+  // been disabled, so its result decides what the page says. Claiming the member
+  // was notified when no mail was enqueued sends the administrator away
+  // believing the request is closed on both sides; the page already has a
+  // quiet-resolution banner for exactly this case.
+  let notified: boolean;
   try {
-    emailService.send({
+    const sent = emailService.send({
       template: 'contact_request_resolution',
       params: {
         memberName: member.display_name,
@@ -521,6 +547,7 @@ async function resolveContactRequestItem(
       idempotencyKey:    `contact-request-resolve:${input.queueItemId}`,
       strict: true,
     });
+    notified = sent.status !== 'suppressed';
   } catch (err) {
     recordOperationalError({
       actionType:    'support.contact_request_resolve_notification_failed',
@@ -535,7 +562,7 @@ async function resolveContactRequestItem(
     });
     throw err;
   }
-  return { status: 'resolved', memberNotified: true };
+  return { status: 'resolved', memberNotified: notified };
 }
 
 // Resolve a system-raised payments task: record the decision and note, with no
@@ -575,10 +602,13 @@ function resolvePaymentsTaskItem(
       entityType:    row.entity_type,
       entityId:      row.entity_id,
       reasonText:    decisionLabel,
+      // Same reasoning as the contact-request resolution above: the note is
+      // free text written about a member and belongs in the purgeable
+      // work-queue row, not in the append-only ledger. The decision label is
+      // what the ledger keeps.
       metadata:      {
         queue_item_id: input.queueItemId,
         decision_label: decisionLabel,
-        resolution_note: note,
       },
     });
   });
@@ -759,6 +789,10 @@ export const adminWorkQueueService = {
    * categories with at least one open item appear.
    */
   getWorkQueueSummary(): WorkQueueSummary {
+    return runSqliteRead('admin dashboard work queue summary', () => this.readWorkQueueSummary());
+  },
+
+  readWorkQueueSummary(): WorkQueueSummary {
     const rows = workQueue.listOpenForAdmin.all() as Array<{
       queue_category: string;
       priority: number;
@@ -789,6 +823,21 @@ export const adminWorkQueueService = {
    * Controllers call this directly and render the return value.
    */
   getAdminWorkQueuePage(opts: {
+    adminMemberId: string;
+    resolvedFlag?: boolean;
+    resolvedQuietFlag?: boolean;
+    reviewedFlag?: boolean;
+    claimedFlag?: boolean;
+    claimNoopFlag?: boolean;
+    errorMessage?: string;
+  }): PageViewModel<WorkQueueContent> {
+    // A contended database renders the standard temporarily-unavailable page
+    // rather than falling to the generic handler, which shows the same page
+    // under a 500.
+    return runSqliteRead('admin work queue page', () => this.readAdminWorkQueuePage(opts));
+  },
+
+  readAdminWorkQueuePage(opts: {
     adminMemberId: string;
     resolvedFlag?: boolean;
     resolvedQuietFlag?: boolean;
@@ -852,6 +901,7 @@ export const adminWorkQueueService = {
       const result = workQueue.closeReview.run(
         nowIso,
         input.adminMemberId,
+        note || null,
         nowIso,
         input.adminMemberId,
         input.queueItemId,
@@ -868,7 +918,10 @@ export const adminWorkQueueService = {
         entityType:    row.entity_type,
         entityId:      row.entity_id,
         reasonText:    auditFor.reasonText,
-        metadata:      { queue_item_id: input.queueItemId, note },
+        // Same rule as the two resolution paths above: the admin's note is free
+        // text written about a member and belongs in the purgeable work-queue
+        // row, which now carries it. The ledger keeps the fixed decision.
+        metadata:      { queue_item_id: input.queueItemId },
       });
     });
   },

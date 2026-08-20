@@ -117,7 +117,7 @@ echo "==> Running remote-as-root cwagent install via cat-pipe..."
   printf 'INSTANCE_NAME=%q\n' "footbag-production-web"
   printf 'CWAGENT_PROFILE=%q\n' "footbag-production-cwagent"
   cat "$REMOTE_HALF"
-} | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -S -p "" bash'
+} | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash'
 
 echo
 echo "CloudWatch Agent install complete on $REMOTE."

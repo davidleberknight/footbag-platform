@@ -1614,3 +1614,116 @@ export function insertEmailTemplate(db: BetterSqlite3.Database, o: EmailTemplate
   return id;
 }
 
+// ── Scheduled-job run ────────────────────────────────────────────────────────
+//
+// One system_job_runs row. A run that is still in flight has no finished_at,
+// which is the shape the reaper and the health view both have to survive, so
+// finished_at is only defaulted for a terminal status.
+
+export interface SystemJobRunOverrides {
+  id?: string;
+  job_name?: string;
+  started_at?: string;
+  finished_at?: string | null;
+  status?: 'running' | 'succeeded' | 'failed' | 'aborted';
+  details_json?: string;
+  last_error?: string | null;
+}
+
+export function insertSystemJobRun(db: BetterSqlite3.Database, o: SystemJobRunOverrides = {}): string {
+  const id = o.id ?? `jobrun_${uid()}`;
+  const startedAt = o.started_at ?? TS;
+  const status = o.status ?? 'succeeded';
+  const finishedAt = o.finished_at !== undefined
+    ? o.finished_at
+    : (status === 'running' ? null : startedAt);
+  db.prepare(`
+    INSERT INTO system_job_runs (
+      id, created_at, created_by, updated_at, updated_by, version,
+      job_name, started_at, finished_at, status, details_json, last_error
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id, startedAt, SYS, startedAt, SYS,
+    o.job_name ?? 'SYS_Test_Job',
+    startedAt,
+    finishedAt,
+    status,
+    o.details_json ?? '{}',
+    o.last_error ?? null,
+  );
+  return id;
+}
+
+// ── Platform alarm ───────────────────────────────────────────────────────────
+//
+// One system_alarm_events row, as the alarm-notification ingest would write it.
+
+export interface SystemAlarmEventOverrides {
+  id?: string;
+  alarm_type?: string;
+  severity?: 'info' | 'warning' | 'critical';
+  raised_at?: string;
+  cleared_at?: string | null;
+  status?: 'active' | 'cleared' | 'acknowledged';
+  acknowledged_by_member_id?: string | null;
+  acknowledged_at?: string | null;
+  acknowledgment_note?: string | null;
+  details_json?: string;
+}
+
+export function insertSystemAlarmEvent(
+  db: BetterSqlite3.Database,
+  o: SystemAlarmEventOverrides = {},
+): string {
+  const id = o.id ?? `alarm_${uid()}`;
+  const raisedAt = o.raised_at ?? TS;
+  db.prepare(`
+    INSERT INTO system_alarm_events (
+      id, created_at, created_by, updated_at, updated_by, version,
+      alarm_type, severity, raised_at, cleared_at, status,
+      acknowledged_by_member_id, acknowledged_at, acknowledgment_note, details_json
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id, raisedAt, SYS, raisedAt, SYS,
+    o.alarm_type ?? 'footbag-test-alarm',
+    o.severity ?? 'critical',
+    raisedAt,
+    o.cleared_at ?? null,
+    o.status ?? 'active',
+    o.acknowledged_by_member_id ?? null,
+    o.acknowledged_at ?? null,
+    o.acknowledgment_note ?? null,
+    o.details_json ?? '{}',
+  );
+  return id;
+}
+
+// ── SES feedback event ───────────────────────────────────────────────────────
+//
+// One ses_events row: the idempotency claim the feedback webhook writes per
+// processed notification, and the source the health view counts bounce and
+// complaint volume from.
+
+export interface SesEventOverrides {
+  message_id?: string;
+  created_at?: string;
+  event_type?: 'bounce' | 'complaint';
+  processed_at?: string;
+  /** Addresses this one notification covered; the health view sums these
+   *  rather than counting rows, because one notification can name several. */
+  recipient_count?: number;
+}
+
+export function insertSesEvent(db: BetterSqlite3.Database, o: SesEventOverrides = {}): string {
+  const messageId = o.message_id ?? `sns_${uid()}`;
+  const ts = o.created_at ?? TS;
+  db.prepare(`
+    INSERT INTO ses_events (message_id, created_at, event_type, processed_at, recipient_count)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(
+    messageId, ts, o.event_type ?? 'bounce', o.processed_at ?? ts,
+    o.recipient_count ?? 1,
+  );
+  return messageId;
+}
+

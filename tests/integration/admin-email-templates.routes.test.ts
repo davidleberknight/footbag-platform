@@ -147,6 +147,7 @@ describe('POST /admin/email-templates/:key/edit', () => {
       template: 'club_coleader_invite',
       params: { inviteeName: 'Renee', clubName: 'Boulder Footbag' },
       recipientEmail: 'roundtrip@example.com',
+      recipientMemberId: MEMBER_ID,
     });
     const db = new BetterSqlite3(dbPath, { readonly: true });
     const row = db.prepare(

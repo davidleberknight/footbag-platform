@@ -12,6 +12,13 @@
 #      through into the target file. Piping `sudo -S ... bash` with the
 #      password as the first stdin line is the accepted remote-exec pattern
 #      and is not flagged.
+#   4. `ssh -t` anywhere under scripts/: a remote PTY exists to let sudo
+#      prompt a human, which is the pattern the canonical wire form replaces.
+#      An interactive prompt cannot be driven by a test, it makes the operator
+#      hold a step in their head, and a tree carrying both forms drifts back to
+#      the weaker one. Comments count: a comment describing the interactive
+#      flow is how the superseded doctrine survived a revert and got cited back
+#      as though it were the rule.
 
 set -euo pipefail
 
@@ -47,6 +54,18 @@ hits=$(scan 'sudo -S[^|]*\|[ ]*(tee|cat|dd)\b|sudo -S (-p [^ ]+ )?(tee|cat|dd)\b
 if [ -n "$hits" ]; then
   echo "$hits" >&2
   echo "FAIL: sudo -S must never feed a stdin-consuming file writer; the cached-credential case pipes the password into the target file" >&2
+  violations=$((violations + 1))
+fi
+
+# The t may sit anywhere in a combined short-option cluster, not only at its end:
+# -tN requests a terminal exactly as -t does, and a guard anchored on the last
+# letter would wave it through.
+hits=$(scan '\bssh\b[^|;&]* -[a-zA-Z]*t[a-zA-Z]*\b')
+if [ -n "$hits" ]; then
+  echo "$hits" >&2
+  echo "FAIL: no ssh -t under scripts/; a privileged remote step goes through the wire pattern" >&2
+  echo "      (password as stdin line 1 + printf %q assignments + cat-piped remote half" >&2
+  echo "      into 'sudo -k -S -p \"\" bash'). Model: scripts/install-cwagent-staging.sh." >&2
   violations=$((violations + 1))
 fi
 

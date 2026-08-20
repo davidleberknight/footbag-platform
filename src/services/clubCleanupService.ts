@@ -1694,6 +1694,14 @@ function delistUnconfirmedResidue(
   clubId: string,
   reasonText: string | null,
 ): { delistedCount: number } {
+  // An id for a club that does not exist stays the harmless no-op it has always
+  // been, but it must not reach the ledger: writing a de-listing against a
+  // fabricated entity puts a row about a thing that never existed into an
+  // append-only table where it can never be corrected.
+  const club = clubsDb.findById.get(clubId) as { club_id: string } | undefined;
+  if (!club) {
+    return { delistedCount: 0 };
+  }
   let delistedCount = 0;
   transaction(() => {
     delistedCount = legacyPersonClubAffiliations.delistResidueByClub.run(adminMemberId, clubId).changes;

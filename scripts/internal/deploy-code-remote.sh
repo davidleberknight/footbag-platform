@@ -2,7 +2,7 @@
 # Root-side body of scripts/deploy-code.sh.
 #
 # Invoked via:
-#   cat - scripts/internal/deploy-code-remote.sh | ssh REMOTE 'sudo -S -p "" bash'
+#   cat - scripts/internal/deploy-code-remote.sh | ssh REMOTE 'sudo -k -S -p "" bash'
 #
 # (cat - reads operator stdin = password line; cat <file> appends body. ssh
 # stdin = password+body. sudo -S consumes the password line; bash inherits

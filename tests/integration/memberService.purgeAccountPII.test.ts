@@ -11,7 +11,9 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
-import { insertMember, insertLegacyMember, insertHistoricalPerson } from '../fixtures/factories';
+import {
+  insertMember, insertLegacyMember, insertHistoricalPerson, insertOutboxEmail,
+} from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3092');
 
@@ -236,4 +238,77 @@ describe('memberService.purgeAccountPII', () => {
       expect(row.detail_text, row.task_type).toBeNull();
     }
   });
+
+  it('scrubs every outbound message addressed to the member, keeping only the member link', () => {
+    seedClaimedMember('purge-outbox');
+    const other = 'purge-outbox-bystander';
+    const d = db();
+    insertMember(d, { id: other, slug: 'purge_outbox_other', login_email: `${other}@example.com` });
+    insertOutboxEmail(d, {
+      id: 'ob-erased', recipient_member_id: 'purge-outbox',
+      recipient_email: 'purge-outbox@example.com',
+      // A real subject that names the member, which is why the subject cannot
+      // simply be preserved.
+      subject: 'Legacy purge-outbox joined Boulder Footbag',
+      body_text: 'Visit https://example.com/password/reset/live-token to continue.',
+    });
+    insertOutboxEmail(d, {
+      id: 'ob-untouched', recipient_member_id: other,
+      recipient_email: `${other}@example.com`,
+      subject: 'Someone else mail', body_text: 'not theirs',
+    });
+    d.close();
+
+    expect(memberService.purgeAccountPII('purge-outbox').status).toBe('purged');
+
+    const r = db();
+    const erased = r.prepare('SELECT * FROM outbox_emails WHERE id = ?').get('ob-erased') as Record<string, unknown>;
+    const kept   = r.prepare('SELECT * FROM outbox_emails WHERE id = ?').get('ob-untouched') as Record<string, unknown>;
+    r.close();
+
+    expect(erased.recipient_email).toBeNull();
+    expect(erased.body_text).toBeNull();
+    expect(erased.subject).toBe('(subject removed on erasure)');
+    // The member link is what keeps the row's addressing CHECK satisfied, and
+    // what any later re-run of the erasure finds it by.
+    expect(erased.recipient_member_id).toBe('purge-outbox');
+
+    // Another member's message is untouched.
+    expect(kept.recipient_email).toBe(`${other}@example.com`);
+    expect(kept.body_text).toBe('not theirs');
+  });
+
+  // Leaving a scrubbed row waiting to go out hands the sender a message with no
+  // address, which fails every attempt until it dead-letters and lights the
+  // operator's attention badge over an erasure that worked as intended.
+  it('settles a message still waiting to go out, so it cannot churn into the dead-letter queue', () => {
+    seedClaimedMember('purge-pending');
+    const d = db();
+    insertOutboxEmail(d, {
+      id: 'ob-pending', recipient_member_id: 'purge-pending',
+      recipient_email: 'purge-pending@example.com',
+      subject: 'Still queued', body_text: 'not sent yet', status: 'pending',
+    });
+    insertOutboxEmail(d, {
+      id: 'ob-already-sent', recipient_member_id: 'purge-pending',
+      recipient_email: 'purge-pending@example.com',
+      subject: 'Already gone', body_text: 'delivered', status: 'sent',
+    });
+    d.close();
+
+    expect(memberService.purgeAccountPII('purge-pending').status).toBe('purged');
+
+    const r = db();
+    const pending = r.prepare('SELECT status, last_error FROM outbox_emails WHERE id = ?')
+      .get('ob-pending') as Record<string, unknown>;
+    const sent = r.prepare('SELECT status FROM outbox_emails WHERE id = ?')
+      .get('ob-already-sent') as Record<string, unknown>;
+    r.close();
+
+    expect(pending.status).toBe('failed');
+    expect(pending.last_error).toBe('recipient erased before delivery');
+    // A message that already went out keeps its history; only its content goes.
+    expect(sent.status).toBe('sent');
+  });
+
 });

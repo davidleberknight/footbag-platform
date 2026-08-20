@@ -746,8 +746,10 @@ function formatAmount(cents: number, currency: string): string {
   return `$${(cents / 100).toFixed(2)} ${currency.toUpperCase()}`;
 }
 
+// Stored timestamps are UTC; naming the zone stops an admin reconciling against
+// a provider dashboard from reading the figure as their own clock.
 function dateDisplay(iso: string): string {
-  return iso.slice(0, 19).replace('T', ' ');
+  return `${iso.slice(0, 19).replace('T', ' ')} UTC`;
 }
 
 // A payment's created_at is a full timestamp, so an admin's `to=YYYY-MM-DD` must
