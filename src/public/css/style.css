@@ -3838,7 +3838,7 @@ a.hashtag--media:hover {
 /* ── Long-form article measure (shared) ───────────────────────────────── */
 /* Reading measure for long-form and learning pages (history, start-here,
    learn, about, the notation article, progressions, modifier teaching
-   pages): article prose carries a wide 95ch measure instead of the 70ch
+   pages): article prose carries a wide 95ch measure instead of the 85ch
    reference-page default. Scoped to direct-child p so lists, tables, and
    component-owned prose keep their own caps; smaller screens stay narrower
    because the wrapper's own width binds first. Carries the .page-freestyle
@@ -5266,7 +5266,7 @@ a.hashtag--media:hover {
   margin: 0 0 12px;
   line-height: 1.6;
   font-size: 1rem;
-  max-width: 70ch;
+  max-width: 85ch;
 }
 .trick-prose-paragraph:last-child { margin-bottom: 0; }
 
@@ -5950,9 +5950,11 @@ a.hashtag--media:hover {
 }
 /* Reading measure for direct prose children. Scoped to direct-child p so
    grids, lists, tables, and component-owned prose (which set their own caps)
-   are untouched. 70ch is the established per-component cap. */
+   are untouched. 85ch keeps long-form explanatory prose at roughly 80-90
+   characters per line on desktop widths; narrower screens bind on the
+   wrapper first. */
 .page-freestyle .content-section > p {
-  max-width: 70ch;
+  max-width: 85ch;
 }
 .section-compact .content-section:first-child,
 .page-freestyle  .content-section:first-child {
@@ -9116,12 +9118,12 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   margin-bottom: 28px;
 }
 
-/* Portal lede (replaces the prior language-intro section) ------------ */
+/* Portal lede (replaces the prior language-intro section). Width comes
+   from the shared .content-section > p reading measure; no local cap. */
 .freestyle-portal-lede .freestyle-portal-lede-paragraph {
   font-size: 1rem;
   line-height: 1.55;
   margin: 0 0 12px 0;
-  max-width: 720px;
   color: var(--text-muted);
 }
 
@@ -11668,6 +11670,15 @@ a.set-detail-trick-media:hover {
    the landing default view; secondary views render the inline
    trick-view-toggle nav (existing pattern) for quick switching.
    ───────────────────────────────────────────────────────────────────────── */
+/* Dictionary size line under the hero: the unfiltered total, the filtered
+   M-of-N, or the ADD tier's own count, always visible before any browsing
+   choice. */
+.dict-header-count {
+  margin: 14px 0 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
 .dict-tile-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -11760,7 +11771,7 @@ a.set-detail-trick-media:hover {
 }
 .dict-onboarding-intro {
   margin: 0 0 8px;
-  max-width: 72ch;
+  max-width: 85ch;
 }
 .dict-onboarding-defs {
   margin: 10px 0;

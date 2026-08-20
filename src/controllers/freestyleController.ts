@@ -159,6 +159,21 @@ export const freestyleController = {
     }
   },
 
+  /**
+   * GET /freestyle/tricks/:add (all-digits segment) — the canonical URL for
+   * one ADD tier of the dictionary. An undocumented tier renders 404.
+   */
+  tricksByAdd(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const addTier = Number.parseInt(req.params['add'] ?? '', 10);
+      const sort = typeof req.query['sort'] === 'string' ? req.query['sort'] : undefined;
+      const vm = freestyleService.getFreestyleTricksIndexPage(undefined, 'add', sort, addTier);
+      res.render('freestyle/tricks', vm);
+    } catch (err) {
+      handleControllerError(err, res, next, 'freestyle controller');
+    }
+  },
+
   /** GET /freestyle/insights */
   insights(_req: Request, res: Response, next: NextFunction): void {
     try {

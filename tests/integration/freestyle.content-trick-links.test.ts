@@ -125,6 +125,10 @@ describe('content-authored freestyle trick links', () => {
     for (const file of walkSourceFiles(SRC_ROOT)) {
       const text = readFileSync(file, 'utf8');
       for (const m of text.matchAll(TRICK_HREF_RE)) {
+        // An all-digits segment is the canonical per-ADD-tier dictionary URL
+        // (/freestyle/tricks/5), which routes ahead of :slug and can never
+        // name a trick, so it is not held to the dictionary slug set.
+        if (/^\d+$/.test(m[1])) continue;
         if (!dictionary.has(m[1])) {
           offenders.push(`${relative(REPO_ROOT, file)}: ${m[1]}`);
         }

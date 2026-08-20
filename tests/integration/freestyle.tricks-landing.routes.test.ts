@@ -152,12 +152,13 @@ describe('GET /freestyle/tricks — default By ADD ladder', () => {
     expect(res.text).toContain('Emerging Vocabulary');
   });
 
-  it('renders ADD jump-nav chips that link to the in-page ADD section anchors', async () => {
+  it('renders ADD navigation chips that link to the canonical per-tier URLs', async () => {
     const res = await request(createApp()).get('/freestyle/tricks');
-    expect(res.text).toContain('aria-label="Jump to ADD level"');
-    // Each chip jumps to its ADD section (e.g. <a href="#add-2">2 ADD</a>),
-    // the same affordance as the old per-level move list.
-    expect(res.text).toMatch(/<a href="#add-\d+">\d+ ADD<\/a>/);
+    expect(res.text).toContain('aria-label="Browse by ADD level"');
+    // Each chip navigates to its tier's canonical URL
+    // (e.g. <a href="/freestyle/tricks/2">2 ADD</a>), so a bucket click
+    // survives reload and the back/forward buttons.
+    expect(res.text).toMatch(/<a href="\/freestyle\/tricks\/\d+">\d+ ADD<\/a>/);
   });
 
   it('does not render the coverage / governance block', async () => {
@@ -552,7 +553,7 @@ describe('GET /freestyle/tricks — orientation tiles and search section', () =>
     // All three control rows live inside that card, before the trick list.
     const viewIdx = res.text.indexOf('aria-label="Browse the dictionary"');
     const sortIdx = res.text.indexOf('aria-label="Sort within each ADD tier"');
-    const jumpIdx = res.text.indexOf('aria-label="Jump to ADD level"');
+    const jumpIdx = res.text.indexOf('aria-label="Browse by ADD level"');
     const listIdx = res.text.indexOf('data-trick-slug=');
     expect(viewIdx).toBeGreaterThan(cardIdx);
     expect(sortIdx).toBeGreaterThan(viewIdx);

@@ -16,6 +16,10 @@
 
 <div class="wrapper">
 
+  {{! ── Dictionary size, visible before any browsing choice: the unfiltered
+      total, the filtered M-of-N, or the ADD tier's own count. ── }}
+  <p class="dict-header-count">{{content.headerCount}}</p>
+
   {{! ── Actions card: the two things a reader can DO from here, on one row.
       Search submits to the dedicated search page (typeahead lives there) and
       works without JS; Watch Videos leaves for the freestyle media hub, so it
@@ -219,6 +223,7 @@
       orientation. ── }}
   {{#if (eq content.activeView "add")}}
   {{#unless content.activeFamily}}
+  {{#unless content.isAddTierView}}
   <div class="dict-tile-grid" aria-label="About the dictionary">
     <details class="dict-tile">
       <summary class="dict-tile-summary">
@@ -278,6 +283,7 @@
       </div>
     </details>
   </div>
+  {{/unless}}
   {{/unless}}
   {{/if}}
 
@@ -369,20 +375,20 @@
   <nav class="trick-view-toggle" aria-label="Sort within each ADD tier">
     <span class="dict-nav-label">{{content.navSection.sortLabel}}</span>
     {{#if (eq content.addSort "alpha")}}
-      <a href="/freestyle/tricks?view=add&amp;sort=family">By family</a>
+      <a href="{{{content.addSortToggle.familyHref}}}">By family</a>
       <span class="trick-view-toggle-sep">·</span>
       <span class="trick-view-toggle-active">Alphabetical</span>
     {{else}}
       <span class="trick-view-toggle-active">By family</span>
       <span class="trick-view-toggle-sep">·</span>
-      <a href="/freestyle/tricks?view=add&amp;sort=alpha">Alphabetical</a>
+      <a href="{{{content.addSortToggle.alphaHref}}}">Alphabetical</a>
     {{/if}}
   </nav>
   {{#if content.addJumpChips.length}}
-  <nav class="jump-bar" aria-label="Jump to ADD level">
-    <span class="jump-bar-label">Jump to:</span>
+  <nav class="jump-bar" aria-label="Browse by ADD level">
+    <span class="jump-bar-label">ADD levels:</span>
     {{#each content.addJumpChips}}
-      <a href="{{href}}">{{label}}</a>{{#unless @last}} <span class="jump-bar-sep">·</span> {{/unless}}
+      <a href="{{{href}}}">{{label}}</a>{{#unless @last}} <span class="jump-bar-sep">·</span> {{/unless}}
     {{/each}}
   </nav>
   {{/if}}

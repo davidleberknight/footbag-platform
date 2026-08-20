@@ -166,6 +166,9 @@ export const HISTORY_NARRATIVE: HistoryNarrative = {
   whereNext: [
     { label: 'Start With the Six Vocabulary Lessons', href: '/freestyle/learn' },
     { label: 'Browse the Trick Dictionary', href: '/freestyle/tricks' },
+    // Learning intent lands on the explanatory reference (Freestyle
+    // Concepts); the Glossary stays as the term-lookup destination.
+    { label: 'Freestyle Concepts', href: '/freestyle/concepts' },
     { label: 'The Glossary', href: '/freestyle/glossary' },
   ],
 };

@@ -5,7 +5,9 @@
  * Serves:
  *   - Landing: GET /freestyle (getLandingPage).
  *   - Trick dictionary: GET /freestyle/tricks (getFreestyleTricksIndexPage),
- *     GET /freestyle/tricks/:slug (getTrickDetailPage), GET /freestyle/families/:slug
+ *     GET /freestyle/tricks/:add (all-digits segment; getFreestyleTricksIndexPage with
+ *     addTier; the canonical URL for one ADD tier), GET /freestyle/tricks/:slug
+ *     (getTrickDetailPage), GET /freestyle/families/:slug
  *     (getFamilyDetailPage; first-class Family Parents only).
  *   - Reference: GET /freestyle/glossary (getGlossaryPage; the A–Z term list),
  *     /freestyle/concepts (getConceptsPage; the chapter-based reference), /freestyle/operators
@@ -3155,9 +3157,20 @@ export interface FreestyleTricksIndexContent {
   // lookup). Drives the By family / Alphabetical toggle; does not change which
   // tricks appear, only how each ADD tier is sub-arranged.
   addSort: 'family' | 'alpha';
-  // Quick-jump chips for the ADD view (levels 1..6 + a collapsed "7+ ADD"),
-  // each linking to the in-page ADD section anchor. Empty off the ADD view.
+  // ADD navigation chips: one per documented tier, each linking to the tier's
+  // canonical /freestyle/tricks/:add URL; a tier page leads with an all-tier
+  // chip and drops its own. Rendered only on the ADD view.
   addJumpChips: { label: string; href: string }[];
+  // True on the canonical per-tier route (/freestyle/tricks/:add): the ADD
+  // view narrowed to one tier. The landing orientation tiles stay off it.
+  isAddTierView: boolean;
+  // Pre-shaped sort-toggle targets for the ADD view, so a tier page keeps its
+  // canonical path and the all-tier view keeps ?view=add.
+  addSortToggle: { familyHref: string; alphaHref: string };
+  // Dictionary size line under the hero: the unfiltered 'N documented
+  // tricks', the family-filtered 'M of N tricks', or a tier page's
+  // 'X ADD · M tricks'.
+  headerCount: string;
   // ?view=dex-count grouped view.
   // Always shaped; UI branch renders only when activeView === 'dex-count'.
   dexCountGroups: FreestyleTrickDexCountGroup[];
@@ -8681,11 +8694,18 @@ export const freestyleService = {
    * The `sort` argument (the raw `?sort=` query) toggles the within-tier
    * presentation: 'alpha' renders a flat A-Z list for lookup, anything else
    * (the default) keeps the banded By-family grouping.
+   *
+   * `addTier` (the numeric /freestyle/tricks/:add path segment) narrows the
+   * ADD view to that single tier; the numeric path is the canonical public
+   * URL for a selected ADD level, while ?view=add stays the all-tier view.
+   * A tier with no documented tricks throws NotFoundError, like an unknown
+   * trick slug.
    */
   getFreestyleTricksIndexPage(
     family?: string,
     view?: string,
     sort?: string,
+    addTier?: number,
   ): PageViewModel<FreestyleTricksIndexContent> {
     const addSort: 'family' | 'alpha' = sort === 'family' ? 'family' : 'alpha';
     // Active + pending external rows. Pending rows surface as labeled
@@ -8896,24 +8916,53 @@ export const freestyleService = {
     if (addBuckets.has(null)) {
       addGroups.push(buildGroup(null, 'Unrated / unresolved', addBuckets.get(null) ?? []));
     }
-    // ADD jump-nav chips: levels 1..6 individually, all 7-and-up collapsed into
-    // one "7+ ADD" chip pointing at the first high-ADD section. Each chip jumps
-    // to that ADD section's in-page anchor.
-    const addJumpChips: { label: string; href: string }[] = [];
-    for (let n = 1; n <= 6; n++) {
-      const g = addGroups.find(grp => grp.addNumeric === n);
-      if (g) addJumpChips.push({ label: `${n} ADD`, href: `#${g.anchorId}` });
+    // Canonical per-tier resolution (/freestyle/tricks/:add). A requested
+    // tier with no bucket is a 404, like an unknown trick slug.
+    const tierGroup = addTier != null
+      ? addGroups.find(grp => grp.addNumeric === addTier) ?? null
+      : null;
+    if (addTier != null && !tierGroup) {
+      throw new NotFoundError(`No freestyle tricks at ${addTier} ADD`);
     }
-    const firstHighAdd = addGroups
-      .filter(grp => grp.addNumeric != null && (grp.addNumeric as number) >= 7)
-      .sort((a, b) => (a.addNumeric as number) - (b.addNumeric as number))[0];
-    if (firstHighAdd) addJumpChips.push({ label: '7+ ADD', href: `#${firstHighAdd.anchorId}` });
+
+    // ADD navigation chips: one per documented tier, each linking to that
+    // tier's canonical URL so a bucket click survives reload and the
+    // back/forward buttons. A tier page leads with the all-tier view and
+    // drops the tier it is already on.
+    const addJumpChips: { label: string; href: string }[] = numericKeys
+      .filter(n => n !== addTier)
+      .map(n => ({ label: `${n} ADD`, href: `/freestyle/tricks/${n}` }));
+    if (addTier != null) {
+      addJumpChips.unshift({ label: 'All ADD Levels', href: '/freestyle/tricks?view=add' });
+    }
 
     // Trick count drives the totalTricks view-model field (used for
     // view-model completeness; never surfaced as a lead stat).
     const canonicalCount = allRows.filter(
       r => r.is_active === 1 && isTrickRow(r),
     ).length;
+    // The unfiltered documented-trick total anchors the header count's "of N"
+    // and the unfiltered "N documented tricks" line.
+    const canonicalCountUnfiltered = allRowsUnfiltered.filter(
+      r => r.is_active === 1 && isTrickRow(r),
+    ).length;
+    const tierCardCount = tierGroup ? tierGroup.cards.length : 0;
+    const headerCount = addTier != null
+      ? `${addTier} ADD · ${tierCardCount} ${tierCardCount === 1 ? 'trick' : 'tricks'}`
+      : activeFamily
+        ? `${canonicalCount} of ${canonicalCountUnfiltered} tricks`
+        : `${canonicalCountUnfiltered} documented tricks`;
+    // Sort-toggle targets keep the reader on the surface they are on: the
+    // canonical tier URL on a tier page, the all-tier query URL otherwise.
+    const addSortToggle = addTier != null
+      ? {
+          familyHref: `/freestyle/tricks/${addTier}?sort=family`,
+          alphaHref:  `/freestyle/tricks/${addTier}?sort=alpha`,
+        }
+      : {
+          familyHref: '/freestyle/tricks?view=add&sort=family',
+          alphaHref:  '/freestyle/tricks?view=add&sort=alpha',
+        };
 
     // Public-searchable aliases and alternate names: every alias whose target
     // trick is active (nicknames, abbreviations, spelling variants, historical
@@ -9653,10 +9702,14 @@ export const freestyleService = {
 
     return {
       seo: {
-        title: 'Freestyle Trick Dictionary',
-        description:
-          `The freestyle footbag trick dictionary: ${canonicalCount} named canonical tricks, ` +
-          'browsable by difficulty, family, set, dex count, and movement system.',
+        title: addTier != null
+          ? `Freestyle Trick Dictionary · ${addTier} ADD`
+          : 'Freestyle Trick Dictionary',
+        description: addTier != null
+          ? `${addTier}-ADD tricks in the freestyle footbag trick dictionary: ` +
+            `${tierCardCount} documented at this difficulty tier.`
+          : `The freestyle footbag trick dictionary: ${canonicalCount} named canonical tricks, ` +
+            'browsable by difficulty, family, set, dex count, and movement system.',
       },
       page: {
         sectionKey: 'freestyle',
@@ -9665,15 +9718,24 @@ export const freestyleService = {
         intro:      'The movement vocabulary of freestyle footbag.',
       },
       navigation: {
-        breadcrumbs: [
-          { label: 'Freestyle', href: '/freestyle' },
-          { label: 'Trick Dictionary' },
-        ],
+        breadcrumbs: addTier != null
+          ? [
+              { label: 'Freestyle', href: '/freestyle' },
+              { label: 'Trick Dictionary', href: '/freestyle/tricks' },
+              { label: `${addTier} ADD` },
+            ]
+          : [
+              { label: 'Freestyle', href: '/freestyle' },
+              { label: 'Trick Dictionary' },
+            ],
       },
       content: {
-        addGroups,
+        addGroups: tierGroup ? [tierGroup] : addGroups,
         addSort,
         addJumpChips,
+        addSortToggle,
+        headerCount,
+        isAddTierView: addTier != null,
         dexCountGroups,
         activeView,
         groups,
@@ -11986,13 +12048,12 @@ export const freestyleService = {
         intro: {
           heading: 'What is Freestyle Footbag?',
           paragraphs: [
-            // Movement-language framing. The landing carries
-            // only short framing; the glossary §1 "Language of Freestyle"
-            // band covers compositional grammar in depth. No em dashes,
-            // no historical filler, no overconfident atom counts.
-            'Freestyle footbag is a movement discipline. Players link sequences of tricks: body actions like spins, jumps, and ducks layered over circling motions of the legs around a small bag held aloft by repeated foot contact. The bag traces an unbroken path through the air; the body moves around it.',
-            'Trick names are compositional. A name like "spinning whirl" literally encodes structure: a body spin layered on top of the whirl base. Once you know the parts, you can read many descriptive trick names before you have ever seen the trick performed.',
-            'The vocabulary builds from a small set of foundational moves that compose richly. Stalls (the bag at rest on the top of the foot, the side of the foot, or other body surfaces). Dexterities (circling motions of a leg around the bag). Body modifiers (spins, ducks, jumps, steps). Structural sets (the launching motion that opens the trick). Combinations are nearly endless, and the language of freestyle is what makes the combinations legible.',
+            // Movement-language framing. The landing carries only short
+            // framing; Freestyle Concepts covers compositional grammar in
+            // depth. No em dashes, no historical filler, no overconfident
+            // atom counts.
+            'Freestyle footbag is a movement discipline in which players link tricks while keeping a small bag aloft with repeated foot contact. Spins, jumps, ducks and circling leg motions combine around the bag as it traces an unbroken path through the air.',
+            'Trick names are compositional. "Spinning whirl" literally means a body spin layered onto the whirl base. The vocabulary grows from a small set of building blocks (stalls, dexterities, body modifiers and sets) which combine into an enormous range of tricks. Once you know those parts, you can often read a trick name before you have ever seen it performed.',
           ],
         },
         demoVideo: loadSiteVideo('freestyle_demo'),

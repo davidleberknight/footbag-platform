@@ -135,6 +135,12 @@ publicRouter.get('/freestyle/modifier/:slug', freestyleController.modifierFamily
 // /freestyle/tricks/:slug and /freestyle catch-alls.
 publicRouter.get('/freestyle/families/:slug', freestyleController.familyDetail);
 publicRouter.get('/freestyle/families',       freestyleController.familiesHub);
+// Canonical per-ADD-tier dictionary view: /freestyle/tricks/5 is the 5-ADD
+// browse view. The all-digits segment cannot collide with a trick slug
+// (slugs are lowercase word tokens; the digit-led ones like 2_bag_juggling
+// carry a non-digit suffix), and it registers ahead of the :slug route so a
+// numeric segment never reaches the trick-detail resolver.
+publicRouter.get('/freestyle/tricks/:add(\\d+)', freestyleController.tricksByAdd);
 publicRouter.get('/freestyle/tricks/:slug', freestyleController.trick);
 publicRouter.get('/freestyle',             freestyleController.landing);
 
