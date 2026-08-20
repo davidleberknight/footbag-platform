@@ -9811,7 +9811,7 @@ export const freestyleService = {
         },
         backToTopLabel: 'Back to Top',
         landingTiles: {
-          start:    { title: 'Where to start',           hint: 'Glossary, notation, and the first things to read.' },
+          start:    { title: 'Where to start',           hint: 'Lessons, notation, and the first things to read.' },
           built:    { title: 'How tricks are built',     hint: 'ADD, dex, families, and modifiers, with a worked example.' },
           contents: { title: "What's in the dictionary", hint: 'How many tricks and names, and what is still being confirmed.' },
         },
