@@ -468,10 +468,42 @@ def build_comparison_rows(curated: dict[str, dict],
 # Conflict detection
 # ---------------------------------------------------------------------------
 
+def is_archived_duplicate_group(slugs: list[str],
+                                curated: dict[str, dict],
+                                aliases: list[tuple[str, str, str, str]]) -> bool:
+    """True for the one shape of shared canonical name that is already resolved:
+    exactly ONE active trick, with every other row inactive AND carrying an alias
+    from its own slug onto that active trick, so the archived URL redirects to
+    the surviving row and only one trick identity is publicly reachable.
+
+    This is the same relationship check_alias_canonical_collision already treats
+    as legitimate ("an alias sharing an INACTIVE row's slug is the legitimate
+    archived-duplicate pattern"); a shared name across that pair is the archive
+    being visible in the name column, not a second identity to pick between.
+
+    Deliberately narrow. It does NOT hold when two active rows share a name,
+    when an inactive row merely happens to share a name with no alias tying it
+    to the survivor, or when several active rows sit in the group. Those stay
+    reported, because each is a real "pick the canonical form" decision.
+    """
+    actives = [s for s in slugs if curated[s]["is_active"] == 1]
+    if len(actives) != 1:
+        return False
+    survivor = actives[0]
+    redirects = {
+        alias_slug for alias_slug, _text, trick_slug, _type in aliases
+        if trick_slug == survivor
+    }
+    archived = [s for s in slugs if s != survivor]
+    return bool(archived) and all(s in redirects for s in archived)
+
+
 def detect_conflicts(curated: dict[str, dict],
                      source_links: list[dict],
-                     comparison_rows: list[dict]) -> list[dict]:
+                     comparison_rows: list[dict],
+                     aliases: list[tuple[str, str, str, str]] | None = None) -> list[dict]:
     out: list[dict] = []
+    aliases = aliases or []
 
     # Index: source_links keyed by trick_slug.
     by_slug: dict[str, list[dict]] = {}
@@ -568,6 +600,12 @@ def detect_conflicts(curated: dict[str, dict],
         by_concept.setdefault(normalize_concept(t["canonical_name"]), []).append(slug)
     for concept, slugs in by_concept.items():
         if len(slugs) > 1:
+            # An active row plus its own archived, alias-redirected duplicates is
+            # already resolved: one reachable identity, the rest redirecting to
+            # it. Reporting it would ask a curator to re-pick a canonical form
+            # that has been picked.
+            if is_archived_duplicate_group(slugs, curated, aliases):
+                continue
             sorted_slugs = sorted(slugs)
             for slug in sorted_slugs:
                 others = [s for s in sorted_slugs if s != slug]
@@ -892,7 +930,7 @@ def run(db_path: Path, scrape_path: Path) -> dict:
     scrape_rows = load_footbag_scrape(scrape_path)
 
     comparison_rows = build_comparison_rows(curated, aliases, scrape_rows)
-    conflict_rows = detect_conflicts(curated, source_links, comparison_rows)
+    conflict_rows = detect_conflicts(curated, source_links, comparison_rows, aliases)
     conflict_rows.extend(detect_compositional_review(
         curated, modifier_slugs, modifier_bonuses,
         modifier_links_per_trick, aliases, source_links,
