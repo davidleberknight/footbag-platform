@@ -182,3 +182,89 @@ describe('activate-ses-feedback.sh', () => {
     });
   });
 });
+
+/**
+ * The reverse of activation. It exists so arming the feedback loop is a
+ * decision that can be taken back: without it, returning to a clean state means
+ * unsetting a host env line by hand, deleting a subscription, and re-editing a
+ * values file, all improvised after the fact from a procedure that was scripted
+ * on the way in.
+ *
+ * The refusal it turns on is the live-adapter one. Removing the key from a host
+ * still sending real mail leaves the subscription publishing to an endpoint
+ * that rejects every delivery, which looks like a feed with nothing to report
+ * rather than a broken one — the same quiet-failure shape the topic refusal
+ * above exists to prevent on the way in.
+ */
+describe('activate-ses-feedback.sh --deactivate', () => {
+  const STUB = 'SES_ADAPTER=stub';
+
+  it('removes the key and leaves every other value untouched', () => {
+    withEnvFile(
+      `${BASE}\n${TOPIC}\n${STUB}\nSES_FEEDBACK_WEBHOOK_KEY=installed-key\nINTERNAL_EVENT_SECRET=abc\n`,
+      (path) => {
+        const r = run(['--target', 'staging', '--env-file', path, '--deactivate', '--no-tfvars']);
+        expect(r.exitCode).toBe(0);
+        expect(keyLines(path)).toHaveLength(0);
+        const after = readFileSync(path, 'utf-8');
+        // The topic ARN is a non-secret operator value owned elsewhere, and it
+        // is what a later activation checks before installing a key at all.
+        expect(after).toContain(TOPIC);
+        expect(after).toContain('INTERNAL_EVENT_SECRET=abc');
+      },
+    );
+  });
+
+  it('refuses while the host still runs the live SES adapter, and changes nothing', () => {
+    withEnvFile(
+      `${BASE}\n${TOPIC}\nSES_ADAPTER=live\nSES_FEEDBACK_WEBHOOK_KEY=installed-key\n`,
+      (path) => {
+        const before = readFileSync(path, 'utf-8');
+        const r = run(['--target', 'staging', '--env-file', path, '--deactivate', '--no-tfvars']);
+        expect(r.exitCode).toBe(1);
+        expect(r.stderr).toMatch(/still runs the live SES adapter/);
+        expect(readFileSync(path, 'utf-8')).toBe(before);
+      },
+    );
+  });
+
+  it('reports the state rather than failing when there is no key to remove', () => {
+    withEnvFile(`${BASE}\n${TOPIC}\n${STUB}\n`, (path) => {
+      const r = run(['--target', 'staging', '--env-file', path, '--deactivate', '--no-tfvars']);
+      // Idempotent, so an interrupted removal can simply be repeated.
+      expect(r.exitCode).toBe(0);
+      expect(r.stdout).toMatch(/already absent/);
+      expect(keyLines(path)).toHaveLength(0);
+    });
+  });
+
+  it('never prints the removed key in the diff it shows', () => {
+    withEnvFile(
+      `${BASE}\n${TOPIC}\n${STUB}\nSES_FEEDBACK_WEBHOOK_KEY=secret-value-here\n`,
+      (path) => {
+        const r = run(['--target', 'staging', '--env-file', path, '--deactivate', '--no-tfvars']);
+        expect(r.exitCode).toBe(0);
+        expect(r.stdout).not.toContain('secret-value-here');
+      },
+    );
+  });
+
+  it('refuses the two opposite outcomes asked for together', () => {
+    const r = run(['--target', 'staging', '--deactivate', '--rotate']);
+    expect(r.exitCode).toBe(2);
+    expect(r.stderr).toMatch(/opposite outcomes/);
+  });
+
+  it('directs the operator to clear the terraform value that counts the subscription', () => {
+    withEnvFile(
+      `${BASE}\n${TOPIC}\n${STUB}\nSES_FEEDBACK_WEBHOOK_KEY=installed-key\n`,
+      (path) => {
+        const r = run(['--target', 'staging', '--env-file', path, '--deactivate', '--no-tfvars']);
+        expect(r.exitCode).toBe(0);
+        // Every feedback resource is counted on this value being non-empty, so
+        // emptying it is what actually removes the subscription.
+        expect(r.stdout).toContain('ses_feedback_webhook_url = ""');
+      },
+    );
+  });
+});

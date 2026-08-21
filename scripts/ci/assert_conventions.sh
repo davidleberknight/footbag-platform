@@ -975,52 +975,11 @@ if [ -n "$action_type_hits" ]; then
 fi
 
 # Rule: every audit action_type literal in src/ appears in the data model's
-# action_type catalogue.
-# Reason: that catalogue calls itself the authoritative inventory, and readers,
-# reviewers and incident responders treat it as one. Checking only the SHAPE let
-# forty-eight values accumulate in the code that the inventory never mentioned,
-# including five whole namespaces, and nothing surfaced it until someone read
-# both lists side by side. A value interpolated at the call site is invisible
-# here, as it is to the shape check above; the catalogue notes those cases.
-echo "[conventions] check: audit action_type literals appear in the data model catalogue"
-action_type_catalogue_hits=$(python3 - <<'PYEOF'
-import re, pathlib
-
-doc = pathlib.Path('docs/DATA_MODEL.md').read_text()
-try:
-    section = doc.split('Emitted values, grouped by namespace')[1] \
-                 .split('This list is the authoritative inventory')[0]
-except IndexError:
-    print('docs/DATA_MODEL.md: action_type catalogue section not found; '
-          'the gate cannot check membership')
-    raise SystemExit
-
-documented = set()
-for line in section.splitlines():
-    m = re.match(r'^- \*\*`([a-z_.]+)\.\*`\*\*:(.*)', line.strip())
-    if not m:
-        continue
-    namespace, rest = m.group(1), m.group(2)
-    for value in re.findall(r'`([a-z0-9_.]+)`', rest):
-        documented.add(f'{namespace}.{value}')
-
-root = pathlib.Path('src')
-pats = [
-    re.compile(r"actionType\s*[:=]\s*'([^']+)'"),
-    re.compile(r"_AUDIT_ACTION_TYPE\s*=\s*'([^']+)'"),
-]
-for f in sorted(root.rglob('*.ts')):
-    for i, line in enumerate(f.read_text().splitlines(), 1):
-        for pat in pats:
-            for m in pat.finditer(line):
-                if m.group(1) not in documented:
-                    print(f"{f}:{i}: audit action_type '{m.group(1)}' "
-                          f"is not in the data model's action_type catalogue")
-PYEOF
-)
-if [ -n "$action_type_catalogue_hits" ]; then
-  echo "$action_type_catalogue_hits" >&2
-  echo "  FAIL: add the action_type to the catalogue in docs/DATA_MODEL.md as part of this change" >&2
+# action_type catalogue. Delegated so it can be exercised against a fixture
+# repository; run inline here, a fixture tree aborts on an earlier rule long
+# before reaching this one.
+echo "[conventions] check: audit action_type literals appear in the data model catalogue (delegated)"
+if ! bash scripts/ci/check_audit_catalogue.sh; then
   violations=$((violations + 1))
 fi
 
@@ -1042,6 +1001,34 @@ if [ -n "$pin_hits" ]; then
   echo "  FAIL: argon2 / better-sqlite3 / express / helmet / marked / stripe must be pinned to an exact x.y.z version" >&2
   violations=$((violations + 1))
 fi
+
+# Rule: every static import of a production-stripped subtree has a no-op stub in
+# the web image.
+# Reason: the production web image deletes dist/testkit, dist/dev-bootstrap and
+# dist/internal-qc, then hand-writes no-op stubs for the modules that are still
+# statically imported, so app boot survives. That stub list is maintained by hand
+# and nothing else checks it, so an import added later resolves fine everywhere
+# it is tested and then dies at boot with MODULE_NOT_FOUND on production alone.
+# Staging cannot catch it: staging builds with the subtrees included, so it never
+# runs the stripped image at all.
+#
+# src/routes/internalRoutes.ts is exempt because the image replaces that file
+# itself, so nothing it imports is ever resolved.
+echo "[conventions] check: stripped-subtree imports have a stub in docker/web/Dockerfile"
+stripped_hits=$(grep -rn --include='*.ts' -oE "from '[^']*(testkit|dev-bootstrap|internal-qc)/[A-Za-z0-9_/-]+'" src/ \
+  | grep -vE '^src/(testkit|dev-bootstrap|internal-qc)/' \
+  | grep -v '^src/routes/internalRoutes\.ts:' \
+  || true)
+while IFS= read -r hit; do
+  [ -n "$hit" ] || continue
+  # Reduce "src/a/b.ts:12:from '../testkit/x'" to the dist path the image must carry.
+  module=$(printf '%s' "$hit" | sed -E "s|.*from '||; s|'$||; s|.*/(testkit\|dev-bootstrap\|internal-qc)/|\1/|")
+  if ! grep -q "dist/${module}.js" docker/web/Dockerfile; then
+    echo "$hit" >&2
+    echo "  needs a stub written to dist/${module}.js" >&2
+    violations=$((violations + 1))
+  fi
+done <<< "$stripped_hits"
 
 if [ "$violations" -gt 0 ]; then
   echo "[conventions] $violations rule(s) violated" >&2

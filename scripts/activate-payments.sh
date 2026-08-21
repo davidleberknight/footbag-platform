@@ -7,9 +7,14 @@
 #      (/footbag/<target>/secrets/stripe_secret_key, SecureString under the
 #      environment's KMS alias). The key is prompted silently and written via
 #      a 0600 temp file so it never appears in shell history or process args.
-#   2. Pause for the one step that cannot be scripted: creating the webhook
-#      endpoint in the Stripe Dashboard and copying its whsec_... signing
-#      secret, which is then prompted silently.
+#   2. Create the webhook endpoint. With --create-endpoint this happens through
+#      the Stripe API using the key just read, and the signing secret goes
+#      straight from the response into Parameter Store without ever being
+#      displayed. Without the flag, the script pauses instead so the endpoint can
+#      be built in the Dashboard, and prompts silently for its whsec_... secret.
+#      Prefer the flag: the manual path makes an operator reveal a live secret on
+#      one screen and retype it into another, so it exists in a clipboard and a
+#      scrollback for no reason.
 #   3. Store the signing secret in Parameter Store too
 #      (/footbag/<target>/secrets/stripe_webhook_secret). Parameter Store is the
 #      one canonical source for every secret in an environment, and the deploy
@@ -77,6 +82,14 @@
 #   < <operator credential file> bash scripts/activate-payments.sh --target production --profile <p> --complete-webhook-rotation
 #   < <operator credential file> bash scripts/activate-payments.sh --target production --profile <p> --deactivate
 #
+#   --create-endpoint creates the webhook endpoint through the Stripe API rather
+#   than pausing for the Dashboard, deriving the URL from the environment's
+#   cloudfront_domain terraform output and the version and event list from this
+#   script's own constants, then diffing the registered events back against
+#   REQUIRED_WEBHOOK_EVENTS. It refuses if any enabled endpoint already exists,
+#   because Stripe delivers every event to every enabled destination. Activation
+#   only; rotation rolls an existing endpoint's secret and still pauses.
+#
 #   --replace-key allows activation to overwrite a Stripe API key parameter that
 #   already holds a different real key. Without it, activation refuses: the
 #   current value cannot be recovered from here, and hosts keep using the old key
@@ -98,6 +111,7 @@ AWS_PROFILE_ARG=""
 ENV_FILE_OVERRIDE=""
 DRY_RUN=0
 REPLACE_KEY=0
+CREATE_ENDPOINT=0
 MODE="activate"
 HOST_ENV_PATH="/srv/footbag/env"
 
@@ -120,6 +134,87 @@ print_endpoint_requirements() {
   for evt in $REQUIRED_WEBHOOK_EVENTS; do
     echo "      $evt"
   done
+}
+
+# Creates the webhook endpoint through the Stripe API and leaves its signing
+# secret in WEBHOOK_SECRET. Reads STRIPE_KEY, which the caller has already
+# prompted for, and never writes it to a file or an argument list: curl takes it
+# from a mode-0600 config file that is shredded on every exit path.
+#
+# Everything it sends is derived rather than restated. The URL comes from the
+# environment's own terraform output, so it cannot name a host that does not
+# exist; the version and the event list come from this script's constants, so
+# the endpoint and the dispatcher cannot drift apart.
+create_endpoint_via_api() {
+  command -v jq   >/dev/null || { echo "ERROR: --create-endpoint needs jq." >&2; return 1; }
+  command -v curl >/dev/null || { echo "ERROR: --create-endpoint needs curl." >&2; return 1; }
+
+  local repo_root; repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+  local tf_dir="$repo_root/terraform/$TARGET" domain=""
+  domain="$(terraform -chdir="$tf_dir" output -raw cloudfront_domain 2>/dev/null || true)"
+  if [[ -z "$domain" ]]; then
+    echo "ERROR: could not read cloudfront_domain from the $TARGET terraform output." >&2
+    echo "       Create the endpoint in the Dashboard and re-run without --create-endpoint." >&2
+    return 1
+  fi
+  local url="https://${domain}/payments/webhook"
+
+  local work; work="$(mktemp -d)"
+  # Shredded here rather than by the caller's trap: the curl config holds the key.
+  local cleanup_work='find "$work" -type f -exec shred -u {} + 2>/dev/null || true; rm -rf "$work"'
+  printf 'user = "%s:"\n' "$STRIPE_KEY" > "$work/curlrc"
+
+  # Stripe delivers every event to every enabled destination, so a second one
+  # silently takes a copy of all live traffic. Listing first costs one call.
+  curl -s --config "$work/curlrc" https://api.stripe.com/v1/webhook_endpoints -o "$work/existing.json"
+  if [[ -n "$(jq -r '.error.message // empty' "$work/existing.json")" ]]; then
+    echo "ERROR from Stripe listing endpoints: $(jq -r '.error.message' "$work/existing.json")" >&2
+    eval "$cleanup_work"; return 1
+  fi
+  local enabled; enabled="$(jq -r '[.data[] | select(.status=="enabled")] | length' "$work/existing.json")"
+  if [[ "$enabled" != "0" ]]; then
+    echo "REFUSING: $enabled enabled endpoint(s) already exist in this Stripe account:" >&2
+    jq -r '.data[] | select(.status=="enabled") | "  \(.id)  \(.url)"' "$work/existing.json" >&2
+    echo "Disable or delete them first; every enabled endpoint receives every event." >&2
+    eval "$cleanup_work"; return 1
+  fi
+
+  local curl_args=() evt
+  for evt in $REQUIRED_WEBHOOK_EVENTS; do curl_args+=(-d "enabled_events[]=$evt"); done
+
+  curl -s --config "$work/curlrc" https://api.stripe.com/v1/webhook_endpoints \
+    -d url="$url" -d api_version="$STRIPE_API_VERSION" "${curl_args[@]}" \
+    -o "$work/created.json"
+
+  if [[ -n "$(jq -r '.error.message // empty' "$work/created.json")" ]]; then
+    echo "ERROR from Stripe creating the endpoint: $(jq -r '.error.message' "$work/created.json")" >&2
+    echo "" >&2
+    echo "If the pinned API version was rejected as unavailable, do NOT edit the adapter" >&2
+    echo "constant to match: it is asserted equal to the version the installed Stripe" >&2
+    echo "library pins, so they move together or the suite fails." >&2
+    eval "$cleanup_work"; return 1
+  fi
+
+  # Proves the registered set equals the dispatcher's rather than merely counting
+  # to the same number: a near-miss (dispute updated, invoice paid, payment-intent
+  # canceled) is one row away from something on the list and cannot pass here.
+  jq -r '.enabled_events[]' "$work/created.json" | sort > "$work/got"
+  printf '%s\n' $REQUIRED_WEBHOOK_EVENTS | sort > "$work/want"
+  if ! diff "$work/want" "$work/got"; then
+    echo "ERROR: the created endpoint does not subscribe to the dispatcher's event set." >&2
+    echo "       It exists; delete it in the Dashboard and investigate before activating." >&2
+    eval "$cleanup_work"; return 1
+  fi
+
+  jq -r '"  created \(.id)  status=\(.status)  version=\(.api_version)  events=\(.enabled_events|length) (exact match)"' "$work/created.json"
+  WEBHOOK_SECRET="$(jq -r '.secret' "$work/created.json")"
+  eval "$cleanup_work"
+
+  if [[ "$WEBHOOK_SECRET" != whsec_* ]]; then
+    echo "ERROR: Stripe returned no signing secret for the new endpoint." >&2
+    return 1
+  fi
+  echo "  signing secret captured; it is not displayed and goes straight to Parameter Store."
 }
 
 while [[ $# -gt 0 ]]; do
@@ -146,6 +241,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --replace-key)
       REPLACE_KEY=1
+      shift
+      ;;
+    --create-endpoint)
+      CREATE_ENDPOINT=1
       shift
       ;;
     --deactivate)
@@ -263,8 +362,15 @@ if (( DRY_RUN )); then
       echo "Would run, in order:"
       echo "  1. Prompt (silent) for the Stripe secret API key"
       echo "     (sk_test_ while the production-live marker reads pre-live; sk_live_ from the canary on)"
-      echo "  2. Pause: create the webhook endpoint in the Stripe Dashboard"
-      echo "     (PUBLIC_BASE_URL + /payments/webhook), then prompt (silent) for its whsec_ secret"
+      if [[ "$CREATE_ENDPOINT" == "1" ]]; then
+        echo "  2. Create the webhook endpoint through the Stripe API with that key, refusing if"
+        echo "     one is already enabled, and diff its events against the dispatcher's list."
+        echo "     The signing secret is taken from the response and never displayed."
+      else
+        echo "  2. Pause: create the webhook endpoint in the Stripe Dashboard"
+        echo "     (PUBLIC_BASE_URL + /payments/webhook), then prompt (silent) for its whsec_ secret"
+        echo "     (--create-endpoint does this step through the API instead, with no copy-paste)"
+      fi
       echo "  3. Read $HOST_ENV_PATH down from $SSH_ALIAS over the shared wire"
       echo "  4. Check every refusal BEFORE anything is written: key shape, whsec_ shape,"
       echo "     SECRETS_ADAPTER=live on the host, no signing secret already in service, and"
@@ -433,10 +539,26 @@ fi
 # them left the key parameter already replaced with no way back to the previous
 # value. Both secrets are now written together, after every check has passed.
 
-# Step 2: the Stripe Dashboard part cannot be scripted; pause for it. Activation
-# creates the endpoint; rotation rolls its signing secret. Completion supplies
-# no secret and skips this pause.
-if [[ ( "$MODE" == "activate" || "$MODE" == "rotate" ) && -z "$ENV_FILE_OVERRIDE" ]]; then
+# Step 2: the endpoint and its signing secret. Activation creates the endpoint;
+# rotation rolls its signing secret. Completion supplies no secret and skips this.
+#
+# --create-endpoint does it through the Stripe API instead of pausing for a human
+# in the Dashboard, using the key already read above. That matters for more than
+# convenience: the manual path requires the operator to reveal a live signing
+# secret on one screen and retype it into another, so the secret exists in a
+# clipboard and a scrollback for no reason. Created here, it goes from Stripe's
+# response straight into the variable this script installs from, and is never
+# displayed at all. The event set comes from REQUIRED_WEBHOOK_EVENTS below and is
+# diffed back against it, so the endpoint cannot subscribe to a near-miss of the
+# dispatcher's list.
+#
+# The manual pause stays the default, because an operator part-way through a
+# Dashboard setup should not have the ground moved under them.
+if [[ "$MODE" == "activate" && "$CREATE_ENDPOINT" == "1" && -z "$ENV_FILE_OVERRIDE" ]]; then
+  echo ""
+  echo "Creating the webhook endpoint through the Stripe API..."
+  create_endpoint_via_api || exit 1
+elif [[ ( "$MODE" == "activate" || "$MODE" == "rotate" ) && -z "$ENV_FILE_OVERRIDE" ]]; then
   echo ""
   if [[ "$MODE" == "activate" ]]; then
     echo "Now create the webhook endpoint in the Stripe Dashboard:"

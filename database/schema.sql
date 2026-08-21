@@ -1237,6 +1237,16 @@ CREATE TABLE payments (
   -- ISO-8601 UTC text (converted from Stripe Unix epoch at write time; see SCH-06).
   last_stripe_event_created  TEXT,
 
+  -- The provider's own live/test mode for this payment, 1 for live money and 0
+  -- for a test-mode rehearsal, taken from the flag the provider sets rather than
+  -- inferred from an id prefix: test checkout sessions are prefixed but payment
+  -- intents are not, and a renewal charge carries no session id at all.
+  -- Nullable because a row written before this column existed cannot be
+  -- back-derived; admin surfaces render that state as unknown rather than
+  -- letting a missing value read as real money.
+  provider_livemode INTEGER
+    CHECK (provider_livemode IN (0, 1)),
+
   -- Non-null only for per-cycle charges against a recurring donation subscription.
   -- App discipline: set both this FK and stripe_subscription_id for such payments.
   recurring_subscription_id TEXT

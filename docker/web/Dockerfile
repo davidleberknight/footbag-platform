@@ -63,6 +63,7 @@ RUN if [ "$INCLUDE_DEV_SHORTCUTS" != "1" ]; then \
       rm -rf dist/testkit dist/dev-bootstrap dist/internal-qc && \
       mkdir -p dist/testkit && \
       printf 'module.exports = { devRouter: null };\n' > dist/testkit/devRoutes.js && \
+      printf 'module.exports = { getDevOutboxCaptureClient: function () { return { fetchWorkerCaptured: function () { return Promise.resolve([]); } }; } };\n' > dist/testkit/devOutboxCaptureClient.js && \
       printf 'module.exports = { internalRouter: null };\n' > dist/routes/internalRoutes.js && \
       mkdir -p dist/dev-bootstrap && \
       printf 'module.exports = { applyDevStagingBootstrapAdmin: function () { return { applied: false }; }, getInitialAdminEmails: function () { return new Set(); } };\n' > dist/dev-bootstrap/runtime.js; \

@@ -835,6 +835,7 @@ async function startMembershipPurchase(
       '{}',
       result.sessionId,
       result.paymentIntentId,
+      result.livemode ? 1 : 0,
     );
   } catch (err) {
     if (err instanceof Error && (err as { code?: string }).code === 'SQLITE_CONSTRAINT_UNIQUE') {
@@ -2068,6 +2069,9 @@ function handleInvoicePaymentSucceeded(event: StripeWebhookEvent): WebhookOutcom
       stripeSubscriptionId,
       invoiceId,
       sub.id,
+      // Read off the invoice event itself: a renewal is booked with no checkout
+      // session behind it, so the event is the only place the mode is carried.
+      event.livemode ? 1 : 0,
     );
     // Stamped with the event's own creation time so a later payment event on
     // this invoice can tell whether it is newer than what is already recorded.
@@ -2988,6 +2992,7 @@ async function startDonation(
     note,
     result.sessionId,
     result.paymentIntentId,
+    result.livemode ? 1 : 0,
   );
 
   appendAuditEntry({

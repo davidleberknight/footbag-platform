@@ -99,7 +99,13 @@ export function createApp(): express.Application {
         frameSrc:       ['https://www.youtube-nocookie.com', 'https://player.vimeo.com', 'https://challenges.cloudflare.com'],
         objectSrc:      ["'none'"],
         baseUri:        ["'self'"],
-        formAction:     ["'self'"],
+        // Checkout is a form POST answered with a 303 onto the payment
+        // provider's hosted page, and browsers enforce form-action across the
+        // whole redirect chain rather than only the form's own action. Omit
+        // that origin and the browser refuses the navigation with no server
+        // error at all: the member sees the form reload unchanged, and the
+        // stub adapter cannot reveal it because its redirect is same-origin.
+        formAction:     ["'self'", 'https://checkout.stripe.com'],
         frameAncestors: ["'none'"],
         upgradeInsecureRequests: [],
         // Browser POSTs CSP violation reports to this path so the

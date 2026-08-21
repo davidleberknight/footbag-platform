@@ -98,12 +98,12 @@ describe('operationsPlatformService.runPiiPurgeScan', () => {
     // Full purge applied to the grace-expired deleted account.
     const del = memberRow('m-del-old');
     expect(del.login_email).toBeNull();
-    expect(del.display_name).toBe('Removed Member');
+    expect(del.display_name).toBe('Deleted Member');
     expect(del.personal_data_purged_at).not.toBeNull();
     expect(erasureKinds('m-del-old')).toEqual(['account_pii_purge']);
 
     // Deceased + deleted got the full purge, not the scrub.
-    expect(memberRow('m-both').display_name).toBe('Removed Member');
+    expect(memberRow('m-both').display_name).toBe('Deleted Member');
     expect(erasureKinds('m-both')).toEqual(['account_pii_purge']);
 
     // Contact scrub applied to the grace-expired deceased account: identity

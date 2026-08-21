@@ -3399,7 +3399,7 @@ Seed these defaults into the database-backed configuration store during initial 
 
 ### Donations and Payments
 
-- `payments_paused = 0` (admin-only emergency kill switch that halts new membership purchases and donations without a redeployment; DB literal `0/1`)
+- `payments_paused = 0` (read-only guard: when set, the platform refuses new membership purchases and donations before any provider call is made. The application has no write path to this flag and none is planned. Stopping payments during an incident is a System Administrator action — disarm payments, which is scripted and proven — not an application-administrator control; see the System Administrator stories. DB literal `0/1`)
 - `donation_rate_limit_per_hour = 20` (maximum donation checkout attempts per member per hour)
 - `reconciliation_window_days = 7` (lookback window the nightly reconciliation pass compares)
 - `reconciliation_grace_minutes = 30` (age a record must reach before the reconciliation pass judges it; minimum 1)
@@ -3938,5 +3938,7 @@ Success Criteria:
 System Administrator stories are not application User Stories, but instead they are DevOps actions performed by technical staff with access to the AWS console, CLI, and related operational tooling. This summary is not an exhaustive list, but it clarifies the boundary between what an Application Administrator (user-role) can do and what must be handled by a System Administrator (developer role) responsible for infrastructure provisioning, deployment operations, and ongoing platform maintenance. All System Administrator AWS actions are logged via CloudTrail.
 
 The System Administrator role covers the operational work required to deploy, secure, and operate the platform in production. Responsibilities include provisioning and maintaining AWS infrastructure (e.g., Lightsail, S3, CloudFront, SES, IAM, Parameter Store/KMS) using infrastructure as code; managing environments and deployments (CI/CD, configuration, rollbacks); rotating and safeguarding secrets/keys and webhook credentials; configuring domains/DNS and TLS certificates; SQLite data storage (versioning, backups, restore testing, and configuration); configuring and monitoring scheduled/background jobs; setting up logging/metrics/alerts and cost controls; applying security updates and access reviews; and leading incident response and operational troubleshooting.
+
+Halting live payments in an incident belongs here rather than to the Application Administrator. Disarming payments is the emergency stop: disable the Stripe webhook endpoint in the Dashboard, then run the arming script to dark, which rewrites the environment values file, applies Terraform and deploys. It takes a few minutes and is deliberately the only stop, because the runtime guard it replaces cannot be written by the application. The same applies to halting outbound mail. The order matters: a dark host verifies webhook signatures against the stub secret, so an endpoint left enabled fails every delivery and the provider retries for days before disabling it itself.
 
 **END OF User Stories DOCUMENT**

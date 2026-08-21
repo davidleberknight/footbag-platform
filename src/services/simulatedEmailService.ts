@@ -2,10 +2,13 @@
 // email-gated pages (/register/check-email, /password/forgot/sent, the legacy
 // claim sent state, and the unified link-history wizard). Two modes:
 //
-//  - dev:      SES_ADAPTER=stub (dev and staging). Returns the captured
-//              in-memory messages from StubSesAdapter so a developer or paid
-//              tester can finish email flows without leaving the page.
-//  - null:     SES_ADAPTER=live (production only). No card is rendered.
+//  - dev:      SES_ADAPTER=stub. Returns the captured in-memory messages from
+//              StubSesAdapter so a developer or paid tester can finish email
+//              flows without leaving the page. This is not a dev-and-staging
+//              branch: production selects the stub adapter too whenever email
+//              is dark, so it runs there and every path below must hold on a
+//              production image.
+//  - null:     SES_ADAPTER=live. No card is rendered.
 //
 // Scrub safety: outbox_emails.body_text is NULLed after send for PII
 // hygiene. That scrub runs on the DB row, not on the stub adapter's

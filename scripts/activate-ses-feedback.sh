@@ -28,10 +28,23 @@
 # is part of live-email activation; running it against a stub-SES host is
 # harmless but pointless.
 #
+# --deactivate is the reverse of activation, and exists for the same reason the
+# payments script carries one: a knowing decision is far easier to take when it
+# is reversible. Arming email is taken deliberately while some of its
+# attestation conditions are still false, so the exit must be scripted rather
+# than improvised afterwards from memory. It removes SES_FEEDBACK_WEBHOOK_KEY
+# from the host env file, clears the URL from the terraform values file, and
+# prints the apply that removes the subscription. It requires the host to be
+# running the stub SES adapter already: removing the key from a live-adapter
+# host leaves a subscription publishing to an endpoint that refuses every
+# delivery, which reads as a quiet feed rather than a broken one. It reads no
+# secret and generates none.
+#
 # Usage (the sudo password is read from stdin, line 1):
 #   < <operator credential file> bash scripts/activate-ses-feedback.sh --target production
 #   < <operator credential file> bash scripts/activate-ses-feedback.sh --target staging --ssh-alias my-host
 #   < <operator credential file> bash scripts/activate-ses-feedback.sh --target staging --rotate
+#   < <operator credential file> bash scripts/activate-ses-feedback.sh --target staging --deactivate
 #
 # --yes accepts the push confirmation instead of asking for it, the same way the
 # deploy wrapper's -y does, so this can run where there is no terminal to type
@@ -73,6 +86,7 @@ TARGET="staging"
 SSH_ALIAS=""
 ENV_FILE_OVERRIDE=""
 ROTATE=0
+DEACTIVATE=0
 HOST_ENV_PATH="/srv/footbag/env"
 TFVARS_OVERRIDE=""
 WRITE_TFVARS=1
@@ -120,6 +134,10 @@ while [[ $# -gt 0 ]]; do
       ROTATE=1
       shift
       ;;
+    --deactivate)
+      DEACTIVATE=1
+      shift
+      ;;
     -h|--help)
       usage
       ;;
@@ -137,6 +155,18 @@ case "$TARGET" in
     exit 2
     ;;
 esac
+
+# Rotation replaces a key and deactivation removes it. Asking for both names two
+# opposite outcomes, and guessing which one the operator meant is exactly the
+# kind of silent choice this script exists to avoid.
+if (( DEACTIVATE && ROTATE )); then
+  echo "ERROR: --deactivate and --rotate ask for opposite outcomes; choose one." >&2
+  exit 2
+fi
+if (( DEACTIVATE && SHOW_CONFIRMATION )); then
+  echo "ERROR: --deactivate and --show-confirmation cannot be combined." >&2
+  exit 2
+fi
 
 if [[ -z "$SSH_ALIAS" ]]; then
   SSH_ALIAS="footbag-$TARGET"
@@ -246,40 +276,87 @@ fi
 # Step 2: guards against clobbering a live key or colliding secrets.
 # -----------------------------------------------------------------------------
 
-# The feed authenticates on the key AND the publishing topic. Installing a key
-# onto a host with no expected topic produces a feed that refuses every
-# delivery, which reads as a quiet feed rather than a misconfigured one, so
-# refuse rather than create that state. The ARN is non-secret and belongs to the
-# host-env setter, which reads it from the Terraform output.
-EXISTING_TOPIC_ARN="$(grep -E '^SES_FEEDBACK_TOPIC_ARN=' "$OLD_LOCAL" | tail -1 | cut -d= -f2- || true)"
-if [[ -z "$EXISTING_TOPIC_ARN" ]]; then
-  echo "ERROR: SES_FEEDBACK_TOPIC_ARN is not set on $TARGET, so the feed would refuse every delivery." >&2
-  echo "       Run: scripts/set-host-env.sh --target $TARGET   (then re-run this script)" >&2
-  exit 1
-fi
-
 EXISTING_KEY="$(grep -E '^SES_FEEDBACK_WEBHOOK_KEY=' "$OLD_LOCAL" | tail -1 | cut -d= -f2- || true)"
-if [[ -n "$EXISTING_KEY" && "$ROTATE" -ne 1 ]]; then
-  echo "REFUSING: SES_FEEDBACK_WEBHOOK_KEY is already set on $TARGET." >&2
-  echo "A live key may back the current SNS subscription. To replace it, run" >&2
-  echo "again with --rotate, then re-apply terraform so SNS re-subscribes" >&2
-  echo "with the new URL." >&2
-  exit 1
-fi
+WEBHOOK_URL=""
 
-INTERNAL_SECRET="$(grep -E '^INTERNAL_EVENT_SECRET=' "$OLD_LOCAL" | tail -1 | cut -d= -f2- || true)"
-NEW_KEY="$(openssl rand -hex 32)"
-if [[ -n "$INTERNAL_SECRET" && "$NEW_KEY" == "$INTERNAL_SECRET" ]]; then
-  echo "ERROR: generated key collided with INTERNAL_EVENT_SECRET; run again." >&2
-  exit 1
-fi
+if (( DEACTIVATE )); then
+  # Removing the key from a host still running the live SES adapter leaves the
+  # subscription publishing to an endpoint that rejects every delivery. That
+  # looks like a feed with nothing to report rather than a broken one, which is
+  # the failure mode this whole script is built to avoid creating.
+  SES_ADAPTER_VALUE="$(grep -E '^SES_ADAPTER=' "$OLD_LOCAL" | tail -1 | cut -d= -f2- || true)"
+  if [[ "$SES_ADAPTER_VALUE" == "live" ]]; then
+    echo "REFUSING: $TARGET still runs the live SES adapter (SES_ADAPTER=live)." >&2
+    echo "Disarm email first, so the host is dark before its feedback key is" >&2
+    echo "removed. Removing it from a live host leaves an SNS subscription" >&2
+    echo "publishing to an endpoint that refuses every delivery." >&2
+    exit 1
+  fi
 
-PUBLIC_BASE_URL="$(grep -E '^PUBLIC_BASE_URL=' "$OLD_LOCAL" | tail -1 | cut -d= -f2- || true)"
-if [[ -z "$PUBLIC_BASE_URL" ]]; then
-  echo "ERROR: PUBLIC_BASE_URL is not set in the host env file; cannot compose the webhook URL." >&2
-  exit 1
+  # Idempotent, like the payments script's own reversal: a second run reports
+  # the state rather than failing, so an interrupted deactivation can simply be
+  # repeated.
+  if [[ -z "$EXISTING_KEY" ]]; then
+    echo ""
+    echo "SES_FEEDBACK_WEBHOOK_KEY is already absent on $TARGET; nothing to remove."
+    echo "The subscription removal is a terraform step; see below if it is still present."
+    echo ""
+    echo "  terraform -chdir=terraform/${TARGET} plan"
+    echo "  terraform -chdir=terraform/${TARGET} apply"
+    exit 0
+  fi
+
+  # The phrase is asked on the real path only, exactly as the push confirmation
+  # below is. Synthetic mode rewrites a local file the caller already named and
+  # reaches no host, so a prompt there would only block the machines that mode
+  # exists for.
+  if [[ -z "$ENV_FILE_OVERRIDE" ]]; then
+    echo ""
+    echo "This removes the SES feedback-webhook key from $TARGET: the key line goes"
+    echo "from the host env file and the URL is cleared from the terraform values"
+    echo "file, so the next activation is a first activation again. Bounce and"
+    echo "complaint notifications stop being accepted. No mail is sent either way."
+    if ! confirm_from_tty "Type 'REMOVE FEEDBACK KEY' to continue: " "REMOVE FEEDBACK KEY"; then
+      echo ""
+      echo "Aborted: confirmation phrase not entered." >&2
+      exit 1
+    fi
+  fi
+else
+  # The feed authenticates on the key AND the publishing topic. Installing a key
+  # onto a host with no expected topic produces a feed that refuses every
+  # delivery, which reads as a quiet feed rather than a misconfigured one, so
+  # refuse rather than create that state. The ARN is non-secret and belongs to the
+  # host-env setter, which reads it from the Terraform output.
+  EXISTING_TOPIC_ARN="$(grep -E '^SES_FEEDBACK_TOPIC_ARN=' "$OLD_LOCAL" | tail -1 | cut -d= -f2- || true)"
+  if [[ -z "$EXISTING_TOPIC_ARN" ]]; then
+    echo "ERROR: SES_FEEDBACK_TOPIC_ARN is not set on $TARGET, so the feed would refuse every delivery." >&2
+    echo "       Run: scripts/set-host-env.sh --target $TARGET   (then re-run this script)" >&2
+    exit 1
+  fi
+
+  if [[ -n "$EXISTING_KEY" && "$ROTATE" -ne 1 ]]; then
+    echo "REFUSING: SES_FEEDBACK_WEBHOOK_KEY is already set on $TARGET." >&2
+    echo "A live key may back the current SNS subscription. To replace it, run" >&2
+    echo "again with --rotate, then re-apply terraform so SNS re-subscribes" >&2
+    echo "with the new URL. To remove it entirely, run again with --deactivate." >&2
+    exit 1
+  fi
+
+  INTERNAL_SECRET="$(grep -E '^INTERNAL_EVENT_SECRET=' "$OLD_LOCAL" | tail -1 | cut -d= -f2- || true)"
+  NEW_KEY="$(openssl rand -hex 32)"
+  if [[ -n "$INTERNAL_SECRET" && "$NEW_KEY" == "$INTERNAL_SECRET" ]]; then
+    echo "ERROR: generated key collided with INTERNAL_EVENT_SECRET; run again." >&2
+    exit 1
+  fi
+
+  PUBLIC_BASE_URL="$(grep -E '^PUBLIC_BASE_URL=' "$OLD_LOCAL" | tail -1 | cut -d= -f2- || true)"
+  if [[ -z "$PUBLIC_BASE_URL" ]]; then
+    echo "ERROR: PUBLIC_BASE_URL is not set in the host env file; cannot compose the webhook URL." >&2
+    exit 1
+  fi
+  WEBHOOK_URL="${PUBLIC_BASE_URL%/}/webhooks/ses-feedback?key=${NEW_KEY}"
 fi
-WEBHOOK_URL="${PUBLIC_BASE_URL%/}/webhooks/ses-feedback?key=${NEW_KEY}"
 
 # -----------------------------------------------------------------------------
 # Step 3: rewrite (replace-or-append, duplicates collapsed), masked diff,
@@ -288,17 +365,27 @@ WEBHOOK_URL="${PUBLIC_BASE_URL%/}/webhooks/ses-feedback?key=${NEW_KEY}"
 # -----------------------------------------------------------------------------
 umask 077
 NEW_LOCAL="$(mktemp /tmp/footbag-env-sesfb-new.XXXXXX)"
-FK_VALUE="$NEW_KEY" awk '
-  BEGIN { seen = 0 }
-  /^SES_FEEDBACK_WEBHOOK_KEY=/ {
-    if (!seen) { print "SES_FEEDBACK_WEBHOOK_KEY=" ENVIRON["FK_VALUE"]; seen = 1 }
-    next
-  }
-  { print }
-  END {
-    if (!seen) print "SES_FEEDBACK_WEBHOOK_KEY=" ENVIRON["FK_VALUE"]
-  }
-' "$OLD_LOCAL" > "$NEW_LOCAL"
+if (( DEACTIVATE )); then
+  # Drop every key line and keep the rest verbatim. The topic ARN stays: it is a
+  # non-secret operator-owned value belonging to the host-env setter, and it is
+  # what a later activation checks before installing a key at all.
+  awk '
+    /^SES_FEEDBACK_WEBHOOK_KEY=/ { next }
+    { print }
+  ' "$OLD_LOCAL" > "$NEW_LOCAL"
+else
+  FK_VALUE="$NEW_KEY" awk '
+    BEGIN { seen = 0 }
+    /^SES_FEEDBACK_WEBHOOK_KEY=/ {
+      if (!seen) { print "SES_FEEDBACK_WEBHOOK_KEY=" ENVIRON["FK_VALUE"]; seen = 1 }
+      next
+    }
+    { print }
+    END {
+      if (!seen) print "SES_FEEDBACK_WEBHOOK_KEY=" ENVIRON["FK_VALUE"]
+    }
+  ' "$OLD_LOCAL" > "$NEW_LOCAL"
+fi
 
 # Masks every secret-bearing key, not just this script's own: diff prints
 # unchanged neighbour lines around each hunk, so masking only the changed line
@@ -330,6 +417,40 @@ fi
 # -----------------------------------------------------------------------------
 # Step 4: print the terraform value once, then the remaining human steps.
 # -----------------------------------------------------------------------------
+if (( DEACTIVATE )); then
+  echo ""
+  echo "== SES feedback-webhook key removed from $TARGET =="
+
+  # Emptying the variable is the whole reversal: every feedback resource in the
+  # environment's terraform is counted on this value being non-empty, so the
+  # subscription, its dead-letter queue and the queue policy all go on the next
+  # apply. Clearing it here rather than telling the operator to edit the file
+  # keeps the exit as scripted as the entrance was.
+  if (( WRITE_TFVARS )) && [[ -z "$ENV_FILE_OVERRIDE" || -n "$TFVARS_OVERRIDE" ]]; then
+    TFVARS_LINK="${TFVARS_OVERRIDE:-${REPO_ROOT}/terraform/${TARGET}/secrets.auto.tfvars}"
+    if TFVARS_PATH="$(resolve_tfvars_target "$TFVARS_LINK" "$REPO_ROOT")"; then
+      write_tfvars_url "$TFVARS_PATH" "ses_feedback_webhook_url" "" || exit 1
+    else
+      exit 1
+    fi
+  else
+    echo ""
+    echo "Clear this terraform variable by hand, in the operator-local values file:"
+    echo ""
+    echo "  ses_feedback_webhook_url = \"\""
+  fi
+
+  echo ""
+  echo "Remaining steps (human by design):"
+  echo "  1. terraform -chdir=terraform/${TARGET} plan     (expect the subscription,"
+  echo "     its dead-letter queue and the queue policy to be destroyed, and nothing else)"
+  echo "  2. terraform -chdir=terraform/${TARGET} apply"
+  echo "  3. Redeploy, so the running containers no longer hold the key."
+  echo "  4. < <operator credential file> bash scripts/verify-host-env.sh --target ${TARGET}"
+  echo "     The SES feedback step reads pending again, which is where it started."
+  exit 0
+fi
+
 echo ""
 echo "== SES feedback-webhook key installed on $TARGET =="
 

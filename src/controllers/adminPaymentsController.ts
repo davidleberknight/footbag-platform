@@ -26,6 +26,8 @@ export const adminPaymentsController = {
           reference: str(req.query.reference),
           createdFrom: str(req.query.from),
           createdTo: str(req.query.to),
+          eventId: str(req.query.event),
+          sort: str(req.query.sort),
           page: pageNum(req.query.page),
         }),
       );

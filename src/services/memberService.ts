@@ -762,7 +762,7 @@ function purgeAccountPII(memberId: string): PurgeAccountPIIResult {
   const honorsPreserved = Boolean(row.is_hof) || Boolean(row.is_bap);
   const preserveFlag = honorsPreserved ? 1 : 0;
   const now = new Date().toISOString();
-  const placeholderName = 'Removed Member';
+  const placeholderName = 'Deleted Member';
   // Slug derives from the member id so the placeholder is unique and the
   // member's chosen slug returns to the available pool.
   const placeholderSlug = `removed_${memberId.replace(/[^a-zA-Z0-9]/g, '').slice(-16).toLowerCase()}`;
@@ -772,7 +772,7 @@ function purgeAccountPII(memberId: string): PurgeAccountPIIResult {
       preserveFlag,
       placeholderName,
       preserveFlag, placeholderName,
-      preserveFlag, 'removed member',
+      preserveFlag, 'deleted member',
       placeholderSlug,
       now, now, 'operations_purge',
       memberId,

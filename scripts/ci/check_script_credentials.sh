@@ -69,6 +69,37 @@ if [ -n "$hits" ]; then
   violations=$((violations + 1))
 fi
 
+# An operator prompt reading stdin, in a script with no terminal guard. This is
+# the reverse of the rule above and bites the caller rather than the author: the
+# script never asks for a credential, so nothing stops someone invoking it with
+# one redirected in, and `read` then consumes the password as the answer to a
+# confirmation prompt. The fix is either to read the answer from /dev/tty, or to
+# refuse unless stdin/stdout/stderr are all TTYs the way deploy_to_aws.sh does.
+# Loop reads (`while … read`), here-strings and here-docs are data plumbing, not
+# prompts, so they are excluded, as is any read carrying its own `<` redirect:
+# naming the source means it is not consuming whatever the caller happened to
+# attach. A file already carrying a guard passes.
+prompt_offenders=""
+while IFS= read -r f; do
+  [ -n "$f" ] || continue
+  prompt_hits=$(grep -nE '(^|[^a-zA-Z_])read +-[a-zA-Z]*r' "$f" 2>/dev/null \
+    | grep -vE '<<<|<<|while|done <|/dev/tty|read [^|;&]*< ' || true)
+  [ -n "$prompt_hits" ] || continue
+  grep -qE '\-t 0|/dev/tty' "$f" && continue
+  prompt_offenders="${prompt_offenders}${prompt_hits}
+"
+done <<EOF
+$(find scripts -name '*.sh' -not -path 'scripts/.venv/*' 2>/dev/null | sort)
+EOF
+if [ -n "$(printf '%s' "$prompt_offenders" | tr -d '[:space:]')" ]; then
+  printf '%s' "$prompt_offenders" >&2
+  echo "FAIL: an operator prompt reads stdin in a script with no terminal guard;" >&2
+  echo "      a caller who redirects a credential file in would have the password" >&2
+  echo "      consumed as the answer. Read the answer from /dev/tty, or refuse a" >&2
+  echo "      non-TTY stdin. Model: scripts/arming.sh." >&2
+  violations=$((violations + 1))
+fi
+
 if [ "$violations" -gt 0 ]; then
   exit 1
 fi

@@ -182,8 +182,8 @@ describe('memberService.scrubDeceasedMemberPII', () => {
     expect(purge.clearedLegacyMemberId).toBe(legacyId);
 
     const m = memberRow('scrub-upgrade');
-    expect(m.display_name).toBe('Removed Member');
-    expect(m.real_name).toBe('Removed Member');
+    expect(m.display_name).toBe('Deleted Member');
+    expect(m.real_name).toBe('Deleted Member');
     expect(m.city).toBeNull();
     expect(m.legacy_member_id).toBeNull();
     expect(m.historical_person_id).toBeNull();

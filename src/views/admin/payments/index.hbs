@@ -42,6 +42,17 @@
       </div>
 
       <div class="form-field">
+        <label for="event">Event</label>
+        <select id="event" name="event">
+          <option value="">All events</option>
+          {{#each content.eventOptions}}
+            <option value="{{this.id}}"{{#if this.isSelected}} selected{{/if}}>{{this.title}}</option>
+          {{/each}}
+        </select>
+        <small class="form-hint">Registration fees only; donations and memberships have no event.</small>
+      </div>
+
+      <div class="form-field">
         <label for="member">Member</label>
         <input type="text" id="member" name="member" value="{{content.filters.memberId}}">
         <small class="form-hint">Matches a member id, profile handle, login email, or part of a display name.</small>
@@ -52,6 +63,10 @@
         <input type="text" id="reference" name="reference" value="{{content.filters.reference}}">
         <small class="form-hint">Matches the payment id, payment intent, checkout session, subscription, or invoice.</small>
       </div>
+
+      <!-- Carries the chosen column order through a filter submit, so applying a
+           filter does not silently reset the table to newest-first. -->
+      <input type="hidden" name="sort" value="{{content.activeSort}}">
 
       <div class="form-actions">
         <button type="submit" class="btn btn-primary">Apply Filters</button>
@@ -65,13 +80,15 @@
       <table class="data-table">
         <thead>
           <tr>
-            <th>Date</th>
-            <th>Type</th>
-            <th>Amount</th>
-            <th>Status</th>
-            <th>Member</th>
-            <th>Reference</th>
-            <th></th>
+            {{#each content.sortHeaders}}
+              <th{{#if this.ariaSort}} aria-sort="{{this.ariaSort}}"{{/if}}>
+                {{#if this.href}}
+                  <a href="{{this.href}}">{{this.label}}{{#if this.directionGlyph}} {{this.directionGlyph}}{{/if}}</a>
+                {{else}}
+                  {{this.label}}
+                {{/if}}
+              </th>
+            {{/each}}
           </tr>
         </thead>
         <tbody>
@@ -88,7 +105,19 @@
                   <span class="text-muted">none</span>
                 {{/if}}
               </td>
-              <td>{{this.reference}}</td>
+              <td>
+                {{#if this.eventHref}}
+                  <a href="{{this.eventHref}}">{{this.eventTitle}}</a>
+                {{else}}
+                  <span class="text-muted">none</span>
+                {{/if}}
+              </td>
+              <td>
+                {{this.reference}}
+                {{#if this.hasProviderModeBadge}}
+                  <span class="badge">{{this.providerModeLabel}}</span>
+                {{/if}}
+              </td>
               <td><a href="{{this.detailHref}}" class="btn btn-outline btn-sm">View Payment</a></td>
             </tr>
           {{/each}}

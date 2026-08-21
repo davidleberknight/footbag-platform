@@ -56,7 +56,12 @@ banner() { printf '\n==> %s\n' "$*"; }
 
 confirm() {
   local prompt="$1"
-  read -r -p "$prompt [y/N] " ans
+  # The answer comes from the terminal, never stdin. A redirected or piped stdin
+  # would answer on the operator's behalf with whatever happens to be on it, and
+  # the actions behind this prompt restart containers and touch a live host. No
+  # terminal means no confirmation, which is a refusal rather than a default yes.
+  local ans=""
+  read -r -p "$prompt [y/N] " ans < /dev/tty || return 1
   [[ "$ans" == "y" || "$ans" == "Y" ]]
 }
 

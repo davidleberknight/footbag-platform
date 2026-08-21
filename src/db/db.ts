@@ -10119,8 +10119,8 @@ export const payments = {
       id, created_at, created_by, updated_at, updated_by, version,
       member_id, payment_type, amount_cents, currency,
       status, descriptor, purchased_tier_status, metadata_json,
-      stripe_checkout_session_id, stripe_payment_intent_id
-    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      stripe_checkout_session_id, stripe_payment_intent_id, provider_livemode
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `); },
 
   get updateStatus() { return db.prepare(`
@@ -10236,8 +10236,8 @@ export const payments = {
       id, created_at, created_by, updated_at, updated_by, version,
       member_id, payment_type, amount_cents, currency,
       status, descriptor, donation_note, metadata_json,
-      stripe_checkout_session_id, stripe_payment_intent_id
-    ) VALUES (?, ?, ?, ?, ?, 1, ?, 'donation', ?, ?, 'pending', ?, ?, '{}', ?, ?)
+      stripe_checkout_session_id, stripe_payment_intent_id, provider_livemode
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, 'donation', ?, ?, 'pending', ?, ?, '{}', ?, ?, ?)
   `); },
 
   // One annual charge against a recurring donation subscription. Both the FK and
@@ -10252,8 +10252,8 @@ export const payments = {
       member_id, payment_type, amount_cents, currency,
       status, descriptor, donation_note, metadata_json,
       stripe_customer_id, stripe_subscription_id, stripe_invoice_id,
-      recurring_subscription_id
-    ) VALUES (?, ?, ?, ?, ?, 1, ?, 'donation', ?, ?, 'pending', ?, ?, '{}', ?, ?, ?, ?)
+      recurring_subscription_id, provider_livemode
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, 'donation', ?, ?, 'pending', ?, ?, '{}', ?, ?, ?, ?, ?)
   `); },
 };
 
@@ -10478,6 +10478,68 @@ export interface AdminPaymentFilters {
   reference?: string;
   createdFrom?: string;
   createdTo?: string;
+  /** The event a registration fee was taken for. A payment reaches its event
+   *  through the registration that references it; payments stay denormalised. */
+  eventId?: string;
+}
+
+/** The registration a payment settles, and through it the event. LEFT because
+ *  only a registration fee has one: a donation or a membership joins to nothing
+ *  and must still appear in the list. The partial unique index on
+ *  `registrations.payment_id` is what keeps this join one-to-at-most-one, so it
+ *  cannot multiply a payment into several rows. */
+const ADMIN_PAYMENT_EVENT_JOIN = `
+  LEFT JOIN registrations reg ON reg.payment_id = p.id
+  LEFT JOIN events ev ON ev.id = reg.event_id
+  LEFT JOIN tags evt ON evt.id = ev.hashtag_tag_id
+`;
+
+/**
+ * Sort keys the All Payments view offers, mapped to the SQL that orders by them.
+ * A whitelist rather than interpolated input: the sort key arrives in the query
+ * string, and ORDER BY cannot be parameterised, so an unknown key falls back to
+ * the default instead of reaching the statement.
+ *
+ * Every ordering ends in `p.rowid` so the sequence is total. Without it, rows
+ * tying on the chosen column order arbitrarily between calls, and a tie
+ * spanning a page boundary can show the same payment on two pages while another
+ * never appears at all.
+ */
+const ADMIN_PAYMENT_SORTS: Record<string, string> = {
+  date_desc: 'p.created_at DESC, p.rowid DESC',
+  date_asc: 'p.created_at ASC, p.rowid ASC',
+  type_desc: 'p.payment_type DESC, p.created_at DESC, p.rowid DESC',
+  type_asc: 'p.payment_type ASC, p.created_at DESC, p.rowid DESC',
+  amount_desc: 'p.amount_cents DESC, p.created_at DESC, p.rowid DESC',
+  amount_asc: 'p.amount_cents ASC, p.created_at DESC, p.rowid DESC',
+  status_desc: 'p.status DESC, p.created_at DESC, p.rowid DESC',
+  status_asc: 'p.status ASC, p.created_at DESC, p.rowid DESC',
+  // A payment with no member sorts last either way rather than leading the
+  // ascending page with a block of nulls an administrator has to scroll past.
+  member_desc: 'm.slug IS NULL, m.slug DESC, p.created_at DESC, p.rowid DESC',
+  member_asc: 'm.slug IS NULL, m.slug ASC, p.created_at DESC, p.rowid DESC',
+  event_desc: 'ev.title IS NULL, ev.title DESC, p.created_at DESC, p.rowid DESC',
+  event_asc: 'ev.title IS NULL, ev.title ASC, p.created_at DESC, p.rowid DESC',
+  // Ordered on the same value the column displays, which falls back through the
+  // provider identifiers to the payment's own id. Sorting on the raw intent
+  // alone would scatter every renewal and every unstarted checkout, the two
+  // cases that have no intent, into one indistinguishable block.
+  reference_desc:
+    'COALESCE(p.stripe_payment_intent_id, p.stripe_subscription_id, p.id) DESC, p.rowid DESC',
+  reference_asc:
+    'COALESCE(p.stripe_payment_intent_id, p.stripe_subscription_id, p.id) ASC, p.rowid ASC',
+};
+
+export const ADMIN_PAYMENT_DEFAULT_SORT = 'date_desc';
+
+/** Resolves a caller-supplied sort key to its ORDER BY clause, falling back to
+ *  the default for anything not on the whitelist. */
+export function adminPaymentOrderBy(sort: string | undefined): string {
+  return ADMIN_PAYMENT_SORTS[sort ?? ''] ?? ADMIN_PAYMENT_SORTS[ADMIN_PAYMENT_DEFAULT_SORT];
+}
+
+export function isAdminPaymentSort(sort: string): boolean {
+  return Object.prototype.hasOwnProperty.call(ADMIN_PAYMENT_SORTS, sort);
 }
 
 function buildAdminPaymentClauses(f: AdminPaymentFilters): { where: string; params: unknown[] } {
@@ -10497,6 +10559,7 @@ function buildAdminPaymentClauses(f: AdminPaymentFilters): { where: string; para
   }
   if (f.createdFrom) { clauses.push('p.created_at >= ?'); params.push(f.createdFrom); }
   if (f.createdTo) { clauses.push('p.created_at < ?'); params.push(f.createdTo); }
+  if (f.eventId) { clauses.push('reg.event_id = ?'); params.push(f.eventId); }
   if (f.reference) {
     clauses.push(
       '(p.id = ? OR p.stripe_payment_intent_id = ? OR p.stripe_checkout_session_id = ? OR p.stripe_subscription_id = ? OR p.stripe_invoice_id = ?)',
@@ -10510,16 +10573,32 @@ export function queryAdminPayments(
   filters: AdminPaymentFilters,
   limit: number,
   offset: number,
+  sort?: string,
 ): Record<string, unknown>[] {
   const { where, params } = buildAdminPaymentClauses(filters);
   return db.prepare(`
-    SELECT p.*, m.slug AS member_slug
+    SELECT p.*, m.slug AS member_slug,
+           ev.id AS event_id, ev.title AS event_title, evt.tag_normalized AS event_tag
     FROM payments p
     LEFT JOIN members m ON m.id = p.member_id
+    ${ADMIN_PAYMENT_EVENT_JOIN}
     ${where}
-    ORDER BY p.created_at DESC, p.rowid DESC
+    ORDER BY ${adminPaymentOrderBy(sort)}
     LIMIT ? OFFSET ?
   `).all(...params, limit, offset) as Record<string, unknown>[];
+}
+
+/** The events that actually have payments against them, for the list's event
+ *  filter. Derived from the payments themselves rather than the whole event
+ *  catalogue, so the filter never offers an option that returns nothing. */
+export function listAdminPaymentEventOptions(): Record<string, unknown>[] {
+  return db.prepare(`
+    SELECT DISTINCT ev.id AS event_id, ev.title AS event_title, ev.start_date AS start_date
+    FROM payments p
+    INNER JOIN registrations reg ON reg.payment_id = p.id
+    INNER JOIN events ev ON ev.id = reg.event_id
+    ORDER BY ev.start_date DESC, ev.title ASC
+  `).all() as Record<string, unknown>[];
 }
 
 /** Admin payment detail by primary key. Distinct from the reference filter,
@@ -10527,17 +10606,26 @@ export function queryAdminPayments(
  *  collides with another row's provider id to the wrong payment. */
 export function findAdminPaymentById(paymentId: string): Record<string, unknown> | undefined {
   return db.prepare(`
-    SELECT p.*, m.slug AS member_slug
+    SELECT p.*, m.slug AS member_slug,
+           ev.id AS event_id, ev.title AS event_title, evt.tag_normalized AS event_tag
     FROM payments p
     LEFT JOIN members m ON m.id = p.member_id
+    ${ADMIN_PAYMENT_EVENT_JOIN}
     WHERE p.id = ?
   `).get(paymentId) as Record<string, unknown> | undefined;
 }
 
 export function countAdminPayments(filters: AdminPaymentFilters): number {
   const { where, params } = buildAdminPaymentClauses(filters);
+  // Carries the same joins as the listing even though it selects no column from
+  // them: the event filter's clause names the registration, and a count built
+  // over a narrower FROM would disagree with the rows the page then shows.
   const row = db.prepare(`
-    SELECT COUNT(*) AS total FROM payments p ${where}
+    SELECT COUNT(*) AS total
+    FROM payments p
+    LEFT JOIN members m ON m.id = p.member_id
+    ${ADMIN_PAYMENT_EVENT_JOIN}
+    ${where}
   `).get(...params) as { total: number };
   return row.total;
 }

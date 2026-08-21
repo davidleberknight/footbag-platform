@@ -310,6 +310,26 @@ if (( DRY_RUN )); then
   exit 0
 fi
 
+# Every confirmation below is read from stdin, and this script is documented to
+# run with stdin attached to the operator's terminal. Redirect anything into it
+# and `read` consumes that instead: point an operator credential file at it and
+# the host's sudo password silently becomes the answer to a confirmation prompt,
+# and lands in the terminal scrollback of a failed comparison. Refusing a
+# non-terminal stdin costs nothing here, because nothing this script does is
+# scriptable anyway: every state change is gated on a typed phrase.
+# Synthetic mode (--tfvars) is the CI test path: it rewrites a local file, stops
+# before terraform and the deploy, and drives the prompts from piped stdin by
+# design. It is never an operator invocation, so the terminal requirement below
+# does not apply to it.
+if [[ -z "$TFVARS_OVERRIDE" ]] && ! { [[ -t 0 ]] && [[ -t 1 ]] && [[ -t 2 ]]; }; then
+  echo "ERROR: arming requires an interactive terminal for its typed confirmations," >&2
+  echo "       but stdin/stdout/stderr are not all TTYs." >&2
+  echo "       Re-run from an interactive shell. Do NOT redirect a credential file" >&2
+  echo "       into this script: its prompts read stdin, so the credential would be" >&2
+  echo "       consumed as an answer. Nothing has been changed." >&2
+  exit 1
+fi
+
 # ── Step 1: the provider side, which this script cannot do for you ───────────
 if (( FROM_STEP <= 1 )) && [[ "$PRECONDITION" == "ses-readiness" ]]; then
   echo "-- step 1: SES readiness --"

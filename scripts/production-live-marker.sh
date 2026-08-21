@@ -155,6 +155,22 @@ if [[ "$CURRENT" == "$WANT_VALUE" ]]; then
   exit 0
 fi
 
+# The confirmation below is read from stdin, and this script expects stdin to be
+# the operator's terminal. Redirect anything into it and `read` consumes that
+# instead: point an operator credential file at it and the host's sudo password
+# silently becomes the answer to the phrase prompt. Refusing a non-terminal stdin
+# costs nothing, because moving the marker is gated on a typed phrase and is not
+# scriptable in any case. A read-only invocation never reaches this point.
+if ! { [[ -t 0 ]] && [[ -t 1 ]] && [[ -t 2 ]]; }; then
+  echo "" >&2
+  echo "ERROR: moving the marker requires an interactive terminal for its typed" >&2
+  echo "       confirmation, but stdin/stdout/stderr are not all TTYs." >&2
+  echo "       Re-run from an interactive shell. Do NOT redirect a credential file" >&2
+  echo "       into this script: its prompt reads stdin, so the credential would be" >&2
+  echo "       consumed as an answer. The marker has not been moved." >&2
+  exit 1
+fi
+
 echo ""
 if [[ "$WANT_VALUE" == "true" ]]; then
   CONFIRM_PHRASE="$CONFIRM_LIVE"

@@ -68,12 +68,23 @@ export interface CheckoutSessionResult {
   sessionId: string;
   paymentIntentId: string | null;
   redirectUrl: string;
+  /**
+   * Whether the provider handled this in live mode, taken from its own
+   * `livemode` flag rather than inferred from an id prefix. Stripe prefixes
+   * test checkout sessions but not payment intents, and a renewal row carries
+   * no session id at all, so no id-parsing rule can label every row correctly.
+   */
+  livemode: boolean;
 }
 
 export interface StripeWebhookEvent {
   id: string;
   type: string;
   createdAt: string;
+  /** As above. Carried on the event as well as the checkout result because an
+   *  invoice-driven renewal is booked from the event alone, with no checkout
+   *  session behind it to read the flag from. */
+  livemode: boolean;
   data: Record<string, unknown>;
 }
 
@@ -327,6 +338,10 @@ function mapStripeEvent(event: ReturnType<typeof verifyStripeWebhook>): StripeWe
     id: event.id,
     type: event.type,
     createdAt: new Date(event.created * 1000).toISOString(),
+    // Compared against true rather than coerced, so a synthetic stub event that
+    // omits the field entirely lands on false. That is the right answer for the
+    // stub without special-casing it: nothing it produces is real money.
+    livemode: event.livemode === true,
     data: event.data as unknown as Record<string, unknown>,
   };
 }
@@ -673,7 +688,12 @@ export function createStubPaymentAdapter(): StubPaymentAdapter {
       stripeCustomerId: opts.stripeCustomerId ?? null,
     });
     nextOutcome = 'success';
-    return { sessionId, paymentIntentId, redirectUrl: `/payments/checkout/${sessionId}` };
+    return {
+      sessionId,
+      paymentIntentId,
+      redirectUrl: `/payments/checkout/${sessionId}`,
+      livemode: false,
+    };
   }
 
   function recordSubscription(opts: SubscriptionCheckoutOpts): CheckoutSessionResult {
@@ -701,7 +721,12 @@ export function createStubPaymentAdapter(): StubPaymentAdapter {
       stripeCustomerId: newStubId('cus_stub'),
     });
     nextOutcome = 'success';
-    return { sessionId, paymentIntentId: null, redirectUrl: `/payments/checkout/${sessionId}` };
+    return {
+      sessionId,
+      paymentIntentId: null,
+      redirectUrl: `/payments/checkout/${sessionId}`,
+      livemode: false,
+    };
   }
 
   return {
@@ -912,6 +937,9 @@ interface StripeCheckoutSessionLike {
   id: string;
   url: string | null;
   payment_intent?: string | { id: string } | null;
+  /** The provider's own live/test flag, recorded on the payment row so an
+   *  administrator can tell a rehearsal from real money. */
+  livemode: boolean;
 }
 
 export interface StripeCheckoutSessionCreateParams {
@@ -1159,6 +1187,7 @@ export function createLivePaymentAdapter(deps: LivePaymentAdapterDeps = {}): Pay
           sessionId: session.id,
           paymentIntentId: extractPaymentIntentId(session),
           redirectUrl: session.url,
+          livemode: session.livemode,
         };
       });
     },
@@ -1207,6 +1236,7 @@ export function createLivePaymentAdapter(deps: LivePaymentAdapterDeps = {}): Pay
           sessionId: session.id,
           paymentIntentId: null,
           redirectUrl: session.url,
+          livemode: session.livemode,
         };
       });
     },

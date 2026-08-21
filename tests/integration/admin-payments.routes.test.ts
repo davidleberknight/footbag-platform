@@ -17,7 +17,10 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import plainRequest from 'supertest';
 import BetterSqlite3 from 'better-sqlite3';
-import { insertMember, insertPayment, createTestSessionJwt } from '../fixtures/factories';
+import {
+  insertMember, insertPayment, insertEvent, insertRegistration, insertTag,
+  createTestSessionJwt,
+} from '../fixtures/factories';
 
 const ADMIN = 'adminpay-admin';
 const MEMBER = 'adminpay-member';
@@ -51,6 +54,9 @@ beforeEach(async () => {
   try {
     db.prepare('DELETE FROM reconciliation_issues').run();
     db.prepare('DELETE FROM work_queue_items').run();
+    // Before the payments: a registration fee is reached from its registration,
+    // and that reference is what a payment's event resolves through.
+    db.prepare('DELETE FROM registrations').run();
     db.prepare('DELETE FROM payments').run();
   } finally {
     db.close();
@@ -392,5 +398,324 @@ describe('POST /admin/payments/reconciliation/:issueId/resolve', () => {
       .type('form')
       .send({ notes: 'x' });
     expect(res.status).toBe(403);
+  });
+});
+
+// ── Provider mode ─────────────────────────────────────────────────────────────
+//
+// A test-mode rehearsal and a real charge are otherwise indistinguishable on the
+// admin surfaces: same amount, type, status, member and day, and the reference
+// column shows a payment intent, which carries no mode marker of its own. The
+// contract is that the two states an administrator must not read as real money
+// are labelled, and live money is left unlabelled so a missing value can never
+// pass for it.
+
+function seedModedPayments(): void {
+  const db = openDb();
+  try {
+    insertPayment(db, {
+      id: 'pay-live', member_id: MEMBER, payment_type: 'donation', created_at: IN_WINDOW,
+      status: 'succeeded', amount_cents: 1000, descriptor: 'Donation: live',
+      stripe_payment_intent_id: 'pi_live', provider_livemode: 1,
+    });
+    insertPayment(db, {
+      id: 'pay-test', member_id: MEMBER, payment_type: 'donation', created_at: IN_WINDOW,
+      status: 'succeeded', amount_cents: 1000, descriptor: 'Donation: test',
+      stripe_payment_intent_id: 'pi_test', provider_livemode: 0,
+    });
+    insertPayment(db, {
+      id: 'pay-unknown', member_id: MEMBER, payment_type: 'donation', created_at: IN_WINDOW,
+      status: 'succeeded', amount_cents: 1000, descriptor: 'Donation: unknown',
+      stripe_payment_intent_id: 'pi_unknown', provider_livemode: null,
+    });
+  } finally {
+    db.close();
+  }
+}
+
+describe('All Payments provider-mode badge', () => {
+  it('badges a test-mode payment and a row written before the mode was recorded', async () => {
+    seedModedPayments();
+    const res = await plainRequest(createApp()).get('/admin/payments').set('Cookie', cookie(ADMIN));
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Test mode');
+    expect(res.text).toContain('Unknown mode');
+  });
+
+  it('leaves a live payment unbadged, so the absence of a badge means real money', async () => {
+    const db = openDb();
+    try {
+      insertPayment(db, {
+        id: 'pay-live-only', member_id: MEMBER, payment_type: 'donation', created_at: IN_WINDOW,
+        status: 'succeeded', amount_cents: 1000, descriptor: 'Donation: live',
+        stripe_payment_intent_id: 'pi_live_only', provider_livemode: 1,
+      });
+    } finally {
+      db.close();
+    }
+    const res = await plainRequest(createApp()).get('/admin/payments').set('Cookie', cookie(ADMIN));
+    expect(res.text).toContain('pi_live_only');
+    expect(res.text).not.toContain('Test mode');
+    expect(res.text).not.toContain('Unknown mode');
+  });
+
+  it('badges the payment detail page the same way', async () => {
+    seedModedPayments();
+    const test = await plainRequest(createApp())
+      .get('/admin/payments/pay-test').set('Cookie', cookie(ADMIN));
+    expect(test.status).toBe(200);
+    expect(test.text).toContain('Test mode');
+
+    const unknown = await plainRequest(createApp())
+      .get('/admin/payments/pay-unknown').set('Cookie', cookie(ADMIN));
+    expect(unknown.text).toContain('Unknown mode');
+
+    const live = await plainRequest(createApp())
+      .get('/admin/payments/pay-live').set('Cookie', cookie(ADMIN));
+    expect(live.text).not.toContain('Test mode');
+    expect(live.text).not.toContain('Unknown mode');
+  });
+});
+
+// ── Sorting and the event join ────────────────────────────────────────────────
+
+function seedSortablePayments(): void {
+  const db = openDb();
+  try {
+    insertPayment(db, {
+      id: 'pay-cheap', member_id: MEMBER, payment_type: 'donation',
+      created_at: '2026-07-10T12:00:00.000Z', status: 'succeeded', amount_cents: 500,
+      descriptor: 'Donation: small', stripe_payment_intent_id: 'pi_cheap',
+    });
+    insertPayment(db, {
+      id: 'pay-dear', member_id: MEMBER, payment_type: 'donation',
+      created_at: '2026-07-12T12:00:00.000Z', status: 'succeeded', amount_cents: 9000,
+      descriptor: 'Donation: large', stripe_payment_intent_id: 'pi_dear',
+    });
+  } finally {
+    db.close();
+  }
+}
+
+// Events and their hashtags outlive the per-test payment cleanup, and a hashtag
+// is globally unique, so each seeding takes its own. Counted rather than
+// randomised so a failure reproduces exactly.
+let eventSeq = 0;
+
+/** Seeds a registration fee wired to its event, plus an unrelated donation, and
+ *  returns the event's id and the public key its page is served under. */
+function seedEventPayment(): { eventId: string; eventKey: string } {
+  const db = openDb();
+  eventSeq += 1;
+  const eventKey = `event_2026_admin_open_${eventSeq}`;
+  try {
+    const tagId = insertTag(db, { tag_normalized: `#${eventKey}` });
+    const eventId = insertEvent(db, {
+      hashtag_tag_id: tagId, title: `Admin Open 2026 #${eventSeq}`, start_date: '2026-07-01',
+    });
+    insertPayment(db, {
+      id: 'pay-reg', member_id: MEMBER, payment_type: 'event_registration',
+      created_at: IN_WINDOW, status: 'succeeded', amount_cents: 4000,
+      descriptor: 'Registration: Admin Open', stripe_payment_intent_id: 'pi_reg',
+    });
+    insertRegistration(db, eventId, MEMBER, { payment_id: 'pay-reg' });
+    insertPayment(db, {
+      id: 'pay-plain', member_id: MEMBER, payment_type: 'donation',
+      created_at: IN_WINDOW, status: 'succeeded', amount_cents: 1500,
+      descriptor: 'Donation: unrelated', stripe_payment_intent_id: 'pi_plain',
+    });
+    return { eventId, eventKey };
+  } finally {
+    db.close();
+  }
+}
+
+describe('All Payments sorting', () => {
+  it('lists newest first by default', async () => {
+    seedSortablePayments();
+    const res = await plainRequest(createApp()).get('/admin/payments').set('Cookie', cookie(ADMIN));
+    expect(res.text.indexOf('pi_dear')).toBeLessThan(res.text.indexOf('pi_cheap'));
+  });
+
+  it('reorders by amount in both directions', async () => {
+    seedSortablePayments();
+    const asc = await plainRequest(createApp())
+      .get('/admin/payments?sort=amount_asc').set('Cookie', cookie(ADMIN));
+    expect(asc.text.indexOf('pi_cheap')).toBeLessThan(asc.text.indexOf('pi_dear'));
+
+    const desc = await plainRequest(createApp())
+      .get('/admin/payments?sort=amount_desc').set('Cookie', cookie(ADMIN));
+    expect(desc.text.indexOf('pi_dear')).toBeLessThan(desc.text.indexOf('pi_cheap'));
+  });
+
+  it('reorders by date ascending', async () => {
+    seedSortablePayments();
+    const res = await plainRequest(createApp())
+      .get('/admin/payments?sort=date_asc').set('Cookie', cookie(ADMIN));
+    expect(res.text.indexOf('pi_cheap')).toBeLessThan(res.text.indexOf('pi_dear'));
+  });
+
+  it('sorts a payment carrying no member last, whichever direction is chosen', async () => {
+    const db = openDb();
+    try {
+      insertPayment(db, {
+        id: 'pay-nomember', member_id: null, payment_type: 'donation', created_at: IN_WINDOW,
+        status: 'succeeded', amount_cents: 700, descriptor: 'Donation: anonymous',
+        stripe_payment_intent_id: 'pi_nomember',
+      });
+      insertPayment(db, {
+        id: 'pay-withmember', member_id: MEMBER, payment_type: 'donation', created_at: IN_WINDOW,
+        status: 'succeeded', amount_cents: 700, descriptor: 'Donation: named',
+        stripe_payment_intent_id: 'pi_withmember',
+      });
+    } finally {
+      db.close();
+    }
+    const asc = await plainRequest(createApp())
+      .get('/admin/payments?sort=member_asc').set('Cookie', cookie(ADMIN));
+    expect(asc.text.indexOf('pi_withmember')).toBeLessThan(asc.text.indexOf('pi_nomember'));
+
+    const desc = await plainRequest(createApp())
+      .get('/admin/payments?sort=member_desc').set('Cookie', cookie(ADMIN));
+    expect(desc.text.indexOf('pi_withmember')).toBeLessThan(desc.text.indexOf('pi_nomember'));
+  });
+
+  it('reorders by the reference the column actually shows', async () => {
+    seedSortablePayments();
+    const asc = await plainRequest(createApp())
+      .get('/admin/payments?sort=reference_asc').set('Cookie', cookie(ADMIN));
+    // pi_cheap precedes pi_dear alphabetically, the opposite of their date
+    // order, so this cannot pass on the default ordering by accident.
+    expect(asc.text.indexOf('pi_cheap')).toBeLessThan(asc.text.indexOf('pi_dear'));
+
+    const desc = await plainRequest(createApp())
+      .get('/admin/payments?sort=reference_desc').set('Cookie', cookie(ADMIN));
+    expect(desc.text.indexOf('pi_dear')).toBeLessThan(desc.text.indexOf('pi_cheap'));
+  });
+
+  it('orders a renewal with no payment intent by the value its column shows', async () => {
+    const db = openDb();
+    try {
+      // A subscription charge carries no intent, so ordering on the raw column
+      // would file it with every other intent-less row instead of where the
+      // reader sees it.
+      // Deliberately arranged so the two orderings disagree: the intent-less
+      // row sorts LAST by what the column shows, but SQLite puts nulls first,
+      // so ordering on the raw intent column would put it first instead.
+      insertPayment(db, {
+        id: 'pay-sub', member_id: MEMBER, payment_type: 'donation', created_at: IN_WINDOW,
+        status: 'succeeded', amount_cents: 2000, descriptor: 'Renewal',
+        stripe_payment_intent_id: null, stripe_subscription_id: 'zzz_sub_last',
+      });
+      insertPayment(db, {
+        id: 'pay-int', member_id: MEMBER, payment_type: 'donation', created_at: IN_WINDOW,
+        status: 'succeeded', amount_cents: 2000, descriptor: 'One-time',
+        stripe_payment_intent_id: 'aaa_pi_first',
+      });
+    } finally {
+      db.close();
+    }
+    const res = await plainRequest(createApp())
+      .get('/admin/payments?sort=reference_asc').set('Cookie', cookie(ADMIN));
+    expect(res.text.indexOf('aaa_pi_first')).toBeLessThan(res.text.indexOf('zzz_sub_last'));
+  });
+
+  it('falls back to the default order for an unknown sort key rather than erroring', async () => {
+    seedSortablePayments();
+    const res = await plainRequest(createApp())
+      .get('/admin/payments?sort=amount_cents%3B+DROP+TABLE+payments').set('Cookie', cookie(ADMIN));
+    expect(res.status).toBe(200);
+    expect(res.text.indexOf('pi_dear')).toBeLessThan(res.text.indexOf('pi_cheap'));
+    const db = openDb();
+    try {
+      const still = db.prepare('SELECT COUNT(*) AS c FROM payments').get() as { c: number };
+      expect(still.c).toBe(2);
+    } finally {
+      db.close();
+    }
+  });
+
+  it('carries the chosen order through a filter submit', async () => {
+    seedSortablePayments();
+    const res = await plainRequest(createApp())
+      .get('/admin/payments?sort=amount_asc').set('Cookie', cookie(ADMIN));
+    expect(res.text).toContain('name="sort" value="amount_asc"');
+  });
+
+  it('marks the sorted column and offers the reverse on the next click', async () => {
+    seedSortablePayments();
+    const res = await plainRequest(createApp())
+      .get('/admin/payments?sort=amount_asc').set('Cookie', cookie(ADMIN));
+    // The active column states its direction to a screen reader as well as
+    // through the glyph, and clicking it again reverses rather than re-sorting
+    // the same way.
+    expect(res.text).toContain('aria-sort="ascending"');
+    // Handlebars escapes the `=` inside an href attribute, which the browser
+    // decodes again; comparing against the decoded form keeps the assertion
+    // about the destination rather than about the escaping.
+    expect(res.text.replace(/&#x3D;/g, '=')).toContain('/admin/payments?sort=amount_desc');
+  });
+});
+
+describe('All Payments event column and filter', () => {
+  it('resolves a registration fee to its event and links to the event page', async () => {
+    const { eventKey } = seedEventPayment();
+    const res = await plainRequest(createApp()).get('/admin/payments').set('Cookie', cookie(ADMIN));
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Admin Open 2026');
+    expect(res.text).toContain(`/events/${eventKey}`);
+  });
+
+  it('shows no event for a donation, which settles no registration', async () => {
+    const db = openDb();
+    try {
+      insertPayment(db, {
+        id: 'pay-donation-only', member_id: MEMBER, payment_type: 'donation',
+        created_at: IN_WINDOW, status: 'succeeded', amount_cents: 1500,
+        descriptor: 'Donation: standalone', stripe_payment_intent_id: 'pi_donation_only',
+      });
+    } finally {
+      db.close();
+    }
+    const res = await plainRequest(createApp()).get('/admin/payments').set('Cookie', cookie(ADMIN));
+    expect(res.text).toContain('pi_donation_only');
+    expect(res.text).not.toContain('/events/event_');
+  });
+
+  it('narrows the list to one event, and the result count agrees with the rows shown', async () => {
+    const { eventId } = seedEventPayment();
+    const res = await plainRequest(createApp())
+      .get(`/admin/payments?event=${eventId}`).set('Cookie', cookie(ADMIN));
+    expect(res.text).toContain('pi_reg');
+    expect(res.text).not.toContain('pi_plain');
+    // The count is built over its own SQL, so a join present in one and absent
+    // from the other would show "2 payments" above a single row.
+    expect(res.text).toContain('1 payment');
+  });
+
+  it('offers only events that actually have payments against them', async () => {
+    seedEventPayment();
+    const db = openDb();
+    try {
+      const tagId = insertTag(db, { tag_normalized: '#event_2026_no_payments' });
+      insertEvent(db, { hashtag_tag_id: tagId, title: 'Unpaid Gathering 2026' });
+    } finally {
+      db.close();
+    }
+    const res = await plainRequest(createApp()).get('/admin/payments').set('Cookie', cookie(ADMIN));
+    expect(res.text).toContain('Admin Open 2026');
+    expect(res.text).not.toContain('Unpaid Gathering 2026');
+  });
+
+  it('shows the event on the detail page of a registration fee, and omits it otherwise', async () => {
+    seedEventPayment();
+    const reg = await plainRequest(createApp())
+      .get('/admin/payments/pay-reg').set('Cookie', cookie(ADMIN));
+    expect(reg.status).toBe(200);
+    expect(reg.text).toContain('Admin Open 2026');
+
+    const plain = await plainRequest(createApp())
+      .get('/admin/payments/pay-plain').set('Cookie', cookie(ADMIN));
+    expect(plain.text).not.toContain('Admin Open 2026');
   });
 });

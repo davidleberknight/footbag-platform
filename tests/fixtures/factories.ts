@@ -1261,6 +1261,10 @@ export interface RegistrationOverrides {
   registration_type?: 'competitor' | 'attendee_supporter';
   status?: 'pending' | 'confirmed' | 'canceled' | 'rejected';
   attended_at?: string | null;
+  /** The registration-fee payment this registration settles. It is how a payment
+   *  reaches its event on the admin All Payments view, which joins through here
+   *  rather than denormalising an event onto the payment. */
+  payment_id?: string | null;
 }
 
 export function insertRegistration(
@@ -1274,14 +1278,15 @@ export function insertRegistration(
     INSERT INTO registrations (
       id, created_at, created_by, updated_at, updated_by, version,
       event_id, member_id, registered_at, registration_type, status,
-      attended_at
-    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)
+      attended_at, payment_id
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id, TS, SYS, TS, SYS,
     eventId, memberId, TS,
     o.registration_type ?? 'competitor',
     o.status ?? 'confirmed',
     o.attended_at ?? null,
+    o.payment_id ?? null,
   );
   return id;
 }

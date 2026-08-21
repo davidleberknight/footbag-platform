@@ -45,9 +45,19 @@
  *     transaction as the issue update and the audit row. The reconciliation
  *     page is the resolution surface for a discrepancy; the queue card is only a
  *     pointer to it and is never resolved on its own.
+ *   - A payment reaches its event through the registration that references it,
+ *     never through a column on the payment. Only a registration fee has one, so
+ *     the join is optional and a donation or membership shows no event.
+ *   - The provider-mode badge marks a test-mode payment and a payment whose mode
+ *     was never recorded. Live money is deliberately left unmarked, so an absent
+ *     value can never render as a real charge.
+ *   - The All Payments order comes from a fixed set of sort keys. An order
+ *     cannot be parameterised into a prepared statement, so an unrecognised key
+ *     falls back to the default rather than reaching the SQL.
  *
  * Persistence:
- *   reconciliation_issues, work_queue_items, audit_entries.
+ *   Writes: reconciliation_issues, work_queue_items, audit_entries.
+ *   Reads for the admin views: payments, members, registrations, events, tags.
  *
  * Side effects:
  *   - audit_entries append (issue raised, issue resolved)
@@ -70,6 +80,9 @@ import {
   countReconciliationIssues,
   transaction,
   type AdminPaymentFilters,
+  listAdminPaymentEventOptions,
+  isAdminPaymentSort,
+  ADMIN_PAYMENT_DEFAULT_SORT,
 } from '../db/db';
 import type { PageViewModel } from '../types/page';
 import { logger } from '../config/logger';
@@ -502,11 +515,17 @@ export const paymentReconciliationService = {
       reference: q.reference || undefined,
       createdFrom: q.createdFrom || undefined,
       createdTo: inclusiveToBound(q.createdTo),
+      eventId: q.eventId || undefined,
     };
+    // An unrecognised sort key falls back rather than erroring: it arrives from
+    // the query string, where a stale bookmark or a hand-edited URL is ordinary
+    // rather than exceptional, and the page is still perfectly answerable.
+    const activeSort = q.sort && isAdminPaymentSort(q.sort) ? q.sort : ADMIN_PAYMENT_DEFAULT_SORT;
     const total = countAdminPayments(filters);
     const offset = (page - 1) * ADMIN_PAGE_SIZE;
-    const rows = queryAdminPayments(filters, ADMIN_PAGE_SIZE, offset);
+    const rows = queryAdminPayments(filters, ADMIN_PAGE_SIZE, offset, activeSort);
     const totalPages = Math.max(1, Math.ceil(total / ADMIN_PAGE_SIZE));
+    const sortedQuery: AdminPaymentQuery = { ...q, sort: activeSort };
 
     return {
       seo: { title: 'All Payments', noindex: true },
@@ -521,12 +540,18 @@ export const paymentReconciliationService = {
           memberSlug: r.member_slug ? String(r.member_slug) : null,
           memberHref: r.member_slug ? `/members/${String(r.member_slug)}` : null,
           reference: String(r.stripe_payment_intent_id ?? r.stripe_subscription_id ?? r.id),
+          providerModeLabel: providerModeLabel(r.provider_livemode),
+          hasProviderModeBadge: providerModeLabel(r.provider_livemode) !== null,
+          eventTitle: r.event_title ? String(r.event_title) : null,
+          eventHref: eventHrefFrom(r.event_tag),
           detailHref: `/admin/payments/${String(r.id)}`,
         })),
         hasRows: rows.length > 0,
         resultSummary: summaryLine(total, offset, rows.length, 'payment'),
-        prevPageHref: page > 1 ? paymentsHrefFor(q, page - 1) : null,
-        nextPageHref: page < totalPages ? paymentsHrefFor(q, page + 1) : null,
+        prevPageHref: page > 1 ? paymentsHrefFor(sortedQuery, page - 1) : null,
+        nextPageHref: page < totalPages ? paymentsHrefFor(sortedQuery, page + 1) : null,
+        sortHeaders: paymentSortHeaders(q, activeSort),
+        activeSort,
         filters: {
           paymentType: q.paymentType ?? '',
           status: q.status ?? '',
@@ -534,9 +559,16 @@ export const paymentReconciliationService = {
           reference: q.reference ?? '',
           createdFrom: q.createdFrom ?? '',
           createdTo: q.createdTo ?? '',
+          eventId: q.eventId ?? '',
+          sort: activeSort,
         },
         typeOptions: [...PAYMENT_TYPE_OPTIONS],
         statusOptions: [...PAYMENT_STATUS_OPTIONS],
+        eventOptions: listAdminPaymentEventOptions().map((e) => ({
+          id: String(e.event_id),
+          title: String(e.event_title),
+          isSelected: String(e.event_id) === (q.eventId ?? ''),
+        })),
         reconciliationHref: '/admin/payments/reconciliation',
         clearHref: '/admin/payments',
       },
@@ -567,6 +599,11 @@ export const paymentReconciliationService = {
         stripeCheckoutSessionId: r.stripe_checkout_session_id ? String(r.stripe_checkout_session_id) : null,
         stripeSubscriptionId: r.stripe_subscription_id ? String(r.stripe_subscription_id) : null,
         recurringSubscriptionId: r.recurring_subscription_id ? String(r.recurring_subscription_id) : null,
+        providerModeLabel: providerModeLabel(r.provider_livemode),
+        hasProviderModeBadge: providerModeLabel(r.provider_livemode) !== null,
+        eventTitle: r.event_title ? String(r.event_title) : null,
+        eventHref: eventHrefFrom(r.event_tag),
+        hasEvent: Boolean(r.event_title),
         backHref: '/admin/payments',
       },
     };
@@ -664,7 +701,27 @@ export interface AdminPaymentQuery {
   reference?: string;
   createdFrom?: string;
   createdTo?: string;
+  eventId?: string;
+  /** One of the whitelisted keys in `db.ts`; anything else falls back to the
+   *  default rather than reaching the statement. */
+  sort?: string;
   page?: number;
+}
+
+/** One column heading of the All Payments table. A non-sortable column carries a
+ *  null href and renders as plain text. */
+export interface AdminPaymentSortHeader {
+  label: string;
+  href: string | null;
+  isActive: boolean;
+  directionGlyph: string | null;
+  ariaSort: string | null;
+}
+
+export interface AdminPaymentEventOption {
+  id: string;
+  title: string;
+  isSelected: boolean;
 }
 
 export interface AdminPaymentRowViewModel {
@@ -676,6 +733,14 @@ export interface AdminPaymentRowViewModel {
   memberSlug: string | null;
   memberHref: string | null;
   reference: string;
+  /** Null for a live payment, which is deliberately unbadged; see
+   *  `providerModeLabel`. */
+  providerModeLabel: string | null;
+  hasProviderModeBadge: boolean;
+  /** The event a registration fee was taken for; null for every donation and
+   *  membership, which settle no registration. */
+  eventTitle: string | null;
+  eventHref: string | null;
   detailHref: string;
 }
 
@@ -685,9 +750,12 @@ export interface AdminPaymentsContent {
   resultSummary: string;
   prevPageHref: string | null;
   nextPageHref: string | null;
+  sortHeaders: AdminPaymentSortHeader[];
+  activeSort: string;
   filters: Required<Omit<AdminPaymentQuery, 'page'>>;
   typeOptions: string[];
   statusOptions: string[];
+  eventOptions: AdminPaymentEventOption[];
   reconciliationHref: string;
   clearHref: string;
 }
@@ -708,6 +776,15 @@ export interface AdminPaymentDetailContent {
   stripeCheckoutSessionId: string | null;
   stripeSubscriptionId: string | null;
   recurringSubscriptionId: string | null;
+  /** Null for a live payment, which is deliberately unbadged; see
+   *  `providerModeLabel`. */
+  providerModeLabel: string | null;
+  hasProviderModeBadge: boolean;
+  /** The event a registration fee was taken for; null for every donation and
+   *  membership, which settle no registration. */
+  eventTitle: string | null;
+  eventHref: string | null;
+  hasEvent: boolean;
   backHref: string;
 }
 
@@ -744,6 +821,25 @@ export interface AdminReconciliationContent {
 
 function formatAmount(cents: number, currency: string): string {
   return `$${(cents / 100).toFixed(2)} ${currency.toUpperCase()}`;
+}
+
+// Labels a row by the provider mode it was taken in. Only the two states an
+// administrator must not mistake for real money get a label: a test-mode
+// rehearsal, and a row written before the mode was recorded, which cannot be
+// back-derived. Live money is deliberately unlabelled, so the absence of a badge
+// means "ordinary payment" and a missing value can never be read as one.
+// The public event page is keyed on the event's hashtag with the leading marker
+// dropped, the same derivation the event service applies. Null whenever the
+// payment settles no registration, which is every donation and membership.
+function eventHrefFrom(tagNormalized: unknown): string | null {
+  if (!tagNormalized) return null;
+  const tag = String(tagNormalized);
+  return `/events/${tag.startsWith('#') ? tag.slice(1) : tag}`;
+}
+
+function providerModeLabel(raw: unknown): string | null {
+  if (raw === null || raw === undefined) return 'Unknown mode';
+  return Number(raw) === 1 ? null : 'Test mode';
 }
 
 // Stored timestamps are UTC; naming the zone stops an admin reconciling against
@@ -791,14 +887,59 @@ function paymentFilterParams(q: AdminPaymentQuery): URLSearchParams {
   if (q.reference) p.set('reference', q.reference);
   if (q.createdFrom) p.set('from', q.createdFrom);
   if (q.createdTo) p.set('to', q.createdTo);
+  if (q.eventId) p.set('event', q.eventId);
   return p;
 }
 
 function paymentsHrefFor(q: AdminPaymentQuery, page: number): string {
   const p = paymentFilterParams(q);
+  if (q.sort && q.sort !== ADMIN_PAYMENT_DEFAULT_SORT) p.set('sort', q.sort);
   if (page > 1) p.set('page', String(page));
   const qs = p.toString();
   return qs ? `/admin/payments?${qs}` : '/admin/payments';
+}
+
+/** The sortable and non-sortable column headings of the All Payments table, in
+ *  render order. The service fixes each heading's destination so the template
+ *  renders a display-and-href pair and never assembles a query string itself. */
+function paymentSortHeaders(q: AdminPaymentQuery, activeSort: string): AdminPaymentSortHeader[] {
+  const columns: Array<{ label: string; key: string | null }> = [
+    { label: 'Date', key: 'date' },
+    { label: 'Type', key: 'type' },
+    { label: 'Amount', key: 'amount' },
+    { label: 'Status', key: 'status' },
+    { label: 'Member', key: 'member' },
+    { label: 'Event', key: 'event' },
+    { label: 'Reference', key: 'reference' },
+    { label: '', key: null },
+  ];
+  return columns.map(({ label, key }) => {
+    if (key === null) {
+      return { label, href: null, isActive: false, directionGlyph: null, ariaSort: null };
+    }
+    const isActive = activeSort === `${key}_asc` || activeSort === `${key}_desc`;
+    const ascending = activeSort === `${key}_asc`;
+    // Clicking the active column reverses it; clicking any other starts it
+    // ascending, which is what a reader expects of a column they have not
+    // sorted by yet. Date is the exception: newest-first is the useful default
+    // for a payment ledger, so its first click keeps descending.
+    const nextSort = isActive
+      ? `${key}_${ascending ? 'desc' : 'asc'}`
+      : `${key}_${key === 'date' ? 'desc' : 'asc'}`;
+    const p = paymentFilterParams(q);
+    if (nextSort !== ADMIN_PAYMENT_DEFAULT_SORT) p.set('sort', nextSort);
+    const qs = p.toString();
+    return {
+      label,
+      href: qs ? `/admin/payments?${qs}` : '/admin/payments',
+      isActive,
+      // The direction marker states which way the column is ordered, so it is
+      // content rather than decoration and is paired with aria-sort for a
+      // reader who never sees the glyph.
+      directionGlyph: isActive ? (ascending ? '↑' : '↓') : null,
+      ariaSort: isActive ? (ascending ? 'ascending' : 'descending') : null,
+    };
+  });
 }
 
 function issuesHrefFor(status: string, page: number): string {

@@ -472,6 +472,12 @@ Same-status no-ops are allowed (idempotent webhook redelivery). No backward tran
 
 The row is written when checkout opens, before the provider has minted anything, so a recurring gift is never invisible locally and an abandoned checkout leaves a trace. That opening row carries `status = 'incomplete'`, no provider identifiers, and the `checkout_session_id` as its only handle. `customer.subscription.created` promotes it and fills the identifiers in; `checkout.session.expired` closes it out as canceled. A table CHECK enforces that only a row the provider is not billing may lack the identifiers, so a confirmed subscription can never be missing them.
 
+#### Provider mode
+
+`payments.provider_livemode` records whether the payment provider handled the charge in live mode (`1`) or test mode (`0`), taken from the flag the provider sets on its own objects rather than inferred from an identifier. Test-mode checkout sessions carry a distinguishing prefix but payment intents do not, and a renewal charge carries no checkout session at all, so no identifier rule can label every row correctly.
+
+The column is nullable, and null means the mode was never recorded: a row written before the column existed cannot be back-derived. Admin surfaces mark test and unknown rows and leave live rows unmarked, so an absent value can never be mistaken for a real charge.
+
 #### Stripe timestamp fields
 `stripe_events.stripe_created` and `payments.last_stripe_event_created` are stored as **ISO-8601 UTC TEXT** (consistent with the schema's universal timestamp convention). Stripe delivers these as Unix epoch integers; the application must convert at write time:
 

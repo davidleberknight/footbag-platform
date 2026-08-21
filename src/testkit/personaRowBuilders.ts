@@ -721,6 +721,9 @@ export interface PaymentOverrides {
   recurring_subscription_id?: string | null;
   donation_note?: string | null;
   metadata_json?: string;
+  /** Defaults to null, the "written before the mode was recorded" state, so a
+   *  test that cares about the badge has to say which mode it means. */
+  provider_livemode?: 0 | 1 | null;
 }
 
 export function insertPayment(db: BetterSqlite3.Database, o: PaymentOverrides = {}): string {
@@ -739,8 +742,9 @@ export function insertPayment(db: BetterSqlite3.Database, o: PaymentOverrides = 
       status, descriptor,
       purchased_tier_status,
       stripe_payment_intent_id, stripe_checkout_session_id, stripe_subscription_id,
-      stripe_invoice_id, recurring_subscription_id, donation_note, metadata_json
-    ) VALUES (?, ?, 'system', ?, 'system', 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      stripe_invoice_id, recurring_subscription_id, donation_note, metadata_json,
+      provider_livemode
+    ) VALUES (?, ?, 'system', ?, 'system', 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id, createdAt, createdAt,
     o.member_id ?? null,
@@ -757,6 +761,7 @@ export function insertPayment(db: BetterSqlite3.Database, o: PaymentOverrides = 
     o.recurring_subscription_id ?? null,
     o.donation_note ?? null,
     o.metadata_json ?? '{}',
+    o.provider_livemode ?? null,
   );
   return id;
 }

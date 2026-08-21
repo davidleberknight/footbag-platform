@@ -22,6 +22,8 @@ A secret MUST NEVER appear in any process's argv on any host: `ps -ef` (any read
 - Never use `docker compose exec -e VAR=value` for secret content; pipe via `-T` stdin and reassign from `$(cat)` inside the container.
 - Write a secret destined for a file via a restricted (`umask 077` / mode `0600`) temp file and `install`/`file://`, then `shred` it; suppress shell history for any pasted-key step.
 - Do not `echo`/`printf` a secret into another command's argv, and do not log it.
+- Emit a secret meant for a human to `/dev/tty`, never to stdout, which a wrapper, a CI job, or an agent session may be capturing. Verify the terminal exists BEFORE minting or storing the secret: a credential nobody can read is not a failed run, it is a live credential needing cleanup. Model: `scripts/admin-bootstrap-token.sh`.
+- A script that prompts verifies stdin is a terminal before reading. The `/dev/tty` rule below protects scripts that expect a credential on stdin; this protects the ones that do not, because nothing stops a caller redirecting a credential file into them and `read` will then consume the password as the answer to a confirmation. Either read the answer from `/dev/tty`, or refuse unless stdin, stdout and stderr are all TTYs. Models: `scripts/staging_diagnostics.sh` and `scripts/arming.sh` respectively.
 
 ## Do NOT
 
@@ -29,6 +31,7 @@ A secret MUST NEVER appear in any process's argv on any host: `ps -ef` (any read
 - Pipe `sudo -S` into a stdin-consuming file writer (`tee`, `cat`, `dd`): if sudo consumes nothing, the password becomes the first line of the target file. Write the file from inside the remote half instead, through a root-side restricted temp file promoted with `install` (the `install_via_tmp` shape in `scripts/internal/install-cwagent-remote.sh`). `sudo -k -S -p "" bash` is not this case; it is the required form.
 - Reach a host's privileged state with `ssh -t` and an interactive sudo prompt. A TTY prompt cannot be driven by a test, it makes the operator hold a step in their head, and a tree carrying both forms drifts back to the weaker one. Every privileged remote step goes through the wire pattern below. This covers comments as well as code: a comment describing the interactive flow is how the superseded doctrine survived a revert and was later cited back as though it were the rule.
 - Write a secret to a world-readable file, or leave a keys file un-shredded.
+- Compose a credential-redirect invocation from memory, or by analogy with a sibling script. Whether `< <operator credential file>` belongs on a command is a property of that one script, not of the family it sits in: read its usage header and its `read` sites before writing the command. Handing an operator `< credfile bash <script>` for a script that does not consume stdin feeds the password straight into a confirmation prompt and echoes it on the failed comparison.
 
 ## The required wire pattern
 
@@ -50,4 +53,4 @@ File content travels the same way, base64 on one line, rather than by `scp`: no 
 
 ## Enforcement
 
-`scripts/ci/check_script_credentials.sh` runs inside `scripts/ci/assert_conventions.sh`, so it gates `npm run test:pre-pr` and CI. It blocks `--password` flags, credentials in URLs, `sudo -S` feeding a file writer, and any `ssh -t` under `scripts/`. Everything else here is enforced by code review.
+`scripts/ci/check_script_credentials.sh` runs inside `scripts/ci/assert_conventions.sh`, so it gates `npm run test:pre-pr` and CI. It blocks `--password` flags, credentials in URLs, `sudo -S` feeding a file writer, any `ssh -t` under `scripts/`, and a prompt-style read in a script carrying no terminal guard. Everything else here is enforced by code review.

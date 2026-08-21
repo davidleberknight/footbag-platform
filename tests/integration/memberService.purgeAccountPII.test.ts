@@ -110,8 +110,8 @@ describe('memberService.purgeAccountPII', () => {
     // bio is NOT NULL by schema; non-honor purge anonymizes it to empty.
     expect(m.bio).toBe('');
     expect(m.personal_data_purged_at).not.toBeNull();
-    expect(m.real_name).toBe('Removed Member');
-    expect(m.display_name).toBe('Removed Member');
+    expect(m.real_name).toBe('Deleted Member');
+    expect(m.display_name).toBe('Deleted Member');
     expect(String(m.slug)).toMatch(/^removed_/);
 
     // The legacy snapshot row survives, back in the claimable pool.
@@ -147,7 +147,7 @@ describe('memberService.purgeAccountPII', () => {
     expect(m.is_hof).toBe(1);
     expect(m.login_email).toBeNull();
     expect(m.password_hash).toBeNull();
-    expect(m.real_name).toBe('Removed Member');
+    expect(m.real_name).toBe('Deleted Member');
     expect(m.street_address).toBeNull();
   });
 

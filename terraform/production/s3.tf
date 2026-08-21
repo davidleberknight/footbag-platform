@@ -323,6 +323,30 @@ resource "aws_s3_bucket_public_access_block" "dr" {
   restrict_public_buckets = true
 }
 
+# Replication copies every routine snapshot here, and without this rule they
+# accumulate with no end: the 5-minute producer writes ~288 objects a day, so
+# this bucket would grow by roughly 2.7 GB every day forever while the primary
+# stays capped at its own 30-day rule.
+#
+# 90 days, matching the Object Lock window above, so a copy expires at the
+# moment it first becomes deletable. A shorter window would not delete anything
+# sooner, because the lock refuses until it lapses; it would only put the rule
+# and the lock into disagreement.
+#
+# Scoped to routine/ deliberately. The pre-cutover snapshot lands under
+# pre-flip/ in this bucket precisely so routine retention cannot age it out,
+# and that is the copy whose whole purpose is to outlive everything else.
+resource "aws_s3_bucket_lifecycle_configuration" "dr" {
+  provider = aws.us_west_2
+  bucket   = aws_s3_bucket.dr.id
+  rule {
+    id     = "expire-dr-routine-stream"
+    status = "Enabled"
+    filter { prefix = "routine/" }
+    expiration { days = 90 }
+  }
+}
+
 # ── Snapshots cross-region replication ───────────────────────────────────────
 # Mirrors the staging/s3.tf media replication pattern: replicate every object
 # (including delete markers) from snapshots (us-east-1) to dr (us-west-2) using

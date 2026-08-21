@@ -52,7 +52,7 @@ describe('Security headers (helmet defaults)', () => {
       'frame-src https://www.youtube-nocookie.com https://player.vimeo.com',
       "object-src 'none'",
       "base-uri 'self'",
-      "form-action 'self'",
+      "form-action 'self' https://checkout.stripe.com",
       "frame-ancestors 'none'",
       'upgrade-insecure-requests',
     ];
@@ -62,6 +62,21 @@ describe('Security headers (helmet defaults)', () => {
     // No 'unsafe-inline' / 'unsafe-eval' anywhere.
     expect(csp).not.toContain("'unsafe-inline'");
     expect(csp).not.toContain("'unsafe-eval'");
+  });
+
+  it('CSP form-action permits the hosted checkout origin a payment redirects to', async () => {
+    const app = createApp();
+    const res = await request(app).get('/');
+    const csp = res.headers['content-security-policy'];
+    // Donations and membership purchases are form POSTs answered with a 303
+    // onto the payment provider's hosted page. Browsers apply form-action to
+    // every hop of the redirect chain, not just the form's own action, so an
+    // origin missing here blocks the navigation with no server-side error:
+    // the member sees the form reload unchanged and nothing is logged. The
+    // stub payment adapter redirects same-origin, so no suite that runs it
+    // can observe this.
+    expect(csp).toContain('https://checkout.stripe.com');
+    expect(csp).toMatch(/form-action [^;]*https:\/\/checkout\.stripe\.com/);
   });
 
   it('health route also carries the helmet headers', async () => {

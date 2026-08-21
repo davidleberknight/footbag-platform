@@ -34,6 +34,7 @@ set -euo pipefail
 TARGET=""
 AWS_PROFILE_ARG=""
 ACTION=""
+PRINT_TO_STDOUT="no"
 
 usage() {
   # Bounded by the first `set -eu` rather than a line number, so editing the
@@ -51,6 +52,10 @@ while [[ $# -gt 0 ]]; do
     --profile)
       AWS_PROFILE_ARG="${2:-}"
       shift 2 || { echo "ERROR: --profile requires an argument" >&2; exit 2; }
+      ;;
+    --print-to-stdout)
+      PRINT_TO_STDOUT="yes"
+      shift
       ;;
     provision|status|cleanup)
       ACTION="$1"
@@ -98,6 +103,18 @@ case "$ACTION" in
       echo "replaced, run the cleanup action first, then provision again." >&2
       exit 1
     fi
+    # The token is a live admin credential shown exactly once, so it has to reach
+    # a person rather than whatever happens to be capturing this script's stdout:
+    # a CI log, a wrapper, an agent transcript. Writing it to the terminal device
+    # means a caller who redirects stdout collects the surrounding prose and never
+    # the secret. Checked BEFORE the parameter is written, because a token nobody
+    # can read is not a failed run, it is a live credential needing cleanup.
+    if [[ "$PRINT_TO_STDOUT" != "yes" ]] && ! { true >/dev/tty; } 2>/dev/null; then
+      echo "ERROR: no terminal to display the token on, and --print-to-stdout was not given." >&2
+      echo "       This token is shown once and must not land in a captured stream." >&2
+      echo "       Re-run from an interactive shell. Nothing has been provisioned." >&2
+      exit 1
+    fi
     TOKEN="$(openssl rand -hex 32)"
     TMP_JSON="$(mktemp)"
     chmod 600 "$TMP_JSON"
@@ -110,7 +127,11 @@ case "$ACTION" in
     echo "Hand this token to the intended first admin OUT OF BAND (it is"
     echo "shown only this once; it is not retrievable from this script):"
     echo
-    echo "  ${TOKEN}"
+    if [[ "$PRINT_TO_STDOUT" == "yes" ]]; then
+      echo "  ${TOKEN}"
+    else
+      printf '  %s\n' "$TOKEN" > /dev/tty
+    fi
     echo
     echo "They register a normal account, sign in, and submit it at"
     echo "/admin/bootstrap-claim. Afterwards run the status action to"
