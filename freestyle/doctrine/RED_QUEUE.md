@@ -598,3 +598,18 @@ in the maintainers' private tracker.
   evidence residual: its correct positive identity and name, given that its source
   form ended in a back swirl onto a toe that a later notation pass flattened. Held for
   source evidence; it is not renamed, merged, or aliased until that evidence lands.
+
+- **Orbit canonical name.** Direction is structural, so orbit and around-the-world
+  are separate tricks; that is settled and not at issue. What is open is which name
+  the orbit row carries as canonical. The dictionary names it by the folk name
+  `orbit`, with `reverse around-the-world` as a displayed structural alias, matching
+  the one-true-name premise that structural readings are secondary and searchable.
+  Two facts pull the other way: the direction ruling itself is written "ATW ≠
+  reverse-ATW", naming the orbit side structurally, and orbit has the weakest folk
+  attestation of the three direction mirrors — the footbag.org corpus carries no
+  orbit row and treats around-the-world as direction-neutral, and no bare-orbit
+  competition record exists. Against a change: orbit is a locked core atom named by
+  folk convention among the twelve, and `double_orbit`, `triple_orbit`, and
+  `orbit_kick` embed the name. Closes when the curator rules whether the folk name
+  stays canonical; if it does not, the slug-preserving correction plus
+  display-name-exception mechanism is the one the reverse whirl rename used.
