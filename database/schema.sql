@@ -2932,6 +2932,25 @@ VALUES
 --   primary_snapshot_version_days   S3 versioning retention for primary bucket
 --   cross_region_backup_retention_days Object Lock retention for DR bucket
 --   continuous_backup_interval_minutes Interval between SQLite backup runs
+--   outbox_retry_base_seconds       Base interval (seconds) for send-failure exponential backoff
+--   outbox_throttle_retry_seconds   Retry delay (seconds) when the provider throttles; consumes no attempt
+--   media_edit_rate_limit_per_hour  Max edits to a member's own media per hour
+--   gallery_write_rate_limit_per_hour Max gallery creates, renames and deletes per member per hour
+--   mailbox_link_rate_limit_max_per_member  Max declared-old-email mailbox-link requests per member per window
+--   mailbox_link_rate_limit_max_per_target  Max mailbox-link requests aimed at one legacy mailbox per window
+--   mailbox_link_rate_limit_max_per_ip      Max mailbox-link requests per source IP per window
+--   mailbox_link_rate_limit_window_minutes  Sliding window for mailbox-link rate limiting
+--   declared_anchor_rate_limit_max_per_member Max declared former surnames and old emails per member per window
+--   declared_anchor_rate_limit_window_minutes Sliding window for declared-anchor rate limiting
+--   link_help_request_rate_limit_max_per_member Max identity link-help requests per member per window
+--   link_help_request_rate_limit_window_minutes Sliding window for link-help request rate limiting
+--   auto_link_staged_expiry_days    Days a staged auto-link candidate stays open before expiring
+--   bootstrap_claim_rate_limit_max_per_member Max first-administrator bootstrap claim attempts per member per window
+--   bootstrap_claim_rate_limit_max_per_ip     Max bootstrap claim attempts per source IP per window
+--   bootstrap_claim_rate_limit_window_minutes Sliding window for bootstrap claim rate limiting
+--   member_search_rate_limit_max_per_member   Max member searches per member per window
+--   member_search_rate_limit_max_per_ip       Max member searches per source IP per window
+--   member_search_rate_limit_window_minutes   Sliding window for member-search rate limiting
 -- Pricing keys:
 --   tier1_price_cents               Tier 1 IFPA Member dues (integer cents; $10.00 = 1000)
 --   tier2_price_cents               Tier 2 IFPA Organizer Member dues (integer cents; $50.00 = 5000)
@@ -3556,6 +3575,177 @@ VALUES
    'vouch_rate_limit_window_minutes', '60',
    '2000-01-01T00:00:00.000Z',
    'Sliding window in minutes for counting vouch submissions per voucher (default: 60).',
+   NULL
+  ),
+
+  (
+   'seed-outbox-retry-base-seconds',
+   '2000-01-01T00:00:00.000Z',
+   'outbox_retry_base_seconds', '60',
+   '2000-01-01T00:00:00.000Z',
+   'Base interval in seconds for the exponential backoff applied after a definitive send failure (default: 60).',
+   NULL
+  ),
+
+  (
+   'seed-outbox-throttle-retry-seconds',
+   '2000-01-01T00:00:00.000Z',
+   'outbox_throttle_retry_seconds', '120',
+   '2000-01-01T00:00:00.000Z',
+   'Delay in seconds applied when the mail provider throttles, which does not consume a retry attempt (default: 120).',
+   NULL
+  ),
+
+  (
+   'seed-media-edit-rate-limit-per-hour',
+   '2000-01-01T00:00:00.000Z',
+   'media_edit_rate_limit_per_hour', '15',
+   '2000-01-01T00:00:00.000Z',
+   'Maximum edits a member may make to their own media per hour (default: 15).',
+   NULL
+  ),
+
+  (
+   'seed-gallery-write-rate-limit-per-hour',
+   '2000-01-01T00:00:00.000Z',
+   'gallery_write_rate_limit_per_hour', '30',
+   '2000-01-01T00:00:00.000Z',
+   'Maximum gallery creates, renames and deletes per member per hour (default: 30).',
+   NULL
+  ),
+
+  (
+   'seed-mailbox-link-rate-limit-max-per-member',
+   '2000-01-01T00:00:00.000Z',
+   'mailbox_link_rate_limit_max_per_member', '5',
+   '2000-01-01T00:00:00.000Z',
+   'Maximum declared-old-email mailbox-link requests per member per window (default: 5).',
+   NULL
+  ),
+
+  (
+   'seed-mailbox-link-rate-limit-max-per-target',
+   '2000-01-01T00:00:00.000Z',
+   'mailbox_link_rate_limit_max_per_target', '3',
+   '2000-01-01T00:00:00.000Z',
+   'Maximum mailbox-link requests aimed at any one legacy mailbox per window (default: 3).',
+   NULL
+  ),
+
+  (
+   'seed-mailbox-link-rate-limit-max-per-ip',
+   '2000-01-01T00:00:00.000Z',
+   'mailbox_link_rate_limit_max_per_ip', '10',
+   '2000-01-01T00:00:00.000Z',
+   'Maximum mailbox-link requests per source IP per window (default: 10).',
+   NULL
+  ),
+
+  (
+   'seed-mailbox-link-rate-limit-window-minutes',
+   '2000-01-01T00:00:00.000Z',
+   'mailbox_link_rate_limit_window_minutes', '60',
+   '2000-01-01T00:00:00.000Z',
+   'Sliding window in minutes for counting mailbox-link requests (default: 60).',
+   NULL
+  ),
+
+  (
+   'seed-declared-anchor-rate-limit-max-per-member',
+   '2000-01-01T00:00:00.000Z',
+   'declared_anchor_rate_limit_max_per_member', '10',
+   '2000-01-01T00:00:00.000Z',
+   'Maximum declared former surnames and old emails a member may add per window (default: 10).',
+   NULL
+  ),
+
+  (
+   'seed-declared-anchor-rate-limit-window-minutes',
+   '2000-01-01T00:00:00.000Z',
+   'declared_anchor_rate_limit_window_minutes', '60',
+   '2000-01-01T00:00:00.000Z',
+   'Sliding window in minutes for counting declared-anchor additions (default: 60).',
+   NULL
+  ),
+
+  (
+   'seed-link-help-request-rate-limit-max-per-member',
+   '2000-01-01T00:00:00.000Z',
+   'link_help_request_rate_limit_max_per_member', '3',
+   '2000-01-01T00:00:00.000Z',
+   'Maximum identity link-help requests a member may raise per window (default: 3).',
+   NULL
+  ),
+
+  (
+   'seed-link-help-request-rate-limit-window-minutes',
+   '2000-01-01T00:00:00.000Z',
+   'link_help_request_rate_limit_window_minutes', '1440',
+   '2000-01-01T00:00:00.000Z',
+   'Sliding window in minutes for counting link-help requests (default: 1440).',
+   NULL
+  ),
+
+  (
+   'seed-auto-link-staged-expiry-days',
+   '2000-01-01T00:00:00.000Z',
+   'auto_link_staged_expiry_days', '365',
+   '2000-01-01T00:00:00.000Z',
+   'Days a staged automatic-link candidate stays open before it expires unactioned (default: 365).',
+   NULL
+  ),
+
+  (
+   'seed-bootstrap-claim-rate-limit-max-per-member',
+   '2000-01-01T00:00:00.000Z',
+   'bootstrap_claim_rate_limit_max_per_member', '5',
+   '2000-01-01T00:00:00.000Z',
+   'Maximum first-administrator bootstrap claim attempts per member per window (default: 5).',
+   NULL
+  ),
+
+  (
+   'seed-bootstrap-claim-rate-limit-max-per-ip',
+   '2000-01-01T00:00:00.000Z',
+   'bootstrap_claim_rate_limit_max_per_ip', '5',
+   '2000-01-01T00:00:00.000Z',
+   'Maximum bootstrap claim attempts per source IP per window (default: 5).',
+   NULL
+  ),
+
+  (
+   'seed-bootstrap-claim-rate-limit-window-minutes',
+   '2000-01-01T00:00:00.000Z',
+   'bootstrap_claim_rate_limit_window_minutes', '60',
+   '2000-01-01T00:00:00.000Z',
+   'Sliding window in minutes for counting bootstrap claim attempts (default: 60).',
+   NULL
+  ),
+
+  (
+   'seed-member-search-rate-limit-max-per-member',
+   '2000-01-01T00:00:00.000Z',
+   'member_search_rate_limit_max_per_member', '30',
+   '2000-01-01T00:00:00.000Z',
+   'Maximum member searches per member per window (default: 30).',
+   NULL
+  ),
+
+  (
+   'seed-member-search-rate-limit-max-per-ip',
+   '2000-01-01T00:00:00.000Z',
+   'member_search_rate_limit_max_per_ip', '60',
+   '2000-01-01T00:00:00.000Z',
+   'Maximum member searches per source IP per window (default: 60).',
+   NULL
+  ),
+
+  (
+   'seed-member-search-rate-limit-window-minutes',
+   '2000-01-01T00:00:00.000Z',
+   'member_search_rate_limit_window_minutes', '1',
+   '2000-01-01T00:00:00.000Z',
+   'Sliding window in minutes for counting member searches (default: 1).',
    NULL
   );
 

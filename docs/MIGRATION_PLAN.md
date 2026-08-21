@@ -475,10 +475,10 @@ The delivered dump contains domains outside this plan. Recorded for a future sco
 | Domain | Dump rows | Disposition |
 |---|---|---|
 | Gallery / media | 16,768 images, 1,955 sets | Out of scope: served from `archive.footbag.org` (§29.15); not migrated |
-| Freestyle tricks (`moves`) | 303 moves, 431 hints, 97 journals, plus `move_tip_votes` (footbag, incl. net moves) | Not imported: the new platform's freestyle dictionary is already more complete and is the authoritative source, so the legacy `moves` data is abandoned (`moves_journal` is per-member private if ever reconsidered) |
+| Freestyle tricks (`moves`) | 303 moves, 431 hints, 97 journals, plus `move_tip_votes` (footbag, incl. net moves) | The trick metadata is not imported: the new platform's freestyle dictionary is already more complete and is the authoritative source, so the legacy `moves` rows are abandoned. The member hints are the exception and were recovered, loading as trick tips (`moves_journal` is per-member private if ever reconsidered) |
 | IFPA governance | elections 187, issues 332, votes 10,497, payments 209 | IFPA governance decision (the IFPA secretary rules, not the operator): the election, issue, and privately-cast vote tables are recommended for archive + encryption, sealed and never published (the same treatment as the legacy email archive), since they hold privately cast votes; the payments table is not read for tier derivation (§15.16); the committee and board tables are delivered as a separate module dump, and the migration reads neither: board standing is set by an administrator after cutover |
 | Rankings | 12,672, plus 14 sets | No rankings surface scoped; decide whether it is a future feature |
-| News | 17,682 | Decide archive-only vs import vs drop |
+| News | 17,682 | Archive-only: the rendered pages are preserved in the mirror, 17,779 of them against 17,682 rows, and the rows are not imported. The platform's own news feed is separate work rather than a migration of these rows |
 | Rules (`rulebook3`) | 1,619 | IFPA rules already live in `ifpa/`; likely archive-only |
 | Polls | 11, plus 4,899 answers | Likely drop |
 | Localization | ~561 across four tables | Legacy i18n; likely drop |
