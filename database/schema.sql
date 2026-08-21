@@ -4828,9 +4828,13 @@ CREATE INDEX idx_freestyle_trick_source_links_source ON freestyle_trick_source_l
 -- v2.1: First-class alias table. Replaces the aliases_json column on
 -- freestyle_tricks (the column is retained during migration for backwards
 -- compat; new code reads this table). alias_type is one of 'common' (an
--- established alternate name), 'historical' (a renamed-from name), 'technical'
--- (an abbreviation or slug form), 'structural' (a decomposition used as a name),
--- 'typo' (never displayed), 'suppressed', 'positional', or 'ambiguous'.
+-- established alternate name, the community-nickname class and the only one
+-- displayed by default), 'historical' (a renamed-from name), 'technical' (an
+-- abbreviation, slug form, or orthographic variant that must resolve but must
+-- not display), 'structural' (a decomposition used as a name), 'typo' (never
+-- displayed), 'suppressed', 'positional', or 'ambiguous'. alias_display below
+-- follows the class: a curator sets it against the class only as a deliberate,
+-- reason-carrying exception.
 CREATE TABLE freestyle_trick_aliases (
   alias_slug   TEXT PRIMARY KEY,                   -- normalized alias key, e.g. 'bw'
   alias_text   TEXT NOT NULL,                      -- display form, e.g. 'BW'

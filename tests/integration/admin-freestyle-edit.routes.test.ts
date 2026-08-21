@@ -152,6 +152,11 @@ beforeAll(async () => {
     is_active: 1,
   });
   insertFreestyleTrickAlias(db, 'rm_me', 'alias_host', 'Remove Me');
+  // A displayed nickname and a hidden decomposition, for the reclassify tests.
+  insertFreestyleTrickAlias(db, 'retype_me', 'alias_host', 'Retype Me',
+    { alias_type: 'common', alias_display: 1 });
+  insertFreestyleTrickAlias(db, 'hidden_structural', 'alias_host', 'Hidden Structural',
+    { alias_type: 'structural', alias_display: 0 });
 
   // Two known registry sources for the source-link attach/detach tests, plus the
   // tricks they write against: source_host (pre-linked to src_a), source_host2
@@ -292,8 +297,11 @@ function auditByAction(entityId: string, actionType: string) {
 
 function aliasRow(aliasSlug: string) {
   return db.prepare(
-    'SELECT alias_slug, alias_text, alias_type, trick_slug FROM freestyle_trick_aliases WHERE alias_slug = ?',
-  ).get(aliasSlug) as { alias_slug: string; alias_text: string; alias_type: string; trick_slug: string } | undefined;
+    'SELECT alias_slug, alias_text, alias_type, alias_display, trick_slug FROM freestyle_trick_aliases WHERE alias_slug = ?',
+  ).get(aliasSlug) as {
+    alias_slug: string; alias_text: string; alias_type: string;
+    alias_display: number; trick_slug: string;
+  } | undefined;
 }
 
 function sourceLink(trickSlug: string, sourceId: string) {
@@ -704,6 +712,96 @@ describe('POST /admin/freestyle/tricks/:slug/aliases — add', () => {
     expect(anon.status).toBe(302);
     expect(aliasRow('blocked_a')).toBeUndefined();
     expect(aliasRow('blocked_b')).toBeUndefined();
+  });
+});
+
+describe('POST /admin/freestyle/tricks/:slug/aliases — the class decides the display state', () => {
+  it('adds a nickname displayed and any other class search-only', async () => {
+    const nickname = await post('/admin/freestyle/tricks/alias_host/aliases', admin(),
+      { aliasText: 'Nick Name', aliasType: 'common' });
+    expect(nickname.status).toBe(303);
+    expect(aliasRow('nick_name')!.alias_display).toBe(1);
+
+    const abbreviation = await post('/admin/freestyle/tricks/alias_host/aliases', admin(),
+      { aliasText: 'Abbrev Form', aliasType: 'technical' });
+    expect(abbreviation.status).toBe(303);
+    expect(aliasRow('abbrev_form')!.alias_display).toBe(0);
+  });
+
+  it('offers the whole stored class vocabulary, not a narrower list', async () => {
+    const res = await get('/admin/freestyle/tricks/alias_host/edit', admin());
+    for (const type of ['common', 'historical', 'technical', 'structural',
+      'positional', 'typo', 'suppressed', 'ambiguous']) {
+      expect(res.text).toContain(`value="${type}"`);
+    }
+  });
+});
+
+describe('POST /admin/freestyle/tricks/:slug/aliases/:aliasSlug — reclassify', () => {
+  it('sets the class and hides the alias, writes one audit row carrying the previous values, and redirects', async () => {
+    const res = await post('/admin/freestyle/tricks/alias_host/aliases/retype_me', admin(),
+      { aliasType: 'technical' });   // no aliasDisplay: an unchecked box submits nothing
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/admin/freestyle/tricks/alias_host/edit');
+
+    const row = aliasRow('retype_me')!;
+    expect(row.alias_type).toBe('technical');
+    expect(row.alias_display).toBe(0);
+
+    const audits = auditByAction('retype_me', 'freestyle.trick_alias.updated');
+    expect(audits).toHaveLength(1);
+    expect(audits[0].metadata_json).toContain('"previousAliasType":"common"');
+    expect(audits[0].metadata_json).toContain('"previousAliasDisplay":1');
+  });
+
+  it('displays a non-nickname class when a curator sets it deliberately', async () => {
+    const res = await post('/admin/freestyle/tricks/alias_host/aliases/hidden_structural', admin(),
+      { aliasType: 'structural', aliasDisplay: 'on' });
+    expect(res.status).toBe(303);
+
+    const row = aliasRow('hidden_structural')!;
+    expect(row.alias_type).toBe('structural');
+    expect(row.alias_display).toBe(1);
+  });
+
+  it('rejects an unrecognized class with 422 and writes nothing', async () => {
+    const before = aliasRow('rm_me')!;
+    const res = await post('/admin/freestyle/tricks/alias_host/aliases/rm_me', admin(),
+      { aliasType: 'nickname', aliasDisplay: 'on' });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Choose an alias type.');
+
+    const after = aliasRow('rm_me')!;
+    expect(after.alias_type).toBe(before.alias_type);
+    expect(after.alias_display).toBe(before.alias_display);
+    expect(auditByAction('rm_me', 'freestyle.trick_alias.updated')).toHaveLength(0);
+  });
+
+  it('returns 404 reclassifying an alias that belongs to a different trick, leaving it intact', async () => {
+    const res = await post('/admin/freestyle/tricks/alias_host/aliases/bw', admin(),
+      { aliasType: 'typo' });
+    expect(res.status).toBe(404);
+    expect(aliasRow('bw')!.alias_type).not.toBe('typo');
+  });
+
+  it('returns 404 reclassifying an unknown alias', async () => {
+    const res = await post('/admin/freestyle/tricks/alias_host/aliases/no_such_alias', admin(),
+      { aliasType: 'common' });
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 403 for a non-admin and 302 for an unauthenticated visitor, changing nothing', async () => {
+    const before = aliasRow('bw')!;
+    const member = await post('/admin/freestyle/tricks/blurry_whirl/aliases/bw', cookieFor(MEMBER_ID, 'member'),
+      { aliasType: 'typo' });
+    expect(member.status).toBe(403);
+    const anon = await post('/admin/freestyle/tricks/blurry_whirl/aliases/bw', undefined,
+      { aliasType: 'typo' });
+    expect(anon.status).toBe(302);
+
+    const after = aliasRow('bw')!;
+    expect(after.alias_type).toBe(before.alias_type);
+    expect(after.alias_display).toBe(before.alias_display);
   });
 });
 

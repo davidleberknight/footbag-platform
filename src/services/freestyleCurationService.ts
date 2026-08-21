@@ -8,8 +8,8 @@
  *   - The admin edit surface for one trick: rendering its editable row fields
  *     and its attached aliases, sources, and modifier links, saving edits to the
  *     trick row's structural and editorial prose fields (so no database-backed
- *     field freezes once the live database is the source of truth), adding or
- *     removing the trick's aliases,
+ *     field freezes once the live database is the source of truth), adding,
+ *     reclassifying, or removing the trick's aliases,
  *     attaching or detaching links to the existing registry sources, and attaching
  *     or detaching links to the existing registry modifiers.
  *   - Moderation of the imported community trick tips: a cross-trick index that
@@ -47,7 +47,14 @@
  * text with the pipeline's normalization, and rejects a slug that equals any
  * canonical trick slug (checked across every row regardless of status) or an
  * existing alias slug (the global primary key); it leaves source_id and notes
- * unset. removeAlias is scoped to the alias's own trick. attachSource links one
+ * unset, and writes the alias's public-display state from the class the curator
+ * picked rather than letting it take the column default, so the nickname class is
+ * the only one a reader sees by default. updateAlias sets both fields on an
+ * existing alias, keeping the class editable for the life of the row and letting a
+ * curator display a non-nickname alias, or hide a nickname, as a deliberate
+ * exception; it is scoped to the alias's own trick and records the previous class
+ * and display state on its audit entry. removeAlias is scoped to the alias's own
+ * trick. attachSource links one
  * existing registry source with an optional external URL and asserted ADD (the
  * other link columns stay unset), rejecting an unknown source id or a duplicate
  * link; detachSource is keyed on both the trick and the source. attachModifier
@@ -86,7 +93,7 @@
  * Persistence: reads and writes freestyle_tricks, freestyle_trick_aliases,
  * freestyle_trick_source_links, freestyle_trick_modifier_links, freestyle_trick_tips,
  * and freestyle_trick_sources; reads freestyle_trick_modifiers. Appends
- * freestyle.trick.updated, freestyle.trick_alias.created/deleted,
+ * freestyle.trick.updated, freestyle.trick_alias.created/updated/deleted,
  * freestyle.trick_source_link.created/deleted,
  * freestyle.trick_modifier_link.created/deleted,
  * freestyle.trick_tip.edited/hidden/restored/remapped, and
@@ -170,6 +177,10 @@ export interface FreestyleTrickEditAlias {
   slug: string;
   text: string;
   type: string;
+  typeOptions: FilterOption[];
+  isDisplayed: boolean;
+  displayLabel: string;
+  updateHref: string;
   deleteHref: string;
 }
 
@@ -254,6 +265,12 @@ export interface FreestyleAliasInput {
   aliasType?: string;
 }
 
+/** The fields the per-alias edit form submits. */
+export interface FreestyleAliasClassInput {
+  aliasType?: string;
+  aliasDisplay?: string;
+}
+
 /** The source-link fields the attach-source form submits. */
 export interface FreestyleSourceLinkInput {
   sourceId?: string;
@@ -324,7 +341,12 @@ interface CurationEditDbRow {
   pronunciation: string | null;
   operational_notation_source: string | null;
 }
-interface AliasDbRow { alias_slug: string; alias_text: string; alias_type: string; }
+interface AliasDbRow {
+  alias_slug: string;
+  alias_text: string;
+  alias_type: string;
+  alias_display: number;
+}
 interface FullAliasDbRow extends AliasDbRow { trick_slug: string; }
 interface SourceLinkDbRow {
   source_id: string;
@@ -375,15 +397,28 @@ const CANONICAL_NAME_MAX = 200;
 // notes) comfortably fits.
 const PROSE_MAX = 4000;
 
-// Alias types the schema documents; offered by the add-alias form. No CHECK
-// constrains the column, so the admin surface is the enforcement point.
+// The alias classes the column stores, offered whole by the alias forms. No CHECK
+// constrains the column, so the admin surface is the enforcement point, and a
+// curator who cannot name a row's real class cannot classify it correctly.
 const ALIAS_TYPE_LABELS: Record<string, string> = {
-  common:       'Common',
-  abbreviation: 'Abbreviation',
-  historical:   'Historical',
-  notation:     'Notation',
+  common:     'Common (community nickname)',
+  historical: 'Historical (superseded name)',
+  technical:  'Technical (abbreviation or spelling variant)',
+  structural: 'Structural (decomposition used as a name)',
+  positional: 'Positional (same-side or opposite-side marker)',
+  typo:       'Typo (misspelling)',
+  suppressed: 'Suppressed',
+  ambiguous:  'Ambiguous',
 };
-const ALIAS_TYPES = ['common', 'abbreviation', 'historical', 'notation'];
+const ALIAS_TYPES = Object.keys(ALIAS_TYPE_LABELS);
+
+// The nickname class, and the only one a reader sees by default. Public "Also
+// called" display follows the class: an alias's type decides its display state
+// when it is created, and a curator changes that state only as a deliberate
+// exception (a structural reading a trick's page genuinely needs beside it).
+const NICKNAME_ALIAS_TYPES = ['common'];
+const displayDefaultForAliasType = (aliasType: string): number =>
+  (NICKNAME_ALIAS_TYPES.includes(aliasType) ? 1 : 0);
 const ALIAS_TEXT_MAX = 200;
 
 // Pre-go-live guardrail, parallel to the curated-media one. It fires only where a
@@ -594,11 +629,22 @@ export const freestyleCurationService = {
     const row = freestyleTricks.getForCurationBySlug.get(slug) as CurationEditDbRow | undefined;
     if (!row) return null;
 
+    // Each alias carries its own class selector and display state, so both fields
+    // that decide whether it reaches a reader are editable here rather than only
+    // settable when the alias is first added.
     const aliases: FreestyleTrickEditAlias[] = (freestyleTrickAliases.listForCuration.all(slug) as AliasDbRow[])
       .map((a) => ({
         slug: a.alias_slug,
         text: a.alias_text,
         type: a.alias_type,
+        typeOptions: ALIAS_TYPES.map((t) => ({
+          value: t,
+          label: ALIAS_TYPE_LABELS[t] ?? t,
+          selected: t === a.alias_type,
+        })),
+        isDisplayed: a.alias_display === 1,
+        displayLabel: a.alias_display === 1 ? 'Shown beside the trick name' : 'Search only',
+        updateHref: `/admin/freestyle/tricks/${slug}/aliases/${encodeURIComponent(a.alias_slug)}`,
         deleteHref: `/admin/freestyle/tricks/${slug}/aliases/${encodeURIComponent(a.alias_slug)}/delete`,
       }));
 
@@ -909,9 +955,11 @@ export const freestyleCurationService = {
       throw new ValidationError(`"${aliasSlug}" is already an alias of another trick ("${existing.trick_slug}").`);
     }
 
+    const aliasDisplay = displayDefaultForAliasType(aliasType);
+
     try {
       transaction(() => {
-        freestyleTrickAliases.insert.run(aliasSlug, aliasText, trickSlug, aliasType);
+        freestyleTrickAliases.insert.run(aliasSlug, aliasText, trickSlug, aliasType, aliasDisplay);
         appendAuditEntry({
           actionType:    'freestyle.trick_alias.created',
           category:      'content',
@@ -919,7 +967,7 @@ export const freestyleCurationService = {
           actorMemberId,
           entityType:    'freestyle_trick_alias',
           entityId:      aliasSlug,
-          metadata:      { trickSlug, aliasSlug, aliasText, aliasType },
+          metadata:      { trickSlug, aliasSlug, aliasText, aliasType, aliasDisplay },
         });
       });
     } catch (err) {
@@ -928,6 +976,56 @@ export const freestyleCurationService = {
       }
       throw err;
     }
+  },
+
+  // Set an existing alias's semantic class and its public-display state. Both
+  // fields decide whether the alias reaches a reader, so both are editable here:
+  // the class is the judgement (nickname, superseded name, abbreviation,
+  // decomposition, positional marker, misspelling) and the display state follows
+  // it, a curator setting the two against each other only where a trick's page
+  // genuinely needs the exception. Rejected (ValidationError) when the class is not
+  // a stored one. Unknown or wrong-trick alias is a NotFoundError (mapped to 404).
+  // The update and its audit entry, carrying both the previous and the new values,
+  // commit in one transaction.
+  updateAlias(
+    trickSlug: string,
+    aliasSlug: string,
+    input: FreestyleAliasClassInput,
+    actorMemberId: string,
+  ): void {
+    assertActorMayCurateFreestyle(actorMemberId);
+    const existing = freestyleTrickAliases.getByAliasSlug.get(aliasSlug) as FullAliasDbRow | undefined;
+    if (!existing || existing.trick_slug !== trickSlug) {
+      throw new NotFoundError(`No alias "${aliasSlug}" on trick "${trickSlug}"`);
+    }
+
+    const aliasType = (input.aliasType ?? '').trim();
+    if (!ALIAS_TYPES.includes(aliasType)) {
+      throw new ValidationError('Choose an alias type.');
+    }
+    // An unchecked checkbox submits nothing, so absence is the hidden state.
+    const aliasDisplay = input.aliasDisplay === 'on' || input.aliasDisplay === '1' ? 1 : 0;
+
+    transaction(() => {
+      freestyleTrickAliases.updateClassForTrick.run(aliasType, aliasDisplay, aliasSlug, trickSlug);
+      appendAuditEntry({
+        actionType:    'freestyle.trick_alias.updated',
+        category:      'content',
+        actorType:     'admin',
+        actorMemberId,
+        entityType:    'freestyle_trick_alias',
+        entityId:      aliasSlug,
+        metadata:      {
+          trickSlug,
+          aliasSlug,
+          aliasText:          existing.alias_text,
+          aliasType,
+          aliasDisplay,
+          previousAliasType:    existing.alias_type,
+          previousAliasDisplay: existing.alias_display,
+        },
+      });
+    });
   },
 
   // Remove one alias from a trick. Scoped to the trick both in the ownership check

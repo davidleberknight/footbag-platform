@@ -3,6 +3,7 @@ import {
   freestyleCurationService,
   FreestyleTrickScalarInput,
   FreestyleAliasInput,
+  FreestyleAliasClassInput,
   FreestyleSourceLinkInput,
   FreestyleModifierLinkInput,
   FreestyleSourceInput,
@@ -118,6 +119,38 @@ export const adminFreestyleController = {
           aliasError: err.message,
           aliasSubmitted: input,
         });
+        if (!vm) {
+          renderNotFound(res);
+          return;
+        }
+        res.status(422).render('admin/freestyle-trick-edit', vm);
+        return;
+      }
+      if (err instanceof NotFoundError) {
+        renderNotFound(res);
+        return;
+      }
+      next(err);
+    }
+  },
+
+  // Set one alias's class and public-display state. Success redirects back to the
+  // edit page; a validation failure re-renders the form (422) with an inline
+  // error; an unknown or wrong-trick alias is a 404.
+  updateAlias(req: Request, res: Response, next: NextFunction): void {
+    const slug = String(req.params.slug);
+    const aliasSlug = String(req.params.aliasSlug);
+    const input: FreestyleAliasClassInput = {
+      aliasType: str(req.body.aliasType),
+      aliasDisplay: str(req.body.aliasDisplay),
+    };
+
+    try {
+      freestyleCurationService.updateAlias(slug, aliasSlug, input, req.user!.userId);
+      res.redirect(303, `/admin/freestyle/tricks/${slug}/edit`);
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        const vm = freestyleCurationService.getTrickEditPage(slug, { aliasError: err.message });
         if (!vm) {
           renderNotFound(res);
           return;

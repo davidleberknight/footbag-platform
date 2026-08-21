@@ -82,12 +82,13 @@ adminRouter.post('/club-cleanup/candidates/:candidateId/promote', adminClubClean
 adminRouter.post('/club-cleanup/candidates/:candidateId/resolve', adminClubCleanupController.resolveCandidate);
 
 // Freestyle dictionary curation: browse the trick rows, open one for edit, and
-// save its scalar fields. Attached aliases, sources, and modifier links render
-// read-only on the edit page.
+// save its scalar fields. An alias can be added, reclassified, or removed on the
+// edit page; attached sources and modifier links are attach-or-detach only.
 adminRouter.get('/freestyle/tricks',             adminFreestyleController.index);
 adminRouter.get('/freestyle/tricks/:slug/edit',  adminFreestyleController.edit);
 adminRouter.post('/freestyle/tricks/:slug/edit', adminFreestyleController.update);
 adminRouter.post('/freestyle/tricks/:slug/aliases',                    adminFreestyleController.addAlias);
+adminRouter.post('/freestyle/tricks/:slug/aliases/:aliasSlug',         adminFreestyleController.updateAlias);
 adminRouter.post('/freestyle/tricks/:slug/aliases/:aliasSlug/delete',  adminFreestyleController.removeAlias);
 adminRouter.post('/freestyle/tricks/:slug/sources',                    adminFreestyleController.attachSource);
 adminRouter.post('/freestyle/tricks/:slug/sources/:sourceId/delete',   adminFreestyleController.detachSource);

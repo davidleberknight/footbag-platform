@@ -106,12 +106,27 @@ def apply_overrides(db_path: str) -> None:
                 sys.exit(f"ERROR: unknown action {action!r} for alias_slug {slug!r} "
                          f"(allowed: retype, delete)")
         conn.commit()
+
+        # The class decides display: 'common' is the nickname class and the only one
+        # a reader sees by default. Both directions of disagreement are deliberate
+        # curator exceptions and both are listed here rather than left to sit
+        # invisibly in the table, so a wrong class is visible as a wrong class: a
+        # displayed row of another class, and a nickname a curator holds back.
+        exceptions = list(conn.execute(
+            "SELECT alias_slug, alias_type, alias_display FROM freestyle_trick_aliases "
+            "WHERE (alias_display = 1) <> (alias_type = 'common') ORDER BY alias_slug"))
     finally:
         conn.close()
 
     by_type = ", ".join(f"{t}={n}" for t, n in sorted(retyped_by_type.items()))
     print(f"alias overrides applied: deleted={deleted}, retyped={sum(retyped_by_type.values())} "
           f"({by_type})")
+    if exceptions:
+        listed = ", ".join(
+            f"{slug} ({atype}, {'displayed' if adisplay else 'hidden'})"
+            for slug, atype, adisplay in exceptions)
+        print(f"alias display exceptions (display disagrees with the class): {len(exceptions)} "
+              f"[{listed}]")
 
 
 def main() -> None:

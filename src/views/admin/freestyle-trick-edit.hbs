@@ -56,7 +56,14 @@
     <ul class="freestyle-edit-list">
       {{#each content.aliases}}
       <li>
-        <code>{{this.slug}}</code> {{this.text}} <span class="badge">{{this.type}}</span>
+        <code>{{this.slug}}</code> {{this.text}} <span class="badge">{{this.displayLabel}}</span>
+        <form method="POST" action="{{this.updateHref}}" class="inline-form">
+          <select name="aliasType">
+            {{#each this.typeOptions}}<option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>{{/each}}
+          </select>
+          <label><input type="checkbox" name="aliasDisplay" {{#if this.isDisplayed}}checked{{/if}} /> Show beside the trick name</label>
+          <button type="submit" class="btn btn-outline btn-sm">Save Alias</button>
+        </form>
         <form method="POST" action="{{this.deleteHref}}" class="inline-form">
           <button type="submit" class="btn btn-outline btn-sm">Remove</button>
         </form>
