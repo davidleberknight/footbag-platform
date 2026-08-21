@@ -51,9 +51,9 @@ export const ALIAS_GOVERNANCE_ENTRIES: readonly AliasGovernanceEntry[] = [
   {
     trickSlug:       'around_the_world',
     aliasText:       'atw',
-    surfaceOnBrowse: true,
-    displayAs:       'ATW',
-    reason:          'Canonical educational equivalence; uppercase form per established community convention.',
+    surfaceOnBrowse: false,
+    displayAs:       null,
+    reason:          'ATW is the everyday written shorthand for around the world, and it does not belong on a public browse surface: browse aliases are community nicknames, and an abbreviation of the canonical name teaches a reader nothing they cannot read off the name itself. The alias row is technical and not displayed, which is the state that governs; this entry records that the two agree deliberately. Whether the shorthand is worth showing on the around-the-world detail page is a separate product decision and is not settled here.',
   },
   {
     trickSlug:       'illusion',
@@ -76,13 +76,11 @@ export const ALIAS_GOVERNANCE_ENTRIES: readonly AliasGovernanceEntry[] = [
     displayAs:       null,
     reason:          'Folk-name overload; not a clean equivalence. Suppressed pending doctrine resolution.',
   },
-  {
-    trickSlug:       'swirl',
-    aliasText:       'reverse swirl',
-    surfaceOnBrowse: false,
-    displayAs:       null,
-    reason:          'Reverse-swirl is a direction-variant trick, not an alias of swirl. Surfacing it as ≡ would misrepresent the relationship.',
-  },
+  // Reverse-swirl carries no entry: it is a direction-variant trick with its own
+  // canonical row, not an alias of swirl, so the alias table holds no swirl-to-
+  // reverse-swirl pair for this module to govern. Should such an alias ever be
+  // authored, it must not surface: presenting it as an equivalence would state
+  // that a direction-reversed movement is the same trick.
   {
     trickSlug:       'butterfly',
     aliasText:       'infinity',

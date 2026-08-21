@@ -14,11 +14,13 @@ import {
 } from '../../src/content/freestyleAliasGovernance';
 
 describe('freestyleAliasGovernance — allow-list entries', () => {
-  it('lists the around-the-world ≡ ATW canonical equivalence (allow-listed)', () => {
+  it('keeps the around-the-world ATW shorthand off browse surfaces', () => {
+    // ATW abbreviates the canonical name rather than naming the trick
+    // independently, so it is a search-only alias and carries no rendered form.
     const entry = getAliasGovernanceEntry('around_the_world', 'atw');
     expect(entry).not.toBeNull();
-    expect(entry?.surfaceOnBrowse).toBe(true);
-    expect(entry?.displayAs).toBe('ATW');
+    expect(entry?.surfaceOnBrowse).toBe(false);
+    expect(entry?.displayAs).toBeNull();
   });
 
   it('marks illusion ≡ outside-in mirage as suppressed (folk record only)', () => {
@@ -42,16 +44,17 @@ describe('freestyleAliasGovernance — allow-list entries', () => {
     expect(entry?.surfaceOnBrowse).toBe(false);
   });
 
-  it('marks swirl ≡ reverse swirl as different-trick (NOT surface)', () => {
-    const entry = getAliasGovernanceEntry('swirl', 'reverse swirl');
-    expect(entry).not.toBeNull();
-    expect(entry?.surfaceOnBrowse).toBe(false);
+  it('holds no entry for swirl ≡ reverse swirl, which is a separate canonical trick', () => {
+    // Reverse-swirl has its own canonical row, so no alias pairs it with swirl
+    // and the restraint-first default keeps any such pair off browse anyway.
+    expect(getAliasGovernanceEntry('swirl', 'reverse swirl')).toBeNull();
+    expect(filterAliasesForBrowse('swirl', ['reverse swirl'])).toEqual([]);
   });
 });
 
 describe('freestyleAliasGovernance — lookup behavior', () => {
   it('is case-insensitive on both slug and alias text', () => {
-    expect(getAliasGovernanceEntry('AROUND_THE_WORLD', 'ATW')?.surfaceOnBrowse).toBe(true);
+    expect(getAliasGovernanceEntry('AROUND_THE_WORLD', 'ATW')).not.toBeNull();
     // The illusion entry is surfaceOnBrowse:false, because the "outside-in
     // mirage" reading misrepresents illusion. Lookup still resolves it; only
     // the surfacing flag is off.
@@ -67,9 +70,9 @@ describe('freestyleAliasGovernance — lookup behavior', () => {
 });
 
 describe('freestyleAliasGovernance — filterAliasesForBrowse', () => {
-  it('surfaces only allow-listed canonical aliases for around-the-world', () => {
+  it('surfaces nothing for around-the-world, whose only entry is off', () => {
     const filtered = filterAliasesForBrowse('around_the_world', ['atw', 'someOtherAlias']);
-    expect(filtered).toEqual(['ATW']);   // displayAs uppercase
+    expect(filtered).toEqual([]);
   });
 
   it('returns empty when no aliases match the allow-list', () => {

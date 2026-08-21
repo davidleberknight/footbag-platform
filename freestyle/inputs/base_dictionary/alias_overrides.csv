@@ -364,3 +364,8 @@ whirling_osis,retype,structural,0,modifier-stack decomposition rather than a nic
 whirling_reverse_whirl,retype,structural,0,modifier-stack decomposition rather than a nickname
 zulu_far_legover,retype,structural,0,modifier-stack decomposition rather than a nickname
 zulu_far_pickup,retype,structural,0,modifier-stack decomposition rather than a nickname
+big_applesauce,retype,common,0,"curator ruling: a play on the big apple family rather than an independent name. It stays a community name, so the class is unchanged and only the display is turned off; search and record resolution keep it."
+frigidosis,retype,common,0,"curator ruling: folk-name overload, not a clean equivalence, held out of display pending doctrine. Brings the row into agreement with the suppression already enforced on the rendered surfaces. It is a community name, not a misspelling or an abbreviation, so the class is unchanged."
+infinity,retype,common,0,"curator ruling: Infinity names the clipper-set far Butterfly, not the side-either Butterfly, so it is not displayed as an exact alias of Butterfly; the Butterfly page carries a naming note instead. Brings the row into agreement with the suppression already enforced on the rendered surfaces. Class unchanged: it is a community name. Do not re-enable the display."
+leg_beater,retype,technical,0,"spaced spelling of legbeater, which is the preferred displayed form; an orthographic variant that resolves but does not display"
+whirlwalk,retype,common,0,"curator ruling: a contraction of the canonical whirling whirl rather than an independent name. It stays a community name, so the class is unchanged and only the display is turned off; search and record resolution keep it."
