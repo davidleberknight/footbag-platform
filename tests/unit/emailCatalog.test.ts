@@ -38,6 +38,11 @@ const CATALOG: CatalogEntry[] = [
   { template: 'password_changed', services: ['identityAccessService'], samples: [
     { params: {}, variant: 'password_changed' },
   ] },
+  // Announces a question without describing it: the question may concern a date
+  // of birth, which is read in the application and never sent by email.
+  { template: 'member_question_waiting', services: ['memberMessageService'], samples: [
+    { params: {}, variant: 'member_question_waiting' },
+  ] },
   { template: 'password_reset_request', services: ['identityAccessService'], samples: [
     { params: { resetUrl: 'https://x/reset/t', ttlHours: 1 }, variant: 'password_reset_request' },
   ] },
@@ -62,6 +67,11 @@ const CATALOG: CatalogEntry[] = [
   // adminWorkQueueService — member-facing resolution reply.
   { template: 'contact_request_resolution', services: ['adminWorkQueueService'], samples: [
     { params: { memberName: 'M', displayDecision: 'D', note: 'n' }, variant: 'contact_request_resolution' },
+  ] },
+  // identityAccessService — the reply for the one contact category answered by
+  // applying a link rather than by writing back.
+  { template: 'link_help_request_resolution', services: ['identityAccessService'], samples: [
+    { params: { memberName: 'M', displayDecision: 'D', note: 'n' }, variant: 'link_help_request_resolution' },
   ] },
   // clubService / clubCleanupService — club operational notifications.
   { template: 'club_membership_member', services: ['clubService'], samples: [
@@ -190,6 +200,28 @@ describe('email catalog', () => {
 
     const membership = read('payment_receipt_failed_membership').bodyTemplate;
     expect(membership).toMatch(/membership tier was not changed/);
+  });
+
+  it('the Active Player reminders offer no route the rules refuse their reader', () => {
+    // Both reminders reach a member whose Active Player status is ending or has
+    // ended, so every reader has held it. The one-time club-join grant reaches
+    // only a member who never has, which makes it unreachable for this whole
+    // audience; naming it would advertise a route the grant refuses.
+    const read = (key: string) =>
+      JSON.parse(
+        readFileSync(join(process.cwd(), 'curated/email_templates', `${key}.json`), 'utf-8'),
+      ) as { bodyTemplate: string };
+
+    for (const key of ['active_player_expiry_upcoming', 'active_player_expiry_day_of']) {
+      const body = read(key).bodyTemplate;
+      // Narrow on purpose: the day-of reminder legitimately says club creation
+      // is among the benefits that ended, which is a loss, not an offer.
+      expect(body, key).not.toMatch(/Joining your first club/i);
+      expect(body, key).not.toMatch(/club-join/i);
+      // The routes that do reach this reader are still offered.
+      expect(body, key).toMatch(/qualifying IFPA-sanctioned event/);
+      expect(body, key).toMatch(/vouched for/);
+    }
   });
 
   it('the recurring-donation confirmation renders every field it declares', () => {

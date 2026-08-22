@@ -81,6 +81,10 @@ export const TEMPLATE_VARIANTS = {
   password_reset_request:          v('restricted',   ['resetUrl', 'ttlPhrase']),
   password_reset_confirm:          v('internal',     []),
   password_changed:                v('internal',     []),
+  // Carries nothing about the question it announces: the question itself may
+  // concern a date of birth, which is owner-and-admin private and never leaves
+  // the application. No merge fields, and deliberately no link.
+  member_question_waiting:         v('internal',     []),
   legacy_claim_confirm:            v('restricted',   ['confirmUrl', 'ttlPhrase']),
   mailbox_link_confirm:            v('restricted',   ['verifyUrl', 'ttlPhrase']),
   vouch_confirmation:              v('confidential', ['voucherName', 'expiryDate']),
@@ -112,6 +116,7 @@ export const TEMPLATE_VARIANTS = {
   club_coleader_invite:            v('confidential', ['leaderName', 'inviteeName', 'clubName']),
   club_leaderless_contact:         v('confidential', ['memberName', 'clubName']),
   contact_request_resolution:      v('confidential', ['memberName', 'displayDecision', 'note']),
+  link_help_request_resolution:    v('confidential', ['memberName', 'displayDecision', 'note']),
   admin_loss_recruitment:          v('internal',     ['entityId', 'queueUrl']),
   admin_queue_digest:              v('internal',     ['countPhrase', 'itemLines', 'queueUrl']),
   admin_queue_stale_escalation:    v('internal',     ['taskType', 'entityId', 'agePhrase', 'queueUrl']),
@@ -163,6 +168,10 @@ const SHAPERS = {
   }),
   password_changed: (_p: Empty): ShapedEmail => ({
     variant: 'password_changed',
+    merge: {},
+  }),
+  member_question_waiting: (_p: Empty): ShapedEmail => ({
+    variant: 'member_question_waiting',
     merge: {},
   }),
   legacy_claim_confirm: (p: { confirmUrl: string; ttlHours: number }): ShapedEmail => ({
@@ -292,6 +301,14 @@ const SHAPERS = {
   }),
   contact_request_resolution: (p: { memberName: string; displayDecision: string; note: string }): ShapedEmail => ({
     variant: 'contact_request_resolution',
+    merge: { memberName: p.memberName, displayDecision: p.displayDecision, note: p.note },
+  }),
+  // The identity-link category is answered by applying a link rather than by
+  // writing back, so it resolves through its own queue and needs its own reply.
+  // Without it a member is promised an answer on submission and hears nothing,
+  // whether their records were linked or the request was refused.
+  link_help_request_resolution: (p: { memberName: string; displayDecision: string; note: string }): ShapedEmail => ({
+    variant: 'link_help_request_resolution',
     merge: { memberName: p.memberName, displayDecision: p.displayDecision, note: p.note },
   }),
   // The lost administrator is named by member id only: this fans out to the

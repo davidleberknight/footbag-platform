@@ -60,7 +60,7 @@ describe('POST /register race against email UNIQUE constraint', () => {
   it('two concurrent same-email registrations: both return the identical 303; exactly one members row inserted', async () => {
     const app = createApp();
     const sharedEmail = 'race-email@example.com';
-    const post = (realName: string, displayName: string) =>
+    const post = (givenNames: string, familyName: string, displayName: string) =>
       request(app)
         .post('/register')
         .type('form')
@@ -68,13 +68,14 @@ describe('POST /register race against email UNIQUE constraint', () => {
           email: sharedEmail,
           password: 'TestPassword123!',
           confirmPassword: 'TestPassword123!',
-          realName,
+          givenNames,
+          familyName,
           displayName,
         });
 
     const [resA, resB] = await Promise.all([
-      post('Alice Smith', 'Alice Smith'),
-      post('Bob Smith', 'Bob Smith'),
+      post('Alice', 'Smith', 'Alice Smith'),
+      post('Bob', 'Smith', 'Bob Smith'),
     ]);
 
     // Both return the identical enumeration-safe 303 to check-email: one insert
@@ -100,7 +101,7 @@ describe('POST /register race against slug UNIQUE constraint', () => {
           email,
           password: 'TestPassword123!',
           confirmPassword: 'TestPassword123!',
-          realName: 'John Slugrace',
+          givenNames: 'John', familyName: 'Slugrace',
           displayName: 'John Slugrace',
         });
 

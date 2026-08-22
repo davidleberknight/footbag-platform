@@ -1,9 +1,13 @@
 (function () {
   'use strict';
-  var realNameInput = document.getElementById('realName');
+  // The legal name is recorded as two parts, so the full name the display-name
+  // and profile-URL defaults are built from is assembled here the same way the
+  // server assembles it: given names first, either part allowed to be empty.
+  var givenNamesInput = document.getElementById('givenNames');
+  var familyNameInput = document.getElementById('familyName');
   var displayNameInput = document.getElementById('displayName');
   var slugInput = document.getElementById('slug');
-  if (!realNameInput || !displayNameInput || !slugInput) return;
+  if (!familyNameInput || !displayNameInput || !slugInput) return;
 
   var lastAutoDisplay = '';
   var lastAutoSlug = '';
@@ -17,14 +21,20 @@
       .replace(/^_|_$/g, '');
   }
 
+  function fullName() {
+    var given = givenNamesInput ? givenNamesInput.value.trim() : '';
+    var family = familyNameInput.value.trim();
+    return given && family ? given + ' ' + family : given || family;
+  }
+
   function effectiveDisplayName() {
-    return displayNameInput.value.trim() || realNameInput.value.trim();
+    return displayNameInput.value.trim() || fullName();
   }
 
   function updateDisplayName() {
     var current = displayNameInput.value;
     if (current !== '' && current !== lastAutoDisplay) return;
-    var generated = realNameInput.value.trim();
+    var generated = fullName();
     displayNameInput.value = generated;
     lastAutoDisplay = generated;
   }
@@ -37,10 +47,13 @@
     lastAutoSlug = generated;
   }
 
-  realNameInput.addEventListener('blur', function () {
+  function updateBoth() {
     updateDisplayName();
     updateSlug();
-  });
+  }
+
+  if (givenNamesInput) givenNamesInput.addEventListener('blur', updateBoth);
+  familyNameInput.addEventListener('blur', updateBoth);
 
   displayNameInput.addEventListener('blur', function () {
     updateSlug();

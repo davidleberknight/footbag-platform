@@ -11,6 +11,7 @@ import { paymentService } from '../services/paymentService';
 import { PageViewModel } from '../types/page';
 import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
 import { renderInvalidRequest, renderNotFound, renderRateLimited, renderServiceUnavailable } from '../lib/controllerErrors';
+import { isOwnMemberRoute } from '../lib/routeOwnership';
 
 interface MemberPasswordEditContent {
   memberKey: string;
@@ -37,10 +38,6 @@ const STUB_SEGMENTS: Record<string, StubConfig> = {
   download: { pageKey: 'member_download', title: 'Download My Data' },
   delete:   { pageKey: 'member_delete',   title: 'Delete Account' },
 };
-
-function isOwnProfile(req: Request): boolean {
-  return req.user?.slug === req.params.memberKey;
-}
 
 // Repeated form fields (e.g. three `link_label` inputs) arrive as an array;
 // a single one arrives as a string. Normalize both to a string[].
@@ -76,7 +73,7 @@ export const memberController = {
   getProfile(req: Request, res: Response, next: NextFunction): void {
     const memberKey = req.params.memberKey;
 
-    if (isOwnProfile(req)) {
+    if (isOwnMemberRoute(req)) {
       if (!req.isMember) {
         res.redirect(303, nextPendingWizardHref(req.user!.userId));
         return;
@@ -129,7 +126,7 @@ export const memberController = {
 
   /** GET /members/:memberKey/edit */
   getProfileEdit(req: Request, res: Response, next: NextFunction): void {
-    if (!isOwnProfile(req)) {
+    if (!isOwnMemberRoute(req)) {
       renderNotFound(res);
       return;
     }
@@ -154,7 +151,7 @@ export const memberController = {
 
   /** POST /members/:memberKey/edit */
   async postProfileEdit(req: Request, res: Response, next: NextFunction): Promise<void> {
-    if (!isOwnProfile(req)) {
+    if (!isOwnMemberRoute(req)) {
       renderNotFound(res);
       return;
     }
@@ -179,6 +176,9 @@ export const memberController = {
         whatsappVisible: req.body.whatsappVisible ?? '0',
         searchable:      req.body.searchable      ?? '0',
         firstCompetitionYear: req.body.firstCompetitionYear ?? '',
+        birthDay:        req.body.birthDay      ?? '',
+        birthMonth:      req.body.birthMonth    ?? '',
+        birthYear:       req.body.birthYear     ?? '',
         showCompetitiveResults: req.body.showCompetitiveResults ?? '1',
         showFirstCompetitionYear: req.body.showFirstCompetitionYear ?? '0',
         showGender:      req.body.showGender     ?? '0',
@@ -213,7 +213,7 @@ export const memberController = {
 
   /** POST /members/:memberKey/avatar, handle avatar file upload. */
   postAvatarUpload(req: Request, res: Response, next: NextFunction): void {
-    if (!isOwnProfile(req)) {
+    if (!isOwnMemberRoute(req)) {
       renderNotFound(res);
       return;
     }
@@ -312,7 +312,7 @@ export const memberController = {
 
   /** GET /members/:memberKey/edit/password, password-change form (own profile only). */
   getPasswordEdit(req: Request, res: Response): void {
-    if (!isOwnProfile(req)) {
+    if (!isOwnMemberRoute(req)) {
       renderNotFound(res);
       return;
     }
@@ -328,7 +328,7 @@ export const memberController = {
 
   /** POST /members/:memberKey/edit/password, apply password change. */
   async postPasswordEdit(req: Request, res: Response, next: NextFunction): Promise<void> {
-    if (!isOwnProfile(req)) {
+    if (!isOwnMemberRoute(req)) {
       renderNotFound(res);
       return;
     }
@@ -396,7 +396,7 @@ export const memberController = {
 
   /** GET /members/:memberKey/:section, stub pages (own profile only). */
   getStub(req: Request, res: Response, next: NextFunction): void {
-    if (!isOwnProfile(req)) {
+    if (!isOwnMemberRoute(req)) {
       renderNotFound(res);
       return;
     }
@@ -424,7 +424,7 @@ export const memberController = {
   },
 
   async postPurchaseTier(req: Request, res: Response, next: NextFunction): Promise<void> {
-    if (!isOwnProfile(req)) { renderNotFound(res); return; }
+    if (!isOwnMemberRoute(req)) { renderNotFound(res); return; }
     const tier = String(req.body.tier ?? req.query.tier ?? '');
     const rawReturnTo =
       typeof req.body.returnTo === 'string' ? req.body.returnTo

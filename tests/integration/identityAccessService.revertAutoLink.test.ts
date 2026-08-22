@@ -354,9 +354,6 @@ describe('identityAccessService.revertClaimForDispute (queue-item binding)', () 
     const now = '2026-01-01T00:00:00.000Z';
     const payload = JSON.stringify({
       statement: 'That record is mine, not theirs.',
-      claimed_legacy_username: null,
-      claimed_legacy_email: null,
-      vouchers: null,
       is_dispute: opts.isDispute,
       disputed_legacy_member_ids: opts.disputedLegacyMemberIds ?? [],
       disputed_historical_person_ids: opts.disputedHistoricalPersonIds ?? [],

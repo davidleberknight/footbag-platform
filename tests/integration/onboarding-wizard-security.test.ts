@@ -70,7 +70,6 @@ describe('auth gate: unauthenticated access -> 302 to /login?returnTo=...', () =
     '/register/wizard/legacy_claim/auto-link/decline',
     '/register/wizard/legacy_claim/claim/confirm',
     '/register/wizard/legacy_claim/cross-source/confirm',
-    '/register/wizard/legacy_claim/help-request',
     '/register/wizard/legacy_claim/anchors/send-verification',
     '/register/wizard/legacy_claim/anchors/add',
     '/register/wizard/legacy_claim/anchors/remove',
@@ -102,7 +101,6 @@ describe('CSRF: state-changing wizard POSTs reject missing/mismatched Origin', (
     '/register/wizard/legacy_claim/auto-link/decline',
     '/register/wizard/legacy_claim/claim/confirm',
     '/register/wizard/legacy_claim/cross-source/confirm',
-    '/register/wizard/legacy_claim/help-request',
     '/register/wizard/legacy_claim/anchors/send-verification',
     '/register/wizard/legacy_claim/anchors/add',
     '/register/wizard/legacy_claim/anchors/remove',
@@ -131,6 +129,7 @@ describe('anti-enumeration: claim lookup returns identical response shape regard
       slug: `ae_nomatch_${stamp}`,
       login_email: `ae-nomatch-${stamp}@example.com`,
       birth_date: '1980-01-01',
+      onboarding: 'none',
     });
     insertOnboardingTask(db, noMatchId, 'personal_details', 'completed');
     await request(createApp()).get('/register/wizard/legacy_claim').set('Cookie', cookieFor(noMatchId));
@@ -152,6 +151,7 @@ describe('anti-enumeration: claim lookup returns identical response shape regard
       slug: `ae_match_${stamp}`,
       login_email: `ae-match-${stamp}@example.com`,
       birth_date: '1980-01-01',
+      onboarding: 'none',
     });
     insertOnboardingTask(db, matchId, 'personal_details', 'completed');
     await request(createApp()).get('/register/wizard/legacy_claim').set('Cookie', cookieFor(matchId));
@@ -179,6 +179,7 @@ describe('anti-enumeration: claim lookup returns identical response shape regard
       slug: `ae_seeker_${stamp}`,
       login_email: `ae-seeker-${stamp}@example.com`,
       birth_date: '1980-01-01',
+      onboarding: 'none',
     });
     insertOnboardingTask(db, claimedSeekerId, 'personal_details', 'completed');
     await request(createApp()).get('/register/wizard/legacy_claim').set('Cookie', cookieFor(claimedSeekerId));

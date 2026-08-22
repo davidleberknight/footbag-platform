@@ -83,6 +83,7 @@ beforeAll(async () => {
     real_name: 'Ambig Target',
     email_verified_at: null,
     birth_date: '1980-01-01',
+    onboarding: 'none',
   });
 
   insertLegacyMember(db, { legacy_member_id: LM_SINGLE, legacy_email: 'single@example.com' });
@@ -261,7 +262,7 @@ describe('manual claim form — non-revealing on ambiguous email', () => {
       .post('/register/wizard/personal_details/submit')
       .set('Cookie', cookie)
       .type('form')
-      .send({ city: 'Portland', region: 'OR', country: 'US', birthDate: '1980-01-01' });
+      .send({ city: 'Portland', region: 'OR', country: 'US', birthDay: '1', birthMonth: '1', birthYear: '1980' });
     const postRes = await agent
       .post('/register/wizard/legacy_claim/find')
       .set('Cookie', cookie)

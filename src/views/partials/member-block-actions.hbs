@@ -1,0 +1,50 @@
+{{! What the platform is waiting on this member for. Needs-attention-now items
+    lead; anything that can wait follows in a quieter list. The block carries no
+    private content: a headline, one optional line, and the controls. }}
+<div class="profile-section">
+  <h2 class="profile-section-heading">Waiting on You</h2>
+
+  <div class="member-action-list">
+    {{#each this.urgentItems}}
+      <div class="notice-card notice-card--warn-strong">
+        <p class="member-action-headline">{{this.headline}}</p>
+        {{#if this.detail}}<p class="member-action-detail">{{this.detail}}</p>{{/if}}
+        <div class="member-action-options">
+          {{#each this.options}}
+            {{#if this.isSubmit}}
+              <form method="POST" action="{{this.action}}" class="member-action-submit">
+                {{#each this.fields}}
+                  <input type="hidden" name="{{this.name}}" value="{{this.value}}" />
+                {{/each}}
+                <button type="submit" class="btn {{#if this.isPrimary}}btn-primary{{else}}btn-outline{{/if}}">{{this.label}}</button>
+              </form>
+            {{else}}
+              <a href="{{this.href}}" class="btn {{#if this.isPrimary}}btn-primary{{else}}btn-outline{{/if}}">{{this.label}}</a>
+            {{/if}}
+          {{/each}}
+        </div>
+      </div>
+    {{/each}}
+
+    {{#each this.pendingItems}}
+      <div class="notice-card notice-card--info-blue">
+        <p class="member-action-headline">{{this.headline}}</p>
+        {{#if this.detail}}<p class="member-action-detail">{{this.detail}}</p>{{/if}}
+        <div class="member-action-options">
+          {{#each this.options}}
+            {{#if this.isSubmit}}
+              <form method="POST" action="{{this.action}}" class="member-action-submit">
+                {{#each this.fields}}
+                  <input type="hidden" name="{{this.name}}" value="{{this.value}}" />
+                {{/each}}
+                <button type="submit" class="btn {{#if this.isPrimary}}btn-primary{{else}}btn-outline{{/if}}">{{this.label}}</button>
+              </form>
+            {{else}}
+              <a href="{{this.href}}" class="btn {{#if this.isPrimary}}btn-primary{{else}}btn-outline{{/if}}">{{this.label}}</a>
+            {{/if}}
+          {{/each}}
+        </div>
+      </div>
+    {{/each}}
+  </div>
+</div>

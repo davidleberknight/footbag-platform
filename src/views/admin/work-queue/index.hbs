@@ -15,6 +15,9 @@
   {{#if content.reviewedFlag}}
     <p class="form-success-banner" role="status">Item marked reviewed.</p>
   {{/if}}
+  {{#if content.memberAskedFlag}}
+    <p class="form-success-banner" role="status">Question sent. The member has been emailed to log in and answer; the item stays here until they do.</p>
+  {{/if}}
   {{#if content.claimedFlag}}
     <p class="form-success-banner" role="status">Item claimed. It is now off the other admins' digest.</p>
   {{/if}}
@@ -69,15 +72,89 @@
             </form>
           {{/if}}
 
+          {{#if askBlockedReason}}
+            <p class="card-meta">{{askBlockedReason}}</p>
+          {{/if}}
+
+          {{#if canAskMember}}
+            {{#each memberQuestions}}
+              <div class="queue-member-question">
+                <p class="card-meta">
+                  Asked {{this.sentAtDisplay}}: <strong>{{this.subject}}</strong> ({{this.answerKindLabel}})
+                </p>
+                {{! The question itself. Without it an administrator reads an
+                    answer without being able to see what was asked, which is
+                    unusable once more than a day has passed or the colleague who
+                    asked is not the one reading. }}
+                {{#if this.body}}<p class="queue-question-body">{{this.body}}</p>{{/if}}
+                {{#if this.isAnswered}}
+                  <p class="card-meta">Answered {{this.answeredAtDisplay}}: <strong>{{this.outcomeLabel}}</strong></p>
+                  {{#if this.note}}<p>{{this.note}}</p>{{/if}}
+                {{/if}}
+              </div>
+            {{/each}}
+
+            {{#if awaitingMemberSince}}
+              <p class="card-meta">Waiting on the member since {{awaitingMemberSince}}. Nothing to do here until they answer.</p>
+            {{else}}
+              <details class="queue-ask-member" {{#if askOpen}}open{{/if}}>
+                <summary>Ask the member</summary>
+                <form method="POST" action="/admin/work-queue/{{id}}/ask-member" class="form-block">
+                  <div class="form-field">
+                    <label for="ask_kind_{{id}}">What do you need back?</label>
+                    <select id="ask_kind_{{id}}" name="expectedAnswerKind" required>
+                      {{#each @root.content.answerKindOptions}}
+                        <option value="{{this.value}}" {{#if (eq this.value ../askPrefill.answerKind)}}selected{{/if}}>{{this.label}}</option>
+                      {{/each}}
+                    </select>
+                  </div>
+                  <div class="form-field">
+                    <label for="ask_subject_{{id}}">Subject</label>
+                    <input type="text" id="ask_subject_{{id}}" name="subject" maxlength="200" required value="{{askPrefill.subject}}" />
+                  </div>
+                  <div class="form-field">
+                    <label for="ask_body_{{id}}">Your question</label>
+                    <textarea id="ask_body_{{id}}" name="body" rows="4" maxlength="2000" required>{{askPrefill.body}}</textarea>
+                    <small class="form-hint">The member reads this after signing in. It is never sent by email, so it may refer to private details. They get a message telling them to log in and nothing more.</small>
+                  </div>
+                  <button type="submit" class="btn btn-outline btn-sm">Send Question</button>
+                </form>
+              </details>
+            {{/if}}
+          {{/if}}
+
           {{#if isLinkHelpRequest}}
             {{#if linkHelp}}
               {{#if linkHelp.isDispute}}<p class="badge">Conflict dispute</p>{{/if}}
               <p>{{linkHelp.statement}}</p>
-              <p class="card-meta">
-                {{#if linkHelp.claimedLegacyUsername}}Claimed legacy username: {{linkHelp.claimedLegacyUsername}}.{{/if}}
-                {{#if linkHelp.claimedLegacyEmail}} Claimed legacy email: {{linkHelp.claimedLegacyEmail}}.{{/if}}
-                {{#if linkHelp.vouchers}} Vouchers: {{linkHelp.vouchers}}.{{/if}}
-              </p>
+            {{/if}}
+            {{! The evidence the decision is actually made on. Without it an
+                administrator adjudicates on what the member typed and nothing
+                else, then types an identifier found somewhere off this page. }}
+            {{#if claimEvidence.attempts.length}}
+              <div class="section-heading"><h3>What this member has already tried</h3></div>
+              {{#if claimEvidence.memberBirthDate}}
+                <p class="card-meta claim-evidence-revealed">Date of birth on this account: <strong>{{claimEvidence.memberBirthDate}}</strong></p>
+              {{/if}}
+              <ul class="claim-evidence-list">
+                {{#each claimEvidence.attempts}}
+                  <li class="claim-evidence-item">
+                    <p class="claim-evidence-outcome">
+                      {{this.outcomeLabel}}{{#if this.targetLabel}}: {{this.targetLabel}}{{/if}}
+                    </p>
+                    <p class="card-meta">{{this.whenDisplay}}</p>
+                    <p class="card-meta{{#if this.isContradicted}} claim-evidence-contradicted{{/if}}">{{this.comparisonLabel}}</p>
+                    {{#if this.recordBirthDate}}
+                      <p class="card-meta claim-evidence-revealed">Date on that record: <strong>{{this.recordBirthDate}}</strong></p>
+                    {{/if}}
+                    {{#if this.evidenceLabel}}
+                      <p class="card-meta">{{this.evidenceLabel}}</p>
+                    {{/if}}
+                  </li>
+                {{/each}}
+              </ul>
+            {{else}}
+              <p class="card-meta">This member has not attempted a claim, so there is no evidence on file yet.</p>
             {{/if}}
             <form method="POST" action="/admin/work-queue/{{id}}/link-help/approve" class="form-block">
               <div class="form-field">

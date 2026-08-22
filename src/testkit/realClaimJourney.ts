@@ -147,7 +147,10 @@ export async function buildRealClaimJourney(legacyMemberId: string): Promise<Bui
   // 1. Register through the real path. No slug is supplied, so registration derives
   //    the profile slug from the real name the way a real member's registration does.
   await identityAccessService.registerMember(
-    email, PASSWORD, PASSWORD, realName, realName, '127.0.0.1',
+    email, PASSWORD, PASSWORD,
+    realName.split(/\s+/).slice(0, -1).join(' '),
+    realName.split(/\s+/).slice(-1)[0] ?? '',
+    realName, '127.0.0.1',
   );
 
   // 2. Recover the verify link from the stub-SES outbox (drains it first).
@@ -190,7 +193,9 @@ export async function buildRealClaimJourney(legacyMemberId: string): Promise<Bui
     city: 'Testville',
     region: '',
     country: 'Estonia',
-    birthDate: '2008-08-08',
+    birthDay: '8',
+    birthMonth: '8',
+    birthYear: '2008',
     gender: 'undisclosed',
     yearValue: '2000',
     showCompetitiveResults: true,
@@ -224,6 +229,9 @@ export async function buildRealClaimJourney(legacyMemberId: string): Promise<Bui
     whatsappVisible: '0',
     searchable: '1',
     firstCompetitionYear: '2000',
+    birthDay: '8',
+    birthMonth: '8',
+    birthYear: '2008',
     showCompetitiveResults: '1',
     showFirstCompetitionYear: '1',
     showGender: '0',

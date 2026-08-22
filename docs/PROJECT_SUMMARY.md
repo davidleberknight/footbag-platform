@@ -647,7 +647,7 @@ Exception: The legacy videos that have been hosted on footbag.org for decades wi
 
 ## 6.5 Privacy-First Design
 
-**Minimal Data Collection:** Platform collects only essential information for functionality. No phone numbers, physical addresses, birth dates (unless age verification required). No payment card numbers (Stripe collects). City and country are required, phone is optional.
+**Minimal Data Collection:** Platform collects only what a stated purpose needs, and each field's purpose is recorded in the governance document. Name, email, city, country and date of birth are required; the date of birth is what matches a member to their old footbag.org account and their competition records, and it is owner-and-admin private. Phone and WhatsApp are optional and default to private. No payment card numbers: Stripe collects those and the platform stores only a customer reference.
 
 **No Tracking:** Zero tracking cookies, analytics scripts, session replay tools, or heatmaps. Only first-party authentication cookie. This eliminates tracking liability and respects user privacy maximally.
 

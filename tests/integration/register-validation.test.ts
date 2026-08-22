@@ -56,7 +56,7 @@ describe('registration validation boundaries', () => {
   it('rejects a password longer than the maximum and creates no account', async () => {
     const email = 'toolong@example.com';
     const res = await register({
-      realName: 'Max Length',
+      givenNames: 'Max', familyName: 'Length',
       displayName: 'Max Length',
       slug: '',
       email,
@@ -73,7 +73,7 @@ describe('registration validation boundaries', () => {
     const res = await register({
       // Real name and display name match (no slug-able ASCII), so the surname
       // rule is skipped and the empty-slug fallback path is what onboards them.
-      realName: '你好 世界',
+      givenNames: '你好', familyName: '世界',
       displayName: '你好 世界',
       slug: '',
       email,
@@ -91,7 +91,7 @@ describe('registration gender field (competition eligibility)', () => {
   it('does not collect gender and defaults a new member to undisclosed', async () => {
     const email = 'newplayer@example.com';
     const res = await register({
-      realName: 'New Player',
+      givenNames: 'New', familyName: 'Player',
       displayName: 'New Player',
       slug: '',
       email,
@@ -105,7 +105,7 @@ describe('registration gender field (competition eligibility)', () => {
   it('ignores any gender posted at registration and still defaults to undisclosed', async () => {
     const email = 'posted-gender@example.com';
     const res = await register({
-      realName: 'Posted Gender',
+      givenNames: 'Posted', familyName: 'Gender',
       displayName: 'Posted Gender',
       slug: '',
       email,

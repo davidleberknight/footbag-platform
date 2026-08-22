@@ -55,7 +55,7 @@ describe('POST /register → check-email + outbox enqueue', () => {
       .post('/register')
       .type('form')
       .send({
-        realName: 'Verify Tester',
+        givenNames: 'Verify', familyName: 'Tester',
         email: 'verify-one@example.com',
         password: 'verifypass!1',
         confirmPassword: 'verifypass!1',
@@ -87,14 +87,14 @@ describe('POST /register → check-email + outbox enqueue', () => {
   it('duplicate registration enqueues an account-exists notice, not a second verification email', async () => {
     const app = createApp();
     await request(app).post('/register').type('form').send({
-      realName: 'Dup One',
+      givenNames: 'Dup', familyName: 'One',
       email: 'verify-dup@example.com',
       password: 'verifypass!1',
       confirmPassword: 'verifypass!1',
     });
     // Re-register same email — same RealName rules (must differ from existing slug).
     await request(app).post('/register').type('form').send({
-      realName: 'Dup Two',
+      givenNames: 'Dup', familyName: 'Two',
       email: 'verify-dup@example.com',
       password: 'anotherpass!2',
       confirmPassword: 'anotherpass!2',
@@ -116,7 +116,7 @@ describe('GET /verify/:token', () => {
   it('consumes valid token → sets email_verified_at, issues session cookie, redirects to the wizard', async () => {
     const app = createApp();
     await request(app).post('/register').type('form').send({
-      realName: 'Verify Good',
+      givenNames: 'Verify', familyName: 'Good',
       email: 'verify-good@example.com',
       password: 'verifypass!1',
       confirmPassword: 'verifypass!1',
@@ -149,7 +149,7 @@ describe('GET /verify/:token', () => {
   it('a still-valid token consumed after the account is already verified issues a session and still audits', async () => {
     const app = createApp();
     await request(app).post('/register').type('form').send({
-      realName: 'Verify Already',
+      givenNames: 'Verify', familyName: 'Already',
       email: 'verify-already@example.com',
       password: 'verifypass!1',
       confirmPassword: 'verifypass!1',
@@ -193,7 +193,7 @@ describe('GET /verify/:token', () => {
   it('second consume of the same token → 400 with generic error', async () => {
     const app = createApp();
     await request(app).post('/register').type('form').send({
-      realName: 'Verify Twice',
+      givenNames: 'Verify', familyName: 'Twice',
       email: 'verify-twice@example.com',
       password: 'verifypass!1',
       confirmPassword: 'verifypass!1',
@@ -271,7 +271,7 @@ describe('GET /verify/:token — session reissue failure', () => {
     expectLoggedError('email verify: session issue failed');
     const app = createApp();
     await request(app).post('/register').type('form').send({
-      realName: 'Verify KmsFail',
+      givenNames: 'Verify', familyName: 'KmsFail',
       email: 'verify-kmsfail@example.com',
       password: 'verifypass!1',
       confirmPassword: 'verifypass!1',
@@ -329,7 +329,7 @@ describe('Unverified login is rejected', () => {
   it('an unverified member cannot log in', async () => {
     const app = createApp();
     await request(app).post('/register').type('form').send({
-      realName: 'Verify Blocked',
+      givenNames: 'Verify', familyName: 'Blocked',
       email: 'verify-blocked@example.com',
       password: 'verifypass!1',
       confirmPassword: 'verifypass!1',
@@ -348,7 +348,7 @@ describe('POST /verify/resend', () => {
   it('issues a new verify email for an unverified member and rate-limits after 3 per hour', async () => {
     const app = createApp();
     await request(app).post('/register').type('form').send({
-      realName: 'Resend Tester',
+      givenNames: 'Resend', familyName: 'Tester',
       email: 'resend@example.com',
       password: 'verifypass!1',
       confirmPassword: 'verifypass!1',
@@ -395,7 +395,7 @@ describe('POST /verify/resend', () => {
     // Seed a fresh unverified member; use an email distinct from the
     // resend-rate-limit tests above so the per-email bucket is unused.
     await request(app).post('/register').type('form').send({
-      realName: 'Resend Equivalence',
+      givenNames: 'Resend', familyName: 'Equivalence',
       email: 'resend-equiv-exists@example.com',
       password: 'verifypass!1',
       confirmPassword: 'verifypass!1',
@@ -433,7 +433,7 @@ describe('POST /verify/resend', () => {
       // Register a fresh unverified member; the registration creates the first
       // outbox row. The per-email bucket for /verify/resend is unused.
       await request(app).post('/register').type('form').send({
-        realName: 'Verify Resend Tunable',
+        givenNames: 'Verify', familyName: 'Resend Tunable',
         email: TUNE_EMAIL,
         password: 'verifypass!1',
         confirmPassword: 'verifypass!1',
@@ -508,7 +508,7 @@ describe('POST /verify/resend — verify-email enqueue failure', () => {
     const app = createApp();
     const targetEmail = 'resend-enqueue-fail@example.com';
     const registerRes = await request(app).post('/register').type('form').send({
-      realName: 'Resend Fail',
+      givenNames: 'Resend', familyName: 'Fail',
       email: targetEmail,
       password: 'verifypass!1',
       confirmPassword: 'verifypass!1',
@@ -558,7 +558,7 @@ describe('POST /verify/resend — verify-email enqueue failure', () => {
     const app = createApp();
     const targetEmail = 'resend-token-fail@example.com';
     const registerRes = await request(app).post('/register').type('form').send({
-      realName: 'Resend Token Fail',
+      givenNames: 'Resend', familyName: 'Token Fail',
       email: targetEmail,
       password: 'verifypass!1',
       confirmPassword: 'verifypass!1',
@@ -600,7 +600,7 @@ describe('Authenticated member search excludes unverified rows', () => {
   it('an unverified member is not in members_searchable and not in member search', async () => {
     const app = createApp();
     await request(app).post('/register').type('form').send({
-      realName: 'Shadow Figure',
+      givenNames: 'Shadow', familyName: 'Figure',
       email: 'shadow-figure@example.com',
       password: 'verifypass!1',
       confirmPassword: 'verifypass!1',
@@ -629,7 +629,7 @@ describe('email_verify token TTL honors system_config', () => {
     try {
       const email = 'ttl-config@example.com';
       const res = await request(app).post('/register').type('form').send({
-        realName: 'Ttl Configtester',
+        givenNames: 'Ttl', familyName: 'Configtester',
         email,
         password: 'verifypass!1',
         confirmPassword: 'verifypass!1',

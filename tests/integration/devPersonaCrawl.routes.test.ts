@@ -99,6 +99,21 @@ describe('persona switch + authenticated page crawl', () => {
       // The member-galleries surface renders for the authenticated persona.
       const galleries = await request(createApp()).get('/media/member-galleries').set('Cookie', cookie);
       expect(galleries.status, `${spec.slug} member-galleries`).toBeLessThan(400);
+
+      // The owner-only questions page. It draws for every member, whether or
+      // not anything is waiting, so the persona that exists to exercise it is
+      // actually asked to render it rather than only seeded. A pending
+      // registrant is routed to the wizard here for the same reason the edit
+      // page routes them: the page is a member capability.
+      const questions = await request(createApp())
+        .get(`/members/${spec.slug}/questions`).set('Cookie', cookie);
+      if (isPending) {
+        expect(questions.status, `${spec.slug} questions (pending → wizard)`).toBe(303);
+        expect(questions.headers.location, `${spec.slug} questions target`)
+          .toContain('/register/wizard/');
+      } else {
+        expect(questions.status, `${spec.slug} questions`).toBe(200);
+      }
     }
   });
 

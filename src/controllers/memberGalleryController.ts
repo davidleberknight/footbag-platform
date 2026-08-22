@@ -25,6 +25,7 @@ import { ConflictError, NotFoundError, RateLimitedError, ValidationError } from 
 import { parseExternalLinkInputs, parseGalleryMultipart } from './galleryFormHelpers';
 import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
 import { renderNotFound } from '../lib/controllerErrors';
+import { isOwnMemberRoute } from '../lib/routeOwnership';
 import { mediaService } from '../services/mediaService';
 import { hashtagDiscoveryService } from '../services/hashtagDiscoveryService';
 
@@ -82,10 +83,6 @@ function mergeTags(...lists: string[][]): string[] {
 
 const buildSvc = getDefaultCuratorMediaService;
 
-function isOwnRoute(req: Request): boolean {
-  return req.user?.slug === req.params.memberKey;
-}
-
 function listHref(memberKey: string): string {
   return `/members/${memberKey}/galleries`;
 }
@@ -127,7 +124,7 @@ function renderListWithError(
 export const memberGalleryController = {
   /** GET /members/:memberKey/galleries — list this member's own galleries. */
   getList(req: Request, res: Response, next: NextFunction): void {
-    if (!isOwnRoute(req)) {
+    if (!isOwnMemberRoute(req)) {
       renderNotFound(res);
       return;
     }
@@ -181,7 +178,7 @@ export const memberGalleryController = {
 
   /** GET /members/:memberKey/galleries/new — render new-gallery form. */
   getNew(req: Request, res: Response): void {
-    if (!isOwnRoute(req)) {
+    if (!isOwnMemberRoute(req)) {
       renderNotFound(res);
       return;
     }
@@ -202,7 +199,7 @@ export const memberGalleryController = {
    * via the new-gallery form's enctype). The two paths converge after
    * field parsing. */
   async postCreate(req: Request, res: Response, next: NextFunction): Promise<void> {
-    if (!isOwnRoute(req)) {
+    if (!isOwnMemberRoute(req)) {
       renderNotFound(res);
       return;
     }
@@ -271,7 +268,7 @@ export const memberGalleryController = {
 
   /** GET /members/:memberKey/galleries/:id/edit — render edit form. */
   getEdit(req: Request, res: Response, next: NextFunction): void {
-    if (!isOwnRoute(req)) {
+    if (!isOwnMemberRoute(req)) {
       renderNotFound(res);
       return;
     }
@@ -324,7 +321,7 @@ export const memberGalleryController = {
 
   /** POST /members/:memberKey/galleries/:id/edit — apply edit. */
   async postUpdate(req: Request, res: Response, next: NextFunction): Promise<void> {
-    if (!isOwnRoute(req)) {
+    if (!isOwnMemberRoute(req)) {
       renderNotFound(res);
       return;
     }
@@ -408,7 +405,7 @@ export const memberGalleryController = {
 
   /** POST /members/:memberKey/galleries/:id/delete — delete a gallery. */
   async postDelete(req: Request, res: Response, next: NextFunction): Promise<void> {
-    if (!isOwnRoute(req)) {
+    if (!isOwnMemberRoute(req)) {
       renderNotFound(res);
       return;
     }

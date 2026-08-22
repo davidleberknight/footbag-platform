@@ -137,13 +137,14 @@ beforeAll(async () => {
   const f1Cand = insertLegacyClubCandidate(db, { classification: 'pre_populate', mapped_club_id: f1Club, display_name: 'F1 Club' });
   f1AffId = insertLegacyPersonClubAffiliation(db, { legacy_member_id: 'lm-disambig-f1', legacy_club_candidate_id: f1Cand, confidence_score: 0.9 });
 
-  // The club-affiliations step is reachable only once personal details are on
-  // file, so complete that prerequisite for every member exercised here.
+  // The steps are answered in order, so the club step is reachable only once
+  // the two ahead of it are answered. Complete both for every member here.
   for (const id of [
     MEMBER_SAME_CITY, MEMBER_MIXED, MEMBER_LEADERSHIP, MEMBER_F1,
     MEMBER_NO_CITY, MEMBER_SAME_CITY_TWO_COUNTRIES,
   ]) {
     insertOnboardingTask(db, id, 'personal_details', 'completed');
+    insertOnboardingTask(db, id, 'legacy_claim', 'completed');
   }
 
   db.close();
@@ -305,7 +306,9 @@ describe('POST /register/wizard/club_affiliations/submit — disambiguation', ()
       .type('form')
       .send({ kind: 'disambiguation' });
     expect(res.status).toBe(422);
-    expect(res.text).toContain('allCandidateIds is required');
+    // A member never hits this by filling the form in; only a tampered or stale
+    // POST reaches it, so the page says that rather than naming a field.
+    expect(res.text).toContain('That form is out of date');
   });
 
   it('anti-enumeration: POST with another members candidateIds returns 404', async () => {

@@ -121,8 +121,9 @@ function getRegister(req: Request, res: Response): void {
 }
 
 async function postRegister(req: Request, res: Response, next: NextFunction): Promise<void> {
-  const { realName, displayName, slug, email, password, confirmPassword } = req.body as {
-    realName?: string; displayName?: string; slug?: string; email?: string; password?: string; confirmPassword?: string;
+  const { givenNames, familyName, displayName, slug, email, password, confirmPassword } = req.body as {
+    givenNames?: string; familyName?: string; displayName?: string; slug?: string;
+    email?: string; password?: string; confirmPassword?: string;
   };
 
   const renderError = (msg: string, status = 422) => {
@@ -131,7 +132,8 @@ async function postRegister(req: Request, res: Response, next: NextFunction): Pr
       page: { sectionKey: '', pageKey: 'register', title: 'Register to create an IFPA member account.' },
       content: {
         error: msg,
-        realName: realName ?? '',
+        givenNames: givenNames ?? '',
+        familyName: familyName ?? '',
         displayName: displayName ?? '',
         slug: slug ?? '',
         email: email ?? '',
@@ -151,7 +153,8 @@ async function postRegister(req: Request, res: Response, next: NextFunction): Pr
       email ?? '',
       password ?? '',
       confirmPassword ?? '',
-      realName ?? '',
+      givenNames ?? '',
+      familyName ?? '',
       displayName ?? '',
       req.ip ?? 'unknown',
       slug ?? '',

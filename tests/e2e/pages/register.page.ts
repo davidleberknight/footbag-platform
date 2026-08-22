@@ -11,8 +11,12 @@ export class RegisterPage {
     await this.page.goto('/register');
   }
 
-  get realNameInput() {
-    return this.page.getByLabel('Full legal name');
+  get givenNamesInput() {
+    return this.page.getByLabel('Given name(s)');
+  }
+
+  get familyNameInput() {
+    return this.page.getByLabel('Family name');
   }
 
   get emailInput() {
@@ -32,11 +36,13 @@ export class RegisterPage {
   }
 
   async fillRegistration(opts: {
-    realName: string;
+    givenNames: string;
+    familyName: string;
     email: string;
     password: string;
   }): Promise<void> {
-    await this.realNameInput.fill(opts.realName);
+    await this.givenNamesInput.fill(opts.givenNames);
+    await this.familyNameInput.fill(opts.familyName);
     await this.emailInput.fill(opts.email);
     await this.passwordInput.fill(opts.password);
     await this.confirmPasswordInput.fill(opts.password);

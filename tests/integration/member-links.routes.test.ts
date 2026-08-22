@@ -64,7 +64,7 @@ function postEdit(slug: string, memberId: string, fields: Record<string, unknown
     .post(`/members/${slug}/edit`)
     .set('Cookie', cookie(memberId))
     .type('form')
-    .send({ city: 'Portland', region: 'OR', country: 'USA', ...fields });
+    .send({ city: 'Portland', region: 'OR', country: 'USA', birthDay: '14', birthMonth: '3', birthYear: '1978', ...fields });
 }
 
 beforeAll(async () => {

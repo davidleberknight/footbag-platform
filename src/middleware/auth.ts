@@ -45,6 +45,12 @@ declare global {
       // True only when the session belongs to a member whose onboarding is
       // complete; auth-enhanced surfaces key member privileges off this, so a
       // pending registrant reads public pages as an anonymous visitor.
+      //
+      // The historical-person detail page is the one deliberate exception, and
+      // it keys off `isAuthenticated` instead. A registrant has to be able to
+      // reach a record in order to claim it, and the claim task is the only
+      // surface where claiming happens, so that page opens to a session rather
+      // than to membership. Nothing else does.
       isMember: boolean;
       user: SessionUser | null;
     }

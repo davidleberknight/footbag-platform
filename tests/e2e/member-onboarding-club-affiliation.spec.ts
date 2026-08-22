@@ -15,6 +15,7 @@ import {
   getTaskState,
   getAffiliationStatus,
   completePersonalDetails,
+  completeThroughLegacyClaim,
 } from './helpers/onboarding';
 import { WizardPage } from './pages/wizard.page';
 
@@ -133,7 +134,7 @@ test('leadership card: renders role and signal checklist', async ({ browser, bas
 test('no cards -> club_affiliations renders the wrap-up landing, stays pending', async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const persona = seedBrandNewPlayer(db, { slug: `ca_none_${Date.now()}` });
-  completePersonalDetails(db, persona.memberId);
+  completeThroughLegacyClaim(db, persona.memberId);
   db.close();
 
   const ctx = await createAuthenticatedContext(browser, baseURL!, persona);
@@ -223,7 +224,7 @@ test('declining each card in turn reaches the wrap-up, and Finish Without a Club
 test('Finish Without a Club on the wrap-up landing completes the task', async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const persona = seedBrandNewPlayer(db, { slug: `ca_fin_${Date.now()}` });
-  completePersonalDetails(db, persona.memberId);
+  completeThroughLegacyClaim(db, persona.memberId);
   db.close();
 
   const ctx = await createAuthenticatedContext(browser, baseURL!, persona);

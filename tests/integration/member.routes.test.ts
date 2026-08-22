@@ -377,7 +377,10 @@ describe('GET /members/:memberKey/edit — edit form', () => {
     expect(res.text).not.toContain('Link your competition history');
   });
 
-  it('shows the stored date of birth as a read-only identity field', async () => {
+  // The date is what matches a member to their legacy account and their
+  // competition records, so the member owns it and the edit form offers it as
+  // three parts they can change, not as a fixed line they must write in about.
+  it('offers the stored date of birth as three editable parts', async () => {
     const app = createApp();
     const db = new BetterSqlite3(TEST_DB_PATH);
     db.prepare('UPDATE members SET birth_date = ? WHERE id = ?').run('1990-03-15', OWN_ID);
@@ -388,7 +391,10 @@ describe('GET /members/:memberKey/edit — edit form', () => {
         .set('Cookie', ownCookie());
       expect(res.status).toBe(200);
       expect(res.text).toContain('Date of birth');
-      expect(res.text).toContain('15 March 1990');
+      expect(res.text).toContain('name="birthDay"');
+      expect(res.text).toContain('value="15"');
+      expect(res.text).toContain('<option value="3" selected>March</option>');
+      expect(res.text).toContain('value="1990"');
     } finally {
       const restore = new BetterSqlite3(TEST_DB_PATH);
       restore.prepare('UPDATE members SET birth_date = NULL WHERE id = ?').run(OWN_ID);
@@ -425,7 +431,7 @@ describe('POST /members/:memberKey/edit — save profile', () => {
     const res = await request(app)
       .post(`/members/${OWN_SLUG}/edit`)
       .type('form')
-      .send({ bio: '', city: 'Portland', region: 'OR', country: 'US', phone: '', emailVisibility: 'private' });
+      .send({ bio: '', city: 'Portland', region: 'OR', country: 'US', phone: '', emailVisibility: 'private', birthDay: '14', birthMonth: '3', birthYear: '1978' });
     expect(res.status).toBe(302);
     expect(res.headers.location).toBe(`/login?returnTo=%2Fmembers%2F${OWN_SLUG}%2Fedit`);
   });
@@ -436,7 +442,7 @@ describe('POST /members/:memberKey/edit — save profile', () => {
       .post(`/members/${OWN_SLUG}/edit`)
       .set('Cookie', otherCookie())
       .type('form')
-      .send({ bio: '', city: 'Portland', region: 'OR', country: 'US', phone: '', emailVisibility: 'private' });
+      .send({ bio: '', city: 'Portland', region: 'OR', country: 'US', phone: '', emailVisibility: 'private', birthDay: '14', birthMonth: '3', birthYear: '1978' });
     expect(res.status).toBe(404);
   });
 
@@ -464,6 +470,9 @@ describe('POST /members/:memberKey/edit — save profile', () => {
         region:          'OR',
         country:         'US',
         phone:           '',
+        birthDay:        '14',
+        birthMonth:      '3',
+        birthYear:       '1978',
         emailVisibility: 'bad-value',
       });
     // Service coerces bad visibility to 'private' — no validation error.
@@ -482,6 +491,9 @@ describe('POST /members/:memberKey/edit — save profile', () => {
         region:          'OR',
         country:         'US',
         phone:           '',
+        birthDay:        '14',
+        birthMonth:      '3',
+        birthYear:       '1978',
         emailVisibility: 'members',
       });
     expect(res.status).toBe(303);
@@ -516,7 +528,7 @@ describe('POST /members/:memberKey/edit — save profile', () => {
       .post(`/members/${OWN_SLUG}/edit`)
       .set('Cookie', ownCookie())
       .type('form')
-      .send({ bio: '', city: 'Portland', region: 'OR', country: 'US', phone: '', emailVisibility: 'private', gender: 'female' });
+      .send({ bio: '', city: 'Portland', region: 'OR', country: 'US', phone: '', emailVisibility: 'private', birthDay: '14', birthMonth: '3', birthYear: '1978', gender: 'female' });
     expect(res.status).toBe(303);
     expect(genderOf(OWN_ID)).toBe('female');
   });
@@ -528,7 +540,7 @@ describe('POST /members/:memberKey/edit — save profile', () => {
       .post(`/members/${OWN_SLUG}/edit`)
       .set('Cookie', ownCookie())
       .type('form')
-      .send({ bio: '', city: 'Portland', region: 'OR', country: 'US', phone: '', emailVisibility: 'private' });
+      .send({ bio: '', city: 'Portland', region: 'OR', country: 'US', phone: '', emailVisibility: 'private', birthDay: '14', birthMonth: '3', birthYear: '1978' });
     expect(res.status).toBe(303);
     expect(genderOf(OWN_ID)).toBe('male');
   });
@@ -540,7 +552,7 @@ describe('POST /members/:memberKey/edit — save profile', () => {
       .post(`/members/${OWN_SLUG}/edit`)
       .set('Cookie', ownCookie())
       .type('form')
-      .send({ bio: '', city: 'Portland', region: 'OR', country: 'US', phone: '', emailVisibility: 'private', gender: 'nonsense' });
+      .send({ bio: '', city: 'Portland', region: 'OR', country: 'US', phone: '', emailVisibility: 'private', birthDay: '14', birthMonth: '3', birthYear: '1978', gender: 'nonsense' });
     expect(res.status).toBe(303);
     expect(genderOf(OWN_ID)).toBe('undisclosed');
   });
@@ -560,7 +572,7 @@ describe('POST /members/:memberKey/edit — save profile', () => {
     tuneDb.close();
     try {
       const app = createApp();
-      const validBody = { bio: '', city: 'Portland', region: 'OR', country: 'US', phone: '', emailVisibility: 'private' };
+      const validBody = { bio: '', city: 'Portland', region: 'OR', country: 'US', phone: '', emailVisibility: 'private', birthDay: '14', birthMonth: '3', birthYear: '1978' };
       for (let i = 0; i < 2; i++) {
         const ok = await request(app)
           .post(`/members/${OWN_SLUG}/edit`)
@@ -645,7 +657,7 @@ describe('gender public visibility', () => {
       .post(`/members/${OWN_SLUG}/edit`)
       .set('Cookie', ownCookie())
       .type('form')
-      .send({ bio: '', city: 'Portland', region: 'OR', country: 'US', phone: '', emailVisibility: 'private', gender: 'male', showGender: '1' });
+      .send({ bio: '', city: 'Portland', region: 'OR', country: 'US', phone: '', emailVisibility: 'private', birthDay: '14', birthMonth: '3', birthYear: '1978', gender: 'male', showGender: '1' });
     expect(res.status).toBe(303);
     const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
     const row = db.prepare('SELECT gender, show_gender FROM members WHERE id = ?').get(OWN_ID) as { gender: string; show_gender: number };

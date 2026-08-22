@@ -20,7 +20,13 @@ const HP_FORM_VM = {
 // the application log at the caller. The contact-admin link is part of that
 // single shape (identical on every failure), so the page's own instruction
 // to contact an administrator carries a working control.
-function renderHpClaimUnavailable(res: Response, personId: string, memberSlug: string): void {
+// Both claim entry points redirect a member who has finished onboarding to the
+// admin request form before any lookup runs, so everyone who reaches this page
+// is still a registrant. That is why it offers no route to an administrator:
+// the contact form is a member capability and would bounce them straight back
+// to the wizard. What it offers instead are the two self-serve remedies, which
+// work for this audience and resolve the commonest reason for landing here.
+function renderHpClaimUnavailable(res: Response, personId: string): void {
   res.status(200).render('history/claim-unavailable', {
     seo:  { title: 'Claim unavailable' },
     page: { sectionKey: 'members', pageKey: 'hp_claim_unavailable', title: 'Claim unavailable' },
@@ -28,7 +34,7 @@ function renderHpClaimUnavailable(res: Response, personId: string, memberSlug: s
       cancelHref: personId
         ? `/history/${encodeURIComponent(personId)}`
         : '/',
-      contactAdminHref: `/members/${encodeURIComponent(memberSlug)}/contact-admin?category=identity_link_issue`,
+      claimStepHref: '/register/wizard/legacy_claim',
     },
   });
 }
@@ -70,19 +76,23 @@ export const claimController = {
           personId,
           memberId: req.user!.userId,
         });
-        renderHpClaimUnavailable(res, personId, req.user!.slug ?? req.user!.userId);
+        renderHpClaimUnavailable(res, personId);
         return;
       }
       if (lookupResult.status === 'conflict') {
-        const memberSlug = req.user!.slug ?? req.user!.userId;
+        // Same audience as the unavailable page above, and for the same reason:
+        // a member is redirected before the lookup runs, so everyone who reaches
+        // this is still a registrant. The contact form is a member capability
+        // that would bounce them, so this page names no administrator route and
+        // says instead when that route opens to them.
         res.render('history/claim-hp-conflict', {
           seo:  { title: 'Claim unavailable' },
           page: { sectionKey: 'members', pageKey: 'hp_claim_conflict', title: 'Claim unavailable' },
           content: {
-            memberSlug,
-            contactAdminHref: `/members/${encodeURIComponent(memberSlug)}/contact-admin?category=identity_link_issue`,
+            cancelHref: personId ? `/history/${encodeURIComponent(personId)}` : '/',
+            claimStepHref: '/register/wizard/legacy_claim',
           },
-        } satisfies PageViewModel<{ memberSlug: string; contactAdminHref: string }>);
+        } satisfies PageViewModel<{ cancelHref: string; claimStepHref: string }>);
         return;
       }
       const result = lookupResult.data;
@@ -128,7 +138,7 @@ export const claimController = {
           memberId: req.user!.userId,
           reason: err.message,
         });
-        renderHpClaimUnavailable(res, personId, req.user!.slug ?? req.user!.userId);
+        renderHpClaimUnavailable(res, personId);
         return;
       }
       logger.error('hp claim lookup error', { error: err instanceof Error ? err.message : String(err) });

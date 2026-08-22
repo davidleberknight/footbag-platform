@@ -59,7 +59,7 @@
   {{#if content.hasCompetitionResults}}
   <section>
     {{#each navigation.contextLinks}}
-      <a href="{{href}}" class="back-link">&#8592; {{label}}</a>
+      <a href="{{href}}" class="back-link">{{label}}</a>
     {{/each}}
 
     {{#if content.eventGroups.length}}
@@ -73,7 +73,7 @@
   {{else}}
   <section>
     {{#each navigation.contextLinks}}
-      <a href="{{href}}" class="back-link">&#8592; {{label}}</a>
+      <a href="{{href}}" class="back-link">{{label}}</a>
     {{/each}}
   </section>
   {{/if}}

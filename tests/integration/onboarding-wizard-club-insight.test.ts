@@ -92,7 +92,10 @@ function seedCardMember(
     login_email: `${slug}@example.com`,
     legacy_member_id: `lm-${slug}`,
   });
+  // The steps are answered in order, so the club step is only reachable once
+  // the two ahead of it are answered.
   insertOnboardingTask(db, memberId, 'personal_details', 'completed');
+  insertOnboardingTask(db, memberId, 'legacy_claim', 'completed');
   const clubId = insertClub(db, { name: clubName });
   insertMember(db, {
     onboarding: 'none',
@@ -136,6 +139,7 @@ beforeAll(async () => {
     login_email: 'insight_purge@example.com',
   });
   insertOnboardingTask(db, MEMBER_PURGE, 'personal_details', 'completed');
+  insertOnboardingTask(db, MEMBER_PURGE, 'legacy_claim', 'completed');
 
   db.close();
   createApp = await importApp();

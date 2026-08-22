@@ -224,7 +224,7 @@ describe('canonical persona catalog', () => {
   it('every backed persona is exercised: its seeded state matches its declared spec', () => {
     const m = db.prepare(
       `SELECT display_name, is_admin, is_hof, is_bap, is_board, is_deceased,
-              email_verified_at, deleted_at, legacy_member_id
+              email_verified_at, deleted_at, legacy_member_id, birth_date
          FROM members WHERE id = ?`,
     );
     const tierOf = db.prepare(`SELECT tier_status FROM member_tier_current WHERE member_id = ?`);
@@ -239,6 +239,21 @@ describe('canonical persona catalog', () => {
       `SELECT COUNT(*) AS n FROM member_onboarding_tasks WHERE member_id = ? AND state = 'completed'`,
     );
     const onbStateOf = db.prepare(`SELECT state FROM member_onboarding_tasks WHERE member_id = ? AND task_type = ?`);
+    // A seeded administrator question is two rows, not one: the queue item that
+    // raises the matter and the question hung off it. Read them together, since
+    // a question pointing at no item is exactly the shape the seeder must never
+    // produce.
+    const questionOf = db.prepare(
+      `SELECT mm.subject, mm.body_text, mm.expected_answer_kind, mm.status AS message_status,
+              mm.answered_at, wq.entity_type, wq.status AS item_status
+         FROM member_messages mm
+         JOIN work_queue_items wq ON wq.id = mm.work_queue_item_id
+        WHERE mm.recipient_member_id = ?`,
+    );
+    const linkHelpOf = db.prepare(
+      `SELECT status FROM work_queue_items
+        WHERE entity_id = ? AND task_type = 'member_link_help_request'`,
+    );
     type MemberRow = {
       display_name: string;
       is_admin: number;
@@ -249,6 +264,7 @@ describe('canonical persona catalog', () => {
       email_verified_at: string | null;
       deleted_at: string | null;
       legacy_member_id: string | null;
+      birth_date: string | null;
     };
     const countN = (stmt: ReturnType<typeof db.prepare>, id: string): number =>
       (stmt.get(id) as { n: number }).n;
@@ -261,6 +277,15 @@ describe('canonical persona catalog', () => {
       // personas (unicode / RTL-override / homoglyph names) carry.
       expect(member!.display_name, `${spec.slug} display name`).toBe(spec.displayName);
       expect(member!.is_admin, `${spec.slug} is_admin`).toBe(spec.isAdmin ? 1 : 0);
+      // Every member the application can produce carries a date of birth: the
+      // wizard requires one before anyone becomes a member, and the profile
+      // edit form requires it on save. A persona seeded without one is not a
+      // reachable state, and exploring their profile would hit a validation
+      // error no real member could meet.
+      expect(member!.birth_date, `${spec.slug} birth date`).toBeTruthy();
+      if (spec.legacy?.birthDate) {
+        expect(member!.birth_date, `${spec.slug} declared birth date`).toBe(spec.legacy.birthDate);
+      }
 
       if (spec.tier !== 'tier0') {
         const t = tierOf.get(id) as { tier_status: string } | undefined;
@@ -276,6 +301,52 @@ describe('canonical persona catalog', () => {
       if (spec.deletionState) expect(member!.deleted_at, `${spec.slug} soft-deleted`).not.toBeNull();
       if (spec.legacy?.linked) {
         expect(member!.legacy_member_id, `${spec.slug} legacy linked`).not.toBeNull();
+      }
+      if (spec.adminQuestion) {
+        // The persona exists so both sides of the question channel are
+        // explorable from a standing start, which needs an OPEN item and an
+        // UNANSWERED question. A regression that seeded the question already
+        // answered, or hung it off the wrong task type, would leave the
+        // persona seeded and useless, and nothing else would notice.
+        const q = questionOf.get(id) as {
+          subject: string | null;
+          body_text: string | null;
+          expected_answer_kind: string;
+          message_status: string;
+          answered_at: string | null;
+          entity_type: string;
+          item_status: string;
+        } | undefined;
+        expect(q, `${spec.slug} seeded question`).toBeTruthy();
+        expect(q!.subject, `${spec.slug} question subject`).toBe(spec.adminQuestion.subject);
+        expect(q!.body_text, `${spec.slug} question body`).toBe(spec.adminQuestion.body);
+        expect(q!.expected_answer_kind, `${spec.slug} answer kind`)
+          .toBe(spec.adminQuestion.answerKind);
+        // A persona declaring an answer must be seeded answered, and one that
+        // does not must be seeded waiting. Getting this backwards leaves the
+        // persona seeded and useless, and nothing else would notice.
+        if (spec.adminQuestion.answer) {
+          expect(q!.message_status, `${spec.slug} question answered`).toBe('answered');
+          expect(q!.answered_at, `${spec.slug} answered timestamp`).not.toBeNull();
+        } else {
+          expect(q!.message_status, `${spec.slug} question still waiting`).toBe('sent');
+          expect(q!.answered_at, `${spec.slug} question still waiting`).toBeNull();
+        }
+        expect(q!.entity_type, `${spec.slug} question item is member-scoped`).toBe('member');
+        // The item stays open either way: an answer is not a resolution, and the
+        // matter is still the administrator's to close.
+        expect(q!.item_status, `${spec.slug} question item still open`).toBe('open');
+      } else {
+        const q = questionOf.get(id);
+        expect(q, `${spec.slug} has no seeded question`).toBeUndefined();
+      }
+      if (spec.linkHelpRequest && !spec.adminQuestion) {
+        // The matter an administrator would ask from, with no question on it.
+        // Without the item there is no card, and the persona proves nothing
+        // about a control being withheld.
+        const item = linkHelpOf.get(id) as { status: string } | undefined;
+        expect(item, `${spec.slug} seeded link-help item`).toBeTruthy();
+        expect(item!.status, `${spec.slug} link-help item open`).toBe('open');
       }
       if (spec.activePlayer) {
         const expectActive = spec.activePlayer.expiresInDays > 0 ? 1 : 0;

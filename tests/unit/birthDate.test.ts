@@ -1,8 +1,8 @@
 /**
  * Shared birth-date rules: the validator both collection surfaces use
  * (personal details and the wizard claim task's birth-date anchor), and the
- * three-class comparison that turns a member-versus-legacy date difference
- * into evidence metadata (identical / near_miss / mismatch).
+ * two-class comparison that turns a member-versus-legacy date into evidence
+ * metadata (identical / mismatch).
  */
 import { describe, it, expect } from 'vitest';
 import { validateBirthDate, compareBirthDates } from '../../src/lib/birthDate';
@@ -38,18 +38,18 @@ describe('compareBirthDates', () => {
     expect(compareBirthDates('1985-07-10', '1985-07-10')).toBe('identical');
   });
 
-  it('day/month transposition is a near-miss when both parts read as months', () => {
-    expect(compareBirthDates('1985-03-07', '1985-07-03')).toBe('near_miss');
+  // Anything that is not identical fails to corroborate, and the outcome of
+  // failing to corroborate is the same however near the two dates are. A date
+  // that does not match never blocks a claim, weakens one, or raises work, so a
+  // graded middle class would have no consumer and no meaning.
+  it('a day/month transposition is a mismatch, not a tolerated typo', () => {
+    expect(compareBirthDates('1985-03-07', '1985-07-03')).toBe('mismatch');
   });
 
-  it('a swap involving a day above 12 is not a transposition', () => {
-    expect(compareBirthDates('1985-03-17', '1985-17-03')).toBe('mismatch');
-  });
-
-  it('single component off by one is a near-miss (year, month, day)', () => {
-    expect(compareBirthDates('1985-07-10', '1986-07-10')).toBe('near_miss');
-    expect(compareBirthDates('1985-07-10', '1985-08-10')).toBe('near_miss');
-    expect(compareBirthDates('1985-07-10', '1985-07-09')).toBe('near_miss');
+  it('a single component off by one is a mismatch (year, month, day)', () => {
+    expect(compareBirthDates('1985-07-10', '1986-07-10')).toBe('mismatch');
+    expect(compareBirthDates('1985-07-10', '1985-08-10')).toBe('mismatch');
+    expect(compareBirthDates('1985-07-10', '1985-07-09')).toBe('mismatch');
   });
 
   it('two components off by one is a mismatch', () => {
@@ -63,5 +63,10 @@ describe('compareBirthDates', () => {
 
   it('entirely different dates are a mismatch', () => {
     expect(compareBirthDates('1985-07-10', '1962-01-28')).toBe('mismatch');
+  });
+
+  it('a malformed date on either side is a mismatch, never identical', () => {
+    expect(compareBirthDates('not-a-date', '1985-07-10')).toBe('mismatch');
+    expect(compareBirthDates('1985-07-10', '')).toBe('mismatch');
   });
 });

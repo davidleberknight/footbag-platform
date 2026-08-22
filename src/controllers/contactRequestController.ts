@@ -4,10 +4,7 @@ import { RateLimitedError, ValidationError } from '../services/serviceErrors';
 import { handleControllerError, renderNotFound } from '../lib/controllerErrors';
 import { PageViewModel } from '../types/page';
 import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
-
-function isOwnProfile(req: Request): boolean {
-  return req.user?.slug === req.params.memberKey;
-}
+import { isOwnMemberRoute } from '../lib/routeOwnership';
 
 interface ContactAdminContent {
   memberKey: string;
@@ -52,7 +49,7 @@ function buildViewModel(
 export const contactRequestController = {
   /** GET /members/:memberKey/contact-admin */
   getForm(req: Request, res: Response, next: NextFunction): void {
-    if (!isOwnProfile(req)) { renderNotFound(res); return; }
+    if (!isOwnMemberRoute(req)) { renderNotFound(res); return; }
     try {
       const flash = readFlash(req);
       let successFlag = false;
@@ -69,7 +66,7 @@ export const contactRequestController = {
 
   /** POST /members/:memberKey/contact-admin */
   postSubmit(req: Request, res: Response, next: NextFunction): void {
-    if (!isOwnProfile(req)) { renderNotFound(res); return; }
+    if (!isOwnMemberRoute(req)) { renderNotFound(res); return; }
     const category = String(req.body?.category ?? '');
     const message = String(req.body?.message ?? '');
     try {

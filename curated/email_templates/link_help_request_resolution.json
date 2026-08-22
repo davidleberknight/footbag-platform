@@ -1,0 +1,7 @@
+{
+  "templateKey": "link_help_request_resolution",
+  "subjectTemplate": "Your IFPA records request: {displayDecision}",
+  "bodyTemplate": "Hi {memberName},\n\nAn IFPA administrator has answered your request to link your old footbag.org records: {displayDecision}.\n\n{note}\n\nIf you need further assistance, you can submit a new contact request from your profile edit page.\n\nInternational Footbag Players Association",
+  "piiClassification": "confidential",
+  "isEnabled": true
+}

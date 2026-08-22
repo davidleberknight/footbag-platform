@@ -45,6 +45,13 @@ export interface MemberOverrides {
   slug?: string;
   login_email?: string;
   real_name?: string;
+  /** The recorded name parts. Omit both and they are derived from real_name by
+   *  taking the last word as the family name, which is what the platform used
+   *  to guess everywhere, so a caller that only supplies a full name keeps the
+   *  behaviour it had. Supply them explicitly to exercise a name the guess gets
+   *  wrong: two surnames, a particle, or a single-word legal name. */
+  family_name?: string | null;
+  given_names?: string | null;
   display_name?: string;
   city?: string | null;
   region?: string | null;
@@ -100,6 +107,16 @@ export function insertMember(db: BetterSqlite3.Database, o: MemberOverrides = {}
   const slug    = o.slug          ?? `test_user_${uid()}`;
   const name    = o.real_name     ?? 'Test User';
   const display = o.display_name  ?? name;
+  // Derived only when the caller supplied neither part. The split is the same
+  // last-word guess the platform used to make everywhere, so a fixture that
+  // passes a full name behaves exactly as it did before the columns existed.
+  const nameWords  = name.trim().split(/\s+/).filter(Boolean);
+  const derivedFamily = nameWords.length > 1 ? nameWords[nameWords.length - 1] : null;
+  const derivedGiven  = nameWords.length > 1
+    ? nameWords.slice(0, -1).join(' ')
+    : (nameWords[0] ?? null);
+  const familyName = o.family_name !== undefined ? o.family_name : derivedFamily;
+  const givenNames = o.given_names !== undefined ? o.given_names : derivedGiven;
   const purged   = o.personal_data_purged_at ?? null;
   const isSystem = (o.is_system ?? 0) === 1;
 
@@ -131,7 +148,7 @@ export function insertMember(db: BetterSqlite3.Database, o: MemberOverrides = {}
       id, slug,
       login_email, login_email_normalized, email_verified_at, email_status,
       password_hash, password_changed_at, password_version,
-      real_name, display_name, display_name_normalized,
+      family_name, given_names, real_name, display_name, display_name_normalized,
       bio, birth_date, city, region, country,
       is_admin, is_system, is_board, is_hof, hof_inducted_year, is_bap, is_deceased, deceased_at, deceased_note,
       searchable,
@@ -139,12 +156,12 @@ export function insertMember(db: BetterSqlite3.Database, o: MemberOverrides = {}
       show_competitive_results, show_first_competition_year, gender, show_gender, legacy_member_id, historical_person_id, first_competition_year,
       stripe_customer_id, whatsapp, whatsapp_visible, last_login_at,
       created_at, created_by, updated_at, updated_by, version
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
   `).run(
     id, slug,
     email, emailNormalized, emailVerifiedAt, o.email_status ?? 'ok',
     passwordHash, passwordChanged, o.password_version ?? 1,
-    name, display, display.toLowerCase(),
+    familyName, givenNames, name, display, display.toLowerCase(),
     // Location defaults are a LEGAL member state under the live rules: the
     // canonical picker country plus a real state code, since region is
     // required for the USA. A factory member must satisfy the same
@@ -1122,6 +1139,119 @@ export interface AuditEntryOverrides {
   // deliberately invalid metadata_json (the column has no JSON CHECK) to prove
   // a reader survives corrupt metadata; normal callers pass `metadata`.
   metadata_json_raw?: string;
+}
+
+// ── Admin work-queue item ────────────────────────────────────────────────────
+
+// Most suites raise a queue item through the surface that enqueues it, which is
+// the better evidence. This builder is for the cases that need an item of a
+// given shape already sitting in the queue, without driving the flow that
+// raises it.
+export interface WorkQueueItemOverrides {
+  id?: string;
+  queue_category?: string;
+  task_type?: string;
+  entity_type?: string;
+  entity_id: string;
+  status?: string;
+  priority?: number;
+  reason_text?: string | null;
+  detail_text?: string | null;
+  /** Set both together to mint an already-resolved item. */
+  resolved_at?: string | null;
+  resolved_by_member_id?: string | null;
+}
+
+export function insertWorkQueueItem(
+  db: BetterSqlite3.Database,
+  o: WorkQueueItemOverrides,
+): string {
+  const id = o.id ?? `wq-test-${uid()}`;
+  db.prepare(`
+    INSERT INTO work_queue_items
+      (id, created_at, created_by, updated_at, updated_by, version,
+       queue_category, task_type, entity_type, entity_id, status, priority,
+       opened_at, reason_text, detail_text, resolved_at, resolved_by_member_id)
+    VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id, TS, SYS, TS, SYS,
+    o.queue_category ?? 'membership',
+    o.task_type ?? 'member_link_help_request',
+    o.entity_type ?? 'member',
+    o.entity_id,
+    o.status ?? 'open',
+    o.priority ?? 5,
+    TS,
+    o.reason_text ?? null,
+    o.detail_text ?? null,
+    o.resolved_at ?? null,
+    o.resolved_by_member_id ?? null,
+  );
+  return id;
+}
+
+// ── Administrator's question to one member ───────────────────────────────────
+
+export interface MemberMessageOverrides {
+  id?: string;
+  recipient_member_id: string;
+  /** Defaults to any seeded administrator, since a question always has one. */
+  sender_admin_member_id?: string;
+  work_queue_item_id: string;
+  subject?: string | null;
+  body_text?: string | null;
+  expected_answer_kind?: string;
+  /**
+   * The member's answer, when the row should already be answered. Omit for a
+   * question still waiting.
+   *
+   * The table holds an answered row and an unanswered one to different shapes,
+   * enforced by a CHECK: an answered row carries both an outcome and a
+   * timestamp, an unanswered row carries neither. Passing an outcome here is
+   * what moves the row to the answered shape.
+   */
+  answer?: {
+    outcome: 'acknowledged' | 'confirmed' | 'corrected';
+    note_text?: string | null;
+  };
+}
+
+export function insertMemberMessage(
+  db: BetterSqlite3.Database,
+  o: MemberMessageOverrides,
+): string {
+  const id = o.id ?? `mmsg-test-${uid()}`;
+  // A question always comes from an administrator, and the column is a foreign
+  // key, so one has to exist. Reuse a seeded administrator where the harness has
+  // already made one; otherwise stand one up, because a question with no sender
+  // is not a state the application can produce.
+  const sender = o.sender_admin_member_id
+    ?? (db.prepare('SELECT id FROM members WHERE is_admin = 1 LIMIT 1').get() as
+        { id: string } | undefined)?.id
+    ?? insertMember(db, {
+      slug: `persona_asking_admin_${uid()}`,
+      real_name: 'Persona Asking Admin',
+      is_admin: 1,
+    });
+  db.prepare(`
+    INSERT INTO member_messages
+      (id, created_at, created_by, updated_at, updated_by, version,
+       recipient_member_id, sender_admin_member_id, work_queue_item_id,
+       subject, body_text, expected_answer_kind, status, sent_at,
+       outcome, note_text, answered_at)
+    VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id, TS, sender, TS, sender,
+    o.recipient_member_id, sender, o.work_queue_item_id,
+    o.subject ?? null, o.body_text ?? null,
+    o.expected_answer_kind ?? 'confirm_birth_date',
+    o.answer ? 'answered' : 'sent',
+    TS,
+    o.answer?.outcome ?? null,
+    o.answer?.note_text ?? null,
+    o.answer ? TS : null,
+  );
+  return id;
 }
 
 export function insertAuditEntry(db: BetterSqlite3.Database, o: AuditEntryOverrides): string {

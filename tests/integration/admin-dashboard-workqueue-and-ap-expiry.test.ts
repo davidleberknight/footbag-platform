@@ -86,6 +86,18 @@ describe('expired Active Player explanation on the member dashboard', () => {
     expect(ap.lapsedExplanation).toContain('Official IFPA Roster');
   });
 
+  it('offers a lapsed member no route the IFPA rules refuse them', () => {
+    // The one-time club-join grant reaches only a member who has never
+    // previously been an Active Player, so every reader of a lapse notice is
+    // ineligible by construction. Naming it there advertises a route the grant
+    // refuses. It stays in the general Tier 0 text, where the qualifier is
+    // stated, because a lapsed member reads that text too.
+    const membership = membershipFor('ap_lapsed');
+    expect(membership.activePlayer!.lapsedExplanation).not.toContain('club-join');
+    expect(membership.activePlayer!.lapsedExplanation).toContain('vouch');
+    expect(membership.benefitsBlurb).toContain('never held Active Player status');
+  });
+
   it('a member who never earned Active Player gets no lapsed explanation', () => {
     const ap = membershipFor('ap_never').activePlayer!;
     expect(ap.isCurrent).toBe(false);

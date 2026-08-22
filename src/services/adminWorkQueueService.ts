@@ -3,23 +3,25 @@
  * the member contact-IFPA-admin requests that feed the queue.
  *
  * Owns:
- *   - Contact-request submission (category-validated, per-member open-request cap)
+ *   - Contact-request submission (category-validated, per-member open-request cap),
+ *     except the identity-link category, which is handed to the link-help
+ *     workflow because an administrator answers it by applying a link
  *   - Contact-request resolution (decision label + admin note + member notification)
  *   - Resolution of the system-raised payments tasks (unattributed refund,
  *     partial-refund review, charge-dispute review, failed payout, recurring
  *     charge declined, recurring paused): decision label + admin note, recorded
  *     with admin identity and timestamp, and NO member email
  *   - Dismissal of internal-review items that have no member reply (the
- *     birth-date-conflict flag, the low-confidence auto-link match, and the
- *     administrator-loss recruitment alert): closes the row with an audit entry
+ *     low-confidence auto-link match and the administrator-loss recruitment
+ *     alert): closes the row with an audit entry
  *     and sends NO member email, unlike contact-request resolution
  *   - Admin work-queue page shaping (all open items grouped by category,
  *     including structured link-help payload display) and the per-category
  *     summary for the admin dashboard work-queue card
  *
  * Does not own:
- *   - Link-help request workflow (IdentityAccessService; this service only
- *     shapes the payload for display)
+ *   - Link-help request workflow (IdentityAccessService; this service routes the
+ *     identity-link intake to it and shapes the payload for display)
  *   - Reconciliation-discrepancy resolution (PaymentReconciliationService, which
  *     closes the discrepancy's queue twin in the same transaction). Those items
  *     are not resolvable through the generic resolve path here.
@@ -43,9 +45,11 @@
  *     a payments task is distinct from the contact-request set and never crosses.
  *     Only the six payments task types and the contact-request type resolve here;
  *     any other open item is reported not-found, the same answer as an unknown id.
- *   - Per-member open-request cap is 3; the 4th open submission throws
- *     RateLimitedError. Message body is capped at 2000 characters, the
- *     resolution note at 500.
+ *   - Per-member open-request cap is 3, counted across every request the member
+ *     raised themselves (contact requests and link-help requests alike) and
+ *     freed as each is answered; the 4th open submission throws
+ *     RateLimitedError. Items the platform raised about a member never count.
+ *     Message body is capped at 2000 characters, the resolution note at 500.
  *
  * Persistence:
  *   work_queue_items, audit_entries.
@@ -54,7 +58,7 @@
  *   - audit_entries append (support.contact_request_submitted / _resolved;
  *     payment.queue_item_resolved on a payments-task resolution; and the
  *     dismissal event each internal-review task type names for itself, such as
- *     legacy.dob_conflict_reviewed on a birth-date-conflict dismissal)
+ *     legacy.auto_link_match_reviewed on a low-confidence auto-link dismissal)
  *   - outbox_emails enqueue (admin-alerts fan-out on submit; member
  *     notification on a contact-request resolve; NONE on a payments-task
  *     resolution or a review dismissal)
@@ -62,11 +66,17 @@
  *
  * Service shape: singleton object (no external adapters beyond db.ts).
  */
-import { workQueue, account, transaction } from '../db/db';
-import { enforceWorkQueueResolveLimit } from './identityAccessService';
+import { workQueue, memberMessages, account, transaction } from '../db/db';
+import {
+  enforceWorkQueueResolveLimit, identityAccessService,
+  type ClaimEvidence,
+} from './identityAccessService';
 import { appendAuditEntry } from './auditService';
 import { emailService } from './emailService';
 import { workQueueService, claimIsLive, claimStaleCutoffIso } from './workQueueService';
+import {
+  questionRecipientFor, ANSWER_KINDS, type ExpectedAnswerKind,
+} from './memberMessageService';
 import { recordOperationalError } from './operationalErrors';
 import { runSqliteRead } from './sqliteRetry';
 import { NotFoundError, RateLimitedError, ValidationError } from './serviceErrors';
@@ -124,6 +134,9 @@ export const PAYMENT_DECISION_LABEL_DISPLAY: Record<PaymentDecisionLabel, string
 };
 
 const TASK_TYPE = 'member_contact_request';
+// The other queue a member can put work into themselves. Everything else in the
+// queue is raised by the platform about a member, not by the member.
+const LINK_HELP_TASK_TYPE = 'member_link_help_request';
 
 // The system-raised payments tasks an admin closes through the generic resolve
 // form. Resolving one records the decision and note but sends no email: these
@@ -239,7 +252,6 @@ const WORK_QUEUE_TASK_TYPE_LABELS: Record<string, string> = {
   member_contact_request:    'Member contact request',
   auto_link_match:           'Auto-link match',
   member_link_help_request:  'Member link help request',
-  claim_dob_mismatch_review: 'Birth-date conflict on a claimed legacy account',
   recurring_donation_charge_declined: 'Recurring donation renewal charge declined',
   reconciliation_discrepancy: 'Payment reconciliation discrepancy',
   unattributed_refund: 'Refund with no matching payment record',
@@ -257,12 +269,6 @@ const WORK_QUEUE_TASK_TYPE_LABELS: Record<string, string> = {
 // append-only: a shared event name would file one type's review under another's
 // and the wrong entry could never be corrected.
 const DISMISSIBLE_REVIEW_AUDIT: ReadonlyMap<string, { actionType: string; category: string; reasonText: string; hint: string }> = new Map([
-  ['claim_dob_mismatch_review', {
-    actionType: 'legacy.dob_conflict_reviewed',
-    category:   'identity',
-    reasonText: 'Birth-date conflict reviewed and dismissed.',
-    hint:       'Linking is not reverted here. To undo a wrong link, open a member link-help dispute and use the revert action.',
-  }],
   ['auto_link_match', {
     actionType: 'legacy.auto_link_match_reviewed',
     category:   'identity',
@@ -278,6 +284,25 @@ const DISMISSIBLE_REVIEW_AUDIT: ReadonlyMap<string, { actionType: string; catego
 ]);
 
 const DISMISSIBLE_REVIEW_TASK_TYPES: ReadonlySet<string> = new Set(DISMISSIBLE_REVIEW_AUDIT.keys());
+
+// Which matters may carry a question is decided by memberMessageService, on the
+// single structural rule that the item resolves to one live, signed-up member.
+// The card asks that service rather than keeping a second copy of the answer:
+// two lists in two files were what let the control render on a matter the send
+// path then refused, with a message that named the wrong reason.
+
+/** One question put to the member on this item, as the administrator sees it. */
+export interface MemberQuestionAdminView {
+  subject: string | null;
+  body: string | null;
+  answerKindLabel: string;
+  isAnswered: boolean;
+  /** The structured answer in words; null while the question is outstanding. */
+  outcomeLabel: string | null;
+  note: string | null;
+  sentAtDisplay: string;
+  answeredAtDisplay: string | null;
+}
 
 export interface WorkQueueViewItem {
   id: string;
@@ -302,9 +327,9 @@ export interface WorkQueueViewItem {
   /** Member link-help requests render structured payload + approve/reject
    * forms instead of the generic resolve form. */
   isLinkHelpRequest: boolean;
-  /** Internal-review flags (birth-date conflict, low-confidence auto-link
-   * match) render a dismiss control instead of the generic resolve form, which
-   * does not apply to them. */
+  /** Internal-review flags (a low-confidence auto-link match, an
+   * administrator-loss recruitment alert) render a dismiss control instead of
+   * the generic resolve form, which does not apply to them. */
   isReviewFlag: boolean;
   /** What dismissing this review type does and does not undo, worded per type
    * because the two say opposite things about an applied link. */
@@ -328,11 +353,31 @@ export interface WorkQueueViewItem {
    *  free again without losing who last looked at it. Null when the claim is
    *  live or the item was never claimed. */
   lapsedClaimByName: string | null;
+  /** Whether this item's matter can be put to the member as a direct question.
+   *  Only the two that genuinely need the member's own answer, and only once
+   *  the member can actually reach the page it is read on. */
+  canAskMember: boolean;
+  /** A draft question for this matter, or null where there is nothing to suggest. */
+  askPrefill: { subject: string; body: string; answerKind: string } | null;
+  /** True on the card a deep link named, so its composer is already open. */
+  askOpen: boolean;
+  /**
+   * What the ledger says about this member's past claim attempts, rendered on
+   * the matters that ask an administrator to judge an identity. Empty elsewhere.
+   */
+  claimEvidence: ClaimEvidence | null;
+  /** Why the control is absent on an item that would otherwise carry it. Null
+   *  when it is shown, and on every item the channel does not serve. */
+  askBlockedReason: string | null;
+  /** Set while a question is waiting on the member, so the card says the item
+   *  is blocked on someone outside the queue rather than on an administrator.
+   *  The item's status stays open throughout. */
+  awaitingMemberSince: string | null;
+  /** Questions already put to this member on this item, newest last, with the
+   *  answer where one has come back. */
+  memberQuestions: MemberQuestionAdminView[];
   linkHelp: {
     statement: string;
-    claimedLegacyUsername: string | null;
-    claimedLegacyEmail: string | null;
-    vouchers: string | null;
     isDispute: boolean;
     /** The records this dispute named when it was filed, detected server-side.
      *  The revert accepts only one of these, so the card must show them: without
@@ -359,6 +404,16 @@ export interface WorkQueueContent {
   reviewedFlag: boolean;
   claimedFlag: boolean;
   claimNoopFlag: boolean;
+  /** A question has just been put to the member, confirmed on the re-render so
+   *  the administrator knows it went and does not send a second. */
+  memberAskedFlag: boolean;
+  /**
+   * The kinds of answer a question can ask for, as value-and-label pairs.
+   *
+   * Built from the one list the send path validates against, so the dropdown
+   * cannot come to offer a kind the service refuses, or miss one it accepts.
+   */
+  answerKindOptions: Array<{ value: string; label: string }>;
   errorMessage: string | null;
 }
 
@@ -392,9 +447,6 @@ function parseLinkHelpPayload(reasonText: string | null): WorkQueueViewItem['lin
     ];
     return {
       statement:             typeof p.statement === 'string' ? p.statement : '',
-      claimedLegacyUsername: typeof p.claimed_legacy_username === 'string' ? p.claimed_legacy_username : null,
-      claimedLegacyEmail:    typeof p.claimed_legacy_email === 'string' ? p.claimed_legacy_email : null,
-      vouchers:              typeof p.vouchers === 'string' ? p.vouchers : null,
       isDispute:             p.is_dispute === true,
       disputedRecords,
       hasDisputedRecords:    disputedRecords.length > 0,
@@ -404,7 +456,11 @@ function parseLinkHelpPayload(reasonText: string | null): WorkQueueViewItem['lin
   }
 }
 
-function shapeWorkQueueItem(raw: ContactRequestRow, viewingAdminId: string): WorkQueueViewItem {
+function shapeWorkQueueItem(
+  raw: ContactRequestRow,
+  viewingAdminId: string,
+  askItemId: string | null,
+): WorkQueueViewItem {
   const isLinkHelpRequest = raw.taskType === 'member_link_help_request';
   const isReviewFlag = DISMISSIBLE_REVIEW_TASK_TYPES.has(raw.taskType);
   const isReconciliationItem = raw.taskType === 'reconciliation_discrepancy';
@@ -413,6 +469,20 @@ function shapeWorkQueueItem(raw: ContactRequestRow, viewingAdminId: string): Wor
   // A claim expires, so an item whose holder never came back is offered to
   // everyone again rather than sitting silently under a name.
   const isClaimed = claimIsLive(raw.claimedAt, claimStaleCutoffIso());
+
+  // Only a matter that genuinely needs the member's own answer can be put to
+  // them: a link-help request, whose evidence only they hold.
+  //
+  // And only once they can actually read it. A link-help request is raised
+  // inside the onboarding wizard, while the page a question is read on is a
+  // member surface the wizard gate holds them out of. Offering the control
+  // before then would send a question its recipient cannot see and an email
+  // telling them to go and look at it.
+  const recipient = questionRecipientFor({ entity_type: raw.entityType, entity_id: raw.entityId });
+  const askable = recipient !== null;
+  const memberCanRead = recipient?.canRead ?? false;
+  const canAskMember = askable && memberCanRead;
+  const questions = askable ? buildMemberQuestions(raw.id) : [];
 
   // The resolve form applies to contact requests and the system-raised payments
   // tasks; link-help, review flags, and reconciliation twins each have their own
@@ -461,7 +531,87 @@ function shapeWorkQueueItem(raw: ContactRequestRow, viewingAdminId: string): Wor
     // rather than duplicating work already done.
     lapsedClaimByName: !isClaimed && raw.claimedByName !== null ? raw.claimedByName : null,
     linkHelp: isLinkHelpRequest ? parseLinkHelpPayload(raw.reasonText) : null,
+    canAskMember,
+    // Said plainly on the card, so an administrator who expected the control
+    // knows it is a matter of timing rather than a missing feature.
+    askBlockedReason: askable && !memberCanRead
+      ? 'This member has not finished signing up yet, so they cannot read a question. The control appears once they have.'
+      : null,
+    awaitingMemberSince: questions.find((q) => !q.isAnswered)?.sentAtDisplay ?? null,
+    memberQuestions: questions,
+    // The evidence an identity decision is actually made on. Offered only on
+    // the matters that ask an administrator to judge one, because everywhere
+    // else it is a member's claim history shown for no reason.
+    askPrefill: canAskMember ? ASK_PREFILLS[raw.taskType] ?? null : null,
+    askOpen: canAskMember && raw.id === askItemId,
+    claimEvidence: isLinkHelpRequest
+      ? identityAccessService.getClaimEvidenceForMember(raw.entityId)
+      : null,
   };
+}
+
+// Exhaustive by type: adding a kind to the vocabulary fails the build here until
+// it is given a label, rather than rendering its raw stored value to an
+// administrator.
+const ANSWER_KIND_LABELS: Record<ExpectedAnswerKind, string> = {
+  acknowledge:        'Read and reply',
+  confirm_birth_date: 'Confirm or correct their date of birth',
+};
+
+const ANSWER_KIND_OPTIONS = ANSWER_KINDS.map((value) => ({
+  value,
+  label: ANSWER_KIND_LABELS[value],
+}));
+
+/**
+ * A starting point for the question, per matter, so an administrator opening the
+ * composer is not staring at an empty box wondering what this channel is for.
+ *
+ * It is a draft and not a template: every field is editable, and the words that
+ * actually reach the member are the ones the administrator leaves behind. A
+ * matter with nothing useful to suggest gets an empty composer rather than
+ * generic filler, which would be worse than blank.
+ */
+const ASK_PREFILLS: Record<string, { subject: string; body: string; answerKind: ExpectedAnswerKind }> = {
+  member_link_help_request: {
+    subject: 'About your old footbag.org records',
+    answerKind: 'confirm_birth_date',
+    body: 'Thanks for asking us to look. To find your old record we match on your date of birth, '
+      + 'so it helps to be sure of the one on your account. Could you confirm it, or correct it if '
+      + 'it is wrong? Anything else you remember about the old account is welcome too.',
+  },
+};
+
+/** The stored kind in words, falling back to the raw value for an unknown one. */
+function answerKindLabel(raw: string): string {
+  return (ANSWER_KINDS as readonly string[]).includes(raw)
+    ? ANSWER_KIND_LABELS[raw as ExpectedAnswerKind]
+    : raw;
+}
+
+const OUTCOME_LABELS: Record<string, string> = {
+  acknowledged: 'Read it',
+  confirmed:    'Confirmed the date on file is right',
+  corrected:    'Corrected the date',
+};
+
+/** The questions put to the member on one item, oldest first. */
+function buildMemberQuestions(queueItemId: string): MemberQuestionAdminView[] {
+  const rows = memberMessages.listForQueueItem.all(queueItemId) as Array<{
+    subject: string | null; body_text: string | null; expected_answer_kind: string;
+    status: string; outcome: string | null; note_text: string | null;
+    sent_at: string; answered_at: string | null;
+  }>;
+  return rows.map((r) => ({
+    subject:           r.subject,
+    body:              r.body_text,
+    answerKindLabel:   answerKindLabel(r.expected_answer_kind),
+    isAnswered:        r.status === 'answered',
+    outcomeLabel:      r.outcome ? (OUTCOME_LABELS[r.outcome] ?? r.outcome) : null,
+    note:              r.note_text,
+    sentAtDisplay:     r.sent_at.slice(0, 10),
+    answeredAtDisplay: r.answered_at ? r.answered_at.slice(0, 10) : null,
+  }));
 }
 
 // Resolve a contact request: record the decision and note, then email the
@@ -618,7 +768,10 @@ export const adminWorkQueueService = {
   /**
    * Submit a new contact-IFPA-admin request from an authenticated member.
    * Throws RateLimitedError if member already has MAX_OPEN_PER_MEMBER open
-   * requests of this task_type.
+   * requests. The cap counts every request the member raised, of either kind,
+   * and is freed as each is answered. An identity-link request is raised as a
+   * link-help item rather than a contact request, and a second one collapses
+   * onto the row already open instead of taking another slot.
    */
   submit(input: ContactRequestSubmitInput): { id: string } {
     const category = validateCategory(input.category);
@@ -630,15 +783,40 @@ export const adminWorkQueueService = {
       throw new ValidationError(`Message must be ${MAX_MESSAGE_LEN} characters or fewer.`);
     }
 
-    const openCountRow = workQueue.countOpenForMember.get(
-      input.requestingMemberId,
-      TASK_TYPE,
-    ) as { c: number } | undefined;
-    const openCount = openCountRow?.c ?? 0;
-    if (openCount >= MAX_OPEN_PER_MEMBER) {
+    // The cap is on what the member asked of an administrator, whichever queue
+    // the answer comes back through, so it is counted across both task types a
+    // member can raise. Everything else in the queue was raised by the platform
+    // about them: counting those would let a run of payment tasks silence a
+    // member who has asked for nothing.
+    const openRaisedByMember = (taskType: string): number => {
+      const row = workQueue.countOpenForMember.get(input.requestingMemberId, taskType) as
+        | { c: number }
+        | undefined;
+      return row?.c ?? 0;
+    };
+    const openLinkHelp = openRaisedByMember(LINK_HELP_TASK_TYPE);
+    const openTotal = openRaisedByMember(TASK_TYPE) + openLinkHelp;
+    // A second identity-link submission replaces the payload on the row the
+    // member already holds rather than opening another, so it cannot push them
+    // past the cap and must not be refused by it: refusing would strand a member
+    // who came back to correct what they wrote.
+    const collapsesOntoOpenRow = category === 'identity_link_issue' && openLinkHelp > 0;
+    if (!collapsesOntoOpenRow && openTotal >= MAX_OPEN_PER_MEMBER) {
       throw new RateLimitedError(
         `You already have ${MAX_OPEN_PER_MEMBER} open requests. Please wait for an admin response before submitting another.`,
       );
+    }
+
+    // An identity-link request is the one category an administrator answers by
+    // applying a link rather than by writing back, so it raises the link-help
+    // item that carries the apply path, the claim evidence and the vetted
+    // evidence tier. Claiming is confined to the onboarding wizard, so this is
+    // the only way a member reaches that queue once signing up is behind them.
+    if (category === 'identity_link_issue') {
+      const result = identityAccessService.submitLinkHelpRequest(input.requestingMemberId, {
+        statement: trimmed,
+      });
+      return { id: result.workQueueItemId };
     }
 
     const categoryLabel = CONTACT_CATEGORY_LABELS[category];
@@ -829,6 +1007,9 @@ export const adminWorkQueueService = {
     reviewedFlag?: boolean;
     claimedFlag?: boolean;
     claimNoopFlag?: boolean;
+    memberAskedFlag?: boolean;
+    /** A deep link naming the item whose composer should open already drafted. */
+    askItemId?: string | null;
     errorMessage?: string;
   }): PageViewModel<WorkQueueContent> {
     // A contended database renders the standard temporarily-unavailable page
@@ -844,13 +1025,16 @@ export const adminWorkQueueService = {
     reviewedFlag?: boolean;
     claimedFlag?: boolean;
     claimNoopFlag?: boolean;
+    memberAskedFlag?: boolean;
+    /** A deep link naming the item whose composer should open already drafted. */
+    askItemId?: string | null;
     errorMessage?: string;
   }): PageViewModel<WorkQueueContent> {
     const rows = this.listOpenForAdmin();
     const groupMap = new Map<string, WorkQueueViewItem[]>();
     for (const r of rows) {
       const arr = groupMap.get(r.queueCategory) ?? [];
-      arr.push(shapeWorkQueueItem(r, opts.adminMemberId));
+      arr.push(shapeWorkQueueItem(r, opts.adminMemberId, opts.askItemId ?? null));
       groupMap.set(r.queueCategory, arr);
     }
     const groups: WorkQueueGroup[] = [];
@@ -872,6 +1056,8 @@ export const adminWorkQueueService = {
         reviewedFlag: opts.reviewedFlag ?? false,
         claimedFlag: opts.claimedFlag ?? false,
         claimNoopFlag: opts.claimNoopFlag ?? false,
+        memberAskedFlag: opts.memberAskedFlag ?? false,
+        answerKindOptions: ANSWER_KIND_OPTIONS,
         errorMessage: opts.errorMessage ?? null,
       },
     };
@@ -879,7 +1065,8 @@ export const adminWorkQueueService = {
 
   /**
    * Dismiss an internal-review work-queue item that has no member reply
-   * (currently the birth-date-conflict flag). Closes the row and appends an
+   * (a low-confidence auto-link match, or an administrator-loss recruitment
+   * alert). Closes the row and appends an
    * audit entry in one transaction; sends NO member email. Reuses the shared
    * per-admin resolve rate-limit bucket. Throws NotFoundError when the id is
    * not an open item of a dismissible review type.

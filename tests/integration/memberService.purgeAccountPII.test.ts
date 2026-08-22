@@ -214,12 +214,12 @@ describe('memberService.purgeAccountPII', () => {
     workQueueService.enqueue({
       actorId:       'purge-queue',
       queueCategory: 'membership',
-      taskType:      'claim_dob_mismatch_review',
+      taskType:      'auto_link_match',
       entityType:    'member',
       entityId:      'purge-queue',
       priority:      5,
-      reasonText:    'Legacy account LM-x was claimed with a conflicting date of birth.',
-      detailText:    'member date 1980-01-01 vs legacy date 1962-01-28',
+      reasonText:    'A low-confidence match to legacy account LM-x was found for review.',
+      detailText:    'Candidate legacy account LM-x, matched on the name Dana Example.',
     });
     identityAccessService.submitLinkHelpRequest('purge-queue', {
       statement: 'I believe record HP-x is mine.',

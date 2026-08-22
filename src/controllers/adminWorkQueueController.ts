@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { adminWorkQueueService } from '../services/adminWorkQueueService';
 import { identityAccessService } from '../services/identityAccessService';
 import { workQueueService } from '../services/workQueueService';
+import { memberMessageService } from '../services/memberMessageService';
 import { ConflictError, NotFoundError, RateLimitedError, ValidationError } from '../services/serviceErrors';
 import { handleControllerError } from '../lib/controllerErrors';
 import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
@@ -23,6 +24,7 @@ export const adminWorkQueueController = {
       let reviewedFlag = false;
       let claimedFlag = false;
       let claimNoopFlag = false;
+      let memberAskedFlag = false;
       if (flash?.kind === FLASH_KIND.WORK_QUEUE_RESOLVED) {
         // A payments-task resolve (and a contact resolve with no member email)
         // notified nobody, so the page confirms it without the email banner.
@@ -31,6 +33,9 @@ export const adminWorkQueueController = {
         clearFlash(res, req);
       } else if (flash?.kind === FLASH_KIND.WORK_QUEUE_REVIEWED) {
         reviewedFlag = true;
+        clearFlash(res, req);
+      } else if (flash?.kind === FLASH_KIND.WORK_QUEUE_MEMBER_ASKED) {
+        memberAskedFlag = true;
         clearFlash(res, req);
       } else if (flash?.kind === FLASH_KIND.WORK_QUEUE_CLAIMED) {
         // The claim POST carries its outcome in the flash payload so the queue
@@ -46,6 +51,10 @@ export const adminWorkQueueController = {
         reviewedFlag,
         claimedFlag,
         claimNoopFlag,
+        memberAskedFlag,
+        // The deep link the story specifies: a matter that needs the member's
+        // own answer names itself here, and its composer opens already drafted.
+        askItemId: typeof req.query.ask === 'string' ? req.query.ask : null,
       }));
     } catch (err) {
       if (err instanceof RateLimitedError) {
@@ -105,8 +114,9 @@ export const adminWorkQueueController = {
 
   /** POST /admin/work-queue/:id/dismiss
    *
-   * Close an internal-review item (birth-date-conflict flag). No member email;
-   * the linking already happened and is never reverted here. */
+   * Close an internal-review item (a low-confidence auto-link match, or an
+   * administrator-loss recruitment alert). No member email, and nothing is
+   * reverted here. */
   dismiss(req: Request, res: Response, next: NextFunction): void {
     const queueItemId = req.params['id'] ?? '';
     const note = String(req.body?.note ?? '');
@@ -125,6 +135,37 @@ export const adminWorkQueueController = {
       }
       if (err instanceof RateLimitedError) {
         sendRateLimited(res, err);
+        return;
+      }
+      handleControllerError(err, res, next, 'admin work queue controller');
+    }
+  },
+
+  /**
+   * POST /admin/work-queue/:id/ask-member
+   *
+   * Put a direct question to the member this item is about. The item keeps its
+   * status; what changes is that the card now shows a question waiting.
+   */
+  askMember(req: Request, res: Response, next: NextFunction): void {
+    const queueItemId = req.params['id'] ?? '';
+    try {
+      memberMessageService.sendQuestion({
+        queueItemId,
+        adminMemberId:      req.user!.userId,
+        subject:            req.body?.subject,
+        body:               req.body?.body,
+        expectedAnswerKind: req.body?.expectedAnswerKind,
+      });
+      writeFlash(res, req, FLASH_KIND.WORK_QUEUE_MEMBER_ASKED, queueItemId);
+      res.redirect(303, '/admin/work-queue');
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        res.status(422).render('admin/work-queue/index', adminWorkQueueService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: err.message }));
+        return;
+      }
+      if (err instanceof NotFoundError) {
+        res.status(404).render('admin/work-queue/index', adminWorkQueueService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: 'That item is no longer open.' }));
         return;
       }
       handleControllerError(err, res, next, 'admin work queue controller');

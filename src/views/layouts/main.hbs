@@ -55,6 +55,12 @@
     {{#if flashLoggedOut}}
       <div class="flash-banner flash-logout" role="status">You have been logged out.</div>
     {{/if}}
+    {{#if memberActionBanner}}
+      <div class="flash-banner flash-action" role="status">
+        {{memberActionBanner.label}}
+        <a href="{{memberActionBanner.href}}">{{memberActionBanner.linkLabel}}</a>
+      </div>
+    {{/if}}
     {{{body}}}
   </main>
 

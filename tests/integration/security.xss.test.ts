@@ -78,6 +78,9 @@ describe('Bio field — XSS payloads escape on render', () => {
           city: 'Portland',
           region: 'OR',
           country: 'USA',
+          birthDay: '14',
+          birthMonth: '3',
+          birthYear: '1978',
           firstCompetitionYear: '',
           showCompetitiveResults: 'on',
         });
@@ -132,12 +135,13 @@ describe('Member search ?q=... — XSS payloads escape on render', () => {
 
 describe('Register form re-render — XSS payloads escape on validation error', () => {
   for (const payload of XSS_PAYLOADS) {
-    it(`escapes realName: ${payload.slice(0, 32)}...`, async () => {
+    it(`escapes a name field carrying: ${payload.slice(0, 32)}...`, async () => {
       const res = await request(createApp())
         .post('/register')
         .type('form')
         .send({
-          realName: payload,
+          givenNames: payload,
+          familyName: payload,
           displayName: 'Legit Name',
           email: 'newbie@example.com',
           password: 'ValidPass1!',

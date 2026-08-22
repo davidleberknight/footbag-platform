@@ -6,15 +6,16 @@
  * actions run until personal_details is completed, and reaching the step early
  * routes the member back to personal_details.
  *
- * Every legacy claim records the member-versus-record birth-date comparison
- * outcome in its audit metadata (identical / near_miss / mismatch, or which side
- * was absent). Any discrepancy between two present dates, a typo-shaped near-miss
- * as much as a hard mismatch, raises a claim_dob_mismatch_review work-queue item
- * for admin review, on both the legacy-account claim path and the direct
- * historical-person claim path; the comparison never blocks a claim. Among tied
- * same-name candidates, only an identical date narrows the match; a near-miss does
- * not. An admin closes the review item with a dismissal that resolves the row and
- * records an audit entry, sending no member email.
+ * The date of birth only ever helps a member. An identical date corroborates a
+ * match and narrows a tie between same-name candidates; a date that does not
+ * match simply fails to corroborate. It never blocks a claim, never weakens one,
+ * and never raises work for an administrator, on either the legacy-account claim
+ * path or the direct historical-person claim path.
+ *
+ * Every claim records the member-versus-record comparison outcome in its audit
+ * metadata (identical or mismatch, or which side was absent). That ledger entry
+ * is the whole downstream consumer: it is where a disputed link is reconstructed
+ * from, and it is exempt from erasure, so it carries no free text.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
@@ -24,6 +25,7 @@ import {
   insertMember,
   insertHistoricalPerson,
   insertOnboardingTask,
+  insertNameVariant,
   createTestSessionJwt,
 } from '../fixtures/factories';
 
@@ -75,10 +77,15 @@ function claimAuditMetadata(memberId: string): Record<string, unknown> {
   return JSON.parse(row!.metadata_json);
 }
 
-function mismatchQueueItems(memberId: string): Array<Record<string, unknown>> {
+/**
+ * Every queue item standing against this member, whatever its type. Asserted
+ * empty rather than filtered to one type, so re-introducing a birth-date review
+ * under any name fails here instead of passing a filter that no longer matches.
+ */
+function queueItemsFor(memberId: string): Array<Record<string, unknown>> {
   return db.prepare(
-    "SELECT * FROM work_queue_items WHERE task_type = 'claim_dob_mismatch_review' AND entity_id = ?",
-  ).all(memberId) as Array<Record<string, unknown>>;
+    'SELECT * FROM work_queue_items WHERE entity_type = ? AND entity_id = ?',
+  ).all('member', memberId) as Array<Record<string, unknown>>;
 }
 
 let _seq = 0;
@@ -98,11 +105,14 @@ function claimFixture(opts: {
   const legacyId = nextId('leg');
   const hpId = nextId('hp');
   const email = `${memberId}@example.com`;
+  // Still signing up: the claim surface lives in the wizard, which closes to a
+  // member who has finished.
   insertMember(db, {
     id: memberId,
     slug: `slug_${memberId}`,
     login_email: email,
     real_name: opts.realName ?? `Casey ${memberId}`,
+    onboarding: 'none',
   });
   if (opts.memberBirthDate) {
     db.prepare('UPDATE members SET birth_date = ? WHERE id = ?').run(opts.memberBirthDate, memberId);
@@ -136,7 +146,7 @@ describe('personal_details is a prerequisite for the legacy-claim step', () => {
       .post('/register/wizard/personal_details/submit')
       .set('Cookie', cookieFor(memberId))
       .type('form')
-      .send({ city: 'Portland', region: 'OR', country: 'US', birthDate: '1984-11-13' });
+      .send({ city: 'Portland', region: 'OR', country: 'US', birthDay: '13', birthMonth: '11', birthYear: '1984' });
     expect(submit.status).toBe(303);
 
     const after = await request(createApp())
@@ -181,7 +191,7 @@ describe('personal_details is a prerequisite for the legacy-claim step', () => {
       .post('/register/wizard/legacy_claim/continue-without-linking')
       .set('Cookie', cookieFor(memberId))
       .type('form')
-      .send({ no_old_account: '1' });
+      .send({ no_link_answer: 'never_had_one' });
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/register/wizard/legacy_claim');
     expect(getTaskState(memberId, 'legacy_claim')).not.toBe('completed');
@@ -221,52 +231,56 @@ describe('claim-time birth-date comparison in audit metadata', () => {
     });
     svc.claimLegacyAccount(memberId, legacyId);
     expect(claimAuditMetadata(memberId).dob_comparison).toBe('identical');
-    expect(mismatchQueueItems(memberId)).toHaveLength(0);
+    expect(queueItemsFor(memberId)).toHaveLength(0);
   });
 
-  it('a typo-shaped near-miss records near_miss, raises the admin queue item, and never blocks the claim', () => {
+  it('a typo-shaped date is a plain mismatch, and raises nothing for an administrator', () => {
     const { memberId, legacyId } = claimFixture({
       memberBirthDate: '1985-03-07',
       legacyBirthDate: '1985-07-03',
     });
     svc.claimLegacyAccount(memberId, legacyId);
-    expect(claimAuditMetadata(memberId).dob_comparison).toBe('near_miss');
-    // A near-miss is treated as a discrepancy: it flags for review just like a
-    // hard mismatch, and both conflicting dates land in the admin-only detail.
-    const items = mismatchQueueItems(memberId);
-    expect(items).toHaveLength(1);
-    expect(items[0].status).toBe('open');
-    expect(String(items[0].detail_text)).toContain('1985-03-07');
-    expect(String(items[0].detail_text)).toContain('1985-07-03');
-    // The claim still went through; the discrepancy never blocks it.
+    // A day/month transposition is not tolerated as a benign typo, and it is not
+    // graded apart from any other non-match either: it simply fails to
+    // corroborate, and failing to corroborate costs the member nothing.
+    expect(claimAuditMetadata(memberId).dob_comparison).toBe('mismatch');
+    expect(queueItemsFor(memberId)).toHaveLength(0);
     const legacy = db.prepare('SELECT claimed_by_member_id FROM legacy_members WHERE legacy_member_id = ?')
       .get(legacyId) as { claimed_by_member_id: string | null };
     expect(legacy.claimed_by_member_id).toBe(memberId);
   });
 
-  it('a hard mismatch records mismatch, raises the admin queue item, and never blocks the claim', () => {
-    const { memberId, legacyId, hpId } = claimFixture({
+  it('a hard mismatch records mismatch, raises nothing, and never blocks the claim', () => {
+    const { memberId, legacyId } = claimFixture({
       memberBirthDate: '1985-07-10',
       legacyBirthDate: '1962-01-28',
     });
     svc.claimLegacyAccount(memberId, legacyId);
     expect(claimAuditMetadata(memberId).dob_comparison).toBe('mismatch');
-    const items = mismatchQueueItems(memberId);
-    expect(items).toHaveLength(1);
-    expect(items[0].status).toBe('open');
-    expect(items[0].queue_category).toBe('membership');
-    expect(String(items[0].detail_text)).toContain('1985-07-10');
-    expect(String(items[0].detail_text)).toContain('1962-01-28');
-    // Enriched so an admin can adjudicate without hunting: a member profile
-    // pointer and the linked historical record.
-    expect(String(items[0].detail_text)).toContain(`/members/slug_${memberId}`);
-    expect(String(items[0].detail_text)).toContain(hpId);
+    expect(queueItemsFor(memberId)).toHaveLength(0);
     // The claim itself went through: the legacy row is marked claimed.
     const legacy = db.prepare('SELECT claimed_by_member_id FROM legacy_members WHERE legacy_member_id = ?')
       .get(legacyId) as { claimed_by_member_id: string | null };
     expect(legacy.claimed_by_member_id).toBe(memberId);
     // The member's own entered date is preserved, not overwritten by the legacy value.
     expect(memberBirthDate(memberId)).toBe('1985-07-10');
+  });
+
+  it('the conflicting dates never reach the append-only ledger, only the outcome', () => {
+    const { memberId, legacyId } = claimFixture({
+      memberBirthDate: '1985-07-10',
+      legacyBirthDate: '1962-01-28',
+    });
+    svc.claimLegacyAccount(memberId, legacyId);
+    // The ledger is exempt from the erasure purge, so a date of birth written
+    // into it would survive an account erasure. The outcome carries the meaning;
+    // the values themselves stay on the purgeable member row.
+    const raw = db.prepare(
+      "SELECT metadata_json FROM audit_entries WHERE action_type = 'claim.legacy_account' AND actor_member_id = ?",
+    ).get(memberId) as { metadata_json: string };
+    expect(raw.metadata_json).toContain('mismatch');
+    expect(raw.metadata_json).not.toContain('1985-07-10');
+    expect(raw.metadata_json).not.toContain('1962-01-28');
   });
 
   it('records which side was absent, and the legacy value still fills an absent member date', () => {
@@ -276,7 +290,7 @@ describe('claim-time birth-date comparison in audit metadata', () => {
     });
     svc.claimLegacyAccount(memberId, legacyId);
     expect(claimAuditMetadata(memberId).dob_comparison).toBe('member_dob_absent');
-    expect(mismatchQueueItems(memberId)).toHaveLength(0);
+    expect(queueItemsFor(memberId)).toHaveLength(0);
     expect(memberBirthDate(memberId)).toBe('1985-07-10');
   });
 
@@ -287,11 +301,11 @@ describe('claim-time birth-date comparison in audit metadata', () => {
     });
     svc.claimLegacyAccount(memberId, legacyId);
     expect(claimAuditMetadata(memberId).dob_comparison).toBe('legacy_dob_absent');
-    expect(mismatchQueueItems(memberId)).toHaveLength(0);
+    expect(queueItemsFor(memberId)).toHaveLength(0);
   });
 });
 
-describe('historical-record claim flags a birth-date discrepancy for review', () => {
+describe('historical-record claim records the comparison and raises nothing', () => {
   function hpClaimMetadata(memberId: string): Record<string, unknown> {
     const row = db.prepare(
       "SELECT metadata_json FROM audit_entries WHERE action_type = 'claim.historical_person' AND actor_member_id = ? ORDER BY created_at DESC LIMIT 1",
@@ -305,31 +319,28 @@ describe('historical-record claim flags a birth-date discrepancy for review', ()
       .get(memberId) as { historical_person_id: string | null }).historical_person_id;
   }
 
-  it('a mismatch through the transitive legacy account records mismatch, raises the queue item, and never blocks the claim', () => {
+  it('a mismatch through the transitive legacy account records mismatch, raises nothing, and never blocks the claim', () => {
     const { memberId, hpId } = claimFixture({
       memberBirthDate: '1985-07-10',
       legacyBirthDate: '1962-01-28',
     });
     svc.claimHistoricalPerson(memberId, hpId);
     expect(hpClaimMetadata(memberId).dob_comparison).toBe('mismatch');
-    // The direct historical-person path flags the discrepancy for admin review,
-    // the same as the legacy-account path, with both dates in the detail.
-    const items = mismatchQueueItems(memberId);
-    expect(items).toHaveLength(1);
-    expect(String(items[0].detail_text)).toContain('1985-07-10');
-    expect(String(items[0].detail_text)).toContain('1962-01-28');
+    // The direct historical-person path behaves the same as the legacy-account
+    // path: the outcome is recorded and nothing is routed to anyone.
+    expect(queueItemsFor(memberId)).toHaveLength(0);
     // The claim still went through: the member is linked to the historical person.
     expect(memberHistoricalPersonId(memberId)).toBe(hpId);
   });
 
-  it('a typo-shaped near-miss through the transitive legacy account also raises the queue item', () => {
+  it('a typo-shaped date through the transitive legacy account is a plain mismatch too', () => {
     const { memberId, hpId } = claimFixture({
       memberBirthDate: '1985-03-07',
       legacyBirthDate: '1985-07-03',
     });
     svc.claimHistoricalPerson(memberId, hpId);
-    expect(hpClaimMetadata(memberId).dob_comparison).toBe('near_miss');
-    expect(mismatchQueueItems(memberId)).toHaveLength(1);
+    expect(hpClaimMetadata(memberId).dob_comparison).toBe('mismatch');
+    expect(queueItemsFor(memberId)).toHaveLength(0);
     expect(memberHistoricalPersonId(memberId)).toBe(hpId);
   });
 
@@ -340,7 +351,62 @@ describe('historical-record claim flags a birth-date discrepancy for review', ()
     });
     svc.claimHistoricalPerson(memberId, hpId);
     expect(hpClaimMetadata(memberId).dob_comparison).toBe('identical');
-    expect(mismatchQueueItems(memberId)).toHaveLength(0);
+    expect(queueItemsFor(memberId)).toHaveLength(0);
+  });
+});
+
+describe('a corroborating date strengthens a name-variant match', () => {
+  function variantFixture(memberDob: string | null, recordDob: string | null): string {
+    const stamp = nextId('variant');
+    const email = `${stamp}@example.com`;
+    // The two names fold to the same normalized form but are not identical, so
+    // this is a variant match rather than an exact one.
+    const memberId = insertMember(db, { onboarding: 'none',
+      id: `${stamp}_member`, slug: `slug_${stamp}`, login_email: email,
+      real_name: `Rene Varianto${stamp}`, display_name: `Rene Varianto${stamp}`,
+    });
+    if (memberDob) {
+      db.prepare('UPDATE members SET birth_date = ? WHERE id = ?').run(memberDob, memberId);
+    }
+    insertHistoricalPerson(db, {
+      person_id: `${stamp}_hp`,
+      person_name: `René Varianto${stamp}`,
+      legacy_member_id: `${stamp}_leg`,
+    });
+    insertNameVariant(db, {
+      canonical_normalized: `rené varianto${stamp}`.toLowerCase(),
+      variant_normalized:   `rene varianto${stamp}`.toLowerCase(),
+    });
+    db.prepare('UPDATE legacy_members SET legacy_email = ?, real_name = ? WHERE legacy_member_id = ?')
+      .run(email, `René Varianto${stamp}`, `${stamp}_leg`);
+    if (recordDob) {
+      db.prepare('UPDATE legacy_members SET birth_date = ? WHERE legacy_member_id = ?')
+        .run(recordDob, `${stamp}_leg`);
+    }
+    return memberId;
+  }
+
+  it('lifts a variant match to high when the date agrees', () => {
+    // The date is the strongest signal the platform holds and the governance
+    // document says it corroborates a claim, not merely that it separates tied
+    // ones. Leaving a variant match weak while the best evidence available says
+    // it is right was the gap.
+    const memberId = variantFixture('1977-02-02', '1977-02-02');
+    const c = svc.getAutoLinkClassificationForMember(memberId);
+    expect(c.confidence).toBe('high');
+    // Raising the confidence must not lose how the match was found.
+    expect(c.confidence === 'high' && c.matchedVariantNormalized).toBeTruthy();
+  });
+
+  it('leaves a variant match where the name put it when the date does not agree', () => {
+    // Never downward. A date that disagrees fails to corroborate and does
+    // nothing else; it must not cost the member the confidence the name earned.
+    const mismatched = svc.getAutoLinkClassificationForMember(variantFixture('1977-02-02', '1961-09-09'));
+    expect(mismatched.confidence).toBe('medium');
+    const recordSilent = svc.getAutoLinkClassificationForMember(variantFixture('1977-02-02', null));
+    expect(recordSilent.confidence).toBe('medium');
+    const memberSilent = svc.getAutoLinkClassificationForMember(variantFixture(null, '1977-02-02'));
+    expect(memberSilent.confidence).toBe('medium');
   });
 });
 
@@ -387,11 +453,13 @@ describe('birth-date disambiguation among tied same-name candidates', () => {
     expect(c.confidence).toBe('high');
   });
 
-  it('a near-miss birth date does not narrow the tie', () => {
+  it('a date one day out does not narrow the tie', () => {
     const memberId = tiedFixture('1985-07-09', '1985-07-10');
     const c = svc.getAutoLinkClassificationForMember(memberId);
-    // Only an identical date corroborates a tied same-name candidate; a
-    // typo-shaped near-miss no longer narrows, so the tie stays low.
+    // Only an identical date corroborates a tied same-name candidate. Nearness
+    // buys nothing: a date one day out is treated exactly like an unrelated one,
+    // so the tie stays low and the member is never auto-sent to a candidate the
+    // date argues against.
     expect(c.confidence).toBe('low');
   });
 
@@ -400,80 +468,106 @@ describe('birth-date disambiguation among tied same-name candidates', () => {
     const c = svc.getAutoLinkClassificationForMember(memberId);
     expect(c.confidence).toBe('low');
   });
+
+  it('narrows to the candidate whose own date agrees, not the one provenance points at', () => {
+    // Comparing the member's date against the single account they were found
+    // through says the same thing about every tied candidate, so it cannot tell
+    // them apart. Only each candidate's own date can. Here the found-through
+    // account carries a different date, and the tie is settled by the other
+    // candidate's date agreeing.
+    const stamp = nextId('percand');
+    const name = `Percand ${stamp}`;
+    const email = `${stamp}@example.com`;
+    const memberId = insertMember(db, { onboarding: 'none',
+      id: `${stamp}_member`, slug: `slug_${stamp}`, login_email: email, real_name: name,
+    });
+    db.prepare('UPDATE members SET birth_date = ? WHERE id = ?').run('1979-03-04', memberId);
+
+    insertHistoricalPerson(db, {
+      person_id: `${stamp}_hp_a`, person_name: name, legacy_member_id: `${stamp}_leg_a`,
+    });
+    db.prepare('UPDATE legacy_members SET legacy_email = ?, birth_date = ? WHERE legacy_member_id = ?')
+      .run(email, '1990-11-11', `${stamp}_leg_a`);
+
+    insertHistoricalPerson(db, {
+      person_id: `${stamp}_hp_b`, person_name: name, legacy_member_id: `${stamp}_leg_b`,
+    });
+    db.prepare('UPDATE legacy_members SET birth_date = ? WHERE legacy_member_id = ?')
+      .run('1979-03-04', `${stamp}_leg_b`);
+
+    const c = svc.getAutoLinkClassificationForMember(memberId);
+    expect(c.confidence).toBe('high');
+    expect(c.confidence === 'high' && c.personId).toBe(`${stamp}_hp_b`);
+  });
+
+  it('leaves the tie alone when two candidates carry the same date', () => {
+    // Two agreeing is no narrower than none, and picking one would be a guess.
+    const stamp = nextId('twoagree');
+    const name = `Twoagree ${stamp}`;
+    const email = `${stamp}@example.com`;
+    const memberId = insertMember(db, { onboarding: 'none',
+      id: `${stamp}_member`, slug: `slug_${stamp}`, login_email: email, real_name: name,
+    });
+    db.prepare('UPDATE members SET birth_date = ? WHERE id = ?').run('1981-05-05', memberId);
+
+    insertHistoricalPerson(db, {
+      person_id: `${stamp}_hp_a`, person_name: name, legacy_member_id: `${stamp}_leg_a`,
+    });
+    db.prepare('UPDATE legacy_members SET legacy_email = ?, birth_date = ? WHERE legacy_member_id = ?')
+      .run(email, '1981-05-05', `${stamp}_leg_a`);
+    insertHistoricalPerson(db, {
+      person_id: `${stamp}_hp_b`, person_name: name, legacy_member_id: `${stamp}_leg_b`,
+    });
+    db.prepare('UPDATE legacy_members SET birth_date = ? WHERE legacy_member_id = ?')
+      .run('1981-05-05', `${stamp}_leg_b`);
+
+    // The older provenance test still settles it, because the found-through
+    // account's date agrees; what must not happen is picking between the two on
+    // the strength of a date they both carry.
+    const c = svc.getAutoLinkClassificationForMember(memberId);
+    expect(c.confidence === 'high' && c.personId).toBe(`${stamp}_hp_a`);
+  });
+
+  it('a tie the date cannot narrow still leaves the member a self-serve path', async () => {
+    // Failing to narrow must not strand anyone: the email-anchored legacy card
+    // is composed independently of the classifier, so a member whose date does
+    // not corroborate still has a card to act on and never waits on an
+    // administrator. Losing that is what would make a non-matching date costly.
+    const memberId = tiedFixture('1962-01-28', '1985-07-10');
+    const view = await svc.getLinkHistoryViewForWizard(memberId, {
+      submitted: false, hpPersonId: null, autoLinkDrift: false,
+    });
+    expect(view).toBeTruthy();
+    expect(view!.candidates.some((c) => c.claimMode === 'legacy_claim')).toBe(true);
+  });
 });
 
-describe('admin review of a birth-date-conflict work-queue item', () => {
-  function outboxCount(): number {
-    return (db.prepare('SELECT COUNT(*) AS c FROM outbox_emails').get() as { c: number }).c;
-  }
-  function dobConflictAuditCount(memberId: string): number {
-    return (db.prepare(
-      "SELECT COUNT(*) AS c FROM audit_entries WHERE action_type = 'legacy.dob_conflict_reviewed' AND entity_id = ?",
-    ).get(memberId) as { c: number }).c;
-  }
-
-  it('renders the conflict with both dates and a Mark Reviewed control, then a dismissal resolves it with an audit entry and no member email', async () => {
+describe('a conflicting date reaches no administrator surface at all', () => {
+  it('the work queue is untouched by a claim whose dates conflict, and no member email goes out', async () => {
+    const outboxBefore = (db.prepare('SELECT COUNT(*) AS c FROM outbox_emails')
+      .get() as { c: number }).c;
     const { memberId, legacyId } = claimFixture({
       memberBirthDate: '1985-07-10',
       legacyBirthDate: '1962-01-28',
     });
     svc.claimLegacyAccount(memberId, legacyId);
-    const items = mismatchQueueItems(memberId);
-    expect(items).toHaveLength(1);
-    const queueItemId = String(items[0].id);
 
-    // The admin work-queue page renders the flagged item with both conflicting
-    // dates and the Mark Reviewed dismissal control.
+    // Nothing queued, so nothing for a volunteer administrator to read and
+    // clear. The dates do not reach the page either, by way of having no row to
+    // render them on.
+    expect(queueItemsFor(memberId)).toHaveLength(0);
     const page = await request(createApp())
       .get('/admin/work-queue')
       .set('Cookie', adminCookie());
     expect(page.status).toBe(200);
-    expect(page.text).toContain('1985-07-10');
-    expect(page.text).toContain('1962-01-28');
-    expect(page.text).toContain(`/members/slug_${memberId}`);
-    expect(page.text).toContain('Mark Reviewed');
-    expect(page.text).toContain(`/admin/work-queue/${queueItemId}/dismiss`);
-
-    const outboxBefore = outboxCount();
-    const dismiss = await request(createApp())
-      .post(`/admin/work-queue/${queueItemId}/dismiss`)
-      .set('Cookie', adminCookie())
-      .type('form')
-      .send({ note: 'Confirmed the claim looks legitimate.' });
-    expect(dismiss.status).toBe(303);
-
-    // The row is closed, not left open.
-    const row = db.prepare('SELECT status FROM work_queue_items WHERE id = ?')
-      .get(queueItemId) as { status: string };
-    expect(row.status).toBe('resolved');
-    // The dismissal records its audit entry and sends no member email.
-    expect(dobConflictAuditCount(memberId)).toBe(1);
-    expect(outboxCount()).toBe(outboxBefore);
-  });
-
-  it('a non-admin cannot dismiss a birth-date-conflict item', async () => {
-    const { memberId, legacyId } = claimFixture({
-      memberBirthDate: '1985-07-10',
-      legacyBirthDate: '1962-01-28',
-    });
-    svc.claimLegacyAccount(memberId, legacyId);
-    const queueItemId = String(mismatchQueueItems(memberId)[0].id);
-
-    // A plain member session (no admin role) is refused by the admin gate, and
-    // the review item is left open.
-    const res = await request(createApp())
-      .post(`/admin/work-queue/${queueItemId}/dismiss`)
-      .set('Cookie', cookieFor(memberId))
-      .type('form')
-      .send({ note: 'not allowed' });
-    expect(res.status).toBe(403);
-    const row = db.prepare('SELECT status FROM work_queue_items WHERE id = ?')
-      .get(queueItemId) as { status: string };
-    expect(row.status).toBe('open');
+    expect(page.text).not.toContain('1962-01-28');
+    expect(page.text).not.toContain(`/members/slug_${memberId}`);
+    expect((db.prepare('SELECT COUNT(*) AS c FROM outbox_emails')
+      .get() as { c: number }).c).toBe(outboxBefore);
   });
 });
 
-describe('a birth-date conflict stays admin-only and never alters the member-facing response', () => {
+describe('a conflicting date never alters the member-facing response', () => {
   function completedClaim(opts: { memberBirthDate: string; legacyBirthDate: string }): string {
     const { memberId, legacyId } = claimFixture(opts);
     // The claimant has finished personal details, so the legacy-claim surface is
@@ -487,9 +581,10 @@ describe('a birth-date conflict stays admin-only and never alters the member-fac
     const cleanMember = completedClaim({ memberBirthDate: '1985-07-10', legacyBirthDate: '1985-07-10' });
     const conflictedMember = completedClaim({ memberBirthDate: '1985-07-10', legacyBirthDate: '1962-01-28' });
 
-    // The only difference between the two claimants is the admin-side flag.
-    expect(mismatchQueueItems(cleanMember)).toHaveLength(0);
-    expect(mismatchQueueItems(conflictedMember)).toHaveLength(1);
+    // Neither claimant differs on the administrator side either: the conflict
+    // is recorded in the ledger and nowhere else.
+    expect(queueItemsFor(cleanMember)).toHaveLength(0);
+    expect(queueItemsFor(conflictedMember)).toHaveLength(0);
 
     const cleanRes = await request(createApp())
       .get('/register/wizard/legacy_claim').set('Cookie', cookieFor(cleanMember));

@@ -38,7 +38,8 @@ describe('real-claim builder registration', () => {
       'real_claim_900001@personas.test',
       'real-claim-registration-probe-pw',
       'real-claim-registration-probe-pw',
-      realName,
+      'Regression',
+      'Claimant',
       realName,
       '127.0.0.1',
     );

@@ -909,11 +909,12 @@ describe('work-queue claims lapse', () => {
 });
 
 // A low-confidence auto-link classification reaches the queue for an
-// administrator to settle by hand. Like the birth-date conflict it is an
-// internal review with no member reply, so it closes with a dismissal; unlike
-// it, no link was ever applied, so the two must not share an audit event or a
-// hint. Every enqueued task type owes the administrator a way to close it: an
-// item with no control can never leave the queue.
+// administrator to settle by hand. It is an internal review with no member
+// reply, so it closes with a dismissal rather than a resolution, and it names
+// its own audit event: the ledger is append-only, so filing one review type's
+// dismissal under another's could never be corrected. Every enqueued task type
+// owes the administrator a way to close it: an item with no control can never
+// leave the queue.
 describe('POST /admin/work-queue/:id/dismiss — low-confidence auto-link match', () => {
   async function seedAutoLinkMatch(memberId: string): Promise<string> {
     const { workQueueService } = await import('../../src/services/workQueueService');
@@ -965,11 +966,15 @@ describe('POST /admin/work-queue/:id/dismiss — low-confidence auto-link match'
       .prepare('SELECT status, resolved_by_member_id FROM work_queue_items WHERE id = ?')
       .get(queueId) as { status: string; resolved_by_member_id: string } | undefined;
     db.close();
-    expect(row?.status).not.toBe('open');
+    // A dismissal is not a resolution: nothing was acted on, and the two
+    // outcomes stay distinguishable on the row after the fact.
+    expect(row?.status).toBe('dismissed');
     expect(row?.resolved_by_member_id).toBe(ADMIN_ID);
 
     expect(auditCount('legacy.auto_link_match_reviewed', MEMBER_ID)).toBe(1);
-    expect(auditCount('legacy.dob_conflict_reviewed', MEMBER_ID)).toBe(0);
+    // Each review type names its own dismissal event, so one type's dismissal
+    // can never be filed under another's in a ledger that cannot be corrected.
+    expect(auditCount('admin.loss_alert_dismissed', MEMBER_ID)).toBe(0);
   });
 
   // The note is free text an administrator writes about a member, so it belongs

@@ -50,15 +50,35 @@
           <small class="form-hint">Choosing the USA or Canada adds a state or province list to the field above when you save.</small>
         </div>
 
-        <div class="form-field">
-          <label for="birthDate">Date of birth <span class="fw-600">(required)</span></label>
-          <input type="date" id="birthDate" name="birthDate" value="{{content.birthDate}}" required />
-          <small class="form-hint">Your date of birth helps us match your old footbag.org account and competition records. It is private: only you and administrators can see it.</small>
-        </div>
+        <fieldset class="form-fieldset">
+          <legend>Date of birth <span class="fw-600">(required)</span></legend>
+          <small class="form-hint">For example, 31 March 1980. Your date of birth helps us match your old footbag.org account and competition records. It is private: only you and IFPA administrators can see it.</small>
+          <div class="form-date-parts">
+            <div class="form-field form-date-day">
+              <label for="birthDay">Day</label>
+              <input type="text" id="birthDay" name="birthDay" inputmode="numeric" maxlength="2"
+                     autocomplete="bday-day" value="{{content.birthDay}}" />
+            </div>
+            <div class="form-field form-date-month">
+              <label for="birthMonth">Month</label>
+              <select id="birthMonth" name="birthMonth" autocomplete="bday-month">
+                <option value="">Choose a month</option>
+                {{#each content.birthMonthOptions}}
+                  <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
+                {{/each}}
+              </select>
+            </div>
+            <div class="form-field form-date-year">
+              <label for="birthYear">Year</label>
+              <input type="text" id="birthYear" name="birthYear" inputmode="numeric" maxlength="4"
+                     autocomplete="bday-year" value="{{content.birthYear}}" />
+            </div>
+          </div>
+        </fieldset>
 
         <fieldset class="form-fieldset">
           <legend>Gender (competition eligibility) <span class="text-muted">(optional)</span></legend>
-          <p class="text-muted fs-sm">Private by default: visible only to you and IFPA admins. You can choose later, in your profile settings, to show it to signed-in members on your profile, in member search, and on club rosters. Used only for gender-based event-category eligibility. Choose 'Prefer not to say' to keep it undisclosed; you can record your gender anytime to enter women's or mixed-doubles draws.</p>
+          <p class="text-muted fs-sm">Private by default: visible only to you and IFPA administrators. You can choose later, in your profile settings, to show it to signed-in members on your profile, in member search, and on club rosters. Used only for gender-based event-category eligibility. Choose 'Prefer not to say' to keep it undisclosed; you can record your gender anytime to enter women's or mixed-doubles draws.</p>
           <div class="form-field">
             <label>
               <input type="radio" name="gender" value="male" {{#if (eq content.gender "male")}}checked{{/if}} />

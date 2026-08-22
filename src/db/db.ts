@@ -5657,6 +5657,13 @@ export const account = {
     SELECT id, slug, display_name FROM members_active WHERE slug = ? OR id = ?
   `); },
 
+  // The recorded name parts, for the surname gate. Reads members rather than a
+  // visibility view because the gate runs for members in every account state,
+  // including one being disputed.
+  get findNamePartsById() { return db.prepare(`
+    SELECT family_name, given_names, real_name FROM members WHERE id = ?
+  `); },
+
   // Resolve an admin's free-text member handle to member ids for the payments
   // search: an exact id, slug, or login email, or a display-name fragment. Reads
   // the full members table rather than a visibility view because it is an
@@ -5797,6 +5804,7 @@ export const account = {
       country                    = ?,
       phone                      = ?,
       whatsapp                   = ?,
+      birth_date                 = ?,
       email_visibility           = ?,
       phone_visible              = ?,
       whatsapp_visible           = ?,
@@ -5809,6 +5817,24 @@ export const account = {
       updated_at                 = ?,
       updated_by                 = 'member',
       version                    = version + 1
+    WHERE id = ?
+  `); },
+
+  // The date on its own, for a surface that offers it back for correction
+  // without loading the whole profile around it.
+  get findBirthDateById() { return db.prepare(`
+    SELECT birth_date FROM members WHERE id = ?
+  `); },
+
+  // The date on its own, for the answer a member gives to an administrator's
+  // question about it. The profile update rewrites every editable field and
+  // would need values for all of them; this one carries only what was asked.
+  get updateMemberBirthDate() { return db.prepare(`
+    UPDATE members
+    SET birth_date = ?,
+        updated_at = ?,
+        updated_by = 'member',
+        version    = version + 1
     WHERE id = ?
   `); },
 
@@ -5886,11 +5912,11 @@ export const registration = {
       id, slug,
       login_email, login_email_normalized, email_verified_at,
       password_hash, password_changed_at,
-      real_name, display_name, display_name_normalized,
+      family_name, given_names, real_name, display_name, display_name_normalized,
       gender,
       searchable,
       created_at, created_by, updated_at, updated_by, version
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, 'registration', ?, 'registration', 1)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, 'registration', ?, 'registration', 1)
   `); },
 
   get setAdminFlagOnRegister() { return db.prepare(`
@@ -6127,6 +6153,27 @@ export const auditEntries = {
       ?, ?, ?,
       ?, ?, ?,
       ?, ?, ?)
+  `); },
+
+  // Every claim this member has attempted, for the evidence block an
+  // administrator adjudicates a disputed or doubtful link from. The ledger is
+  // the only place the outcome of a past attempt survives: the claim itself may
+  // have been reverted, and a refused one wrote no other row at all.
+  //
+  // Newest first, because a dispute is almost always about the most recent
+  // attempt, and capped because a queue card is a summary rather than a history.
+  get listClaimEvidenceForMember() { return db.prepare(`
+    SELECT occurred_at, action_type, metadata_json
+    FROM audit_entries
+    WHERE entity_type = 'member'
+      AND entity_id = ?
+      AND action_type IN (
+        'claim.legacy_account',
+        'claim.historical_person',
+        'claim.historical_person_blocked'
+      )
+    ORDER BY occurred_at DESC, id DESC
+    LIMIT 10
   `); },
 };
 
@@ -8834,6 +8881,10 @@ export const memberPurge = {
       whatsapp                = NULL,
       gender                  = NULL,
       birth_date              = NULL,
+      -- The recorded name parts go with the rest of the legal name; the
+      -- anonymized stub keeps only the placeholder written into real_name.
+      family_name             = NULL,
+      given_names             = NULL,
       street_address          = NULL,
       postal_code             = NULL,
       city                    = NULL,
@@ -9092,6 +9143,8 @@ export interface MemberActivePlayerCurrentRow {
   member_id: string;
   is_active_player: 0 | 1;
   active_player_expires_at: string | null;
+  /** Runs to, or last ran to. Survives a processed expiry; see the view. */
+  active_player_last_expires_at: string | null;
   latest_active_player_reason_code: string | null;
 }
 
@@ -9127,7 +9180,8 @@ export const activePlayer = {
 
   get getCurrent() { return db.prepare(`
     SELECT member_id, is_active_player,
-           active_player_expires_at, latest_active_player_reason_code
+           active_player_expires_at, active_player_last_expires_at,
+           latest_active_player_reason_code
     FROM member_active_player_current
     WHERE member_id = ?
   `); },
@@ -9384,10 +9438,9 @@ export const workQueue = {
   // a member's contact-request message lives here (not the append-only audit
   // ledger), so the PII purge and deceased contact scrub must redact it.
   // Erasure scrubs every work-queue row about the member, whatever the task
-  // type: contact requests, link-help requests (member-authored identity
-  // statements), and birth-date-conflict reviews (raw dates in detail_text)
-  // all carry member personal data, and over-scrubbing at erasure is the
-  // safe direction.
+  // type: contact requests and link-help requests (member-authored identity
+  // statements) both carry member personal data, and over-scrubbing at erasure
+  // is the safe direction.
   get scrubTextForMember() { return db.prepare(`
     UPDATE work_queue_items
     SET reason_text = '(removed on account erasure)', detail_text = NULL,
@@ -9482,12 +9535,24 @@ export const workQueue = {
   // The service filters out urgent task types and relies on the per-item outbox
   // idempotency key so each item escalates only once.
   // Params: (openedBeforeIso, claimStaleBeforeIso).
+  // An item nobody has picked up and nobody has closed, for the escalation that
+  // tells administrators a matter is being neglected.
+  //
+  // An item waiting on a member's answer is not neglected, and reporting it that
+  // way sends an alert about work no administrator can advance while the card on
+  // screen says the opposite. The wait is derived from the message row rather
+  // than stored as a status, because a fourth status would hide the item from
+  // the de-duplication probe and from both close paths.
   get listStaleForEscalation() { return db.prepare(`
-    SELECT id, task_type, entity_id, opened_at
-    FROM work_queue_items
-    WHERE status = 'open' AND opened_at < ?
-      AND (claimed_by_member_id IS NULL OR claimed_at < ?)
-    ORDER BY opened_at
+    SELECT w.id, w.task_type, w.entity_id, w.opened_at
+    FROM work_queue_items w
+    WHERE w.status = 'open' AND w.opened_at < ?
+      AND (w.claimed_by_member_id IS NULL OR w.claimed_at < ?)
+      AND NOT EXISTS (
+        SELECT 1 FROM member_messages m
+        WHERE m.work_queue_item_id = w.id AND m.status = 'sent'
+      )
+    ORDER BY w.opened_at
   `); },
 
   // Resolve an open item: transition to status=resolved with decision and note.
@@ -9504,16 +9569,18 @@ export const workQueue = {
     WHERE id = ? AND status = 'open'
   `); },
 
-  // Close an internal-review item (e.g. a birth-date-conflict flag) with no
-  // member reply: transition to resolved without a decision label or a text
-  // rewrite, leaving reason_text / detail_text intact for the audit trail.
-  // Close an internal-review item. The admin's dismissal note lands in
-  // reason_text, which erasure scrubs, rather than in the append-only ledger:
-  // the note is free text written about a member, and the ledger is exempt from
-  // the PII purge.
+  // Close an internal-review item (e.g. a low-confidence auto-link match) that
+  // has no member reply and carries no decision label. It lands in 'dismissed' rather
+  // than 'resolved' because nothing was acted on: an administrator read the flag
+  // and ruled it settled, which is a different outcome from a request that was
+  // carried out, and the two stay distinguishable afterwards.
+  //
+  // The admin's dismissal note lands in reason_text, which erasure scrubs,
+  // rather than in the append-only ledger: the note is free text written about a
+  // member, and the ledger is exempt from the PII purge.
   get closeReview() { return db.prepare(`
     UPDATE work_queue_items
-    SET status = 'resolved',
+    SET status = 'dismissed',
         resolved_at = ?,
         resolved_by_member_id = ?,
         reason_text = ?,
@@ -9547,6 +9614,90 @@ export const workQueue = {
         updated_by = ?,
         version = version + 1
     WHERE task_type = ? AND entity_type = ? AND entity_id = ? AND status = 'open'
+  `); },
+};
+
+// ── memberMessages ──────────────────────────────────────────────────────────
+//
+// An administrator's direct question to one member and the member's answer,
+// always anchored to the work-queue item that raised it. Text columns hold
+// owner-and-admin private content and are cleared by both erasure shapes.
+export const memberMessages = {
+  // Who, if anyone, a question on this item could be put to. A question needs a
+  // living recipient who can open the page it is read on, so the deceased are
+  // excluded here rather than relying on the cleanup pass: that pass runs daily
+  // and only after a grace period, so a member marked deceased keeps an account
+  // and a working mailbox for days, and nothing else would stop a question and
+  // a nudge email reaching them.
+  get findQuestionRecipient() { return db.prepare(`
+    SELECT id, is_deceased
+    FROM members_active
+    WHERE id = ? AND personal_data_purged_at IS NULL
+  `); },
+  get insert() { return db.prepare(`
+    INSERT INTO member_messages (
+      id, created_at, created_by, updated_at, updated_by, version,
+      recipient_member_id, sender_admin_member_id, work_queue_item_id,
+      subject, body_text, expected_answer_kind, status, sent_at
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, 'sent', ?)
+  `); },
+
+  // The member's own outstanding questions, newest first. Body and note come
+  // back with the row: this is the owner-only surface, the one place the
+  // private text is allowed to be read.
+  get listUnansweredForMember() { return db.prepare(`
+    SELECT id, subject, body_text, expected_answer_kind, sent_at
+    FROM member_messages
+    WHERE recipient_member_id = ? AND status = 'sent'
+    ORDER BY sent_at DESC, id
+  `); },
+
+  get countUnansweredForMember() { return db.prepare(`
+    SELECT COUNT(*) AS c FROM member_messages
+    WHERE recipient_member_id = ? AND status = 'sent'
+  `); },
+
+  // Ownership is part of the lookup rather than a check afterwards, so a
+  // message id belonging to someone else simply does not resolve.
+  get findUnansweredForMember() { return db.prepare(`
+    SELECT id, recipient_member_id, work_queue_item_id, expected_answer_kind
+    FROM member_messages
+    WHERE id = ? AND recipient_member_id = ? AND status = 'sent'
+  `); },
+
+  // Guarded on the current status so two submitted answers cannot both land;
+  // the second reports zero changes and is refused.
+  get recordAnswer() { return db.prepare(`
+    UPDATE member_messages
+    SET status = 'answered', outcome = ?, note_text = ?, answered_at = ?,
+        updated_at = ?, updated_by = ?, version = version + 1
+    WHERE id = ? AND status = 'sent'
+  `); },
+
+  // What the administrator sees on the queue card: whether a question is
+  // outstanding, and how the answered one came back.
+  get listForQueueItem() { return db.prepare(`
+    SELECT id, subject, body_text, expected_answer_kind, status, outcome,
+           note_text, sent_at, answered_at
+    FROM member_messages
+    WHERE work_queue_item_id = ?
+    ORDER BY sent_at, id
+  `); },
+
+  get findUnansweredForQueueItem() { return db.prepare(`
+    SELECT id, sent_at FROM member_messages
+    WHERE work_queue_item_id = ? AND status = 'sent'
+    LIMIT 1
+  `); },
+
+  // Both erasure shapes clear every free-text column on every message addressed
+  // to the member, answered or not, while the rows stay so the queue item's
+  // trail keeps its shape.
+  get scrubTextForMember() { return db.prepare(`
+    UPDATE member_messages
+    SET subject = NULL, body_text = NULL, note_text = NULL,
+        updated_at = ?, updated_by = 'operations_purge', version = version + 1
+    WHERE recipient_member_id = ?
   `); },
 };
 

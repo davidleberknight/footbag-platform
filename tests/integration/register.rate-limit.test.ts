@@ -34,7 +34,7 @@ function registerBody(n: number) {
   // displayName === realName so the surname-in-display-name check is skipped;
   // slug carries the realName surname ('tester') per validateSlug.
   return {
-    realName: 'Reg Tester',
+    givenNames: 'Reg', familyName: 'Tester',
     displayName: 'Reg Tester',
     email: `reg-${n}@example.com`,
     password: 'ValidPass!1',

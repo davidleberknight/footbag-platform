@@ -78,7 +78,7 @@ describe('legacy-claim matching microcopy', () => {
       .set('Cookie', pendingDetailsCookie());
     expect(res.status).toBe(200);
     expect(res.text).toContain('helps us match your old footbag.org account and competition records');
-    expect(res.text).toContain('only you and administrators can see it');
+    expect(res.text).toContain('only you and IFPA administrators can see it');
   });
 
   // The marker follows the country: a state or province is part of the address

@@ -22,6 +22,8 @@ import {
   insertAuditEntry,
   insertPayment,
   insertLegacyClubCandidate,
+  insertWorkQueueItem,
+  insertMemberMessage,
 } from '../../src/testkit/personaRowBuilders';
 import { insertOutboxEmail } from '../fixtures/factories';
 
@@ -204,16 +206,55 @@ describe('refreshAllPersonas', () => {
     // Admin-persona surfaces: a work-queue item the persona resolved (about a
     // real entity, so the row must survive minus its resolver), one about the
     // persona, and a curator video job the persona started.
-    db.prepare(
-      `INSERT INTO work_queue_items
-         (id, created_at, created_by, updated_at, updated_by, version, queue_category, task_type, entity_type, entity_id, status, opened_at, resolved_at, resolved_by_member_id)
-       VALUES ('wq-resolved-1', ?, 'system', ?, 'system', 1, 'membership', 'link_help', 'club', 'club-real-keep-1', 'resolved', ?, ?, ?)`,
-    ).run(TS, TS, TS, TS, T2);
-    db.prepare(
-      `INSERT INTO work_queue_items
-         (id, created_at, created_by, updated_at, updated_by, version, queue_category, task_type, entity_type, entity_id, status, opened_at)
-       VALUES ('wq-entity-1', ?, 'system', ?, 'system', 1, 'membership', 'contact_admin', 'member', ?, 'open', ?)`,
-    ).run(TS, TS, T1, TS);
+    insertWorkQueueItem(db, {
+      id: 'wq-resolved-1',
+      task_type: 'link_help',
+      entity_type: 'club',
+      entity_id: 'club-real-keep-1',
+      status: 'resolved',
+      resolved_at: TS,
+      resolved_by_member_id: T2,
+    });
+    insertWorkQueueItem(db, {
+      id: 'wq-entity-1',
+      task_type: 'contact_admin',
+      entity_id: T1,
+    });
+
+    // An administrator's question to the persona, and a second question that
+    // hangs off a persona-scoped item while naming nobody the persona sweep
+    // matches. The runner deletes messages by member AND by the queue items
+    // belonging to a member, in that order, because the item delete would
+    // otherwise be blocked by the foreign key the message holds on it. The
+    // second row is the only thing that exercises the second delete, and
+    // therefore the only thing that would catch the two being reordered.
+    insertMemberMessage(db, {
+      id: 'mmsg-persona-1',
+      recipient_member_id: T1,
+      sender_admin_member_id: T2,
+      work_queue_item_id: 'wq-entity-1',
+      subject: 'A question for you',
+    });
+    insertMember(db, { id: 'member-real-asker-1', slug: 'real_asker', is_admin: 1 });
+    insertMember(db, { id: 'member-real-target-1', slug: 'real_target' });
+    insertMemberMessage(db, {
+      id: 'mmsg-onpersonaitem-1',
+      recipient_member_id: 'member-real-target-1',
+      sender_admin_member_id: 'member-real-asker-1',
+      work_queue_item_id: 'wq-entity-1',
+      subject: 'Hangs off the persona item',
+    });
+    // A third question, on the club-scoped item that SURVIVES the refresh. Only
+    // the delete keyed on the persona's own member ids can reach this one, so
+    // it is what proves that delete carries its own weight rather than being
+    // shadowed by the queue-item sweep.
+    insertMemberMessage(db, {
+      id: 'mmsg-onsurvivingitem-1',
+      recipient_member_id: T1,
+      sender_admin_member_id: T2,
+      work_queue_item_id: 'wq-resolved-1',
+      subject: 'Hangs off an item that survives',
+    });
     db.prepare(
       `INSERT INTO media_jobs
          (id, created_at, created_by, updated_at, updated_by, version, kind, state, admin_member_id)
@@ -345,6 +386,9 @@ describe('refreshAllPersonas', () => {
       ['media_items', 'media-persona-1'],
       ['member_galleries', 'gal-persona-1'],
       ['work_queue_items', 'wq-entity-1'],
+      ['member_messages', 'mmsg-persona-1'],
+      ['member_messages', 'mmsg-onpersonaitem-1'],
+      ['member_messages', 'mmsg-onsurvivingitem-1'],
       ['media_jobs', 'mj-persona-1'],
       ['active_player_reminder_sent', 'aprs-persona-1'],
       ['audit_entries', 'audit-switch-1'],

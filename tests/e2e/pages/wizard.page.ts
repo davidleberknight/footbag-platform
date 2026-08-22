@@ -11,17 +11,22 @@ export class WizardPage {
     await this.page.goto(`/register/wizard/${taskType}`);
   }
 
-  // legacy_claim's "nothing to claim" decision, which COMPLETES the task. Gated
-  // by the no_old_account attestation checkbox on the same form.
-  get continueWithoutLinkingButton() {
-    return this.page.getByRole('button', { name: /Continue Without Linking a Past Account/i });
+  // legacy_claim's two non-claiming answers, either of which COMPLETES the task.
+  // They are separate controls because they are different facts: a registrant
+  // who did hold an old account is never asked to say they did not in order to
+  // finish signing up.
+  get neverHadOldAccountButton() {
+    return this.page.getByRole('button', { name: /I Never Had an Old Account/i });
   }
 
-  // Required attestation on the continue-without-linking form: the member must
-  // affirm they never had an account on the old footbag.org before the decision
-  // is accepted (the server rejects the skip without it).
-  get noOldAccountCheckbox() {
-    return this.page.locator('input[name="no_old_account"]');
+  get cannotFindOldAccountButton() {
+    return this.page.getByRole('button', { name: /I Had One but Cannot Find It/i });
+  }
+
+  // The last attempt at the match, opened by the cannot-find-it answer. It gates
+  // nothing: the task is already complete by the time it renders.
+  get sharpenBirthDateForm() {
+    return this.page.locator('form[action="/register/wizard/legacy_claim/birth-date"]');
   }
 
   // club_affiliations explicit no-club answer: the Stage 1 "None of These Are
@@ -41,24 +46,19 @@ export class WizardPage {
       .first();
   }
 
-  get dashboardLink() {
-    return this.page.getByRole('link', { name: /Back to dashboard/i });
-  }
-
   get heading() {
     return this.page.getByRole('heading', { level: 1 });
   }
 
   // Completes the current task by its explicit answer control. legacy_claim is
-  // completed by the continue-without-linking decision, which first requires
-  // checking the never-had-an-old-account attestation; club_affiliations by
+  // completed by either non-claiming answer; this walks the never-had-one path,
+  // which advances straight to the next task. club_affiliations is completed by
   // the no-club answer. personal_details is required and cannot be advanced
   // this way.
   async answerCurrentTask(): Promise<void> {
     const url = this.page.url();
     if (url.includes('legacy_claim')) {
-      await this.noOldAccountCheckbox.check();
-      await this.continueWithoutLinkingButton.click();
+      await this.neverHadOldAccountButton.click();
     } else if (url.includes('club_affiliations')) {
       await this.noClubsButton.click();
     } else {
@@ -72,8 +72,10 @@ export class WizardPage {
     return this.page.locator('#identifier');
   }
 
+  // Exact, because the claim step also carries "I Had One but Cannot Find It".
+  // A substring match would resolve to both and fail on strict mode.
   get findButton() {
-    return this.page.getByRole('button', { name: 'Find' });
+    return this.page.getByRole('button', { name: 'Find', exact: true });
   }
 
   // Submits the legacy-claim search. Assumes personal_details is already
@@ -102,17 +104,29 @@ export class WizardPage {
   }
 
   // Fills the personal_details required fields (city, country, region where the
-  // country needs one, birthDate) plus an optional first-competition year, then
-  // saves and waits for the advance.
+  // country needs one, and the date of birth) plus an optional
+  // first-competition year, then saves and waits for the advance.
   async fillPersonalDetailsAndSave(
-    opts: { city?: string; country?: string; region?: string; birthDate?: string; year?: string } = {},
+    opts: {
+      city?: string; country?: string; region?: string; year?: string;
+      birthDay?: string; birthMonth?: string; birthYear?: string;
+    } = {},
   ): Promise<void> {
     await this.page.locator('#city').fill(opts.city ?? 'Portland');
     await this.selectCountry(opts.country ?? 'United States', opts.region ?? 'OR');
-    await this.page.locator('#birthDate').fill(opts.birthDate ?? '2000-01-15');
+    await this.fillBirthDate(opts);
     if (opts.year !== undefined) await this.yearInput.fill(opts.year);
     await this.saveButton.click();
     await this.page.waitForURL(/\/register\/wizard\//);
+  }
+
+  // The date is three labelled parts, with the month chosen by name.
+  async fillBirthDate(
+    opts: { birthDay?: string; birthMonth?: string; birthYear?: string } = {},
+  ): Promise<void> {
+    await this.page.locator('#birthDay').fill(opts.birthDay ?? '15');
+    await this.page.locator('#birthMonth').selectOption(opts.birthMonth ?? '1');
+    await this.page.locator('#birthYear').fill(opts.birthYear ?? '2000');
   }
 
   // Country is a picker, and choosing the USA or Canada turns the region field

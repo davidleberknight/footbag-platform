@@ -79,7 +79,7 @@ describe('CSRF — SameSite cookie attribute', () => {
       .post('/register')
       .type('form')
       .send({
-        realName: 'Csrf Newcomer',
+        givenNames: 'Csrf', familyName: 'Newcomer',
         email: 'csrf-newcomer@example.com',
         password: 'CsrfNewcomer!1',
         confirmPassword: 'CsrfNewcomer!1',

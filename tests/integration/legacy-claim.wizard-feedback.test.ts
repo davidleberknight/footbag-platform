@@ -67,10 +67,13 @@ function matchFixture(opts: { memberName: string; personName: string }): {
   insertHistoricalPerson(db, {
     person_id: personId, person_name: opts.personName, legacy_member_id: legacyId,
   });
+  // Still signing up: the claim task lives in the wizard, which closes to a
+  // member who has finished.
   const memberId = insertMember(db, {
     slug, login_email: email,
     real_name: opts.memberName, display_name: opts.memberName,
     birth_date: '1980-01-01',
+    onboarding: 'none',
   });
   // The legacy-claim step runs only once personal details are on file.
   insertOnboardingTask(db, memberId, 'personal_details', 'completed');
@@ -78,7 +81,7 @@ function matchFixture(opts: { memberName: string; personName: string }): {
 }
 
 describe('specific failure reasons on This Is Me confirmation', () => {
-  it('a surname mismatch shows the name-does-not-match message with admin guidance', async () => {
+  it('a surname mismatch offers the two ways to resolve it, not an administrator', async () => {
     const f = matchFixture({ memberName: 'Robin Alpha', personName: 'Robin Beta' });
     const staged = svc.stageAutoLinkCandidate(
       f.memberId,
@@ -92,8 +95,14 @@ describe('specific failure reasons on This Is Me confirmation', () => {
       .type('form')
       .send({ personId: f.personId });
     expect(res.status).toBe(422);
-    expect(res.text).toContain('Your name does not match this historical record');
-    expect(res.text).toContain('contact an administrator');
+    expect(res.text).toContain('Your name does not match this record');
+    // A name that does not line up is as likely a marriage, a stale record
+    // name, or a plain mistake as anything else, so the member is handed the
+    // two self-serve remedies that actually find the record rather than being
+    // sent to write to someone.
+    expect(res.text).toContain('different surname');
+    expect(res.text).toContain('different email address');
+    expect(res.text).not.toContain('contact an administrator');
   });
 
   it('a record claimed by another member in the meantime says so plainly', async () => {
@@ -122,6 +131,7 @@ describe('specific failure reasons on This Is Me confirmation', () => {
     const memberId = insertMember(db, {
       slug: `wf_drift_${tag('d')}`, login_email: `drift${_seq}@example.com`,
       real_name: 'Drift Delta', birth_date: '1980-01-01',
+      onboarding: 'none',
     });
     insertOnboardingTask(db, memberId, 'personal_details', 'completed');
     const res = await request(createApp())
@@ -153,7 +163,11 @@ describe('the claim task after onboarding completes', () => {
     expect(res.text).toContain('/register/wizard/legacy_claim');
   });
 
-  it('the wizard claim task still renders after completion while a linkage is missing', async () => {
+  it('a member with no linkage is bounced away too: claiming belongs to signing up', async () => {
+    // Not linking is a complete answer to the claim task, and the task closes
+    // with the wizard whether or not it produced a link. A member who still
+    // needs one asks an administrator through the identity-link category of the
+    // contact form; the claim controls are not theirs to use any more.
     const t = tag('re');
     const memberId = insertMember(db, {
       slug: `wf_re_${t}`, login_email: `${t}@example.com`, real_name: 'Returning Member', birth_date: '1980-01-01',
@@ -162,8 +176,8 @@ describe('the claim task after onboarding completes', () => {
     const res = await request(createApp())
       .get('/register/wizard/legacy_claim')
       .set('Cookie', cookieFor(memberId));
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('Help us find your record');
+    expect(res.status).toBe(303);
+    expect(res.headers.location).not.toContain('/register/wizard/');
   });
 
   it('a fully linked member is still bounced away from the completed task', async () => {

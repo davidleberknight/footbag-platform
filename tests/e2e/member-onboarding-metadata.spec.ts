@@ -39,7 +39,7 @@ test('personal_details: future year rejected inline', async ({ browser, baseURL 
   await wizard.goto('personal_details');
   await page.locator('#city').fill('Portland');
   await wizard.selectCountry('United States', 'OR');
-  await page.locator('#birthDate').fill('2000-01-15');
+  await wizard.fillBirthDate();
   await wizard.yearInput.fill('2099');
   await wizard.saveButton.click();
 
@@ -71,9 +71,10 @@ test('unauthenticated wizard access redirects to login with returnTo', async ({ 
 });
 
 test('GET wizard task after all completed and fully linked -> auto-transitions away', async ({ browser, baseURL }) => {
-  // A completed-but-unlinked member deliberately keeps the claim task
-  // renderable (it is the sole claim surface), so the transition-away
-  // contract requires a persona with both identity links in place.
+  // The wizard belongs to signing up. A member who has finished has no task
+  // there and no claim control that would act, so the whole surface is closed
+  // to them and they are sent to their own profile; a link they still need is
+  // asked for through the identity-link category of the contact form.
   const db = openLiveDb();
   const persona = seedAllTasksCompleted(db, { slug: `m_at_${Date.now()}`, linked: true });
   db.close();
@@ -82,15 +83,12 @@ test('GET wizard task after all completed and fully linked -> auto-transitions a
   const page = await ctx.newPage();
 
   await page.goto('/register/wizard/legacy_claim');
-  await page.waitForURL(/\/register\/wizard\/complete/);
-
-  const wizard = new WizardPage(page);
-  await expect(wizard.completionMessage).toBeVisible();
+  await page.waitForURL(new RegExp(`/members/${persona.slug}$`));
 
   await ctx.close();
 });
 
-test('keyboard: Tab reaches identifier input, Find button, continue-without-linking answer', { tag: ['@a11y'] }, async ({ browser, baseURL }) => {
+test('keyboard: Tab reaches identifier input, the search button, and both non-claiming answers', { tag: ['@a11y'] }, async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const persona = seedBrandNewPlayer(db, { slug: `m_kbd_${Date.now()}` });
   completePersonalDetails(db, persona.memberId);
@@ -105,11 +103,19 @@ test('keyboard: Tab reaches identifier input, Find button, continue-without-link
   const identifierReachable = await reachByTab(page, '#identifier');
   expect(identifierReachable).toBe(true);
 
-  const findReachable = await reachByTab(page, 'button:has-text("Find")');
+  // Exact text: the step also carries "I Had One but Cannot Find It", which a
+  // substring match would reach instead of the search control.
+  const findReachable = await reachByTab(page, 'button:text-is("Find")');
   expect(findReachable).toBe(true);
 
-  const answerReachable = await reachByTab(page, 'button:has-text("Continue Without Linking a Past Account")');
-  expect(answerReachable).toBe(true);
+  // Both non-claiming answers are keyboard-reachable. A registrant who did hold
+  // an old account must be able to say so without a mouse, and without being
+  // pushed onto the other answer, which would be a false statement for them.
+  const neverHadReachable = await reachByTab(page, 'button:has-text("I Never Had an Old Account")');
+  expect(neverHadReachable).toBe(true);
+
+  const cannotFindReachable = await reachByTab(page, 'button:has-text("I Had One but Cannot Find It")');
+  expect(cannotFindReachable).toBe(true);
 
   await ctx.close();
 });

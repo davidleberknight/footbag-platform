@@ -41,7 +41,8 @@ test('post-verify: register -> check-email -> click verify link -> lands on wiza
     .map((b) => String.fromCharCode(97 + (b % 26)))
     .join('')}`;
   await registerPage.fillRegistration({
-    realName: `Test ${surname}`,
+    givenNames: 'Test',
+    familyName: surname,
     email,
     password: 'e2e-test-password-123',
   });
@@ -72,7 +73,8 @@ test('answering legacy_claim without linking advances to the next task', async (
   const wizard = new WizardPage(page);
 
   await wizard.goto('legacy_claim');
-  await expect(wizard.continueWithoutLinkingButton).toBeVisible();
+  await expect(wizard.neverHadOldAccountButton).toBeVisible();
+  await expect(wizard.cannotFindOldAccountButton).toBeVisible();
   await wizard.answerCurrentTask();
 
   expect(page.url()).toMatch(/\/register\/wizard\/club_affiliations/);
@@ -120,7 +122,7 @@ test('complete personal_details via form fill -> advances to next task', async (
   await expect(wizard.yearInput).toBeVisible();
   await page.locator('#city').fill('Portland');
   await wizard.selectCountry('United States', 'OR');
-  await page.locator('#birthDate').fill('2000-01-15');
+  await wizard.fillBirthDate();
   await wizard.submitYear('2005');
 
   expect(page.url()).toMatch(/\/register\/wizard\/club_affiliations/);
@@ -190,7 +192,8 @@ test('wizard pages have accessible form labels and heading', { tag: ['@a11y'] },
 
   await wizard.goto('legacy_claim');
   await expect(wizard.heading).toBeVisible();
-  await expect(wizard.continueWithoutLinkingButton).toBeVisible();
+  await expect(wizard.neverHadOldAccountButton).toBeVisible();
+  await expect(wizard.cannotFindOldAccountButton).toBeVisible();
   const identifierLabel = page.locator('label[for="identifier"]');
   await expect(identifierLabel).toBeVisible();
 
@@ -252,13 +255,10 @@ test('the continue-without-linking answer is keyboard-reachable and activatable'
 
   await wizard.goto('legacy_claim');
 
-  // Continue-without-linking carries a required attestation checkbox; without it
-  // the form fails HTML5 validation and never submits, so satisfy it before
-  // exercising keyboard activation of the button itself.
-  await wizard.noOldAccountCheckbox.check();
-
-  await wizard.continueWithoutLinkingButton.focus();
-  await expect(wizard.continueWithoutLinkingButton).toBeFocused();
+  // Either answer submits on its own, so keyboard activation is exercised
+  // directly on the button rather than after satisfying a separate control.
+  await wizard.neverHadOldAccountButton.focus();
+  await expect(wizard.neverHadOldAccountButton).toBeFocused();
 
   await page.keyboard.press('Enter');
   await page.waitForURL(/\/register\/wizard\/(?!legacy_claim)/);

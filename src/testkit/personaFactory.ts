@@ -33,6 +33,7 @@
  */
 import BetterSqlite3 from 'better-sqlite3';
 import { SEEDED_PERSONA_MEMBER_ID_PREFIX } from '../lib/personaGuards';
+import type { ExpectedAnswerKind } from '../services/memberMessageService';
 import {
   insertMember,
   insertMemberTierGrant,
@@ -49,6 +50,8 @@ import {
   insertClubBootstrapLeader,
   insertClubBootstrapLeaderSignal,
   insertAuditEntry,
+  insertWorkQueueItem,
+  insertMemberMessage,
   insertNameVariant,
   insertLegacyClubCandidate,
   insertLegacyPersonClubAffiliation,
@@ -184,10 +187,10 @@ export interface PersonaLegacySpec {
   /**
    * Seeds a DIFFERENT date of birth on the legacy_members row than the member
    * carries (the member keeps birthDate). Confirming the claim links the account
-   * anyway — a date-of-birth discrepancy never blocks — and raises a
-   * claim_dob_mismatch_review work-queue item, so a maintainer can see a flagged
-   * conflict end to end. Requires birthDate (the member side) to be set too, or
-   * there is nothing to compare.
+   * anyway — a date that does not match simply fails to corroborate, and never
+   * blocks, weakens, or flags a claim — while the claim's audit metadata records
+   * the mismatch. Requires birthDate (the member side) to be set too, or there
+   * is nothing to compare.
    */
   legacyBirthDate?: string;
   /**
@@ -196,6 +199,27 @@ export interface PersonaLegacySpec {
    * must never confer a live admin role, so the member's own is_admin stays 0.
    */
   legacyIsAdmin?: boolean;
+}
+
+export interface PersonaAdminQuestionSpec {
+  /** The one-line subject the member sees before opening the question. */
+  subject: string;
+  /** The administrator's question, read only on the member's own surface. */
+  body: string;
+  /**
+   * What the answer must come back as. Typed from the service that owns the
+   * vocabulary rather than re-spelled here, so a kind added there cannot leave
+   * the harness seeding a value the application refuses.
+   */
+  answerKind: ExpectedAnswerKind;
+  /**
+   * Seed the question already answered, for the administrator's side of the
+   * round trip. Omit for a question still waiting on the member.
+   */
+  answer?: {
+    outcome: 'acknowledged' | 'confirmed' | 'corrected';
+    note?: string;
+  };
 }
 
 export interface PersonaClubSpec {
@@ -380,6 +404,23 @@ export interface PersonaSpec {
   /** Legacy-club-candidate cards (pending / declined / resolved / junk). */
   legacyClubCandidates?: PersonaLegacyClubCandidateSpec[];
   activePlayer?: PersonaActivePlayerSpec;
+  /**
+   * A link-help request already raised by this member, and an administrator's
+   * question already put to them about it. Seeds the state a
+   * maintainer needs to explore both sides of the question channel: the
+   * member's answer surface, and the queue card that shows the answer coming
+   * back. Requires onboarding to be complete, because an unfinished registrant
+   * cannot reach the page a question is read on and the channel refuses to send
+   * one to them.
+   */
+  adminQuestion?: PersonaAdminQuestionSpec;
+  /**
+   * Seed an open link-help request with no question on it, for the case where
+   * the platform refuses to put one: the member has not finished signing up, so
+   * the page a question is read on is closed to them. Implied by
+   * `adminQuestion`, since a question always hangs off one of these.
+   */
+  linkHelpRequest?: boolean;
   mailingList?: PersonaMailingListSpec | PersonaMailingListSpec[];
   /** Testing dimensions this persona exercises. Must be non-empty. */
   coverageNotes: string[];
@@ -544,7 +585,13 @@ export function seedPersona(
     ...(spec.honors?.board ? { is_board: 1 as const } : {}),
     ...deletionFields,
     ...(opts.passwordHash ? { password_hash: opts.passwordHash } : {}),
-    ...(spec.legacy?.birthDate ? { birth_date: spec.legacy.birthDate } : {}),
+    // Every real member has a date of birth: the onboarding wizard requires one
+    // before anyone becomes a member at all, and the profile edit form requires
+    // it on save. A persona seeded without one is not a state a real member can
+    // be in, and exploring their profile would hit a validation error that no
+    // member would ever meet. Personas that exercise the matching anchor set
+    // their own; the rest get a plausible default.
+    birth_date: spec.legacy?.birthDate ?? '1985-07-21',
     ...(spec.legacy?.linked ? { legacy_member_id: legacyMemberId } : {}),
   });
 
@@ -754,6 +801,37 @@ export function seedPersona(
       ...(ml.listSlug ? { list_slug: ml.listSlug } : {}),
       ...(ml.listName ? { list_name: ml.listName } : {}),
       ...(ml.status ? { status: ml.status } : {}),
+    });
+  }
+
+  // The open link-help request an administrator adjudicates. Seeded rather than
+  // driven, because raising it means walking the whole wizard first, which is a
+  // different persona's job. A question always hangs off one of these, so
+  // declaring a question implies the item.
+  const wantsLinkHelpItem = spec.linkHelpRequest === true || spec.adminQuestion !== undefined;
+  const linkHelpItemId = wantsLinkHelpItem
+    ? insertWorkQueueItem(db, {
+      entity_id:   memberId,
+      task_type:   'member_link_help_request',
+      reason_text: 'The member asked for help linking their old account.',
+      detail_text: 'The member could not find their record in the wizard and asked an '
+        + 'administrator to link it for them.',
+    })
+    : null;
+
+  if (spec.adminQuestion && linkHelpItemId) {
+    insertMemberMessage(db, {
+      recipient_member_id:  memberId,
+      work_queue_item_id:   linkHelpItemId,
+      subject:              spec.adminQuestion.subject,
+      body_text:            spec.adminQuestion.body,
+      expected_answer_kind: spec.adminQuestion.answerKind,
+      answer: spec.adminQuestion.answer
+        ? {
+          outcome:   spec.adminQuestion.answer.outcome,
+          note_text: spec.adminQuestion.answer.note ?? null,
+        }
+        : undefined,
     });
   }
 

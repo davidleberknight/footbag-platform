@@ -52,7 +52,7 @@ describe('captcha gate on registration', () => {
       .post('/register')
       .type('form')
       .send({
-        realName: 'Reg Captcha',
+        givenNames: 'Reg', familyName: 'Captcha',
         email,
         password: 'sufficiently-long-pw',
         confirmPassword: 'sufficiently-long-pw',
@@ -68,9 +68,11 @@ describe('captcha gate on registration', () => {
     // The rejected render has to be recoverable: registration asks for a lot,
     // and a challenge failure that silently empties the form makes the visitor
     // retype all of it to retry.
-    expect(res.text).toContain('Reg Captcha');
+    expect(res.text).toContain('value="Reg"');
+    expect(res.text).toContain('value="Captcha"');
     expect(res.text).toContain(email);
-    expect(res.text).toContain('name="realName"');
+    expect(res.text).toContain('name="givenNames"');
+    expect(res.text).toContain('name="familyName"');
   });
 });
 

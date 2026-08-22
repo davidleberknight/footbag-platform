@@ -337,15 +337,16 @@ beforeAll(async () => {
   insertMember(db, { onboarding: 'none', id: MEMBER_PD_SKIP, slug: 'wiz_clubaff_pd_skip', login_email: 'wiz-pd-skip@example.com' });
   insertOnboardingTask(db, MEMBER_PD_SKIP, 'personal_details', 'pending');
 
-  // The club-affiliations step runs only once personal details are on file, so
-  // every member that reaches a club card, the wrap-up landing, or a club-card
-  // submit has that prerequisite completed first.
+  // The steps are answered in order, so every member that reaches a club card,
+  // the wrap-up landing, or a club-card submit has both steps ahead of it
+  // answered first.
   for (const id of [
     MEMBER_EMPTY, MEMBER_MEMBERSHIP, MEMBER_LEADERSHIP, MEMBER_LEAD_CAPPED, MEMBER_MULTI,
     MEMBER_JUNK, MEMBER_CAP, MEMBER_CAP_LAST, MEMBER_DISAMBIG_CAP, MEMBER_PROMOTE, MEMBER_NOPROMOTE,
     MEMBER_NOSTATE,
   ]) {
     insertOnboardingTask(db, id, 'personal_details', 'completed');
+    if (id !== MEMBER_CAP_LAST) insertOnboardingTask(db, id, 'legacy_claim', 'completed');
   }
 
   db.close();
@@ -517,8 +518,9 @@ describe('the wizard offers no way out but an answer', () => {
 
   it('the no-club answer completes the task', async () => {
     const id = insertMember(testDb, { onboarding: 'none', slug: 'wiz_no_clubs', login_email: 'wiz-no-clubs@example.com' });
-    // The club step runs only once personal details are on file.
+    // The club step is the last of the three, so both ahead of it are answered.
     insertOnboardingTask(testDb, id, 'personal_details', 'completed');
+    insertOnboardingTask(testDb, id, 'legacy_claim', 'completed');
     await request(createApp()).get('/register/wizard/club_affiliations').set('Cookie', cookieFor(id));
     const res = await request(createApp())
       .post('/register/wizard/club_affiliations/none')
@@ -540,6 +542,7 @@ describe('the wizard offers no way out but an answer', () => {
   it('the no-club answer is a no-op once the task is already answered', async () => {
     const id = insertMember(testDb, { onboarding: 'none', slug: 'wiz_no_clubs_again', login_email: 'wiz-no-clubs-again@example.com' });
     insertOnboardingTask(testDb, id, 'personal_details', 'completed');
+    insertOnboardingTask(testDb, id, 'legacy_claim', 'completed');
     await request(createApp()).get('/register/wizard/club_affiliations').set('Cookie', cookieFor(id));
     await request(createApp())
       .post('/register/wizard/club_affiliations/none')
@@ -561,11 +564,9 @@ describe('POST /register/wizard/club_affiliations/submit — per-card flow', () 
       .send({ kind: 'membership', candidateId: membershipAffId, userDecision: 'confirm', activitySignal: 'active' });
 
     expect(res.status).toBe(303);
-    // No more club cards remaining -> advance to the next pending task. This
-    // member has personal details on file but has not completed legacy_claim, so
-    // the wizard routes there next (the order is personal_details, then
-    // legacy_claim, then club_affiliations).
-    expect(res.headers.location).toBe('/register/wizard/legacy_claim');
+    // No more club cards remaining, and the club step is the last of the three,
+    // so this answer finishes signing up and the wizard advances to completion.
+    expect(res.headers.location).toBe('/register/wizard/complete');
     expect(readAffiliationStatus(membershipAffId)).toBe('confirmed_current');
     expect(readTaskState(MEMBER_MEMBERSHIP)).toBe('completed');
 
@@ -626,13 +627,14 @@ describe('POST /register/wizard/club_affiliations/submit — per-card flow', () 
     expect(afterCard.text).not.toContain('Finish Without a Club');
     expect(afterCard.text).toContain('Continue');
 
-    // The hold lasts exactly one render. With the notice spent, the step
-    // advances as it did before, so nothing is stuck behind a read receipt.
+    // The hold lasts exactly one render. With the notice spent, this answer was
+    // the last one outstanding, so the wizard is behind them and the step sends
+    // them to their own dashboard rather than back into signing up.
     const again = await request(createApp())
       .get('/register/wizard/club_affiliations')
       .set('Cookie', cookieFor(MEMBER_CAP_LAST));
     expect(again.status).toBe(303);
-    expect(again.headers.location).toBe('/register/wizard/complete');
+    expect(again.headers.location).toBe('/members/wiz_clubaff_cap_last');
   });
 
   it('leadership confirm -> 303 advance; bootstrap_leader claimed; task completed', async () => {
@@ -643,7 +645,7 @@ describe('POST /register/wizard/club_affiliations/submit — per-card flow', () 
       .send({ kind: 'leadership', candidateId: leadershipCblId, userDecision: 'confirm', activitySignal: 'active' });
 
     expect(res.status).toBe(303);
-    expect(res.headers.location).toBe('/register/wizard/legacy_claim');
+    expect(res.headers.location).toBe('/register/wizard/complete');
     expect(readBootstrapStatus(leadershipCblId)).toBe('claimed');
     expect(readTaskState(MEMBER_LEADERSHIP)).toBe('completed');
 
@@ -712,7 +714,7 @@ describe('POST /register/wizard/club_affiliations/submit — per-card flow', () 
       .send({ kind: 'membership', candidateId: multiAffAlpha, userDecision: 'confirm', activitySignal: 'active' });
 
     expect(second.status).toBe(303);
-    expect(second.headers.location).toBe('/register/wizard/legacy_claim');
+    expect(second.headers.location).toBe('/register/wizard/complete');
     expect(readTaskState(MEMBER_MULTI)).toBe('completed');
   });
 
@@ -794,7 +796,7 @@ describe('POST /register/wizard/club_affiliations/submit — validation', () => 
       .type('form')
       .send({ kind: 'membership', userDecision: 'confirm', activitySignal: 'active' });
     expect(res.status).toBe(422);
-    expect(res.text).toContain('candidateId is required');
+    expect(res.text).toContain('That form is out of date');
   });
 
   it('invalid userDecision -> 422', async () => {
@@ -804,7 +806,7 @@ describe('POST /register/wizard/club_affiliations/submit — validation', () => 
       .type('form')
       .send({ kind: 'membership', candidateId: 'some-id', userDecision: 'maybe' });
     expect(res.status).toBe(422);
-    expect(res.text).toContain("userDecision must be one of");
+    expect(res.text).toContain('Choose whether that club was yours.');
   });
 
   it('invalid kind -> 422', async () => {
@@ -814,7 +816,7 @@ describe('POST /register/wizard/club_affiliations/submit — validation', () => 
       .type('form')
       .send({ kind: 'other_kind', candidateId: 'some-id', userDecision: 'confirm', activitySignal: 'active' });
     expect(res.status).toBe(422);
-    expect(res.text).toContain("kind must be one of");
+    expect(res.text).toContain('That form is out of date');
   });
 
   it('unauthenticated POST -> 302 to /login', async () => {

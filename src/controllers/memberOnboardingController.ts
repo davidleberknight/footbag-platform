@@ -16,7 +16,7 @@ import {
   LegacyClaimTokenConfirmFormState,
   PersonalDetailsFormState,
 } from '../services/memberOnboardingService';
-import { memberService } from '../services/memberService';
+import { memberService, birthMonthOptions } from '../services/memberService';
 import { simulatedEmailService } from '../services/simulatedEmailService';
 import { logger } from '../config/logger';
 import { handleControllerError, renderNotFound } from '../lib/controllerErrors';
@@ -79,7 +79,9 @@ interface PersonalDetailsContent {
   city: string;
   region: string;
   country: string;
-  birthDate: string;
+  birthDay: string;
+  birthMonth: string;
+  birthYear: string;
   gender: string;
   yearValue: string;
   showCompetitiveResults: boolean;
@@ -177,7 +179,6 @@ async function renderLegacyClaim(
   data.dashboardHref = dashboardHrefFor(req);
   data.turnstileSiteKey = config.turnstileSiteKey;
   data.declaredAnchors = identityAccessService.listDeclaredAnchors(memberId);
-  data.helpRequestNotice = req.query.help_request === 'sent';
   const anchorVerification = req.query.anchor_verification;
   data.anchorVerificationNotice =
     anchorVerification === 'sent' || anchorVerification === 'verified' || anchorVerification === 'invalid'
@@ -186,6 +187,25 @@ async function renderLegacyClaim(
   const anchorSaved = req.query.anchor;
   data.anchorSavedNotice =
     anchorSaved === 'saved' || anchorSaved === 'removed' ? anchorSaved : null;
+  // A decision is offered only while the task still needs one. Once it is
+  // answered the form would submit into a silent no-op, which reads to the
+  // member as a broken button.
+  data.showNoLinkAnswers =
+    memberOnboardingService.getTaskState(memberId, 'legacy_claim') !== 'completed';
+  // The last attempt at the match, reached by answering that they held an
+  // account and cannot find it. The date on file is offered for correction
+  // because the matcher runs on it, and a registrant who mistyped it has had no
+  // way to put it right since the details step closed behind them.
+  data.sharpenNotice = req.query.sharpen === '1';
+  data.birthDateSavedNotice = req.query.birth_date === 'saved';
+  if (data.sharpenNotice || data.birthDateSavedNotice) {
+    const parts = memberService.getBirthDateParts(memberId);
+    data.birthDay = parts.day;
+    data.birthMonth = parts.month;
+    data.birthYear = parts.year;
+    data.birthMonthOptions = birthMonthOptions(parts.month);
+    data.continueHref = nextPendingHref(memberId);
+  }
   if (validationMessage) data.validationMessage = validationMessage;
   // On a dev or staging host (stub adapter) show the just-sent confirmation link
   // on the page, scoped to the specific link type of whichever mail-sending
@@ -329,7 +349,7 @@ function renderClubAffiliationsCard(
 function renderPersonalDetails(
   req: Request,
   res: Response,
-  opts: { city?: string; region?: string; country?: string; birthDate?: string; gender?: string; yearValue?: string; showCompetitiveResults?: boolean; error?: string | null; statusOverride?: number } = {},
+  opts: { city?: string; region?: string; country?: string; birthDay?: string; birthMonth?: string; birthYear?: string; gender?: string; yearValue?: string; showCompetitiveResults?: boolean; error?: string | null; statusOverride?: number } = {},
 ): void {
   const form = memberService.getPersonalDetailsForm(req.user!.userId, opts);
   res.status(opts.statusOverride ?? 200).render('register/wizard/personal-details', {
@@ -400,7 +420,9 @@ async function dispatch<TFormState>(
         return;
       case 'retry_same':
         if (result.flash) writeWizardFlash(req, res, result.flash);
-        res.redirect(303, taskUrlFor(currentTaskType));
+        res.redirect(303, result.query
+          ? `${taskUrlFor(currentTaskType)}?${result.query}`
+          : taskUrlFor(currentTaskType));
         return;
       case 'validation_error':
         if (opts.renderValidationError) await opts.renderValidationError(result);
@@ -470,21 +492,34 @@ export const memberOnboardingController = {
         return;
       }
 
+      // The wizard belongs to signing up, and claiming belongs to the wizard. A
+      // member who has finished has no task here and no claim control that would
+      // act, so the surface is closed to them rather than rendered with its
+      // controls suppressed. A link they still need is asked for through the
+      // identity-link category of the contact form, which an administrator
+      // answers by applying the link. This sits below the cap acknowledgement
+      // above, which is the one render a member legitimately still needs: the
+      // club answer that completed signing up is also what capped them, and the
+      // explanation has nowhere else to appear.
+      if (req.isMember) {
+        res.redirect(303, dashboardHrefFor(req));
+        return;
+      }
+
       const taskState = memberOnboardingService.getTaskState(memberId, taskType);
       if (taskState === 'completed') {
-        // A completed legacy_claim still renders in two cases: while open
-        // staged candidates remain (the cross-source follow-on offer
-        // surfaces here right after the first claim completes), and while a
-        // linkage is still missing (the claim task is the sole claim and
-        // anchor surface, reached from the profile's legacy-claim link after
-        // onboarding, so a member who chose "continue without linking" can
-        // return). Otherwise completed tasks bounce to the next outstanding
-        // one.
-        const stillRendersForMember =
+        // A completed legacy_claim still renders to a registrant still in the
+        // wizard, in two cases: while open staged candidates remain (the
+        // cross-source follow-on offer surfaces here right after the first
+        // claim completes), and while a linkage is still missing, so a
+        // registrant who answered "continue without linking" can come back to
+        // it before signing up is finished. Otherwise completed tasks bounce to
+        // the next outstanding one.
+        const stillRendersDuringSignup =
           taskType === 'legacy_claim' &&
           (identityAccessService.listOpenStagedCandidates(memberId).length > 0 ||
             memberOnboardingService.legacyClaimLinkageIncomplete(memberId));
-        if (!stillRendersForMember) {
+        if (!stillRendersDuringSignup) {
           res.redirect(303, nextPendingHref(memberId));
           return;
         }
@@ -521,15 +556,15 @@ export const memberOnboardingController = {
     }
   },
 
-  // The legacy-claim continue-without-linking decision: the member's explicit
-  // statement that they never held an old-site account, which completes the
+  // The legacy-claim task's two non-claiming answers: the member never held an
+  // old-site account, or held one and cannot find it. Either completes the
   // required task. Not a skip; the wizard has none.
   async postContinueWithoutLinking(req: Request, res: Response, next: NextFunction): Promise<void> {
-    const attestedNoOldAccount = String(req.body?.no_old_account ?? '') === '1';
+    const answer = memberOnboardingService.readNoLinkAnswer(req.body?.no_link_answer);
     await dispatch(req, res, next, 'legacy_claim', {
-      action: () => memberOnboardingService.processContinueWithoutLinking(req.user!.userId, attestedNoOldAccount),
+      action: () => memberOnboardingService.processContinueWithoutLinking(req.user!.userId, answer),
       renderValidationError: async (result) => {
-        // The attestation is the only validation that can fail; re-render the
+        // A missing answer is the only validation that can fail; re-render the
         // page with the message so the member sees why the click did not advance.
         await renderLegacyClaim(req, res, { ...EMPTY_FLASH }, 422, result.message);
       },
@@ -642,30 +677,6 @@ export const memberOnboardingController = {
     }
   },
 
-  async postLegacyClaimHelpRequest(req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-      identityAccessService.submitLinkHelpRequest(req.user!.userId, {
-        statement:             String(req.body.statement ?? ''),
-        claimedLegacyUsername: String(req.body.claimed_legacy_username ?? ''),
-        claimedLegacyEmail:    String(req.body.claimed_legacy_email ?? ''),
-        vouchers:              String(req.body.vouchers ?? ''),
-        isDispute:             req.body.is_dispute === '1',
-      });
-      res.redirect(303, `${taskUrlFor('legacy_claim')}?help_request=sent`);
-    } catch (err) {
-      if (err instanceof ValidationError) {
-        await renderLegacyClaim(req, res, { ...EMPTY_FLASH }, 422, err.message);
-        return;
-      }
-      if (err instanceof RateLimitedError) {
-        if (err.retryAfterSeconds) res.setHeader('Retry-After', String(err.retryAfterSeconds));
-        await renderLegacyClaim(req, res, { ...EMPTY_FLASH }, 429, err.message);
-        return;
-      }
-      next(err);
-    }
-  },
-
   async postLegacyClaimAutoLinkDecline(req: Request, res: Response, next: NextFunction): Promise<void> {
     const candidateId = String(req.body.candidateId ?? '').trim();
     const personId = String(req.body.personId ?? '').trim();
@@ -727,7 +738,11 @@ export const memberOnboardingController = {
     const city = String(req.body.city ?? '');
     const region = String(req.body.region ?? '');
     const country = String(req.body.country ?? '');
-    const birthDate = String(req.body.birthDate ?? '');
+    const birth = {
+      day:   String(req.body.birthDay ?? ''),
+      month: String(req.body.birthMonth ?? ''),
+      year:  String(req.body.birthYear ?? ''),
+    };
     const gender = String(req.body.gender ?? '');
     const yearValue = String(req.body.year ?? '');
     // The form pairs a hidden "0" with the checkbox's "1" so an unchecked box
@@ -741,13 +756,15 @@ export const memberOnboardingController = {
       rawShowCompetitiveResults === '1' || rawShowCompetitiveResults === 'true';
     await dispatch<PersonalDetailsFormState>(req, res, next, 'personal_details', {
       action: () => memberOnboardingService.processPersonalDetailsSubmit(
-        req.user!.userId, city, region, country, birthDate, gender, yearValue, showCompetitiveResults),
+        req.user!.userId, city, region, country, birth, gender, yearValue, showCompetitiveResults),
       renderValidationError: (result) => {
         renderPersonalDetails(req, res, {
           city: result.formState.city,
           region: result.formState.region,
           country: result.formState.country,
-          birthDate: result.formState.birthDate,
+          birthDay: result.formState.birthDay,
+          birthMonth: result.formState.birthMonth,
+          birthYear: result.formState.birthYear,
           gender: result.formState.gender,
           yearValue: result.formState.yearValue,
           showCompetitiveResults: result.formState.showCompetitiveResults,
@@ -769,6 +786,26 @@ export const memberOnboardingController = {
         });
       },
     });
+  },
+
+  // Correcting the date on file during the claim task's last attempt at the
+  // match. The redirect back re-runs the match, because the step recomputes its
+  // candidates on every draw, so a corrected date searches again by itself.
+  async postLegacyClaimBirthDate(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      memberService.correctOwnBirthDate(req.user!.slug ?? '', {
+        day:   String(req.body.birthDay ?? ''),
+        month: String(req.body.birthMonth ?? ''),
+        year:  String(req.body.birthYear ?? ''),
+      });
+      res.redirect(303, '/register/wizard/legacy_claim?birth_date=saved');
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        await renderLegacyClaim(req, res, { ...EMPTY_FLASH }, 422, err.message);
+        return;
+      }
+      next(err);
+    }
   },
 
   async postAddAnchor(req: Request, res: Response, next: NextFunction): Promise<void> {

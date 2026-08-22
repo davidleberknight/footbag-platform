@@ -7,7 +7,7 @@
 <div class="wrapper">
   <section>
     {{#each navigation.contextLinks}}
-      <a href="{{href}}" class="back-link">&#8592; {{label}}</a>
+      <a href="{{href}}" class="back-link">{{label}}</a>
     {{/each}}
 
     {{#if content.error}}
@@ -23,12 +23,6 @@
           <dt>Name</dt>
           <dd>{{content.displayName}}</dd>
         </div>
-        {{#if content.birthDate}}
-        <div class="identity-row">
-          <dt>Date of birth</dt>
-          <dd>{{formatDate content.birthDate}}</dd>
-        </div>
-        {{/if}}
         <div class="identity-row">
           <dt>Email</dt>
           <dd>{{content.loginEmail}}</dd>
@@ -184,8 +178,34 @@
       </fieldset>
 
       <fieldset class="form-fieldset">
+        <legend>Date of birth</legend>
+        <small class="form-hint">For example, 31 March 1980. Private: only you and IFPA administrators can see it. It is what matches you to your old footbag.org account and your competition records, so correct it here if it is wrong.</small>
+        <div class="form-date-parts">
+          <div class="form-field form-date-day">
+            <label for="birthDay">Day</label>
+            <input type="text" id="birthDay" name="birthDay" inputmode="numeric" maxlength="2"
+                   autocomplete="bday-day" value="{{content.birthDay}}" />
+          </div>
+          <div class="form-field form-date-month">
+            <label for="birthMonth">Month</label>
+            <select id="birthMonth" name="birthMonth" autocomplete="bday-month">
+              <option value="">Choose a month</option>
+              {{#each content.birthMonthOptions}}
+                <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
+              {{/each}}
+            </select>
+          </div>
+          <div class="form-field form-date-year">
+            <label for="birthYear">Year</label>
+            <input type="text" id="birthYear" name="birthYear" inputmode="numeric" maxlength="4"
+                   autocomplete="bday-year" value="{{content.birthYear}}" />
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset class="form-fieldset">
         <legend>Gender (competition eligibility)</legend>
-        <p class="text-muted fs-sm">Private: visible only to you and IFPA admins. Never shown on public pages, member search, or rosters. Used only for gender-based event-category eligibility.</p>
+        <p class="text-muted fs-sm">Private: visible only to you and IFPA administrators. Never shown on public pages, member search, or rosters. Used only for gender-based event-category eligibility.</p>
         <div class="form-field">
           <label>
             <input type="radio" name="gender" value="male" {{#if (eq content.gender "male")}}checked{{/if}} />

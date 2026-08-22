@@ -29,7 +29,7 @@ test('brand-new player sees legacy_claim with search form, no candidate cards, s
   await expect(wizard.heading).toBeVisible();
   await expect(wizard.identifierInput).toBeVisible();
   await expect(wizard.findButton).toBeVisible();
-  await expect(wizard.continueWithoutLinkingButton).toBeVisible();
+  await expect(wizard.neverHadOldAccountButton).toBeVisible();
 
   const body = await page.textContent('body');
   expect(body).not.toMatch(/we found|match found|candidate/i);
@@ -128,7 +128,7 @@ test('personal_details: valid year saves to DB', async ({ browser, baseURL }) =>
   await wizard.goto('personal_details');
   await page.locator('#city').fill('Portland');
   await wizard.selectCountry('United States', 'OR');
-  await page.locator('#birthDate').fill('2000-01-15');
+  await wizard.fillBirthDate();
   await wizard.submitYear('2005');
 
   // club_affiliations is still pending (universal task), so completing
@@ -182,7 +182,7 @@ test('personal_details: empty year accepted, clears field', async ({ browser, ba
   await wizard.goto('personal_details');
   await page.locator('#city').fill('Portland');
   await wizard.selectCountry('United States', 'OR');
-  await page.locator('#birthDate').fill('2000-01-15');
+  await wizard.fillBirthDate();
   await wizard.yearInput.fill('');
   await wizard.saveButton.click();
   await page.waitForURL(/\/register\/wizard\//);

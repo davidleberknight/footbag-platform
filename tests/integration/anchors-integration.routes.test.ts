@@ -179,6 +179,58 @@ describe('former surname on the direct historical-person claim', () => {
     const claim = JSON.parse(String(audits(memberId, 'claim.historical_person')[0].metadata_json)) as Record<string, unknown>;
     expect(claim.evidence_strength).toBe('declared_anchor_only');
   });
+
+  it('a multi-word former surname is held to the whole of it, not to its last word', () => {
+    // The surname gate is the only thing standing between a self-asserted anchor
+    // and someone else's competition record, and a declared former surname needs
+    // no proof at all. Reducing a two-word surname to its final word would let
+    // "Garcia Lopez" reach every record ending in Lopez, which is the same
+    // false positive the recorded family name is deliberately held against.
+    insertHistoricalPerson(db, { person_id: 'HP-former-2', person_name: 'Ana Lopez' });
+    const memberId = insertMember(db, {
+      id: 'mem-former-2', slug: 'mem_former_2',
+      login_email: 'former2@example.com',
+      real_name: 'Rosa Newname', display_name: 'Rosa Newname',
+    });
+    identity.identityAccessService.declareAnchor(memberId, 'former_surname', 'Garcia Lopez');
+
+    expect(() => identity.identityAccessService.claimHistoricalPerson(memberId, 'HP-former-2'))
+      .toThrow();
+    const m = db.prepare('SELECT historical_person_id FROM members WHERE id = ?').get(memberId) as Record<string, unknown>;
+    expect(m.historical_person_id).toBeNull();
+  });
+
+  it('a multi-word former surname still reaches the record that actually carries it', () => {
+    insertHistoricalPerson(db, { person_id: 'HP-former-3', person_name: 'Maria Garcia Lopez' });
+    const memberId = insertMember(db, {
+      id: 'mem-former-3', slug: 'mem_former_3',
+      login_email: 'former3@example.com',
+      real_name: 'Maria Newname', display_name: 'Maria Newname',
+    });
+    identity.identityAccessService.declareAnchor(memberId, 'former_surname', 'Garcia Lopez');
+
+    identity.identityAccessService.claimHistoricalPerson(memberId, 'HP-former-3');
+
+    const m = db.prepare('SELECT historical_person_id FROM members WHERE id = ?').get(memberId) as Record<string, unknown>;
+    expect(m.historical_person_id).toBe('HP-former-3');
+  });
+
+  it('a former surname carrying a suffix still matches the record without it', () => {
+    // The target side drops Jr before comparing, so the member side has to as
+    // well or the two halves are folded differently.
+    insertHistoricalPerson(db, { person_id: 'HP-former-4', person_name: 'Bill Oldname' });
+    const memberId = insertMember(db, {
+      id: 'mem-former-4', slug: 'mem_former_4',
+      login_email: 'former4@example.com',
+      real_name: 'Bill Newname', display_name: 'Bill Newname',
+    });
+    identity.identityAccessService.declareAnchor(memberId, 'former_surname', 'Oldname Jr');
+
+    identity.identityAccessService.claimHistoricalPerson(memberId, 'HP-former-4');
+
+    const m = db.prepare('SELECT historical_person_id FROM members WHERE id = ?').get(memberId) as Record<string, unknown>;
+    expect(m.historical_person_id).toBe('HP-former-4');
+  });
 });
 
 describe('anchor-change rate limiting', () => {
@@ -212,12 +264,13 @@ describe('registration-time conflict prompt', () => {
     identity.identityAccessService.claimLegacyAccount('mem-conflict-owner', 'LM-conflict-1');
   }
 
-  it('records the prompted event at registration, renders the wizard prompt, and the dispute files a help request', async () => {
+  it('records the prompted event at registration, renders the wizard prompt, and the later dispute files a help request', async () => {
     seedClaimedRecord();
     const memberId = insertMember(db, {
       id: 'mem-conflict-new', slug: 'mem_conflict_new',
       login_email: 'conflict-new@example.com',
       real_name: 'Carl Conflictsson', display_name: 'Carl Conflictsson',
+      onboarding: 'none',
     });
     // The legacy-claim step renders only once personal details are on file.
     insertOnboardingTask(db, memberId, 'personal_details', 'completed');
@@ -236,11 +289,25 @@ describe('registration-time conflict prompt', () => {
     expect(page.text).toContain('We already have a claim under this name');
     expect(page.text).toContain('Connie Conflictsson');
 
+    // The registrant is told to finish signing up first, because an
+    // administrator answers on a member-only surface. Once they have, the
+    // identity-link category of the contact form is the route, and the platform
+    // classifies the request as a dispute from the records it detects rather
+    // than from anything the member declares.
+    // Rendering the task above already materialised the task rows, so signing
+    // up is finished by advancing them rather than by seeding new ones.
+    db.prepare(
+      `UPDATE member_onboarding_tasks SET state = 'completed' WHERE member_id = ?`,
+    ).run(memberId);
+
     const res = await request(createApp())
-      .post('/register/wizard/legacy_claim/help-request')
+      .post('/members/mem_conflict_new/contact-admin')
       .set('Cookie', cookieFor(memberId))
       .type('form')
-      .send({ statement: 'That claimed record is actually mine.', is_dispute: '1' });
+      .send({
+        category: 'identity_link_issue',
+        message: 'That claimed record is actually mine.',
+      });
     expect(res.status).toBe(303);
     expect(audits(memberId, 'legacy.registration_conflict_disputed')).toHaveLength(1);
 
@@ -248,6 +315,42 @@ describe('registration-time conflict prompt', () => {
       `SELECT reason_text FROM work_queue_items WHERE entity_id = ? AND task_type = 'member_link_help_request'`,
     ).get(memberId) as { reason_text: string };
     expect(JSON.parse(item.reason_text).is_dispute).toBe(true);
+  });
+
+  it('tells a registrant what they can do instead, and offers them no way to write to an administrator', async () => {
+    // The same conflict, read by someone still signing up. An administrator
+    // answers on a member-only surface, so the dispute form is not theirs to
+    // use yet and the card must not tell them to use one.
+    insertLegacyMember(db, {
+      legacy_member_id: 'LM-conflict-pending', legacy_email: 'rival-claimed@old.example.com',
+      real_name: 'Rhea Rivalsson', display_name: 'Rhea Rivalsson',
+    });
+    insertMember(db, {
+      id: 'mem-rival-owner', slug: 'mem_rival_owner',
+      login_email: 'rival-owner@example.com',
+      real_name: 'Rhea Rivalsson', display_name: 'Rhea Rivalsson',
+    });
+    identity.identityAccessService.claimLegacyAccount('mem-rival-owner', 'LM-conflict-pending');
+
+    const memberId = insertMember(db, {
+      id: 'mem-conflict-pending', slug: 'mem_conflict_pending',
+      login_email: 'conflict-pending@example.com',
+      real_name: 'Ross Rivalsson', display_name: 'Ross Rivalsson',
+      onboarding: 'none',
+    });
+    insertOnboardingTask(db, memberId, 'personal_details', 'completed');
+    insertOnboardingTask(db, memberId, 'legacy_claim', 'pending');
+    insertOnboardingTask(db, memberId, 'club_affiliations', 'pending');
+
+    const page = await request(createApp())
+      .get('/register/wizard/legacy_claim')
+      .set('Cookie', cookieFor(memberId));
+    expect(page.status).toBe(200);
+    expect(page.text).toContain('We already have a claim under this name');
+    expect(page.text).toContain('finish signing up and then ask an IFPA administrator');
+    expect(page.text).not.toContain("tell an administrator and we'll investigate");
+    expect(page.text).not.toContain('Yes, One of These Is Me');
+    expect(page.text).not.toContain('/register/wizard/legacy_claim/help-request');
   });
 
   it('never surfaces a claimed legacy account\'s legal real_name: the card matches and shows the chosen display handle only', async () => {
@@ -271,6 +374,7 @@ describe('registration-time conflict prompt', () => {
       id: 'mem-conflict-legal', slug: 'mem_conflict_legal',
       login_email: 'conflict-legal@example.com',
       real_name: 'Hans Hiddenlegal', display_name: 'Hans Hiddenlegal',
+      onboarding: 'none',
     });
     insertOnboardingTask(db, legalMatchId, 'personal_details', 'completed');
     const legalPage = await request(createApp())
@@ -288,6 +392,7 @@ describe('registration-time conflict prompt', () => {
       id: 'mem-conflict-handle', slug: 'mem_conflict_handle',
       login_email: 'conflict-handle@example.com',
       real_name: 'Berta Showhandle', display_name: 'Berta Showhandle',
+      onboarding: 'none',
     });
     insertOnboardingTask(db, handleMatchId, 'personal_details', 'completed');
     const handlePage = await request(createApp())
@@ -310,12 +415,15 @@ describe('cross-source offer after a one-source claim', () => {
       real_name: `Xavier Source${tag}`, display_name: `Xavier Source${tag}`,
       country: opts.legacyCountry ?? null,
     });
+    // Still signing up: the claim task belongs to the wizard, which is closed to
+    // a member who has finished.
     const memberId = insertMember(db, {
       id: `mem-xs-${tag}`, slug: `mem_xs_${tag}`,
       login_email: `xs-${tag}@example.com`,
       real_name: `Xavier Source${tag}`, display_name: `Xavier Source${tag}`,
       country: opts.memberCountry ?? 'US',
       birth_date: '1980-01-01',
+      onboarding: 'none',
     });
     // The direct historical-record claim runs only once personal details are on
     // file, and completing that step also lets the legacy_claim GET render the
@@ -483,7 +591,7 @@ describe('registration conflict ledger entry', () => {
         email: 'ledger-new@example.com',
         password: 'TestPassword123!',
         confirmPassword: 'TestPassword123!',
-        realName: 'Newcomer Ledgersson',
+        givenNames: 'Newcomer', familyName: 'Ledgersson',
         displayName: 'Newcomer Ledgersson',
       });
     expect(res.status).toBe(303);

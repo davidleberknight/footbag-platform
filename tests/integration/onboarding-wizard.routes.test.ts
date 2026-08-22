@@ -145,8 +145,15 @@ describe('GET /register/wizard/:taskType — auth + task list bootstrap', () => 
         .set('Cookie', cookie);
       expect(res.status, `taskType=${taskType}`).toBe(200);
     }
-    // club_affiliations is universal: a member with no legacy linkage has no
-    // Stage 1 card and lands on the find-or-create-your-club wrap-up landing.
+    // Each step renders when the registrant reaches it, and only then: the
+    // steps are answered in order, so the claim step is answered before the club
+    // step can draw. club_affiliations is universal even so: a member with no
+    // legacy linkage has no Stage 1 card and lands on the find-or-create-your-
+    // club wrap-up landing.
+    testDb.prepare(
+      `UPDATE member_onboarding_tasks SET state = 'completed'
+        WHERE member_id = ? AND task_type = 'legacy_claim'`,
+    ).run(memberId);
     const ca = await request(createApp())
       .get('/register/wizard/club_affiliations')
       .set('Cookie', cookie);
@@ -189,7 +196,7 @@ describe('POST /register/wizard/personal_details/submit — collects details and
         city: 'Eugene',
         region: 'OR',
         country: 'USA',
-        birthDate: '1990-05-05',
+        birthDay: '5', birthMonth: '5', birthYear: '1990',
         gender: 'male',
         year: '2010',
         showFirstCompetitionYear: '1',
@@ -224,7 +231,7 @@ describe('POST /register/wizard/personal_details/submit — collects details and
         city: 'Eugene',
         region: 'OR',
         country: 'USA',
-        birthDate: '1990-05-05',
+        birthDay: '5', birthMonth: '5', birthYear: '1990',
         showCompetitiveResults: ['0', '1'],
       });
     expect(res.status).toBe(303);
@@ -250,7 +257,7 @@ describe('POST /register/wizard/personal_details/submit — collects details and
         city: 'Eugene',
         region: 'OR',
         country: 'USA',
-        birthDate: '1990-05-05',
+        birthDay: '5', birthMonth: '5', birthYear: '1990',
         showCompetitiveResults: '0',
       });
     expect(res.status).toBe(303);
@@ -276,7 +283,7 @@ describe('POST /register/wizard/personal_details/submit — collects details and
         city: 'Eugene',
         region: 'OR',
         country: 'USA',
-        birthDate: '2023-02-30',
+        birthDay: '30', birthMonth: '2', birthYear: '2023',
         gender: 'male',
       });
     // A calendar-invalid date is rejected: the submit does not advance, the task
@@ -286,6 +293,105 @@ describe('POST /register/wizard/personal_details/submit — collects details and
     const row = testDb.prepare('SELECT birth_date FROM members WHERE id = ?')
       .get(memberId) as { birth_date: string | null };
     expect(row.birth_date).toBeNull();
+  });
+
+  it('refuses a re-submission against the already-completed task and stores none of it', async () => {
+    // The step's page already refuses to draw once the task is complete, so a
+    // submission arriving here is a stale tab, a back-button re-post, or a
+    // crafted request. It must not rewrite the personal details the claim task
+    // has already matched on.
+    const stamp = Date.now();
+    const memberId = insertClaimReadyMember({
+      slug: `wiz_pd_done_${stamp}`,
+      login_email: `wiz-pd-done-${stamp}@example.com`,
+      city: 'Eugene', region: 'OR', country: 'USA', birth_date: '1990-05-05',
+    });
+    const before = countAuditEntries(memberId, 'wizard.task.completed');
+
+    const res = await request(createApp())
+      .post('/register/wizard/personal_details/submit')
+      .set('Cookie', cookieFor(memberId))
+      .type('form')
+      .send({
+        city: 'Tallinn',
+        region: '',
+        country: 'Estonia',
+        birthDay: '9', birthMonth: '9', birthYear: '1971',
+        gender: 'female',
+        year: '1999',
+        showCompetitiveResults: '0',
+      });
+
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/register/wizard/personal_details');
+    expect(getTaskState(memberId, 'personal_details')).toBe('completed');
+    const row = testDb.prepare(
+      'SELECT city, region, country, birth_date, gender FROM members WHERE id = ?',
+    ).get(memberId) as {
+      city: string; region: string; country: string; birth_date: string; gender: string;
+    };
+    expect(row.city).toBe('Eugene');
+    expect(row.region).toBe('OR');
+    expect(row.country).toBe('USA');
+    expect(row.birth_date).toBe('1990-05-05');
+    expect(row.gender).not.toBe('female');
+    expect(countAuditEntries(memberId, 'wizard.task.completed')).toBe(before);
+  });
+
+  it('sends the refused re-submission on to whatever the member still owes', async () => {
+    // Bouncing to the step's own GET is only correct because that GET is the
+    // single place deciding where a completed task sends the member. Follow the
+    // hop rather than trusting it, or the guard could quietly dead-end a member
+    // on a page that refuses to draw.
+    const stamp = Date.now();
+    const memberId = insertClaimReadyMember({
+      slug: `wiz_pd_onward_${stamp}`,
+      login_email: `wiz-pd-onward-${stamp}@example.com`,
+    });
+    const posted = await request(createApp())
+      .post('/register/wizard/personal_details/submit')
+      .set('Cookie', cookieFor(memberId))
+      .type('form')
+      .send({ city: 'Eugene', region: 'OR', country: 'USA', birthDay: '5', birthMonth: '5', birthYear: '1990' });
+    expect(posted.headers.location).toBe('/register/wizard/personal_details');
+
+    const followed = await request(createApp())
+      .get(posted.headers.location as string)
+      .set('Cookie', cookieFor(memberId));
+    expect(followed.status).toBe(303);
+    expect(followed.headers.location).toBe('/register/wizard/legacy_claim');
+  });
+
+  it('does not fire while the task is still pending, so a validation retry still completes it', async () => {
+    // The guard keys on the completed state, and a rejected submission leaves
+    // the task pending. A guard that keyed on anything coarser would lock a
+    // member out of the step after their first typo.
+    const stamp = Date.now();
+    const memberId = insertMember(testDb, {
+      onboarding: 'none',
+      slug: `wiz_pd_retry_${stamp}`,
+      login_email: `wiz-pd-retry-${stamp}@example.com`,
+    });
+    await request(createApp())
+      .get('/register/wizard/personal_details')
+      .set('Cookie', cookieFor(memberId));
+
+    const rejected = await request(createApp())
+      .post('/register/wizard/personal_details/submit')
+      .set('Cookie', cookieFor(memberId))
+      .type('form')
+      .send({ city: 'Eugene', region: 'OR', country: 'USA', birthDay: '30', birthMonth: '2', birthYear: '1990' });
+    expect(rejected.status).toBe(422);
+    expect(getTaskState(memberId, 'personal_details')).toBe('pending');
+
+    const accepted = await request(createApp())
+      .post('/register/wizard/personal_details/submit')
+      .set('Cookie', cookieFor(memberId))
+      .type('form')
+      .send({ city: 'Eugene', region: 'OR', country: 'USA', birthDay: '5', birthMonth: '5', birthYear: '1990' });
+    expect(accepted.status).toBe(303);
+    expect(accepted.headers.location).toBe('/register/wizard/legacy_claim');
+    expect(getTaskState(memberId, 'personal_details')).toBe('completed');
   });
 
   it('refuses a full state name where the country has an official code set', async () => {
@@ -305,7 +411,7 @@ describe('POST /register/wizard/personal_details/submit — collects details and
         city: 'Eugene',
         region: 'Oregon',
         country: 'USA',
-        birthDate: '1990-05-05',
+        birthDay: '5', birthMonth: '5', birthYear: '1990',
         gender: 'male',
       });
     expect(res.status).not.toBe(303);
@@ -328,7 +434,7 @@ describe('POST /register/wizard/:taskType/skip — 303 advance to next task', ()
       .post('/register/wizard/legacy_claim/continue-without-linking')
       .set('Cookie', cookieFor(memberId))
       .type('form')
-      .send({ no_old_account: '1' });
+      .send({ no_link_answer: 'never_had_one' });
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/register/wizard/club_affiliations');
     // legacy_claim is a required decision: the "nothing to claim" control
@@ -346,25 +452,85 @@ describe('POST /register/wizard/:taskType/skip — 303 advance to next task', ()
     expect(getTaskState(memberId, 'club_affiliations')).toBe('pending');
   });
 
-  it('continue-without-linking requires the never-had-an-account attestation', async () => {
+  it('the cannot-find-it answer completes the task and offers one last attempt at the match', async () => {
+    // A registrant who did hold an old account is never asked to say they did
+    // not in order to get past this step. The answer finishes the step outright,
+    // and the attempt it opens gates nothing, because completion has already
+    // happened by the time it is offered.
+    const stamp = Date.now();
+    const memberId = insertClaimReadyMember({ slug: `wiz_cfi_${stamp}`, login_email: `wiz-cfi-${stamp}@example.com` });
+    const cookie = cookieFor(memberId);
+
+    const res = await request(createApp())
+      .post('/register/wizard/legacy_claim/continue-without-linking')
+      .set('Cookie', cookie).type('form').send({ no_link_answer: 'cannot_find_it' });
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/register/wizard/legacy_claim?sharpen=1');
+    expect(getTaskState(memberId, 'legacy_claim')).toBe('completed');
+
+    const page = await request(createApp()).get(res.headers.location).set('Cookie', cookie);
+    expect(page.status).toBe(200);
+    expect(page.text).toContain('One more look for your old account');
+    // The date the matcher runs on is offered back, which is the only place a
+    // registrant can correct it once the details step has closed behind them.
+    expect(page.text).toContain('/register/wizard/legacy_claim/birth-date');
+    expect(page.text).toContain('Carry on with signing up');
+    // The step is answered, so it stops asking for an answer.
+    expect(page.text).not.toContain('I Never Had an Old Account');
+  });
+
+  it('lets a registrant correct the date the matcher runs on, and re-checks', async () => {
+    const stamp = Date.now();
+    const memberId = insertClaimReadyMember({ slug: `wiz_dob_${stamp}`, login_email: `wiz-dob-${stamp}@example.com` });
+    const cookie = cookieFor(memberId);
+    await request(createApp())
+      .post('/register/wizard/legacy_claim/continue-without-linking')
+      .set('Cookie', cookie).type('form').send({ no_link_answer: 'cannot_find_it' });
+
+    const saved = await request(createApp())
+      .post('/register/wizard/legacy_claim/birth-date')
+      .set('Cookie', cookie).type('form')
+      .send({ birthDay: '9', birthMonth: '4', birthYear: '1984' });
+    expect(saved.status).toBe(303);
+    expect(saved.headers.location).toBe('/register/wizard/legacy_claim?birth_date=saved');
+
+    const page = await request(createApp()).get(saved.headers.location).set('Cookie', cookie);
+    expect(page.text).toContain('checked again for matches');
+    expect(page.text).toContain('value="1984"');
+
+    const bad = await request(createApp())
+      .post('/register/wizard/legacy_claim/birth-date')
+      .set('Cookie', cookie).type('form')
+      .send({ birthDay: '31', birthMonth: '2', birthYear: '1984' });
+    expect(bad.status).toBe(422);
+  });
+
+  it('continue-without-linking requires one of the two answers', async () => {
     const stamp = Date.now();
     const memberId = insertClaimReadyMember({ slug: `wiz_attest_${stamp}`, login_email: `wiz-attest-${stamp}@example.com` });
     const cookie = cookieFor(memberId);
     await request(createApp()).get('/register/wizard/legacy_claim').set('Cookie', cookie);
 
-    // Without the attestation the decision is refused: the legacy-claim page
-    // re-renders at 422 with the confirmation message and the task is untouched.
+    // With no answer the decision is refused: the legacy-claim page re-renders
+    // at 422 with the message and the task is untouched. An unrecognised value
+    // is treated the same way, so a crafted body cannot complete the task.
     const missing = await request(createApp())
       .post('/register/wizard/legacy_claim/continue-without-linking')
       .set('Cookie', cookie).type('form').send({});
     expect(missing.status).toBe(422);
-    expect(missing.text).toContain('confirm you never had an account');
+    expect(missing.text).toContain('Tell us which one applies');
     expect(getTaskState(memberId, 'legacy_claim')).not.toBe('completed');
 
-    // With the attestation the required decision completes and the wizard advances.
+    const bogus = await request(createApp())
+      .post('/register/wizard/legacy_claim/continue-without-linking')
+      .set('Cookie', cookie).type('form').send({ no_link_answer: 'whatever' });
+    expect(bogus.status).toBe(422);
+    expect(getTaskState(memberId, 'legacy_claim')).not.toBe('completed');
+
+    // With an answer the required decision completes and the wizard advances.
     const attested = await request(createApp())
       .post('/register/wizard/legacy_claim/continue-without-linking')
-      .set('Cookie', cookie).type('form').send({ no_old_account: '1' });
+      .set('Cookie', cookie).type('form').send({ no_link_answer: 'never_had_one' });
     expect(attested.status).toBe(303);
     expect(attested.headers.location).toBe('/register/wizard/club_affiliations');
     expect(getTaskState(memberId, 'legacy_claim')).toBe('completed');
@@ -379,12 +545,12 @@ describe('POST /register/wizard/:taskType/skip — 303 advance to next task', ()
     let res = await request(createApp())
       .post('/register/wizard/personal_details/submit')
       .set('Cookie', cookie).type('form')
-      .send({ city: 'Eugene', region: 'OR', country: 'USA', birthDate: '1990-05-05', gender: 'undisclosed' });
+      .send({ city: 'Eugene', region: 'OR', country: 'USA', birthDay: '5', birthMonth: '5', birthYear: '1990', gender: 'undisclosed' });
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/register/wizard/legacy_claim');
     // legacy_claim is required: the "nothing to claim" control, with the never-
     // had-an-account attestation, completes it.
-    res = await request(createApp()).post('/register/wizard/legacy_claim/continue-without-linking').set('Cookie', cookie).type('form').send({ no_old_account: '1' });
+    res = await request(createApp()).post('/register/wizard/legacy_claim/continue-without-linking').set('Cookie', cookie).type('form').send({ no_link_answer: 'never_had_one' });
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/register/wizard/club_affiliations');
     // club_affiliations never requires a club, but it does require an answer.
@@ -524,7 +690,32 @@ describe('POST /register/wizard/legacy_claim/find — PRG with flash-cookie carr
       .get('/register/wizard/legacy_claim')
       .set('Cookie', cookieFor(memberId));
     expect(followUp.text).toContain('Wiz HP Target');
+    // The surname on the record is not the one on this account, so the claim
+    // gate would refuse it. The record still shows, because hiding it would hide
+    // a member's own history at exactly the moment their name has changed, but
+    // the card offers the remedy rather than a claim that cannot succeed.
+    expect(followUp.text).not.toContain(`href="/history/${hpId}/claim"`);
+    expect(followUp.text).toContain('Add a Former Surname or Old Email');
+    expect(followUp.text).toContain('href="#anchors"');
+  });
+
+  it('offers the claim itself when the surname on the record will pass the gate', async () => {
+    const stamp = Date.now();
+    const hpId = `hp-wizok-${stamp}`;
+    insertHistoricalPerson(testDb, { person_id: hpId, person_name: 'Wilma Passable' });
+    const memberId = insertClaimReadyMember({
+      slug: `wiz_hpok_${stamp}`, login_email: `wiz-hpok-${stamp}@example.com`,
+      real_name: 'Wilma Passable', display_name: 'Wilma Passable', birth_date: '1980-01-01',
+    });
+    const agent = request.agent(createApp());
+    await agent
+      .post('/register/wizard/legacy_claim/find')
+      .set('Cookie', cookieFor(memberId)).type('form').send({ identifier: hpId });
+    const followUp = await agent
+      .get('/register/wizard/legacy_claim')
+      .set('Cookie', cookieFor(memberId));
     expect(followUp.text).toContain(`href="/history/${hpId}/claim"`);
+    expect(followUp.text).toContain('Claim This Record');
   });
 
   // ── Regression: confirmation-email enqueue failure ───────────────────────
@@ -722,8 +913,8 @@ describe('last outstanding task -> 303 to /register/wizard/complete', () => {
     await request(createApp())
       .post('/register/wizard/personal_details/submit')
       .set('Cookie', cookie).type('form')
-      .send({ city: 'Eugene', region: 'OR', country: 'USA', birthDate: '1990-05-05', gender: 'undisclosed' });
-    await request(createApp()).post('/register/wizard/legacy_claim/continue-without-linking').set('Cookie', cookie).type('form').send({ no_old_account: '1' });
+      .send({ city: 'Eugene', region: 'OR', country: 'USA', birthDay: '5', birthMonth: '5', birthYear: '1990', gender: 'undisclosed' });
+    await request(createApp()).post('/register/wizard/legacy_claim/continue-without-linking').set('Cookie', cookie).type('form').send({ no_link_answer: 'never_had_one' });
     await request(createApp()).post('/register/wizard/club_affiliations/none').set('Cookie', cookie).type('form').send({});
     const followUp = await request(createApp()).get('/register/wizard/complete').set('Cookie', cookie);
     expect(followUp.status).toBe(200);
@@ -739,7 +930,7 @@ describe('per-member scoping: handlers read memberId from session, never URL/bod
     await request(createApp()).get('/register/wizard/legacy_claim').set('Cookie', cookieFor(memberBId));
     const beforeB = getTaskState(memberBId, 'legacy_claim');
     await request(createApp())
-      .post('/register/wizard/legacy_claim/continue-without-linking').set('Cookie', cookieFor(memberAId)).type('form').send({ no_old_account: '1' });
+      .post('/register/wizard/legacy_claim/continue-without-linking').set('Cookie', cookieFor(memberAId)).type('form').send({ no_link_answer: 'never_had_one' });
     // The legacy_claim decision completes member A's task; member B is untouched.
     expect(getTaskState(memberAId, 'legacy_claim')).toBe('completed');
     expect(getTaskState(memberBId, 'legacy_claim')).toBe(beforeB);
@@ -775,7 +966,7 @@ describe('flash cookie behavior (adversarial)', () => {
     expect(get.text).not.toContain(`hp_review_page`);
   });
 
-  it('flash is not consumed by unrelated task GET; persists for next legacy_claim GET', async () => {
+  it('flash is not consumed by an unrelated page; persists for next legacy_claim GET', async () => {
     const stamp = Date.now();
     const memberId = insertClaimReadyMember({ slug: `wiz_fb_${stamp}`, login_email: `wiz-fb-${stamp}@example.com`, birth_date: '1980-01-01' });
     const agent = request.agent(createApp());
@@ -785,8 +976,11 @@ describe('flash cookie behavior (adversarial)', () => {
       .type('form')
       .send({ identifier: `garbage-${stamp}` });
     expect(post.status).toBe(303);
-    // Detour to a different task GET; the flash must NOT be consumed there.
-    const detour = await agent.get('/register/wizard/club_affiliations').set('Cookie', cookieFor(memberId));
+    // Detour to an unrelated page; the flash must NOT be consumed there. The
+    // detour is outside the wizard because the steps are answered in order, so
+    // exactly one wizard page draws for a registrant at any moment: an earlier
+    // step redirects onward and a later one redirects back.
+    const detour = await agent.get('/legal').set('Cookie', cookieFor(memberId));
     expect(detour.status).toBe(200);
     // The legacy_claim GET still has access to the flash.
     const target = await agent.get('/register/wizard/legacy_claim').set('Cookie', cookieFor(memberId));

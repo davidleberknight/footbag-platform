@@ -23,6 +23,8 @@ export const FLASH_KIND = {
   WORK_QUEUE_RESOLVED: 'work_queue_resolved',
   WORK_QUEUE_REVIEWED: 'work_queue_reviewed',
   WORK_QUEUE_CLAIMED: 'work_queue_claimed',
+  WORK_QUEUE_MEMBER_ASKED: 'work_queue_member_asked',
+  MEMBER_QUESTION_ANSWERED: 'member_question_answered',
   CLUB_ACTION: 'club_action',
   PROFILE_UPDATED: 'profile_updated',
   RECURRING_DONATION_CANCELED: 'recurring_donation_canceled',

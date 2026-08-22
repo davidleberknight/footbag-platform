@@ -66,6 +66,15 @@ import { emailService } from './emailService';
 import { readIntConfig } from './configReader';
 import { RateLimitedError, ValidationError } from './serviceErrors';
 import { uuidv7Hex } from './uuidv7';
+import { formatDateDisplay } from './dateFormat';
+import {
+  navigateTo,
+  pendingAction,
+  urgentAction,
+  type MemberActionContext,
+  type MemberActionItem,
+  type MemberActionSource,
+} from './memberActionItem';
 
 const REASON_TEXT_MAX_LENGTH = 4000;
 const ACTIVE_PLAYER_DURATION_DAYS_DEFAULT = 730;
@@ -182,6 +191,19 @@ export function endOnTier3Grant(
 export interface ActivePlayerStatus {
   is_active_player: 0 | 1;
   active_player_expires_at: string | null;
+  /**
+   * The date the standing runs to, or ran to once it has lapsed. Set for a
+   * lapsed member, where `active_player_expires_at` is null because the expiry
+   * ledger row cleared it.
+   *
+   * Null in three cases, all of which read the same way to a member and should:
+   * they have never been an Active Player; they are Tier 1 or above, where the
+   * standing does not apply; or their standing was ended rather than allowed to
+   * lapse, because they reached a paid tier. That last case leaves a future date
+   * in the ledger which is the date the period would have run to, so it is
+   * deliberately not reported as a date anything ran out on.
+   */
+  active_player_last_expires_at: string | null;
   latest_active_player_reason_code: string | null;
 }
 
@@ -237,12 +259,14 @@ export function getStatus(memberId: string): ActivePlayerStatus {
     return {
       is_active_player: 0,
       active_player_expires_at: null,
+      active_player_last_expires_at: null,
       latest_active_player_reason_code: null,
     };
   }
   return {
     is_active_player: row.is_active_player,
     active_player_expires_at: row.active_player_expires_at,
+    active_player_last_expires_at: row.active_player_last_expires_at,
     latest_active_player_reason_code: row.latest_active_player_reason_code,
   };
 }
@@ -785,3 +809,111 @@ export function applyExpiry(memberId: string, now?: Date): { ok: true; expired: 
   });
   return { ok: true, expired: true };
 }
+
+// ── The member's Active Player obligation, as a dashboard action item ────────
+
+// The window the item is shown in, past the expiry date. The design fixes it at
+// thirty days: long enough that a member who signs in a few weeks late still
+// sees what happened, short enough that a long-lapsed account is not nagged
+// forever about a status it no longer expects.
+const LAPSED_ITEM_VISIBLE_DAYS = 30;
+
+// Whole UTC days from now until the given date; negative once it has passed.
+// Computed here rather than imported from the expiry service, which imports
+// this one.
+function wholeDaysUntil(iso: string, nowIso: string): number {
+  const target = Date.UTC(
+    new Date(iso).getUTCFullYear(), new Date(iso).getUTCMonth(), new Date(iso).getUTCDate());
+  const today = Date.UTC(
+    new Date(nowIso).getUTCFullYear(), new Date(nowIso).getUTCMonth(), new Date(nowIso).getUTCDate());
+  return Math.round((target - today) / MS_PER_DAY);
+}
+
+// The earliest pre-expiry reminder, which is when the member first hears about
+// this by email, and therefore the earliest the item should appear: the block
+// and the mail say the same thing from the same moment. The two keys are read
+// here rather than through the expiry service for the same import reason above.
+function firstReminderLeadDays(): number {
+  return Math.max(
+    readIntConfig('active_player_expiry_reminder_days_1', 30),
+    readIntConfig('active_player_expiry_reminder_days_2', 7),
+  );
+}
+
+/**
+ * The routes back that the IFPA membership rules actually allow this member.
+ *
+ * Buying either paid tier removes the dependence on Active Player altogether,
+ * since the rules say a Tier 1 or higher member has no need of the status.
+ * Attending an event registered through the IFPA website grants or extends it.
+ *
+ * A vouch is the third route the rules allow, and it is deliberately not here.
+ * The member cannot perform it: a Tier 2 or Tier 3 member gives a vouch, so
+ * offering the member a control would promise them an action that is not theirs
+ * to take. It is stated on the item's detail line instead.
+ *
+ * The one-time club-join grant is deliberately NOT offered. It reaches only a
+ * Tier 0 member who has never previously been an Active Player, and every member
+ * this item can appear for holds an expiry date and has therefore already been
+ * one. Offering it would advertise a route the grant refuses. It belongs in the
+ * Tier 0 benefits text a newcomer reads instead.
+ *
+ * The upgrade is a link rather than a purchase, because one control cannot buy
+ * either tier; it points at the membership block on this same page, which sells
+ * both and shows what each costs.
+ */
+function activePlayerOptions() {
+  return [
+    navigateTo('Upgrade to Tier 1 or Tier 2 Membership', '#membership'),
+    navigateTo('Find an Event', '/events'),
+  ];
+}
+
+/**
+ * Active Player standing, as an obligation. Pending while the status still
+ * stands and the first reminder has gone out; needs-attention-now once it has
+ * lapsed, until the lapsed window closes.
+ */
+export const activePlayerActionSource: MemberActionSource = {
+  sourceKey: 'active_player',
+
+  itemsFor(ctx: MemberActionContext): MemberActionItem[] {
+    const status = getStatus(ctx.memberId);
+    // The date the standing runs to, or last ran to. Reading the plain expiry
+    // would miss every member whose lapse the expiry job has processed, since
+    // that row clears it, and those are the members this item is for.
+    const expiresAt = status.active_player_last_expires_at;
+    // No date at all means the member has never held the status, so there is
+    // nothing approaching and nothing lost.
+    if (!expiresAt) return [];
+
+    const nowIso = new Date().toISOString();
+    const days = wholeDaysUntil(expiresAt, nowIso);
+    const on = formatDateDisplay(expiresAt, { style: 'long' });
+
+    if (status.is_active_player === 1) {
+      if (days > firstReminderLeadDays()) return [];
+      // Headlines here are prompts, not status. The membership block further
+      // down the same profile already states the standing and what is lost with
+      // it; repeating that wording would say one thing twice on one page.
+      return [pendingAction({
+        kind: 'active_player_expiring',
+        headline: 'Keep your Active Player status',
+        // The vouch route is stated rather than offered: it is a Tier 2 or Tier
+        // 3 member's action, not this member's, so it is not a control.
+        detail: `It runs out on ${on}. A Tier 2 or Tier 3 member can also vouch for you to extend it.`,
+        deadline: expiresAt,
+        options: activePlayerOptions(),
+      })];
+    }
+
+    if (days < -LAPSED_ITEM_VISIBLE_DAYS) return [];
+    return [urgentAction({
+      kind: 'active_player_lapsed',
+      headline: 'Get your Active Player status back',
+      detail: `It ran out on ${on}. A Tier 2 or Tier 3 member can also vouch for you to earn it back.`,
+      deadline: expiresAt,
+      options: activePlayerOptions(),
+    })];
+  },
+};

@@ -44,7 +44,7 @@ async function registerFlash(
   email: string,
 ): Promise<string> {
   const reg = await request(app).post('/register').type('form').send({
-    realName: 'Reg User',
+    givenNames: 'Reg', familyName: 'User',
     email,
     password: 'simpass!1',
     confirmPassword: 'simpass!1',
@@ -93,7 +93,7 @@ describe('GET /register/check-email — dev mode (SES_ADAPTER=stub)', () => {
     // Another pending user whose verify token is in the same stub buffer.
     await registerFlash(app, 'resend-other@example.com');
     await request(app).post('/register').type('form').send({
-      realName: 'Sim Card Two',
+      givenNames: 'Sim', familyName: 'Card Two',
       email: 'sim-card-two@example.com',
       password: 'simpass!1',
       confirmPassword: 'simpass!1',

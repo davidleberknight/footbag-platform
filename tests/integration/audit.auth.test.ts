@@ -96,7 +96,7 @@ describe('audit_entries — register', () => {
         email: 'newcomer@example.com',
         password: 'NewUser!1',
         confirmPassword: 'NewUser!1',
-        realName: 'Newcomer Jones',
+        givenNames: 'Newcomer', familyName: 'Jones',
         displayName: 'Newcomer Jones',
       });
     expect(res.status).toBe(303);
@@ -130,7 +130,7 @@ describe('audit_entries — register', () => {
         email: OWN_EMAIL,
         password: 'Something!1',
         confirmPassword: 'Something!1',
-        realName: 'Someone Else',
+        givenNames: 'Someone', familyName: 'Else',
         displayName: 'Someone Else',
       });
     expect(res.status).toBe(303);

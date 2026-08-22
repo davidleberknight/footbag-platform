@@ -1,0 +1,33 @@
+{{! The date on file, offered back for correction during the claim step's last
+    attempt at the match. The matcher runs on this date, so a registrant who
+    mistyped it has nothing else that will find their old account, and the
+    details step has already closed behind them. Same three-part control the
+    details step and the profile use, so one date is entered one way. }}
+<form method="POST" action="/register/wizard/legacy_claim/birth-date" class="form-block">
+  <fieldset class="form-fieldset">
+    <legend>Date of birth</legend>
+    <small class="form-hint">For example, 31 March 1980. It is private: only you and IFPA administrators can see it.</small>
+    <div class="form-date-parts">
+      <div class="form-field form-date-day">
+        <label for="sharpenBirthDay">Day</label>
+        <input type="text" id="sharpenBirthDay" name="birthDay" inputmode="numeric" maxlength="2"
+               autocomplete="bday-day" value="{{birthDay}}" />
+      </div>
+      <div class="form-field form-date-month">
+        <label for="sharpenBirthMonth">Month</label>
+        <select id="sharpenBirthMonth" name="birthMonth" autocomplete="bday-month">
+          <option value="">Choose a month</option>
+          {{#each birthMonthOptions}}
+            <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
+          {{/each}}
+        </select>
+      </div>
+      <div class="form-field form-date-year">
+        <label for="sharpenBirthYear">Year</label>
+        <input type="text" id="sharpenBirthYear" name="birthYear" inputmode="numeric" maxlength="4"
+               autocomplete="bday-year" value="{{birthYear}}" />
+      </div>
+    </div>
+  </fieldset>
+  <button type="submit" class="btn btn-outline">Save Date of Birth</button>
+</form>

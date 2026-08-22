@@ -1,3 +1,18 @@
+{{!
+    Someone else already holds this record.
+
+    Everyone who reaches this page is still a registrant: both claim entry
+    points send a member who has finished onboarding to the admin request form
+    before any lookup runs. So the page offers no administrator link, which
+    would be a member capability this audience cannot reach, and says instead
+    when that route becomes available to them.
+
+    Unlike the sibling unavailable page, the two self-serve remedies cannot fix
+    this one: the record is held, not unmatched. They are still worth naming,
+    because a held record is sometimes a same-name coincidence and a sharper
+    match finds the reader's own record instead.
+}}
+
 <div class="hero hero-sm">
   <div>
     <h1>{{page.title}}</h1>
@@ -6,8 +21,14 @@
 
 <div class="wrapper">
   <section>
-    <p>This record has been claimed by another member. If you believe this is an error, please contact an admin for help.</p>
-    <p class="mt-4"><a href="{{content.contactAdminHref}}" class="btn btn-primary">Contact Admin</a></p>
-    <p class="mt-2"><a href="/members/{{content.memberSlug}}">Back to dashboard</a></p>
+    <p>Another member has already claimed this record.</p>
+
+    <p>Sometimes that means two people share a name. If you used a different surname before, or a different email address on the old footbag.org, add either one in the claim step and we will look again for a record of your own.</p>
+
+    <p class="mt-4"><a href="{{content.claimStepHref}}" class="btn btn-primary">Add a Former Name or Old Email</a></p>
+
+    <p class="mt-6">If this really is your record, an IFPA administrator can sort it out once you have finished signing up.</p>
+
+    <p class="mt-6"><a href="{{content.cancelHref}}">Back to the record</a></p>
   </section>
 </div>

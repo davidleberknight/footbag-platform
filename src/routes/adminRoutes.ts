@@ -45,6 +45,7 @@ adminRouter.get('/work-queue',                adminWorkQueueController.index);
 adminRouter.post('/work-queue/:id/claim',     adminWorkQueueController.claim);
 adminRouter.post('/work-queue/:id/resolve',   adminWorkQueueController.resolve);
 adminRouter.post('/work-queue/:id/dismiss',   adminWorkQueueController.dismiss);
+adminRouter.post('/work-queue/:id/ask-member', adminWorkQueueController.askMember);
 adminRouter.post('/work-queue/:id/link-help/approve', adminWorkQueueController.linkHelpApprove);
 adminRouter.post('/work-queue/:id/link-help/reject',  adminWorkQueueController.linkHelpReject);
 adminRouter.post('/work-queue/:id/link-help/dispute-revert', adminWorkQueueController.linkHelpDisputeRevert);

@@ -26,17 +26,30 @@
     <form method="POST" action="/register" class="login-form register-form">
       <div class="form-row-2col">
         <div class="form-field">
-          <label for="realName">Full legal name</label>
+          <label for="givenNames">Given name(s) <span class="text-muted">(optional)</span></label>
           <input
             type="text"
-            id="realName"
-            name="realName"
-            value="{{content.realName}}"
+            id="givenNames"
+            name="givenNames"
+            value="{{content.givenNames}}"
+            maxlength="64"
+            autocomplete="given-name"
+          />
+          <small class="form-hint">The name or names you are usually called by.</small>
+        </div>
+
+        <div class="form-field">
+          <label for="familyName">Family name <span class="fw-600">(required)</span></label>
+          <input
+            type="text"
+            id="familyName"
+            name="familyName"
+            value="{{content.familyName}}"
             maxlength="64"
             required
-            autocomplete="name"
+            autocomplete="family-name"
           />
-          <small class="form-hint">Your real first and last name, properly capitalized.</small>
+          <small class="form-hint">Your surname or family name. If you have only one name, enter it here.</small>
         </div>
 
         <div class="form-field">

@@ -22,8 +22,14 @@
 
       <div class="profile-main">
 
-        {{! Sections run in the order a member reads them: who you are, then what
-            you can do, then your own things, then account administration. }}
+        {{! Sections run in the order a member reads them: what the platform is
+            waiting on, then who you are, then what you can do, then your own
+            things, then account administration. Nothing outstanding renders
+            nothing at all: no empty state, no "all caught up". }}
+
+        {{#unless content.actions.isEmpty}}
+          {{> member-block-actions content.actions}}
+        {{/unless}}
 
         {{> member-block-membership content.membership}}
 

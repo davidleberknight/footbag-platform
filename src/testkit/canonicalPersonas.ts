@@ -47,8 +47,8 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     displayName: 'Tu Paid',
     tier: 'tier2',
     dimension: 'Tier ladder & admin',
-    purpose: 'Tier 2 member: full paid-tier benefits gate. Tier 2 standing also qualifies the member to vouch a Tier 0 member for Active Player.',
-    testingUsage: 'Act as a full Tier 2 member to confirm all paid-tier benefits and organizer-eligible surfaces open. Use it to vouch a Tier 0 member for Active Player and read the vouch-confirmation notification on /dev/outbox.',
+    purpose: 'Tier 2 member: full paid-tier benefits gate. Tier 2 standing is also what qualifies a member to vouch a Tier 0 member for Active Player, which is the tier\'s one capability with no surface yet.',
+    testingUsage: 'Act as a full Tier 2 member to confirm all paid-tier benefits and organizer-eligible surfaces open. Vouching is not reachable: the rule, the table and the confirmation email all exist, but nothing in the running site calls it, so this persona cannot exercise it until that surface lands.',
     payments: [
       { type: 'membership', status: 'succeeded', purchasedTier: 'tier1' },
       { type: 'membership', status: 'succeeded', purchasedTier: 'tier2' },
@@ -395,18 +395,86 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     ],
   },
   {
-    slug: 'legacy_dob_conflict',
-    displayName: 'Cody Conflict',
-    realName: 'Cody Conflict',
+    slug: 'legacy_dob_mismatch',
+    displayName: 'Cody Mismatch',
+    realName: 'Cody Mismatch',
     tier: 'tier0',
     dimension: 'Auto-link confidence',
-    purpose: 'The member and the legacy account carry different dates of birth. Confirming the surfaced claim still links the account (a date-of-birth discrepancy never blocks) and raises a claim_dob_mismatch_review work-queue item for an admin, so a flagged conflict is visible end to end.',
-    testingUsage: 'Log in, confirm the surfaced legacy-account claim, then confirm the conflicting date of birth raised an admin review item on /admin/work-queue without blocking the link.',
+    purpose: 'The member and the legacy account carry different dates of birth. Confirming the surfaced claim still links the account: a date that does not match simply fails to corroborate, and never blocks the claim, weakens it, or raises work for an administrator. The mismatch is recorded in the claim audit metadata, which is where a disputed link is reconstructed from.',
+    testingUsage: 'Log in, confirm the surfaced legacy-account claim, then confirm the link landed and that the conflicting date raised nothing on /admin/work-queue.',
     legacy: { autoLinkConfidence: 'high', birthDate: '1985-06-15', legacyBirthDate: '1979-11-02' },
     onboardingTasks: { personal_details: 'completed', legacy_claim: 'pending' },
     coverageNotes: [
       'single high-confidence auto-link candidate with a mismatched date of birth',
-      'the discrepancy flags an admin review item without blocking the claim',
+      'the mismatch neither blocks the claim nor queues anything for an administrator',
+    ],
+  },
+
+  // ── Administrator questions ───────────────────────────────────────────────
+  //
+  // The channel has two sides and three states, and a maintainer needs to reach
+  // each without first walking a wizard: a question waiting on a member, one
+  // already answered, and one the platform refuses to send because its
+  // recipient has not finished signing up.
+  {
+    slug: 'member_question_waiting',
+    displayName: 'Quinn Asked',
+    realName: 'Quinn Asked',
+    tier: 'tier0',
+    dimension: 'Administrator questions',
+    purpose: 'This member asked for help linking their old account, and an administrator has already asked them for their date of birth. The question is waiting, so both sides of the channel are explorable from a standing start: the member answers, and the answer comes back on the queue card it was sent from.',
+    testingUsage: 'Log in and answer the question from the profile entry, correcting the date. Then switch to an admin and confirm the queue card shows the answer and the link-help item is still open for the admin to act on.',
+    // Not linked: the whole point of the request is that the member could not
+    // find their record, so the claim is still ahead of them.
+    legacy: { birthDate: '1985-06-15' },
+    adminQuestion: {
+      subject: 'Please check your date of birth',
+      body: 'To find your old footbag.org record we need the date of birth it was registered under. Could you confirm the date on your account, or correct it if it is wrong?',
+      answerKind: 'confirm_birth_date',
+    },
+    coverageNotes: [
+      'an administrator question waiting on a member, read and answered in the application',
+      'a member correcting their own date of birth from the answer surface',
+      'the link-help item stays open after the answer, so the administrator still acts on it',
+    ],
+  },
+  {
+    slug: 'member_question_answered',
+    displayName: 'Ansel Replied',
+    realName: 'Ansel Replied',
+    tier: 'tier0',
+    dimension: 'Administrator questions',
+    purpose: 'This member has already answered an administrator\'s question, correcting the date of birth it asked about. It exists for the administrator\'s side of the round trip, which the waiting persona cannot show: the queue card carrying the question that was asked, the answer that came back, and the item still open for the administrator to act on.',
+    testingUsage: 'Switch to an admin and open the work queue. Confirm the card shows both what was asked and what came back, that the outcome reads as a correction rather than a confirmation, and that the item is still open. Then switch to this member and confirm nothing is waiting on them.',
+    legacy: { birthDate: '1988-02-29' },
+    adminQuestion: {
+      subject: 'Please check your date of birth',
+      body: 'To find your old footbag.org record we need the date of birth it was registered under. Could you confirm the date on your account, or correct it if it is wrong?',
+      answerKind: 'confirm_birth_date',
+      answer: {
+        outcome: 'corrected',
+        note: 'I had entered the year wrong when I signed up. Corrected it now.',
+      },
+    },
+    coverageNotes: [
+      'an answered question read back by the administrator who asked it',
+      'the corrected-versus-confirmed outcome on the queue card',
+      'the item stays open after the answer, so the matter is still the administrator\'s to close',
+    ],
+  },
+  {
+    slug: 'member_question_withheld',
+    displayName: 'Wynn Pending',
+    realName: 'Wynn Pending',
+    tier: 'tier0',
+    dimension: 'Administrator questions',
+    purpose: 'A registrant who asked for help linking their old account before finishing onboarding. The platform will not put a question to them, because the page a question is read on is a member surface the onboarding gate holds them out of, so the card withholds the control and says why.',
+    testingUsage: 'Switch to an admin and find this member\'s link-help item. Confirm the ask control is absent and the card explains that it appears once they have finished signing up. Then confirm the send is refused even when the form is posted directly.',
+    onboardingTasks: { personal_details: 'completed', legacy_claim: 'pending', club_affiliations: 'pending' },
+    linkHelpRequest: true,
+    coverageNotes: [
+      'a question withheld because its recipient could not read it',
+      'the card states the reason rather than simply hiding the control',
     ],
   },
 

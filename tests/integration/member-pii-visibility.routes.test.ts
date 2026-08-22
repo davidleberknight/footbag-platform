@@ -50,7 +50,7 @@ function editOwner(fields: Record<string, string>): request.Test {
     .post(`/members/${OWNER_SLUG}/edit`)
     .set('Cookie', cookieFor(OWNER_ID))
     .type('form')
-    .send({ city: 'Portland', region: 'OR', country: 'USA', ...fields });
+    .send({ city: 'Portland', region: 'OR', country: 'USA', birthDay: '14', birthMonth: '3', birthYear: '1978', ...fields });
 }
 
 describe('per-field contact-PII visibility', () => {
@@ -106,7 +106,7 @@ describe('per-field contact-PII visibility', () => {
       .post(`/members/${COLEAD_SLUG}/edit`)
       .set('Cookie', cookieFor(COLEAD_ID))
       .type('form')
-      .send({ city: 'Portland', region: 'OR', country: 'USA', emailVisibility: 'private' })
+      .send({ city: 'Portland', region: 'OR', country: 'USA', birthDay: '14', birthMonth: '3', birthYear: '1978', emailVisibility: 'private' })
       .expect(303);
 
     const row = db.prepare('SELECT email_visibility FROM members WHERE id = ?').get(COLEAD_ID) as { email_visibility: string };

@@ -29,6 +29,7 @@ import {
 } from '../services/curatorMediaService';
 import { RateLimitedError, ValidationError } from '../services/serviceErrors';
 import { renderNotFound, renderServiceUnavailable } from '../lib/controllerErrors';
+import { isOwnMemberRoute } from '../lib/routeOwnership';
 import { FLASH_KIND, writeFlash } from '../lib/flashCookie';
 import { hashtagDiscoveryService, type MemberTagSuggestions } from '../services/hashtagDiscoveryService';
 
@@ -46,10 +47,6 @@ interface GalleryOption {
   id: string;
   name: string;
   criteriaTags: string[];
-}
-
-function isOwnRoute(req: Request): boolean {
-  return req.user?.slug === req.params.memberKey;
 }
 
 function listHref(memberKey: string): string {
@@ -91,7 +88,7 @@ function parseTagsField(raw: string | undefined): string[] {
 export const memberMediaUploadController = {
   /** GET /members/:memberKey/media/upload — render upload form. */
   getUpload(req: Request, res: Response): void {
-    if (!isOwnRoute(req)) {
+    if (!isOwnMemberRoute(req)) {
       renderNotFound(res);
       return;
     }
@@ -111,7 +108,7 @@ export const memberMediaUploadController = {
 
   /** POST /members/:memberKey/media/upload — accept multipart upload. */
   postUpload(req: Request, res: Response, next: NextFunction): void {
-    if (!isOwnRoute(req)) {
+    if (!isOwnMemberRoute(req)) {
       renderNotFound(res);
       return;
     }

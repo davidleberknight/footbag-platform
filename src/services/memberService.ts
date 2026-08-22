@@ -91,6 +91,7 @@
  *   erasure_log (append-only; one row per applied erasure shape),
  *   audit_entries,
  *   work_queue_items (every queue row about the member has its free text redacted on PII purge and deceased scrub, whatever the task type),
+ *   member_messages (every question addressed to the member has its subject, body and note redacted on PII purge and deceased scrub),
  *   historical_persons (read-only; surfaced in member search via the public-player
  *   name index, so search spans both live members and imported historical identities).
  *
@@ -102,9 +103,14 @@
  * The profile Media section is delegated to `mediaService.getMemberProfileMedia`.
  */
 import { randomUUID, createHash } from 'crypto';
-import { account, publicPlayers, memberClubAffiliations, memberLinks, clubLeaders, clubs as clubsDb, clubInsightNotes, declaredAnchors, erasureLog, legacyMembers, memberPurge, outbox, workQueue, transaction, MemberProfileRow, MemberResultRow, MemberSearchRow, HistoricalPersonSearchRow, IdentityLinksRow } from '../db/db';
+import { account, publicPlayers, memberClubAffiliations, memberLinks, clubLeaders, clubs as clubsDb, clubInsightNotes, declaredAnchors, erasureLog, legacyMembers, memberPurge, memberMessages, outbox, workQueue, transaction, MemberProfileRow, MemberResultRow, MemberSearchRow, HistoricalPersonSearchRow, IdentityLinksRow } from '../db/db';
 import { validateExternalUrl } from '../lib/externalUrlValidator';
-import { validateBirthDate } from '../lib/birthDate';
+import {
+  assembleBirthDate,
+  splitBirthDateParts,
+  BIRTH_MONTH_NAMES,
+  BirthDateParts,
+} from '../lib/birthDate';
 import { identityAccessService } from './identityAccessService';
 import { memberOnboardingService } from './memberOnboardingService';
 import { NotFoundError, RateLimitedError, ValidationError } from './serviceErrors';
@@ -118,6 +124,7 @@ import { groupPlayerResults } from './playerShaping';
 import type { PlayerEventGroup, PlayerHeroData } from '../types/playerProfile';
 import { getTierStatus, tierBadgeShort, type MemberTier, type UnderlyingTier } from './membershipTieringService';
 import { getStatus as getActivePlayerStatus } from './activePlayerService';
+import { memberActionService, type MemberActions } from './memberActionService';
 import { mayCreateClub } from './tierPredicates';
 import { paymentService } from './paymentService';
 import { mediaService, type ProfileMediaView } from './mediaService';
@@ -333,6 +340,8 @@ export interface OwnProfileContent {
   avatarThumbUrl: string | null;
   eventGroups?: PlayerEventGroup[];
   /** Personal-home dashboard composition. Profile absorbs the dashboard. */
+  /** What the platform is waiting on the member for, derived at page draw. */
+  actions?: MemberActions;
   membership?: TierStatusView;
   identity?: IdentityLinkView;
   quickActions?: QuickAction[];
@@ -373,9 +382,14 @@ export interface ProfileEditContent extends OwnProfileContent, LocationPickers {
   memberKey: string;
   loginEmail: string;
   profileUrl: string;
-  /** Raw ISO birth date (YYYY-MM-DD) for read-only display; required and
-   *  immutable since registration, so it is shown but never editable here. */
-  birthDate: string | null;
+  /** The stored birth date as the three parts the member enters it in. It is
+   *  editable here because the date is what matches a member to their legacy
+   *  competition records, so a member who registered with a wrong one has to be
+   *  able to put it right. */
+  birthDay: string;
+  birthMonth: string;
+  birthYear: string;
+  birthMonthOptions: SelectOption[];
   // True while the member holds a co-leader (or organizer) role: contact-email
   // visibility is required at members-only and the control renders locked.
   emailVisibilityLocked: boolean;
@@ -472,6 +486,11 @@ export interface ProfileEditInput {
   whatsappVisible: string | string[];
   searchable: string | string[];
   firstCompetitionYear: string;
+  /** The date of birth as the form's three parts; assembled and validated on
+   *  save, so the edit surface and the onboarding form accept the same thing. */
+  birthDay: string;
+  birthMonth: string;
+  birthYear: string;
   showCompetitiveResults: string | string[];
   showFirstCompetitionYear: string | string[];
   /** Opt-in: when set, gender is shown to signed-in members on the profile,
@@ -504,7 +523,8 @@ export function whatsappDigits(value: string): string | null {
 }
 
 export interface PersonalDetailsFormFields {
-  city: string; region: string; country: string; birthDate: string; gender: string;
+  city: string; region: string; country: string; gender: string;
+  birthDay: string; birthMonth: string; birthYear: string;
   yearValue: string; showCompetitiveResults: boolean;
 }
 
@@ -547,6 +567,17 @@ export function locationPickers(country: string, region: string): LocationPicker
     ? selectOptions(subdivisions.map((s) => ({ value: s.code, label: s.label })), region)
     : [];
   return { countryOptions, regionOptions, regionHasOptions: regionOptions.length > 0 };
+}
+
+// The month of birth is chosen by name rather than typed as a number, so a
+// member cannot enter the day and the month the wrong way round whichever
+// order their country writes dates in. The value stays the month number, which
+// is what the stored date is assembled from.
+export function birthMonthOptions(selectedMonth: string): SelectOption[] {
+  return BIRTH_MONTH_NAMES.map((label, i) => {
+    const value = String(i + 1);
+    return { value, label, selected: value === selectedMonth };
+  });
 }
 
 // Gender appears on cross-member surfaces (profile, search, roster) only when
@@ -786,6 +817,10 @@ function purgeAccountPII(memberId: string): PurgeAccountPIIResult {
     // Member-authored contact-request free text lives in work_queue_items, not
     // the audit ledger, so erasure must redact it here.
     workQueue.scrubTextForMember.run(now, memberId);
+    // An administrator's direct questions and the member's answers are
+    // owner-and-admin private content. Subject, body and note all clear; the
+    // rows stay so the queue item's trail keeps its shape.
+    memberMessages.scrubTextForMember.run(now, memberId);
     // The club insight notes the member left in the onboarding wizard are
     // member-authored free text too. The text clears; the row stays, so the
     // club evidence trail keeps its shape without keeping their words.
@@ -862,6 +897,9 @@ function scrubDeceasedMemberPII(memberId: string): ScrubDeceasedMemberPIIResult 
     const anchors = declaredAnchors.deleteAllForMember.run(memberId);
     // Contact-request free text is contact PII; redact it on the deceased scrub.
     workQueue.scrubTextForMember.run(now, memberId);
+    // An administrator's questions and the member's answers are private content
+    // about them; the deceased scrub clears the words and keeps the rows.
+    memberMessages.scrubTextForMember.run(now, memberId);
     // Same treatment for the wizard's club insight notes: the words go, the
     // evidence row stays.
     const insightNotes = clubInsightNotes.clearNotesForMember.run(memberId);
@@ -936,6 +974,7 @@ export const memberService = {
         heroData,
         profileBase: `/members/${slug}`,
         eventGroups,
+        actions:      memberActionService.collectFor({ memberId: row.id, slug }),
         membership:   buildTierStatusView(row.id, slug),
         identity:     buildIdentityLinkView(row.id),
         quickActions: buildQuickActions(slug),
@@ -1064,6 +1103,16 @@ export const memberService = {
     // the country they picked with that country's own region control.
     const effectiveCountry = submitted ? normalizeText(submitted.country) : (row.country ?? '');
     const effectiveRegion  = submitted ? normalizeText(submitted.region)  : (row.region ?? '');
+    // Same rule for the date: a re-render after a validation error shows the
+    // parts the member typed, so the one they need to correct is in front of
+    // them rather than replaced by what is still stored.
+    const effectiveBirth = submitted
+      ? {
+          day:   normalizeText(submitted.birthDay),
+          month: normalizeText(submitted.birthMonth),
+          year:  normalizeText(submitted.birthYear),
+        }
+      : splitBirthDateParts(row.birth_date);
     const cta = buildIdentityCta(
       row.legacy_member_id !== null,
       row.historical_person_id !== null,
@@ -1081,7 +1130,10 @@ export const memberService = {
         memberKey: slug,
         loginEmail: row.login_email,
         profileUrl: `/members/${slug}`,
-        birthDate: row.birth_date,
+        birthDay:   effectiveBirth.day,
+        birthMonth: effectiveBirth.month,
+        birthYear:  effectiveBirth.year,
+        birthMonthOptions: birthMonthOptions(effectiveBirth.month),
         emailVisibilityLocked: clubLeaders.memberCoLeadsAnyClub.get(row.id) != null,
         legacyClaimCtaHref:  cta?.href  ?? null,
         legacyClaimCtaLabel: cta?.label ?? null,
@@ -1124,6 +1176,11 @@ export const memberService = {
     const country     = normalizeText(input.country) || null;
     const phone       = normalizeText(input.phone) || null;
     const whatsapp    = normalizeText(input.whatsapp) || null;
+    const birthParts  = {
+      day:   normalizeText(input.birthDay),
+      month: normalizeText(input.birthMonth),
+      year:  normalizeText(input.birthYear),
+    };
     let emailVis      = VALID_EMAIL_VISIBILITY.has(input.emailVisibility)
       ? input.emailVisibility
       : 'private';
@@ -1191,6 +1248,10 @@ export const memberService = {
     if (whatsapp && whatsappDigits(whatsapp) === null) {
       throw new ValidationError(WHATSAPP_MESSAGE);
     }
+    // The date is mandatory member data and the form pre-fills it, so a genuine
+    // save always carries it and only a deliberately-blanked one is rejected,
+    // exactly as city and country are treated above.
+    const birthDate = assembleBirthDate(birthParts);
 
     // Validate links (network I/O) before the transaction; the write is sync.
     const validatedLinks = await validateMemberLinks(input.links);
@@ -1198,7 +1259,7 @@ export const memberService = {
     // Compared before the write, while the stored values are still readable.
     const changedFields = changedProfileFields(row, buildMemberLinksView(row.id), {
       bio, city: location.city, region: location.region, country: location.country,
-      phone, whatsapp,
+      phone, whatsapp, birthDate,
       emailVisibility: emailVis, phoneVisible, whatsappVisible, searchable,
       firstCompetitionYear: location.firstCompetitionYear, showCompetitiveResults: showResults,
       showFirstCompetitionYear: showYear, showGender, gender: genderValue,
@@ -1214,6 +1275,7 @@ export const memberService = {
         location.country,
         phone,
         whatsapp,
+        birthDate,
         emailVis,
         phoneVisible,
         whatsappVisible,
@@ -1240,6 +1302,51 @@ export const memberService = {
       });
       auditProfileUpdate(row.id, changedFields);
     });
+  },
+
+  /**
+   * Write only the date of birth, for a member answering an administrator's
+   * question about it.
+   *
+   * Separate from the profile edit because that path rewrites every editable
+   * field and would need values for all of them. The validation, the audit row
+   * and the note back to any open conflict review are the same either way, so a
+   * date corrected from the question surface is indistinguishable afterwards
+   * from one corrected on the profile.
+   */
+  correctOwnBirthDate(slug: string, parts: BirthDateParts): boolean {
+    return transaction(() => this.correctOwnBirthDateInTx(slug, parts));
+  },
+
+  /**
+   * The date on file, split for redisplay in a three-part control. Empty parts
+   * when none is stored, so a form always has something to render.
+   *
+   * Keyed by member id rather than slug, because the callers that need it are
+   * mid-onboarding surfaces holding the id from the session.
+   */
+  getBirthDateParts(memberId: string): BirthDateParts {
+    const row = account.findBirthDateById.get(memberId) as { birth_date: string | null } | undefined;
+    return splitBirthDateParts(row?.birth_date);
+  },
+
+  /**
+   * The same write for a caller that already holds a transaction, so a member's
+   * answer to an administrator's question commits the date and the answer
+   * itself together. The transaction helper does not nest, so the two entry
+   * points are separated rather than one calling the other.
+   */
+  correctOwnBirthDateInTx(slug: string, parts: BirthDateParts): boolean {
+    const row = fetchMemberBySlug(slug);
+    const birthDate = assembleBirthDate(parts);
+    // Reported back so a caller can tell a real correction from a member
+    // re-entering the date already on file, which is a confirmation.
+    if (row.birth_date === birthDate) return false;
+
+    const now = new Date().toISOString();
+    account.updateMemberBirthDate.run(birthDate, now, row.id);
+    auditProfileUpdate(row.id, ['birthDate']);
+    return true;
   },
 
   getPersonalDetailsPrefill(memberId: string): {
@@ -1277,10 +1384,14 @@ export const memberService = {
   getPersonalDetailsForm(
     memberId: string,
     overrides: Partial<PersonalDetailsFormFields> = {},
-  ): PersonalDetailsFormFields & LocationPickers & { regionRequired: boolean } {
+  ): PersonalDetailsFormFields & LocationPickers & {
+    regionRequired: boolean; birthMonthOptions: SelectOption[];
+  } {
     const p = this.getPersonalDetailsPrefill(memberId);
+    const stored = splitBirthDateParts(p.birthDate);
     const fields: PersonalDetailsFormFields = {
-      city: p.city, region: p.region, country: p.country, birthDate: p.birthDate,
+      city: p.city, region: p.region, country: p.country,
+      birthDay: stored.day, birthMonth: stored.month, birthYear: stored.year,
       gender: p.gender,
       yearValue: p.firstCompetitionYear != null ? String(p.firstCompetitionYear) : '',
       showCompetitiveResults: p.showCompetitiveResults,
@@ -1289,19 +1400,26 @@ export const memberService = {
     return {
       ...fields,
       ...locationPickers(fields.country, fields.region),
+      birthMonthOptions: birthMonthOptions(fields.birthMonth),
       regionRequired: regionRequiredForCountry(fields.country),
     };
   },
 
   setPersonalDetails(memberId: string, input: {
-    city?: unknown; region?: unknown; country?: unknown; birthDate?: unknown;
+    city?: unknown; region?: unknown; country?: unknown;
+    birthDay?: unknown; birthMonth?: unknown; birthYear?: unknown;
     gender?: unknown; yearValue?: unknown;
     showCompetitiveResults?: unknown;
   }): void {
     const city = normalizeText(input.city) || null;
     const region = normalizeText(input.region) || null;
     const country = normalizeText(input.country) || null;
-    const rawDob = normalizeText(input.birthDate);
+    const dobParts = {
+      day:   normalizeText(input.birthDay),
+      month: normalizeText(input.birthMonth),
+      year:  normalizeText(input.birthYear),
+    };
+    const hasAnyDobPart = Boolean(dobParts.day || dobParts.month || dobParts.year);
     // The wizard is the primary collection point for gender, so a blank or
     // unrecognized submission stores 'undisclosed' rather than leaving the
     // value untouched: the member who skips the choice is treated as not
@@ -1315,7 +1433,7 @@ export const memberService = {
     if (!country) {
       throw new ValidationError('Country is required.');
     }
-    if (!rawDob) {
+    if (!hasAnyDobPart) {
       throw new ValidationError('Date of birth is required.');
     }
     // Shared with the profile edit form. The stored country is read so that a
@@ -1331,10 +1449,7 @@ export const memberService = {
     });
     const firstCompetitionYear = location.firstCompetitionYear;
 
-    let birthDate: string | null = null;
-    if (rawDob) {
-      birthDate = validateBirthDate(rawDob);
-    }
+    const birthDate: string = assembleBirthDate(dobParts);
 
     // The wizard offers no visibility control for the year, and deliberately:
     // a member who supplies one is showing it, and a member who leaves it blank
@@ -1494,7 +1609,7 @@ function welcomeTierContent(): MemberWelcomeTier[] {
       price: 'Free',
       benefits: [
         'Browse the platform and search the membership',
-        'Earn Active Player status (730 days) through qualifying event attendance, vouching, or a one-time club-join grant',
+        'Earn Active Player status (730 days) through qualifying event attendance or a vouch, or once by joining your first club if you have never held it',
         'Active Player status unlocks Tier 1 benefits while current, including Official IFPA Roster inclusion',
       ],
     },
@@ -1544,7 +1659,7 @@ const ACTIVE_PLAYER_CURRENT_EXPLANATION =
 function tierBenefitsBlurb(tier: MemberTier): string {
   switch (tier) {
     case 'tier0':
-      return 'You can browse the platform, search the membership, and earn Active Player status through qualifying event attendance, vouching, or a one-time club-join grant.';
+      return 'You can browse the platform, search the membership, and earn Active Player status through qualifying event attendance or a vouch. If you have never held Active Player status, joining your first club earns it once.';
     case 'tier1':
       return 'You support the IFPA, are listed on the Official IFPA Roster, vote in IFPA elections, and can create clubs and basic events.';
     case 'tier2':
@@ -1569,18 +1684,21 @@ function buildTierStatusView(memberId: string, slug: string): TierStatusView {
 
   let activePlayer: ActivePlayerView | null = null;
   if (tier.tier_status === 'tier0') {
-    // A past expiry with no current status means Active Player lapsed; a null
-    // expiry means it was never earned (so nothing was lost to explain).
-    const hasLapsed = !isAp && ap.active_player_expires_at != null;
+    // A date with no current status means Active Player lapsed; no date at all
+    // means it was never earned, so nothing was lost to explain. The date has
+    // to come from the runs-to-or-last-ran-to column: once the expiry job
+    // processes a lapse it clears the plain expiry, and reading that one would
+    // silence the badge for every member who actually expired.
+    const hasLapsed = !isAp && ap.active_player_last_expires_at != null;
     activePlayer = {
       isCurrent: isAp,
-      expiresAtDisplay: ap.active_player_expires_at
-        ? formatExpiryDate(ap.active_player_expires_at)
+      expiresAtDisplay: ap.active_player_last_expires_at
+        ? formatExpiryDate(ap.active_player_last_expires_at)
         : null,
       hasLapsed,
       currentExplanation: isAp ? ACTIVE_PLAYER_CURRENT_EXPLANATION : null,
       lapsedExplanation: hasLapsed
-        ? 'Your Active Player status has ended, so your Tier 1 benefits and your Official IFPA Roster listing have ended. Earn Active Player status again through qualifying event attendance, a vouch, or a one-time club-join grant.'
+        ? 'Your Active Player status has ended, so your Tier 1 benefits and your Official IFPA Roster listing have ended. Earn Active Player status again through qualifying event attendance, or a vouch from a Tier 2 or Tier 3 member.'
         : null,
     };
   }
@@ -1612,6 +1730,9 @@ function buildTierStatusView(memberId: string, slug: string): TierStatusView {
 // avatar, so it is deliberately absent here: a second control to the same place
 // competes with that one, and the site header already spends the words "My
 // Profile" on a link to the profile itself.
+// Standing shortcuts only. An outstanding administrator question is an
+// obligation, not a shortcut, and is carried by the action block above the
+// profile; offering it here as well would put the same thing on one page twice.
 function buildQuickActions(slug: string): QuickAction[] {
   return [
     { label: 'My Galleries',  href: `/members/${slug}/galleries` },
@@ -1731,6 +1852,7 @@ interface ProfileWriteValues {
   country: string | null;
   phone: string | null;
   whatsapp: string | null;
+  birthDate: string;
   emailVisibility: string;
   phoneVisible: number;
   whatsappVisible: number;
@@ -1764,6 +1886,7 @@ function changedProfileFields(
   compare('country', row.country ?? null, next.country);
   compare('phone', row.phone ?? null, next.phone);
   compare('whatsapp', row.whatsapp ?? null, next.whatsapp);
+  compare('birthDate', row.birth_date ?? null, next.birthDate);
   compare('emailVisibility', row.email_visibility, next.emailVisibility);
   compare('phoneVisible', row.phone_visible, next.phoneVisible);
   compare('whatsappVisible', row.whatsapp_visible, next.whatsappVisible);

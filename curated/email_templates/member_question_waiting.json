@@ -1,0 +1,7 @@
+{
+  "templateKey": "member_question_waiting",
+  "subjectTemplate": "An IFPA administrator has a question for you",
+  "bodyTemplate": "An IFPA administrator has sent you a question about your footbag.org membership.\n\nThe question is waiting for you on the website. It is not included in this email, because it may concern private details of your account.\n\nTo read it and answer, open your browser, go to footbag.org yourself, and sign in. Your profile page will show that a question is waiting and take you to it.\n\nIFPA will never send you a link to sign in. If an email asks you to click a link to log in to footbag.org, it did not come from us.",
+  "piiClassification": "internal",
+  "isEnabled": true
+}

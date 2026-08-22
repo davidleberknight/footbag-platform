@@ -116,6 +116,17 @@ export function completePersonalDetails(db: BetterSqlite3.Database, memberId: st
   insertOnboardingTask(db, memberId, 'personal_details', 'completed');
 }
 
+// Marks everything before the club step complete. The steps are answered in
+// order, so a spec that drives the club step directly seeds both of the steps
+// ahead of it or the wizard sends it back to the first one still unanswered.
+export function completeThroughLegacyClaim(
+  db: BetterSqlite3.Database,
+  memberId: string,
+): void {
+  insertOnboardingTask(db, memberId, 'personal_details', 'completed');
+  insertOnboardingTask(db, memberId, 'legacy_claim', 'completed');
+}
+
 // ── Persona composition helpers ──────────────────────────────────────────────
 
 export function seedMemberWithLegacyDiffEmail(

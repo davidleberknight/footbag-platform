@@ -75,7 +75,8 @@ describe('GET /register', () => {
     const res = await request(app).get('/register');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Register to create an IFPA member account.');
-    expect(res.text).toContain('name="realName"');
+    expect(res.text).toContain('name="givenNames"');
+    expect(res.text).toContain('name="familyName"');
     expect(res.text).toContain('name="displayName"');
     expect(res.text).toContain('name="email"');
     expect(res.text).toContain('name="password"');
@@ -107,7 +108,7 @@ describe('POST /register', () => {
       .post('/register')
       .type('form')
       .send({
-        realName: 'New Player',
+        givenNames: 'New', familyName: 'Player',
         email: 'newplayer@example.com',
         password: 'securepass123',
         confirmPassword: 'securepass123',
@@ -160,7 +161,7 @@ describe('POST /register', () => {
       .post('/register')
       .type('form')
       .send({
-        realName: 'Duplicate User',
+        givenNames: 'Duplicate', familyName: 'User',
         email: 'existing@example.com',
         password: 'securepass123',
         confirmPassword: 'securepass123',
@@ -195,7 +196,7 @@ describe('POST /register', () => {
       .post('/register')
       .type('form')
       .send({
-        realName: 'Short Pass',
+        givenNames: 'Short', familyName: 'Pass',
         email: 'shortpass@example.com',
         password: 'short',
         confirmPassword: 'short',
@@ -210,7 +211,7 @@ describe('POST /register', () => {
       .post('/register')
       .type('form')
       .send({
-        realName: 'Mismatch User',
+        givenNames: 'Mismatch', familyName: 'User',
         email: 'mismatch@example.com',
         password: 'securepass123',
         confirmPassword: 'differentpass123',
@@ -219,19 +220,21 @@ describe('POST /register', () => {
     expect(res.text).toContain('do not match');
   });
 
-  it('missing real name → 422 with error', async () => {
+  // One of the two name fields is required, never both.
+  it('both name fields blank → 422 with error', async () => {
     const app = createApp();
     const res = await request(app)
       .post('/register')
       .type('form')
       .send({
-        realName: '',
+        givenNames: '',
+        familyName: '',
         email: 'noname@example.com',
         password: 'securepass123',
         confirmPassword: 'securepass123',
       });
     expect(res.status).toBe(422);
-    expect(res.text).toContain('Full legal name is required');
+    expect(res.text).toContain('Enter your name');
   });
 
   it('missing email → 422 with error', async () => {
@@ -240,7 +243,7 @@ describe('POST /register', () => {
       .post('/register')
       .type('form')
       .send({
-        realName: 'No Email',
+        givenNames: 'No', familyName: 'Email',
         email: '',
         password: 'securepass123',
         confirmPassword: 'securepass123',
@@ -249,19 +252,32 @@ describe('POST /register', () => {
     expect(res.text).toContain('Email address is required');
   });
 
-  it('single-word real name → 422 with error', async () => {
+  // A legal name that is a single word is ordinary in much of the world. It is
+  // recorded as the family name, which is the part every claim path matches on,
+  // so such a member is anchored the same way as everyone else.
+  it('a member with a single legal name registers with it as their family name', async () => {
     const app = createApp();
     const res = await request(app)
       .post('/register')
       .type('form')
       .send({
-        realName: 'trained',
-        email: 'trained@example.com',
+        givenNames: '',
+        familyName: 'Suharto',
+        email: 'suharto@example.com',
         password: 'securepass123',
         confirmPassword: 'securepass123',
       });
-    expect(res.status).toBe(422);
-    expect(res.text).toContain('first name and last name');
+    expect(res.status).toBe(303);
+
+    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    const row = db.prepare(
+      'SELECT given_names, family_name, real_name FROM members WHERE login_email = ?',
+    ).get('suharto@example.com') as
+      { given_names: string | null; family_name: string | null; real_name: string };
+    db.close();
+    expect(row.given_names).toBeNull();
+    expect(row.family_name).toBe('Suharto');
+    expect(row.real_name).toBe('Suharto');
   });
 
   it('digits in real name → 422 with error', async () => {
@@ -270,7 +286,7 @@ describe('POST /register', () => {
       .post('/register')
       .type('form')
       .send({
-        realName: 'Player 123',
+        givenNames: 'Player', familyName: '123',
         email: 'digits@example.com',
         password: 'securepass123',
         confirmPassword: 'securepass123',
@@ -285,14 +301,14 @@ describe('POST /register', () => {
       .post('/register')
       .type('form')
       .send({
-        realName: 'David Mockingbird',
+        givenNames: 'David', familyName: 'Mockingbird',
         displayName: 'xXFootbagMasterXx',
         email: 'badsurname@example.com',
         password: 'securepass123',
         confirmPassword: 'securepass123',
       });
     expect(res.status).toBe(422);
-    expect(res.text).toContain('must include your last name');
+    expect(res.text).toContain('must include your family name');
   });
 
   it('single-character display name → 422 with error', async () => {
@@ -301,7 +317,7 @@ describe('POST /register', () => {
       .post('/register')
       .type('form')
       .send({
-        realName: 'Bob X',
+        givenNames: 'Bob', familyName: 'X',
         displayName: 'X',
         email: 'onechardisplay@example.com',
         password: 'securepass123',
@@ -317,7 +333,7 @@ describe('POST /register', () => {
       .post('/register')
       .type('form')
       .send({
-        realName: 'David Mockingbird',
+        givenNames: 'David', familyName: 'Mockingbird',
         displayName: 'Dave Mockingbird',
         email: 'davemockingbird@example.com',
         password: 'securepass123',
@@ -333,7 +349,7 @@ describe('POST /register', () => {
       .post('/register')
       .type('form')
       .send({
-        realName: 'Jane Footbagger',
+        givenNames: 'Jane', familyName: 'Footbagger',
         displayName: '',
         email: 'janefootbagger@example.com',
         password: 'securepass123',
@@ -352,7 +368,7 @@ describe('POST /register', () => {
       .type('form')
       .send({
         // "Jane" with a Cyrillic 'а' (U+0430) hidden among the Latin letters.
-        realName: 'Jаne Smith',
+        givenNames: 'Jаne', familyName: 'Smith',
         email: 'homoglyph@example.com',
         password: 'securepass123',
         confirmPassword: 'securepass123',
@@ -368,7 +384,7 @@ describe('POST /register', () => {
       .type('form')
       .send({
         // Right-to-left override (U+202E) appended to an otherwise valid name.
-        realName: 'John Smith‮',
+        givenNames: 'John', familyName: 'Smith‮',
         email: 'bidi@example.com',
         password: 'securepass123',
         confirmPassword: 'securepass123',
@@ -383,7 +399,7 @@ describe('POST /register', () => {
       .post('/register')
       .type('form')
       .send({
-        realName: 'John​ Smith',
+        givenNames: 'John​', familyName: 'Smith',
         email: 'zwsp@example.com',
         password: 'securepass123',
         confirmPassword: 'securepass123',
@@ -398,7 +414,7 @@ describe('POST /register', () => {
       .post('/register')
       .type('form')
       .send({
-        realName: 'David Mockingbird',
+        givenNames: 'David', familyName: 'Mockingbird',
         // Latin display name with a Cyrillic 'о' (U+043E) in the surname.
         displayName: 'David Mоckingbird',
         email: 'displayhomoglyph@example.com',
@@ -418,7 +434,7 @@ describe('POST /register', () => {
       .post('/register')
       .type('form')
       .send({
-        realName: 'Footbag Official',
+        givenNames: 'Footbag', familyName: 'Official',
         email: 'roleclaim@example.com',
         password: 'securepass123',
         confirmPassword: 'securepass123',
@@ -433,7 +449,7 @@ describe('POST /register', () => {
       .post('/register')
       .type('form')
       .send({
-        realName: 'Bob Smith',
+        givenNames: 'Bob', familyName: 'Smith',
         displayName: 'Admin Smith',
         email: 'displayroleclaim@example.com',
         password: 'securepass123',
@@ -451,7 +467,7 @@ describe('POST /register', () => {
       .send({
         // Digits are refused in a real name, so the substituted spelling can
         // only arrive through the display name.
-        realName: 'Bob Smith',
+        givenNames: 'Bob', familyName: 'Smith',
         displayName: 'Adm1n Smith',
         email: 'substitutedroleclaim@example.com',
         password: 'securepass123',
@@ -467,7 +483,7 @@ describe('POST /register', () => {
       .post('/register')
       .type('form')
       .send({
-        realName: 'Bob Smith',
+        givenNames: 'Bob', familyName: 'Smith',
         slug: 'ifpa_official_smith',
         email: 'slugroleclaim@example.com',
         password: 'securepass123',
@@ -483,7 +499,7 @@ describe('POST /register', () => {
       .post('/register')
       .type('form')
       .send({
-        realName: 'Ana Stafford',
+        givenNames: 'Ana', familyName: 'Stafford',
         email: 'stafford@example.com',
         password: 'securepass123',
         confirmPassword: 'securepass123',
@@ -499,7 +515,7 @@ describe('POST /register', () => {
       .type('form')
       .send({
         // Decomposed input: "André Müller" as base letters + combining marks.
-        realName: 'André Müller',
+        givenNames: 'André', familyName: 'Müller',
         email: 'accented@example.com',
         password: 'securepass123',
         confirmPassword: 'securepass123',
@@ -526,7 +542,7 @@ describe('POST /register', () => {
       .post('/register')
       .type('form')
       .send({
-        realName: 'Existing User',
+        givenNames: 'Existing', familyName: 'User',
         email: 'existinguser2@example.com',
         password: 'securepass123',
         confirmPassword: 'securepass123',
@@ -541,7 +557,7 @@ describe('POST /register', () => {
       .post('/register')
       .type('form')
       .send({
-        realName: 'Slug Tester',
+        givenNames: 'Slug', familyName: 'Tester',
         email: 'slugtester@example.com',
         password: 'securepass123',
         confirmPassword: 'securepass123',
@@ -565,7 +581,7 @@ describe('POST /register', () => {
       .post('/register')
       .type('form')
       .send({
-        realName: 'Auto Slugger',
+        givenNames: 'Auto', familyName: 'Slugger',
         email: 'autoslugger@example.com',
         password: 'securepass123',
         confirmPassword: 'securepass123',
@@ -588,7 +604,7 @@ describe('POST /register', () => {
       .post('/register')
       .type('form')
       .send({
-        realName: 'Bad Format',
+        givenNames: 'Bad', familyName: 'Format',
         email: 'badformat@example.com',
         password: 'securepass123',
         confirmPassword: 'securepass123',
@@ -604,7 +620,7 @@ describe('POST /register', () => {
       .post('/register')
       .type('form')
       .send({
-        realName: 'Short Slug',
+        givenNames: 'Short', familyName: 'Slug',
         email: 'shortslug@example.com',
         password: 'securepass123',
         confirmPassword: 'securepass123',
@@ -620,14 +636,14 @@ describe('POST /register', () => {
       .post('/register')
       .type('form')
       .send({
-        realName: 'David Mockingbird',
+        givenNames: 'David', familyName: 'Mockingbird',
         email: 'nosurname@example.com',
         password: 'securepass123',
         confirmPassword: 'securepass123',
         slug: 'cool_handle',
       });
     expect(res.status).toBe(422);
-    expect(res.text).toContain('must contain your last name');
+    expect(res.text).toContain('must contain your family name');
   });
 
   it('user-provided slug collision → 422', async () => {
@@ -636,7 +652,7 @@ describe('POST /register', () => {
       .post('/register')
       .type('form')
       .send({
-        realName: 'Existing User',
+        givenNames: 'Existing', familyName: 'User',
         email: 'slugcollision@example.com',
         password: 'securepass123',
         confirmPassword: 'securepass123',
@@ -652,7 +668,8 @@ describe('POST /register', () => {
       .post('/register')
       .type('form')
       .send({
-        realName: '',
+        givenNames: '',
+        familyName: '',
         email: 'echo@example.com',
         password: 'securepass123',
         confirmPassword: 'securepass123',
@@ -683,7 +700,7 @@ describe('POST /register — initial-admin bootstrap', () => {
         .send({
           // The allowlist file is what grants the role here; a name claiming it
           // is refused at validation and would never reach the grant.
-          realName: 'Bootstrap Bootlace',
+          givenNames: 'Bootstrap', familyName: 'Bootlace',
           email: 'bootstrap-admin@example.com',
           password: 'securepass123',
           confirmPassword: 'securepass123',
@@ -736,7 +753,7 @@ describe('POST /register — initial-admin bootstrap', () => {
         .post('/register')
         .type('form')
         .send({
-          realName: 'Plain Member',
+          givenNames: 'Plain', familyName: 'Member',
           email: 'plain-member@example.com',
           password: 'securepass123',
           confirmPassword: 'securepass123',
@@ -767,7 +784,7 @@ describe('POST /register — initial-admin bootstrap', () => {
       .post('/register')
       .type('form')
       .send({
-        realName: 'No File',
+        givenNames: 'No', familyName: 'File',
         email: 'no-file@example.com',
         password: 'securepass123',
         confirmPassword: 'securepass123',
@@ -832,7 +849,7 @@ describe('POST /register — verify-email enqueue failure', () => {
       .post('/register')
       .type('form')
       .send({
-        realName: 'Enqueue Fail',
+        givenNames: 'Enqueue', familyName: 'Fail',
         email: targetEmail,
         password: 'securepass123',
         confirmPassword: 'securepass123',
@@ -906,7 +923,7 @@ describe('POST /register → /register/check-email', () => {
       .post('/register')
       .type('form')
       .send({
-        realName: 'Card Test',
+        givenNames: 'Card', familyName: 'Test',
         email: 'card-test@example.com',
         password: 'securepass123',
         confirmPassword: 'securepass123',

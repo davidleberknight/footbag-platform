@@ -77,17 +77,22 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-// City and country are mandatory profile fields, and region joins them when the
-// country is the USA or Canada. The edit form pre-fills all of them from the
-// stored values, so a genuine save always carries them. These cases exercise
-// other fields, so the helper supplies a valid location by default; a case that
-// needs to blank part of it overrides the default explicitly.
+// City, country and date of birth are mandatory profile fields, and region joins
+// them when the country is the USA or Canada. The edit form pre-fills all of
+// them from the stored values, so a genuine save always carries them. These
+// cases exercise other fields, so the helper supplies a valid location and date
+// by default; a case that needs to blank part of it overrides the default
+// explicitly.
 function postEdit(fields: Record<string, string>): request.Test {
   return request(createApp())
     .post(`/members/${MEMBER_SLUG}/edit`)
     .set('Cookie', ownCookie())
     .type('form')
-    .send({ city: 'Portland', region: 'OR', country: 'USA', ...fields });
+    .send({
+      city: 'Portland', region: 'OR', country: 'USA',
+      birthDay: '14', birthMonth: '3', birthYear: '1978',
+      ...fields,
+    });
 }
 
 // ── Region required in the USA and Canada ────────────────────────────────────

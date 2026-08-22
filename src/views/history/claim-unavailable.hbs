@@ -9,6 +9,17 @@
     reasons map to the same response so the page cannot confirm which
     person IDs exist (anti-enumeration). The operator can resolve the
     specific cause from the application log written at render time.
+
+    Because it is uniform, the copy has to be true and useful for every one
+    of those reasons. It leads with the two self-serve remedies, which are
+    the ones that resolve the commonest cause, a name that does not line up,
+    and which give the reader something to do rather than someone to write to.
+
+    Everyone who reaches this page is still a registrant: both claim entry
+    points send a member who has finished onboarding to the admin request form
+    before any lookup runs. So the page offers no administrator link, which
+    would be a member capability this audience cannot reach, and says instead
+    when that route becomes available to them.
 }}
 
 <div class="hero hero-sm">
@@ -19,10 +30,14 @@
 
 <div class="wrapper">
   <section>
-    <p>We could not link this historical record to your account. If you believe this is your record, please contact an IFPA administrator and reference the URL of this page.</p>
+    <p>We could not link this record to your account.</p>
 
-    <p class="mt-4"><a href="{{content.contactAdminHref}}" class="btn btn-primary">Contact Admin</a></p>
+    <p>If you used a different surname before, or a different email address on the old footbag.org, add either one in the claim step and we will look again. Your date of birth helps too, so it is worth checking that it is right.</p>
 
-    <p class="mt-6"><a href="{{content.cancelHref}}">Back to the record</a> &middot; <a href="/register/wizard/legacy_claim">Back to the onboarding wizard</a></p>
+    <p class="mt-4"><a href="{{content.claimStepHref}}" class="btn btn-primary">Add a Former Name or Old Email</a></p>
+
+    <p class="mt-6">If you have tried that and this is still your record, an IFPA administrator can link it for you once you have finished signing up.</p>
+
+    <p class="mt-6"><a href="{{content.cancelHref}}">Back to the record</a></p>
   </section>
 </div>

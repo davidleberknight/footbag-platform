@@ -169,7 +169,7 @@ describe('POST /register — duplicate email is indistinguishable from a fresh r
       .type('form')
       .send({
         email: 'fresh@example.com',
-        realName: 'Fresh User',
+        givenNames: 'Fresh', familyName: 'User',
         displayName: 'Fresh User',
         password: 'FreshPass1!',
         confirmPassword: 'FreshPass1!',
@@ -182,7 +182,7 @@ describe('POST /register — duplicate email is indistinguishable from a fresh r
       .type('form')
       .send({
         email: KNOWN_EMAIL,
-        realName: 'Another User',
+        givenNames: 'Another', familyName: 'User',
         displayName: 'Another User',
         password: 'AnotherPass1!',
         confirmPassword: 'AnotherPass1!',

@@ -71,7 +71,7 @@ describe('Oversized payloads', () => {
       .post(`/members/${MEMBER_SLUG}/edit`)
       .set('Cookie', ownCookie())
       .type('form')
-      .send({ bio: atMax, city: 'Portland', region: 'OR', country: 'USA', firstCompetitionYear: '', showCompetitiveResults: 'on' });
+      .send({ bio: atMax, city: 'Portland', region: 'OR', country: 'USA', birthDay: '14', birthMonth: '3', birthYear: '1978', firstCompetitionYear: '', showCompetitiveResults: 'on' });
     expect(res.status).toBeLessThan(400);
   });
 
@@ -82,7 +82,7 @@ describe('Oversized payloads', () => {
       .type('form')
       .send({
         email: 'oversize-display@example.com',
-        realName: 'Valid User',
+        givenNames: 'Valid', familyName: 'User',
         displayName: oversized,
         password: 'ValidPass1!',
         confirmPassword: 'ValidPass1!',
@@ -103,7 +103,8 @@ describe('Oversized payloads', () => {
       .type('form')
       .send({
         email: 'oversize-real@example.com',
-        realName: oversized,
+        givenNames: oversized,
+        familyName: 'Toolong',
         displayName: 'Valid User',
         password: 'ValidPass1!',
         confirmPassword: 'ValidPass1!',
@@ -157,7 +158,7 @@ describe('Unicode adversarial input', () => {
         .post(`/members/${MEMBER_SLUG}/edit`)
         .set('Cookie', ownCookie())
         .type('form')
-        .send({ bio: p.bio, city: 'Portland', region: 'OR', country: 'USA', firstCompetitionYear: '', showCompetitiveResults: 'on' });
+        .send({ bio: p.bio, city: 'Portland', region: 'OR', country: 'USA', birthDay: '14', birthMonth: '3', birthYear: '1978', firstCompetitionYear: '', showCompetitiveResults: 'on' });
       expect(saveRes.status).toBeLessThan(500);
 
       // Fetch profile edit form; the server must render without error.
@@ -181,11 +182,11 @@ describe('Race conditions', () => {
     // branch does). The other path must not insert a second row.
     await Promise.all([
       request(app).post('/register').type('form').send({
-        email, realName: 'Race One', displayName: 'Race One',
+        email, givenNames: 'Race', familyName: 'One', displayName: 'Race One',
         password: 'ValidPass1!', confirmPassword: 'ValidPass1!',
       }),
       request(app).post('/register').type('form').send({
-        email, realName: 'Race Two', displayName: 'Race Two',
+        email, givenNames: 'Race', familyName: 'Two', displayName: 'Race Two',
         password: 'ValidPass1!', confirmPassword: 'ValidPass1!',
       }),
     ]);

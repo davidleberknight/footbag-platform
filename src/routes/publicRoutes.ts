@@ -12,6 +12,7 @@ import { memberMediaUploadController } from '../controllers/memberMediaUploadCon
 import { memberMediaEditController } from '../controllers/memberMediaEditController';
 import { claimController } from '../controllers/claimController';
 import { contactRequestController } from '../controllers/contactRequestController';
+import { memberQuestionController } from '../controllers/memberQuestionController';
 import { authController } from '../controllers/authController';
 import { memberOnboardingController } from '../controllers/memberOnboardingController';
 import { ipcController } from '../controllers/ipcController';
@@ -196,6 +197,11 @@ publicRouter.post('/members/:memberKey/recurring-donations/:stripeSubscriptionId
   requireMember, paymentController.postCancelRecurringDonation);
 publicRouter.get('/members/:memberKey/contact-admin',  requireMember, contactRequestController.getForm);
 publicRouter.post('/members/:memberKey/contact-admin', requireMember, contactRequestController.postSubmit);
+// The other direction: questions an administrator has put to this member.
+// "questions" is a literal segment and must precede the :section catch-all.
+publicRouter.get('/members/:memberKey/questions', requireMember, memberQuestionController.index);
+publicRouter.post('/members/:memberKey/questions/:messageId/answer',
+  requireMember, memberQuestionController.answer);
 
 // Owner-only named-gallery management. Order matters: literal `new`
 // must precede `:id`; literal `edit`/`delete` sub-paths sit at a deeper
@@ -259,12 +265,15 @@ publicRouter.post('/register/wizard/personal_details/submit',           requireA
 publicRouter.post('/register/wizard/legacy_claim/find',                 requireAuth, memberOnboardingController.postLegacyClaimFind);
 publicRouter.post('/register/wizard/legacy_claim/auto-link/confirm',    requireAuth, memberOnboardingController.postLegacyClaimAutoLinkConfirm);
 publicRouter.post('/register/wizard/legacy_claim/auto-link/decline',    requireAuth, memberOnboardingController.postLegacyClaimAutoLinkDecline);
-publicRouter.post('/register/wizard/legacy_claim/help-request',         requireAuth, memberOnboardingController.postLegacyClaimHelpRequest);
 publicRouter.post('/register/wizard/legacy_claim/cross-source/confirm', requireAuth, memberOnboardingController.postCrossSourceLegacyConfirm);
 publicRouter.post('/register/wizard/legacy_claim/anchors/send-verification', requireAuth, memberOnboardingController.postAnchorSendVerification);
 publicRouter.get('/register/wizard/legacy_claim/anchors/verify/:token',      requireAuth, memberOnboardingController.getAnchorVerify);
 publicRouter.get('/register/wizard/legacy_claim/claim/confirm/:token',  requireAuth, memberOnboardingController.getLegacyClaimTokenConfirm);
 publicRouter.post('/register/wizard/legacy_claim/claim/confirm',        requireAuth, memberOnboardingController.postLegacyClaimTokenConfirm);
+// The last attempt at the match offers the date on file for correction: the
+// matcher runs on it, and a registrant who mistyped it had no way to put it
+// right once the details step closed behind them.
+publicRouter.post('/register/wizard/legacy_claim/birth-date',           requireAuth, memberOnboardingController.postLegacyClaimBirthDate);
 publicRouter.post('/register/wizard/legacy_claim/anchors/add',          requireAuth, memberOnboardingController.postAddAnchor);
 publicRouter.post('/register/wizard/legacy_claim/anchors/remove',       requireAuth, memberOnboardingController.postRemoveAnchor);
 publicRouter.post('/register/wizard/club_affiliations/submit',          requireAuth, memberOnboardingController.postClubAffiliationsSubmit);

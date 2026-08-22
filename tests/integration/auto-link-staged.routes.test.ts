@@ -156,7 +156,7 @@ describe('wizard staged-candidate card', () => {
       .post('/register/wizard/legacy_claim/continue-without-linking')
       .set('Cookie', cookieFor(t.memberId))
       .type('form')
-      .send({ no_old_account: '1' });
+      .send({ no_link_answer: 'never_had_one' });
     expect(res.status).toBe(303);
 
     // The task is done and the card is resolved terminally, not left open.
@@ -266,6 +266,7 @@ describe('auto-link confirm drift banner', () => {
       slug: 'autolink_drift',
       login_email: 'autolink-drift@example.com',
       birth_date: '1980-01-01',
+      onboarding: 'none',
     });
     // The legacy-claim step is reachable only once personal details are on file.
     insertOnboardingTask(db, memberId, 'personal_details', 'completed');

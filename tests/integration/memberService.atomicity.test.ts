@@ -67,6 +67,9 @@ describe('memberService write-path atomicity', () => {
       country: 'France',
       phone: '',
       emailVisibility: 'private',
+      birthDay: '14',
+      birthMonth: '3',
+      birthYear: '1978',
       firstCompetitionYear: '',
       showCompetitiveResults: '1',
       showFirstCompetitionYear: '0',
@@ -80,7 +83,7 @@ describe('memberService write-path atomicity', () => {
     const { id } = seedMember({ city: 'ORIGINAL CITY' });
     const spy = throwOnAudit();
     expect(() => svc.setPersonalDetails(id, {
-      city: 'NewCity', country: 'France', birthDate: '1990-01-01',
+      city: 'NewCity', country: 'France', birthDay: '1', birthMonth: '1', birthYear: '1990',
     })).toThrow('forced audit failure');
     spy.mockRestore();
     expect(memberField(id, 'city')).toBe('ORIGINAL CITY');
@@ -93,7 +96,7 @@ describe('memberService write-path atomicity', () => {
     const { id } = seedMember({ city: 'ORIGINAL CITY', show_competitive_results: 1 });
     const spy = throwOnAudit();
     expect(() => svc.setPersonalDetails(id, {
-      city: 'NewCity', country: 'France', birthDate: '1990-01-01',
+      city: 'NewCity', country: 'France', birthDay: '1', birthMonth: '1', birthYear: '1990',
       showCompetitiveResults: '0',
     })).toThrow('forced audit failure');
     spy.mockRestore();
@@ -101,7 +104,7 @@ describe('memberService write-path atomicity', () => {
     expect(memberField(id, 'show_competitive_results')).toBe(1);
 
     svc.setPersonalDetails(id, {
-      city: 'NewCity', country: 'France', birthDate: '1990-01-01',
+      city: 'NewCity', country: 'France', birthDay: '1', birthMonth: '1', birthYear: '1990',
       showCompetitiveResults: '0',
     });
     expect(memberField(id, 'city')).toBe('NewCity');
@@ -111,7 +114,7 @@ describe('memberService write-path atomicity', () => {
   it('setPersonalDetails leaves the competitive-results flag untouched when the field is omitted', () => {
     const { id } = seedMember({ show_competitive_results: 0 });
     svc.setPersonalDetails(id, {
-      city: 'SomeCity', country: 'Germany', birthDate: '1990-01-01',
+      city: 'SomeCity', country: 'Germany', birthDay: '1', birthMonth: '1', birthYear: '1990',
     });
     expect(memberField(id, 'show_competitive_results')).toBe(0);
   });

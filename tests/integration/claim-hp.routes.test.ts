@@ -208,21 +208,57 @@ describe('GET /history/:personId/claim', () => {
     expect(res.text).not.toContain('does not match');
   });
 
-  it('surname mismatch on the lookup path writes a claim.historical_person_blocked audit row', async () => {
+  it('the uniform unavailable page hands the reader the two self-serve remedies', async () => {
+    // The page is deliberately identical for every reason a claim cannot
+    // proceed, so its copy has to be useful without naming one. Both remedies
+    // resolve the commonest cause and both live one click away.
+    const app = createApp();
+    const res = await request(app).get(`/history/${HP_NO_LEGACY}/claim`).set('Cookie', otherCookie());
+    expect(res.text).toContain('different surname');
+    expect(res.text).toContain('different email address');
+    expect(res.text).toContain('/register/wizard/legacy_claim');
+  });
+
+  it('offers no administrator route, which nobody who reaches it could use', async () => {
+    // Both claim entry points redirect a member who has finished onboarding
+    // before any lookup, so every reader here is still a registrant and the
+    // contact form would bounce them straight back to the wizard.
+    const app = createApp();
+    const res = await request(app).get(`/history/${HP_NO_LEGACY}/claim`).set('Cookie', otherCookie());
+    expect(res.text).not.toContain('contact-admin');
+    expect(res.text).not.toContain('Contact Admin');
+  });
+
+  it('the already-claimed page gives the reader something to do, not someone to write to', async () => {
+    // Its only audience is a registrant, for the same reason as the unavailable
+    // page, so an administrator route would be a member capability that bounces
+    // them. A held record is sometimes a same-name coincidence, so the remedies
+    // are still worth naming: a sharper match may find a record of their own.
+    const app = createApp();
+    const res = await request(app).get(`/history/${HP_TAKEN}/claim`).set('Cookie', otherCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Another member has already claimed this record');
+    expect(res.text).toContain('/register/wizard/legacy_claim');
+    expect(res.text).not.toContain('contact-admin');
+    expect(res.text).not.toContain('Contact Admin');
+    // "Back to dashboard" sent a registrant round to the wizard task they were
+    // already on; the record they came from is the honest destination.
+    expect(res.text).toContain(`/history/${HP_TAKEN}`);
+    expect(res.text).not.toContain('Back to dashboard');
+  });
+
+  it('opening a record whose name does not match records nothing, because looking is not an attempt', async () => {
+    // A member reaches this page by following a link, or by clicking a card
+    // the platform itself composed. Writing a permanent refusal row for that
+    // would file legitimate curiosity as a possible impersonation attempt.
     const app = createApp();
     await request(app).get(`/history/${HP_NO_LEGACY}/claim`).set('Cookie', otherCookie());
-    const row = testDb.prepare(
-      `SELECT metadata_json FROM audit_entries
+    const count = testDb.prepare(
+      `SELECT COUNT(*) AS c FROM audit_entries
         WHERE action_type = 'claim.historical_person_blocked'
-          AND actor_member_id = ?
-          AND entity_id = ?
-        ORDER BY created_at DESC, id DESC
-        LIMIT 1`,
-    ).get(OTHER_ID, OTHER_ID) as { metadata_json: string } | undefined;
-    expect(row).toBeDefined();
-    const meta = JSON.parse(row!.metadata_json) as Record<string, unknown>;
-    expect(meta.reason).toBe('surname_mismatch');
-    expect(meta.person_id).toBe(HP_NO_LEGACY);
+          AND actor_member_id = ?`,
+    ).get(OTHER_ID) as { c: number };
+    expect(count.c).toBe(0);
   });
 
   it('HP already claimed by another member -> uniform claim-unavailable page', async () => {
@@ -456,6 +492,90 @@ describe('POST /history/:personId/claim/confirm — adversarial', () => {
       .set('Cookie', otherCookie()).type('form').send({});
     expect(res.status).toBe(422);
     expect(res.text).toContain('does not match');
+
+    // An actual attempt IS recorded, but classified on the evidence beside it
+    // rather than as an impersonation attempt on the strength of a name. This
+    // record carries no legacy account, so there is no date to weigh and
+    // nothing is settled either way.
+    const row = testDb.prepare(
+      `SELECT metadata_json FROM audit_entries
+        WHERE action_type = 'claim.historical_person_blocked'
+          AND actor_member_id = ?
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1`,
+    ).get(OTHER_ID) as { metadata_json: string } | undefined;
+    expect(row).toBeDefined();
+    const meta = JSON.parse(row!.metadata_json) as Record<string, unknown>;
+    expect(meta.person_id).toBe(surnameMismatchHp);
+    expect(meta.reason).toBe('surname_mismatch');
+    expect(meta.dob_comparison).toBe('no_legacy_account');
+    expect(meta.assessment).toBe('unevidenced');
+  });
+
+  it('a refused claim whose date of birth matches is recorded as corroborated, not as an attempt', async () => {
+    // The likeliest reading of a name that does not line up while the date
+    // matches exactly is a marriage or a stale record name. The ledger has to
+    // say that, because it is what a later dispute is reconstructed from.
+    const legacyId = 'lm-corroborated-name-change';
+    insertLegacyMember(testDb, {
+      legacy_member_id: legacyId,
+      real_name: 'Brenda Yankee',
+      birth_date: '1980-01-01',
+    });
+    const corroboratedHp = 'hp-corroborated-name-change';
+    insertHistoricalPerson(testDb, {
+      person_id: corroboratedHp, person_name: 'Brenda Yankee',
+      legacy_member_id: legacyId, hof_member: 0, bap_member: 0,
+    });
+    const app = createApp();
+    const res = await request(app)
+      .post(`/history/${corroboratedHp}/claim/confirm`)
+      .set('Cookie', otherCookie()).type('form').send({});
+    expect(res.status).toBe(422);
+
+    const row = testDb.prepare(
+      `SELECT metadata_json FROM audit_entries
+        WHERE action_type = 'claim.historical_person_blocked'
+          AND actor_member_id = ?
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1`,
+    ).get(OTHER_ID) as { metadata_json: string } | undefined;
+    expect(row).toBeDefined();
+    const meta = JSON.parse(row!.metadata_json) as Record<string, unknown>;
+    expect(meta.person_id).toBe(corroboratedHp);
+    expect(meta.dob_comparison).toBe('identical');
+    expect(meta.assessment).toBe('corroborated');
+  });
+
+  it('a refused claim whose date of birth contradicts is the one recorded as evidence against', async () => {
+    const legacyId = 'lm-contradicted-claim';
+    insertLegacyMember(testDb, {
+      legacy_member_id: legacyId,
+      real_name: 'Brenda Zulu',
+      birth_date: '1955-06-06',
+    });
+    const contradictedHp = 'hp-contradicted-claim';
+    insertHistoricalPerson(testDb, {
+      person_id: contradictedHp, person_name: 'Brenda Zulu',
+      legacy_member_id: legacyId, hof_member: 0, bap_member: 0,
+    });
+    const app = createApp();
+    const res = await request(app)
+      .post(`/history/${contradictedHp}/claim/confirm`)
+      .set('Cookie', otherCookie()).type('form').send({});
+    expect(res.status).toBe(422);
+
+    const row = testDb.prepare(
+      `SELECT metadata_json FROM audit_entries
+        WHERE action_type = 'claim.historical_person_blocked'
+          AND actor_member_id = ?
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1`,
+    ).get(OTHER_ID) as { metadata_json: string } | undefined;
+    const meta = JSON.parse(row!.metadata_json) as Record<string, unknown>;
+    expect(meta.person_id).toBe(contradictedHp);
+    expect(meta.dob_comparison).toBe('mismatch');
+    expect(meta.assessment).toBe('contradicted');
   });
 
   it('surname-matching member cannot POST-confirm a deceased HP even if they bypass the suppressed CTA', async () => {

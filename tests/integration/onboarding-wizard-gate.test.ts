@@ -157,6 +157,99 @@ describe('requireMember — membership authorization gate', () => {
     expect(res.headers.location).toContain('/register/wizard/');
   });
 
+  it('writing to an administrator is a member capability, so the wizard has no route to one', async () => {
+    // The surface an administrator answers on is member-only, so a request filed
+    // by someone still signing up could never be answered. The contact form is
+    // the one route to an administrator and it is member-gated; the wizard
+    // carries no route of its own.
+    const memberId = insertPendingMember('gate_help_request');
+    const res = await request(createApp())
+      .post(`/members/gate_help_request/contact-admin`)
+      .set('Cookie', cookieFor(memberId))
+      .type('form')
+      .send({
+        category: 'identity_link_issue',
+        message: 'I competed at Worlds 2003 under another name.',
+      });
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toContain('/register/wizard/');
+    // The redirect alone proves nothing, since the success path also redirects.
+    // What proves it is that no work landed in front of an administrator.
+    const queued = testDb
+      .prepare(
+        `SELECT COUNT(*) AS n FROM work_queue_items
+          WHERE task_type = 'member_link_help_request' AND entity_id = ?`,
+      )
+      .get(memberId) as { n: number };
+    expect(queued.n).toBe(0);
+  });
+
+  it('offers a pending registrant no affordance for writing to an administrator', async () => {
+    const memberId = insertPendingMember('gate_help_hidden');
+    // The claim task only draws once the details it matches on are on file.
+    insertOnboardingTask(testDb, memberId, 'personal_details', 'completed');
+    insertOnboardingTask(testDb, memberId, 'legacy_claim', 'pending');
+    insertOnboardingTask(testDb, memberId, 'club_affiliations', 'pending');
+    const res = await request(createApp())
+      .get('/register/wizard/legacy_claim')
+      .set('Cookie', cookieFor(memberId));
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('/register/wizard/legacy_claim/help-request');
+    expect(res.text).not.toContain('Send to an Administrator');
+    expect(res.text).not.toContain("Still can't find your records?");
+    expect(res.text).not.toContain('/contact-admin');
+  });
+
+  it('refuses a crafted answer to a step the registrant has not reached yet', async () => {
+    // The steps are answered in catalogue order. Routing decides what the next
+    // link points at; this is the server holding a request to the same order
+    // whatever route it arrived by, so a later step cannot be answered first and
+    // leave an earlier one to become the answer that confers membership.
+    const memberId = insertPendingMember('gate_out_of_order');
+    insertOnboardingTask(testDb, memberId, 'personal_details', 'completed');
+    insertOnboardingTask(testDb, memberId, 'legacy_claim', 'pending');
+    insertOnboardingTask(testDb, memberId, 'club_affiliations', 'pending');
+
+    const club = await request(createApp())
+      .post('/register/wizard/club_affiliations/none')
+      .set('Cookie', cookieFor(memberId))
+      .type('form')
+      .send({});
+    expect(club.status).toBe(303);
+
+    const states = testDb.prepare(
+      `SELECT task_type, state FROM member_onboarding_tasks WHERE member_id = ?`,
+    ).all(memberId) as Array<{ task_type: string; state: string }>;
+    expect(states.find((r) => r.task_type === 'club_affiliations')?.state).toBe('pending');
+    expect(states.find((r) => r.task_type === 'legacy_claim')?.state).toBe('pending');
+  });
+
+  it('sends a registrant who opens a later step back to the one they are on', async () => {
+    const memberId = insertPendingMember('gate_skip_ahead');
+    insertOnboardingTask(testDb, memberId, 'personal_details', 'completed');
+    insertOnboardingTask(testDb, memberId, 'legacy_claim', 'pending');
+    insertOnboardingTask(testDb, memberId, 'club_affiliations', 'pending');
+
+    const res = await request(createApp())
+      .get('/register/wizard/club_affiliations')
+      .set('Cookie', cookieFor(memberId));
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/register/wizard/legacy_claim');
+  });
+
+  it('closes the wizard to a member who has finished signing up', async () => {
+    // Claiming belongs to the wizard and the wizard belongs to signing up. A
+    // member reaching a task by URL is sent to their own dashboard rather than
+    // shown a page whose every control would refuse them; a link they still need
+    // is asked for through the identity-link category of the contact form.
+    const memberId = insertMember(testDb, { slug: 'gate_wizard_closed' });
+    const res = await request(createApp())
+      .get('/register/wizard/legacy_claim')
+      .set('Cookie', cookieFor(memberId));
+    expect(res.status).toBe(303);
+    expect(res.headers.location).not.toContain('/register/wizard/');
+  });
+
   it('the wizard itself stays reachable while pending', async () => {
     const memberId = insertPendingMember('gate_wizard_open');
     const res = await request(createApp())

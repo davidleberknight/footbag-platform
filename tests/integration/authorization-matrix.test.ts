@@ -427,6 +427,23 @@ describe('owner gate — member-owned routes (BOLA anti-enumeration)', () => {
     }
   });
 
+  it('routes a pending registrant to the wizard on every member-owned route, including their own', async () => {
+    // Membership is checked before ownership, so a registrant is turned back
+    // even on the routes addressed by their own key. Without this cell the sweep
+    // only ever fired a cross-owner and an anonymous actor, and every
+    // member-capability route was unproven against the one actor class that
+    // holds a session without holding membership.
+    const pending = CANONICAL_PERSONAS.filter(isPendingPersona).filter((p) => cookies.has(p.slug));
+    expect(pending.length, 'pending personas available to the sweep').toBeGreaterThan(0);
+    for (const p of pending) {
+      for (const { method, path } of ownedRoutes) {
+        const own = `/members/${p.slug}${path}`;
+        const res = await fire(method, own, cookies.get(p.slug)!);
+        expect(isWizardRedirect(res), `${p.slug} -> ${method.toUpperCase()} ${own} (pending → wizard)`).toBe(true);
+      }
+    }
+  });
+
   it('admits the owner past the ownership gate on key-addressed routes', async () => {
     // A sub-resource id that does not exist answers not-found for the owner too,
     // so only routes addressed by member key alone can show the owner passing

@@ -75,6 +75,9 @@ beforeEach(() => {
   // Each test seeds its own items and inspects its own outbox; clearing keeps
   // them isolated and resets the digest/escalation idempotency keys.
   testDb.prepare('DELETE FROM outbox_emails').run();
+  // A question hangs off the item that raised it by a required foreign key, so
+  // the messages go first or the items cannot be cleared at all.
+  testDb.prepare('DELETE FROM member_messages').run();
   testDb.prepare('DELETE FROM work_queue_items').run();
   testDb.prepare("DELETE FROM system_job_runs WHERE job_name = 'SYS_Admin_Queue_Digest'").run();
 });
@@ -168,6 +171,35 @@ describe('workQueueService.escalateStaleQueueItems', () => {
 
     const result = svc.escalateStaleQueueItems();
     expect(result.escalated).toBe(0);
+  });
+
+  it('does not escalate an item that is waiting on the member it asked', () => {
+    // An item blocked on someone outside the administrator team is not being
+    // neglected. Escalating it alerts the whole team about work none of them can
+    // advance, while the card on screen says it is waiting on the member.
+    const id = enqueueRoutine(ENTITY_MEMBER_ID);
+    testDb.prepare(`UPDATE work_queue_items SET opened_at = '2020-01-01T00:00:00.000Z' WHERE id = ?`).run(id);
+    testDb.prepare(`
+      INSERT INTO member_messages (
+        id, created_at, created_by, updated_at, updated_by,
+        recipient_member_id, sender_admin_member_id, work_queue_item_id,
+        subject, body_text, expected_answer_kind, status, sent_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'acknowledge', 'sent', ?)
+    `).run(
+      'mmsg-stale-wait', '2020-01-02T00:00:00.000Z', ADMIN_A, '2020-01-02T00:00:00.000Z', ADMIN_A,
+      ENTITY_MEMBER_ID, ADMIN_A, id,
+      'Waiting on you', 'Could you confirm something for us?', '2020-01-02T00:00:00.000Z',
+    );
+
+    expect(svc.escalateStaleQueueItems().escalated).toBe(0);
+
+    // Once the member answers, the matter is the team's again and escalates.
+    testDb.prepare(`
+      UPDATE member_messages
+      SET status = 'answered', outcome = 'acknowledged', answered_at = '2020-01-03T00:00:00.000Z'
+      WHERE id = 'mmsg-stale-wait'
+    `).run();
+    expect(svc.escalateStaleQueueItems().escalated).toBe(1);
   });
 });
 

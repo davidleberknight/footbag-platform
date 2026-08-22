@@ -2175,7 +2175,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     // When `restrictToOwnerId` is supplied, throws NotFoundError if the
     // gallery's owner does not match (used by member routes so a member
     // sees a 404 rather than a 403 for a gallery they don't own —
-    // matches the existing isOwnProfile/renderNotFound convention).
+    // matches the existing owner-check/renderNotFound convention).
     // Without the restriction, returns any gallery (admin moderation +
     // public read paths use this).
     getGalleryForEdit(

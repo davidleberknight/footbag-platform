@@ -28,11 +28,8 @@ import { getDefaultCuratorMediaService } from '../services/curatorMediaService';
 import { NotFoundError, RateLimitedError, ValidationError } from '../services/serviceErrors';
 import { FLASH_KIND, writeFlash } from '../lib/flashCookie';
 import { renderNotFound } from '../lib/controllerErrors';
+import { isOwnMemberRoute } from '../lib/routeOwnership';
 import { hashtagDiscoveryService, type MemberTagSuggestions } from '../services/hashtagDiscoveryService';
-
-function isOwnRoute(req: Request): boolean {
-  return req.user?.slug === req.params.memberKey;
-}
 
 function galleriesHref(memberKey: string): string {
   return `/members/${memberKey}/galleries`;
@@ -76,7 +73,7 @@ function renderForm(
 export const memberMediaEditController = {
   /** GET /members/:memberKey/media/:mediaId/edit — render edit form. */
   getEdit(req: Request, res: Response, next: NextFunction): void {
-    if (!isOwnRoute(req)) {
+    if (!isOwnMemberRoute(req)) {
       renderNotFound(res);
       return;
     }
@@ -118,7 +115,7 @@ export const memberMediaEditController = {
 
   /** POST /members/:memberKey/media/:mediaId/edit — save edits. */
   async postUpdate(req: Request, res: Response, next: NextFunction): Promise<void> {
-    if (!isOwnRoute(req)) {
+    if (!isOwnMemberRoute(req)) {
       renderNotFound(res);
       return;
     }
@@ -182,7 +179,7 @@ export const memberMediaEditController = {
    * flow: ownership 404s, success flashes and returns to the galleries
    * list. */
   async postDelete(req: Request, res: Response, next: NextFunction): Promise<void> {
-    if (!isOwnRoute(req)) {
+    if (!isOwnMemberRoute(req)) {
       renderNotFound(res);
       return;
     }

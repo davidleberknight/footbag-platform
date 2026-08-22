@@ -63,7 +63,7 @@ interface Row {
 const ROUTES: readonly Row[] = [
   // Unauthenticated auth surface.
   { name: 'login',           method: 'post', path: '/login',                    body: { email: 'a@b.com', password: 'x' } },
-  { name: 'register',        method: 'post', path: '/register',                 body: { realName: 'X', email: 'a@b.com', password: 'pass1234', confirmPassword: 'pass1234' } },
+  { name: 'register',        method: 'post', path: '/register',                 body: { givenNames: 'Ex', familyName: 'Ample', email: 'a@b.com', password: 'pass1234', confirmPassword: 'pass1234' } },
   { name: 'verify-resend',   method: 'post', path: '/verify/resend',            body: { email: 'a@b.com' } },
   { name: 'password-forgot', method: 'post', path: '/password/forgot',          body: { email: 'a@b.com' } },
   { name: 'password-reset',  method: 'post', path: '/password/reset/sometoken', body: { newPassword: 'pass1234', confirmPassword: 'pass1234' } },
@@ -94,7 +94,8 @@ const ROUTES: readonly Row[] = [
   { name: 'wizard-claim-autolink', method: 'post', path: '/register/wizard/legacy_claim/auto-link/confirm',    body: { token: 'x' }, requiresAuth: true },
   { name: 'wizard-claim-confirm',  method: 'post', path: '/register/wizard/legacy_claim/claim/confirm',        body: { token: 'x' }, requiresAuth: true },
   { name: 'wizard-club-affil',     method: 'post', path: '/register/wizard/club_affiliations/submit',         body: {}, requiresAuth: true },
-  { name: 'wizard-skip',           method: 'post', path: '/register/wizard/legacy_claim/skip',                body: {}, requiresAuth: true },
+  { name: 'wizard-no-link-answer', method: 'post', path: '/register/wizard/legacy_claim/continue-without-linking', body: { no_link_answer: 'never_had_one' }, requiresAuth: true },
+  { name: 'wizard-birth-date',     method: 'post', path: '/register/wizard/legacy_claim/birth-date',           body: { birthDay: '1', birthMonth: '1', birthYear: '1980' }, requiresAuth: true },
 ];
 
 describe('CSRF perimeter is enforced per state-changing route', () => {

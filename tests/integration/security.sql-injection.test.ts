@@ -90,7 +90,7 @@ describe('POST /register — SQL injection in email/realName/displayName', () =>
         .type('form')
         .send({
           email: payload,
-          realName: 'Test User',
+          givenNames: 'Test', familyName: 'User',
           displayName: 'Test User',
           password: 'ValidPass1!',
           confirmPassword: 'ValidPass1!',
@@ -171,6 +171,9 @@ describe('POST /members/:slug/edit — SQL injection in bio', () => {
           city: 'Portland',
           region: 'OR',
           country: 'USA',
+          birthDay: '14',
+          birthMonth: '3',
+          birthYear: '1978',
           firstCompetitionYear: '',
           showCompetitiveResults: 'on',
         });

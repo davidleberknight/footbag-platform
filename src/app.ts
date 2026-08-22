@@ -7,6 +7,7 @@ import { logger } from './config/logger';
 import { config } from './config/env';
 import { authMiddleware } from './middleware/auth';
 import { requireOriginPin } from './middleware/requireOriginPin';
+import { memberActionBanner } from './middleware/memberActionBanner';
 import { FLASH_KIND, readFlash, clearFlash } from './lib/flashCookie';
 import { healthRouter }   from './routes/healthRoutes';
 import { seoRouter }      from './routes/seoRoutes';
@@ -392,6 +393,10 @@ export function createApp(): express.Application {
     }) as typeof res.render;
     next();
   });
+
+  // Runs after the auth locals above, because it needs req.isMember and the
+  // signed-in member's slug.
+  app.use(memberActionBanner);
 
   app.use((req, _res, next) => {
     logger.debug('incoming request', { method: req.method, url: redactTokenPaths(req.url) });

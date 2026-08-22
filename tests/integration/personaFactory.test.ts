@@ -19,7 +19,16 @@ import * as path from 'node:path';
 import type BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
 import { seedPersona, PERSONA_SEED_REASON_CODE } from '../../src/testkit/personaFactory';
+import {
+  insertMember,
+  insertWorkQueueItem,
+  insertMemberMessage,
+} from '../../src/testkit/personaRowBuilders';
 
+// A second, deliberately empty database for the one builder branch that depends
+// on NO administrator existing yet. Declared first so the primary path is the
+// one left in the environment.
+const { dbPath: noAdminDbPath } = setTestEnv('3403');
 const { dbPath } = setTestEnv('3402');
 
 const PRIOR_FOOTBAG_ENV = process.env.FOOTBAG_ENV;
@@ -268,6 +277,114 @@ describe('seedPersona — composition by dimension', () => {
         coverageNotes: ['guard'],
       }),
     ).toThrow(/legacy identity/);
+  });
+});
+
+describe('work-queue item and administrator-question builders', () => {
+  it('mints an open member-scoped queue item that satisfies the table constraints', () => {
+    const memberId = insertMember(db, { slug: 'wq_subject_1' });
+    const id = insertWorkQueueItem(db, { entity_id: memberId, reason_text: 'Asked for help' });
+    const row = db.prepare(
+      `SELECT queue_category, task_type, entity_type, entity_id, status, priority,
+              opened_at, reason_text, resolved_at, resolved_by_member_id
+         FROM work_queue_items WHERE id = ?`,
+    ).get(id) as {
+      queue_category: string; task_type: string; entity_type: string; entity_id: string;
+      status: string; priority: number; opened_at: string; reason_text: string;
+      resolved_at: string | null; resolved_by_member_id: string | null;
+    };
+    expect(row.entity_type).toBe('member');
+    expect(row.entity_id).toBe(memberId);
+    expect(row.status).toBe('open');
+    expect(row.opened_at).toBeTruthy();
+    expect(row.reason_text).toBe('Asked for help');
+    expect(row.resolved_at).toBeNull();
+    expect(row.resolved_by_member_id).toBeNull();
+  });
+
+  it('mints an already-resolved item when given a resolver', () => {
+    const subject = insertMember(db, { slug: 'wq_subject_2' });
+    const resolver = insertMember(db, { slug: 'wq_resolver_2', is_admin: 1 });
+    const id = insertWorkQueueItem(db, {
+      entity_id: subject,
+      status: 'resolved',
+      resolved_at: '2026-01-01T00:00:00.000Z',
+      resolved_by_member_id: resolver,
+    });
+    const row = db.prepare(
+      `SELECT status, resolved_by_member_id FROM work_queue_items WHERE id = ?`,
+    ).get(id) as { status: string; resolved_by_member_id: string };
+    expect(row.status).toBe('resolved');
+    expect(row.resolved_by_member_id).toBe(resolver);
+  });
+
+  it('hangs a question off an existing administrator rather than conjuring another', () => {
+    insertMember(db, { slug: 'mmsg_admin_1', is_admin: 1 });
+    const recipient = insertMember(db, { slug: 'mmsg_recipient_1' });
+    const itemId = insertWorkQueueItem(db, { entity_id: recipient });
+    const before = (db.prepare(`SELECT COUNT(*) c FROM members`).get() as { c: number }).c;
+
+    const id = insertMemberMessage(db, {
+      recipient_member_id: recipient,
+      work_queue_item_id: itemId,
+      subject: 'A question',
+      body_text: 'Please confirm.',
+    });
+
+    const row = db.prepare(
+      `SELECT sender_admin_member_id, status, expected_answer_kind, answered_at
+         FROM member_messages WHERE id = ?`,
+    ).get(id) as {
+      sender_admin_member_id: string; status: string;
+      expected_answer_kind: string; answered_at: string | null;
+    };
+    const senderIsAdmin = db.prepare(
+      `SELECT is_admin FROM members WHERE id = ?`,
+    ).get(row.sender_admin_member_id) as { is_admin: number };
+    expect(senderIsAdmin.is_admin).toBe(1);
+    expect(row.status).toBe('sent');
+    expect(row.answered_at).toBeNull();
+    // No new member row: the builder reused one that was already there.
+    const after = (db.prepare(`SELECT COUNT(*) c FROM members`).get() as { c: number }).c;
+    expect(after).toBe(before);
+    expect(row.sender_admin_member_id, 'never the recipient').not.toBe(recipient);
+  });
+});
+
+describe('the question builder on a database holding no administrator', () => {
+  let emptyDb: BetterSqlite3.Database;
+
+  beforeAll(() => {
+    emptyDb = createTestDb(noAdminDbPath);
+  });
+
+  afterAll(() => {
+    emptyDb.close();
+    cleanupTestDb(noAdminDbPath);
+  });
+
+  it('stands one up, because a question with no sender is not a state the application can produce', () => {
+    const recipient = insertMember(emptyDb, { slug: 'lone_recipient' });
+    const itemId = insertWorkQueueItem(emptyDb, { entity_id: recipient });
+    expect(
+      (emptyDb.prepare(`SELECT COUNT(*) c FROM members WHERE is_admin = 1`).get() as { c: number }).c,
+      'no administrator exists yet',
+    ).toBe(0);
+
+    const id = insertMemberMessage(emptyDb, {
+      recipient_member_id: recipient,
+      work_queue_item_id: itemId,
+    });
+
+    const row = emptyDb.prepare(
+      `SELECT sender_admin_member_id FROM member_messages WHERE id = ?`,
+    ).get(id) as { sender_admin_member_id: string };
+    const sender = emptyDb.prepare(
+      `SELECT id, is_admin FROM members WHERE id = ?`,
+    ).get(row.sender_admin_member_id) as { id: string; is_admin: number } | undefined;
+    expect(sender, 'the dependent administrator row was created').toBeTruthy();
+    expect(sender!.is_admin).toBe(1);
+    expect(sender!.id).not.toBe(recipient);
   });
 });
 

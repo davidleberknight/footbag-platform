@@ -62,6 +62,7 @@ function editInput(over: Record<string, unknown> = {}): Parameters<typeof svc.up
     bio: '', city: 'Portland', region: 'OR', country: 'United States',
     phone: '', whatsapp: '', emailVisibility: 'private', phoneVisible: '0',
     whatsappVisible: '0', searchable: '1', firstCompetitionYear: '',
+    birthDay: '14', birthMonth: '3', birthYear: '1978',
     showCompetitiveResults: '1', showFirstCompetitionYear: '1', showGender: '0',
     gender: '', links: [],
     ...over,
@@ -149,7 +150,7 @@ describe('the same rules hold on the onboarding wizard path', () => {
   it('folds an alias spelling the member picked', () => {
     const { id } = seedMember({ country: null, region: null, city: null });
     svc.setPersonalDetails(id, {
-      city: 'Portland', region: 'OR', country: 'USA', birthDate: '1990-01-01',
+      city: 'Portland', region: 'OR', country: 'USA', birthDay: '1', birthMonth: '1', birthYear: '1990',
       gender: 'undisclosed', yearValue: '',
     });
     expect(stored(id).country).toBe('United States');
@@ -159,7 +160,7 @@ describe('the same rules hold on the onboarding wizard path', () => {
     const { id } = seedMember({ country: null, region: null, city: null });
     expect(() =>
       svc.setPersonalDetails(id, {
-        city: 'Portland', region: '', country: 'Freedonia', birthDate: '1990-01-01',
+        city: 'Portland', region: '', country: 'Freedonia', birthDay: '1', birthMonth: '1', birthYear: '1990',
         gender: 'undisclosed', yearValue: '',
       }),
     ).toThrow('Country must be one of the countries offered in the list');
@@ -169,7 +170,7 @@ describe('the same rules hold on the onboarding wizard path', () => {
     const { id } = seedMember({ country: null, region: null, city: null });
     expect(() =>
       svc.setPersonalDetails(id, {
-        city: 'Portland', region: 'OR', country: 'United States', birthDate: '1990-01-01',
+        city: 'Portland', region: 'OR', country: 'United States', birthDay: '1', birthMonth: '1', birthYear: '1990',
         gender: 'undisclosed', yearValue: '1899',
       }),
     ).toThrow('Year must be a whole number between 1972 and');
@@ -183,7 +184,7 @@ describe('the same rules hold on the onboarding wizard path', () => {
     });
     svc.setPersonalDetails(id, {
       city: 'Salem', region: 'OR', country: 'United States of America',
-      birthDate: '1990-01-01', gender: 'undisclosed', yearValue: '',
+      birthDay: '1', birthMonth: '1', birthYear: '1990', gender: 'undisclosed', yearValue: '',
     });
     expect(stored(id).city).toBe('Salem');
     expect(stored(id).country).toBe('United States of America');

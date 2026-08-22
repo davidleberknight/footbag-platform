@@ -332,10 +332,24 @@ export function refreshAllPersonas(
     delIn2('account_tokens', 'member_id', memberIds, 'target_legacy_member_id', legacyRoots);
     delIn('member_declared_anchors', 'member_id', memberIds);
     delIn2('outbox_emails', 'recipient_member_id', memberIds, 'sender_member_id', memberIds);
+    // An administrator's questions go before the queue items and the members
+    // they both reference, so neither delete is left blocked by a message
+    // pointing at a row that is already gone.
+    delIn2(
+      'member_messages', 'recipient_member_id', memberIds,
+      'sender_admin_member_id', memberIds,
+    );
     // Work-queue items about a persona are torn down with it. Items a persona
     // RESOLVED about other entities keep their decision history and lose only
     // the resolver reference (nullable column, no append-only guard).
     if (memberIds.length > 0) {
+      db.prepare(
+        `DELETE FROM member_messages
+          WHERE work_queue_item_id IN (
+            SELECT id FROM work_queue_items
+             WHERE entity_type = 'member' AND entity_id IN (${placeholders(memberIds.length)})
+          )`,
+      ).run(...memberIds);
       db.prepare(
         `DELETE FROM work_queue_items
           WHERE entity_type = 'member' AND entity_id IN (${placeholders(memberIds.length)})`,

@@ -35,6 +35,15 @@ const PENDING_ALLOWED = [
   '/history/:personId/claim',
 ];
 
+// Routes that sit under a pending-reachable prefix and are nonetheless
+// member-only, each with the reason. An entry here is a decision someone made;
+// silence would be an oversight, and the difference has to be visible.
+// The set is empty: the wizard belongs to signing up, so every route under it
+// is reachable by the registrant who has to get through it, and a capability
+// only a member holds lives on a member surface instead of being gated in
+// place. The two tests below hold that line from both directions.
+const PENDING_SURFACE_MEMBER_ONLY = new Map<string, string>();
+
 // State-changing routes that are unguarded by design: each is either a
 // pre-session flow an anonymous visitor must be able to post to, or a
 // server-to-server webhook that authenticates its caller in the controller (by
@@ -119,11 +128,43 @@ describe('membership-authorization route conformance', () => {
   });
 
   it('the wizard and claim routes use bare requireAuth, never requireMember', () => {
-    // A pending registrant has to reach these to stop being pending.
+    // A pending registrant has to reach these to stop being pending. The named
+    // exceptions above are the routes under these prefixes that are member-only
+    // anyway, each for a reason recorded beside it.
     const offenders = publicRegistrations
-      .filter((r) => isPendingSurface(r.target) && /\brequireMember\b/.test(r.text))
+      .filter((r) => isPendingSurface(r.target)
+        && !PENDING_SURFACE_MEMBER_ONLY.has(r.target)
+        && /\brequireMember\b/.test(r.text))
       .map((r) => `line ${r.line}: ${r.method.toUpperCase()} ${r.target}`);
     expect(offenders, offenders.join('\n')).toEqual([]);
+  });
+
+  it('every named pending-surface exception is deployed and is actually member-gated', () => {
+    // A stale exception silently widens the hole it was written to describe, and
+    // an exception that lost its guard would read as covered while being open.
+    // The set is empty today, which the test below is what actually holds; this
+    // one exists so that an entry added later cannot rot unnoticed.
+    for (const [target, reason] of PENDING_SURFACE_MEMBER_ONLY) {
+      const found = publicRegistrations.filter((r) => r.target === target);
+      expect(found.length, `exception no longer deployed: ${target} (${reason})`).toBeGreaterThan(0);
+      for (const r of found) {
+        expect(
+          /\brequireMember\b/.test(r.text),
+          `line ${r.line}: ${r.method.toUpperCase()} ${target} lost requireMember`,
+        ).toBe(true);
+      }
+    }
+  });
+
+  it('no wizard route is member-gated, because the wizard belongs to signing up', () => {
+    // The positive form of the empty exception set above, which would otherwise
+    // assert nothing at all. A capability only a member holds lives on a member
+    // surface; gating it inside the wizard instead would put it where the person
+    // it is gated against is the only one who ever goes.
+    const gated = publicRegistrations
+      .filter((r) => isPendingSurface(r.target) && /\brequireMember\b/.test(r.text))
+      .map((r) => `line ${r.line}: ${r.method.toUpperCase()} ${r.target}`);
+    expect(gated, gated.join('\n')).toEqual([]);
   });
 
   it('every state-changing public route carries a guard unless it is unguarded by design', () => {

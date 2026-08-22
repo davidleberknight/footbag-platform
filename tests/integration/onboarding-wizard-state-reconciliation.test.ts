@@ -108,8 +108,10 @@ describe('A5 + L5: wizard GETs reconcile task state with underlying reality', ()
       login_email: `state-a5-${stamp}@example.com`,
     });
     svc.startTaskList(memberId);
-    // The club-affiliations step runs only once personal details are on file.
+    // The steps are answered in order, so the club step is reachable only once
+    // the two ahead of it are answered.
     svc.completeTask(memberId, 'personal_details');
+    svc.completeTask(memberId, 'legacy_claim');
 
     const res = await request(createApp())
       .get('/register/wizard/club_affiliations')
@@ -230,7 +232,7 @@ describe('answering a task advances the wizard, never back into a resolved one',
     // legacy_claim and advances to the club step.
     const r1 = await request(createApp())
       .post('/register/wizard/legacy_claim/continue-without-linking')
-      .set('Cookie', cookie).type('form').send({ no_old_account: '1' });
+      .set('Cookie', cookie).type('form').send({ no_link_answer: 'never_had_one' });
     expect(r1.headers.location).toBe('/register/wizard/club_affiliations');
 
     const r2 = await request(createApp())

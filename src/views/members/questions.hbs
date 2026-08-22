@@ -1,0 +1,97 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+    {{#each navigation.contextLinks}}
+      <a href="{{href}}" class="back-link">{{label}}</a>
+    {{/each}}
+
+    {{#if content.answered}}
+      <p class="form-success-banner" role="status">Thank you. Your answer has been sent to the IFPA administrators.</p>
+    {{/if}}
+
+    {{#if content.error}}
+      <div class="form-error-banner" role="alert">{{content.error}}</div>
+    {{/if}}
+
+    {{#if content.hasQuestions}}
+      <p>An IFPA administrator has asked you something about your account. Your answer is read only by IFPA administrators, and none of it is sent by email.</p>
+
+      {{#each content.questions}}
+        <div class="card card-static">
+          <div class="card-title">{{this.subject}}</div>
+
+          <div class="event-meta-row">
+            <span>Asked <strong>{{formatDate this.sentAt}}</strong></span>
+            {{#if this.asksBirthDate}}
+              <span>Needs: <strong>your date of birth</strong></span>
+            {{else}}
+              <span>Needs: <strong>a reply</strong></span>
+            {{/if}}
+          </div>
+
+          <p>{{this.body}}</p>
+
+          <form method="POST" action="{{this.answerAction}}" class="form-block">
+            {{#if this.asksBirthDate}}
+              <fieldset class="form-fieldset">
+                <legend>Your date of birth</legend>
+                <div class="form-field">
+                  <label>
+                    <input type="radio" name="dateAnswer" value="confirm" {{#if this.confirmChecked}}checked{{/if}} />
+                    The date on my account is correct
+                  </label>
+                  <label>
+                    <input type="radio" name="dateAnswer" value="correct" {{#if this.correctChecked}}checked{{/if}} />
+                    My date of birth is
+                  </label>
+                </div>
+                <div class="form-date-parts">
+                  <div class="form-field form-date-day">
+                    <label for="birthDay-{{this.messageId}}">Day</label>
+                    <input type="text" id="birthDay-{{this.messageId}}" name="birthDay"
+                           inputmode="numeric" maxlength="2" autocomplete="bday-day"
+                           value="{{this.day}}" />
+                  </div>
+                  <div class="form-field form-date-month">
+                    <label for="birthMonth-{{this.messageId}}">Month</label>
+                    <select id="birthMonth-{{this.messageId}}" name="birthMonth" autocomplete="bday-month">
+                      <option value="">Choose a month</option>
+                      {{#each this.monthOptions}}
+                        <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
+                      {{/each}}
+                    </select>
+                  </div>
+                  <div class="form-field form-date-year">
+                    <label for="birthYear-{{this.messageId}}">Year</label>
+                    <input type="text" id="birthYear-{{this.messageId}}" name="birthYear"
+                           inputmode="numeric" maxlength="4" autocomplete="bday-year"
+                           value="{{this.year}}" />
+                  </div>
+                </div>
+                <small class="form-hint">Only fill these in if you chose the second option.</small>
+              </fieldset>
+            {{/if}}
+
+            <div class="form-field">
+              <label for="note-{{this.messageId}}">Anything you want to add <span class="text-muted">(optional)</span></label>
+              <textarea id="note-{{this.messageId}}" name="note" rows="4" maxlength="2000">{{this.note}}</textarea>
+              <small class="form-hint">Up to 2000 characters. Only IFPA administrators can read this.</small>
+            </div>
+
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary">Send Answer</button>
+              <a href="{{../content.profileHref}}" class="btn btn-outline">Cancel</a>
+            </div>
+          </form>
+        </div>
+      {{/each}}
+    {{else}}
+      <p class="empty-state">Nothing is waiting for you. If an IFPA administrator asks you something, it will appear here and you will get an email telling you to log in.</p>
+    {{/if}}
+  </section>
+</div>

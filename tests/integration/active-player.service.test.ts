@@ -204,6 +204,9 @@ describe('getStatus', () => {
     expect(aps.getStatus(id)).toEqual({
       is_active_player: 0,
       active_player_expires_at: null,
+      // Null here means never an Active Player. A member whose expiry has been
+      // processed carries the date it ran to instead.
+      active_player_last_expires_at: null,
       latest_active_player_reason_code: null,
     });
   });
@@ -237,6 +240,60 @@ describe('getStatus', () => {
     const status = aps.getStatus(id);
     expect(status.is_active_player).toBe(0);
     expect(status.active_player_expires_at).toBeNull();
+  });
+
+  it('reports the date a processed lapse ran out from the expiry row', () => {
+    // The expiry job clears the new expiry and moves the date the standing ran
+    // out into the old column, so this is the only place that date survives.
+    const id = freshMember();
+    const db = new BetterSqlite3(dbPath);
+    insertActivePlayerGrant(db, {
+      member_id: id,
+      created_at: '2026-01-01T00:00:00.000Z',
+      change_type: 'grant',
+      new_active_player_expires_at: PAST_AP,
+      reason_code: 'official_event_attendance',
+    });
+    insertActivePlayerGrant(db, {
+      member_id: id,
+      created_at: '2026-02-01T00:00:00.000Z',
+      change_type: 'expire',
+      old_active_player_expires_at: PAST_AP,
+      reason_code: 'active_player_expired',
+    });
+    db.close();
+    const status = aps.getStatus(id);
+    expect(status.is_active_player).toBe(0);
+    expect(status.active_player_expires_at).toBeNull();
+    expect(status.active_player_last_expires_at).toBe(PAST_AP);
+  });
+
+  it('reports no last-expiry date when the standing was ended rather than left to lapse', () => {
+    // An `end` row is written when a member reaches a paid tier, and the date it
+    // moves into the old column is the one the period would have run to, which
+    // is still in the future. A member back at tier0 with that row as their
+    // latest did not lapse, so there is no date anything ran out on.
+    const id = freshMember();
+    const db = new BetterSqlite3(dbPath);
+    insertActivePlayerGrant(db, {
+      member_id: id,
+      created_at: '2026-01-01T00:00:00.000Z',
+      change_type: 'grant',
+      new_active_player_expires_at: FUTURE_AP,
+      reason_code: 'official_event_attendance',
+    });
+    insertActivePlayerGrant(db, {
+      member_id: id,
+      created_at: '2026-02-01T00:00:00.000Z',
+      change_type: 'end',
+      old_active_player_expires_at: FUTURE_AP,
+      reason_code: 'membership_upgrade_ended_active_player',
+    });
+    db.close();
+    const status = aps.getStatus(id);
+    expect(status.is_active_player).toBe(0);
+    expect(status.active_player_expires_at).toBeNull();
+    expect(status.active_player_last_expires_at).toBeNull();
   });
 });
 

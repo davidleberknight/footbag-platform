@@ -771,6 +771,72 @@ CREATE TABLE work_queue_items (
 CREATE INDEX idx_work_queue_status ON work_queue_items(status, queue_category);
 CREATE INDEX idx_work_queue_entity ON work_queue_items(entity_type, entity_id);
 
+-- An administrator's direct question to one member, and that member's answer.
+--
+-- Every message hangs off the work-queue item that raised the question, so the
+-- queue row stays the single record of the matter and the answer returns to the
+-- administrator where they were already looking. There is no free-standing
+-- composer, which is why work_queue_item_id is required rather than optional.
+--
+-- The parked item keeps status 'open' while it waits. A fourth status was
+-- considered and rejected: eight statements filter status = 'open', and two of
+-- them are the de-duplication probe (which would then let a duplicate item be
+-- raised for the same member) and the two close paths (which would then refuse
+-- to close a parked item at all).
+--
+-- Content is owner-and-admin private (Sensitivity 4), which is what lets the
+-- channel carry a date of birth: it is read in the application and never
+-- travels by email, and the member is nudged by a content-free message to their
+-- verified login address. The subject, the body and the member's note are all
+-- free text written about or by a member, so all three are purgeable and are
+-- cleared by account erasure and by the deceased contact scrub. The audit
+-- ledger records that a message was sent and answered, carrying the expected
+-- answer kind and the body length but never the text, because the ledger is
+-- exempt from the purge.
+CREATE TABLE member_messages (
+  id         TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL,
+  created_by TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  updated_by TEXT NOT NULL,
+  version    INTEGER NOT NULL DEFAULT 1,
+
+  recipient_member_id    TEXT NOT NULL REFERENCES members(id),
+  sender_admin_member_id TEXT NOT NULL REFERENCES members(id),
+  work_queue_item_id     TEXT NOT NULL REFERENCES work_queue_items(id),
+
+  subject   TEXT,
+  body_text TEXT,
+
+  -- What the member is being asked for. 'acknowledge' is a read-and-reply with
+  -- an optional note; 'confirm_birth_date' additionally offers the date control
+  -- and writes a correction back through the service that owns the field.
+  expected_answer_kind TEXT NOT NULL
+    CHECK (expected_answer_kind IN ('acknowledge','confirm_birth_date')),
+
+  status TEXT NOT NULL DEFAULT 'sent' CHECK (status IN ('sent','answered')),
+
+  -- The structured half of the answer, null until answered. 'corrected' means
+  -- the member changed the value the question was about.
+  outcome TEXT CHECK (outcome IN ('acknowledged','confirmed','corrected')),
+  note_text TEXT,
+
+  sent_at     TEXT NOT NULL,
+  answered_at TEXT,
+
+  -- An answered row carries its outcome and its timestamp, and an unanswered
+  -- row carries neither; enforced here so no read has to guess.
+  CHECK (
+    (status = 'sent'     AND outcome IS NULL     AND answered_at IS NULL) OR
+    (status = 'answered' AND outcome IS NOT NULL AND answered_at IS NOT NULL)
+  )
+);
+
+-- The member's own outstanding-question read, and the administrator's read back
+-- from the queue item they sent it from.
+CREATE INDEX idx_member_messages_recipient ON member_messages(recipient_member_id, status);
+CREATE INDEX idx_member_messages_queue_item ON member_messages(work_queue_item_id);
+
 -- Platform-wide runtime configuration: append-only effective-dated rows.
 -- One row per (config_key, effective_start_at) pair. The current effective
 -- value for a key is the row with the latest effective_start_at <= now.
@@ -1756,6 +1822,11 @@ LEFT JOIN latest_ledger l ON l.member_id = m.id;
 --                                     latest AP expiry is in the future
 --   active_player_expires_at          latest AP expiry for Tier 0 members; NULL
 --                                     for Tier 1+
+--   active_player_last_expires_at     the date a Tier 0 member's standing runs
+--                                     to, or ran to if it has lapsed; NULL for
+--                                     a member who never held it, whose standing
+--                                     was ended rather than lapsing, or who is
+--                                     Tier 1+
 --   latest_active_player_reason_code  reason_code from the latest AP ledger row
 --                                     (informational; useful for display)
 
@@ -1787,6 +1858,26 @@ SELECT
     WHEN mt.tier_status = 'tier0' THEN l.new_active_player_expires_at
     ELSE NULL
   END AS active_player_expires_at,
+  -- The date the member's Active Player standing runs to, or ran to once it has
+  -- lapsed. A grant or extension carries it as the NEW expiry. The daily expiry
+  -- job clears the new expiry and moves the date the standing ran out into the
+  -- OLD one, so reading only the new column would make a processed lapse
+  -- indistinguishable from a member who was never an Active Player, which is
+  -- exactly the member the expired badge and the lapsed dashboard item exist for.
+  --
+  -- The fallback is confined to that one row type. An 'end' row, written when a
+  -- member reaches Tier 1, Tier 2 or Tier 3, also clears the new expiry, but the
+  -- date it moves into the old column is the one the period WOULD have run to,
+  -- which is still in the future. A member who later returns to Tier 0 did not
+  -- lapse, and coalescing here would tell them their standing ran out on a day
+  -- that has not happened yet. They read as a member with no standing, which is
+  -- what they are.
+  CASE
+    WHEN mt.tier_status <> 'tier0'                  THEN NULL
+    WHEN l.new_active_player_expires_at IS NOT NULL THEN l.new_active_player_expires_at
+    WHEN l.change_type = 'expire'                   THEN l.old_active_player_expires_at
+    ELSE NULL
+  END AS active_player_last_expires_at,
   l.reason_code AS latest_active_player_reason_code
 FROM members m
 JOIN member_tier_current mt ON mt.member_id = m.id
@@ -1913,6 +2004,24 @@ CREATE TABLE members (
   password_changed_at   TEXT,
   last_login_at         TEXT,
 
+  -- The legal name as two recorded parts rather than one string a reader has to
+  -- guess at. The family name is the private matching anchor every claim path
+  -- gates on, and deriving it by taking the last word is wrong for a member with
+  -- two surnames, a name particle, or a family name written first, so it is
+  -- stored rather than inferred.
+  --
+  -- Either part may be absent, and the application requires only that one of
+  -- them is present. A legal name that is a single word is common in Indonesia
+  -- and parts of southern India and is not an edge case; requiring both parts
+  -- would refuse those members outright. There is deliberately no CHECK
+  -- enforcing the pair, because the PII purge clears both columns and a
+  -- table-level rule would then reject a purged row.
+  family_name             TEXT,
+  given_names             TEXT,
+  -- The two parts assembled, given names first. Kept because the whole-name
+  -- matcher and the curated name-variant tables are keyed on whole names, and
+  -- because the legacy and historical records this is matched against carry a
+  -- single name string and always will.
   real_name               TEXT NOT NULL,
   display_name            TEXT NOT NULL,
   display_name_normalized TEXT NOT NULL,

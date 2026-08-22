@@ -1,7 +1,7 @@
 {
   "templateKey": "active_player_expiry_day_of",
   "subjectTemplate": "Your IFPA Active Player status has ended",
-  "bodyTemplate": "Hello,\n\nYour Active Player status ended on {displayDate}. You are still a Tier 0 Registered Member, and your membership tier is for life, but the Tier 1 benefits that came with Active Player status have ended. You are no longer listed on the Official IFPA Roster, you no longer vote in IFPA elections, and you can no longer create clubs and basic events.\n\nYou can earn Active Player status again by any of the following:\n  - Attending a qualifying IFPA-sanctioned event.\n  - Being vouched for by a Tier 2 IFPA Organizer Member or Tier 3 Director.\n  - Joining your first club, if you have not previously used this one-time grant.\n\n--\nInternational Footbag Players Association\n",
+  "bodyTemplate": "Hello,\n\nYour Active Player status ended on {displayDate}. You are still a Tier 0 Registered Member, and your membership tier is for life, but the Tier 1 benefits that came with Active Player status have ended. You are no longer listed on the Official IFPA Roster, you no longer vote in IFPA elections, and you can no longer create clubs and basic events.\n\nYou can earn Active Player status again by any of the following:\n  - Attending a qualifying IFPA-sanctioned event.\n  - Being vouched for by a Tier 2 IFPA Organizer Member or Tier 3 Director.\n\n--\nInternational Footbag Players Association\n",
   "piiClassification": "internal",
   "isEnabled": true
 }

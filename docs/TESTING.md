@@ -550,13 +550,13 @@ For surfaces in the legacy data pipeline that have no direct user story success 
 
 ### 8.2 Identity claim and confidence levels
 
-Legacy-member identity claim has three confidence outcomes (high, medium, low) plus the no-match case (per `docs/MIGRATION_PLAN.md`). Each outcome class anchors its own tests:
+Legacy-member identity claim has three confidence outcomes (high, medium, low) plus the no-match case. Each outcome class anchors its own tests:
 
 - *High confidence:* claim completes; legacy-person link is established; historical record links carry over to the member; subsequent visits use the active member account. Derived assertions cover positive flow plus the negative ("no claim is silently accepted on weak match").
-- *Medium confidence:* claim is queued for manual review; user sees an enumeration-safe message; admin queue receives the entry. Derived assertions cover the queueing plus the absence of any indication to the user that disambiguation is in progress.
-- *Low confidence and no match:* claim is rejected; user sees an enumeration-safe message; no link is created; no information about candidate identities is leaked.
+- *Medium confidence:* the candidate is staged and offered to the member as a card they confirm or decline; a confirmation records the floor evidence tier. Derived assertions cover the staging and the recorded tier, plus the absence of any indication to the user that disambiguation happened at all.
+- *Low confidence and no match:* no candidate is offered and no link is created; the user sees an enumeration-safe message and no information about candidate identities is leaked. A low-confidence match reaches an administrator as a dismissible review item, which closes with an audit row and no link.
 - *Name-change and alias edge cases:* historical records held under a different name resolve correctly; aliases are matched per the canonical alias table; no false-positive links cross alias boundaries.
-- *Date-of-birth conflict:* the claim links regardless of any date-of-birth discrepancy (the comparison never blocks); any non-identical outcome (near-miss or mismatch) enqueues an admin review item on both the legacy-account and direct historical-record claim paths; the member-facing response is identical whether the date matches or conflicts (the conflicting date and the admin flag never leak to the member); only an admin can dismiss the item.
+- *Date-of-birth mismatch:* the claim links regardless of any mismatch (the comparison never blocks); a date that does not match raises nothing on either the legacy-account or the direct historical-record claim path; the outcome is recorded in the claim's audit metadata and nowhere else; the member-facing response is identical whether the date matches or conflicts.
 
 ### 8.3 Club affiliation and cleanup
 

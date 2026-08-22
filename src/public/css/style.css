@@ -275,7 +275,10 @@
   --border-light: var(--gray-150);
   --border-soft: var(--parch-300);
   --link: var(--primary);
-  --wrapper-max: 1100px;
+  /* The width of the page content column. Anything that must line up with the
+     page beneath it reads this rather than repeating the number, so a band
+     spanning the viewport still meets the column at the same edge. */
+  --wrapper-max: 1200px;
 
   /* Freestyle extended palette (distinct freestyle colors, named not flattened) */
   --muted-gold: #b6a267;
@@ -380,7 +383,7 @@ code {
 
 /* ── Layout ─────────────────────────────────────────────────── */
 .wrapper {
-  max-width: 1200px;
+  max-width: var(--wrapper-max);
   margin: 0 auto;
   padding: 0 24px;
 }
@@ -2957,6 +2960,111 @@ section.home-media { padding-top: 0; }
   .form-row-2col { grid-template-columns: 1fr; }
 }
 
+/* An administrator's question to one member, shown on the work-queue card it
+   was sent from, and the compose control that sends it. Both are secondary to
+   the card's own decision controls, so they sit quietly under them. */
+.queue-member-question {
+  border-left: 3px solid var(--border);
+  padding-left: 12px;
+  margin: 12px 0;
+}
+.queue-ask-member {
+  margin: 12px 0;
+}
+.queue-ask-member > summary {
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+/* The evidence behind a member's past claim attempts, shown on the matters that
+   ask an administrator to judge an identity. It is reference material for the
+   decision controls below it, so it reads quietly and does not compete with
+   them, except where a date actively contradicted a claim. */
+.claim-evidence-list {
+  list-style: none;
+  margin: 8px 0 16px;
+  padding: 0;
+}
+.claim-evidence-item {
+  border-left: 3px solid var(--border);
+  padding-left: 12px;
+  margin-bottom: 12px;
+}
+.claim-evidence-outcome {
+  font-weight: 600;
+  margin: 0;
+}
+.claim-evidence-contradicted {
+  color: var(--warn-text);
+  font-weight: 600;
+}
+
+/* An owner-and-admin-private value on an administrator surface. Marked so it
+   reads as something the administrator is being trusted with, rather than as
+   ordinary card metadata. */
+.claim-evidence-revealed {
+  color: var(--warn-text);
+}
+
+/* The question an administrator asked, shown above the answer that came back. */
+.queue-question-body {
+  margin: 4px 0 8px;
+  white-space: pre-wrap;
+}
+
+/* A date entered as three labelled parts. The parts stay on one row at every
+   width: they are small, and stacking them reads as three unrelated questions
+   rather than one date. */
+.form-date-parts {
+  display: grid;
+  /* Sized to their contents rather than stretched across the form: a date reads
+     as one value, and three boxes spread over the full width read as three
+     unrelated questions. The month cell is capped so the longest month name
+     fits without the row sprawling. */
+  grid-template-columns: 4.5rem minmax(0, 11rem) 6rem;
+  justify-content: start;
+  gap: 12px;
+}
+/* Each cell stretches to the row, and the control fills its cell, so a native
+   select (which imposes its own control height) still lines up with the two
+   text boxes instead of sitting a couple of pixels proud of them. */
+.form-date-parts .form-field {
+  margin-bottom: 0;
+  display: flex;
+  flex-direction: column;
+}
+.form-date-parts .form-field > input,
+.form-date-parts .form-field > select {
+  flex: 1 1 auto;
+}
+.form-date-day input,
+.form-date-year input {
+  text-align: center;
+}
+/* A grid child defaults to a min-width of its content, so the month names would
+   push the row wider than its container instead of the cell absorbing them. */
+.form-date-month {
+  min-width: 0;
+}
+.form-date-month select {
+  width: 100%;
+}
+/* On a phone the day and year boxes shrink to what their two and four digits
+   actually need, and the padding inside the month control tightens, so the
+   longest month names stay readable instead of being clipped. */
+@media (max-width: 480px) {
+  .form-date-parts {
+    grid-template-columns: 3rem minmax(0, 1fr) 4.5rem;
+    gap: 8px;
+  }
+  .form-date-parts .form-field > input,
+  .form-date-parts .form-field > select {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+}
+
 /* ── Nav utilities ──────────────────────────────────────────── */
 .nav-logout {
   display: inline;
@@ -3283,6 +3391,39 @@ section.home-media { padding-top: 0; }
 
 /* ── Member dashboard blocks ─────────────────────────────────── */
 .quick-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* ── Member action block: what the platform is waiting on the member for ──
+   Each obligation is a notice card carrying its own role colour: warn-strong
+   for needs-attention-now, info-blue for anything that can wait. */
+.member-action-list { display: flex; flex-direction: column; gap: 12px; }
+.member-action-headline { font-weight: 600; }
+.member-action-detail { margin-top: 4px; font-size: 0.9rem; }
+.member-action-options { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.member-action-submit { display: inline-block; margin: 0; }
+
+/* The cross-page banner: one compact line on every member page except the
+   member's own profile, shown only while a needs-attention-now item is held. */
+.flash-action {
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-strong);
+  color: var(--warn-text);
+}
+/* The banner holds exactly one actionable element, so it must be identifiable
+   without relying on hue: the site-wide link colour is a light green that sits
+   near 2.6 to 1 on this pale background and barely differs from the text beside
+   it. The link takes the banner's own text colour, which clears the contrast
+   floor, and carries a resting underline and heavier weight so the affordance
+   survives for a reader who cannot separate the two hues. */
+.flash-action a {
+  color: var(--warn-text);
+  text-decoration: underline;
+  font-weight: 600;
+}
+.flash-action a:hover,
+.flash-action a:focus-visible {
+  color: var(--warn-text);
+  text-decoration-thickness: 2px;
+}
 .membership-badges { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
 .membership-upgrade-form { margin-top: 8px; }
 .membership-upgrade-price { margin-left: 10px; color: var(--gray-600); }
@@ -3408,6 +3549,8 @@ section.home-media { padding-top: 0; }
 
 @media (max-width: 480px) {
   .wrapper { padding: 0 16px; }
+  /* Kept in step with .wrapper so the band stays aligned at every width. */
+  .flash-banner { padding: 10px 16px; }
   section { padding: 28px 0; }
 
   /* Profile edit: stack identity rows and avatar on narrow screens */
@@ -5051,7 +5194,9 @@ a.hashtag--media:hover {
 }
 
 .flash-banner {
-  padding: 10px 16px;
+  /* Side padding matches .wrapper so the band's text starts on the same line as
+     the page content below it; the band sits outside any wrapper of its own. */
+  padding: 10px 24px;
   margin: 0 auto 16px;
   max-width: var(--wrapper-max);
   border-radius: var(--radius-xs);
