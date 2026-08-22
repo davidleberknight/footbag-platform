@@ -51,6 +51,11 @@ KNOWN_INCOMPLETE_NOTATION = {
     "terraging_illusion",
     "terraging_legover",
     "terraging_mirage",
+    # blazing entered the active non-modifier cohort when Red's ruling
+    # reclassified it as a set. Its set identity and +1 are settled, but its
+    # terminal-side decomposition remains unresolved; blank operational notation
+    # is therefore intentional pending that narrower ruling.
+    "blazing",
     # flailing's operator definition is pending an expert confirm/deny, so this
     # compound's notation is held: doctrine-blocked, not curator-ready.
     "bill_ted_s_excellent_adventure",
