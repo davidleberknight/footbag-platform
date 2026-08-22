@@ -252,7 +252,47 @@ def build_provisional_rows(candidates: pd.DataFrame, promoted_links: pd.DataFram
         "hof_induction_year",
         "confidence",
     ]
-    return out[keep_cols].copy()
+    out = out[keep_cols].copy()
+    assert_no_fused_provisional_persons(out)
+    return out
+
+
+def assert_no_fused_provisional_persons(rows: pd.DataFrame) -> None:
+    """Stop the run when one archival identity carries more than one candidate.
+
+    The id hashes the normalized name together with the source-type string, so
+    two candidates sharing both collapse into a single row and the enrichment
+    loader keeps only whichever arrived first. Where the two are one person who
+    registered on the legacy site twice that is the right answer, but it has to
+    be a recorded ruling: where they are two people who share a name, the second
+    person's archival record disappears and whoever claims first takes the
+    survivor, which the at-most-one-member-per-person index then makes
+    permanent. Adjudicated duplicates are merged upstream on their account ids,
+    so anything still fused here is unruled and fails the build rather than
+    reaching a member.
+    """
+    if rows.empty:
+        return
+    counts = rows["master_person_id"].value_counts()
+    fused = counts[counts > 1]
+    if fused.empty:
+        return
+    detail = "; ".join(
+        f"{person_id} carries "
+        + ", ".join(
+            sorted(rows.loc[rows["master_person_id"] == person_id, "person_name"])
+        )
+        for person_id in fused.index
+    )
+    raise SystemExit(
+        "persons/scripts/05_build_persons_master.py: unruled duplicate archival "
+        f"identities: {detail}. Rule each set as one person or several. One "
+        "person's duplicate legacy accounts merge by adding the account ids to "
+        "legacy_data/overrides/provisional_person_duplicates.csv and re-running "
+        "persons/provisional/scripts/02_build_provisional_identity_candidates.py; "
+        "separate people need distinct identities, which the name-plus-source-type "
+        "key cannot express."
+    )
 
 
 def load_promoted_candidates() -> tuple[pd.DataFrame, pd.DataFrame]:
