@@ -9,6 +9,12 @@
   <section>
     <form method="GET" action="/admin/freestyle/tips" class="freestyle-admin-filter">
       <input type="text" name="q" placeholder="Search tip text or slug" value="{{content.query}}" />
+      <select name="status" aria-label="Filter by status">
+        {{#each content.statusOptions}}
+          <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
+        {{/each}}
+      </select>
+      <input type="text" name="trick" placeholder="Trick slug" value="{{content.trickSlug}}" />
       <button type="submit" class="btn btn-outline btn-sm">Search</button>
       {{#if content.isFiltered}}
         <a href="/admin/freestyle/tips" class="btn btn-outline btn-sm">Clear</a>
@@ -27,6 +33,7 @@
           <tr>
             <th>Status</th>
             <th>Mapping</th>
+            <th>Order</th>
             <th>Tip</th>
             <th>Moderate</th>
           </tr>
@@ -43,8 +50,19 @@
                 {{/if}}
               </td>
               <td>
+                <form method="POST" action="/admin/freestyle/tips/{{this.id}}/order" class="freestyle-edit-form">
+                  <input type="hidden" name="q" value="{{@root.content.query}}" />
+                  <input type="hidden" name="status" value="{{@root.content.statusFilter}}" />
+                  <input type="hidden" name="trick" value="{{@root.content.trickSlug}}" />
+                  <p><input type="text" name="displayOrder" value="{{this.displayOrder}}" aria-label="Display order" /></p>
+                  <p><button type="submit" class="btn btn-outline btn-sm">Save Order</button></p>
+                </form>
+              </td>
+              <td>
                 <form method="POST" action="/admin/freestyle/tips/{{this.id}}/edit" class="freestyle-edit-form">
                   <input type="hidden" name="q" value="{{@root.content.query}}" />
+                  <input type="hidden" name="status" value="{{@root.content.statusFilter}}" />
+                  <input type="hidden" name="trick" value="{{@root.content.trickSlug}}" />
                   <p><textarea name="tipText" rows="3">{{this.tipText}}</textarea></p>
                   <p><button type="submit" class="btn btn-primary btn-sm">Save Text</button></p>
                 </form>
@@ -53,17 +71,23 @@
                 {{#if this.isPublished}}
                   <form method="POST" action="/admin/freestyle/tips/{{this.id}}/hide" class="inline-form">
                     <input type="hidden" name="q" value="{{@root.content.query}}" />
+                  <input type="hidden" name="status" value="{{@root.content.statusFilter}}" />
+                  <input type="hidden" name="trick" value="{{@root.content.trickSlug}}" />
                     <button type="submit" class="btn btn-outline btn-sm">Hide</button>
                   </form>
                 {{/if}}
                 {{#if this.isHidden}}
                   <form method="POST" action="/admin/freestyle/tips/{{this.id}}/restore" class="inline-form">
                     <input type="hidden" name="q" value="{{@root.content.query}}" />
+                  <input type="hidden" name="status" value="{{@root.content.statusFilter}}" />
+                  <input type="hidden" name="trick" value="{{@root.content.trickSlug}}" />
                     <button type="submit" class="btn btn-outline btn-sm">Restore</button>
                   </form>
                 {{/if}}
                 <form method="POST" action="/admin/freestyle/tips/{{this.id}}/remap" class="freestyle-edit-form mt-2">
                   <input type="hidden" name="q" value="{{@root.content.query}}" />
+                  <input type="hidden" name="status" value="{{@root.content.statusFilter}}" />
+                  <input type="hidden" name="trick" value="{{@root.content.trickSlug}}" />
                   <p><input type="text" name="targetSlug" placeholder="Active trick slug" /></p>
                   <p><button type="submit" class="btn btn-outline btn-sm">Remap to Trick</button></p>
                 </form>

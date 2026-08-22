@@ -2632,7 +2632,8 @@ export const freestyleTricks = {
   // `operational_notation` is the execution notation.
   get getForCurationBySlug() { return db.prepare(`
     SELECT slug, canonical_name, adds, notation, operational_notation,
-           trick_family, base_trick, category, is_active, review_status,
+           trick_family, base_trick, category, is_active, is_core, sort_order,
+           review_status,
            description, short_description, execution_summary, learning_notes,
            prerequisite_notes, pronunciation, operational_notation_source
     FROM freestyle_tricks
@@ -2650,12 +2651,16 @@ export const freestyleTricks = {
 
   // Admin curation scalar edit: update the editable row fields of one trick,
   // the structural fields plus the editorial prose fields (slug is the identity
-  // key and stays fixed). Stamps updated_at. Attached aliases, sources, and
-  // modifier links are untouched here.
+  // key and stays fixed). The core-primitive marker and the browse sort position
+  // are included because the content pipeline that used to set them stops running
+  // at the source-of-truth cutover, so this is their only remaining write path.
+  // Stamps updated_at. Attached aliases, sources, and modifier links are
+  // untouched here.
   get updateScalars() { return db.prepare(`
     UPDATE freestyle_tricks
     SET canonical_name = ?, adds = ?, notation = ?, operational_notation = ?,
         trick_family = ?, base_trick = ?, category = ?, is_active = ?,
+        is_core = ?, sort_order = ?,
         review_status = ?, description = ?, short_description = ?,
         execution_summary = ?, learning_notes = ?, prerequisite_notes = ?,
         pronunciation = ?, operational_notation_source = ?,
@@ -2942,6 +2947,11 @@ export const freestyleTrickTips = {
   // in the same write. The original slug is preserved as provenance in the audit
   // entry, so overwriting trick_slug here loses no history.
   get remap()        { return db.prepare(`UPDATE freestyle_trick_tips SET trick_slug = ?, status = 'published' WHERE id = ?`); },
+  // Display order decides the sequence tips render in on a trick page, ahead of
+  // the id tiebreak both list statements above already apply. The import seeds it
+  // from the legacy chronology; this is its only write path once the live
+  // database is the source of truth.
+  get updateDisplayOrder() { return db.prepare(`UPDATE freestyle_trick_tips SET display_order = ? WHERE id = ?`); },
 };
 
 export const freestyleMediaLinks = {

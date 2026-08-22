@@ -141,9 +141,10 @@ exception below.
 - World records (create and edit): the admin records surface.
 - Consecutive-kicks records (create and edit): the admin consecutive-records
   surface.
-- Trick tips (edit text, hide, restore, remap to an active canonical trick): the
-  admin tips index at `/admin/freestyle/tips`. Hide and restore toggle only
-  published and hidden; the import's unresolved buckets are never flattened.
+- Trick tips (edit text, set display order, hide, restore, remap to an active
+  canonical trick): the admin tips index at `/admin/freestyle/tips`. Hide and
+  restore toggle only published and hidden; the import's unresolved buckets are
+  never flattened.
 - Provenance-source rows (create): the admin dictionary-provenance registry at
   `/admin/freestyle/sources`. Distinct from the media-source registry.
 

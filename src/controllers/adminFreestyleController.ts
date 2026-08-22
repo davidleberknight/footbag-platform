@@ -51,7 +51,7 @@ export const adminFreestyleController = {
     }
   },
 
-  // Scalar-row save. Updates only the nine editable fields; success redirects
+  // Scalar-row save. Updates the trick row's own editable fields; success redirects
   // back to the edit page with a saved indicator, a validation failure re-renders
   // the form (submitted values + per-field errors) with 422, and an unknown slug
   // is a 404.
@@ -67,6 +67,8 @@ export const adminFreestyleController = {
       category:          str(req.body.category),
       reviewStatus:      str(req.body.reviewStatus),
       isActive:          req.body.isActive !== undefined, // checkbox present -> active
+      isCore:            req.body.isCore !== undefined,   // checkbox present -> core primitive
+      sortOrder:         str(req.body.sortOrder),
       description:               str(req.body.description),
       shortDescription:          str(req.body.shortDescription),
       executionSummary:          str(req.body.executionSummary),
@@ -294,9 +296,13 @@ export const adminFreestyleController = {
 
   // Browse freestyle world-record rows (all rows, including superseded and
   // low-confidence, which the public records page hides).
-  recordsIndex(_req: Request, res: Response, next: NextFunction): void {
+  recordsIndex(req: Request, res: Response, next: NextFunction): void {
     try {
-      res.render('admin/freestyle-records', freestyleRecordCurationService.getRecordBrowsePage());
+      const vm = freestyleRecordCurationService.getRecordBrowsePage({
+        query:      typeof req.query.q === 'string' ? req.query.q : undefined,
+        recordType: typeof req.query.recordType === 'string' ? req.query.recordType : undefined,
+      });
+      res.render('admin/freestyle-records', vm);
     } catch (err) {
       next(err);
     }
@@ -485,7 +491,9 @@ export const adminFreestyleController = {
   tips(req: Request, res: Response, next: NextFunction): void {
     try {
       const vm = freestyleCurationService.getTipModerationPage({
-        query: typeof req.query.q === 'string' ? req.query.q : undefined,
+        query:     typeof req.query.q === 'string' ? req.query.q : undefined,
+        status:    typeof req.query.status === 'string' ? req.query.status : undefined,
+        trickSlug: typeof req.query.trick === 'string' ? req.query.trick : undefined,
       });
       res.render('admin/freestyle-tips', vm);
     } catch (err) {
@@ -499,6 +507,12 @@ export const adminFreestyleController = {
   editTip(req: Request, res: Response, next: NextFunction): void {
     handleTipAction(req, res, next, (id, actor) =>
       freestyleCurationService.editTipText(id, str(req.body.tipText), actor));
+  },
+
+  // Set one tip's display order, the sequence its trick page renders tips in.
+  setTipOrder(req: Request, res: Response, next: NextFunction): void {
+    handleTipAction(req, res, next, (id, actor) =>
+      freestyleCurationService.setTipDisplayOrder(id, str(req.body.displayOrder), actor));
   },
 
   // Hide a tip from the public trick page (reversible; no delete).
@@ -569,18 +583,28 @@ function handleTipAction(
 ): void {
   const tipId = Number(req.params.id);
   const query = str(req.body.q);
+  const status = str(req.body.status);
+  const trick = str(req.body.trick);
   if (!Number.isInteger(tipId)) {
     renderNotFound(res);
     return;
   }
   try {
     action(tipId, req.user!.userId);
-    const suffix = query ? `?q=${encodeURIComponent(query)}` : '';
+    // Carry the moderator's filters back so an action does not drop them out from
+    // under the list they were working through.
+    const params = new URLSearchParams();
+    if (query)  params.set('q', query);
+    if (status) params.set('status', status);
+    if (trick)  params.set('trick', trick);
+    const suffix = params.size > 0 ? `?${params.toString()}` : '';
     res.redirect(303, `/admin/freestyle/tips${suffix}`);
   } catch (err) {
     if (err instanceof ValidationError) {
       res.status(422).render('admin/freestyle-tips', freestyleCurationService.getTipModerationPage({
         query: query || undefined,
+        status: status || undefined,
+        trickSlug: trick || undefined,
         error: err.message,
       }));
       return;

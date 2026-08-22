@@ -48,6 +48,8 @@ let tipRemap: number;
 let tipFutureNet: number;
 let tipGuard: number;
 let tipAlreadyHidden: number;
+let tipOrder: number;
+let tipOrderClear: number;
 
 function cookieFor(memberId: string, role: 'admin' | 'member'): string {
   return `__Host-footbag_session=${createTestSessionJwt({ memberId, role })}`;
@@ -92,6 +94,11 @@ beforeAll(async () => {
   tipFutureNet      = insertFreestyleTrickTip(db, { trick_slug: 'unresolved:net:Side Axe', tip_text: 'SENTINEL_FUTURE_NET.', status: 'future_net', display_order: 8 });
   tipGuard          = insertFreestyleTrickTip(db, { trick_slug: 'whirl', tip_text: 'SENTINEL_GUARD untouched.', status: 'published', display_order: 9 });
   tipAlreadyHidden  = insertFreestyleTrickTip(db, { trick_slug: 'whirl', tip_text: 'SENTINEL_ALREADY_HIDDEN.', status: 'hidden', display_order: 10 });
+  // The display-order rows sit on the second trick, so the trick filter has a
+  // population of its own to narrow to and the order writes never disturb the
+  // whirl rows the other suites assert against.
+  tipOrder          = insertFreestyleTrickTip(db, { trick_slug: 'blurry_whirl', tip_text: 'SENTINEL_ORDER advice.', status: 'published', display_order: 11 });
+  tipOrderClear     = insertFreestyleTrickTip(db, { trick_slug: 'blurry_whirl', tip_text: 'SENTINEL_ORDER_CLEAR advice.', status: 'published', display_order: 12 });
 
   createApp = await importApp();
 });
@@ -117,6 +124,12 @@ function tipRow(id: number) {
   return db.prepare(
     'SELECT trick_slug, tip_text, status FROM freestyle_trick_tips WHERE id = ?',
   ).get(id) as { trick_slug: string; tip_text: string; status: string };
+}
+
+function tipDisplayOrder(id: number): number {
+  return (db.prepare(
+    'SELECT display_order FROM freestyle_trick_tips WHERE id = ?',
+  ).get(id) as { display_order: number }).display_order;
 }
 
 function auditByAction(entityId: string, actionType: string) {
@@ -364,6 +377,130 @@ describe('POST /admin/freestyle/tips/:id/remap — remap to an active canonical 
 // by role, but a test persona whose writes would touch the committed pre-go-live
 // source of truth) on every tip write path. The integration fixture runs with the
 // guard flag on.
+// The moderation index is the only place a curator meets the imported tips, and
+// the backlog spans several statuses across the whole dictionary, so status and
+// trick are the two narrowings that make it workable.
+describe('GET /admin/freestyle/tips — status and trick filters', () => {
+  it('narrows to one status and drops the others', async () => {
+    const res = await get('/admin/freestyle/tips?status=future_net', admin());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('SENTINEL_FUTURE_NET');
+    expect(res.text).not.toContain('SENTINEL_EDIT');
+    expect(res.text).not.toContain('SENTINEL_ALREADY_HIDDEN');
+  });
+
+  it('narrows to one trick and drops tips on other tricks', async () => {
+    const res = await get('/admin/freestyle/tips?trick=blurry_whirl', admin());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('SENTINEL_ORDER advice.');
+    expect(res.text).not.toContain('SENTINEL_EDIT');
+  });
+
+  it('matches the trick slug exactly rather than as a substring', async () => {
+    const res = await get('/admin/freestyle/tips?trick=whirl', admin());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('SENTINEL_EDIT');
+    expect(res.text).not.toContain('SENTINEL_ORDER advice.');  // blurry_whirl is a different trick
+  });
+
+  it('combines the status and trick filters', async () => {
+    const res = await get('/admin/freestyle/tips?trick=whirl&status=hidden', admin());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('SENTINEL_ALREADY_HIDDEN');
+    expect(res.text).not.toContain('SENTINEL_EDIT');           // right trick, wrong status
+  });
+
+  it('combines the free-text search with a status filter', async () => {
+    const res = await get('/admin/freestyle/tips?q=SENTINEL&status=future_net', admin());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('SENTINEL_FUTURE_NET');
+    expect(res.text).not.toContain('SENTINEL_RESTORE_UNRESOLVED');  // matches the text, wrong status
+  });
+
+  it('ignores an unrecognised status rather than emptying the index', async () => {
+    const res = await get('/admin/freestyle/tips?status=not_a_status', admin());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('SENTINEL_EDIT');
+    expect(res.text).toContain('SENTINEL_FUTURE_NET');
+  });
+
+  it('offers a clear control only when a filter is applied', async () => {
+    const filtered = await get('/admin/freestyle/tips?status=hidden', admin());
+    expect(filtered.text).toContain('Clear');
+    const unfiltered = await get('/admin/freestyle/tips', admin());
+    expect(unfiltered.text).not.toContain('>Clear<');
+  });
+});
+
+// Display order decides the sequence a trick page renders its tips in. The import
+// seeds it from the legacy chronology and the retiring content pipeline was its
+// only writer, so without this path the order freezes at cutover.
+describe('POST /admin/freestyle/tips/:id/order — display order', () => {
+  it('renders each tip current display order in an editable control', async () => {
+    const res = await get('/admin/freestyle/tips?trick=blurry_whirl', admin());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('name="displayOrder"');
+    expect(res.text).toContain('value="11"');
+  });
+
+  it('persists a new order and writes one audit row carrying both values', async () => {
+    const res = await post(`/admin/freestyle/tips/${tipOrder}/order`, admin(), { displayOrder: '3' });
+    expect(res.status).toBe(303);
+    expect(tipDisplayOrder(tipOrder)).toBe(3);
+
+    const audits = auditByAction(String(tipOrder), 'freestyle.trick_tip.reordered');
+    expect(audits).toHaveLength(1);
+    expect(audits[0].metadata_json).toContain('"fromDisplayOrder":11');
+    expect(audits[0].metadata_json).toContain('"toDisplayOrder":3');
+  });
+
+  it('stores zero for a cleared order rather than rejecting it', async () => {
+    const res = await post(`/admin/freestyle/tips/${tipOrderClear}/order`, admin(), { displayOrder: '' });
+    expect(res.status).toBe(303);
+    expect(tipDisplayOrder(tipOrderClear)).toBe(0);
+  });
+
+  it('carries the moderator filters back on the redirect', async () => {
+    const res = await post(`/admin/freestyle/tips/${tipOrder}/order`, admin(),
+      { displayOrder: '4', q: 'SENTINEL', status: 'published', trick: 'blurry_whirl' });
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toContain('q=SENTINEL');
+    expect(res.headers.location).toContain('status=published');
+    expect(res.headers.location).toContain('trick=blurry_whirl');
+  });
+
+  it('rejects a non-numeric order and leaves the row untouched', async () => {
+    const before = tipDisplayOrder(tipGuard);
+    const res = await post(`/admin/freestyle/tips/${tipGuard}/order`, admin(), { displayOrder: 'first' });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Display order must be a whole number');
+    expect(tipDisplayOrder(tipGuard)).toBe(before);
+    expect(auditByAction(String(tipGuard), 'freestyle.trick_tip.reordered')).toHaveLength(0);
+  });
+
+  it('rejects a negative order rather than coercing it', async () => {
+    const before = tipDisplayOrder(tipGuard);
+    const res = await post(`/admin/freestyle/tips/${tipGuard}/order`, admin(), { displayOrder: '-2' });
+    expect(res.status).toBe(422);
+    expect(tipDisplayOrder(tipGuard)).toBe(before);
+  });
+
+  it('returns 404 for an unknown tip id', async () => {
+    const res = await post('/admin/freestyle/tips/99999/order', admin(), { displayOrder: '1' });
+    expect(res.status).toBe(404);
+  });
+
+  it('redirects an unauthenticated visitor to login', async () => {
+    const res = await post(`/admin/freestyle/tips/${tipGuard}/order`, undefined, { displayOrder: '1' });
+    expect(res.status).toBe(302);
+  });
+
+  it('returns 403 for a non-admin member', async () => {
+    const res = await post(`/admin/freestyle/tips/${tipGuard}/order`, cookieFor(MEMBER_ID, 'member'), { displayOrder: '1' });
+    expect(res.status).toBe(403);
+  });
+});
+
 describe('freestyle tip write paths — seeded-persona admin is refused (403)', () => {
   const persona = () => cookieFor(PERSONA_ADMIN_ID, 'admin');
 
@@ -391,5 +528,12 @@ describe('freestyle tip write paths — seeded-persona admin is refused (403)', 
     const res = await post(`/admin/freestyle/tips/${tipGuard}/remap`, persona(), { targetSlug: 'blurry_whirl' });
     expect(res.status).toBe(403);
     expect(tipRow(tipGuard).trick_slug).toBe(before.trick_slug);
+  });
+
+  it('refuses a display-order change', async () => {
+    const before = tipDisplayOrder(tipGuard);
+    const res = await post(`/admin/freestyle/tips/${tipGuard}/order`, persona(), { displayOrder: '1' });
+    expect(res.status).toBe(403);
+    expect(tipDisplayOrder(tipGuard)).toBe(before);
   });
 });

@@ -227,6 +227,35 @@ beforeAll(async () => {
     description: 'Clear me.',
   });
 
+  // Rows for the core-primitive marker and the browse sort position. The display
+  // row carries both set to a non-default value; the save rows are separate so
+  // their mutations never disturb the display assertions.
+  insertFreestyleTrick(db, {
+    slug: 'core_host',
+    canonical_name: 'Core Host',
+    adds: '1', trick_family: 'whirl', base_trick: 'whirl', category: 'dex',
+    review_status: 'curated', is_active: 1, is_core: 1, sort_order: 42,
+  });
+  insertFreestyleTrick(db, {
+    slug: 'core_set',
+    canonical_name: 'Core Set',
+    adds: '2', trick_family: 'whirl', base_trick: 'whirl', category: 'compound',
+    review_status: 'curated', is_active: 1, is_core: 0, sort_order: 0,
+  });
+  insertFreestyleTrick(db, {
+    slug: 'core_clear',
+    canonical_name: 'Core Clear',
+    adds: '2', trick_family: 'whirl', base_trick: 'whirl', category: 'compound',
+    review_status: 'curated', is_active: 1, is_core: 1, sort_order: 7,
+  });
+  // Never saved successfully: the rejection tests assert it is untouched.
+  insertFreestyleTrick(db, {
+    slug: 'core_guard',
+    canonical_name: 'Core Guard',
+    adds: '2', trick_family: 'whirl', base_trick: 'whirl', category: 'compound',
+    review_status: 'curated', is_active: 1, is_core: 1, sort_order: 9,
+  });
+
   // Derived-parse rows: each carries a stored notation parse, so a save can be
   // shown to drop it when it changes what the parse was taken from, and to keep
   // it when it does not. One row per case, because the first save that clears the
@@ -281,6 +310,12 @@ function trickRow(slug: string) {
   return db.prepare(
     'SELECT canonical_name, category, review_status, is_active, updated_at FROM freestyle_tricks WHERE slug = ?',
   ).get(slug) as { canonical_name: string; category: string | null; review_status: string; is_active: number; updated_at: string | null };
+}
+
+function coreRow(slug: string) {
+  return db.prepare(
+    'SELECT is_core, sort_order FROM freestyle_tricks WHERE slug = ?',
+  ).get(slug) as { is_core: number; sort_order: number };
 }
 
 function auditRows(slug: string) {
@@ -627,6 +662,84 @@ describe('POST/GET /admin/freestyle/tricks/:slug/edit — editorial prose fields
     expect(res.text).toContain('Description must be');
     expect(proseRow('save_guard').description).toBe(before.description);
     expect(auditRows('save_guard')).toHaveLength(0);
+  });
+});
+
+// The core-primitive marker and the browse sort position are the two row fields
+// the retiring content pipeline used to own. They need an in-app write path
+// because nothing else maintains them once the live database is the source of
+// truth for freestyle content.
+describe('POST/GET /admin/freestyle/tricks/:slug/edit — core marker and sort position', () => {
+  it('displays the stored core marker and sort position for editing', async () => {
+    const res = await get('/admin/freestyle/tricks/core_host/edit', admin());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('name="isCore"');
+    expect(res.text).toMatch(/name="isCore"[^>]*checked/);
+    expect(res.text).toContain('value="42"');           // sort position input
+  });
+
+  it('leaves the core checkbox unchecked for a row that is not a core primitive', async () => {
+    const res = await get('/admin/freestyle/tricks/core_set/edit', admin());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('name="isCore"');
+    expect(res.text).not.toMatch(/name="isCore"[^>]*checked/);
+  });
+
+  it('sets the core marker and the sort position, and names both in the audit metadata', async () => {
+    const res = await post('/admin/freestyle/tricks/core_set/edit', admin(),
+      validBody({ canonicalName: 'Core Set', isCore: 'on', sortOrder: '17' }));
+    expect(res.status).toBe(303);
+
+    const row = coreRow('core_set');
+    expect(row.is_core).toBe(1);
+    expect(row.sort_order).toBe(17);
+
+    const audits = auditRows('core_set');
+    expect(audits).toHaveLength(1);
+    expect(audits[0].metadata_json).toContain('is_core');
+    expect(audits[0].metadata_json).toContain('sort_order');
+  });
+
+  it('clears the core marker when the checkbox is absent, and stores zero for a cleared sort position', async () => {
+    const res = await post('/admin/freestyle/tricks/core_clear/edit', admin(),
+      validBody({ canonicalName: 'Core Clear', sortOrder: '' }));
+    expect(res.status).toBe(303);
+
+    const row = coreRow('core_clear');
+    expect(row.is_core).toBe(0);
+    expect(row.sort_order).toBe(0);
+  });
+
+  it('rejects a non-numeric sort position and persists nothing', async () => {
+    const before = coreRow('core_guard');
+    const res = await post('/admin/freestyle/tricks/core_guard/edit', admin(),
+      validBody({ canonicalName: 'Attempted Name', sortOrder: 'first' }));
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Sort position must be a whole number');
+
+    const after = coreRow('core_guard');
+    expect(after.sort_order).toBe(before.sort_order);
+    expect(after.is_core).toBe(before.is_core);
+    expect(auditRows('core_guard')).toHaveLength(0);
+  });
+
+  it('rejects a negative sort position rather than coercing it', async () => {
+    const before = coreRow('core_guard');
+    const res = await post('/admin/freestyle/tricks/core_guard/edit', admin(),
+      validBody({ canonicalName: 'Attempted Name', sortOrder: '-3' }));
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Sort position must be a whole number');
+    expect(coreRow('core_guard').sort_order).toBe(before.sort_order);
+    expect(auditRows('core_guard')).toHaveLength(0);
+  });
+
+  it('rejects a fractional sort position rather than truncating it', async () => {
+    const before = coreRow('core_guard');
+    const res = await post('/admin/freestyle/tricks/core_guard/edit', admin(),
+      validBody({ canonicalName: 'Attempted Name', sortOrder: '2.5' }));
+    expect(res.status).toBe(422);
+    expect(coreRow('core_guard').sort_order).toBe(before.sort_order);
+    expect(auditRows('core_guard')).toHaveLength(0);
   });
 });
 

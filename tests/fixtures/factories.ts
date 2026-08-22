@@ -840,6 +840,9 @@ export interface FreestyleTrickOverrides {
   sort_order?:     number;
   review_status?:  string;
   is_active?:      0 | 1;
+  // Marks an irreducible dex/body/set primitive. Defaults to 0, the state of
+  // every compound row.
+  is_core?:        0 | 1;
   // Notation-grammar columns (all nullable; a test that does not opt in
   // gets NULL and is unaffected by them).
   jobs_notation_raw?:        string | null;
@@ -870,12 +873,12 @@ export function insertFreestyleTrick(
   db.prepare(`
     INSERT INTO freestyle_tricks
       (slug, canonical_name, adds, base_trick, trick_family, category,
-       description, aliases_json, notation, sort_order, review_status, is_active, loaded_at,
+       description, aliases_json, notation, sort_order, review_status, is_active, is_core, loaded_at,
        jobs_notation_raw, jobs_notation_normalized, structural_parse_json,
        computed_add_formula, computed_adds, add_formula_status,
        operational_notation, operational_notation_source, pronunciation,
        short_description, execution_summary, learning_notes, prerequisite_notes)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     slug,
     o.canonical_name ?? slug.replace(/-/g, ' '),
@@ -889,6 +892,7 @@ export function insertFreestyleTrick(
     o.sort_order     ?? 0,
     o.review_status  ?? 'curated',
     o.is_active      ?? 1,
+    o.is_core        ?? 0,
     TS,
     o.jobs_notation_raw         ?? null,
     o.jobs_notation_normalized  ?? null,

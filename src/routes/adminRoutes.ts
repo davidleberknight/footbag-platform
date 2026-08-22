@@ -103,6 +103,7 @@ adminRouter.get('/freestyle/emerging-vocabulary', emergingVocabController.workbe
 // tips have no trick page), so this is its own index rather than a per-trick sub-surface.
 adminRouter.get('/freestyle/tips',              adminFreestyleController.tips);
 adminRouter.post('/freestyle/tips/:id/edit',    adminFreestyleController.editTip);
+adminRouter.post('/freestyle/tips/:id/order',   adminFreestyleController.setTipOrder);
 adminRouter.post('/freestyle/tips/:id/hide',    adminFreestyleController.hideTip);
 adminRouter.post('/freestyle/tips/:id/restore', adminFreestyleController.restoreTip);
 adminRouter.post('/freestyle/tips/:id/remap',   adminFreestyleController.remapTip);

@@ -4,7 +4,8 @@
  * Owns:
  *   - The admin browse of freestyle_records: listing every record regardless of
  *     confidence or superseded state (an admin curates provisional, disputed, and
- *     retired rows the public records page hides), with the resolved holder name.
+ *     retired rows the public records page hides), with the resolved holder name,
+ *     searchable by holder name and trick name and filterable by record type.
  *   - The admin edit surface for one record: rendering its editable fields and
  *     saving edits to the record row.
  *   - The admin new-record surface: rendering the create form and inserting a new
@@ -64,6 +65,19 @@ export interface FreestyleRecordBrowseContent {
   rows: FreestyleRecordBrowseRow[];
   totalCount: number;
   hasRows: boolean;
+  filters: FreestyleRecordBrowseFilters;
+}
+
+/** The browse filters an admin submits: free text plus the record-type select. */
+export interface FreestyleRecordBrowseFilterInput {
+  query?: string;
+  recordType?: string;
+}
+
+export interface FreestyleRecordBrowseFilters {
+  query: string;
+  recordTypeOptions: FilterOption[];
+  isFiltered: boolean;
 }
 
 export interface FreestyleRecordEditFields {
@@ -188,22 +202,57 @@ function numOrEmpty(value: number | null): string {
 }
 
 export const freestyleRecordCurationService = {
-  getRecordBrowsePage(): PageViewModel<FreestyleRecordBrowseContent> {
-    const rows = (freestyleRecords.listForCuration.all() as RecordBrowseDbRow[]).map((r) => ({
-      id:          r.id,
-      recordType:  r.record_type,
-      holderName:  r.holder_name ?? '',
-      trickName:   r.trick_name ?? '',
-      value:       numOrEmpty(r.value_numeric),
-      confidence:  r.confidence,
-      statusLabel: r.superseded_by ? 'Superseded' : 'Current',
-      editHref:    `/admin/freestyle/records/${r.id}/edit`,
-    }));
+  // Browse every record, narrowed by an optional free-text match over the holder
+  // name and the trick name, and by an optional record-type select. The holder
+  // name matched is the resolved one, so a record linked to a historical person
+  // is found by that person's registry name rather than only by the free-text
+  // name the row carries. An unrecognised record type is treated as no filter,
+  // so a hand-edited query string cannot empty the browse without saying why.
+  getRecordBrowsePage(filter: FreestyleRecordBrowseFilterInput = {}): PageViewModel<FreestyleRecordBrowseContent> {
+    const query = (filter.query ?? '').trim();
+    const recordTypes = allowedRecordTypes();
+    const typeFilter = recordTypes.includes(filter.recordType ?? '') ? (filter.recordType as string) : '';
+
+    const needle = query.toLowerCase();
+    const rows = (freestyleRecords.listForCuration.all() as RecordBrowseDbRow[])
+      .filter((r) => {
+        if (typeFilter && r.record_type !== typeFilter) return false;
+        if (needle) {
+          const holder = (r.holder_name ?? '').toLowerCase();
+          const trick  = (r.trick_name ?? '').toLowerCase();
+          if (!holder.includes(needle) && !trick.includes(needle)) return false;
+        }
+        return true;
+      })
+      .map((r) => ({
+        id:          r.id,
+        recordType:  r.record_type,
+        holderName:  r.holder_name ?? '',
+        trickName:   r.trick_name ?? '',
+        value:       numOrEmpty(r.value_numeric),
+        confidence:  r.confidence,
+        statusLabel: r.superseded_by ? 'Superseded' : 'Current',
+        editHref:    `/admin/freestyle/records/${r.id}/edit`,
+      }));
+
+    const recordTypeOptions: FilterOption[] = [
+      { value: '', label: 'Any record type', selected: typeFilter === '' },
+      ...recordTypes.map((t) => ({ value: t, label: t, selected: t === typeFilter })),
+    ];
 
     return {
       seo:  { title: 'Freestyle Records' },
       page: { sectionKey: 'admin', pageKey: 'admin_freestyle_records', title: 'Freestyle Records' },
-      content: { rows, totalCount: rows.length, hasRows: rows.length > 0 },
+      content: {
+        rows,
+        totalCount: rows.length,
+        hasRows: rows.length > 0,
+        filters: {
+          query,
+          recordTypeOptions,
+          isFiltered: query !== '' || typeFilter !== '',
+        },
+      },
     };
   },
 

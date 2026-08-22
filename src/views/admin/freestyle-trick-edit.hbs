@@ -30,6 +30,8 @@
           </select>
         </p>
         <p><label><input type="checkbox" name="isActive" {{#if content.fields.isActive}}checked{{/if}} /> Active</label></p>
+        <p><label><input type="checkbox" name="isCore" {{#if content.fields.isCore}}checked{{/if}} /> Core primitive</label></p>
+        <p><label>Sort position</label><br><input type="text" name="sortOrder" value="{{content.fields.sortOrder}}" /></p>
         <p><label>Review status</label><br>
           <select name="reviewStatus">
             {{#each content.reviewStatusOptions}}<option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>{{/each}}

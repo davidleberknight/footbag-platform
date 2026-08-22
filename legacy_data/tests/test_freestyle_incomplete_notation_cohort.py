@@ -51,9 +51,6 @@ KNOWN_INCOMPLETE_NOTATION = {
     "terraging_illusion",
     "terraging_legover",
     "terraging_mirage",
-    # the down-family embedded-base coordinate frame is pending, so this cell's
-    # notation is held.
-    "down_double_down",
     # flailing's operator definition is pending an expert confirm/deny, so this
     # compound's notation is held: doctrine-blocked, not curator-ready.
     "bill_ted_s_excellent_adventure",

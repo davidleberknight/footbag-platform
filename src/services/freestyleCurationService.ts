@@ -13,8 +13,10 @@
  *     attaching or detaching links to the existing registry sources, and attaching
  *     or detaching links to the existing registry modifiers.
  *   - Moderation of the imported community trick tips: a cross-trick index that
- *     lists and searches every tip regardless of status, editing a tip's advice
- *     text, hiding a tip and restoring it (a reversible status change, never a
+ *     lists and searches every tip regardless of status, narrowed by status and by
+ *     trick, editing a tip's advice
+ *     text and its display order, hiding a tip and restoring it (a reversible
+ *     status change, never a
  *     delete), and remapping a tip to an active canonical trick while preserving
  *     the original mapping as audit-trail provenance.
  *   - Creation of dictionary provenance-source registry rows: listing the existing
@@ -30,7 +32,9 @@
  *
  * Write discipline: updateTrickScalars validates the submitted fields for row
  * shape (canonical name required, ADD numeric/empty/"modifier", category and
- * review status within the existing allowed values, active a boolean, each
+ * review status within the existing allowed values, active and the core-primitive
+ * marker booleans, the browse sort position a whole number zero or greater with a
+ * cleared field meaning the unset zero, each
  * editorial prose field within a length cap) plus one
  * structural doctrine check: when the ADD is numeric and the execution notation
  * carries scoring brackets, the scoring-bracket count must equal the ADD. Rows
@@ -72,7 +76,9 @@
  * _ambiguous, and future_net for net-technique tips); only published tips render
  * publicly. Moderation reads every status but writes only published or hidden, so
  * an unresolved bucket is never flattened. editTipText rejects empty or over-long
- * text. hideTip acts only on a published tip (the only publicly visible kind) and
+ * text. setTipDisplayOrder rejects a negative or non-integer order and treats a
+ * cleared field as the unset zero; a duplicate order is allowed, because the read
+ * statements already break the tie on id. hideTip acts only on a published tip (the only publicly visible kind) and
  * sets it hidden. restoreTip acts only on a hidden tip and, guarding that it still
  * points at an active canonical trick, sets it back to published; a hidden tip
  * whose trick is inactive or unresolved is not restored and must be remapped first.
@@ -213,6 +219,9 @@ export interface FreestyleTrickEditFields {
   category: string;
   isActive: boolean;
   activeLabel: string;
+  isCore: boolean;
+  coreLabel: string;
+  sortOrder: string;
   reviewStatus: string;
   reviewStatusLabel: string;
   description: string;
@@ -300,6 +309,8 @@ export interface FreestyleTrickScalarInput {
   category?: string;
   reviewStatus?: string;
   isActive?: boolean;
+  isCore?: boolean;
+  sortOrder?: string;
   description?: string;
   shortDescription?: string;
   executionSummary?: string;
@@ -332,6 +343,8 @@ interface CurationEditDbRow {
   base_trick: string | null;
   category: string | null;
   is_active: number;
+  is_core: number;
+  sort_order: number;
   review_status: string;
   description: string | null;
   short_description: string | null;
@@ -461,12 +474,19 @@ export interface TipModerationRow {
   // An unresolved tip carries the original import name inside its slug; expose it
   // so the moderator sees what a remap would resolve.
   unresolvedName: string;
+  // The render sequence on the trick page, as the display-order form's value.
+  displayOrder: string;
 }
 
 export interface FreestyleTipModerationContent {
   rows: TipModerationRow[];
   totalCount: number;
   query: string;
+  statusOptions: FilterOption[];
+  // The applied status, as the plain value the per-row action forms round-trip so
+  // an action returns the moderator to the same filtered list.
+  statusFilter: string;
+  trickSlug: string;
   isFiltered: boolean;
   hasRows: boolean;
   // Set when a moderation action failed validation and the index is re-rendered
@@ -504,8 +524,13 @@ function shapeTipModerationRow(r: TipModerationDbRow): TipModerationRow {
     // status: the tip is not public and awaits a remap to a canonical trick.
     isUnresolved:   !isPublished && !isHidden,
     unresolvedName: hasUnresolvedSlug ? r.trick_slug.slice('unresolved:'.length) : '',
+    displayOrder:   String(r.display_order),
   };
 }
+
+// Every status the tip column carries, in the order the moderation filter offers
+// them: the two moderation writes first, then the four import-assigned buckets.
+const TIP_STATUS_VALUES = Object.keys(TIP_STATUS_LABELS);
 
 const SOURCE_ID_MAX = 100;
 const SOURCE_LABEL_MAX = 200;
@@ -704,6 +729,7 @@ export const freestyleCurationService = {
     const category     = sub ? (sub.category ?? '') : (row.category ?? '');
     const reviewStatus = sub ? (sub.reviewStatus ?? '') : row.review_status;
     const isActive     = sub ? sub.isActive === true : row.is_active === 1;
+    const isCore       = sub ? sub.isCore === true : row.is_core === 1;
 
     const fields: FreestyleTrickEditFields = {
       canonicalName:     sub ? (sub.canonicalName ?? '') : row.canonical_name,
@@ -715,6 +741,9 @@ export const freestyleCurationService = {
       category,
       isActive,
       activeLabel:       isActive ? 'Active' : 'Inactive',
+      isCore,
+      coreLabel:         isCore ? 'Core primitive' : 'Not a core primitive',
+      sortOrder:         sub ? (sub.sortOrder ?? '') : String(row.sort_order),
       reviewStatus,
       reviewStatusLabel: REVIEW_STATUS_LABELS[reviewStatus] ?? reviewStatus,
       description:               sub ? (sub.description ?? '') : (row.description ?? ''),
@@ -815,6 +844,23 @@ export const freestyleCurationService = {
     }
 
     const isActive = input.isActive === true ? 1 : 0;
+    const isCore = input.isCore === true ? 1 : 0;
+
+    // Browse sort position. The column is NOT NULL and its unset state is zero
+    // (the load order the retiring content pipeline stamped), so a cleared field
+    // means "unset" rather than "unknown" and stores zero. A negative or
+    // non-integer value is rejected: ordering is a whole-number position, and
+    // silently coercing one would move the row somewhere the curator did not ask.
+    const sortOrderRaw = (input.sortOrder ?? '').trim();
+    let sortOrder = 0;
+    if (sortOrderRaw !== '') {
+      if (!/^\d+$/.test(sortOrderRaw)) {
+        fieldErrors.sortOrder = 'Sort position must be a whole number, zero or greater.';
+      } else {
+        sortOrder = Number(sortOrderRaw);
+      }
+    }
+
     const movementNotation  = emptyToNull(input.movementNotation);
     const executionNotation = emptyToNull(input.executionNotation);
     const family            = emptyToNull(input.family);
@@ -868,6 +914,8 @@ export const freestyleCurationService = {
     if (baseTrick !== (current.base_trick ?? null))             changedFields.push('base_trick');
     if (category !== (current.category ?? null))                changedFields.push('category');
     if (isActive !== current.is_active)                         changedFields.push('is_active');
+    if (isCore !== current.is_core)                             changedFields.push('is_core');
+    if (sortOrder !== current.sort_order)                       changedFields.push('sort_order');
     if (reviewStatus !== current.review_status)                 changedFields.push('review_status');
     if (description !== (current.description ?? null))          changedFields.push('description');
     if (shortDescription !== (current.short_description ?? null)) changedFields.push('short_description');
@@ -890,7 +938,7 @@ export const freestyleCurationService = {
     transaction(() => {
       freestyleTricks.updateScalars.run(
         canonicalName, adds, movementNotation, executionNotation,
-        family, baseTrick, category, isActive, reviewStatus,
+        family, baseTrick, category, isActive, isCore, sortOrder, reviewStatus,
         description, shortDescription, executionSummary, learningNotes,
         prerequisiteNotes, pronunciation, operationalNotationSource, slug,
       );
@@ -1223,13 +1271,34 @@ export const freestyleCurationService = {
   // status (published, hidden, or unresolved), so a curator can find, edit, hide,
   // restore, and remap them once the database is the source of truth. Optional
   // free-text search matches the advice text or the (canonical or
-  // unresolved:<name>) slug. Read-only; no persona guard on the read.
-  getTipModerationPage(filter: { query?: string; error?: string } = {}): PageViewModel<FreestyleTipModerationContent> {
+  // unresolved:<name>) slug; the status and trick filters narrow further, so a
+  // moderator can pull every tip on one trick, or every tip still sitting in an
+  // unresolved bucket. The trick filter matches the stored slug exactly, because
+  // its purpose is "this trick's tips" rather than another substring search; an
+  // unrecognised status is treated as no filter, so a hand-edited query string
+  // cannot silently empty the index. Read-only; no persona guard on the read.
+  getTipModerationPage(
+    filter: { query?: string; status?: string; trickSlug?: string; error?: string } = {},
+  ): PageViewModel<FreestyleTipModerationContent> {
     const query = (filter.query ?? '').trim();
+    const statusFilter = TIP_STATUS_VALUES.includes(filter.status ?? '') ? (filter.status as string) : '';
+    const trickSlug = (filter.trickSlug ?? '').trim();
+
     const dbRows = query
       ? (freestyleTrickTips.searchForModeration.all(`%${query}%`, `%${query}%`) as TipModerationDbRow[])
       : (freestyleTrickTips.listForModeration.all() as TipModerationDbRow[]);
-    const rows = dbRows.map(shapeTipModerationRow);
+    const rows = dbRows
+      .filter((r) => {
+        if (statusFilter && r.status !== statusFilter) return false;
+        if (trickSlug && r.trick_slug !== trickSlug) return false;
+        return true;
+      })
+      .map(shapeTipModerationRow);
+
+    const statusOptions: FilterOption[] = [
+      { value: '', label: 'Any status', selected: statusFilter === '' },
+      ...TIP_STATUS_VALUES.map((v) => ({ value: v, label: TIP_STATUS_LABELS[v], selected: v === statusFilter })),
+    ];
 
     return {
       seo:  { title: 'Freestyle Tips' },
@@ -1238,7 +1307,10 @@ export const freestyleCurationService = {
         rows,
         totalCount: rows.length,
         query,
-        isFiltered: query !== '',
+        statusOptions,
+        statusFilter,
+        trickSlug,
+        isFiltered: query !== '' || statusFilter !== '' || trickSlug !== '',
         hasRows: rows.length > 0,
         error: filter.error,
       },
@@ -1271,6 +1343,39 @@ export const freestyleCurationService = {
         entityType:    'freestyle_trick_tip',
         entityId:      String(tipId),
         metadata:      { tipId, trickSlug: tip.trick_slug },
+      });
+    });
+  },
+
+  // Set one tip's display order, the sequence its trick page renders tips in. The
+  // column is NOT NULL and its unset state is zero, so a cleared field means
+  // "unset" and stores zero; a negative or non-integer value is rejected rather
+  // than coerced, because coercing it would move the tip somewhere the moderator
+  // did not ask for. Two tips may share an order, which the id tiebreak in the
+  // read statements already resolves, so a duplicate is not an error. The update
+  // and its audit entry commit in one transaction; text, status and mapping are
+  // untouched.
+  setTipDisplayOrder(tipId: number, displayOrderInput: string, actorMemberId: string): void {
+    assertActorMayCurateFreestyle(actorMemberId);
+    const tip = freestyleTrickTips.getByIdForModeration.get(tipId) as TipModerationDbRow | undefined;
+    if (!tip) throw new NotFoundError(`No freestyle tip #${tipId}`);
+
+    const raw = (displayOrderInput ?? '').trim();
+    if (raw !== '' && !/^\d+$/.test(raw)) {
+      throw new ValidationError('Display order must be a whole number, zero or greater.');
+    }
+    const displayOrder = raw === '' ? 0 : Number(raw);
+
+    transaction(() => {
+      freestyleTrickTips.updateDisplayOrder.run(displayOrder, tipId);
+      appendAuditEntry({
+        actionType:    'freestyle.trick_tip.reordered',
+        category:      'content',
+        actorType:     'admin',
+        actorMemberId,
+        entityType:    'freestyle_trick_tip',
+        entityId:      String(tipId),
+        metadata:      { tipId, trickSlug: tip.trick_slug, fromDisplayOrder: tip.display_order, toDisplayOrder: displayOrder },
       });
     });
   },

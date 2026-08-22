@@ -133,6 +133,73 @@ describe('GET /admin/freestyle/records — admin gate + browse', () => {
   });
 });
 
+// The browse is the only place an admin can find one record among thousands, so
+// it carries the search the record-curation story names: holder, trick name and
+// record type.
+describe('GET /admin/freestyle/records — search and filter', () => {
+  it('narrows to the matching holder and drops the others', async () => {
+    const res = await get('/admin/freestyle/records?q=Retired+Holder', admin());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Retired Holder');
+    expect(res.text).not.toContain('Save Holder');
+    expect(res.text).not.toContain('Guard Holder');
+  });
+
+  it('matches a holder resolved from the linked historical person, not only a free-text name', async () => {
+    const res = await get('/admin/freestyle/records?q=Real+Historical', admin());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Real Historical Holder');
+    expect(res.text).not.toContain('Retired Holder');
+  });
+
+  it('matches on the trick name', async () => {
+    const res = await get('/admin/freestyle/records?q=Guard+Trick', admin());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Guard Holder');
+    expect(res.text).not.toContain('Save Holder');
+  });
+
+  it('matches case-insensitively', async () => {
+    const res = await get('/admin/freestyle/records?q=retired+holder', admin());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Retired Holder');
+  });
+
+  it('filters by record type', async () => {
+    const res = await get('/admin/freestyle/records?recordType=trick_consecutive_dex', admin());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Real Historical Holder');  // the only dex-typed row
+    expect(res.text).not.toContain('Retired Holder');
+  });
+
+  it('combines the free text and the record-type filter', async () => {
+    const res = await get('/admin/freestyle/records?q=Retired&recordType=trick_consecutive_dex', admin());
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('Retired Holder');      // right text, wrong type
+    expect(res.text).toContain('No freestyle records match your search.');
+  });
+
+  it('ignores an unrecognised record type rather than emptying the browse', async () => {
+    const res = await get('/admin/freestyle/records?recordType=not_a_type', admin());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Retired Holder');
+    expect(res.text).toContain('Save Holder');
+  });
+
+  it('shows an empty state when nothing matches, and offers a way back', async () => {
+    const res = await get('/admin/freestyle/records?q=zzz_no_such_holder', admin());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('No freestyle records match your search.');
+    expect(res.text).toContain('Clear');
+  });
+
+  it('renders no clear control on the unfiltered browse', async () => {
+    const res = await get('/admin/freestyle/records', admin());
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('>Clear<');
+  });
+});
+
 describe('GET /admin/freestyle/records/:id/edit — field display', () => {
   it('renders the editable fields, resolving a linked person name', async () => {
     const res = await get('/admin/freestyle/records/rec_linked/edit', admin());

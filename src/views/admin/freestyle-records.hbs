@@ -9,6 +9,19 @@
   <section>
     <p><a href="/admin/freestyle/records/new" class="btn btn-primary btn-sm">New Record</a></p>
 
+    <form method="GET" action="/admin/freestyle/records" class="freestyle-admin-filter">
+      <input type="text" name="q" placeholder="Search holder or trick" value="{{content.filters.query}}" />
+      <select name="recordType" aria-label="Filter by record type">
+        {{#each content.filters.recordTypeOptions}}
+          <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
+        {{/each}}
+      </select>
+      <button type="submit" class="btn btn-outline btn-sm">Search</button>
+      {{#if content.filters.isFiltered}}
+        <a href="/admin/freestyle/records" class="btn btn-outline btn-sm">Clear</a>
+      {{/if}}
+    </form>
+
     {{#if content.hasRows}}
       <table class="freestyle-admin-table mt-2">
         <thead>
@@ -37,7 +50,7 @@
         </tbody>
       </table>
     {{else}}
-      <p class="text-muted mt-2">No freestyle records.</p>
+      <p class="text-muted mt-2">No freestyle records match your search.</p>
     {{/if}}
   </section>
 </div>
