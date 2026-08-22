@@ -4,7 +4,7 @@
  * inspinning direction-flip rule established by FB.org-confirmed
  * inspinning-butterfly JOB.
  *
- * Doctrine: Red pt7 ruled inspinning as modifier-stacking on the
+ * Doctrine: Red ruled inspinning as modifier-stacking on the
  * PassBack Inspinning group. JOB form for inspinning-butterfly is
  * FB.org-confirmed; siblings (paradox-illusion / paradox-mirage) apply
  * the same direction-flip rule (spin back→front; dex side OP→SAME;

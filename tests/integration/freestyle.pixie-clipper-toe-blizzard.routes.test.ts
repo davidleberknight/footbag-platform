@@ -9,7 +9,7 @@
  *   2. pixie-same-clipper — new canonical row; 3 ADD; same family.
  *      First-class.
  *   3. toe-blizzard — added as ALIAS of existing quantum-illusion
- *      canonical row (Red pt2 EQUIVALENCE: Toe Blizzard = Quantum
+ *      canonical row (Red's equivalence ruling: Toe Blizzard = Quantum
  *      Illusion). No new freestyle_tricks row; new alias row only.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -175,7 +175,7 @@ describe('Pixie-clipper browse rendering — FIRST_CLASS_TIER_2 cohort', () => {
   });
 });
 
-describe('toe-blizzard alias of quantum-illusion (Red pt2 EQUIVALENCE)', () => {
+describe('toe-blizzard alias of quantum-illusion (Red equivalence ruling)', () => {
   // NOTE: /freestyle/tricks/:slug does NOT auto-resolve aliases today —
   // bare alias slugs return 404. The alias surfaces as an alternate name
   // on the canonical trick's detail page (via aliases_json shaping in

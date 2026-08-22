@@ -773,6 +773,11 @@ fi
 # banned shape is a parenthesized stamp, a date introducing a clause, or a date
 # next to a change verb. A title asserting that rendered output does NOT expose
 # such labels has to name them, so "does/do not expose" titles are exempt.
+# A numbered curator-ruling batch tag (pt2, pt11) is the same shape: it dates
+# the test to a ruling round and tells a later reader nothing, so a comment
+# cites the ruling in words instead. The bare "pt##" placeholder is not a tag
+# and stays legal, which is what the tests asserting public pages expose no such
+# label have to write.
 echo "[conventions] check: tests/ epoch-label / dated-change-marker references"
 test_epoch_hits=$(python3 - <<'PYEOF'
 import re, pathlib
@@ -784,6 +789,7 @@ label_re = re.compile(
     r'|\bUX[0-9]'
     r'|\bDSC-[0-9]'
     r'|\bNCR-[0-9]'
+    r'|\bpt[0-9]+\b'
     r'|[A-Z]{3,}-REFACTOR'
 )
 date        = r'20[0-9]{2}-[0-9]{2}-[0-9]{2}'

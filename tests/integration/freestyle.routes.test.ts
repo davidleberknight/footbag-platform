@@ -2411,7 +2411,7 @@ describe('Freestyle dictionary — S2: canon-locked chain readings (torque/blend
     expect(readings).toMatch(/quantum[\s\S]*?osis/i);
   });
 
-  it('renders blender as ≡ whirling osis (pt11)', async () => {
+  it('renders blender as ≡ whirling osis', async () => {
     const res = await request(createApp()).get('/freestyle/tricks/blender');
     expect(res.status).toBe(200);
     const readings = res.text.match(/<ol class="equivalent-readings-list">[\s\S]*?<\/ol>/)?.[0] ?? '';

@@ -4,7 +4,7 @@
  *
  * 4 ADD = quantum(+1) + symposium-mirage(3). FB.org-confirmed JOB
  * from fborg-4add.txt. Promoted under the modern "Quantum" naming
- * per Red pt2 retirement of the "toe-" prefix; the folk-name
+ * per Red's retirement of the "toe-" prefix; the folk-name
  * "Backside Symposium Toe Blur" is wired as a pure S3 alias.
  *
  * Mirrors the toe-blur ≡ quantum-mirage / toe-blizzard ≡ quantum-illusion

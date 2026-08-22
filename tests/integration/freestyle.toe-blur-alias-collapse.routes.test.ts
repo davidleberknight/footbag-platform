@@ -1,7 +1,7 @@
 /**
  * toe-blur → quantum-mirage alias contract.
  *
- * Per Red pt2 EQUIVALENCE ("Toe Blur (3 ADD) = Quantum Mirage"), the
+ * Per Red's equivalence ruling ("Toe Blur (3 ADD) = Quantum Mirage"), the
  * historical name `toe blur` is the pre-Quantum-era name for the
  * compound Quantum Mirage, not for the set primitive Quantum (the
  * 2-ADD set primitive).
@@ -74,7 +74,7 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('toe-blur alias re-pointing (Red pt2 EQUIVALENCE)', () => {
+describe('toe-blur alias re-pointing (Red equivalence ruling)', () => {
   it('quantum-mirage detail page surfaces "toe blur" as an alternate name', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/quantum-mirage');
     expect(res.status).toBe(200);

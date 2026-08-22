@@ -538,7 +538,7 @@ describe('GET /freestyle/tricks/:slug — policy_dependent', () => {
     expect(res.text).toContain('disagrees with asserted; asserted value is editorial truth');
   });
 
-  it('uses a generic policy-token narrative; does NOT leak the hardcoded post-pt9-stale list (backside, shooting)', async () => {
+  it('uses a generic policy-token narrative; does NOT leak the stale hardcoded token list (backside, shooting)', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks/trick-policy');
     // The status sentence intentionally avoids enumerating example tokens.

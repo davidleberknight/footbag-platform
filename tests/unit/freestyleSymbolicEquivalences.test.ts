@@ -83,7 +83,7 @@ describe('freestyleSymbolicEquivalences — CSR S2 + NR-1 entries are present', 
     expect(getSymbolicEquivalenceChain('flurry')).toBeNull();
   });
 
-  it('NR-1 surging-family (pt2): surge / surreal / surgery / venom / bigwalk', () => {
+  it('NR-1 surging-family: surge / surreal / surgery / venom / bigwalk', () => {
     expect(getSymbolicEquivalenceChain('surge')?.readings).toEqual(['surging paradox mirage']);
     expect(getSymbolicEquivalenceChain('surreal')?.readings).toEqual(['surging paradox whirl']);
     expect(getSymbolicEquivalenceChain('surgery')?.readings).toEqual(['surging symposium reverse whirl']);
@@ -117,9 +117,9 @@ describe('freestyleSymbolicEquivalences — CSR S2 + NR-1 entries are present', 
   });
 
   // NR-1C entry: gauntlet's two-reading chain demonstrates Blurry-compression.
-  // The shorter and unfolded readings are equivalent per pt11
+  // The shorter and unfolded readings are equivalent under the doctrine ruling
   // (Blurry = Stepping Paradox). Same trick, two pedagogical stopping depths.
-  it('NR-1C gauntlet surfaces two pt11-locked readings (Blurry-compression flagship)', () => {
+  it('NR-1C gauntlet surfaces two doctrine-locked readings (Blurry-compression flagship)', () => {
     const chain = getSymbolicEquivalenceChain('gauntlet');
     expect(chain).not.toBeNull();
     expect(chain?.readings).toEqual(['blurry ducking torque', 'stepping ducking paradox torque']);

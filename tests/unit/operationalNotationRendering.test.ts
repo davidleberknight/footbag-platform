@@ -228,7 +228,7 @@ describe('shapeOperationalNotationDisplay — Blur worked example', () => {
 
   it('Blur has two distinct dex segments separated by >> (matches the IFPA Stepping-Paradox-Mirage reading)', () => {
     // The two-dex-with-PDX-on-segment-2 structure is the operational
-    // signature that aligns with pt10's reading of blur as Stepping
+    // signature that aligns with the doctrine reading of blur as Stepping
     // Paradox Mirage.
     const ops = out!.tokens.filter(t => t.role === 'sequence_op');
     expect(ops.find(t => t.text === '>>')).toBeDefined();

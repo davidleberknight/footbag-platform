@@ -6,7 +6,7 @@
  *   - down-double-down (4 ADD) — clipper-set chassis; OP/SAME OUT dexes
  *   - down-diver (5 ADD) — diving(+1) + double-over-down(4) chassis
  *
- * Red pt7 settled: "Down pattern (double-over down / down double-down /
+ * Red settled: "Down pattern (double-over down / down double-down /
  * down diver) → Different tricks." Distinct chassis preserved.
  *
  * Documentation note: down-diver's RECONCILIATION formula reads
