@@ -69,8 +69,11 @@ tracking home is the unresolved-world-record-videos item in the maintainers'
 private tracker, and the letter is only their delivery vehicle, so they are not
 double-tracked as dictionary gates.
 
-- **Solestice.** An undefined "osis flapper" operator; the ask is what the movement
-  is.
+- **Solestice.** An osis ending on the flapper catch rather than a clipper, at 4 ADD.
+  The movement is understood and no operator is involved: flapper is the cross-body
+  sole delay, a terminal catch. What is still open is the terminal's side, which is
+  inherited from the unresolved osis catch-side question and is not specific to this
+  name, and the badge still awaits video or source confirmation.
 - **Double Dyno and Double Whip.** The general double-prefix scoring reading and the
   routing of the count-quantifier rows are asked in the Scoring paper; what remains
   here is only the per-badge reading of these two names, and the ambiguity of the

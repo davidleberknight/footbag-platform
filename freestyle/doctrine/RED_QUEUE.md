@@ -72,10 +72,6 @@ enumerated here per operator. ADD status is noted where it is already settled;
 otherwise the weight is part of the ask. Close condition for each: the rules expert
 defines the movement, and its weight where the weight is not yet evidenced.
 
-- **Blazing.** ADD settled at +1, proven by arithmetic across all eight canonical
-  compounds (blazing butterfly, drifter, illusion, legover, mirage, paradox whirl,
-  symposium mirage, torque). Open: only the movement and notation, what the blazing
-  motion physically is.
 - **Slapping.** Confirm or deny. An outside source defines a bare Slap; is slapping
   its prefix form? No "Slapping X" compound exists to cross-check, so this is a
   single yes/no, not an open derivation.
@@ -103,8 +99,6 @@ defines the movement, and its weight where the weight is not yet evidenced.
   Mirage, Pixie Wonton Butterfly.
 - **Wrecking.** Undefined. Affected names: Wrecking Mirage, Wrecking Pickup, Wrecking
   Torque.
-- **Flapper.** Undefined. Affected row: the leg over flapper stall (an active
-  canonical row whose flapper contribution is not independently verified).
 - **Floating.** Undefined. Affected row: floating mirage (active canonical; the
   floating contribution is not independently verified).
 - **Slicing.** Undefined. Affected names: Slicing Butterfly, Slicing far Butterfly,
@@ -121,9 +115,6 @@ defines the movement, and its weight where the weight is not yet evidenced.
 - **Symp.** Clarify whether the folk "symp" (or "symp.") token ever denotes anything
   other than an abbreviation of the defined symposium operator; in the corpus it
   appears only as that abbreviation.
-- **Solestice.** An undefined "osis flapper" operator. Records-only: it blocks a
-  world-record badge and gates no dictionary row, so its disposition sequences with
-  the world-record-video work.
 - **Blistering.** Undefined, and open since the batch that answered its paired
   question (sailing) left this one unanswered; the ask is the movement. No canonical
   row; ADD unevidenced.
@@ -180,14 +171,18 @@ defines the movement, and its weight where the weight is not yet evidenced.
   ruling authors it off that structure; a distinct ruling needs its own movement and
   weight. Close: Red confirms the nuclear-inspinning reading or defines twinspinning
   independently.
-- **The bubba prefix.** Not a define-the-movement question: bubba is a settled
-  standalone trick (the active canonical bubba row is 2 ADD, and symposium bubba is
-  3 ADD). Like the spyro prefix, the open question is what bubba contributes when it
-  prefixes another base. Affected names: Bubba Beater, Bubba Butterfly (Mxyzptlk),
-  Bubba Flail (Massacre), Bubba Legover (Bubba Beater), Bubba PS Eggbeater (Chainsaw
-  Massacre), Bubba Paradox Flail, Bubba Paradox Symposium Eggbeater, Bubba same-side
-  Mirage. Unlock: the prefix contribution, which authors the Bubba-prefixed band off
-  the settled bubba structure. Close: Red rules what the bubba prefix contributes.
+- **The bubba prefix (registry Q15).** Not a define-the-movement question: bubba is a
+  settled standalone trick (the active canonical bubba row is 2 ADD, and symposium
+  bubba is 3 ADD), so this does not belong in the operator-definitions gate above.
+  Like the spyro prefix, the open question is what bubba contributes when it prefixes
+  another base. Affected names: Bubba Butterfly, Bubba Legover, Bubba Paradox Flail,
+  Bubba same-side Mirage, Symposium Bubba Barfly, Symposium Bubba Mirage. Each has a
+  published terminal and settled companion operators, so the prefix contribution is
+  the only unresolved atom on all six. Evidence on file: the published Chainsaw
+  Massacre (7 ADD, symposium-eggbeater base) leaves a residue of 2 after paradox and
+  symposium, which is bubba's own standalone value — corroboration for a +2 reading,
+  not a ruling. Unlock: the prefix contribution, which authors the Bubba-prefixed band
+  off the settled bubba structure. Close: Red rules what the bubba prefix contributes.
 - **The alpine prefix.** Define, as an operator: what does the alpine prefix
   contribute across the many bases it attaches to? Its separate directional-syntax
   facet (the inward and outward-style tokens the alpine rows carry) is the

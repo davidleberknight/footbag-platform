@@ -68,4 +68,4 @@ atomic,2,atomic,set,,"Atomic set: rising-bag double-tap launch; standalone 2 ADD
 stepping,,stepping,modifier,,body modifier; +1 ADD universally
 gyro,,gyro,modifier,,body modifier (gyrating); +1 ADD universally
 tapping,,tapping,modifier,,body modifier; +1 ADD universally
-blazing,,blazing,modifier,,Body modifier; +1 ADD universally.
+blazing,,blazing,set,,"Whirling-chassis set: an uptime whirl that the following trick is performed off of. Contributes +1 to every compound it opens. Its terminal-side relationship to whirling is unresolved."

@@ -75,7 +75,6 @@ export type FreestyleTrickKind =
 // survives as folk vocabulary in the glossary.
 const MODIFIER_SLUGS = new Set<string>([
   'barraging',
-  'blazing',
   'ducking',
   'gyro',
   'illusioning',
@@ -90,11 +89,14 @@ const MODIFIER_SLUGS = new Set<string>([
   'spyro',
 ]);
 
-// All 9 slugs with category='set' in freestyle_tricks.
+// All 10 slugs with category='set' in freestyle_tricks.
 // Includes pogo + rooted at adds=0 (curator-flagged: they are stationary
-// set primitives, not 0-ADD tricks).
+// set primitives, not 0-ADD tricks). blazing is a whirling-chassis set that
+// the following trick is performed off of; its +1 is the set's scoring
+// contribution, so it initiates a trick rather than transforming one.
 const OPERATOR_SLUGS = new Set<string>([
   'atomic',
+  'blazing',
   'fairy',
   'furious',
   'pixie',

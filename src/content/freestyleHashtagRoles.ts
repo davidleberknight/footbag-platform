@@ -71,9 +71,13 @@ export function declaresTrickRole(slug: string): boolean {
 /**
  * Curator-pinned hashtag role for a modifier / set concept whose role diverges
  * from the raw `freestyle_trick_modifiers.modifier_type`. The registry is
- * authoritative; modifier_type is only the fallback signal. `whirling` is stored
- * with modifier_type 'body' but is a set, so it must render the set hashtag —
- * the stored type lags the curator doctrine and must not decide the hashtag.
+ * authoritative; modifier_type is only the fallback signal.
+ *
+ * `whirling` has both a settled set role and a separately documented mid-chain
+ * body-operator role. The stored modifier_type 'body' records the operator
+ * reading; the Set Encyclopedia is its taxonomic home, so the curator renders
+ * the set hashtag from the settled set role rather than inferring taxonomy from
+ * the operator registry.
  */
 export const MODIFIER_ROLE_OVERRIDES: Readonly<Record<string, HashtagRole>> =
   Object.freeze({

@@ -159,7 +159,7 @@ export const OPERATOR_REFERENCE_ENTRIES: readonly OperatorReferenceEntry[] = [
     decomposition:  null,
     pendingNote:    null,
     workedExamples: ['Whirling Swirl', 'Double-Blender = Whirling Blender'],
-    lineageNote:    'A +1 body modifier, seen in tricks such as Whirling Swirl. Its injected dex writes in the rotational dex register (a side marker plus a mandatory FRONT or BACK qualifier, e.g. OP FRONT WHIRL [DEX]), never as a bare WHIRL token and never folded into the IN/OUT direction vocabulary, which cannot carry the rotational wrap.',
+    lineageNote:    'A +1 body modifier, seen in tricks such as Whirling Swirl. Mid-chain whirling is represented in two source-attested notation traditions. FootbagMoves writes the rotational dex explicitly, as a side marker plus a mandatory FRONT or BACK qualifier (OP FRONT WHIRL [DEX]); footbag.org may fold the same action into the base dex direction and the following body rotation. Sourced canonical notation is preserved in the register used by its source, and new platform-authored derivations use the explicit FRONT WHIRL register for consistency. Blender provides the direct equivalence between the two encodings; no broader directional conversion should be inferred without source evidence. Neither register writes a bare WHIRL token.',
     curatorConfirmPending: false,
   },
   {

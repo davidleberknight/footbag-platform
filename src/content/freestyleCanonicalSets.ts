@@ -797,8 +797,9 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     slug: 'blazing', hashtag: '#set_blazing', displayName: 'Blazing', subtype: 'whirl-swirl',
     formula: 'CLIP > OP IN [DEX] > (op side component)',
     movementExplanation:
-      'Whirling with the opposite-side terminal component. Holden distinguishes blazing ' +
-      'from whirling by terminal side; the platform does not separate them.',
+      'A whirling set: an uptime whirl that the following trick is performed off of. ' +
+      'Holden distinguishes blazing from whirling by terminal side; the platform does ' +
+      'not separate them, and the ruling did not address that distinction.',
     equivalenceNotes: [
       { reading: 'whirling (op-side terminal variant)', citation: 'Holden distinction' },
     ],
@@ -806,9 +807,9 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     relatedSystems: [
       { slug: 'whirling', label: 'Whirling (same-side terminal sibling)' },
     ],
-    source: 'holden-only',
-    sourceCitation: 'Holden compilation (2003); Holden distinguishes by terminal side; platform treats as whirling.',
-    auditStatus: 'holden-only',
+    source: 'platform-tracked',
+    sourceCitation: 'Red ruling (curator-relayed, 2026-08-21): blazing is a Whirling set; Holden compilation (2003) additionally distinguishes it by terminal side.',
+    auditStatus: 'partial',
     tier: 'compositional-system',
   },
   {

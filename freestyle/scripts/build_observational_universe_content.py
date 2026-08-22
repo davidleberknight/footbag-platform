@@ -98,12 +98,12 @@ ALIAS_ADDITIONS_CSV = FREESTYLE / "inputs/base_dictionary/alias_additions.csv"
 # question registry); nothing here is answered by this generator.
 DECISION_GROUPS = [
     {
-        "id": "D1", "title": "Down-family cell labels",
-        "question": "Confirm that a down-family name's own set and side markers (or a leg-parity trace where a JOB exists) assign its cell in the ratified four-cell grid, then label each row's cell.",
-        "recommendation": "Yes: the four-cell grid is ratified doctrine, every cell is a live canonical, and each held name carries explicit set/side markers; the labeling is mechanical once the convention is confirmed.",
-        "alternatives": "Route each row to the rules expert individually (rejected by the audit: the grid ruling already decides the structure; only the label is open).",
-        "evidence": "The down-family doctrine records the ratified 2x2 grid with all four cells live and bare-attested; the deterministic parity-trace classifier reproduces every traceable corpus JOB.",
-        "consequences": "Each answered row files as an alias of its cell canonical or as a positional variant of it; no ADD changes anywhere.",
+        "id": "D1", "title": "Match this Down-family name to an existing trick",
+        "question": "This name appears to describe one of the four already-established Down-family variants. Its set direction and side information should identify which existing trick it belongs to. Confirm that match.",
+        "recommendation": "Match it to the existing variant. The movement pattern is already established; this does not appear to be a new trick. The remaining decision is simply which existing Down-family trick this name refers to.",
+        "alternatives": "Send the individual name back for a separate rules ruling. The audit does not recommend this because the underlying Down-family structure is already settled.",
+        "evidence": "The four Down-family variants are already established in the dictionary, and the available set and side information is enough to distinguish between them.",
+        "consequences": "Once confirmed, the name can be recorded as another name or positional form of the appropriate existing trick. Its ADD does not change.",
     },
     {
         "id": "D2", "title": "Registry-defined operators govern",
@@ -144,6 +144,38 @@ DECISION_GROUPS = [
         "alternatives": "Keep it as an independent folk name (rejected: no distinguishing evidence).",
         "consequences": "One row leaves the decide pile and joins the fyro rows under the operator-definitions question.",
         "evidence": "FootbagMoves carries Fyro Torque and Pyro Torque with no structural difference recorded.",
+    },
+    {
+        "id": "D7", "title": "Confirm a familiar modifier added to an existing trick",
+        "question": "Each of these names is an existing trick with one or more familiar modifiers in front of it, like stepping, paradox or pixie. Both parts are already in the dictionary, so the name's difficulty score follows from adding them together. Confirm each match.",
+        "recommendation": "Confirm them. Every leading word is a modifier the dictionary already defines, and every trick they attach to is already published with its own score, so nothing here needs a rules decision.",
+        "alternatives": "Send them to the rules expert instead. The audit does not recommend this, because none of these names ends in the kind of catch or landing the open notation question is about.",
+        "evidence": "For each name, the trick it ends with is already in the dictionary, and each modifier in front of it adds the same amount whether or not the trick spins.",
+        "consequences": "Once confirmed, each name can be written up later as an ordinary dictionary entry. Nothing is published by this decision, and no scores change.",
+    },
+    {
+        "id": "D8", "title": "Confirm a name built on an existing trick whose own history is still open",
+        "question": "Each of these names adds a familiar modifier to a trick that is already in the dictionary. Those tricks carry older names whose history is still being settled, but that does not change what these names describe. Confirm each match.",
+        "recommendation": "Confirm them. The trick each name builds on is already published with its own score, so the name can be read now. The unsettled history sits inside that older trick, not in these names.",
+        "alternatives": "Hold each name until the older trick's history is settled. The audit does not recommend this, because the same reasoning would hold up every name built on any trick with an open question behind it.",
+        "evidence": "Each of these names ends in a trick that is already published with its own score. The open question concerns how that older trick was originally derived, not whether it can be built on.",
+        "consequences": "Once confirmed, each name can be written up later as an ordinary dictionary entry. If the older trick is ever renamed or rescored, these names follow it. Nothing here settles that older question.",
+    },
+    {
+        "id": "D9", "title": "Confirm a trick that finishes in a swirl",
+        "question": "Each of these names takes an existing trick and finishes it in a swirl instead of its usual catch. Four tricks already in the dictionary are built exactly this way, so both the score and the movement follow from the trick each name starts with. Confirm each match.",
+        "recommendation": "Confirm them. Each scores one more than the trick it builds on, and the added movement follows the same pattern as the four already published.",
+        "alternatives": "Send them to the rules expert instead. The audit does not recommend this, because the four published examples already show how this ending works and nothing about these names is new.",
+        "evidence": "Four tricks in the dictionary are built this way and all four behave identically. The one point the older written description left vague, which foot the added movement uses, is now settled by the same leg-tracking rule the dictionary already uses elsewhere.",
+        "consequences": "Once confirmed, each name can be written up later as an ordinary dictionary entry. Nothing is published by this decision, and no existing scores change.",
+    },
+    {
+        "id": "D10", "title": "Confirm a trick caught on a flapper",
+        "question": "Each of these names is a familiar trick that finishes on a flapper, the cross-body sole delay, instead of its usual catch. That catch is already in the dictionary and three published tricks already end on it, so what each name describes is known. Confirm each match.",
+        "recommendation": "Confirm them. Two of the three are recorded elsewhere under their own names with a full movement description and difficulty already attached, and the third is an ordinary spin onto the same catch. Nothing here needs a rules decision.",
+        "alternatives": "Send them to the rules expert instead. The audit does not recommend this: every source writes the flapper as a catch at the end of a trick, never as something that changes the trick in front of it.",
+        "evidence": "Both source traditions place the flapper last and describe it the same way, as a sole delay held across the body. The dictionary already publishes three tricks that end on it. Butterfly Flapper and Symposium Whirling Flapper are recorded elsewhere as Buttersole and Singularity, each with its movement written out and its difficulty given.",
+        "consequences": "Once confirmed, each name can be written up later as an ordinary dictionary entry. Nothing is published by this decision, and no existing scores change.",
     },
     {
         "id": "A0", "title": "Author the adjudicated rows",
@@ -272,12 +304,22 @@ def _norm_slug(s: str) -> str:
 # resolves to the same trick the canonical browse already shows. Positional
 # tokens (ss / os / far / near) are deliberately absent: a side configuration is
 # structural identity and must never expand or collapse to its base.
+#
+# The compositional shorthands (ps / symp / pdx) name operators rather than
+# bases, and the corpus uses them constantly. Leaving them unexpanded split one
+# trick into two identities and left names that are already published rendering
+# as if they were still waiting: "Symp Mirage" is the published symposium
+# mirage, "Pdx Dada Curve" is the published paradox da da curve, and "PS Mirage"
+# is the published paradox symposium mirage.
 _EV_ABBREV = {
     "dlo": "double_leg_over",
     "dso": "double_switch_over",
     "dod": "double_over_down",
     "ddd": "down_double_down",
     "datw": "double_around_the_world",
+    "ps": "paradox_symposium",
+    "symp": "symposium",
+    "pdx": "paradox",
 }
 # Parenthetical contents that are a positional marker, not a folk nickname. A
 # folk nickname in parentheses ("(Godzilla)", "(69)") is decoration to strip; a
@@ -629,6 +671,9 @@ def main() -> None:
     operator_norms = _operator_object_norms()
     warn: Counter = Counter()
     warn_examples: dict[str, list[str]] = {}
+    # Operator tokens each question is actually gating, accumulated from the
+    # ledger rows, for the enumeration invariant checked after the row loop.
+    gated_ops: dict[str, set[str]] = {}
 
     def note_warn(kind: str, detail: str) -> None:
         warn[kind] += 1
@@ -706,6 +751,16 @@ def main() -> None:
             if owner and q_owner and owner != q_owner:
                 note_warn("row-owner-conflicts-with-question", f"{r['name']} ({owner} vs {blocker}={q_owner})")
 
+        # The operator token a row is gated on, as named by its blocker subtype.
+        # Recorded per question so the question's declared operator list can be
+        # checked against what its rows actually wait on.
+        if blocker and L is not None:
+            sub = (L.get("blocker_subtype") or "").strip()
+            if sub.startswith("undefined-operator:"):
+                tok = sub.split(":", 1)[1].strip().lower()
+                if tok:
+                    gated_ops.setdefault(blocker, set()).add(tok)
+
         # registry-over-ledger operator definedness: a doctrine block on an
         # operator the registry defines is a stale gate, not doctrine. The
         # gated token is the one named by the ledger's blocker subtype.
@@ -773,6 +828,26 @@ def main() -> None:
         r["publicSection"] = section
         r["resolutionConflict"] = conflict
 
+    # ── question-enumeration invariant ── a question's declared operator list
+    # and the operator tokens its rows actually carry are the same set. An
+    # operator named but gating nothing is a stale ask that holds a settled or
+    # absent term in front of the expert; one gating rows without being named
+    # is an invisible gate no reader of the question can see. The declared
+    # column governs, and the prose sentence is separately checked to name
+    # every declared token so the two cannot drift apart. Matching strips
+    # punctuation, because a token is written with a trailing period in prose
+    # (symp.) and a bare word match would read it as absent.
+    for qid, q in sorted(questions.items()):
+        declared = {t for t in re.split(r"[^a-z0-9]+", (q.get("gated_operators") or "").lower()) if t}
+        actual = gated_ops.get(qid, set())
+        prose = {w for w in re.split(r"[^a-z0-9]+", (q.get("exact_question") or "").lower()) if w}
+        for tok in sorted(declared - actual):
+            note_warn("question-enumeration-drift", f"{qid} declares '{tok}' but no row is gated on it")
+        for tok in sorted(actual - declared):
+            note_warn("question-enumeration-drift", f"{qid} gates rows on '{tok}' but does not declare it")
+        for tok in sorted(declared - prose):
+            note_warn("question-enumeration-drift", f"{qid} declares '{tok}' but its question text does not name it")
+
     # ── identity-level duplicate grouping ── one public entity per identity.
     # Grouping key: the parenthetical-stripped, abbreviation-expanded name (the
     # same identity under multiple source spellings). Positional parentheticals
@@ -814,6 +889,25 @@ def main() -> None:
             m["identityKey"] = key
             m["groupPrimary"] = m is primary
             m["alsoRecordedAs"] = sorted(x["name"] for x in members if x is not primary) if m is primary else []
+
+    # ── readiness (decide section only) ── a curator must be able to finish the
+    # dictionary entry without reconstructing the movement from sources. Identity
+    # and arithmetic alone do not meet that bar: operator composition reliably
+    # gives the ADD but generally does not determine the notation, because no
+    # operator has a single insertion chassis (entry surface and dex sides vary
+    # with the base). So readiness is derived from the evidence basis rather than
+    # set by hand, and a row is ready only when its notation is actually backed.
+    NOTATION_BACKED = {"exact-notation", "verified-footage", "authoritative-prose",
+                       "derivable-notation"}
+    for r in rows:
+        if r["publicSection"] != "decide":
+            r["readiness"] = ""
+        elif r["evidenceState"] in NOTATION_BACKED:
+            r["readiness"] = "curator-ready"
+        elif r["objectType"] == "complete-trick" and r["evidenceState"] == "compositional-name-only":
+            r["readiness"] = "notation-authoring-required"
+        else:
+            r["readiness"] = "unresolved"
 
     if warn:
         print(f"  WARNING reconciliation: {sum(warn.values())} findings across {len(warn)} classes", file=sys.stderr)
@@ -1050,6 +1144,13 @@ def main() -> None:
         "   *  All spellings of one identity share it. */\n"
         "  identityKey: string;\n"
         "  /** True on the one spelling that renders publicly for its identity. */\n"
+        "  /** Decide-section readiness, derived from the evidence basis:\n"
+        "   *  'curator-ready' (identity, ADD and notation all supported, so a\n"
+        "   *  curator can finish the entry), 'notation-authoring-required'\n"
+        "   *  (identity and ADD settled; the movement notation still needs\n"
+        "   *  source or footage authoring), or 'unresolved' (more than one\n"
+        "   *  disposition survives). Empty outside the decide section. */\n"
+        "  readiness: string;\n"
         "  groupPrimary: boolean;\n"
         "  /** Other recorded spellings of this identity (primary rows only). */\n"
         "  alsoRecordedAs: string[];\n"

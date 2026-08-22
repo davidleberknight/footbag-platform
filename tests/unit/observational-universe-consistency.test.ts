@@ -245,10 +245,15 @@ describe('curator decision groups', () => {
 });
 
 describe('question registry integrity', () => {
-  it('exactly the fourteen registered questions exist', () => {
-    expect(EMERGING_QUESTIONS.length).toBe(14);
+  it('the registered questions are numbered contiguously from one, with no gaps', () => {
+    // The registry grows when a blocker is split out of an over-broad gate, so the
+    // count is not fixed. What must hold is that every id is accounted for: a gap
+    // would mean a question was deleted rather than answered and retired, leaving
+    // rows pointing at an id nothing defines.
+    expect(EMERGING_QUESTIONS.length).toBeGreaterThan(0);
     expect(EMERGING_QUESTIONS.map(q => q.id)).toEqual(
-      Array.from({ length: 14 }, (_, i) => `Q${String(i + 1).padStart(2, '0')}`));
+      Array.from({ length: EMERGING_QUESTIONS.length },
+        (_, i) => `Q${String(i + 1).padStart(2, '0')}`));
   });
 
   it('unlock counts match the gated primaries plus externals-only adjudications (no double-count)', () => {

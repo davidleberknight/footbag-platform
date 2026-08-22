@@ -185,6 +185,17 @@ Values for all of these live in `freestyleOperatorReference.ts` /
 - **Sailing** (pt9): a set equivalent to the Pixie Quantum set; set-standalone
   value stated, modifier behavior not classified.
 - **Backside** (pt9): a body modifier.
+- **Blazing** (curator-relayed, 2026-08-21): blazing is a Whirling set, an uptime
+  whirl that the following trick is performed off of (Red's example: Blazing
+  Paradox Mirage). This closes the open movement/notation half of the blazing
+  question; the +1 count is unchanged and remains the corpus-derived ruling in
+  `OPERATOR_DERIVATIONS.md`, read now as the set's scoring contribution rather
+  than a body-modifier bonus. Blazing is therefore a named whirl-chassis set, not
+  a body modifier and not an alias of whirling: Red did not address Holden's
+  blazing/whirling terminal-side distinction, and until that is ruled the two stay
+  distinct named sets. The registry stores count-bearing sets in the same table as
+  modifiers, so blazing's `modifier_type=set` records it as a set within that
+  shared storage model; the storage convention is not a claim that it modifies.
 - **Surging = spinning + stepping**: not a primitive modifier and never a
   `trick_modifiers` row; the standalone `surging` dictionary row keeps its
   named-trick identity while compounds decompose.
