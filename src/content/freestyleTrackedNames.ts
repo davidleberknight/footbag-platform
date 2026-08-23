@@ -41,7 +41,7 @@ export interface TrackedNameGroup {
  *  recorded as a canonical trick in the committed canonical CSVs. Test
  *  fixture only; not a live publication filter (a name here may be a
  *  registered alias in the live database). */
-export const TRACKED_DOCUMENTED_TOTAL = 1465;
+export const TRACKED_DOCUMENTED_TOTAL = 1457;
 
 export const TRACKED_DOCUMENTED_NAMES: readonly TrackedNameGroup[] = [
   { sourceLabel: 'stanford', names: [
@@ -67,7 +67,6 @@ export const TRACKED_DOCUMENTED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Atomic Symposium Whirl (Gary Coleman)', slug: 'atomic_symposium_whirl_gary_coleman' },
     { displayName: 'Atomic Torque (Silo)', slug: 'atomic_torque_silo' },
     { displayName: 'Atomic Whirl (Reactor)', slug: 'atomic_whirl_reactor' },
-    { displayName: 'Barfly Reverse Swirl', slug: 'barfly_reverse_swirl' },
     { displayName: 'Barraging Legover (Flurry)', slug: 'barraging_legover_flurry' },
     { displayName: 'Barraging Osis (Baroque)', slug: 'barraging_osis_baroque' },
     { displayName: 'Blazing Mirage (Blaze)', slug: 'blazing_mirage_blaze' },
@@ -113,8 +112,8 @@ export const TRACKED_DOCUMENTED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Bubba PS Eggbeater (Chainsaw Massacre)', slug: 'bubba_ps_eggbeater_chainsaw_massacre' },
     { displayName: 'Bubba ss Mirage', slug: 'bubba_ss_mirage' },
     { displayName: 'Butterfly Dragon (Firefly)', slug: 'butterfly_dragon_firefly' },
+    { displayName: 'Butterfly Flapper (Buttersole) (Sole Train)', slug: 'butterfly_flapper_buttersole_sole_train' },
     { displayName: 'Butterfly Gyro Toe (Wauxpin)', slug: 'butterfly_gyro_toe_wauxpin' },
-    { displayName: 'Butterfly Reverse Swirl', slug: 'butterfly_reverse_swirl' },
     { displayName: 'Butterfly Swivel', slug: 'butterfly_swivel' },
     { displayName: 'Butterfly Twirl', slug: 'butterfly_twirl' },
     { displayName: 'Butterfly XBD Rake', slug: 'butterfly_xbd_rake' },
@@ -305,7 +304,6 @@ export const TRACKED_DOCUMENTED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Nuclear Symposium DLO (Oh Wheely)', slug: 'nuclear_symposium_dlo_oh_wheely' },
     { displayName: 'Paradon Flapper (Ricochet)', slug: 'paradon_flapper_ricochet' },
     { displayName: 'Paradon Osis (Ocean)', slug: 'paradon_osis_ocean' },
-    { displayName: 'Paradon Reverse Swirl', slug: 'paradon_reverse_swirl' },
     { displayName: 'Paradox Delusion', slug: 'paradox_delusion' },
     { displayName: 'Paradox DLO', slug: 'paradox_dlo' },
     { displayName: 'Paradox Dragster', slug: 'paradox_dragster' },
@@ -488,7 +486,6 @@ export const TRACKED_DOCUMENTED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Spinning XBD Rake', slug: 'spinning_xbd_rake' },
     { displayName: 'Splicing Infinity', slug: 'splicing_infinity' },
     { displayName: 'Stepping Baroque', slug: 'stepping_baroque' },
-    { displayName: 'Stepping Butterfly Reverse Swirl', slug: 'stepping_butterfly_reverse_swirl' },
     { displayName: 'Stepping Butterfly Swirl (Ripcurl)', slug: 'stepping_butterfly_swirl_ripcurl' },
     { displayName: 'Stepping DDD (Blurrier)', slug: 'stepping_ddd_blurrier' },
     { displayName: 'Stepping Diving Butterfly (Jackknife)', slug: 'stepping_diving_butterfly_jackknife' },
@@ -536,6 +533,7 @@ export const TRACKED_DOCUMENTED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Symposium Reverse Whirling XBD Rake', slug: 'symposium_reverse_whirling_xbd_rake' },
     { displayName: 'Symposium Scattered Swirl (Double Helix)', slug: 'symposium_scattered_swirl_double_helix' },
     { displayName: 'Symposium Twirl (Swivel)', slug: 'symposium_twirl_swivel' },
+    { displayName: 'Symposium Whirling Flapper (Singularity)', slug: 'symposium_whirling_flapper_singularity' },
     { displayName: 'Symposium Whirling Swirling Mirage (Croxton)', slug: 'symposium_whirling_swirling_mirage_croxton' },
     { displayName: 'Tapping Butterfly (Tap Down)', slug: 'tapping_butterfly_tap_down' },
     { displayName: 'Tapping Diving Mirage (Alpine Tap)', slug: 'tapping_diving_mirage_alpine_tap' },
@@ -642,7 +640,6 @@ export const TRACKED_DOCUMENTED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Bubba Legover', slug: 'bubba_legover' },
     { displayName: 'Bubba Paradox Flail', slug: 'bubba_paradox_flail' },
     { displayName: 'Bubba Paradox Symposium Eggbeater', slug: 'bubba_paradox_symposium_eggbeater' },
-    { displayName: 'Butterfly Flapper', slug: 'butterfly_flapper' },
     { displayName: 'Butterfly Swirl (same side)', slug: 'butterfly_swirl_same_side' },
     { displayName: 'Butterflying Symposium Reverse Swirling Toe', slug: 'butterflying_symposium_reverse_swirling_toe' },
     { displayName: 'Buttersole', slug: 'buttersole', operationalNotation: 'Set >> Op Out (DEX) > Op Flapper (XBD)(UNS)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
@@ -679,7 +676,6 @@ export const TRACKED_DOCUMENTED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Dragonstein', slug: 'dragonstein', operationalNotation: 'Clip >> Same Back Swirl (BOD) >> Same Back Swirl (BOD) > Same Dragon (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'medium' },
     { displayName: 'Dragster', slug: 'dragster', operationalNotation: 'Clip >> Op In (DEX) > Same Dragon (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'medium' },
     { displayName: 'Drifter (same-side)', slug: 'drifter_same_side', operationalNotation: 'Clip >> Op In (DEX) > Same Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
-    { displayName: 'Drifter Swirl', slug: 'drifter_swirl' },
     { displayName: 'Ducking Pdx Illusion', slug: 'ducking_pdx_illusion' },
     { displayName: 'Ducking Pdx Mirage', slug: 'ducking_pdx_mirage' },
     { displayName: 'Ducking PS Illusion', slug: 'ducking_ps_illusion' },
@@ -798,7 +794,6 @@ export const TRACKED_DOCUMENTED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Muerto', slug: 'muerto', operationalNotation: 'Toe > Same Out (DEX) >> Same In (DEX) > (front) Spin (BOD) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'MXZYPTLK', slug: 'mxzyptlk' },
     { displayName: 'Nallegam', slug: 'nallegam', operationalNotation: 'Toe > Same Out (DEX) >> Same In (DEX) > Same Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
-    { displayName: 'Nemesis Swirl', slug: 'nemesis_swirl' },
     { displayName: 'Neutron Double Legover', slug: 'neutron_double_legover' },
     { displayName: 'Neutron Drifter', slug: 'neutron_drifter' },
     { displayName: 'Neutron Mirage', slug: 'neutron_mirage' },
@@ -962,7 +957,6 @@ export const TRACKED_DOCUMENTED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Symple Reverse Swirl (far)', slug: 'symple_reverse_swirl' },
     { displayName: 'Symple Swirl (far)', slug: 'symple_swirl' },
     { displayName: 'Symposium Down Double Down', slug: 'symposium_down_double_down' },
-    { displayName: 'Symposium Whirling Flapper', slug: 'symposium_whirling_flapper' },
     { displayName: 'Tap Dance', slug: 'tap_dance', operationalNotation: 'Toe > Same In (DEX) >> Same Out (DEX) > Same In (DEX) > Op Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Tapwater', slug: 'tapwater', operationalNotation: 'Toe > Op Out (DEX) >> Op Front Swirl (DEX) > (back) Spin (BOD) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Terminator', slug: 'terminator', operationalNotation: 'Clip > Same Out (DEX)(PDX) >> Op In (DEX)(XDEX) > Op Out (DEX) > Same Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
@@ -1238,10 +1232,8 @@ export const TRACKED_DOCUMENTED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Quantum near Butterfly', slug: 'quantum_near_butterfly' },
     { displayName: 'Rake, Xbd Rake', slug: 'rake_xbd_rake' },
     { displayName: 'Rev. Big Apple', slug: 'rev_big_apple' },
-    { displayName: 'Ripwalk Swirl', slug: 'ripwalk_swirl' },
     { displayName: 'Rotor', slug: 'rotor' },
     { displayName: 'Shooting far Double Down', slug: 'shooting_far_double_down' },
-    { displayName: 'Sidewalk Swirl', slug: 'sidewalk_swirl' },
     { displayName: 'Sidewinder', slug: 'sidewinder' },
     { displayName: 'Sidwalk', slug: 'sidwalk' },
     { displayName: 'Skullsmasher, Rasmus', slug: 'skullsmasher_rasmus' },
