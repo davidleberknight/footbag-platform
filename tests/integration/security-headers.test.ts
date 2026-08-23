@@ -36,6 +36,41 @@ describe('Security headers (helmet defaults)', () => {
     expect(res.headers['x-powered-by']).toBeUndefined();
   });
 
+  it('Permissions-Policy denies unused device features outright', async () => {
+    const app = createApp();
+    const res = await request(app).get('/');
+    const policy = res.headers['permissions-policy'];
+    expect(policy).toBeDefined();
+    for (const feature of [
+      'camera', 'microphone', 'geolocation', 'payment', 'usb', 'serial',
+      'bluetooth', 'midi', 'display-capture', 'magnetometer',
+    ]) {
+      expect(policy).toContain(`${feature}=()`);
+    }
+  });
+
+  it('Permissions-Policy delegates playback features to the embedded player origins', async () => {
+    const app = createApp();
+    const res = await request(app).get('/');
+    const policy = res.headers['permissions-policy'];
+    // A nested context only receives what the parent document holds, so a
+    // denial here would break the click-to-load video facade's iframes.
+    for (const feature of [
+      'autoplay', 'encrypted-media', 'picture-in-picture', 'fullscreen',
+      'accelerometer', 'gyroscope',
+    ]) {
+      expect(policy).toContain(
+        `${feature}=(self "https://www.youtube-nocookie.com" "https://player.vimeo.com")`,
+      );
+    }
+  });
+
+  it('Cross-Origin-Embedder-Policy stays unset so cross-origin players keep loading', async () => {
+    const app = createApp();
+    const res = await request(app).get('/');
+    expect(res.headers['cross-origin-embedder-policy']).toBeUndefined();
+  });
+
   it('CSP locks scripts, styles, framing, and external sources to the documented allowlist', async () => {
     const app = createApp();
     const res = await request(app).get('/');

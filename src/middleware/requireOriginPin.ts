@@ -8,7 +8,7 @@ export const MUTATION_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 // `/ipc/*` authenticates with a shared-secret header inside the controller and
 // is intentionally callable without an Origin header (server-to-server).
-const EXEMPT_PREFIXES = ['/ipc/'];
+export const EXEMPT_PREFIXES = ['/ipc/'];
 
 // Per DD §3.3, the exemption is per-route (exact), not per-prefix: the Stripe
 // webhook receiver is server-to-server (no Origin) and authenticates via the
@@ -18,7 +18,11 @@ const EXEMPT_PREFIXES = ['/ipc/'];
 // is the recipient's mail client acting on a List-Unsubscribe header, which
 // sends no Origin, and the request authenticates on the signed token in its
 // query string, verified before any state write.
-const EXEMPT_EXACT = new Set<string>([
+// Exported so the route-inventory fixture and the black-box perimeter probe read
+// the perimeter's own exemption set rather than keeping copies of it. A copy that
+// drifts stops testing a route that should be pinned, and reports a route that is
+// pinned by design as a hole.
+export const EXEMPT_EXACT = new Set<string>([
   STRIPE_WEBHOOK_PATH, SES_FEEDBACK_WEBHOOK_PATH, ALARM_WEBHOOK_PATH, UNSUBSCRIBE_PATH,
 ]);
 

@@ -4,8 +4,9 @@
 
 This document is the Source of Truth for Functional Requirements, defining all User Stories and their user-facing implications for the Footbag Website Modernization Project. It covers all user roles: Visitor, Member (includes Event Organizer and Club Leader), Administrator, and system background processes, plus special flags for the IFPA Board, Hall of Fame (HoF) and Big Add Posse (BAP). Together these User Stories define the complete scope, describing what functionality must exist for users, and success criteria (system side effects).
 
-Version markers: a story or section headed `<< V2 SCOPE >>` or `<< V3 SCOPE >>` is design intent
-for a post-launch build and is not part of the v1 launch; a story with no marker is v1. The
+Version markers: a story, section, or individual success criterion headed `<< V2 SCOPE >>` or
+`<< V3 SCOPE >>` is design intent for a post-launch build and is not part of the v1 launch; text
+with no marker is v1. The
 allocation is decided in the Migration Plan's feature-scope-by-version section, which this
 document follows.
 
@@ -130,6 +131,8 @@ document follows.
     - [EO_Schedule_Matches](#eo_schedule_matches)
     - [EO_Record_Match_Result](#eo_record_match_result)
     - [EO_Correct_Match_Result](#eo_correct_match_result)
+    - [EO_Configure_Freestyle_Judging](#eo_configure_freestyle_judging)
+    - [EO_Score_Freestyle_Run](#eo_score_freestyle_run)
     - [EO_Print_Tournament_Sheets](#eo_print_tournament_sheets)
     - [V_Follow_Live_Tournament](#v_follow_live_tournament)
     - [EO_Finalize_Discipline_Results](#eo_finalize_discipline_results)
@@ -1211,18 +1214,23 @@ Success Criteria:
 - Registration includes a required selection of registration type: Competitor or Attendee/Supporter (if the organizer has enabled both; otherwise the single available type is implied).
 - If Competitor: member selects one or more organizer-defined event disciplines.
 - If a selected discipline is doubles/team: member provides partner/team information (member-select when possible; otherwise free-text).
-- Gender-gated disciplines require a declared gender to enter the gendered draw. Mixed doubles requires one member with gender Male and one with gender Female; women's disciplines (such as women's net) require gender Female. A member whose gender is "Prefer not to say" (stored as undisclosed) is not eligible for gender-gated disciplines but is eligible for Open, where men and women both play; that member can record a gender in their profile at any time to unlock the gendered draws. Gender validation applies only between two member profiles. For a free-text (non-member) partner, the registrant attests and the organizer verifies eligibility at check-in.
+- A discipline's gender eligibility is enforced at registration from the discipline's own gender part. A women's discipline requires every member on the entry to have declared female. A mixed discipline requires one member with gender Male and one with gender Female. An open discipline admits anyone, and is where men and women both play. A member whose gender is "Prefer not to say" (stored as undisclosed) enters open disciplines; recording a gender in their profile at any time unlocks the women's and mixed draws. Gender validation applies only between two member profiles. For a free-text (non-member) partner, the registrant attests and the organizer verifies eligibility at check-in. A discipline's class is self-selection, and the platform records the class the competitor entered.
 - When a member selects a gender-gated discipline while their stored gender is `undisclosed`, the registration surface warns them that the gendered draw requires a declared gender and points them to set it in their profile; the member may still register for Open disciplines.
 - If Attendee/Supporter: no disciplines are required; optional fields may be collected if configured by organizer (e.g., t-shirt size, donation amount).
 - Confirmation email includes registration type and selected disciplines and/or partners (if any).
 - Some events are free and others are paid.
 - For paid events, the member must complete the Stripe checkout process to be officially registered. Changes are applied only after webhook-confirmed success.
 - Event registration payments affect registration status only and do not directly change membership tier.
-- A registration reaches `confirmed` once payment is webhook-confirmed (paid events) and any required routine-music upload is attached; until then it is `pending`. A member can withdraw their own registration up to the registration deadline, and an organizer or admin can cancel a registration with a reason; a canceled registration is excluded from participant counts, exports, check-in, and event email. When a checkout session expires, the pending registration it belongs to is canceled with it.
-- If the registrant selects a discipline where the event organizer has set `requires_routine_music=true` (a new boolean on event disciplines, settable in `EO_Edit_Event`), the registration is marked incomplete until the member uploads an mp3 routine-music file via `M_Upload_Routine_Music` for that registration entry.
+- A registration reaches `confirmed` once payment is webhook-confirmed (paid events); until then it is `pending`. A member can withdraw their own registration up to the registration deadline, and an organizer or admin can cancel a registration with a reason; a canceled registration is excluded from participant counts, exports, check-in, and event email. When a checkout session expires, the pending registration it belongs to is canceled with it.
+
+<< V2 SCOPE >> The five criteria below ship with routine music in version two. They are design
+intent for that build and are not part of the v1 launch.
+
+- A registration in a discipline that requires routine music additionally reaches `confirmed` once the required upload is attached.
+- If the registrant selects a discipline where the event organizer has set `requires_routine_music=true` (a boolean on event disciplines, settable in `EO_Edit_Event`), the registration is marked incomplete until the member uploads an mp3 routine-music file via `M_Upload_Routine_Music` for that registration entry.
 - If the registrant has not uploaded the required routine music by the event registration deadline, the registration remains incomplete and is treated as not-confirmed for participant counts, exports, and check-in.
 - Registrants receive an email reminder at admin-configurable offsets before the deadline (`routine_music_reminder_days_1` default 7 days, `routine_music_reminder_days_2` default 1 day) when a required upload is missing.
-- For doubles or team routine disciplines, the registering member uploads on behalf of the entire entry; partners do not have independent upload access at launch.
+- For doubles routine disciplines, the registering member uploads on behalf of the entire entry, and the partner plays the attached track back for verification.
 
 ### M_Withdraw_Registration
 
@@ -1241,6 +1249,10 @@ Success Criteria:
 - Withdrawing a doubles or team entry withdraws the whole entry, and the registering member's partner information is retained on the canceled row for the organizer's reference.
 
 ### M_Upload_Routine_Music
+
+<< V2 SCOPE >> Routine music is version-two scope, shipping with the freestyle routine
+disciplines it serves. This story is design intent for that build and is not part of the v1
+launch.
 
 Access: Members registered in an event discipline with `requires_routine_music=true` can upload, attach, replace, detach, and play back their own routine-music files. Members manage their personal routine-music library outside any single event via `M_Manage_Routine_Music_Library`. For doubles or team routine entries, the non-uploading partner(s) can play back the attached track for verification but cannot upload, replace, detach, or delete.
 
@@ -1265,6 +1277,8 @@ Success Criteria:
 - All upload, attach, replace, detach, delete actions are audit-logged with member ID, event ID (if applicable), discipline ID (if applicable), file ID, action, timestamp.
 
 ### M_Manage_Routine_Music_Library
+
+<< V2 SCOPE >> Ships with routine music in version two; not part of the v1 launch.
 
 Access: Any member can view, play back, upload, label, and delete their own routine-music library files at any time.
 
@@ -1780,8 +1794,8 @@ Members with Tier 1 benefits can create basic/local events; Tier 2 or Tier 3 req
 Valid event statuses and their transitions:
 
 - `draft`; initial state on creation.
-- `pending_approval`; paid or sanctioned event submitted for admin review (from `draft`).
-- `reg_open`; visible and open for registration. Free events transition `draft → reg_open` on creation. Paid/sanctioned events transition `pending_approval → reg_open` on admin approval. A rejected request returns to `draft` (`pending_approval → draft`), where the organizer can revise it and resubmit.
+- `pending_approval`; sanction request submitted for admin review (from `draft`). Charging any fee requires sanctioning, so every paid event is a sanctioned event and one approval decides both.
+- `reg_open`; visible and open for registration. Free events transition `draft → reg_open` on creation. Sanctioned events, which includes every event that charges a fee, transition `pending_approval → reg_open` on admin approval. A rejected request returns to `draft` (`pending_approval → draft`), where the organizer can revise it and resubmit.
 - `closed`; registration deadline passed or organiser manually closed registration (from `reg_open`).
 - `completed`; event has concluded and results may be posted (from `closed`). The `completed` state is terminal. Events with published results cannot be canceled, deleted, or transitioned to any other status.
 - `canceled`; event canceled at any point before `completed`; registrants are notified. The `canceled` state is terminal; canceled events cannot be re-opened or completed. A canceled event never surfaces publicly: no event detail page, no year-archive listing, and no result rows on any public results view (historical-person and player pages included), regardless of how result rows came to exist.
@@ -1800,7 +1814,13 @@ Success Criteria:
 
 - Members with Tier 1 benefits can create basic free events; Tier 2 or Tier 3 members can request sanctioned events and enable paid registration.
 
-Event creation form includes: title, description, start date, end date, location (city, state or province (optional), country), registration deadline, competitor registration fee (optional, requires Tier 2 or Tier 3 and admin approval to set up), participant (spectator) fee (optional), t-shirt size (optional). Organizer selects the event's disciplines from a curated list of the disciplines IFPA events actually run, and may add a custom discipline by name when an event runs something the list does not cover. For each discipline, organizer specifies whether it requires single/doubles/mixed doubles designation, and category (net, freestyle, golf, sideline). Sideline includes formats such as 2-square, 4-square, consecutive variants, one-pass, and social.
+Event creation form includes: title, description, start date, end date, location (city, state or province (optional), country), registration deadline, competitor registration fee (optional, requires Tier 2 or Tier 3 and admin approval to set up), participant (spectator) fee (optional), t-shirt size (optional).
+
+The organizer then adds the disciplines the event contests. A discipline is a structured record: it names its game, its entry size (singles or doubles), its gender eligibility (open, women's, or mixed), and its class (novice, intermediate, open, or masters). The display name, for example "Women's Singles Net" or "Intermediate Doubles Net", is generated from those parts. Mixed is the doubles entry size with mixed gender, so a mixed doubles discipline is the pairing of those two parts.
+
+The game comes from a maintained list per category (net, freestyle, golf, sideline), and each game declares which entry sizes, genders and classes apply to it, so the form offers doubles for routines and singles for a thirty-second shred. The lists are reference data seeded into the database and maintained without a software release; IFPA ratifies their contents through the published competition rules. Where an event runs a game the lists do not yet carry, the organizer supplies the game name directly and still chooses the entry size, gender and class from the standard parts, so the discipline stays legible while its game is new.
+
+Social kicking, also called free-flow or cooperative kicking, and circle kicking are recreational forms of the sport rather than competitive formats, so the game lists carry the contested formats only.
 
 - Members with Tier 1 benefits can create basic/local events without fees.
 - Tier 2 or Tier 3 members can request sanctioned events and configure paid registration (subject to admin approval). Payment configuration (if enabled): competitor registration fee, (optional) spectator fee.
@@ -1809,7 +1829,7 @@ Event creation form includes: title, description, start date, end date, location
 - Organizer sees clear error messages for validation failures with hints about what to fix.
 - Member gains Event Organizer status for this event (only).
 - An Event Organizer may organize more than one event at a time.
-- For free events, event status changes to `reg_open`, Email sent to all event organizers to confirm. News item is created. Event will appear in Upcoming Events list. For paid events, these actions must wait for Admin approval.
+- For free events, event status changes to `reg_open`, Email sent to all event organizers to confirm. Event will appear in Upcoming Events list. For sanctioned events, which includes every event that charges a fee, these actions wait for Admin approval. The news item this emits ships with the news feed in version two.
 
 ### EO_Request_Sanction
 
@@ -1821,7 +1841,7 @@ Success Criteria:
 
 - Only Tier 2 or Tier 3 organizers can request sanction.
 - Sanctioning is requested and decided entirely in the platform. The organizer submits no application by email, and the request reaches the administrator as a work-queue item rather than as correspondence.
-- Submitting the request emails the IFPA Sanctioning Director directly, carrying the event details and the organizer's details, so the officeholder can take it up with the organizer before the decision is made. The Sanctioning Director also holds an administrator account and sees the request in the admin work queue like any other administrator; the direct email is required in addition, because a queue entry alone does not reach the officeholder. It is addressed to the IFPA sanctioning address, which forwards to the officeholder, and it is sent through the platform's own mail path so it is templated and logged like every other platform mail.
+- Submitting the request emails the IFPA Sanctioning Director directly, carrying the event details and the organizer's details, so the officeholder can take it up with the organizer before the decision is made. The Sanctioning Director also holds an administrator account and sees the request in the admin work queue like any other administrator; the direct email is required in addition, because a queue entry alone does not reach the officeholder. It is addressed to the officeholder's own address, because the apex sanctioning alias carries inbound correspondence and forwards it onward, and platform mail keeps its bounce and complaint signal by going direct. It is sent through the platform's own mail path so it is templated, logged and bounce-tracked like every other platform mail.
 - The request form carries the organizer's sanctioning attestation, which the organizer must affirm to submit: that the event will abide by IFPA's guidelines for sanctioned events, that it will use IFPA-approved formats and judging systems or disclose where it deviates, and that any alternative judging system will be communicated to all players in advance of competition.
 - The request form carries a fee justification when the organizer has configured registration fees.
 - Organizer receives email confirmation that request is pending.
@@ -1844,8 +1864,8 @@ Success Criteria:
 - All edits audit-logged with organizer ID, fields changed, old values, new values, timestamp.
 - Organizers see a clear success message when event is updated.
 - Organizer sees clear error messages for validation failures.
-- Organizers can mark any discipline on the event as `requires_routine_music=true` (default `false`). The flag is freely editable until the first registration in that category is confirmed; after the first confirmed registration, changes to this flag for that category require admin override with a documented reason.
 - Organizers can add, rename, or remove disciplines on an existing event before the first registration in that discipline is confirmed. After the first confirmed registration, destructive changes to that specific discipline require admin override.
+- << V2 SCOPE >> Ships with routine music in version two: organizers can mark any discipline on the event as `requires_routine_music=true` (default `false`). The flag is freely editable until the first registration in that discipline is confirmed; after the first confirmed registration, changes to this flag for that discipline require admin override with a documented reason.
 - Organizers can enable or disable the event's online registration acceptance via a toggle that stops new registrations without changing event status. This is the granular alternative to `EO_Close_Registration`, which closes the entire registration window irreversibly.
 
 ### EO_Delete_Event
@@ -1978,7 +1998,7 @@ Success Criteria:
 - Dashboard is scoped to a single event and accessible only to that event's organizer(s) and Admins.
 - Dashboard displays: total registered count, breakdown by registration type (Competitor / Attendee-Supporter), per-discipline registration counts, payment status summary (paid / pending / failed counts and amounts in the event's currency), registration timeline (count per day from registration open to current time).
 - Dashboard displays t-shirt size summary if the event collects t-shirt sizes.
-- For disciplines with `requires_routine_music=true`, dashboard displays a routine-music status summary: count of registrations with file uploaded vs missing.
+- << V2 SCOPE >> Ships with routine music in version two: for disciplines with `requires_routine_music=true`, dashboard displays a routine-music status summary, counting registrations with a file uploaded against those still missing one.
 - Counts update via SQL query on demand; no caching beyond standard request scope.
 - Dashboard view is audit-logged with organizer ID, event ID, timestamp.
 
@@ -2036,7 +2056,7 @@ Success Criteria:
 - Results visible on event detail page after commit.
 - Results displayed as sortable table.
 - Results also added to participant profiles (if participant linked to member account).
-- Results publication generates news feed item.
+- Results publication emits a news feed item, which ships with the news feed in version two; in version one results publish on the event page directly.
 - Only organizers can upload results.
 - Results upload audit-logged, including the committed upload's row count and the count accepted without a registration match.
 - Results can be uploaded for any event (sanctioned status does not affect results posting).
@@ -2045,6 +2065,10 @@ Impact:
 For events officially registered through the IFPA website (including sanctioned events), uploading results triggers a two-step attendance confirmation process: Step 1: Automatic attendance for winners: any member accounts appearing in the uploaded results are automatically marked as "Attended". Step 2: Attendance confirmation for non-placing participants: after results upload completes, the system displays an attendance confirmation screen showing all registered participants (confirmed registrations) who do NOT appear in the uploaded results with checkboxes, allowing the organizer to verify additional attendees. For each confirmed Tier 0 attendee, the system grants or extends Active Player status for 730 days from the event end date (single-day event: event date; unknown end date: event start date). An older event must not shorten an existing later Active Player expiry date. For Tier 1, Tier 2, or Tier 3 attendees, attendance is recorded but no Active Player grant occurs because Active Player applies only to Tier 0; attendance never changes membership tier. All attendance confirmations and resulting Active Player grants/extensions are audit-logged with: organizer member ID, affected member ID, event ID, old Active Player expiry, new Active Player expiry, timestamp, reason "official_event_attendance". Tier 0 members who receive or extend Active Player status are sent a notification email explaining they received Active Player status for participating in Event Name, including the new expiry date and a brief explanation of Tier 1 benefits while Active Player status is current.
 
 ## 4.5 Music Operations
+
+<< V2 SCOPE >> Routine music is version-two scope, shipping with the freestyle routine
+disciplines it serves. The stories in this section are design intent for that build and are
+not part of the v1 launch.
 
 Organizer-side audio operations during events. The scope is routine-music playback; draws, seeding, scheduling, live scoring and the rest of the tournament day are in Tournament Operations below.
 
@@ -2068,13 +2092,20 @@ Success Criteria:
 
 << V3 SCOPE >> Native tournament-day operations are version-three scope, to be complete in time
 for Worlds 2027. These stories are design intent for that build and are not part of the v1 launch.
-They are written first against net, because net is the category run on seeded pools and
-elimination draws; freestyle judging and golf scoring are different formats that the same
-machinery must not preclude.
+They cover net, which runs on seeded pools and elimination draws, and freestyle, which runs on
+pools judged by a panel; golf scoring is a third format that the same machinery accommodates.
 
 Until this build lands, IFPA net championships run on an external tournament product under an
 IFPA organization account, and their draws, match scores and cross-event player history live
-there rather than on the platform.
+there rather than on the platform. From Worlds 2027 the platform runs them, and that record is
+imported.
+
+How the published rules bind these stories: where a rulebook states a requirement, the platform
+holds the organizer to it. Where a rulebook recommends, the platform supplies the recommended
+value as the default, lets the organizer change it, names the rule the change departs from at the
+moment it is made, and records the departure with the discipline's results so a later dispute and
+a later ranking both see what was actually run. Organizers decide the details their venue and
+their day demand.
 
 ### EO_Configure_Tournament_Disciplines
 
@@ -2085,19 +2116,31 @@ entries, seeding, draws, scheduling and results all hang off one discipline list
 
 Success Criteria:
 
-- A discipline names its category, plus three axes carried in its name the way the historical
-  record carries them — Open Singles Net, Intermediate Doubles Net, Women's Singles Net — rather
-  than in fields of their own: its format, its gender and its skill class. New events use the
-  standard vocabulary: singles or doubles for format, male, female or mixed for gender, and
-  beginner, intermediate, open (also called pro) or masters for class, so mixed doubles is the
-  doubles format with mixed gender. A gender-gated discipline enforces its gate at entry. The
-  older names in the historical record are superseded aliases for these, and stay as they were
-  run. An event carries as many disciplines as it contests, and a competitor may enter more than
-  one.
+- A discipline is the structured record defined in `M_Create_Event`: its category, its game, its
+  entry size, its gender eligibility and its class, with the display name generated from those
+  parts. The vocabulary is singles or doubles for entry size, open, women's or mixed for gender,
+  and novice, intermediate, open (also called pro) or masters for class, so mixed doubles is the
+  doubles entry size with mixed gender. Gender is enforced at entry; class is self-selection.
+  The older names in the historical record are superseded aliases for these, stay exactly as they
+  were run, and carry the structured parts where those can be inferred confidently. An event
+  carries as many disciplines as it contests, and a competitor may enter more than one.
+- A discipline carries its scoring system, from the approved set its category publishes. For net
+  those are classic side-out scoring, rally scoring, and game-set-match, where games run to four
+  points, six games make a set and a match is the best of three sets, so the match structure
+  differs by system and the model carries sets as well as games. The tournament director chooses
+  per discipline, competitors are told which system at least twenty-four hours before play, and the
+  system stays fixed for every round of that discipline, which the rules state as a requirement
+  rather than a recommendation.
 - A discipline carries its match format: how many games decide a match, the points that win a game,
   whether a game must be won by two, and any points cap. Defaults come from the IFPA published
-  rules for that category, an organizer may vary them for the discipline, and the variation is
-  recorded with the discipline's results.
+  rules for that category, an organizer may vary them, and the variation is recorded with the
+  discipline's results.
+- A discipline's match format can differ by where the match sits in the draw, because the published
+  rules already do this: net's double-elimination default is best of three games to eleven in the
+  winners' bracket, a single game to fifteen in the losers' bracket, and best of three games to
+  fifteen for the last four matches of the event, meaning the final, the winners'-bracket final,
+  and the last two losers'-bracket matches. The format is therefore set per bracket and per round
+  within a discipline, with the rulebook's pattern offered as the default.
 - Disciplines can be combined, split, or renamed after entries open, and every entry, draw and
   result follows the change rather than being re-keyed by hand.
 - Discipline setup and every later change to it are audit-logged.
@@ -2155,6 +2198,9 @@ Success Criteria:
 - Separation rules are applied when the draw is made: seeds are distributed across pools or
   bracket quarters, and the organizer can additionally ask that competitors from the same country
   or the same club be separated where the entry count allows.
+- Seeding into a subsequent round follows the pool result, and defaults to the constraint the net
+  rules set: a pool runner-up is seeded no higher than one above the number of pools and no lower
+  than twice it, and competitors level on match record are separated by their initial seeding.
 - The seeding used for a discipline is retained with its results, so a later ranking computation
   and a later dispute both have the input that was actually used.
 
@@ -2167,16 +2213,33 @@ Story: As an event organizer, I can generate the draw for a discipline so that p
 Success Criteria:
 
 - A discipline's draw is one of: round-robin pools that qualify competitors into a main elimination
-  draw, a single elimination draw, or a round robin that stands alone and decides placement on
-  standings.
-- Pool play supports uneven pool sizes, and the number of pools and the number qualifying from
-  each are the organizer's choice.
+  draw, a single elimination draw, a double elimination draw, or a round robin that stands alone
+  and decides placement on standings.
+- A double elimination draw carries a winners' bracket and a losers' bracket, as the net rules
+  describe: a first loss moves a competitor to the losers' bracket, a second loss ends their
+  event, and the losers'-bracket winner meets the winners'-bracket winner in the final, where the
+  unbeaten finalist can take the title in one match. This is distinct from a consolation draw,
+  whose winner wins that bracket alone and meets no other bracket's winner.
+- Pool play supports uneven pool sizes. Pools default to the sizes the net rules recommend, three
+  to five with five avoided where time is short, and the number of pools and the number qualifying
+  from each are the organizer's choice, with the rules' default of the top two advancing offered.
+- Within a pool, the order of matches defaults to the sequence the published rules set out for
+  that pool size, including which pairs of matches are played simultaneously in pools of four and
+  five, and the organizer can reorder it.
 - An elimination draw supports byes, a consolation or back draw, and a third-place playoff.
+- A freestyle discipline runs on pools throughout rather than on a bracket, and the platform carries
+  that shape: pools sized as the freestyle rules recommend, competitors advancing from preliminary
+  pools through a qualifying round to a final, running order ranked so the top seed performs last,
+  and the option to place competitors from more than one discipline in a single pool so a panel can
+  judge them together while each is placed only against their own discipline.
 - Pool standings are computed and shown: matches played, won and lost, match record, game record,
-  total points for and against, and standings points. The tiebreak order is explicit and is
-  applied in order: match record, then head-to-head between the tied competitors, then game
-  difference, then point difference. A tie that survives all of them is surfaced for the organizer
-  to break rather than resolved silently.
+  total points for and against, and standings points. Placement within a pool follows the net
+  rules: match record first, then the head-to-head result where two competitors are level. Where
+  three or more are level in a circle that head-to-head cannot break, the rules' own order applies:
+  the highest ratio of games won to games lost across every match played in the pool, including
+  those against competitors outside the tie, then the fewest points conceded in games won against
+  the others in the tie. A tie surviving all of them is surfaced for the organizer to break, which
+  is where the rules put it too.
 - A draw can be regenerated before its first match is played, and after that it is edited rather
   than regenerated: an entry can be replaced by an alternate, and a walkover, retirement or
   disqualification is recorded on the match rather than by rewriting the bracket.
@@ -2236,6 +2299,52 @@ Success Criteria:
   blocks it and what to undo first.
 - The original result, the correction, and who made each are all retained and audit-logged.
 
+### EO_Configure_Freestyle_Judging
+
+Access: Event organizers and co-organizers, for events they organize.
+
+Story: As an event organizer, I can set up how a freestyle discipline is judged so that judges score
+into the platform and placings come out of it.
+
+Success Criteria:
+
+- A freestyle discipline names the judging system it runs. The judging systems are an extensible set
+  the platform holds as reference data, so one is added or amended between events without a
+  software release. The published freestyle rules are where each system's criteria and formula
+  live; the platform implements them rather than restating them.
+- The platform computes the systems it carries, and for a system it does not yet carry it records
+  the placings and scores the panel produced, on the same path an uploaded result takes. A
+  director whose chosen system is not yet computed still runs the discipline on the platform.
+- A judging panel is assigned per pool. Competitors may be assigned to judge other pools, which is
+  how the sport staffs a panel, and pool assignments and judging assignments are published
+  together so the day can be planned from one sheet.
+- A competitor who does not appear for a judging assignment is flagged on the discipline, and what
+  follows is the tournament director's to decide and to record.
+- Where a system counts difficulty from add values, the count is entered by two people in the
+  roles the rules describe: one calling the add value of each move aloud, one recording it, with
+  an explicit correction action for a miscall.
+- Judging setup and every later change to it are audit-logged.
+
+### EO_Score_Freestyle_Run
+
+Access: Judges assigned to a pool, and the event's organizers and co-organizers.
+
+Story: As a judge, I can score a run from my phone at the side of the circle so that the standing
+updates as soon as the panel has finished.
+
+Success Criteria:
+
+- The screen shows only the competitor being judged and what comes next in the pool, and takes the
+  criteria the discipline's judging system asks that judge for.
+- A score entered while the connection is down is held on the device and submitted when it
+  returns, and the judge can see which of their scores have landed.
+- Once every judge on the panel has submitted for a competitor, the run's result is computed and
+  the pool standing updates without a further step.
+- A judge can correct a score they entered until the pool closes; after that a correction is the
+  organizer's, and both the original and the correction are retained.
+- What a panel has completed becomes public; a partly judged run does not.
+- Every score carries the judge who entered it and when.
+
 ### EO_Print_Tournament_Sheets
 
 Access: Event organizers and co-organizers, for events they organize.
@@ -2282,6 +2391,13 @@ Success Criteria:
 - Finalizing computes every competitor's placement down to last place from the draw and the pool
   standings, applying the IFPA tie convention that tied competitors take the same, lower place and
   the next place is skipped.
+- For a freestyle discipline, the placings come from the final round alone, with earlier rounds
+  feeding the seeding rather than the score, and a tie within a pool is broken as the freestyle
+  rules direct: counting how many judges placed each tied competitor first, then second, and on
+  down, before the shared-placement convention applies to whatever survives.
+- Seeding from one freestyle round to the next follows the rules' principle that a competitor
+  keeps their seed unless a lower seed beat them in their own pool, so the whole field is re-seeded
+  in order before the next pools are drawn.
 - The organizer reviews the computed placements and commits them, and committing writes the same
   event results the platform already publishes, so a tournament run natively and a tournament
   whose results were uploaded from elsewhere are indistinguishable to everything downstream,
@@ -2485,7 +2601,7 @@ Success Criteria:
 
 - Review event details, the organizer's sanctioning attestation, and any fee structure in the approval queue.
 - Approve or reject with reason.
-- On approval: event status changes to `reg_open`, payment configuration enabled where the organizer configured fees, Email sent to all event organizers to confirm. News item is created. Event will appear in Upcoming Events list.
+- On approval: event status changes to `reg_open`, payment configuration enabled where the organizer configured fees, Email sent to all event organizers to confirm. Event will appear in Upcoming Events list. The news item this emits ships with the news feed in version two.
 - On rejection: event status returns to `draft`, Outbox sends organizer notification with reason, and the organizer can revise and resubmit.
 - Payment approval is event-specific configuration, not persistent eventOrganizer permission (which is separate).
 - All approval actions logged.

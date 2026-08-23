@@ -86,6 +86,12 @@ export function createApp(): express.Application {
       ? `https://${config.mediaStorageS3Bucket}.s3.${config.awsRegion}.amazonaws.com`
       : null;
 
+  // Third-party player origins the click-to-load video facade builds iframes
+  // for. One list feeds both the frame-src directive and the Permissions-Policy
+  // delegation below, so a player host can never be allowed to frame while being
+  // denied the features its player needs to run.
+  const videoFrameOrigins = ['https://www.youtube-nocookie.com', 'https://player.vimeo.com'];
+
   app.use(helmet({
     contentSecurityPolicy: {
       useDefaults: false,
@@ -97,7 +103,7 @@ export function createApp(): express.Application {
         imgSrc:         ["'self'", 'data:', 'https://i.ytimg.com', 'https://i.vimeocdn.com'],
         fontSrc:        ["'self'"],
         connectSrc:     ["'self'", 'https://challenges.cloudflare.com', ...(s3MediaOrigin ? [s3MediaOrigin] : [])],
-        frameSrc:       ['https://www.youtube-nocookie.com', 'https://player.vimeo.com', 'https://challenges.cloudflare.com'],
+        frameSrc:       [...videoFrameOrigins, 'https://challenges.cloudflare.com'],
         objectSrc:      ["'none'"],
         baseUri:        ["'self'"],
         // Checkout is a form POST answered with a 303 onto the payment
@@ -120,6 +126,43 @@ export function createApp(): express.Application {
     hsts: { maxAge: 15552000, includeSubDomains: true, preload: false },
     referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
   }));
+
+  // Permissions-Policy. Helmet ships no option for it, so it is set alongside
+  // the rest of the header set rather than in another layer.
+  //
+  // Two groups. The features the site never uses are denied outright to every
+  // origin including its own, so a future dependency cannot quietly reach for a
+  // camera or a wallet. Checkout is a redirect to the provider's hosted page
+  // rather than an in-page payment request, so `payment` belongs in this group.
+  //
+  // The features the embedded players genuinely need are delegated to the player
+  // origins and to this document. A nested context can only receive what its
+  // parent holds, so denying these outright would silently break the video
+  // facade's iframes, which request autoplay, encrypted media, picture-in-picture,
+  // fullscreen and the motion sensors that 360-degree playback uses.
+  const deniedFeatures = [
+    'camera', 'microphone', 'geolocation', 'payment', 'usb', 'serial',
+    'bluetooth', 'midi', 'display-capture', 'magnetometer',
+  ];
+  const playerFeatures = [
+    'autoplay', 'encrypted-media', 'picture-in-picture', 'fullscreen',
+    'accelerometer', 'gyroscope',
+  ];
+  const playerAllowList = ['self', ...videoFrameOrigins.map(o => `"${o}"`)].join(' ');
+  const permissionsPolicy = [
+    ...deniedFeatures.map(f => `${f}=()`),
+    ...playerFeatures.map(f => `${f}=(${playerAllowList})`),
+  ].join(', ');
+
+  // Cross-Origin-Embedder-Policy is deliberately not set. Requiring cross-origin
+  // resources to opt in would refuse the video player frames, the captcha frame
+  // and the player thumbnail images that the content-security-policy above
+  // permits, and the isolation it buys is only useful to pages using the
+  // high-resolution timing and shared-memory APIs, which this site does not.
+  app.use((_req, res, next) => {
+    res.setHeader('Permissions-Policy', permissionsPolicy);
+    next();
+  });
 
   // Keep everything that is not the canonical public site out of search
   // indexes. Staging and development must never have their content indexed even

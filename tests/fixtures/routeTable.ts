@@ -53,24 +53,22 @@ export interface RouteTable {
   mutationRoutes: RouteEntry[];
   /** Paths the Origin-pin perimeter exempts (signature/secret-authenticated). */
   exemptExact: string[];
+  /** Path prefixes the Origin-pin perimeter exempts (shared-secret mounts). */
+  exemptPrefixes: string[];
 }
 
 export async function loadRouteTable(): Promise<RouteTable> {
   const pub = await import('../../src/routes/publicRoutes');
   const adm = await import('../../src/routes/adminRoutes');
-  const comms = await import('../../src/services/communicationService');
+  const pin = await import('../../src/middleware/requireOriginPin');
   const out: RouteEntry[] = [];
   collect(pub.publicRouter, '', out);
   collect(adm.adminRouter, '/admin', out);
   return {
     allRoutes: out,
     mutationRoutes: out.filter((r) => MUTATION_METHODS.has(r.method)),
-    exemptExact: [
-      pub.STRIPE_WEBHOOK_PATH,
-      pub.SES_FEEDBACK_WEBHOOK_PATH,
-      pub.ALARM_WEBHOOK_PATH,
-      comms.UNSUBSCRIBE_PATH,
-    ],
+    exemptExact: [...pin.EXEMPT_EXACT],
+    exemptPrefixes: [...pin.EXEMPT_PREFIXES],
   };
 }
 

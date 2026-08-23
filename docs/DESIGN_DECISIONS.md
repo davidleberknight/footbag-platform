@@ -1897,7 +1897,7 @@ Impact:
 
 Decision:
 
-Helmet middleware in Express (`src/app.ts`) is the single source of every security response header (HSTS, X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Cross-Origin-Opener-Policy, Cross-Origin-Resource-Policy, Origin-Agent-Cluster, X-Powered-By removal, and CSP). nginx and CloudFront add no security headers; nginx-config templates do not introduce `add_header` lines.
+Helmet middleware in Express (`src/app.ts`) is the single source of every security response header (HSTS, X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Cross-Origin-Opener-Policy, Cross-Origin-Resource-Policy, Origin-Agent-Cluster, X-Powered-By removal, and CSP), alongside a Permissions-Policy set in the same file because Helmet carries no option for it. nginx and CloudFront add no security headers; nginx-config templates do not introduce `add_header` lines.
 
 Rationale:
 
@@ -1910,6 +1910,8 @@ Requirements:
 - Integration tests assert the helmet header set on a representative public route and a health route (`tests/integration/security-headers.test.ts`).
 - HSTS preload is conditional on the custom domain landing; with the CloudFront default URL as the public host, preload is off because the `*.cloudfront.net` domain is not eligible for the HSTS preload list.
 - Authenticated responses are served without `Content-Encoding: gzip` or `br`. Compression of bodies that mix attacker-controlled and secret content is the BREACH side channel; the authenticated middleware path disables compression rather than relying on per-route discipline.
+- Permissions-Policy denies the device features the site never uses (camera, microphone, geolocation, payment, USB, serial, Bluetooth, MIDI, display capture, magnetometer) to every origin including its own, and delegates the features the embedded video players need (autoplay, encrypted media, picture-in-picture, fullscreen, accelerometer, gyroscope) to this document and the player origins. A nested browsing context receives only what its parent holds, so the player origins are the same list that feeds the CSP frame-src directive, declared once. Checkout is a redirect to the provider's hosted page rather than an in-page payment request, which is why `payment` sits in the denied group.
+- Cross-Origin-Embedder-Policy is deliberately unset. Requiring cross-origin resources to opt in would refuse the video player frames, the captcha frame, and the player thumbnail images that the CSP permits, and the isolation it grants serves pages using high-resolution timing and shared memory, which this site does not.
 
 Trade-offs:
 

@@ -27,10 +27,12 @@ const BAD_ORIGIN = 'http://attacker.example';
 let createApp: Awaited<ReturnType<typeof importApp>>;
 let mutationRoutes: RouteEntry[];
 let exemptExact: Set<string>;
+let exemptPrefixes: string[];
 
-// The Origin-pin perimeter also exempts the server-to-server `/ipc/*` prefix.
+// Both exemption forms come from the perimeter itself, so this sweep cannot drift
+// out of step with what the middleware actually lets through.
 function isExempt(path: string): boolean {
-  return exemptExact.has(path) || path.startsWith('/ipc/');
+  return exemptExact.has(path) || exemptPrefixes.some((p) => path.startsWith(p));
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -46,6 +48,7 @@ beforeAll(async () => {
   const table = await loadRouteTable();
   mutationRoutes = table.mutationRoutes;
   exemptExact = new Set(table.exemptExact);
+  exemptPrefixes = table.exemptPrefixes;
 });
 
 afterAll(() => cleanupTestDb(dbPath));
