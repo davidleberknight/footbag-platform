@@ -227,6 +227,49 @@ footbag.org-cited ones. And the seven unsourced `whirling_*` rows already use th
 explicit register, so nominating it for new authoring changes nothing on disk; those
 rows carry no citation and are never evidence for the register they use.
 
+## Flailing = a Symposium Atomic set (+2), and its written Symposium is redundant
+
+Red ruled flailing a Symposium Atomic set, which denies the older hypothesis that
+flailing is the prefix form of flail. Two things follow, both settled by the
+corpus rather than by reading the names.
+
+**The weight is +2.** Every published atomic-symposium compound contributes
+exactly two over its base, with no exceptions:
+
+| Compound | ADD | Base | Delta |
+|---|---|---|---|
+| Atomic Symposium Mirage | 4 | mirage 2 | +2 |
+| Atomic Symposium Whirl | 5 | whirl 3 | +2 |
+| Atomic Symposium Butterfly | 5 | butterfly 3 | +2 |
+| Atomic Symposium Eggbeater | 5 | eggbeater 3 | +2 |
+| Atomic Symposium Paradon | 6 | paradon 4 | +2 |
+| Symposium Atomic Butterfly | 5 | butterfly 3 | +2 |
+
+The shape is consistent too: the atomic dex is prepended and the base's leading
+dex becomes a no-plant `[BOD] [DEX]`, which is the symposium treatment and is
+exactly what flail is on its own.
+
+**Ruling: in a flailing compound name, an immediately associated Symposium token
+is an explanatory expansion of the flailing set, not a second symposium
+treatment, unless a source explicitly establishes two distinct symposium
+actions. It adds no ADD beyond flailing's +2.**
+
+The proof is arithmetic, not a reading of the wording. Bill Ted's Excellent
+Adventure is published at 5 ADD and carries the registered alias "flailing ss
+symposium eggbeater". Eggbeater is 3, and flailing contributes 2, giving 5. Were
+the written symposium a second scored treatment the row would be 6, contradicting
+its own published count.
+
+So the folk names unpack the set rather than stacking on it: Flailing Symposium
+Mirage is mirage 2 plus flailing 2 = 4, Flailing Symposium Whirl is 5, and
+Flailing Symposium Eggbeater is 5. No repeated-operator question arises.
+
+**Not settled here: the positional qualifier.** Several flailing names carry `ss`
+or `far`, and nothing above says what that qualifier modifies or where its
+SAME/OP relation lands inside the atomic-symposium chassis. The six exemplars
+carry no positional form, so they cannot answer it. That question is why the one
+blank-notation flailing row stays blank.
+
 ## Explicitly NOT derived (the boundary of what is proven)
 
 - **Slapping and flailing: confirm/deny hypotheses, not rulings.** FootbagMoves

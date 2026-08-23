@@ -185,6 +185,12 @@ Values for all of these live in `freestyleOperatorReference.ts` /
 - **Sailing** (pt9): a set equivalent to the Pixie Quantum set; set-standalone
   value stated, modifier behavior not classified.
 - **Backside** (pt9): a body modifier.
+- **Flailing** (curator-relayed): flailing is a Symposium Atomic set. This answers
+  the standing confirm-or-deny in the negative: flailing is NOT the prefix form of
+  flail. Flail remains a symposium illusion in its own right, and flailing is a
+  distinct set combining the symposium and atomic treatments. The set's weight is
+  corpus-settled at +2 by the six published atomic-symposium compounds; the proof
+  and the naming consequence are in `OPERATOR_DERIVATIONS.md`.
 - **Blazing** (curator-relayed, 2026-08-21): blazing is a Whirling set, an uptime
   whirl that the following trick is performed off of (Red's example: Blazing
   Paradox Mirage). This closes the open movement/notation half of the blazing

@@ -904,7 +904,11 @@ def main() -> None:
             r["readiness"] = ""
         elif r["evidenceState"] in NOTATION_BACKED:
             r["readiness"] = "curator-ready"
-        elif r["objectType"] == "complete-trick" and r["evidenceState"] == "compositional-name-only":
+        elif r["objectType"] == "complete-trick" and r["evidenceState"] in (
+                "compositional-name-only", "partial-structure"):
+            # Partial structure is the same readiness as a bare compositional
+            # name: something about the movement is recorded, but not enough to
+            # write the notation, so a curator still has to author it.
             r["readiness"] = "notation-authoring-required"
         else:
             r["readiness"] = "unresolved"

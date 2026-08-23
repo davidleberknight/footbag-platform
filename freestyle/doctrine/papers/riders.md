@@ -40,6 +40,39 @@ Each of these is a row-level movement question the rules expert owns.
 These are open asks without a registry identifier. If an Emerging Vocabulary row
 comes to cite one as its blocker, it is promoted into `QUESTION_REGISTRY.csv` first.
 
+- **Two side-placement questions, asked together.** Both concern sets whose identity
+  and scoring are already settled, and neither reopens either. They are put side by
+  side because they are the same shape and answerable in a sentence each.
+
+  **Blazing.** Blazing is a whirling-chassis set, an uptime whirl the following trick
+  is performed off, contributing +1. What side does the opening front-whirl dex take,
+  and is the following component performed on the same or the opposite side relative
+  to that dex?
+
+  The sources disagree three ways, which is why it is still open. FootbagMoves writes
+  Blaze, its name for Blazing Mirage, as `Clip > Op Front Whirl (DEX) >> Op In (DEX) >
+  Op Toe (DEL)`, an opposite-side opening. FootbagMoves writes Whirlwalk, its name for
+  Blazing Paradox Whirl, as `Clip > Front Whirl (DEX) >> …`, with no side marker at
+  all. PassBack equates Blazing Butterfly with Whirling Butterfly (ss), a same-side
+  reading. The Holden compilation distinguishes blazing from whirling by an
+  opposite-side terminal.
+
+  **Flailing.** Flailing is a Symposium Atomic set contributing +2. When a flailing
+  name carries a positional qualifier such as `ss`, what element of the
+  atomic-symposium chassis does that qualifier apply to, and where does the same-side
+  relationship land?
+
+  The chassis runs atomic dex, then a no-plant symposium dex, then the base, and a
+  qualifier could attach to any of the three. None of the six published
+  atomic-symposium compounds carries a positional form, so the corpus cannot answer
+  it. The count is not in question: Bill Ted's Excellent Adventure, recorded as
+  "flailing ss symposium eggbeater", is published at 5, and eggbeater 3 plus flailing
+  2 gives exactly 5. Only the placement of `ss` is missing.
+
+  Between them the two answers affect ten rows whose notation is blank or held — the
+  eight blazing compounds, the bare blazing row, and Bill Ted — and additionally make
+  seven flailing identities authorable that already hold settled counts in the curator
+  queue.
 - **The general osis-suffix rule.** Is there a single rule for what an osis suffix
   contributes across the compounds that carry it? A general answer would replace
   the per-row curator path for the whole osis-suffix band.

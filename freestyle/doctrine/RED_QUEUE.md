@@ -75,8 +75,6 @@ defines the movement, and its weight where the weight is not yet evidenced.
 - **Slapping.** Confirm or deny. An outside source defines a bare Slap; is slapping
   its prefix form? No "Slapping X" compound exists to cross-check, so this is a
   single yes/no, not an open derivation.
-- **Flailing.** Confirm or deny. Flail is documented as a symposium illusion; is
-  flailing its prefix form?
 - **Arctic.** Undefined. Affected names: Arctic Butterfly, Arctic Whirl (the
   "frigidosis Pixie" and "Arc Walk" readings are on file but are not usable
   definitions).
@@ -198,6 +196,18 @@ defines the movement, and its weight where the weight is not yet evidenced.
 
 Each is separable and answered on its own.
 
+- **Blazing side placement.** Settled: blazing is a whirling-chassis set contributing
+  +1. Open: what side the opening front-whirl dex takes, and whether the following
+  component sits on the same or the opposite side relative to it. Unlocks the eight
+  blazing compound notations plus the bare blazing row. Evidence vehicle: the joint
+  side-placement packet in the rider list. Tracked with the blank-notation cohort.
+- **Flailing positional placement.** Settled: flailing is a Symposium Atomic set
+  contributing +2, and a Symposium written alongside it expands the set rather than
+  adding a second treatment. Open: where a positional qualifier such as `ss` lands in
+  that chassis. Unlocks Bill Ted's Excellent Adventure, whose notation is blank for
+  this reason alone, and supplies the notation for seven flailing identities already
+  holding settled counts in the curator queue. Evidence vehicle: the same rider-list
+  packet. Tracked with the blank-notation cohort.
 - **Cross-body and OP.** Does a cross-body `[XBD]` token inherently encode an OP side
   relationship, or is side independent of it? Carried in `POSITIONAL_IDENTITY.md`
   under the atom-level foundations; it governs how every cross-body terminal's side
