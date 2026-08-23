@@ -952,7 +952,7 @@ export const adminCuratorController = {
         await svc.deleteMedia({ adminMemberId, mediaId });
       } catch (err) {
         if (err instanceof NotFoundError) {
-          renderNotFound(res, { title: 'Curator media not found' });
+          renderNotFound(res, { title: 'Curator Media Not Found' });
           return;
         }
         throw err;

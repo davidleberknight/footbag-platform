@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { config } from '../config/env';
 import { ALARM_WEBHOOK_PATH, SES_FEEDBACK_WEBHOOK_PATH, STRIPE_WEBHOOK_PATH } from '../routes/publicRoutes';
+import { UNSUBSCRIBE_PATH } from '../services/communicationService';
 import { renderForbidden } from '../lib/controllerErrors';
 
 export const MUTATION_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
@@ -13,8 +14,12 @@ const EXEMPT_PREFIXES = ['/ipc/'];
 // webhook receiver is server-to-server (no Origin) and authenticates via the
 // Stripe-Signature HMAC, verified before any state write. Exact-match so sibling
 // browser routes (e.g. /payments/checkout/:id/confirm) stay origin-pinned.
+// The one-click unsubscribe endpoint joins them for the same reason: the caller
+// is the recipient's mail client acting on a List-Unsubscribe header, which
+// sends no Origin, and the request authenticates on the signed token in its
+// query string, verified before any state write.
 const EXEMPT_EXACT = new Set<string>([
-  STRIPE_WEBHOOK_PATH, SES_FEEDBACK_WEBHOOK_PATH, ALARM_WEBHOOK_PATH,
+  STRIPE_WEBHOOK_PATH, SES_FEEDBACK_WEBHOOK_PATH, ALARM_WEBHOOK_PATH, UNSUBSCRIBE_PATH,
 ]);
 
 let cachedExpectedOrigin: string | null = null;

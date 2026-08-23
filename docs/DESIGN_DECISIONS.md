@@ -1565,7 +1565,7 @@ Rationale:
 
 Requirements:
 
-- The KMS key policy grants the runtime IAM role only the specific actions it needs: `kms:Sign`, `kms:GetPublicKey`, and `kms:DescribeKey`. The default `kms:*` allow-root statement is removed from the key policy; root administrative access remains available through account-level IAM, not through the key policy.
+- The KMS key policy grants the runtime IAM role only the specific actions it needs: `kms:Sign`, `kms:GetPublicKey`, and `kms:DescribeKey`. Alongside that statement the key policy keeps an account-root statement matching the one AWS writes into every default key policy, declared explicitly in the Terraform, and keeping it is deliberate. Naming `arn:aws:iam::<account>:root` as a principal is not a grant to the root user; it is what delegates authorization for the key to account-level IAM. Remove it and every IAM policy naming the key becomes inert, leaving only the principals the key policy names explicitly. The runtime role's own IAM policy grants `kms:Sign` and `kms:GetPublicKey` on the signing key as a second path to the same permission, and the runtime role's grant to decrypt SSM SecureString parameters has no key-policy counterpart at all, so it resolves through the delegation alone. The least-privilege control on the signing key is therefore the narrow explicit runtime-role statement, not the absence of the root delegation.
 - The signing key has a documented rotation cadence. A CloudWatch alarm fires when a key passes its rotation deadline without a successor enabled, so a missed rotation cannot accrue silently.
 - The adapter interface is invariant across implementations: `KmsJwtAdapter` (production) and `LocalJwtAdapter` (dev and test) produce JWTs with identical JOSE header shape and identical claim shape. An integration test asserts shape parity (`tests/integration/adapter-parity.test.ts`).
 - Startup-time `GetPublicKey` failure fails the container fast (the process exits non-zero before serving requests). After startup, a `GetPublicKey` failure on a `kid` not yet in the cache is logged at error level and the affected verification returns "unauthenticated"; the process does not crash on a single missing-key event.
@@ -2471,7 +2471,7 @@ Trade-offs:
 
 Impact:
 
-- The cross-cutting view standard lives in the path-scoped `.claude/rules/view-layer.md`; each page's rendering contract, audience, and sensitive-page invariants live in the owning service's file-header JSDoc; the visual disciplines are mechanically enforced by `scripts/ci/assert_conventions.sh` (§4.8).
+- The cross-cutting view standard lives in the path-scoped `.claude/rules/view-layer.md`; each page's rendering contract, audience, and sensitive-page invariants live in the owning service's file-header JSDoc; the visual disciplines are mechanically enforced in two places, by the convention gate `scripts/ci/assert_conventions.sh` (§4.8) for the checks a shell script can express, and by conformance tests under `tests/unit/` for the checks better expressed in TypeScript over the template tree (asset fingerprinting, profile section systems, interface-chrome casing). The casing gate additionally imports the rule it enforces from `src/lib/titleCase.ts`, so that rule and its gate cannot drift apart.
 
 ## 4.10 Search-engine and Crawler Readiness
 
@@ -2859,7 +2859,7 @@ Impact:
 
 Decision:
 
-The platform sends all transactional and bulk email via AWS SES using an Outbox pattern.
+The platform sends all transactional and bulk email via AWS SES using an Outbox pattern, as two streams with separate sending reputations.
 
 Rationale:
 
@@ -2868,6 +2868,8 @@ Rationale:
 - A small set of explicit MailingList and MailingListSubscription entities provides a clear, query-friendly model while staying lightweight and simple.
 
 - Security-critical and governance-critical flows such as account verification, password reset, and election communications rely on reliable email delivery with retries and auditability, which the Outbox pattern provides.
+
+- Transactional and bulk mail carry opposite risk. A transactional message is one member and one action they took, and non-delivery of a password reset locks a person out of their account. A bulk message goes to hundreds of addresses of mixed freshness and is where complaints and hard bounces originate. On a shared sending reputation the second degrades the first, and SES reputation is slow to rebuild, so the two are separated before the first staged bulk send.
 
 - Member-controlled subscription preferences, stored via MailingListSubscription and projected into Member.subscriptions, provide transparency and control.
 
@@ -2887,6 +2889,8 @@ Trade-offs:
 
 - Requires running a separate worker process and monitoring its health.
 
+- Two sending streams mean two reputations to watch rather than one, and a deliverability question now starts with which stream the message rode.
+
 - Email delivery is not instantaneous; there can be a delay due to polling and retries.
 
 - No advanced email marketing features like A/B testing, detailed open/click tracking, or sophisticated segmentation.
@@ -2895,7 +2899,7 @@ Trade-offs:
 
 Impact:
 
-- Subscription email is modeled with lightweight MailingList and MailingListSubscription entities: MailingList defines each subscription category (for example, newsletter, board-announcements), and MailingListSubscription records each member’s status (subscribed, unsubscribed, bounced, complained) for a list.
+- Subscription email is modeled with lightweight MailingList and MailingListSubscription entities: MailingList defines each subscription category (for example, newsletter, board-announcements), and MailingListSubscription records each member’s status (subscribed, unsubscribed, bounced, complained) for a list. On a group-backed list those statuses record deliverability rather than membership, membership being the group's roster.
 
 - Member.subscriptions is a simple projection of a member’s current MailingListSubscription slugs, used mainly by the profile UI.
 
@@ -2910,6 +2914,16 @@ Impact:
 - Admin work-queue notifications are routed by urgency rather than broadcast per event: urgent task types email the admin-alerts list immediately; routine task types are read on the work-queue dashboard and a periodic per-administrator digest of open items, with a claimed item leaving the other administrators' digests and a stale unclaimed item escalating once to the full list. This keeps the alert channel meaningful for a small volunteer team instead of training administrators to ignore it.
 
 - Each registered template carries a PII classification (`public` / `internal` / `confidential` / `restricted`) that bounds how much of a sent message an admin may view: public and internal bodies may be shown, a confidential body only behind a justification-logged reveal, and a restricted (token-bearing) body never, because its `body_text` holds a live reset or magic-link token until the post-send scrub. The classification is a property of the template, not the individual message.
+
+- Every outbound message, single or bulk, is enqueued through one path that takes an **audience**: one address, one member, a mailing list, a group's roster, or an event's confirmed participants. The path resolves the audience to recipients and writes one outbox row each. Everything that must hold for every message is applied there and only there: the mailbox suppression gate, the verified-and-deliverable filter, the stream, the broadcast archive row, and the unsubscribe headers. The audience is a value rather than a row or a method per shape, so a further audience later is one more resolver behind the same contract, and no second send mechanism exists to drift from the first.
+
+- A mailing list declares where its recipients come from, `subscription` or `group`. A group-backed list resolves to the group's current roster when the send fans out, so the roster stays the single record of membership and nothing mirrors it into subscription rows; subscription rows on such a list carry deliverability state only, and a member leaves the group rather than unsubscribing from the list. An event-participant send is keyed to its event rather than given a mailing list of its own: the broadcast archive already requires an event reference for that kind of send, and a list row per event would be one nobody can subscribe to, needing to be filtered out of every member and admin list surface.
+
+- Outbound mail runs as two streams, each with its own SES configuration set, which is where SES keeps reputation metrics and event destinations. The stream is decided by the audience and written on the outbox row at enqueue: bulk whenever the recipient has a subscription they could act on, which covers the many-recipient audiences and equally a one-member send belonging to a list, such as a subscription-governed reminder a sweep delivers one member at a time; transactional otherwise. `CommunicationService` reads the stored stream when it hands a claimed row to the SES adapter, and the adapter names the set on the send. Each environment provisions both sets in its own Terraform, named for the environment, and the runtime learns their names from configuration. A runtime with no set names configured sends without one, which leaves both streams on the account default. Bounce and complaint feedback is identity-scoped and unaffected by the split; what the split changes is which reputation an event is counted against.
+
+- Bulk mail to a subscription-backed list that members are allowed to manage carries `List-Unsubscribe` and `List-Unsubscribe-Post`, so the recipient's mail client offers its own one-click unsubscribe control, which major receivers expect of a bulk sender. This sits with the link policy below rather than against it: the affordance lives in the envelope, where the mail client renders it as its own control, and the body still carries no clickable link. SES attaches no custom headers to its simple send call, so a message carrying them goes out as raw MIME while transactional mail keeps the simple call. The URL carries a signed token naming one member and one list and nothing else, verified before any write; it is stateless because the control must keep working for as long as the message survives, and a stored token per recipient per send would multiply the outbox by every send ever made. The endpoint answers identically to a valid, tampered, or absent token, so it cannot be used to probe membership, and firing it twice changes nothing the second time.
+
+- Four kinds of send deliberately carry no unsubscribe control, because in each the member has no mailing preference the control could withdraw. Transactional mail answers an action the member took, and offering to switch it off would let them turn off their own security mail. A list members cannot manage, which the `is_member_manageable` flag marks and the operational alert lists are, would otherwise hand an administrator a mail-client button removing them from urgent alerts, which the interface deliberately does not offer; the flag already means "members may self-subscribe and unsubscribe", so it is exactly the right condition to read. Group mail reaches a member because they are on the group's roster, so an unsubscribe would either leave them on the roster still receiving, or remove them from a committee, which is a governance act rather than something a mail client's button performs. Event-participant mail reaches them because they entered the event. The two bulk cases carry standing instructional text instead, telling the reader why they received the message and how to act on the site: leave the group from its page, or manage the registration from the event's page. That text is part of the message template rather than something a sender types, so it cannot be omitted or reworded per send.
 
 - Controllers only enqueue outbox entries; they never call SES directly.
 
@@ -2939,7 +2953,7 @@ Impact:
 
 - Outbox body scrub (APP-019): security-sensitive emails (account verification, password reset, data-export download links, voting receipt tokens) carry single-use tokens in the body text. After successful send, the worker MUST set `outbox_emails.body_text = NULL` so the raw token does not persist in the live DB or in DB backups beyond the moment of delivery. The schema column is nullable specifically to support this scrub. Subject lines never contain tokens by design, so they are preserved.
 
-- Link policy (anti-phishing): notification emails carry no clickable links. They name the action and give precise log-in-and-navigate instructions, so members are never trained to click links arriving in mail. A link appears only in an email-verification flow, where the link itself is the proof of mailbox control (account verification, password reset, data-export download, and claim or mailbox-link tokens). Relationship and nudge emails such as co-leader invitations and the admin contact-members prompt route the recipient to the standing on-site affordance by instruction, never by embedded link.
+- Link policy (anti-phishing): notification emails carry no clickable links in their body. They name the action and give precise log-in-and-navigate instructions, so members are never trained to click links arriving in mail. A body link appears only in an email-verification flow, where the link itself is the proof of mailbox control (account verification, password reset, data-export download, and claim or mailbox-link tokens). The one-click unsubscribe URL is not a body link: it lives in the `List-Unsubscribe` headers, which the mail client renders as its own control, so the reader is never taught to click a link in the message. Relationship and nudge emails such as co-leader invitations and the admin contact-members prompt route the recipient to the standing on-site affordance by instruction, never by embedded link.
 
 ## 5.5 Canonical Email Addresses
 
@@ -4759,7 +4773,7 @@ Impact:
 - Terraform must remain the authority for IAM roles, policies, Parameter Store structure (per §3.6), KMS resources, CloudWatch resources, Lightsail instance configuration, Lightsail firewall rules, and any infrastructure-side inputs required by the SSH operator-access posture and the runtime-credential model in §7.2.
 - Deployment/bootstrap documentation must clearly separate one-time bootstrap actions from steady-state Terraform-managed infrastructure.
 - Workspace layout: `terraform/shared/` for one-time bootstrap (state bucket, account baseline); `terraform/staging/` and `terraform/production/` for per-environment resources, each with its own remote state.
-- Drift reconciliation procedure (`terraform import` flow, plan-clean verification, PR review) lives in DEVOPS_GUIDE.md (private GitHub repo), "Emergency console changes". The design rule above is enforced by the requirement that `terraform plan` returns "No changes" before any further apply.
+- Drift reconciliation procedure (`terraform import` flow, plan-clean verification, PR review) lives in DEVOPS_GUIDE.md (private GitHub repo), "Emergency console changes". A clean `terraform plan` is the check for drift within declared resources, and it is not a completeness check: a policy, role, or rule created outside Terraform is invisible to it, because a plan reconciles only what the configuration declares. Detecting an undeclared resource requires enumerating what the account actually holds and comparing it against the configuration, which is an audit step rather than a plan.
 - Any agent or daemon needing host-level access (e.g. CloudWatch Agent reading host CPU/memory/disk) is bootstrapped through an idempotent script under `scripts/`, not through Terraform provisioners or AWS Console clicks.
 
 

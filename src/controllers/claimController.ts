@@ -28,8 +28,8 @@ const HP_FORM_VM = {
 // work for this audience and resolve the commonest reason for landing here.
 function renderHpClaimUnavailable(res: Response, personId: string): void {
   res.status(200).render('history/claim-unavailable', {
-    seo:  { title: 'Claim unavailable' },
-    page: { sectionKey: 'members', pageKey: 'hp_claim_unavailable', title: 'Claim unavailable' },
+    seo:  { title: 'Claim Unavailable' },
+    page: { sectionKey: 'members', pageKey: 'hp_claim_unavailable', title: 'Claim Unavailable' },
     content: {
       cancelHref: personId
         ? `/history/${encodeURIComponent(personId)}`
@@ -86,8 +86,8 @@ export const claimController = {
         // that would bounce them, so this page names no administrator route and
         // says instead when that route opens to them.
         res.render('history/claim-hp-conflict', {
-          seo:  { title: 'Claim unavailable' },
-          page: { sectionKey: 'members', pageKey: 'hp_claim_conflict', title: 'Claim unavailable' },
+          seo:  { title: 'Claim Unavailable' },
+          page: { sectionKey: 'members', pageKey: 'hp_claim_conflict', title: 'Claim Unavailable' },
           content: {
             cancelHref: personId ? `/history/${encodeURIComponent(personId)}` : '/',
             claimStepHref: '/register/wizard/legacy_claim',

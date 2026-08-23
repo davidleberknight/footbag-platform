@@ -28,6 +28,7 @@
 import {
   getCommunicationService,
   type EnqueueResult,
+  type EnqueueOutcome,
   type MailingListEnqueueResult,
 } from './communicationService';
 import { account, emailTemplates, type EmailTemplateRow } from '../db/db';
@@ -102,6 +103,17 @@ function renderVariant(shaped: ShapedEmail): RenderOutcome {
 
 export type SendResult = EnqueueResult | { id: null; status: 'suppressed' };
 
+/**
+ * Narrows the enqueue outcome to the single-recipient answer callers of `send`
+ * expect. One audience of one resolves to at most one row, so the counts say
+ * which of the three states it reached.
+ */
+function singleResult(outcome: EnqueueOutcome): SendResult {
+  if (outcome.duplicates > 0) return { id: outcome.ids[0], status: 'duplicate' };
+  if (outcome.enqueued > 0) return { id: outcome.ids[0], status: 'enqueued' };
+  return { id: null, status: 'suppressed' };
+}
+
 interface SendBase {
   recipientEmail: string;
   /** Required: erasure reaches an outbox row only through this column. */
@@ -121,17 +133,20 @@ export const emailService = {
     const shaped = shapeEmail(input.template, input.params);
     const rendered = renderVariant(shaped);
     if (rendered.status === 'suppressed') return { id: null, status: 'suppressed' };
-    const comms = getCommunicationService();
-    const enqueueInput = {
-      recipientEmail: input.recipientEmail,
-      recipientMemberId: input.recipientMemberId,
+    const outcome = getCommunicationService().enqueue({
+      audience: {
+        kind: 'address',
+        email: input.recipientEmail,
+        memberId: input.recipientMemberId,
+        listTag: input.mailingListId,
+      },
       subject: rendered.subject,
       bodyText: rendered.bodyText,
       templateKey: shaped.variant,
       idempotencyKey: input.idempotencyKey,
-      mailingListId: input.mailingListId,
-    };
-    return input.strict ? comms.enqueueEmailOrFail(enqueueInput) : comms.enqueueEmail(enqueueInput);
+      strict: input.strict,
+    });
+    return singleResult(outcome);
   },
 
   /**
@@ -178,13 +193,14 @@ export const emailService = {
     const shaped = shapeEmail(input.template, input.params);
     const rendered = renderVariant(shaped);
     if (rendered.status === 'suppressed') return { enqueued: 0, duplicates: 0 };
-    return getCommunicationService().enqueueMailingListEmail({
-      mailingListSlug: input.mailingListSlug,
+    const outcome = getCommunicationService().enqueue({
+      audience: { kind: 'list', slug: input.mailingListSlug },
       subject: rendered.subject,
       bodyText: rendered.bodyText,
       templateKey: shaped.variant,
-      idempotencyKeyPrefix: input.idempotencyKeyPrefix,
+      idempotencyKey: input.idempotencyKeyPrefix,
     });
+    return { enqueued: outcome.enqueued, duplicates: outcome.duplicates };
   },
 
   /** Fan an admin notification out to every administrator via the admin-alerts list. */

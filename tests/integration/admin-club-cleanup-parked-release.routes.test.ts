@@ -73,7 +73,7 @@ function section(html: string, startMarker: string): string {
 }
 
 function flagSection(html: string): string {
-  return section(html, 'Wizard flags by candidate (');
+  return section(html, 'Wizard Flags by Candidate (');
 }
 
 function parkedSection(html: string): string {

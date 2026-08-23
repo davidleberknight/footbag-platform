@@ -84,8 +84,8 @@ function getLeadershipQueuePage(opts: { notice?: string; errorMessage?: string }
     clubId: r.id, name: r.name, location: locationOf(r), manageHref: `/admin/clubs/${r.id}/leadership`,
   }));
   return {
-    seo:  { title: 'Club leadership remediation' },
-    page: { sectionKey: '', pageKey: 'admin_club_leadership_queue', title: 'Club leadership remediation' },
+    seo:  { title: 'Club Leadership Remediation' },
+    page: { sectionKey: '', pageKey: 'admin_club_leadership_queue', title: 'Club Leadership Remediation' },
     content: {
       needsLeader,
       notice: opts.notice ?? null,

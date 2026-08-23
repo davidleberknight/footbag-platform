@@ -484,6 +484,23 @@ else
   check_pass "ses feedback topic: SES_FEEDBACK_TOPIC_ARN present"
 fi
 
+# The two sending streams. Both are optional in the runtime config, so an
+# absent value degrades to the account's default reputation rather than
+# refusing to boot: bulk complaints would then drag transactional delivery down
+# with them and nothing would say so. That silence is why this is checked here
+# rather than left to the process.
+SES_SET_TRANSACTIONAL="${HOST_ENV[SES_CONFIGURATION_SET_TRANSACTIONAL]:-}"
+SES_SET_BULK="${HOST_ENV[SES_CONFIGURATION_SET_BULK]:-}"
+if [[ "${HOST_ENV[SES_ADAPTER]:-}" != "live" ]]; then
+  check_pass "ses configuration sets: not required (SES_ADAPTER is not 'live')"
+elif [[ -z "$SES_SET_TRANSACTIONAL" || -z "$SES_SET_BULK" ]]; then
+  check_fail "ses configuration sets: SES_CONFIGURATION_SET_TRANSACTIONAL and _BULK must both be set, or bulk and transactional mail share one sending reputation (run scripts/set-host-env.sh, which writes them from the Terraform outputs)"
+elif [[ "$SES_SET_TRANSACTIONAL" == "$SES_SET_BULK" ]]; then
+  check_fail "ses configuration sets: both names are '$SES_SET_BULK', so the two streams are not separated at all"
+else
+  check_pass "ses configuration sets: transactional and bulk are separate"
+fi
+
 ALARM_ARN_ACTUAL="${HOST_ENV[ALARM_TOPIC_ARN]:-}"
 ALARM_KEY_ACTUAL="${HOST_ENV[ALARM_WEBHOOK_KEY]:-}"
 if [[ -z "$ALARM_KEY_ACTUAL" && -z "$ALARM_ARN_ACTUAL" ]]; then

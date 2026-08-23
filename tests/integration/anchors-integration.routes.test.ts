@@ -534,13 +534,9 @@ describe('mailbox-control verification email enqueue failure', () => {
     const commsMod = await import('../../src/services/communicationService');
     const { ServiceUnavailableError } = await import('../../src/services/serviceErrors');
     commsMod.setCommunicationServiceForTests({
-      enqueueEmail: () => {
-        throw new ServiceUnavailableError('synthetic enqueue failure');
-      },
-      enqueueEmailOrFail: () => {
+      enqueue: () => {
         throw new ServiceUnavailableError('synthetic enqueue failure for mailbox-control email');
       },
-      enqueueMailingListEmail: () => ({ enqueued: 0, duplicates: 0 }),
       processSendQueue: async () => ({
         claimed: 0, sent: 0, failed: 0, deadLettered: 0, paused: false,
       }),

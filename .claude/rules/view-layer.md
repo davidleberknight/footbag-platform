@@ -106,12 +106,31 @@ discipline, not the enumeration.
   dark gradient panels) are the only button variants. Secondary content uses the card pattern
   (`.card`, `.card-title`, `.card-meta`, `.card-description`); status chips use `.badge`. Which of
   these a control takes is fixed by the action hierarchy above, not chosen per surface.
-- Button / CTA label casing is Title Case: capitalize the first letter of each word EXCEPT the
-  minor words `a an as the and or nor but to of in on at by for`, unless the minor word is the first or
-  last word ("Create a New Club", "Browse All Matching Media", "Log In", "Go to Home", "Apply Hashtag
-  Filters"). This applies to every `.btn` label and to service/controller-authored CTA strings;
-  curator/member-authored content (e.g. an external-link label) is left as entered. (A general design
-  skill may suggest sentence case for copy; for button/CTA labels this project rule governs.)
+- Interface chrome is Title Case: button and call-to-action labels, page titles, hero titles, and
+  section headings. Capitalize the first letter of each word EXCEPT the minor words
+  `a an as the and or nor but to of in on at by for`, unless the minor word is the first or last word
+  ("Create a New Club", "Browse All Matching Media", "Log In", "Go to Home", "Payment History").
+  `toTitleCase()` in `src/lib/titleCase.ts` is the executable definition and the only place that word
+  list lives; `tests/unit/heading-case-conformance.test.ts` imports it and fails on a heading, button
+  label, or service-authored page title that does not match. Consult the function rather than
+  reimplementing the rule: it also settles what prose leaves open, leaving a word untouched when it
+  begins with a digit ("45th", "2-Square") or carries an interior capital ("ADD", "IFPA", "X-Dex"),
+  and treating a hyphen as part of one word ("Consecutive-kicks", "Co-leader").
+- Two kinds of text keep the casing they were written with. The platform never re-cases text it did
+  not write, so an interpolated value shows exactly as its owner entered it and curator- or
+  member-authored content is left alone; the gate skips any literal carrying an interpolation, which
+  is why casing is applied where the literal is authored and never at render time (by then a heading
+  is one string, and a helper could not tell the authored part from the member name inside it). And a
+  sentence is not a label, so body copy, help text, descriptions, empty states, error messages, and
+  the article subheads inside the long-form freestyle reference stay as written. A page title is
+  chrome even on such a page.
+- The gate covers heading tags and `.btn` labels in templates and `title:` literals in services, and
+  three things it does not cover follow the rule without being machine-checked. Service `label:`
+  keys: that one key carries both dropdown options, which are chrome, and tooltip prose, which is
+  not, so gating it would either misfire or need an exception list longer than the rule. The
+  freestyle and symbolic reference services, whose `title:` keys carry article section titles the
+  scan cannot tell apart from page titles. And any heading that interpolates a value, which is
+  skipped whole because the gate cannot separate the authored half from the borrowed one.
 - Reference site CSS/JS only through the `asset` helper (`{{{asset 'css/style.css'}}}`), which emits a
   content-hash version token (`/css/style.css?v=<hash>`, served immutable) so a deploy self-busts the
   CDN. Never hardcode a `/css/*` or `/js/*` URL; `tests/unit/asset-helper-conformance.test.ts` fails

@@ -11,7 +11,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-import { insertMember, insertEvent, insertClub, insertTag, insertMemberGallery, createTestSessionJwt } from '../fixtures/factories';
+import { insertMember, insertEvent, insertClub, insertTag, insertMemberGallery, insertHistoricalPerson, createTestSessionJwt } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3080');
 const ORIGIN = 'http://localhost:3080';
@@ -34,6 +34,15 @@ beforeAll(async () => {
 
   // A named gallery, so its detail URL appears in the sitemap.
   insertMemberGallery(db, { id: 'gallery_seo_test', owner_member_id: 'seo-member-1', name: 'SEO Test Gallery' });
+
+  // Two historical people: one canonical, with a public detail page, and one
+  // outside the canonical scope, which has no page for a crawler to reach.
+  insertHistoricalPerson(db, { person_id: 'person-seo-canonical', person_name: 'Canonical Player' });
+  insertHistoricalPerson(db, {
+    person_id: 'person-seo-noncanonical',
+    person_name: 'Non-canonical Player',
+    source_scope: 'MIRROR',
+  });
 
   db.close();
   createApp = await importApp();
@@ -86,6 +95,14 @@ describe('GET /sitemap.xml', () => {
     expect(res.text).toMatch(new RegExp(`<loc>${ORIGIN}/ifpa/[^<]+</loc>`));
   });
 
+  it('lists historical-person detail URLs, which are the site long tail', async () => {
+    const res = await request(createApp()).get('/sitemap.xml');
+    expect(res.text).toContain(`<loc>${ORIGIN}/history/person-seo-canonical</loc>`);
+    // A person outside the canonical scope has no detail page, so pointing a
+    // crawler at one would advertise a URL that does not serve.
+    expect(res.text).not.toContain(`<loc>${ORIGIN}/history/person-seo-noncanonical</loc>`);
+  });
+
   it('lists freestyle set-detail and named-gallery URLs', async () => {
     const res = await request(createApp()).get('/sitemap.xml');
     // The Toe Set is a stable canonical set, so its detail page is always present.
@@ -105,7 +122,11 @@ describe('GET /sitemap.xml', () => {
 
   it('never lists private, member, or machine routes', async () => {
     const res = await request(createApp()).get('/sitemap.xml');
-    for (const path of ['/admin', '/login', '/register', '/members', '/history/', '/internal', '/health', '/payments']) {
+    // A historical person's detail page is a public historical record and is
+    // listed; the claim flow hanging off the same path is member-only and is
+    // not, which is why the history exclusion is the claim suffix rather than
+    // the whole prefix.
+    for (const path of ['/admin', '/login', '/register', '/members', '/claim', '/internal', '/health', '/payments']) {
       expect(res.text).not.toContain(`${ORIGIN}${path}`);
     }
   });

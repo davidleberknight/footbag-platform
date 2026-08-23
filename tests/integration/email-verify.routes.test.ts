@@ -515,17 +515,11 @@ describe('POST /verify/resend — verify-email enqueue failure', () => {
     });
     expect(registerRes.status).toBe(303);
 
-    // Now break enqueueEmailOrFail and exercise the resend path.
+    // Now break the enqueue path and exercise the resend flow.
     commsMod.setCommunicationServiceForTests({
-      enqueueEmail: () => {
-        throw new ServiceUnavailableError('synthetic enqueue failure');
+      enqueue: () => {
+        throw new ServiceUnavailableError('synthetic enqueue failure for verify-resend');
       },
-      enqueueEmailOrFail: () => {
-        throw new ServiceUnavailableError(
-          'synthetic enqueueEmailOrFail failure for verify-resend',
-        );
-      },
-      enqueueMailingListEmail: () => ({ enqueued: 0, duplicates: 0 }),
       processSendQueue: async () => ({
         claimed: 0, sent: 0, failed: 0, deadLettered: 0, paused: false,
       }),

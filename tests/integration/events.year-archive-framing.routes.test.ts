@@ -55,7 +55,7 @@ describe('GET /events/year/:year — completed-archive framing', () => {
   it('titles and describes the page as completed events, not a full-year index', async () => {
     const res = await request(createApp()).get('/events/year/2026');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Completed Events from 2026');
+    expect(res.text).toContain('Completed Events From 2026');
     expect(res.text).not.toContain('Footbag Events from 2026');
     expect(res.text.toLowerCase()).toContain('already taken place');
   });

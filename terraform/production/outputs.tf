@@ -87,6 +87,11 @@ output "ses_sender_identity" {
   value       = var.ses_sender_identity
 }
 
+output "ses_configuration_set_bulk" {
+  description = "SES configuration set carrying the bulk sending reputation. Read by scripts/test-smoke.sh so the raw-MIME probe names a set that exists in the environment under test."
+  value       = aws_ses_configuration_set.bulk.name
+}
+
 output "lightsail_instance_name" {
   description = "Name of the Lightsail web instance. Used by operator scripts to look up the instance."
   value       = aws_lightsail_instance.web.name

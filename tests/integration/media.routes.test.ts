@@ -262,15 +262,15 @@ describe('GET /media (hub)', () => {
     const res = await request(app).get('/media');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Footbag Media');
-    // Live categories: browse-by-hashtag leads, Member galleries (seeded here),
+    // Live categories: browse-by-hashtag leads, Member Galleries (seeded here),
     // and Freestyle. Each carries a real destination.
-    for (const title of ['Browse by hashtag', 'Member galleries', 'Freestyle']) {
+    for (const title of ['Browse by Hashtag', 'Member Galleries', 'Freestyle']) {
       expect(res.text).toContain(title);
     }
     expect(res.text).toContain('href="/media/browse"');
     expect(res.text).toContain('href="/freestyle/media"');
     expect(res.text).toContain('media-hub-card--browse');
-    expect(res.text.indexOf('Browse by hashtag')).toBeLessThan(res.text.indexOf('Member galleries'));
+    expect(res.text.indexOf('Browse by Hashtag')).toBeLessThan(res.text.indexOf('Member Galleries'));
     // Not-yet-built categories are withheld until they have content: their cards
     // and the old "Coming soon" / "None yet" placeholders never render on the hub.
     // (Card descriptions are unique to the cards, so this does not trip on nav text.)
@@ -290,7 +290,7 @@ describe('GET /media (hub)', () => {
     expect(res.text).not.toContain('media-hub-facade');         // Takraw embed removed (no stable source)
   });
 
-  it('links the Member galleries card to the list page when member galleries exist', async () => {
+  it('links the Member Galleries card to the list page when member galleries exist', async () => {
     const app = createApp();
     const res = await request(app).get('/media');
     expect(res.text).toContain('href="/media/member-galleries"');

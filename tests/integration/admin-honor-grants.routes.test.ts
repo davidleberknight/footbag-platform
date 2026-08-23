@@ -107,7 +107,7 @@ describe('GET /admin/honor-grants', () => {
   it('admin → 200 with the grant form', async () => {
     const res = await request(createApp()).get('/admin/honor-grants').set('Cookie', adminCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Grant an honor tier');
+    expect(res.text).toContain('Grant an Honor Tier');
     expect(res.text).toContain('/admin/honor-grants/grant');
   });
 });

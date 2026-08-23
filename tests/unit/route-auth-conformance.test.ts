@@ -60,6 +60,11 @@ const UNGUARDED_BY_DESIGN = new Set([
   'STRIPE_WEBHOOK_PATH',
   'SES_FEEDBACK_WEBHOOK_PATH',
   'ALARM_WEBHOOK_PATH',
+  // The recipient's mail client posts this from a List-Unsubscribe header,
+  // with no session, which is what the header is for. The signed token in the
+  // query string names one member and one audience and is verified before any
+  // write, so it authenticates the caller the way the webhooks above do.
+  'UNSUBSCRIBE_PATH',
 ]);
 
 interface Registration {

@@ -582,8 +582,8 @@ export const paymentReconciliationService = {
     if (!r) return null;
     const note = r.donation_note ? String(r.donation_note) : null;
     return {
-      seo: { title: 'Payment detail', noindex: true },
-      page: { sectionKey: 'admin', pageKey: 'admin_payment_detail', title: 'Payment detail' },
+      seo: { title: 'Payment Detail', noindex: true },
+      page: { sectionKey: 'admin', pageKey: 'admin_payment_detail', title: 'Payment Detail' },
       content: {
         id: String(r.id),
         dateDisplay: dateDisplay(String(r.created_at)),
@@ -969,7 +969,7 @@ function reconciliationReferenceLines(
   r: Record<string, unknown>,
 ): Array<{ label: string; value: string }> {
   const lines: Array<{ label: string; value: string }> = [];
-  if (r.stripe_payment_intent_id) lines.push({ label: 'Payment intent', value: String(r.stripe_payment_intent_id) });
+  if (r.stripe_payment_intent_id) lines.push({ label: 'Payment Intent', value: String(r.stripe_payment_intent_id) });
   if (r.stripe_subscription_id) lines.push({ label: 'Subscription', value: String(r.stripe_subscription_id) });
   if (r.stripe_invoice_id) lines.push({ label: 'Invoice', value: String(r.stripe_invoice_id) });
   return lines;

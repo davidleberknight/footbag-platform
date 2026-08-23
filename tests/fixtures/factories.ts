@@ -1530,6 +1530,47 @@ export interface OutboxEmailOverrides {
   last_error?: string | null;
   sent_at?: string | null;
   created_at?: string;
+  /** Which sending stream the row is charged to; the column defaults to transactional. */
+  stream?: 'transactional' | 'bulk';
+  /** When the drain last tried this row, which is what a dead letter ages on. */
+  last_attempt_at?: string | null;
+}
+
+export interface MailingListOverrides {
+  slug?: string;
+  name?: string;
+  status?: string;
+  /** Whether a member may withdraw themselves; the column defaults to 1. */
+  is_member_manageable?: 0 | 1;
+  /** Where the recipients come from: their own subscriptions, or a group roster. */
+  recipient_source?: 'subscription' | 'group';
+  source_group_id?: string | null;
+}
+
+/**
+ * A mailing list on its own, with no subscriber.
+ *
+ * The subscription factory creates a list as a side effect, but only a plain
+ * subscription-backed one. A group-backed list, and the manageability flag that
+ * decides whether its mail may carry an unsubscribe control, need setting
+ * directly.
+ */
+export function insertMailingList(db: BetterSqlite3.Database, o: MailingListOverrides = {}): string {
+  const slug = o.slug ?? `list_${uid()}`;
+  db.prepare(`
+    INSERT INTO mailing_lists (
+      slug, updated_at, name, description, status,
+      is_member_manageable, recipient_source, source_group_id
+    ) VALUES (?, ?, ?, '', ?, ?, ?, ?)
+  `).run(
+    slug, TS,
+    o.name ?? slug,
+    o.status ?? 'active',
+    o.is_member_manageable ?? 1,
+    o.recipient_source ?? 'subscription',
+    o.source_group_id ?? null,
+  );
+  return slug;
 }
 
 export function insertOutboxEmail(db: BetterSqlite3.Database, o: OutboxEmailOverrides = {}): string {
@@ -1543,8 +1584,9 @@ export function insertOutboxEmail(db: BetterSqlite3.Database, o: OutboxEmailOver
     INSERT INTO outbox_emails (
       id, created_at, created_by, updated_at, updated_by, version,
       recipient_email, recipient_member_id, mailing_list_id,
-      subject, body_text, template_key, status, last_error, sent_at
-    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      subject, body_text, template_key, status, last_error, sent_at,
+      stream, last_attempt_at
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id, ts, SYS, ts, SYS,
     recipientEmail,
@@ -1556,6 +1598,8 @@ export function insertOutboxEmail(db: BetterSqlite3.Database, o: OutboxEmailOver
     o.status ?? 'pending',
     o.last_error ?? null,
     o.sent_at ?? null,
+    o.stream ?? 'transactional',
+    o.last_attempt_at ?? null,
   );
   return id;
 }

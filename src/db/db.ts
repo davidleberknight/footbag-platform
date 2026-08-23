@@ -493,6 +493,17 @@ export const publicPlayers = {
     LIMIT ?
   `); },
 
+  // Every historical person with a public detail page, for the sitemap. Scoped
+  // to CANONICAL exactly as the search and detail reads are: a non-canonical
+  // row has no page to point a crawler at. Ordered by id so the sitemap is
+  // stable between builds rather than reshuffling on every regeneration.
+  get listAllCanonicalIds() { return db.prepare(`
+    SELECT person_id
+    FROM historical_persons
+    WHERE source_scope = 'CANONICAL'
+    ORDER BY person_id
+  `); },
+
   get getById() { return db.prepare(`
     SELECT
       hp.person_id,
@@ -3683,7 +3694,7 @@ export interface NetTeamStatsRow {
   last_year:        number | null;
 }
 
-export interface NetDivisionOptionRow {
+export interface NetDisciplineOptionRow {
   canonical_group:  string;
   appearance_count: number;
 }
@@ -3743,7 +3754,7 @@ export const netTeams = {
 
   /** All net teams (with ≥1 canonical appearance), sorted by appearance count desc.
    *  No HAVING threshold and no LIMIT: this is the single public entry for browsing
-   *  all teams, with division/search filters handled via queryFilteredTeams. */
+   *  all teams, with discipline/search filters handled via queryFilteredTeams. */
   get listAll() { return db.prepare(`
     SELECT
       t.team_id,
@@ -3822,8 +3833,8 @@ export const netTeams = {
     )
   `); },
 
-  /** Division filter options, distinct canonical groups with appearance counts. */
-  get listDivisionOptions() { return db.prepare(`
+  /** Discipline filter options, distinct canonical groups with appearance counts. */
+  get listDisciplineOptions() { return db.prepare(`
     SELECT dg.canonical_group, COUNT(DISTINCT a.id) AS appearance_count
     FROM net_discipline_group dg
     JOIN net_team_appearance_canonical a ON a.discipline_id = dg.discipline_id
@@ -3868,20 +3879,20 @@ export const netTeams = {
 };
 
 /**
- * Shared filter clauses for the optional division (canonical_group) and
+ * Shared filter clauses for the optional discipline (canonical_group) and
  * player-search filters, so the paginated fetch and the count query filter the
  * identical universe. The 'Unknown' placeholder is always excluded.
  */
-function buildFilteredTeamsClauses(filters: { division?: string; search?: string }): {
+function buildFilteredTeamsClauses(filters: { discipline?: string; search?: string }): {
   joins: string; where: string; params: string[];
 } {
   const joins: string[] = [];
   const conditions: string[] = [];
   const params: string[] = [];
 
-  if (filters.division) {
+  if (filters.discipline) {
     joins.push('JOIN net_discipline_group dg ON dg.discipline_id = a.discipline_id AND dg.canonical_group = ?');
-    params.push(filters.division);
+    params.push(filters.discipline);
   }
   if (filters.search) {
     conditions.push("(pa.person_name LIKE ? OR pb.person_name LIKE ?)");
@@ -3895,14 +3906,14 @@ function buildFilteredTeamsClauses(filters: { division?: string; search?: string
 }
 
 /**
- * One page of teams matching the optional division / player-search filter, in the
+ * One page of teams matching the optional discipline / player-search filter, in the
  * same order and universe as the unfiltered directory. No HAVING or fixed LIMIT:
  * pagination (LIMIT ? OFFSET ?) governs how many rows render, so a filter can
  * never dump thousands of rows at once. Uses runtime db.prepare() for the
  * optional JOIN clause.
  */
 export function queryFilteredTeams(
-  filters: { division?: string; search?: string },
+  filters: { discipline?: string; search?: string },
   limit: number,
   offset: number,
 ): NetTeamStatsRow[] {
@@ -3942,7 +3953,7 @@ export function queryFilteredTeams(
 }
 
 /** Total unique teams matching the same filter, for the filtered page count. */
-export function countFilteredTeams(filters: { division?: string; search?: string }): number {
+export function countFilteredTeams(filters: { discipline?: string; search?: string }): number {
   const { joins, where, params } = buildFilteredTeamsClauses(filters);
   const row = db.prepare(`
     SELECT COUNT(*) AS total FROM (
@@ -6098,6 +6109,12 @@ export interface OutboxRow {
   subject: string;
   body_text: string;
   from_identity: string | null;
+  // Set on a copy that belongs to a list send; the archive and the admin
+  // surfaces read it to say which list a message went out on.
+  mailing_list_id: string | null;
+  // Which sending reputation the message is charged against, decided by the
+  // audience at enqueue rather than inferred here.
+  stream: 'transactional' | 'bulk';
   retry_count: number;
   idempotency_key: string | null;
 }
@@ -6411,25 +6428,47 @@ export const outbox = {
     SELECT COUNT(*) AS n FROM outbox_emails WHERE status = 'dead_letter'
   `); },
 
+  // Retention cleanup: a delivered copy is one message to one recipient,
+  // carrying that recipient's address and the rendered body, and it is kept
+  // only as long as bounce correlation and delivery questions can still use
+  // it.
+  get deleteSentBefore() { return db.prepare(`
+    DELETE FROM outbox_emails
+    WHERE status = 'sent' AND sent_at IS NOT NULL AND sent_at < ?
+  `); },
+
+  // A dead-lettered row exhausted its retries and is an operator's to review,
+  // but a message nobody acted on for a whole retention window is not going to
+  // be sent now, and holding its recipient address forever buys nothing. Aged
+  // on last attempt, falling back to row age for a row that never recorded one.
+  // Pending and failed rows are live work the drain still owns, and a
+  // manual_review row is an unresolved question about whether a real person
+  // received a message, so neither ages out.
+  get deleteDeadLetterBefore() { return db.prepare(`
+    DELETE FROM outbox_emails
+    WHERE status = 'dead_letter'
+      AND COALESCE(last_attempt_at, updated_at, created_at) < ?
+  `); },
+
   get insert() { return db.prepare(`
     INSERT INTO outbox_emails (
       id, created_at, created_by, updated_at, updated_by, version,
       idempotency_key,
       recipient_email, recipient_member_id, mailing_list_id,
-      sender_member_id, from_identity,
+      sender_member_id, from_identity, stream,
       subject, body_text, template_key,
       status, retry_count, scheduled_for
     ) VALUES (?, ?, 'system', ?, 'system', 1,
       ?,
       ?, ?, ?,
-      ?, ?,
+      ?, ?, ?,
       ?, ?, ?,
       'pending', 0, ?)
   `); },
 
   get selectPendingBatch() { return db.prepare(`
     SELECT id, recipient_email, recipient_member_id, subject, body_text,
-           from_identity, retry_count, idempotency_key
+           from_identity, mailing_list_id, stream, retry_count, idempotency_key
     FROM outbox_emails
     WHERE status = 'pending'
       AND (scheduled_for IS NULL OR scheduled_for <= ?)
@@ -9325,12 +9364,33 @@ export const mailingListSubscriptions = {
               ?, ?, ?, ?)
   `); },
 
-  // Active-subscriber lookup for mailing-list fan-out. Returns one row per
-  // member with status='subscribed' on the given list, where the list itself
-  // is active, the member's email is verified, and the address is deliverable
-  // (email_status='ok'): enqueueing to an SES-bounced/complained address only
-  // produces repeated rejections, dead-letter rows, and alarm noise.
-  // Used by CommunicationService.enqueueMailingListEmail.
+  // One-click unsubscribe: the member is not signed in, so this writes the one
+  // row the signed token names and nothing else. Only a currently-subscribed
+  // row moves; a bounced, complained or admin-suppressed row keeps the state an
+  // operator or the provider put it in, and an already-unsubscribed row is
+  // left alone so the action stays idempotent when a mail client fires twice.
+  get markUnsubscribed() { return db.prepare(`
+    UPDATE mailing_list_subscriptions
+    SET status = 'unsubscribed', status_updated_at = ?,
+        updated_at = ?, updated_by = 'one_click_unsubscribe', version = version + 1
+    WHERE mailing_list_id = ? AND member_id = ? AND status = 'subscribed'
+  `); },
+
+  // A list's own row, read by the send path to learn where the list's
+  // recipients come from before it resolves them.
+  get getListBySlug() { return db.prepare(`
+    SELECT slug, status, recipient_source, source_group_id, from_identity,
+           is_member_manageable
+    FROM mailing_lists WHERE slug = ?
+  `); },
+
+  // Active-subscriber lookup for the subscription-backed audience. Returns one
+  // row per member with status='subscribed' on the given list, where the list
+  // itself is active, the member's email is verified, and the address is
+  // deliverable (email_status='ok'): enqueueing to an SES-bounced/complained
+  // address only produces repeated rejections, dead-letter rows, and alarm
+  // noise. Every audience resolver applies the same three filters, so no
+  // audience can reach a mailbox another one would have skipped.
   get listActiveSubscribersBySlug() { return db.prepare(`
     SELECT
       s.member_id,
@@ -9342,6 +9402,24 @@ export const mailingListSubscriptions = {
     WHERE s.mailing_list_id = ?
       AND s.status = 'subscribed'
       AND ml.status = 'active'
+      AND m.email_verified_at IS NOT NULL
+      AND m.email_status = 'ok'
+  `); },
+
+  // The event-participant audience: the members holding a confirmed
+  // registration for one event, with the same verified-and-deliverable filters
+  // the subscription resolver applies, so no audience reaches a mailbox another
+  // one would have skipped. Pending and canceled registrations are not
+  // participants. An event send is keyed to its event rather than to a list,
+  // which is the same shape the broadcast archive already requires of it.
+  get listConfirmedParticipantRecipients() { return db.prepare(`
+    SELECT
+      r.member_id,
+      m.login_email
+    FROM registrations AS r
+    INNER JOIN members_active AS m ON m.id = r.member_id
+    WHERE r.event_id = ?
+      AND r.status = 'confirmed'
       AND m.email_verified_at IS NOT NULL
       AND m.email_status = 'ok'
   `); },

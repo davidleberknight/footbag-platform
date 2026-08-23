@@ -113,7 +113,7 @@
   {{#if content.candidateFlags.length}}
   <section class="mt-8">
     <details class="cleanup-group">
-    <summary>Wizard flags by candidate ({{content.candidateFlags.length}})</summary>
+    <summary>Wizard Flags by Candidate ({{content.candidateFlags.length}})</summary>
     <p class="text-muted fs-sm">Activity answers members left about club candidates that have no live club row yet, so the viability gates cannot evaluate them. One vote per member; a member's latest answer wins. Dismiss is terminal; parked flags wait without a deadline and stay listed with who parked them. Promoting the candidate moves its votes to the live club's viability evaluation.</p>
     <form method="POST" action="/admin/club-cleanup/bulk-resolve" class="cleanup-action-form mt-2">
       <input type="hidden" name="group" value="candidate_flag" />
@@ -220,7 +220,7 @@
   {{#if content.candidates.length}}
   <section class="mt-8">
     <details class="cleanup-group">
-    <summary>Promotable candidates ({{content.candidates.length}})</summary>
+    <summary>Promotable Candidates ({{content.candidates.length}})</summary>
     <p class="text-muted fs-sm">Legacy club candidates with no live club row yet. Promoting creates the live club and carries its unconfirmed legacy affiliations forward; members can also trigger promotion by confirming these clubs in onboarding. Demote moves an onboarding-visible candidate to dormant; archive is terminal.</p>
     <table class="cleanup-queue-table mt-2">
       <thead>
@@ -279,7 +279,7 @@
   {{#if content.junkCandidates.length}}
   <section class="mt-8">
     <details class="cleanup-group">
-    <summary>Junk-flagged candidates ({{content.junkCandidates.length}})</summary>
+    <summary>Junk-flagged Candidates ({{content.junkCandidates.length}})</summary>
     <p class="text-muted fs-sm">Candidates the classifier marked junk. Junk never renders on any public surface. Confirm the verdict (terminal), or promote to dormant to return the candidate to normal evaluation.</p>
     <table class="cleanup-queue-table mt-2">
       <thead>

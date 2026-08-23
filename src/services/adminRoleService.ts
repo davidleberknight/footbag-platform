@@ -86,8 +86,8 @@ export const adminRoleService = {
       isSelf: r.id === viewerMemberId,
     }));
     return {
-      seo: { title: 'Admin roles' },
-      page: { sectionKey: '', pageKey: 'admin_admin_roles', title: 'Admin roles' },
+      seo: { title: 'Admin Roles' },
+      page: { sectionKey: '', pageKey: 'admin_admin_roles', title: 'Admin Roles' },
       content: {
         admins,
         notice: opts.notice ?? null,
@@ -128,8 +128,8 @@ export const adminRoleService = {
     if (!member) throw new ValidationError('No active member with that id or slug.');
     const { trimmedReason, tierStatus } = assertGrantAdminRoleAllowed(member.id, reason);
     return {
-      seo: { title: 'Grant admin role', noindex: true },
-      page: { sectionKey: '', pageKey: 'admin_admin_roles_grant_confirm', title: 'Confirm: grant admin role' },
+      seo: { title: 'Grant Admin Role', noindex: true },
+      page: { sectionKey: '', pageKey: 'admin_admin_roles_grant_confirm', title: 'Confirm: Grant Admin Role' },
       content: {
         action: 'grant',
         memberKey: key,
@@ -157,8 +157,8 @@ export const adminRoleService = {
       | { id: string; display_name: string; slug: string }
       | undefined;
     return {
-      seo: { title: 'Revoke admin role', noindex: true },
-      page: { sectionKey: '', pageKey: 'admin_admin_roles_revoke_confirm', title: 'Confirm: revoke admin role' },
+      seo: { title: 'Revoke Admin Role', noindex: true },
+      page: { sectionKey: '', pageKey: 'admin_admin_roles_revoke_confirm', title: 'Confirm: Revoke Admin Role' },
       content: {
         action: 'revoke',
         memberKey: targetMemberId,

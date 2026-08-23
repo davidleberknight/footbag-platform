@@ -215,7 +215,7 @@ describe('GET /admin/payments/:paymentId', () => {
     const res = await plainRequest(createApp())
       .get('/admin/payments/pay-mem').set('Cookie', cookie(ADMIN));
     expect(res.status).toBe(200);
-    expect(res.text).not.toContain('Donor note');
+    expect(res.text).not.toContain('Donor Note');
   });
 
   it('resolves by payment id, not by a provider reference that happens to collide', async () => {
@@ -294,7 +294,7 @@ describe('GET /admin/payments/reconciliation', () => {
     await seedOneIssue(); // the issue carries stripe_payment_intent_id 'pi_iss'
     const res = await plainRequest(createApp())
       .get('/admin/payments/reconciliation').set('Cookie', cookie(ADMIN));
-    expect(res.text).toContain('Payment intent: pi_iss');
+    expect(res.text).toContain('Payment Intent: pi_iss');
   });
 
   it('shows a resolved issue with its resolver and note under the resolved and all filters', async () => {

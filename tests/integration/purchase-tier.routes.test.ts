@@ -265,7 +265,7 @@ describe('GET /payments/success (stub adapter)', () => {
       .get(`/payments/success?session_id=${sessionId}&returnTo=%2Fmembers%2F${PENDING_SLUG}`)
       .set('Cookie', memberCookie(PENDING_ID));
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Payment processing');
+    expect(res.text).toContain('Payment Processing');
     expect(res.text).toContain('Your payment is processing.');
     expect(res.text).toContain('as soon as your payment is confirmed');
     expect(res.text).not.toContain('activated');

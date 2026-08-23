@@ -327,7 +327,7 @@ describe('freestyle records — add new', () => {
 
     const form = await get('/admin/freestyle/records/new', admin());
     expect(form.status).toBe(200);
-    expect(form.text).toContain('New record');
+    expect(form.text).toContain('New Record');
     expect(form.text).toContain('action="/admin/freestyle/records"');  // create target
     expect(form.text).toContain('value="day" selected');               // default precision
     expect(form.text).toContain('value="probable" selected');          // default confidence
@@ -358,7 +358,7 @@ describe('freestyle records — add new', () => {
       validBody({ confidence: 'legendary', trickName: 'Attempted New Trick' }));
     expect(res.status).toBe(422);
     expect(res.text).toContain('Confidence must be');
-    expect(res.text).toContain('New record');               // still the new form
+    expect(res.text).toContain('New Record');               // still the new form
     expect(res.text).toContain('Attempted New Trick');      // submitted value survives
     expect(res.text).toContain('action="/admin/freestyle/records"');
   });

@@ -16,7 +16,7 @@
     {{#if content.club.needsLeader}}<p class="badge">No co-leader yet</p>{{/if}}
 
     <div class="section-heading">
-      <h2>Current leadership ({{content.club.leadershipCount}}/5)</h2>
+      <h2>Current Leadership ({{content.club.leadershipCount}}/5)</h2>
     </div>
     {{#unless content.club.leaders.length}}
       <p class="text-muted">No leadership rows.</p>
@@ -44,7 +44,7 @@
   </section>
 
   <section>
-    <div class="section-heading"><h2>Assign a co-leader</h2></div>
+    <div class="section-heading"><h2>Assign a Co-leader</h2></div>
     <form method="POST" action="/admin/clubs/{{content.club.clubId}}/leadership/assign" class="form-block">
       <div class="form-field">
         <label for="assign_member">Member id or slug</label>

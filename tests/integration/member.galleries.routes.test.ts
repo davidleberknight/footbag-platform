@@ -198,7 +198,7 @@ describe('GET /members/:memberKey/galleries', () => {
     // a prompt, the upload CTA, and seed-padded popular-tag chips, in place of
     // the old bare "no galleries yet" message.
     expect(res.text).toContain('You have not shared any photos or videos yet.');
-    expect(res.text).toContain('Popular tags');
+    expect(res.text).toContain('Popular Tags');
     // With no real popular tags accrued, the curated starter seeds fill the
     // chips: a representative club, the upcoming worlds event, and a style tag.
     expect(res.text).toContain('#club_wellington');

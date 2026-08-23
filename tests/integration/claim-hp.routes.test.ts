@@ -204,7 +204,7 @@ describe('GET /history/:personId/claim', () => {
     const app = createApp();
     const res = await request(app).get(`/history/${HP_NO_LEGACY}/claim`).set('Cookie', otherCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Claim unavailable');
+    expect(res.text).toContain('Claim Unavailable');
     expect(res.text).not.toContain('does not match');
   });
 
@@ -265,7 +265,7 @@ describe('GET /history/:personId/claim', () => {
     const app = createApp();
     const res = await request(app).get(`/history/${HP_TAKEN}/claim`).set('Cookie', claimerCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Claim unavailable');
+    expect(res.text).toContain('Claim Unavailable');
     expect(res.text).not.toContain('already been claimed');
   });
 
@@ -273,7 +273,7 @@ describe('GET /history/:personId/claim', () => {
     const app = createApp();
     const res = await request(app).get(`/history/${HP_LM_TAKEN}/claim`).set('Cookie', claimerCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Claim unavailable');
+    expect(res.text).toContain('Claim Unavailable');
     expect(res.text).not.toContain('legacy account');
   });
 
@@ -281,14 +281,14 @@ describe('GET /history/:personId/claim', () => {
     const app = createApp();
     const res = await request(app).get('/history/does-not-exist/claim').set('Cookie', claimerCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Claim unavailable');
+    expect(res.text).toContain('Claim Unavailable');
   });
 
   it('deceased HP (surname match) -> uniform claim-unavailable page (a living member cannot claim a deceased identity)', async () => {
     const app = createApp();
     const res = await request(app).get(`/history/${HP_DECEASED}/claim`).set('Cookie', claimerCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Claim unavailable');
+    expect(res.text).toContain('Claim Unavailable');
   });
 });
 
@@ -634,7 +634,7 @@ describe('claim of a record held by a deceased contact-scrubbed member', () => {
     const app = createApp();
     const res = await request(app).get(`/history/${heldHp}/claim`).set('Cookie', cookie);
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Claim unavailable');
+    expect(res.text).toContain('Claim Unavailable');
     expect(res.text).not.toContain('link the record');
   });
 

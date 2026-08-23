@@ -99,3 +99,46 @@ describe('clearing the year hides it even though the linked record still has one
     expect(res.text).not.toContain(`value="${HP_FIRST_YEAR}"`);
   });
 });
+
+/**
+ * The stories say that setting the year is what makes the line appear, and that
+ * clearing the year is how a member hides it. A member row created anywhere
+ * other than the onboarding wizard takes the schema default for the visibility
+ * flag, so that default is what decides whether the stories hold.
+ */
+describe('a member who only sets the year, and never touches the toggle', () => {
+  it('sees the line, because the visibility flag defaults on', async () => {
+    const db = new BetterSqlite3(dbPath);
+    // No show_first_competition_year override: this row takes the schema
+    // default, exactly as a registration or a legacy claim leaves it.
+    insertMember(db, {
+      id: 'fcy-default-member',
+      slug: 'fcy_default_member',
+      display_name: 'Default Flag Holder',
+      login_email: 'fcy-default@example.com',
+      first_competition_year: 2004,
+    });
+    db.close();
+
+    const res = await request(createApp())
+      .get('/members/fcy_default_member')
+      .set('Cookie', `__Host-footbag_session=${createTestSessionJwt({ memberId: 'fcy-default-member' })}`);
+
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Competing since');
+    expect(res.text).toContain('2004');
+  });
+
+  it('still has the toggle as the second way to hide it', async () => {
+    const db = new BetterSqlite3(dbPath);
+    db.prepare('UPDATE members SET show_first_competition_year = 0 WHERE id = ?').run('fcy-default-member');
+    db.close();
+
+    const res = await request(createApp())
+      .get('/members/fcy_default_member')
+      .set('Cookie', `__Host-footbag_session=${createTestSessionJwt({ memberId: 'fcy-default-member' })}`);
+
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('Competing since');
+  });
+});

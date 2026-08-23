@@ -217,7 +217,7 @@ export const consecutiveKicksCurationService = {
 
     return {
       seo:  { title: 'Consecutive Kicks Records' },
-      page: { sectionKey: 'admin', pageKey: 'admin_consecutive_record_edit', title: 'Edit consecutive-kicks record' },
+      page: { sectionKey: 'admin', pageKey: 'admin_consecutive_record_edit', title: 'Edit Consecutive-kicks Record' },
       content: {
         id: row.id,
         isNew: false,
@@ -259,7 +259,7 @@ export const consecutiveKicksCurationService = {
 
     return {
       seo:  { title: 'Consecutive Kicks Records' },
-      page: { sectionKey: 'admin', pageKey: 'admin_consecutive_record_new', title: 'New consecutive-kicks record' },
+      page: { sectionKey: 'admin', pageKey: 'admin_consecutive_record_new', title: 'New Consecutive-kicks Record' },
       content: {
         id: '',
         isNew: true,

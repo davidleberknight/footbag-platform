@@ -822,7 +822,7 @@ describe('GET /internal/net/review/summary', () => {
   it('shows top events with issues', async () => {
     const app = createApp();
     const res = await internalGet(app, '/internal/net/review/summary');
-    expect(res.text).toContain('Top Events with Issues');
+    expect(res.text).toContain('Top Events With Issues');
     // Events from test setup have items linked
     expect(res.text).toContain('Review Open 2018');
   });

@@ -112,7 +112,7 @@ describe('GET /admin/admin-roles', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('Ada Admin');
     expect(res.text).toContain('Ben Admin');
-    expect(res.text).toContain('Grant the admin role');
+    expect(res.text).toContain('Grant the Admin Role');
   });
 });
 

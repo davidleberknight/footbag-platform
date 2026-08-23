@@ -135,14 +135,15 @@ resource "aws_iam_role_policy" "app_s3_media" {
 # policy attached during the runtime AWS identity bring-up (AWS_OPERATIONS.md,
 # private GitHub repo).
 #
-# PARITY DIVERGENCE, DELIBERATE. Production's copy of this policy carries a
-# second statement granting ses:SendEmail on the sender identity. Staging
-# carries none, because staging never sends: the deploy forces the stub SES
-# adapter onto every non-production host and the host-env check fails the host
-# if it reads anything else, so the only code path that reaches SendEmail is
-# production-only. A grant here would authorise a call this environment cannot
-# make, against an identity the production tree owns. The resource name keeps
-# its jwt-ses form so the address matches production's; renaming it would
+# PARITY NOTE. Production's copy of this policy grants the two SES send actions
+# on whichever identity currently covers the sender address. Staging grants the
+# same two actions, scoped by From address instead, because the identity object
+# belongs to the production tree and the address is what actually needs
+# authorising. The two are equivalent in what they permit and differ only in how
+# they name it. The application still never sends from staging, the deploy
+# forcing the stub adapter onto every non-production host; the operator-run
+# readiness smoke tier does, which is what the grant is for. The resource name
+# keeps its jwt-ses form so the address matches production's; renaming it would
 # replace the inline policy for nothing.
 resource "aws_iam_role_policy" "app_jwt_ses" {
   name = "${local.prefix}-app-runtime-jwt-ses"
@@ -159,6 +160,40 @@ resource "aws_iam_role_policy" "app_jwt_ses" {
           "kms:GetPublicKey"
         ]
         Resource = aws_kms_key.jwt_signing.arn
+      },
+      {
+        Sid    = "OutboundEmailSmokeTier"
+        Effect = "Allow"
+        # Staging's application never sends: the deploy forces the stub adapter
+        # onto every non-production host. The operator-run AWS readiness smoke
+        # tier does, deliberately, constructing the live sender directly and
+        # bypassing the adapter accessor, so that the real send path is
+        # rehearsed against real SES before production arms sending. That tier
+        # runs as this role, so the grant belongs here and in Terraform rather
+        # than being attached by hand where no one reading this repository can
+        # see it.
+        #
+        # Both send calls, because the smoke tier exercises both: the simple
+        # call for transactional mail, and the raw-MIME call that carries the
+        # one-click unsubscribe headers on bulk mail. SES authorises the two
+        # separately, so granting one silently passes transactional sends and
+        # fails every bulk send.
+        Action = ["ses:SendEmail", "ses:SendRawEmail"]
+        # Scoped by the From address rather than by identity ARN, which is not
+        # a weaker control here but a more durable one. The two environments
+        # share one account and one sender identity, and that identity is
+        # production's to declare, so there is no resource in this tree to name.
+        # More to the point, which identity object covers the address changes
+        # when domain authentication is enabled, and a grant naming the
+        # address identity would silently stop authorising the moment sending
+        # moves under the domain identity. What this role should be allowed to
+        # do is send as this one address, which is exactly what this says.
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "ses:FromAddress" = var.ses_sender_identity
+          }
+        }
       }
     ]
   })
@@ -266,6 +301,34 @@ resource "aws_iam_role_policy" "logs_publisher_write" {
 resource "aws_iam_user" "cwagent_publisher" {
   name          = "${local.prefix}-cwagent-publisher"
   force_destroy = false
+}
+
+# The backup script publishes BackupAgeMinutes and BackupConsecutiveFailures
+# under the host's runtime role, in the platform's own metric namespace rather
+# than the CWAgent one. Without this grant the put fails with AccessDenied and
+# the script swallows it, so the metric is never emitted, the backup alarm can
+# never satisfy its documented "confirmed to emit" precondition, and a backup
+# pipeline that has stopped looks exactly like one that is healthy. Scoped by
+# namespace for the same reason the CWAgent grant is: PutMetricData takes no
+# resource ARN, so the namespace condition is the only bound available.
+resource "aws_iam_role_policy" "app_backup_metrics" {
+  name = "${local.prefix}-app-runtime-backup-metrics"
+  role = aws_iam_role.app_runtime.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid      = "BackupMetrics"
+      Effect   = "Allow"
+      Action   = "cloudwatch:PutMetricData"
+      Resource = "*"
+      Condition = {
+        StringEquals = {
+          "cloudwatch:namespace" = "Footbag/staging"
+        }
+      }
+    }]
+  })
 }
 
 resource "aws_iam_user_policy" "cwagent_publisher_putmetric" {

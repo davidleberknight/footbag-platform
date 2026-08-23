@@ -72,7 +72,7 @@ function setupDb(db: BetterSqlite3.Database): void {
   const disc2 = insertDiscipline(db, event2, { id: 'disc-net-test-open-2015', name: 'Open Doubles Net', discipline_category: 'net', team_type: 'doubles' });
   const disc3 = insertDiscipline(db, event3, { id: 'disc-net-test-conflict-2012', name: 'Footbag Net: Singles', discipline_category: 'net', team_type: 'doubles' });
 
-  // net_discipline_group entries for division filter tests
+  // net_discipline_group entries for discipline filter tests
   db.prepare(`
     INSERT INTO net_discipline_group
       (discipline_id, canonical_group, match_method, review_needed, conflict_flag, mapped_at, mapped_by)
@@ -225,25 +225,52 @@ describe('GET /net/teams', () => {
     expect(res.text).toContain('2 teams');
   });
 
-  it('shows division filter dropdown', async () => {
+  it('redirects the former division parameter to discipline, keeping the other filters', async () => {
+    // A link written before the vocabulary changed must not quietly render the
+    // unfiltered page, which looks like a working result rather than a stale
+    // link. One permanent redirect keeps a single canonical URL.
     const app = createApp();
-    const res = await request(app).get('/net/teams');
-    expect(res.text).toContain('name="division"');
-    expect(res.text).toContain('All divisions');
+    const res = await request(app).get('/net/teams?division=open_doubles&q=smith&page=2');
+    expect(res.status).toBe(301);
+    const target = new URL(res.headers['location'] as string, 'http://localhost');
+    expect(target.pathname).toBe('/net/teams');
+    expect(target.searchParams.get('discipline')).toBe('open_doubles');
+    expect(target.searchParams.get('q')).toBe('smith');
+    expect(target.searchParams.get('page')).toBe('2');
+    expect(target.searchParams.get('division')).toBeNull();
   });
 
-  it('shows open_doubles in division options', async () => {
+  it('does not redirect when the current parameter is used', async () => {
+    const app = createApp();
+    const res = await request(app).get('/net/teams?discipline=open_doubles');
+    expect(res.status).toBe(200);
+  });
+
+  it('prefers discipline and drops division when a request carries both', async () => {
+    const app = createApp();
+    const res = await request(app).get('/net/teams?division=stale&discipline=open_doubles');
+    expect(res.status).toBe(200);
+  });
+
+  it('shows discipline filter dropdown', async () => {
+    const app = createApp();
+    const res = await request(app).get('/net/teams');
+    expect(res.text).toContain('name="discipline"');
+    expect(res.text).toContain('All Disciplines');
+  });
+
+  it('shows open_doubles in discipline options', async () => {
     const app = createApp();
     const res = await request(app).get('/net/teams');
     expect(res.text).toContain('open_doubles');
   });
 
   // Reconciliation: the same team competed in open_doubles in 2010 and 2015, so
-  // that division carries two canonical appearances but only one unique team. The
-  // division-option count is an appearance count, so it must be labelled as such
+  // that discipline carries two canonical appearances but only one unique team. The
+  // discipline-option count is an appearance count, so it must be labelled as such
   // and can legitimately exceed the unique-team total; it must never be presented
   // as a bare team count that overstates the team universe.
-  it('labels the division-option count as appearances, not an inflated team count', async () => {
+  it('labels the discipline-option count as appearances, not an inflated team count', async () => {
     const app = createApp();
     const res = await request(app).get('/net/teams');
     expect(res.status).toBe(200);
@@ -252,18 +279,18 @@ describe('GET /net/teams', () => {
     expect(res.text).not.toMatch(/Open Doubles \(2\)</);         // never a bare count read as teams
   });
 
-  it('a division filter shows no more teams than the full unique-team universe', async () => {
+  it('a discipline filter shows no more teams than the full unique-team universe', async () => {
     const app = createApp();
     // Unfiltered header reads "N teams" (paginated); a filter reads "N teams shown".
     const teamCount = (html: string): number =>
       Number((html.match(/(\d+) teams(?: shown)?/) ?? [])[1]);
     const all = await request(app).get('/net/teams');
-    const filtered = await request(app).get('/net/teams?division=open_doubles');
+    const filtered = await request(app).get('/net/teams?discipline=open_doubles');
     expect(filtered.status).toBe(200);
     const universe = teamCount(all.text);
     const shown = teamCount(filtered.text);
     // The appearance-count option (2) does not become the team count: the filtered
-    // division shows its one unique team, and the subset never exceeds the whole.
+    // discipline shows its one unique team, and the subset never exceeds the whole.
     expect(shown).toBe(1);
     expect(shown).toBeLessThanOrEqual(universe);
   });
@@ -289,7 +316,7 @@ describe('GET /net/teams', () => {
 
   it('paginates a filtered result too (single page here, so no Prev/Next)', async () => {
     const app = createApp();
-    const res = await request(app).get('/net/teams?division=open_doubles');
+    const res = await request(app).get('/net/teams?discipline=open_doubles');
     expect(res.status).toBe(200);
     // One team matches, under the page size, so a single page with its status.
     expect(res.text).toContain('class="gallery-pagination"');
@@ -308,47 +335,47 @@ describe('GET /net/teams', () => {
   });
 });
 
-describe('GET /net/teams?division=open_doubles', () => {
+describe('GET /net/teams?discipline=open_doubles', () => {
   it('returns 200', async () => {
     const app = createApp();
-    const res = await request(app).get('/net/teams?division=open_doubles');
+    const res = await request(app).get('/net/teams?discipline=open_doubles');
     expect(res.status).toBe(200);
   });
 
-  it('shows division in page title', async () => {
+  it('shows discipline in page title', async () => {
     const app = createApp();
-    const res = await request(app).get('/net/teams?division=open_doubles');
+    const res = await request(app).get('/net/teams?discipline=open_doubles');
     expect(res.text).toContain('Open Doubles');
   });
 
   it('shows team 1 (which plays in open doubles)', async () => {
     const app = createApp();
-    const res = await request(app).get('/net/teams?division=open_doubles');
+    const res = await request(app).get('/net/teams?discipline=open_doubles');
     expect(res.text).toContain('Alice Net');
   });
 
-  it('marks the selected division as selected in dropdown', async () => {
+  it('marks the selected discipline as selected in dropdown', async () => {
     const app = createApp();
-    const res = await request(app).get('/net/teams?division=open_doubles');
+    const res = await request(app).get('/net/teams?discipline=open_doubles');
     expect(res.text).toContain('value="open_doubles" selected');
   });
 
-  it('shows clear filter link when division is active', async () => {
+  it('shows clear filter link when discipline is active', async () => {
     const app = createApp();
-    const res = await request(app).get('/net/teams?division=open_doubles');
+    const res = await request(app).get('/net/teams?discipline=open_doubles');
     expect(res.text).toContain('Clear');
   });
 
-  it('returns empty for a division with no teams', async () => {
+  it('returns empty for a discipline with no teams', async () => {
     const app = createApp();
-    const res = await request(app).get('/net/teams?division=masters_doubles');
+    const res = await request(app).get('/net/teams?discipline=masters_doubles');
     expect(res.status).toBe(200);
     expect(res.text).toContain('No teams found');
   });
 
-  it('ignores unknown division values gracefully', async () => {
+  it('ignores unknown discipline values gracefully', async () => {
     const app = createApp();
-    const res = await request(app).get('/net/teams?division=not_real');
+    const res = await request(app).get('/net/teams?discipline=not_real');
     expect(res.status).toBe(200);
     expect(res.text).toContain('No teams found');
   });
@@ -383,9 +410,9 @@ describe('GET /net/teams?q=Alice', () => {
     expect(res.text).toContain('Alice Net');
   });
 
-  it('combines division and search filters', async () => {
+  it('combines discipline and search filters', async () => {
     const app = createApp();
-    const res = await request(app).get('/net/teams?division=open_doubles&q=Alice');
+    const res = await request(app).get('/net/teams?discipline=open_doubles&q=Alice');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Alice Net');
   });

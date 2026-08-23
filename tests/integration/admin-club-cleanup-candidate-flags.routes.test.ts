@@ -92,7 +92,7 @@ describe('candidate-flag group rendering', () => {
       .get('/admin/club-cleanup')
       .set('Cookie', adminCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Wizard flags by candidate');
+    expect(res.text).toContain('Wizard Flags by Candidate');
     expect(res.text).toContain('Main Flagged Candidate');
     expect(res.text).toContain('inactive per: Flag Voter');
     expect(res.text).toContain('Dismissable Candidate');
@@ -217,7 +217,7 @@ describe('flag-item resolution: dismiss and park under the candidate_flags predi
       .set('Cookie', adminCookie());
     // The flag group is gone from the working queue, and the candidate is in
     // the parked listing rather than nowhere at all.
-    expect(queue.text).not.toContain('Wizard flags by candidate (');
+    expect(queue.text).not.toContain('Wizard Flags by Candidate (');
     expect(queue.text).toContain('Wait for more votes');
     // The promotable item is untouched by the flag-item park.
     const promotable = await request(createApp())
@@ -245,7 +245,7 @@ describe('flag-item resolution: dismiss and park under the candidate_flags predi
     // Out of the working queue, still on the surface: a park is recoverable and
     // must stay distinguishable from a terminal dismissal without reading the
     // database.
-    expect(res.text).not.toContain('Wizard flags by candidate (');
+    expect(res.text).not.toContain('Wizard Flags by Candidate (');
     expect(res.text).toContain('Main Flagged Candidate');
     expect(res.text).toContain('Wait for more votes');
   });

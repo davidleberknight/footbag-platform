@@ -89,7 +89,7 @@ describe('GET /register/wizard/:taskType — auth + task list bootstrap', () => 
       .get('/register/wizard/personal_details')
       .set('Cookie', cookieFor(memberId));
     expect(res.status).toBe(200);
-    // The personal-details form carries a single save control while other
+    // The personal-Details form carries a single save control while other
     // onboarding steps remain, labelled to continue the wizard.
     expect(res.text.match(/>Save and Continue Onboarding</g)?.length).toBe(1);
     expect(countOnboardingTasks(memberId)).toBe(3);
@@ -651,7 +651,7 @@ describe('POST /register/wizard/legacy_claim/find — PRG with flash-cookie carr
     // scrubbed once the card's drain sends it). In production getEmailPreview
     // returns null, so no card renders and the ownership-proof link stays
     // addressed only to the legacy account's email.
-    expect(followUp.text).toContain('Simulated email (dev)');
+    expect(followUp.text).toContain('Simulated Email (Dev)');
     expect(followUp.text).toMatch(/\/register\/wizard\/legacy_claim\/claim\/confirm\/[A-Za-z0-9_-]+/);
   });
 
@@ -755,15 +755,11 @@ describe('POST /register/wizard/legacy_claim/find — PRG with flash-cookie carr
 
       const { ServiceUnavailableError } = await import('../../src/services/serviceErrors');
       commsMod.setCommunicationServiceForTests({
-        enqueueEmail: () => {
-          throw new ServiceUnavailableError('synthetic enqueue failure');
-        },
-        enqueueEmailOrFail: () => {
+        enqueue: () => {
           throw new ServiceUnavailableError(
-            'synthetic enqueueEmailOrFail failure for legacy-claim initiation',
+            'synthetic enqueue failure for legacy-claim initiation',
           );
         },
-        enqueueMailingListEmail: () => ({ enqueued: 0, duplicates: 0 }),
         processSendQueue: async () => ({
           claimed: 0, sent: 0, failed: 0, deadLettered: 0, paused: false,
         }),

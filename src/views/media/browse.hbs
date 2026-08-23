@@ -27,7 +27,7 @@
         is what left the landing mostly empty space. }}
     <section class="media-blocks">
       <div role="region" aria-labelledby="browse-search-heading">
-        <h2 id="browse-search-heading" class="browse-section-heading">Find media by hashtag</h2>
+        <h2 id="browse-search-heading" class="browse-section-heading">Find Media by Hashtag</h2>
         <form method="GET" action="/media/browse" class="browse-search-form">
           <input type="text" name="tag" value="{{content.formIncludeText}}" data-tag-chips class="browse-search-input" placeholder="Include hashtags, e.g. tutorial passback_records" aria-label="Include hashtags">
           <input type="text" name="exclude" value="{{content.formExcludeText}}" data-tag-chips class="browse-search-input" placeholder="Exclude hashtags (optional)" aria-label="Exclude hashtags">
@@ -36,7 +36,7 @@
       </div>
 
       <div role="region" aria-labelledby="browse-popular-heading">
-        <h2 id="browse-popular-heading" class="browse-section-heading">Popular tags</h2>
+        <h2 id="browse-popular-heading" class="browse-section-heading">Popular Tags</h2>
         {{#if content.hashtagIndex.hasPopularTags}}
           <ul class="tag-chip-row">
             {{#each content.hashtagIndex.popularTags}}
@@ -50,7 +50,7 @@
 
       {{#if content.hashtagIndex.hasHighlights}}
       <div role="region" aria-labelledby="browse-highlight-heading">
-        <h2 id="browse-highlight-heading" class="browse-section-heading">Recent events and tutorials</h2>
+        <h2 id="browse-highlight-heading" class="browse-section-heading">Recent Events and Tutorials</h2>
         <ul class="tag-chip-row">
           {{#each content.hashtagIndex.highlightTags}}
           <li><a href="{{href}}" class="tag-chip">{{display}}</a></li>
@@ -60,7 +60,7 @@
       {{/if}}
 
       <div role="region" aria-labelledby="browse-all-heading">
-        <h2 id="browse-all-heading" class="browse-section-heading">All tags</h2>
+        <h2 id="browse-all-heading" class="browse-section-heading">All Tags</h2>
         {{#if content.hashtagIndex.hasCommunityTags}}
           <ul class="tag-chip-row">
             {{#each content.hashtagIndex.communityTags}}
@@ -73,7 +73,7 @@
       </div>
 
       <div class="browse-tags-help" role="region" aria-labelledby="browse-tags-help-heading">
-        <h2 id="browse-tags-help-heading">About hashtags</h2>
+        <h2 id="browse-tags-help-heading">About Hashtags</h2>
         <p>Popular tags are the most-used tags across the whole site. All tags lists the ones the community shares, in alphabetical order. Event and club tags follow fixed patterns (<code>#event_&lt;year&gt;_&lt;event-slug&gt;</code>, <code>#club_&lt;location-slug&gt;</code>). A tag only one member uses stays private to that member's gallery.</p>
       </div>
     </section>

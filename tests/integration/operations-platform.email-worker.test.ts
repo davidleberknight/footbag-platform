@@ -56,10 +56,22 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+/** One transactional message to one member: an audience of one, in the shape these drain tests need. */
+function enqueueOne(
+  comms: { enqueue: (i: never) => unknown },
+  input: { recipientEmail: string; recipientMemberId: string; subject: string; bodyText: string },
+) {
+  return comms.enqueue({
+    audience: { kind: 'address', email: input.recipientEmail, memberId: input.recipientMemberId },
+    subject: input.subject,
+    bodyText: input.bodyText,
+  } as never);
+}
+
 describe('OperationsPlatformService.runEmailWorker', () => {
   it('drains pending rows via the stub SES adapter', async () => {
     const comms = getCommunicationService();
-    comms.enqueueEmail({
+    enqueueOne(comms, {
       recipientEmail: 'worker-test@example.com',
       recipientMemberId: 'member-log-sent',
       subject: 'Hello',
@@ -78,7 +90,7 @@ describe('OperationsPlatformService.runEmailWorker', () => {
 
   it('reports paused when email_outbox_paused=1 (no rows claimed)', async () => {
     const comms = getCommunicationService();
-    comms.enqueueEmail({
+    enqueueOne(comms, {
       recipientEmail: 'paused@example.com',
       recipientMemberId: 'member-log-sent',
       subject: 'Hi',
@@ -139,7 +151,7 @@ describe('OperationsPlatformService.runEmailWorker', () => {
   it('logs outbox sent with allowlisted metadata on success', async () => {
     const infoSpy = vi.spyOn(logger, 'info');
     const comms = getCommunicationService();
-    comms.enqueueEmail({
+    enqueueOne(comms, {
       recipientEmail: 'log-sent@example.com',
       recipientMemberId: 'member-log-sent',
       subject: 'Hi',
@@ -163,7 +175,7 @@ describe('OperationsPlatformService.runEmailWorker', () => {
   it('logs outbox retrying with allowlisted metadata and errorClass on transient SES failure', async () => {
     const warnSpy = vi.spyOn(logger, 'warn');
     const comms = getCommunicationService();
-    comms.enqueueEmail({
+    enqueueOne(comms, {
       recipientEmail: 'log-retry@example.com',
       recipientMemberId: 'member-log-retry',
       subject: 'Hi',
@@ -205,7 +217,7 @@ describe('OperationsPlatformService.runEmailWorker', () => {
 
     const errorSpy = vi.spyOn(logger, 'error');
     const comms = getCommunicationService();
-    comms.enqueueEmail({
+    enqueueOne(comms, {
       recipientEmail: 'log-dead@example.com',
       recipientMemberId: 'member-log-dead',
       subject: 'Hi',

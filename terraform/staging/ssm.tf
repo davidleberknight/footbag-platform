@@ -36,6 +36,26 @@ resource "aws_ssm_parameter" "app_email_send_armed" {
   value = var.email_send_armed
 }
 
+# The two SES configuration sets the runtime names on a send, one per sending
+# stream. Transactional and bulk mail keep separate reputations so a complaint
+# spike on a broadcast cannot degrade delivery of a password reset, and the
+# configuration set is where SES keeps those metrics apart. The value is read
+# from the resource rather than repeated as a literal, so renaming a set moves
+# the parameter with it and the host cannot end up naming a set that no longer
+# exists. Staging carries both at parity with production even though its mail
+# adapter is stubbed, so the deploy path is exercised here first.
+resource "aws_ssm_parameter" "app_ses_configuration_set_transactional" {
+  name  = "${local.ssm_prefix}/app/ses_configuration_set_transactional"
+  type  = "String"
+  value = aws_ses_configuration_set.transactional.name
+}
+
+resource "aws_ssm_parameter" "app_ses_configuration_set_bulk" {
+  name  = "${local.ssm_prefix}/app/ses_configuration_set_bulk"
+  type  = "String"
+  value = aws_ses_configuration_set.bulk.name
+}
+
 # The site's own public address is deliberately not a parameter here either, for
 # the reason the production tree records: nothing reads it, and the running value
 # lives in the host env file.

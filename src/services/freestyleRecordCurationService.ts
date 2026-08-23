@@ -236,7 +236,7 @@ export const freestyleRecordCurationService = {
       }));
 
     const recordTypeOptions: FilterOption[] = [
-      { value: '', label: 'Any record type', selected: typeFilter === '' },
+      { value: '', label: 'Any Record Type', selected: typeFilter === '' },
       ...recordTypes.map((t) => ({ value: t, label: t, selected: t === typeFilter })),
     ];
 
@@ -341,7 +341,7 @@ export const freestyleRecordCurationService = {
 
     return {
       seo:  { title: 'Freestyle Records' },
-      page: { sectionKey: 'admin', pageKey: 'admin_freestyle_record_new', title: 'New record' },
+      page: { sectionKey: 'admin', pageKey: 'admin_freestyle_record_new', title: 'New Record' },
       content: {
         id: '',
         isNew: true,

@@ -47,6 +47,12 @@ const keyArn = process.env.JWT_KMS_KEY_ID;
 const keyAlias = 'alias/footbag-staging-jwt';
 const fromIdentity = process.env.SES_FROM_IDENTITY ?? 'noreply@footbag.org';
 const simulatorRecipient = 'success@simulator.amazonses.com';
+// The bulk stream's configuration set, which the raw-MIME cases name on the
+// send. Falls back to the staging name so the suite is runnable without the
+// runner exporting it; a set that does not exist makes SES reject the send,
+// which is itself the signal that the environment is not wired.
+const bulkConfigurationSet =
+  process.env.SES_CONFIGURATION_SET_BULK ?? 'footbag-staging-bulk';
 
 describe.skipIf(!RUN)(
   'staging AWS wiring: assumed-role chain + KMS signing + SES send',
@@ -158,6 +164,47 @@ describe.skipIf(!RUN)(
         subject: 'Footbag staging readiness probe (complaint simulator)',
         bodyText:
           'Automated readiness probe addressed to the SES complaint simulator. Safe to ignore.',
+      });
+      expect(res.messageId).toBeDefined();
+      expect(res.messageId.length).toBeGreaterThan(0);
+    }, 20_000);
+
+    // A bulk send is a different code path from every case above: it names a
+    // configuration set and carries the one-click unsubscribe headers, and
+    // because the simple send call has nowhere to put headers it is assembled
+    // as raw MIME instead. Only a real send validates that assembly. A stub
+    // records whatever object it is handed, so a malformed header block, a
+    // missing blank line before the body, or a configuration set that does not
+    // exist all pass in the unit and integration suites and fail at SES, on
+    // the first real broadcast, which is the worst possible place to find out.
+    it('ses:SendRawEmail succeeds with a configuration set and unsubscribe headers', async () => {
+      const adapter = createLiveSesAdapter({ region, fromIdentity });
+      const res = await adapter.sendEmail({
+        to: simulatorRecipient,
+        subject: 'Footbag staging readiness probe (bulk stream)',
+        bodyText:
+          'Automated readiness probe exercising the raw-MIME bulk path. Safe to ignore.',
+        configurationSet: bulkConfigurationSet,
+        headers: {
+          'List-Unsubscribe': '<https://staging.invalid/email/unsubscribe?t=probe>',
+          'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+        },
+      });
+      expect(res.messageId).toBeDefined();
+      expect(res.messageId.length).toBeGreaterThan(0);
+    }, 20_000);
+
+    // The same path with a non-ASCII subject, which the header encoder must
+    // fold into an encoded word. Unencoded, it is either rejected or delivered
+    // as mojibake, and member-authored subjects are exactly where this arrives.
+    it('ses:SendRawEmail accepts a non-ASCII subject', async () => {
+      const adapter = createLiveSesAdapter({ region, fromIdentity });
+      const res = await adapter.sendEmail({
+        to: simulatorRecipient,
+        subject: 'Footbag readiness probe: Wörterbuch, 足袋, naïve',
+        bodyText: 'Automated readiness probe for header encoding. Safe to ignore.',
+        configurationSet: bulkConfigurationSet,
+        headers: { 'List-Unsubscribe': '<https://staging.invalid/email/unsubscribe?t=probe>' },
       });
       expect(res.messageId).toBeDefined();
       expect(res.messageId.length).toBeGreaterThan(0);

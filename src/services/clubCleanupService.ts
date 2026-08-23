@@ -889,7 +889,7 @@ function assembleQueue(prefetched?: {
       clubCountry: first.country,
       clubStatus: first.club_status,
       predicate: 'stale_provisional',
-      predicateLabel: 'Stale provisional leader',
+      predicateLabel: 'Stale Provisional Leader',
       detail: `${leaders.length} provisional leader(s) since ${first.provisional_since.slice(0, 10)}`,
       recommendedAction: 'Review or dismiss',
       showLeaderlessControls: false,
@@ -1137,11 +1137,11 @@ function assembleQueue(prefetched?: {
 }
 
 const PARKED_PREDICATE_LABELS: Record<string, string> = {
-  crowdsource_viability: 'Crowdsource viability',
+  crowdsource_viability: 'Crowdsource Viability',
   leaderless_active: 'Needs Leader',
-  stale_provisional: 'Stale provisional leader',
-  promotable_candidate: 'Promotable candidate',
-  candidate_flags: 'Wizard flags by candidate',
+  stale_provisional: 'Stale Provisional Leader',
+  promotable_candidate: 'Promotable Candidate',
+  candidate_flags: 'Wizard Flags by Candidate',
 };
 
 // ---------------------------------------------------------------------------
@@ -1149,21 +1149,21 @@ const PARKED_PREDICATE_LABELS: Record<string, string> = {
 // ---------------------------------------------------------------------------
 
 const CATEGORY_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
-  { value: 'crowdsource_viability', label: 'Crowdsource viability' },
+  { value: 'crowdsource_viability', label: 'Crowdsource Viability' },
   { value: 'leaderless_active', label: 'Needs Leader' },
-  { value: 'stale_provisional', label: 'Stale provisional leader' },
-  { value: 'candidate_flag', label: 'Wizard flags by candidate' },
-  { value: 'residue', label: 'Unconfirmed residue' },
-  { value: 'candidate', label: 'Promotable candidates' },
-  { value: 'junk_candidate', label: 'Junk-flagged candidates' },
+  { value: 'stale_provisional', label: 'Stale Provisional Leader' },
+  { value: 'candidate_flag', label: 'Wizard Flags by Candidate' },
+  { value: 'residue', label: 'Unconfirmed Residue' },
+  { value: 'candidate', label: 'Promotable Candidates' },
+  { value: 'junk_candidate', label: 'Junk-flagged Candidates' },
 ];
 
 const SORT_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
-  { value: 'age', label: 'Age (oldest first)' },
+  { value: 'age', label: 'Age (Oldest First)' },
   { value: 'category', label: 'Category' },
   { value: 'region', label: 'Region' },
-  { value: 'flag_count', label: 'Flag count' },
-  { value: 'source', label: 'Source surface' },
+  { value: 'flag_count', label: 'Flag Count' },
+  { value: 'source', label: 'Source Surface' },
 ];
 
 // Unknown query values fall back to "no filter" rather than erroring: the

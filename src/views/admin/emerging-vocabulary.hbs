@@ -16,7 +16,7 @@
   {{! ── Reconciliation warnings ── }}
   {{#if content.warnings.length}}
   <section class="content-section">
-    <h2>Reconciliation findings</h2>
+    <h2>Reconciliation Findings</h2>
     <ul>
       {{#each content.warnings}}
       <li><strong>{{kind}}</strong>: {{count}}</li>
@@ -27,7 +27,7 @@
 
   {{! ── Decision packet ── }}
   <section class="content-section">
-    <h2>Curator decision packet</h2>
+    <h2>Curator Decision Packet</h2>
     {{#each content.decisionGroups}}
     <details class="observed-disclosure" id="decision-{{id}}">
       <summary class="observed-disclosure-summary">{{id}}: {{title}} <span class="text-muted">({{count}} names)</span></summary>
@@ -48,7 +48,7 @@
 
   {{! ── Full-dimension table ── }}
   <section class="content-section">
-    <h2>All rows</h2>
+    <h2>All Rows</h2>
     <form method="GET" action="/admin/freestyle/emerging-vocabulary" class="filter-bar">
       <label>
         Dimension

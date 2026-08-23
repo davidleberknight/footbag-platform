@@ -155,7 +155,14 @@ resource "aws_iam_role_policy" "app_jwt_ses" {
       {
         Sid    = "OutboundEmail"
         Effect = "Allow"
-        Action = "ses:SendEmail"
+        # Both send calls, because the platform makes both. Transactional mail
+        # uses the simple SendEmail call; bulk mail carries the one-click
+        # unsubscribe headers, which that call has nowhere to put, so it is
+        # assembled as raw MIME and sent with SendRawEmail. SES authorises the
+        # two actions separately, so granting only the first fails every bulk
+        # send with AccessDenied while transactional mail keeps working -- a
+        # split failure that would first appear on the first broadcast.
+        Action = ["ses:SendEmail", "ses:SendRawEmail"]
         # SES authorises a send against the identity that covers the From
         # address, so the grant must name whichever identity exists: the
         # single-address one before domain auth, the domain one after. Naming
@@ -269,6 +276,34 @@ resource "aws_iam_role_policy" "logs_publisher_write" {
 resource "aws_iam_user" "cwagent_publisher" {
   name          = "${local.prefix}-cwagent-publisher"
   force_destroy = false
+}
+
+# The backup script publishes BackupAgeMinutes and BackupConsecutiveFailures
+# under the host's runtime role, in the platform's own metric namespace rather
+# than the CWAgent one. Without this grant the put fails with AccessDenied and
+# the script swallows it, so the metric is never emitted, the backup alarm can
+# never satisfy its documented "confirmed to emit" precondition, and a backup
+# pipeline that has stopped looks exactly like one that is healthy. Scoped by
+# namespace for the same reason the CWAgent grant is: PutMetricData takes no
+# resource ARN, so the namespace condition is the only bound available.
+resource "aws_iam_role_policy" "app_backup_metrics" {
+  name = "${local.prefix}-app-runtime-backup-metrics"
+  role = aws_iam_role.app_runtime.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid      = "BackupMetrics"
+      Effect   = "Allow"
+      Action   = "cloudwatch:PutMetricData"
+      Resource = "*"
+      Condition = {
+        StringEquals = {
+          "cloudwatch:namespace" = "Footbag/production"
+        }
+      }
+    }]
+  })
 }
 
 resource "aws_iam_user_policy" "cwagent_publisher_putmetric" {

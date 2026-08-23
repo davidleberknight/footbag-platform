@@ -107,6 +107,14 @@ services:
       JWT_KMS_KEY_ID: ${JWT_KMS_KEY_ID}
       SES_ADAPTER: ${SES_ADAPTER}
       SES_FROM_IDENTITY: ${SES_FROM_IDENTITY}
+      # The two sending streams. Named on every send so bulk mail's reputation
+      # is accounted separately from transactional mail's, which is the whole
+      # point of the split: a newsletter that draws complaints must not drag
+      # password-reset delivery down with it. Optional in env.ts, so an absent
+      # value degrades to the account default silently rather than refusing to
+      # boot; that is exactly why they have to be forwarded here.
+      SES_CONFIGURATION_SET_TRANSACTIONAL: ${SES_CONFIGURATION_SET_TRANSACTIONAL:-}
+      SES_CONFIGURATION_SET_BULK: ${SES_CONFIGURATION_SET_BULK:-}
       SAFE_BROWSING_ADAPTER: ${SAFE_BROWSING_ADAPTER}
       HTTP_REACHABILITY_ADAPTER: ${HTTP_REACHABILITY_ADAPTER}
       # SecretsAdapter selector. Node consumers fetch SSM-stored third-party
@@ -262,6 +270,14 @@ services:
       JWT_KMS_KEY_ID: ${JWT_KMS_KEY_ID}
       SES_ADAPTER: ${SES_ADAPTER}
       SES_FROM_IDENTITY: ${SES_FROM_IDENTITY}
+      # The two sending streams. Named on every send so bulk mail's reputation
+      # is accounted separately from transactional mail's, which is the whole
+      # point of the split: a newsletter that draws complaints must not drag
+      # password-reset delivery down with it. Optional in env.ts, so an absent
+      # value degrades to the account default silently rather than refusing to
+      # boot; that is exactly why they have to be forwarded here.
+      SES_CONFIGURATION_SET_TRANSACTIONAL: ${SES_CONFIGURATION_SET_TRANSACTIONAL:-}
+      SES_CONFIGURATION_SET_BULK: ${SES_CONFIGURATION_SET_BULK:-}
       SAFE_BROWSING_ADAPTER: ${SAFE_BROWSING_ADAPTER}
       HTTP_REACHABILITY_ADAPTER: ${HTTP_REACHABILITY_ADAPTER}
       # SecretsAdapter selector. Node consumers fetch SSM-stored third-party

@@ -31,7 +31,7 @@ describe('GET /register/check-email — production mode (SES_ADAPTER=live)', () 
     const res = await request(app).get('/register/check-email');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Registration successful!');
-    expect(res.text).not.toContain('Simulated email (dev)');
+    expect(res.text).not.toContain('Simulated Email (Dev)');
     expect(res.text).not.toContain('Staging: email delivery is restricted');
     expect(res.text).not.toContain('simulator.amazonses.com');
   });
@@ -53,7 +53,7 @@ describe('member-login sent pages — production mode (SES_ADAPTER=live)', () =>
       .send({ email: 'anyone@example.com' });
     expect(res.status).toBe(200);
     expect(res.text).toContain('If an account exists');
-    expect(res.text).not.toContain('Simulated email (dev)');
+    expect(res.text).not.toContain('Simulated Email (Dev)');
     expect(res.text).not.toMatch(/\/password\/reset\/[A-Za-z0-9_-]+/);
   });
 
@@ -65,7 +65,7 @@ describe('member-login sent pages — production mode (SES_ADAPTER=live)', () =>
       .send({ email: 'anyone@example.com' });
     expect(res.status).toBe(200);
     expect(res.text).toContain('new verification link has been sent');
-    expect(res.text).not.toContain('Simulated email (dev)');
+    expect(res.text).not.toContain('Simulated Email (Dev)');
     expect(res.text).not.toMatch(/\/verify\/[A-Za-z0-9_-]+">CLICK THIS LINK</);
   });
 });

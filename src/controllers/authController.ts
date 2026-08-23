@@ -177,11 +177,11 @@ async function postRegister(req: Request, res: Response, next: NextFunction): Pr
       return;
     }
     if (err instanceof ServiceUnavailableError) {
-      // Verify-email enqueue failed AFTER the member row committed (per
-      // identityAccessService.issueAndEnqueueVerifyEmail's enqueueEmailOrFail
-      // call). The member can self-recover via /verify/resend once outbox
-      // / SES is healthy; the audit row in identityAccessService records
-      // the failure for operator triage.
+      // Verify-email enqueue failed AFTER the member row committed: the
+      // verification send is strict, so a transport failure surfaces here
+      // rather than being swallowed. The member can self-recover via
+      // /verify/resend once outbox / SES is healthy; the audit row in
+      // identityAccessService records the failure for operator triage.
       renderServiceUnavailable(res);
       return;
     }
@@ -217,7 +217,7 @@ async function getCheckEmail(req: Request, res: Response, next: NextFunction): P
     }
     res.render('auth/check-email', {
       seo: { title: 'Check Your Email', noindex: true },
-      page: { sectionKey: '', pageKey: 'check_email', title: 'Check your email' },
+      page: { sectionKey: '', pageKey: 'check_email', title: 'Check Your Email' },
       content: { emailPreview, turnstileSiteKey: config.turnstileSiteKey, captchaStubbed: config.captchaAdapter === 'stub' },
     } satisfies PageViewModel<CheckEmailContent>);
   } catch (err) {
@@ -283,7 +283,7 @@ async function postVerifyResend(req: Request, res: Response, next: NextFunction)
   if (!captcha.ok) {
     res.status(422).render('auth/check-email', {
       seo: { title: 'Check Your Email', noindex: true },
-      page: { sectionKey: '', pageKey: 'check_email', title: 'Check your email' },
+      page: { sectionKey: '', pageKey: 'check_email', title: 'Check Your Email' },
       content: { error: CAPTCHA_FAILED_MESSAGE, turnstileSiteKey: config.turnstileSiteKey, captchaStubbed: config.captchaAdapter === 'stub' },
     } satisfies PageViewModel<CheckEmailContent>);
     return;
@@ -308,7 +308,7 @@ async function postVerifyResend(req: Request, res: Response, next: NextFunction)
       })) ?? undefined;
     res.render('auth/check-email', {
       seo: { title: 'Check Your Email', noindex: true },
-      page: { sectionKey: '', pageKey: 'check_email', title: 'Check your email' },
+      page: { sectionKey: '', pageKey: 'check_email', title: 'Check Your Email' },
       content: { resent: true, emailPreview, turnstileSiteKey: config.turnstileSiteKey, captchaStubbed: config.captchaAdapter === 'stub' },
     } satisfies PageViewModel<CheckEmailContent>);
   } catch (err) {
@@ -350,7 +350,7 @@ function postLogout(req: Request, res: Response): void {
 function getPasswordForgot(_req: Request, res: Response): void {
   res.render('auth/password-forgot', {
     seo: { title: 'Reset Your Password', noindex: true },
-    page: { sectionKey: '', pageKey: 'password_forgot', title: 'Reset your password' },
+    page: { sectionKey: '', pageKey: 'password_forgot', title: 'Reset Your Password' },
     content: { turnstileSiteKey: config.turnstileSiteKey, captchaStubbed: config.captchaAdapter === 'stub' },
   } satisfies PageViewModel<PasswordForgotContent>);
 }
@@ -362,7 +362,7 @@ async function postPasswordForgot(req: Request, res: Response, next: NextFunctio
     if (!captcha.ok) {
       res.status(422).render('auth/password-forgot', {
         seo: { title: 'Reset Your Password', noindex: true },
-        page: { sectionKey: '', pageKey: 'password_forgot', title: 'Reset your password' },
+        page: { sectionKey: '', pageKey: 'password_forgot', title: 'Reset Your Password' },
         content: { error: CAPTCHA_FAILED_MESSAGE, turnstileSiteKey: config.turnstileSiteKey, captchaStubbed: config.captchaAdapter === 'stub' },
       } satisfies PageViewModel<PasswordForgotContent>);
       return;
@@ -380,7 +380,7 @@ async function postPasswordForgot(req: Request, res: Response, next: NextFunctio
       })) ?? undefined;
     res.render('auth/password-forgot-sent', {
       seo: { title: 'Reset Your Password', noindex: true },
-      page: { sectionKey: '', pageKey: 'password_forgot_sent', title: 'Reset your password' },
+      page: { sectionKey: '', pageKey: 'password_forgot_sent', title: 'Reset Your Password' },
       content: { emailPreview },
     } satisfies PageViewModel<PasswordForgotSentContent>);
   } catch (err) {
@@ -398,7 +398,7 @@ function getPasswordReset(req: Request, res: Response): void {
   setNoStore(res);
   res.render('auth/password-reset', {
     seo: { title: 'Set a New Password', noindex: true },
-    page: { sectionKey: '', pageKey: 'password_reset', title: 'Set a new password' },
+    page: { sectionKey: '', pageKey: 'password_reset', title: 'Set a New Password' },
     content: { token: req.params.token, turnstileSiteKey: config.turnstileSiteKey, captchaStubbed: config.captchaAdapter === 'stub' },
   } satisfies PageViewModel<PasswordResetContent>);
 }
@@ -414,7 +414,7 @@ async function postPasswordReset(req: Request, res: Response, next: NextFunction
     setNoStore(res);
     res.status(422).render('auth/password-reset', {
       seo: { title: 'Set a New Password', noindex: true },
-      page: { sectionKey: '', pageKey: 'password_reset', title: 'Set a new password' },
+      page: { sectionKey: '', pageKey: 'password_reset', title: 'Set a New Password' },
       content: { token, error: CAPTCHA_FAILED_MESSAGE, turnstileSiteKey: config.turnstileSiteKey, captchaStubbed: config.captchaAdapter === 'stub' },
     } satisfies PageViewModel<PasswordResetContent>);
     return;
@@ -445,7 +445,7 @@ async function postPasswordReset(req: Request, res: Response, next: NextFunction
       setNoStore(res);
       res.status(503).render('auth/password-reset', {
         seo: { title: 'Set a New Password', noindex: true },
-        page: { sectionKey: '', pageKey: 'password_reset', title: 'Set a new password' },
+        page: { sectionKey: '', pageKey: 'password_reset', title: 'Set a New Password' },
         content: {
           token: undefined,
           error:
@@ -463,7 +463,7 @@ async function postPasswordReset(req: Request, res: Response, next: NextFunction
       setNoStore(res);
       res.status(422).render('auth/password-reset', {
         seo: { title: 'Set a New Password', noindex: true },
-        page: { sectionKey: '', pageKey: 'password_reset', title: 'Set a new password' },
+        page: { sectionKey: '', pageKey: 'password_reset', title: 'Set a New Password' },
         content: { token, error: err.message, turnstileSiteKey: config.turnstileSiteKey, captchaStubbed: config.captchaAdapter === 'stub' },
       } satisfies PageViewModel<PasswordResetContent>);
       return;

@@ -359,10 +359,8 @@ describe('POST /admin/work-queue/:id/resolve', () => {
     expect(res.status).toBe(403);
   });
 
-  // Resolve-notification email was sent via the plain
-  // enqueueEmail helper which silently swallows outbox write failures. After
-  // R4-pattern migration to enqueueEmailOrFail, an outbox failure surfaces
-  // as a truthful 503. The queue row stays resolved + the audit row stays
+  // A failure to enqueue the resolve-notification email surfaces
+  // as a truthful 503 rather than being swallowed. The queue row stays resolved + the audit row stays
   // written (both committed inside the resolve transaction before the
   // enqueue runs); the operator sees a 503 banner driven by
   // handleControllerError's ServiceUnavailableError → 503 mapping.
@@ -383,18 +381,18 @@ describe('POST /admin/work-queue/:id/resolve', () => {
       const app = createApp();
       const queueId = await postOneOpenRequest(app, MEMBER_ID, MEMBER_SLUG);
 
-      // Break enqueueEmailOrFail only; leave enqueueMailingListEmail / plain
-      // enqueueEmail intact so the submit path that already ran isn't
-      // implicated.
+      // Break the strict send only, so the ordinary sends the submit path
+      // already made are not implicated.
       const { ServiceUnavailableError } = await import('../../src/services/serviceErrors');
       commsMod.setCommunicationServiceForTests({
-        enqueueEmail: () => undefined,
-        enqueueEmailOrFail: () => {
+        enqueue: (input: { strict?: boolean }) => {
+          if (!input.strict) {
+            return { stream: 'transactional', recipients: 0, enqueued: 0, duplicates: 0, suppressed: 0, ids: [] };
+          }
           throw new ServiceUnavailableError(
-            'synthetic enqueueEmailOrFail failure for contact-request-resolve',
+            'synthetic strict-send failure for contact-request-resolve',
           );
         },
-        enqueueMailingListEmail: () => ({ enqueued: 0, duplicates: 0 }),
         processSendQueue: async () => ({
           claimed: 0, sent: 0, failed: 0, deadLettered: 0, paused: false,
         }),
@@ -457,11 +455,9 @@ describe('POST /admin/work-queue/:id/resolve', () => {
         // skips the call entirely.
         const { ServiceUnavailableError } = await import('../../src/services/serviceErrors');
         commsMod.setCommunicationServiceForTests({
-          enqueueEmail: () => undefined,
-          enqueueEmailOrFail: () => {
+          enqueue: () => {
             throw new ServiceUnavailableError('should not be called when member has no email');
           },
-          enqueueMailingListEmail: () => ({ enqueued: 0, duplicates: 0 }),
           processSendQueue: async () => ({
             claimed: 0, sent: 0, failed: 0, deadLettered: 0, paused: false,
           }),

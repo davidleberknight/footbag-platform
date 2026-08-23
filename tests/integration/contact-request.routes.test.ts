@@ -71,7 +71,7 @@ describe('GET /members/:slug/contact-admin', () => {
       .get(`/members/${OWNER_SLUG}/contact-admin`)
       .set('Cookie', ownerCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Contact IFPA admin');
+    expect(res.text).toContain('Contact IFPA Admin');
     expect(res.text).toContain('name="category"');
     expect(res.text).toContain('name="message"');
     expect(res.text).toContain('Display name correction');

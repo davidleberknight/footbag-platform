@@ -64,6 +64,9 @@ fi
 JWT_KMS_KEY_ID="$(terraform -chdir="$TF_DIR" output -raw jwt_signing_key_arn)"
 SES_FROM_IDENTITY="$(terraform -chdir="$TF_DIR" output -raw ses_sender_identity)"
 MEDIA_STORAGE_S3_BUCKET="$(terraform -chdir="$TF_DIR" output -raw media_bucket_name)"
+# The bulk stream's configuration set, so the raw-MIME probe names a set that
+# exists in whichever environment is under test rather than assuming staging.
+SES_CONFIGURATION_SET_BULK="$(terraform -chdir="$TF_DIR" output -raw ses_configuration_set_bulk)"
 
 # Tolerate a null/absent value (CloudFront disabled or not yet applied): the
 # static-asset smoke's first test fails with a clear "operator: terraform apply"
@@ -78,6 +81,7 @@ export AWS_REGION=us-east-1
 export JWT_KMS_KEY_ID
 export SES_FROM_IDENTITY
 export MEDIA_STORAGE_S3_BUCKET
+export SES_CONFIGURATION_SET_BULK
 export STAGING_CLOUDFRONT_DOMAIN
 export RUN_STAGING_SMOKE=1
 

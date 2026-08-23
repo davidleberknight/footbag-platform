@@ -28,8 +28,8 @@ function buildViewModel(
 ): PageViewModel<ContactAdminContent> {
   const memberKey = req.params.memberKey;
   return {
-    seo:  { title: 'Contact IFPA admin' },
-    page: { sectionKey: 'members', pageKey: 'member_contact_admin', title: 'Contact IFPA admin' },
+    seo:  { title: 'Contact IFPA Admin' },
+    page: { sectionKey: 'members', pageKey: 'member_contact_admin', title: 'Contact IFPA Admin' },
     navigation: {
       contextLinks: [{ label: 'Back to Edit Profile', href: `/members/${memberKey}/edit` }],
     },

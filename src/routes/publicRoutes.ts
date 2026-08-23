@@ -16,6 +16,8 @@ import { memberQuestionController } from '../controllers/memberQuestionControlle
 import { authController } from '../controllers/authController';
 import { memberOnboardingController } from '../controllers/memberOnboardingController';
 import { ipcController } from '../controllers/ipcController';
+import { emailPreferenceController } from '../controllers/emailPreferenceController';
+import { UNSUBSCRIBE_PATH } from '../services/communicationService';
 import { hofController } from '../controllers/hofController';
 import { bapController } from '../controllers/bapController';
 import { freestyleController } from '../controllers/freestyleController';
@@ -322,6 +324,13 @@ publicRouter.post(
   express.text({ type: '*/*', limit: '1mb' }),
   ipcController.receiveAlarmNotification,
 );
+// One-click unsubscribe: the recipient's mail client posts here from the
+// List-Unsubscribe headers on a bulk message. There is no session and no Origin
+// header, exactly as with the webhooks above, and the signed token in the query
+// string is the whole of the authority, so it takes the same Origin-pin
+// exemption. The path is the shared constant the send path mints its URLs from.
+publicRouter.post(UNSUBSCRIBE_PATH, emailPreferenceController.postOneClickUnsubscribe);
+
 publicRouter.post(
   STRIPE_WEBHOOK_PATH,
   express.raw({ type: 'application/json', limit: '1mb' }),

@@ -366,12 +366,12 @@ describe('GET /clubs/club_evergreen — authenticated', () => {
     expect(res.text).not.toContain('Update hashtag');
   });
 
-  it('renders one Club members list, not the old split sections', async () => {
+  it('renders one Club Members list, not the old split sections', async () => {
     const app = createApp();
     const res = await request(app)
       .get('/clubs/club_evergreen')
       .set('Cookie', authCookie());
-    expect(res.text).toContain('Club members');
+    expect(res.text).toContain('Club Members');
     expect(res.text).not.toContain('Possible members from legacy records');
     expect(res.text).not.toContain('have not yet confirmed their membership in onboarding');
   });

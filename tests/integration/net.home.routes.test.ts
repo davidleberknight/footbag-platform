@@ -6,7 +6,7 @@
  *
  * Verifies:
  *   - 200 response
- *   - Hero with mascot + "What is Footbag Net?" narrative
+ *   - Hero with mascot + "What Is Footbag Net?" narrative
  *   - Demo video (self-hosted webm/mp4) renders in intro section
  *   - Competition Formats cards (Singles + Doubles) with YouTube embeds
  *   - Explore cards link to real sub-routes (/net/teams, /net/events)
@@ -202,10 +202,10 @@ describe('GET /net — portal landing sections', () => {
     expect(res.text).toContain('hero-with-mascot');
   });
 
-  it('renders the "What is Footbag Net?" explainer', async () => {
+  it('renders the "What Is Footbag Net?" explainer', async () => {
     const app = createApp();
     const res = await request(app).get('/net');
-    expect(res.text).toContain('What is Footbag Net?');
+    expect(res.text).toContain('What Is Footbag Net?');
   });
 
   it('omits the demo-video figure when no curator-tagged FH media is seeded', async () => {

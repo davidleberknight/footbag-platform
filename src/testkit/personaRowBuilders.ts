@@ -172,7 +172,7 @@ export function insertMember(db: BetterSqlite3.Database, o: MemberOverrides = {}
     o.is_admin ?? 0, o.is_system ?? 0, o.is_board ?? 0, o.is_hof ?? 0, o.hof_inducted_year ?? null, o.is_bap ?? 0, o.is_deceased ?? 0, o.deceased_at ?? null, o.deceased_note ?? null,
     o.searchable ?? 1,
     o.deleted_at ?? null, o.deletion_requested_at ?? null, o.deletion_grace_expires_at ?? null, purged,
-    o.show_competitive_results ?? 1, o.show_first_competition_year ?? 0, o.gender ?? null, o.show_gender ?? 0, o.legacy_member_id ?? null, o.historical_person_id ?? null, o.first_competition_year ?? null,
+    o.show_competitive_results ?? 1, o.show_first_competition_year ?? 1, o.gender ?? null, o.show_gender ?? 0, o.legacy_member_id ?? null, o.historical_person_id ?? null, o.first_competition_year ?? null,
     o.stripe_customer_id ?? null,
     o.whatsapp ?? null, o.whatsapp_visible ?? 0, o.last_login_at ?? null,
     o.created_at ?? TS, SYS, TS, SYS,

@@ -263,7 +263,7 @@ describe('the simulated-email card on the mailbox-control declared state', () =>
       .get('/register/wizard/legacy_claim?anchor_verification=sent')
       .set('Cookie', cookieFor(f.memberId));
     expect(page.status).toBe(200);
-    expect(page.text).toContain('Simulated email (dev)');
+    expect(page.text).toContain('Simulated Email (Dev)');
     expect(page.text).toMatch(
       /\/register\/wizard\/legacy_claim\/anchors\/verify\/[A-Za-z0-9_-]+">CLICK THIS LINK</,
     );

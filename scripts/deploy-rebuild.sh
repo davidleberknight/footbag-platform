@@ -76,6 +76,8 @@ SKIP_DB_REBUILD="${SKIP_DB_REBUILD:-no}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 REMOTE_HALF="${SCRIPT_DIR}/internal/deploy-rebuild-remote.sh"
+# shellcheck source=lib/image-transfer.sh
+source "${REPO_ROOT}/scripts/lib/image-transfer.sh"
 # Prepended ahead of the remote half in the root ssh stream: refuses the
 # database replace once the host's env carries the post-cutover marker
 # (FOOTBAG_CUTOVER_COMPLETE=1), before any live mutation. No bypass flag.
@@ -382,8 +384,7 @@ else
   printf '%s\n' "$SUDO_PASS" \
     | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" sh -c "journalctl --vacuum-time=7d; docker system prune -af"' \
     || echo "    WARNING: host disk-reclaim step failed; continuing." >&2
-  { printf '%s\n' "$SUDO_PASS"; docker save docker-web docker-worker docker-image; } \
-    | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" docker load'
+  send_images_to_host
 fi
 
 # Parse .local/initial-admins.txt into the FOOTBAG_DEV_INITIAL_ADMIN_EMAILS CSV
@@ -420,7 +421,12 @@ fi
 # running, and what produced this data" is hardest to reconstruct from anything
 # else. The dirty list is capped because it is a breadcrumb, not a diff.
 DEPLOY_COMMIT="$(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)"
-DEPLOY_DIRTY_PATHS="$(git -C "$REPO_ROOT" status --porcelain 2>/dev/null | cut -c4- | head -40 | paste -sd, -)"
+# `sed -n '1,40p'` rather than `head -40`: head closes the pipe the moment it
+# has its forty lines, which hands SIGPIPE to cut and to git, and pipefail then
+# makes the whole assignment exit 141 and abort the deploy under set -e. It only
+# bites when the tree carries more than forty dirty paths, so it lay dormant for
+# as long as deploys ran from a nearly clean checkout. sed reads to end of input.
+DEPLOY_DIRTY_PATHS="$(git -C "$REPO_ROOT" status --porcelain 2>/dev/null | cut -c4- | sed -n '1,40p' | paste -sd, -)"
 DEPLOY_DIRTY_COUNT="$(git -C "$REPO_ROOT" status --porcelain 2>/dev/null | wc -l | tr -d ' ')"
 # This is the only deploy that reseeds email_templates from the sidecars, so it
 # is the only one that can say which wording the environment now holds. Recorded

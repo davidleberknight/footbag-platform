@@ -74,7 +74,7 @@ describe('queue', () => {
 
     const res = await request(createApp()).get('/admin/clubs/leadership').set('Cookie', adminCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Could use a co-leader');
+    expect(res.text).toContain('Could Use a Co-leader');
     expect(res.text).toContain(`ACL Club ${_n - 1}`);
     expect(res.text).toContain(`ACL Club ${_n}`);
     void second;

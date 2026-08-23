@@ -222,8 +222,8 @@ async function renderLegacyClaim(
       (await simulatedEmailService.getEmailPreview({ urlPathPrefix: mailLinkPrefix })) ?? undefined;
   }
   res.status(statusOverride ?? 200).render('register/wizard/legacy-claim', {
-    seo:  { title: 'Find your past records' },
-    page: { sectionKey: 'members', pageKey: 'onboarding_legacy_claim', title: 'Find your past records' },
+    seo:  { title: 'Find Your Past Records' },
+    page: { sectionKey: 'members', pageKey: 'onboarding_legacy_claim', title: 'Find Your Past Records' },
     content: data,
   } satisfies PageViewModel<LinkHistoryContent>);
 }
@@ -316,8 +316,8 @@ function renderClubAffiliationsCard(
   const stage = memberOnboardingService.getClubAffiliationStage(memberId);
 
   res.status(opts.statusOverride ?? 200).render('register/wizard/club-affiliations', {
-    seo:  { title: 'Club affiliations' },
-    page: { sectionKey: 'members', pageKey: 'onboarding_club_affiliations', title: 'Club affiliations' },
+    seo:  { title: 'Club Affiliations' },
+    page: { sectionKey: 'members', pageKey: 'onboarding_club_affiliations', title: 'Club Affiliations' },
     content: {
       dashboardHref:  dashboardHrefFor(req),
       submitHref:     '/register/wizard/club_affiliations/submit',
@@ -353,8 +353,8 @@ function renderPersonalDetails(
 ): void {
   const form = memberService.getPersonalDetailsForm(req.user!.userId, opts);
   res.status(opts.statusOverride ?? 200).render('register/wizard/personal-details', {
-    seo:  { title: 'Personal details' },
-    page: { sectionKey: 'members', pageKey: 'onboarding_personal_details', title: 'Personal details' },
+    seo:  { title: 'Personal Details' },
+    page: { sectionKey: 'members', pageKey: 'onboarding_personal_details', title: 'Personal Details' },
     content: {
       dashboardHref: dashboardHrefFor(req),
       ...form,
@@ -371,8 +371,8 @@ function renderPersonalDetails(
 
 function renderComplete(req: Request, res: Response): void {
   res.status(200).render('register/wizard/complete', {
-    seo:  { title: 'Onboarding complete' },
-    page: { sectionKey: 'members', pageKey: 'onboarding_complete', title: 'Onboarding complete' },
+    seo:  { title: 'Onboarding Complete' },
+    page: { sectionKey: 'members', pageKey: 'onboarding_complete', title: 'Onboarding Complete' },
     content: { dashboardHref: dashboardHrefFor(req), capHitNotice: capHitNoticeFrom(req, res) },
   } satisfies PageViewModel<WizardCompleteContent>);
 }
@@ -694,15 +694,15 @@ export const memberOnboardingController = {
       const result = identityAccessService.peekLegacyClaim(req.user!.userId, token);
       if (!result) {
         res.status(400).render('register/wizard/legacy-claim-token-invalid', {
-          seo:  { title: 'Claim link no longer valid' },
-          page: { sectionKey: 'members', pageKey: 'onboarding_claim_token_invalid', title: 'Claim link no longer valid' },
+          seo:  { title: 'Claim Link No Longer Valid' },
+          page: { sectionKey: 'members', pageKey: 'onboarding_claim_token_invalid', title: 'Claim Link No Longer Valid' },
           content: { dashboardHref: dashboardHrefFor(req) },
         });
         return;
       }
       res.render('register/wizard/legacy-claim-token-confirm', {
-        seo:  { title: 'Confirm legacy account link' },
-        page: { sectionKey: 'members', pageKey: 'onboarding_claim_token_confirm', title: 'Confirm legacy account link' },
+        seo:  { title: 'Confirm Legacy Account Link' },
+        page: { sectionKey: 'members', pageKey: 'onboarding_claim_token_confirm', title: 'Confirm Legacy Account Link' },
         content: {
           legacyMemberId: result.legacyMemberId,
           displayName:    result.displayName,
@@ -726,8 +726,8 @@ export const memberOnboardingController = {
       action: () => memberOnboardingService.processLegacyClaimTokenConfirm(req.user!.userId, token),
       renderValidationError: (result) => {
         res.status(422).render('register/wizard/legacy-claim-token-invalid', {
-          seo:  { title: 'Claim link no longer valid' },
-          page: { sectionKey: 'members', pageKey: 'onboarding_claim_token_invalid', title: 'Claim link no longer valid' },
+          seo:  { title: 'Claim Link No Longer Valid' },
+          page: { sectionKey: 'members', pageKey: 'onboarding_claim_token_invalid', title: 'Claim Link No Longer Valid' },
           content: { dashboardHref: dashboardHrefFor(req), error: result.message || undefined },
         });
       },

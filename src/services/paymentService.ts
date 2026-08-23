@@ -2562,8 +2562,8 @@ function getSubscriptionCheckoutPage(session: {
   currency: string;
 }): PageViewModel<CheckoutContent> {
   return {
-    seo:  { title: 'Confirm donation' },
-    page: { sectionKey: '', pageKey: 'payment_checkout', title: 'Confirm donation' },
+    seo:  { title: 'Confirm Donation' },
+    page: { sectionKey: '', pageKey: 'payment_checkout', title: 'Confirm Donation' },
     content: {
       sessionId: session.sessionId,
       descriptor: 'Recurring Annual Donation',
@@ -2580,8 +2580,8 @@ function getSubscriptionCheckoutPage(session: {
 
 function getCheckoutPage(payment: PaymentRow): PageViewModel<CheckoutContent> {
   return {
-    seo:  { title: 'Confirm payment' },
-    page: { sectionKey: '', pageKey: 'payment_checkout', title: 'Confirm payment' },
+    seo:  { title: 'Confirm Payment' },
+    page: { sectionKey: '', pageKey: 'payment_checkout', title: 'Confirm Payment' },
     content: {
       sessionId: payment.stripe_checkout_session_id ?? '',
       descriptor: payment.descriptor,
@@ -2606,8 +2606,8 @@ function getPaymentSuccessPage(
   // state mutator, this is display shaping only.
   if (payment.status === 'pending') {
     return {
-      seo:  { title: 'Payment processing' },
-      page: { sectionKey: '', pageKey: 'payment_success', title: 'Payment processing' },
+      seo:  { title: 'Payment Processing' },
+      page: { sectionKey: '', pageKey: 'payment_success', title: 'Payment Processing' },
       content: {
         paymentId: payment.id,
         paymentType: payment.payment_type,
@@ -2625,8 +2625,8 @@ function getPaymentSuccessPage(
     ? membershipSuccessMessage(payment.purchased_tier_status)
     : { message: 'Payment received.', benefits: '' };
   return {
-    seo:  { title: 'Payment confirmed' },
-    page: { sectionKey: '', pageKey: 'payment_success', title: 'Payment confirmed' },
+    seo:  { title: 'Payment Confirmed' },
+    page: { sectionKey: '', pageKey: 'payment_success', title: 'Payment Confirmed' },
     content: {
       paymentId: payment.id,
       paymentType: payment.payment_type,
@@ -2667,8 +2667,8 @@ function getPaymentCancelPage(
     ? `Your payment could not be completed. ${reassurance}`
     : `Your payment was not completed. ${reassurance}`;
   return {
-    seo:  { title: 'Payment not completed' },
-    page: { sectionKey: '', pageKey: 'payment_cancel', title: 'Payment not completed' },
+    seo:  { title: 'Payment Not Completed' },
+    page: { sectionKey: '', pageKey: 'payment_cancel', title: 'Payment Not Completed' },
     content: { reason, message, continueHref: opts.continueHref, tryAgain },
   };
 }
@@ -2731,8 +2731,8 @@ function getDonationSuccessPage(
   const confirmed =
     sub !== undefined && sub.member_id === memberId && sub.status !== 'incomplete';
   return {
-    seo: { title: 'Thank you' },
-    page: { sectionKey: '', pageKey: 'payment_success', title: 'Thank you' },
+    seo: { title: 'Thank You' },
+    page: { sectionKey: '', pageKey: 'payment_success', title: 'Thank You' },
     content: {
       paymentId: subscriptionRef,
       paymentType: 'donation',
@@ -2804,8 +2804,8 @@ function getPaymentHistoryPage(
     shapeRecurringRow(s, memberKey),
   );
   return {
-    seo:  { title: 'Payment history' },
-    page: { sectionKey: 'members', pageKey: 'member_payment_history', title: 'Payment history' },
+    seo:  { title: 'Payment History' },
+    page: { sectionKey: 'members', pageKey: 'member_payment_history', title: 'Payment History' },
     content: {
       memberKey,
       rows,

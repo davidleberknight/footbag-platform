@@ -61,7 +61,7 @@ describe('GET /register/check-email — dev mode (SES_ADAPTER=stub)', () => {
     const app = createApp();
     const res = await request(app).get('/register/check-email');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Simulated email (dev)');
+    expect(res.text).toContain('Simulated Email (Dev)');
     expect(res.text).toContain('No messages sent yet.');
     // Old "open dev outbox" affordance must be gone.
     expect(res.text).not.toContain('/internal/dev-outbox');
@@ -81,7 +81,7 @@ describe('GET /register/check-email — dev mode (SES_ADAPTER=stub)', () => {
 
     const res = await request(app).get('/register/check-email').set('Cookie', flash);
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Simulated email (dev)');
+    expect(res.text).toContain('Simulated Email (Dev)');
     expect(res.text).toContain('sim-card-one@example.com');
     expect(res.text).toContain('Verify your IFPA Footbag account');
     // Open link points to a /verify/<token> URL extracted from the body.
@@ -105,7 +105,7 @@ describe('GET /register/check-email — dev mode (SES_ADAPTER=stub)', () => {
     expect(resendRes.text).toContain('new verification link has been sent');
     // On a dev or staging host the submitter sees their own verify link on the
     // page, scoped to the address they submitted.
-    expect(resendRes.text).toContain('Simulated email (dev)');
+    expect(resendRes.text).toContain('Simulated Email (Dev)');
     expect(resendRes.text).toContain('sim-card-two@example.com');
     expect(resendRes.text).toMatch(/<a href="http:\/\/[^"]+\/verify\/[A-Za-z0-9_-]+">CLICK THIS LINK<\/a>/);
     // Scoping keeps the other pending user's token and address out of the card.
@@ -170,7 +170,7 @@ describe('GET /register/check-email — dev mode (SES_ADAPTER=stub)', () => {
     // be empty: no A email, no /verify/<token> Open link. Pre-fix it showed all.
     const res = await request(app).get('/register/check-email');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Simulated email (dev)');
+    expect(res.text).toContain('Simulated Email (Dev)');
     expect(res.text).not.toContain('leak-victim-a@example.com');
     expect(res.text).not.toMatch(/\/verify\/[A-Za-z0-9_-]+">CLICK THIS LINK</);
   });

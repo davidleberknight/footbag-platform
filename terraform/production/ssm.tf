@@ -38,6 +38,26 @@ resource "aws_ssm_parameter" "app_email_send_armed" {
   value = var.email_send_armed
 }
 
+# The two SES configuration sets the runtime names on a send, one per sending
+# stream. Transactional and bulk mail keep separate reputations so a complaint
+# spike on a broadcast cannot degrade delivery of a password reset, and the
+# configuration set is where SES keeps those metrics apart. The value is read
+# from the resource rather than repeated as a literal, so renaming a set moves
+# the parameter with it and the host cannot end up naming a set that no longer
+# exists. Plain String, not SecureString: a configuration set name is not a
+# secret, and the deploy reads it without a decrypt.
+resource "aws_ssm_parameter" "app_ses_configuration_set_transactional" {
+  name  = "${local.ssm_prefix}/app/ses_configuration_set_transactional"
+  type  = "String"
+  value = aws_ses_configuration_set.transactional.name
+}
+
+resource "aws_ssm_parameter" "app_ses_configuration_set_bulk" {
+  name  = "${local.ssm_prefix}/app/ses_configuration_set_bulk"
+  type  = "String"
+  value = aws_ses_configuration_set.bulk.name
+}
+
 # Production-live marker. Seeded "false" (pre-live): data-replacing deploys
 # are permitted and a test-mode Stripe key is accepted. Flipping it to "true"
 # is a named go-live runbook step performed with an operator put-parameter;

@@ -571,7 +571,7 @@ export class EventService {
       page: {
         sectionKey: 'events',
         pageKey: 'events_year_archive',
-        title: `Completed Events from ${year}`,
+        title: `Completed Events From ${year}`,
         intro: `Public events from ${year} that have already taken place. For events still to come, see upcoming events.`,
       },
       navigation: {

@@ -97,7 +97,7 @@ describe('POST /password/forgot', () => {
     // On a dev or staging host the sent page shows the reset link so a tester
     // completes the reset on the page itself. The card is scoped to the address
     // the visitor submitted.
-    expect(res.text).toContain('Simulated email (dev)');
+    expect(res.text).toContain('Simulated Email (Dev)');
     expect(res.text).toContain(MEMBER_EMAIL);
     expect(res.text).toMatch(/\/password\/reset\/[A-Za-z0-9_-]+">CLICK THIS LINK</);
   });
@@ -330,7 +330,7 @@ describe('POST /password/forgot — outbox failure does not leak via 500', () =>
     const commsMod = await import('../../src/services/communicationService');
     const commService = commsMod.getCommunicationService();
     const enqueueSpy = vi
-      .spyOn(commService, 'enqueueEmailOrFail')
+      .spyOn(commService, 'enqueue')
       .mockImplementation(() => {
         throw new Error('SQLITE_BUSY: database is locked');
       });
@@ -372,7 +372,7 @@ describe('POST /password/forgot — outbox failure does not leak via 500', () =>
     // should not be invoked; the assertion is symmetric with the exists path
     // to prove the anti-enum contract holds end-to-end.
     const enqueueSpy = vi
-      .spyOn(commService, 'enqueueEmailOrFail')
+      .spyOn(commService, 'enqueue')
       .mockImplementation(() => {
         throw new Error('SQLITE_BUSY: database is locked');
       });
@@ -496,15 +496,11 @@ describe('POST /password/reset/:token — confirmation-email enqueue failure', (
     // Now degrade the outbox so the reset-completion confirmation enqueue fails.
     const { ServiceUnavailableError } = await import('../../src/services/serviceErrors');
     commsMod.setCommunicationServiceForTests({
-      enqueueEmail: () => {
-        throw new ServiceUnavailableError('synthetic enqueue failure');
-      },
-      enqueueEmailOrFail: () => {
+      enqueue: () => {
         throw new ServiceUnavailableError(
-          'synthetic enqueueEmailOrFail failure for password-reset confirmation',
+          'synthetic enqueue failure for password-reset confirmation',
         );
       },
-      enqueueMailingListEmail: () => ({ enqueued: 0, duplicates: 0 }),
       processSendQueue: async () => ({
         claimed: 0, sent: 0, failed: 0, deadLettered: 0, paused: false,
       }),

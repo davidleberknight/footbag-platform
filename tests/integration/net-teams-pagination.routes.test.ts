@@ -5,7 +5,7 @@
  * filter, out-of-range pages clamp to the last page, empty results are a
  * controlled state, and no page ever renders more than the page size.
  *
- * Fifty-five teams are seeded into one division (open_doubles) so the page
+ * Fifty-five teams are seeded into one discipline (open_doubles) so the page
  * boundary (50) is crossed for both the unfiltered and the filtered views.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -79,28 +79,28 @@ describe('GET /net/teams — unfiltered pagination', () => {
 
 describe('GET /net/teams — filtered pagination', () => {
   it('paginates a filtered result with the filtered total and page count', async () => {
-    const res = await request(await createApp()).get('/net/teams?division=open_doubles');
+    const res = await request(await createApp()).get('/net/teams?discipline=open_doubles');
     expect(res.status).toBe(200);
     expect(rowCount(res.text)).toBe(50);            // never more than the page size
     expect(res.text).toContain(`${TEAM_COUNT} teams`); // filtered unique-team total
     expect(res.text).toContain('Page 1 of 2');
   });
 
-  it('retains the division filter across page navigation', async () => {
-    const res = await request(await createApp()).get('/net/teams?division=open_doubles');
+  it('retains the discipline filter across page navigation', async () => {
+    const res = await request(await createApp()).get('/net/teams?discipline=open_doubles');
     // Handlebars escapes = to &#x3D; and & to &amp; in the rendered href.
-    expect(res.text).toContain('/net/teams?division&#x3D;open_doubles&amp;page&#x3D;2');
+    expect(res.text).toContain('/net/teams?discipline&#x3D;open_doubles&amp;page&#x3D;2');
   });
 
   it('filtered page 2 continues numbering and links Prev back with the filter', async () => {
-    const res = await request(await createApp()).get('/net/teams?division=open_doubles&page=2');
+    const res = await request(await createApp()).get('/net/teams?discipline=open_doubles&page=2');
     expect(rowCount(res.text)).toBe(TEAM_COUNT - 50);
     expect(res.text).toContain('<td class="col-rank">51<');
-    expect(res.text).toContain('href="/net/teams?division&#x3D;open_doubles"'); // Prev to filtered page 1
+    expect(res.text).toContain('href="/net/teams?discipline&#x3D;open_doubles"'); // Prev to filtered page 1
   });
 
   it('clamps an out-of-range filtered page to the last page', async () => {
-    const res = await request(await createApp()).get('/net/teams?division=open_doubles&page=999');
+    const res = await request(await createApp()).get('/net/teams?discipline=open_doubles&page=999');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Page 2 of 2');
     expect(rowCount(res.text)).toBe(TEAM_COUNT - 50);

@@ -21,7 +21,7 @@
  */
 import {
   netTeams,      NetTeamSummaryRow, NetTeamAppearanceRow,
-                 NetTeamStatsRow, NetDivisionOptionRow,
+                 NetTeamStatsRow, NetDisciplineOptionRow,
   queryFilteredTeams,
   countFilteredTeams,
   netEvents,     NetEventSummaryRow,
@@ -120,7 +120,7 @@ interface NetHomeContent {
 // IFPA 2025). Held in-file so the landing stays thin and no DB call is needed.
 // ---------------------------------------------------------------------------
 const NET_LANDING_INTRO: NetLandingExplainer = {
-  heading: 'What is Footbag Net?',
+  heading: 'What Is Footbag Net?',
   paragraphs: [
     'Footbag Net is an acrobatic sport played on a badminton court. Players volley the footbag back and forth using only their feet or lower leg. Similar to Sepak Takraw, footbag net blends the court strategy of beach volleyball with the jumping and kicking skills of martial arts. Players demonstrate remarkable agility by flying through the air to spike the footbag over the net, or to block that spike on defense.',
   ],
@@ -210,10 +210,10 @@ export interface NetTeamListViewModel {
   yearSpan:        string | null;
 }
 
-interface DivisionFilterOption {
+interface DisciplineFilterOption {
   value: string;
   label: string;
-  // Canonical appearance count for the division, not a unique-team count: a team
+  // Canonical appearance count for the discipline, not a unique-team count: a team
   // recurs across events, so this can exceed the unique-team total on the page.
   // Rendered with an explicit "appearances" unit so it is never read as teams.
   appearanceCount: number;
@@ -240,8 +240,8 @@ interface NetTeamsContent {
   // The 1-based rank of the first row on this page, so the row numbers continue
   // across pages (51, 52, ...) instead of restarting each page.
   rankStart:       number;
-  divisionOptions: DivisionFilterOption[];
-  activeDivision:  string | null;
+  disciplineOptions: DisciplineFilterOption[];
+  activeDiscipline:  string | null;
   activeSearch:    string | null;
   disclaimer:      string;
   // Always present: both the unfiltered directory and any filter are paginated,
@@ -506,7 +506,7 @@ export const netService = {
     const hasEvents = recentEventRows.length > 0;
 
     const exploreCards: NetExploreCard[] = [
-      { slug: 'teams',  label: 'Teams',  href: '/net/teams',  paragraph: 'Doubles teams with full competition records: wins, podiums, and active span. Filter by division or search by player.', linkLabel: 'Browse Teams',   comingSoon: !hasTeams },
+      { slug: 'teams',  label: 'Teams',  href: '/net/teams',  paragraph: 'Doubles teams with full competition records: wins, podiums, and active span. Filter by discipline or search by player.', linkLabel: 'Browse Teams',   comingSoon: !hasTeams },
       { slug: 'events', label: 'Events', href: '/net/events', paragraph: 'Archive of net doubles competitions with per-event appearance counts.',                                                linkLabel: 'Event Archive',  comingSoon: !hasEvents },
     ];
 
@@ -532,9 +532,9 @@ export const netService = {
     };
   },
 
-  getTeamsPage(division?: string, search?: string, page = 1): PageViewModel<NetTeamsContent> {
-    const hasFilter = !!(division || search);
-    const filters = { division, search };
+  getTeamsPage(discipline?: string, search?: string, page = 1): PageViewModel<NetTeamsContent> {
+    const hasFilter = !!(discipline || search);
+    const filters = { discipline, search };
 
     // Both the unfiltered directory and any filter are paginated server-side: the
     // filter is applied first, then the filtered universe is counted and paged, so
@@ -556,7 +556,7 @@ export const netService = {
     const hasNext = current < totalPages;
     const pageHref = (p: number): string => {
       const qs: string[] = [];
-      if (division) qs.push(`division=${encodeURIComponent(division)}`);
+      if (discipline) qs.push(`discipline=${encodeURIComponent(discipline)}`);
       if (search)   qs.push(`q=${encodeURIComponent(search)}`);
       if (p > 1)    qs.push(`page=${p}`);
       return qs.length ? `/net/teams?${qs.join('&')}` : '/net/teams';
@@ -582,19 +582,19 @@ export const netService = {
       yearSpan:        yearSpan(r.first_year, r.last_year),
     }));
 
-    const divisionRows = netTeams.listDivisionOptions.all() as NetDivisionOptionRow[];
-    const divisionOptions: DivisionFilterOption[] = [
-      { value: '', label: 'All divisions', appearanceCount: 0, selected: !division },
-      ...divisionRows.map(r => ({
+    const disciplineRows = netTeams.listDisciplineOptions.all() as NetDisciplineOptionRow[];
+    const disciplineOptions: DisciplineFilterOption[] = [
+      { value: '', label: 'All Disciplines', appearanceCount: 0, selected: !discipline },
+      ...disciplineRows.map(r => ({
         value:    r.canonical_group,
         label:    GROUP_LABELS[r.canonical_group] || r.canonical_group,
         appearanceCount: r.appearance_count,
-        selected: r.canonical_group === division,
+        selected: r.canonical_group === discipline,
       })),
     ];
 
-    const divisionLabel = division ? (GROUP_LABELS[division] || division) : null;
-    const titleSuffix = divisionLabel ? `: ${divisionLabel}` : '';
+    const disciplineLabel = discipline ? (GROUP_LABELS[discipline] || discipline) : null;
+    const titleSuffix = disciplineLabel ? `: ${disciplineLabel}` : '';
 
     return {
       seo:  { title: `Net Teams${titleSuffix}` },
@@ -602,14 +602,14 @@ export const netService = {
         sectionKey: 'net',
         pageKey:    'net_teams',
         title:      `Net Teams${titleSuffix}`,
-        intro:      'All doubles teams in footbag net history, sorted by competitive appearances. Filter by division or search by player name.',
+        intro:      'All doubles teams in footbag net history, sorted by competitive appearances. Filter by discipline or search by player name.',
       },
       content: {
         teams,
-        totalShown:      teams.length,
+        totalShown:        teams.length,
         rankStart,
-        divisionOptions,
-        activeDivision:  division ?? null,
+        disciplineOptions,
+        activeDiscipline:  discipline ?? null,
         activeSearch:    search ?? null,
         disclaimer:      TEAM_DISCLAIMER,
         pagination,

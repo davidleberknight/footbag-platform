@@ -38,14 +38,14 @@
             <td><a href="{{content.eventHref}}">{{content.eventTitle}}</a></td>
           </tr>
         {{/if}}
-        <tr><th>Payment intent</th><td>{{content.stripePaymentIntentId}}</td></tr>
+        <tr><th>Payment Intent</th><td>{{content.stripePaymentIntentId}}</td></tr>
         <tr><th>Checkout session</th><td>{{content.stripeCheckoutSessionId}}</td></tr>
         <tr><th>Subscription</th><td>{{content.stripeSubscriptionId}}</td></tr>
       </tbody>
     </table>
 
     {{#if content.hasDonationNote}}
-      <h2 class="section-heading mt-8">Donor note</h2>
+      <h2 class="section-heading mt-8">Donor Note</h2>
       <p class="card">{{content.donationNote}}</p>
       <p class="text-muted fs-sm">
         Shown so a discrepancy can be investigated with the donor's own words in view. It is a

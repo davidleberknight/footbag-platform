@@ -83,6 +83,15 @@ export interface AppConfig {
   awsRegion: string | undefined;
   sesAdapter: 'live' | 'stub';
   sesFromIdentity: string | undefined;
+  // Outbound mail runs as two streams with separate sending reputations, so a
+  // complaint spike on a newsletter cannot degrade delivery of a password
+  // reset. A message addressed to a mailing list is bulk; everything else is
+  // transactional. Each stream names its own SES configuration set, which is
+  // where SES attributes reputation metrics and event destinations. Unset
+  // means the send carries no configuration set and both streams share the
+  // account default, which is the pre-provisioning state and not the target.
+  sesConfigurationSetTransactional: string | undefined;
+  sesConfigurationSetBulk: string | undefined;
   // Production arming switch for outbound email. 'dark' keeps production on
   // the stub adapter (mail captured in memory, simulated-email card renders,
   // nothing delivered), exactly like staging; 'armed' requires the live
@@ -341,6 +350,9 @@ function loadConfig(): AppConfig {
   if (sesAdapter === 'live' && !sesFromIdentity) {
     throw new Error('SES_FROM_IDENTITY is required when SES_ADAPTER=live');
   }
+
+  const sesConfigurationSetTransactional = trimmedEnv('SES_CONFIGURATION_SET_TRANSACTIONAL');
+  const sesConfigurationSetBulk = trimmedEnv('SES_CONFIGURATION_SET_BULK');
 
   const rawSafeBrowsingAdapter = trimmedEnv('SAFE_BROWSING_ADAPTER');
   let safeBrowsingAdapter: 'live' | 'stub';
@@ -1059,6 +1071,8 @@ function loadConfig(): AppConfig {
     awsRegion,
     sesAdapter,
     sesFromIdentity,
+    sesConfigurationSetTransactional,
+    sesConfigurationSetBulk,
     emailSendArmed,
     safeBrowsingAdapter,
     captchaAdapter,

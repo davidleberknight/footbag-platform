@@ -400,18 +400,14 @@ describe('POST /members/:slug/edit/password — confirmation-email enqueue failu
     db.close();
 
     const { ServiceUnavailableError } = await import('../../src/services/serviceErrors');
-    // Inject a CommunicationService whose enqueueEmailOrFail throws. Mirrors
-    // the production failure mode (outbox DB busy, schema mismatch, OOM).
+    // Inject a CommunicationService whose enqueue throws. Mirrors the
+    // production failure mode (outbox DB busy, schema mismatch, OOM).
     commsMod.setCommunicationServiceForTests({
-      enqueueEmail: () => {
-        throw new ServiceUnavailableError('synthetic enqueue failure');
-      },
-      enqueueEmailOrFail: () => {
+      enqueue: () => {
         throw new ServiceUnavailableError(
-          'synthetic enqueueEmailOrFail failure for password-change confirmation',
+          'synthetic enqueue failure for password-change confirmation',
         );
       },
-      enqueueMailingListEmail: () => ({ enqueued: 0, duplicates: 0 }),
       processSendQueue: async () => ({
         claimed: 0, sent: 0, failed: 0, deadLettered: 0, paused: false,
       }),

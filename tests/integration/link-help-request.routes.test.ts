@@ -679,7 +679,7 @@ describe('admin review', () => {
       .get('/admin/work-queue')
       .set('Cookie', adminCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('What this member has already tried');
+    expect(res.text).toContain('What This Member Has Already Tried');
     expect(res.text).toContain('Refused: the surname did not match');
     expect(res.text).toContain('Other Personsson');
     expect(res.text).toContain('Date of birth does not match the record');

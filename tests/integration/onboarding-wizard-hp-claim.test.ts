@@ -281,7 +281,7 @@ describe('surname mismatch rejected', () => {
       .set('Cookie', cookieFor(memberId));
 
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Claim unavailable');
+    expect(res.text).toContain('Claim Unavailable');
   });
 
   it('POST claim/confirm when surnames do not match -> no linkage', async () => {

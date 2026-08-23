@@ -1085,14 +1085,14 @@ export const mediaService = {
       // structure. Related Sports absorbs chinlone and (future) sepak takraw.
       const cards: MediaHubCard[] = [
         {
-          title: 'Browse by hashtag',
+          title: 'Browse by Hashtag',
           description: 'Find every photo and video matching a set of hashtags.',
           href: '/media/browse',
           cta: 'Browse Tags',
           accent: true,
         },
         {
-          title: 'Member galleries',
+          title: 'Member Galleries',
           description: 'Photo and video galleries created by IFPA members.',
           href: hasMemberGalleries ? '/media/member-galleries' : null,
           cta: hasMemberGalleries ? 'Browse member galleries' : null,

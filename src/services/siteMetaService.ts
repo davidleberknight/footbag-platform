@@ -25,7 +25,7 @@
  *     line is publicly readable and would advertise the very paths it hides.
  */
 import { config } from '../config/env';
-import { publicEvents, clubs, netTeams, freestyleTricks, media } from '../db/db';
+import { publicEvents, clubs, netTeams, freestyleTricks, media, publicPlayers } from '../db/db';
 import { freestyleService } from './freestyleService';
 import { listGroupedByDiscipline } from '../lib/rulesLoader';
 import { getIfpaDocs } from '../lib/ifpaLoader';
@@ -122,6 +122,14 @@ function collectPublicPaths(): string[] {
   // Net: every team with at least one canonical appearance.
   for (const row of netTeams.listAll.all() as Array<{ team_id: number | string }>) {
     paths.add(`/net/teams/${row.team_id}`);
+  }
+
+  // History: every canonical historical person's detail page. This is the
+  // largest single family in the sitemap and the long tail of the site's
+  // competitive record, reachable from the year archives and event pages but
+  // otherwise invisible to a crawler that never walks them.
+  for (const row of publicPlayers.listAllCanonicalIds.all() as Array<{ person_id: string }>) {
+    paths.add(`/history/${row.person_id}`);
   }
 
   // Freestyle: every active trick in the dictionary.

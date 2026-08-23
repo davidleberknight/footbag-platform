@@ -829,15 +829,9 @@ describe('POST /register — verify-email enqueue failure', () => {
     expectLoggedError('audit: auth.register_notification_failed');
     const { ServiceUnavailableError } = await import('../../src/services/serviceErrors');
     commsMod.setCommunicationServiceForTests({
-      enqueueEmail: () => {
-        throw new ServiceUnavailableError('synthetic enqueue failure');
+      enqueue: () => {
+        throw new ServiceUnavailableError('synthetic enqueue failure for verify-email');
       },
-      enqueueEmailOrFail: () => {
-        throw new ServiceUnavailableError(
-          'synthetic enqueueEmailOrFail failure for verify-email enqueue',
-        );
-      },
-      enqueueMailingListEmail: () => ({ enqueued: 0, duplicates: 0 }),
       processSendQueue: async () => ({
         claimed: 0, sent: 0, failed: 0, deadLettered: 0, paused: false,
       }),

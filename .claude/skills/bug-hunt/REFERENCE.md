@@ -119,14 +119,14 @@ For each: assert that the response status code, body shape, and body length are 
 
 #### 4.4.14 Best-effort enqueue patterns
 
-The `enqueueEmailOrFail` strict helper exists and is used at the password-change confirmation site. Analogous patterns may exist elsewhere:
+The strict send exists as a flag on the single enqueue path, and is used at the password-change confirmation site. Analogous patterns may exist elsewhere:
 
 - Claim notification (`legacy.claim_*` audits).
 - Auto-link notification (`legacy.auto_link_*` audits).
 - Email verification.
 - Password reset confirmation.
 
-Any swallow on a security-critical notification is a finding. The pattern is: a failed enqueue + a committed mutation = silent loss of user notification = potential account-takeover masking. Suggested remediation shape: migrate the site to `enqueueEmailOrFail` and add a high-priority audit row on failure (mirror the existing pattern in `identityAccessService.changePassword`).
+Any swallow on a security-critical notification is a finding. The pattern is: a failed enqueue + a committed mutation = silent loss of user notification = potential account-takeover masking. Suggested remediation shape: mark the send strict and add a high-priority audit row on failure (mirror the existing pattern in `identityAccessService.changePassword`).
 
 #### 4.4.15 Dev-shortcut leaks
 

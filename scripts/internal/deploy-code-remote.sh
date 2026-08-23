@@ -632,6 +632,48 @@ mv "$env_tmp" "$ENV_PATH"
 chmod 600 "$ENV_PATH"
 chown root:root "$ENV_PATH"
 
+# Sync the two SES configuration-set names. Outbound mail runs as two streams
+# with separate sending reputations, and naming a set on the send is what keeps
+# a complaint spike on bulk mail off the reputation that carries password
+# resets. Terraform owns both names (the parameter reads the configuration-set
+# resource, so a rename moves with it); this fetch puts them on the host so the
+# application can name them. A missing parameter is fatal with the same
+# instruction as the arming switches above: the alternative is a host that
+# silently sends on the account default while the operator believes the streams
+# are separated.
+for ses_set_stream in transactional bulk; do
+  ses_set_param="/footbag/${FOOTBAG_ENV_VAL}/app/ses_configuration_set_${ses_set_stream}"
+  echo "==> Syncing SES_CONFIGURATION_SET_${ses_set_stream^^} from $ses_set_param ..."
+  ses_set_value=$(
+    AWS_PROFILE="$AWS_PROFILE_VAL" aws ssm get-parameter \
+      --region "$AWS_REGION_VAL" \
+      --name "$ses_set_param" \
+      --query 'Parameter.Value' \
+      --output text
+  ) || {
+    echo "ERROR: aws ssm get-parameter failed for $ses_set_param" >&2
+    echo "       If the parameter does not exist yet, from the workstation run:" >&2
+    echo "         cd terraform/${FOOTBAG_ENV_VAL} && terraform init -upgrade && terraform apply" >&2
+    exit 1
+  }
+  # SES configuration-set names are limited to letters, digits, dashes and
+  # underscores. Checking the shape here keeps a malformed or placeholder value
+  # from reaching a send, where it would fail every message rather than one.
+  if [[ ! "$ses_set_value" =~ ^[A-Za-z0-9_-]+$ ]]; then
+    echo "ERROR: SSM $ses_set_param is '$ses_set_value'; expected a configuration-set name." >&2
+    exit 1
+  fi
+  env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
+  chmod 600 "$env_tmp"
+  chown root:root "$env_tmp"
+  grep -v "^SES_CONFIGURATION_SET_${ses_set_stream^^}=" "$ENV_PATH" > "$env_tmp" || true
+  printf 'SES_CONFIGURATION_SET_%s=%s\n' "${ses_set_stream^^}" "$ses_set_value" >> "$env_tmp"
+  mv "$env_tmp" "$ENV_PATH"
+  chmod 600 "$ENV_PATH"
+  chown root:root "$ENV_PATH"
+done
+unset ses_set_stream ses_set_param ses_set_value
+
 # On production the adapters are derived from the arming switches, never
 # hand-edited: armed -> live, dark -> stub. This is what makes an arming flip
 # ride tfvars + apply + deploy with no host edit, and what makes a dark
@@ -798,6 +840,13 @@ echo "==> Restarting service (compose up via systemctl, --no-build)..."
 cd "$LIVE_DIR"
 systemctl restart footbag
 
+# Every `compose exec` below reads from /dev/null, and that redirect is
+# load-bearing rather than tidiness. This whole script arrives on the remote
+# shell's stdin, and `docker compose exec -T` forwards its own stdin into the
+# container: without the redirect the first probe swallows the remainder of the
+# script, bash reaches end of input, and the deploy exits 0 having silently
+# skipped everything below this point.
+#
 # Active-check + healthcheck poll. `docker compose up --detach` exits 0 the
 # moment containers are spawned; nginx is gated on web's healthcheck which
 # has a 15s start_period. A bare `sleep 3` reports success while the stack
@@ -816,7 +865,7 @@ for _i in 1 2 3 4 5 6 7 8 9 10; do
   if systemctl is-active --quiet footbag.service \
      && docker compose --env-file /srv/footbag/env \
           -f docker/docker-compose.yml -f docker/docker-compose.prod.yml \
-          exec -T web wget -qO- --timeout=3 http://localhost:3000/health/ready >/dev/null 2>&1; then
+          exec -T web wget -qO- --timeout=3 http://localhost:3000/health/ready >/dev/null 2>&1 </dev/null; then
     _stack_healthy=1
     break
   fi
@@ -847,7 +896,7 @@ if [[ "${SEED_TEST_PERSONAS:-no}" == "yes" ]]; then
       -f "$LIVE_DIR/docker/docker-compose.yml" \
       -f "$LIVE_DIR/docker/docker-compose.prod.yml" \
       exec -T \
-      web node dist/testkit/personaSeedRunner.js; then
+      web node dist/testkit/personaSeedRunner.js </dev/null; then
     echo "    ERROR: persona-catalog seed step exited non-zero; aborting the deploy." >&2
     exit 1
   fi
@@ -872,7 +921,7 @@ if [[ "${REFRESH_TEST_PERSONAS:-no}" == "yes" ]]; then
       -f "$LIVE_DIR/docker/docker-compose.yml" \
       -f "$LIVE_DIR/docker/docker-compose.prod.yml" \
       exec -T \
-      web node dist/testkit/personaRefreshCli.js --apply; then
+      web node dist/testkit/personaRefreshCli.js --apply </dev/null; then
     echo "    ERROR: persona rebuild step exited non-zero; aborting the deploy." >&2
     exit 1
   fi

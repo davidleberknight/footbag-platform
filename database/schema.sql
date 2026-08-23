@@ -605,7 +605,20 @@ CREATE TABLE mailing_lists (
   status            TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','archived')),
   is_member_manageable INTEGER NOT NULL DEFAULT 1 CHECK (is_member_manageable IN (0,1)),
   from_identity     TEXT,
-  rules_text        TEXT
+  rules_text        TEXT,
+
+  -- Where the list's recipients come from, read by the send path when it
+  -- resolves an audience. 'subscription': the mailing_list_subscriptions rows,
+  -- which members manage themselves. 'group': the named group's current
+  -- roster, which stays the single record of who is in the group -- no
+  -- subscription row mirrors it, so there is no membership copy to drift.
+  -- Subscription rows for a group-backed list carry deliverability state only.
+  recipient_source TEXT NOT NULL DEFAULT 'subscription'
+    CHECK (recipient_source IN ('subscription','group')),
+  source_group_id  TEXT,
+
+  CHECK (recipient_source <> 'group' OR source_group_id IS NOT NULL),
+  CHECK (recipient_source <> 'subscription' OR source_group_id IS NULL)
 );
 
 -- Transactional email send queue (outbox pattern). All outbound emails are written
@@ -633,6 +646,15 @@ CREATE TABLE outbox_emails (
 
   sender_member_id TEXT REFERENCES members(id),
   from_identity    TEXT,
+
+  -- Which sending reputation this message is charged against, decided by the
+  -- audience when the row is enqueued rather than inferred later from which
+  -- foreign key happens to be set. A one-member send is transactional; a send
+  -- to a list, a group roster, or an event's participants is bulk. The drain
+  -- names the matching SES configuration set, so a complaint spike on bulk
+  -- mail cannot degrade delivery of a password reset.
+  stream TEXT NOT NULL DEFAULT 'transactional'
+    CHECK (stream IN ('transactional','bulk')),
 
   subject   TEXT NOT NULL,
   body_text TEXT,
@@ -668,6 +690,11 @@ CREATE UNIQUE INDEX ux_outbox_idempotency
 -- emails, announcements). One row per bulk send, capturing sender, subject,
 -- body, recipient count, and a reference to the originating list or event.
 -- Not a delivery log; records intent and content of each broadcast.
+-- Retained indefinitely by decision: this is the account of what the platform
+-- said in IFPA's name, and the row names no recipient, so it holds no personal
+-- data an erasure request reaches. The sender link is cleared when that member
+-- is erased. The per-recipient copies in outbox_emails, which do carry an
+-- address and a rendered body, age out on outbox_retention_days instead.
 CREATE TABLE email_archives (
   id         TEXT PRIMARY KEY,
   created_at TEXT NOT NULL,
@@ -2070,7 +2097,12 @@ CREATE TABLE members (
 
   first_competition_year INTEGER,
   show_competitive_results INTEGER NOT NULL DEFAULT 1 CHECK (show_competitive_results IN (0,1)),
-  show_first_competition_year INTEGER NOT NULL DEFAULT 0 CHECK (show_first_competition_year IN (0,1)),
+  -- Defaults on, matching its sibling above: the stories say entering a first
+  -- competition year is what makes "Competing since" appear, and clearing the
+  -- year is how a member hides it. Defaulting off meant a member who entered
+  -- the year, including one the onboarding wizard pre-filled from a claimed
+  -- historical record, saw nothing until they found a toggle no story mentions.
+  show_first_competition_year INTEGER NOT NULL DEFAULT 1 CHECK (show_first_competition_year IN (0,1)),
   show_gender INTEGER NOT NULL DEFAULT 0 CHECK (show_gender IN (0,1)),
 
   legacy_member_id TEXT REFERENCES legacy_members(legacy_member_id) ON DELETE NO ACTION,
@@ -3006,6 +3038,7 @@ VALUES
 --   event_registration_reminder_days Days before event start to send registration reminder
 --   member_cleanup_grace_days       Grace days after soft-delete before PII purge job runs
 --   payment_retention_days          Payment record compliance retention window
+--   outbox_retention_days           Age at which a delivered or dead-lettered outbox copy is deleted
 --   password_reset_expiry_hours     Password reset token TTL (hours)
 --   email_verify_expiry_hours       Email verification token TTL (hours)
 --   active_player_duration_days            Active Player grant duration (IFPA-rule-derived)
@@ -3128,6 +3161,15 @@ VALUES
    'payment_retention_days', '2555',
    '2000-01-01T00:00:00.000Z',
    'Payment record compliance retention window (~7 years).',
+   NULL
+  ),
+
+  (
+   'seed-outbox-retention-days',
+   '2000-01-01T00:00:00.000Z',
+   'outbox_retention_days', '90',
+   '2000-01-01T00:00:00.000Z',
+   'Age at which a per-recipient outbox copy is deleted: from sent_at when delivered, from the last attempt when dead-lettered (default: 90 days).',
    NULL
   ),
 

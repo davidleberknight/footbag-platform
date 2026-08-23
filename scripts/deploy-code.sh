@@ -67,6 +67,8 @@ SKIP_SMOKE="${SKIP_SMOKE:-no}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 REMOTE_HALF="${SCRIPT_DIR}/internal/deploy-code-remote.sh"
+# shellcheck source=lib/image-transfer.sh
+source "${REPO_ROOT}/scripts/lib/image-transfer.sh"
 
 # SSH connection options. accept-new pins the host key on first contact; later
 # connections fail-closed if the host key changes (MITM / instance rotation
@@ -249,8 +251,7 @@ else
   printf '%s\n' "$SUDO_PASS" \
     | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" sh -c "journalctl --vacuum-time=7d; docker system prune -af"' \
     || echo "    WARNING: host disk-reclaim step failed; continuing." >&2
-  { printf '%s\n' "$SUDO_PASS"; docker save docker-web docker-worker docker-image; } \
-    | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" docker load'
+  send_images_to_host
 fi
 
 # ── Step 5: Run the remote-as-root deploy via cat-pipe ───────────────────────
@@ -298,7 +299,12 @@ fi
 # inference from whoever last ran this. The dirty list is capped because it is
 # a breadcrumb, not a diff.
 DEPLOY_COMMIT="$(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)"
-DEPLOY_DIRTY_PATHS="$(git -C "$REPO_ROOT" status --porcelain 2>/dev/null | cut -c4- | head -40 | paste -sd, -)"
+# `sed -n '1,40p'` rather than `head -40`: head closes the pipe the moment it
+# has its forty lines, which hands SIGPIPE to cut and to git, and pipefail then
+# makes the whole assignment exit 141 and abort the deploy under set -e. It only
+# bites when the tree carries more than forty dirty paths, so it lay dormant for
+# as long as deploys ran from a nearly clean checkout. sed reads to end of input.
+DEPLOY_DIRTY_PATHS="$(git -C "$REPO_ROOT" status --porcelain 2>/dev/null | cut -c4- | sed -n '1,40p' | paste -sd, -)"
 DEPLOY_DIRTY_COUNT="$(git -C "$REPO_ROOT" status --porcelain 2>/dev/null | wc -l | tr -d ' ')"
 DEPLOY_PROVENANCE="commit=$DEPLOY_COMMIT dirty=$DEPLOY_DIRTY_COUNT paths=${DEPLOY_DIRTY_PATHS:-none}"
 echo "==> Shipping working tree at commit $DEPLOY_COMMIT with $DEPLOY_DIRTY_COUNT uncommitted path(s)."

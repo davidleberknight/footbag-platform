@@ -6,14 +6,60 @@
  * configured implementation based on `config.sesAdapter`.
  */
 import { randomUUID } from 'node:crypto';
-import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
+import { SESClient, SendEmailCommand, SendRawEmailCommand } from '@aws-sdk/client-ses';
 import { config } from '../config/env';
+
+/**
+ * Assembles the RFC 5322 message for a send that carries custom headers. SES's
+ * simple send call has no field for them, so a message needing the one-click
+ * unsubscribe pair goes out as raw MIME instead. Kept to a single plain-text
+ * part, matching the plain-text-only rule the rest of the send path follows:
+ * an interpolated member-supplied value cannot inject a header when the body is
+ * one text part and every header here is built from values the platform owns.
+ */
+function buildRawMessage(msg: SesMessage, from: string): string {
+  const headerLines = [
+    `From: ${from}`,
+    // Guarded like the subject rather than trusted. Upstream validation should
+    // already exclude a CRLF in an address, but this is the one place where a
+    // stray one stops being bad data and becomes an injected header.
+    `To: ${encodeHeaderValue(msg.to)}`,
+    `Subject: ${encodeHeaderValue(msg.subject)}`,
+    'MIME-Version: 1.0',
+    'Content-Type: text/plain; charset=UTF-8',
+    'Content-Transfer-Encoding: 8bit',
+    ...Object.entries(msg.headers ?? {}).map(([name, value]) => `${name}: ${value}`),
+  ];
+  return `${headerLines.join('\r\n')}\r\n\r\n${msg.bodyText}`;
+}
+
+/**
+ * A subject is member-visible text and may hold non-ASCII or a newline. Encoded
+ * words keep it inside one header line and make a newline in the value
+ * impossible to read as the start of another header.
+ */
+function encodeHeaderValue(value: string): string {
+  if (/^[\x20-\x7E]*$/.test(value)) return value;
+  return `=?UTF-8?B?${Buffer.from(value, 'utf8').toString('base64')}?=`;
+}
 
 export interface SesMessage {
   to: string;
   subject: string;
   bodyText: string;
   from?: string;
+  // The SES configuration set the send is attributed to. Transactional and
+  // bulk mail run as separate streams so a complaint spike on one cannot
+  // degrade the sending reputation of the other; the configuration set is
+  // where SES keeps those metrics apart. Omitted while the sets are not yet
+  // provisioned, in which case the send falls back to the account default.
+  configurationSet?: string;
+  // Headers the receiving mail client acts on rather than the reader: the
+  // one-click unsubscribe pair on bulk mail, which the client renders as its
+  // own control. A body link would train members to click links arriving in
+  // mail, which the anti-phishing policy rules out, so the affordance lives in
+  // the envelope instead. Present only on bulk sends.
+  headers?: Record<string, string>;
 }
 
 export interface SesSendResult {
@@ -47,16 +93,26 @@ export function createLiveSesAdapter(opts: {
   const defaultFrom = opts.fromIdentity;
   return {
     async sendEmail(msg) {
-      const res = await client.send(
-        new SendEmailCommand({
-          Source: msg.from ?? defaultFrom,
+      const source = msg.from ?? defaultFrom;
+      // A message carrying custom headers goes out as raw MIME, because the
+      // simple send call has nowhere to put them. Everything else keeps the
+      // simple call, which needs no message assembly of ours.
+      const res = msg.headers && Object.keys(msg.headers).length > 0
+        ? await client.send(new SendRawEmailCommand({
+          Source: source,
+          Destinations: [msg.to],
+          RawMessage: { Data: Buffer.from(buildRawMessage(msg, source), 'utf8') },
+          ConfigurationSetName: msg.configurationSet,
+        }))
+        : await client.send(new SendEmailCommand({
+          Source: source,
           Destination: { ToAddresses: [msg.to] },
           Message: {
             Subject: { Data: msg.subject, Charset: 'UTF-8' },
             Body: { Text: { Data: msg.bodyText, Charset: 'UTF-8' } },
           },
-        }),
-      );
+          ConfigurationSetName: msg.configurationSet,
+        }));
       if (!res.MessageId) {
         throw new Error('SES SendEmail returned no MessageId');
       }

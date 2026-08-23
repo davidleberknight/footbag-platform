@@ -21,7 +21,7 @@ import {
   SignCommand,
   type KMSClient,
 } from '@aws-sdk/client-kms';
-import { SendEmailCommand, type SESClient } from '@aws-sdk/client-ses';
+import { SendEmailCommand, SendRawEmailCommand, type SESClient } from '@aws-sdk/client-ses';
 import {
   createLocalJwtAdapter,
   createKmsJwtAdapter,
@@ -141,18 +141,36 @@ function makeFakeKmsClient(): KMSClient {
   return fake as unknown as KMSClient;
 }
 
-function makeFakeSesClient(): { client: SESClient; captured: SendEmailCommand[] } {
+function makeFakeSesClient(): {
+  client: SESClient;
+  captured: SendEmailCommand[];
+  capturedRaw: SendRawEmailCommand[];
+} {
   const captured: SendEmailCommand[] = [];
+  const capturedRaw: SendRawEmailCommand[] = [];
   const fake = {
     send: async (cmd: unknown): Promise<unknown> => {
       if (cmd instanceof SendEmailCommand) {
         captured.push(cmd);
         return { MessageId: `fake-${captured.length}` };
       }
+      // Bulk mail carrying unsubscribe headers goes out as raw MIME, which the
+      // adapter builds itself. A fake that refused this command left the whole
+      // wire format unexercised.
+      if (cmd instanceof SendRawEmailCommand) {
+        capturedRaw.push(cmd);
+        return { MessageId: `fake-raw-${capturedRaw.length}` };
+      }
       throw new Error('unexpected SES command');
     },
   };
-  return { client: fake as unknown as SESClient, captured };
+  return { client: fake as unknown as SESClient, captured, capturedRaw };
+}
+
+/** The raw MIME the adapter handed SES, as text. */
+function rawMessageOf(cmd: SendRawEmailCommand): string {
+  const data = cmd.input.RawMessage?.Data;
+  return Buffer.from(data as Uint8Array).toString('utf8');
 }
 
 interface CapturedFetchCall {
@@ -299,6 +317,102 @@ describe('adapter-parity: SesAdapter (Stub vs. Live interface)', () => {
       expect(typeof result.deliveredAt).toBe('string');
       expect(Number.isNaN(new Date(result.deliveredAt).getTime())).toBe(false);
     }
+  });
+
+  it('a message carrying headers goes out as raw MIME, correctly framed', async () => {
+    // Bulk mail carries the one-click unsubscribe headers, and SES will not
+    // take those through the simple send call, so the adapter builds the MIME
+    // itself. Nothing exercised that construction: joining the header lines
+    // with a bare newline, or losing the blank line before the body, left every
+    // other test green and would have broken the first real broadcast.
+    const fakeSes = makeFakeSesClient();
+    const live = createLiveSesAdapter({
+      fromIdentity: 'noreply@footbag.org',
+      sesClient: fakeSes.client,
+    });
+
+    await live.sendEmail({
+      to: 'user@example.com',
+      subject: 'Season roundup',
+      bodyText: 'Body line one.\nBody line two.',
+      headers: {
+        'List-Unsubscribe': '<https://example.test/email/unsubscribe?t=tok>',
+        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+      },
+    });
+
+    expect(fakeSes.captured).toHaveLength(0);
+    expect(fakeSes.capturedRaw).toHaveLength(1);
+    const raw = rawMessageOf(fakeSes.capturedRaw[0]!);
+
+    // Header lines are CRLF-separated, and exactly one blank line divides the
+    // headers from the body. Both are what make it a message rather than text.
+    const [headerBlock, ...bodyParts] = raw.split('\r\n\r\n');
+    expect(bodyParts.join('\r\n\r\n')).toBe('Body line one.\nBody line two.');
+    expect(headerBlock).not.toMatch(/[^\r]\n/);
+
+    const headers = headerBlock!.split('\r\n');
+    expect(headers).toContain('From: noreply@footbag.org');
+    expect(headers).toContain('To: user@example.com');
+    expect(headers).toContain('Subject: Season roundup');
+    expect(headers).toContain('MIME-Version: 1.0');
+    expect(headers).toContain('List-Unsubscribe: <https://example.test/email/unsubscribe?t=tok>');
+    expect(headers).toContain('List-Unsubscribe-Post: List-Unsubscribe=One-Click');
+  });
+
+  it('a non-ASCII subject travels as an encoded word rather than raw bytes', async () => {
+    const fakeSes = makeFakeSesClient();
+    const live = createLiveSesAdapter({
+      fromIdentity: 'noreply@footbag.org',
+      sesClient: fakeSes.client,
+    });
+
+    await live.sendEmail({
+      to: 'user@example.com',
+      subject: 'Championnat de footbag à Genève',
+      bodyText: 'Body',
+      headers: { 'List-Unsubscribe': '<https://example.test/u>' },
+    });
+
+    const raw = rawMessageOf(fakeSes.capturedRaw[0]!);
+    const subject = raw.split('\r\n').find((line) => line.startsWith('Subject: '));
+    expect(subject).toMatch(/^Subject: =\?UTF-8\?B\?[A-Za-z0-9+/=]+\?=$/);
+    // The encoding must round-trip, not merely look like an encoded word.
+    const encoded = subject!.replace(/^Subject: =\?UTF-8\?B\?/, '').replace(/\?=$/, '');
+    expect(Buffer.from(encoded, 'base64').toString('utf8')).toBe('Championnat de footbag à Genève');
+  });
+
+  it('a newline in a header value cannot open a header of its own', async () => {
+    const fakeSes = makeFakeSesClient();
+    const live = createLiveSesAdapter({
+      fromIdentity: 'noreply@footbag.org',
+      sesClient: fakeSes.client,
+    });
+
+    await live.sendEmail({
+      to: 'user@example.com',
+      subject: 'Roundup\r\nBcc: victim@example.test',
+      bodyText: 'Body',
+      headers: { 'List-Unsubscribe': '<https://example.test/u>' },
+    });
+
+    const raw = rawMessageOf(fakeSes.capturedRaw[0]!);
+    const headerBlock = raw.split('\r\n\r\n')[0]!;
+    expect(headerBlock.split('\r\n').some((line) => line.startsWith('Bcc:'))).toBe(false);
+  });
+
+  it('a message with no headers still uses the simple send call', async () => {
+    // The raw path is for what needs it; transactional mail must not silently
+    // migrate onto a different SES action.
+    const fakeSes = makeFakeSesClient();
+    const live = createLiveSesAdapter({
+      fromIdentity: 'noreply@footbag.org',
+      sesClient: fakeSes.client,
+    });
+
+    await live.sendEmail({ to: 'user@example.com', subject: 'Verify', bodyText: 'Body' });
+    expect(fakeSes.capturedRaw).toHaveLength(0);
+    expect(fakeSes.captured).toHaveLength(1);
   });
 
   it('both honor the optional per-message from override', async () => {

@@ -374,7 +374,7 @@ describe('GET /members/:memberKey/payments with recurring donations', () => {
       .get(`/members/${OTHER_SLUG}/payments`)
       .set('Cookie', cookie(OTHER));
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Recurring donations');
+    expect(res.text).toContain('Recurring Donations');
     expect(res.text).toContain('Cancel Recurring Donation');
     expect(res.text).toContain(`/recurring-donations/${stripeSubscriptionId}/cancel`);
   });

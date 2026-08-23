@@ -91,6 +91,7 @@ document follows.
     - [M_Flag_Media](#m_flag_media)
   - [3.9 Email](#39-email)
     - [M_Manage_Email_Subscriptions](#m_manage_email_subscriptions)
+    - [M_Unsubscribe_One_Click](#m_unsubscribe_one_click)
     - [M_Send_Announce_Email](#m_send_announce_email)
   - [3.10 Group Membership](#310-group-membership)
     - [M_Browse_Groups_Directory](#m_browse_groups_directory)
@@ -98,9 +99,6 @@ document follows.
     - [M_Join_Group](#m_join_group)
     - [M_Leave_Group](#m_leave_group)
     - [M_Email_Group](#m_email_group)
-    - [M_Upload_Group_File](#m_upload_group_file)
-    - [M_View_Group_Files](#m_view_group_files)
-    - [M_Delete_Own_Group_File](#m_delete_own_group_file)
 - [4. Event Organizer Stories](#4-event-organizer-stories)
   - [4.1 Event Lifecycle](#41-event-lifecycle)
     - [Event Status Lifecycle](#event-status-lifecycle)
@@ -148,8 +146,6 @@ document follows.
     - [GO_Manage_Members](#go_manage_members)
     - [GO_Manage_CoOwners](#go_manage_coowners)
     - [GO_Configure_Email_Settings](#go_configure_email_settings)
-    - [GO_Moderate_Email_Queue](#go_moderate_email_queue)
-    - [GO_Delete_Any_Group_File](#go_delete_any_group_file)
     - [GO_Leave_Group](#go_leave_group)
 - [7. Administrator Stories](#7-administrator-stories)
   - [7.1 Event and Payments](#71-event-and-payments)
@@ -255,7 +251,7 @@ Imported legacy member accounts are stored as rows in the `legacy_members` table
 
 Moderation flows favor transparency and human oversight: when members flag content, flagged items remain visible until an administrator reviews and decides; no content is hidden or de-ranked automatically by secret algorithms.
 
-File upload safety model: the platform does not run an antivirus scanner on member-uploaded files. All accepted file formats are sanitized by construction: the upload is decoded, re-rendered, or re-encoded through a format-specific transformation tool, and only the transformed output is stored; the original upload is discarded. This malware-by-design approach eliminates non-payload bytes (metadata trailers, embedded scripts, polyglot tricks) at the cost of strict format whitelisting and accepted fidelity loss. Each upload story (`M_Upload_Photo`, `M_Submit_Video`, `M_Upload_Routine_Music`, `M_Upload_Group_File`) lists its own format whitelist and per-format sanitization pipeline.
+File upload safety model: the platform does not run an antivirus scanner on member-uploaded files. All accepted file formats are sanitized by construction: the upload is decoded, re-rendered, or re-encoded through a format-specific transformation tool, and only the transformed output is stored; the original upload is discarded. This malware-by-design approach eliminates non-payload bytes (metadata trailers, embedded scripts, polyglot tricks) at the cost of strict format whitelisting and accepted fidelity loss. Each upload story (`M_Upload_Photo`, `M_Submit_Video`, `M_Upload_Routine_Music`) lists its own format whitelist and per-format sanitization pipeline.
 
 Unless explicitly stated otherwise, all numeric limits (counts, sizes), time windows (expiry/grace periods), reminder offsets, and security thresholds described in this document are defaults and are Administrator-configurable.
 
@@ -378,7 +374,7 @@ Success Criteria:
 - The current footbagworldwide.com implementation is the basis of the new and improved footbag.org; domain and URL details for the final layout are deferred to the detailed design document.
 - Visitors can follow standard navigation (home, clubs, events, media) without leaving the modernized site. If they click “Legacy Archive,” they are redirected to register/log in; only members can proceed to archive.footbag.org.
 - The top-level sport sections are public pages readable without logging in, rendering identically for every viewer: the Net section (`/net`, `/net/events`, `/net/teams`, `/net/teams/:teamId`), the Sideline landing page (`/sideline`), the cross-sport Records page (`/records`), the Hall of Fame landing page (`/hof`), and the Big Add Posse landing page (`/bap`). Their content is pipeline-authoritative and read-only on the running site.
-- The Net section presents footbag net: the `/net` home page carries the introduction, competition formats, a demonstration video, and notable-team and notable-player highlights; `/net/teams` lists teams with division and player-search filters, linking each team to `/net/teams/:teamId` (players, summary statistics, competition history by year); `/net/events` lists net events. Only canonical competition evidence reaches these public statistics, and a player name links to the member's profile when the person has a claimed account, otherwise to their historical-person page.
+- The Net section presents footbag net: the `/net` home page carries the introduction, competition formats, a demonstration video, and notable-team and notable-player highlights; `/net/teams` lists teams with discipline and player-search filters, linking each team to `/net/teams/:teamId` (players, summary statistics, competition history by year); `/net/events` lists net events. Only canonical competition evidence reaches these public statistics, and a player name links to the member's profile when the person has a claimed account, otherwise to their historical-person page.
 - `/sideline` is an editorial landing page presenting the sideline games (circle kicking, 2-square, 4-square, consecutive kicks, footbag golf) with demonstration clips and internal links to the matching rules pages and to `/records`; the page renders zero offsite links.
 - `/records` presents the official cross-sport records: consecutive-kicks current world records, highest official scores, record progression, and milestone firsts, plus the freestyle passback records. A passback record's trick name links to the canonical trick page only when the recorded name resolves to a canonical trick directly or through an alias; an unresolvable name renders as plain text, never a broken link. Record holders link per the standard person-link rule.
 - `/hof` and `/bap` are editorial landing pages telling each honor's history and linking to its authoritative external home; in-site inductee rosters and per-person honor pages are out of scope by design, and honor badges on member and historical-person surfaces are governed by the Hall of Fame and Big Add Posse global behavior.
@@ -1118,7 +1114,7 @@ Success Criteria:
 - The action block and the banner carry only non-private content: a headline, an optional detail line, and the options. Private content, including an administrator's message body, is read on the owner-only surface the item links to.
 - Ordering is needs-attention-now before pending, then soonest deadline first, then a stable order among items with no deadline.
 - Every item resolves in exactly one of three ways, and its options follow from which one it is.
-- **Resolved by acting.** One option, and the item clears when the underlying record changes, with no separate dismissal step: an unanswered administrator message, "Answer" (`A_Message_Member`); a completed event the member organizes with no results uploaded, "Upload results" (`EO_Upload_Results`); routine music missing on a registration before its upload deadline, "Upload music" (`M_Upload_Routine_Music`); a failed membership purchase, "Try again" (`M_Purchase_Tier_1`, `M_Purchase_Tier_2`); an approved Hall of Fame nomination with no affidavit while the nomination window is open, "Submit affidavit" (`M_Submit_HoF_Affidavit`); messages waiting in a group's moderation queue, "Review queue" (`GO_Moderate_Email_Queue`); pending group membership requests, "Review requests" (`GO_Manage_Members`).
+- **Resolved by acting.** One option, and the item clears when the underlying record changes, with no separate dismissal step: an unanswered administrator message, "Answer" (`A_Message_Member`); a completed event the member organizes with no results uploaded, "Upload results" (`EO_Upload_Results`); routine music missing on a registration before its upload deadline, "Upload music" (`M_Upload_Routine_Music`); a failed membership purchase, "Try again" (`M_Purchase_Tier_1`, `M_Purchase_Tier_2`); an approved Hall of Fame nomination with no affidavit while the nomination window is open, "Submit affidavit" (`M_Submit_HoF_Affidavit`); pending group membership requests, "Review requests" (`GO_Manage_Members`).
 - **Resolved by acting or by declining.** Two options, because a decline is a legitimate final answer, and the decline is recorded so the item does not return: staged identity-claim candidates, "Confirm" or "Decline" (`M_Claim_Legacy_Account`).
 - **Resolved by acting, or by time.** Active Player status approaching or past expiry appears from the first reminder offset through 30 days past the expiry date, pending while the status still stands and needs-attention-now once it has lapsed (`M_Active_Player_Expiry`). It offers the two routes back the member can take for themselves: an upgrade naming both paid tiers, which removes the dependence on the status altogether and points at the membership block that sells them, and the events list, since attendance earns the status again. A vouch is the third route the rules allow and is stated on the item's detail line rather than offered as a control, because a Tier 2 or Tier 3 member gives a vouch and it is not this member's action to take. The one-time club-join grant is not offered, because it reaches only a member who has never previously been an Active Player and every member this item can appear for already has been. A recurring donation whose charge failed stays pending, offers "View your recurring donation" on the payment-history page, and clears when Stripe collects or cancels, since retries run on Stripe's dunning schedule (`M_Donate`).
 - An open vote the member is eligible for and has not cast appears as a pending item with a "Vote" option (`M_Vote`). It never escalates to needs-attention-now and carries no decline option, so the platform creates no record of a member's abstention; it clears when the member votes or the vote closes.
@@ -1646,6 +1642,27 @@ Success Criteria:
 - Unsubscribe is persistent: once unsubscribed from a category, the member does not receive emails in that category until they explicitly opt back in.
 - Subscription changes logged to audit trail.
 
+### M_Unsubscribe_One_Click
+
+Access: The recipient of a bulk email, acting from their mail client without signing in. The signed token in the request is the whole of the authority; no session is involved and none is created.
+
+Story: As a member who has received a bulk email, I can unsubscribe from that mailing list using my mail client's own unsubscribe control, so that I can stop mail I no longer want without hunting for the setting or signing in.
+
+Success Criteria:
+
+- Every bulk send to a subscription-backed mailing list that members may manage carries `List-Unsubscribe` and `List-Unsubscribe-Post` headers, which the recipient's mail client renders as its own unsubscribe control. This is what major receivers expect of a bulk sender, and its absence costs deliverability.
+- The control resolves to a platform endpoint that accepts the mail client's POST without a session and without an `Origin` header, and answers success. The mail client shows its own confirmation, so no page is rendered.
+- The URL carries a signed token naming exactly one member and one mailing list. Acting on it withdraws that member's subscription to that list and nothing else: no other list of theirs, and no other member's subscription to the same list.
+- The token proves only that request. It cannot sign the holder in, read anything, or be edited to name a different member or list; an edited, foreign, or unreadable token changes nothing.
+- Every outcome answers alike, whether the token is valid, tampered with, or absent, so the endpoint cannot be used to discover whether an address, a member, or a subscription exists.
+- Acting twice is the same as acting once, because mail clients fire the control more than once.
+- A subscription an administrator suppressed, or that the mail provider marked bounced or complained, keeps that state: the control withdraws a member's own consent and does not overwrite an operational decision.
+- The token carries no expiry, because the control must keep working for as long as the message survives in the member's mailbox. Rotating the platform's signing secret invalidates outstanding controls; the member can still manage subscriptions through `M_Manage_Email_Subscriptions`, which is the affordance every message names.
+- A successful withdrawal writes an audit row naming the member and the list. A repeat that changes nothing writes none.
+- Transactional email carries no unsubscribe control: it answers an action the member took, and offering to switch it off would let a member turn off their own security mail.
+- A list members are not allowed to manage carries no unsubscribe control. The operational alert lists are the case: the platform offers administrators no way to leave them, so a mail-client button that removed one from urgent alerts would grant through the envelope a capability the interface withholds.
+- Group email and event-participant email carry no unsubscribe control either. In both, membership of the group or registration for the event is what makes the member a recipient, so there is no mailing preference to withdraw. Each message instead tells the reader in its own text how to act on the site: leave the group from the group's page, or manage the registration from the event's page.
+
 ### M_Send_Announce_Email
 Access: Tier 2 or Tier 3 members.
 
@@ -1659,24 +1676,15 @@ Success Criteria:
 
 ## 3.10 Group Membership
 
-The group stories in this document are an unratified draft. They were written
-speculatively, ahead of any requirements gathering, and their specifics - group
-properties, membership and ownership limits, file handling, email behavior, and what
-each role sees - carry no authority and should be read as suspect. One example of why:
-they give every email-enabled group a posting address at a mail subdomain, which the
-settled email architecture rules out, since the platform accepts no inbound mail of any
-kind. IFPA's review of what its groups and committees actually need is what settles this
-subsystem. These stories, the group-owner and admin group-management stories, and the
-group auto-sync behavior in the mailing-list stories are inputs to that review, to be
-replaced by its outcome rather than defended.
+Groups (also called committees) are governance, working-group, or social entities distinct from clubs. A member may belong to many groups simultaneously; clubs are capped at two current memberships per member (primary and secondary). Group entities have configurable properties controlled by Admins: type, official flag, visibility (`policy`), `restrict_membership`, email enable, `active` flag, and optional `parent_group_id` for subcommittees.
 
-Groups (also called committees) are governance, working-group, or social entities distinct from clubs. A member may belong to many groups simultaneously; clubs are capped at two current memberships per member (primary and secondary). Group entities have configurable properties controlled by Admins: type, official flag, visibility (`policy`), `restrict_membership`, email enable, `active` flag, alias keyword, and optional `parent_group_id` for subcommittees.
+The IFPA Board is the first group the platform carries. Administrators stand up every further group through `A_Create_Group`, so which groups exist is data an administrator enters rather than a property of the design.
+
+Group email is outbound only, and a group carries no address of its own: the platform accepts no inbound mail, so a member composes on the group page and the platform distributes the message. Every outbound message rides a mailing list, so group mail reaches its recipients through the same send path, archive, and deliverability handling as every other list. A group's list resolves its recipients from the group's current roster when the send fans out; groups have members, and the roster is the single record of who those members are. Subscription rows for a group's list carry deliverability state (bounced, complained, suppressed), and a member who wants no further mail from a group leaves the group.
 
 Group operability rule: A group is considered non-operable if it has zero current owners. Non-operable groups are flagged into the admin work queue for remediation. Admin remediation options include assigning a new owner via `A_Reassign_Group_Owner` or archiving the group via `A_Archive_Group` if defunct.
 
 ### M_Browse_Groups_Directory
-
-<< PROVISIONAL USER STORY - AWAITING FINAL REQUIREMENTS >>
 
 Access: Logged-in members can browse the directory of public groups. Visitors have no access.
 
@@ -1693,25 +1701,21 @@ Success Criteria:
 
 ### M_View_Group
 
-<< PROVISIONAL USER STORY - AWAITING FINAL REQUIREMENTS >>
-
 Access: All logged-in members can view a public group's page at a non-member view level. Only current group members and Admins can view a private group's page or see the member-only surfaces of a public group.
 
 Story: As a member, I can view a group's page so that I understand the group's purpose, leadership, membership, and active business.
 
 Success Criteria:
 
-- Public group, non-member viewer: page displays group name, type, official badge if applicable, description, current owner display name(s) and contact, parent group link if applicable, list of subcommittees (groups with `parent_group_id` pointing to this group) if any, and aggregate member count. Roster, files, email composition, and ballot capabilities are not exposed.
+- Public group, non-member viewer: page displays group name, type, official badge if applicable, description, current owner display name(s) and contact, parent group link if applicable, list of subcommittees (groups with `parent_group_id` pointing to this group) if any, and aggregate member count. The roster, email composition, and ballot capabilities are reserved for current members.
 - Private group, non-member viewer: returns `V_Access_Denied`. Private groups never appear in any directory.
-- Public or private group, current member viewer: page additionally displays full member roster (display name, current Active Player badge where applicable, special flags HoF/BAP/Board, city/country; email shown only if member has opted in to email visibility); link to `M_View_Group_Files`; link to `M_Email_Group` if email is enabled and the member is permitted to compose; group-scoped active or upcoming votes per `M_View_Vote_Options` eligibility.
-- Group owner viewing their own group: page additionally surfaces owner management actions (`GO_Edit_Group`, `GO_Manage_Members`, `GO_Manage_CoOwners`, `GO_Configure_Email_Settings`, `GO_Moderate_Email_Queue` count badge if any pending, `GO_Delete_Any_Group_File`).
+- Public or private group, current member viewer: page additionally displays full member roster (display name, current Active Player badge where applicable, special flags HoF/BAP/Board, city/country; email shown only if member has opted in to email visibility); link to `M_Email_Group` if email is enabled and the member is permitted to compose; group-scoped active or upcoming votes per `M_View_Vote_Options` eligibility.
+- Group owner viewing their own group: page additionally surfaces owner management actions (`GO_Edit_Group`, `GO_Manage_Members`, `GO_Manage_CoOwners`, `GO_Configure_Email_Settings`).
 - Admin viewing any group: page additionally surfaces admin management actions (`A_Edit_Group_Properties`, `A_Reassign_Group_Owner`, `A_Archive_Group`).
 - The `active` flag, when false, displays a clear "This group is inactive" notice; inactive groups retain member access but are hidden from the public directory.
 - Member roster sorted alphabetically by display name.
 
 ### M_Join_Group
-
-<< PROVISIONAL USER STORY - AWAITING FINAL REQUIREMENTS >>
 
 Access: Tier 1+ members can self-join groups where `restrict_membership=false` AND `active=true`.
 
@@ -1722,14 +1726,12 @@ Success Criteria:
 - Join action is available only on groups where `restrict_membership=false` AND `active=true`.
 - On groups where `restrict_membership=true`, the group page shows an explanation that membership is managed by the group's owners or by Admins, and points the member to `M_Contact_IFPA_Admin` for inquiries.
 - Joining creates a `group_member_affiliations` row with `is_current=1`, `role='member'`, and timestamp.
-- If the group has an enabled `MailingList`, joining inserts a `MailingListSubscription` row in the auto-sync subtype for that list. The member cannot manually unsubscribe; unsubscription requires leaving the group via `M_Leave_Group`.
+- If the group has an enabled `MailingList`, the member is a recipient of that list from the moment they join, because the list resolves its recipients from the current roster. The member's own subscription controls do not offer the list; leaving the group via `M_Leave_Group` is how a member stops receiving it.
 - Joining sends a confirmation email to the joining member and a notification email to all current group owners.
 - Members may belong to an unlimited number of groups simultaneously. There is no per-member cap on group affiliations, unlike clubs.
 - Joining is audit-logged with member ID, group ID, timestamp, reason `member_self_join_group`.
 
 ### M_Leave_Group
-
-<< PROVISIONAL USER STORY - AWAITING FINAL REQUIREMENTS >>
 
 Access: Any current group member can leave a group they currently belong to.
 
@@ -1740,86 +1742,30 @@ Success Criteria:
 - Leaving sets the member's `group_member_affiliations.is_current=0` for the member-group pair.
 - A member who is the sole owner of the group cannot leave directly; the UI surfaces the constraint and routes the member to `GO_Manage_CoOwners` to promote a successor first.
 - Leaving a group where the member also held an owner or co-owner role removes that role row in the same transaction.
-- If the group has an enabled `MailingList`, leaving removes the member's auto-sync `MailingListSubscription` row.
+- If the group has an enabled `MailingList`, the member stops being a recipient of that list on the same transaction that ends their affiliation, because the list resolves its recipients from the current roster.
 - Leaving sends a confirmation email to the leaving member and a notification email to all current group owners.
 - After leaving, the system re-evaluates group operability. If the group has zero owners after the leave, the system creates or updates a "Group Needs Owner" admin work queue item.
 - Leaving is audit-logged with actor identity, group ID, before and after affiliation state, timestamp.
 
 ### M_Email_Group
 
-<< PROVISIONAL USER STORY - AWAITING FINAL REQUIREMENTS >>
+Access: Tier 1+ members can send a message to a group's members via web form, subject to the group's `restricted_sending` flag.
 
-Access: Tier 1+ members can send a message to a group's email alias via web form, subject to the group's `restricted_sending` flag.
-
-Story: As a member, I can send an email to a group's alias so that I can communicate with the group's membership.
+Story: As a member, I can send an email to a group so that I can communicate with the group's membership.
 
 Success Criteria:
 
 - The compose form is available only for groups with email enabled by Admin (`email_enabled=true`).
-- If `restricted_sending=true` (default for group lists), the compose form is shown only to current group members; non-members may see the alias address as informational on the group page but cannot compose.
+- If `restricted_sending=true` (default for group lists), the compose form is shown only to current group members; a non-member sees that the group can be written to by its members and cannot compose.
 - If `restricted_sending=false`, the compose form is available to all Tier 1+ members.
 - Form includes: subject, message body, preview. Body is plain text (no HTML), consistent with `A_Send_Mailing_List_Email`.
-- If `moderated=true`, on submit the message enters a pending queue visible to group owners via `GO_Moderate_Email_Queue`. The sender sees a "Pending owner approval" confirmation. The message is dispatched only after owner approval; if rejected, the sender is notified by email with the owner's optional reason.
-- If `moderated=false`, the message is dispatched immediately via the outbox to all current group members (the auto-sync `MailingListSubscription` rows for the group's `MailingList`).
+- On submit the message is dispatched through the outbox to the group's `MailingList`, whose recipients are the group's current members at the moment the send fans out.
 - Outgoing subject is prefixed by `subject_prefix` if configured, in the form `[prefix] subject`.
 - Sender rate-limited per group, admin-configurable (`group_email_rate_limit_per_hour`, default 5 messages per group per member per hour).
 - Each dispatched message is archived per the existing `A_Send_Mailing_List_Email` archive rule (subject, body, sender, list, timestamp, recipient count) and browseable by group owners and Admins.
-- Bounce list, SES headers, and unsubscribe-link rules apply per existing mailing-list infrastructure. Auto-sync lists do not surface a per-member unsubscribe link; the link instead points to the group's page with a leave-group action.
-- All sends and moderation decisions are audit-logged with actor ID, group ID, message ID, action, timestamp.
-
-### M_Upload_Group_File
-
-<< PROVISIONAL USER STORY - AWAITING FINAL REQUIREMENTS >>
-
-Access: Any current member of the group can upload files to that group.
-
-Story: As a group member, I can upload a file to my group so that I share documents with the group's members.
-
-Success Criteria:
-
-- Upload form is available only to current group members on the group page.
-- Accepted formats at launch: PDF, TXT, MD, PNG, JPEG. Office formats (DOCX, XLSX, PPTX) and other unlisted formats are rejected with a clear error message. Members convert Word and Excel documents to PDF before upload. Office formats are excluded because no free-tool transcoding pipeline preserves their editability while sanitizing macros; the platform keeps its malware-by-design posture by accepting only formats it can sanitize by construction.
-- Sanitization (per §1 file upload safety model):
-  - PDF: re-rendered through Ghostscript two-pass (PDF → PostScript 2 → PDF). PostScript 2 cannot carry JavaScript, embedded files, or launch actions, so the round-trip eliminates them by construction. Re-rendered PDF stored; original discarded.
-  - PNG / JPEG: re-encoded via the `sharp` library, which strips EXIF and embedded metadata by default. Re-encoded image stored; original discarded.
-  - TXT / MD: validated as UTF-8; invalid charset rejected. Stored as-validated.
-- File size cap: 25 MB per file (admin-configurable, `group_file_max_size_mb`), measured against the original upload before sanitization. Oversized files are rejected with a clear error message.
-- File is stored in private object storage (S3) and served via short-lived signed URLs only to current group members. The file is not addressable by visitors or by logged-in members who are not current members of the group.
-- Each upload creates a `group_files` row recording: group ID, uploader member ID, original filename, content type, size (post-sanitization), storage key, upload timestamp, optional caption (plain text, max 500 chars).
-- Member sees the uploaded file in the group's files list immediately after successful sanitization.
-- Upload rate-limited per group, admin-configurable (`group_file_upload_rate_limit_per_hour`, default 10 uploads per group per member per hour).
-- Upload action is audit-logged with member ID, group ID, file ID, filename, size, sanitization outcome, timestamp.
-
-### M_View_Group_Files
-
-<< PROVISIONAL USER STORY - AWAITING FINAL REQUIREMENTS >>
-
-Access: Only current members of the group can view its files.
-
-Story: As a group member, I can view and download files attached to the group so that I can access shared documents.
-
-Success Criteria:
-
-- Files list shows all current files for the group, with: filename, uploader display name, upload date, file size, optional caption.
-- List sortable by upload date (newest first by default), filename, or uploader.
-- Each row provides a download action that issues a short-lived signed URL.
-- Visitors and logged-in non-members of the group cannot access the files list or any individual file URL. Direct URL access by a non-member returns `V_Access_Denied`.
-- Files are not inherited to or from subcommittees. Each group's files are scoped to that group alone.
-
-### M_Delete_Own_Group_File
-
-<< PROVISIONAL USER STORY - AWAITING FINAL REQUIREMENTS >>
-
-Access: A group member can delete a file they originally uploaded to the group.
-
-Story: As a group member, I can delete a file I uploaded so that I control my own contributions.
-
-Success Criteria:
-
-- Delete action is available only on files where the uploader matches the current member.
-- Deletion permanently removes the file from object storage and the `group_files` row.
-- Group owners and Admins can delete any file via `GO_Delete_Any_Group_File`.
-- Deletion is audit-logged with actor member ID, group ID, file ID, original filename, timestamp.
+- The send honors the bounce and complaint suppression every list send honors, and carries no unsubscribe control. Membership of the group is what makes a member a recipient, so an unsubscribe would either leave them on the roster still receiving, or remove them from a committee, which is a governance act rather than something a mail client's button performs.
+- Every group message ends with a standing line telling the reader they receive it as a member of the group and how to leave it on the site, naming the group's page and its leave action. That line is part of the message template rather than something a sender types, so it is on every group message and worded the same way each time. It is instructional text, not a link, per the anti-phishing link policy.
+- Every send is audit-logged with actor ID, group ID, message ID, action, timestamp.
 
 # 4. Event Organizer Stories
 
@@ -2062,7 +2008,7 @@ Success Criteria:
 
 - Email form includes: subject, message body, preview.
 - Email sent to all confirmed participants (not pending or canceled).
-- Emails sent via SES with proper headers and unsubscribe links.
+- Sent through the outbox to the event's confirmed participants, honoring the bounce and complaint suppression every send honors. The send carries no unsubscribe control: a participant is a recipient by having entered this event, so the thing to withdraw from is the registration, not a mailing preference, and an unsubscribe header here would offer something it cannot do.
 - Send rate limited to prevent abuse: maximum 1 email per event per day.
 - All bulk emails audit-logged with organizer ID, event ID, recipient count, subject, timestamp.
 - Organizer sees confirmation: "Email sent to X participants."
@@ -2443,15 +2389,13 @@ Success Criteria:
 
 # 6. Group Owner Stories
 
-Group Owners are members designated by an Admin at group creation time. Owners can invite up to 4 co-owners who share identical group management permissions. Owner permissions are group-scoped: owning one group grants permissions only for that group. Members may own multiple groups simultaneously.
+Group Owners are members designated by an Admin at group creation time. Owners can invite co-owners who share identical group management permissions. Owner permissions are group-scoped: owning one group grants permissions only for that group. Members may own multiple groups simultaneously.
 
 The group lifecycle (create, archive) is Admin-controlled and lives in `A_Create_Group` and `A_Archive_Group`. Owners do not create or archive groups. Owners can leave the group they own via `GO_Leave_Group` subject to the sole-owner promotion-first rule.
 
 ## 6.1 Group Management
 
 ### GO_Edit_Group
-
-<< PROVISIONAL USER STORY - AWAITING FINAL REQUIREMENTS >>
 
 Access: Group owners (including co-owners) and Admins can edit the owner-managed group fields.
 
@@ -2460,14 +2404,12 @@ Story: As a group owner, I can edit my group's description and member-facing not
 Success Criteria:
 
 - Owner can edit: description (long-form text) and short member-facing notes (e.g., next meeting time, agenda link).
-- Owner cannot edit: name, type, official, policy (public/private), restrict_membership, email_enabled, active, alias_keyword, parent_group_id. Those properties are Admin-only via `A_Edit_Group_Properties`.
+- Owner cannot edit: name, type, official, policy (public/private), restrict_membership, email_enabled, active, parent_group_id. Those properties are Admin-only via `A_Edit_Group_Properties`.
 - Co-owners can edit all owner-editable fields.
 - All edits are audit-logged with actor identity, fields changed, old values, new values, timestamp.
 - Owner sees a clear success message on save and clear validation errors otherwise.
 
 ### GO_Manage_Members
-
-<< PROVISIONAL USER STORY - AWAITING FINAL REQUIREMENTS >>
 
 Access: Group owners (including co-owners) and Admins can add or remove members of the group.
 
@@ -2478,7 +2420,7 @@ Success Criteria:
 - Owner can add any Tier 1+ member to the group by member ID or via member search.
 - Owner can remove any current member from the group, subject to the sole-owner protection (an owner cannot remove the only owner; a successor must be promoted first via `GO_Manage_CoOwners`).
 - Add and remove behavior applies regardless of the group's `restrict_membership` flag; the flag controls only self-join, not owner-driven adds.
-- If the group has an enabled `MailingList`, add/remove operations insert or remove the corresponding auto-sync `MailingListSubscription` row in the same transaction.
+- If the group has an enabled `MailingList`, an added member is a recipient of it and a removed member is not, from the moment the roster change commits, because the list resolves its recipients from the current roster.
 - Adding a member sends a notification email to the added member and to all current owners.
 - Removing a member sends a notification email to the removed member and to all current owners.
 - All add and remove actions are audit-logged with actor identity, group ID, target member ID, action, timestamp.
@@ -2486,15 +2428,13 @@ Success Criteria:
 
 ### GO_Manage_CoOwners
 
-<< PROVISIONAL USER STORY - AWAITING FINAL REQUIREMENTS >>
-
 Access: Any owner of a group can manage co-owners for that group.
 
 Story: As a group owner, I can add, view, and remove co-owners so that I share group management responsibility. A group owner cannot remove themself if the only owner; they must first promote someone else.
 
 Success Criteria:
 
-- Any owner can add up to 4 co-owners by member ID; co-owners must be Tier 1+ members (consistent with the Tier 1+ floor enforced for initial owners in `A_Create_Group` and for added members in `GO_Manage_Members`). Maximum 5 total owners per group.
+- Any owner can add co-owners by member ID; co-owners must be Tier 1+ members (consistent with the Tier 1+ floor enforced for initial owners in `A_Create_Group` and for added members in `GO_Manage_Members`). A group carries as many owners as its work needs.
 - System sends an email to a new co-owner with: group name, owner responsibilities.
 - Co-owner gains identical group management permissions as the original owner.
 - Owners can view the list of all current co-owners; list shows display name, date added.
@@ -2505,55 +2445,19 @@ Success Criteria:
 
 ### GO_Configure_Email_Settings
 
-<< PROVISIONAL USER STORY - AWAITING FINAL REQUIREMENTS >>
-
 Access: Group owners (including co-owners) and Admins can configure the group's mailing-list behavior, when email is enabled by Admin.
 
-Story: As a group owner, I can configure the email-handling behavior for my group's alias so that group communications match the group's working style.
+Story: As a group owner, I can configure how my group's mail behaves so that group communications match the group's working style.
 
 Success Criteria:
 
 - Configuration view is available only when the group has email enabled by Admin (`email_enabled=true`).
-- Owner can toggle `moderated` (bool, default false). When true, outgoing messages from `M_Email_Group` enter a pending queue for owner approval via `GO_Moderate_Email_Queue`.
-- Owner can toggle `restricted_sending` (bool, default true for group lists). When true, only current group members can compose messages to the alias via `M_Email_Group`. When false, any Tier 1+ member may compose.
+- Owner can toggle `restricted_sending` (bool, default true for group lists). When true, only current group members can compose messages to the group via `M_Email_Group`. When false, any Tier 1+ member may compose.
 - Owner can set `subject_prefix` (string, max 32 chars, may be empty). When non-empty, prepended to outgoing subjects in the form `[prefix] subject`.
-- Owner cannot enable or disable the alias itself, nor change the alias keyword. Those are Admin-only via `A_Edit_Group_Properties`.
+- Owner cannot enable or disable the group's mail. That is Admin-only via `A_Edit_Group_Properties`.
 - All configuration changes are audit-logged with actor identity, group ID, field changed, old value, new value, timestamp.
 
-### GO_Moderate_Email_Queue
-
-<< PROVISIONAL USER STORY - AWAITING FINAL REQUIREMENTS >>
-
-Access: Group owners (including co-owners) and Admins can review the moderated message queue for the group when `moderated=true`.
-
-Story: As a group owner, I can review pending moderated messages to my group's alias so that I approve appropriate communications and reject inappropriate ones.
-
-Success Criteria:
-
-- Queue is visible only when the group's `moderated=true`.
-- Each pending entry shows: sender display name, subject, full message body, submission timestamp.
-- Approve dispatches the message via the outbox to all current group members and creates the standard archive record per `A_Send_Mailing_List_Email`.
-- Reject does not dispatch the message; the sender is notified by email with the owner's optional reason text.
-- Approve and reject actions are audit-logged with actor identity, message ID, decision, optional reason, timestamp.
-- Pending messages older than an admin-configurable threshold (`group_email_moderation_expiry_days`, default 30 days) are auto-rejected with a system reason and the sender is notified.
-
-### GO_Delete_Any_Group_File
-
-<< PROVISIONAL USER STORY - AWAITING FINAL REQUIREMENTS >>
-
-Access: Group owners (including co-owners) and Admins can delete any file in the group.
-
-Story: As a group owner, I can delete any file in my group so that I can remove inappropriate or obsolete documents.
-
-Success Criteria:
-
-- Owner-initiated deletion permanently removes the file from object storage and the `group_files` row.
-- Deletion sends an email notification to the original uploader (if the uploader was not the deleting owner) with the filename, owner identity, and optional owner-provided reason.
-- Deletion is audit-logged with actor member ID, group ID, file ID, original filename, original uploader member ID, timestamp, reason.
-
 ### GO_Leave_Group
-
-<< PROVISIONAL USER STORY - AWAITING FINAL REQUIREMENTS >>
 
 Access: A group owner can leave the group they own, subject to the sole-owner promotion-first rule.
 
@@ -3276,33 +3180,27 @@ Success Criteria:
 
 ### A_Send_Mailing_List_Email
 
-<< PROVISIONAL USER STORY - AWAITING FINAL REQUIREMENTS >> applies to the group
-auto-sync behavior in this story only; the rest of the story stands.
-
-Access: Only Admins can send email to general mailing lists from the platform. Event Organizer email is scoped to an organizer's own event participants and is handled via `EO_Email_Participants`, not via this story. Exception: the IFPA announce list (announce@footbag.org) may be sent to by any Tier 2 or Tier 3 member, as defined in M_Send_Announce_Email. Group-scoped alias sending is handled via `M_Email_Group`, not via this story; admins retain the ability to send to a group's associated auto-sync `MailingList` via this story for exceptional platform-level notifications.
+Access: Only Admins can send email to general mailing lists from the platform. Event Organizer email is scoped to an organizer's own event participants and is handled via `EO_Email_Participants`, not via this story. Exception: the IFPA announce list (announce@footbag.org) may be sent to by any Tier 2 or Tier 3 member, as defined in M_Send_Announce_Email. Member sending to a group is handled via `M_Email_Group`, not via this story; admins retain the ability to send to a group's associated `MailingList` via this story for exceptional platform-level notifications.
 
 Story: As an admin, I can send announcements to a platform-configured mailing list so that I communicate with the community.
 
 Success Criteria:
 
-- Admin composes email and selects target list (newsletter, announcements, board-updates, and group auto-sync lists in exceptional cases).
+- Admin composes email and selects target list (newsletter, announcements, board-updates, and group-backed lists in exceptional cases).
 - Organization-wide announce list is retained; only Admins may send to general mailing lists through this story. Exception: the IFPA announce list (announce@footbag.org) may be sent to by any Tier 2 or Tier 3 member via M_Send_Announce_Email; the Admin-only rule applies to all other mailing lists managed through this story.
-- Group-scoped alias sending is the responsibility of `M_Email_Group`, including the `restricted_sending`, `moderated`, and `subject_prefix` behaviors. Admin sends via this story to a group's auto-sync `MailingList` bypass owner moderation and `restricted_sending` and are intended for critical platform notifications that must reach the group regardless of owner moderation state. Such admin overrides are audit-logged with admin ID, group ID, list ID, subject, recipient count, and timestamp.
+- Member sending to a group is the responsibility of `M_Email_Group`, including the `restricted_sending` and `subject_prefix` behaviors. An admin send via this story to a group-backed `MailingList` bypasses `restricted_sending` and is intended for critical platform notifications that must reach the group. Such admin sends are audit-logged with admin ID, group ID, list ID, subject, recipient count, and timestamp.
 - System enumerates recipients from MailingListSubscription records for the chosen MailingList, applying subscription status.
 - Sends to all subscribed members via outbox pattern.
 - Email delivery respects bounce list.
 - All sends logged to audit trail.
-- All bulk emails include unsubscribe or preferences links. For auto-sync lists, the unsubscribe link routes to the group's page with a leave-group action rather than to a per-list unsubscribe page.
+- Every bulk email to a subscription-backed list carries the one-click unsubscribe headers, per `M_Unsubscribe_One_Click`. A group-backed list carries none: membership of the group is what puts the member on it, so the message tells the reader how to leave the group on the site instead.
 - Delivery status visible: senders see sent, bounced, and suppressed counts.
 - Each mailing list has a configurable outbound alias/from-identity (e.g., directors@…, sanctioning@…). This can be set to no-reply, a special case.
 - Each sent mailing list email is archived (subject/body/sender/list/timestamp/recipient count) and browseable by admins.
 - Email body is plain text (no HTML).
-- No approval workflow is required; controls are permissions, audit logging, unsubscribe links, and rate limits where applicable.
+- No approval workflow is required; controls are permissions, audit logging, the one-click unsubscribe headers, and rate limits where applicable.
 
 ### A_Manage_Mailing_Lists
-
-<< PROVISIONAL USER STORY - AWAITING FINAL REQUIREMENTS >> applies to the group
-auto-sync behavior in this story only; the rest of the story stands.
 
 Access: Only admins can view and manage mailing lists. The only exception is EO_Email_Participants.
 
@@ -3316,10 +3214,10 @@ Success Criteria:
 - Admins can change a MailingList’s status to archived so that it no longer appears in member subscription controls or new email send flows, while all historical mailing data and subscriptions remain preserved for audit and reporting.
 - For member-manageable lists, subscription/unsubscription is primarily controlled by the member from their profile page; admins can only make limited manual adjustments in exceptional cases (for example to handle bounced or complaint states), and all such manual changes are audit-logged with admin identity, timestamp, and reason.
 - For admin-only lists (for example admin-alerts), subscriptions are controlled by admin configuration or system roles rather than member toggles, and the rules for who is subscribed are clearly documented in the list metadata.
-- `MailingList` records support three admin-configurable behavior fields: `subject_prefix` (string, max 32 chars, default empty; when non-empty, prepended to outgoing subjects in the form `[prefix] subject`); `moderated` (bool, default false; when true, outgoing messages are queued for owner approval via `GO_Moderate_Email_Queue`); and `restricted_sending` (bool, default false for general lists and default true for group-auto-sync lists; when true, only the configured allowed-sender population may compose).
-- `MailingList` records support an `auto_sync_by_group` mode. When set to a group ID, the list's `MailingListSubscription` rows are managed automatically by the group membership system (`M_Join_Group`, `M_Leave_Group`, `GO_Manage_Members`, `A_Reassign_Group_Owner`). Manual subscription edits by members or by admins on auto-sync lists are blocked except for bounce or complaint state handling.
-- Auto-sync `MailingList` records are excluded from the member-facing `M_Manage_Email_Subscriptions` view because the member cannot unilaterally unsubscribe; the member leaves the group to be removed from the list.
-- When an Admin enables email on a group via `A_Create_Group` or `A_Edit_Group_Properties`, the system creates the associated `MailingList` in `auto_sync_by_group=<group_id>` mode and seeds the subscription rows from current group membership.
+- `MailingList` records support two admin-configurable behavior fields: `subject_prefix` (string, max 32 chars, default empty; when non-empty, prepended to outgoing subjects in the form `[prefix] subject`); and `restricted_sending` (bool, default false for general lists and default true for group lists; when true, only the configured allowed-sender population may compose).
+- A `MailingList` record is either subscription-backed or group-backed. A subscription-backed list takes its recipients from its `MailingListSubscription` rows, which members manage through `M_Manage_Email_Subscriptions`. A group-backed list names a group and takes its recipients from that group's current roster when the send fans out; its subscription rows record deliverability state (bounced, complained, suppressed) and the roster remains the single record of membership.
+- Group-backed `MailingList` records are excluded from the member-facing `M_Manage_Email_Subscriptions` view, and their sends carry no unsubscribe control: membership of the group is what puts a member on the list, so the member leaves the group to stop receiving it, and every group message says so in its own text.
+- When an Admin enables email on a group via `A_Create_Group` or `A_Edit_Group_Properties`, the system creates the associated group-backed `MailingList` naming that group.
 - When an Admin disables email on a group, the associated `MailingList` is archived per the existing archive semantics and accepts no further sends.
 
 ## 7.6 System Configuration
@@ -3487,6 +3385,7 @@ Seed these defaults into the database-backed configuration store during initial 
 - `payment_retention_days = 2555 days` (minimum 7 years; do not reduce below minimum)
 - `audit_retention_days = 2555 days`
 - `ballot_retention_days = 2555 days` (governance/audit defensibility baseline)
+- `outbox_retention_days = 90 days` (age at which a per-recipient outbound copy is deleted, per `SYS_Cleanup_Soft_Deleted_Records`: measured from `sent_at` for a delivered copy and from the last attempt for a dead-lettered one; the per-send broadcast archive is retained indefinitely and is not governed by this value)
 - `reconciliation_expiry_days = 90 days`
 - `reconciliation_summary_interval_days = 7` (cadence in days for the automated reconciliation digest email sent to admins)
 - `admin_queue_digest_interval_days = 1` (cadence in days for the admin work-queue digest of open routine items sent to each admin)
@@ -3586,25 +3485,21 @@ Success Criteria:
 
 ### A_Create_Group
 
-<< PROVISIONAL USER STORY - AWAITING FINAL REQUIREMENTS >>
-
 Access: Only Admins can create groups, regardless of type. Members may request group creation via `M_Contact_IFPA_Admin` using the "Group creation request" category. The admin reviews the request through `A_Resolve_Contact_IFPA_Admin_Request` and then configures the group through this story if approved.
 
 Story: As an Admin, I can create a group with all configurable properties and assign its initial owner so that I provision IFPA governance, working, and social groups.
 
 Success Criteria:
 
-- Form includes: name (required, max 80 chars, not required to be globally unique); description (long-form text); type (enum: `group`, `committee`, `board`, `panel`, `fellows`); official (bool, default false); policy (enum: `public`, `private`, default `private`); restrict_membership (bool, default true); email_enabled (bool, default false); alias_keyword (required and unique if `email_enabled=true`, max 32 chars, lowercase alphanumeric and hyphen; resulting email address is `<alias_keyword>@groups.footbag.org`); active (bool, default true); parent_group_id (optional, must reference an existing non-archived group; subcommittee nesting depth is unlimited); initial owner member ID (required, must be a Tier 1+ member).
-- If `email_enabled=true`, the system creates an associated `MailingList` in `auto_sync_by_group=<group_id>` mode with the configured `alias_keyword` resolved to `<alias_keyword>@groups.footbag.org`, applies admin-set defaults for `subject_prefix`, `moderated`, and `restricted_sending`, and seeds the subscription with the initial owner.
-- Platform-native group aliases (`<alias_keyword>@groups.footbag.org`) are distinct from legacy IFPA `@ifpa.footbag.org` aliases. This story provisions new platform groups only; it does not migrate, reproduce, or accept inbound posting to legacy `@ifpa.footbag.org` list aliases, which are dispositioned separately as part of the legacy email transition. The platform does not receive inbound email; group mail is composed via the web form and distributed via SES.
+- Form includes: name (required, max 80 chars, not required to be globally unique); description (long-form text); type (enum: `group`, `committee`, `board`, `panel`, `fellows`); official (bool, default false); policy (enum: `public`, `private`, default `private`); restrict_membership (bool, default true); email_enabled (bool, default false); active (bool, default true); parent_group_id (optional, must reference an existing non-archived group; subcommittee nesting depth is unlimited); initial owner member ID (required, must be a Tier 1+ member).
+- If `email_enabled=true`, the system creates the associated group-backed `MailingList` naming the new group and applies admin-set defaults for `subject_prefix` and `restricted_sending`. The list's recipients are the group's members, so it needs no seeding.
+- This story provisions new platform groups only. Legacy IFPA `@ifpa.footbag.org` list addresses are dispositioned separately as part of the legacy email transition, and no group reproduces one: a platform group has no address of its own, because the platform receives no inbound email. Group mail is composed on the group page and distributed via SES.
 - The initial owner receives an email notification with the group name, type, and owner responsibilities.
 - Admin sees a clear success message and a link to the newly created group's page.
-- Validation errors (e.g., alias keyword collision, invalid parent_group_id, initial owner not Tier 1+) are surfaced with specific messages and the form preserves user input.
+- Validation errors (e.g., invalid parent_group_id, initial owner not Tier 1+) are surfaced with specific messages and the form preserves user input.
 - Creation is audit-logged with admin ID, group ID, all property values, initial owner ID, timestamp.
 
 ### A_Edit_Group_Properties
-
-<< PROVISIONAL USER STORY - AWAITING FINAL REQUIREMENTS >>
 
 Access: Only Admins can edit admin-controlled group properties.
 
@@ -3612,19 +3507,17 @@ Story: As an Admin, I can edit admin-controlled group properties so that I can a
 
 Success Criteria:
 
-- Admin can edit: name, type, official, policy (public/private), restrict_membership, email_enabled, alias_keyword (when email_enabled), active, parent_group_id.
+- Admin can edit: name, type, official, policy (public/private), restrict_membership, email_enabled, active, parent_group_id.
 - Admin cannot edit owner-editable fields (description, member-facing notes) via this story; those are managed in `GO_Edit_Group`. An Admin who is also a group owner can edit both surfaces via their respective routes.
-- Enabling email on a previously disabled group creates the associated `MailingList` and seeds the subscription from current group membership.
+- Enabling email on a previously disabled group creates the associated group-backed `MailingList`, whose recipients are the group's current members.
 - Disabling email on a previously enabled group archives the associated `MailingList`.
 - Setting `active=false` hides the group from `M_Browse_Groups_Directory` but preserves member access via direct URL. Setting `active=true` restores directory visibility.
 - Changing `restrict_membership` from false to true does not remove existing members but blocks future self-joins via `M_Join_Group`.
-- Changing `parent_group_id` does not move members, files, ballots, or email; the change is navigational only.
-- Renaming the group preserves the existing member set, files, ballots, mailing list, and audit history. Changing the `alias_keyword` requires email to be enabled; the rename takes effect for future outgoing messages.
+- Changing `parent_group_id` does not move members, ballots, or email; the change is navigational only.
+- Renaming the group preserves the existing member set, ballots, mailing list, and audit history.
 - All edits are audit-logged with admin ID, group ID, fields changed, old values, new values, timestamp.
 
 ### A_Reassign_Group_Owner
-
-<< PROVISIONAL USER STORY - AWAITING FINAL REQUIREMENTS >>
 
 Access: Only Admins can reassign group ownership and remediate "Group Needs Owner" admin work-queue items.
 
@@ -3635,14 +3528,11 @@ Success Criteria:
 - Admin can assign a group owner from the Tier 1+ member base (audit-logged).
 - Admin can demote a group owner or co-owner back to ordinary group member, or remove their affiliation entirely (audit-logged with mandatory reason text).
 - Admin can change a member's role between owner and co-owner within a group, subject to the sole-owner-promotion-first invariant.
-- Admin can override the application-level 5-owner cap when adding a new owner, with an explicit `cap-override` reason recorded in the audit row.
 - Groups with zero owners are flagged "Group Needs Owner" and appear in an admin work queue.
 - Admin can resolve a "Group Needs Owner" item by assigning a new owner via this story, or by archiving the group via `A_Archive_Group` if defunct.
 - All admin owner-management actions are audit-logged with actor identity, timestamp, before and after values, and reason text.
 
 ### A_Archive_Group
-
-<< PROVISIONAL USER STORY - AWAITING FINAL REQUIREMENTS >>
 
 Access: Only Admins can archive a group.
 
@@ -3731,7 +3621,7 @@ Story: The system automatically sends transactional emails so that members stay 
 Success Criteria:
 
 - System sends emails for: account registration, email verification, password reset, membership purchase or upgrade, Active Player grant/extension/expiry, payment receipt, event registration confirmation, club membership changes, co-organizer/co-leader additions, and other cases. As this is a flexible list, it is not necessary to hard-code all cases now.
-- All emails sent via SES with proper headers, unsubscribe links, and deliverability tracking.
+- All emails are sent via SES with deliverability tracking. Transactional mail, which is what this story sends, carries no unsubscribe control: it answers an action the member took, and offering to switch it off would let a member turn off their own security mail. The one-click unsubscribe headers belong to bulk mail, per `A_Send_Mailing_List_Email`.
 - Worker respects the admin Pause Sending toggle: when enabled, the worker does not attempt new sends, but enqueued items remain pending.
 - Emails are sent only via the outbox pattern: request-time controllers enqueue outbox entries and never call SES directly; a background worker polls the outbox on a configurable interval (default: every 30 seconds), sends via SES, and records sent/failed status.
 - Failed email deliveries are logged and retried up to 5 times with exponential backoff; after the maximum retry count the outbox item is moved to a dead-letter queue/folder for admin review and possible replay.
@@ -3846,6 +3736,8 @@ Success Criteria:
 - Photo Cleanup (zero grace period): no job concern required for this. No referential integrity concerns because photos are leaf nodes in data model. When member deletes account, member's photos are deleted immediately.
 - Payment Record Cleanup (7-year retention for compliance). This period satisfies financial compliance requirements while enabling GDPR data deletion.
 - Vote Ballot Preservation (7-year retention).
+- Outbound Copy Cleanup (admin-configurable retention, default 90 days, parameter key: `outbox_retention_days`): an `outbox_emails` row is one message to one recipient, carrying that recipient's address and the rendered body. A delivered row is deleted once `outbox_retention_days` have passed since `sent_at`, the period being set by what the copy is for: bounce and complaint correlation and support questions about a specific delivery, both of which go stale within weeks. A dead-lettered row is deleted once the same period has passed since its last delivery attempt, because a failure no operator reviewed within a full retention window will not be reviewed later, and the recipient's address should not outlive the review. Rows still pending or retrying belong to the send worker, and a row parked for manual review is an unresolved question about whether a real person received the message; neither is removed by age.
+- Broadcast Archive Preservation (indefinite): the per-send archive row for a mailing-list, event-participant, or announce send is retained indefinitely, holding the subject, body, sender, timestamp, and recipient count of what the platform broadcast in IFPA's name. The row names no recipient, so erasure has nothing in it to reach; the sender's member id is cleared when that member is erased, preserving the record while severing the person.
 - Clubs are NEVER hard deleted (historical record preservation); instead they are archived. 
 - Events with result rows are never hard-deleted once official event-result rows exist for that event (historical record preservation).
 - Events and clubs can be marked archived or inactive via admin actions but database records remain indefinitely. When an event organizer or co-leader deletes an account, leadership foreign keys continue to point to the retained/anonymized member record to preserve historical leadership. For non-HoF/BAP members, the display name may be anonymized to "Deleted Member" where required by schema/app policy; for HoF/BAP members, preserve displayName and bio per the deletion policy. Historical event results, participant lists, and club rosters remain intact for community record.

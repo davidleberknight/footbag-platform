@@ -19,7 +19,8 @@
  *     which erasure shape applies (full purge for soft-deleted accounts,
  *     contact scrub for deceased ones), plus anonymizing payments past the
  *     compliance-retention window (ballots are out of scope: destroying IFPA
- *     vote records is an IFPA governance decision, not an operator job)
+ *     vote records is an IFPA governance decision, not an operator job), plus
+ *     deleting delivered outbox copies past the outbound-copy retention window
  *
  * Does not own:
  *   - The delegated job bodies (ActivePlayerExpiryService,
@@ -43,17 +44,20 @@
  *
  * Persistence:
  *   system_job_runs, work_queue_items, outbox_emails (backlog read +
- *   mailing-list enqueue), members (purge-eligibility read), payments
- *   (compliance-retention read + anonymize write), health (read).
+ *   mailing-list enqueue + retention delete of delivered copies), members
+ *   (purge-eligibility read), payments (compliance-retention read + anonymize
+ *   write), health (read).
  *
  * Side effects:
  *   - system_job_runs insert/update
  *   - work_queue_items insert (auto_link_match, low confidence)
  *   - outbox_emails enqueue (admin-alerts fan-out)
+ *   - outbox_emails delete (delivered copies past the retention window)
  *   - payments anonymize-write (compliance-retention cleanup)
  *   - audit_entries append (legacy.auto_link_candidate_failed,
- *     pii_erasure_failed, and payment.compliance_anonymize_failed operational
- *     errors; the per-row erasure audit rows belong to MemberService)
+ *     pii_erasure_failed, payment.compliance_anonymize_failed, and
+ *     email.outbox_retention_cleanup_failed operational errors; the per-row
+ *     erasure audit rows belong to MemberService)
  *   - logger.error on job failure (drives the CloudWatch alarm)
  *
  * Service shape: class singleton (`operationsPlatformService`); adapters are
@@ -103,6 +107,16 @@ export interface PiiPurgeScanResult {
     anonymized: number;
     skipped: number;
     errors: { paymentId: string; error: string }[];
+  };
+  // Per-recipient outbox copies past the outbound-copy retention window are
+  // deleted outright: delivered ones, and dead-lettered ones no operator acted
+  // on within the window. The per-send broadcast archive is a separate record
+  // with no recipient in it and is kept indefinitely, so it is not in scope
+  // here.
+  outboxCopies: {
+    deliveredDeleted: number;
+    deadLetterDeleted: number;
+    errors: { error: string }[];
   };
 }
 
@@ -621,6 +635,17 @@ export class OperationsPlatformService {
    * via the member_id-not-null marker. Vote ballots are deliberately not
    * touched: their retention window only permits cleanup, and destroying IFPA
    * vote records is an IFPA governance decision rather than an operator job.
+   *
+   * A fourth branch deletes per-recipient outbox copies past
+   * `outbox_retention_days`. Each is one message to one recipient, holding that
+   * recipient's address and the rendered body. Delivered rows age on `sent_at`,
+   * because they are kept only while bounce correlation and delivery questions
+   * can still use them; dead-lettered rows age on their last attempt, because a
+   * failure nobody reviewed within a whole window will not be reviewed now.
+   * Pending and failed rows are live work the drain still owns, and a
+   * manual_review row is an unresolved question about whether a real person
+   * received a message, so neither ages out. The per-send broadcast archive is a
+   * different record, names no recipient, and is kept indefinitely.
    */
   async runPiiPurgeScan(opts: { now?: Date } = {}): Promise<PiiPurgeScanResult> {
     return this.recordJobRun('SYS_Cleanup_Soft_Deleted_Records', () => {
@@ -711,7 +736,33 @@ export class OperationsPlatformService {
         }
       }
 
-      return { deleted, deceased, payments: paymentsResult };
+      // Outbound-copy cleanup: a per-recipient copy holds that recipient's
+      // address and the rendered body. A delivered one serves bounce
+      // correlation and delivery questions that go stale within weeks; a
+      // dead-lettered one is an operator's to review, but past a whole
+      // retention window nobody is going to act on it and the address should
+      // not outlive the review. A failure here never aborts the pass.
+      const outboxRetentionDays = readIntConfig('outbox_retention_days', 90);
+      const outboxCutoff = new Date(now.getTime() - outboxRetentionDays * 86_400_000).toISOString();
+      const outboxCopies: PiiPurgeScanResult['outboxCopies'] = {
+        deliveredDeleted: 0, deadLetterDeleted: 0, errors: [],
+      };
+      try {
+        outboxCopies.deliveredDeleted  = outbox.deleteSentBefore.run(outboxCutoff).changes;
+        outboxCopies.deadLetterDeleted = outbox.deleteDeadLetterBefore.run(outboxCutoff).changes;
+      } catch (err) {
+        outboxCopies.errors.push({ error: err instanceof Error ? err.message : String(err) });
+        recordOperationalError({
+          actionType: 'email.outbox_retention_cleanup_failed',
+          category:   'system',
+          entityType: 'system',
+          entityId:   'outbox_retention',
+          reasonText: 'PII purge scan: deletion of delivered outbox copies past the retention window failed',
+          cause:      err,
+        });
+      }
+
+      return { deleted, deceased, payments: paymentsResult, outboxCopies };
     }, opts.now);
   }
 

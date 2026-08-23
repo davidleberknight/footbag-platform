@@ -67,9 +67,12 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # synthetic mode and the command actually run in step 4 cannot drift apart. The
 # flags are a safety property, not a convenience: see the note at the invocation.
 # ARMING_DEPLOY_CMD exists only so a test can execute step 4 against a recorder
-# and assert the real argument list; it is never set in operator use, and while
-# it is set the script refuses to run terraform at all, so it can only ever
-# invoke the injected command.
+# and assert the real argument list; it is never set in operator use. It is NOT
+# on its own a safety interlock: what stops a test reaching real infrastructure
+# is synthetic mode, which --tfvars turns on and which returns before step 3.
+# Setting ARMING_DEPLOY_CMD without --tfvars runs the real terraform apply and
+# then hands the injected command a real deploy, so a test must always pass
+# both.
 DEPLOY_CMD="${ARMING_DEPLOY_CMD:-$REPO_ROOT/deploy_to_aws.sh}"
 DEPLOY_ARGS=(-k)
 

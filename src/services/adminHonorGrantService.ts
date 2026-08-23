@@ -91,8 +91,8 @@ export const adminHonorGrantService = {
       occurredAt: r.occurred_at,
     }));
     return {
-      seo: { title: 'Grant an honor tier', noindex: true },
-      page: { sectionKey: '', pageKey: 'admin_honor_grants', title: 'Grant an honor tier' },
+      seo: { title: 'Grant an Honor Tier', noindex: true },
+      page: { sectionKey: '', pageKey: 'admin_honor_grants', title: 'Grant an Honor Tier' },
       content: { errorMessage: opts.errorMessage, recent },
     };
   },
@@ -108,8 +108,8 @@ export const adminHonorGrantService = {
     const alreadyGranted = hasHonorGrant(member.id, honor);
     const tier = getTierStatus(member.id);
     return {
-      seo: { title: 'Confirm honor tier grant', noindex: true },
-      page: { sectionKey: '', pageKey: 'admin_honor_grants_confirm', title: 'Confirm: grant an honor tier' },
+      seo: { title: 'Confirm Honor Tier Grant', noindex: true },
+      page: { sectionKey: '', pageKey: 'admin_honor_grants_confirm', title: 'Confirm: Grant an Honor Tier' },
       content: {
         memberKey: memberKey.trim(),
         honor,

@@ -104,7 +104,7 @@ describe('GET /admin/club-cleanup promotable candidates section', () => {
       .get('/admin/club-cleanup')
       .set('Cookie', adminCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Promotable candidates');
+    expect(res.text).toContain('Promotable Candidates');
     expect(res.text).toContain('Austin Style');
     expect(res.text).toContain('Memphis Footworks');
     expect(res.text).toContain(`/admin/club-cleanup/candidates/${OV_CAND}/promote`);
@@ -404,7 +404,7 @@ describe('promotion carry-forward of candidate-keyed wizard flags', () => {
       .get('/admin/club-cleanup?category=candidate_flag')
       .set('Cookie', adminCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Wizard flags by candidate');
+    expect(res.text).toContain('Wizard Flags by Candidate');
     expect(res.text).toContain('Flagged Promotion Club');
     expect(res.text).toContain('inactive per: Promote Voter One, Promote Voter Two');
   });

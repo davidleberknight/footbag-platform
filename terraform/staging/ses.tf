@@ -79,6 +79,33 @@ removed {
 }
 
 # =============================================================================
+# Sending streams: transactional and bulk kept apart
+# =============================================================================
+# SES keeps reputation metrics per configuration set, so naming one on a send
+# decides whose reputation a complaint lands on. Transactional mail is one
+# member and one action they took, where non-delivery locks someone out; bulk
+# mail is a newsletter or announcement to many addresses of mixed freshness,
+# and is where complaints and hard bounces come from. Separating them stops a
+# bad newsletter degrading password-reset delivery.
+#
+# The application picks the set per message: a copy addressed to a mailing list
+# is bulk, everything else transactional. It passes no set until the two
+# configuration-set environment variables are present, so these resources are
+# safe to apply ahead of the app and change nothing on their own. Staging holds
+# both sets at parity with production even though its adapter is stubbed, so
+# the naming and the apply are rehearsed here first.
+
+resource "aws_ses_configuration_set" "transactional" {
+  name                       = "${local.prefix}-transactional"
+  reputation_metrics_enabled = true
+}
+
+resource "aws_ses_configuration_set" "bulk" {
+  name                       = "${local.prefix}-bulk"
+  reputation_metrics_enabled = true
+}
+
+# =============================================================================
 # SES feedback loop -- bounce/complaint notifications to the app webhook
 # =============================================================================
 # Bounces and complaints publish to an SNS topic subscribed to the app's

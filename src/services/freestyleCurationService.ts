@@ -619,12 +619,12 @@ export const freestyleCurationService = {
       }));
 
     const activeOptions: FilterOption[] = [
-      { value: '',         label: 'Any active state', selected: activeFilter === '' },
+      { value: '',         label: 'Any Active State', selected: activeFilter === '' },
       { value: 'active',   label: 'Active',           selected: activeFilter === 'active' },
       { value: 'inactive', label: 'Inactive',         selected: activeFilter === 'inactive' },
     ];
     const reviewStatusOptions: FilterOption[] = [
-      { value: '', label: 'Any review status', selected: reviewFilter === '' },
+      { value: '', label: 'Any Review Status', selected: reviewFilter === '' },
       ...REVIEW_STATUS_VALUES.map((v) => ({ value: v, label: REVIEW_STATUS_LABELS[v], selected: reviewFilter === v })),
     ];
 
@@ -756,7 +756,7 @@ export const freestyleCurationService = {
     };
 
     const categoryOptions: FilterOption[] = [
-      { value: '', label: '(none)', selected: category === '' },
+      { value: '', label: '(None)', selected: category === '' },
       ...allowedCategories().map((c) => ({ value: c, label: c, selected: c === category })),
     ];
     const reviewStatusOptions: FilterOption[] = EDITABLE_REVIEW_STATUSES
@@ -1296,7 +1296,7 @@ export const freestyleCurationService = {
       .map(shapeTipModerationRow);
 
     const statusOptions: FilterOption[] = [
-      { value: '', label: 'Any status', selected: statusFilter === '' },
+      { value: '', label: 'Any Status', selected: statusFilter === '' },
       ...TIP_STATUS_VALUES.map((v) => ({ value: v, label: TIP_STATUS_LABELS[v], selected: v === statusFilter })),
     ];
 

@@ -19,8 +19,8 @@ interface BootstrapClaimContent {
 
 function render(res: Response, result: 'granted' | 'invalid' | null, status = 200): void {
   res.status(status).render('admin/bootstrap-claim', {
-    seo:  { title: 'Administrator bootstrap' },
-    page: { sectionKey: '', pageKey: 'admin_bootstrap_claim', title: 'Administrator bootstrap' },
+    seo:  { title: 'Administrator Bootstrap' },
+    page: { sectionKey: '', pageKey: 'admin_bootstrap_claim', title: 'Administrator Bootstrap' },
     content: { isGranted: result === 'granted', isInvalid: result === 'invalid' },
   } satisfies PageViewModel<BootstrapClaimContent>);
 }

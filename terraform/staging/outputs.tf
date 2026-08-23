@@ -98,3 +98,8 @@ output "ses_sender_identity" {
   description = "SES verified sender identity used as the From: header for outbound mail. Read by scripts/test-smoke.sh."
   value       = var.ses_sender_identity
 }
+
+output "ses_configuration_set_bulk" {
+  description = "SES configuration set carrying the bulk sending reputation. Read by scripts/test-smoke.sh so the raw-MIME probe names a set that exists in the environment under test."
+  value       = aws_ses_configuration_set.bulk.name
+}

@@ -1019,10 +1019,18 @@ fi
 # origin-verify header, and sending it from the host would put that secret into
 # a command line every account on the box can read. Asking the application
 # directly answers the question the poll is actually asking.
+#
+# Every `compose exec` here reads from /dev/null, and that redirect is
+# load-bearing rather than tidiness. This whole script arrives on the remote
+# shell's stdin, and `docker compose exec -T` forwards its own stdin into the
+# container: without the redirect the first probe swallows the remainder of the
+# script, bash reaches end of input, and the deploy exits 0 having silently
+# skipped everything below this point. It failed exactly that way, dropping the
+# persona seed and the provenance record while reporting success.
 _stack_healthy=0
 for _i in 1 2 3 4 5 6 7 8 9 10; do
   if systemctl is-active --quiet footbag.service \
-     && compose_cmd exec -T web wget -qO- --timeout=3 http://localhost:3000/health/ready >/dev/null 2>&1; then
+     && compose_cmd exec -T web wget -qO- --timeout=3 http://localhost:3000/health/ready >/dev/null 2>&1 </dev/null; then
     _stack_healthy=1
     break
   fi
@@ -1053,7 +1061,7 @@ systemctl status footbag.service --no-pager -l
 # DEPLOY_TARGET=footbag-staging only.
 if [[ "${SEED_TEST_PERSONAS:-no}" == "yes" ]]; then
   echo "    Running persona-catalog seed..."
-  if ! compose_cmd exec -T web node dist/testkit/personaSeedRunner.js; then
+  if ! compose_cmd exec -T web node dist/testkit/personaSeedRunner.js </dev/null; then
     echo "    ERROR: persona-catalog seed step exited non-zero; aborting the deploy." >&2
     exit 1
   fi

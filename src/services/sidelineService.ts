@@ -48,7 +48,7 @@ interface SidelineLandingContent {
 }
 
 const SIDELINE_INTRO: SidelineLandingExplainer = {
-  heading: 'What are Sideline games?',
+  heading: 'What Are Sideline Games?',
   paragraphs: [
     'Sideline footbag games are the casual, social, and community-driven side of the sport. They are easy to learn, played with friends in a circle, a square, or across a small course, and were the original way most players first picked up a footbag.',
   ],
@@ -80,7 +80,7 @@ const SIDELINE_GAMES: SidelineGame[] = [
     demoVideo: null,
     moreInfo: [
       {
-        label: '2-Square rules',
+        label: '2-Square Rules',
         href: '/rules/sideline/2-square',
         external: false,
       },
@@ -100,7 +100,7 @@ const SIDELINE_GAMES: SidelineGame[] = [
     },
     moreInfo: [
       {
-        label: '4-Square rules',
+        label: '4-Square Rules',
         href: '/rules/sideline/4-square',
         external: false,
       },
@@ -117,7 +117,7 @@ const SIDELINE_GAMES: SidelineGame[] = [
     demoVideo: null,
     moreInfo: [
       {
-        label: 'World records and milestones',
+        label: 'World Records and Milestones',
         href: '/records',
         external: false,
       },
@@ -137,7 +137,7 @@ const SIDELINE_GAMES: SidelineGame[] = [
     },
     moreInfo: [
       {
-        label: 'IFPA Footbag Golf rules (Article IV)',
+        label: 'IFPA Footbag Golf Rules (Article IV)',
         href: '/rules/golf/footbag-golf',
         external: false,
       },

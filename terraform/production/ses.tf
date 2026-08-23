@@ -360,6 +360,38 @@ resource "aws_route53_record" "google_dkim" {
 }
 
 # =============================================================================
+# Sending streams: transactional and bulk kept apart
+# =============================================================================
+# SES keeps reputation metrics per configuration set, so naming one on a send
+# is what decides whose reputation a complaint lands on. The platform sends two
+# kinds of mail with opposite risk profiles: transactional mail is one member,
+# one action they took, and non-delivery of a password reset locks someone out;
+# bulk mail is a newsletter or an announcement to hundreds of addresses of
+# mixed freshness, and it is where complaints and hard bounces come from.
+# Sharing one stream means a bad newsletter degrades password resets, so the
+# two are separated before the first staged bulk send goes out.
+#
+# The application picks the set per message: a copy addressed to a mailing list
+# is bulk, everything else is transactional. It passes no set at all until
+# SES_CONFIGURATION_SET_TRANSACTIONAL and SES_CONFIGURATION_SET_BULK are in the
+# runtime environment, so these resources are safe to apply before the app
+# knows about them, and applying them changes nothing on its own.
+#
+# Bounce and complaint feedback continues to arrive through the identity
+# notification topics below, which are identity-scoped and unaffected by this
+# split; what changes is only which reputation the event is counted against.
+
+resource "aws_ses_configuration_set" "transactional" {
+  name                       = "${local.prefix}-transactional"
+  reputation_metrics_enabled = true
+}
+
+resource "aws_ses_configuration_set" "bulk" {
+  name                       = "${local.prefix}-bulk"
+  reputation_metrics_enabled = true
+}
+
+# =============================================================================
 # SES feedback loop -- bounce/complaint notifications to the app webhook
 # =============================================================================
 # Bounces and complaints publish to an SNS topic subscribed to the app's
