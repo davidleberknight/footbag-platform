@@ -50,6 +50,27 @@ def test_no_registered_guard_has_vanished():
     )
 
 
+def test_no_guard_resolves_its_own_database_path():
+    """Every guard reads the database the shared helper names, not one of its own.
+
+    A guard that computes its own path ignores the override, so a run pointed at
+    a different database satisfies the precondition against one file and then
+    opens another. Where both exist that passes and proves nothing; where only
+    the named one exists it fails on a missing file. Both were observed: the
+    first locally, the second in continuous integration on the same commit.
+    """
+    offenders = []
+    for name in REQUIRED_DB_INTEGRITY_GUARDS:
+        text = (TESTS_DIR / name).read_text(encoding="utf-8")
+        if "DB_PATH =" in text or 'DB_PATH: ' in text:
+            offenders.append(name)
+    assert not offenders, (
+        f"{len(offenders)} guard(s) define their own DB_PATH instead of importing it: "
+        f"{offenders}. Import DB_PATH from built_db so the configured database is the "
+        f"one actually read."
+    )
+
+
 def test_the_registry_is_not_empty():
     # A run that requires a database but is handed an empty list would pass while
     # executing nothing, which is the failure this whole mechanism exists to stop.

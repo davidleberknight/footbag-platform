@@ -27,10 +27,8 @@ Run from repo root:
 import sqlite3
 from pathlib import Path
 
-from built_db import require_loaded
+from built_db import DB_PATH, require_loaded
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-DB_PATH = REPO_ROOT / "database" / "footbag.db"
 
 # The adjudicated cohort of active canonical tricks allowed to carry blank
 # operational notation, each with the reason it is pending.
