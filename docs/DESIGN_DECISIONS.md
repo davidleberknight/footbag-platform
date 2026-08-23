@@ -41,6 +41,10 @@ Current implementation status and accepted temporary deviations are tracked in t
   - [2.6 Hashtags and Media](#26-hashtags-and-media)
   - [2.7 Encryption at Rest](#27-encryption-at-rest)
   - [2.8 System Member Account](#28-system-member-account)
+  - [2.9 Administrator Role Lifecycle](#29-administrator-role-lifecycle)
+  - [2.10 Member Name Model](#210-member-name-model)
+  - [2.11 Competition History Fields](#211-competition-history-fields)
+  - [2.12 Groups, and the Board's Record](#212-groups-and-the-boards-record)
 - [3. Security, Authentication, and Sessions](#3-security-authentication-and-sessions)
   - [3.1 Password Hashing](#31-password-hashing)
   - [3.2 JWT sessions](#32-jwt-sessions)
@@ -1331,6 +1335,48 @@ Trade-offs:
 Impact:
 
 - Two columns on `members`; the onboarding `personal_details` task collects both; profile rendering branches on the toggle and on owner-view.
+
+## 2.12 Groups, and the Board's Record
+
+Decision:
+
+A group is a governance, working-group, or social entity with a roster, distinct from a club. The mechanism is general and data-driven: an administrator creates a group, and no group is named in code. Three groups are planned at launch: the IFPA Board of Directors, identified by its `type` rather than by a slug and the only group that may carry that type, plus the European Footbag Committee and the Worlds Operating Committee as ordinary committees. How many groups IFPA needs is IFPA's ruling and not the platform's: the platform carries any number as data and builds nothing further for a second or a tenth, and a body that would rather keep its conversation where its members already are is not argued with. Only the board's roster confers standing; a committee's roster confers no flag and no tier.
+
+Three rules follow, and they are what this decision is for.
+
+**The roster is the record of who sits on the board.** Board standing is not a flag an administrator sets beside a roster that says the same thing differently. Writing a current row on the board's roster grants the IFPA Board flag and Tier 3 in the same transaction and records the underlying tier for reversion; ending the row reverts it. There is exactly one write path, and no other route sets that flag on a board member. Standing and voting are separate facts on the row: a seat filled by appointment under a bylaw provision, or elected but not yet seated, carries standing and casts no ballot. Each row also carries the office, the authority the seat rests on, its term, and its precedence, because a board record that cannot say who the secretary is, or by what authority a person sits, is a contact list rather than a record.
+
+**A group's deliberation happens on the platform and is complete by construction.** A group has no address of its own, the platform accepts no inbound mail, and a group's mailing list sends from a no-reply identity. Members compose on the group page; the platform delivers each message to the current roster and keeps it, threaded, as the group's discussion. Replying means composing again, so no part of a debate can end up in one person's mailbox and nowhere else. Messages are never edited and never deleted: a correction is a further message.
+
+**Nothing is aged out.** Messages, threads, ended roster rows with their offices and terms, and the audit trail are retained indefinitely, so both the composition of the board at any past date and the argument behind any decision remain recoverable. The single exception is account erasure clearing a sender identity, which leaves the message itself standing.
+
+Rationale:
+
+The board's business is official rules debate, and IFPA's own governance is what the platform is recording. A board is a deliberative body: the decision is not the whole record, and asynchronous action between meetings is defensible only when the deliberation and the assent behind it are written down. Practice in this space, from board portals to the long argument between mailing lists and forums, points the same way: a record scattered across mailboxes is not a record, and the organisation that needs one keeps it where everyone entitled to it can read it.
+
+Making the roster authoritative removes the drift that two records of the same fact always produce, and it is the only one of the two that can carry an office, a term, or the difference between a seated and an unseated director. Deriving nothing and copying nothing means the group page, the mailing list, and later the ballot all read the same rows.
+
+The legacy site had this feature and it is where the requirement comes from: 170 committees, 1,718 roster pairings, per-member titles, a voting marker and a display precedence, group mail with a subject prefix and restricted sending. What is deliberately not carried forward is its inbound address, its moderation, its file sharing, and its per-group switch for whether the archive was kept at all: a record that can be turned off is not one.
+
+Trade-offs:
+
+- A member's reply by mail reaches nobody. That is the cost of a complete record, and the standing line at the foot of every group message says so in plain words rather than leaving it to be discovered.
+
+- The general mechanism is built for three groups. It is a table, a roster and a page rather than a product, and the alternative, hard-coding the board, would have cost more the moment IFPA kept a second and a third body.
+
+- Retaining everything means a group's discussion accumulates without bound. At IFPA's scale that is measured in megabytes over decades, and the alternative loses exactly the material the record exists for.
+
+Impact:
+
+- `groups` and `group_member_affiliations` per the data model, including the partial unique index admitting only one board group and the one-current-row-per-member-per-group index.
+
+- The service writing a board roster row owns the flag, the tier grant, and the audit entry in one transaction. The coupling is not a trigger, so all three commit or none do.
+
+- `email_archives` gains a nullable self-reference carrying thread structure. Group mail rides the existing outbox, sender worker, suppression and deliverability path unchanged.
+
+- The group audience resolver replaces its not-yet-built invariant error with the roster read, filtered to verified and deliverable mailboxes like every other audience.
+
+- Voting is version-two scope, so the ballot that reads the voting marker is not built at launch. The marker is recorded in v1 regardless: who holds a vote on the board is part of the board's record whether or not the platform is yet the place a vote is cast.
 
 # 3. Security, Authentication, and Sessions
 

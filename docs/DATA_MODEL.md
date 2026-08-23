@@ -55,6 +55,7 @@
   - [4.30 Member Declared Anchors](#430-member-declared-anchors)
   - [4.31 Staged Auto-Link Candidates](#431-staged-auto-link-candidates)
   - [4.32 Pipeline-produced canonical content](#432-pipeline-produced-canonical-content-out-of-this-enumeration)
+  - [4.33 Groups & Group Affiliations](#433-groups--group-affiliations)
 - [5. View Reference](#5-view-reference)
   - [Computed views](#computed-views)
   - [Semantic filter views](#semantic-filter-views)
@@ -382,13 +383,15 @@ The sender worker scrubs `outbox_emails.body_text` (sets it to `NULL`) on every 
 #### Email archives
 `email_archives` stores a record of bulk sends (mailing list blasts, event participant emails, announcements). `CHECK` constraints enforce that mailing-list sends reference a list and event-participant sends reference an event.
 
+For a group-backed list these rows are not only a send log: they are the group's discussion, read on the group page per `M_Read_Group_Discussion`. `email_archives.parent_archive_id`, a nullable self-reference, carries the threading: a row with no parent opens a thread and a reply names the message it answers. Only sends to a group-backed list may set it, and a parent must belong to the same list, which the service enforces. The rows are retained indefinitely and are never edited or deleted, so a correction to a group message is a further message rather than a rewrite; account erasure clears `sender_member_id` and leaves the message standing.
+
 #### Email templates
 `email_templates` stores admin-editable subject and body templates keyed by `template_key`, each carrying a `pii_classification` (`public` / `internal` / `confidential` / `restricted`) that bounds how much of a sent message an admin viewer may reveal. The `email_templates_enabled` view exposes only templates where `is_enabled = 1`. Setting `is_enabled = 0` suppresses the corresponding automated email type without deleting the content.
 
 #### Mailing list columns
 `mailing_lists.is_member_manageable` controls whether members can self-subscribe/unsubscribe. It also decides whether a bulk send to the list carries the one-click unsubscribe headers: a list members cannot leave through the interface must not offer a mail-client button that leaves it, which is what would otherwise remove an administrator from the operational alert lists. Seven core lists are seeded at initialization; see §4.23.
 
-`mailing_lists.recipient_source` says where a list's recipients come from: `subscription` reads the `mailing_list_subscriptions` rows, and `group` reads the current roster of the group named in `source_group_id`. `CHECK` constraints tie the two columns together, so a group-backed list always names its group and a subscription-backed one never does. For a group-backed list the roster is the only record of membership and no subscription row mirrors it; subscription rows on such a list carry deliverability state (`bounced`, `complained`, `suppressed`) rather than membership.
+`mailing_lists.recipient_source` says where a list's recipients come from: `subscription` reads the `mailing_list_subscriptions` rows, and `group` reads the current roster of the group named in `source_group_id`. `CHECK` constraints tie the two columns together, so a group-backed list always names its group and a subscription-backed one never does. For a group-backed list the roster is the only record of membership and no subscription row mirrors it; subscription rows on such a list carry deliverability state (`bounced`, `complained`, `suppressed`) rather than membership. Such a list also sends from a no-reply `from_identity`, which is not configurable: the platform takes no inbound mail, and a reachable reply address would put part of a group's record beyond the group's reach. Replies are composed on the group page.
 
 ### 4.9 Admin Operations
 
@@ -1403,6 +1406,31 @@ The freestyle trick dictionary (`freestyle_tricks` and related tables), the Net 
 #### `freestyle_trick_tips` (legacy Footbag.org community tips)
 
 Display-only community advice recovered from the legacy Footbag.org `moves2.movehints` table. Its table semantics and public-rendering contract (only `status = 'published'` tips on an active trick render publicly; unresolved tips are preserved under placeholder slugs, never discarded) are owned by `docs/FREESTYLE.md` with the other freestyle tables.
+
+---
+
+### 4.33 Groups & Group Affiliations
+
+**Tables:** `groups`, `group_member_affiliations`
+
+Governance, working-group, and social entities distinct from clubs, per Group Membership in USER_STORIES. Three groups are planned at launch: the IFPA Board of Directors, the European Footbag Committee, and the Worlds Operating Committee; the mechanism is general and an administrator creates any further group as data. Only a `type = 'board'` roster confers standing; a committee's roster confers no flag and no tier.
+
+**`groups`**
+
+- **Columns**: `slug` PK (URL identity); standard metadata columns; `name` NOT NULL; `description`; `notes` (owner-maintained, member-facing); `type` CHECK in (`group`, `committee`, `board`, `panel`, `fellows`); `is_official` INTEGER 0/1; `policy` CHECK in (`public`, `private`); `restrict_membership` INTEGER 0/1 default 1; `email_enabled` INTEGER 0/1 default 0; `state` CHECK in (`active`, `inactive`, `archived`) default `active`; `parent_group_id` FK to `groups(slug)` NULL.
+- **One board**: `ux_groups_single_board`, a partial UNIQUE index over `type WHERE type = 'board'`, so a second board group cannot be created. The board group's identity is its type, never a hard-coded slug.
+- **`state` is the whole lifecycle** and replaces any separate active flag. `inactive` hides the group from the public directory and keeps everything else; `archived` ends it. Groups are never deleted and do not use the soft-delete (`deleted_at`) pattern, so `state` is the only lifecycle column.
+- **Mail**: when `email_enabled = 1` the group has exactly one group-backed `mailing_lists` row naming it through `source_group_id`, sending from a no-reply `from_identity`. Disabling mail archives that list rather than deleting it. See §4.8.
+
+**`group_member_affiliations`**
+
+- **Columns**: `id` PK; standard metadata columns; `group_id` FK to `groups(slug)`; `member_id` FK to `members(id)`; `is_current` INTEGER 0/1; `role` CHECK in (`owner`, `member`); `office` TEXT (free text, may be empty); `is_voting` INTEGER 0/1 default 0; `seat_basis` CHECK in (`elected`, `appointed`) NULL; `seat_reference` TEXT (names the election or bylaw provision behind the seat); `term_start` TEXT; `term_end` TEXT NULL; `display_order` INTEGER NULL.
+- **`ux_group_affiliations_one_current`**: partial UNIQUE on `(group_id, member_id) WHERE is_current = 1`. A member holds at most one current row per group; ended rows accumulate, because past composition is part of the record.
+- **CHECK**: `term_end IS NULL OR term_end >= term_start`.
+- **App-enforced**: `seat_reference` is required when `seat_basis` is set, and a group with zero current `role = 'owner'` rows raises the "Group Needs Owner" work-queue item. Neither is expressible as a row-local CHECK.
+- **Standing follows the roster.** For a `type = 'board'` group the roster is the record of who sits on the board: the service that writes a current row on it sets the member's IFPA Board flag and Tier 3 in the same transaction, recording the underlying tier for reversion, and ending the row reverts it (§4.12 Member Tier Grants, `A_Manage_Group_Roster`). The coupling lives in the service rather than a trigger so the grant, the tier row, and the audit entry commit together. No other route sets that flag on a board member.
+- **Standing and voting are independent.** `is_voting` gates ballots only: vote eligibility resolves `voting_members_of_group(group_id)` over current rows where `is_voting = 1`, snapshotted at vote-open (§4.5). A director whose seat is filled by appointment, or elected but not yet seated, carries standing with `is_voting = 0`. Reading membership as enfranchisement is the mistake this column exists to prevent.
+- **Nothing is aged out.** Ended rows keep `office`, `seat_basis`, `seat_reference`, and both term dates, so the board's composition on any past date is recoverable. Archiving a group ends its rows and preserves them.
 
 ---
 

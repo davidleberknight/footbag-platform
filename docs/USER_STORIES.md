@@ -96,7 +96,9 @@ document follows.
     - [M_Send_Announce_Email](#m_send_announce_email)
   - [3.10 Group Membership](#310-group-membership)
     - [M_Browse_Groups_Directory](#m_browse_groups_directory)
+    - [M_View_My_Groups](#m_view_my_groups)
     - [M_View_Group](#m_view_group)
+    - [M_Read_Group_Discussion](#m_read_group_discussion)
     - [M_Join_Group](#m_join_group)
     - [M_Leave_Group](#m_leave_group)
     - [M_Email_Group](#m_email_group)
@@ -206,6 +208,7 @@ document follows.
   - [7.9 Group Management](#79-group-management)
     - [A_Create_Group](#a_create_group)
     - [A_Edit_Group_Properties](#a_edit_group_properties)
+    - [A_Manage_Group_Roster](#a_manage_group_roster)
     - [A_Reassign_Group_Owner](#a_reassign_group_owner)
     - [A_Archive_Group](#a_archive_group)
 - [8. Background System Jobs](#8-background-system-jobs)
@@ -1117,7 +1120,7 @@ Success Criteria:
 - The action block and the banner carry only non-private content: a headline, an optional detail line, and the options. Private content, including an administrator's message body, is read on the owner-only surface the item links to.
 - Ordering is needs-attention-now before pending, then soonest deadline first, then a stable order among items with no deadline.
 - Every item resolves in exactly one of three ways, and its options follow from which one it is.
-- **Resolved by acting.** One option, and the item clears when the underlying record changes, with no separate dismissal step: an unanswered administrator message, "Answer" (`A_Message_Member`); a completed event the member organizes with no results uploaded, "Upload results" (`EO_Upload_Results`); routine music missing on a registration before its upload deadline, "Upload music" (`M_Upload_Routine_Music`); a failed membership purchase, "Try again" (`M_Purchase_Tier_1`, `M_Purchase_Tier_2`); an approved Hall of Fame nomination with no affidavit while the nomination window is open, "Submit affidavit" (`M_Submit_HoF_Affidavit`); pending group membership requests, "Review requests" (`GO_Manage_Members`).
+- **Resolved by acting.** One option, and the item clears when the underlying record changes, with no separate dismissal step: an unanswered administrator message, "Answer" (`A_Message_Member`); a completed event the member organizes with no results uploaded, "Upload results" (`EO_Upload_Results`); routine music missing on a registration before its upload deadline, "Upload music" (`M_Upload_Routine_Music`); a failed membership purchase, "Try again" (`M_Purchase_Tier_1`, `M_Purchase_Tier_2`); an approved Hall of Fame nomination with no affidavit while the nomination window is open, "Submit affidavit" (`M_Submit_HoF_Affidavit`).
 - **Resolved by acting or by declining.** Two options, because a decline is a legitimate final answer, and the decline is recorded so the item does not return: staged identity-claim candidates, "Confirm" or "Decline" (`M_Claim_Legacy_Account`).
 - **Resolved by acting, or by time.** Active Player status approaching or past expiry appears from the first reminder offset through 30 days past the expiry date, pending while the status still stands and needs-attention-now once it has lapsed (`M_Active_Player_Expiry`). It offers the two routes back the member can take for themselves: an upgrade naming both paid tiers, which removes the dependence on the status altogether and points at the membership block that sells them, and the events list, since attendance earns the status again. A vouch is the third route the rules allow and is stated on the item's detail line rather than offered as a control, because a Tier 2 or Tier 3 member gives a vouch and it is not this member's action to take. The one-time club-join grant is not offered, because it reaches only a member who has never previously been an Active Player and every member this item can appear for already has been. A recurring donation whose charge failed stays pending, offers "View your recurring donation" on the payment-history page, and clears when Stripe collects or cancels, since retries run on Stripe's dunning schedule (`M_Donate`).
 - An open vote the member is eligible for and has not cast appears as a pending item with a "Vote" option (`M_Vote`). It never escalates to needs-attention-now and carries no decline option, so the platform creates no record of a member's abstention; it clears when the member votes or the vote closes.
@@ -1690,11 +1693,21 @@ Success Criteria:
 
 ## 3.10 Group Membership
 
-Groups (also called committees) are governance, working-group, or social entities distinct from clubs. A member may belong to many groups simultaneously; clubs are capped at two current memberships per member (primary and secondary). Group entities have configurable properties controlled by Admins: type, official flag, visibility (`policy`), `restrict_membership`, email enable, `active` flag, and optional `parent_group_id` for subcommittees.
+Groups (also called committees) are governance, working-group, or social entities distinct from clubs. A member may belong to many groups simultaneously; clubs are capped at two current memberships per member (primary and secondary). Group entities have configurable properties controlled by Admins: `type`, `official` flag, visibility (`policy`), `restrict_membership`, email enable, lifecycle `state`, and optional `parent_group_id` for subcommittees.
 
-The IFPA Board is the first group the platform carries. Administrators stand up every further group through `A_Create_Group`, so which groups exist is data an administrator enters rather than a property of the design.
+Three groups are planned at launch: the IFPA Board of Directors, the European Footbag Committee, and the Worlds Operating Committee, the last two subject to the IFPA secretary confirming they are still standing bodies. The mechanism is general: administrators stand up any further group through `A_Create_Group` without new code, so which groups exist is data an administrator enters rather than a property of the design. Exactly one group may carry `type='board'`, and that group is the IFPA Board of Directors; only its roster confers standing, and a committee's roster confers no flag and no tier.
 
-Group email is outbound only, and a group carries no address of its own: the platform accepts no inbound mail, so a member composes on the group page and the platform distributes the message. Every outbound message rides a mailing list, so group mail reaches its recipients through the same send path, archive, and deliverability handling as every other list. A group's list resolves its recipients from the group's current roster when the send fans out; groups have members, and the roster is the single record of who those members are. Subscription rows for a group's list carry deliverability state (bounced, complained, suppressed), and a member who wants no further mail from a group leaves the group.
+A group's lifecycle is one field, `state`, with three values. `active` is the normal state. `inactive` hides the group from the public directory while preserving member access and its mail. `archived` ends the group: it leaves the directory, its mailing list is archived, its roster rows are set not-current, and it accepts no further messages. Group records are never deleted and do not use the soft-delete (`deleted_at`) pattern.
+
+**The roster is the record.** For the IFPA Board, the group's roster is the authoritative record of who sits on the board, and the IFPA Board flag follows it: adding a member to a `type='board'` group grants that flag and Tier 3 in the same transaction as the roster row, and ending that membership reverts the member to the underlying tier the flag recorded, per `A_Grant_HoF_BAP_Board_Status`. Board standing and voting are separate facts: a director may hold standing without a vote, because a seat can be filled by appointment under a bylaw provision, or by election ahead of the vote that seats it. Every row on a `type='board'` roster is a director; a group's roster is not the place for observers or advisors.
+
+Each `group_member_affiliations` row records, besides the member and the group: `role` (`owner` or `member`), `office` (free text, e.g. President, Secretary, Treasurer, Director; may be empty), `is_voting` (bool), `seat_basis` (`elected` or `appointed`), `seat_reference` (free text naming the election or the bylaw provision behind the seat), `term_start` (date), `term_end` (date, empty while serving), and `display_order` (integer, for precedence on the roster).
+
+Group communication is composed on the platform and kept there. A group carries no address of its own: the platform accepts no inbound mail, so a member composes on the group page and the platform distributes the message. Every outbound message rides a mailing list, so group mail reaches its recipients through the same send path, archive, and deliverability handling as every other list. A group's list resolves its recipients from the group's current roster when the send fans out; groups have members, and the roster is the single record of who those members are. Subscription rows for a group's list carry deliverability state (bounced, complained, suppressed), and a member who wants no further mail from a group leaves the group.
+
+A group's list sends from a no-reply identity. A reply in a mail client therefore reaches nobody, and replying to a group means composing on the group page, which is what keeps the group's record whole: every message a group has ever sent is on the group page, in the thread it belongs to, and nothing anyone said to the group is missing from it because it happened in somebody's mailbox. That matters most for the IFPA Board, whose business is official rules debate and whose decisions are taken by the platform's own vote stories.
+
+Everything is kept. Group messages, threads, roster rows including ended ones with their offices and term dates, and the audit trail are retained indefinitely, so the composition of the board on any past date and the debate behind any decision are both recoverable. Archiving a group preserves both. The only removal is account erasure clearing the sender identity on a retained message, which leaves the message itself in place.
 
 Group operability rule: A group is considered non-operable if it has zero current owners. Non-operable groups are flagged into the admin work queue for remediation. Admin remediation options include assigning a new owner via `A_Reassign_Group_Owner` or archiving the group via `A_Archive_Group` if defunct.
 
@@ -1706,40 +1719,74 @@ Story: As a member, I can browse a directory of public groups so that I can disc
 
 Success Criteria:
 
-- The directory lists all groups where `policy=public` AND `active=true`, regardless of whether the viewing member is a current member of those groups.
+- The directory lists all groups where `policy=public` AND `state='active'`, regardless of whether the viewing member is a current member of those groups.
 - Each entry shows: group name, type label, official badge if `official=true`, short description, parent group name if `parent_group_id` is set, and aggregate member count.
-- Private groups never appear in this directory, even to current members of those private groups (private groups are reached via direct link or via the member's "My Groups" list).
-- Archived groups never appear.
+- Private groups never appear in this directory, even to current members of those private groups. Members reach their own groups through `M_View_My_Groups`.
+- Groups whose `state` is `inactive` or `archived` never appear.
 - Directory sortable alphabetically by name (default) or by type.
 - Directory is not visible to visitors. Unauthenticated access returns `V_Access_Denied`.
 
+### M_View_My_Groups
+
+Access: Any logged-in member sees their own groups. The list is owner-only: no member sees another member's group list, and a visitor sees nothing.
+
+Story: As a member, I can see the groups I belong to so that I can reach a group whose page I would otherwise have no way to find.
+
+Success Criteria:
+
+- The member's own profile page carries a My Groups section listing every group where the member has a current affiliation, whatever the group's `policy` or `state`, because a private group is reachable no other way and an inactive one is still the member's.
+- Each entry shows group name, type label, official badge if applicable, the member's own `office` where set, and links to the group page.
+- An entry for a group whose `state` is `inactive` carries the inactive notice; one whose `state` is `archived` is shown as archived and still links to the group page, which renders read-only.
+- With no current affiliations the section renders nothing at all, with no empty-state panel.
+- The section is never shown on another member's profile, matching the owner-only-slug pattern used elsewhere.
+
 ### M_View_Group
 
-Access: All logged-in members can view a public group's page at a non-member view level. Only current group members and Admins can view a private group's page or see the member-only surfaces of a public group.
+Access: All logged-in members can view a public group's page at a non-member view level. Only current group members and Admins can view a private group's page or see the member-only surfaces of a public group. The roster of a `type='board'` group is public to signed-in members, per the criteria below.
 
 Story: As a member, I can view a group's page so that I understand the group's purpose, leadership, membership, and active business.
 
 Success Criteria:
 
-- Public group, non-member viewer: page displays group name, type, official badge if applicable, description, current owner display name(s) and contact, parent group link if applicable, list of subcommittees (groups with `parent_group_id` pointing to this group) if any, and aggregate member count. The roster, email composition, and ballot capabilities are reserved for current members.
+- Public group, non-member viewer: page displays group name, type, official badge if applicable, description, current owner display name(s) and contact, parent group link if applicable, list of subcommittees (groups with `parent_group_id` pointing to this group) if any, aggregate member count, and the roster at its public level: each member's display name, `office`, `term_start` and `term_end`, ordered by `display_order` then by display name. The public level never shows `is_voting`, `seat_basis`, or `seat_reference`. Email composition, the discussion, and ballot capabilities are reserved for current members.
+- Who sits on the IFPA Board and in what office is a published governance fact, which is why a `type='board'` roster renders at the public level to any signed-in member. How a seat was filled and whether it votes are internal to the group.
 - Private group, non-member viewer: returns `V_Access_Denied`. Private groups never appear in any directory.
-- Public or private group, current member viewer: page additionally displays full member roster (display name, current Active Player badge where applicable, special flags HoF/BAP/Board, city/country; email shown only if member has opted in to email visibility); link to `M_Email_Group` if email is enabled and the member is permitted to compose; group-scoped active or upcoming votes per `M_View_Vote_Options` eligibility.
-- Group owner viewing their own group: page additionally surfaces owner management actions (`GO_Edit_Group`, `GO_Manage_Members`, `GO_Manage_CoOwners`, `GO_Configure_Email_Settings`).
+- Public or private group, current member viewer: page additionally displays the roster at its member level (adding current Active Player badge where applicable, special flags HoF/BAP/Board, city/country, `is_voting`, `seat_basis`, and `seat_reference`; email shown only if member has opted in to email visibility); the group's discussion per `M_Read_Group_Discussion`; the compose action per `M_Email_Group` if email is enabled and the member is permitted to compose; group-scoped active or upcoming votes per `M_View_Vote_Options` eligibility.
+- Group owner viewing their own group: page additionally surfaces owner management actions (`GO_Edit_Group`, `GO_Manage_Members`, `GO_Manage_CoOwners`, `GO_Configure_Email_Settings`) and the per-message delivery counts on the discussion.
 - Admin viewing any group: page additionally surfaces admin management actions (`A_Edit_Group_Properties`, `A_Reassign_Group_Owner`, `A_Archive_Group`).
-- The `active` flag, when false, displays a clear "This group is inactive" notice; inactive groups retain member access but are hidden from the public directory.
-- Member roster sorted alphabetically by display name.
+- `state='inactive'` displays a clear "This group is inactive" notice; inactive groups retain member access and mail but are hidden from the public directory.
+- `state='archived'` renders the page read-only for members and admins: roster and discussion are readable, and no compose, join, leave, or configuration action is offered.
+- Member roster sorted by `display_order` ascending, then alphabetically by display name.
+
+### M_Read_Group_Discussion
+
+Access: Current group members and Admins. A non-member, including a signed-in member viewing a public group, sees that the group has a discussion and no part of its content.
+
+Story: As a group member, I can read everything the group has said to itself, in threads, so that I can follow a debate I joined late and so the group's record is one place rather than scattered across mailboxes.
+
+Success Criteria:
+
+- The group page renders the group's messages as threads: a thread is a message with no parent plus every message answering it, directly or indirectly.
+- Threads are ordered by most recent activity in the thread, newest first. Within a thread, messages are in send order, oldest first.
+- Each message shows sender display name linked to their profile, subject, full body as plain text, and sent timestamp. Owners and Admins additionally see the recipient count at send time.
+- A message whose sender's account has been erased shows the message unchanged, with the sender rendered as a removed member.
+- Every message carries a reply action for members permitted to compose, per `M_Email_Group`.
+- The discussion is readable for an archived group and accepts no new messages.
+- Nothing in the discussion is aged out or deleted. There is no edit and no delete: a correction is a reply, which is what makes the record trustworthy.
+- Access is checked per group on every request; a direct link to a message in a group the viewer does not belong to returns `V_Access_Denied`.
 
 ### M_Join_Group
 
-Access: Tier 1+ members can self-join groups where `restrict_membership=false` AND `active=true`.
+Access: Tier 1+ members can self-join groups where `restrict_membership=false` AND `state='active'`.
 
 Story: As a member, I can self-join an open group so that I can participate in its activities and receive its communications.
 
 Success Criteria:
 
-- Join action is available only on groups where `restrict_membership=false` AND `active=true`.
+- Join action is available only on groups where `restrict_membership=false` AND `state='active'`.
+- Self-join is never available on a `type='board'` group, whatever its `restrict_membership` value: board membership is conferred by IFPA, not taken, and it grants Tier 3.
 - On groups where `restrict_membership=true`, the group page shows an explanation that membership is managed by the group's owners or by Admins, and points the member to `M_Contact_IFPA_Admin` for inquiries.
-- Joining creates a `group_member_affiliations` row with `is_current=1`, `role='member'`, and timestamp.
+- Joining creates a `group_member_affiliations` row with `is_current=1`, `role='member'`, `is_voting=0`, empty `office`, `seat_basis`, and `seat_reference`, `term_start` set to the join date, and timestamp.
 - If the group has an enabled `MailingList`, the member is a recipient of that list from the moment they join, because the list resolves its recipients from the current roster. The member's own subscription controls do not offer the list; leaving the group via `M_Leave_Group` is how a member stops receiving it.
 - Joining sends a confirmation email to the joining member and a notification email to all current group owners.
 - Members may belong to an unlimited number of groups simultaneously. There is no per-member cap on group affiliations, unlike clubs.
@@ -1753,32 +1800,35 @@ Story: As a group member, I can leave a group so that I am removed from its rost
 
 Success Criteria:
 
-- Leaving sets the member's `group_member_affiliations.is_current=0` for the member-group pair.
+- Leaving sets the member's `group_member_affiliations.is_current=0` and stamps `term_end` with the leave date for the member-group pair. The row is retained with its `office`, `seat_basis`, `seat_reference`, and `term_start` intact, so the group's past composition stays recoverable.
+- Leaving a `type='board'` group ends the member's board standing in the same transaction: the IFPA Board flag is cleared and the tier reverts to the underlying tier the flag recorded, per `A_Grant_HoF_BAP_Board_Status`.
 - A member who is the sole owner of the group cannot leave directly; the UI surfaces the constraint and routes the member to `GO_Manage_CoOwners` to promote a successor first.
 - Leaving a group where the member also held an owner or co-owner role removes that role row in the same transaction.
 - If the group has an enabled `MailingList`, the member stops being a recipient of that list on the same transaction that ends their affiliation, because the list resolves its recipients from the current roster.
+- A former member no longer reads the group's discussion. What they already received by email is theirs and is not recalled.
 - Leaving sends a confirmation email to the leaving member and a notification email to all current group owners.
 - After leaving, the system re-evaluates group operability. If the group has zero owners after the leave, the system creates or updates a "Group Needs Owner" admin work queue item.
 - Leaving is audit-logged with actor identity, group ID, before and after affiliation state, timestamp.
 
 ### M_Email_Group
 
-Access: Tier 1+ members can send a message to a group's members via web form, subject to the group's `restricted_sending` flag.
+Access: Tier 1+ members can post a message to a group via web form, subject to the group's `restricted_sending` flag. Composing on the group page is the only way to write to a group: the platform accepts no inbound mail and the group's list sends from a no-reply identity.
 
-Story: As a member, I can send an email to a group so that I can communicate with the group's membership.
+Story: As a member, I can post a message to a group so that I can put something to the group's members, have it delivered to them by email, and have it kept in the group's record.
 
 Success Criteria:
 
-- The compose form is available only for groups with email enabled by Admin (`email_enabled=true`).
+- The compose form is available only for groups with email enabled by Admin (`email_enabled=true`) and `state` of `active` or `inactive`. An archived group accepts no messages.
 - If `restricted_sending=true` (default for group lists), the compose form is shown only to current group members; a non-member sees that the group can be written to by its members and cannot compose.
 - If `restricted_sending=false`, the compose form is available to all Tier 1+ members.
 - Form includes: subject, message body, preview. Body is plain text (no HTML), consistent with `A_Send_Mailing_List_Email`.
+- A reply carries the parent message's identifier and its subject, and the member edits neither.
 - On submit the message is dispatched through the outbox to the group's `MailingList`, whose recipients are the group's current members at the moment the send fans out.
 - Outgoing subject is prefixed by `subject_prefix` if configured, in the form `[prefix] subject`.
-- Sender rate-limited per group, admin-configurable (`group_email_rate_limit_per_hour`, default 5 messages per group per member per hour).
-- Each dispatched message is archived per the existing `A_Send_Mailing_List_Email` archive rule (subject, body, sender, list, timestamp, recipient count) and browseable by group owners and Admins.
+- Sender rate-limited per group, admin-configurable (`group_email_rate_limit_per_hour`, default 30 messages per group per member per hour), specified with the platform's other rate limits in the Configurable Parameters section. The limit is an abuse ceiling, not a pacing rule: a member taking part in a live debate posts as often as the debate needs and never meets it, and a runaway client or a member posting in bad faith does.
+- Each dispatched message is retained as the group's record, with its parent where it is a reply, carrying subject, body, sender, list, timestamp, and recipient count, and is read on the group page per `M_Read_Group_Discussion`.
 - The send honors the bounce and complaint suppression every list send honors, and carries no unsubscribe control. Membership of the group is what makes a member a recipient, so an unsubscribe would either leave them on the roster still receiving, or remove them from a committee, which is a governance act rather than something a mail client's button performs.
-- Every group message ends with a standing line telling the reader they receive it as a member of the group and how to leave it on the site, naming the group's page and its leave action. That line is part of the message template rather than something a sender types, so it is on every group message and worded the same way each time. It is instructional text, not a link, per the anti-phishing link policy.
+- Every group message ends with a standing line telling the reader they receive it as a member of the group, that replies are written on the group's page rather than by replying to the mail, and how to leave the group on the site, naming the group's page and its leave action. That line is part of the message template rather than something a sender types, so it is on every group message and worded the same way each time. It is instructional text, not a link, per the anti-phishing link policy.
 - Every send is audit-logged with actor ID, group ID, message ID, action, timestamp.
 
 # 4. Event Organizer Stories
@@ -2509,6 +2559,8 @@ Group Owners are members designated by an Admin at group creation time. Owners c
 
 The group lifecycle (create, archive) is Admin-controlled and lives in `A_Create_Group` and `A_Archive_Group`. Owners do not create or archive groups. Owners can leave the group they own via `GO_Leave_Group` subject to the sole-owner promotion-first rule.
 
+A `type='board'` group is the exception to owner-managed rosters. Its membership grants the IFPA Board flag and Tier 3, so adding and removing members is an administrator's act and never an owner's, and the governance fields on a roster row (`office`, `is_voting`, `seat_basis`, `seat_reference`, `term_start`, `term_end`, `display_order`) are set only by an administrator through `A_Manage_Group_Roster`. A board group's owner still edits the group's description and notes, configures its mail, and manages co-owners.
+
 ## 6.1 Group Management
 
 ### GO_Edit_Group
@@ -2520,14 +2572,14 @@ Story: As a group owner, I can edit my group's description and member-facing not
 Success Criteria:
 
 - Owner can edit: description (long-form text) and short member-facing notes (e.g., next meeting time, agenda link).
-- Owner cannot edit: name, type, official, policy (public/private), restrict_membership, email_enabled, active, parent_group_id. Those properties are Admin-only via `A_Edit_Group_Properties`.
+- Owner cannot edit: name, type, official, policy (public/private), restrict_membership, email_enabled, state, parent_group_id. Those properties are Admin-only via `A_Edit_Group_Properties`.
 - Co-owners can edit all owner-editable fields.
 - All edits are audit-logged with actor identity, fields changed, old values, new values, timestamp.
 - Owner sees a clear success message on save and clear validation errors otherwise.
 
 ### GO_Manage_Members
 
-Access: Group owners (including co-owners) and Admins can add or remove members of the group.
+Access: Group owners (including co-owners) and Admins can add or remove members of the group. On a `type='board'` group this story is Admin-only: its roster grants Tier 3, which is not an owner's to confer.
 
 Story: As a group owner, I can add or remove members of my group so that I maintain the group's roster.
 
@@ -2535,10 +2587,13 @@ Success Criteria:
 
 - Owner can add any Tier 1+ member to the group by member ID or via member search.
 - Owner can remove any current member from the group, subject to the sole-owner protection (an owner cannot remove the only owner; a successor must be promoted first via `GO_Manage_CoOwners`).
+- On a `type='board'` group the add and remove actions are not offered to owners at all; the roster is managed by an administrator through `A_Manage_Group_Roster`, which also sets the governance fields on each row.
+- On every other group, a row added here carries `is_voting=0`, empty `office`, `seat_basis`, and `seat_reference`, `term_start` set to the add date, and no `display_order`; those fields exist for governance groups and are set by an administrator where they apply.
 - Add and remove behavior applies regardless of the group's `restrict_membership` flag; the flag controls only self-join, not owner-driven adds.
 - If the group has an enabled `MailingList`, an added member is a recipient of it and a removed member is not, from the moment the roster change commits, because the list resolves its recipients from the current roster.
 - Adding a member sends a notification email to the added member and to all current owners.
 - Removing a member sends a notification email to the removed member and to all current owners.
+- Removing a member sets `is_current=0` and stamps `term_end`; the row and its governance fields are retained, because the group's past composition is part of its record.
 - All add and remove actions are audit-logged with actor identity, group ID, target member ID, action, timestamp.
 - After any roster change, the system re-evaluates group operability and creates or updates a "Group Needs Owner" admin work queue item if the owner count is zero.
 
@@ -2568,9 +2623,11 @@ Story: As a group owner, I can configure how my group's mail behaves so that gro
 Success Criteria:
 
 - Configuration view is available only when the group has email enabled by Admin (`email_enabled=true`).
+- `subject_prefix` and `restricted_sending` have one owner between them and one seeding point: the administrator sets their initial values when enabling the group's mail in `A_Create_Group` or `A_Edit_Group_Properties`, and the group's owner maintains them from then on. Only an administrator enables or disables the mail itself.
 - Owner can toggle `restricted_sending` (bool, default true for group lists). When true, only current group members can compose messages to the group via `M_Email_Group`. When false, any Tier 1+ member may compose.
 - Owner can set `subject_prefix` (string, max 32 chars, may be empty). When non-empty, prepended to outgoing subjects in the form `[prefix] subject`.
 - Owner cannot enable or disable the group's mail. That is Admin-only via `A_Edit_Group_Properties`.
+- The group's list sends from a no-reply identity and the owner cannot change it, because a reachable reply address would take part of the group's record off the platform.
 - All configuration changes are audit-logged with actor identity, group ID, field changed, old value, new value, timestamp.
 
 ### GO_Leave_Group
@@ -3245,7 +3302,7 @@ Success Criteria:
 
 - Admin defines: title, description, vote type (Election / Issue), nomination window (optional), voting window, ballot type (single-choice / multi-choice), and background materials (text + links/attachments).
 - Admin selects the vote's bylaws validity rule, which fixes the thresholds the system checks at tally time: `membership_resolution` (adoption requires at least 10% of the eligible members to participate and a majority of the ballots cast), `bylaws_amendment` (the same 10% participation floor with a two-thirds affirmative share of the ballots cast), or `none` for a vote the bylaws thresholds do not bind. The rule is a configuration choice per vote, not a system constraint derived from vote type, and it is locked when the vote opens alongside the option set and the eligibility snapshot.
-- Admin defines eligibility rules using member attributes and flags (Tier status, HoF, BAP, Board flags) or an explicit inclusion list. The eligibility rule set also includes `members_of_group(group_id)`: when this rule is configured, eligible voters are members where `group_member_affiliations.group_id = group_id AND is_current = 1`, evaluated and snapshotted at vote-open time. Eligibility predicates can be combined (for example: Tier 2 AND `members_of_group(finance_committee)`).
+- Admin defines eligibility rules using member attributes and flags (Tier status, HoF, BAP, Board flags) or an explicit inclusion list. The eligibility rule set also includes `voting_members_of_group(group_id)`: when this rule is configured, eligible voters are members where `group_member_affiliations.group_id = group_id AND is_current = 1 AND is_voting = 1`, evaluated and snapshotted at vote-open time. The voting marker is what enfranchises, not membership: a roster can carry a director whose seat is filled but not yet seated, and that seat does not vote. Eligibility predicates can be combined (for example: Tier 2 AND `voting_members_of_group(finance_committee)`).
 - System validates: date ordering, required fields, and that eligibility rules are internally consistent.
 - System generates a unique vote ID and audit-log record of creation.
 - For HoF elections, any member can submit nominations during the nomination window, but to be included in the ballot, the nominated candidates must provide an affidavit that explains their qualifications, basically their footbag career achievements. This information will be included as part of the vote’s background materials.
@@ -3254,7 +3311,7 @@ Success Criteria:
 - Eligibility Changes: Members cannot gain or lose eligibility after vote opens, ensuring fairness.
 - Eligibility is evaluated and snapshotted at the moment the vote transitions to `open` status. Eligible members at vote-open time are written as rows into `vote_eligibility_snapshot`. Members retain voting rights for the full voting window even if their tier, flags, or group membership change while the vote is open.
 - Group-scoped votes follow the same encryption, receipt-token, decrypt-audit, and tally rules as all other votes; there is no lightweight or non-encrypted variant.
-- If the referenced group in a `members_of_group` rule is archived after the vote opens but before the vote closes, the open vote continues to completion using the frozen snapshot; the system creates an admin notification but does not cancel the vote automatically.
+- If the referenced group in a `voting_members_of_group` rule is archived after the vote opens but before the vote closes, the open vote continues to completion using the frozen snapshot; the system creates an admin notification but does not cancel the vote automatically.
 - Members may request a vote via `M_Contact_IFPA_Admin` using the "Vote creation request" category. The admin reviews the request through `A_Resolve_Contact_IFPA_Admin_Request` and then configures the vote through this story if approved.
 
 ### A_Publish_Vote_Results
@@ -3304,7 +3361,7 @@ Success Criteria:
 
 - Admin composes email and selects target list (newsletter, announcements, board-updates, and group-backed lists in exceptional cases).
 - Organization-wide announce list is retained; only Admins may send to general mailing lists through this story. Exception: the IFPA announce list (announce@footbag.org) may be sent to by any Tier 2 or Tier 3 member via M_Send_Announce_Email; the Admin-only rule applies to all other mailing lists managed through this story.
-- Member sending to a group is the responsibility of `M_Email_Group`, including the `restricted_sending` and `subject_prefix` behaviors. An admin send via this story to a group-backed `MailingList` bypasses `restricted_sending` and is intended for critical platform notifications that must reach the group. Such admin sends are audit-logged with admin ID, group ID, list ID, subject, recipient count, and timestamp.
+- Member sending to a group is the responsibility of `M_Email_Group`, including the `restricted_sending` and `subject_prefix` behaviors. An admin send via this story to a group-backed `MailingList` bypasses `restricted_sending` and is intended for critical platform notifications that must reach the group. Such a send lands in the group's record like any other message, as a new thread with no parent, readable on the group page per `M_Read_Group_Discussion`, so the record shows everything the group was sent and by whom. Such admin sends are audit-logged with admin ID, group ID, list ID, subject, recipient count, and timestamp.
 - System enumerates recipients from MailingListSubscription records for the chosen MailingList, applying subscription status.
 - Sends to all subscribed members via outbox pattern.
 - Email delivery respects bounce list.
@@ -3330,9 +3387,10 @@ Success Criteria:
 - Admins can change a MailingList’s status to archived so that it no longer appears in member subscription controls or new email send flows, while all historical mailing data and subscriptions remain preserved for audit and reporting.
 - For member-manageable lists, subscription/unsubscription is primarily controlled by the member from their profile page; admins can only make limited manual adjustments in exceptional cases (for example to handle bounced or complaint states), and all such manual changes are audit-logged with admin identity, timestamp, and reason.
 - For admin-only lists (for example admin-alerts), subscriptions are controlled by admin configuration or system roles rather than member toggles, and the rules for who is subscribed are clearly documented in the list metadata.
-- `MailingList` records support two admin-configurable behavior fields: `subject_prefix` (string, max 32 chars, default empty; when non-empty, prepended to outgoing subjects in the form `[prefix] subject`); and `restricted_sending` (bool, default false for general lists and default true for group lists; when true, only the configured allowed-sender population may compose).
+- `MailingList` records support two behavior fields: `subject_prefix` (string, max 32 chars, default empty; when non-empty, prepended to outgoing subjects in the form `[prefix] subject`); and `restricted_sending` (bool, default false for general lists and default true for group lists; when true, only the configured allowed-sender population may compose). On a general list both are the admin's. On a group-backed list the admin sets their initial values when enabling the group's mail and the group's owner maintains them thereafter, per `GO_Configure_Email_Settings`; enabling and disabling the mail itself stays the admin's.
 - A `MailingList` record is either subscription-backed or group-backed. A subscription-backed list takes its recipients from its `MailingListSubscription` rows, which members manage through `M_Manage_Email_Subscriptions`. A group-backed list names a group and takes its recipients from that group's current roster when the send fans out; its subscription rows record deliverability state (bounced, complained, suppressed) and the roster remains the single record of membership.
 - Group-backed `MailingList` records are excluded from the member-facing `M_Manage_Email_Subscriptions` view, and their sends carry no unsubscribe control: membership of the group is what puts a member on the list, so the member leaves the group to stop receiving it, and every group message says so in its own text.
+- A group-backed `MailingList` sends from a no-reply from-identity, which is not admin-configurable. A group has no address of its own and takes no inbound mail, so a reachable reply address would send part of the group's record somewhere the group cannot read it. Replies are composed on the group page, per `M_Email_Group`.
 - When an Admin enables email on a group via `A_Create_Group` or `A_Edit_Group_Properties`, the system creates the associated group-backed `MailingList` naming that group.
 - When an Admin disables email on a group, the associated `MailingList` is archived per the existing archive semantics and accepts no further sends.
 
@@ -3462,6 +3520,7 @@ Seed these defaults into the database-backed configuration store during initial 
 - `video_submission_rate_limit_per_hour = 5` (maximum video link submissions per member per hour)
 - `media_flag_rate_limit_per_hour = 10` (maximum media flags per member per hour to prevent abuse)
 - `curator_write_rate_limit_per_hour = 60` (maximum curated-media writes per curator per hour)
+- `group_email_rate_limit_per_hour = 30` (maximum messages one member may post to one group per hour; an abuse ceiling, set well above what a live debate needs)
 - `media_edit_rate_limit_per_hour = 15` (maximum edits to a member's own media per hour)
 - `gallery_write_rate_limit_per_hour = 30` (maximum gallery creates, renames and deletes per member per hour)
 - `profile_edit_rate_limit_per_hour = 20` (maximum profile edits per member per hour)
@@ -3607,8 +3666,9 @@ Story: As an Admin, I can create a group with all configurable properties and as
 
 Success Criteria:
 
-- Form includes: name (required, max 80 chars, not required to be globally unique); description (long-form text); type (enum: `group`, `committee`, `board`, `panel`, `fellows`); official (bool, default false); policy (enum: `public`, `private`, default `private`); restrict_membership (bool, default true); email_enabled (bool, default false); active (bool, default true); parent_group_id (optional, must reference an existing non-archived group; subcommittee nesting depth is unlimited); initial owner member ID (required, must be a Tier 1+ member).
-- If `email_enabled=true`, the system creates the associated group-backed `MailingList` naming the new group and applies admin-set defaults for `subject_prefix` and `restricted_sending`. The list's recipients are the group's members, so it needs no seeding.
+- Form includes: name (required, max 80 chars, not required to be globally unique); slug (required, unique, the group's URL identity); description (long-form text); type (enum: `group`, `committee`, `board`, `panel`, `fellows`); official (bool, default false); policy (enum: `public`, `private`, default `private`); restrict_membership (bool, default true); email_enabled (bool, default false); state (enum: `active`, `inactive`, `archived`, default `active`); parent_group_id (optional, must reference an existing non-archived group; subcommittee nesting depth is unlimited); initial owner member ID (required, must be a Tier 1+ member).
+- At most one group may carry `type='board'`. Creating a second is rejected with a specific message naming the existing one. Creating a board group confers nothing on anybody by itself: standing follows the roster, per `A_Manage_Group_Roster`.
+- If `email_enabled=true`, the system creates the associated group-backed `MailingList` naming the new group, sends it from a no-reply identity, and applies admin-set initial values for `subject_prefix` and `restricted_sending`, which the group's owner maintains thereafter. The list's recipients are the group's members, so it needs no seeding.
 - This story provisions new platform groups only. Legacy IFPA `@ifpa.footbag.org` list addresses are dispositioned separately as part of the legacy email transition, and no group reproduces one: a platform group has no address of its own, because the platform receives no inbound email. Group mail is composed on the group page and distributed via SES.
 - The initial owner receives an email notification with the group name, type, and owner responsibilities.
 - Admin sees a clear success message and a link to the newly created group's page.
@@ -3623,26 +3683,44 @@ Story: As an Admin, I can edit admin-controlled group properties so that I can a
 
 Success Criteria:
 
-- Admin can edit: name, type, official, policy (public/private), restrict_membership, email_enabled, active, parent_group_id.
+- Admin can edit: name, slug, type, official, policy (public/private), restrict_membership, email_enabled, state, parent_group_id. Changing `type` to `board` is rejected while another board group exists.
 - Admin cannot edit owner-editable fields (description, member-facing notes) via this story; those are managed in `GO_Edit_Group`. An Admin who is also a group owner can edit both surfaces via their respective routes.
-- Enabling email on a previously disabled group creates the associated group-backed `MailingList`, whose recipients are the group's current members.
+- Enabling email on a previously disabled group creates the associated group-backed `MailingList`, whose recipients are the group's current members and whose from-identity is no-reply.
 - Disabling email on a previously enabled group archives the associated `MailingList`.
-- Setting `active=false` hides the group from `M_Browse_Groups_Directory` but preserves member access via direct URL. Setting `active=true` restores directory visibility.
+- Setting `state='inactive'` hides the group from `M_Browse_Groups_Directory` but preserves member access, its discussion, and its mail. Setting `state='active'` restores directory visibility. `archived` is not set here; archiving is `A_Archive_Group`, which carries the roster and list consequences.
 - Changing `restrict_membership` from false to true does not remove existing members but blocks future self-joins via `M_Join_Group`.
 - Changing `parent_group_id` does not move members, ballots, or email; the change is navigational only.
 - Renaming the group preserves the existing member set, ballots, mailing list, and audit history.
 - All edits are audit-logged with admin ID, group ID, fields changed, old values, new values, timestamp.
 
+### A_Manage_Group_Roster
+
+Access: Only Admins. This story owns every roster row on a `type='board'` group, and the governance fields on any group's rows. Ordinary membership of every other group is managed by that group's owners via `GO_Manage_Members`.
+
+Story: As an Admin, I maintain the board's roster as the platform's record of who sits on it, in what office, by what authority, for what term, and with what vote, so that the site's badges, its ballots, and its published board list all follow one record.
+
+Success Criteria:
+
+- Admin can add a member to the roster, setting `role`, `office`, `is_voting`, `seat_basis` (`elected` or `appointed`), `seat_reference` (free text naming the election or the bylaw provision), `term_start`, and `display_order`. `term_end` is left empty while the member serves.
+- Adding a member to a `type='board'` group sets the IFPA Board flag and Tier 3 in the same transaction as the roster row, recording the underlying tier for reversion, per `A_Grant_HoF_BAP_Board_Status`. The flag is never set on a board member by any other route.
+- Standing and voting are independent. A director with `is_voting=0` holds the flag, Tier 3, and the badge, and casts no ballot. The form states this where the marker is set, because a seat filled by appointment or awaiting its seating vote is the ordinary case rather than an error.
+- Admin can end a membership: `is_current=0`, `term_end` stamped, the row and all its governance fields retained. On a board group this clears the flag and reverts the member to the underlying tier in the same transaction.
+- Admin can correct any governance field on a current or ended row. A correction records old and new values.
+- Ending the last membership carrying `is_voting=1` is allowed and raises no block: whether the board can act is a bylaws question the platform does not adjudicate. It is surfaced as a notice on the admin work queue so it is visible rather than silent.
+- Validation: `term_end` may not precede `term_start`; `seat_reference` is required when `seat_basis` is set; a member may hold at most one current row per group.
+- The roster reads the same everywhere it appears: the group page, the ballot eligibility in `A_Create_Vote`, and the group's mailing list all resolve from these rows rather than from a copy.
+- Every action is audit-logged with admin ID, group ID, target member ID, fields changed, old and new values, and mandatory reason text on any removal.
+
 ### A_Reassign_Group_Owner
 
-Access: Only Admins can reassign group ownership and remediate "Group Needs Owner" admin work-queue items.
+Access: Only Admins can reassign group ownership and remediate "Group Needs Owner" admin work-queue items. Ownership is a group-management role and is separate from board standing: granting it confers no tier and no badge, and on a board group the roster itself is managed in `A_Manage_Group_Roster`.
 
 Story: As an Admin, I have full control over group owner rosters so that groups remain operable when leadership breaks down.
 
 Success Criteria:
 
 - Admin can assign a group owner from the Tier 1+ member base (audit-logged).
-- Admin can demote a group owner or co-owner back to ordinary group member, or remove their affiliation entirely (audit-logged with mandatory reason text).
+- Admin can demote a group owner or co-owner back to ordinary group member, or remove their affiliation entirely (audit-logged with mandatory reason text). On a board group, removing an affiliation carries the standing consequences specified in `A_Manage_Group_Roster`.
 - Admin can change a member's role between owner and co-owner within a group, subject to the sole-owner-promotion-first invariant.
 - Groups with zero owners are flagged "Group Needs Owner" and appear in an admin work queue.
 - Admin can resolve a "Group Needs Owner" item by assigning a new owner via this story, or by archiving the group via `A_Archive_Group` if defunct.
@@ -3656,12 +3734,12 @@ Story: As an Admin, I can archive a defunct group so that I can remove it from a
 
 Success Criteria:
 
-- Archiving sets the group's status to `archived`. Group records are never permanently deleted and do not use the soft-delete (`deleted_at`) pattern.
-- Archived groups are excluded from `M_Browse_Groups_Directory`, from `M_View_Group` access for non-admins, and from all email send flows. Admins retain read access to archived groups for audit purposes.
-- Each remaining `group_member_affiliations` row for the archived group has `is_current` set to 0. Rows are preserved so historical affiliation is recoverable.
+- Archiving sets the group's `state` to `archived`. Group records are never permanently deleted and do not use the soft-delete (`deleted_at`) pattern.
+- Archived groups are excluded from `M_Browse_Groups_Directory` and from all email send flows. Their former members and Admins retain read access to the group page, its roster, and its discussion, which render read-only; the group stays listed in each former member's `M_View_My_Groups`. Nothing in an archived group is deleted or aged out.
+- Each remaining `group_member_affiliations` row for the archived group has `is_current` set to 0 and `term_end` stamped with the archive date. Rows and their governance fields are preserved so historical affiliation is recoverable. Archiving a board group clears the IFPA Board flag and reverts the tier for every member still holding it, in the same transaction.
 - The associated `MailingList` (if any) is archived in the same transaction per the existing archive semantics.
 - Subcommittees of the archived group (rows with `parent_group_id` pointing to the archived group) are not auto-archived; the Admin must archive them separately if appropriate. The `parent_group_id` reference remains valid for historical navigation, even though the parent is archived.
-- Group-scoped active votes (per `A_Create_Vote` with `members_of_group(group_id)` eligibility) are not canceled automatically; the system creates an admin notification recommending review via `A_Cancel_Vote`.
+- Group-scoped active votes (per `A_Create_Vote` with `voting_members_of_group(group_id)` eligibility) are not canceled automatically; the system creates an admin notification recommending review via `A_Cancel_Vote`.
 - Archive action is audit-logged with admin ID, group ID, reason, timestamp.
 
 # 8. Background System Jobs
