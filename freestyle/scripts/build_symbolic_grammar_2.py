@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """SYMBOLIC-GRAMMAR-2: build educational symbolic-grammar integration layer.
 
-Generates Tasks A/B/C/F/G of the SG-2 brief from IFPA dictionary state +
-SYMBOLIC-GRAMMAR-1 outputs + GRAMMAR-GLOSSARY-1 outputs + PassBack-intake data.
+Generates Tasks A/B/C/F/G of the SG-2 brief from live IFPA dictionary state:
+freestyle_tricks, freestyle_trick_modifier_links and freestyle_trick_modifiers,
+read-only. The database is the only input; there is no snapshot or CSV overlay.
 
 Outputs (all under freestyle/symbolic_grammar/):
   Task A — 5 group CSVs:
@@ -34,7 +35,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 DB = ROOT / "database" / "footbag.db"
-SG1_MASTER = ROOT / "freestyle" / "inputs" / "observational" / "SYMBOLIC_GRAMMAR_MASTER.csv"
 OUT_DIR = ROOT / "freestyle" / "symbolic_grammar"
 
 
@@ -254,18 +254,6 @@ def load_ifpa_state() -> dict:
         return {"tricks": active, "modifier_links": dict(mod_links), "modifier_stubs": mod_stubs}
     finally:
         conn.close()
-
-
-def load_sg1_master() -> dict[str, dict]:
-    """Return {move_name_normalized: row_dict} from SYMBOLIC_GRAMMAR_MASTER.csv."""
-    out: dict[str, dict] = {}
-    if not SG1_MASTER.exists():
-        return out
-    with SG1_MASTER.open(encoding="utf-8") as f:
-        for row in csv.DictReader(f):
-            key = row["move_name"].lower().strip().replace(" ", "-")
-            out[key] = row
-    return out
 
 
 # ─────────────────────────────────────────────────────────────────────────
