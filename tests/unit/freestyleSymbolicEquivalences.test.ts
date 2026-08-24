@@ -314,7 +314,7 @@ describe('freestyleSymbolicEquivalences — composed-set folk-name dispositions'
   });
 
   it('the four composed-set tokens resolve to their operator stacks', () => {
-    expect(getSymbolicEquivalenceChain('flailing')?.readings).toEqual(['symposium illusioning']);
+    expect(getSymbolicEquivalenceChain('flailing')?.readings).toEqual(['symposium atomic']);
     expect(getSymbolicEquivalenceChain('surfing')?.readings).toEqual(['fairy symposium swirling']);
     expect(getSymbolicEquivalenceChain('slicing')?.readings).toEqual(['gyro whirling']);
     expect(getSymbolicEquivalenceChain('splicing')?.readings).toEqual(['gyro reving']);

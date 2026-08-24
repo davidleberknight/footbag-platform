@@ -501,7 +501,7 @@ const WHIRLING_SET_CONTENT: SetEducationInput = {
   definition:
     'Whirling is a launch set: it determines how a trick is opened, rather than adding a movement to the trick itself. It opens from a clipper-anchored set with an opposite-side inward dex and a same-side terminal, the rotational opening that anchors the whirl family. The dexterity is unchanged; what whirling sets is the launch. As a set treatment it contributes +1.',
   whyItExists:
-    'Whirling exists to name the clipper-anchored rotational launch that opens the whirl family, distinguishing it from a stationary set and from its siblings swirling (an explicit SWIRL-token dex) and blazing (the opposite-side-terminal reading that the platform treats as whirling). The dexterity is the same; the set records the specific rotational opening, scored independently as a +1 set treatment.',
+    'Whirling exists to name the clipper-anchored rotational launch that opens the whirl family, distinguishing it from a stationary set and from its siblings swirling (an explicit SWIRL-token dex) and blazing (a distinct named set on the same whirl chassis, whose side relation to whirling is unsettled). The dexterity is the same; the set records the specific rotational opening, scored independently as a +1 set treatment.',
   howItLaunches:
     'Whirling is the launch itself, not a movement added after launch. The clipper-anchored set opens with an opposite-side inward dex resolving to a same-side terminal, and the bag is delivered into whatever dexterity follows, which stays recognizable: a whirling whirl is still a whirl, a whirling osis is still an osis (the named trick blender). What whirling determines is how the trick is set up and entered, contributing +1 from the set treatment.',
   jobNotation:
@@ -521,7 +521,7 @@ const WHIRLING_SET_CONTENT: SetEducationInput = {
     {
       heading: 'Whirling vs blazing',
       prose:
-        'Holden distinguishes blazing from whirling by terminal side (opposite-side terminal). The platform does not separate them: blazing is treated as a terminal-side variant of whirling, not an independent set.',
+        'Blazing is its own named set on the whirl chassis, not a second name for whirling: it is an uptime whirl that the following trick is performed off of, and it carries its own +1. Holden additionally separates the two by terminal side; that side relation is not settled, so the two stand as distinct named sets and the relation is left open.',
     },
     {
       heading: 'Whirling is a launch, not a body movement',
@@ -594,7 +594,7 @@ const WHIRLING_SET_CONTENT: SetEducationInput = {
     },
     {
       name:  'blazing',
-      prose: 'The opposite-side-terminal reading of whirling. Holden distinguishes it by terminal side; the platform treats it as a variant of whirling.',
+      prose: 'A distinct named set on the same whirl chassis: an uptime whirl the following trick is performed off of, contributing +1. Holden separates it from whirling by terminal side; that side relation is unsettled.',
     },
     {
       name:  'blistering',

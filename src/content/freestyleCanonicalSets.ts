@@ -551,17 +551,20 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     slug: 'flailing', hashtag: '#set_flailing', displayName: 'Flailing', subtype: 'composite-derived',
     formula: 'SET > (no plant while) OP OUT [BOD] [DEX] >',
     movementExplanation:
-      'Miraging reversed and performed off the ground (folk name Symposium Reverse ' +
-      'Miraging). Holden-cited; no current platform canonical.',
+      'A Symposium Atomic set: the atomic dex leads and the base\'s own leading dex ' +
+      'becomes a no-plant body dex, so the launch reads as one movement rather than two. ' +
+      'As a set treatment it contributes +2, and a Symposium written alongside Flailing in ' +
+      'a folk name expands this set rather than adding a second symposium treatment. Where ' +
+      'a positional qualifier lands inside this chassis is not settled.',
     equivalenceNotes: [
+      { reading: 'Symposium Atomic', citation: 'Red ruling (curator-relayed)' },
       { reading: 'Symposium Reverse Miraging', citation: 'Holden parenthetical' },
-      { reading: 'Symposium Illusioning', citation: 'Curator-adjudicated' },
     ],
     derivedSystems: [],
     relatedSystems: [],
-    source: 'holden-only',
-    sourceCitation: 'Holden compilation (2003); unusual notation with explicit no-plant constraint.',
-    auditStatus: 'holden-only',
+    source: 'platform-tracked',
+    sourceCitation: 'Red ruling (curator-relayed): flailing is a Symposium Atomic set contributing +2, corpus-settled across the six published atomic-symposium compounds; Holden compilation (2003) reads it as Symposium Reverse Miraging.',
+    auditStatus: 'partial',
     tier: 'compositional-system',
   },
   {
@@ -798,8 +801,8 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     formula: 'CLIP > OP IN [DEX] > (op side component)',
     movementExplanation:
       'A whirling set: an uptime whirl that the following trick is performed off of. ' +
-      'Holden distinguishes blazing from whirling by terminal side; the platform does ' +
-      'not separate them, and the ruling did not address that distinction.',
+      'Holden additionally separates blazing from whirling by terminal side; that side ' +
+      'relation is not settled, so the two stand as distinct named sets.',
     equivalenceNotes: [
       { reading: 'whirling (op-side terminal variant)', citation: 'Holden distinction' },
     ],

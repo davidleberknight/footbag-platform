@@ -130,7 +130,6 @@ const WORD_TOKEN_LABELS: Record<string, string> = {
   STEPPING:  'Stepping, set modifier (+1 ADD)',
   TAPPING:   'Tapping, body modifier (+1 ADD; distinct from Stepping)',
   DIVING:    'Diving, body modifier (+1 ADD)',
-  BLAZING:   'Blazing, body modifier (+1 ADD)',
   BARRAGING: 'Barraging, a historical naming pattern for Furious-set structures, not a separately scored operator; where a trick is ruled Furious, ADD decomposition uses Furious (+2)',
   WEAVING:   'Weaving, body modifier (+1 ADD)',
   MIRAGING:  'Miraging, historical mirage-family nickname (+1 ADD; not a canonical set)',
@@ -142,6 +141,7 @@ const WORD_TOKEN_LABELS: Record<string, string> = {
   SPINNING:   'Spinning, rotation modifier (+1 ADD)',
   WHIRLING:   'Whirling, whirl-family launch set (+1 ADD; underlies Blender)',
   SWIRLING:   'Swirling, whirl-and-swirl launch set (+1 ADD)',
+  BLAZING:    'Blazing, whirl-chassis launch set (+1 ADD; an uptime whirl the following trick is performed off of)',
   INSPINNING: 'Inspinning, rotation modifier (distinct from Spinning)',
   GYRO:       'Gyro, rotation modifier (+1 ADD; underlies Mobius)',
 

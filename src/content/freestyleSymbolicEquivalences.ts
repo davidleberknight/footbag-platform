@@ -682,10 +682,14 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
   },
   {
     slug:     'flailing',
-    readings: ['symposium illusioning'],
-    // Operator form of flail (static reading symposium illusion); illusioning
-    // is the reverse-miraging dex, reconciling the Holden "symposium reverse
-    // miraging" form to canonical operator naming.
+    readings: ['symposium atomic'],
+    // Red-ruled: flailing is a Symposium Atomic set combining the symposium and
+    // atomic treatments, contributing +2 across the six published
+    // atomic-symposium compounds. It is NOT the prefix form of flail; flail is a
+    // symposium illusion in its own right and stays a separate identity. Where a
+    // folk name spells Symposium out alongside Flailing, that token expands this
+    // set rather than adding a second symposium treatment. Holden's "symposium
+    // reverse miraging" wording is that source's reading, not the platform's.
     curatorConfirmPending: false,
   },
   {
