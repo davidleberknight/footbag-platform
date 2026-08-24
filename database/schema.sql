@@ -3908,6 +3908,15 @@ VALUES
    '2000-01-01T00:00:00.000Z',
    'Sliding window in minutes for counting member searches (default: 1).',
    NULL
+  ),
+
+  (
+   'seed-group-email-rate-limit-per-hour',
+   '2000-01-01T00:00:00.000Z',
+   'group_email_rate_limit_per_hour', '30',
+   '2000-01-01T00:00:00.000Z',
+   'Maximum messages one member may post to one group per hour; an abuse ceiling set well above what a live debate needs (default: 30).',
+   NULL
   );
 
 -- =============================================================================

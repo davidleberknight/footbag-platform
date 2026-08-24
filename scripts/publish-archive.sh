@@ -71,8 +71,8 @@
 # Escape hatches, each correct by default and rarely passed:
 #   --profile <p>              AWS profile; else ambient AWS_PROFILE.
 #   --mirror-root <path>       Override the mirror root location.
-#   --signing-key <pem>        Private key for the edge check
-#                              (default: ~/AWS/archive-signing-key.pem).
+#   --signing-key <pem>        Private key for the edge check (default the
+#                              environment's own, ~/AWS/archive-signing-key-<env>.pem).
 #
 # There is no flag to wave through unscanned or unrecognized bytes. A file the
 # gates refuse is either something the archive should serve, in which case the
@@ -90,7 +90,12 @@ DRY_RUN=0
 AWS_PROFILE_ARG=""
 MIRROR_ROOT="${REPO_ROOT}/legacy_data/legacy_mirror/mirror_footbag_org"
 EXCLUSION_LIST="${SCRIPT_DIR}/archive-publish-exclusions.txt"
-SIGNING_KEY="${HOME}/AWS/archive-signing-key.pem"
+# Resolved after --env is parsed, because the default carries the environment:
+# each environment signs with its own keypair, and a default fixed here would
+# hand the edge proof whichever key happened to be provisioned first. A
+# production publish signed with staging's key fails its own proof, after the
+# upload and the invalidation have already run.
+SIGNING_KEY=""
 
 usage() {
   # Bounded by the first `set -eu` rather than a line number, so editing the
@@ -126,6 +131,20 @@ done
 if [[ "$TARGET_ENV" != "staging" && "$TARGET_ENV" != "production" ]]; then
   echo "ERROR: --env must be 'staging' or 'production'" >&2
   exit 2
+fi
+
+# Same convention as the edge-proof script this one delegates to, so the two
+# cannot disagree about which key signs the proof.
+: "${SIGNING_KEY:=${HOME}/AWS/archive-signing-key-${TARGET_ENV}.pem}"
+
+# Checked here rather than left to the edge proof at the end. That proof runs
+# after the sync and the invalidation, so an unreadable key would fail a publish
+# whose bucket is already written and whose cache is already cleared.
+if [[ ! -r "$SIGNING_KEY" ]]; then
+  echo "ERROR: signing key not readable: ${SIGNING_KEY}" >&2
+  echo "       Provision it with scripts/provision-archive-signing-key.sh," >&2
+  echo "       or point --signing-key at the operator key directory." >&2
+  exit 1
 fi
 
 AWS_ARGS=()

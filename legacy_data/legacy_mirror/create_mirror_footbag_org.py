@@ -1030,9 +1030,43 @@ logging.basicConfig(
     handlers=log_handlers
 )
 
+# Whether the in-memory crawl state stands for the state on disk. False until a
+# run has either loaded the progress file or established that there is nothing to
+# load, and the interrupt handler below writes nothing while it is False.
+#
+# The handler is installed at import, but the progress file is not read until well
+# into main(), after argument parsing, exclusion-list loading, the password prompt
+# and the log setup. An interrupt anywhere in that window would otherwise have the
+# handler serialize a pristine, empty MirrorState over a real progress file: zero
+# visited URLs, an empty queue, an empty skipped-video manifest, an empty robots
+# cache, and an exit status of zero reporting a successful save. The state that
+# destroys is the whole of a multi-day capture's resume: a top-up crawl would then
+# re-fetch every page the capture already holds.
+_crawl_state_is_authoritative = False
+
+
+def mark_crawl_state_authoritative():
+    """Declare that the in-memory state may be written over the files on disk.
+
+    Called once a run has read the progress file, or has established that no
+    prior progress exists (a first run, or one that wiped it with -fresh). Before
+    that point an empty state means "not yet loaded", never "nothing captured".
+    """
+    global _crawl_state_is_authoritative
+    _crawl_state_is_authoritative = True
+
+
 def signal_handler(signum, frame):
+    if not _crawl_state_is_authoritative:
+        # Nothing in memory to save, and whatever is on disk is a real capture's
+        # resume state. Leaving it untouched is the whole point.
+        logging.info("Received interrupt signal before crawl state was loaded; "
+                     "leaving the progress file, skipped-video manifest and "
+                     "robots cache on disk untouched")
+        sys.exit(0)
+
     logging.info("Received interrupt signal, saving progress...")
-    
+
     # Wrap saves in try/except to prevent crash during shutdown
     try:
         mirror_state.save_progress()
@@ -1044,13 +1078,13 @@ def signal_handler(signum, frame):
         mirror_state.write_skipped_video_manifest()
     except Exception as e:
         logging.error(f"Failed to write skipped-video manifest during shutdown: {e}")
-    
+
     try:
         robot_checker.save_cache()
         logging.info("Robot cache saved successfully")
     except Exception as e:
         logging.error(f"Failed to save robot cache during shutdown: {e}")
-    
+
     logging.info("Shutdown complete")
     sys.exit(0)
 
@@ -1435,6 +1469,8 @@ def apply_exclusions_sweep(dry_run=False):
 
     state_pruned = 0
     if mirror_state.load_progress():
+        mark_crawl_state_authoritative()
+
         def keep(url):
             return not is_excluded_url(url)
         before = (len(mirror_state.visited) + len(mirror_state.queue)
@@ -6547,6 +6583,11 @@ def main():
                 logging.info("Resuming from previous session")
             else:
                 logging.info("Starting fresh mirror session")
+
+        # From here the in-memory state is what this run stands on: it either
+        # carries the previous session's progress or has established there is
+        # none. Only now may an interrupt write it over the files on disk.
+        mark_crawl_state_authoritative()
 
         # BUG FIX: Always login (fresh or resumed) to ensure session is valid.
         # Set session_start AFTER login, not before, to have correct baseline.
