@@ -36,7 +36,7 @@ For multi-condition filters, define a SQL view and select from it. Services read
 - `members_searchable` -- `members_active` minus deceased, opted-out, PII-purged, unverified.
 - `clubs_open` -- `status IN ('active','inactive')`; `clubs_all` adds archived (clubs use status-archive, no `deleted_at` column).
 - `email_templates_enabled` -- `is_enabled = 1`.
-- `recurring_donation_subscriptions_active` -- `status <> 'canceled'`; query the bare table only when canceled rows are needed.
+- `recurring_donation_subscriptions_active` -- `status NOT IN ('canceled', 'incomplete')`; query the bare table when canceled or unconfirmed rows are needed.
 - `member_tier_current`, `member_active_player_current`, `member_membership_status_current` -- authoritative tier / Active Player / combined-gate projections.
 - `official_ifpa_roster_current` -- the only roster read surface (filters `is_official_roster_member = 1 AND is_deceased = 0`).
 - `net_team_appearance_canonical` -- the only public Net appearance surface (filters `evidence_class = 'canonical_only'`; other evidence classes never reach public routes).

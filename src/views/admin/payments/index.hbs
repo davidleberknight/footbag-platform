@@ -64,8 +64,8 @@
         <small class="form-hint">Matches the payment id, payment intent, checkout session, subscription, or invoice.</small>
       </div>
 
-      <!-- Carries the chosen column order through a filter submit, so applying a
-           filter does not silently reset the table to newest-first. -->
+      {{!-- Carries the chosen column order through a filter submit, so applying a
+            filter does not silently reset the table to newest-first. --}}
       <input type="hidden" name="sort" value="{{content.activeSort}}">
 
       <div class="form-actions">
@@ -73,6 +73,43 @@
         <a href="{{content.clearHref}}" class="btn btn-outline">Clear</a>
       </div>
     </form>
+
+    {{#if content.hasPeriodTotals}}
+      <h2 class="section-heading">Totals for {{content.periodLabel}}</h2>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Category</th>
+            <th>Currency</th>
+            <th>Payments</th>
+            <th>Received</th>
+            <th>Returned</th>
+            <th>Net</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.periodTotals}}
+            <tr>
+              <td>{{this.categoryLabel}}</td>
+              <td>{{this.currency}}</td>
+              <td>{{this.count}}</td>
+              <td>{{this.grossDisplay}}</td>
+              <td>{{#if this.hasRefunds}}{{this.refundedDisplay}}{{else}}<span class="text-muted">--</span>{{/if}}</td>
+              <td class="fw-600">{{this.netDisplay}}</td>
+            </tr>
+          {{/each}}
+        </tbody>
+      </table>
+      <p class="text-muted fs-sm">
+        Each currency is totalled on its own, because one figure covering two of them is true of
+        neither. Returned money covers refunds and chargebacks, which never change the payment
+        record itself, so Received on its own overstates what was kept.
+      </p>
+      {{#if content.hasPeriodTotalsExclusion}}
+        <p class="text-muted fs-sm">{{content.periodTotalsExclusionLine}}</p>
+      {{/if}}
+      <p><a href="{{content.exportHref}}" class="btn btn-outline">Download These Payments (CSV)</a></p>
+    {{/if}}
 
     <p class="text-muted">{{content.resultSummary}}</p>
 

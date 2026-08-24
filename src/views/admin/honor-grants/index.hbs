@@ -36,7 +36,7 @@
     {{#each content.recent}}
       <div class="card">
         <div class="card-title">{{displayName}} <span class="badge">{{slug}}</span></div>
-        <p class="m-0 text-muted fs-sm">{{honorLabel}} &middot; {{occurredAt}}</p>
+        <p class="m-0 text-muted fs-sm">{{honorLabel}} &middot; {{occurredAt}}{{#if dataOriginLabel}} <span class="badge">{{dataOriginLabel}}</span>{{/if}}</p>
       </div>
     {{/each}}
   </section>

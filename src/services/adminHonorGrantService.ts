@@ -40,6 +40,8 @@ interface RecentHonorGrant {
   displayName: string;
   slug: string;
   occurredAt: string;
+  /** Set where the grant was not recorded as real business, null when it was. */
+  dataOriginLabel: string | null;
 }
 
 interface HonorGrantsContent {
@@ -83,12 +85,16 @@ export const adminHonorGrantService = {
       member_id: string;
       display_name: string | null;
       slug: string | null;
+      data_origin: string;
     }>;
     const recent: RecentHonorGrant[] = rows.map((r) => ({
       honorLabel: r.action_type === 'tier.hof_grant' ? HONOR_LABEL.hof : HONOR_LABEL.bap,
       displayName: r.display_name ?? '(unknown member)',
       slug: r.slug ?? r.member_id,
       occurredAt: r.occurred_at,
+      dataOriginLabel: r.data_origin === 'live'
+        ? null
+        : r.data_origin === 'test' ? 'Test data' : 'Unknown origin',
     }));
     return {
       seo: { title: 'Grant an Honor Tier', noindex: true },

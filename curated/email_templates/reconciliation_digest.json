@@ -1,7 +1,7 @@
 {
   "templateKey": "reconciliation_digest",
   "subjectTemplate": "Payment reconciliation: {countPhrase}",
-  "bodyTemplate": "Payment reconciliation has {countPhrase} waiting for a decision.\n\n{itemLines}\n\nReview and resolve them here: {reviewUrl}",
+  "bodyTemplate": "This is the regular check that our records and the payment provider's records agree. It covers the last {periodPhrase}, and it is sent every time whether or not anything needs doing, so that no news is good news rather than an open question.\n\n{headlinePhrase}\n\nNEEDS ATTENTION\n{needsAttentionBlock}\n\nFOR THE RECORD\n{forTheRecordBlock}\n\nReview and resolve: {reviewUrl}",
   "piiClassification": "internal",
   "isEnabled": true
 }

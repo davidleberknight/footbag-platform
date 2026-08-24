@@ -772,7 +772,7 @@ Impact:
 
 Decision:
 
-Layer-boundary rules and data invariants that can be checked mechanically are enforced at merge by a convention gate (`scripts/ci/assert_conventions.sh` and its delegated checkers), not left to human review. The gate covers template discipline (no branching on raw domain enums, no multi-variable URL assembly, no inline data-island serialization), controller discipline (no direct SQL execution, no direct cookie emission outside the cookie helpers), data-layer discipline (positional SQL parameters only, the canonical UTC timestamp form, presence of every documented append-only trigger), service discipline (failure audit rows route through the operational-error helper), audit-log discipline (every `action_type` is a lowercase dotted `domain.event`, and every such literal appears in the data model's action_type catalogue, so the inventory that calls itself authoritative cannot drift from the code), supply-chain discipline (every GitHub Actions reference pinned to a commit SHA), comment hygiene (no doc-path references or delivery-epoch labels in code or template comments), deploy-image discipline (every runtime read resolving under the repository root has a matching Dockerfile COPY), and the visual-token and template restrictions of §4.8. Checks that require judgment, or that range over a growing unenumerable set such as service file-header JSDoc accuracy and completeness, are not gated; they are carried by the adversarial bug-hunt review.
+Layer-boundary rules and data invariants that can be checked mechanically are enforced at merge by a convention gate (`scripts/ci/assert_conventions.sh` and its delegated checkers), not left to human review. The gate covers template discipline (no branching on raw domain enums, no multi-variable URL assembly, no inline data-island serialization), controller discipline (no direct SQL execution, no direct cookie emission outside the cookie helpers), data-layer discipline (positional SQL parameters only, the canonical UTC timestamp form, presence of every documented append-only trigger), service discipline (failure audit rows route through the operational-error helper), audit-log discipline (every `action_type` is a lowercase dotted `domain.event`, and every such literal appears in the data model's action_type catalogue, so the inventory that calls itself authoritative cannot drift from the code), supply-chain discipline (every GitHub Actions reference pinned to a commit SHA), comment hygiene (no doc-path references or delivery-epoch labels in code or template comments), deploy-image discipline (every runtime read resolving under the repository root has a matching Dockerfile COPY, every runtime image normalizes the modes of the repository paths it copies, and no copied path is left unreadable by the image's non-root account), and the visual-token and template restrictions of §4.8. Checks that require judgment, or that range over a growing unenumerable set such as service file-header JSDoc accuracy and completeness, are not gated; they are carried by the adversarial bug-hunt review.
 
 Rationale:
 
@@ -1340,7 +1340,7 @@ Impact:
 
 Decision:
 
-A group is a governance, working-group, or social entity with a roster, distinct from a club. The mechanism is general and data-driven: an administrator creates a group, and no group is named in code. Three groups are planned at launch: the IFPA Board of Directors, identified by its `type` rather than by a slug and the only group that may carry that type, plus the European Footbag Committee and the Worlds Operating Committee as ordinary committees. How many groups IFPA needs is IFPA's ruling and not the platform's: the platform carries any number as data and builds nothing further for a second or a tenth, and a body that would rather keep its conversation where its members already are is not argued with. Only the board's roster confers standing; a committee's roster confers no flag and no tier.
+A group is a governance, working-group, or social entity with a roster, distinct from a club. The mechanism is general and data-driven: an administrator creates a group, and no group is named in code. One group is planned at launch: the IFPA Board of Directors, identified by its `type` rather than by a slug and the only group that may carry that type. The IFPA secretary has ruled the other standing committees archived rather than carried onto the platform, and any committee IFPA later keeps is an ordinary committee. How many groups IFPA needs is IFPA's ruling and not the platform's: the platform carries any number as data and builds nothing further for a second or a tenth, and a body that would rather keep its conversation where its members already are is not argued with. Only the board's roster confers standing; a committee's roster confers no flag and no tier.
 
 Three rules follow, and they are what this decision is for.
 
@@ -1362,7 +1362,7 @@ Trade-offs:
 
 - A member's reply by mail reaches nobody. That is the cost of a complete record, and the standing line at the foot of every group message says so in plain words rather than leaving it to be discovered.
 
-- The general mechanism is built for three groups. It is a table, a roster and a page rather than a product, and the alternative, hard-coding the board, would have cost more the moment IFPA kept a second and a third body.
+- The general mechanism is built for one group at launch. It is a table, a roster and a page rather than a product, and the alternative, hard-coding the board, would have cost more the moment IFPA kept a second body.
 
 - Retaining everything means a group's discussion accumulates without bound. At IFPA's scale that is measured in megabytes over decades, and the alternative loses exactly the material the record exists for.
 
@@ -1612,14 +1612,14 @@ Rationale:
 Requirements:
 
 - The KMS key policy grants the runtime IAM role only the specific actions it needs: `kms:Sign`, `kms:GetPublicKey`, and `kms:DescribeKey`. Alongside that statement the key policy keeps an account-root statement matching the one AWS writes into every default key policy, declared explicitly in the Terraform, and keeping it is deliberate. Naming `arn:aws:iam::<account>:root` as a principal is not a grant to the root user; it is what delegates authorization for the key to account-level IAM. Remove it and every IAM policy naming the key becomes inert, leaving only the principals the key policy names explicitly. The runtime role's own IAM policy grants `kms:Sign` and `kms:GetPublicKey` on the signing key as a second path to the same permission, and the runtime role's grant to decrypt SSM SecureString parameters has no key-policy counterpart at all, so it resolves through the delegation alone. The least-privilege control on the signing key is therefore the narrow explicit runtime-role statement, not the absence of the root delegation.
-- The signing key has a documented rotation cadence. A CloudWatch alarm fires when a key passes its rotation deadline without a successor enabled, so a missed rotation cannot accrue silently.
+- The signing key has a documented rotation cadence, and the System Administrator owns keeping to it. Rotation timing is deliberately not alarmed: every secret in this platform is rotated by an operator following a runbook, and an alarm on a date would need a key-age metric no part of the system publishes, which would either sit permanently in insufficient-data or report a figure nothing maintains. The control is the runbook and the operator's own review, not a monitor. What IS alarmed is failure rather than schedule: a key that stops working takes authentication down, and the KMS error alarm catches that.
 - The adapter interface is invariant across implementations: `KmsJwtAdapter` (production) and `LocalJwtAdapter` (dev and test) produce JWTs with identical JOSE header shape and identical claim shape. An integration test asserts shape parity (`tests/integration/adapter-parity.test.ts`).
 - Startup-time `GetPublicKey` failure fails the container fast (the process exits non-zero before serving requests). After startup, a `GetPublicKey` failure on a `kid` not yet in the cache is logged at error level and the affected verification returns "unauthenticated"; the process does not crash on a single missing-key event.
 
 Trade-offs:
 
 - A compromise of the runtime AWS credentials gives the attacker the ability to call KMS `Sign` for any payload (and therefore to forge a JWT against any member id) for as long as those credentials remain valid. The mitigation is that runtime credentials are short-lived via the assumed-role chain (§3.6), every KMS call is logged in CloudTrail for forensic reconstruction, and credential revocation immediately ends the forge window without requiring key rotation. The non-exportable property prevents the attacker from carrying the signing key off the host.
-- KMS key deletion is irreversible and would force a mass re-authentication. AWS gates key deletion behind a 7-to-30-day pending-deletion window, and the rotation-deadline alarm doubles as a "key still exists" canary. An accidentally-deleted key forces every active session to re-authenticate; this is a known cost of the non-exportable property.
+- KMS key deletion is irreversible and would force a mass re-authentication. AWS gates key deletion behind a 7-to-30-day pending-deletion window, which is the period in which an accidental deletion can still be cancelled. Nothing watches for it: alarming a rotation date needs a key-age metric no part of this system publishes, so a deletion surfaces as the KMS error alarm firing once signing stops. An accidentally-deleted key forces every active session to re-authenticate; this is a known cost of the non-exportable property.
 - KMS `Sign` is billed per signing operation. The 6-hour refresh window (§3.4) bounds the cost at roughly one re-issue per active session. Very high session turnover would increase KMS spend, but the cost is predictable and easy to model from authenticated-request volume.
 
 Impact:
@@ -1918,7 +1918,7 @@ CloudFront injects an `X-Origin-Verify` header on every origin request. The valu
 
 Rationale:
 
-- The Lightsail static IP and origin DNS hostname are publicly resolvable; CloudFront is not the only network path to nginx. Without an authentication signal at the origin, an attacker who reaches port 80 can bypass CloudFront's security and reach Express directly.
+- The Lightsail static IP and origin DNS hostname are publicly resolvable; CloudFront is not the only network path to nginx. Without an authentication signal at the origin, an attacker who reaches an origin port can bypass CloudFront's security and reach Express directly. This holds for both listeners: the gate and the upstream Host pin are per-listener directives, so the TLS listener carries them by including the same rendered body the plaintext one does rather than relying on inheritance, which does not happen.
 - A shared secret in a private header is operationally simpler than mTLS or signed-request schemes for a single-CDN single-origin topology. CloudFront natively supports `custom_header` injection; nginx natively supports `if ($http_*)` matching.
 - Terraform-managed value (`random_id.hex` referenced directly, no `lifecycle.ignore_changes`) closes the bootstrap-placeholder window where a hand-typed `"TODO-..."` placeholder would otherwise be publicly committed and live in CloudFront until the operator manually rotates.
 
@@ -1930,7 +1930,8 @@ Requirements:
 
 Trade-offs:
 
-- A leaked secret bypasses the gate until rotated. Mitigation: the secret is one of three perimeter layers; the Lightsail port-80 CloudFront-prefix-list firewall and the trust-proxy named-range trust set are the others. Belt-and-suspenders, not single-point-of-failure.
+- A leaked secret bypasses the gate until rotated. Mitigation: the secret is one of four perimeter layers; the Lightsail CloudFront-prefix-list firewall, the trust-proxy named-range trust set, and TLS on the edge-to-origin hop are the others. Belt-and-suspenders, not single-point-of-failure.
+- Origin TLS protects future traffic only, and this matters for the secret above. The hop carried session cookies, payment webhook bodies and their signatures, and the origin-verify secret itself in clear until it was encrypted, so if it was ever observed the secret is already compromised and encrypting afterwards does not un-compromise it. Rotating the origin-verify secret is therefore part of the origin-TLS cutover rather than a separate task, and the runbook sequences it as the last step of first issuance.
 - A 30-to-90-second window exists during rotation where CloudFront sends the new secret and nginx still expects the old (every CloudFront request returns 444). Acceptable for an infrequent per-environment rotation; the rotation runbook (DEVOPS_GUIDE.md (private GitHub repo), "Origin-verify shared-secret rotation runbook") sequences the two commands adjacent.
 
 Impact:
@@ -1986,7 +1987,7 @@ Requirements:
 - nginx container receives `PUBLIC_BASE_URL` via compose env (`docker/docker-compose.prod.yml` fail-fast `:?`; `docker/docker-compose.yml` defaults to `http://localhost`).
 - `40-render-nginx-conf.sh` derives `PUBLIC_HOST` from `PUBLIC_BASE_URL` (strips scheme, port, path), validates the result as `[a-z0-9.-]+`, and substitutes via sed into both `proxy_set_header Host` directives.
 - `PUBLIC_BASE_URL` is the same canonical-host source the app reads via `config.publicBaseUrl`, so nginx and Express agree by construction.
-- One `server` block serves every environment and matches any hostname, because two earlier controls already decide what an unrecognized `Host` header can achieve, and they do it without a per-environment template. Every request that is not carrying the shared origin-verify header is closed at the connection before a location is chosen, so nothing that bypassed the CDN is served at all; and the upstream `Host` header is overwritten with the configured canonical value, so the application never observes what the client sent. Listing hostnames explicitly would add a third check over the same ground while breaking the deploy's own health probe, which necessarily reaches the origin by its local address. The single exempt path is the proxy's own liveness endpoint, which nginx answers itself and never forwards.
+- One server BODY serves every listener and every environment, and matches any hostname, because two earlier controls already decide what an unrecognized `Host` header can achieve, and they do it without a per-environment template. There are two listeners once origin TLS is enabled, port 80 and port 443, and they include one rendered body rather than carrying their own copies of it. That is the same reasoning rather than a departure from it: the concern was never the count of blocks but the duplication of the gate, since the origin-verify check and the upstream Host pin are per-block directives that a second listener inherits none of, and port 443 is opened to a prefix list every CloudFront customer shares. Two hand-maintained copies would drift, and the copy that drifted would be an unauthenticated path into the application. Every request that is not carrying the shared origin-verify header is closed at the connection before a location is chosen, so nothing that bypassed the CDN is served at all; and the upstream `Host` header is overwritten with the configured canonical value, so the application never observes what the client sent. Listing hostnames explicitly would add a third check over the same ground while breaking the deploy's own health probe, which necessarily reaches the origin by its local address. The single exempt path is the proxy's own liveness endpoint, which nginx answers itself and never forwards.
 
 Trade-offs:
 
@@ -3259,7 +3260,7 @@ Requirements:
 
 Trade-offs:
 
-- Arming is a deploy-shaped change (tfvars + apply + deploy), deliberately slower than a runtime toggle; the runtime kill switches (payments_paused, email_outbox_paused) remain the fast levers for incidents after arming.
+- Arming is a deploy-shaped change (tfvars + apply + deploy), deliberately slower than a runtime toggle; the runtime kill switches (payments_paused, email_outbox_paused) remain the fast levers for incidents after arming. Both are operator levers, set by script rather than from the browser: the application reads them and has no write path to either. Each pause and resume appends to the append-only configuration table with its reason, so the switch carries its own history.
 
 Impact:
 
@@ -3903,8 +3904,16 @@ an environment-specific origin. Local development sources a rotating
 secret from `stripe listen` CLI output; staging runs
 PAYMENT_ADAPTER=stub and validates against a per-deployment
 generated stub secret (§5.7); production sources the Live-mode whsec_ from AWS SSM
-Parameter Store. Webhook verification accepts only the active
-environment's secret.
+Parameter Store. Webhook verification accepts only the secrets of the
+active environment, and during a rotation it accepts two of them: the
+current secret and the outgoing one. The provider signs every delivery
+with both for the length of the roll window, so accepting either is what
+allows the secret to be rotated without dropping deliveries. Each
+candidate is checked with the same constant-time verifier, and a delivery
+satisfying neither is rejected exactly as a single-secret failure would
+be. The outgoing secret has no automatic expiry, so clearing it once the
+roll window closes is a step in the rotation runbook rather than
+something the platform does on its own.
 
 Rationale:
 

@@ -270,6 +270,11 @@ export const paymentController = {
           provider: 'stripe',
           reason: 'signature',
         });
+        // The log line feeds the monitoring metric that wakes an operator; the
+        // counter feeds the admin health view, which an application
+        // administrator can read without cloud-console access. A signature
+        // rejection never parsed the payload, so it can name no event.
+        paymentService.recordWebhookRejection('signature');
         res.status(400).type('text/plain').send('invalid signature');
         return;
       }
@@ -283,12 +288,23 @@ export const paymentController = {
           reason: 'recoverable',
           err: err.message,
         });
+        paymentService.recordWebhookRejection('recoverable');
         res.status(400).type('text/plain').send('processing error');
         return;
       }
+      // An unexpected failure. The provider retries this too, but it carried
+      // neither the dotted log line the delivery-failure metric matches nor any
+      // counter, so the one class of failure nobody anticipated was also the
+      // one nothing could see. It gets both now, and keeps its error-level line
+      // so the operator error alarm still fires.
+      logger.warn('webhook.delivery_failed', {
+        provider: 'stripe',
+        reason: 'error',
+      });
       logger.error('stripe webhook processing failed', {
         err: err instanceof Error ? err.message : String(err),
       });
+      paymentService.recordWebhookRejection('error');
       res.status(500).type('text/plain').send('error');
     }
   },

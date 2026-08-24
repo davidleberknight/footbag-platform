@@ -306,6 +306,12 @@ DEPLOY_COMMIT="$(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || echo 
 # as long as deploys ran from a nearly clean checkout. sed reads to end of input.
 DEPLOY_DIRTY_PATHS="$(git -C "$REPO_ROOT" status --porcelain 2>/dev/null | cut -c4- | sed -n '1,40p' | paste -sd, -)"
 DEPLOY_DIRTY_COUNT="$(git -C "$REPO_ROOT" status --porcelain 2>/dev/null | wc -l | tr -d ' ')"
+# Past the cap the list is short, and a short list reads exactly like a complete
+# one. Whoever reconstructs what produced an artifact has to be told the record
+# is partial, not left to notice by counting commas against the dirty total.
+if [[ "$DEPLOY_DIRTY_COUNT" -gt 40 ]]; then
+  DEPLOY_DIRTY_PATHS="${DEPLOY_DIRTY_PATHS},+$((DEPLOY_DIRTY_COUNT - 40)) more not listed"
+fi
 DEPLOY_PROVENANCE="commit=$DEPLOY_COMMIT dirty=$DEPLOY_DIRTY_COUNT paths=${DEPLOY_DIRTY_PATHS:-none}"
 echo "==> Shipping working tree at commit $DEPLOY_COMMIT with $DEPLOY_DIRTY_COUNT uncommitted path(s)."
 if [[ "$DEPLOY_DIRTY_COUNT" != "0" ]]; then
@@ -324,6 +330,12 @@ echo "==> Running remote-as-root deploy (promote, restart)..."
   printf 'FOOTBAG_DEV_INITIAL_ADMIN_EMAILS=%q\n' "$INITIAL_ADMIN_EMAILS_CSV"
   printf 'SEED_TEST_PERSONAS=%q\n'          "${SEED_TEST_PERSONAS:-no}"
   printf 'REFRESH_TEST_PERSONAS=%q\n'       "${REFRESH_TEST_PERSONAS:-no}"
+  # Empty on every ordinary code deploy. scripts/deploy-migrate.sh is the only
+  # caller that sets it, and the remote half applies it in the one window where
+  # the new code is in place and the service is not yet running.
+  printf 'MIGRATION_SQL=%q\n'               "${MIGRATION_SQL:-}"
+  printf 'MIGRATION_NAME=%q\n'              "${MIGRATION_NAME:-}"
+  printf 'MIGRATION_CHECKSUM=%q\n'          "${MIGRATION_CHECKSUM:-}"
   cat "$REMOTE_HALF"
 } | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash'
 

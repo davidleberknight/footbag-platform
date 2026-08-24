@@ -942,7 +942,22 @@ CREATE TABLE audit_entries (
   entity_id       TEXT NOT NULL,
   category        TEXT NOT NULL DEFAULT 'general',
   reason_text     TEXT,
-  metadata_json   TEXT NOT NULL DEFAULT '{}'
+  metadata_json   TEXT NOT NULL DEFAULT '{}',
+
+  -- Whether this row records real business or a rehearsal. Production is
+  -- proven before it goes live: the cutover rehearsal, the payment-provider
+  -- exercise and the operator bootstrap all write rows into the production
+  -- database that must never later be read as real member activity or real
+  -- money. Nothing else in the ledger distinguishes them, and the table is
+  -- append-only, so an unstamped row could never be corrected afterwards.
+  --
+  -- 'live' only when the go-live marker positively said so at process start;
+  -- 'test' below production and while production is pre-live; 'unknown' when
+  -- the marker could not be read. Defaults to 'unknown' rather than 'live' for
+  -- the same reason payments.provider_livemode does: a missing value must
+  -- never read as real. Admin surfaces label anything that is not 'live'.
+  data_origin     TEXT NOT NULL DEFAULT 'unknown'
+    CHECK (data_origin IN ('live','test','unknown'))
 );
 
 CREATE INDEX idx_audit_occurred_at ON audit_entries(occurred_at);
@@ -995,6 +1010,31 @@ BEFORE DELETE ON erasure_log
 BEGIN
   SELECT RAISE(ABORT, 'erasure_log is immutable; rows may not be deleted');
 END;
+
+-- Which migration files have been applied to this database.
+--
+-- Before go-live the whole database is replaced on every deploy, so the schema
+-- is whatever this file says. After go-live that deploy is forbidden and a
+-- migration file is the only way a schema change reaches production, so
+-- something has to record which ones ran: otherwise the only way to know what
+-- production's schema is, is to read production. A restore makes that worse,
+-- because the restored file is at whatever point the snapshot was taken and
+-- nothing in it says which migrations it is now missing.
+--
+-- Written by the migrating deploy inside the same transaction as the migration
+-- itself, so a migration that rolls back leaves no claim to have run. The
+-- checksum is of the file's bytes, which lets a later deploy tell "already
+-- applied" from "a file that has been edited since it was applied" -- the
+-- second is an error, because the database no longer matches the file that
+-- names its state.
+--
+-- Deliberately carries none of the usual metadata columns: nothing updates a
+-- row here, and the applying deploy is the only writer.
+CREATE TABLE schema_migrations (
+  filename   TEXT PRIMARY KEY,
+  checksum   TEXT NOT NULL,
+  applied_at TEXT NOT NULL
+);
 
 -- Execution history for background/scheduled system jobs.
 -- Each row records one job run: start time, finish time, outcome, and any
@@ -1105,6 +1145,54 @@ CREATE TABLE stripe_events (
 );
 
 CREATE INDEX idx_stripe_events_created ON stripe_events(stripe_created);
+
+-- Rejected Stripe webhook deliveries, counted rather than recorded.
+--
+-- The table above cannot hold these. A rejected signature never yields an event
+-- id to key on, because the payload is never parsed; and a handler that throws
+-- rolls its claim back by design, so a stored stripe_events row always means
+-- processed. Both user stories nonetheless require the admin payments health
+-- view to show failure counts over a recent window, so they are counted here.
+--
+-- One row per five-minute bucket per reason, incremented in place, never one
+-- row per delivery. The webhook endpoint is public and unauthenticated by
+-- design (the signature IS the authentication), so anything on the internet can
+-- POST junk at it and every one of those is a signature rejection. Per-delivery
+-- rows would make that a write amplifier pointed at the database holding the
+-- money records; buckets size by the clock instead, at most 288 a day per
+-- reason whatever the traffic.
+--
+-- Deliberately minimal, like ses_events and sns_alarm_events: operational
+-- telemetry, not a domain entity, so it carries no id/created_by/version
+-- metadata. It records no payload, no signature, and no header — nothing an
+-- unauthenticated caller supplies is stored beyond the provider's own event id
+-- and type on the paths where the payload parsed.
+--
+-- expires_at is computed at INSERT from reconciliation_expiry_days, the same
+-- key and the same daily purge as the reconciliation issues an administrator
+-- reviews alongside these.
+CREATE TABLE stripe_webhook_failures (
+  -- ISO-8601 UTC, truncated to a five-minute boundary.
+  bucket_start    TEXT NOT NULL,
+  -- signature: the delivery did not verify, which is what a signing secret
+  --   rotated on one side only looks like from here.
+  -- recoverable: it verified, and processing asked the provider to retry.
+  -- error: it verified, and processing failed unexpectedly. This third case
+  --   answers 500 rather than 400 and had no counter and no metric at all
+  --   before this table existed, so a whole class of failure was invisible.
+  reason          TEXT NOT NULL CHECK (reason IN ('signature','recoverable','error')),
+  failure_count   INTEGER NOT NULL DEFAULT 0,
+  first_seen_at   TEXT NOT NULL,
+  last_seen_at    TEXT NOT NULL,
+  -- Present only where the payload parsed far enough to state them.
+  last_event_type TEXT,
+  last_event_id   TEXT,
+  expires_at      TEXT NOT NULL,
+  PRIMARY KEY (bucket_start, reason)
+);
+
+CREATE INDEX idx_stripe_webhook_failures_bucket ON stripe_webhook_failures(bucket_start);
+CREATE INDEX idx_stripe_webhook_failures_expiry ON stripe_webhook_failures(expires_at);
 
 -- SES bounce/complaint webhook idempotency store, parallel to stripe_events.
 -- One row per inbound SNS messageId, preventing duplicate processing on SNS
@@ -1479,6 +1567,14 @@ CREATE TABLE reconciliation_issues (
   -- Part of the discrepancy's identity: several renewal invoices on one
   -- subscription are separate discrepancies and each needs its own slot.
   stripe_invoice_id        TEXT,
+  -- The local recurring-donation row a discrepancy is about, for the one class
+  -- that has no provider identifier to key on: a checkout opened and never
+  -- resolved carries no subscription, intent or invoice id, because the whole
+  -- point is that the provider never told us what became of it. Without this
+  -- column every such discrepancy collapsed onto one slot in the dedup index
+  -- below, so a webhook outage that stranded five members' checkouts surfaced
+  -- as a single issue naming one of them.
+  subscription_record_id   TEXT REFERENCES recurring_donation_subscriptions(id),
   status TEXT NOT NULL DEFAULT 'outstanding' CHECK (status IN ('outstanding','resolved')),
   details_json             TEXT NOT NULL DEFAULT '{}',
   resolved_at              TEXT,
@@ -1507,7 +1603,8 @@ CREATE UNIQUE INDEX ux_recon_outstanding_dedup ON reconciliation_issues(
   COALESCE(payment_id, ''),
   COALESCE(stripe_payment_intent_id, ''),
   COALESCE(stripe_subscription_id, ''),
-  COALESCE(stripe_invoice_id, '')
+  COALESCE(stripe_invoice_id, ''),
+  COALESCE(subscription_record_id, '')
 ) WHERE status = 'outstanding';
 
 -- =============================================================================
@@ -2961,7 +3058,7 @@ CREATE TABLE tag_stats (
 
 -- ---------------------------------------------------------------------------
 -- MAILING LISTS
--- Seven core lists required for platform operation:
+-- Eight core lists required for platform operation:
 --   admin-alerts            : system notifications to admins; is_member_manageable=0
 --   all-members             : opt-outable broadcast list; is_member_manageable=1
 --   newsletter              : editorial newsletter; is_member_manageable=1
@@ -2969,6 +3066,7 @@ CREATE TABLE tag_stats (
 --   event-notifications     : event updates; is_member_manageable=1
 --   technical-updates       : platform/technical notices; is_member_manageable=1
 --   active-player-reminders : Active Player expiry reminders; is_member_manageable=1
+--   financial-digest        : reconciliation summary for the treasurer; is_member_manageable=0
 -- ---------------------------------------------------------------------------
 INSERT OR IGNORE INTO mailing_lists
   (updated_at, slug, name, description, status, is_member_manageable)
@@ -3020,6 +3118,13 @@ VALUES
    'active-player-reminders', 'Active Player Reminders',
    'Reminders sent before and on the day your Active Player status expires. Members may unsubscribe.',
    'active', 1
+  ),
+
+  (
+   '2000-01-01T00:00:00.000Z',
+   'financial-digest', 'Financial Digest',
+   'The periodic payment reconciliation summary, written for whoever answers for the money rather than for an operator. Subscriptions are set by an administrator, not by members, because the treasurer needs it whether or not they hold an admin account and should not receive the rest of the admin alert traffic to get it.',
+   'active', 0
   );
 
 -- ---------------------------------------------------------------------------
@@ -3106,6 +3211,15 @@ VALUES
 -- Pricing keys:
 --   tier1_price_cents               Tier 1 IFPA Member dues (integer cents; $10.00 = 1000)
 --   tier2_price_cents               Tier 2 IFPA Organizer Member dues (integer cents; $50.00 = 5000)
+--
+--   Raising either of these past $75.00 (7500) changes what the organization
+--   owes the payer, not just what it charges. A United States charity taking
+--   more than $75 where the payer receives something in return must give them a
+--   written statement saying how much of it is deductible and what the thing
+--   they received is worth. Membership dues are exactly that kind of payment.
+--   The threshold is nowhere near today's prices, and nothing in the platform
+--   watches for it, so it is recorded beside the number rather than left for
+--   whoever raises it to happen to know.
 -- ---------------------------------------------------------------------------
 INSERT OR IGNORE INTO system_config
   (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)

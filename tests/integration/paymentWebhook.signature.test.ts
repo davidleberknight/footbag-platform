@@ -75,10 +75,31 @@ describe('Stripe webhook signature verification (real verifier, signed stub)', (
 
     const db = openDb();
     try {
-      const payment = db.prepare('SELECT status FROM payments WHERE id = ?').get(paymentId) as { status: string };
+      // The money values, not only the status. This is the anchor case for the
+      // whole signature suite, and a settled payment whose amount or currency
+      // was wrong would have passed it while the tier was granted for the wrong
+      // sum. A status assertion says the machine moved; it says nothing about
+      // what was actually recorded.
+      const payment = db.prepare(
+        'SELECT status, amount_cents, currency, provider_livemode FROM payments WHERE id = ?',
+      ).get(paymentId) as {
+        status: string; amount_cents: number; currency: string; provider_livemode: number | null;
+      };
       expect(payment.status).toBe('succeeded');
+      expect(payment.amount_cents).toBe(1000);
+      expect(payment.currency).toBe('USD');
+      // The stub is by definition not live money, and a row that recorded
+      // otherwise would misreport a test charge as real on every admin surface.
+      expect(payment.provider_livemode).toBe(0);
+
       const tier = db.prepare('SELECT tier_status FROM member_tier_current WHERE member_id = ?').get(M_HAPPY) as { tier_status: string };
       expect(tier.tier_status).toBe('tier1');
+
+      // Exactly one transition row, and it is the one the ledger promises.
+      const transitions = db.prepare(
+        'SELECT from_status, to_status FROM payment_status_transitions WHERE payment_id = ?',
+      ).all(paymentId) as { from_status: string; to_status: string }[];
+      expect(transitions).toEqual([{ from_status: 'pending', to_status: 'succeeded' }]);
     } finally {
       db.close();
     }
@@ -205,6 +226,85 @@ describe('POST /payments/webhook status mapping', () => {
       .send(rawBody);
   }
 
+  it('a body over the parser cap is refused before any handler runs', async () => {
+    // The endpoint is public and unauthenticated by design, so the body cap is
+    // the only thing bounding what an arbitrary caller can make this process
+    // parse. Untested, a raised or removed cap would go unnoticed until
+    // something large arrived.
+    const { signStripeWebhook } = await import('../../src/adapters/stripeWebhook');
+    const { STUB_WEBHOOK_SECRET } = await import('../../src/adapters/paymentAdapter');
+    const oversized = JSON.stringify({ id: 'evt_big', padding: 'x'.repeat(1_200_000) });
+    const res = await postWebhook(oversized, signStripeWebhook(oversized, STUB_WEBHOOK_SECRET));
+    // 413 from the parser, and in no case a 200: the delivery must not be
+    // acknowledged as processed.
+    expect(res.status).toBeGreaterThanOrEqual(400);
+    expect(res.status).not.toBe(200);
+  });
+
+  it('a correctly-signed body that is not JSON is refused, not crashed on', async () => {
+    // Signature verification is a byte-level HMAC, so a caller holding the
+    // secret can sign anything at all. What follows must be a refusal rather
+    // than an unhandled parse error: the signature proves who sent it, never
+    // that the contents are a Stripe event.
+    const { signStripeWebhook } = await import('../../src/adapters/stripeWebhook');
+    const { STUB_WEBHOOK_SECRET } = await import('../../src/adapters/paymentAdapter');
+    // The refusal is an unexpected-failure 500 with an operator error line, and
+    // that is the right classification: nobody but this platform and the
+    // provider holds the signing secret, so a signed body that is not an event
+    // means the secret has leaked or something is badly wrong. It should wake
+    // somebody rather than being quietly absorbed.
+    expectLoggedError(/stripe webhook processing failed/);
+    const notJson = 'this is not an event at all';
+    const res = await postWebhook(notJson, signStripeWebhook(notJson, STUB_WEBHOOK_SECRET));
+    expect(res.status).toBeGreaterThanOrEqual(400);
+    expect(res.status).not.toBe(200);
+  });
+
+  it('an event carrying no platform metadata is acknowledged, whatever else it lacks', async () => {
+    // Ownership is decided before anything else, and an event without this
+    // platform's correlation metadata is not ours: a renewal's own settlement
+    // intent, or an object created in the provider's console. Acknowledging it
+    // is correct — retrying could never succeed, and a multi-day retry storm
+    // risks the provider disabling the endpoint for every other event too.
+    //
+    // Worth stating explicitly because it means the ownership check short-
+    // circuits ahead of every other validation, so a malformed foreign event
+    // never reaches the code that would care about its shape.
+    const { signStripeWebhook } = await import('../../src/adapters/stripeWebhook');
+    const { STUB_WEBHOOK_SECRET } = await import('../../src/adapters/paymentAdapter');
+    const body = JSON.stringify({
+      type: 'payment_intent.succeeded',
+      created: Math.floor(Date.now() / 1000),
+      data: { object: { id: 'pi_not_ours' } },
+    });
+    const res = await postWebhook(body, signStripeWebhook(body, STUB_WEBHOOK_SECRET));
+    expect(res.status).toBe(200);
+  });
+
+  it('one of ours with no event id is refused, because nothing could deduplicate it', async () => {
+    // The event id is the idempotency key for the whole path: a mutating handler
+    // claims it inside the transaction that applies the change, so a delivery
+    // without one cannot be claimed at all. Acknowledging it would accept a
+    // state change that a redelivery could apply a second time.
+    //
+    // Carries platform metadata deliberately, so the ownership check above
+    // passes and the missing id is what the case actually exercises.
+    const { signStripeWebhook } = await import('../../src/adapters/stripeWebhook');
+    const { STUB_WEBHOOK_SECRET } = await import('../../src/adapters/paymentAdapter');
+    const body = JSON.stringify({
+      type: 'payment_intent.succeeded',
+      created: Math.floor(Date.now() / 1000),
+      data: {
+        object: {
+          id: 'pi_ours_no_event_id',
+          metadata: { paymentId: 'pay_ours_no_event_id', memberId: M_CTRL_BAD },
+        },
+      },
+    });
+    const res = await postWebhook(body, signStripeWebhook(body, STUB_WEBHOOK_SECRET));
+    expect(res.status, 'an unclaimable delivery must not be acknowledged').not.toBe(200);
+  });
+
   it('missing body -> 400', async () => {
     const res = await request(createApp())
       .post('/payments/webhook')
@@ -275,6 +375,52 @@ describe('POST /payments/webhook status mapping', () => {
       );
     } finally {
       warn.mockRestore();
+    }
+  });
+
+  it('both rejection paths also increment the counter the admin health view reads', async () => {
+    // The log line wakes an operator through the monitoring metric; the counter
+    // is what an application administrator can see without cloud-console
+    // access. Both stories require the count, so both paths must feed it.
+    const db = openDb();
+    try {
+      db.prepare('DELETE FROM stripe_webhook_failures').run();
+    } finally {
+      db.close();
+    }
+
+    await postWebhook(JSON.stringify({ id: 'evt_counter_unsigned' }), 't=1700000000,v1=deadbeef');
+
+    const { signStripeWebhook } = await import('../../src/adapters/stripeWebhook');
+    const { STUB_WEBHOOK_SECRET } = await import('../../src/adapters/paymentAdapter');
+    const body = JSON.stringify({
+      id: 'evt_counter_recoverable',
+      type: 'payment_intent.succeeded',
+      created: Math.floor(Date.now() / 1000),
+      data: {
+        object: {
+          id: 'pi_counter_missing',
+          metadata: { paymentId: 'pay_counter_missing', memberId: 'someone' },
+        },
+      },
+    });
+    await postWebhook(body, signStripeWebhook(body, STUB_WEBHOOK_SECRET));
+
+    const after = openDb();
+    try {
+      const rows = after.prepare(
+        'SELECT reason, failure_count FROM stripe_webhook_failures ORDER BY reason',
+      ).all() as { reason: string; failure_count: number }[];
+      expect(rows.map((r) => r.reason)).toEqual(['recoverable', 'signature']);
+      expect(rows.every((r) => r.failure_count === 1)).toBe(true);
+      // Nothing an unauthenticated caller supplied is stored: the signature
+      // path parsed no payload, so it names no event.
+      const identified = after.prepare(
+        "SELECT last_event_id FROM stripe_webhook_failures WHERE reason = 'signature'",
+      ).get() as { last_event_id: string | null };
+      expect(identified.last_event_id).toBeNull();
+    } finally {
+      after.close();
     }
   });
 
@@ -368,6 +514,22 @@ describe('POST /payments/webhook status mapping', () => {
     expectLoggedError(/stripe webhook processing failed/);
     const res = await postWebhook(body, signStripeWebhook(body, STUB_WEBHOOK_SECRET));
     expect(res.status).toBe(500);
+
+    // The unexpected-failure branch is the one class of failure nobody
+    // anticipated, and for a while it was also the one nothing could see: it
+    // answered 500 and emitted neither the counter the admin health view reads
+    // nor the dotted log line the delivery-failure metric matches. Both are
+    // asserted here, because a counter only ever checked at zero proves the
+    // reason renders, not that anything ever increments it.
+    const db = openDb();
+    try {
+      const counted = db.prepare(
+        "SELECT SUM(failure_count) AS n FROM stripe_webhook_failures WHERE reason = 'error'",
+      ).get() as { n: number | null };
+      expect(counted.n).toBeGreaterThanOrEqual(1);
+    } finally {
+      db.close();
+    }
   });
 
   // Stripe delivers whatever the endpoint is subscribed to, and an endpoint can

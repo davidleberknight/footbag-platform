@@ -31,12 +31,13 @@ const M_SUB_LATE = 'sm-sub-late';
 const M_DECLINE_AGAIN = 'sm-decline-again';
 const M_EXPIRE_LATE = 'sm-expire-late';
 const M_SIGNUP = 'sm-signup';
+const M_OVERCHARGE = 'sm-overcharge';
 
 const MEMBERS = [
   M_RETRY, M_ABANDON, M_LATE_FAIL,
   M_SUB_PAID, M_SUB_FAILED, M_SUB_UPDATED, M_SUB_PAUSED, M_SUB_ORDER,
   M_SUB_RETRY, M_SUB_LATE,
-  M_DECLINE_AGAIN, M_EXPIRE_LATE, M_SIGNUP,
+  M_DECLINE_AGAIN, M_EXPIRE_LATE, M_SIGNUP, M_OVERCHARGE,
 ];
 
 beforeAll(async () => {
@@ -129,6 +130,37 @@ function countQueueItems(taskType: string, entityId?: string): number {
     db.close();
   }
 }
+
+describe('a membership paid for a tier the member already holds', () => {
+  it('settles the payment, grants nothing, and puts the over-charge in front of an administrator', async () => {
+    // An admin tier change can land between starting the checkout and the
+    // webhook. The downgrade guard correctly keeps the higher tier, but the
+    // member has been charged for nothing, and nothing else in the system would
+    // notice: the payment reads succeeded, the receipt announces a membership,
+    // and reconciliation compares clean against the provider.
+    const { paymentService, stub } = await services();
+    const mts = await import('../../src/services/membershipTieringService');
+    const { paymentId, sessionId } = await startCheckout(M_OVERCHARGE);
+    mts.applyPurchaseGrant(M_OVERCHARGE, M_OVERCHARGE, paymentId, 'tier2');
+
+    const evt = stub.buildSignedStubWebhookEvent(sessionId);
+    expect(paymentService.handleWebhook(evt.rawBody, evt.signature))
+      .toEqual({ outcome: 'processed' });
+
+    const db = openDb();
+    try {
+      const payment = db.prepare('SELECT status FROM payments WHERE id = ?').get(paymentId) as
+        { status: string };
+      expect(payment.status).toBe('succeeded');
+      const queued = db.prepare(
+        "SELECT COUNT(*) AS c FROM work_queue_items WHERE task_type = 'membership_overcharge_review' AND entity_id = ?",
+      ).get(paymentId) as { c: number };
+      expect(queued.c).toBe(1);
+    } finally {
+      db.close();
+    }
+  });
+});
 
 describe('a declined card inside an open checkout', () => {
   it('leaves the payment open so a second card can still settle it', async () => {

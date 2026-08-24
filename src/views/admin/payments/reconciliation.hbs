@@ -15,7 +15,17 @@
       <div class="form-error-banner" role="alert">{{content.errorMessage}}</div>
     {{/if}}
 
-    <p><a href="{{content.paymentsHref}}" class="btn btn-outline">All Payments</a></p>
+    {{#if content.oldestOutstandingLine}}
+      {{!-- Led with rather than left to be discovered. On a newest-first list a
+            question nobody has answered for months sits on the last page, and
+            nothing anywhere says it is there. --}}
+      <p class="card-meta">{{content.oldestOutstandingLine}}</p>
+    {{/if}}
+
+    <p>
+      <a href="{{content.paymentsHref}}" class="btn btn-outline">All Payments</a>
+      <a href="{{content.toggleSortHref}}" class="action-link">{{content.toggleSortLabel}}</a>
+    </p>
 
     <form method="GET" action="/admin/payments/reconciliation" class="form-block">
       <div class="form-field">
@@ -58,7 +68,7 @@
               <div class="form-field">
                 <label for="notes-{{this.id}}">What did you do about it?</label>
                 <textarea id="notes-{{this.id}}" name="notes" rows="3" required
-                          placeholder="Explain what you checked and what you concluded..."></textarea>
+                          placeholder="Explain what you checked and what you concluded...">{{this.submittedNotes}}</textarea>
                 <small class="form-hint">Recorded against the issue so other administrators can follow it.</small>
               </div>
               <div class="form-actions">

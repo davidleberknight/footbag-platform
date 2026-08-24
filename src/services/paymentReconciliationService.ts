@@ -54,22 +54,63 @@
  *   - The All Payments order comes from a fixed set of sort keys. An order
  *     cannot be parameterised into a prepared statement, so an unrecognised key
  *     falls back to the default rather than reaching the SQL.
+ *   - Whether a provider payment intent is ours is decided by the correlation
+ *     key the platform stamps into its metadata, never by an invoice reference
+ *     on the intent: PaymentIntent carries no invoice linkage at the pinned API
+ *     version, so reading one silently matched nothing and would have reported
+ *     every renewal as money settled with no local record.
+ *   - "Not ours" is not the same as "not worth reporting", and the reverse pass
+ *     keeps that distinction. A renewal's own settlement intent carries no
+ *     correlation key and belongs to a customer the provider is billing on a
+ *     subscription, so the invoice pass owns it and this pass skips it. A charge
+ *     created straight in the provider's console carries no key either, and it
+ *     is exactly what this pass exists to report: money settled with no local
+ *     record. Treating both alike in either direction is wrong — one way floods
+ *     the queue with a renewal a night, the other hides unrecorded money.
+ *   - The invoice pass asks whether a subscription is mirrored at all, which
+ *     includes the canceled ones. The platform deliberately books a charge that
+ *     settles after a donation ended, so an invoice against a canceled
+ *     subscription is one it should hold a payment row for; reading only the
+ *     active view made that money invisible to both passes.
+ *   - A discrepancy with no provider identifier keys on the local row instead.
+ *     An unresolved recurring checkout has no subscription, intent or invoice
+ *     id by definition, so without the local id every one of them collapsed
+ *     onto a single slot in the outstanding-dedup index and a webhook outage
+ *     that stranded several members surfaced as one issue naming one of them.
+ *
+ *   - The periodic summary is sent on its cadence whether or not there is
+ *     anything in it. Silence on a clean period is safe for an operator, who
+ *     has a scheduled-job health surface telling them the job still runs, and
+ *     unsafe for the reader this report is written for, who has no such surface
+ *     and cannot tell a quiet quarter from a job that died. The nil report is
+ *     the liveness signal.
  *
  * Persistence:
  *   Writes: reconciliation_issues, work_queue_items, audit_entries.
+ *   Deletes on the daily pass: expired resolved reconciliation_issues, and the
+ *     stripe_webhook_failures counters that age out on the same key.
  *   Reads for the admin views: payments, members, registrations, events, tags.
+ *   Reads for the digest: reconciliation_issues (open, and resolved within the
+ *     period, joined to members for the resolver's name).
  *
  * Side effects:
  *   - audit_entries append (issue raised, issue resolved)
  *   - work_queue_items insert in the `payments` category per raised issue;
  *     close of the discrepancy's queue twin on resolve
- *   - outbox_emails enqueue (the periodic digest, one per administrator)
+ *   - outbox_emails enqueue (the periodic digest, one per subscriber to the
+ *     financial-digest list, which is deliberately not the admin alert stream:
+ *     the person answerable for the money needs this report whether or not they
+ *     hold an admin account, and should not have to take the flagged-media and
+ *     security traffic to get it)
  */
 import { randomUUID } from 'node:crypto';
 import {
   payments as paymentsDb,
   recurringDonationSubscriptions as subsDb,
   reconciliationIssues as issuesDb,
+  stripeWebhookFailures as webhookFailuresDb,
+  paymentMoneyHistory,
+  paymentPeriodTotals,
   account,
   workQueue,
   mailingListSubscriptions,
@@ -77,6 +118,7 @@ import {
   countAdminPayments,
   findAdminPaymentById,
   queryReconciliationIssues,
+  oldestOutstandingReconciliationIssueAt,
   countReconciliationIssues,
   transaction,
   type AdminPaymentFilters,
@@ -114,6 +156,8 @@ export type ReconciliationIssueType =
   | 'provider_subscription_missing_locally'
   | 'subscription_status_mismatch'
   | 'invoice_charge_missing_locally'
+  | 'invoice_charge_amount_mismatch'
+  | 'duplicate_provider_charge'
   | 'subscription_checkout_unresolved';
 
 export interface ReconciliationRunResult {
@@ -162,6 +206,10 @@ interface IssueDraft {
   stripePaymentIntentId: string | null;
   stripeSubscriptionId: string | null;
   stripeInvoiceId: string | null;
+  /** The local recurring-donation row, for the one discrepancy class that has
+   *  no provider identifier of its own. Part of the issue's identity, so two
+   *  stranded checkouts are two issues rather than one. */
+  subscriptionRecordId?: string | null;
   details: Record<string, unknown>;
 }
 
@@ -178,6 +226,29 @@ const DIGEST_INTERVAL_DEFAULT_DAYS = 7;
 const RESOLUTION_NOTE_MAX_CHARS = 2000;
 const DAY_MS = 86_400_000;
 const MINUTE_MS = 60_000;
+/** How close together two identical settled charges to one member have to be
+ *  before the pass asks about them. An hour is well outside any plausible
+ *  double-submit and well inside "the member meant to give twice", which is the
+ *  balance a question rather than an accusation wants. */
+const DUPLICATE_CHARGE_WINDOW_MINUTES = 60;
+/** How many discrepancies the digest names before it says how many it left out.
+ *  A summary long enough to scroll stops being read. */
+const DIGEST_MAX_LINES = 20;
+/** The most rows one export carries. Generous for this organization's whole
+ *  history, and a bound rather than none so a filterless export cannot try to
+ *  build an unbounded string in memory. The file says when it applied. */
+const PAYMENT_EXPORT_MAX_ROWS = 10_000;
+
+/** A cell that cannot become a formula when the file is opened. A leading
+ *  equals, plus, minus or at sign makes a spreadsheet execute what follows, and
+ *  a payment descriptor carries a member's donation note, which is text a
+ *  member wrote. Same guard the audit-log export uses, for the same reason. */
+const CSV_FORMULA_LEAD = /^[=+\-@\t\r]/;
+function csvCell(v: string | null): string {
+  const raw = v ?? '';
+  const s = CSV_FORMULA_LEAD.test(raw) ? `'${raw}` : raw;
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
 
 /** Provider intent statuses that mean money actually moved. Anything else is a
  *  checkout the buyer never completed, which is not expected to have a settled
@@ -256,6 +327,14 @@ export const paymentReconciliationService = {
       window.createdBefore,
     ) as LocalPaymentRow[];
     const localSubscriptions = subsDb.listActive.all() as LocalSubscriptionRow[];
+    // Wider than the active view on purpose: see the statement's own note. An
+    // invoice that settled against a donation which has since ended still needs
+    // a local payment row, and the active view cannot answer whether we know
+    // that subscription at all.
+    const mirroredSubscriptionIds = new Set(
+      (subsDb.listAllStripeIds.all() as { stripe_subscription_id: string }[])
+        .map((r) => r.stripe_subscription_id),
+    );
 
     const [providerIntents, providerSubscriptions, providerInvoices] = await Promise.all([
       adapter.listPaymentIntents(window),
@@ -282,10 +361,21 @@ export const paymentReconciliationService = {
       graceCutoff,
     ) as LocalSubscriptionRow[];
 
+    // Every customer the provider is billing on a subscription, taken from the
+    // provider's own list rather than from the local mirror, so a subscription
+    // created straight in the console counts too and its renewal settlements
+    // are not mistaken for unrecorded one-off charges.
+    const subscriptionCustomerIds = new Set(
+      providerSubscriptions
+        .map((s) => s.customerId)
+        .filter((id): id is string => id !== null),
+    );
+
     const drafts: IssueDraft[] = [
-      ...comparePayments(localPayments, providerIntents, graceCutoff),
+      ...comparePayments(localPayments, providerIntents, subscriptionCustomerIds, graceCutoff),
       ...compareSubscriptions(localSubscriptions, providerSubscriptions),
-      ...compareInvoices(localPayments, providerInvoices, localSubscriptions, graceCutoff),
+      ...compareInvoices(localPayments, providerInvoices, mirroredSubscriptionIds, graceCutoff),
+      ...flagDuplicateCharges(localPayments),
       ...flagUnresolvedCheckouts(staleIncomplete),
     ];
 
@@ -333,6 +423,7 @@ export const paymentReconciliationService = {
       draft.stripePaymentIntentId,
       draft.stripeSubscriptionId,
       draft.stripeInvoiceId,
+      draft.subscriptionRecordId ?? null,
       JSON.stringify(draft.details),
       expiresAt,
     );
@@ -435,66 +526,120 @@ export const paymentReconciliationService = {
   },
 
   /**
-   * Emails each administrator a rollup of the outstanding discrepancies, on the
-   * cadence set by `reconciliation_summary_interval_days`. Best-effort per
-   * administrator so one bad address never aborts the batch, and silent when
-   * there is nothing outstanding: an empty digest trains people to ignore it.
+   * The periodic reconciliation summary, on the cadence set by
+   * `reconciliation_summary_interval_days`.
+   *
+   * Sent every cadence regardless of what it contains, including when there is
+   * nothing to report. That is a deliberate reversal of the earlier behaviour,
+   * which stayed silent on a clean period on the reasoning that an empty digest
+   * trains people to ignore it. That reasoning holds for an operator, who has a
+   * scheduled-job health surface telling them the job still runs. It does not
+   * hold for the reader this report is actually written for: the person
+   * answerable for the money has no such surface, so for them silence and
+   * "nothing arrived because the job died three months ago" look identical.
+   * The nil report IS the liveness signal, and it is one line long.
+   *
+   * Carries recently resolved issues alongside the open ones, naming who
+   * resolved each and when. That is what the requirement asks for, and it is
+   * also the only place the person answerable for the money can see that
+   * questions are being answered and by whom.
+   *
+   * Written for a non-technical reader: amounts with their currency, plain
+   * descriptions rather than issue-type codes, oldest first so the thing that
+   * has been waiting longest is at the top, and a clear split between what
+   * needs attention and what is merely for the record.
+   *
+   * Goes to its own mailing list rather than to the admin alert stream, so the
+   * treasurer receives this and not the flagged-media and security traffic.
+   * Best-effort per recipient, so one bad address never aborts the batch.
    */
-  sendReconciliationDigest(): { admins: number; sent: number; outstanding: number } {
-    const outstanding = issuesDb.listOutstanding.all() as Array<{
-      id: string;
-      issue_type: string;
-      created_at: string;
-    }>;
-    if (outstanding.length === 0) return { admins: 0, sent: 0, outstanding: 0 };
+  sendReconciliationDigest(opts: { now?: Date } = {}): {
+    admins: number;
+    sent: number;
+    outstanding: number;
+    resolved: number;
+  } {
+    const now = opts.now ?? new Date();
+    const intervalDays = readIntConfig(
+      'reconciliation_summary_interval_days',
+      DIGEST_INTERVAL_DEFAULT_DAYS,
+    );
+    const since = new Date(now.getTime() - intervalDays * DAY_MS).toISOString();
 
-    const admins = mailingListSubscriptions.listActiveSubscribersBySlug.all('admin-alerts') as Array<{
-      member_id: string;
-      login_email: string;
-    }>;
-    const DIGEST_MAX_LINES = 20;
-    const listed = outstanding.slice(0, DIGEST_MAX_LINES);
-    const lines = listed.map((i) => `${i.created_at.slice(0, 10)}  ${i.issue_type}  ${i.id}`);
-    // A silent cap reads as "this is all of them". Say what was left out.
-    if (outstanding.length > listed.length) {
-      lines.push(
-        `... and ${outstanding.length - listed.length} more, not listed here. See the full queue.`,
-      );
-    }
-    const itemLines = lines.join('\n');
-    const day = new Date().toISOString().slice(0, 10);
+    const outstanding = issuesDb.listOutstandingOldestFirst.all() as IssueRow[];
+    const resolved = issuesDb.listResolvedSince.all(since) as Array<
+      IssueRow & { resolved_at: string | null; resolved_by_slug: string | null }
+    >;
+
+    const recipients = mailingListSubscriptions.listActiveSubscribersBySlug.all(
+      'financial-digest',
+    ) as Array<{ member_id: string; login_email: string }>;
+
+    const oldest = outstanding[0];
+    const day = now.toISOString().slice(0, 10);
 
     let sent = 0;
-    for (const admin of admins) {
+    for (const recipient of recipients) {
       try {
         emailService.send({
           template: 'reconciliation_digest',
           params: {
             outstandingCount: outstanding.length,
-            itemLines,
+            resolvedCount: resolved.length,
+            periodDays: intervalDays,
+            oldestOutstandingAgeDays: oldest ? ageInDays(oldest.created_at, now) : null,
+            needsAttentionLines: digestLines(outstanding, now),
+            forTheRecordLines: resolvedDigestLines(resolved),
             reviewUrl: `${config.publicBaseUrl}/admin/payments/reconciliation`,
           },
-          recipientEmail: admin.login_email,
-          recipientMemberId: admin.member_id,
-          idempotencyKey: `reconciliation-digest:${day}:${admin.member_id}`,
+          recipientEmail: recipient.login_email,
+          recipientMemberId: recipient.member_id,
+          idempotencyKey: `reconciliation-digest:${day}:${recipient.member_id}`,
         });
         sent += 1;
       } catch (err) {
-        logger.warn('reconciliation digest enqueue failed for one administrator', {
+        logger.warn('reconciliation digest enqueue failed for one recipient', {
           err: err instanceof Error ? err.message : String(err),
-          memberId: admin.member_id,
+          memberId: recipient.member_id,
         });
       }
     }
-    return { admins: admins.length, sent, outstanding: outstanding.length };
+    return {
+      admins: recipients.length,
+      sent,
+      outstanding: outstanding.length,
+      resolved: resolved.length,
+    };
   },
 
-  /** Clears resolved issues past their retention window. Outstanding issues are
-   *  never purged, however old: they still need a decision. */
-  purgeExpiredResolvedIssues(opts: { now?: Date } = {}): { deleted: number } {
+  /**
+   * Clears expired rows from the two tables this daily pass owns.
+   *
+   * Resolved issues past their retention window go; outstanding issues are
+   * never purged, however old, because they still need a decision. The
+   * webhook-failure counters age out on the same key and in the same pass: they
+   * are operational telemetry an administrator reviews alongside these
+   * discrepancies, and the endpoint producing them is public, so leaving them
+   * to accumulate would be the one way a bounded counter stops being bounded.
+   *
+   * `deleted` is the total across both, which is what the job record reports.
+   * The two are also returned separately, because one number covering two
+   * tables cannot answer which of them actually shrank.
+   */
+  purgeExpiredResolvedIssues(opts: { now?: Date } = {}): {
+    deleted: number;
+    issuesDeleted: number;
+    failureCountersDeleted: number;
+  } {
     const now = opts.now ?? new Date();
-    const res = issuesDb.deleteExpiredResolved.run(now.toISOString());
-    return { deleted: res.changes };
+    const nowIso = now.toISOString();
+    const issues = issuesDb.deleteExpiredResolved.run(nowIso);
+    const failures = webhookFailuresDb.deleteExpired.run(nowIso);
+    return {
+      deleted: issues.changes + failures.changes,
+      issuesDeleted: issues.changes,
+      failureCountersDeleted: failures.changes,
+    };
   },
 
   countOutstandingIssues(): number {
@@ -526,6 +671,14 @@ export const paymentReconciliationService = {
     const rows = queryAdminPayments(filters, ADMIN_PAGE_SIZE, offset, activeSort);
     const totalPages = Math.max(1, Math.ceil(total / ADMIN_PAGE_SIZE));
     const sortedQuery: AdminPaymentQuery = { ...q, sort: activeSort };
+    // Totals cover the chosen date range rather than the current page: a page
+    // is an arbitrary fifty rows and summing it would answer a question nobody
+    // asked. Unbounded when no range is chosen, which is correct for an
+    // organization whose whole payment history is small.
+    const totalsFrom = q.createdFrom || '0000-01-01';
+    const totalsTo = inclusiveToBound(q.createdTo) ?? '9999-12-31';
+    const totals = periodTotals(totalsFrom, totalsTo);
+    const exclusionLine = periodTotalsExclusionLine(totalsFrom, totalsTo);
 
     return {
       seo: { title: 'All Payments', noindex: true },
@@ -547,6 +700,16 @@ export const paymentReconciliationService = {
           detailHref: `/admin/payments/${String(r.id)}`,
         })),
         hasRows: rows.length > 0,
+        // Totals for the chosen date range, gross and net. A page of rows
+        // answers "which payments"; a month-end needs "how much", and the net
+        // column is what stops a partially refunded charge being reported at
+        // full value forever.
+        periodTotals: totals,
+        hasPeriodTotals: totals.length > 0,
+        periodTotalsExclusionLine: exclusionLine,
+        hasPeriodTotalsExclusion: exclusionLine !== null,
+        periodLabel: periodLabelFor(q.createdFrom, q.createdTo),
+        exportHref: paymentsExportHref(sortedQuery),
         resultSummary: summaryLine(total, offset, rows.length, 'payment'),
         prevPageHref: page > 1 ? paymentsHrefFor(sortedQuery, page - 1) : null,
         nextPageHref: page < totalPages ? paymentsHrefFor(sortedQuery, page + 1) : null,
@@ -581,6 +744,11 @@ export const paymentReconciliationService = {
     const r = findAdminPaymentById(paymentId);
     if (!r) return null;
     const note = r.donation_note ? String(r.donation_note) : null;
+    const moneyHistory = paymentMoneyEvents(
+      paymentId,
+      r.stripe_payment_intent_id ? String(r.stripe_payment_intent_id) : null,
+      String(r.currency),
+    );
     return {
       seo: { title: 'Payment Detail', noindex: true },
       page: { sectionKey: 'admin', pageKey: 'admin_payment_detail', title: 'Payment Detail' },
@@ -604,8 +772,103 @@ export const paymentReconciliationService = {
         eventTitle: r.event_title ? String(r.event_title) : null,
         eventHref: eventHrefFrom(r.event_tag),
         hasEvent: Boolean(r.event_title),
+        moneyHistory,
+        hasMoneyHistory: moneyHistory.length > 0,
+        amountIsNotNet: moneyHistory.length > 0 && String(r.status) !== 'refunded',
         backHref: '/admin/payments',
       },
+    };
+  },
+
+  /**
+   * The All Payments view as a file an accountant can open.
+   *
+   * Exports exactly what the filters select, so the file is the view the
+   * administrator was looking at rather than a differently-scoped extract they
+   * have to reconcile against it. Every amount carries its currency in its own
+   * column: a spreadsheet that sums a column of mixed currencies produces a
+   * figure true of none of them.
+   *
+   * Capped, and the cap is stated in the file rather than left to be inferred
+   * from a row count, because a silently truncated financial export is worse
+   * than no export.
+   *
+   * The export is itself recorded. Someone taking the whole payment record out
+   * of the platform is an event the platform should be able to account for.
+   */
+  exportAdminPayments(q: AdminPaymentQuery, adminMemberId: string): {
+    contentType: string;
+    filename: string;
+    body: string;
+    count: number;
+  } {
+    const filters: AdminPaymentFilters = {
+      paymentType: q.paymentType || undefined,
+      status: q.status || undefined,
+      memberIds: (q.memberId ?? '').trim()
+        ? resolveMemberIdsForPaymentSearch((q.memberId ?? '').trim())
+        : undefined,
+      reference: q.reference || undefined,
+      createdFrom: q.createdFrom || undefined,
+      createdTo: inclusiveToBound(q.createdTo),
+      eventId: q.eventId || undefined,
+    };
+    const activeSort = q.sort && isAdminPaymentSort(q.sort) ? q.sort : ADMIN_PAYMENT_DEFAULT_SORT;
+    const total = countAdminPayments(filters);
+    const rows = queryAdminPayments(filters, PAYMENT_EXPORT_MAX_ROWS, 0, activeSort);
+    const truncated = total > rows.length;
+
+    const lines: string[] = [];
+    if (truncated) {
+      lines.push(
+        `# Showing ${rows.length} of ${total} matching payments. Narrow the date range to export the rest.`,
+      );
+    }
+    lines.push([
+      'payment_id', 'date_utc', 'type', 'status', 'amount', 'currency',
+      'member_slug', 'descriptor', 'event', 'provider_reference',
+    ].join(','));
+    for (const r of rows) {
+      lines.push([
+        String(r.id),
+        String(r.created_at),
+        String(r.payment_type),
+        String(r.status),
+        // The bare number, so a spreadsheet can add it up; the currency is its
+        // own column beside it rather than glued to the figure.
+        (Number(r.amount_cents) / 100).toFixed(2),
+        String(r.currency).toUpperCase(),
+        r.member_slug ? String(r.member_slug) : '',
+        String(r.descriptor ?? ''),
+        r.event_title ? String(r.event_title) : '',
+        String(r.stripe_payment_intent_id ?? r.stripe_subscription_id ?? r.id),
+      ].map(csvCell).join(','));
+    }
+
+    appendAuditEntry({
+      actionType: 'payment.exported',
+      category: 'payment',
+      actorType: 'admin',
+      actorMemberId: adminMemberId,
+      entityType: 'payment_export',
+      entityId: 'all_payments',
+      reasonText: null,
+      metadata: {
+        row_count: rows.length,
+        matching_total: total,
+        truncated,
+        created_from: q.createdFrom ?? null,
+        created_to: q.createdTo ?? null,
+        payment_type: q.paymentType ?? null,
+        status: q.status ?? null,
+      },
+    });
+
+    return {
+      contentType: 'text/csv',
+      filename: 'payments.csv',
+      body: lines.join('\n'),
+      count: rows.length,
     };
   },
 
@@ -616,14 +879,30 @@ export const paymentReconciliationService = {
     page?: number;
     resolvedFlag?: boolean;
     errorMessage?: string | null;
+    /** The issue whose resolve attempt failed, and the note the administrator
+     *  had written. Re-rendering without them throws away what was typed: the
+     *  note is prose about what someone checked and concluded, so losing a long
+     *  one to a length error and making them write it again is the page failing
+     *  the person using it. */
+    submittedIssueId?: string | null;
+    submittedNotes?: string | null;
+    /** Newest first by default. Oldest first is what the person answerable for
+     *  the money wants, because the number that matters on an exceptions queue
+     *  is how long the worst one has been waiting. */
+    sort?: string;
+    now?: Date;
   }): PageViewModel<AdminReconciliationContent> {
     const requested = ISSUE_STATUS_OPTIONS.includes(q.status as never) ? q.status! : 'outstanding';
     const dbStatus = requested === 'all' ? null : (requested as 'outstanding' | 'resolved');
     const page = normalizePage(q.page);
+    const oldestFirst = q.sort === 'oldest';
     const total = countReconciliationIssues(dbStatus);
     const offset = (page - 1) * ADMIN_PAGE_SIZE;
-    const rows = queryReconciliationIssues(dbStatus, ADMIN_PAGE_SIZE, offset);
+    const rows = queryReconciliationIssues(dbStatus, ADMIN_PAGE_SIZE, offset, oldestFirst);
     const totalPages = Math.max(1, Math.ceil(total / ADMIN_PAGE_SIZE));
+    const now = q.now ?? new Date();
+    const oldestAt = oldestOutstandingReconciliationIssueAt();
+    const oldestDays = oldestAt === null ? null : ageInDays(oldestAt, now);
 
     return {
       seo: { title: 'Reconciliation Issues', noindex: true },
@@ -648,16 +927,35 @@ export const paymentReconciliationService = {
           resolvedAtDisplay: r.resolved_at ? dateDisplay(String(r.resolved_at)) : null,
           resolvedBySlug: r.resolved_by_slug ? String(r.resolved_by_slug) : null,
           resolutionNotes: r.resolution_notes ? String(r.resolution_notes) : null,
+          // Only the row that failed carries the submitted text back, so a
+          // rejected note reappears in the box it was typed into rather than in
+          // every box on the page.
+          submittedNotes:
+            q.submittedIssueId != null && String(r.id) === q.submittedIssueId
+              ? (q.submittedNotes ?? null)
+              : null,
         })),
         hasRows: rows.length > 0,
         resultSummary: summaryLine(total, offset, rows.length, 'issue'),
-        prevPageHref: page > 1 ? issuesHrefFor(requested, page - 1) : null,
-        nextPageHref: page < totalPages ? issuesHrefFor(requested, page + 1) : null,
+        prevPageHref: page > 1 ? issuesHrefFor(requested, page - 1, q.sort) : null,
+        nextPageHref: page < totalPages ? issuesHrefFor(requested, page + 1, q.sort) : null,
         statusFilter: requested,
         statusOptions: [...ISSUE_STATUS_OPTIONS],
         paymentsHref: '/admin/payments',
         resolvedFlag: q.resolvedFlag ?? false,
         errorMessage: q.errorMessage ?? null,
+        activeSort: oldestFirst ? 'oldest' : 'newest',
+        toggleSortHref: issuesHrefFor(requested, 1, oldestFirst ? 'newest' : 'oldest'),
+        toggleSortLabel: oldestFirst ? 'Show newest first' : 'Show oldest first',
+        // Led with rather than buried, because an issue nobody has answered for
+        // months is invisible on a newest-first list: it sits on the last page,
+        // and nothing on the page says it is there.
+        oldestOutstandingDays: oldestDays,
+        oldestOutstandingLine: oldestDays === null
+          ? null
+          : oldestDays === 0
+            ? 'The oldest unresolved question was raised today.'
+            : `The oldest unresolved question has been waiting ${oldestDays} day${oldestDays === 1 ? '' : 's'}.`,
       },
     };
   },
@@ -691,6 +989,8 @@ const ISSUE_TYPE_LABELS: Record<ReconciliationIssueType, string> = {
   provider_subscription_missing_locally: 'Provider subscription with no local record',
   subscription_status_mismatch: 'Subscription status disagrees',
   invoice_charge_missing_locally: 'Provider renewal charge with no local record',
+  invoice_charge_amount_mismatch: 'Renewal amount or currency disagrees',
+  duplicate_provider_charge: 'The same member appears charged twice for the same thing',
   subscription_checkout_unresolved: 'Recurring checkout never resolved either way',
 };
 
@@ -747,6 +1047,15 @@ export interface AdminPaymentRowViewModel {
 export interface AdminPaymentsContent {
   rows: AdminPaymentRowViewModel[];
   hasRows: boolean;
+  /** Gross, refunded and net for the chosen date range, by purpose and
+   *  currency. Never summed across currencies: one number covering two of them
+   *  is true of neither. */
+  periodTotals: PeriodTotalRow[];
+  hasPeriodTotals: boolean;
+  periodTotalsExclusionLine: string | null;
+  hasPeriodTotalsExclusion: boolean;
+  periodLabel: string;
+  exportHref: string;
   resultSummary: string;
   prevPageHref: string | null;
   nextPageHref: string | null;
@@ -758,6 +1067,16 @@ export interface AdminPaymentsContent {
   eventOptions: AdminPaymentEventOption[];
   reconciliationHref: string;
   clearHref: string;
+}
+
+/** One money-affecting event after settlement, shaped for reading rather than
+ *  for querying: an administrator looking at a payment wants to know what
+ *  happened and how much, not which action-type code recorded it. */
+export interface PaymentMoneyEvent {
+  whenDisplay: string;
+  label: string;
+  amountDisplay: string | null;
+  detail: string | null;
 }
 
 export interface AdminPaymentDetailContent {
@@ -785,6 +1104,15 @@ export interface AdminPaymentDetailContent {
   eventTitle: string | null;
   eventHref: string | null;
   hasEvent: boolean;
+  /** Money that moved after this payment settled: a partial refund, a dispute,
+   *  a rejected payout. None of them touches the payment row, by design, so
+   *  without this the page shows the full original amount and nothing at all to
+   *  say that money went back. */
+  moneyHistory: PaymentMoneyEvent[];
+  hasMoneyHistory: boolean;
+  /** True where something came back or is being contested, so the amount above
+   *  is no longer what the organization kept. */
+  amountIsNotNet: boolean;
   backHref: string;
 }
 
@@ -804,6 +1132,9 @@ export interface AdminIssueRowViewModel {
   resolvedAtDisplay: string | null;
   resolvedBySlug: string | null;
   resolutionNotes: string | null;
+  /** What the administrator typed, when their resolve attempt was rejected and
+   *  this is the row it was rejected on. Null everywhere else. */
+  submittedNotes: string | null;
 }
 
 export interface AdminReconciliationContent {
@@ -817,10 +1148,24 @@ export interface AdminReconciliationContent {
   paymentsHref: string;
   resolvedFlag: boolean;
   errorMessage: string | null;
+  activeSort: 'newest' | 'oldest';
+  toggleSortHref: string;
+  toggleSortLabel: string;
+  /** Whole days the longest-waiting unresolved discrepancy has been open, or
+   *  null when none is. */
+  oldestOutstandingDays: number | null;
+  oldestOutstandingLine: string | null;
 }
 
+/** The amount with its own currency code and no invented symbol. A dollar sign
+ *  in front of a euro total is a false statement about money, and this figure is
+ *  read by whoever has to reconcile the books. Every payment settles in one
+ *  currency today, so the wrong symbol is currently latent rather than visible —
+ *  but the reconciliation design's own worked example of an amount mismatch is
+ *  the same number in two currencies, which is exactly the case that would print
+ *  it. */
 function formatAmount(cents: number, currency: string): string {
-  return `$${(cents / 100).toFixed(2)} ${currency.toUpperCase()}`;
+  return `${(cents / 100).toFixed(2)} ${currency.toUpperCase()}`;
 }
 
 // Labels a row by the provider mode it was taken in. Only the two states an
@@ -846,6 +1191,246 @@ function providerModeLabel(raw: unknown): string | null {
 // a provider dashboard from reading the figure as their own clock.
 function dateDisplay(iso: string): string {
   return `${iso.slice(0, 19).replace('T', ' ')} UTC`;
+}
+
+/** The subset of a reconciliation issue the digest reads. Kept local to this
+ *  service: the digest is a rendering concern, not a contract. */
+interface IssueRow {
+  id: string;
+  issue_type: string;
+  created_at: string;
+  details_json: string;
+}
+
+/** Whole days between a stored timestamp and now, floored, never negative. */
+function ageInDays(iso: string, now: Date): number {
+  const then = Date.parse(iso);
+  if (Number.isNaN(then)) return 0;
+  return Math.max(0, Math.floor((now.getTime() - then) / DAY_MS));
+}
+
+/** The money an issue is about, when its details carry any, rendered with its
+ *  own currency code. Several discrepancy classes name the two sides
+ *  separately, so the provider's figure is preferred: that is the money that
+ *  actually moved. */
+function issueAmountPhrase(details: Record<string, unknown>): string | null {
+  const candidates: Array<[unknown, unknown]> = [
+    [details.provider_amount_cents, details.provider_currency],
+    [details.amount_cents, details.currency],
+    [details.local_amount_cents, details.local_currency],
+  ];
+  for (const [cents, currency] of candidates) {
+    if (typeof cents === 'number' && typeof currency === 'string' && currency !== '') {
+      return formatAmount(cents, currency);
+    }
+  }
+  return null;
+}
+
+/** One readable line per open discrepancy, oldest first, for a reader who does
+ *  not know the issue-type vocabulary and should not have to. */
+function digestLines(rows: IssueRow[], now: Date): string {
+  if (rows.length === 0) return '';
+  const listed = rows.slice(0, DIGEST_MAX_LINES);
+  const lines = listed.map((row) => {
+    const details = parseDetails(row.details_json);
+    const label =
+      ISSUE_TYPE_LABELS[row.issue_type as ReconciliationIssueType] ?? row.issue_type;
+    const amount = issueAmountPhrase(details);
+    const days = ageInDays(row.created_at, now);
+    const age = days === 0 ? 'today' : days === 1 ? '1 day old' : `${days} days old`;
+    return [
+      `${row.created_at.slice(0, 10)} (${age})`,
+      label,
+      amount,
+    ].filter((part) => part !== null).join(' - ');
+  });
+  // A silent cap reads as "this is all of them". Say what was left out.
+  if (rows.length > listed.length) {
+    lines.push(
+      `... and ${rows.length - listed.length} more, not listed here. See the full queue.`,
+    );
+  }
+  return lines.join('\n');
+}
+
+/** The same, for what was settled during the period, naming who settled it.
+ *  A resolution with no named resolver is possible only if the member record
+ *  has since gone, so it says so rather than printing an empty name. */
+function resolvedDigestLines(
+  rows: Array<IssueRow & { resolved_at: string | null; resolved_by_slug: string | null }>,
+): string {
+  if (rows.length === 0) return '';
+  const listed = rows.slice(0, DIGEST_MAX_LINES);
+  const lines = listed.map((row) => {
+    const label =
+      ISSUE_TYPE_LABELS[row.issue_type as ReconciliationIssueType] ?? row.issue_type;
+    const amount = issueAmountPhrase(parseDetails(row.details_json));
+    const who = row.resolved_by_slug ?? 'an administrator whose account has since been removed';
+    const when = row.resolved_at ? row.resolved_at.slice(0, 10) : 'an unrecorded date';
+    return [label, amount, `resolved by ${who} on ${when}`]
+      .filter((part) => part !== null)
+      .join(' - ');
+  });
+  if (rows.length > listed.length) {
+    lines.push(`... and ${rows.length - listed.length} more, not listed here.`);
+  }
+  return lines.join('\n');
+}
+
+/** One line of the period summary: what came in for one purpose in one
+ *  currency, what went back out, and what is left. */
+export interface PeriodTotalRow {
+  categoryLabel: string;
+  currency: string;
+  count: number;
+  grossDisplay: string;
+  refundedDisplay: string;
+  netDisplay: string;
+  hasRefunds: boolean;
+}
+
+/**
+ * What the organization took in over a range, what came back, and the
+ * difference.
+ *
+ * Gross alone is the figure the platform could always produce, and it is the
+ * wrong one to report on its own: a partial refund and a chargeback never touch
+ * the payment row, by design, so a payment that was half returned still counts
+ * at full value in every total forever. Reporting gross, refunds and net side
+ * by side is what makes the number safe to put in front of a board.
+ *
+ * Refunds are taken per payment rather than summed across audit rows, because
+ * the provider reports a cumulative refunded amount per charge: a partial
+ * refund followed by a full one describes overlapping money, and adding the two
+ * rows would overstate what went back. A full refund returns the whole payment,
+ * so it wins over any partial figure recorded earlier.
+ */
+export function periodTotals(fromIso: string, toIso: string): PeriodTotalRow[] {
+  const gross = paymentPeriodTotals.grossByTypeInRange.all(fromIso, toIso) as Array<{
+    payment_type: string; currency: string; n: number; total_cents: number;
+  }>;
+  const refundFacts = paymentPeriodTotals.refundFactsInRange.all(fromIso, toIso) as Array<{
+    id: string; payment_type: string; currency: string; amount_cents: number;
+    action_type: string; refunded_amount_cents: number | null;
+  }>;
+
+  const refundedByPayment = new Map<string, { key: string; cents: number }>();
+  for (const fact of refundFacts) {
+    const key = `${fact.payment_type}|${fact.currency.toUpperCase()}`;
+    const cents = fact.action_type === 'payment.refunded'
+      ? fact.amount_cents
+      : fact.refunded_amount_cents ?? 0;
+    const held = refundedByPayment.get(fact.id);
+    if (!held || cents > held.cents) refundedByPayment.set(fact.id, { key, cents });
+  }
+  const refundedByKey = new Map<string, number>();
+  for (const { key, cents } of refundedByPayment.values()) {
+    refundedByKey.set(key, (refundedByKey.get(key) ?? 0) + cents);
+  }
+
+  return gross.map((row) => {
+    const currency = row.currency.toUpperCase();
+    const refunded = refundedByKey.get(`${row.payment_type}|${currency}`) ?? 0;
+    return {
+      categoryLabel: PAYMENT_TYPE_LABELS[row.payment_type] ?? row.payment_type,
+      currency,
+      count: row.n,
+      grossDisplay: formatAmount(row.total_cents, currency),
+      refundedDisplay: formatAmount(refunded, currency),
+      netDisplay: formatAmount(row.total_cents - refunded, currency),
+      hasRefunds: refunded > 0,
+    };
+  });
+}
+
+/**
+ * The one-line disclosure that goes with the totals, or null when nothing was
+ * set aside. The totals count real money only, so a range containing rehearsal
+ * charges produces a figure lower than the row count above it would suggest;
+ * saying so is what stops the difference reading as missing money.
+ */
+export function periodTotalsExclusionLine(fromIso: string, toIso: string): string | null {
+  const rows = paymentPeriodTotals.excludedFromTotalsInRange.all(fromIso, toIso) as Array<{
+    mode: string; n: number;
+  }>;
+  if (rows.length === 0) return null;
+  const testCount = rows.find((r) => r.mode === 'test')?.n ?? 0;
+  const unknownCount = rows.find((r) => r.mode === 'unknown')?.n ?? 0;
+  const parts: string[] = [];
+  if (testCount > 0) {
+    parts.push(`${testCount} test-mode payment${testCount === 1 ? '' : 's'}`);
+  }
+  if (unknownCount > 0) {
+    parts.push(
+      `${unknownCount} payment${unknownCount === 1 ? '' : 's'} whose provider mode was never recorded`,
+    );
+  }
+  return `These totals count real money only. Set aside: ${parts.join(' and ')}.`;
+}
+
+/** What each money-affecting event is called on the page. Plain words, because
+ *  the reader is deciding whether money needs chasing, not grepping logs. */
+const MONEY_EVENT_LABELS: Record<string, string> = {
+  'payment.refunded': 'Refunded in full',
+  'payment.partially_refunded': 'Partially refunded',
+  'payment.canceled': 'Canceled',
+  'payment.dispute_opened': 'Disputed by the cardholder',
+  'payment.dispute_closed': 'Dispute closed',
+  'payment.dispute_funds_withdrawn': 'Disputed funds withdrawn',
+  'payment.payout_rejected': 'Payout to the bank account rejected',
+};
+
+/**
+ * The money that moved on a payment after it settled.
+ *
+ * Read from the audit ledger because that is the only place it exists: a
+ * partial refund, a dispute and a rejected payout all leave the payment row
+ * untouched by design, so a page built from that row alone reports the full
+ * original amount forever and shows nothing to the contrary.
+ */
+function paymentMoneyEvents(
+  paymentId: string,
+  stripePaymentIntentId: string | null,
+  paymentCurrency: string,
+): PaymentMoneyEvent[] {
+  const rows = paymentMoneyHistory.forPayment.all(
+    paymentId, stripePaymentIntentId,
+  ) as Array<{
+    occurred_at: string;
+    action_type: string;
+    reason_text: string | null;
+    metadata_json: string;
+  }>;
+  return rows.map((row) => {
+    const meta = parseDetails(row.metadata_json);
+    const cents = typeof meta.refunded_amount_cents === 'number'
+      ? meta.refunded_amount_cents
+      : typeof meta.amount_cents === 'number' ? meta.amount_cents : null;
+    const currency = typeof meta.currency === 'string' && meta.currency !== ''
+      ? meta.currency
+      : paymentCurrency;
+    return {
+      whenDisplay: dateDisplay(row.occurred_at),
+      label: MONEY_EVENT_LABELS[row.action_type] ?? row.action_type,
+      amountDisplay: cents === null ? null : formatAmount(cents, currency),
+      detail: row.reason_text,
+    };
+  });
+}
+
+/** Details are written by this service and are always an object, but they are
+ *  read back out of a text column, so a row hand-edited into invalid JSON must
+ *  not take the whole digest down with it. */
+function parseDetails(json: string): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(json) as unknown;
+    return typeof parsed === 'object' && parsed !== null
+      ? (parsed as Record<string, unknown>)
+      : {};
+  } catch {
+    return {};
+  }
 }
 
 // A payment's created_at is a full timestamp, so an admin's `to=YYYY-MM-DD` must
@@ -899,6 +1484,24 @@ function paymentsHrefFor(q: AdminPaymentQuery, page: number): string {
   return qs ? `/admin/payments?${qs}` : '/admin/payments';
 }
 
+/** The export of exactly what the current filters select, so the file an
+ *  accountant opens is the view the administrator was looking at. */
+function paymentsExportHref(q: AdminPaymentQuery): string {
+  const p = paymentFilterParams(q);
+  if (q.sort && q.sort !== ADMIN_PAYMENT_DEFAULT_SORT) p.set('sort', q.sort);
+  const qs = p.toString();
+  return qs ? `/admin/payments/export?${qs}` : '/admin/payments/export';
+}
+
+/** Plain words for the range the totals cover, because "1 July to 31 July" is
+ *  what a reader needs to know they are looking at the right month. */
+function periodLabelFor(from: string | undefined, to: string | undefined): string {
+  if (from && to) return `${from} to ${to}`;
+  if (from) return `${from} onwards`;
+  if (to) return `everything up to ${to}`;
+  return 'the whole record';
+}
+
 /** The sortable and non-sortable column headings of the All Payments table, in
  *  render order. The service fixes each heading's destination so the template
  *  renders a display-and-href pair and never assembles a query string itself. */
@@ -942,10 +1545,13 @@ function paymentSortHeaders(q: AdminPaymentQuery, activeSort: string): AdminPaym
   });
 }
 
-function issuesHrefFor(status: string, page: number): string {
+function issuesHrefFor(status: string, page: number, sort?: string): string {
   const p = new URLSearchParams();
   if (status && status !== 'outstanding') p.set('status', status);
   if (page > 1) p.set('page', String(page));
+  // Only the non-default order is carried, so the ordinary link stays clean and
+  // a chosen order survives paging.
+  if (sort === 'oldest') p.set('sort', 'oldest');
   const qs = p.toString();
   return qs ? `/admin/payments/reconciliation?${qs}` : '/admin/payments/reconciliation';
 }
@@ -992,6 +1598,10 @@ function summaryLine(total: number, offset: number, shown: number, noun: string)
 function comparePayments(
   local: LocalPaymentRow[],
   provider: StripePaymentIntentSummary[],
+  /** Every customer the provider is billing on a subscription. An intent with
+   *  no platform correlation key that belongs to one of these is a renewal's
+   *  own settlement vehicle, which the invoice pass owns. */
+  subscriptionCustomerIds: Set<string>,
   graceCutoff: string,
 ): IssueDraft[] {
   const drafts: IssueDraft[] = [];
@@ -1096,11 +1706,27 @@ function comparePayments(
   // record, which is the missed-webhook case reconciliation exists to catch.
   for (const intent of provider) {
     if (matchedProviderIds.has(intent.id)) continue;
-    // An invoice-linked intent is the provider's own settlement vehicle for a
-    // subscription cycle; local subscription rows store no intent id, so it
-    // can never match here. The invoice pass owns that comparison - flagging
-    // it here would raise one unresolvable issue per renewal, forever.
-    if (intent.invoiceId) continue;
+    if (intent.platformPaymentId !== null) {
+      // Ours, and already recorded: the money reached a local row even though
+      // this intent id never got written onto it. A settled row with no intent
+      // id is the forward pass's finding, not this one's. Looked up by id
+      // rather than against the windowed set, because the provider may defer
+      // creating the intent until the buyer actually pays, so a checkout opened
+      // just before the window can settle just inside it and its row would
+      // otherwise read as absent.
+      if (paymentsDb.findById.get(intent.platformPaymentId)) continue;
+    } else if (subscriptionCustomerIds.has(intent.customerId ?? '')) {
+      // Not ours by metadata, and it belongs to a customer the provider is
+      // billing on a subscription: this is a subscription cycle's own
+      // settlement intent. The invoice pass owns that comparison, and flagging
+      // it here would raise one unresolvable issue per renewal, forever.
+      //
+      // A console-created charge against one of those same customers is
+      // therefore also skipped. That is the deliberate cost of having no
+      // invoice reference on an intent at this API version: the alternative,
+      // skipping every un-correlated intent, hid genuine unrecorded money.
+      continue;
+    }
     if (!PROVIDER_SETTLED_INTENT_STATUSES.has(intent.status)) continue;
     // A charge the provider settled moments ago may still be in flight to the
     // webhook that records it locally.
@@ -1112,11 +1738,19 @@ function comparePayments(
       stripeSubscriptionId: null,
       stripeInvoiceId: null,
       details: {
-        reason: 'provider settled a payment with no local record',
+        reason: intent.platformPaymentId !== null
+          ? 'provider settled a payment with no local record'
+          : 'provider settled a payment this platform did not originate',
         provider_status: intent.status,
         amount_cents: intent.amountCents,
         currency: intent.currency,
         created_at: intent.createdAt,
+        // The correlation key this platform stamped on the intent. It names the
+        // payment row that should exist and does not, which is where an
+        // administrator starts looking. Absent on a charge the platform never
+        // created, where the customer reference is the only lead there is.
+        platform_payment_id: intent.platformPaymentId,
+        stripe_customer_id: intent.customerId,
       },
     });
   }
@@ -1141,6 +1775,11 @@ function flagUnresolvedCheckouts(stale: LocalSubscriptionRow[]): IssueDraft[] {
     stripePaymentIntentId: null,
     stripeSubscriptionId: null,
     stripeInvoiceId: null,
+    // The row itself is the identity here: there is no provider identifier to
+    // key on, which is precisely what the discrepancy says. Each stranded
+    // checkout is its own live-subscription-we-cannot-see risk and needs its
+    // own slot in front of an administrator.
+    subscriptionRecordId: sub.id,
     details: {
       reason: 'a recurring checkout was opened and neither confirmed nor expired',
       subscription_record_id: sub.id,
@@ -1230,20 +1869,53 @@ function compareSubscriptions(
 function compareInvoices(
   localPayments: LocalPaymentRow[],
   providerInvoices: StripeInvoiceSummary[],
-  localSubscriptions: LocalSubscriptionRow[],
+  knownSubscriptionIds: Set<string>,
   graceCutoff: string,
 ): IssueDraft[] {
   const drafts: IssueDraft[] = [];
-  const recordedInvoiceIds = new Set(
+  // By invoice id rather than as a bare set of ids, so a recorded renewal can be
+  // compared rather than only counted. The requirement makes amount AND currency
+  // a discrepancy for one-time payments, and a renewal is money in exactly the
+  // same sense; checking only that a row exists would pass a renewal booked for
+  // the wrong sum, or in a currency the money never moved in, as reconciled.
+  const recordedByInvoiceId = new Map(
     localPayments
-      .map((p) => p.stripe_invoice_id)
-      .filter((id): id is string => id !== null),
+      .filter((p): p is LocalPaymentRow & { stripe_invoice_id: string } =>
+        p.stripe_invoice_id !== null)
+      .map((p) => [p.stripe_invoice_id, p]),
   );
-  const knownSubscriptionIds = new Set(localSubscriptions.map((s) => s.stripe_subscription_id));
 
   for (const invoice of providerInvoices) {
     if (invoice.status !== 'paid') continue;
-    if (recordedInvoiceIds.has(invoice.id)) continue;
+    const recorded = recordedByInvoiceId.get(invoice.id);
+    if (recorded) {
+      if (invoice.createdAt >= graceCutoff) continue;
+      const amountDiffers = recorded.amount_cents !== invoice.amountPaidCents;
+      const currencyDiffers =
+        recorded.currency.toUpperCase() !== invoice.currency.toUpperCase();
+      if (amountDiffers || currencyDiffers) {
+        drafts.push({
+          issueType: 'invoice_charge_amount_mismatch',
+          paymentId: recorded.id,
+          stripePaymentIntentId: null,
+          stripeSubscriptionId: invoice.subscriptionId,
+          stripeInvoiceId: invoice.id,
+          details: {
+            reason: currencyDiffers && amountDiffers
+              ? 'the renewal was booked with a different amount and currency than the provider collected'
+              : currencyDiffers
+                ? 'the renewal was booked in a different currency than the provider collected'
+                : 'the renewal was booked for a different amount than the provider collected',
+            local_amount_cents: recorded.amount_cents,
+            local_currency: recorded.currency.toUpperCase(),
+            provider_amount_cents: invoice.amountPaidCents,
+            provider_currency: invoice.currency.toUpperCase(),
+            created_at: invoice.createdAt,
+          },
+        });
+      }
+      continue;
+    }
     if (invoice.createdAt >= graceCutoff) continue;
     // An invoice against a subscription the platform never mirrored is already
     // reported by the subscription pass; reporting it again here would put two
@@ -1268,4 +1940,75 @@ function compareInvoices(
   return drafts;
 }
 
+/**
+ * Pass 3: the same member charged twice for the same thing, close together.
+ *
+ * The requirement names unexpected duplicates as a discrepancy the nightly job
+ * records, and nothing looked. The reason it is worth a pass of its own is that
+ * this platform's own guarantees are what hide it: each attempt mints its own
+ * payment id and its own checkout session, so a member who pays twice produces
+ * two rows that each match a provider settlement exactly. Both compare clean in
+ * every other pass, and the member finds out before the organization does.
+ *
+ * Deliberately compared on the local rows rather than against the provider. A
+ * settlement with no local row is already the reverse pass's finding, so every
+ * duplicate that matters is a pair of rows here, and looking again at the
+ * provider would only raise the same pair twice.
+ *
+ * This reports a question, not a fault. A second gift from a generous member
+ * minutes after the first is perfectly legitimate, which is why the wording
+ * asks rather than accuses, and why nothing is reversed automatically.
+ */
+function flagDuplicateCharges(local: LocalPaymentRow[]): IssueDraft[] {
+  const drafts: IssueDraft[] = [];
+  const settled = local
+    .filter((p) => p.status === 'succeeded')
+    .slice()
+    .sort((a, b) => a.created_at.localeCompare(b.created_at));
+
+  for (let i = 0; i < settled.length; i += 1) {
+    const earlier = settled[i];
+    for (let j = i + 1; j < settled.length; j += 1) {
+      const later = settled[j];
+      if (later.member_id !== earlier.member_id) continue;
+      if (later.payment_type !== earlier.payment_type) continue;
+      if (later.amount_cents !== earlier.amount_cents) continue;
+      if (later.currency.toUpperCase() !== earlier.currency.toUpperCase()) continue;
+      const apartMs = Date.parse(later.created_at) - Date.parse(earlier.created_at);
+      if (Number.isNaN(apartMs) || apartMs > DUPLICATE_CHARGE_WINDOW_MINUTES * MINUTE_MS) continue;
+      drafts.push({
+        issueType: 'duplicate_provider_charge',
+        // Keyed on the later payment, so one pair is one issue however many
+        // times the pass runs, and resolving it frees exactly that slot.
+        paymentId: later.id,
+        stripePaymentIntentId: later.stripe_payment_intent_id,
+        stripeSubscriptionId: null,
+        stripeInvoiceId: null,
+        details: {
+          reason:
+            'the same member was charged the same amount for the same thing twice in quick '
+            + 'succession, which may be a genuine repeat or may be a double payment',
+          member_id: later.member_id,
+          payment_type: later.payment_type,
+          amount_cents: later.amount_cents,
+          currency: later.currency.toUpperCase(),
+          first_payment_id: earlier.id,
+          first_created_at: earlier.created_at,
+          second_payment_id: later.id,
+          second_created_at: later.created_at,
+          minutes_apart: Math.round(apartMs / MINUTE_MS),
+        },
+      });
+      // One partner per payment is enough to put the pair in front of someone.
+      break;
+    }
+  }
+
+  return drafts;
+}
+
+/** The digest cadence used when the administrator-configurable key is unset.
+ *  Exported so the scheduled job reads the same figure this service does: two
+ *  copies of a default drift the moment one of them is tuned, and the symptom
+ *  would be a digest arriving on a cadence nobody chose. */
 export const RECONCILIATION_DIGEST_INTERVAL_DEFAULT_DAYS = DIGEST_INTERVAL_DEFAULT_DAYS;

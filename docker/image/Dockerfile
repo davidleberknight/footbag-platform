@@ -66,6 +66,15 @@ RUN if [ "$INCLUDE_DEV_SHORTCUTS" != "1" ]; then \
       printf 'module.exports = { applyDevStagingBootstrapAdmin: function () { return { applied: false }; }, getInitialAdminEmails: function () { return new Set(); } };\n' > dist/dev-bootstrap/runtime.js; \
     fi
 
+# The package manifests are copied out of the repository and carry its
+# permission bits, while the account this image drops to below does not own
+# them. Node reads the manifest at startup to resolve the module system, so an
+# owner-only copy stops the worker booting rather than failing one request. Git
+# records only the executable bit and cannot show that divergence, so the build
+# is the only place the guarantee holds. Explicit octal because this runs under
+# the base image's BusyBox chmod, not the GNU coreutils a workstation has.
+RUN chmod 644 package.json package-lock.json
+
 ENV NODE_ENV=production
 ENV IMAGE_PORT=4000
 

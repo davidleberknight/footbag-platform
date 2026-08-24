@@ -395,11 +395,11 @@ For a group-backed list these rows are not only a send log: they are the group's
 
 ### 4.9 Admin Operations
 
-**Tables:** `work_queue_items`, `member_messages`, `system_config`, `audit_entries`, `erasure_log`, `system_job_runs`, `system_alarm_events`, `sns_alarm_events`  
+**Tables:** `work_queue_items`, `member_messages`, `system_config`, `audit_entries`, `erasure_log`, `schema_migrations`, `system_job_runs`, `system_alarm_events`, `sns_alarm_events`  
 **Views:** `system_config_current`
 
 #### Work queue
-Admin task queue with `queue_category` and `task_type`. Active `task_type` values include `member_contact_request` (member-submitted IFPA-admin contact requests under `queue_category='membership'`; see `M_Contact_IFPA_Admin` and `A_Resolve_Contact_IFPA_Admin_Request`). Admin notifications are routed by urgency (US §1 Global Behaviors): a task type classified urgent (a security, data-integrity, or administrative-continuity event needing same-day action) emails the admin-alerts mailing list immediately on enqueue; a routine task type surfaces on the work-queue dashboard and in a periodic per-administrator digest of the open routine items. An administrator claims an item (`claimed_by_member_id`, `claimed_at`) to drop it from the other administrators' digests; an item left open and unclaimed past the stale threshold escalates once with a single email to admin-alerts. Every such notification contains task type and entity ID only (no sensitive data). For `member_contact_request` rows the full member message is held in the purgeable `detail_text` column (with a short `reason_text` summary preview); account erasure and the deceased contact scrub redact both, so member free text stays off the append-only audit ledger.
+Admin task queue with `queue_category` and `task_type`. Active `task_type` values include `member_contact_request` (member-submitted IFPA-admin contact requests under `queue_category='membership'`; see `M_Contact_IFPA_Admin` and `A_Resolve_Contact_IFPA_Admin_Request`), and under `queue_category='payments'` the money events an administrator must see: `charge_dispute_review`, `partial_refund_review`, `unattributed_refund`, `payout_failed`, `membership_overcharge_review`, `recurring_donation_charge_declined`, `recurring_donation_paused`, and `reconciliation_discrepancy`. Admin notifications are routed by urgency (US §1 Global Behaviors): a task type classified urgent (a security, data-integrity, or administrative-continuity event needing same-day action) emails the admin-alerts mailing list immediately on enqueue; a routine task type surfaces on the work-queue dashboard and in a periodic per-administrator digest of the open routine items. An administrator claims an item (`claimed_by_member_id`, `claimed_at`) to drop it from the other administrators' digests; an item left open and unclaimed past the stale threshold escalates once with a single email to admin-alerts. Every such notification contains task type and entity ID only (no sensitive data). For `member_contact_request` rows the full member message is held in the purgeable `detail_text` column (with a short `reason_text` summary preview); account erasure and the deceased contact scrub redact both, so member free text stays off the append-only audit ledger.
 
 `status` carries `open`, `resolved`, and `dismissed`. An item an administrator acted on is `resolved`; one they read and ruled settled without acting is `dismissed`, which is what the internal-review close path writes. A fourth parked value was considered for an item waiting on a member's answer and rejected: eight statements select `status = 'open'`, among them the de-duplication probe that stops a second item being raised for the same member, and both close paths. A parked item would therefore admit a duplicate and then refuse to be closed. An item waiting on a member stays `open` and carries the wait on the message row instead.
 
@@ -417,8 +417,15 @@ Config values are admin-configurable. Numeric limits and time windows are stored
 
 `changed_by_member_id` is a typed FK to `members` (not free-form text). System-seeded rows at initialization use NULL for this field with a documented `reason_text` explaining the system origin.
 
+#### Schema migrations
+`schema_migrations` records which migration files have been applied to a database. Before go-live the whole database is replaced on every deploy, so the schema is whatever `database/schema.sql` says; after go-live that deploy is forbidden and a migration file is the only way a schema change reaches production. Without this record the only way to know production's schema is to read production, and a restore is worse still, because the restored file is at whatever point the snapshot was taken and nothing in it says which migrations it now lacks.
+
+One row per applied file: its name, a checksum of its bytes, and when it was applied. The row is written inside the same transaction as the migration itself, so a migration that rolls back leaves no claim to have run. The checksum separates "already applied" from "the file has been edited since it was applied"; the second is refused, because the database no longer matches the file that names its state, and the fix is a new migration rather than a re-run. A database built from `schema.sql` records the bundled migrations as already applied, since the schema file already carries their effect.
+
 #### Audit log
 `audit_entries` is an append-only, privacy-safe ledger. IP addresses and user-agent strings are **never** stored. UPDATE and DELETE are blocked by DB triggers; rows are permanent. Actor context uses `actor_type` + `actor_member_id` (NULL for system actors).
+
+`data_origin` records whether the row came from real business (`live`), a rehearsal (`test`), or a process that could not tell (`unknown`). Production is proven before it goes live, so the cutover rehearsal, the payment-provider exercise and the operator bootstrap all write into the production ledger; the stamp is what stops those rows later reading as real member activity. It is resolved once at process start from the go-live marker and defaults to `unknown`, never `live`, because the ledger is append-only and a wrong stamp can never be corrected.
 
 **`action_type` catalog.** The `action_type` column is application-controlled (no CHECK enum). Every value is a dotted `domain.event` (e.g. `auth.register`, `payment.succeeded`); the convention binds every event.
 
@@ -430,7 +437,7 @@ Emitted values, grouped by namespace:
 - **`wizard.*`**: `start`, `complete`, `task.started`, `task.completed`, `club_affiliations.confirmed`, `club_affiliations.declined`, `club_affiliations.cap_hit`, `club_affiliations.idempotent`, `club_affiliations.promoted`, `club_insight.recorded` (a note the registrant gave about a club during onboarding, kept for the cleanup queue); historical, no current writer: `task.skipped`, `task.not_applicable`, `task.detour_paused`.
 - **`club.*`**: `created`, `member_joined`, `member_left`, `primary_swapped`, `marked_inactive`, `reactivated`, `coleader_stepped_down`, `hashtag_updated`, `admin_leader_assigned` and `admin_leader_demoted` (an administrator assigning or demoting a club leader), `promoted_from_candidate` (a candidate club promoted to a real one), `coleader_invited` and `coleader_volunteered` (a co-leader invited by an existing leader, and a member offering to co-lead a club that has none), `auto_demoted` (the cleanup sweep demoting a club that met the inactivity predicate), `content_edited` (a leader editing the club's own description and links), `revived_by_affiliation` and `revived_by_leadership_claim` (an inactive club returning to active because a member affiliated with it or claimed its leadership).
 - **`tier.*`**: `purchase_grant`, `legacy_claim_grant`, `governance_set`, `governance_removed`, `auto_link_revert`, `admin_override`.
-- **`payment.*`**: `checkout_started`, `donation_checkout_started`, `succeeded`, `refunded`, `canceled`, `partially_refunded`, `attempt_declined` (a card the bank refused; deliberately not named `*_failed`, which is reserved for platform faults that raise the operator alarm), `payout_rejected`, `queue_item_resolved`, `compliance_anonymize_failed`, `reconciliation_issue_raised`, `reconciliation_issue_resolved`, `recurring_donation_activated`, `recurring_donation_updated`, `recurring_donation_canceled`, `recurring_cancel_requested`, `recurring_charge_succeeded`, `recurring_charge_declined`, `recurring_charge_amount_updated`, `recurring_donation_checkout_abandoned` (a recurring-gift checkout the member started and never completed), `dispute_opened`, `dispute_closed` and `dispute_funds_withdrawn` (the three card-dispute states the payment provider reports).
+- **`payment.*`**: `checkout_started`, `donation_checkout_started`, `succeeded`, `refunded`, `canceled`, `partially_refunded`, `attempt_declined` (a card the bank refused; deliberately not named `*_failed`, which is reserved for platform faults that raise the operator alarm), `payout_rejected`, `queue_item_resolved`, `receipt_sent` (the platform sent a member their receipt; the per-recipient outbound copy is deleted once it ages past the outbound-copy retention window, so this is the durable record that a gift was acknowledged), `exported` (an administrator downloaded the payment records), `compliance_anonymize_failed`, `reconciliation_issue_raised`, `reconciliation_issue_resolved`, `recurring_donation_activated`, `recurring_donation_updated`, `recurring_donation_canceled`, `recurring_cancel_requested`, `recurring_charge_succeeded`, `recurring_charge_declined`, `recurring_charge_amount_updated`, `recurring_donation_checkout_abandoned` (a recurring-gift checkout the member started and never completed), `dispute_opened`, `dispute_closed` and `dispute_funds_withdrawn` (the three card-dispute states the payment provider reports).
 - **`active_player.*`**: `grant`, `extend` (a grant that lengthens an existing period rather than opening a new one), `expire`, `end`, `vouch_noop`, `club_join_noop`, `attendance_noop`.
 - **`support.*`**: `contact_request_submitted`, `contact_request_resolved`, `contact_request_resolve_notification_failed`, `help_request_submitted`, `help_request_approved`, `help_request_rejected`, `help_request_resolve_notification_failed` (a member's admin link-help request filed, and an admin approving or rejecting it, each answer notifying the member and recording the operational failure if that notice cannot be enqueued; the member's own submitted payload never enters the metadata, because the ledger is exempt from the PII purge).
 - **`member_message.*`**: `sent`, `answered` (an administrator putting a direct question to one member from the work-queue item that raised it, and the member's answer). The metadata carries the expected answer kind, the structured outcome, and the lengths of the question and the note, never their text: the subject, the body and the note are owner-and-admin private and live only in the purgeable columns on `member_messages`.
@@ -459,7 +466,7 @@ This list is the authoritative inventory; new action_types must be added here as
 
 ### 4.10 Payments
 
-**Tables:** `stripe_events`, `recurring_donation_subscriptions`, `recurring_donation_subscription_transitions`, `payments`, `payment_status_transitions`, `reconciliation_issues`  
+**Tables:** `stripe_events`, `stripe_webhook_failures`, `recurring_donation_subscriptions`, `recurring_donation_subscription_transitions`, `payments`, `payment_status_transitions`, `reconciliation_issues`  
 **Views:** `recurring_donation_subscriptions_active`
 
 #### Two payment models (US §1 Global Behaviors)
@@ -486,6 +493,8 @@ The row is written when checkout opens, before the provider has minted anything,
 
 The column is nullable, and null means the mode was never recorded: a row written before the column existed cannot be back-derived. Admin surfaces mark test and unknown rows and leave live rows unmarked, so an absent value can never be mistaken for a real charge.
 
+Money totals go further than marking: they count live rows only, and say on their face how many rows were set aside, so a rehearsal charge can neither inflate a reported figure nor disappear from one without explanation.
+
 #### Stripe timestamp fields
 `stripe_events.stripe_created` and `payments.last_stripe_event_created` are stored as **ISO-8601 UTC TEXT** (consistent with the schema's universal timestamp convention). Stripe delivers these as Unix epoch integers; the application must convert at write time:
 
@@ -494,7 +503,7 @@ strftime('%Y-%m-%dT%H:%M:%fZ', stripe_event.created, 'unixepoch')
 ```
 
 #### Stripe event deduplication
-`stripe_events` deduplicates all incoming webhook events by `event_id` (Stripe's globally unique event ID), regardless of payment model. The row is claimed inside the same transaction as the state change it guards, so a handler that throws rolls the claim back and leaves no row: a redelivery then re-runs cleanly rather than being mistaken for a duplicate. A row therefore exists only for an event that was processed, and the table records just the event's identity, type, Stripe creation time, and the moment it was processed. Delivery failures are counted from the structured `webhook.delivery_failed` log line the webhook controller emits, which feeds a CloudWatch metric filter.
+`stripe_events` deduplicates all incoming webhook events by `event_id` (Stripe's globally unique event ID), regardless of payment model. The row is claimed inside the same transaction as the state change it guards, so a handler that throws rolls the claim back and leaves no row: a redelivery then re-runs cleanly rather than being mistaken for a duplicate. A row therefore exists only for an event that was processed, and the table records just the event's identity, type, Stripe creation time, and the moment it was processed. Delivery failures cannot be recorded here: a rejected signature never yields an event id to key on, and a failed handler rolls its claim back. They are counted instead in `stripe_webhook_failures`, a time-bucketed counter table the controller increments on every rejected delivery, which is what the admin payments health view reads. One row per five-minute bucket per reason, incremented in place rather than one row per delivery: the webhook endpoint is public and unauthenticated by design, so per-delivery rows would let anything on the internet inflate the database holding the money records. The same rejection also emits the structured `webhook.delivery_failed` log line feeding the CloudWatch metric filter and its alarm; the table serves the administrator, the metric wakes the operator.
 
 #### Recurring subscriptions view
 - `recurring_donation_subscriptions_active`: `WHERE status NOT IN ('canceled', 'incomplete')`. Use for active-subscription queries. `incomplete` is excluded because a checkout that was opened and never completed is not a donation: it must not reach the member's history, the admin surfaces, or the provider comparison.
@@ -518,7 +527,7 @@ Every `payments.status` change **must** be paired with a `payment_status_transit
 #### Reconciliation issues
 `expires_at` is set at INSERT using the `reconciliation_expiry_days` config key: `strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+' || reconciliation_expiry_days || ' days')`. The cleanup job deletes rows WHERE `expires_at <= now AND status = 'resolved'`.
 
-The `ux_recon_outstanding_dedup` partial unique index enforces at most one outstanding issue per distinct discrepancy, keyed on `issue_type` plus the three provider references. The references are wrapped in `COALESCE` because SQLite treats NULLs as distinct in a unique index, so a discrepancy carrying no local payment id would otherwise never collide with itself. The index is partial on `status = 'outstanding'`, so resolving an issue frees the slot and a discrepancy still present on a later run is correctly raised again. This is what makes the reconciliation pass idempotent: a check-then-insert in application code cannot deliver that on its own, because two overlapping runs both read "not present" before either commits.
+The `ux_recon_outstanding_dedup` partial unique index enforces at most one outstanding issue per distinct discrepancy, keyed on `issue_type` plus the three provider references and the local `subscription_record_id`. The references are wrapped in `COALESCE` because SQLite treats NULLs as distinct in a unique index, so a discrepancy carrying no local payment id would otherwise never collide with itself. The local reference is part of the key because one discrepancy class has no provider reference by definition: a recurring checkout that was opened and never resolved carries no subscription, intent or invoice id, which is precisely what the discrepancy says. Without it every such issue collapsed onto one slot, so an outage stranding several members surfaced as a single issue naming one of them. The index is partial on `status = 'outstanding'`, so resolving an issue frees the slot and a discrepancy still present on a later run is correctly raised again. This is what makes the reconciliation pass idempotent: a check-then-insert in application code cannot deliver that on its own, because two overlapping runs both read "not present" before either commits.
 
 ### 4.11 System Configuration & Pricing
 
@@ -1121,6 +1130,7 @@ Required default rows are included at the end of `schema.sql` (Section 23) and a
 | `event-notifications` | Event Notifications | `1` |
 | `technical-updates` | Technical Updates | `1` |
 | `active-player-reminders` | Active Player Reminders | `1` |
+| `financial-digest` | Financial Digest | `0` |
 
 #### System config defaults
 
@@ -1136,7 +1146,7 @@ To change any value: INSERT a new row into `system_config` with the desired `val
 | `reconciliation_window_days` | `7` | Lookback window the nightly reconciliation pass compares |
 | `reconciliation_grace_minutes` | `30` | Age a record must reach before reconciliation judges it; minimum 1 |
 | `email_outbox_paused` | `0` | `1` = pause the transactional email outbox worker (DD §5.4) |
-| `payments_paused` | `0` | `1` = admin kill-switch halting new membership purchases and donations |
+| `payments_paused` | `0` | `1` = operator kill-switch halting new membership purchases and donations; the application reads it and has no write path to it |
 | `donation_rate_limit_per_hour` | `20` | Max donation checkout attempts per member per hour |
 | `event_registration_reminder_days` | `7` | Days before event start to send reminder |
 | `member_cleanup_grace_days` | `90` | Grace days after soft-delete before PII purge job runs |
@@ -1182,7 +1192,7 @@ To change any value: INSERT a new row into `system_config` with the desired `val
 | `profile_edit_rate_limit_per_hour` | `20` | Max profile edits per member per hour |
 | `purchase_tier_rate_limit_per_hour` | `20` | Max tier-purchase attempts per member per hour |
 | `video_submission_rate_limit_per_hour` | `5` | Max video link submissions per member per hour |
-| `reconciliation_summary_interval_days` | `7` | Cadence (days) for reconciliation digest email to admins |
+| `reconciliation_summary_interval_days` | `7` | Cadence (days) for the reconciliation digest, sent to the financial-digest list |
 | `admin_queue_digest_interval_days` | `1` | Cadence (days) for the admin work-queue digest of open routine items |
 | `admin_queue_stale_escalation_days` | `3` | Days an unclaimed routine work-queue item may stay open before a one-time all-admins escalation |
 | `work_queue_resolve_rate_limit_per_hour` | `120` | Max work-queue resolutions per admin per hour |
@@ -1413,7 +1423,7 @@ Display-only community advice recovered from the legacy Footbag.org `moves2.move
 
 **Tables:** `groups`, `group_member_affiliations`
 
-Governance, working-group, and social entities distinct from clubs, per Group Membership in USER_STORIES. Three groups are planned at launch: the IFPA Board of Directors, the European Footbag Committee, and the Worlds Operating Committee; the mechanism is general and an administrator creates any further group as data. Only a `type = 'board'` roster confers standing; a committee's roster confers no flag and no tier.
+Governance, working-group, and social entities distinct from clubs, per Group Membership in USER_STORIES. One group is planned at launch: the IFPA Board of Directors; the mechanism is general and an administrator creates any further group as data. Only a `type = 'board'` roster confers standing; a committee's roster confers no flag and no tier.
 
 **`groups`**
 
@@ -1636,7 +1646,7 @@ The DB does not CHECK `reason_code` semantics; the application is the primary va
 
 **Schema initialization (`schema.sql`) includes all required seed rows.** Do not skip Section 23 of the schema file. The following tables must have seed rows before the application can function:
 
-- `mailing_lists`: `admin-alerts`, `all-members`, `newsletter`, `board-announcements`, `event-notifications`, `technical-updates`, `active-player-reminders` (verify by `slug`); admin notification and member subscription workflows depend on these slugs.
+- `mailing_lists`: `admin-alerts`, `all-members`, `newsletter`, `board-announcements`, `event-notifications`, `technical-updates`, `active-player-reminders`, `financial-digest` (verify by `slug`); admin notification and member subscription workflows depend on these slugs. `financial-digest` is not member-manageable: an administrator sets who receives the reconciliation summary, so the treasurer can receive it without holding an admin account.
 - `system_config`: the seeded keys listed in §4.23 (verify by `config_key`); the application reads these at startup and during operations. A key with no seed row resolves to its built-in code fallback (per §4.23), so it does not error.
 
 **To verify seed data is present after initialization:**
@@ -1853,6 +1863,8 @@ The schema contains a few patterns that may look inconsistent at first glance bu
 - **`stripe_events`**; External-event ingestion table. Uses `event_id TEXT PRIMARY KEY` (Stripe's event ID) rather than a surrogate UUID. Follows ingestion-oriented semantics that differ from the most common entity-table pattern.
 
 - **`ses_events`**; SES bounce/complaint webhook idempotency store, parallel to `stripe_events`. Uses `message_id TEXT PRIMARY KEY` (the inbound SNS MessageId) rather than a surrogate UUID; the feedback handler claims it (INSERT OR IGNORE) inside the feedback transaction so a redelivered notification is processed exactly once. `recipient_count` carries how many addresses that one notification named, because the provider reports per notification and not per address; the admin health view sums it rather than counting rows, which would undercount a multi-recipient bounce.
+
+- **`stripe_webhook_failures`**; Rejected-webhook counters, keyed on a composite `(bucket_start, reason)` primary key rather than a surrogate UUID, and carrying no `id`, `version` or mutable metadata. Deliberately counts rather than records: one row per five-minute bucket per reason, incremented in place. The webhook endpoint is public and unauthenticated by design, so a row per delivery would let anything on the internet inflate the database that holds the money records; buckets size by the clock instead, at most 288 a day per reason whatever the traffic. Stores no payload, signature or header, and names an event only where the payload parsed far enough to state one.
 
 - **`mailing_lists`**; Uses `slug TEXT PRIMARY KEY` (the natural key), not a UUID. Intentionally has no `id` column; slug is the stable semantic reference used by all foreign keys into this table.
 

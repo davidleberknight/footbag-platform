@@ -27,10 +27,16 @@
 #     accepted and delivered nowhere. This script cannot check any of that from
 #     here, so it states each one and requires the operator to confirm it.
 #
-# This script is the kill switch in practice. The platform has a payments_paused
-# runtime config key, but it has no write path, so pulling it means writing to
-# the production database during an incident. Disarming is the usable stop, and
-# it takes a few minutes: know that before you need it.
+# This script is the FULL stop, not the first one to reach for. The fast stop is
+# scripts/payments-pause.sh, which sets the platform's payments_paused runtime
+# switch in seconds: new purchases and donations are refused immediately, while
+# webhooks keep processing so money already in flight still settles and still
+# grants what it paid for. Reach for that first.
+#
+# Disarming is what this script does, and it is the stop for when the provider
+# integration itself is the problem: it swaps the live adapter out entirely. It
+# takes a few minutes, it is a deploy, and going dark requires the Stripe
+# webhook endpoint be disabled first. Know that before you need it.
 #
 # Steps (referenced by --from-step, so a failure part-way is resumable):
 #   1  the provider-side precondition for this switch and direction

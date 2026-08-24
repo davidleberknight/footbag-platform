@@ -16,6 +16,8 @@ import {
   insertActivePlayerGrant,
   insertWorkQueueItem,
   insertMemberMessage,
+  insertPayment,
+  insertRecurringDonationSubscription,
   createTestSessionJwt,
 } from '../fixtures/factories';
 
@@ -37,6 +39,12 @@ const LONG_LAPSED_SLUG = 'act_long_lapsed';
 const ASKED_ID = 'act-asked';
 const ASKED_SLUG = 'act_asked';
 const ADMIN_ID = 'act-admin';
+const FAILED_PURCHASE_ID = 'act-failed-purchase';
+const FAILED_PURCHASE_SLUG = 'act_failed_purchase';
+const PAST_DUE_ID = 'act-past-due';
+const PAST_DUE_SLUG = 'act_past_due';
+const PENDING_PURCHASE_ID = 'act-pending-purchase';
+const PENDING_PURCHASE_SLUG = 'act_pending_purchase';
 
 function isoDaysFromNow(days: number): string {
   return new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
@@ -103,6 +111,37 @@ beforeAll(async () => {
     work_queue_item_id: itemId,
     subject: 'A private subject nobody else should read',
     body_text: 'A private question body nobody else should read',
+  });
+
+  // A membership payment that settled as failed: the member paid for a tier and
+  // holds nothing, and the only notice they had was an email carrying no link.
+  insertMember(db, {
+    id: FAILED_PURCHASE_ID, slug: FAILED_PURCHASE_SLUG,
+    login_email: 'act-failed-purchase@example.com',
+  });
+  insertPayment(db, {
+    member_id: FAILED_PURCHASE_ID, payment_type: 'membership', status: 'failed',
+    purchased_tier_status: 'tier2', amount_cents: 5000,
+  });
+
+  // A declined attempt inside a live checkout leaves the row pending on
+  // purpose, because the buyer may still try another card at the provider.
+  insertMember(db, {
+    id: PENDING_PURCHASE_ID, slug: PENDING_PURCHASE_SLUG,
+    login_email: 'act-pending-purchase@example.com',
+  });
+  insertPayment(db, {
+    member_id: PENDING_PURCHASE_ID, payment_type: 'membership', status: 'pending',
+    purchased_tier_status: 'tier1', amount_cents: 1000,
+  });
+
+  // A recurring donation the provider could not collect on.
+  insertMember(db, {
+    id: PAST_DUE_ID, slug: PAST_DUE_SLUG, login_email: 'act-past-due@example.com',
+  });
+  insertRecurringDonationSubscription(db, {
+    member_id: PAST_DUE_ID, status: 'past_due', amount_cents: 2500,
+    stripe_subscription_id: 'sub_act_past_due',
   });
 
   db.close();
@@ -296,5 +335,51 @@ describe('the block belongs to its owner', () => {
     const res = await request(createApp()).get(`/members/${ASKED_SLUG}`);
     expect(res.text).not.toContain('An IFPA administrator has a question for you');
     expect(res.text).not.toContain('Waiting on You');
+  });
+});
+
+describe('a membership payment that failed', () => {
+  it('reaches the member on the site, not only by an email carrying no link', async () => {
+    // The two payment obligations were previously deliverable only by mail, and
+    // notification mail on this platform carries no clickable links, so neither
+    // message could point anywhere. A member who paid and received nothing had
+    // no way to find the problem or act on it.
+    const res = await ownProfile(FAILED_PURCHASE_ID, FAILED_PURCHASE_SLUG);
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Your membership payment did not go through');
+  });
+
+  it('offers the way back for the tier that was actually being bought', async () => {
+    const res = await ownProfile(FAILED_PURCHASE_ID, FAILED_PURCHASE_SLUG);
+    expect(res.text).toContain(`action="/members/${FAILED_PURCHASE_SLUG}/purchase-tier"`);
+    expect(res.text).toContain('value="tier2"');
+    expect(res.text).toContain('Try Again');
+  });
+
+  it('says nothing while a checkout is still live and another card may yet work', async () => {
+    // A declined attempt leaves the payment pending on purpose, because the
+    // buyer is still at the provider and may present another card. Raising an
+    // obligation there would nag someone mid-purchase.
+    const res = await ownProfile(PENDING_PURCHASE_ID, PENDING_PURCHASE_SLUG);
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('Your membership payment did not go through');
+  });
+});
+
+describe('a recurring donation the provider could not collect', () => {
+  it('tells the member, and offers no action, because the provider is still trying', async () => {
+    const res = await ownProfile(PAST_DUE_ID, PAST_DUE_SLUG);
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('A payment on your recurring donation could not be collected');
+    expect(res.text).toContain(`href="/members/${PAST_DUE_SLUG}/payments"`);
+  });
+
+  it('raises no banner, because it is pending rather than needing attention now', async () => {
+    // It clears when the provider collects or gives up on its own dunning
+    // schedule, so there is nothing for the member to do until then.
+    const res = await request(createApp())
+      .get(`/members/${CLEAR_SLUG}`)
+      .set('Cookie', cookieFor(PAST_DUE_ID));
+    expect(res.text).not.toContain('A payment on your recurring donation could not be collected');
   });
 });

@@ -138,6 +138,97 @@ describe('pre-live test-key admission through the live adapter', () => {
     expect(factoryCalls).toBe(0);
   });
 
+  /**
+   * A secrets double that CACHES the way the live implementation does, which the
+   * stub deliberately does not: the stub reads its map every time, so a test
+   * built on it cannot observe a caching bug at all. This models the real thing
+   * — first read caches, later reads replay the cached value until invalidate is
+   * called — so the assertions below are about the adapter's behaviour rather
+   * than about the double's convenience.
+   */
+  function makeCachingAdapter(initialKey: string, markerValue?: string) {
+    const backing = new Map<string, string>([['stripe_secret_key', initialKey]]);
+    if (markerValue !== undefined) backing.set(MARKER_NAME, markerValue);
+    const cache = new Map<string, string>();
+    const invalidated: string[] = [];
+
+    const read = (k: string): string | undefined => {
+      if (cache.has(k)) return cache.get(k);
+      const v = backing.get(k);
+      if (v !== undefined) cache.set(k, v);
+      return v;
+    };
+
+    const secrets = {
+      get: async (k: string) => read(k),
+      getRequired: async (k: string) => {
+        const v = read(k);
+        if (v === undefined) throw new Error(`missing ${k}`);
+        return v;
+      },
+      getAbsolute: async (k: string) => read(k),
+      deleteAbsolute: async () => {},
+      invalidate: (k: string) => {
+        invalidated.push(k);
+        cache.delete(k);
+      },
+    };
+
+    const adapter = createLivePaymentAdapter({
+      secrets: secrets as never,
+      stripeFactory: () => ({
+        checkout: {
+          sessions: {
+            create: async () => ({
+              id: 'cs_prelive_1',
+              url: 'https://checkout.stripe.example/cs_prelive_1',
+              payment_intent: 'pi_prelive_1',
+            }),
+          },
+        },
+      } as never),
+    });
+
+    return {
+      adapter,
+      invalidated,
+      replaceParameter: (v: string) => backing.set('stripe_secret_key', v),
+    };
+  }
+
+  it('a refused key is dropped from the cache, so fixing the parameter works without a restart', async () => {
+    // The refusal message tells the operator to replace the parameter. The live
+    // adapter caches a fetched secret for the life of the process, so without
+    // invalidating on the way out the operator does exactly what they are told
+    // and every later call still replays the old value from cache. A fixable
+    // misconfiguration becomes an outage the error message claims is already
+    // fixed, which is the worst possible instruction to hand someone.
+    const { adapter, invalidated, replaceParameter } =
+      makeCachingAdapter('sk_test_refused_fake', 'true');
+
+    await expect(adapter.createCheckoutSession(CHECKOUT_OPTS)).rejects.toThrow(/test-mode/i);
+    expect(invalidated).toContain('stripe_secret_key');
+
+    // The operator does what the message says.
+    replaceParameter('sk_live_now_correct_fake');
+
+    // And it takes effect, with no restart.
+    const result = await adapter.createCheckoutSession(CHECKOUT_OPTS);
+    expect(result.sessionId).toBe('cs_prelive_1');
+  });
+
+  it('a placeholder key is dropped from the cache too', async () => {
+    const { adapter, invalidated, replaceParameter } =
+      makeCachingAdapter('TODO-set-via-cli-after-apply');
+
+    await expect(adapter.createCheckoutSession(CHECKOUT_OPTS)).rejects.toThrow(/placeholder/i);
+    expect(invalidated).toContain('stripe_secret_key');
+
+    replaceParameter('sk_live_now_correct_fake');
+    const result = await adapter.createCheckoutSession(CHECKOUT_OPTS);
+    expect(result.sessionId).toBe('cs_prelive_1');
+  });
+
   it('resolves a live key without ever reading the marker', async () => {
     const { adapter, secrets, factoryCalls } = makeAdapter('sk_live_prelive_fake');
     secrets.setSecret(MARKER_NAME, 'true');

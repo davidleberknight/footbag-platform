@@ -261,7 +261,7 @@ Visual aids for understanding the system design. Six diagrams cover production i
 │  nginx  (reverse proxy)                                             │
 │  CloudFront edge:    AWS Shield Standard DDoS protection            │
 │  App service layer: per-account/per-IP rate limiting                │
-│  nginx:             CloudFront-to-origin TLS termination            │
+│  nginx:             origin-verify gate, upstream Host pinning       │
 └─────────────────────────────────────────────────────────────────────┘
   ↓
 ┌─────────────────────────────────────────────────────────────────────┐

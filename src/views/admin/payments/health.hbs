@@ -1,0 +1,143 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    <p>Whether payments are working right now: which credential the running process holds, whether the provider's webhooks are arriving and being accepted, what settled, and what reconciliation is still asking about. Counts cover {{content.windowLabel}} unless a row says otherwise. Read-only.</p>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+    <div class="section-heading">
+      <h2>Provider Credential</h2>
+      {{#if content.credential.hasModeDisagreement}}<span class="section-count">Mismatch</span>{{/if}}
+    </div>
+
+    {{#if content.credential.hasModeDisagreement}}
+      <p class="form-notice" role="status">{{content.credential.disagreementNote}}</p>
+    {{/if}}
+    {{#if content.credential.paused}}
+      <p class="form-notice" role="status">{{content.credential.pausedNote}}</p>
+    {{/if}}
+
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Measure</th>
+          <th>Value</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Credential this process is running with</td>
+          <td>
+            {{#if content.credential.hasModeDisagreement}}
+              <span class="badge badge-warn">{{content.credential.runningModeLabel}}</span>
+            {{else}}
+              <span class="fw-600">{{content.credential.runningModeLabel}}</span>
+            {{/if}}
+          </td>
+        </tr>
+        <tr>
+          <td>Mode this deployment declares</td>
+          <td><span class="fw-600">{{content.credential.declaredModeLabel}}</span></td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="card-meta">No key identifier, key fragment or key age is shown here. Key rotation is a System Administrator responsibility, tracked against the provider's own key records.</p>
+  </section>
+
+  <section>
+    <div class="section-heading">
+      <h2>Webhook Delivery</h2>
+      {{#if content.webhooks.hasFailures}}<span class="section-count">{{content.webhooks.totalFailures}} rejected</span>{{/if}}
+    </div>
+
+    {{#if content.webhooks.isSilent}}
+      <p class="form-notice" role="status">{{content.webhooks.silenceNote}}</p>
+    {{/if}}
+
+    <p class="card-meta">
+      Last delivery processed:
+      {{#if content.webhooks.hasEverProcessed}}
+        <span class="fw-600">{{content.webhooks.lastProcessedAgeLabel}}</span>
+        &middot; <span class="text-muted">{{content.webhooks.lastProcessedDisplay}}</span>
+      {{else}}
+        <span class="fw-600">never</span>
+      {{/if}}
+    </p>
+
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Rejected because</th>
+          <th>Count</th>
+          <th>Most recent</th>
+          <th>What clears it</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each content.webhooks.failures}}
+          <tr>
+            <td>{{this.reasonLabel}}</td>
+            <td>{{#if this.hasFailures}}<span class="badge badge-warn">{{this.count}}</span>{{else}}0{{/if}}</td>
+            <td>
+              {{#if this.hasFailures}}
+                {{this.lastSeenDisplay}}
+                {{#if this.lastEventId}}<br><span class="text-muted fs-sm">{{this.lastEventId}}</span>{{/if}}
+              {{else}}
+                <span class="text-muted">--</span>
+              {{/if}}
+            </td>
+            <td><span class="text-secondary fs-sm">{{this.remedy}}</span></td>
+          </tr>
+        {{/each}}
+      </tbody>
+    </table>
+    <p class="card-meta">{{content.webhooks.providerLogNote}}</p>
+  </section>
+
+  <section>
+    <div class="section-heading">
+      <h2>Settled Volume</h2>
+    </div>
+    {{#if content.volume.hasRows}}
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Category</th>
+            <th>Payments</th>
+            <th>Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.volume.rows}}
+            <tr>
+              <td>{{this.categoryLabel}}</td>
+              <td>{{this.count}}</td>
+              <td>{{this.totalDisplay}}</td>
+            </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    {{else}}
+      <p class="text-muted">Nothing settled in this window.</p>
+    {{/if}}
+  </section>
+
+  <section>
+    <div class="section-heading">
+      <h2>Reconciliation</h2>
+      {{#if content.reconciliation.hasOutstanding}}<span class="section-count">{{content.reconciliation.outstandingCount}}</span>{{/if}}
+    </div>
+    {{#if content.reconciliation.hasOutstanding}}
+      <p>{{content.reconciliation.outstandingCount}} discrepancy{{#unless (eq content.reconciliation.outstandingCount 1)}} records{{/unless}} nobody has resolved yet.</p>
+    {{else}}
+      <p class="text-muted">The nightly comparison against the provider found nothing outstanding.</p>
+    {{/if}}
+    <p>
+      <a href="{{content.links.allPaymentsHref}}" class="action-link">Go to All Payments</a>
+      &middot;
+      <a href="{{content.links.reconciliationHref}}" class="action-link">Go to Reconciliation Issues</a>
+    </p>
+  </section>
+</div>

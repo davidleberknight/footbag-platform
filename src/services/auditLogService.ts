@@ -55,6 +55,7 @@ interface AuditEntryViewModel {
   entityHref: string | null;
   reasonText: string | null;
   metadataPreview: string | null;
+  dataOriginLabel: string | null;
 }
 
 export interface AuditLogContent {
@@ -79,6 +80,17 @@ export interface AuditLogContent {
   actorTypeOptions: string[];
   exportCsvHref: string;
   exportJsonHref: string;
+}
+
+// Real business is unlabelled and everything else is called out, the same
+// polarity the payment surfaces use for the provider's live/test flag: a
+// missing or unrecognised value must never be read as real. A row written
+// while production was being proven, or by a process that could not read the
+// go-live marker, is labelled so a reviewer never mistakes a rehearsal for a
+// member's actual history.
+function dataOriginLabel(raw: string | null | undefined): string | null {
+  if (raw === 'live') return null;
+  return raw === 'test' ? 'Test data' : 'Unknown origin';
 }
 
 // A bare calendar date as the upper bound should include that whole day, so
@@ -185,6 +197,7 @@ function shapeRow(row: AuditLogQueryRow): AuditEntryViewModel {
     entityHref: row.entity_type === 'member' && row.entity_slug ? `/members/${row.entity_slug}` : null,
     reasonText: row.reason_text,
     metadataPreview: metadataPreview(row.metadata_json),
+    dataOriginLabel: dataOriginLabel(row.data_origin),
   };
 }
 
@@ -268,6 +281,7 @@ export const auditLogService = {
     const header = [
       'occurred_at', 'actor_type', 'actor_member_id', 'actor_name', 'action_type',
       'category', 'entity_type', 'entity_id', 'entity_name', 'reason_text', 'metadata_json',
+      'data_origin',
     ];
     const lines: string[] = [];
     if (truncated) {
@@ -278,6 +292,7 @@ export const auditLogService = {
       lines.push([
         r.occurred_at, r.actor_type, r.actor_member_id, r.actor_display_name, r.action_type,
         r.category, r.entity_type, r.entity_id, r.entity_display_name, r.reason_text, r.metadata_json,
+        r.data_origin,
       ].map(csvCell).join(','));
     }
     return {

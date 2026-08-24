@@ -53,6 +53,8 @@ adminRouter.post('/work-queue/:id/link-help/dispute-revert', adminWorkQueueContr
 // `reconciliation` paths must precede `/payments/:paymentId`, or a payment id of
 // "reconciliation" would be looked up instead of the queue being rendered.
 adminRouter.get('/payments',                          adminPaymentsController.index);
+adminRouter.get('/payments/health',                   adminPaymentsController.health);
+adminRouter.get('/payments/export',                   adminPaymentsController.exportPayments);
 adminRouter.get('/payments/reconciliation',           adminPaymentsController.reconciliation);
 adminRouter.post('/payments/reconciliation/:issueId/resolve', adminPaymentsController.resolve);
 adminRouter.get('/payments/:paymentId',               adminPaymentsController.detail);

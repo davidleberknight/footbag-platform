@@ -590,6 +590,29 @@ describe('applyPurchaseGrantInTx downgrade guard', () => {
     expect(tierGrants(id)).toHaveLength(before);
   });
 
+  it('reports the no-op so the caller can see the member was charged for nothing', () => {
+    // The guard is right to keep the higher tier, but the money moved and
+    // nothing was given for it. Returning an indistinguishable success let that
+    // over-charge disappear: the payment reads succeeded, the receipt announces
+    // a membership, and reconciliation compares clean against the provider.
+    const id = freshMember();
+    mts.applyPurchaseGrant(id, id, freshPayment(id, 'tier2'), 'tier2');
+
+    const result = mts.applyPurchaseGrantInTx(id, id, freshPayment(id, 'tier1'), 'tier1');
+
+    expect(result).toEqual({
+      status: 'noop',
+      reason: 'already_at_or_above',
+      currentTier: 'tier2',
+    });
+  });
+
+  it('reports a genuine grant distinctly from a no-op', () => {
+    const id = freshMember();
+    expect(mts.applyPurchaseGrantInTx(id, id, freshPayment(id, 'tier1'), 'tier1'))
+      .toEqual({ status: 'granted' });
+  });
+
   it('still applies a genuine upgrade (Tier 1 member buys Tier 2)', () => {
     const id = freshMember();
     mts.applyPurchaseGrant(id, id, freshPayment(id, 'tier1'), 'tier1');

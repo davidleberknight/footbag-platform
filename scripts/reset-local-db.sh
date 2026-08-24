@@ -105,6 +105,20 @@ rm -f "${DB_FILE}" "${DB_FILE}-wal" "${DB_FILE}-shm"
 echo "  → Applying schema..."
 sqlite3 "${DB_FILE}" < "${SCHEMA}"
 
+# The schema file already carries the result of every migration written so far,
+# so a database built from it is not missing them: it is past them. Recording
+# them as applied is what stops a later data-preserving deploy re-running an
+# ALTER whose column is already there, which would fail and roll the database
+# back for no reason. The checksum matches what the migrating deploy computes,
+# so a file edited afterwards is still caught.
+echo "  → Recording bundled migrations as already applied..."
+for _migration in database/migrations/*.sql; do
+  [[ -e "$_migration" ]] || continue
+  _migration_name="$(basename "$_migration")"
+  _migration_sum="$(sha256sum "$_migration" | cut -d' ' -f1)"
+  sqlite3 "${DB_FILE}" "INSERT OR IGNORE INTO schema_migrations (filename, checksum, applied_at) VALUES ('${_migration_name}', '${_migration_sum}', strftime('%Y-%m-%dT%H:%M:%fZ','now'));"
+done
+
 # Local dev only: poll the email outbox every 2s instead of the 30s production
 # default, so a stub-captured email appears at /dev/outbox within a refresh or
 # two rather than a half-minute. system_config is append-only; this layers a

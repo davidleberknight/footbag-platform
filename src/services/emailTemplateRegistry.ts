@@ -98,6 +98,7 @@ export const TEMPLATE_VARIANTS = {
   payment_receipt_succeeded_tier1: v('confidential', PAYMENT_RECEIPT_FIELDS),
   payment_receipt_succeeded_tier2: v('confidential', PAYMENT_RECEIPT_FIELDS),
   payment_receipt_succeeded:       v('confidential', PAYMENT_RECEIPT_FIELDS),
+  payment_receipt_succeeded_donation: v('confidential', PAYMENT_RECEIPT_FIELDS),
   payment_receipt_failed:          v('confidential', PAYMENT_RECEIPT_FIELDS),
   payment_receipt_failed_membership: v('confidential', PAYMENT_RECEIPT_FIELDS),
   donation_subscription_started:            v('confidential', RECURRING_DONATION_STARTED_FIELDS),
@@ -105,7 +106,7 @@ export const TEMPLATE_VARIANTS = {
   donation_subscription_charge_failed:      v('confidential', RECURRING_DONATION_FIELDS),
   donation_subscription_canceled:           v('confidential', RECURRING_DONATION_FIELDS),
   admin_recurring_donation_ended:  v('internal',     ['referenceId', 'amountDisplay', 'endReason']),
-  reconciliation_digest:           v('internal',     ['countPhrase', 'itemLines', 'reviewUrl']),
+  reconciliation_digest:           v('internal',     ['countPhrase', 'periodPhrase', 'headlinePhrase', 'needsAttentionBlock', 'forTheRecordBlock', 'reviewUrl']),
   active_player_expiry_upcoming:   v('internal',     ['displayDate']),
   active_player_expiry_day_of:     v('internal',     ['displayDate']),
   club_membership_member_join:     v('confidential', ['memberName', 'clubName']),
@@ -207,19 +208,29 @@ const SHAPERS = {
     intervalPhrase: string;
     outcome: 'succeeded' | 'failed';
     isMembership: boolean;
+    isDonation: boolean;
     purchasedTier: 'tier1' | 'tier2' | null;
     referenceId: string;
   }): ShapedEmail => ({
     // Failure branches on what was being bought, for the same reason the
     // success side branches on the tier: a donor told their membership tier was
     // not changed is being answered about something they were not doing.
+    //
+    // A settled donation gets its own variant because it is the only one of
+    // these that is a gift. It names the organization and states that nothing
+    // was given in return, which is what a donor filing a United States return
+    // needs and cannot get from a bare receipt. That wording belongs on gifts
+    // alone: a membership or an event fee buys something, so putting
+    // deductibility language on those would be wrong.
     variant: p.outcome === 'failed'
       ? (p.isMembership ? 'payment_receipt_failed_membership' : 'payment_receipt_failed')
       : p.isMembership && p.purchasedTier === 'tier1'
         ? 'payment_receipt_succeeded_tier1'
         : p.isMembership && p.purchasedTier === 'tier2'
           ? 'payment_receipt_succeeded_tier2'
-          : 'payment_receipt_succeeded',
+          : p.isDonation
+            ? 'payment_receipt_succeeded_donation'
+            : 'payment_receipt_succeeded',
     merge: {
       descriptor: p.descriptor,
       amountDisplay: p.amountDisplay,
@@ -260,13 +271,33 @@ const SHAPERS = {
   }),
   reconciliation_digest: (p: {
     outstandingCount: number;
-    itemLines: string;
+    resolvedCount: number;
+    periodDays: number;
+    oldestOutstandingAgeDays: number | null;
+    needsAttentionLines: string;
+    forTheRecordLines: string;
     reviewUrl: string;
   }): ShapedEmail => ({
     variant: 'reconciliation_digest',
     merge: {
-      countPhrase: `${p.outstandingCount} outstanding discrepanc${p.outstandingCount === 1 ? 'y' : 'ies'}`,
-      itemLines: p.itemLines,
+      countPhrase: p.outstandingCount === 0
+        ? 'nothing outstanding'
+        : `${p.outstandingCount} outstanding discrepanc${p.outstandingCount === 1 ? 'y' : 'ies'}`,
+      periodPhrase: p.periodDays === 1 ? 'day' : `${p.periodDays} days`,
+      // The nil report is the whole point of sending on a clean period, so it
+      // says plainly that the check ran and found nothing, never just an empty
+      // section a reader has to interpret.
+      headlinePhrase: p.outstandingCount === 0
+        ? 'Everything matched. Nothing needs a decision.'
+        : p.oldestOutstandingAgeDays === null || p.oldestOutstandingAgeDays === 0
+          ? `${p.outstandingCount} item${p.outstandingCount === 1 ? '' : 's'} need a decision.`
+          : `${p.outstandingCount} item${p.outstandingCount === 1 ? '' : 's'} need a decision. `
+            + `The oldest has been waiting ${p.oldestOutstandingAgeDays} day`
+            + `${p.oldestOutstandingAgeDays === 1 ? '' : 's'}.`,
+      needsAttentionBlock: p.needsAttentionLines || 'Nothing outstanding.',
+      forTheRecordBlock: p.resolvedCount === 0
+        ? 'Nothing was resolved during this period.'
+        : p.forTheRecordLines,
       reviewUrl: p.reviewUrl,
     },
   }),

@@ -44,6 +44,42 @@
       </tbody>
     </table>
 
+    {{#if content.hasMoneyHistory}}
+      <h2 class="section-heading mt-8">Money Returned or Contested</h2>
+      {{#if content.amountIsNotNet}}
+        <p class="form-notice" role="status">
+          The amount above is what was originally charged. Some of it came back or is being
+          contested, so it is not what the organization kept.
+        </p>
+      {{/if}}
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>When</th>
+            <th>What happened</th>
+            <th>Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.moneyHistory}}
+            <tr>
+              <td>{{this.whenDisplay}}</td>
+              <td>
+                {{this.label}}
+                {{#if this.detail}}<br><span class="text-muted fs-sm">{{this.detail}}</span>{{/if}}
+              </td>
+              <td>{{#if this.amountDisplay}}{{this.amountDisplay}}{{else}}<span class="text-muted">--</span>{{/if}}</td>
+            </tr>
+          {{/each}}
+        </tbody>
+      </table>
+      <p class="text-muted fs-sm">
+        A partial refund, a dispute and a rejected payout never change the payment record itself,
+        because its status only ever moves forward and only a full refund is an end state. This is
+        where that history lives.
+      </p>
+    {{/if}}
+
     {{#if content.hasDonationNote}}
       <h2 class="section-heading mt-8">Donor Note</h2>
       <p class="card">{{content.donationNote}}</p>

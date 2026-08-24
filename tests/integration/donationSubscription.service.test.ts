@@ -33,10 +33,16 @@ const M_PROMOTE = 'don-promote';
 const M_LEDGER = 'don-ledger';
 const M_EXPIRE = 'don-expire';
 const M_EXPIRE_AGAIN = 'don-expire-again';
+const M_OUT_OF_ORDER_SUCCESS = 'don-ooo-success';
+const M_RENEWAL_CURRENCY = 'don-renewal-ccy';
+const M_LATE_ON_ENDED = 'don-late-on-ended';
+const M_UPDATE_ON_ENDED = 'don-update-on-ended';
 const ALL_MEMBERS = [
   M_PLAIN, M_HOF, M_BAP, M_BOTH, M_OTHER,
   M_FAIL_AGAIN, M_UPDATE_AGAIN, M_SIGNUP,
   M_PROMOTE, M_LEDGER, M_EXPIRE, M_EXPIRE_AGAIN,
+  M_OUT_OF_ORDER_SUCCESS, M_RENEWAL_CURRENCY,
+  M_LATE_ON_ENDED, M_UPDATE_ON_ENDED,
 ];
 
 beforeAll(async () => {
@@ -505,6 +511,305 @@ describe('invoice.payment_succeeded', () => {
     }
   });
 
+  it('does not record a subscription as collecting when the provider says its first payment has not settled', async () => {
+    // Stripe raises customer.subscription.created for a subscription still
+    // waiting on an authentication step or an asynchronous payment method. The
+    // handler used to promote every one of them to active, so a donation that
+    // had collected nothing appeared live on the member's history and in the
+    // admin surfaces, and stayed that way unless a later failure happened to
+    // arrive.
+    const paymentService = await svc();
+    const { signStripeWebhook } = await import('../../src/adapters/stripeWebhook');
+    const { STUB_WEBHOOK_SECRET } = await import('../../src/adapters/paymentAdapter');
+    const started = await paymentService.startDonation(M_PLAIN, 2500, null, true, '/x');
+    const rawBody = JSON.stringify({
+      id: 'evt_sub_incomplete',
+      type: 'customer.subscription.created',
+      created: 1700000002,
+      data: {
+        object: {
+          id: 'sub_incomplete_first_payment',
+          customer: 'cus_incomplete',
+          status: 'incomplete',
+          metadata: {
+            subscriptionRecordId: started.reference,
+            memberId: M_PLAIN,
+            amountCents: '2500',
+          },
+        },
+      },
+    });
+    const signature = signStripeWebhook(rawBody, STUB_WEBHOOK_SECRET);
+    expect(paymentService.handleWebhook(rawBody, signature)).toEqual({ outcome: 'processed' });
+
+    const db = openDb();
+    try {
+      const row = db.prepare(
+        'SELECT status FROM recurring_donation_subscriptions WHERE id = ?',
+      ).get(started.reference) as { status: string };
+      expect(row.status).not.toBe('active');
+      expect(row.status).toBe('past_due');
+    } finally {
+      db.close();
+    }
+  });
+
+  it('acknowledges a created event for a row already resolved, rather than colliding forever', async () => {
+    // Reachable by ordering alone: an expiry event closes the opened row out at
+    // the same moment the creation arrives. The insert fallback would then
+    // collide on the primary key, surface as an unhandled failure, retry
+    // identically for days, and lose the gift.
+    const paymentService = await svc();
+    const stub = await stubAdapter();
+    const { signStripeWebhook } = await import('../../src/adapters/stripeWebhook');
+    const { STUB_WEBHOOK_SECRET } = await import('../../src/adapters/paymentAdapter');
+    const { sessionId, subscriptionId } = await activateSubscription(M_OTHER);
+
+    // The row is now 'active', so it is no longer awaiting confirmation.
+    const rawBody = JSON.stringify({
+      id: 'evt_created_after_resolved',
+      type: 'customer.subscription.created',
+      created: Math.floor(Date.now() / 1000),
+      data: {
+        object: {
+          id: 'sub_created_again',
+          customer: 'cus_created_again',
+          status: 'active',
+          metadata: {
+            subscriptionRecordId: subscriptionId,
+            memberId: M_OTHER,
+            amountCents: '2500',
+          },
+        },
+      },
+    });
+    expect(paymentService.handleWebhook(rawBody, signStripeWebhook(rawBody, STUB_WEBHOOK_SECRET)))
+      .toEqual({ outcome: 'duplicate' });
+
+    // And exactly one row still exists for that record.
+    expect(countRows(
+      'SELECT COUNT(*) AS c FROM recurring_donation_subscriptions WHERE id = ?',
+      subscriptionId,
+    )).toBe(1);
+    void stub;
+    void sessionId;
+  });
+
+  it('ignores an invoice raised outside the platform instead of retrying it forever', async () => {
+    // An invoice for a subscription created in the provider's console, or a
+    // one-off invoice with no subscription at all, can never match a local row.
+    // Refusing it would make the provider retry for days on every billing
+    // cycle, flood the delivery-failure metric, and risk the endpoint being
+    // disabled for every other event too.
+    const paymentService = await svc();
+    const { signStripeWebhook } = await import('../../src/adapters/stripeWebhook');
+    const { STUB_WEBHOOK_SECRET } = await import('../../src/adapters/paymentAdapter');
+    const rawBody = JSON.stringify({
+      id: 'evt_invoice_foreign',
+      type: 'invoice.payment_succeeded',
+      created: 1700000000,
+      data: {
+        object: {
+          id: 'in_foreign',
+          parent: {
+            type: 'subscription_details',
+            subscription_details: { subscription: 'sub_dashboard_made', metadata: {} },
+          },
+          amount_paid: 4200,
+          currency: 'usd',
+        },
+      },
+    });
+    const signature = signStripeWebhook(rawBody, STUB_WEBHOOK_SECRET);
+    expect(paymentService.handleWebhook(rawBody, signature)).toEqual({ outcome: 'ignored' });
+    expect(countRows(
+      'SELECT COUNT(*) AS c FROM payments WHERE stripe_invoice_id = ?',
+      'in_foreign',
+    )).toBe(0);
+  });
+
+  it('still asks for redelivery when the invoice is ours and the subscription has not landed yet', async () => {
+    // The distinction the ignore above must not blur: an invoice carrying this
+    // platform's correlation metadata is ours, and a missing local row means
+    // the created event is still in flight, so the delivery is refused and the
+    // provider redelivers rather than the charge being lost.
+    const paymentService = await svc();
+    const { RecoverableWebhookError } = await import('../../src/services/paymentService');
+    const { signStripeWebhook } = await import('../../src/adapters/stripeWebhook');
+    const { STUB_WEBHOOK_SECRET } = await import('../../src/adapters/paymentAdapter');
+    const rawBody = JSON.stringify({
+      id: 'evt_invoice_ours_early',
+      type: 'invoice.payment_succeeded',
+      created: 1700000001,
+      data: {
+        object: {
+          id: 'in_ours_early',
+          parent: {
+            type: 'subscription_details',
+            subscription_details: {
+              subscription: 'sub_not_mirrored_yet',
+              metadata: { subscriptionRecordId: 'rds_not_here_yet' },
+            },
+          },
+          amount_paid: 2500,
+          currency: 'usd',
+        },
+      },
+    });
+    const signature = signStripeWebhook(rawBody, STUB_WEBHOOK_SECRET);
+    expect(() => paymentService.handleWebhook(rawBody, signature))
+      .toThrow(RecoverableWebhookError);
+  });
+
+  it('books a renewal in the currency the invoice was collected in, not the stored one', async () => {
+    // The subscription row keeps its own copy of the currency, and booking the
+    // charge from that copy records money in a currency it never moved in. It
+    // also makes the nightly comparison meaningless: the platform would be
+    // checking its own guess against the provider rather than checking two
+    // records of one event. The invoice is what says what was actually taken.
+    const paymentService = await svc();
+    const { signStripeWebhook } = await import('../../src/adapters/stripeWebhook');
+    const { STUB_WEBHOOK_SECRET } = await import('../../src/adapters/paymentAdapter');
+    const { subscriptionId, stripeSubscriptionId } = await activateSubscription(M_RENEWAL_CURRENCY);
+
+    const rawBody = JSON.stringify({
+      id: 'evt_invoice_currency',
+      type: 'invoice.payment_succeeded',
+      created: 1700000900,
+      data: {
+        object: {
+          id: 'in_currency',
+          parent: {
+            type: 'subscription_details',
+            subscription_details: {
+              subscription: stripeSubscriptionId,
+              metadata: { subscriptionRecordId: subscriptionId },
+            },
+          },
+          amount_paid: 2500,
+          currency: 'eur',
+        },
+      },
+    });
+    const signature = signStripeWebhook(rawBody, STUB_WEBHOOK_SECRET);
+    expect(paymentService.handleWebhook(rawBody, signature)).toEqual({ outcome: 'processed' });
+
+    const db = openDb();
+    try {
+      const row = db.prepare(
+        'SELECT currency FROM payments WHERE stripe_invoice_id = ?',
+      ).get('in_currency') as { currency: string };
+      expect(row.currency).toBe('EUR');
+    } finally {
+      db.close();
+    }
+  });
+
+  it('books an out-of-order renewal charge without reviving the donation or rewinding the watermark', async () => {
+    // The mirror image of the case below, and the one the success handler had
+    // no guard for. A charge that settled EARLIER can arrive after a later
+    // failure, and the money is real either way, so the payment row is written.
+    // But the status write is keyed on the row id alone, so applying it would
+    // put a past_due donation back to active on the strength of older news, and
+    // would drag last_stripe_event_created backwards — which then lets an
+    // intermediate event replayed afterwards pass a staleness check it should
+    // fail. The charge is booked; the subscription state is left alone.
+    const paymentService = await svc();
+    const stub = await stubAdapter();
+    const { sessionId, subscriptionId } = await activateSubscription(M_OUT_OF_ORDER_SUCCESS);
+
+    const earlyAt = Math.floor(Date.parse('2026-09-01T10:00:00.000Z') / 1000);
+    const lateAt = earlyAt + 7200;
+
+    // The later failure lands first and moves the donation to past_due.
+    const failure = stub.buildSignedStubSubscriptionEvent(sessionId, 'invoice_failed', {
+      invoiceId: 'in_late_failure', createdSeconds: lateAt,
+    });
+    expect(paymentService.handleWebhook(failure.rawBody, failure.signature))
+      .toEqual({ outcome: 'processed' });
+
+    // Now the older success for a different invoice arrives.
+    const success = stub.buildSignedStubSubscriptionEvent(sessionId, 'invoice_succeeded', {
+      invoiceId: 'in_early_success', createdSeconds: earlyAt,
+    });
+    expect(paymentService.handleWebhook(success.rawBody, success.signature))
+      .toEqual({ outcome: 'processed' });
+
+    const db = openDb();
+    try {
+      // The money is recorded: it genuinely moved.
+      const booked = db.prepare(
+        'SELECT COUNT(*) AS c FROM payments WHERE stripe_invoice_id = ?',
+      ).get('in_early_success') as { c: number };
+      expect(booked.c).toBe(1);
+
+      const sub = db.prepare(
+        `SELECT status, last_stripe_event_created
+           FROM recurring_donation_subscriptions WHERE id = ?`,
+      ).get(subscriptionId) as { status: string; last_stripe_event_created: string };
+      // Not revived by older news, and the watermark did not rewind.
+      expect(sub.status).toBe('past_due');
+      expect(Date.parse(sub.last_stripe_event_created)).toBe(lateAt * 1000);
+
+      // The ledger records where the row actually landed, not where the
+      // unapplied event would have put it.
+      const transition = db.prepare(
+        `SELECT new_status FROM recurring_donation_subscription_transitions
+          WHERE stripe_invoice_id = ?`,
+      ).get('in_early_success') as { new_status: string };
+      expect(transition.new_status).toBe('past_due');
+    } finally {
+      db.close();
+    }
+  });
+
+  it('does not flip a settled renewal to past_due when the failed attempt arrives after the success', async () => {
+    // One billing cycle raises both events: the attempt that declined and the
+    // retry that collected. The provider does not guarantee delivery order, and
+    // the failure's own retries make inversion likely. Applying the older
+    // failure afterwards would tell a member whose card was charged that it was
+    // not, raise an administrator work item for money that arrived, and leave
+    // the donation reading past_due until the next event a year later.
+    const paymentService = await svc();
+    const stub = await stubAdapter();
+    const { sessionId, subscriptionId } = await activateSubscription(M_PLAIN);
+
+    const failedAt = Math.floor(Date.parse('2026-07-01T10:00:00.000Z') / 1000);
+    const succeededAt = failedAt + 3600;
+
+    const success = stub.buildSignedStubSubscriptionEvent(sessionId, 'invoice_succeeded', {
+      invoiceId: 'in_cycle_one', createdSeconds: succeededAt,
+    });
+    expect(paymentService.handleWebhook(success.rawBody, success.signature))
+      .toEqual({ outcome: 'processed' });
+
+    const failure = stub.buildSignedStubSubscriptionEvent(sessionId, 'invoice_failed', {
+      invoiceId: 'in_cycle_one', createdSeconds: failedAt,
+    });
+    expect(paymentService.handleWebhook(failure.rawBody, failure.signature))
+      .toEqual({ outcome: 'duplicate' });
+
+    const db = openDb();
+    try {
+      const sub = db.prepare(
+        'SELECT status, failure_count FROM recurring_donation_subscriptions WHERE id = ?',
+      ).get(subscriptionId) as { status: string; failure_count: number };
+      expect(sub.status).toBe('active');
+      expect(sub.failure_count).toBe(0);
+      // No charge-failed notice reaches the member, and no work item is raised.
+      // Scoped to this subscription: the suite shares one database, so an
+      // un-scoped count over the whole table asserts something about every
+      // other test rather than about this one.
+      const notices = db.prepare(
+        `SELECT COUNT(*) AS c FROM work_queue_items
+          WHERE queue_category = 'payments' AND entity_id = ?`,
+      ).get(subscriptionId) as { c: number };
+      expect(notices.c).toBe(0);
+    } finally {
+      db.close();
+    }
+  });
+
   it('creates only one payment row when Stripe redelivers the same invoice event', async () => {
     const paymentService = await svc();
     const stub = await stubAdapter();
@@ -646,6 +951,58 @@ describe('customer.subscription.deleted', () => {
     const sub = readSubscription(subscriptionId)!;
     expect(sub.status).toBe('canceled');
     expect(sub.canceled_at).toBeTruthy();
+  });
+
+  it('records a late failed charge on an ended donation once, however often it is redelivered', async () => {
+    // The provider can report a failed collection after the subscription is
+    // already gone: the last dunning attempt on a final invoice. Nothing is
+    // owed and no member action would help, so it is recorded and acknowledged
+    // rather than acted on. The audit ledger is append-only, so a redelivery
+    // that appended again would put the same late failure on the record twice.
+    const paymentService = await svc();
+    const stub = await stubAdapter();
+    const { sessionId, subscriptionId } = await activateSubscription(M_LATE_ON_ENDED);
+    const deleted = stub.buildSignedStubSubscriptionEvent(sessionId, 'deleted');
+    paymentService.handleWebhook(deleted.rawBody, deleted.signature);
+
+    const failure = stub.buildSignedStubSubscriptionEvent(sessionId, 'invoice_failed', {
+      invoiceId: 'in_after_the_end',
+    });
+    expect(paymentService.handleWebhook(failure.rawBody, failure.signature))
+      .toEqual({ outcome: 'ignored' });
+    expect(paymentService.handleWebhook(failure.rawBody, failure.signature))
+      .toEqual({ outcome: 'duplicate' });
+
+    expect(countRows(
+      "SELECT COUNT(*) AS c FROM audit_entries WHERE action_type = 'payment.recurring_charge_declined' AND entity_id = ?",
+      subscriptionId,
+    )).toBe(1);
+    // And the ended donation stays ended.
+    expect(readSubscription(subscriptionId)!.status).toBe('canceled');
+  });
+
+  it('records a change reported against an ended donation once, however often it is redelivered', async () => {
+    // Same shape as the late failure: a change cannot be applied to a
+    // subscription already recorded as canceled without contradicting the
+    // cancellation, so it is recorded and acknowledged, and the append-only
+    // ledger must not carry it twice.
+    const paymentService = await svc();
+    const stub = await stubAdapter();
+    const { sessionId, subscriptionId } = await activateSubscription(M_UPDATE_ON_ENDED);
+    const deleted = stub.buildSignedStubSubscriptionEvent(sessionId, 'deleted');
+    paymentService.handleWebhook(deleted.rawBody, deleted.signature);
+
+    const updated = stub.buildSignedStubSubscriptionEvent(sessionId, 'updated');
+    expect(paymentService.handleWebhook(updated.rawBody, updated.signature))
+      .toEqual({ outcome: 'ignored' });
+    expect(paymentService.handleWebhook(updated.rawBody, updated.signature))
+      .toEqual({ outcome: 'duplicate' });
+
+    expect(countRows(
+      "SELECT COUNT(*) AS c FROM audit_entries WHERE action_type = 'payment.recurring_donation_updated' AND entity_id = ?",
+      subscriptionId,
+    )).toBe(1);
+    expect(readSubscription(subscriptionId)!.status).toBe('canceled');
   });
 
   it('treats a redelivered cancellation as a duplicate', async () => {

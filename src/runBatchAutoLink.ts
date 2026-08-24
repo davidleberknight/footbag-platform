@@ -14,8 +14,12 @@
  */
 import { operationsPlatformService } from './services/operationsPlatformService';
 import { logger } from './config/logger';
+import { initDataOrigin } from './services/dataOriginService';
 
 export async function runBatchAutoLinkJob(): Promise<number> {
+  // The job appends audit rows from inside database transactions, which cannot
+  // read the go-live marker, so it is resolved before the first link is made.
+  await initDataOrigin();
   const result = await operationsPlatformService.runBatchAutoLink();
   logger.info('batch auto-link cutover job complete', result);
   return 0;

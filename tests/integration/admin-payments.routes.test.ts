@@ -290,6 +290,44 @@ describe('GET /admin/payments/reconciliation', () => {
     expect(after.text).not.toContain(issueId);
   });
 
+  it('gives the administrator their note back when the resolve is rejected', async () => {
+    // The note is prose about what someone checked and concluded, and the
+    // length check rejects a long one. Re-rendering without it makes them write
+    // it again from memory, which is the page failing the person using it.
+    const issueId = await seedOneIssue();
+    const tooLong = 'I checked the provider ledger and concluded this was a duplicate. '.repeat(40);
+
+    const res = await request(createApp())
+      .post(`/admin/payments/reconciliation/${issueId}/resolve`)
+      .set('Cookie', cookie(ADMIN))
+      .type('form')
+      .send({ notes: tooLong });
+
+    expect(res.status).toBe(422);
+    // The words come back, in the box they were typed into.
+    expect(res.text).toContain('I checked the provider ledger');
+  });
+
+  it('prints an amount with its currency code and no invented symbol', async () => {
+    // A dollar sign in front of a euro total is a false statement about money,
+    // and this figure is read by whoever reconciles the books. Latent while
+    // every payment settles in one currency, which is why it needs pinning
+    // rather than leaving to be noticed.
+    const db = openDb();
+    try {
+      insertPayment(db, {
+        id: 'pay-currency-fmt', member_id: MEMBER, created_at: IN_WINDOW,
+        status: 'succeeded', amount_cents: 2500, currency: 'EUR',
+      });
+    } finally {
+      db.close();
+    }
+    const res = await plainRequest(createApp())
+      .get('/admin/payments').set('Cookie', cookie(ADMIN));
+    expect(res.text).toMatch(/25\.00\s+EUR/);
+    expect(res.text).not.toMatch(/\$25\.00/);
+  });
+
   it('renders the provider ids on an issue so an administrator can cross-reference in Stripe', async () => {
     await seedOneIssue(); // the issue carries stripe_payment_intent_id 'pi_iss'
     const res = await plainRequest(createApp())

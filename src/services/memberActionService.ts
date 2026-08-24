@@ -39,6 +39,7 @@ import {
 } from './memberActionItem';
 import { activePlayerActionSource } from './activePlayerService';
 import { memberQuestionActionSource } from './memberMessageService';
+import { paymentActionSource } from './paymentService';
 
 /**
  * One member's obligations, ordered on construction: needs-attention-now before
@@ -67,6 +68,7 @@ function defaultSources(): readonly MemberActionSource[] {
   return [
     activePlayerActionSource,
     memberQuestionActionSource,
+    paymentActionSource,
   ];
 }
 

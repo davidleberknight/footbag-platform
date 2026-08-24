@@ -1,0 +1,7 @@
+{
+  "templateKey": "payment_receipt_succeeded_donation",
+  "subjectTemplate": "Thank you for your donation",
+  "bodyTemplate": "Thank you for supporting footbag.\n\nItem:     {descriptor}\nAmount:   {amountDisplay}\nDate:     {paymentDate}\nInterval: {intervalPhrase}\n\nReference: {referenceId}\n\nThis gift was made to the International Footbag Players' Association, Incorporated, and no goods or services were provided in exchange for it. Keep this message for your records; if you deduct charitable contributions on a United States tax return, this is the acknowledgement of the gift.",
+  "piiClassification": "confidential",
+  "isEnabled": true
+}

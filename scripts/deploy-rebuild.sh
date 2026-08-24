@@ -428,6 +428,12 @@ DEPLOY_COMMIT="$(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || echo 
 # as long as deploys ran from a nearly clean checkout. sed reads to end of input.
 DEPLOY_DIRTY_PATHS="$(git -C "$REPO_ROOT" status --porcelain 2>/dev/null | cut -c4- | sed -n '1,40p' | paste -sd, -)"
 DEPLOY_DIRTY_COUNT="$(git -C "$REPO_ROOT" status --porcelain 2>/dev/null | wc -l | tr -d ' ')"
+# Past the cap the list is short, and a short list reads exactly like a complete
+# one. Whoever reconstructs what produced an artifact has to be told the record
+# is partial, not left to notice by counting commas against the dirty total.
+if [[ "$DEPLOY_DIRTY_COUNT" -gt 40 ]]; then
+  DEPLOY_DIRTY_PATHS="${DEPLOY_DIRTY_PATHS},+$((DEPLOY_DIRTY_COUNT - 40)) more not listed"
+fi
 # This is the only deploy that reseeds email_templates from the sidecars, so it
 # is the only one that can say which wording the environment now holds. Recorded
 # beside the commit so the bring-up status view can tell a stale rendering from a

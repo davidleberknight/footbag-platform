@@ -188,10 +188,16 @@ AWS_PROJECT_SPECIFICS.md
 # AWS CLI installer bundle (local tooling, never commit)
 aws/
 
-# Terraform plan files (binary, may contain sensitive data, never commit)
+# Terraform plan files (never commit). A saved plan is a zip carrying a full
+# copy of state, so it holds every sensitive value in the clear. The name is
+# whatever -out= was given, so these patterns cover the conventional spellings
+# rather than one of them: a plan committed under an unmatched name is a
+# published secret, and no later rule can unpublish it.
 tfplan
+tfplan.*
 *.tfplan
 *.plan
+plan.out
 
 # Generated cache files (never commit)
 legacy_data/legacy_mirror/robots_cache.json

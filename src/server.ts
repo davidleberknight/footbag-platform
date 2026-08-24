@@ -7,6 +7,7 @@ import { createApp } from './app';
 import { checkpointAndCloseDatabase } from './db/db';
 import { initCloudFrontSigningAdapter } from './adapters/cloudFrontSigningAdapter';
 import { initJwtSigningAdapter } from './adapters/jwtSigningAdapter';
+import { initDataOrigin } from './services/dataOriginService';
 
 const app = createApp();
 
@@ -63,8 +64,14 @@ async function probeImageWorkerForDev(): Promise<void> {
 //   - The session-JWT signer makes its first KMS call (GetPublicKey): the
 //     adapter is otherwise lazy, so broken KMS wiring would surface only at
 //     the first login. No-op for the local signer.
+//
+// The data-origin resolution joins them because audit rows are appended inside
+// database transactions, where an async read is a crash: the go-live marker has
+// to be in memory before the first row is written or the row cannot be stamped
+// honestly. It never rejects; an unreadable marker degrades the stamp rather
+// than refusing the boot.
 let server: ReturnType<typeof app.listen> | undefined;
-Promise.all([initCloudFrontSigningAdapter(), initJwtSigningAdapter()])
+Promise.all([initCloudFrontSigningAdapter(), initJwtSigningAdapter(), initDataOrigin()])
   .then(() => {
     server = app.listen(config.port, () => {
       logger.info('server started', {

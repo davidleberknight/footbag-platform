@@ -72,7 +72,10 @@ import { hashtagDiscoveryService } from './hashtagDiscoveryService';
 import { recordOperationalError } from './operationalErrors';
 import { getCommunicationService, type ProcessBatchResult } from './communicationService';
 import { workQueueService } from './workQueueService';
-import { paymentReconciliationService } from './paymentReconciliationService';
+import {
+  paymentReconciliationService,
+  RECONCILIATION_DIGEST_INTERVAL_DEFAULT_DAYS,
+} from './paymentReconciliationService';
 import { readIntConfig } from './configReader';
 import { config } from '../config/env';
 import { logger } from '../config/logger';
@@ -375,7 +378,10 @@ export class OperationsPlatformService {
   async runReconciliationDigest(
     startTime?: Date,
   ): Promise<{ skipped: boolean; admins: number; sent: number; outstanding: number }> {
-    const intervalDays = readIntConfig('reconciliation_summary_interval_days', 7);
+    const intervalDays = readIntConfig(
+      'reconciliation_summary_interval_days',
+      RECONCILIATION_DIGEST_INTERVAL_DEFAULT_DAYS,
+    );
     const now = startTime ?? new Date();
     const last = systemJobRuns.lastSuccessAt.get('SYS_Reconciliation_Digest') as
       | { last_success: string | null }
@@ -396,9 +402,11 @@ export class OperationsPlatformService {
 
   /**
    * SYS_Purge_Reconciliation_Issues daily entry point. Deletes resolved
-   * reconciliation issues whose retention has expired; outstanding issues are
-   * never touched. No cadence gate: the delete is cheap and idempotent, so
-   * running it on every daily tick is simpler than tracking when it last ran.
+   * reconciliation issues whose retention has expired, and the webhook-failure
+   * counters that age out on the same key; outstanding issues are never
+   * touched. The reported count covers both tables. No cadence gate: the delete
+   * is cheap and idempotent, so running it on every daily tick is simpler than
+   * tracking when it last ran.
    */
   async runReconciliationIssuePurge(startTime?: Date): Promise<{ deleted: number }> {
     return this.recordJobRun(

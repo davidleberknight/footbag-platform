@@ -27,6 +27,7 @@ import { config } from './config/env';
 import { operationsPlatformService } from './services/operationsPlatformService';
 import { createTranscodeWorker } from './transcodeWorker';
 import { checkpointAndCloseDatabase } from './db/db';
+import { initDataOrigin } from './services/dataOriginService';
 
 let stopping = false;
 
@@ -241,6 +242,9 @@ process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
 
 (async () => {
+  // Resolved before any loop turns, because the worker appends audit rows from
+  // inside database transactions and cannot read the go-live marker there.
+  await initDataOrigin();
   try {
     transcodeServer = await startTranscodeServer();
   } catch (err) {

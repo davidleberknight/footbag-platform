@@ -2238,6 +2238,12 @@ export interface ClaimEvidenceAttempt {
   isContradicted: boolean;
   /** The date the archive holds for this attempt's record, where it holds one. */
   recordBirthDate: string | null;
+  /**
+   * Set where the attempt was not recorded as real business, so an
+   * administrator adjudicating an identity is never shown a rehearsal attempt
+   * as though it were something the member actually did. Null for a real one.
+   */
+  dataOriginLabel: string | null;
 }
 
 export interface ClaimEvidence {
@@ -2267,6 +2273,7 @@ function getClaimEvidenceForMember(memberId: string): ClaimEvidence {
     occurred_at: string;
     action_type: string;
     metadata_json: string | null;
+    data_origin: string;
   }>;
   const attempts = rows.map((r) => {
     let meta: Record<string, unknown> = {};
@@ -2301,6 +2308,9 @@ function getClaimEvidenceForMember(memberId: string): ClaimEvidence {
       recordBirthDate: typeof meta.person_id === 'string'
         ? candidateBirthDate(meta.person_id)
         : null,
+      dataOriginLabel: r.data_origin === 'live'
+        ? null
+        : r.data_origin === 'test' ? 'Test data' : 'Unknown origin',
     };
   });
   const member = account.findBirthDateById.get(memberId) as

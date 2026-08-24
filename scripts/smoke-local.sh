@@ -80,6 +80,19 @@ check "GET /events/event_2026_draft_event (draft → 404)"         404 "/events/
 check "GET /events/event_9999_does_not_exist (missing → 404)"    404 "/events/event_9999_does_not_exist"
 check "GET /events/not-a-valid-key (bad format → 404)"           404 "/events/not-a-valid-key"
 
+# ── Freestyle section ─────────────────────────────────────────────────────────
+# The largest public section, and the one rendering from the most distinct
+# templates. A template the runtime account cannot open, or a view-model that
+# throws, surfaces here as a 500 while every other section stays green, so
+# without these probes a whole section can reach an environment broken and the
+# deploy still reports success. The four cover the section landing page, a
+# static article, a page built from committed constants, and a database-backed
+# index, so a failure confined to any one of those shapes is still caught.
+check "GET /freestyle (section landing)"          200 "/freestyle"
+check "GET /freestyle/history (static article)"   200 "/freestyle/history"
+check "GET /freestyle/sets (set encyclopedia)"    200 "/freestyle/sets"
+check "GET /freestyle/tricks (dictionary index)"  200 "/freestyle/tricks"
+
 # ── Route ordering guard ──────────────────────────────────────────────────────
 # Verifies /events/year/:year is matched before /events/:eventKey
 check "GET /events/year/2025 routes to year page, not eventKey"  200 "/events/year/2025"

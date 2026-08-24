@@ -110,12 +110,33 @@ export interface StripePaymentIntentSummary {
   status: string;
   createdAt: string;
   /**
-   * Invoice this intent settles, when the provider auto-created it for a
-   * subscription cycle; null for a one-time checkout intent. Reconciliation
-   * compares invoice-linked settlement in its invoice pass, so the one-time
-   * reverse pass skips these instead of flagging every renewal.
+   * The payment id this platform stamped into the intent's metadata when it
+   * created the checkout session; null for any intent the platform did not
+   * originate, which at this provider means a subscription cycle's own
+   * settlement intent or an object created directly in the provider's console.
+   *
+   * This is the discriminator the reconciliation reverse pass uses, and it
+   * replaces an earlier read of an `invoice` field on the intent. That field
+   * does not exist on PaymentIntent at the pinned API version, so the read was
+   * always undefined and every renewal would have been reported as money the
+   * provider settled with no local record, nightly and unresolvably. The
+   * webhook handlers already treat absent platform metadata as "not ours";
+   * reconciliation now uses the same rule.
    */
-  invoiceId: string | null;
+  platformPaymentId: string | null;
+  /**
+   * The provider Customer this intent belongs to, or null for an intent raised
+   * against no customer at all.
+   *
+   * Reconciliation needs it to tell the two kinds of un-correlated intent
+   * apart. A subscription cycle's own settlement intent carries no platform
+   * metadata and belongs to a customer that has a subscription, and the invoice
+   * pass owns it. A charge created directly in the provider's console carries
+   * no platform metadata either, but it is money settled with no local record,
+   * which is precisely what the reverse pass exists to report. Without this
+   * field both look identical and one of them has to be dropped.
+   */
+  customerId: string | null;
 }
 
 export interface StripeSubscriptionSummary {
@@ -142,6 +163,19 @@ export interface PaymentAdapter {
   createSubscriptionCheckoutSession(opts: SubscriptionCheckoutOpts): Promise<CheckoutSessionResult>;
   constructWebhookEvent(rawBody: string | Buffer, signature: string): StripeWebhookEvent;
   cancelSubscriptionAtPeriodEnd(stripeSubscriptionId: string): Promise<void>;
+  /**
+   * The mode of the credential this process currently holds, taken from the
+   * key's own prefix rather than from configuration: 'live', 'test', or
+   * 'unknown' when no credential has been loaded yet because nothing has
+   * reached the provider since boot.
+   *
+   * This is what lets the admin health view show what the running process
+   * actually has rather than what the deployment declared, which is the only
+   * way a half-applied arming change is visible: the declared value and the
+   * running value disagree silently otherwise. Never returns the key, any part
+   * of it, or its age.
+   */
+  loadedCredentialMode(): 'live' | 'test' | 'unknown';
   listPaymentIntents(window: LedgerWindow): Promise<StripePaymentIntentSummary[]>;
   listSubscriptions(): Promise<StripeSubscriptionSummary[]>;
   listInvoices(window: LedgerWindow): Promise<StripeInvoiceSummary[]>;
@@ -245,7 +279,14 @@ export interface StubPaymentAdapter extends PaymentAdapter {
   // reconciles clean; the setters and removers exist so a test can construct a
   // specific discrepancy (a missing counterpart, a drifted amount or currency)
   // deliberately rather than by accident.
-  setLedgerPaymentIntent(summary: StripePaymentIntentSummary): void;
+  /** `customerId` may be omitted, defaulting to no customer. That default is
+   *  the loud direction: an intent with no customer is never mistaken for a
+   *  subscription renewal, so a test that forgets it gets a reported
+   *  discrepancy rather than a silent skip. */
+  setLedgerPaymentIntent(
+    summary: Omit<StripePaymentIntentSummary, 'customerId'>
+      & Partial<Pick<StripePaymentIntentSummary, 'customerId'>>,
+  ): void;
   removeLedgerPaymentIntent(id: string): void;
   setLedgerSubscription(summary: StripeSubscriptionSummary): void;
   removeLedgerSubscription(id: string): void;
@@ -280,6 +321,25 @@ function newStubId(prefix: string): string {
 // ledger keeps the member's full text, since only the outbound copy is bounded.
 const PRODUCT_NAME_MAX_CHARS = 250;
 const METADATA_VALUE_MAX_BYTES = 500;
+
+/** Reads the platform's own correlation key out of a provider object's
+ *  metadata. Present on every intent this platform originated (stamped at
+ *  checkout-session creation) and absent on everything else, which is what
+ *  makes it the "is this ours" discriminator for both the webhook handlers and
+ *  the reconciliation reverse pass. Tolerates a missing or oddly-typed
+ *  metadata bag rather than throwing: this runs against provider payloads. */
+function platformPaymentIdFrom(metadata: unknown): string | null {
+  if (typeof metadata !== 'object' || metadata === null) return null;
+  const value = (metadata as Record<string, unknown>).paymentId;
+  return typeof value === 'string' && value !== '' ? value : null;
+}
+
+/** The id of a provider reference that may arrive either as a bare id string or
+ *  as an expanded object, which is how every Stripe relation is shaped. */
+function stripeIdOrNull(ref: string | { id: string } | null | undefined): string | null {
+  if (typeof ref === 'string') return ref;
+  return ref?.id ?? null;
+}
 
 /** Caps a Checkout product name, never splitting a surrogate pair: half of an
  *  astral character is not a character, and would reach Stripe as a
@@ -474,13 +534,27 @@ function buildStubSubscriptionEventObject(
           // keep passing its tests while failing against real Stripe.
           parent: {
             type: 'subscription_details',
-            subscription_details: { subscription: session.stripeSubscriptionId },
+            subscription_details: {
+              subscription: session.stripeSubscriptionId,
+              // The subscription's own metadata, which is where the provider
+              // surfaces it on an invoice. This is what lets a handler tell an
+              // invoice raised against one of this platform's subscriptions
+              // from one raised against a subscription created directly in the
+              // provider's console.
+              metadata: meta,
+            },
           },
           billing_reason: opts.billingReason ?? 'subscription_cycle',
           customer: session.stripeCustomerId,
           amount_paid: kind === 'invoice_succeeded' ? amountCents : 0,
           currency: session.currency.toLowerCase(),
-          metadata: meta,
+          // NO invoice-level metadata. The provider does not copy a
+          // subscription's metadata onto its invoices, so emitting it here would
+          // be the stub inventing a field production never sends — and a handler
+          // reading it would pass every test and find nothing in production. The
+          // handlers read the parent above; their invoice-level read is a
+          // fallback for an account pinned to an older API version, and it stays
+          // unexercised by the stub on purpose.
         },
       },
     };
@@ -630,7 +704,8 @@ export function createStubPaymentAdapter(): StubPaymentAdapter {
         currency: typeof obj.currency === 'string' ? obj.currency.toUpperCase() : 'USD',
         status: type === 'payment_intent.succeeded' ? 'succeeded' : 'requires_payment_method',
         createdAt,
-        invoiceId: typeof obj.invoice === 'string' ? obj.invoice : null,
+        platformPaymentId: platformPaymentIdFrom(obj.metadata),
+        customerId: typeof obj.customer === 'string' ? obj.customer : null,
       });
       return;
     }
@@ -748,7 +823,7 @@ export function createStubPaymentAdapter(): StubPaymentAdapter {
       nextOutcome = 'success';
     },
     setLedgerPaymentIntent(summary) {
-      ledgerIntents.set(summary.id, summary);
+      ledgerIntents.set(summary.id, { customerId: null, ...summary });
     },
     removeLedgerPaymentIntent(id) {
       ledgerIntents.delete(id);
@@ -779,6 +854,11 @@ export function createStubPaymentAdapter(): StubPaymentAdapter {
     },
     async createSubscriptionCheckoutSession(opts) {
       return recordSubscription(opts);
+    },
+    // The stub never holds a live credential and never moves real money, so it
+    // reports test mode outright rather than pretending not to know.
+    loadedCredentialMode() {
+      return 'test' as const;
     },
     constructWebhookEvent(rawBody, signature) {
       const event = verifyStripeWebhook(rawBody, signature, stubSecret);
@@ -988,7 +1068,15 @@ export interface StripePaymentIntentLike {
   currency: string;
   status: string;
   created: number;
-  invoice?: string | { id: string } | null;
+  /** The metadata this platform stamped on the intent at checkout-session
+   *  creation. `paymentId` is the correlation key; an intent carrying none is
+   *  not ours. Deliberately NOT an `invoice` field: PaymentIntent carries no
+   *  invoice linkage at the pinned API version, and declaring one here made a
+   *  read that is always undefined type-check cleanly. */
+  metadata?: Record<string, unknown> | null;
+  /** The provider Customer the intent belongs to. Expanded or not, depending on
+   *  the request, so both shapes are read. */
+  customer?: string | { id: string } | null;
 }
 
 export interface StripeSubscriptionLike {
@@ -1084,6 +1172,13 @@ export function createLivePaymentAdapter(deps: LivePaymentAdapterDeps = {}): Pay
       throw err;
     }
     if (apiKey.startsWith(TODO_PLACEHOLDER_PREFIX)) {
+      // Drop the cached copy before throwing. The adapter caches a fetched
+      // secret for the life of the process, so without this the operator does
+      // exactly what the message says, and every later call still replays the
+      // placeholder from cache until the service restarts. A fixable
+      // misconfiguration becomes an outage the error message claims is already
+      // fixed, which is the worst kind of instruction to give someone.
+      secrets.invalidate(secretKey);
       throw new Error(
         `Stripe API key SSM parameter still has the bootstrap placeholder ('${apiKey}'). ` +
           `Operator: aws ssm put-parameter --name <full-name> --value file://path-to-key --type SecureString --overwrite`,
@@ -1109,7 +1204,16 @@ export function createLivePaymentAdapter(deps: LivePaymentAdapterDeps = {}): Pay
         productionPreLive = false;
       }
     }
-    assertKeyMatchesEnvironment(apiKey, config.footbagEnv, productionPreLive);
+    // Same reasoning as the placeholder branch above: the refusal below tells
+    // the operator to replace the parameter, and a cached copy would make that
+    // instruction a lie until the next restart. Invalidated before the check so
+    // it happens whether the check passes or throws.
+    try {
+      assertKeyMatchesEnvironment(apiKey, config.footbagEnv, productionPreLive);
+    } catch (err) {
+      secrets.invalidate(secretKey);
+      throw err;
+    }
     client = stripeFactory(apiKey);
     clientIsTestMode = apiKey.startsWith('sk_test_') || apiKey.startsWith('rk_test_');
     clientBuiltAtMs = Date.now();
@@ -1241,6 +1345,15 @@ export function createLivePaymentAdapter(deps: LivePaymentAdapterDeps = {}): Pay
       });
     },
 
+    // Read from the key the process actually built its client with. Unknown
+    // until something has reached the provider since boot, which is honest:
+    // the deployment's declared mode is a separate figure the health view shows
+    // beside this one.
+    loadedCredentialMode() {
+      if (!client) return 'unknown' as const;
+      return clientIsTestMode ? ('test' as const) : ('live' as const);
+    },
+
     constructWebhookEvent(rawBody, signature) {
       const secret = config.stripeWebhookSecret;
       if (!secret) {
@@ -1274,7 +1387,8 @@ export function createLivePaymentAdapter(deps: LivePaymentAdapterDeps = {}): Pay
           currency: pi.currency.toUpperCase(),
           status: pi.status,
           createdAt: new Date(pi.created * 1000).toISOString(),
-          invoiceId: typeof pi.invoice === 'string' ? pi.invoice : pi.invoice?.id ?? null,
+          platformPaymentId: platformPaymentIdFrom(pi.metadata),
+          customerId: stripeIdOrNull(pi.customer),
         }));
       });
     },

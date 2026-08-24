@@ -1898,11 +1898,32 @@ describe('adapter-parity: PaymentAdapter (Stub vs. Live interface)', () => {
     const stub = createStubPaymentAdapter();
     const { adapter: live } = makeLive();
 
+    // The stub's ledgers are seeded before comparing. Without this the stub half
+    // of every loop below iterates an empty array, so only `Array.isArray` is
+    // ever asserted about it and the test's own name is half untrue: a stub
+    // returning wrongly-shaped summaries would pass. An empty collection
+    // satisfies any assertion about its elements, which is the quietest way for
+    // a test to assert nothing.
+    stub.setLedgerPaymentIntent({
+      id: 'pi_stub_parity', amountCents: 2500, currency: 'USD', status: 'succeeded',
+      createdAt: '2023-11-15T12:00:00.000Z', platformPaymentId: 'pay_stub_parity',
+    });
+    stub.setLedgerSubscription({
+      id: 'sub_stub_parity', customerId: 'cus_stub_parity', status: 'active',
+      amountCents: 2500, currency: 'USD',
+    });
+    stub.setLedgerInvoice({
+      id: 'in_stub_parity', subscriptionId: 'sub_stub_parity', amountPaidCents: 2500,
+      currency: 'USD', status: 'paid', createdAt: '2023-11-15T12:00:00.000Z',
+    });
+
     for (const intents of [
       await stub.listPaymentIntents(LEDGER_WINDOW),
       await live.listPaymentIntents(LEDGER_WINDOW),
     ]) {
-      expect(Array.isArray(intents)).toBe(true);
+      // Proves the loop body below actually runs for both sides, which is the
+      // guard against this test quietly becoming vacuous again.
+      expect(intents.length).toBeGreaterThan(0);
       intents.forEach((i) => {
         expect(typeof i.id).toBe('string');
         expect(Number.isInteger(i.amountCents)).toBe(true);
@@ -1913,7 +1934,7 @@ describe('adapter-parity: PaymentAdapter (Stub vs. Live interface)', () => {
     }
 
     for (const subs of [await stub.listSubscriptions(), await live.listSubscriptions()]) {
-      expect(Array.isArray(subs)).toBe(true);
+      expect(subs.length).toBeGreaterThan(0);
       subs.forEach((s) => {
         expect(typeof s.id).toBe('string');
         expect(typeof s.status).toBe('string');
@@ -1926,7 +1947,7 @@ describe('adapter-parity: PaymentAdapter (Stub vs. Live interface)', () => {
       await stub.listInvoices(LEDGER_WINDOW),
       await live.listInvoices(LEDGER_WINDOW),
     ]) {
-      expect(Array.isArray(invoices)).toBe(true);
+      expect(invoices.length).toBeGreaterThan(0);
       invoices.forEach((inv) => {
         expect(typeof inv.id).toBe('string');
         expect(Number.isInteger(inv.amountPaidCents)).toBe(true);
@@ -2331,15 +2352,33 @@ describe('adapter-parity: PaymentAdapter (Stub vs. Live interface)', () => {
       cancelUrl: 'https://footbag.org/payments/cancel',
     });
     const renewal = stub.buildSignedStubSubscriptionEvent(sub.sessionId, 'invoice_succeeded');
-    const renewalMeta = (JSON.parse(renewal.rawBody) as {
-      data: { object: { metadata: Record<string, string> } };
-    }).data.object.metadata;
-    expect(renewalMeta).toEqual({
+    const renewalObject = (JSON.parse(renewal.rawBody) as {
+      data: {
+        object: {
+          metadata?: Record<string, string>;
+          parent?: { subscription_details?: { metadata?: Record<string, string> } };
+        };
+      };
+    }).data.object;
+
+    // Where the provider actually surfaces a subscription's metadata on an
+    // invoice: under the invoice's parent, alongside the subscription id. The
+    // handlers read it there to tell an invoice raised against one of this
+    // platform's subscriptions from one raised against a subscription created in
+    // the provider's console.
+    expect(renewalObject.parent?.subscription_details?.metadata).toEqual({
       subscriptionRecordId: 'rds-parity-meta',
       memberId: 'm-parity-1',
       comment: 'For the fund',
       paymentId: 'rds-parity-meta',
     });
+
+    // And NOT on the invoice object itself. The provider does not copy
+    // subscription metadata onto its invoices, so a stub that emitted it there
+    // would be inventing a field production never sends — the same class of
+    // fiction that let a handler read a retired subscription field and pass its
+    // whole suite while every renewal would have failed against real Stripe.
+    expect(renewalObject.metadata).toBeUndefined();
   });
 
   it('live constructWebhookEvent refuses to run without STRIPE_WEBHOOK_SECRET configured', () => {

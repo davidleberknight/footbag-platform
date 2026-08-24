@@ -6175,11 +6175,13 @@ export const auditEntries = {
       id, created_at, created_by,
       occurred_at, actor_type, actor_member_id,
       action_type, entity_type, entity_id,
-      category, reason_text, metadata_json
+      category, reason_text, metadata_json,
+      data_origin
     ) VALUES (?, ?, 'system',
       ?, ?, ?,
       ?, ?, ?,
-      ?, ?, ?)
+      ?, ?, ?,
+      ?)
   `); },
 
   // Every claim this member has attempted, for the evidence block an
@@ -6190,7 +6192,7 @@ export const auditEntries = {
   // Newest first, because a dispute is almost always about the most recent
   // attempt, and capped because a queue card is a summary rather than a history.
   get listClaimEvidenceForMember() { return db.prepare(`
-    SELECT occurred_at, action_type, metadata_json
+    SELECT occurred_at, action_type, metadata_json, data_origin
     FROM audit_entries
     WHERE entity_type = 'member'
       AND entity_id = ?
@@ -6229,6 +6231,7 @@ export interface AuditLogQueryRow {
   category: string;
   reason_text: string | null;
   metadata_json: string;
+  data_origin: string;
   actor_display_name: string | null;
   actor_slug: string | null;
   entity_display_name: string | null;
@@ -6262,6 +6265,7 @@ export function queryAuditLog(filters: AuditLogFilters, limit: number, offset: n
     SELECT
       a.id, a.occurred_at, a.actor_type, a.actor_member_id, a.action_type,
       a.entity_type, a.entity_id, a.category, a.reason_text, a.metadata_json,
+      a.data_origin,
       am.display_name AS actor_display_name, am.slug AS actor_slug,
       em.display_name AS entity_display_name, em.slug AS entity_slug
     FROM audit_entries a
@@ -9149,7 +9153,7 @@ export const memberTier = {
   // from the audit trail (the HoF/BAP grant actions), newest first.
   get listRecentHonorGrants() { return db.prepare(`
     SELECT a.occurred_at, a.action_type, a.actor_member_id,
-           a.entity_id AS member_id, m.display_name, m.slug
+           a.entity_id AS member_id, m.display_name, m.slug, a.data_origin
     FROM audit_entries a
     LEFT JOIN members m ON m.id = a.entity_id
     WHERE a.action_type IN ('tier.hof_grant', 'tier.bap_grant')
@@ -10629,6 +10633,34 @@ export const recurringDonationSubscriptions = {
     WHERE id = ?
   `); },
 
+  // Every mirrored subscription's provider id, whatever its status. The invoice
+  // reconciliation pass needs the canceled ones too: the platform deliberately
+  // books a charge that settles after a donation ended, because the money moved
+  // either way, so an invoice against a canceled subscription is one this
+  // platform should be holding a payment row for. Reading only the active view
+  // here made a paid invoice on an ended donation invisible to both passes.
+  get listAllStripeIds() { return db.prepare(`
+    SELECT stripe_subscription_id
+    FROM recurring_donation_subscriptions
+    WHERE stripe_subscription_id IS NOT NULL
+  `); },
+
+  // Advances the out-of-order watermark without moving the status, for an event
+  // that was applied but changed nothing: a charge settling on a subscription
+  // already active. Without this the row keeps an older watermark and a
+  // redelivered failure from earlier in the same billing cycle reads as fresh.
+  //
+  // The comparison is in the WHERE clause so the write itself is monotonic: an
+  // event older than the one already recorded changes no row, whichever order
+  // the provider delivers them in.
+  get advanceEventWatermark() { return db.prepare(`
+    UPDATE recurring_donation_subscriptions
+    SET last_stripe_event_id = ?, last_stripe_event_created = ?,
+        updated_at = ?, updated_by = ?, version = version + 1
+    WHERE id = ?
+      AND (last_stripe_event_created IS NULL OR last_stripe_event_created < ?)
+  `); },
+
   // A failed charge both moves the status and advances the failure counter, so
   // the two never drift apart across retries.
   get markPastDue() { return db.prepare(`
@@ -10669,8 +10701,8 @@ export const reconciliationIssues = {
     INSERT OR IGNORE INTO reconciliation_issues (
       id, created_at, created_by, updated_at, updated_by, version,
       issue_type, payment_id, stripe_payment_intent_id, stripe_subscription_id,
-      stripe_invoice_id, status, details_json, expires_at
-    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, 'outstanding', ?, ?)
+      stripe_invoice_id, subscription_record_id, status, details_json, expires_at
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, 'outstanding', ?, ?)
   `); },
 
   get findById() { return db.prepare(`
@@ -10689,6 +10721,27 @@ export const reconciliationIssues = {
     SELECT * FROM reconciliation_issues
     WHERE status = 'outstanding'
     ORDER BY created_at DESC
+  `); },
+
+  // Oldest first, because the figure the reader wants from an exceptions queue
+  // is how long the worst one has been waiting, and a newest-first list buries
+  // it on the last page.
+  get listOutstandingOldestFirst() { return db.prepare(`
+    SELECT * FROM reconciliation_issues
+    WHERE status = 'outstanding'
+    ORDER BY created_at ASC
+  `); },
+
+  // What was settled since the last digest, and by whom. The requirement asks
+  // the summary to carry recently resolved issues as well as open ones: for the
+  // reader answerable for the money, seeing that a question was answered, by a
+  // named person, on a date, is the segregation-of-duties half of the report.
+  get listResolvedSince() { return db.prepare(`
+    SELECT i.*, m.slug AS resolved_by_slug
+    FROM reconciliation_issues i
+    LEFT JOIN members m ON m.id = i.resolved_by_member_id
+    WHERE i.status = 'resolved' AND i.resolved_at >= ?
+    ORDER BY i.resolved_at DESC
   `); },
 
   get countOutstanding() { return db.prepare(`
@@ -10873,17 +10926,38 @@ export function queryReconciliationIssues(
   status: 'outstanding' | 'resolved' | null,
   limit: number,
   offset: number,
+  // Newest first suits someone checking what just came in; oldest first is what
+  // the person answerable for the money needs, because the figure that matters
+  // on an exceptions queue is how long the worst one has been waiting. An order
+  // cannot be parameterised into a prepared statement, so this is a boolean the
+  // caller has already narrowed rather than a string reaching the SQL.
+  oldestFirst = false,
 ): Record<string, unknown>[] {
   const where = status ? 'WHERE r.status = ?' : '';
   const params = status ? [status] : [];
+  const order = oldestFirst
+    ? 'ORDER BY r.created_at ASC, r.rowid ASC'
+    : 'ORDER BY r.created_at DESC, r.rowid DESC';
   return db.prepare(`
     SELECT r.*, m.slug AS resolved_by_slug
     FROM reconciliation_issues r
     LEFT JOIN members m ON m.id = r.resolved_by_member_id
     ${where}
-    ORDER BY r.created_at DESC, r.rowid DESC
+    ${order}
     LIMIT ? OFFSET ?
   `).all(...params, limit, offset) as Record<string, unknown>[];
+}
+
+/** The moment the oldest unresolved discrepancy was raised, or null when there
+ *  are none. One figure, so the page can lead with how long the longest-waiting
+ *  money question has been open rather than making someone page to the end of
+ *  the list to find out. */
+export function oldestOutstandingReconciliationIssueAt(): string | null {
+  const row = db.prepare(`
+    SELECT MIN(created_at) AS oldest FROM reconciliation_issues
+    WHERE status = 'outstanding'
+  `).get() as { oldest: string | null };
+  return row.oldest;
 }
 
 export function countReconciliationIssues(status: 'outstanding' | 'resolved' | null): number {
@@ -10913,6 +10987,155 @@ export const recurringDonationSubscriptionTransitions = {
   `); },
 };
 
+export const memberPaymentObligations = {
+  // The most recent membership purchase this member started that did not
+  // settle, and which they still have nothing to show for. Bounded to one row
+  // because the member needs a way back in, not a list of past attempts.
+  //
+  // `status = 'failed'` is the settled failure: a declined attempt inside a
+  // live checkout leaves the row pending on purpose, because the buyer may
+  // still try another card on the provider's page, and surfacing that as an
+  // obligation would nag someone who is mid-purchase.
+  get lastFailedMembershipPurchase() { return db.prepare(`
+    SELECT id, created_at, purchased_tier_status, amount_cents, currency
+    FROM payments
+    WHERE member_id = ?
+      AND payment_type = 'membership'
+      AND status = 'failed'
+      AND purchased_tier_status IS NOT NULL
+    ORDER BY created_at DESC
+    LIMIT 1
+  `); },
+
+  // A recurring donation the provider could not collect on. Past due rather
+  // than canceled: the provider is still retrying on its own dunning schedule,
+  // so this clears itself when it collects or gives up, and the member is told
+  // rather than asked to act.
+  get pastDueRecurringDonation() { return db.prepare(`
+    SELECT id, amount_cents, currency, failure_count
+    FROM recurring_donation_subscriptions
+    WHERE member_id = ? AND status = 'past_due'
+    ORDER BY status_updated_at DESC
+    LIMIT 1
+  `); },
+};
+
+export const paymentMoneyHistory = {
+  // Everything that moved money on a payment after it settled, for the admin
+  // detail page.
+  //
+  // A partial refund, a dispute and a failed payout never touch the payment row
+  // by design: the status machine is monotonic and only a full refund reaches
+  // the terminal state. The audit ledger is therefore the only place that
+  // history exists, and without it the detail page shows a settled payment at
+  // its full original amount with nothing to say money went back.
+  //
+  // Two arms because these events key on different entities. A refund is
+  // recorded against the payment itself; a dispute is recorded against the
+  // provider's dispute object and names the payment only in its metadata, so it
+  // is reached by the intent id instead. UNION rather than OR so each arm can
+  // use its own index.
+  get forPayment() { return db.prepare(`
+    SELECT occurred_at, action_type, reason_text, metadata_json
+    FROM audit_entries
+    WHERE entity_type = 'payment' AND entity_id = ?
+      AND action_type IN (
+        'payment.refunded', 'payment.partially_refunded', 'payment.canceled'
+      )
+    UNION ALL
+    SELECT occurred_at, action_type, reason_text, metadata_json
+    FROM audit_entries
+    WHERE category = 'payment'
+      AND action_type IN (
+        'payment.dispute_opened', 'payment.dispute_closed',
+        'payment.dispute_funds_withdrawn', 'payment.payout_rejected'
+      )
+      AND json_extract(metadata_json, '$.stripe_payment_intent_id') = ?
+    ORDER BY occurred_at ASC
+  `); },
+};
+
+export const paymentPeriodTotals = {
+  // Settled money over an arbitrary range, grouped by what it was for and by
+  // its currency. The health page's rolling window answers "is anything moving
+  // right now"; this answers "what did we take in July", which is the figure a
+  // month-end or a year-end actually needs.
+  //
+  // A fully refunded payment counts here, not just a succeeded one. The money
+  // genuinely arrived and then genuinely went back, so it belongs in both the
+  // received column and the returned column. Counting the refund without the
+  // receipt would drive the net figure below zero and report the organization
+  // as having paid out money it never took.
+  get grossByTypeInRange() { return db.prepare(`
+    SELECT payment_type, currency,
+           COUNT(*)          AS n,
+           SUM(amount_cents) AS total_cents
+    FROM payments
+    WHERE status IN ('succeeded', 'refunded')
+      AND created_at >= ? AND created_at < ?
+      -- Real money only. Production is proven with the provider in test mode
+      -- before it goes live, so rehearsal charges sit in this same table; a
+      -- total that swept them in would overstate what the organization
+      -- actually took. A row predating this column reads NULL and is excluded
+      -- for the same reason it is never badged as real: it cannot be shown to
+      -- be real money. The excluded rows are counted separately so the
+      -- exclusion is disclosed rather than silent.
+      AND provider_livemode = 1
+    GROUP BY payment_type, currency
+    ORDER BY payment_type, currency
+  `); },
+
+  // What the totals above left out, so the report can say so on its face. A
+  // reader who is told the figure covers real money only, and how many rows
+  // that set aside, can act on it; one shown a silently reduced total cannot.
+  get excludedFromTotalsInRange() { return db.prepare(`
+    SELECT CASE WHEN provider_livemode IS NULL THEN 'unknown' ELSE 'test' END AS mode,
+           COUNT(*) AS n
+    FROM payments
+    WHERE status IN ('succeeded', 'refunded')
+      AND created_at >= ? AND created_at < ?
+      AND (provider_livemode IS NULL OR provider_livemode = 0)
+    GROUP BY mode
+  `); },
+
+  // One row per payment in the range that had money returned or contested,
+  // flat, for the service to aggregate. Deliberately not summed here: the
+  // provider reports a cumulative refunded figure per charge, so a partial
+  // refund followed by a full one produces two audit rows describing overlapping
+  // money, and adding them would overstate what went back. Deciding that is a
+  // business rule and belongs above this layer.
+  get refundFactsInRange() { return db.prepare(`
+    SELECT p.id, p.payment_type, p.currency, p.amount_cents,
+           a.action_type,
+           json_extract(a.metadata_json, '$.refunded_amount_cents') AS refunded_amount_cents
+    FROM audit_entries a
+    JOIN payments p ON p.id = a.entity_id
+    WHERE a.entity_type = 'payment'
+      AND a.action_type IN ('payment.refunded', 'payment.partially_refunded')
+      AND p.created_at >= ? AND p.created_at < ?
+      -- Matches the gross query's real-money filter. Netting a rehearsal
+      -- refund against real gross would understate revenue as surely as
+      -- counting a rehearsal charge would overstate it.
+      AND p.provider_livemode = 1
+  `); },
+};
+
+export const paymentVolume = {
+  // Settled money over a window, grouped by what it was for and by its
+  // currency. Currency is part of the grouping, never a label beside a summed
+  // number: adding two currencies together produces a figure that is true of
+  // neither.
+  get byTypeSince() { return db.prepare(`
+    SELECT payment_type, currency,
+           COUNT(*)          AS n,
+           SUM(amount_cents) AS total_cents
+    FROM payments
+    WHERE status = 'succeeded' AND created_at >= ?
+    GROUP BY payment_type, currency
+    ORDER BY payment_type, currency
+  `); },
+};
+
 export const stripeEvents = {
   // Idempotency primitive: PRIMARY KEY (event_id) makes INSERT OR IGNORE a
   // no-op on redelivery. A mutating handler claims the id INSIDE the same
@@ -10929,6 +11152,69 @@ export const stripeEvents = {
 
   get findByEventId() { return db.prepare(`
     SELECT * FROM stripe_events WHERE event_id = ?
+  `); },
+
+  // The most recent delivery this platform actually processed. The admin health
+  // view reads it to answer "are webhooks arriving at all", which a failure
+  // count cannot: an endpoint the provider has disabled produces no failures
+  // and no successes, and silence is the symptom.
+  get lastProcessedAt() { return db.prepare(`
+    SELECT MAX(processed_at) AS last_processed_at FROM stripe_events
+  `); },
+};
+
+export const stripeWebhookFailures = {
+  // Increment-in-place, so the row count is bounded by the clock rather than by
+  // whatever is POSTing at the public endpoint. ON CONFLICT keys on the
+  // (bucket_start, reason) primary key: the first rejection in a bucket inserts
+  // it, every later one adds to it.
+  get recordFailure() { return db.prepare(`
+    INSERT INTO stripe_webhook_failures
+      (bucket_start, reason, failure_count, first_seen_at, last_seen_at,
+       last_event_type, last_event_id, expires_at)
+    VALUES (?, ?, 1, ?, ?, ?, ?, ?)
+    ON CONFLICT(bucket_start, reason) DO UPDATE SET
+      failure_count   = failure_count + 1,
+      last_seen_at    = excluded.last_seen_at,
+      -- Keeps the last identified delivery rather than blanking it: a later
+      -- unparseable rejection in the same bucket should not erase the event id
+      -- an earlier one managed to state.
+      last_event_type = COALESCE(excluded.last_event_type, last_event_type),
+      last_event_id   = COALESCE(excluded.last_event_id, last_event_id)
+  `); },
+
+  // One row per reason over the window, so a reason with no failures reads as
+  // absent and the service can render it as zero rather than omitting it.
+  //
+  // The event id comes from a correlated subquery rather than MAX(), because
+  // MAX() over an id column returns the alphabetically greatest one and a
+  // provider event id is random, not ordered. Taken as a second aggregate it
+  // would also be free to come from a different bucket than MAX(last_seen_at),
+  // and the two are rendered side by side as though they describe one delivery.
+  // Ordering by last_seen_at and skipping rows that never carried an id gives
+  // the id of the most recent identified failure, which is the one an
+  // administrator would look up.
+  //
+  // The window start binds twice: once for the outer scan and once inside the
+  // subquery, which cannot see the outer WHERE.
+  get countsInWindow() { return db.prepare(`
+    SELECT f.reason,
+           SUM(f.failure_count) AS n,
+           MAX(f.last_seen_at)  AS last_seen_at,
+           (SELECT g.last_event_id
+              FROM stripe_webhook_failures g
+             WHERE g.reason = f.reason
+               AND g.bucket_start >= ?
+               AND g.last_event_id IS NOT NULL
+             ORDER BY g.last_seen_at DESC
+             LIMIT 1)          AS last_event_id
+    FROM stripe_webhook_failures f
+    WHERE f.bucket_start >= ?
+    GROUP BY f.reason
+  `); },
+
+  get deleteExpired() { return db.prepare(`
+    DELETE FROM stripe_webhook_failures WHERE expires_at <= ?
   `); },
 };
 

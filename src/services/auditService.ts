@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import { auditEntries } from '../db/db';
+import { currentDataOrigin } from './dataOriginService';
 
 export type AuditActorType = 'system' | 'member' | 'admin';
 
@@ -46,6 +47,7 @@ export function appendAuditEntry(input: AuditAppendInput): string {
     input.category,
     input.reasonText ?? null,
     JSON.stringify(input.metadata ?? {}),
+    currentDataOrigin(),
   );
   return id;
 }

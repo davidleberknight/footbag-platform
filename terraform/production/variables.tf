@@ -4,9 +4,23 @@
 # =============================================================================
 
 variable "environment" {
-  description = "Deployment environment name"
+  description = "Deployment environment name. Pinned by the validation below: this tree describes production and nothing else."
   type        = string
   default     = "production"
+
+  # Both trees live in one AWS account, and every resource name, parameter path,
+  # log group and IAM role in this file derives from this value. A tfvars holding
+  # the other environment's name therefore does not fail — it succeeds, against
+  # the other environment's namespace. The arming switches are the sharpest
+  # example: a staging apply carrying environment = "production" would write
+  # production's payments arming parameter.
+  #
+  # Pinned rather than left to care, because the mistake is one word, the plan
+  # output looks plausible, and the blast radius is the live site.
+  validation {
+    condition     = var.environment == "production"
+    error_message = "This is the production tree: environment must be \"production\". Both environments share one AWS account and every resource name, SSM path, log group and IAM role derives from this value, so another environment's name here targets that environment's namespace from this state file."
+  }
 }
 
 variable "aws_region" {

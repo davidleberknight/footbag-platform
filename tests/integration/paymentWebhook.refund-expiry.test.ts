@@ -18,12 +18,16 @@ const M_STALE = 'rx-stale';
 const M_AMBIGUOUS = 'rx-ambiguous';
 const M_NO_INTENT = 'rx-no-intent';
 const M_REFUND_PENDING = 'rx-refund-pending';
+const M_REDELIVERED = 'rx-redelivered';
+const M_ROLLBACK = 'rx-rollback';
+const M_AUDIT_FIELDS = 'rx-audit-fields';
+const M_UNATTRIBUTED_TWICE = 'rx-unattributed-twice';
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-  for (const [i, id] of [M_REFUND, M_REFUND_IDEMPOTENT, M_EXPIRE, M_EXPIRE_IDEMPOTENT, M_EXPIRE_UNKNOWN, M_PARTIAL, M_FULL, M_STALE, M_AMBIGUOUS, M_NO_INTENT, M_REFUND_PENDING].entries()) {
+  for (const [i, id] of [M_REFUND, M_REFUND_IDEMPOTENT, M_EXPIRE, M_EXPIRE_IDEMPOTENT, M_EXPIRE_UNKNOWN, M_PARTIAL, M_FULL, M_STALE, M_AMBIGUOUS, M_NO_INTENT, M_REFUND_PENDING, M_REDELIVERED, M_ROLLBACK, M_AUDIT_FIELDS, M_UNATTRIBUTED_TWICE].entries()) {
     insertMember(db, { id, slug: `rx_${i}`, display_name: `Rx ${i}`, login_email: `rx${i}@example.com` });
   }
   db.close();
@@ -158,6 +162,114 @@ describe('partial refunds', () => {
     }
   });
 
+  it('acknowledges an expiry event that names no session, rather than retrying it forever', async () => {
+    // A payload that cannot name its session is permanently unusable: every
+    // redelivery carries the identical bytes. Throwing made it a 500, so the
+    // provider retried for days and tripped the operator error alarm on each
+    // attempt, and it could never succeed. Nothing is lost by acknowledging —
+    // an expiry with no session matches no local row, and an abandoned checkout
+    // that never receives its expiry is raised separately by the staleness sweep.
+    const { paymentService } = await import('../../src/services/paymentService');
+    const { signStripeWebhook } = await import('../../src/adapters/stripeWebhook');
+    const { STUB_WEBHOOK_SECRET } = await import('../../src/adapters/paymentAdapter');
+    const rawBody = JSON.stringify({
+      id: 'evt_expiry_no_session',
+      type: 'checkout.session.expired',
+      created: Math.floor(Date.now() / 1000),
+      data: { object: { payment_intent: 'pi_orphan' } },
+    });
+    expect(paymentService.handleWebhook(rawBody, signStripeWebhook(rawBody, STUB_WEBHOOK_SECRET)))
+      .toEqual({ outcome: 'ignored' });
+  });
+
+  it('raises one review item and one audit row when the same partial refund is redelivered', async () => {
+    // The provider redelivers whenever it does not see a timely 200, including
+    // when the 200 was sent and lost. This path acknowledges rather than
+    // mutating, so it used to append its audit row and raise its work item on
+    // every delivery: an administrator saw two review items for one refund, and
+    // the append-only ledger permanently double-counted the money.
+    const { paymentService } = await import('../../src/services/paymentService');
+    const { paymentId, sessionId } = await settleSucceededPayment(M_REDELIVERED);
+    const evt = await stubRefundEvent(sessionId, { amountCents: 1000, refundedAmountCents: 250 });
+
+    expect(paymentService.handleWebhook(evt.rawBody, evt.signature)).toEqual({ outcome: 'ignored' });
+    expect(paymentService.handleWebhook(evt.rawBody, evt.signature)).toEqual({ outcome: 'duplicate' });
+
+    const db = openDb();
+    try {
+      const queued = db.prepare(
+        "SELECT COUNT(*) AS c FROM work_queue_items WHERE task_type = 'partial_refund_review' AND entity_id = ?",
+      ).get(paymentId) as { c: number };
+      expect(queued.c).toBe(1);
+      const audited = db.prepare(
+        "SELECT COUNT(*) AS c FROM audit_entries WHERE action_type = 'payment.partially_refunded' AND entity_id = ?",
+      ).get(paymentId) as { c: number };
+      expect(audited.c).toBe(1);
+    } finally {
+      db.close();
+    }
+  });
+
+  it('loses no work item when the raise fails part-way through the delivery', async () => {
+    // The delivery claims the event id and raises the work item in ONE
+    // transaction. Claimed first and committed separately, a failure to raise
+    // would answer 500, the provider would redeliver, the claim would then lose,
+    // and the handler would report a duplicate over a work item that was never
+    // created — losing an administrator's only notice of a partial refund, since
+    // the payment row itself never moves for one.
+    const { paymentService } = await import('../../src/services/paymentService');
+    const { paymentId, sessionId } = await settleSucceededPayment(M_ROLLBACK);
+    const evt = await stubRefundEvent(sessionId, { amountCents: 1000, refundedAmountCents: 250 });
+    const eventId = (JSON.parse(evt.rawBody) as { id: string }).id;
+
+    // Fault injection against the real database: the raise fails, nothing else
+    // does. A trigger is reversible and leaves every schema reference intact.
+    const inject = openDb();
+    try {
+      inject.exec(
+        `CREATE TRIGGER tmp_block_work_queue BEFORE INSERT ON work_queue_items
+         BEGIN SELECT RAISE(ABORT, 'injected work-queue failure'); END;`,
+      );
+    } finally {
+      inject.close();
+    }
+
+    expect(() => paymentService.handleWebhook(evt.rawBody, evt.signature)).toThrow();
+
+    const during = openDb();
+    try {
+      const claimed = during.prepare(
+        'SELECT COUNT(*) AS c FROM stripe_events WHERE event_id = ?',
+      ).get(eventId) as { c: number };
+      // The whole point: the claim rolled back with the failed raise.
+      expect(claimed.c).toBe(0);
+      const audited = during.prepare(
+        "SELECT COUNT(*) AS c FROM audit_entries WHERE action_type = 'payment.partially_refunded' AND entity_id = ?",
+      ).get(paymentId) as { c: number };
+      expect(audited.c).toBe(0);
+      during.exec('DROP TRIGGER tmp_block_work_queue;');
+    } finally {
+      during.close();
+    }
+
+    // The provider's redelivery now finds nothing claimed and completes.
+    expect(paymentService.handleWebhook(evt.rawBody, evt.signature)).toEqual({ outcome: 'ignored' });
+
+    const db = openDb();
+    try {
+      const queued = db.prepare(
+        "SELECT COUNT(*) AS c FROM work_queue_items WHERE task_type = 'partial_refund_review' AND entity_id = ?",
+      ).get(paymentId) as { c: number };
+      expect(queued.c).toBe(1);
+      const audited = db.prepare(
+        "SELECT COUNT(*) AS c FROM audit_entries WHERE action_type = 'payment.partially_refunded' AND entity_id = ?",
+      ).get(paymentId) as { c: number };
+      expect(audited.c).toBe(1);
+    } finally {
+      db.close();
+    }
+  });
+
   it('still records a full refund as refunded', async () => {
     const { paymentService } = await import('../../src/services/paymentService');
     const { paymentId, sessionId } = await settleSucceededPayment(M_FULL);
@@ -178,6 +290,35 @@ describe('partial refunds', () => {
   // states both amounts and they say the whole charge was returned. A payload
   // that leaves the amounts out must land in the state an administrator can
   // still resolve either way, never in the terminal one.
+  it('records the amount, currency and charge id the refund requirement enumerates', async () => {
+    // The audit ledger is kept for seven years and is read on its own, long
+    // after anyone would think to join it back to a payment row that may by
+    // then have been anonymized. A refund dispute is worked from this row, and
+    // without the amount it cannot say how much went back.
+    const { paymentService } = await import('../../src/services/paymentService');
+    const { paymentId, sessionId } = await settleSucceededPayment(M_AUDIT_FIELDS);
+    const evt = await stubRefundEvent(sessionId, { amountCents: 1000, refundedAmountCents: 1000 });
+    expect(paymentService.handleWebhook(evt.rawBody, evt.signature)).toEqual({ outcome: 'processed' });
+
+    const db = openDb();
+    try {
+      const succeeded = JSON.parse((db.prepare(
+        "SELECT metadata_json FROM audit_entries WHERE action_type = 'payment.succeeded' AND entity_id = ?",
+      ).get(paymentId) as { metadata_json: string }).metadata_json);
+      expect(succeeded.amount_cents).toBe(1000);
+      expect(succeeded.currency).toBe('USD');
+
+      const refunded = JSON.parse((db.prepare(
+        "SELECT metadata_json FROM audit_entries WHERE action_type = 'payment.refunded' AND entity_id = ?",
+      ).get(paymentId) as { metadata_json: string }).metadata_json);
+      expect(refunded.refunded_amount_cents).toBe(1000);
+      expect(refunded.currency).toBe('USD');
+      expect(typeof refunded.stripe_charge_id).toBe('string');
+    } finally {
+      db.close();
+    }
+  });
+
   it('treats a refund whose amounts are absent as partial, not full', async () => {
     const { paymentService } = await import('../../src/services/paymentService');
     const { paymentId, sessionId } = await settleSucceededPayment(M_AMBIGUOUS);
@@ -213,6 +354,35 @@ describe('partial refunds', () => {
         `SELECT COUNT(*) AS c FROM work_queue_items
          WHERE task_type = 'unattributed_refund' AND entity_type = 'stripe_charge'`,
       ).get() as { c: number };
+      expect(queued.c).toBe(1);
+    } finally {
+      db.close();
+    }
+  });
+
+  it('puts one copy of an unattributable refund in front of an administrator, not one per delivery', async () => {
+    // The provider redelivers whenever it does not see a timely 200, including
+    // when the 200 was sent and lost. This path writes no payment row and moves
+    // no status, so the work item is the only durable record it produces: a
+    // second copy is a second case for the same money, and none at all is the
+    // refund going unseen.
+    const { paymentService } = await import('../../src/services/paymentService');
+    const { sessionId } = await settleSucceededPayment(M_UNATTRIBUTED_TWICE);
+    const evt = await stubRefundEvent(sessionId, { omitPaymentIntent: true });
+
+    expect(paymentService.handleWebhook(evt.rawBody, evt.signature)).toEqual({ outcome: 'ignored' });
+    expect(paymentService.handleWebhook(evt.rawBody, evt.signature)).toEqual({ outcome: 'duplicate' });
+
+    const db = openDb();
+    try {
+      // The charge id is what an administrator would search on, and it is the
+      // only identifier this path records, so the count is taken against it.
+      const chargeId = ((JSON.parse(evt.rawBody) as { data: { object: { id: string } } })
+        .data.object.id);
+      const queued = db.prepare(
+        `SELECT COUNT(*) AS c FROM work_queue_items
+          WHERE task_type = 'unattributed_refund' AND entity_id = ?`,
+      ).get(chargeId) as { c: number };
       expect(queued.c).toBe(1);
     } finally {
       db.close();

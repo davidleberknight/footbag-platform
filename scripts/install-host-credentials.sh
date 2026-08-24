@@ -20,10 +20,14 @@
 # Prerequisites:
 #   - terraform applied for the target environment (creates the source-profile
 #     user, the runtime role, and the logs-publisher role)
-#   - an access key issued for footbag-<target>-source-profile, saved to a file:
-#       umask 077
-#       aws iam create-access-key \
-#         --user-name footbag-production-source-profile > /tmp/prod-sp-keys.json
+#   - an access key issued for footbag-<target>-source-profile, saved to a file.
+#     The umask is scoped to the subshell so the restriction covers this one
+#     redirect and cannot outlive it. A umask left set in the operator's shell
+#     makes every later write in that shell owner-only, including writes into a
+#     repository, where git records only the executable bit and so cannot show
+#     the divergence to anyone downstream:
+#       (umask 077 && aws iam create-access-key \
+#         --user-name footbag-production-source-profile > /tmp/prod-sp-keys.json)
 #   - that key recorded in the vault before it is installed anywhere
 #   - jq available locally
 #
@@ -106,14 +110,14 @@ fi
 [[ -r "$KEYS_FILE" ]] || { echo "ERROR: cannot read keys file: $KEYS_FILE" >&2; exit 1; }
 command -v jq >/dev/null || { echo "ERROR: jq is required locally" >&2; exit 1; }
 
-# Reject a world-readable keys file. The instructions above call for `umask 077`
-# before create-access-key; this catches the case where it was missed and the
-# file was written with the default mode. The window between issuing the key and
-# shredding the file is when a co-tenant on a shared workstation could read it.
+# Reject a world-readable keys file. The instructions above scope `umask 077` to
+# the create-access-key subshell; this catches the case where it was missed and
+# the file was written with the default mode. The window between issuing the key
+# and shredding the file is when a co-tenant on a shared workstation could read it.
 KEYS_PERMS=$(stat -c '%a' "$KEYS_FILE")
 if [[ "$KEYS_PERMS" != "600" && "$KEYS_PERMS" != "400" ]]; then
   echo "ERROR: $KEYS_FILE has mode $KEYS_PERMS; expected 600 (or 400)." >&2
-  echo "       Re-create it with:  umask 077; aws iam create-access-key ... > $KEYS_FILE" >&2
+  echo "       Re-create it with:  (umask 077 && aws iam create-access-key ... > $KEYS_FILE)" >&2
   echo "       Then shred the current file, and treat the key it holds as exposed." >&2
   exit 1
 fi

@@ -140,7 +140,7 @@
                 {{#each claimEvidence.attempts}}
                   <li class="claim-evidence-item">
                     <p class="claim-evidence-outcome">
-                      {{this.outcomeLabel}}{{#if this.targetLabel}}: {{this.targetLabel}}{{/if}}
+                      {{this.outcomeLabel}}{{#if this.targetLabel}}: {{this.targetLabel}}{{/if}}{{#if this.dataOriginLabel}} <span class="badge">{{this.dataOriginLabel}}</span>{{/if}}
                     </p>
                     <p class="card-meta">{{this.whenDisplay}}</p>
                     <p class="card-meta{{#if this.isContradicted}} claim-evidence-contradicted{{/if}}">{{this.comparisonLabel}}</p>

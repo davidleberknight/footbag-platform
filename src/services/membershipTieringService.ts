@@ -31,6 +31,11 @@
  *   - Lifetime tier semantics: tier0/tier1/tier2/tier3 never expire, never decrement
  *     on refund. Tier 3 is governance-conferred and carries an underlying tier
  *     (tier1 or tier2) the member returns to when governance ends.
+ *   - A purchase grant reports whether it granted. The downgrade guard keeps a
+ *     member at or above the purchased tier, which is correct, but the member
+ *     was charged and received nothing; returning an indistinguishable success
+ *     let that over-charge vanish. `PurchaseGrantResult` discriminates the two
+ *     so the caller can raise it for an administrator.
  *   - Source-linkage discipline: tier grants link only to `related_payment_id`,
  *     admin overrides, HoF/BAP grants, Tier 3 governance changes, or legacy
  *     migration; no event/vouch/club source FK.
@@ -327,12 +332,22 @@ export function getTierStatus(memberId: string): TierStatus {
  * Refund preserves tier (the purchase write path is never invoked on refund);
  * this service is the only purchase write path.
  */
+/**
+ * What a purchase grant did. A grant that changed nothing is not a failure, but
+ * it is not nothing either: the member was charged and received no tier, so the
+ * caller has to be able to tell the two apart and put the over-charge in front
+ * of an administrator.
+ */
+export type PurchaseGrantResult =
+  | { status: 'granted' }
+  | { status: 'noop'; reason: 'already_at_or_above'; currentTier: string };
+
 export function applyPurchaseGrant(
   actorId: string,
   memberId: string,
   paymentId: string,
   tier: 'tier1' | 'tier2',
-): { ok: true } {
+): PurchaseGrantResult {
   return transaction(() => applyPurchaseGrantInTx(actorId, memberId, paymentId, tier));
 }
 
@@ -348,17 +363,22 @@ export function applyPurchaseGrantInTx(
   memberId: string,
   paymentId: string,
   tier: 'tier1' | 'tier2',
-): { ok: true } {
+): PurchaseGrantResult {
   const now = new Date().toISOString();
   const current = getCurrent(memberId);
 
   // Never write a downgrade: a purchase grant only ever raises the tier. Guards
   // the initiation-to-webhook race (an admin tier change landing between
   // startMembershipPurchase eligibility and webhook processing). A charged
-  // member already at or above the purchased tier keeps their tier; the
-  // over-charge is a refund/credit concern handled elsewhere.
+  // member already at or above the purchased tier keeps their tier, and the
+  // caller is told so: the money was taken and nothing was given for it, which
+  // is a refund or credit decision only an administrator can make.
   if (TIER_RANK[tier] <= TIER_RANK[current.tier_status]) {
-    return { ok: true as const };
+    return {
+      status: 'noop' as const,
+      reason: 'already_at_or_above' as const,
+      currentTier: current.tier_status,
+    };
   }
 
   // End AP BEFORE writing the tier grant: member_active_player_current
@@ -396,7 +416,7 @@ export function applyPurchaseGrantInTx(
     },
   });
 
-  return { ok: true as const };
+  return { status: 'granted' as const };
 }
 
 /**

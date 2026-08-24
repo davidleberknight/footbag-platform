@@ -20,6 +20,8 @@ import {
   insertMember,
   insertPayment,
   insertRecurringDonationSubscription,
+  insertMailingListSubscription,
+  insertAuditEntry,
 } from '../fixtures/factories';
 
 const MEMBER = 'recon-member';
@@ -34,6 +36,25 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 
 function openDb(): BetterSqlite3.Database {
   return new BetterSqlite3(dbPath);
+}
+
+// Puts one member on the financial-digest list, which is where the summary goes
+// rather than the admin alert stream: the person answerable for the money needs
+// this report whether or not they hold an admin account, and should not have to
+// take the flagged-media and security traffic to get it.
+function subscribeToDigest(memberId: string): void {
+  const db = openDb();
+  try {
+    insertMember(db, {
+      id: memberId,
+      slug: memberId.replace(/-/g, '_'),
+      display_name: 'Digest Reader',
+      login_email: `${memberId}@example.com`,
+    });
+    insertMailingListSubscription(db, { member_id: memberId, list_slug: 'financial-digest' });
+  } finally {
+    db.close();
+  }
 }
 
 beforeAll(async () => {
@@ -108,23 +129,131 @@ describe('pass 1: one-time payments against the provider ledger', () => {
     const adapter = await stub();
     adapter.setLedgerPaymentIntent({
       id: 'pi_unrecorded', amountCents: 5000, currency: 'USD', status: 'succeeded', createdAt: IN_WINDOW,
+      // Ours: the platform stamped this correlation key at checkout. No local
+      // row carries it, so the money settled and the webhook never landed.
+      platformPaymentId: 'pay-never-recorded',
     });
     const result = await (await svc()).runReconciliation({ now: NOW });
     expect(result.issuesRaised).toBe(1);
     expect(issueTypes()).toEqual(['provider_payment_missing_locally']);
   });
 
-  it('skips an invoice-linked provider intent: subscription renewals settle by invoice and are compared there', async () => {
-    // A renewal's auto-created intent can never match a local row (local
-    // subscription rows store no intent id), so reporting it here would
-    // raise one unresolvable issue per renewal on every nightly pass.
+  it('names the missing local payment id on the issue, so an administrator knows where to look', async () => {
     const adapter = await stub();
     adapter.setLedgerPaymentIntent({
+      id: 'pi_unrecorded_named', amountCents: 5000, currency: 'USD', status: 'succeeded',
+      createdAt: IN_WINDOW, platformPaymentId: 'pay-never-recorded',
+    });
+    await (await svc()).runReconciliation({ now: NOW });
+    const db = openDb();
+    try {
+      const row = db.prepare('SELECT details_json FROM reconciliation_issues').get() as { details_json: string };
+      expect(JSON.parse(row.details_json).platform_payment_id).toBe('pay-never-recorded');
+    } finally {
+      db.close();
+    }
+  });
+
+  it('skips a subscription cycle\'s own settlement intent', async () => {
+    // A renewal's settlement intent carries no paymentId, because the platform
+    // did not create it. Reporting it would raise one unresolvable issue per
+    // renewal, every night, and the invoice pass owns that comparison anyway.
+    // It is recognised by its customer being one the provider is billing on a
+    // subscription, since a payment intent carries no invoice reference at all
+    // at the pinned API version.
+    //
+    // Regression: this skip used to key on an `invoice` field that does not
+    // exist on a payment intent, so it never fired.
+    const adapter = await stub();
+    adapter.setLedgerSubscription({
+      id: 'sub_renewing', customerId: 'cus_donor', status: 'active',
+      amountCents: 2500, currency: 'USD',
+    });
+    adapter.setLedgerPaymentIntent({
       id: 'pi_renewal_cycle', amountCents: 2500, currency: 'USD', status: 'succeeded',
-      createdAt: IN_WINDOW, invoiceId: 'in_renewal_1',
+      createdAt: IN_WINDOW, platformPaymentId: null, customerId: 'cus_donor',
     });
     const result = await (await svc()).runReconciliation({ now: NOW });
-    expect(result.issuesRaised).toBe(0);
+    // The subscription itself is reported as unmirrored, which is a different
+    // and correct finding; what must not appear is a payment discrepancy.
+    expect(issueTypes()).not.toContain('provider_payment_missing_locally');
+  });
+
+  it('reports a charge created straight in the provider console', async () => {
+    // Money the provider settled that reached no local record, which is exactly
+    // what this pass exists to catch. It carries no platform correlation key,
+    // and its customer is billing no subscription, so it is not a renewal.
+    //
+    // Regression: narrowing the renewal skip to "any intent without our
+    // metadata" swallowed this case entirely, leaving unrecorded money
+    // invisible to every pass.
+    const adapter = await stub();
+    adapter.setLedgerPaymentIntent({
+      id: 'pi_console_charge', amountCents: 9900, currency: 'USD', status: 'succeeded',
+      createdAt: IN_WINDOW, platformPaymentId: null, customerId: 'cus_stranger',
+    });
+    await (await svc()).runReconciliation({ now: NOW });
+    expect(issueTypes()).toContain('provider_payment_missing_locally');
+    const db = openDb();
+    try {
+      const row = db.prepare(
+        `SELECT details_json FROM reconciliation_issues
+          WHERE stripe_payment_intent_id = 'pi_console_charge'`,
+      ).get() as { details_json: string };
+      const details = JSON.parse(row.details_json);
+      expect(details.platform_payment_id).toBeNull();
+      expect(details.stripe_customer_id).toBe('cus_stranger');
+      expect(details.reason).toBe('provider settled a payment this platform did not originate');
+    } finally {
+      db.close();
+    }
+  });
+
+  it('reports a charge with no customer at all', async () => {
+    // The customer reference is optional at the provider, and a null one must
+    // not accidentally match the "billed on a subscription" set.
+    const adapter = await stub();
+    adapter.setLedgerSubscription({
+      id: 'sub_other', customerId: 'cus_donor', status: 'active',
+      amountCents: 2500, currency: 'USD',
+    });
+    adapter.setLedgerPaymentIntent({
+      id: 'pi_no_customer', amountCents: 500, currency: 'USD', status: 'succeeded',
+      createdAt: IN_WINDOW, platformPaymentId: null, customerId: null,
+    });
+    await (await svc()).runReconciliation({ now: NOW });
+    const db = openDb();
+    try {
+      const row = db.prepare(
+        `SELECT COUNT(*) AS n FROM reconciliation_issues
+          WHERE stripe_payment_intent_id = 'pi_no_customer'`,
+      ).get() as { n: number };
+      expect(row.n).toBe(1);
+    } finally {
+      db.close();
+    }
+  });
+
+  it('skips an intent whose correlation key names a local row, even when the row never got the intent id', async () => {
+    // The provider defers intent creation on some checkouts, so a settled row
+    // can exist with a null intent id. The money is recorded; reporting it as
+    // missing would be a false positive on top of a real row.
+    seed((db) => {
+      insertPayment(db, {
+        id: 'pay-unlinked', member_id: MEMBER, created_at: IN_WINDOW,
+        status: 'succeeded', amount_cents: 5000, stripe_payment_intent_id: null,
+      });
+    });
+    const adapter = await stub();
+    adapter.setLedgerPaymentIntent({
+      id: 'pi_unlinked', amountCents: 5000, currency: 'USD', status: 'succeeded',
+      createdAt: IN_WINDOW, platformPaymentId: 'pay-unlinked',
+    });
+    await (await svc()).runReconciliation({ now: NOW });
+    // The forward pass still reports the missing linkage, which is its job.
+    // What must not happen is the reverse pass reporting the same money a
+    // second time as never recorded at all.
+    expect(issueTypes()).toEqual(['payment_missing_at_provider']);
   });
 
   it('ignores an unsettled provider intent, which is an abandoned checkout rather than a gap', async () => {
@@ -244,6 +373,72 @@ describe('pass 2: subscriptions and renewal invoices', () => {
     expect(issueTypes()).toContain('subscription_checkout_unresolved');
   });
 
+  it('returns a rejected resolution note to its own row and no other', async () => {
+    // Echoing the submitted note into every textarea on the page would put one
+    // administrator's half-written reasoning underneath somebody else's
+    // unrelated discrepancy, which is worse than losing it.
+    seed((db) => {
+      insertRecurringDonationSubscription(db, {
+        id: 'rds-note-a', member_id: MEMBER, status: 'incomplete', created_at: BEFORE_WINDOW,
+      });
+      insertRecurringDonationSubscription(db, {
+        id: 'rds-note-b', member_id: ADMIN, status: 'incomplete', created_at: BEFORE_WINDOW,
+      });
+    });
+    const svcRef = await svc();
+    await svcRef.runReconciliation({ now: NOW });
+
+    const ids = (() => {
+      const db = openDb();
+      try {
+        return (db.prepare('SELECT id FROM reconciliation_issues ORDER BY id').all() as
+          { id: string }[]).map((r) => r.id);
+      } finally {
+        db.close();
+      }
+    })();
+    expect(ids.length).toBeGreaterThanOrEqual(2);
+
+    const page = svcRef.getAdminReconciliationPage({
+      status: 'outstanding',
+      errorMessage: 'too long',
+      submittedIssueId: ids[0],
+      submittedNotes: 'what I checked and concluded',
+    });
+
+    const carrying = page.content.rows.filter((r) => r.submittedNotes !== null);
+    expect(carrying).toHaveLength(1);
+    expect(carrying[0].id).toBe(ids[0]);
+    expect(carrying[0].submittedNotes).toBe('what I checked and concluded');
+  });
+
+  it('raises one issue per stranded checkout, not one for all of them', async () => {
+    // A webhook outage strands several members' checkouts at once, and each may
+    // be a live subscription charging a card this platform cannot see. They
+    // used to collapse onto a single dedup slot, so an administrator saw one
+    // issue naming one member and the rest stayed invisible.
+    seed((db) => {
+      insertRecurringDonationSubscription(db, {
+        id: 'rds-stranded-a', member_id: MEMBER, status: 'incomplete', created_at: BEFORE_WINDOW,
+      });
+      insertRecurringDonationSubscription(db, {
+        id: 'rds-stranded-b', member_id: ADMIN, status: 'incomplete', created_at: BEFORE_WINDOW,
+      });
+    });
+    await (await svc()).runReconciliation({ now: NOW });
+    const db = openDb();
+    try {
+      const rows = db.prepare(
+        `SELECT subscription_record_id FROM reconciliation_issues
+         WHERE issue_type = 'subscription_checkout_unresolved'
+         ORDER BY subscription_record_id`,
+      ).all() as { subscription_record_id: string }[];
+      expect(rows.map((r) => r.subscription_record_id)).toEqual(['rds-stranded-a', 'rds-stranded-b']);
+    } finally {
+      db.close();
+    }
+  });
+
   it('does not report an unconfirmed checkout as a subscription missing at the provider', async () => {
     // It has no subscription id to be missing. Reporting it under that type
     // would tell an administrator to look for something that never existed.
@@ -299,6 +494,28 @@ describe('pass 2: subscriptions and renewal invoices', () => {
     expect(issueTypes()).toContain('subscription_status_mismatch');
   });
 
+  it('reports a paid invoice on a donation that has already ended locally', async () => {
+    // The costly gap: the provider collects a final dunning attempt after the
+    // subscription is canceled locally, and the webhook recording it is lost.
+    // The webhook path books such a charge deliberately, because the money
+    // moved, so a missing row is a real discrepancy. Both passes used to skip
+    // it — the subscription pass compares only live rows, and the invoice pass
+    // read the active view to decide whether it knew the subscription at all —
+    // so the money went unrecorded and unreported, permanently.
+    seed((db) => {
+      insertRecurringDonationSubscription(db, {
+        member_id: MEMBER, stripe_subscription_id: 'sub_ended', status: 'canceled',
+      });
+    });
+    const adapter = await stub();
+    adapter.setLedgerInvoice({
+      id: 'in_late_collection', subscriptionId: 'sub_ended', amountPaidCents: 2500,
+      currency: 'USD', status: 'paid', createdAt: IN_WINDOW,
+    });
+    await (await svc()).runReconciliation({ now: NOW });
+    expect(issueTypes()).toContain('invoice_charge_missing_locally');
+  });
+
   it('reports a provider renewal charge with no local payment record', async () => {
     seed((db) => {
       insertRecurringDonationSubscription(db, {
@@ -339,6 +556,74 @@ describe('pass 2: subscriptions and renewal invoices', () => {
     });
     const result = await (await svc()).runReconciliation({ now: NOW });
     expect(result.issuesRaised).toBe(0);
+  });
+
+  it('reports a renewal booked in a different currency than the provider collected', async () => {
+    // One-time payments compare amount AND currency, deliberately, because
+    // equal numbers in different currencies are a discrepancy rather than a
+    // match. A renewal is money in exactly the same sense, and checking only
+    // that a row exists passed a charge booked in a currency the money never
+    // moved in as reconciled.
+    seed((db) => {
+      const subId = insertRecurringDonationSubscription(db, {
+        member_id: MEMBER, stripe_subscription_id: 'sub_ccy', status: 'active',
+      });
+      insertPayment(db, {
+        id: 'pay-renewal-ccy', member_id: MEMBER, payment_type: 'donation', created_at: IN_WINDOW,
+        status: 'succeeded', amount_cents: 2500, currency: 'EUR',
+        recurring_subscription_id: subId, stripe_subscription_id: 'sub_ccy',
+        stripe_invoice_id: 'in_ccy',
+      });
+    });
+    const adapter = await stub();
+    adapter.setLedgerSubscription({
+      id: 'sub_ccy', customerId: 'cus_x', status: 'active', amountCents: 2500, currency: 'USD',
+    });
+    adapter.setLedgerInvoice({
+      id: 'in_ccy', subscriptionId: 'sub_ccy', amountPaidCents: 2500,
+      currency: 'USD', status: 'paid', createdAt: IN_WINDOW,
+    });
+    await (await svc()).runReconciliation({ now: NOW });
+    expect(issueTypes()).toContain('invoice_charge_amount_mismatch');
+
+    const db = openDb();
+    try {
+      const row = db.prepare(
+        `SELECT details_json FROM reconciliation_issues
+          WHERE issue_type = 'invoice_charge_amount_mismatch'`,
+      ).get() as { details_json: string };
+      const details = JSON.parse(row.details_json);
+      // Both sides named, so an administrator can see which is which without
+      // opening the provider dashboard first.
+      expect(details.local_currency).toBe('EUR');
+      expect(details.provider_currency).toBe('USD');
+    } finally {
+      db.close();
+    }
+  });
+
+  it('reports a renewal booked for a different amount than the provider collected', async () => {
+    seed((db) => {
+      const subId = insertRecurringDonationSubscription(db, {
+        member_id: MEMBER, stripe_subscription_id: 'sub_amt', status: 'active',
+      });
+      insertPayment(db, {
+        id: 'pay-renewal-amt', member_id: MEMBER, payment_type: 'donation', created_at: IN_WINDOW,
+        status: 'succeeded', amount_cents: 2500,
+        recurring_subscription_id: subId, stripe_subscription_id: 'sub_amt',
+        stripe_invoice_id: 'in_amt',
+      });
+    });
+    const adapter = await stub();
+    adapter.setLedgerSubscription({
+      id: 'sub_amt', customerId: 'cus_x', status: 'active', amountCents: 2500, currency: 'USD',
+    });
+    adapter.setLedgerInvoice({
+      id: 'in_amt', subscriptionId: 'sub_amt', amountPaidCents: 9900,
+      currency: 'USD', status: 'paid', createdAt: IN_WINDOW,
+    });
+    await (await svc()).runReconciliation({ now: NOW });
+    expect(issueTypes()).toContain('invoice_charge_amount_mismatch');
   });
 
   it('reports every unrecorded renewal on one subscription, not just the first', async () => {
@@ -477,7 +762,7 @@ describe('the delivery grace period', () => {
     const adapter = await stub();
     adapter.setLedgerPaymentIntent({
       id: 'pi_fresh', amountCents: 5000, currency: 'USD', status: 'succeeded',
-      createdAt: JUST_NOW,
+      createdAt: JUST_NOW, platformPaymentId: 'pay-fresh-unrecorded',
     });
 
     const result = await (await svc()).runReconciliation({ now: NOW });
@@ -489,7 +774,7 @@ describe('the delivery grace period', () => {
     const adapter = await stub();
     adapter.setLedgerPaymentIntent({
       id: 'pi_aged', amountCents: 5000, currency: 'USD', status: 'succeeded',
-      createdAt: WELL_BEFORE,
+      createdAt: WELL_BEFORE, platformPaymentId: 'pay-aged-unrecorded',
     });
 
     await (await svc()).runReconciliation({ now: NOW });
@@ -804,10 +1089,348 @@ describe('retention', () => {
   });
 });
 
+describe('period totals and export', () => {
+  // The tests below run in their own months. Seeded rows accumulate across this
+  // file, and these assert on whole-range figures, so sharing a window with the
+  // other totals tests would make each one depend on what ran before it.
+  const REHEARSAL_MONTH = { at: '2026-03-05T12:00:00.000Z', from: '2026-03-01', to: '2026-04-01' };
+  const UNKNOWN_MONTH = { at: '2026-04-05T12:00:00.000Z', from: '2026-04-01', to: '2026-05-01' };
+  const ALL_REAL_MONTH = { at: '2026-05-05T12:00:00.000Z', from: '2026-05-01', to: '2026-06-01' };
+  const REFUND_MONTH = { at: '2026-06-05T12:00:00.000Z', from: '2026-06-01', to: '2026-07-01' };
+
+  it('keeps rehearsal money out of the totals and says that it did', async () => {
+    // Production is proven with the provider in test mode before it goes live,
+    // so rehearsal charges sit in the same table as real ones. A total that
+    // swept them in would report money the organization never took, and one
+    // that dropped them silently would read as money gone missing.
+    seed((db) => {
+      insertPayment(db, {
+        id: 'pay-real', member_id: MEMBER, payment_type: 'donation', created_at: REHEARSAL_MONTH.at,
+        status: 'succeeded', amount_cents: 5000, provider_livemode: 1,
+      });
+      insertPayment(db, {
+        id: 'pay-rehearsal', member_id: MEMBER, payment_type: 'donation',
+        created_at: REHEARSAL_MONTH.at,
+        status: 'succeeded', amount_cents: 90000, provider_livemode: 0,
+      });
+    });
+    const { periodTotals, periodTotalsExclusionLine } =
+      await import('../../src/services/paymentReconciliationService');
+    const donations = periodTotals(REHEARSAL_MONTH.from, REHEARSAL_MONTH.to)
+      .find((r) => r.currency === 'USD' && r.categoryLabel === 'Donation');
+    expect(donations?.grossDisplay).toBe('50.00 USD');
+    expect(donations?.count).toBe(1);
+    expect(periodTotalsExclusionLine(REHEARSAL_MONTH.from, REHEARSAL_MONTH.to))
+      .toBe('These totals count real money only. Set aside: 1 test-mode payment.');
+  });
+
+  it('sets aside a payment whose provider mode was never recorded rather than counting it', async () => {
+    // A row predating the provider-mode flag cannot be shown to be real money,
+    // and a total is the last place to let a missing value read as real.
+    seed((db) => {
+      insertPayment(db, {
+        id: 'pay-unknown-mode', member_id: MEMBER, payment_type: 'donation',
+        created_at: UNKNOWN_MONTH.at, status: 'succeeded', amount_cents: 7000,
+        provider_livemode: null,
+      });
+    });
+    const { periodTotals, periodTotalsExclusionLine } =
+      await import('../../src/services/paymentReconciliationService');
+    const donations = periodTotals(UNKNOWN_MONTH.from, UNKNOWN_MONTH.to)
+      .find((r) => r.currency === 'USD' && r.categoryLabel === 'Donation');
+    expect(donations).toBeUndefined();
+    expect(periodTotalsExclusionLine(UNKNOWN_MONTH.from, UNKNOWN_MONTH.to)).toBe(
+      'These totals count real money only. Set aside: 1 payment whose provider mode was never recorded.',
+    );
+  });
+
+  it('says nothing about exclusions when every payment in the range is real money', async () => {
+    seed((db) => {
+      insertPayment(db, {
+        id: 'pay-all-real', member_id: MEMBER, payment_type: 'donation',
+        created_at: ALL_REAL_MONTH.at,
+        status: 'succeeded', amount_cents: 1200, provider_livemode: 1,
+      });
+    });
+    const { periodTotalsExclusionLine } =
+      await import('../../src/services/paymentReconciliationService');
+    expect(periodTotalsExclusionLine(ALL_REAL_MONTH.from, ALL_REAL_MONTH.to)).toBeNull();
+  });
+
+  it('does not net a rehearsal refund against real money', async () => {
+    // The refund pass has to carry the same filter as the gross pass, or a
+    // test-mode refund would reduce a real total.
+    seed((db) => {
+      insertPayment(db, {
+        id: 'pay-real-gross', member_id: MEMBER, payment_type: 'donation',
+        created_at: REFUND_MONTH.at,
+        status: 'succeeded', amount_cents: 8000, provider_livemode: 1,
+      });
+      insertPayment(db, {
+        id: 'pay-rehearsal-refunded', member_id: MEMBER, payment_type: 'donation',
+        created_at: REFUND_MONTH.at, status: 'refunded', amount_cents: 8000, provider_livemode: 0,
+      });
+      insertAuditEntry(db, {
+        action_type: 'payment.refunded',
+        category: 'payment', actor_type: 'system',
+        entity_type: 'payment', entity_id: 'pay-rehearsal-refunded',
+        metadata: { refunded_amount_cents: 8000, currency: 'USD' },
+      });
+    });
+    const { periodTotals } = await import('../../src/services/paymentReconciliationService');
+    const donations = periodTotals(REFUND_MONTH.from, REFUND_MONTH.to)
+      .find((r) => r.currency === 'USD' && r.categoryLabel === 'Donation');
+    expect(donations?.grossDisplay).toBe('80.00 USD');
+    expect(donations?.refundedDisplay).toBe('0.00 USD');
+    expect(donations?.netDisplay).toBe('80.00 USD');
+  });
+
+  it('nets a partial refund out of the period total instead of reporting it at full value', async () => {
+    // A partial refund never touches the payment row, by design, so gross alone
+    // counts a half-returned charge at full value forever. That is the number
+    // that would otherwise reach a board report.
+    seed((db) => {
+      insertPayment(db, {
+        id: 'pay-net', member_id: MEMBER, payment_type: 'donation', created_at: IN_WINDOW,
+        status: 'succeeded', amount_cents: 10000,
+      });
+      insertAuditEntry(db, {
+        action_type: 'payment.partially_refunded',
+        category: 'payment',
+        actor_type: 'system',
+        entity_type: 'payment',
+        entity_id: 'pay-net',
+        metadata: { refunded_amount_cents: 2500, currency: 'USD' },
+      });
+    });
+    const { periodTotals } = await import('../../src/services/paymentReconciliationService');
+    const rows = periodTotals('2026-07-01', '2026-08-01');
+    const donations = rows.find((r) => r.currency === 'USD' && r.categoryLabel === 'Donation');
+    expect(donations?.grossDisplay).toBe('100.00 USD');
+    expect(donations?.refundedDisplay).toBe('25.00 USD');
+    expect(donations?.netDisplay).toBe('75.00 USD');
+  });
+
+  it('counts a cumulative refund once rather than adding the partial to the full', async () => {
+    // The provider reports the total refunded so far on each refund event, so a
+    // partial followed by a full one describes overlapping money. Adding both
+    // rows would report more going back than ever came in.
+    seed((db) => {
+      insertPayment(db, {
+        id: 'pay-cumulative', member_id: MEMBER, payment_type: 'donation', created_at: IN_WINDOW,
+        status: 'refunded', amount_cents: 10000,
+      });
+      insertAuditEntry(db, {
+        action_type: 'payment.partially_refunded',
+        category: 'payment', actor_type: 'system',
+        entity_type: 'payment', entity_id: 'pay-cumulative',
+        metadata: { refunded_amount_cents: 4000, currency: 'USD' },
+      });
+      insertAuditEntry(db, {
+        action_type: 'payment.refunded',
+        category: 'payment', actor_type: 'system',
+        entity_type: 'payment', entity_id: 'pay-cumulative',
+        metadata: { refunded_amount_cents: 10000, currency: 'USD' },
+      });
+    });
+    const { periodTotals } = await import('../../src/services/paymentReconciliationService');
+    const rows = periodTotals('2026-07-01', '2026-08-01');
+    const donations = rows.find((r) => r.currency === 'USD' && r.categoryLabel === 'Donation');
+    expect(donations?.refundedDisplay).toBe('100.00 USD');
+    expect(donations?.netDisplay).toBe('0.00 USD');
+  });
+
+  it('exports the filtered payments and records that the export happened', async () => {
+    seed((db) => {
+      insertPayment(db, {
+        id: 'pay-export', member_id: MEMBER, payment_type: 'donation', created_at: IN_WINDOW,
+        status: 'succeeded', amount_cents: 4200,
+      });
+    });
+    const out = (await svc()).exportAdminPayments({}, ADMIN);
+    expect(out.contentType).toBe('text/csv');
+    expect(out.body).toContain('payment_id,date_utc,type,status,amount,currency');
+    // The bare number and its currency in separate columns, so a spreadsheet
+    // can add one column without mixing currencies into one meaningless figure.
+    expect(out.body).toContain('42.00,USD');
+
+    const db = openDb();
+    try {
+      const audited = db.prepare(
+        "SELECT COUNT(*) AS c FROM audit_entries WHERE action_type = 'payment.exported'",
+      ).get() as { c: number };
+      // Taking the whole payment record out of the platform is an event the
+      // platform should be able to account for.
+      expect(audited.c).toBe(1);
+    } finally {
+      db.close();
+    }
+  });
+
+  it('defuses a descriptor that would run as a formula when the file is opened', async () => {
+    // A donation descriptor carries the member's own note, which is text a
+    // member wrote. A leading equals sign makes a spreadsheet execute what
+    // follows on the administrator's machine.
+    seed((db) => {
+      insertPayment(db, {
+        id: 'pay-formula', member_id: MEMBER, payment_type: 'donation', created_at: IN_WINDOW,
+        status: 'succeeded', amount_cents: 100,
+        descriptor: '=1+1',
+      });
+    });
+    const out = (await svc()).exportAdminPayments({}, ADMIN);
+    expect(out.body).toContain("'=1+1");
+    expect(out.body).not.toMatch(/,=1\+1,/);
+  });
+});
+
+describe('duplicate charges', () => {
+  it('asks about the same member charged the same amount twice in quick succession', async () => {
+    // The requirement names unexpected duplicates as a discrepancy the nightly
+    // job records, and nothing looked. This platform's own guarantees are what
+    // hide the case: each attempt mints its own payment id and its own checkout
+    // session, so a member who pays twice produces two rows that each match a
+    // provider settlement exactly and compare clean in every other pass.
+    seed((db) => {
+      insertPayment(db, {
+        id: 'pay-dup-first', member_id: MEMBER, payment_type: 'donation',
+        created_at: '2026-07-18T12:00:00.000Z', status: 'succeeded', amount_cents: 5000,
+        stripe_payment_intent_id: 'pi_dup_first',
+      });
+      insertPayment(db, {
+        id: 'pay-dup-second', member_id: MEMBER, payment_type: 'donation',
+        created_at: '2026-07-18T12:09:00.000Z', status: 'succeeded', amount_cents: 5000,
+        stripe_payment_intent_id: 'pi_dup_second',
+      });
+    });
+    const adapter = await stub();
+    adapter.setLedgerPaymentIntent({
+      id: 'pi_dup_first', amountCents: 5000, currency: 'USD', status: 'succeeded',
+      createdAt: '2026-07-18T12:00:00.000Z', platformPaymentId: 'pay-dup-first',
+    });
+    adapter.setLedgerPaymentIntent({
+      id: 'pi_dup_second', amountCents: 5000, currency: 'USD', status: 'succeeded',
+      createdAt: '2026-07-18T12:09:00.000Z', platformPaymentId: 'pay-dup-second',
+    });
+    await (await svc()).runReconciliation({ now: NOW });
+    expect(issueTypes()).toContain('duplicate_provider_charge');
+
+    const db = openDb();
+    try {
+      const row = db.prepare(
+        `SELECT details_json FROM reconciliation_issues
+          WHERE issue_type = 'duplicate_provider_charge'`,
+      ).get() as { details_json: string };
+      const details = JSON.parse(row.details_json);
+      // Both payments named, so the reader can look at the pair rather than
+      // hunting for the partner of the one that was flagged.
+      expect(details.first_payment_id).toBe('pay-dup-first');
+      expect(details.second_payment_id).toBe('pay-dup-second');
+      expect(details.minutes_apart).toBe(9);
+    } finally {
+      db.close();
+    }
+  });
+
+  it('says nothing about two gifts far enough apart to be meant', async () => {
+    // A member who gives twice in a week is being generous, not double-charged.
+    // A question asked too often stops being read.
+    seed((db) => {
+      insertPayment(db, {
+        id: 'pay-apart-first', member_id: MEMBER, payment_type: 'donation',
+        created_at: '2026-07-16T12:00:00.000Z', status: 'succeeded', amount_cents: 5000,
+      });
+      insertPayment(db, {
+        id: 'pay-apart-second', member_id: MEMBER, payment_type: 'donation',
+        created_at: '2026-07-18T12:00:00.000Z', status: 'succeeded', amount_cents: 5000,
+      });
+    });
+    await (await svc()).runReconciliation({ now: NOW });
+    expect(issueTypes()).not.toContain('duplicate_provider_charge');
+  });
+
+  it('says nothing about two different amounts, or two different members', async () => {
+    seed((db) => {
+      insertPayment(db, {
+        id: 'pay-diff-amount', member_id: MEMBER, payment_type: 'donation',
+        created_at: '2026-07-18T12:00:00.000Z', status: 'succeeded', amount_cents: 5000,
+      });
+      insertPayment(db, {
+        id: 'pay-diff-amount-2', member_id: MEMBER, payment_type: 'donation',
+        created_at: '2026-07-18T12:05:00.000Z', status: 'succeeded', amount_cents: 2500,
+      });
+      insertPayment(db, {
+        id: 'pay-diff-member', member_id: ADMIN, payment_type: 'donation',
+        created_at: '2026-07-18T12:06:00.000Z', status: 'succeeded', amount_cents: 5000,
+      });
+    });
+    await (await svc()).runReconciliation({ now: NOW });
+    expect(issueTypes()).not.toContain('duplicate_provider_charge');
+  });
+});
+
 describe('the reconciliation digest', () => {
-  it('sends nothing when there is nothing outstanding, so an empty digest never trains people to ignore it', async () => {
-    const result = (await svc()).sendReconciliationDigest();
-    expect(result).toEqual({ admins: 0, sent: 0, outstanding: 0 });
+  it('still sends on a clean period, because the nil report is the liveness signal', async () => {
+    // Deliberately the reverse of the earlier behaviour, which stayed silent on
+    // a clean period so an empty digest would not train people to ignore it.
+    // That reasoning holds for an operator, who has a scheduled-job health
+    // surface telling them the job still runs. The reader this report is
+    // written for has no such surface, so silence and "the job died three
+    // months ago" look identical to them.
+    subscribeToDigest('digest-nil');
+    const result = (await svc()).sendReconciliationDigest({ now: NOW });
+    expect(result.outstanding).toBe(0);
+    expect(result.sent).toBe(1);
+
+    const db = openDb();
+    try {
+      const { body_text: body } = db.prepare(
+        `SELECT body_text FROM outbox_emails WHERE recipient_member_id = 'digest-nil'
+          ORDER BY created_at DESC LIMIT 1`,
+      ).get() as { body_text: string };
+      // It says plainly that the check ran and found nothing, rather than
+      // leaving an empty section for the reader to interpret.
+      expect(body).toContain('Everything matched');
+      expect(body).toContain('Nothing outstanding.');
+    } finally {
+      db.close();
+    }
+  });
+
+  it('names what needs a decision, how old the oldest is, and who settled what', async () => {
+    // Written for whoever answers for the money: plain descriptions rather than
+    // issue-type codes, amounts with their currency, and the resolution half
+    // that shows questions are being answered and by whom.
+    seed((db) => {
+      insertPayment(db, {
+        id: 'pay-digest-readable', member_id: MEMBER, created_at: IN_WINDOW,
+        status: 'succeeded', amount_cents: 4200, stripe_payment_intent_id: 'pi_digest_readable',
+      });
+    });
+    const service = await svc();
+    await service.runReconciliation({ now: NOW });
+    subscribeToDigest('digest-reader');
+    const result = service.sendReconciliationDigest({ now: NOW });
+    // At least this reader: the suite shares one database, so an earlier test's
+    // subscriber is still on the list.
+    expect(result.sent).toBeGreaterThanOrEqual(1);
+
+    const db = openDb();
+    try {
+      const { body_text: body } = db.prepare(
+        `SELECT body_text FROM outbox_emails WHERE recipient_member_id = 'digest-reader'
+          ORDER BY created_at DESC LIMIT 1`,
+      ).get() as { body_text: string };
+      // A plain description, not the stored issue-type code.
+      expect(body).toContain('Local payment with no provider record');
+      expect(body).not.toContain('payment_missing_at_provider');
+      // The money, with the currency on the face of it.
+      expect(body).toContain('42.00 USD');
+      // And the section a reader with nothing to do can skip.
+      expect(body).toContain('Nothing was resolved during this period.');
+    } finally {
+      db.close();
+    }
   });
 
   it('reports the outstanding count when there is work waiting', async () => {
@@ -898,7 +1521,10 @@ describe('purging resolved issues on the daily tick', () => {
     const pastRetention = new Date('2027-01-01T00:00:00.000Z');
     const result = await operationsPlatformService.runReconciliationIssuePurge(pastRetention);
 
-    expect(result).toEqual({ deleted: 1 });
+    // The breakdown is asserted, not just the total: one number covering two
+    // tables cannot say which of them shrank, and an issue purge that silently
+    // deleted only counters would read identically.
+    expect(result).toEqual({ deleted: 1, issuesDeleted: 1, failureCountersDeleted: 0 });
     const db = openDb();
     try {
       expect(db.prepare('SELECT COUNT(*) AS n FROM reconciliation_issues').get()).toEqual({ n: 0 });
@@ -927,7 +1553,7 @@ describe('purging resolved issues on the daily tick', () => {
       new Date('2027-01-01T00:00:00.000Z'),
     );
 
-    expect(result).toEqual({ deleted: 0 });
+    expect(result).toEqual({ deleted: 0, issuesDeleted: 0, failureCountersDeleted: 0 });
     expect(issueTypes()).toHaveLength(1);
   });
 });

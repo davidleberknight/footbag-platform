@@ -101,13 +101,45 @@
  *     retried. Retrying it could never succeed, and sustained failures risk the
  *     provider disabling the endpoint for every other event too. An event that
  *     IS ours but whose row is not visible yet stays recoverable, so ordinary
- *     delivery races still redeliver.
+ *     delivery races still redeliver. Invoice events apply the same rule
+ *     through the subscription metadata the provider surfaces on the invoice's
+ *     parent; if that metadata is ever absent on one of ours the nightly
+ *     reconciliation invoice pass is the backstop.
+ *   - A no-op path that carries a side effect claims the event id and performs
+ *     that side effect in ONE transaction. The trail insert is idempotent, but
+ *     appending an immutable audit row or raising an administrator work item is
+ *     not, and the provider redelivers whenever it does not see a timely 200 —
+ *     including when the 200 was sent and lost. Ungated, one partial refund
+ *     became two review items and two ledger rows. Gated but claimed in a
+ *     separate statement, a failure between the two lost the audit row and the
+ *     work item permanently, because the redelivery then reported a duplicate:
+ *     on the refund paths that pair is the entire durable record, since the
+ *     payment row itself never moves for a partial refund.
+ *   - A created subscription takes the status the provider reports, not an
+ *     assumption that creation means collecting. Stripe raises the event for a
+ *     subscription whose first payment has not settled, and recording that as
+ *     active shows the member a live yearly donation collecting nothing.
+ *   - A purchase grant that changes nothing is reported, not swallowed. When an
+ *     admin tier change lands between checkout and webhook the downgrade guard
+ *     keeps the higher tier, but the member has been charged for nothing, and
+ *     nothing else notices: the payment reads succeeded, the receipt announces
+ *     a membership, and reconciliation compares clean. The over-charge is
+ *     raised as a work item like every other money event needing a human.
  *   - Out-of-order delivery is expected, not exceptional. Every payment status
  *     change records the provider event's own creation time in
  *     last_stripe_event_created, and an event older than the one already applied
  *     is a no-op duplicate, so a late-arriving success cannot undo a refund.
  *     Subscriptions carry the same stamp for the same reason; a mirror row that
- *     does not exist yet is separately covered by asking for redelivery.
+ *     does not exist yet is separately covered by asking for redelivery. This
+ *     covers both invoice handlers, in both directions: one billing cycle
+ *     raises the declined attempt and the retry that collects, and the provider
+ *     guarantees no order between them. Applying the older failure afterwards
+ *     tells a member whose card was charged that it was not; applying an older
+ *     success afterwards puts a past-due donation back to active on the
+ *     strength of stale news. A renewal charge is always booked, because the
+ *     money moved either way, but a stale one does not move the subscription.
+ *     A charge settling on an already-active subscription still advances the
+ *     watermark, since otherwise the guard has nothing to compare against.
  *   - Only a full refund reaches the terminal refunded state. The status machine
  *     is monotonic and refunded is terminal, so recording a partial refund there
  *     would be unrecoverable, would misreport the payment on the member's own
@@ -185,7 +217,8 @@
  *   - work_queue_items insert in the `payments` category for the money events an
  *     administrator must see: a declined recurring charge, a partially refunded
  *     payment, a refund matching no local record, a card dispute, a failed
- *     payout, and a subscription paused at the provider
+ *     payout, a subscription paused at the provider, and a membership paid for
+ *     by a member who already held that tier
  *
  * Provider contract:
  *   Payload shapes are specific to the pinned Stripe API version (see
@@ -200,6 +233,8 @@ import {
   payments as paymentsDb,
   paymentStatusTransitions as pstDb,
   stripeEvents as stripeEventsDb,
+  stripeWebhookFailures as webhookFailuresDb,
+  memberPaymentObligations,
   recurringDonationSubscriptions as subsDb,
   recurringDonationSubscriptionTransitions as subTransitionsDb,
   memberBilling as memberBillingDb,
@@ -232,6 +267,15 @@ import { formatDateDisplay } from './dateFormat';
 import { workQueueService } from './workQueueService';
 import { isSafePath } from '../lib/safePath';
 import type { PageViewModel } from '../types/page';
+import {
+  MemberActionContext,
+  MemberActionItem,
+  MemberActionSource,
+  navigateTo,
+  pendingAction,
+  submitTo,
+  urgentAction,
+} from './memberActionItem';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -936,15 +980,107 @@ function dispatchEvent(event: StripeWebhookEvent): WebhookOutcome {
 }
 
 // Records an event id for the received-event trail on a no-op path (duplicate
-// or ignored), where there is no state change to guard. INSERT OR IGNORE is
-// idempotent on replay.
+// or ignored), where there is no state change to guard and nothing to lose if
+// this delivery is not the first. INSERT OR IGNORE is idempotent on replay, and
+// a single statement is its own transaction, so no wrapper is needed here. A
+// no-op path that DOES carry a side effect uses `runNoopSideEffectOnce`.
 function recordIdempotentNoop(
   event: StripeWebhookEvent,
   outcome: 'duplicate' | 'ignored',
 ): WebhookOutcome {
-  const now = new Date().toISOString();
-  stripeEventsDb.insertEventOrIgnore.run(event.id, now, event.type, event.createdAt, now);
+  claimEvent(event);
   return { outcome };
+}
+
+/** Why a delivery was rejected. Mirrors the CHECK constraint on the counter
+ *  table and the `reason` field on the structured log line the controller
+ *  emits, so the database counter and the monitoring metric describe the same
+ *  three cases in the same words. */
+export type WebhookRejectionReason = 'signature' | 'recoverable' | 'error';
+
+const FAILURE_BUCKET_MINUTES = 5;
+
+/** The five-minute bucket an instant falls in, as ISO-8601 UTC. */
+function failureBucketStart(nowMs: number): string {
+  const bucketMs = FAILURE_BUCKET_MINUTES * 60_000;
+  return new Date(Math.floor(nowMs / bucketMs) * bucketMs).toISOString();
+}
+
+/**
+ * Counts a rejected webhook delivery.
+ *
+ * The webhook table cannot hold these: a rejected signature yields no event id
+ * to key on, and a failed handler rolls its claim back by design. Both user
+ * stories still require the admin payments health view to show failure counts,
+ * so they are counted in five-minute buckets, incremented in place. The
+ * endpoint is public and unauthenticated by design, so per-delivery rows would
+ * let anything on the internet inflate the database holding the money records;
+ * buckets size by the clock instead.
+ *
+ * Never stores a payload, a signature, or a header. The event type and id are
+ * recorded only where the payload parsed far enough to state them, which is
+ * never true of a signature rejection.
+ *
+ * Best-effort: a failure to count must not turn a 400 into a 500, because the
+ * status is what tells the provider whether to retry.
+ */
+export function recordWebhookRejection(
+  reason: WebhookRejectionReason,
+  details: { eventType?: string | null; eventId?: string | null } = {},
+): void {
+  try {
+    const nowMs = Date.now();
+    const nowIso = new Date(nowMs).toISOString();
+    const retentionDays = readIntConfig('reconciliation_expiry_days', 90);
+    const expiresAt = new Date(nowMs + retentionDays * 86_400_000).toISOString();
+    webhookFailuresDb.recordFailure.run(
+      failureBucketStart(nowMs),
+      reason,
+      nowIso,
+      nowIso,
+      details.eventType ?? null,
+      details.eventId ?? null,
+      expiresAt,
+    );
+  } catch (err) {
+    logger.warn('webhook.failure_count_not_recorded', {
+      reason,
+      err: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
+/**
+ * Runs a no-op path that nonetheless carries a side effect, exactly once.
+ *
+ * The trail insert is idempotent on replay, but the side effects some no-op
+ * paths carry are not: a partial refund, a refund matching no local payment, a
+ * charge failing on an ended donation, and a dashboard edit to an ended
+ * subscription each append an immutable audit row and, for two of them, raise
+ * an administrator work item. The provider redelivers whenever it does not see
+ * a timely 200, including when the 200 was sent and lost, so a path that
+ * appended unconditionally gave an administrator two work items for one refund
+ * and double-counted the money under review in a ledger that cannot be edited.
+ *
+ * Gating on the claim alone is not enough, and that is the whole reason this is
+ * a transaction rather than two statements. The claim commits first; if the
+ * side effect then throws, the delivery answers 500, the provider redelivers,
+ * the claim now loses, and the handler reports a duplicate — so the audit row
+ * and the work item are lost permanently and silently, on the two paths where
+ * that pair IS the entire durable record that anything happened. Claiming
+ * inside the same transaction as the side effect makes the throw roll the claim
+ * back, which is the rule the rest of this file already follows.
+ *
+ * Returns true when this delivery did the work, false when an earlier one did.
+ * Callers that merely acknowledge, with nothing to lose, use
+ * `recordIdempotentNoop` instead.
+ */
+function runNoopSideEffectOnce(event: StripeWebhookEvent, sideEffect: () => void): boolean {
+  return transaction(() => {
+    if (!claimEvent(event)) return false;
+    sideEffect();
+    return true;
+  });
 }
 
 // Claims an event id INSIDE the caller's transaction. Returns true if this call
@@ -1092,7 +1228,13 @@ function handlePaymentIntentSucceeded(event: StripeWebhookEvent): WebhookOutcome
   // the transition row, AND apply the tier grant. A throw anywhere rolls back
   // all of it, so a charged member is never left without the tier and the
   // un-claimed event is redelivered by Stripe.
-  const claimed = transaction(() => {
+  // The over-charge work item is raised INSIDE this transaction rather than
+  // after it. It is a plain row insert, so it belongs with the writes it
+  // describes: raised afterwards it would get exactly one attempt, and a
+  // failure there would answer 500, let the redelivery return early as a
+  // duplicate, and leave the over-charge invisible to everyone including the
+  // member who paid for it.
+  const claimed = transaction((): boolean => {
     if (!claimEvent(event)) return false;
     const now = new Date().toISOString();
     paymentsDb.updateStatusWithEventTime.run(
@@ -1107,12 +1249,38 @@ function handlePaymentIntentSucceeded(event: StripeWebhookEvent): WebhookOutcome
       reasonText: null,
     });
     if (payment.payment_type === 'membership' && payment.purchased_tier_status) {
-      applyPurchaseGrantInTx(
+      const grant = applyPurchaseGrantInTx(
         payment.member_id,
         payment.member_id,
         payment.id,
         payment.purchased_tier_status,
       );
+      // The member paid and received nothing, because an admin grant landed
+      // between starting the checkout and this webhook. The downgrade guard is
+      // right to keep their higher tier, but the over-charge is real money that
+      // nothing else in the system would ever notice: the payment reads
+      // succeeded, the receipt announces a membership, and reconciliation
+      // compares clean against the provider. Raised on the same work-queue path
+      // as every other money event needing a human.
+      if (grant.status === 'noop') {
+        workQueueService.enqueue({
+          actorId: 'system',
+          queueCategory: 'payments',
+          taskType: 'membership_overcharge_review',
+          entityType: 'payment',
+          entityId: payment.id,
+          priority: 0,
+          reasonText:
+            'A member paid for a membership tier they already held, so the payment '
+            + 'settled and no tier was granted. A refund or credit decision is needed.',
+          detailText: [
+            `Payment ${payment.id}`,
+            `paid for ${payment.purchased_tier_status}`,
+            `member already at ${grant.currentTier}`,
+            `charged ${formatAmount(payment.amount_cents, payment.currency)}`,
+          ].join('; '),
+        });
+      }
     }
     return true;
   });
@@ -1132,6 +1300,11 @@ function handlePaymentIntentSucceeded(event: StripeWebhookEvent): WebhookOutcome
       purchased_tier_status: payment.purchased_tier_status,
       stripe_event_id: event.id,
       stripe_payment_intent_id: paymentIntentId,
+      // The story requires the settled amount and its currency on this row.
+      // The audit ledger is retained for seven years and is read on its own,
+      // long after anyone would think to join it back to the payment row.
+      amount_cents: payment.amount_cents,
+      currency: payment.currency,
     },
   });
 
@@ -1237,26 +1410,34 @@ function handleChargeRefunded(event: StripeWebhookEvent): WebhookOutcome {
       stripeChargeId: chargeId,
       eventId: event.id,
     });
-    const outcome = recordIdempotentNoop(event, 'ignored');
-    workQueueService.enqueue({
-      actorId: 'system',
-      queueCategory: 'payments',
-      taskType: 'unattributed_refund',
-      entityType,
-      entityId,
-      priority: 0,
-      reasonText,
-      detailText: [
-        chargeId === null ? null : `Charge ${chargeId}`,
-        paymentIntentId === null ? null : `payment intent ${paymentIntentId}`,
-        refundedAmount === null ? null : `refunded ${formatAmount(refundedAmount, refundCurrency)}`,
-        chargeAmount === null ? null : `of ${formatAmount(chargeAmount, refundCurrency)} charged`,
-        `on ${refundedOn}`,
-      ]
-        .filter((part) => part !== null)
-        .join('; ') || null,
+    // Only the first delivery raises the work item, and the claim shares the
+    // enqueue's transaction: a redelivery whose 200 was lost would otherwise put
+    // a second copy of the same refund in front of an administrator, while a
+    // claim that committed ahead of a failed enqueue would lose the only record
+    // this path produces.
+    const raised = runNoopSideEffectOnce(event, () => {
+      workQueueService.enqueue({
+        actorId: 'system',
+        queueCategory: 'payments',
+        taskType: 'unattributed_refund',
+        entityType,
+        entityId,
+        priority: 0,
+        reasonText,
+        detailText: [
+          chargeId === null ? null : `Charge ${chargeId}`,
+          paymentIntentId === null ? null : `payment intent ${paymentIntentId}`,
+          refundedAmount === null
+            ? null
+            : `refunded ${formatAmount(refundedAmount, refundCurrency)}`,
+          chargeAmount === null ? null : `of ${formatAmount(chargeAmount, refundCurrency)} charged`,
+          `on ${refundedOn}`,
+        ]
+          .filter((part) => part !== null)
+          .join('; ') || null,
+      });
     });
-    return outcome;
+    return { outcome: raised ? 'ignored' : 'duplicate' };
   };
 
   if (!paymentIntentId) {
@@ -1304,50 +1485,59 @@ function handleChargeRefunded(event: StripeWebhookEvent): WebhookOutcome {
   const isFullRefund =
     chargeAmount !== null && refundedAmount !== null && refundedAmount >= chargeAmount;
   if (!isFullRefund) {
-    const outcome = recordIdempotentNoop(event, 'ignored');
-    appendAuditEntry({
-      actionType: 'payment.partially_refunded',
-      category: 'payment',
-      actorType: 'system',
-      actorMemberId: null,
-      entityType: 'payment',
-      entityId: payment.id,
-      reasonText: null,
-      metadata: {
-        member_id: payment.member_id,
-        stripe_event_id: event.id,
-        stripe_payment_intent_id: paymentIntentId,
-        charge_amount_cents: chargeAmount,
-        refunded_amount_cents: refundedAmount,
-      },
+    // Gated on the first delivery, and claimed in the same transaction as both
+    // writes: the audit ledger is append-only and the work item is money under
+    // review, so replaying either on a redelivery would double-count one refund
+    // and show an administrator two cases for it — while a claim committed
+    // ahead of a failed write would erase the only record a partial refund
+    // leaves anywhere, since the payment row itself never moves for one.
+    const recorded = runNoopSideEffectOnce(event, () => {
+      appendAuditEntry({
+        actionType: 'payment.partially_refunded',
+        category: 'payment',
+        actorType: 'system',
+        actorMemberId: null,
+        entityType: 'payment',
+        entityId: payment.id,
+        reasonText: null,
+        metadata: {
+          member_id: payment.member_id,
+          stripe_event_id: event.id,
+          stripe_payment_intent_id: paymentIntentId,
+          charge_amount_cents: chargeAmount,
+          refunded_amount_cents: refundedAmount,
+          currency: payment.currency,
+          stripe_charge_id: chargeId,
+        },
+      });
+      workQueueService.enqueue({
+        actorId: 'system',
+        queueCategory: 'payments',
+        taskType: 'partial_refund_review',
+        entityType: 'payment',
+        entityId: payment.id,
+        priority: 0,
+        reasonText:
+          chargeAmount === null || refundedAmount === null
+            ? 'A refund was processed but its amount could not be read, so it was not recorded as a full refund.'
+            : 'A payment was partially refunded; the platform records only full refunds.',
+        detailText: [
+          `Payment ${payment.id}`,
+          chargeAmount === null
+            ? 'charge amount not reported'
+            : `charged ${formatAmount(chargeAmount, payment.currency)}`,
+          refundedAmount === null
+            ? 'refunded amount not reported'
+            : `refunded ${formatAmount(refundedAmount, payment.currency)}`,
+          chargeId === null ? null : `charge ${chargeId}`,
+          `payment intent ${paymentIntentId}`,
+          `on ${refundedOn}`,
+        ]
+          .filter((part) => part !== null)
+          .join('; '),
+      });
     });
-    workQueueService.enqueue({
-      actorId: 'system',
-      queueCategory: 'payments',
-      taskType: 'partial_refund_review',
-      entityType: 'payment',
-      entityId: payment.id,
-      priority: 0,
-      reasonText:
-        chargeAmount === null || refundedAmount === null
-          ? 'A refund was processed but its amount could not be read, so it was not recorded as a full refund.'
-          : 'A payment was partially refunded; the platform records only full refunds.',
-      detailText: [
-        `Payment ${payment.id}`,
-        chargeAmount === null
-          ? 'charge amount not reported'
-          : `charged ${formatAmount(chargeAmount, payment.currency)}`,
-        refundedAmount === null
-          ? 'refunded amount not reported'
-          : `refunded ${formatAmount(refundedAmount, payment.currency)}`,
-        chargeId === null ? null : `charge ${chargeId}`,
-        `payment intent ${paymentIntentId}`,
-        `on ${refundedOn}`,
-      ]
-        .filter((part) => part !== null)
-        .join('; '),
-    });
-    return outcome;
+    return { outcome: recorded ? 'ignored' : 'duplicate' };
   }
 
   if (payment.status === 'refunded') return recordIdempotentNoop(event, 'duplicate');
@@ -1390,6 +1580,12 @@ function handleChargeRefunded(event: StripeWebhookEvent): WebhookOutcome {
       member_id: payment.member_id,
       stripe_event_id: event.id,
       stripe_payment_intent_id: paymentIntentId,
+      // The story names the charge id, the amount returned and its currency.
+      // A refund dispute is worked from this row, and without the amount it
+      // cannot say how much went back.
+      stripe_charge_id: chargeId,
+      refunded_amount_cents: refundedAmount,
+      currency: payment.currency,
     },
   });
   return { outcome: 'processed' };
@@ -1638,7 +1834,19 @@ function handleCheckoutExpired(event: StripeWebhookEvent): WebhookOutcome {
   const obj = event.data?.object as { id?: string; payment_intent?: string } | undefined;
   const sessionId = typeof obj?.id === 'string' ? obj.id : null;
   if (!sessionId) {
-    throw new Error(`checkout.session.expired event ${event.id} is missing data.object.id`);
+    // Acknowledged, not thrown. A bare throw becomes a 500, the provider
+    // retries, and every redelivery carries the identical unusable payload — so
+    // it retries for days, trips the operator error alarm on each attempt, and
+    // can never succeed. The dispute and payout handlers already take this
+    // shape for the same reason: retrying cannot improve a payload.
+    //
+    // Nothing is lost by acknowledging. An expiry that cannot name its session
+    // matches no local row, and an abandoned checkout that never gets its expiry
+    // is separately raised by the staleness sweep.
+    logger.warn('checkout.session.expired event carries no session id', {
+      eventId: event.id,
+    });
+    return recordIdempotentNoop(event, 'ignored');
   }
   // A recurring checkout writes a subscription row, not a payment row, so an
   // expiry has to be matched against both. Without this the abandoned
@@ -1722,6 +1930,7 @@ function enqueueReceiptEmail(payment: PaymentRow, outcome: 'succeeded' | 'failed
           : 'One-time payment',
         outcome,
         isMembership: payment.payment_type === 'membership',
+        isDonation: payment.payment_type === 'donation',
         purchasedTier:
           payment.purchased_tier_status === 'tier1' || payment.purchased_tier_status === 'tier2'
             ? payment.purchased_tier_status
@@ -1731,6 +1940,29 @@ function enqueueReceiptEmail(payment: PaymentRow, outcome: 'succeeded' | 'failed
       recipientEmail: contact.loginEmail,
       recipientMemberId: payment.member_id,
       idempotencyKey: `payment_receipt:${payment.id}:${outcome}`,
+    });
+    // That a receipt went out is part of the record, not just a queue entry.
+    // The outbox row is deleted once it ages past the outbound-copy retention
+    // window, so without this there is no durable evidence anywhere that a
+    // donation was ever acknowledged — and "was this gift acknowledged" is
+    // exactly the question a board or a funder asks about a gift from a year or
+    // two ago. The audit ledger already keeps its rows for seven years. It
+    // carries no address and no body, only that the platform sent one.
+    appendAuditEntry({
+      actionType: 'payment.receipt_sent',
+      category: 'payment',
+      actorType: 'system',
+      actorMemberId: null,
+      entityType: 'payment',
+      entityId: payment.id,
+      reasonText: null,
+      metadata: {
+        member_id: payment.member_id,
+        payment_type: payment.payment_type,
+        outcome,
+        amount_cents: payment.amount_cents,
+        currency: payment.currency,
+      },
     });
   } catch (err) {
     // Best-effort: log but never block on receipt-email failure.
@@ -1831,6 +2063,45 @@ function subscriptionEventIsOurs(event: StripeWebhookEvent): boolean {
   return typeof eventMetadata(event).subscriptionRecordId === 'string';
 }
 
+/**
+ * The subscription metadata carried on an invoice event.
+ *
+ * The provider surfaces the subscription's own metadata under the invoice's
+ * parent, alongside the subscription id that `invoiceSubscriptionId` reads from
+ * the same place. The invoice's own metadata is read as a fallback, for an
+ * account pinned to an older API version, exactly as the subscription id is.
+ */
+function invoiceSubscriptionMetadata(event: StripeWebhookEvent): Record<string, unknown> {
+  const obj = eventObject(event);
+  const parent = obj.parent as { subscription_details?: { metadata?: unknown } } | undefined;
+  const fromParent = parent?.subscription_details?.metadata;
+  if (typeof fromParent === 'object' && fromParent !== null) {
+    return fromParent as Record<string, unknown>;
+  }
+  const own = obj.metadata;
+  return typeof own === 'object' && own !== null ? (own as Record<string, unknown>) : {};
+}
+
+/**
+ * Whether an invoice event settles a subscription this platform opened.
+ *
+ * Same rule as `subscriptionEventIsOurs`, and it decides the same thing: what
+ * "no local row" means. For one of ours it means the created event has not
+ * landed yet, so the delivery is refused and the provider redelivers. For
+ * anything else — a one-off invoice with no subscription at all, or a
+ * subscription created straight in the provider's console — retrying could
+ * never succeed, and a permanent per-cycle retry storm risks the provider
+ * disabling the endpoint for every other event too.
+ *
+ * If the provider ever stops surfacing the metadata on one of ours, this
+ * acknowledges a renewal it should have retried. The nightly reconciliation
+ * invoice pass is the backstop: an invoice settled at the provider with no
+ * local payment row is exactly what it reports.
+ */
+function invoiceEventIsOurs(event: StripeWebhookEvent): boolean {
+  return typeof invoiceSubscriptionMetadata(event).subscriptionRecordId === 'string';
+}
+
 function loadSubscription(
   stripeSubscriptionId: string | null,
 ): { row: RecurringSubscriptionRow; stripeSubscriptionId: string } | null {
@@ -1876,6 +2147,16 @@ function handleSubscriptionCreated(event: StripeWebhookEvent): WebhookOutcome {
   const donationNote = typeof meta.comment === 'string' ? meta.comment : null;
   const now = new Date().toISOString();
 
+  // The state the provider actually reports, not an assumption that a created
+  // subscription is a collecting one. Stripe raises this event for a
+  // subscription whose first payment has not settled (an authentication step
+  // still outstanding, or an asynchronous payment method), and recording that
+  // as active would show the member a live yearly donation that is collecting
+  // nothing and would count it in the admin surfaces as real. Absent or
+  // unrecognised, it stays active: that is the ordinary card checkout, and it
+  // is what the local row already assumed.
+  const initialStatus = mapStripeSubscriptionStatus(obj.status) ?? 'active';
+
   // Checkout writes the row before the redirect, so the ordinary case here is a
   // promotion of a row that already exists rather than an insert. The insert
   // stays as the fallback for the row that is somehow absent: a checkout opened
@@ -1884,6 +2165,21 @@ function handleSubscriptionCreated(event: StripeWebhookEvent): WebhookOutcome {
   const opened = subsDb.findById.get(subscriptionRecordId) as
     | RecurringSubscriptionRow
     | undefined;
+
+  // A row that exists but is no longer 'incomplete' has already been resolved by
+  // something: an expiry event closed it out, or a redelivery promoted it. The
+  // insert fallback below would then collide on the primary key, which surfaces
+  // as an unhandled 500, retries identically forever, and loses the gift. It is
+  // reachable purely by ordering — an expiry and a creation racing at the
+  // session boundary — so it is answered here rather than left to the database.
+  if (opened && opened.status !== 'incomplete') {
+    logger.warn('subscription created for a record that is no longer awaiting confirmation', {
+      eventId: event.id,
+      subscriptionRecordId,
+      status: opened.status,
+    });
+    return recordIdempotentNoop(event, 'duplicate');
+  }
 
   const claimed = transaction(() => {
     if (!claimEvent(event)) return false;
@@ -1923,9 +2219,17 @@ function handleSubscriptionCreated(event: StripeWebhookEvent): WebhookOutcome {
       // The ledger records where the row actually came from: 'incomplete' when
       // checkout opened it, null when this event created it outright.
       oldStatus: opened && opened.status === 'incomplete' ? 'incomplete' : null,
-      newStatus: 'active',
+      newStatus: initialStatus,
       reasonText: null,
     });
+    // Both writers above land the row as active, which is right for the
+    // ordinary checkout. When the provider reports otherwise, correct it in the
+    // same transaction so the row never reads as collecting when it is not.
+    if (initialStatus !== 'active') {
+      subsDb.updateStatus.run(
+        initialStatus, now, event.id, event.createdAt, now, 'payment_service', subscriptionRecordId,
+      );
+    }
     // The member's canonical Stripe Customer identity, established by their
     // first recurring donation and never re-pointed afterwards.
     memberBillingDb.setStripeCustomerIdIfNull.run(
@@ -2017,18 +2321,34 @@ function restateRecordedInvoiceCharge(
 function handleInvoicePaymentSucceeded(event: StripeWebhookEvent): WebhookOutcome {
   const found = loadSubscription(invoiceSubscriptionId(event));
   // The invoice can beat customer.subscription.created through the queue, so a
-  // missing local row is recoverable: 400 makes Stripe redeliver, and nothing
-  // was claimed, so the retry re-runs cleanly.
+  // missing local row for one of ours is recoverable: 400 makes Stripe
+  // redeliver, and nothing was claimed, so the retry re-runs cleanly. An
+  // invoice that is not ours is acknowledged instead, because no redelivery
+  // could ever find a row.
   if (!found) {
-    throw new RecoverableWebhookError(
-      `no local subscription for invoice event ${event.id}`,
-    );
+    if (invoiceEventIsOurs(event)) {
+      throw new RecoverableWebhookError(
+        `no local subscription for invoice event ${event.id}`,
+      );
+    }
+    return recordIdempotentNoop(event, 'ignored');
   }
   const { row: sub, stripeSubscriptionId } = found;
   const obj = eventObject(event);
   const invoiceId = typeof obj.id === 'string' ? obj.id : null;
   const amountCents =
     typeof obj.amount_paid === 'number' ? obj.amount_paid : sub.amount_cents;
+  // The invoice's own currency, not the subscription's stored copy. They agree
+  // in the ordinary case, and when they do not it is the invoice that says what
+  // was actually collected — so booking the stored one records a charge in a
+  // currency the money never moved in, and reconciliation then compares the
+  // platform's own guess against the provider rather than comparing the two
+  // records of one event. Falls back to the subscription only when the payload
+  // omits it.
+  const currency =
+    typeof obj.currency === 'string' && obj.currency !== ''
+      ? obj.currency.toUpperCase()
+      : sub.currency;
 
   // The provider sends one of these per payment attempt on an invoice, each
   // carrying the amount paid so far rather than the amount of that attempt, so a
@@ -2042,7 +2362,7 @@ function handleInvoicePaymentSucceeded(event: StripeWebhookEvent): WebhookOutcom
         stripeSubscriptionId,
         subscriptionId: sub.id,
         memberId: sub.member_id,
-        currency: sub.currency,
+        currency,
       });
     }
   }
@@ -2062,7 +2382,7 @@ function handleInvoicePaymentSucceeded(event: StripeWebhookEvent): WebhookOutcom
       paymentId,
       now, 'payment_service', now, 'payment_service',
       sub.member_id,
-      amountCents, sub.currency,
+      amountCents, currency,
       descriptor,
       sub.donation_comment,
       sub.stripe_customer_id,
@@ -2092,6 +2412,24 @@ function handleInvoicePaymentSucceeded(event: StripeWebhookEvent): WebhookOutcom
       now,
       null,
     );
+    // A successful charge clears a past_due subscription without waiting for a
+    // separate customer.subscription.updated event. Two cases are excluded.
+    //
+    // An ended donation is not revived: cancellation is final locally, and a
+    // charge that settles afterwards (a last invoice paying late) is money that
+    // genuinely moved, so it is recorded as the charge it is while the donation
+    // stays ended.
+    //
+    // A stale event does not move the status either. The money is still booked,
+    // because the charge really happened, but `updateStatus` is keyed on the row
+    // id alone with no watermark comparison of its own, so applying an event
+    // older than the one already recorded would revive a past_due donation to
+    // active AND drag the watermark backwards — which then lets an intermediate
+    // event replayed later pass a staleness check it should fail. The sibling
+    // failure handler guards this; without the guard here the same disorder
+    // simply arrives from the other direction.
+    const stale = eventIsStaleForSubscription(sub, event);
+    const movesStatus = !stale && sub.status !== 'active' && sub.status !== 'canceled';
     recordSubscriptionTransition({
       subscriptionId: sub.id,
       memberId: sub.member_id,
@@ -2101,20 +2439,30 @@ function handleInvoicePaymentSucceeded(event: StripeWebhookEvent): WebhookOutcom
       eventType: event.type,
       lifecycleEventCode: 'charge_succeeded',
       oldStatus: sub.status,
-      newStatus: sub.status === 'canceled' ? 'canceled' : 'active',
+      // The ledger records where the row actually lands, never where an
+      // unapplied event would have put it.
+      newStatus: movesStatus ? 'active' : sub.status,
       reasonText:
         sub.status === 'canceled'
           ? 'a charge settled after the donation had already ended'
-          : null,
+          : stale
+            ? 'the charge was reported out of order, so it was booked without moving the donation'
+            : null,
     });
-    // A successful charge clears a past_due subscription without waiting for a
-    // separate customer.subscription.updated event. An ended donation is not
-    // revived, though: cancellation is final locally, and a charge that settles
-    // afterwards (a last invoice paying late) is money that genuinely moved, so
-    // it is recorded as the charge it is while the donation stays ended.
-    if (sub.status !== 'active' && sub.status !== 'canceled') {
+    if (movesStatus) {
       subsDb.updateStatus.run(
         'active', now, event.id, event.createdAt, now, 'payment_service', sub.id,
+      );
+    } else {
+      // Nothing moved, but the watermark must still advance. A billing cycle
+      // that fails and then succeeds produces both events, and the provider
+      // does not guarantee their order; leaving the watermark behind lets the
+      // older failure read as fresh and flip a paid-up donation to past_due,
+      // emailing the member that a charge which actually succeeded had failed.
+      // The statement compares before it writes, so a stale event lands here and
+      // correctly changes nothing.
+      subsDb.advanceEventWatermark.run(
+        event.id, event.createdAt, now, 'payment_service', sub.id, event.createdAt,
       );
     }
     return true;
@@ -2147,7 +2495,7 @@ function handleInvoicePaymentSucceeded(event: StripeWebhookEvent): WebhookOutcom
       stripe_invoice_id: invoiceId,
       stripe_subscription_id: stripeSubscriptionId,
       amount_cents: amountCents,
-      currency: sub.currency,
+      currency,
     },
   });
 
@@ -2158,12 +2506,27 @@ function handleInvoicePaymentSucceeded(event: StripeWebhookEvent): WebhookOutcom
 
 function handleInvoicePaymentFailed(event: StripeWebhookEvent): WebhookOutcome {
   const found = loadSubscription(invoiceSubscriptionId(event));
+  // Same rule as the success handler: ours and not yet mirrored is a
+  // redelivery, anything else is acknowledged rather than retried forever.
   if (!found) {
-    throw new RecoverableWebhookError(
-      `no local subscription for invoice event ${event.id}`,
-    );
+    if (invoiceEventIsOurs(event)) {
+      throw new RecoverableWebhookError(
+        `no local subscription for invoice event ${event.id}`,
+      );
+    }
+    return recordIdempotentNoop(event, 'ignored');
   }
   const { row: sub, stripeSubscriptionId } = found;
+
+  // Out-of-order delivery is expected, not exceptional. A failed attempt and
+  // the retry that settles it are two events on one billing cycle, and the
+  // provider does not guarantee the order they arrive in. Applying the older
+  // one would move a paid-up donation to past_due, send the member a
+  // charge-failed notice for money that was collected, raise an administrator
+  // work item, and leave the row wrong until the next event, which on an annual
+  // donation is a year away.
+  if (eventIsStaleForSubscription(sub, event)) return recordIdempotentNoop(event, 'duplicate');
+
   const invoiceId = (() => {
     const id = eventObject(event).id;
     return typeof id === 'string' ? id : null;
@@ -2176,23 +2539,28 @@ function handleInvoicePaymentFailed(event: StripeWebhookEvent): WebhookOutcome {
   // cancellation time. Nothing is owed and no member action would help, so this
   // is recorded and acknowledged rather than acted on.
   if (sub.status === 'canceled') {
-    const outcome = recordIdempotentNoop(event, 'ignored');
-    appendAuditEntry({
-      actionType: 'payment.recurring_charge_declined',
-      category: 'payment',
-      actorType: 'system',
-      actorMemberId: null,
-      entityType: 'recurring_donation_subscription',
-      entityId: sub.id,
-      reasonText: 'the donation had already ended when the charge failed',
-      metadata: {
-        member_id: sub.member_id,
-        stripe_event_id: event.id,
-        stripe_invoice_id: invoiceId,
-        stripe_subscription_id: stripeSubscriptionId,
-      },
+    // First delivery only, claimed in the same transaction as the row it
+    // writes: the audit ledger is append-only, so a redelivery would record the
+    // same late failure twice, and a claim committed ahead of a failed append
+    // would lose the record of it altogether.
+    const recorded = runNoopSideEffectOnce(event, () => {
+      appendAuditEntry({
+        actionType: 'payment.recurring_charge_declined',
+        category: 'payment',
+        actorType: 'system',
+        actorMemberId: null,
+        entityType: 'recurring_donation_subscription',
+        entityId: sub.id,
+        reasonText: 'the donation had already ended when the charge failed',
+        metadata: {
+          member_id: sub.member_id,
+          stripe_event_id: event.id,
+          stripe_invoice_id: invoiceId,
+          stripe_subscription_id: stripeSubscriptionId,
+        },
+      });
     });
-    return outcome;
+    return { outcome: recorded ? 'ignored' : 'duplicate' };
   }
 
   const now = new Date().toISOString();
@@ -2355,22 +2723,25 @@ function handleSubscriptionUpdated(event: StripeWebhookEvent): WebhookOutcome {
   // contradicting the cancellation, and the row would then carry a cancellation
   // time while claiming to be live.
   if (sub.status === 'canceled') {
-    const outcome = recordIdempotentNoop(event, 'ignored');
-    appendAuditEntry({
-      actionType: 'payment.recurring_donation_updated',
-      category: 'payment',
-      actorType: 'system',
-      actorMemberId: null,
-      entityType: 'recurring_donation_subscription',
-      entityId: sub.id,
-      reasonText: 'the donation had already ended when the change was reported',
-      metadata: {
-        member_id: sub.member_id,
-        stripe_event_id: event.id,
-        stripe_subscription_id: stripeSubscriptionId,
-      },
+    // First delivery only, claimed in the same transaction, for the same reason
+    // as the declined-charge path.
+    const recorded = runNoopSideEffectOnce(event, () => {
+      appendAuditEntry({
+        actionType: 'payment.recurring_donation_updated',
+        category: 'payment',
+        actorType: 'system',
+        actorMemberId: null,
+        entityType: 'recurring_donation_subscription',
+        entityId: sub.id,
+        reasonText: 'the donation had already ended when the change was reported',
+        metadata: {
+          member_id: sub.member_id,
+          stripe_event_id: event.id,
+          stripe_subscription_id: stripeSubscriptionId,
+        },
+      });
     });
-    return outcome;
+    return { outcome: recorded ? 'ignored' : 'duplicate' };
   }
   if (eventIsStaleForSubscription(sub, event)) return recordIdempotentNoop(event, 'duplicate');
 
@@ -3122,11 +3493,92 @@ function startEventRegistrationPayment(
   );
 }
 
+// ── Member obligations ───────────────────────────────────────────────────────
+
+/**
+ * A membership purchase this member paid for and did not get.
+ *
+ * Returns the tier they were buying, so the way back is one click on the right
+ * tier rather than a hunt through a price list.
+ */
+function outstandingFailedMembershipPurchase(
+  memberId: string,
+): { tier: 'tier1' | 'tier2'; amountDisplay: string } | null {
+  const row = memberPaymentObligations.lastFailedMembershipPurchase.get(memberId) as
+    | { purchased_tier_status: string; amount_cents: number; currency: string }
+    | undefined;
+  if (!row) return null;
+  const tier = row.purchased_tier_status;
+  if (tier !== 'tier1' && tier !== 'tier2') return null;
+  return { tier, amountDisplay: formatAmount(row.amount_cents, row.currency) };
+}
+
+/** A recurring donation whose charge the provider could not collect. */
+function pastDueRecurringDonation(
+  memberId: string,
+): { amountDisplay: string } | null {
+  const row = memberPaymentObligations.pastDueRecurringDonation.get(memberId) as
+    | { amount_cents: number; currency: string }
+    | undefined;
+  return row ? { amountDisplay: formatAmount(row.amount_cents, row.currency) } : null;
+}
+
+/**
+ * The two payment obligations that otherwise reach a member only by email.
+ *
+ * Notification mail on this platform carries no clickable links, so neither
+ * message could point anywhere: a member whose membership payment failed, or
+ * whose donation could not be collected, had no way to find the problem on the
+ * site and nothing to act on. Both are derived when the page is drawn, like
+ * every other obligation, and both clear when the record behind them changes.
+ *
+ * The failed purchase needs attention now, because the member paid for
+ * something and holds nothing, and it offers the one thing that fixes it. The
+ * failed donation charge is pending and offers no action, because the provider
+ * is still retrying on its own schedule and there is nothing for the member to
+ * do until it collects or gives up; telling them is the whole point.
+ */
+export const paymentActionSource: MemberActionSource = {
+  sourceKey: 'payment',
+
+  itemsFor(ctx: MemberActionContext): MemberActionItem[] {
+    const items: MemberActionItem[] = [];
+
+    const failed = outstandingFailedMembershipPurchase(ctx.memberId);
+    if (failed) {
+      items.push(urgentAction({
+        kind: 'membership_purchase_failed',
+        headline: 'Your membership payment did not go through',
+        detail: `The ${failed.amountDisplay} payment was not completed, so the membership was not applied.`,
+        options: [submitTo('Try Again', `/members/${ctx.slug}/purchase-tier`, [
+          { name: 'tier', value: failed.tier },
+        ])],
+      }));
+    }
+
+    const pastDue = pastDueRecurringDonation(ctx.memberId);
+    if (pastDue) {
+      items.push(pendingAction({
+        kind: 'recurring_donation_past_due',
+        headline: 'A payment on your recurring donation could not be collected',
+        detail:
+          `The card on your ${pastDue.amountDisplay} yearly donation was declined. `
+          + 'The payment provider will try again on its own schedule, so there is nothing to do '
+          + 'unless it stops trying.',
+        options: [navigateTo('View Your Recurring Donation', `/members/${ctx.slug}/payments`)],
+      }));
+    }
+
+    return items;
+  },
+};
+
 // ── Exports ──────────────────────────────────────────────────────────────────
 
 export const paymentService = {
   startMembershipPurchase,
   handleWebhook,
+  recordWebhookRejection,
   getPaymentHistoryForMember,
   getPaymentBySessionId,
   getTierPriceDisplay,

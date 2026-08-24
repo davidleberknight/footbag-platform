@@ -715,6 +715,11 @@ if ! bash scripts/ci/check_runtime_data_paths_copied.sh; then
   violations=$((violations + 1))
 fi
 
+echo "[conventions] check: copied runtime assets readable by the image's non-root account (delegated)"
+if ! bash scripts/ci/check_runtime_assets_readable.sh; then
+  violations=$((violations + 1))
+fi
+
 echo "[conventions] check: no terraform state/plan artifacts tracked (delegated)"
 if ! bash scripts/ci/check_no_terraform_artifacts.sh; then
   violations=$((violations + 1))

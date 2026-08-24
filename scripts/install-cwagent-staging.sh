@@ -33,9 +33,13 @@
 #   - jq installed locally
 #
 # Usage:
-#   1. Generate keys for the cwagent_publisher IAM user:
-#      umask 077; aws iam create-access-key \
-#        --user-name footbag-staging-cwagent-publisher > /tmp/cwagent-keys.json
+#   1. Generate keys for the cwagent_publisher IAM user. The umask is scoped to
+#      the subshell so the restriction covers this one redirect and cannot
+#      outlive it; left set in the operator's shell it makes every later write
+#      owner-only, including writes into a repository, where git records only
+#      the executable bit and cannot show that to anyone downstream:
+#      (umask 077 && aws iam create-access-key \
+#        --user-name footbag-staging-cwagent-publisher > /tmp/cwagent-keys.json)
 #
 #   2. Save AccessKeyId + SecretAccessKey from /tmp/cwagent-keys.json to
 #      vault entry 'aws-footbag-staging-cwagent-publisher' (KeePassXC).
@@ -90,15 +94,15 @@ SSH_OPTS=(-o "StrictHostKeyChecking=accept-new" -o "ConnectTimeout=10" -o "Serve
 [[ -r "$REMOTE_HALF" ]] || { echo "ERROR: missing remote-half: $REMOTE_HALF" >&2; exit 1; }
 command -v jq >/dev/null || { echo "ERROR: jq is required locally" >&2; exit 1; }
 
-# Reject a world-readable keys file. The operator instructions above call out
-# `umask 077` before `aws iam create-access-key`; this assertion catches the
-# case where the umask was missed and the file was written 0644 (the default).
+# Reject a world-readable keys file. The operator instructions above scope
+# `umask 077` to the `aws iam create-access-key` subshell; this assertion catches
+# the case where it was missed and the file was written 0644 (the default).
 # Window between create-access-key and the operator's `shred -u` is when
 # co-tenants on a shared workstation could read the SAK.
 KEYS_PERMS=$(stat -c '%a' "$KEYS_FILE")
 if [[ "$KEYS_PERMS" != "600" && "$KEYS_PERMS" != "400" ]]; then
   echo "ERROR: $KEYS_FILE has mode $KEYS_PERMS; expected 600 (or 400)." >&2
-  echo "       Re-create with:  umask 077; aws iam create-access-key ... > $KEYS_FILE" >&2
+  echo "       Re-create with:  (umask 077 && aws iam create-access-key ... > $KEYS_FILE)" >&2
   echo "       (and shred the current file: shred -u $KEYS_FILE)" >&2
   exit 1
 fi

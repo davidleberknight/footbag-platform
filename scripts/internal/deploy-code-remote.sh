@@ -836,6 +836,151 @@ fi
 # refuses to build (--no-build on ExecStart); compose up uses the already-
 # loaded images and fails fast if any image is missing.
 
+# ── Schema migration, when one was supplied ──────────────────────────────────
+#
+# Empty on an ordinary code deploy, which is every deploy that changes no
+# schema; scripts/deploy-migrate.sh is the only caller that sets it. The work
+# happens here rather than in a script of its own because the migration has
+# exactly one safe window — after the new code is in place and before the
+# service comes back up — and that window exists only inside this file. A
+# separate script would have to stop the service, reach in, and hand control
+# back, which is two more places for an interrupted deploy to leave the stack
+# down.
+#
+# The database is backed up immediately before the migration, and restored if
+# anything about the migration or the integrity check goes wrong. That backup is
+# the whole safety story: a migration is the one deploy step that can destroy
+# data that no rebuild can recreate.
+if [[ -n "${MIGRATION_SQL:-}" ]]; then
+  echo "==> Applying schema migration..."
+  command -v sqlite3 >/dev/null 2>&1 || {
+    echo "ERROR: sqlite3 CLI is not installed on this host (apt-get install -y sqlite3)." >&2
+    echo "       Refusing to migrate; the service has not been stopped." >&2
+    exit 1
+  }
+  # The runtime opens a fixed filename inside the host's database directory, so
+  # the migration reaches the same file the application does rather than a path
+  # assembled a second way.
+  DB_PATH="${FOOTBAG_DB_DIR:-/srv/footbag/db}/footbag.db"
+  [[ -f "$DB_PATH" ]] || {
+    echo "ERROR: no database at ${DB_PATH}; nothing to migrate." >&2
+    exit 1
+  }
+
+  # Everything here is a read, and the service is still up: the application
+  # holds the database open, so nothing writes to it until it has been stopped
+  # and copied. The ledger table itself is created later, inside the migration's
+  # own transaction, where the pre-migration copy already covers it.
+  #
+  # A migration is named and checksummed, so the host can answer three different
+  # questions before it touches anything: never applied (apply it), applied with
+  # these exact bytes (skip, and let the code deploy finish), or applied with
+  # different bytes (refuse, because the database no longer matches the file
+  # claiming to describe it, and applying it again would be guesswork).
+  if [[ -n "${MIGRATION_NAME:-}" ]]; then
+    # Absent on a database that predates the ledger, which is the ordinary case
+    # for the first migration ever applied to it. That is "never applied", not
+    # an error, so the table is looked for rather than selected from blindly.
+    has_ledger="$(sqlite3 "$DB_PATH" \
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'schema_migrations';" \
+      || echo 'read-failed')"
+    if [[ "$has_ledger" == "read-failed" ]]; then
+      echo "ERROR: could not read ${DB_PATH}; refusing to migrate." >&2
+      echo "       The service has not been stopped." >&2
+      exit 1
+    fi
+
+    recorded_checksum=""
+    if [[ -n "$has_ledger" ]]; then
+      recorded_checksum="$(sqlite3 "$DB_PATH" \
+        "SELECT checksum FROM schema_migrations WHERE filename = '${MIGRATION_NAME}';" \
+        || echo 'read-failed')"
+      if [[ "$recorded_checksum" == "read-failed" ]]; then
+        echo "ERROR: could not read the applied-migration ledger; refusing to migrate." >&2
+        echo "       The service has not been stopped." >&2
+        exit 1
+      fi
+    fi
+
+    if [[ -n "$recorded_checksum" ]]; then
+      if [[ "$recorded_checksum" == "${MIGRATION_CHECKSUM:-}" ]]; then
+        echo "    migration ${MIGRATION_NAME} was already applied to this database; skipping it"
+        MIGRATION_SQL=""
+      else
+        echo "ERROR: ${MIGRATION_NAME} was already applied to this database, but the file has" >&2
+        echo "       changed since (recorded ${recorded_checksum}, now ${MIGRATION_CHECKSUM:-none})." >&2
+        echo "       Refusing: the database no longer matches the file that names its state." >&2
+        echo "       Write a new migration for the additional change instead." >&2
+        exit 1
+      fi
+    fi
+  fi
+fi
+
+# Re-tested because the already-applied check above can clear it, in which case
+# this deploy carries on as an ordinary code deploy.
+if [[ -n "${MIGRATION_SQL:-}" ]]; then
+  # Stopped first: the application holds the database open, and SQLite writes
+  # from two directions is how a half-applied migration becomes a corrupt file.
+  systemctl stop footbag
+
+  migration_backup="${DB_PATH}.pre-migration.$(date -u +%Y%m%dT%H%M%SZ)"
+  cp -a "$DB_PATH" "$migration_backup"
+  echo "    pre-migration copy at ${migration_backup}"
+
+  restore_and_fail() {
+    echo "ERROR: $1" >&2
+    echo "       Restoring the pre-migration database and restarting." >&2
+    rm -f "$DB_PATH" "${DB_PATH}-wal" "${DB_PATH}-shm"
+    cp -a "$migration_backup" "$DB_PATH"
+    systemctl start footbag || true
+    exit 1
+  }
+
+  # One transaction, so a statement that fails part-way leaves nothing applied
+  # and the file is exactly as it was. The restore below is for the cases a
+  # transaction cannot cover, which is why both exist.
+  #
+  # The ledger row is written inside that same transaction, so the record and
+  # the change it describes cannot disagree: a migration that rolls back leaves
+  # no claim to have run, and one that commits is never re-applied by a later
+  # deploy that names the same file.
+  #
+  # The ledger table is created here rather than by a migration, because a
+  # database predating it cannot use a migration to record migrations. Inside
+  # the transaction, so the pre-migration copy already covers it and a failure
+  # leaves no half-made table behind.
+  migration_ledger_sql=""
+  if [[ -n "${MIGRATION_NAME:-}" ]]; then
+    migration_ledger_sql="CREATE TABLE IF NOT EXISTS schema_migrations (
+        filename   TEXT PRIMARY KEY,
+        checksum   TEXT NOT NULL,
+        applied_at TEXT NOT NULL
+      );
+      INSERT INTO schema_migrations (filename, checksum, applied_at)
+      VALUES ('${MIGRATION_NAME}', '${MIGRATION_CHECKSUM:-}', strftime('%Y-%m-%dT%H:%M:%fZ','now'));"
+  fi
+
+  if ! printf 'BEGIN;\n%s\n%s\nCOMMIT;\n' "$MIGRATION_SQL" "$migration_ledger_sql" | sqlite3 "$DB_PATH"; then
+    restore_and_fail "the migration SQL failed"
+  fi
+
+  integrity="$(sqlite3 "$DB_PATH" 'PRAGMA integrity_check;' || echo 'check-failed')"
+  if [[ "$integrity" != "ok" ]]; then
+    restore_and_fail "the database failed its integrity check after the migration (${integrity})"
+  fi
+
+  # A foreign key the migration broke is not corruption, so the check above
+  # passes and the damage surfaces later as a read returning nothing. Checked
+  # here, while the previous copy is still one command away.
+  fk_violations="$(sqlite3 "$DB_PATH" 'PRAGMA foreign_key_check;' | head -5 || true)"
+  if [[ -n "$fk_violations" ]]; then
+    restore_and_fail "the migration left foreign-key violations: ${fk_violations}"
+  fi
+
+  echo "    migration ${MIGRATION_NAME:-(unnamed)} applied and recorded; integrity and foreign keys check out"
+fi
+
 echo "==> Restarting service (compose up via systemctl, --no-build)..."
 cd "$LIVE_DIR"
 systemctl restart footbag

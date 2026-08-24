@@ -59,6 +59,56 @@ for df in "${dockerfiles[@]}"; do
     note "${df}: USER is declared before the final FROM, so the runtime stage still runs as root"
   fi
 
+  # Repository files copied into the shipped stage carry the build context's
+  # permission bits, and the account declared above owns none of them. Git
+  # records only the executable bit, so an owner-only file reads as clean
+  # everywhere upstream and still reaches the image unreadable; the build is the
+  # only place the mode can be guaranteed. Copies sourced from another stage are
+  # exempt: their content is produced by the build rather than carried in from
+  # somebody's filesystem.
+  # Each grep legitimately matches nothing on some Dockerfile, and a bare
+  # non-zero under `set -e` with `pipefail` would abort the gate silently rather
+  # than report the case it is looking for.
+  repo_copy_line=$(grep -niE '^[[:space:]]*COPY[[:space:]]' "$df" \
+    | grep -viE 'COPY[[:space:]]+--from' \
+    | cut -d: -f1 \
+    | awk -v start="$last_from" '$1+0 > start+0 { last = $1 } END { if (last) print last }' || true)
+  if [ -n "$repo_copy_line" ]; then
+    normalize_line=$(grep -niE 'chmod' "$df" \
+      | grep -vE '^[0-9]+:[[:space:]]*#' \
+      | cut -d: -f1 \
+      | awk -v start="$repo_copy_line" '$1+0 > start+0 { last = $1 } END { if (last) print last }' || true)
+    first_normalize_line=$(grep -niE 'chmod' "$df" \
+      | grep -vE '^[0-9]+:[[:space:]]*#' \
+      | cut -d: -f1 \
+      | awk -v start="$repo_copy_line" '$1+0 > start+0 { print $1; exit }' || true)
+    if [ -z "$normalize_line" ]; then
+      note "${df}: copies repository paths into the shipped stage but never normalizes their modes, so the build context's permission bits reach the image where the non-root account owns none of them"
+    elif [ -n "$user_line" ] && [ "$normalize_line" -gt "$user_line" ]; then
+      note "${df}: normalizes copied-file modes after its USER line, where the step runs unprivileged and cannot change files it does not own"
+    else
+      # A chmod EXISTING is not the same as a chmod COVERING. Checking only that
+      # the word appears somewhere below the copies passes a Dockerfile whose
+      # only mode change touches an unrelated path, which is a gate that reports
+      # safety it never checked. Every source named on a repository COPY has to
+      # appear in the normalizing step, and every source on the line is checked,
+      # not just the first: a lockfile arrives as the second name on its COPY.
+      normalize_text=$(tail -n +"$first_normalize_line" "$df" | grep -vE '^[[:space:]]*#' || true)
+      copy_sources=$(tail -n +"$last_from" "$df" \
+        | grep -E '^[[:space:]]*COPY[[:space:]]' \
+        | grep -vE '^[[:space:]]*COPY[[:space:]]+--from' \
+        | sed -E 's/^[[:space:]]*COPY[[:space:]]+//' \
+        | awk '{ for (i = 1; i < NF; i++) { s = $i; sub(/\/+$/, "", s); print s } }' \
+        | sort -u)
+      for src in $copy_sources; do
+        case "$normalize_text" in
+          *"$src"*) ;;
+          *) note "${df}: copies ${src} into the shipped stage but its mode-normalizing step does not cover it, so that path reaches the image with whatever bits the build context carried" ;;
+        esac
+      done
+    fi
+  fi
+
   # A long-running image describes its own liveness.
   if ! grep -qiE '^[[:space:]]*HEALTHCHECK[[:space:]]' "$df"; then
     note "${df}: no HEALTHCHECK"

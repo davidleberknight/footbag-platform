@@ -44,7 +44,7 @@
 
   {{#each content.entries}}
     <div class="card mb-2">
-      <div class="card-title">{{actionType}} <span class="badge">{{category}}</span></div>
+      <div class="card-title">{{actionType}} <span class="badge">{{category}}</span>{{#if dataOriginLabel}} <span class="badge">{{dataOriginLabel}}</span>{{/if}}</div>
       <p class="card-meta">
         {{occurredAtDisplay}} &middot;
         {{actorType}}: {{#if actorHref}}<a href="{{actorHref}}">{{actorLabel}}</a>{{else}}{{actorLabel}}{{/if}}

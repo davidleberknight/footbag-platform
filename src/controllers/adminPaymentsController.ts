@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { paymentReconciliationService } from '../services/paymentReconciliationService';
+import { paymentsHealthService } from '../services/paymentsHealthService';
 import { handleControllerError, renderNotFound } from '../lib/controllerErrors';
 import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
 import { NotFoundError, ValidationError } from '../services/serviceErrors';
@@ -36,6 +37,36 @@ export const adminPaymentsController = {
     }
   },
 
+  /** GET /admin/payments/export */
+  exportPayments(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const out = paymentReconciliationService.exportAdminPayments({
+        paymentType: str(req.query.type),
+        status: str(req.query.status),
+        memberId: str(req.query.member),
+        reference: str(req.query.reference),
+        createdFrom: str(req.query.from),
+        createdTo: str(req.query.to),
+        eventId: str(req.query.event),
+        sort: str(req.query.sort),
+      }, req.user!.userId);
+      res.setHeader('Content-Type', out.contentType);
+      res.setHeader('Content-Disposition', `attachment; filename="${out.filename}"`);
+      res.send(out.body);
+    } catch (err) {
+      handleControllerError(err, res, next, 'admin payments export controller');
+    }
+  },
+
+  /** GET /admin/payments/health */
+  health(_req: Request, res: Response, next: NextFunction): void {
+    try {
+      res.render('admin/payments/health', paymentsHealthService.getPaymentsHealthPage());
+    } catch (err) {
+      handleControllerError(err, res, next, 'admin payments health controller');
+    }
+  },
+
   /** GET /admin/payments/reconciliation */
   reconciliation(req: Request, res: Response, next: NextFunction): void {
     try {
@@ -50,6 +81,7 @@ export const adminPaymentsController = {
         paymentReconciliationService.getAdminReconciliationPage({
           status: str(req.query.status),
           page: pageNum(req.query.page),
+          sort: str(req.query.sort),
           resolvedFlag,
         }),
       );
@@ -92,11 +124,17 @@ export const adminPaymentsController = {
       // back with the reason rather than a bare error screen. A vanished issue
       // is a 404 like any other missing resource.
       if (err instanceof ValidationError) {
+        const body = req.body as Record<string, unknown>;
         res.status(422).render(
           'admin/payments/reconciliation',
           paymentReconciliationService.getAdminReconciliationPage({
             status: 'outstanding',
             errorMessage: err.message,
+            // The submitted values come back with the re-render. Without them a
+            // rejected note is simply gone, and the note is prose about what
+            // someone checked and concluded.
+            submittedIssueId: req.params.issueId,
+            submittedNotes: typeof body.notes === 'string' ? body.notes : null,
           }),
         );
         return;

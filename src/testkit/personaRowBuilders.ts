@@ -778,7 +778,14 @@ export function insertPayment(db: BetterSqlite3.Database, o: PaymentOverrides = 
     o.recurring_subscription_id ?? null,
     o.donation_note ?? null,
     o.metadata_json ?? '{}',
-    o.provider_livemode ?? null,
+    // Real money unless a test says otherwise. A seeded payment stands in for
+    // business the organization actually did, and the money reports count only
+    // what is provably real, so an unset flag would silently drop every seeded
+    // payment out of the totals under test. A test about rehearsal money passes
+    // 0, and one about rows predating the flag passes null. Tested for presence
+    // rather than nullishness, because null is a meaningful value here and a
+    // `??` default would silently turn "mode never recorded" back into real.
+    'provider_livemode' in o ? o.provider_livemode ?? null : 1,
   );
   return id;
 }

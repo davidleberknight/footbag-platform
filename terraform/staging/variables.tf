@@ -5,9 +5,19 @@
 # =============================================================================
 
 variable "environment" {
-  description = "Environment name used in resource names and tags."
+  description = "Environment name used in resource names and tags. Pinned by the validation below: this tree describes staging and nothing else."
   type        = string
   default     = "staging"
+
+  # The mirror of the production guard, and the direction that actually matters:
+  # both trees share one AWS account, so a staging tfvars carrying
+  # environment = "production" would not fail, it would succeed against
+  # production's namespace from staging's state file. Every resource name, SSM
+  # path, log group and IAM role here derives from this one value.
+  validation {
+    condition     = var.environment == "staging"
+    error_message = "This is the staging tree: environment must be \"staging\". Both environments share one AWS account, so another environment's name here would have this state file create and manage that environment's resources — including its arming switches."
+  }
 }
 
 variable "aws_region" {

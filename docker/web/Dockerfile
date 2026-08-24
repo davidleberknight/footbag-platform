@@ -81,6 +81,18 @@ COPY src/views  ./src/views
 COPY src/public ./src/public
 COPY ifpa       ./ifpa
 
+# Everything copied out of the repository arrives carrying the build context's
+# permission bits, and the account this image drops to below owns none of it.
+# Git records only the executable bit, so a file left owner-only on a build
+# machine reads as clean, produces no diff, survives review, and still reaches
+# the image unreadable; the first request that renders it then fails on a file
+# that is present and correct in every checkout. Setting an exact mode here is
+# what makes the layer independent of whatever the build machine happened to
+# carry. Explicit octal rather than a+rX: this runs under the base image's
+# BusyBox chmod, not the GNU coreutils a workstation has.
+RUN find src/views src/public ifpa -type d -exec chmod 755 {} + \
+ && find src/views src/public ifpa package.json package-lock.json -type f -exec chmod 644 {} +
+
 # Runtime environment — all sensitive values must be injected at deploy time,
 # not baked into the image.
 ENV NODE_ENV=production
