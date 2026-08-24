@@ -117,3 +117,43 @@ def test_a_rehearsal_reports_without_writing(tmp_path, monkeypatch):
     assert mirror_script.wrap_plain_text_captures(dry_run=True) == [
         'worlds94/results/wfg.results/index.html']
     assert plain.read_text(encoding='utf-8') == RESULTS_TEXT
+
+
+def test_a_finished_crawl_leaves_no_unwrapped_capture(tmp_path, monkeypatch):
+    # The guarantee this pass exists to provide. Wrapping is a finishing step of
+    # the crawl itself, not an errand left to whoever publishes: the publisher
+    # refuses a whole capture over a page declaring no character set, and that
+    # refusal arrives minutes into a publish, long after the crawl reported
+    # success. A crawl that ends without doing this hands over a tree that looks
+    # finished and cannot be published.
+    import importlib.util as _il
+
+    monkeypatch.setenv('FOOTBAG_MIRROR_STATE_DIR', str(tmp_path))
+    monkeypatch.setenv('FOOTBAG_MIRROR_PASSWORD', 'unused-fixture')
+    _spec = _il.spec_from_file_location('mirror_wrap_in_crawl', str(SCRIPT_PATH))
+    m = _il.module_from_spec(_spec)
+    _spec.loader.exec_module(m)
+
+    results = Path(m.MIRROR_DIR) / m.WWW_HOST / 'worlds94' / 'results' / 'wfg.results'
+    results.mkdir(parents=True)
+    plain = results / 'index.html'
+    plain.write_text(RESULTS_TEXT, encoding='utf-8')
+
+    # Stub only what reaches the network or rebuilds listings from a real tree.
+    monkeypatch.setattr(m, 'login', lambda: None)
+    monkeypatch.setattr(m, 'verify_authenticated_session', lambda: True)
+    monkeypatch.setattr(m, 'crawl', lambda *a, **k: None)
+    monkeypatch.setattr(m, 'enqueue_seed_urls', lambda *a, **k: None)
+    monkeypatch.setattr(m, 'load_seed_urls', lambda *a, **k: [])
+    monkeypatch.setattr(m, 'generate_reachability_pages', lambda *a, **k: None)
+    monkeypatch.setattr(m, 'create_root_index', lambda *a, **k: None)
+
+    exclusions = tmp_path / 'exclusions.txt'   # network modes require the list
+    exclusions.write_text('groups/showfile/208\n')
+    monkeypatch.setattr(sys, 'argv', ['create_mirror_footbag_org.py', 'someuser',
+                                      '--exclusion-list', str(exclusions)])
+    m.main()
+
+    finished = plain.read_text(encoding='utf-8')
+    assert 'charset="UTF-8"' in finished
+    assert '1994 WORLD FOOTBAG CHAMPIONSHIPS' in finished

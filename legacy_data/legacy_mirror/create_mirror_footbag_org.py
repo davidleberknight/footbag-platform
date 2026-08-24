@@ -6619,6 +6619,16 @@ def main():
         # before the generated pages so those never link something it removed.
         mirror_state.save_progress()
         apply_exclusions_sweep()
+        # Wrap the markup-free captures for the same reason the sweep runs here:
+        # publishing is what happens next, and it refuses a whole capture over a
+        # page that declares no character set. The legacy site serves some pages
+        # as bare text (the 1994 Worlds results), so re-fetching would return the
+        # same bytes and only this pass can fix them. Left to the operator to
+        # remember, it is a step that announces itself only minutes into a
+        # publish, after the verifier has read every page. It runs before the
+        # generated pages so the listing and banner passes see well-formed HTML
+        # and treat these like every other captured page.
+        wrap_plain_text_captures()
         generate_reachability_pages(seed_paths[0] if len(seed_paths) == 1
                                     and Path(seed_paths[0]).is_dir() else SEEDS_DIR)
         create_root_index()
