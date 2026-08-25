@@ -929,7 +929,7 @@ Tier grant on claim:
 
 - A confirmed claim writes one `member_tier_grants` row (`reason_code = 'legacy.claim_tier_grant'`) for the standing the legacy account held at cutover, under the IFPA-approved blanket policy that maps each legacy standing to its 2026 equivalent (annual maps to lifetime). The bases are evaluated together in precedence order; the first match sets the tier:
   1. Hall of Fame or Big Add Posse → `tier2`.
-  2. Ever paid Tier 2 (annual or lifetime, any state) → `tier2`.
+  2. Held Tier 2 standing at cutover (lifetime or annual, expired or not) → `tier2`.
   3. Paid Tier 1 Lifetime → `tier1`.
   4. Tier 1 Annual active at cutover (attendance or vouch within 365 days) → `tier1`.
   5. Anything else, including expired Tier 1 Annual and no IFPA history → `tier0`.
