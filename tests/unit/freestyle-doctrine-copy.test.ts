@@ -337,19 +337,9 @@ describe('a set the platform has ruled on is not labelled an ordinary operator',
   // a body modifier after being ruled a set in its own right.
   const ORDINARY_OPERATOR = /\b(body|rotation) modifier\b/;
 
-  // Weaving is ruled a ducking set whose launch incorporates the ducking body
-  // movement, yet its token label still calls it a body modifier. That is the
-  // same defect this block exists to catch, and it is left standing rather than
-  // corrected in passing, because the label also carries a difficulty figure the
-  // ducking-mirror rule appears to contradict, and that is a question for the
-  // curator rather than a rename. Delete this entry when the label is settled;
-  // the last case in this block fails if it is fixed and left listed.
-  const UNRECONCILED_OPERATOR_LABELS = new Set(['weaving']);
-
   it('no ruled set is filed under the body or rotation operators', () => {
     const offenders = [...tokenLabels()]
       .filter(([token]) => PLATFORM_RULED_SETS.has(token))
-      .filter(([token]) => !UNRECONCILED_OPERATOR_LABELS.has(token))
       .filter(([, label]) => ORDINARY_OPERATOR.test(label))
       .map(([token, label]) => `${token}: ${label}`);
     expect(offenders).toEqual([]);
@@ -363,19 +353,44 @@ describe('a set the platform has ruled on is not labelled an ordinary operator',
     // has to be restated here.
     const wrong = [...tokenLabels()]
       .filter(([token]) => PLATFORM_RULED_SETS.has(token))
-      .filter(([token]) => !UNRECONCILED_OPERATOR_LABELS.has(token))
       .filter(([, label]) => /modifier/.test(label))
       .filter(([, label]) => !/set modifier/.test(label))
       .map(([token, label]) => `${token}: ${label}`);
     expect(wrong).toEqual([]);
   });
 
-  it('every label recorded as unreconciled still is, so the list retires itself', () => {
+  it('the difficulty-weight table classes a ruled set as a set, not as a body operator', () => {
+    // The table carries one row per ADD-bearing operator with a class cell, and
+    // already uses "set" for stepping, whirling and atomic. A ruled set classed
+    // as body copy contradicts its own set page, which is how weaving and zulu
+    // came to read as body operators on the page that teaches scoring.
+    // Located by its own header rather than by position: the page carries
+    // several tables in the same wrapper, and one of them lists tricks whose
+    // class cell means something else entirely.
+    const concepts = read('src/views/freestyle/concepts.hbs');
+    const HEAD = '<thead><tr><th>Modifier</th><th>ADD</th><th>Class</th></tr></thead>';
+    expect(concepts.split(HEAD).length, 'the weight-table header is not unique').toBe(2);
+    const table = concepts.split(HEAD)[1]!.split('</table>')[0]!;
+    const rows = [...table.matchAll(/<tr><td>([a-z_]+)<\/td><td>[^<]*<\/td><td>([^<]*)<\/td><\/tr>/g)];
+    // A parse that finds nothing would pass this check while asserting nothing,
+    // so the row count is part of the assertion rather than an assumption.
+    expect(rows.length, 'the weight table did not parse').toBeGreaterThan(10);
+    const offenders = rows
+      .filter((m) => PLATFORM_RULED_SETS.has(m[1]!))
+      .filter((m) => !/set/.test(m[2]!))
+      .map((m) => `${m[1]}: ${m[2]}`);
+    expect(offenders).toEqual([]);
+  });
+
+  it('the ducking sets are labelled as sets, with the duck named as what scores', () => {
+    // Weaving and zulu are ducking sets: their launch incorporates the duck
+    // rather than adding it to an existing trick, and the difficulty is the
+    // duck's rather than a second charge of their own. Neither writes a token of
+    // its own in any notation, so a label here is teaching copy about the set.
     const labels = tokenLabels();
-    const stale = [...UNRECONCILED_OPERATOR_LABELS]
-      .filter((t) => !ORDINARY_OPERATOR.test(labels.get(t) ?? ''));
-    expect(stale, 'these read correctly now; remove them from the unreconciled list')
-      .toEqual([]);
+    const present = ['weaving', 'zulu'].filter((t) => labels.has(t));
+    const wrong = present.filter((t) => !/set/.test(labels.get(t) ?? ''));
+    expect(wrong).toEqual([]);
   });
 });
 
