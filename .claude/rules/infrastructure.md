@@ -126,5 +126,8 @@ an operational note describing how something is reached today is a fact about th
 current setup, not authority to create a record the design does not carry. The
 CloudFront custom origin is the standing example: it needs a resolvable hostname
 because CloudFront rejects raw IPs, and staging builds one from the static IP via
-nip.io, but no origin record appears in the design's record set, so Terraform
-declares none for this zone.
+nip.io. The design's record set now carries an origin name for production, because
+a certificate cannot be issued for a name that does not exist and the edge-to-origin
+hop is to be encrypted; staging keeps its nip.io form. The rule is unchanged by that:
+the record set is fixed by the design, and a name appearing only in an operational
+note is still not authority to create one.

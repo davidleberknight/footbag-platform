@@ -41,6 +41,7 @@ const CLEAN_STAGING_ENV = [
   'SAFE_BROWSING_ADAPTER=live',
   'SECRETS_ADAPTER=live',
   'HTTP_REACHABILITY_ADAPTER=live',
+  'CAPTCHA_ADAPTER=stub',
   `INTERNAL_EVENT_SECRET=${'a'.repeat(64)}`,
   `SES_FEEDBACK_WEBHOOK_KEY=${'b'.repeat(64)}`,
   'PUBLIC_BASE_URL=https://staging.footbag.org',
@@ -373,6 +374,36 @@ describe('verify-host-env.sh — advisory checks', () => {
     const result = runScript({ envFilePath: writeEnvFile(CLEAN_STAGING_ENV) });
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toMatch(/PASS +SES adapter/);
+  });
+
+  it('CAPTCHA_ADAPTER=live on staging → FAIL (a challenge staging cannot serve)', () => {
+    // The one adapter whose value genuinely differs between the environments,
+    // and the reason it is pinned here rather than merely required: a live
+    // captcha on staging is not a preference, it is a tester who cannot get
+    // past registration because nothing there can issue the challenge.
+    const env = mutate(/CAPTCHA_ADAPTER=stub/, 'CAPTCHA_ADAPTER=live');
+    const result = runScript({ envFilePath: writeEnvFile(env) });
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toMatch(/FAIL +captcha adapter/);
+  });
+
+  it('CAPTCHA_ADAPTER unset on production → FAIL (set, but not pinned to a value)', () => {
+    // Production is only required to have chosen, because captcha is activated
+    // there as tracked operator work alongside safe browsing and URL
+    // reachability; a host that has not reached that step is early rather than
+    // misconfigured. Unset is still a failure: nothing has chosen at all.
+    const env = mutate(/FOOTBAG_ENV=staging/, 'FOOTBAG_ENV=production')
+      .replace(/CAPTCHA_ADAPTER=.+\n/, '');
+    const result = runScript({ envFilePath: writeEnvFile(env), target: 'production' });
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toMatch(/FAIL +captcha adapter/);
+  });
+
+  it('CAPTCHA_ADAPTER=live on production → PASS', () => {
+    const env = mutate(/FOOTBAG_ENV=staging/, 'FOOTBAG_ENV=production')
+      .replace('CAPTCHA_ADAPTER=stub', 'CAPTCHA_ADAPTER=live');
+    const result = runScript({ envFilePath: writeEnvFile(env), target: 'production' });
+    expect(result.stdout).toMatch(/PASS +captcha adapter/);
   });
 
   it('SES_ADAPTER=live on staging → FAIL (live SES is production-only)', () => {

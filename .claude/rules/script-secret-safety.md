@@ -31,6 +31,12 @@ A secret MUST NEVER appear in any process's argv on any host: `ps -ef` (any read
 - Pipe `sudo -S` into a stdin-consuming file writer (`tee`, `cat`, `dd`): if sudo consumes nothing, the password becomes the first line of the target file. Write the file from inside the remote half instead, through a root-side restricted temp file promoted with `install` (the `install_via_tmp` shape in `scripts/internal/install-cwagent-remote.sh`). `sudo -k -S -p "" bash` is not this case; it is the required form.
 - Reach a host's privileged state with `ssh -t` and an interactive sudo prompt. A TTY prompt cannot be driven by a test, it makes the operator hold a step in their head, and a tree carrying both forms drifts back to the weaker one. Every privileged remote step goes through the wire pattern below. This covers comments as well as code: a comment describing the interactive flow is how the superseded doctrine survived a revert and was later cited back as though it were the rule.
 - Write a secret to a world-readable file, or leave a keys file un-shredded.
+- Commit an archive of any kind. Every secret control here reads text, including the
+  gitleaks history scan, so an archive is a container none of them can see into. A saved
+  Terraform plan is a zip: one committed under an unmatched filename held three live
+  secrets in public history for seven weeks with CI green throughout.
+  `scripts/ci/check_no_opaque_archives.sh` refuses them by magic bytes, wherever the file
+  sits and whatever it is called, because the filename rule is what failed.
 - Compose a credential-redirect invocation from memory, or by analogy with a sibling script. Whether `< <operator credential file>` belongs on a command is a property of that one script, not of the family it sits in: read its usage header and its `read` sites before writing the command. Handing an operator `< credfile bash <script>` for a script that does not consume stdin feeds the password straight into a confirmation prompt and echoes it on the failed comparison.
 
 ## The required wire pattern

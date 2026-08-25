@@ -49,12 +49,14 @@ adminRouter.post('/work-queue/:id/ask-member', adminWorkQueueController.askMembe
 adminRouter.post('/work-queue/:id/link-help/approve', adminWorkQueueController.linkHelpApprove);
 adminRouter.post('/work-queue/:id/link-help/reject',  adminWorkQueueController.linkHelpReject);
 adminRouter.post('/work-queue/:id/link-help/dispute-revert', adminWorkQueueController.linkHelpDisputeRevert);
-// Inbound payments and the reconciliation queue. Order matters: the literal
-// `reconciliation` paths must precede `/payments/:paymentId`, or a payment id of
-// "reconciliation" would be looked up instead of the queue being rendered.
+// Inbound payments, the retained nightly reports, and the reconciliation queue.
+// Order matters: the literal `health`, `reports` and `reconciliation` paths must
+// precede `/payments/:paymentId`, or a payment id of "reconciliation" would be
+// looked up instead of the queue being rendered.
 adminRouter.get('/payments',                          adminPaymentsController.index);
 adminRouter.get('/payments/health',                   adminPaymentsController.health);
-adminRouter.get('/payments/export',                   adminPaymentsController.exportPayments);
+adminRouter.get('/payments/reports',                  adminPaymentsController.reports);
+adminRouter.get('/payments/reports/:runId',           adminPaymentsController.report);
 adminRouter.get('/payments/reconciliation',           adminPaymentsController.reconciliation);
 adminRouter.post('/payments/reconciliation/:issueId/resolve', adminPaymentsController.resolve);
 adminRouter.get('/payments/:paymentId',               adminPaymentsController.detail);

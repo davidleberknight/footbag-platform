@@ -108,7 +108,8 @@
       {{#if content.hasPeriodTotalsExclusion}}
         <p class="text-muted fs-sm">{{content.periodTotalsExclusionLine}}</p>
       {{/if}}
-      <p><a href="{{content.exportHref}}" class="btn btn-outline">Download These Payments (CSV)</a></p>
+      <p class="text-muted fs-sm">{{content.providerBoundaryLine}}</p>
+      <p><a href="{{content.reportsHref}}" class="action-link">See the nightly financial reports</a></p>
     {{/if}}
 
     <p class="text-muted">{{content.resultSummary}}</p>

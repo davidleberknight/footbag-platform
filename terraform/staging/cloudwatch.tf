@@ -164,6 +164,126 @@ resource "aws_cloudwatch_metric_alarm" "db_backup_failures" {
   ok_actions          = [aws_sns_topic.alarms.arn]
 }
 
+# ── Cross-region replication health ───────────────────────────────────────────
+# The DR copy of the media bucket is maintained by S3 replication and, until
+# these, nothing watched it. A replication rule that stops working is silent:
+# the source bucket keeps accepting writes and the copy that recovery depends on
+# quietly falls behind. Staging replicates media only; its snapshot bucket has no
+# DR copy, which is the one shape difference from production here.
+#
+# A failed replication is not retried by S3. Recovery is re-uploading the object
+# or running S3 Batch Replication to clear the backlog.
+
+locals {
+  replicated_buckets = var.enable_replication_alarm ? {
+    media = {
+      source      = aws_s3_bucket.media.id
+      destination = aws_s3_bucket.media_dr.id
+      rule        = "replicate-all-to-media-dr"
+    }
+  } : {}
+}
+
+# The alarms above detect. This queue diagnoses, and both are needed because
+# they answer different questions.
+#
+# The CloudWatch metric reports a COUNT of failed operations for a rule. The
+# per-object event carries the object key, its version, and a `failureReason`
+# from a fixed taxonomy: AssumeRoleNotPermitted, DstKmsKeyInvalidState,
+# DstBucketUnversioned, DstPutObjectNotPermitted and some thirty more. Nearly
+# every one of those is a configuration fault rather than a transient error,
+# which decides the remediation: a broken IAM role or a disabled KMS key is
+# fixed once in Terraform, while genuinely lost objects are re-uploaded or swept
+# up by S3 Batch Replication. A count alone distinguishes none of that, and S3
+# does not retry a failed replication, so the operator must be able to tell.
+#
+# A queue rather than the operator topic, deliberately. A systemic fault fails
+# EVERY eligible object, so the event stream is one message per object and can
+# run to thousands. Delivered to the alarm topic that pages a human, that is a
+# mail flood arriving alongside the one alarm that actually said something.
+#
+# Receiving these events requires replication metrics on the rule, which is the
+# same flag, so the detection and diagnosis halves cannot be armed apart.
+resource "aws_sqs_queue" "replication_failures" {
+  count                     = var.enable_replication_alarm ? 1 : 0
+  name                      = "${local.prefix}-replication-failures"
+  message_retention_seconds = 1209600
+}
+
+resource "aws_sqs_queue_policy" "replication_failures" {
+  count     = var.enable_replication_alarm ? 1 : 0
+  queue_url = aws_sqs_queue.replication_failures[0].id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "s3.amazonaws.com" }
+      Action    = "sqs:SendMessage"
+      Resource  = aws_sqs_queue.replication_failures[0].arn
+      Condition = {
+        ArnLike      = { "aws:SourceArn" = "arn:aws:s3:::${local.prefix}-*" }
+        StringEquals = { "aws:SourceAccount" = var.aws_account_id }
+      }
+    }]
+  })
+}
+
+resource "aws_s3_bucket_notification" "media_replication_failures" {
+  count      = var.enable_replication_alarm ? 1 : 0
+  bucket     = aws_s3_bucket.media.id
+  depends_on = [aws_sqs_queue_policy.replication_failures]
+
+  queue {
+    queue_arn = aws_sqs_queue.replication_failures[0].arn
+    events    = ["s3:Replication:OperationFailedReplication"]
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "replication_failed" {
+  for_each            = local.replicated_buckets
+  alarm_name          = "${local.prefix}-${each.key}-replication-failed"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "OperationsFailedReplication"
+  namespace           = "AWS/S3"
+  period              = 300
+  statistic           = "Sum"
+  threshold           = 0
+  treat_missing_data  = "notBreaching" # no operations is the normal quiet state
+  alarm_description   = "S3 replication failed for one or more ${each.key} objects; they will not retry on their own"
+  alarm_actions       = [aws_sns_topic.alarms.arn]
+  ok_actions          = [aws_sns_topic.alarms.arn]
+
+  dimensions = {
+    SourceBucket      = each.value.source
+    DestinationBucket = each.value.destination
+    RuleId            = each.value.rule
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "replication_backlog" {
+  for_each            = local.replicated_buckets
+  alarm_name          = "${local.prefix}-${each.key}-replication-backlog"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 3 # sustained, not a momentary queue behind a burst
+  metric_name         = "OperationsPendingReplication"
+  namespace           = "AWS/S3"
+  period              = 900
+  statistic           = "Maximum"
+  threshold           = 0
+  treat_missing_data  = "notBreaching"
+  alarm_description   = "S3 replication for ${each.key} has been backlogged for 45 minutes; the DR copy is behind"
+  alarm_actions       = [aws_sns_topic.alarms.arn]
+  ok_actions          = [aws_sns_topic.alarms.arn]
+
+  dimensions = {
+    SourceBucket      = each.value.source
+    DestinationBucket = each.value.destination
+    RuleId            = each.value.rule
+  }
+}
+
 resource "aws_cloudwatch_metric_alarm" "cloudfront_5xx" {
   count               = var.enable_cloudfront ? 1 : 0
   alarm_name          = "${local.prefix}-cloudfront-5xx"

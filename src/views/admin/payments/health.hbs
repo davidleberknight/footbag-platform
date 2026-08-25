@@ -41,6 +41,10 @@
           <td>Mode this deployment declares</td>
           <td><span class="fw-600">{{content.credential.declaredModeLabel}}</span></td>
         </tr>
+        <tr>
+          <td>Declared mode last changed</td>
+          <td>{{#if content.credential.declaredSinceDisplay}}{{content.credential.declaredSinceDisplay}}{{else}}<span class="text-muted">not yet recorded</span>{{/if}}</td>
+        </tr>
       </tbody>
     </table>
     <p class="card-meta">No key identifier, key fragment or key age is shown here. Key rotation is a System Administrator responsibility, tracked against the provider's own key records.</p>
@@ -122,6 +126,10 @@
     {{else}}
       <p class="text-muted">Nothing settled in this window.</p>
     {{/if}}
+    {{#if content.volume.hasExclusion}}
+      <p class="text-muted fs-sm">{{content.volume.exclusionLine}}</p>
+    {{/if}}
+    <p class="text-muted fs-sm">{{content.volume.providerBoundaryLine}}</p>
   </section>
 
   <section>
@@ -138,6 +146,8 @@
       <a href="{{content.links.allPaymentsHref}}" class="action-link">Go to All Payments</a>
       &middot;
       <a href="{{content.links.reconciliationHref}}" class="action-link">Go to Reconciliation Issues</a>
+      &middot;
+      <a href="{{content.links.reportsHref}}" class="action-link">Go to Financial Reports</a>
     </p>
   </section>
 </div>

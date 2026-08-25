@@ -225,7 +225,7 @@ document follows.
     - [SYS_Freestyle_Content_Source_Of_Truth_Cutover](#sys_freestyle_content_source_of_truth_cutover)
     - [SYS_Handle_Stripe_Webhooks](#sys_handle_stripe_webhooks)
     - [SYS_Handle_SES_Bounce_And_Complaint_Webhooks](#sys_handle_ses_bounce_and_complaint_webhooks)
-    - [SYS_Nightly_Backup_Sync](#sys_nightly_backup_sync)
+    - [SYS_Cross_Region_Replication](#sys_cross_region_replication)
     - [SYS_Continuous_Database_Backup](#sys_continuous_database_backup)
 - [9. System Administrator Stories](#9-system-administrator-stories)
 
@@ -2685,7 +2685,9 @@ Success Criteria:
 - For donation payments, the admin can see the member’s donation comment as a read-only field when viewing payment details, so that reconciliation and investigations can take the comment into account without allowing admins to edit it.
 - A nightly worker (or equivalent scheduled job) performs reconciliation against Stripe (or the payment provider) and records mismatches (for example missing webhooks, amount discrepancies, status mismatches, or unexpected duplicates).
 - The Reconciliation Issues view includes a status filter with options: Outstanding (default) / Resolved / All. Resolved reconciliation issues show: admin who resolved the issue, resolution timestamp, resolution note explaining action taken. This allows multiple administrators to see what reconciliation issues have already been handled and by whom.
-- A periodic summary is sent at the configured cadence (default: every 7 days, keyed by `reconciliation_summary_interval_days`) to the financial-digest mailing list, carrying outstanding discrepancies oldest first and the ones resolved during the period, each naming who resolved it and when. It is sent every cadence whether or not anything is outstanding: the reader answerable for the money has no scheduled-job health surface, so for them silence and a job that died months ago look identical, and the nil report is what tells them the check still runs. It is written for a non-technical reader, with amounts carrying their currency and plain descriptions rather than issue-type codes.
+- A periodic summary is sent at the configured cadence (default: every 30 days, keyed by `reconciliation_summary_interval_days`) to the IFPA treasurer contact address (`ifpa-treasurer@footbag.org`, from the canonical address list in the design decisions), carrying outstanding discrepancies oldest first and the ones resolved during the period, each naming who resolved it and when, and stating which provider mode the last pass compared and how many local rows of the other mode it set aside. It is sent every cadence whether or not anything is outstanding: the reader answerable for the money has no scheduled-job health surface, so for them silence and a job that died months ago look identical, and the nil report is what tells them the check still runs. It is written for a non-technical reader, with amounts carrying their currency and plain descriptions rather than issue-type codes. The recipient is a fixed platform address with no application write path; who reads that mailbox is an IFPA decision recorded outside the platform.
+- There is an admin-only Financial Reports view, open to every administrator. Every daily reconciliation run leaves a report, retained with the run: the window and provider mode it compared, how many local rows of the other mode it set aside, what each pass found, the issues it raised, the issues resolved since the previous run and by whom, and gross totals by category and currency counting live rows only. The view lists the reports newest first and an administrator opens any one of them; the newest is what the site shows as the current state of the money, refreshed by the next run. The view also shows when the emailed digest last went out, when the next is due, and the address it goes to. The email is a copy of the newest report at the cadence; nothing depends on it being read, because the same report is on the site the morning after every run. The view is read-only and offers no state-changing control.
+- The All Payments view, the Financial Reports view and the Stripe dashboard state that processing fees, payouts and net proceeds are read at the payment provider, which is the book of record for money movement; the platform's figures are gross, dated by charge, and are not expected to match a bank deposit.
 
 ## 7.2 Data Management
 
@@ -3407,7 +3409,7 @@ Success Criteria:
 - The admin Stripe dashboard clearly shows whether the system is currently in test or live mode and when this mode was last changed.
 - The dashboard shows webhook health, including the timestamp of the last successful webhook and counts of failures over a recent window (for example the last 24 hours), with obvious warning states when webhooks are failing or have been silent for too long.
 - The dashboard shows which mode the loaded payment credential is actually in, test or live, taken from the credential the running process holds rather than from configuration, so a half-applied arming change is visible rather than silent. It shows no other key information: no identifier, no fragment of the key, and no age. Key rotation and its cadence are System Administrator responsibilities, tracked against the provider's own key records and the operator rotation runbook, not surfaced to application administrators who cannot act on them.
-- The dashboard summarizes recent payment volume, broken down by category (donations, membership fees, event registrations) for a configurable time window (for example last 30 days), including both count and total amount.
+- The dashboard summarizes recent payment volume, broken down by category (donations, membership fees, event registrations) for a configurable time window (for example last 30 days), including both count and total amount, counting live-mode rows only and stating how many rows were set aside.
 - From this dashboard, admins can navigate directly to the “All Payments” view and the “Reconciliation Issues” view described in A_Reconcile_Payments for deeper inspection.
 - The dashboard is read-only and offers no state-changing control. It links to the “All Payments” and “Reconciliation Issues” views for deeper inspection, and to the payment provider's own event log for the per-delivery detail of a failed webhook. Halting live payments and rotating keys are System Administrator actions run by script, not application-administrator buttons: the payments pause flag has no application write path, and disarming payments requires the provider's webhook endpoint be disabled first. Where the dashboard shows a warning state, it names the operator procedure that clears it.
 
@@ -3478,7 +3480,7 @@ Seed these defaults into the database-backed configuration store during initial 
 
 ### Donations and Payments
 
-- `payments_paused = 0` (read-only guard: when set, the platform refuses new membership purchases and donations before any provider call is made. The application has no write path to this flag and none is planned. Stopping payments during an incident is a System Administrator action — disarm payments, which is scripted and proven — not an application-administrator control; see the System Administrator stories. DB literal `0/1`)
+- `payments_paused = 0` (read-only guard: when set, the platform refuses new membership purchases and donations before any provider call is made. The application has no write path to this flag and none is planned. Stopping payments during an incident is a System Administrator action rather than an application-administrator control: the fast stop is the operator pause script, which sets this flag in seconds and deliberately lets money already in flight settle, and disarming payments is the heavier stop for when the provider integration itself is the problem. See the System Administrator stories. DB literal `0/1`)
 - `donation_rate_limit_per_hour = 20` (maximum donation checkout attempts per member per hour)
 - `reconciliation_window_days = 7` (lookback window the nightly reconciliation pass compares)
 - `reconciliation_grace_minutes = 30` (age a record must reach before the reconciliation pass judges it; minimum 1)
@@ -3499,7 +3501,7 @@ Seed these defaults into the database-backed configuration store during initial 
 - `outbox_sending_lease_seconds = 600 seconds` (lease before a stranded sending outbox row is reaped back to pending for retry)
 - `outbox_retry_base_seconds = 60 seconds` (base interval for the exponential backoff applied after a definitive send failure)
 - `outbox_throttle_retry_seconds = 120 seconds` (delay applied when the mail provider throttles, which does not consume a retry attempt)
-- `email_outbox_paused = 0` (admin-only emergency kill switch; DB literal `0/1`)
+- `email_outbox_paused = 0` (read-only on this screen, like the payments switch: the outbox worker halts on it and loses no queued rows, so a pause is recoverable in a way that disarming the sender is not. It is set by operator script, the sibling of the payments pause, never from the browser. DB literal `0/1`)
 - `event_registration_reminder_days = 7 days`
 
 ### Auth / Security Tokens
@@ -3565,7 +3567,7 @@ Seed these defaults into the database-backed configuration store during initial 
 - `ballot_retention_days = 2555 days` (HOLD, not a deletion schedule; governance/audit defensibility baseline). States how long ballots must be kept; nothing deletes them, because destroying IFPA vote records is a governance decision rather than a maintenance one.
 - `outbox_retention_days = 90 days` (age at which a per-recipient outbound copy is deleted, per `SYS_Cleanup_Soft_Deleted_Records`: measured from `sent_at` for a delivered copy and from the last attempt for a dead-lettered one; the per-send broadcast archive is retained indefinitely and is not governed by this value)
 - `reconciliation_expiry_days = 90 days`
-- `reconciliation_summary_interval_days = 7` (cadence in days for the automated reconciliation digest, sent to the financial-digest mailing list rather than to admin-alerts, because the person answerable for the money needs it whether or not they hold an admin account and should not have to take the rest of the admin alert traffic to get it)
+- `reconciliation_summary_interval_days = 30` (cadence in days for the automated reconciliation digest, sent to the IFPA treasurer contact address rather than to admin-alerts, because the person answerable for the money needs it whether or not they hold a platform account at all and should not have to take the rest of the admin alert traffic to get it; valid `>= 1`)
 - `admin_queue_digest_interval_days = 1` (cadence in days for the admin work-queue digest of open routine items sent to each admin)
 - `admin_queue_stale_escalation_days = 3` (days an unclaimed routine work-queue item may stay open before a one-time escalation email to all admins)
 - `admin_inactivity_alert_days = 180 days` (days without a sign-in before an administrator is surfaced for recruitment follow-up, per `SYS_Detect_Admin_Loss`; valid `>= 1`)
@@ -3866,10 +3868,11 @@ Story: The system handles Stripe webhook events for one-time payments (membershi
 
 Success Criteria:
 
-- On payment_intent.succeeded: local payment record transitions to `completed`. Tier upgrade or event registration confirmation applied as appropriate. Receipt email enqueued to member. Audit-logged with payment_intent_id, amount, currency, and timestamp.
+- On payment_intent.succeeded: local payment record transitions to `completed`. Tier upgrade or event registration confirmation applied as appropriate. Receipt email enqueued to member. Audit-logged with payment_intent_id, amount, currency, and timestamp. The settled amount and currency on the event are compared with the local record: a disagreement does not stop the settlement or the grant, since the money moved and nothing is ever revoked automatically, but it raises the same amount-mismatch reconciliation issue and administrator work item the nightly pass would, at once rather than the next night, carrying both amounts.
 - On payment_intent.payment_failed: the attempt is recorded on the payment's transition ledger and the record stays `pending`, so a later attempt in the same checkout session can still settle it. Failure notification email enqueued to member. Audit-logged.
 - On checkout.session.expired: local payment record transitions to `canceled`, settling a checkout the buyer abandoned. Audit-logged.
 - On charge.refunded: local payment record transitions to `refunded`. Audit-logged with Stripe charge ID, refund amount, currency, and timestamp. No automatic tier or registration changes are applied by the platform; any required access changes are handled manually by admins via A_Override_Member_Data using "payment issue resolution" as the reason.
+- On refund.failed, or refund.updated carrying a failed or canceled status: the payment record does not move, since refunded is its end state. The failure is audit-logged with refund id, charge id, amount, currency and failure reason, shown on the payment's money history, and raised as an administrator work item, because the money is still in the account and must be returned another way at the provider. Idempotent per event id.
 - All one-time payment webhook processing is idempotent via the stripe_events table (keyed on Stripe event_id), consistent with the global Payment Processing Guarantees.
 - All events audit-logged with payment_intent_id, member_id, event type, old status, new status, and timestamp.
 
@@ -3882,7 +3885,7 @@ Story: The system handles Stripe Subscription webhook events for recurring donat
 Success Criteria:
 
 - The platform does not run a scheduled cron job to initiate recurring donation charges. Stripe owns the annual billing cycle and all retry logic based on the Stripe Billing dunning configuration set by a System Administrator in the Stripe Dashboard.
-- On invoice.payment_succeeded for a donation subscription: the system creates a new local payment record (linked to the existing donation subscription record via stripeSubscriptionId), enqueues a receipt email to the member, and audit-logs the event with subscription_id, invoice_id, amount, and timestamp.
+- On invoice.paid or invoice.payment_succeeded for a donation subscription (the provider raises both for one settlement, and only invoice.paid reports an invoice marked paid out of band; the first to arrive books the charge and the second books nothing): the system creates a new local payment record (linked to the existing donation subscription record via stripeSubscriptionId), enqueues a receipt email to the member, and audit-logs the event with subscription_id, invoice_id, amount, and timestamp. An invoice that collected nothing is acknowledged with an audit entry and books no payment and sends no receipt, because no money moved.
 - On invoice.payment_failed for a donation subscription: the system updates the local subscription status to past_due and enqueues a failure notification email to the member. No retry logic is implemented in the platform; Stripe's configured dunning schedule governs further retry attempts.
 - On customer.subscription.deleted for a donation subscription (triggered when Stripe exhausts all retries, or when the member cancels via the platform): the system sets the local subscription status to canceled, enqueues a final notification email to the member and an admin alert, and audit-logs the cancellation with subscription_id and reason.
 - On customer.subscription.updated (e.g., amount or status changes made in the Stripe Dashboard by a System Administrator): the system updates the local subscription record to reflect the new state and audit-logs the change.
@@ -3897,7 +3900,7 @@ Story: The system automatically reconciles local payment records against Stripe 
 
 Success Criteria:
 
-System runs nightly cron job at 2 AM UTC in two passes:
+The system runs the job once per UTC day from the worker's daily loop, self-gated on the date of its last successful run, in three passes:
 
 Pass 1; One-time payments: Compares local payment records (membership dues, event registrations, one-time donations) against Stripe PaymentIntent records for the reconciliation window. Discrepancies flagged: local records with no matching Stripe PaymentIntent, Stripe PaymentIntents with no matching local record, amount or status mismatches.
 
@@ -3907,7 +3910,9 @@ Pass 3; Unexpected duplicates: Looks for the same member charged the same amount
 
 Amount discrepancy checks compare both the amount AND the currency field: a local record and a Stripe record for the same payment_intent_id that have matching amounts but different currency values MUST be flagged as a discrepancy. Reconciliation reports display amounts alongside currency codes.
 
-Discrepancies from both passes are stored as durable reconciliation issues with status (Outstanding/Resolved), resolver, timestamps, and resolution notes; shown in admin dashboard; retained 90 days.
+Every pass compares only local records of the provider mode the loaded credential is in, because a live key cannot list test-mode objects and the reverse; rows of the other mode are set aside, counted, and reported with the run rather than raised as discrepancies, and rows whose mode was never recorded are compared.
+
+Discrepancies from every pass are stored as durable reconciliation issues with status (Outstanding/Resolved), resolver, timestamps, and resolution notes; shown in admin dashboard; retained 90 days.
 
 ### SYS_Cleanup_Expired_Tokens
 
@@ -3995,27 +4000,27 @@ Success Criteria:
 - Member subscriptions stay consistent with subscription status so future sends skip suppressed addresses.
 - Bounce/complaint rates are tracked and can trigger alarms.
 
-### SYS_Nightly_Backup_Sync
-Access: This process runs under the system role.
+### SYS_Cross_Region_Replication
+Access: This is infrastructure, not an application process. No platform code runs it.
 
-Story: The system performs a nightly backup sync so that recovery is possible within the defined RPO/RTO.
+Story: Every backup snapshot and every media object is copied to a second region as it is written, so that losing the primary region does not lose the platform's data.
 
 Success Criteria:
 
-- Nightly backups are incremental and designed to complete quickly; the run includes a nightly integrity verification step appropriate to S3 (at minimum: verify required prefixes and objects exist).
-- Failures are logged and raise an alarm; job metadata (last-run time, duration, success/failure) is recorded for admin visibility.
-- A nightly job syncs the primary S3 bucket to a separate cross-region backup bucket (disaster recovery target) and records last-run time, duration, and success/failure status for admin visibility.
-- The backup bucket is protected with S3 Object Lock (WORM) and lifecycle rules to enforce retention.
-- Backup retention defaults (admin-configurable): ≤90 days for general backup objects/snapshots; ≤7 years for audit logs.
-- Recovery objectives (admin-visible targets): Disaster recovery (cross-region) targets are RTO = 2 hours, RPO = 24 hours. Primary recovery uses the frequent SQLite snapshot mechanism (see SYS_Continuous_Database_Backup) for a much smaller RPO under common failure modes.
-- For key datasets (at minimum audit logs and payments), cross-region replication runs continuously; the nightly job also acts as an integrity verification pass (e.g., verifies expected objects/prefixes exist in the backup bucket).
-- Failures are logged and raise an alarm; status is shown in A_View_System_Health as Backup job status.
+- Replication is continuous and native to the object store, not a scheduled job: each object is copied to its disaster-recovery bucket as it is written, delete markers included. No platform code participates, so there is no run to record and no job status to show.
+- The disaster-recovery buckets are protected with Object Lock and lifecycle rules that enforce retention, with the lock window and the lifecycle window set to the same period, so an object expires at the moment it first becomes deletable.
+- Retention defaults (admin-configurable): 90 days or less for general backup objects and snapshots; 7 years for audit logs.
+- The cutover snapshot is written under a prefix the routine retention rule does not cover, so the one copy whose purpose is to outlive everything else is not aged out by routine retention.
+- Replication failure and sustained replication backlog each raise an alarm, and the staleness of the disaster-recovery copy is itself watched, because that figure is the recovery point actually on offer during an incident. The object store does not retry a failed replication, so every such alarm names work an operator must do.
+- Alarms reach an administrator under A_Acknowledge_Alarm rather than as a card on A_View_System_Health, which is built only from what the platform records itself and excludes infrastructure by design.
+- Recovery objectives: the cross-region recovery point is replication lag, typically minutes; the cross-region recovery time is operator-paced against a rebuilt host. Primary recovery uses the frequent snapshot mechanism (see SYS_Continuous_Database_Backup).
+- Replication proves copies were made and nothing more. That the copies restore is established by periodically restoring from them, including at least once from the disaster-recovery bucket rather than the primary. That the set of copies is complete is established by comparing the two buckets, because a replication rule never covers objects written before it existed and no alarm fires for an object replication was never asked to copy.
 
 ### SYS_Continuous_Database_Backup
 
 Access: This process runs under the system role on a configurable interval (default: every 5 minutes; see `continuous_backup_interval_minutes`).
 
-Story: The system continuously backs up the SQLite database to the primary S3 bucket so that recovery is possible with minimal data loss from common issues like corruption, bugs, or accidental deletion. This is the most frequently used recovery mechanism and is separate from the nightly cross-region disaster recovery sync.
+Story: The system continuously backs up the SQLite database to the primary S3 bucket so that recovery is possible with minimal data loss from common issues like corruption, bugs, or accidental deletion. This is the most frequently used recovery mechanism, and is separate from the continuous cross-region replication that copies those snapshots to a second region.
 
 Success Criteria:
 

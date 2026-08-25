@@ -5,10 +5,14 @@
  *
  * Owns:
  *   - `reconciliation_issues` row writes (raise, resolve) and reads
- *   - The two nightly comparison passes (one-time payments, subscriptions)
- *   - The periodic reconciliation digest to administrators
+ *   - The nightly comparison passes (one-time payments, subscriptions,
+ *     invoices, duplicates, stranded checkouts) and the report each run
+ *     returns, which the job-run record retains as that day's account of the
+ *     money
+ *   - The periodic reconciliation digest to the treasurer contact address
  *   - Admin-facing view-model shaping for the All Payments list, the payment
- *     detail, and the Reconciliation Issues list
+ *     detail, the Reconciliation Issues list, and the Financial Reports list
+ *     and detail
  *
  * Does not own:
  *   - Any `payments` or subscription row write. Reconciliation reports
@@ -78,30 +82,50 @@
  *     onto a single slot in the outstanding-dedup index and a webhook outage
  *     that stranded several members surfaced as one issue naming one of them.
  *
+ *   - Every pass compares only local rows of the provider mode the loaded
+ *     credential is in. A live key cannot list test-mode objects and the
+ *     reverse, so a rehearsal row compared against a live ledger reads as
+ *     missing money for the length of the window. Rows of the other mode are
+ *     set aside and counted on the run's report rather than raised; a row whose
+ *     mode was never recorded is compared, and a credential whose mode is
+ *     unknown compares everything.
+ *   - The run's report is the record. Each nightly pass returns what it
+ *     compared, what it set aside, what it raised, what was resolved since the
+ *     previous pass and by whom, and the gross totals for its window; the
+ *     job-run record keeps that result, and the Financial Reports view reads
+ *     it back, so the account of a given day exists whether or not anyone read
+ *     an email about it.
  *   - The periodic summary is sent on its cadence whether or not there is
  *     anything in it. Silence on a clean period is safe for an operator, who
  *     has a scheduled-job health surface telling them the job still runs, and
  *     unsafe for the reader this report is written for, who has no such surface
  *     and cannot tell a quiet quarter from a job that died. The nil report is
- *     the liveness signal.
+ *     the liveness signal. It goes to the treasurer contact address, a fixed
+ *     platform address with no application write path, so the person answerable
+ *     for the money receives it whether or not they hold any platform account.
+ *   - Fees, payouts and net proceeds are the provider's to report. The platform
+ *     records what was charged and to whom, gross and dated by charge; every
+ *     surface that shows a total says so, because a gross figure summed against
+ *     a bank deposit will not reconcile and is not meant to.
  *
  * Persistence:
  *   Writes: reconciliation_issues, work_queue_items, audit_entries.
  *   Deletes on the daily pass: expired resolved reconciliation_issues, and the
  *     stripe_webhook_failures counters that age out on the same key.
- *   Reads for the admin views: payments, members, registrations, events, tags.
+ *   Reads for the admin views: payments, members, registrations, events, tags,
+ *     system_job_runs (the retained reports and the digest's send record).
  *   Reads for the digest: reconciliation_issues (open, and resolved within the
- *     period, joined to members for the resolver's name).
+ *     period, joined to members for the resolver's name), system_job_runs
+ *     (the last pass's report, for what it compared).
  *
  * Side effects:
  *   - audit_entries append (issue raised, issue resolved)
  *   - work_queue_items insert in the `payments` category per raised issue;
  *     close of the discrepancy's queue twin on resolve
- *   - outbox_emails enqueue (the periodic digest, one per subscriber to the
- *     financial-digest list, which is deliberately not the admin alert stream:
- *     the person answerable for the money needs this report whether or not they
- *     hold an admin account, and should not have to take the flagged-media and
- *     security traffic to get it)
+ *   - outbox_emails enqueue (the periodic digest, one copy to the treasurer
+ *     contact address, which is deliberately not the admin alert stream: the
+ *     person answerable for the money should not have to take the flagged-media
+ *     and security traffic to get it)
  */
 import { randomUUID } from 'node:crypto';
 import {
@@ -113,7 +137,7 @@ import {
   paymentPeriodTotals,
   account,
   workQueue,
-  mailingListSubscriptions,
+  systemJobRuns,
   queryAdminPayments,
   countAdminPayments,
   findAdminPaymentById,
@@ -160,9 +184,34 @@ export type ReconciliationIssueType =
   | 'duplicate_provider_charge'
   | 'subscription_checkout_unresolved';
 
+/** One discrepancy as the run's report names it: enough to read without the
+ *  issue-type vocabulary and to reach the issue and the payment it concerns. */
+export interface ReconciliationReportIssue {
+  id: string;
+  issueType: string;
+  label: string;
+  amountPhrase: string | null;
+  paymentId: string | null;
+}
+
+export interface ReconciliationReportResolvedIssue extends ReconciliationReportIssue {
+  resolvedAt: string | null;
+  resolvedBySlug: string | null;
+}
+
+/**
+ * What one nightly pass compared, set aside, found and left standing. Returned
+ * by the run and kept verbatim on its job-run record, so this shape is read
+ * back by the Financial Reports view and the digest long after the run; a
+ * field added here is absent on older records and is read as such.
+ */
 export interface ReconciliationRunResult {
   windowStart: string;
   windowEnd: string;
+  /** The mode of the credential the pass compared under. */
+  modeCompared: 'live' | 'test' | 'unknown';
+  /** Local rows of the other mode, left out of the comparison and counted. */
+  rowsSetAside: { payments: number; subscriptions: number };
   localPaymentsCompared: number;
   providerIntentsCompared: number;
   localSubscriptionsCompared: number;
@@ -170,6 +219,14 @@ export interface ReconciliationRunResult {
   providerInvoicesCompared: number;
   issuesRaised: number;
   duplicatesSkipped: number;
+  outstandingAfterRun: number;
+  raised: ReconciliationReportIssue[];
+  /** When the previous successful pass finished, or null for the first. */
+  previousRunAt: string | null;
+  resolvedSincePreviousRun: ReconciliationReportResolvedIssue[];
+  /** Gross, returned and net for the window, live rows only. */
+  totals: PeriodTotalRow[];
+  totalsExclusionLine: string | null;
 }
 
 interface LocalPaymentRow {
@@ -184,6 +241,7 @@ interface LocalPaymentRow {
   stripe_invoice_id: string | null;
   recurring_subscription_id: string | null;
   created_at: string;
+  provider_livemode: number | null;
 }
 
 interface LocalSubscriptionRow {
@@ -198,7 +256,28 @@ interface LocalSubscriptionRow {
   status: string;
   amount_cents: number;
   currency: string;
+  provider_livemode: number | null;
 }
+
+/** The job name the nightly pass runs under, for reading its own past runs. */
+const RECONCILIATION_JOB_NAME = 'SYS_Reconcile_Payments_Nightly';
+const DIGEST_JOB_NAME = 'SYS_Reconciliation_Digest';
+
+/**
+ * Where the digest goes: the IFPA treasurer contact, one of the platform's
+ * fixed set of role addresses. Not a setting and not a mailing list, because the
+ * person answerable for the money must receive it whether or not they hold any
+ * platform account, and nothing an administrator can do in the application
+ * should be able to redirect a financial report.
+ */
+export const TREASURER_CONTACT_EMAIL = 'ifpa-treasurer@footbag.org';
+
+/** Said on every surface that shows a total, because a gross figure summed
+ *  against a bank deposit will not reconcile and is not meant to. */
+export const PROVIDER_BOOK_OF_RECORD_LINE =
+  'Processing fees, payouts and net proceeds are read at the payment provider, which is '
+  + 'the book of record for money movement; these figures are gross, dated by charge, and '
+  + 'are not expected to match a bank deposit.';
 
 interface IssueDraft {
   issueType: ReconciliationIssueType;
@@ -222,7 +301,7 @@ const RECONCILIATION_WINDOW_DEFAULT_DAYS = 7;
  *  gap between two systems catching up as a discrepancy. */
 const RECONCILIATION_GRACE_DEFAULT_MINUTES = 30;
 const RECONCILIATION_EXPIRY_DEFAULT_DAYS = 90;
-const DIGEST_INTERVAL_DEFAULT_DAYS = 7;
+const DIGEST_INTERVAL_DEFAULT_DAYS = 30;
 const RESOLUTION_NOTE_MAX_CHARS = 2000;
 const DAY_MS = 86_400_000;
 const MINUTE_MS = 60_000;
@@ -234,28 +313,74 @@ const DUPLICATE_CHARGE_WINDOW_MINUTES = 60;
 /** How many discrepancies the digest names before it says how many it left out.
  *  A summary long enough to scroll stops being read. */
 const DIGEST_MAX_LINES = 20;
-/** The most rows one export carries. Generous for this organization's whole
- *  history, and a bound rather than none so a filterless export cannot try to
- *  build an unbounded string in memory. The file says when it applied. */
-const PAYMENT_EXPORT_MAX_ROWS = 10_000;
-
-/** A cell that cannot become a formula when the file is opened. A leading
- *  equals, plus, minus or at sign makes a spreadsheet execute what follows, and
- *  a payment descriptor carries a member's donation note, which is text a
- *  member wrote. Same guard the audit-log export uses, for the same reason. */
-const CSV_FORMULA_LEAD = /^[=+\-@\t\r]/;
-function csvCell(v: string | null): string {
-  const raw = v ?? '';
-  const s = CSV_FORMULA_LEAD.test(raw) ? `'${raw}` : raw;
-  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
-
 /** Provider intent statuses that mean money actually moved. Anything else is a
  *  checkout the buyer never completed, which is not expected to have a settled
  *  local counterpart. */
 const PROVIDER_SETTLED_INTENT_STATUSES = new Set(['succeeded']);
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Records one discrepancy and returns its id, or null when an identical
+ *  outstanding issue already exists. */
+function raiseIssueRow(draft: IssueDraft, now: Date): string | null {
+  const id = newIssueId();
+  const nowIso = now.toISOString();
+  const expiryDays = readIntConfig(
+    'reconciliation_expiry_days',
+    RECONCILIATION_EXPIRY_DEFAULT_DAYS,
+  );
+  const expiresAt = new Date(now.getTime() + expiryDays * DAY_MS).toISOString();
+
+  // The insert is the idempotency check. A check-then-insert in application
+  // code cannot make this pass idempotent on its own, because two overlapping
+  // runs both read "not present" before either commits; the partial unique
+  // index on the outstanding discrepancy keys is what actually enforces it.
+  const inserted = issuesDb.insertIssueIfAbsent.run(
+    id,
+    nowIso, 'reconciliation', nowIso, 'reconciliation',
+    draft.issueType,
+    draft.paymentId,
+    draft.stripePaymentIntentId,
+    draft.stripeSubscriptionId,
+    draft.stripeInvoiceId,
+    draft.subscriptionRecordId ?? null,
+    JSON.stringify(draft.details),
+    expiresAt,
+  );
+  if (inserted.changes === 0) return null;
+
+  appendAuditEntry({
+    actionType: 'payment.reconciliation_issue_raised',
+    category: 'payment',
+    actorType: 'system',
+    actorMemberId: null,
+    entityType: 'reconciliation_issue',
+    entityId: id,
+    reasonText: null,
+    metadata: {
+      issue_type: draft.issueType,
+      payment_id: draft.paymentId,
+      stripe_payment_intent_id: draft.stripePaymentIntentId,
+      stripe_subscription_id: draft.stripeSubscriptionId,
+      stripe_invoice_id: draft.stripeInvoiceId,
+    },
+  });
+
+  // Surfaced on the admin dashboard rather than only on the reconciliation
+  // page, so a discrepancy is noticed without anyone going looking.
+  workQueueService.enqueue({
+    actorId: 'system',
+    queueCategory: 'payments',
+    taskType: 'reconciliation_discrepancy',
+    entityType: 'reconciliation_issue',
+    entityId: id,
+    priority: 0,
+    reasonText: `Payment reconciliation found a discrepancy: ${draft.issueType}.`,
+    detailText: null,
+  });
+
+  return id;
+}
 
 function newIssueId(): string {
   return `rec_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
@@ -322,11 +447,39 @@ export const paymentReconciliationService = {
     const window = reconciliationWindow(now);
     const adapter = getPaymentAdapter();
 
-    const localPayments = paymentsDb.listForReconciliation.all(
+    // Read before this run is recorded as succeeded, so "since the previous
+    // pass" means the pass before this one.
+    const previous = systemJobRuns.lastSuccessAt.get(RECONCILIATION_JOB_NAME) as
+      | { last_success: string | null }
+      | undefined;
+    const previousRunAt = previous?.last_success ?? null;
+
+    // Only rows of the mode the credential is in can be found at the provider;
+    // a rehearsal row compared against a live ledger reads as missing money for
+    // the length of the window. Rows of the other mode are set aside and
+    // counted; a row whose mode was never recorded, and every row when the
+    // credential's mode is unknown, is compared.
+    const modeCompared = adapter.loadedCredentialMode();
+    const comparable = (mode: number | null): boolean =>
+      modeCompared === 'unknown' || mode === null || mode === (modeCompared === 'live' ? 1 : 0);
+
+    const allLocalPayments = paymentsDb.listForReconciliation.all(
       window.createdAfter,
       window.createdBefore,
     ) as LocalPaymentRow[];
-    const localSubscriptions = subsDb.listActive.all() as LocalSubscriptionRow[];
+    const localPayments = allLocalPayments.filter((p) => comparable(p.provider_livemode));
+    const allLocalSubscriptions = subsDb.listActive.all() as LocalSubscriptionRow[];
+    const localSubscriptions = allLocalSubscriptions.filter((s) => comparable(s.provider_livemode));
+    const rowsSetAside = {
+      payments: allLocalPayments.length - localPayments.length,
+      subscriptions: allLocalSubscriptions.length - localSubscriptions.length,
+    };
+    if (rowsSetAside.payments > 0 || rowsSetAside.subscriptions > 0) {
+      logger.info('payment reconciliation set aside rows of the other provider mode', {
+        modeCompared,
+        ...rowsSetAside,
+      });
+    }
     // Wider than the active view on purpose: see the statement's own note. An
     // invoice that settled against a donation which has since ended still needs
     // a local payment row, and the active view cannot answer whether we know
@@ -379,23 +532,53 @@ export const paymentReconciliationService = {
       ...flagUnresolvedCheckouts(staleIncomplete),
     ];
 
-    let raised = 0;
+    const raised: ReconciliationReportIssue[] = [];
     let duplicates = 0;
     for (const draft of drafts) {
-      if (this.raiseIssue(draft, now)) raised += 1;
-      else duplicates += 1;
+      const id = raiseIssueRow(draft, now);
+      if (id === null) {
+        duplicates += 1;
+        continue;
+      }
+      raised.push({
+        id,
+        issueType: draft.issueType,
+        label: ISSUE_TYPE_LABELS[draft.issueType] ?? draft.issueType,
+        amountPhrase: issueAmountPhrase(draft.details),
+        paymentId: draft.paymentId,
+      });
     }
+
+    const resolvedRows = issuesDb.listResolvedSince.all(previousRunAt ?? '0000-01-01') as Array<
+      IssueRow & { id: string; payment_id: string | null; resolved_at: string | null; resolved_by_slug: string | null }
+    >;
 
     return {
       windowStart: window.createdAfter,
       windowEnd: window.createdBefore,
+      modeCompared,
+      rowsSetAside,
       localPaymentsCompared: localPayments.length,
       providerIntentsCompared: providerIntents.length,
       localSubscriptionsCompared: localSubscriptions.length,
       providerSubscriptionsCompared: providerSubscriptions.length,
       providerInvoicesCompared: providerInvoices.length,
-      issuesRaised: raised,
+      issuesRaised: raised.length,
       duplicatesSkipped: duplicates,
+      outstandingAfterRun: this.countOutstandingIssues(),
+      raised,
+      previousRunAt,
+      resolvedSincePreviousRun: resolvedRows.map((row) => ({
+        id: row.id,
+        issueType: row.issue_type,
+        label: ISSUE_TYPE_LABELS[row.issue_type as ReconciliationIssueType] ?? row.issue_type,
+        amountPhrase: issueAmountPhrase(parseDetails(row.details_json)),
+        paymentId: row.payment_id,
+        resolvedAt: row.resolved_at,
+        resolvedBySlug: row.resolved_by_slug,
+      })),
+      totals: periodTotals(window.createdAfter, window.createdBefore),
+      totalsExclusionLine: periodTotalsExclusionLine(window.createdAfter, window.createdBefore),
     };
   },
 
@@ -403,63 +586,7 @@ export const paymentReconciliationService = {
    *  already exists, so a nightly re-run over an unresolved discrepancy reports
    *  it once rather than once per night. */
   raiseIssue(draft: IssueDraft, now: Date): boolean {
-    const id = newIssueId();
-    const nowIso = now.toISOString();
-    const expiryDays = readIntConfig(
-      'reconciliation_expiry_days',
-      RECONCILIATION_EXPIRY_DEFAULT_DAYS,
-    );
-    const expiresAt = new Date(now.getTime() + expiryDays * DAY_MS).toISOString();
-
-    // The insert is the idempotency check. A check-then-insert in application
-    // code cannot make this pass idempotent on its own, because two overlapping
-    // runs both read "not present" before either commits; the partial unique
-    // index on the outstanding discrepancy keys is what actually enforces it.
-    const inserted = issuesDb.insertIssueIfAbsent.run(
-      id,
-      nowIso, 'reconciliation', nowIso, 'reconciliation',
-      draft.issueType,
-      draft.paymentId,
-      draft.stripePaymentIntentId,
-      draft.stripeSubscriptionId,
-      draft.stripeInvoiceId,
-      draft.subscriptionRecordId ?? null,
-      JSON.stringify(draft.details),
-      expiresAt,
-    );
-    if (inserted.changes === 0) return false;
-
-    appendAuditEntry({
-      actionType: 'payment.reconciliation_issue_raised',
-      category: 'payment',
-      actorType: 'system',
-      actorMemberId: null,
-      entityType: 'reconciliation_issue',
-      entityId: id,
-      reasonText: null,
-      metadata: {
-        issue_type: draft.issueType,
-        payment_id: draft.paymentId,
-        stripe_payment_intent_id: draft.stripePaymentIntentId,
-        stripe_subscription_id: draft.stripeSubscriptionId,
-        stripe_invoice_id: draft.stripeInvoiceId,
-      },
-    });
-
-    // Surfaced on the admin dashboard rather than only on the reconciliation
-    // page, so a discrepancy is noticed without anyone going looking.
-    workQueueService.enqueue({
-      actorId: 'system',
-      queueCategory: 'payments',
-      taskType: 'reconciliation_discrepancy',
-      entityType: 'reconciliation_issue',
-      entityId: id,
-      priority: 0,
-      reasonText: `Payment reconciliation found a discrepancy: ${draft.issueType}.`,
-      detailText: null,
-    });
-
-    return true;
+    return raiseIssueRow(draft, now) !== null;
   },
 
   /** Marks a discrepancy handled, recording who decided and why. The note is
@@ -554,7 +681,7 @@ export const paymentReconciliationService = {
    * Best-effort per recipient, so one bad address never aborts the batch.
    */
   sendReconciliationDigest(opts: { now?: Date } = {}): {
-    admins: number;
+    recipient: string;
     sent: number;
     outstanding: number;
     resolved: number;
@@ -571,41 +698,47 @@ export const paymentReconciliationService = {
       IssueRow & { resolved_at: string | null; resolved_by_slug: string | null }
     >;
 
-    const recipients = mailingListSubscriptions.listActiveSubscribersBySlug.all(
-      'financial-digest',
-    ) as Array<{ member_id: string; login_email: string }>;
-
     const oldest = outstanding[0];
     const day = now.toISOString().slice(0, 10);
+    const lastRun = lastReconciliationReport();
 
+    // One copy, to the treasurer contact. A send that is suppressed (the
+    // address has bounced) or fails to enqueue is said at warn, because a
+    // report that silently went nowhere is exactly the silence it exists to end.
     let sent = 0;
-    for (const recipient of recipients) {
-      try {
-        emailService.send({
-          template: 'reconciliation_digest',
-          params: {
-            outstandingCount: outstanding.length,
-            resolvedCount: resolved.length,
-            periodDays: intervalDays,
-            oldestOutstandingAgeDays: oldest ? ageInDays(oldest.created_at, now) : null,
-            needsAttentionLines: digestLines(outstanding, now),
-            forTheRecordLines: resolvedDigestLines(resolved),
-            reviewUrl: `${config.publicBaseUrl}/admin/payments/reconciliation`,
-          },
-          recipientEmail: recipient.login_email,
-          recipientMemberId: recipient.member_id,
-          idempotencyKey: `reconciliation-digest:${day}:${recipient.member_id}`,
+    try {
+      const result = emailService.send({
+        template: 'reconciliation_digest',
+        params: {
+          outstandingCount: outstanding.length,
+          resolvedCount: resolved.length,
+          periodDays: intervalDays,
+          oldestOutstandingAgeDays: oldest ? ageInDays(oldest.created_at, now) : null,
+          needsAttentionLines: digestLines(outstanding, now),
+          forTheRecordLines: resolvedDigestLines(resolved),
+          comparisonLine: comparisonLineFor(lastRun),
+          reviewUrl: `${config.publicBaseUrl}/admin/payments/reconciliation`,
+          reportsUrl: `${config.publicBaseUrl}/admin/payments/reports`,
+        },
+        recipientEmail: TREASURER_CONTACT_EMAIL,
+        recipientMemberId: null,
+        idempotencyKey: `reconciliation-digest:${day}`,
+      });
+      if (result.status === 'suppressed') {
+        logger.warn('reconciliation digest suppressed: the treasurer address is not deliverable', {
+          recipient: TREASURER_CONTACT_EMAIL,
         });
-        sent += 1;
-      } catch (err) {
-        logger.warn('reconciliation digest enqueue failed for one recipient', {
-          err: err instanceof Error ? err.message : String(err),
-          memberId: recipient.member_id,
-        });
+      } else {
+        sent = 1;
       }
+    } catch (err) {
+      logger.warn('reconciliation digest enqueue failed', {
+        err: err instanceof Error ? err.message : String(err),
+        recipient: TREASURER_CONTACT_EMAIL,
+      });
     }
     return {
-      admins: recipients.length,
+      recipient: TREASURER_CONTACT_EMAIL,
       sent,
       outstanding: outstanding.length,
       resolved: resolved.length,
@@ -709,7 +842,8 @@ export const paymentReconciliationService = {
         periodTotalsExclusionLine: exclusionLine,
         hasPeriodTotalsExclusion: exclusionLine !== null,
         periodLabel: periodLabelFor(q.createdFrom, q.createdTo),
-        exportHref: paymentsExportHref(sortedQuery),
+        providerBoundaryLine: PROVIDER_BOOK_OF_RECORD_LINE,
+        reportsHref: '/admin/payments/reports',
         resultSummary: summaryLine(total, offset, rows.length, 'payment'),
         prevPageHref: page > 1 ? paymentsHrefFor(sortedQuery, page - 1) : null,
         nextPageHref: page < totalPages ? paymentsHrefFor(sortedQuery, page + 1) : null,
@@ -796,79 +930,96 @@ export const paymentReconciliationService = {
    * The export is itself recorded. Someone taking the whole payment record out
    * of the platform is an event the platform should be able to account for.
    */
-  exportAdminPayments(q: AdminPaymentQuery, adminMemberId: string): {
-    contentType: string;
-    filename: string;
-    body: string;
-    count: number;
-  } {
-    const filters: AdminPaymentFilters = {
-      paymentType: q.paymentType || undefined,
-      status: q.status || undefined,
-      memberIds: (q.memberId ?? '').trim()
-        ? resolveMemberIdsForPaymentSearch((q.memberId ?? '').trim())
-        : undefined,
-      reference: q.reference || undefined,
-      createdFrom: q.createdFrom || undefined,
-      createdTo: inclusiveToBound(q.createdTo),
-      eventId: q.eventId || undefined,
-    };
-    const activeSort = q.sort && isAdminPaymentSort(q.sort) ? q.sort : ADMIN_PAYMENT_DEFAULT_SORT;
-    const total = countAdminPayments(filters);
-    const rows = queryAdminPayments(filters, PAYMENT_EXPORT_MAX_ROWS, 0, activeSort);
-    const truncated = total > rows.length;
-
-    const lines: string[] = [];
-    if (truncated) {
-      lines.push(
-        `# Showing ${rows.length} of ${total} matching payments. Narrow the date range to export the rest.`,
-      );
-    }
-    lines.push([
-      'payment_id', 'date_utc', 'type', 'status', 'amount', 'currency',
-      'member_slug', 'descriptor', 'event', 'provider_reference',
-    ].join(','));
-    for (const r of rows) {
-      lines.push([
-        String(r.id),
-        String(r.created_at),
-        String(r.payment_type),
-        String(r.status),
-        // The bare number, so a spreadsheet can add it up; the currency is its
-        // own column beside it rather than glued to the figure.
-        (Number(r.amount_cents) / 100).toFixed(2),
-        String(r.currency).toUpperCase(),
-        r.member_slug ? String(r.member_slug) : '',
-        String(r.descriptor ?? ''),
-        r.event_title ? String(r.event_title) : '',
-        String(r.stripe_payment_intent_id ?? r.stripe_subscription_id ?? r.id),
-      ].map(csvCell).join(','));
-    }
-
-    appendAuditEntry({
-      actionType: 'payment.exported',
-      category: 'payment',
-      actorType: 'admin',
-      actorMemberId: adminMemberId,
-      entityType: 'payment_export',
-      entityId: 'all_payments',
-      reasonText: null,
-      metadata: {
-        row_count: rows.length,
-        matching_total: total,
-        truncated,
-        created_from: q.createdFrom ?? null,
-        created_to: q.createdTo ?? null,
-        payment_type: q.paymentType ?? null,
-        status: q.status ?? null,
-      },
-    });
+  /**
+   * Admin Financial Reports list: one row per nightly reconciliation run,
+   * newest first, with the digest's send record above it. The reports are the
+   * runs' own retained results; nothing here is computed afresh, so the page
+   * shows what each day's pass actually found rather than what the ledger
+   * looks like now.
+   */
+  getAdminReportsPage(q: { page?: number; now?: Date } = {}): PageViewModel<AdminReportsContent> {
+    const page = normalizePage(q.page);
+    const now = q.now ?? new Date();
+    const total = (systemJobRuns.countRunsByJob.get(RECONCILIATION_JOB_NAME) as { c: number }).c;
+    const offset = (page - 1) * ADMIN_PAGE_SIZE;
+    const runs = systemJobRuns.listRunsByJob.all(
+      RECONCILIATION_JOB_NAME, ADMIN_PAGE_SIZE, offset,
+    ) as JobRunRow[];
+    const totalPages = Math.max(1, Math.ceil(total / ADMIN_PAGE_SIZE));
 
     return {
-      contentType: 'text/csv',
-      filename: 'payments.csv',
-      body: lines.join('\n'),
-      count: rows.length,
+      seo: { title: 'Financial Reports', noindex: true },
+      page: {
+        sectionKey: 'admin',
+        pageKey: 'admin_payment_reports',
+        title: 'Financial Reports',
+      },
+      content: {
+        rows: runs.map((run) => reportRowFrom(run)),
+        hasRows: runs.length > 0,
+        resultSummary: summaryLine(total, offset, runs.length, 'report'),
+        prevPageHref: page > 1 ? `/admin/payments/reports?page=${page - 1}` : null,
+        nextPageHref: page < totalPages ? `/admin/payments/reports?page=${page + 1}` : null,
+        digest: digestStatusFor(now),
+        providerBoundaryLine: PROVIDER_BOOK_OF_RECORD_LINE,
+        reconciliationHref: '/admin/payments/reconciliation',
+        paymentsHref: '/admin/payments',
+        healthHref: '/admin/payments/health',
+      },
+    };
+  },
+
+  /** One retained report. Returns null for an unknown run id, or for a run of
+   *  some other job, so the controller answers 404. */
+  getAdminReportPage(runId: string): PageViewModel<AdminReportContent> | null {
+    const run = systemJobRuns.findRunById.get(runId) as JobRunRow | undefined;
+    if (!run || run.job_name !== RECONCILIATION_JOB_NAME) return null;
+    const report = run.status === 'succeeded' ? reportFrom(run.details_json) : null;
+    const row = reportRowFrom(run);
+
+    return {
+      seo: { title: 'Financial Report', noindex: true },
+      page: {
+        sectionKey: 'admin',
+        pageKey: 'admin_payment_report',
+        title: `Financial Report for ${row.dateDisplay}`,
+      },
+      content: {
+        run: row,
+        isFailed: run.status !== 'succeeded',
+        failureText: run.last_error ?? (run.status === 'succeeded' ? null : 'The run did not finish.'),
+        report: report === null ? null : {
+          windowLabel: `${report.windowStart.slice(0, 10)} to ${report.windowEnd.slice(0, 10)}`,
+          modeLabel: modeComparedLabel(report.modeCompared),
+          setAsideLine: setAsideLineFor(report),
+          counts: [
+            { label: 'Local payments compared', value: report.localPaymentsCompared },
+            { label: 'Provider payment intents compared', value: report.providerIntentsCompared },
+            { label: 'Local recurring donations compared', value: report.localSubscriptionsCompared },
+            { label: 'Provider subscriptions compared', value: report.providerSubscriptionsCompared },
+            { label: 'Provider invoices compared', value: report.providerInvoicesCompared },
+            { label: 'Discrepancies raised by this run', value: report.issuesRaised },
+            { label: 'Discrepancies already outstanding, seen again', value: report.duplicatesSkipped },
+            { label: 'Outstanding after this run', value: report.outstandingAfterRun },
+          ],
+          raised: report.raised.map((issue) => reportIssueRowFrom(issue)),
+          hasRaised: report.raised.length > 0,
+          previousRunDisplay: report.previousRunAt ? dateDisplay(report.previousRunAt) : null,
+          resolved: report.resolvedSincePreviousRun.map((issue) => ({
+            ...reportIssueRowFrom(issue),
+            resolvedDisplay: issue.resolvedAt ? dateDisplay(issue.resolvedAt) : 'an unrecorded date',
+            resolvedBySlug: issue.resolvedBySlug ?? 'an administrator whose account has since been removed',
+          })),
+          hasResolved: report.resolvedSincePreviousRun.length > 0,
+          totals: report.totals,
+          hasTotals: report.totals.length > 0,
+          totalsExclusionLine: report.totalsExclusionLine,
+          hasTotalsExclusion: report.totalsExclusionLine !== null,
+        },
+        providerBoundaryLine: PROVIDER_BOOK_OF_RECORD_LINE,
+        reportsHref: '/admin/payments/reports',
+        reconciliationHref: '/admin/payments/reconciliation',
+      },
     };
   },
 
@@ -947,6 +1098,8 @@ export const paymentReconciliationService = {
         activeSort: oldestFirst ? 'oldest' : 'newest',
         toggleSortHref: issuesHrefFor(requested, 1, oldestFirst ? 'newest' : 'oldest'),
         toggleSortLabel: oldestFirst ? 'Show newest first' : 'Show oldest first',
+        lastRunLine: comparisonLineFor(lastReconciliationReport()),
+        reportsHref: '/admin/payments/reports',
         // Led with rather than buried, because an issue nobody has answered for
         // months is invisible on a newest-first list: it sits on the last page,
         // and nothing on the page says it is there.
@@ -1055,7 +1208,9 @@ export interface AdminPaymentsContent {
   periodTotalsExclusionLine: string | null;
   hasPeriodTotalsExclusion: boolean;
   periodLabel: string;
-  exportHref: string;
+  /** Where fees, payouts and net live, said beside every total. */
+  providerBoundaryLine: string;
+  reportsHref: string;
   resultSummary: string;
   prevPageHref: string | null;
   nextPageHref: string | null;
@@ -1155,6 +1310,10 @@ export interface AdminReconciliationContent {
    *  null when none is. */
   oldestOutstandingDays: number | null;
   oldestOutstandingLine: string | null;
+  /** What the last nightly pass compared and set aside, or null before any
+   *  pass has run. */
+  lastRunLine: string | null;
+  reportsHref: string;
 }
 
 /** The amount with its own currency code and no invented symbol. A dollar sign
@@ -1200,6 +1359,213 @@ interface IssueRow {
   issue_type: string;
   created_at: string;
   details_json: string;
+}
+
+// ── Financial Reports: the retained nightly runs ─────────────────────────────
+
+interface JobRunRow {
+  id: string;
+  job_name: string;
+  started_at: string;
+  finished_at: string | null;
+  status: string;
+  details_json: string;
+  last_error: string | null;
+}
+
+export interface AdminReportRowViewModel {
+  id: string;
+  href: string;
+  dateDisplay: string;
+  statusLabel: string;
+  isFailed: boolean;
+  modeLabel: string;
+  issuesRaised: number;
+  outstandingAfterRun: number | null;
+  setAsideLabel: string;
+}
+
+export interface AdminDigestStatusViewModel {
+  recipientAddress: string;
+  cadenceDays: number;
+  hasEverSent: boolean;
+  lastSentDisplay: string | null;
+  nextDueDisplay: string;
+}
+
+export interface AdminReportsContent {
+  rows: AdminReportRowViewModel[];
+  hasRows: boolean;
+  resultSummary: string;
+  prevPageHref: string | null;
+  nextPageHref: string | null;
+  digest: AdminDigestStatusViewModel;
+  providerBoundaryLine: string;
+  reconciliationHref: string;
+  paymentsHref: string;
+  healthHref: string;
+}
+
+export interface AdminReportIssueViewModel {
+  id: string;
+  label: string;
+  amountPhrase: string | null;
+  paymentHref: string | null;
+}
+
+export interface AdminReportContent {
+  run: AdminReportRowViewModel;
+  isFailed: boolean;
+  failureText: string | null;
+  report: {
+    windowLabel: string;
+    modeLabel: string;
+    setAsideLine: string;
+    counts: Array<{ label: string; value: number }>;
+    raised: AdminReportIssueViewModel[];
+    hasRaised: boolean;
+    previousRunDisplay: string | null;
+    resolved: Array<AdminReportIssueViewModel & { resolvedDisplay: string; resolvedBySlug: string }>;
+    hasResolved: boolean;
+    totals: PeriodTotalRow[];
+    hasTotals: boolean;
+    totalsExclusionLine: string | null;
+    hasTotalsExclusion: boolean;
+  } | null;
+  providerBoundaryLine: string;
+  reportsHref: string;
+  reconciliationHref: string;
+}
+
+/**
+ * Reads a run's stored result back into the report shape. Fields a run
+ * recorded before they existed are absent from its result and read as empty,
+ * so an older report renders what it has rather than failing.
+ */
+function reportFrom(detailsJson: string): ReconciliationRunResult {
+  const raw = parseDetails(detailsJson);
+  const num = (v: unknown): number => (typeof v === 'number' ? v : 0);
+  const str = (v: unknown, fallback: string): string => (typeof v === 'string' ? v : fallback);
+  const setAside = (raw.rowsSetAside ?? {}) as Record<string, unknown>;
+  const mode = raw.modeCompared;
+  return {
+    windowStart: str(raw.windowStart, ''),
+    windowEnd: str(raw.windowEnd, ''),
+    modeCompared: mode === 'live' || mode === 'test' ? mode : 'unknown',
+    rowsSetAside: { payments: num(setAside.payments), subscriptions: num(setAside.subscriptions) },
+    localPaymentsCompared: num(raw.localPaymentsCompared),
+    providerIntentsCompared: num(raw.providerIntentsCompared),
+    localSubscriptionsCompared: num(raw.localSubscriptionsCompared),
+    providerSubscriptionsCompared: num(raw.providerSubscriptionsCompared),
+    providerInvoicesCompared: num(raw.providerInvoicesCompared),
+    issuesRaised: num(raw.issuesRaised),
+    duplicatesSkipped: num(raw.duplicatesSkipped),
+    outstandingAfterRun: num(raw.outstandingAfterRun),
+    raised: Array.isArray(raw.raised) ? (raw.raised as ReconciliationReportIssue[]) : [],
+    previousRunAt: typeof raw.previousRunAt === 'string' ? raw.previousRunAt : null,
+    resolvedSincePreviousRun: Array.isArray(raw.resolvedSincePreviousRun)
+      ? (raw.resolvedSincePreviousRun as ReconciliationReportResolvedIssue[])
+      : [],
+    totals: Array.isArray(raw.totals) ? (raw.totals as PeriodTotalRow[]) : [],
+    totalsExclusionLine:
+      typeof raw.totalsExclusionLine === 'string' ? raw.totalsExclusionLine : null,
+  };
+}
+
+function modeComparedLabel(mode: ReconciliationRunResult['modeCompared']): string {
+  return mode === 'live'
+    ? 'Live money'
+    : mode === 'test'
+      ? 'Test mode (no real money)'
+      : 'Mode not known; every row compared';
+}
+
+function setAsideLineFor(report: ReconciliationRunResult): string {
+  const { payments, subscriptions } = report.rowsSetAside;
+  if (payments === 0 && subscriptions === 0) return 'No rows of the other provider mode were set aside.';
+  const parts: string[] = [];
+  if (payments > 0) parts.push(`${payments} payment${payments === 1 ? '' : 's'}`);
+  if (subscriptions > 0) {
+    parts.push(`${subscriptions} recurring donation${subscriptions === 1 ? '' : 's'}`);
+  }
+  return `Set aside as belonging to the other provider mode: ${parts.join(' and ')}.`;
+}
+
+/** One sentence on what the last pass compared, for the digest and the
+ *  reconciliation page, or null before any pass has run. */
+function comparisonLineFor(report: ReconciliationRunResult | null): string | null {
+  if (report === null) return null;
+  const mode = report.modeCompared === 'live'
+    ? 'live-mode records'
+    : report.modeCompared === 'test'
+      ? 'test-mode records, which are not real money'
+      : 'every record, because the credential mode could not be read';
+  const { payments, subscriptions } = report.rowsSetAside;
+  const setAside = payments + subscriptions === 0
+    ? 'nothing was set aside'
+    : `${payments + subscriptions} row${payments + subscriptions === 1 ? ' was' : 's were'} set aside as the other mode`;
+  return `The last nightly pass compared ${mode}; ${setAside}.`;
+}
+
+function lastReconciliationReport(): ReconciliationRunResult | null {
+  const run = systemJobRuns.lastSucceededRun.get(RECONCILIATION_JOB_NAME) as
+    | { details_json: string }
+    | undefined;
+  return run ? reportFrom(run.details_json) : null;
+}
+
+function reportRowFrom(run: JobRunRow): AdminReportRowViewModel {
+  const report = run.status === 'succeeded' ? reportFrom(run.details_json) : null;
+  const setAside = report ? report.rowsSetAside.payments + report.rowsSetAside.subscriptions : 0;
+  return {
+    id: run.id,
+    href: `/admin/payments/reports/${run.id}`,
+    dateDisplay: dateDisplay(run.started_at),
+    statusLabel: run.status === 'succeeded'
+      ? 'Completed'
+      : run.status === 'running'
+        ? 'Running'
+        : 'Failed',
+    isFailed: run.status !== 'succeeded' && run.status !== 'running',
+    modeLabel: report ? modeComparedLabel(report.modeCompared) : '--',
+    issuesRaised: report ? report.issuesRaised : 0,
+    outstandingAfterRun: report ? report.outstandingAfterRun : null,
+    setAsideLabel: report ? String(setAside) : '--',
+  };
+}
+
+function reportIssueRowFrom(issue: ReconciliationReportIssue): AdminReportIssueViewModel {
+  return {
+    id: issue.id,
+    label: issue.label,
+    amountPhrase: issue.amountPhrase,
+    paymentHref: issue.paymentId ? `/admin/payments/${issue.paymentId}` : null,
+  };
+}
+
+/** When the digest last went out and when the next one is due, from the
+ *  digest job's own run record and the configured cadence. */
+function digestStatusFor(now: Date): AdminDigestStatusViewModel {
+  const intervalDays = readIntConfig(
+    'reconciliation_summary_interval_days',
+    DIGEST_INTERVAL_DEFAULT_DAYS,
+  );
+  const last = systemJobRuns.lastSuccessAt.get(DIGEST_JOB_NAME) as
+    | { last_success: string | null }
+    | undefined;
+  const lastSent = last?.last_success ?? null;
+  const nextDue = lastSent === null
+    ? 'on the next daily pass'
+    : dateDisplay(new Date(Date.parse(lastSent) + intervalDays * DAY_MS).toISOString());
+  return {
+    recipientAddress: TREASURER_CONTACT_EMAIL,
+    cadenceDays: intervalDays,
+    hasEverSent: lastSent !== null,
+    lastSentDisplay: lastSent === null ? null : dateDisplay(lastSent),
+    nextDueDisplay: lastSent !== null && Date.parse(lastSent) + intervalDays * DAY_MS <= now.getTime()
+      ? 'on the next daily pass'
+      : nextDue,
+  };
 }
 
 /** Whole days between a stored timestamp and now, floored, never negative. */
@@ -1376,8 +1742,11 @@ const MONEY_EVENT_LABELS: Record<string, string> = {
   'payment.partially_refunded': 'Partially refunded',
   'payment.canceled': 'Canceled',
   'payment.dispute_opened': 'Disputed by the cardholder',
+  'payment.dispute_updated': 'Dispute evidence updated',
   'payment.dispute_closed': 'Dispute closed',
   'payment.dispute_funds_withdrawn': 'Disputed funds withdrawn',
+  'payment.dispute_funds_reinstated': 'Disputed funds returned to the account',
+  'payment.refund_not_returned': 'Refund could not be returned to the card',
   'payment.payout_rejected': 'Payout to the bank account rejected',
 };
 
@@ -1482,15 +1851,6 @@ function paymentsHrefFor(q: AdminPaymentQuery, page: number): string {
   if (page > 1) p.set('page', String(page));
   const qs = p.toString();
   return qs ? `/admin/payments?${qs}` : '/admin/payments';
-}
-
-/** The export of exactly what the current filters select, so the file an
- *  accountant opens is the view the administrator was looking at. */
-function paymentsExportHref(q: AdminPaymentQuery): string {
-  const p = paymentFilterParams(q);
-  if (q.sort && q.sort !== ADMIN_PAYMENT_DEFAULT_SORT) p.set('sort', q.sort);
-  const qs = p.toString();
-  return qs ? `/admin/payments/export?${qs}` : '/admin/payments/export';
 }
 
 /** Plain words for the range the totals cover, because "1 July to 31 July" is

@@ -1,0 +1,125 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    <p>What this nightly comparison found, kept as the run left it. Read-only.</p>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+    <p>
+      <a href="{{content.reportsHref}}" class="btn btn-outline">All Financial Reports</a>
+      <a href="{{content.reconciliationHref}}" class="btn btn-outline">Reconciliation Issues</a>
+    </p>
+
+    {{#if content.isFailed}}
+      <div class="form-error-banner" role="alert">This run did not complete: {{content.failureText}}</div>
+      <p class="text-muted">No comparison was recorded for this run. The next daily pass produces the next report.</p>
+    {{/if}}
+
+    {{#if content.report}}
+      <div class="section-heading">
+        <h2>What Was Compared</h2>
+      </div>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Measure</th>
+            <th>Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Window</td>
+            <td>{{content.report.windowLabel}}</td>
+          </tr>
+          <tr>
+            <td>Provider mode</td>
+            <td>{{content.report.modeLabel}}</td>
+          </tr>
+          {{#each content.report.counts}}
+            <tr>
+              <td>{{this.label}}</td>
+              <td>{{this.value}}</td>
+            </tr>
+          {{/each}}
+        </tbody>
+      </table>
+      <p class="card-meta">{{content.report.setAsideLine}}</p>
+
+      <div class="section-heading mt-8">
+        <h2>Raised by This Run</h2>
+      </div>
+      {{#if content.report.hasRaised}}
+        <ul>
+          {{#each content.report.raised}}
+            <li>
+              {{this.label}}{{#if this.amountPhrase}} ({{this.amountPhrase}}){{/if}}
+              {{#if this.paymentHref}} &middot; <a href="{{this.paymentHref}}">payment</a>{{/if}}
+              <span class="text-muted fs-sm">{{this.id}}</span>
+            </li>
+          {{/each}}
+        </ul>
+      {{else}}
+        <p class="text-muted">Nothing new. Everything this run compared agreed, or was already on the queue.</p>
+      {{/if}}
+
+      <div class="section-heading mt-8">
+        <h2>Resolved Since the Previous Run</h2>
+      </div>
+      {{#if content.report.previousRunDisplay}}
+        <p class="card-meta">Previous run: {{content.report.previousRunDisplay}}</p>
+      {{/if}}
+      {{#if content.report.hasResolved}}
+        <ul>
+          {{#each content.report.resolved}}
+            <li>
+              {{this.label}}{{#if this.amountPhrase}} ({{this.amountPhrase}}){{/if}}
+              &middot; resolved {{this.resolvedDisplay}} by {{this.resolvedBySlug}}
+              {{#if this.paymentHref}} &middot; <a href="{{this.paymentHref}}">payment</a>{{/if}}
+            </li>
+          {{/each}}
+        </ul>
+      {{else}}
+        <p class="text-muted">Nothing was resolved in that period.</p>
+      {{/if}}
+
+      <div class="section-heading mt-8">
+        <h2>Totals for the Window</h2>
+      </div>
+      {{#if content.report.hasTotals}}
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Category</th>
+              <th>Currency</th>
+              <th>Payments</th>
+              <th>Received</th>
+              <th>Returned</th>
+              <th>Net</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{#each content.report.totals}}
+              <tr>
+                <td>{{this.categoryLabel}}</td>
+                <td>{{this.currency}}</td>
+                <td>{{this.count}}</td>
+                <td>{{this.grossDisplay}}</td>
+                <td>{{#if this.hasRefunds}}{{this.refundedDisplay}}{{else}}<span class="text-muted">--</span>{{/if}}</td>
+                <td class="fw-600">{{this.netDisplay}}</td>
+              </tr>
+            {{/each}}
+          </tbody>
+        </table>
+      {{else}}
+        <p class="text-muted">No real money settled in this window.</p>
+      {{/if}}
+      {{#if content.report.hasTotalsExclusion}}
+        <p class="text-muted fs-sm">{{content.report.totalsExclusionLine}}</p>
+      {{/if}}
+    {{/if}}
+
+    <p class="text-muted fs-sm">{{content.providerBoundaryLine}}</p>
+  </section>
+</div>

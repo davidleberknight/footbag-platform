@@ -46,10 +46,14 @@
  *   system_job_runs, work_queue_items, outbox_emails (backlog read +
  *   mailing-list enqueue + retention delete of delivered copies), members
  *   (purge-eligibility read), payments (compliance-retention read + anonymize
- *   write), health (read).
+ *   write), health (read), system_config (the declared payment mode observed
+ *   at boot: read of the current row, append when it changed).
  *
  * Side effects:
  *   - system_job_runs insert/update
+ *   - system_config append (`payments_declared_mode`, only when the deployment's
+ *     declared arming state differs from the last one recorded, so the admin
+ *     payments-health page can say since when the declared mode has held)
  *   - work_queue_items insert (auto_link_match, low confidence)
  *   - outbox_emails enqueue (admin-alerts fan-out)
  *   - outbox_emails delete (delivered copies past the retention window)
@@ -65,7 +69,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
-import { health, systemJobRuns, workQueue, batchAutoLink, memberPurge, outbox, payments, transaction } from '../db/db';
+import { health, systemJobRuns, systemConfig, workQueue, batchAutoLink, memberPurge, outbox, payments, transaction } from '../db/db';
 import { runSqliteRead } from './sqliteRetry';
 import { memberService } from './memberService';
 import { hashtagDiscoveryService } from './hashtagDiscoveryService';
@@ -137,6 +141,8 @@ export interface ReadinessStatus {
 }
 
 const MEMORY_PRESSURE_THRESHOLD_PERCENT = 90;
+/** The config key holding the declared payment mode observed at boot. */
+const DECLARED_PAYMENT_MODE_KEY = 'payments_declared_mode';
 
 // Mutable test seam over the immutable config-derived value. Boot reads
 // FOOTBAG_TEST_MEMORY_PERCENT once via src/config/env.ts (which fail-fasts
@@ -369,6 +375,45 @@ export class OperationsPlatformService {
   }
 
   /**
+   * Records the payment mode this deployment declares, when it differs from
+   * the last one recorded.
+   *
+   * The arming switch is an out-of-band parameter the deploy derives the
+   * adapter from, and its history lives in the parameter store, which the
+   * admin health page must not call. Observing the declared mode at each boot
+   * and appending a config row only when it changed gives that page a local
+   * answer to "since when": the row's own effective time. Restarts on an
+   * unchanged mode append nothing, so the table records changes, not boots.
+   */
+  recordDeclaredPaymentMode(now: Date = new Date()): { changed: boolean; mode: 'armed' | 'dark' } {
+    const mode: 'armed' | 'dark' = config.paymentsArmed === 'armed' ? 'armed' : 'dark';
+    const current = systemConfig.getCurrentRowByKey.get(DECLARED_PAYMENT_MODE_KEY) as
+      | { value_json: string; effective_start_at: string }
+      | undefined;
+    let held: unknown = null;
+    if (current) {
+      try {
+        held = JSON.parse(current.value_json);
+      } catch {
+        held = null;
+      }
+    }
+    if (held === mode) return { changed: false, mode };
+    const nowIso = now.toISOString();
+    systemConfig.insert.run(
+      `cfg_${randomUUID().replace(/-/g, '').slice(0, 24)}`,
+      nowIso,
+      DECLARED_PAYMENT_MODE_KEY,
+      JSON.stringify(mode),
+      nowIso,
+      'Declared payment mode observed at process start; recorded so the payments health page can say when the declared mode last changed.',
+      null,
+    );
+    logger.info('declared payment mode recorded', { mode, previous: held });
+    return { changed: true, mode };
+  }
+
+  /**
    * Periodic reconciliation digest to administrators, on the cadence set by
    * `reconciliation_summary_interval_days`. Gated the same way as the admin
    * work-queue digest: the daily tick calls it every day, and the pass skips
@@ -377,7 +422,7 @@ export class OperationsPlatformService {
    */
   async runReconciliationDigest(
     startTime?: Date,
-  ): Promise<{ skipped: boolean; admins: number; sent: number; outstanding: number }> {
+  ): Promise<{ skipped: boolean; recipient: string | null; sent: number; outstanding: number }> {
     const intervalDays = readIntConfig(
       'reconciliation_summary_interval_days',
       RECONCILIATION_DIGEST_INTERVAL_DEFAULT_DAYS,
@@ -390,7 +435,7 @@ export class OperationsPlatformService {
       last?.last_success &&
       (now.getTime() - Date.parse(last.last_success)) / 86_400_000 < intervalDays
     ) {
-      return { skipped: true, admins: 0, sent: 0, outstanding: 0 };
+      return { skipped: true, recipient: null, sent: 0, outstanding: 0 };
     }
     const result = await this.recordJobRun(
       'SYS_Reconciliation_Digest',

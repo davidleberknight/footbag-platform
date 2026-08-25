@@ -16,7 +16,7 @@
  */
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync, copyFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import BetterSqlite3 from 'better-sqlite3';
@@ -82,12 +82,12 @@ function applyMigration(
   const res = spawnSync('bash', [harness], {
     env: {
       ...process.env,
-      ...SPAWN_GUARD,
       MIGRATION_SQL: sql,
       MIGRATION_NAME: named?.name ?? '',
       MIGRATION_CHECKSUM: named?.checksum ?? '',
     },
     encoding: 'utf8',
+    ...SPAWN_GUARD,
   });
   return { status: res.status ?? -1, stderr: res.stderr ?? '', stdout: res.stdout ?? '' };
 }
@@ -143,6 +143,50 @@ describe('applying a schema migration to a live database', () => {
       .toBe(1);
   });
 
+  it('keeps rows that were still in the write-ahead log when a migration fails', () => {
+    // The service is stopped before the copy is taken, and a clean stop folds
+    // the WAL into the database file on the way down. An unclean one does not:
+    // the stop ends in SIGKILL after its timeout, and the backup that would
+    // have checkpointed is best-effort. What survives is a database file
+    // missing rows that a WAL beside it still holds.
+    //
+    // That state is built here rather than hoped for. A second connection keeps
+    // the WAL alive while both files are copied aside; closing it checkpoints
+    // and removes the WAL, and restoring the copied pair puts the split back
+    // with no live connection holding it.
+    const live = new BetterSqlite3(dbPath);
+    live.pragma('journal_mode = WAL');
+    live.prepare('INSERT INTO payments (id, member_id, amount_cents) VALUES (?, ?, ?)')
+      .run('p_wal', 'm2', 4200);
+    const stagedDb = join(workDir, 'staged.db');
+    const stagedWal = join(workDir, 'staged.db-wal');
+    copyFileSync(dbPath, stagedDb);
+    copyFileSync(`${dbPath}-wal`, stagedWal);
+    live.close();
+    copyFileSync(stagedDb, dbPath);
+    copyFileSync(stagedWal, `${dbPath}-wal`);
+
+    // The split is the precondition, so it is asserted rather than assumed: the
+    // main file on its own does not carry the row.
+    const mainOnly = join(workDir, 'main-only.db');
+    copyFileSync(dbPath, mainOnly);
+    const orphaned = new BetterSqlite3(mainOnly, { readonly: true });
+    expect(orphaned.prepare('SELECT COUNT(*) AS c FROM payments WHERE id = ?').get('p_wal'))
+      .toEqual({ c: 0 });
+    orphaned.close();
+
+    const res = applyMigration(
+      'ALTER TABLE payments ADD COLUMN one TEXT;\nALTER TABLE nonexistent ADD COLUMN two TEXT;',
+    );
+    expect(res.status).toBe(1);
+
+    // The restore is what would lose the row: it deletes the WAL and puts back
+    // the copy. The copy has to have carried the row for that to be safe.
+    expect(readDb((db) =>
+      (db.prepare('SELECT COUNT(*) AS c FROM payments WHERE id = ?').get('p_wal') as { c: number }).c))
+      .toBe(1);
+  });
+
   it('rejects and rolls back a migration that breaks referential integrity', () => {
     // A dangling foreign key is not corruption, so the integrity check passes
     // and nothing complains until a read quietly returns nothing months later.
@@ -192,6 +236,7 @@ describe('the record of which migrations have been applied', () => {
     const res = applyMigration('ALTER TABLE payments ADD COLUMN currency TEXT;', NAMED);
 
     expect(res.status, res.stderr).toBe(0);
+    expect(res.stdout).toContain('MIGRATION APPLIED');
     expect(ledger()).toHaveLength(1);
   });
 
@@ -203,6 +248,11 @@ describe('the record of which migrations have been applied', () => {
     const second = applyMigration('ALTER TABLE payments ADD COLUMN currency TEXT;', NAMED);
 
     expect(second.status, second.stderr).toBe(0);
+    // Said loudly, not in passing. Skipping is a success that changed nothing,
+    // which is indistinguishable from a successful migration unless the deploy
+    // names which one happened: a rehearsal run against a host that already
+    // carries the file would otherwise read as proof the migration works.
+    expect(second.stdout).toContain('MIGRATION SKIPPED');
     expect(second.stdout).toContain('already applied');
     expect(ledger()).toHaveLength(1);
   });
@@ -241,13 +291,37 @@ describe('the record of which migrations have been applied', () => {
 });
 
 describe('the operator-facing script', () => {
-  function runOperator(args: string[]): { status: number; stderr: string } {
-    const res = spawnSync('bash', [OPERATOR_SCRIPT, ...args], {
-      env: { ...process.env, ...SPAWN_GUARD },
+  // Run through `setsid`, so the child has no controlling terminal. The
+  // confirmation prompt reads from /dev/tty rather than stdin, and a suite
+  // launched from a terminal would otherwise hand the script the operator's
+  // own terminal: it prints the prompt into the middle of the test output and
+  // blocks there, eating whatever the operator types next. Detached, the
+  // prompt has no terminal to open and refuses, which is the same branch a
+  // scripted caller hits.
+  //
+  // DEPLOY_TARGET is stripped from the inherited environment and supplied per
+  // test, so a developer who happens to have it exported cannot change what
+  // these assert.
+  function runOperator(
+    args: string[],
+    extraEnv: Record<string, string> = {},
+    script: string = OPERATOR_SCRIPT,
+  ): { status: number; stderr: string } {
+    const inherited = { ...process.env };
+    delete inherited.DEPLOY_TARGET;
+    const res = spawnSync('setsid', ['bash', script, ...args], {
+      env: { ...inherited, ...extraEnv },
       encoding: 'utf8',
       input: '',
+      ...SPAWN_GUARD,
     });
     return { status: res.status ?? -1, stderr: res.stderr ?? '' };
+  }
+
+  function ordinaryMigration(name = 'ordinary.sql'): string {
+    const file = join(workDir, name);
+    writeFileSync(file, 'ALTER TABLE payments ADD COLUMN x TEXT;\n');
+    return file;
   }
 
   it('refuses without a migration file, so it can never be a code-only deploy by accident', () => {
@@ -270,12 +344,50 @@ describe('the operator-facing script', () => {
     expect(res.stderr).toContain('is empty');
   });
 
+  it('refuses a deploy that does not say which host it means', () => {
+    // The shared deploy defaults to staging, and staging carries every
+    // committed migration as already applied, so a defaulted run is skipped and
+    // reports success having changed nothing. Refusing is the only outcome that
+    // cannot be mistaken for a migration that ran.
+    const res = runOperator(['--migration', ordinaryMigration()]);
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain('does not default');
+  });
+
+  it('refuses a deploy target that is not one of the two known hosts', () => {
+    // A near-miss alias is the realistic mistake, and it must not reach ssh to
+    // find out.
+    const res = runOperator(['--migration', ordinaryMigration()], { DEPLOY_TARGET: 'footbag-prod' });
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain('does not default');
+  });
+
   it('resolves a bare name against the migrations directory', () => {
     // The usual invocation names the migration rather than a path into the
-    // checkout. Confirmation is declined here, so reaching the prompt at all
-    // proves the file was found and read.
-    const res = runOperator(['--migration', '2026-08-25-audit-data-origin.sql']);
+    // checkout. Proved against a throwaway checkout rather than the real one:
+    // the committed migrations directory is empty until the first post-go-live
+    // schema change, and a test may not write into the tree to populate it.
+    // The script resolves the directory from its own location, so copying the
+    // script is what moves the resolution.
+    const root = mkdtempSync(join(tmpdir(), 'footbag-test-migrate-tree-'));
+    mkdirSync(join(root, 'scripts'));
+    mkdirSync(join(root, 'database', 'migrations'), { recursive: true });
+    const script = join(root, 'scripts', 'deploy-migrate.sh');
+    copyFileSync(OPERATOR_SCRIPT, script);
+    writeFileSync(join(root, 'database', 'migrations', 'ordinary.sql'),
+      'ALTER TABLE payments ADD COLUMN x TEXT;\n');
+
+    // Reaching the confirmation gate proves the bare name was resolved, found
+    // and read: everything that refuses before it is a different message. The
+    // gate itself refuses because the test runs with no terminal.
+    const res = runOperator(
+      ['--migration', 'ordinary.sql'], { DEPLOY_TARGET: 'footbag-staging' }, script,
+    );
+    rmSync(root, { recursive: true, force: true });
+
     expect(res.stderr).not.toContain('cannot read migration file');
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain('no terminal available to confirm on');
   });
 
   it('refuses a migration filename it could not safely record', () => {

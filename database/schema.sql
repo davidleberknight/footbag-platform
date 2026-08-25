@@ -1275,6 +1275,15 @@ CREATE TABLE recurring_donation_subscriptions (
   failure_count    INTEGER NOT NULL DEFAULT 0,
   metadata_json    TEXT NOT NULL DEFAULT '{}',
 
+  -- Whether the provider confirmed this subscription in live mode (1) or as a
+  -- test-mode rehearsal (0), from the flag on the confirming event. Null on the
+  -- opening row, which the provider has not seen yet, and on rows written before
+  -- the column existed. The nightly reconciliation compares only rows of the
+  -- mode the loaded credential is in, because a live key cannot list test-mode
+  -- objects; a null is compared rather than set aside.
+  provider_livemode INTEGER
+    CHECK (provider_livemode IN (0, 1)),
+
   CHECK (canceled_at IS NULL OR status = 'canceled'),
   CHECK (cancel_requested_at IS NULL OR is_cancel_at_period_end = 1),
   -- A row the provider is billing must name what it is billing. Without this a
@@ -3058,7 +3067,7 @@ CREATE TABLE tag_stats (
 
 -- ---------------------------------------------------------------------------
 -- MAILING LISTS
--- Eight core lists required for platform operation:
+-- Seven core lists required for platform operation:
 --   admin-alerts            : system notifications to admins; is_member_manageable=0
 --   all-members             : opt-outable broadcast list; is_member_manageable=1
 --   newsletter              : editorial newsletter; is_member_manageable=1
@@ -3066,7 +3075,8 @@ CREATE TABLE tag_stats (
 --   event-notifications     : event updates; is_member_manageable=1
 --   technical-updates       : platform/technical notices; is_member_manageable=1
 --   active-player-reminders : Active Player expiry reminders; is_member_manageable=1
---   financial-digest        : reconciliation summary for the treasurer; is_member_manageable=0
+-- The reconciliation digest for the treasurer is not a list: it goes to the
+-- fixed IFPA treasurer contact address, which needs no platform account.
 -- ---------------------------------------------------------------------------
 INSERT OR IGNORE INTO mailing_lists
   (updated_at, slug, name, description, status, is_member_manageable)
@@ -3118,13 +3128,6 @@ VALUES
    'active-player-reminders', 'Active Player Reminders',
    'Reminders sent before and on the day your Active Player status expires. Members may unsubscribe.',
    'active', 1
-  ),
-
-  (
-   '2000-01-01T00:00:00.000Z',
-   'financial-digest', 'Financial Digest',
-   'The periodic payment reconciliation summary, written for whoever answers for the money rather than for an operator. Subscriptions are set by an administrator, not by members, because the treasurer needs it whether or not they hold an admin account and should not receive the rest of the admin alert traffic to get it.',
-   'active', 0
   );
 
 -- ---------------------------------------------------------------------------
@@ -3675,9 +3678,9 @@ VALUES
   (
    'seed-reconciliation-summary-interval-days',
    '2000-01-01T00:00:00.000Z',
-   'reconciliation_summary_interval_days', '7',
+   'reconciliation_summary_interval_days', '30',
    '2000-01-01T00:00:00.000Z',
-   'Cadence in days for automated reconciliation digest email to admins (default: 7).',
+   'Cadence in days for the reconciliation digest email to the IFPA treasurer contact address (default: 30).',
    NULL
   ),
 

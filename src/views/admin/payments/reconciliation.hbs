@@ -21,9 +21,13 @@
             nothing anywhere says it is there. --}}
       <p class="card-meta">{{content.oldestOutstandingLine}}</p>
     {{/if}}
+    {{#if content.lastRunLine}}
+      <p class="card-meta">{{content.lastRunLine}}</p>
+    {{/if}}
 
     <p>
       <a href="{{content.paymentsHref}}" class="btn btn-outline">All Payments</a>
+      <a href="{{content.reportsHref}}" class="btn btn-outline">Financial Reports</a>
       <a href="{{content.toggleSortHref}}" class="action-link">{{content.toggleSortLabel}}</a>
     </p>
 

@@ -106,7 +106,7 @@ export const TEMPLATE_VARIANTS = {
   donation_subscription_charge_failed:      v('confidential', RECURRING_DONATION_FIELDS),
   donation_subscription_canceled:           v('confidential', RECURRING_DONATION_FIELDS),
   admin_recurring_donation_ended:  v('internal',     ['referenceId', 'amountDisplay', 'endReason']),
-  reconciliation_digest:           v('internal',     ['countPhrase', 'periodPhrase', 'headlinePhrase', 'needsAttentionBlock', 'forTheRecordBlock', 'reviewUrl']),
+  reconciliation_digest:           v('internal',     ['countPhrase', 'periodPhrase', 'headlinePhrase', 'comparisonBlock', 'needsAttentionBlock', 'forTheRecordBlock', 'reportsUrl', 'reviewUrl']),
   active_player_expiry_upcoming:   v('internal',     ['displayDate']),
   active_player_expiry_day_of:     v('internal',     ['displayDate']),
   club_membership_member_join:     v('confidential', ['memberName', 'clubName']),
@@ -276,10 +276,16 @@ const SHAPERS = {
     oldestOutstandingAgeDays: number | null;
     needsAttentionLines: string;
     forTheRecordLines: string;
+    /** What the last nightly pass compared and set aside, or null before any
+     *  pass has run. */
+    comparisonLine: string | null;
     reviewUrl: string;
+    reportsUrl: string;
   }): ShapedEmail => ({
     variant: 'reconciliation_digest',
     merge: {
+      comparisonBlock: p.comparisonLine ?? 'No nightly comparison has run yet.',
+      reportsUrl: p.reportsUrl,
       countPhrase: p.outstandingCount === 0
         ? 'nothing outstanding'
         : `${p.outstandingCount} outstanding discrepanc${p.outstandingCount === 1 ? 'y' : 'ies'}`,

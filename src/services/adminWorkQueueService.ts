@@ -145,6 +145,7 @@ const LINK_HELP_TASK_TYPE = 'member_link_help_request';
 const PAYMENTS_RESOLVABLE_TASK_TYPES: ReadonlySet<string> = new Set([
   'unattributed_refund',
   'partial_refund_review',
+  'refund_failed_review',
   'charge_dispute_review',
   'payout_failed',
   'recurring_donation_charge_declined',
@@ -157,6 +158,7 @@ const PAYMENTS_RESOLVABLE_TASK_TYPES: ReadonlySet<string> = new Set([
 const PAYMENTS_TASK_ENTITY_TYPES: Record<string, ReadonlySet<string>> = {
   unattributed_refund:                new Set(['stripe_payment_intent', 'stripe_charge']),
   partial_refund_review:              new Set(['payment']),
+  refund_failed_review:               new Set(['stripe_refund']),
   charge_dispute_review:              new Set(['stripe_dispute']),
   payout_failed:                      new Set(['stripe_payout']),
   recurring_donation_charge_declined: new Set(['recurring_donation_subscription']),
@@ -170,6 +172,7 @@ const ENTITY_REFERENCE_LABELS: Record<string, string> = {
   payment:                         'Payment record',
   stripe_payment_intent:           'Stripe payment intent',
   stripe_charge:                   'Stripe charge',
+  stripe_refund:                   'Stripe refund',
   stripe_dispute:                  'Stripe dispute',
   stripe_payout:                   'Stripe payout',
   recurring_donation_subscription: 'Recurring donation',
@@ -256,6 +259,7 @@ const WORK_QUEUE_TASK_TYPE_LABELS: Record<string, string> = {
   reconciliation_discrepancy: 'Payment reconciliation discrepancy',
   unattributed_refund: 'Refund with no matching payment record',
   partial_refund_review: 'Partially refunded payment',
+  refund_failed_review: 'Refund that could not be returned to the card',
   charge_dispute_review: 'Card dispute raised against a payment',
   payout_failed: 'Payout to the bank account failed',
   recurring_donation_paused: 'Recurring donation paused at Stripe',

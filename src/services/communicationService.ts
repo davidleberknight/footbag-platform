@@ -107,7 +107,9 @@ export const UNSUBSCRIBE_PATH = '/email/unsubscribe';
  */
 export type SendAudience =
   /** One member, at an address the caller already holds. */
-  | { kind: 'address'; email: string; memberId: string; listTag?: string }
+  /** A null member id names a platform role address (the treasurer contact,
+   *  for instance), which belongs to no member and has nothing to erase. */
+  | { kind: 'address'; email: string; memberId: string | null; listTag?: string }
   /** One member, at their current notification mailbox. */
   | { kind: 'member'; memberId: string; listTag?: string }
   /** A mailing list, resolved by whatever that list's recipient source says. */
@@ -157,7 +159,7 @@ export interface EnqueueOutcome {
 }
 
 interface ResolvedRecipient {
-  memberId: string;
+  memberId: string | null;
   email: string;
   /** The list this copy belongs to, for the archive and the admin surfaces. */
   mailingListId: string | null;
@@ -171,7 +173,7 @@ interface EnqueueEmailInput {
    * with no owner, unreachable by any scrub. Every current call site sets it;
    * the type is what stops the next one from not setting it.
    */
-  recipientMemberId: string;
+  recipientMemberId: string | null;
   subject: string;
   bodyText: string;
   idempotencyKey?: string;
@@ -580,9 +582,9 @@ export function createCommunicationService(
         );
       }
 
-      const keyFor = (memberId: string): string | undefined => {
+      const keyFor = (memberId: string | null): string | undefined => {
         if (!input.idempotencyKey) return undefined;
-        return perRecipientKey ? `${input.idempotencyKey}:${memberId}` : input.idempotencyKey;
+        return perRecipientKey ? `${input.idempotencyKey}:${memberId ?? 'address'}` : input.idempotencyKey;
       };
 
       for (const recipient of recipients) {

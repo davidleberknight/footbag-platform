@@ -904,7 +904,20 @@ if [[ -n "${MIGRATION_SQL:-}" ]]; then
 
     if [[ -n "$recorded_checksum" ]]; then
       if [[ "$recorded_checksum" == "${MIGRATION_CHECKSUM:-}" ]]; then
-        echo "    migration ${MIGRATION_NAME} was already applied to this database; skipping it"
+        # A banner rather than a line. Skipping is a legitimate outcome, because
+        # naming the same file twice is idempotent by design, but it is also the
+        # outcome that looks exactly like success while changing nothing. A
+        # rehearsal run against a host that already carries the migration reads
+        # as proof it works unless the deploy says otherwise loudly enough to
+        # survive a long log.
+        echo ""
+        echo "======================================================================"
+        echo "  MIGRATION SKIPPED: ${MIGRATION_NAME}"
+        echo "  Host $(hostname) already applied this file, with the same contents."
+        echo "  Nothing was changed. If this was a rehearsal, it did NOT execute:"
+        echo "  migrate a host before rebuilding it, not after."
+        echo "======================================================================"
+        echo ""
         MIGRATION_SQL=""
       else
         echo "ERROR: ${MIGRATION_NAME} was already applied to this database, but the file has" >&2
@@ -924,16 +937,44 @@ if [[ -n "${MIGRATION_SQL:-}" ]]; then
   # from two directions is how a half-applied migration becomes a corrupt file.
   systemctl stop footbag
 
+  # Folded into the main file before the copy is taken, the same idiom the
+  # backup producer uses. The stop above normally checkpoints twice over, once
+  # as each container takes SIGTERM and again in the unit's ExecStopPost backup,
+  # but the stop ends in SIGKILL after its timeout and that backup is
+  # best-effort by design. A WAL that outlives either one holds committed
+  # transactions the copy would not carry, and the restore below deletes the WAL
+  # on its way to putting the copy back, so those transactions would be lost by
+  # the very step meant to preserve them. The copy has to stand on its own.
+  sqlite3 "$DB_PATH" 'PRAGMA busy_timeout=5000; PRAGMA wal_checkpoint(TRUNCATE);' >/dev/null || {
+    echo "ERROR: could not checkpoint the write-ahead log before copying the database." >&2
+    echo "       Refusing to migrate: a copy taken now could not be restored intact." >&2
+    echo "       Nothing was migrated; restarting the service." >&2
+    systemctl start footbag || true
+    exit 1
+  }
+
   migration_backup="${DB_PATH}.pre-migration.$(date -u +%Y%m%dT%H%M%SZ)"
   cp -a "$DB_PATH" "$migration_backup"
   echo "    pre-migration copy at ${migration_backup}"
 
+  # Restores the database only. The release and its images were promoted earlier
+  # in this script, before the migration ran, and nothing here reverts them, so
+  # the host comes back up running the NEW code against the OLD schema. That is
+  # said out loud rather than left for the operator to work out from a healthy
+  # looking stack: additive migrations under the expand-and-contract rule leave
+  # that state serviceable, and anything else needs a deliberate recovery.
   restore_and_fail() {
     echo "ERROR: $1" >&2
     echo "       Restoring the pre-migration database and restarting." >&2
     rm -f "$DB_PATH" "${DB_PATH}-wal" "${DB_PATH}-shm"
     cp -a "$migration_backup" "$DB_PATH"
     systemctl start footbag || true
+    echo "" >&2
+    echo "       STATE OF THIS HOST: the database is back as it was, but the code" >&2
+    echo "       and images are the NEW release, promoted before the migration ran." >&2
+    echo "       This host is now running new code against the pre-migration schema." >&2
+    echo "       Recover by redeploying the previous commit with scripts/deploy-code.sh," >&2
+    echo "       or by fixing the migration and running the migrating deploy again." >&2
     exit 1
   }
 
@@ -978,7 +1019,13 @@ if [[ -n "${MIGRATION_SQL:-}" ]]; then
     restore_and_fail "the migration left foreign-key violations: ${fk_violations}"
   fi
 
-  echo "    migration ${MIGRATION_NAME:-(unnamed)} applied and recorded; integrity and foreign keys check out"
+  echo ""
+  echo "======================================================================"
+  echo "  MIGRATION APPLIED: ${MIGRATION_NAME:-(unnamed)}"
+  echo "  Host $(hostname). Integrity check and foreign-key check both clean."
+  echo "  Pre-migration copy retained at ${migration_backup}"
+  echo "======================================================================"
+  echo ""
 fi
 
 echo "==> Restarting service (compose up via systemctl, --no-build)..."

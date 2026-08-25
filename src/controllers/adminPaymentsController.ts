@@ -37,24 +37,29 @@ export const adminPaymentsController = {
     }
   },
 
-  /** GET /admin/payments/export */
-  exportPayments(req: Request, res: Response, next: NextFunction): void {
+  /** GET /admin/payments/reports */
+  reports(req: Request, res: Response, next: NextFunction): void {
     try {
-      const out = paymentReconciliationService.exportAdminPayments({
-        paymentType: str(req.query.type),
-        status: str(req.query.status),
-        memberId: str(req.query.member),
-        reference: str(req.query.reference),
-        createdFrom: str(req.query.from),
-        createdTo: str(req.query.to),
-        eventId: str(req.query.event),
-        sort: str(req.query.sort),
-      }, req.user!.userId);
-      res.setHeader('Content-Type', out.contentType);
-      res.setHeader('Content-Disposition', `attachment; filename="${out.filename}"`);
-      res.send(out.body);
+      res.render(
+        'admin/payments/reports',
+        paymentReconciliationService.getAdminReportsPage({ page: pageNum(req.query.page) }),
+      );
     } catch (err) {
-      handleControllerError(err, res, next, 'admin payments export controller');
+      handleControllerError(err, res, next, 'admin payment reports controller');
+    }
+  },
+
+  /** GET /admin/payments/reports/:runId */
+  report(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const model = paymentReconciliationService.getAdminReportPage(req.params.runId);
+      if (!model) {
+        renderNotFound(res);
+        return;
+      }
+      res.render('admin/payments/report', model);
+    } catch (err) {
+      handleControllerError(err, res, next, 'admin payment report controller');
     }
   },
 

@@ -193,6 +193,11 @@ aws/
 # whatever -out= was given, so these patterns cover the conventional spellings
 # rather than one of them: a plan committed under an unmatched name is a
 # published secret, and no later rule can unpublish it.
+#
+# These globs are the convenience, not the control. A name-based rule is exactly
+# what failed here once, so the rule that actually holds is
+# scripts/ci/check_no_opaque_archives.sh, which refuses any tracked archive by
+# its magic bytes wherever it sits and whatever it is called.
 tfplan
 tfplan.*
 *.tfplan

@@ -92,6 +92,12 @@ async function seedOneIssue(): Promise<string> {
     db.close();
   }
   const { paymentReconciliationService } = await import('../../src/services/paymentReconciliationService');
+  // The seeded row is live money, so the comparison runs under a live
+  // credential; a test-mode credential would set the row aside rather than
+  // compare it.
+  const { getPaymentAdapter, getStubPaymentAdapterForTests } = await import('../../src/adapters/paymentAdapter');
+  getPaymentAdapter();
+  getStubPaymentAdapterForTests()!.setLoadedCredentialModeForTests('live');
   await paymentReconciliationService.runReconciliation({ now: NOW });
   const read = openDb();
   try {
@@ -755,5 +761,69 @@ describe('All Payments event column and filter', () => {
     const plain = await plainRequest(createApp())
       .get('/admin/payments/pay-plain').set('Cookie', cookie(ADMIN));
     expect(plain.text).not.toContain('Admin Open 2026');
+  });
+});
+
+describe('where fees and payouts live', () => {
+  it('is said beside the All Payments totals, with the way to the nightly reports', async () => {
+    seedPayments();
+    const res = await plainRequest(createApp()).get('/admin/payments').set('Cookie', cookie(ADMIN));
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('book of record for money movement');
+    expect(res.text).toContain('/admin/payments/reports');
+    // The export is gone; the nightly reports and the provider's own reports
+    // are where a treasurer reads the money.
+    expect(res.text).not.toContain('Download These Payments');
+  });
+});
+
+describe('GET /admin/payments/reports', () => {
+  async function runNightly(now: Date): Promise<void> {
+    const { getPaymentAdapter, getStubPaymentAdapterForTests } = await import('../../src/adapters/paymentAdapter');
+    getPaymentAdapter();
+    getStubPaymentAdapterForTests()!.setLoadedCredentialModeForTests('live');
+    const { operationsPlatformService } = await import('../../src/services/operationsPlatformService');
+    await operationsPlatformService.runPaymentReconciliation(now);
+  }
+
+  it('shows the treasurer digest record and an empty state before any run, admin only', async () => {
+    const res = await plainRequest(createApp()).get('/admin/payments/reports').set('Cookie', cookie(ADMIN));
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('ifpa-treasurer@footbag.org');
+    expect(res.text).toContain('No nightly comparison has run yet');
+    expect(res.text).toContain('book of record for money movement');
+
+    const denied = await plainRequest(createApp()).get('/admin/payments/reports').set('Cookie', cookie(MEMBER));
+    expect(denied.status).toBe(403);
+  });
+
+  it('lists each run and opens the report it left, and the reconciliation page says what the last pass compared', async () => {
+    seedPayments();
+    await runNightly(NOW);
+
+    const list = await plainRequest(createApp()).get('/admin/payments/reports').set('Cookie', cookie(ADMIN));
+    expect(list.status).toBe(200);
+    expect(list.text).toContain('Completed');
+    expect(list.text).toContain('Live money');
+    const href = /href="(\/admin\/payments\/reports\/jr_[a-z0-9]+)"/.exec(list.text);
+    expect(href).not.toBeNull();
+
+    const detail = await plainRequest(createApp()).get(href![1]).set('Cookie', cookie(ADMIN));
+    expect(detail.status).toBe(200);
+    expect(detail.text).toContain('What Was Compared');
+    expect(detail.text).toContain('Local payment with no provider record');
+    expect(detail.text).toContain('Totals for the Window');
+
+    const denied = await plainRequest(createApp()).get(href![1]).set('Cookie', cookie(MEMBER));
+    expect(denied.status).toBe(403);
+
+    const recon = await plainRequest(createApp()).get('/admin/payments/reconciliation').set('Cookie', cookie(ADMIN));
+    expect(recon.text).toContain('The last nightly pass compared live-mode records');
+    expect(recon.text).toContain('Financial Reports');
+  });
+
+  it('404s an unknown report and is not read as a payment id', async () => {
+    const res = await plainRequest(createApp()).get('/admin/payments/reports/jr_nope').set('Cookie', cookie(ADMIN));
+    expect(res.status).toBe(404);
   });
 });

@@ -177,6 +177,24 @@ variable "enable_backup_alarm" {
   default     = false
 }
 
+variable "enable_replication_alarm" {
+  description = <<-EOT
+    Watch the cross-region replication that carries the snapshot and media
+    buckets to their DR copies. Off by default and off until the buckets have
+    replicated at least once, because the same flag turns on the S3 replication
+    metrics the alarms read: armed against a rule that has never run, the
+    pending-operations alarm has no data to evaluate.
+
+    Replication is the mechanism the DR copy depends on and nothing currently
+    watches it, so a replication failure is silent and the DR copy drifts until
+    the day it is needed. A failed replication cannot be retried automatically:
+    recovery is re-uploading the object or running S3 Batch Replication to clear
+    the backlog.
+  EOT
+  type        = bool
+  default     = false
+}
+
 variable "ses_feedback_webhook_url" {
   description = "Full HTTPS URL of the app's SES-feedback webhook, including the shared-secret query key (e.g. https://<host>/webhooks/ses-feedback?key=...). Empty disables the subscription."
   type        = string

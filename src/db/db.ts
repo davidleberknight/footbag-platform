@@ -6100,6 +6100,23 @@ export const systemConfig = {
     FROM system_config_current
     WHERE config_key = ?
   `); },
+
+  // The current row with the moment it took effect, for a reader that needs
+  // to say since when a value has held, not only what it is.
+  get getCurrentRowByKey() { return db.prepare(`
+    SELECT value_json, effective_start_at
+    FROM system_config_current
+    WHERE config_key = ?
+  `); },
+
+  // Appends a row; the table is append-only by trigger, so this is the only
+  // write shape it has. A null author is a system observation rather than an
+  // administrator's decision.
+  get insert() { return db.prepare(`
+    INSERT INTO system_config (
+      id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+  `); },
 };
 
 export interface OutboxRow {
@@ -9902,6 +9919,37 @@ export const systemJobRuns = {
     ORDER BY started_at DESC
     LIMIT ?
   `); },
+
+  // One job's runs newest first, with the result each returned, for a surface
+  // that reads the result back as the record of that run: the payment
+  // reconciliation's daily report lives in details_json and nowhere else.
+  get listRunsByJob() { return db.prepare(`
+    SELECT id, job_name, started_at, finished_at, status, details_json, last_error
+    FROM system_job_runs
+    WHERE job_name = ?
+    ORDER BY started_at DESC
+    LIMIT ? OFFSET ?
+  `); },
+
+  get countRunsByJob() { return db.prepare(`
+    SELECT COUNT(*) AS c FROM system_job_runs WHERE job_name = ?
+  `); },
+
+  get findRunById() { return db.prepare(`
+    SELECT id, job_name, started_at, finished_at, status, details_json, last_error
+    FROM system_job_runs
+    WHERE id = ?
+  `); },
+
+  // The most recent successful run and its result, so a later reader can say
+  // what the last pass actually compared rather than only when it ran.
+  get lastSucceededRun() { return db.prepare(`
+    SELECT id, started_at, finished_at, details_json
+    FROM system_job_runs
+    WHERE job_name = ? AND status = 'succeeded'
+    ORDER BY finished_at DESC
+    LIMIT 1
+  `); },
 };
 
 export const systemAlarms = {
@@ -10465,7 +10513,7 @@ export const payments = {
   get listForReconciliation() { return db.prepare(`
     SELECT id, member_id, payment_type, amount_cents, currency, status,
            stripe_payment_intent_id, stripe_subscription_id, stripe_invoice_id,
-           recurring_subscription_id, created_at
+           recurring_subscription_id, created_at, provider_livemode
     FROM payments
     WHERE created_at >= ? AND created_at < ?
       AND member_id IS NOT NULL
@@ -10528,8 +10576,8 @@ export const recurringDonationSubscriptions = {
       id, created_at, created_by, updated_at, updated_by, version,
       member_id, stripe_customer_id, stripe_subscription_id, last_stripe_event_id,
       status, amount_cents, currency, billing_interval,
-      started_at, status_updated_at, donation_comment
-    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, 'active', ?, ?, 'yearly', ?, ?, ?)
+      started_at, status_updated_at, donation_comment, provider_livemode
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, 'active', ?, ?, 'yearly', ?, ?, ?, ?)
   `); },
 
   // Written when checkout opens, before the member is redirected, so an
@@ -10555,6 +10603,7 @@ export const recurringDonationSubscriptions = {
         stripe_subscription_id = ?,
         stripe_customer_id = ?,
         last_stripe_event_id = ?,
+        provider_livemode = ?,
         started_at = ?,
         status_updated_at = ?,
         updated_at = ?, updated_by = ?, version = version + 1
@@ -11040,15 +11089,17 @@ export const paymentMoneyHistory = {
     FROM audit_entries
     WHERE entity_type = 'payment' AND entity_id = ?
       AND action_type IN (
-        'payment.refunded', 'payment.partially_refunded', 'payment.canceled'
+        'payment.refunded', 'payment.partially_refunded', 'payment.canceled',
+        'payment.refund_not_returned'
       )
     UNION ALL
     SELECT occurred_at, action_type, reason_text, metadata_json
     FROM audit_entries
     WHERE category = 'payment'
       AND action_type IN (
-        'payment.dispute_opened', 'payment.dispute_closed',
-        'payment.dispute_funds_withdrawn', 'payment.payout_rejected'
+        'payment.dispute_opened', 'payment.dispute_updated', 'payment.dispute_closed',
+        'payment.dispute_funds_withdrawn', 'payment.dispute_funds_reinstated',
+        'payment.payout_rejected'
       )
       AND json_extract(metadata_json, '$.stripe_payment_intent_id') = ?
     ORDER BY occurred_at ASC
@@ -11131,8 +11182,21 @@ export const paymentVolume = {
            SUM(amount_cents) AS total_cents
     FROM payments
     WHERE status = 'succeeded' AND created_at >= ?
+      -- Real money only, for the same reason the period totals count only
+      -- live rows: a rehearsal charge on the health page reads as revenue.
+      AND provider_livemode = 1
     GROUP BY payment_type, currency
     ORDER BY payment_type, currency
+  `); },
+
+  // What the window's volume left out, so the page can say so on its face.
+  get excludedSince() { return db.prepare(`
+    SELECT CASE WHEN provider_livemode IS NULL THEN 'unknown' ELSE 'test' END AS mode,
+           COUNT(*) AS n
+    FROM payments
+    WHERE status = 'succeeded' AND created_at >= ?
+      AND (provider_livemode IS NULL OR provider_livemode = 0)
+    GROUP BY mode
   `); },
 };
 

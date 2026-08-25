@@ -186,6 +186,15 @@ resource "aws_s3_bucket_replication_configuration" "media" {
     destination {
       bucket        = aws_s3_bucket.media_dr.arn
       storage_class = "ONEZONE_IA"
+
+      # Same flag as the snapshot rule: the metrics the alarms read exist only
+      # while the rule publishes them.
+      dynamic "metrics" {
+        for_each = var.enable_replication_alarm ? [1] : []
+        content {
+          status = "Enabled"
+        }
+      }
     }
   }
 }
@@ -371,6 +380,16 @@ resource "aws_s3_bucket_replication_configuration" "snapshots" {
     destination {
       bucket        = aws_s3_bucket.dr.arn
       storage_class = "ONEZONE_IA"
+
+      # S3 publishes the replication metrics the alarms read only when the rule
+      # asks for them, so the metrics and the alarms share one flag: arming the
+      # alarms without the metrics would watch a stream that does not exist.
+      dynamic "metrics" {
+        for_each = var.enable_replication_alarm ? [1] : []
+        content {
+          status = "Enabled"
+        }
+      }
     }
   }
 }

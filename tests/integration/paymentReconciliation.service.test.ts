@@ -20,7 +20,6 @@ import {
   insertMember,
   insertPayment,
   insertRecurringDonationSubscription,
-  insertMailingListSubscription,
   insertAuditEntry,
 } from '../fixtures/factories';
 
@@ -38,20 +37,20 @@ function openDb(): BetterSqlite3.Database {
   return new BetterSqlite3(dbPath);
 }
 
-// Puts one member on the financial-digest list, which is where the summary goes
-// rather than the admin alert stream: the person answerable for the money needs
-// this report whether or not they hold an admin account, and should not have to
-// take the flagged-media and security traffic to get it.
-function subscribeToDigest(memberId: string): void {
+// The digest goes to the fixed treasurer contact address rather than to a
+// list or the admin alert stream: the person answerable for the money needs
+// this report whether or not they hold any platform account.
+const TREASURER_ADDRESS = 'ifpa-treasurer@footbag.org';
+
+function latestDigestBody(): string {
   const db = openDb();
   try {
-    insertMember(db, {
-      id: memberId,
-      slug: memberId.replace(/-/g, '_'),
-      display_name: 'Digest Reader',
-      login_email: `${memberId}@example.com`,
-    });
-    insertMailingListSubscription(db, { member_id: memberId, list_slug: 'financial-digest' });
+    const row = db.prepare(
+      `SELECT body_text FROM outbox_emails WHERE recipient_email = ?
+        ORDER BY created_at DESC LIMIT 1`,
+    ).get(TREASURER_ADDRESS) as { body_text: string } | undefined;
+    expect(row, 'a digest row addressed to the treasurer').toBeDefined();
+    return row!.body_text;
   } finally {
     db.close();
   }
@@ -70,8 +69,14 @@ afterAll(() => cleanupTestDb(dbPath));
 // Each case owns its own local rows and provider ledger, so one case's
 // deliberate discrepancy is never another's surprise.
 beforeEach(async () => {
-  const { resetPaymentAdapterForTests } = await import('../../src/adapters/paymentAdapter');
+  const { resetPaymentAdapterForTests, getPaymentAdapter, getStubPaymentAdapterForTests } =
+    await import('../../src/adapters/paymentAdapter');
   resetPaymentAdapterForTests();
+  // The rows these cases build are live money by default, so the credential
+  // the comparison runs under is live too; the mode-scoping cases set their
+  // own mode explicitly.
+  getPaymentAdapter();
+  getStubPaymentAdapterForTests()!.setLoadedCredentialModeForTests('live');
   const db = openDb();
   try {
     db.prepare('DELETE FROM reconciliation_issues').run();
@@ -1240,48 +1245,6 @@ describe('period totals and export', () => {
     expect(donations?.netDisplay).toBe('0.00 USD');
   });
 
-  it('exports the filtered payments and records that the export happened', async () => {
-    seed((db) => {
-      insertPayment(db, {
-        id: 'pay-export', member_id: MEMBER, payment_type: 'donation', created_at: IN_WINDOW,
-        status: 'succeeded', amount_cents: 4200,
-      });
-    });
-    const out = (await svc()).exportAdminPayments({}, ADMIN);
-    expect(out.contentType).toBe('text/csv');
-    expect(out.body).toContain('payment_id,date_utc,type,status,amount,currency');
-    // The bare number and its currency in separate columns, so a spreadsheet
-    // can add one column without mixing currencies into one meaningless figure.
-    expect(out.body).toContain('42.00,USD');
-
-    const db = openDb();
-    try {
-      const audited = db.prepare(
-        "SELECT COUNT(*) AS c FROM audit_entries WHERE action_type = 'payment.exported'",
-      ).get() as { c: number };
-      // Taking the whole payment record out of the platform is an event the
-      // platform should be able to account for.
-      expect(audited.c).toBe(1);
-    } finally {
-      db.close();
-    }
-  });
-
-  it('defuses a descriptor that would run as a formula when the file is opened', async () => {
-    // A donation descriptor carries the member's own note, which is text a
-    // member wrote. A leading equals sign makes a spreadsheet execute what
-    // follows on the administrator's machine.
-    seed((db) => {
-      insertPayment(db, {
-        id: 'pay-formula', member_id: MEMBER, payment_type: 'donation', created_at: IN_WINDOW,
-        status: 'succeeded', amount_cents: 100,
-        descriptor: '=1+1',
-      });
-    });
-    const out = (await svc()).exportAdminPayments({}, ADMIN);
-    expect(out.body).toContain("'=1+1");
-    expect(out.body).not.toMatch(/,=1\+1,/);
-  });
 });
 
 describe('duplicate charges', () => {
@@ -1377,24 +1340,71 @@ describe('the reconciliation digest', () => {
     // surface telling them the job still runs. The reader this report is
     // written for has no such surface, so silence and "the job died three
     // months ago" look identical to them.
-    subscribeToDigest('digest-nil');
     const result = (await svc()).sendReconciliationDigest({ now: NOW });
     expect(result.outstanding).toBe(0);
     expect(result.sent).toBe(1);
+    expect(result.recipient).toBe(TREASURER_ADDRESS);
 
+    const body = latestDigestBody();
+    // It says plainly that the check ran and found nothing, rather than
+    // leaving an empty section for the reader to interpret.
+    expect(body).toContain('Everything matched');
+    expect(body).toContain('Nothing outstanding.');
+    // And where every nightly report lives, because nothing depends on this
+    // email being read.
+    expect(body).toContain('/admin/payments/reports');
+
+    // The address belongs to no member, so the row carries none to erase.
     const db = openDb();
     try {
-      const { body_text: body } = db.prepare(
-        `SELECT body_text FROM outbox_emails WHERE recipient_member_id = 'digest-nil'
-          ORDER BY created_at DESC LIMIT 1`,
-      ).get() as { body_text: string };
-      // It says plainly that the check ran and found nothing, rather than
-      // leaving an empty section for the reader to interpret.
-      expect(body).toContain('Everything matched');
-      expect(body).toContain('Nothing outstanding.');
+      const row = db.prepare(
+        'SELECT recipient_member_id FROM outbox_emails WHERE recipient_email = ? ORDER BY created_at DESC LIMIT 1',
+      ).get(TREASURER_ADDRESS) as { recipient_member_id: string | null };
+      expect(row.recipient_member_id).toBeNull();
     } finally {
       db.close();
     }
+  });
+
+  it('sends one copy a day however many times the daily pass asks', async () => {
+    const service = await svc();
+    const first = service.sendReconciliationDigest({ now: NOW });
+    const again = service.sendReconciliationDigest({ now: NOW });
+    expect(first.sent).toBe(1);
+    // The second is a duplicate at the outbox key and is not counted as sent
+    // twice by the outbox; the service reports what it handed over.
+    expect(again.recipient).toBe(TREASURER_ADDRESS);
+    const db = openDb();
+    try {
+      const rows = db.prepare(
+        'SELECT COUNT(*) AS c FROM outbox_emails WHERE recipient_email = ? AND idempotency_key = ?',
+      ).get(TREASURER_ADDRESS, `reconciliation-digest:${NOW.toISOString().slice(0, 10)}`) as { c: number };
+      expect(rows.c).toBe(1);
+    } finally {
+      db.close();
+    }
+  });
+
+  it('says what the last nightly pass compared and set aside', async () => {
+    seed((db) => {
+      insertPayment(db, {
+        id: 'pay-digest-live', member_id: MEMBER, created_at: IN_WINDOW,
+        status: 'succeeded', amount_cents: 1000, stripe_payment_intent_id: 'pi_digest_live',
+      });
+      insertPayment(db, {
+        id: 'pay-digest-test', member_id: MEMBER, created_at: IN_WINDOW,
+        status: 'succeeded', amount_cents: 1000, stripe_payment_intent_id: 'pi_digest_test',
+        provider_livemode: 0,
+      });
+    });
+    const { operationsPlatformService } = await import('../../src/services/operationsPlatformService');
+    await operationsPlatformService.runPaymentReconciliation(new Date(NOW.getTime() + 1));
+    // Its own day, so this copy is a fresh outbox row rather than the
+    // duplicate of one an earlier case already queued for today.
+    (await svc()).sendReconciliationDigest({ now: new Date(NOW.getTime() + 3 * 86_400_000) });
+    const body = latestDigestBody();
+    expect(body).toContain('compared live-mode records');
+    expect(body).toContain('1 row was set aside as the other mode');
   });
 
   it('names what needs a decision, how old the oldest is, and who settled what', async () => {
@@ -1409,28 +1419,20 @@ describe('the reconciliation digest', () => {
     });
     const service = await svc();
     await service.runReconciliation({ now: NOW });
-    subscribeToDigest('digest-reader');
-    const result = service.sendReconciliationDigest({ now: NOW });
-    // At least this reader: the suite shares one database, so an earlier test's
-    // subscriber is still on the list.
-    expect(result.sent).toBeGreaterThanOrEqual(1);
+    // A later day than the other digest cases, so this copy is its own outbox
+    // row rather than the duplicate of one already queued.
+    const later = new Date(NOW.getTime() + 2 * 86_400_000);
+    const result = service.sendReconciliationDigest({ now: later });
+    expect(result.sent).toBe(1);
 
-    const db = openDb();
-    try {
-      const { body_text: body } = db.prepare(
-        `SELECT body_text FROM outbox_emails WHERE recipient_member_id = 'digest-reader'
-          ORDER BY created_at DESC LIMIT 1`,
-      ).get() as { body_text: string };
-      // A plain description, not the stored issue-type code.
-      expect(body).toContain('Local payment with no provider record');
-      expect(body).not.toContain('payment_missing_at_provider');
-      // The money, with the currency on the face of it.
-      expect(body).toContain('42.00 USD');
-      // And the section a reader with nothing to do can skip.
-      expect(body).toContain('Nothing was resolved during this period.');
-    } finally {
-      db.close();
-    }
+    const body = latestDigestBody();
+    // A plain description, not the stored issue-type code.
+    expect(body).toContain('Local payment with no provider record');
+    expect(body).not.toContain('payment_missing_at_provider');
+    // The money, with the currency on the face of it.
+    expect(body).toContain('42.00 USD');
+    // And the section a reader with nothing to do can skip.
+    expect(body).toContain('Nothing was resolved during this period.');
   });
 
   it('reports the outstanding count when there is work waiting', async () => {

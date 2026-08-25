@@ -168,6 +168,22 @@ variable "enable_cwagent_alarms" {
   default     = false
 }
 
+variable "enable_replication_alarm" {
+  description = <<-EOT
+    Watch the cross-region replication that carries the media bucket to its DR
+    copy. Off by default and off until the rule has replicated at least once,
+    because the same flag turns on the S3 replication metrics the alarms read.
+
+    Staging replicates media only: its snapshot bucket has no DR copy, so unlike
+    production there is no snapshot replication here to watch.
+
+    A failed replication is not retried by S3. Recovery is re-uploading the
+    object or running S3 Batch Replication to clear the backlog.
+  EOT
+  type        = bool
+  default     = false
+}
+
 variable "enable_backup_alarm" {
   description = <<-EOT
     Set to true only after the SQLite backup job exists, runs on schedule,

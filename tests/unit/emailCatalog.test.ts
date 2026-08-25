@@ -120,11 +120,11 @@ const CATALOG: CatalogEntry[] = [
     { params: { referenceId: 'r', amountDisplay: '$25.00 USD', memberRequested: true }, variant: 'admin_recurring_donation_ended' },
   ] },
   { template: 'reconciliation_digest', services: ['paymentReconciliationService'], samples: [
-    { params: { outstandingCount: 3, resolvedCount: 1, periodDays: 7, oldestOutstandingAgeDays: 22, needsAttentionLines: '2026-07-01 (22 days old) - Amount or currency disagrees - 25.00 USD', forTheRecordLines: 'Status disagrees - resolved by jane on 2026-07-20', reviewUrl: '/admin/payments/reconciliation' }, variant: 'reconciliation_digest' },
+    { params: { outstandingCount: 3, resolvedCount: 1, periodDays: 30, oldestOutstandingAgeDays: 22, needsAttentionLines: '2026-07-01 (22 days old) - Amount or currency disagrees - 25.00 USD', forTheRecordLines: 'Status disagrees - resolved by jane on 2026-07-20', comparisonLine: 'The last nightly pass compared live-mode records; nothing was set aside.', reviewUrl: '/admin/payments/reconciliation', reportsUrl: '/admin/payments/reports' }, variant: 'reconciliation_digest' },
     // The nil report is a shape the template must render, not an edge case: it
     // is sent on every clean period and is the only thing telling the reader
     // the check still runs.
-    { params: { outstandingCount: 0, resolvedCount: 0, periodDays: 7, oldestOutstandingAgeDays: null, needsAttentionLines: '', forTheRecordLines: '', reviewUrl: '/admin/payments/reconciliation' }, variant: 'reconciliation_digest' },
+    { params: { outstandingCount: 0, resolvedCount: 0, periodDays: 30, oldestOutstandingAgeDays: null, needsAttentionLines: '', forTheRecordLines: '', comparisonLine: null, reviewUrl: '/admin/payments/reconciliation', reportsUrl: '/admin/payments/reports' }, variant: 'reconciliation_digest' },
   ] },
   { template: 'vouch_confirmation', services: ['activePlayerService'], samples: [
     { params: { voucherName: 'V', expiryDate: '2030-01-01' }, variant: 'vouch_confirmation' },

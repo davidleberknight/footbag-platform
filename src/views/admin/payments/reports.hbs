@@ -1,0 +1,89 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    <p>One report per nightly comparison of the platform's payment records against the payment provider's ledger. Each is kept as the run left it, so the newest is the current state of the money and an older one is what that day found. Read-only.</p>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+    <div class="section-heading">
+      <h2>Treasurer Digest</h2>
+    </div>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Measure</th>
+          <th>Value</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Sent to</td>
+          <td><span class="fw-600">{{content.digest.recipientAddress}}</span></td>
+        </tr>
+        <tr>
+          <td>Cadence</td>
+          <td>every {{content.digest.cadenceDays}} days</td>
+        </tr>
+        <tr>
+          <td>Last sent</td>
+          <td>{{#if content.digest.hasEverSent}}{{content.digest.lastSentDisplay}}{{else}}<span class="text-muted">never</span>{{/if}}</td>
+        </tr>
+        <tr>
+          <td>Next due</td>
+          <td>{{content.digest.nextDueDisplay}}</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="card-meta">The email is a copy of the newest report. Nothing depends on it being read: the same report is on this page the morning after every run.</p>
+  </section>
+
+  <section>
+    <div class="section-heading">
+      <h2>Nightly Reports</h2>
+    </div>
+    <p>
+      <a href="{{content.paymentsHref}}" class="btn btn-outline">All Payments</a>
+      <a href="{{content.reconciliationHref}}" class="btn btn-outline">Reconciliation Issues</a>
+      <a href="{{content.healthHref}}" class="action-link">Payments health</a>
+    </p>
+    <p class="text-muted">{{content.resultSummary}}</p>
+
+    {{#if content.hasRows}}
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Run</th>
+            <th>Outcome</th>
+            <th>Compared</th>
+            <th>Raised</th>
+            <th>Outstanding after</th>
+            <th>Set aside</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.rows}}
+            <tr>
+              <td><a href="{{this.href}}">{{this.dateDisplay}}</a></td>
+              <td>{{#if this.isFailed}}<span class="badge badge-warn">{{this.statusLabel}}</span>{{else}}{{this.statusLabel}}{{/if}}</td>
+              <td>{{this.modeLabel}}</td>
+              <td>{{this.issuesRaised}}</td>
+              <td>{{#if this.outstandingAfterRun}}{{this.outstandingAfterRun}}{{else}}0{{/if}}</td>
+              <td>{{this.setAsideLabel}}</td>
+            </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    {{else}}
+      <p class="text-muted">No nightly comparison has run yet. The first report appears the morning after the first pass.</p>
+    {{/if}}
+
+    <p class="text-muted fs-sm">{{content.providerBoundaryLine}}</p>
+
+    <p class="mt-6">
+      {{#if content.prevPageHref}}<a href="{{content.prevPageHref}}" class="btn btn-outline">Previous</a>{{/if}}
+      {{#if content.nextPageHref}}<a href="{{content.nextPageHref}}" class="btn btn-outline">Next</a>{{/if}}
+    </p>
+  </section>
+</div>

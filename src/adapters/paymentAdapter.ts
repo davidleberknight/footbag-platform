@@ -210,9 +210,25 @@ export interface StubSessionRecord {
  *  the following year; the stub sends them on demand. */
 export type StubSubscriptionEventKind =
   | 'invoice_succeeded'
+  /** The provider's `invoice.paid`, raised for the same settlement as
+   *  `invoice.payment_succeeded` and also for an invoice marked paid out of
+   *  band, which the other event never reports. */
+  | 'invoice_paid'
   | 'invoice_failed'
   | 'updated'
   | 'deleted';
+
+/** How the settlement event for a one-time checkout may disagree with what the
+ *  checkout asked for. Real Stripe charges exactly the session amount, so these
+ *  exist to exercise the handler's comparison, not to model ordinary traffic. */
+export interface StubCheckoutEventOpts {
+  /** The amount the settlement reports as received; defaults to the session's. */
+  settledAmountCents?: number;
+  /** The currency the settlement reports; defaults to the session's. */
+  settledCurrency?: string;
+  /** Emits the settlement with no amount or currency fields at all. */
+  omitSettledAmount?: boolean;
+}
 
 export interface StubSubscriptionEventOpts {
   /** Overrides the charged amount on an invoice event, or the new price on an
@@ -250,30 +266,43 @@ export interface StubRefundEventOpts {
 }
 
 /** The account-level money events that belong to no single checkout session:
- *  a card dispute moving through its stages, and a failed payout to the bank. */
+ *  a card dispute moving through its stages, a refund the provider could not
+ *  complete or reversed, and a failed payout to the bank. */
 export type StubAccountEventKind =
   | 'dispute_created'
+  | 'dispute_updated'
   | 'dispute_closed'
   | 'dispute_funds_withdrawn'
+  | 'dispute_funds_reinstated'
+  | 'refund_failed'
+  | 'refund_updated'
   | 'payout_failed';
 
 export interface StubAccountEventOpts {
   amountCents?: number;
   currency?: string;
-  /** The dispute's reason, or the payout's failure code. */
+  /** The dispute's reason, the refund's failure reason, or the payout's failure
+   *  code. */
   reason?: string;
-  /** The dispute's own id or the payout's, so a test can drive the same object
-   *  through several stages the way the provider does. */
+  /** The dispute's, refund's or payout's own id, so a test can drive the same
+   *  object through several stages the way the provider does. */
   objectId?: string;
-  /** The charge and payment intent a dispute is raised against. */
+  /** The charge and payment intent a dispute or refund is raised against. */
   chargeId?: string;
   paymentIntentId?: string;
+  /** The refund's status on a refund.updated event; the provider reports
+   *  `failed` and `canceled` for a refund that did not return the money, and
+   *  `pending` or `succeeded` for ordinary progress. */
+  refundStatus?: string;
 }
 
 export interface StubPaymentAdapter extends PaymentAdapter {
   readonly sessions: ReadonlyMap<string, StubSessionRecord>;
   setNextOutcome(outcome: StubOutcome): void;
   overrideSessionOutcome(sessionId: string, outcome: StubOutcome): void;
+  /** The mode `loadedCredentialMode()` reports; test mode unless a test says
+   *  otherwise. `clear()` restores test mode. */
+  setLoadedCredentialModeForTests(mode: 'live' | 'test' | 'unknown'): void;
   // The simulated provider-side ledger the reconciliation passes read. Every
   // event the stub synthesizes is reflected into it, so a normally-driven flow
   // reconciles clean; the setters and removers exist so a test can construct a
@@ -292,7 +321,10 @@ export interface StubPaymentAdapter extends PaymentAdapter {
   removeLedgerSubscription(id: string): void;
   setLedgerInvoice(summary: StripeInvoiceSummary): void;
   removeLedgerInvoice(id: string): void;
-  buildSignedStubWebhookEvent(sessionId: string): { rawBody: string; signature: string };
+  buildSignedStubWebhookEvent(
+    sessionId: string,
+    opts?: StubCheckoutEventOpts,
+  ): { rawBody: string; signature: string };
   buildSignedStubSubscriptionEvent(
     sessionId: string,
     kind: StubSubscriptionEventKind,
@@ -415,6 +447,7 @@ function buildStubEventObject(
   session: StubSessionRecord,
   eventId: string,
   created: number,
+  checkoutOpts: StubCheckoutEventOpts = {},
 ): Record<string, unknown> {
   // The caller's own metadata rides along, because the real Stripe mirrors
   // subscription_data.metadata onto the Subscription and the webhook handlers
@@ -473,8 +506,13 @@ function buildStubEventObject(
       data: {
         object: {
           id: paymentIntentId,
-          amount: session.amountCents,
-          currency: session.currency.toLowerCase(),
+          ...(checkoutOpts.omitSettledAmount
+            ? {}
+            : {
+                amount: checkoutOpts.settledAmountCents ?? session.amountCents,
+                amount_received: checkoutOpts.settledAmountCents ?? session.amountCents,
+                currency: (checkoutOpts.settledCurrency ?? session.currency).toLowerCase(),
+              }),
           metadata: meta,
         },
       },
@@ -519,10 +557,15 @@ function buildStubSubscriptionEventObject(
   };
   const amountCents = opts.amountCents ?? session.amountCents;
 
-  if (kind === 'invoice_succeeded' || kind === 'invoice_failed') {
+  if (kind === 'invoice_succeeded' || kind === 'invoice_paid' || kind === 'invoice_failed') {
+    const settled = kind !== 'invoice_failed';
     return {
       id: eventId,
-      type: kind === 'invoice_succeeded' ? 'invoice.payment_succeeded' : 'invoice.payment_failed',
+      type: kind === 'invoice_succeeded'
+        ? 'invoice.payment_succeeded'
+        : kind === 'invoice_paid'
+          ? 'invoice.paid'
+          : 'invoice.payment_failed',
       created,
       data: {
         object: {
@@ -546,7 +589,7 @@ function buildStubSubscriptionEventObject(
           },
           billing_reason: opts.billingReason ?? 'subscription_cycle',
           customer: session.stripeCustomerId,
-          amount_paid: kind === 'invoice_succeeded' ? amountCents : 0,
+          amount_paid: settled ? amountCents : 0,
           currency: session.currency.toLowerCase(),
           // NO invoice-level metadata. The provider does not copy a
           // subscription's metadata onto its invoices, so emitting it here would
@@ -649,15 +692,48 @@ function buildStubAccountEventObject(
     };
   }
 
-  const type =
-    kind === 'dispute_created'
-      ? 'charge.dispute.created'
-      : kind === 'dispute_closed'
-        ? 'charge.dispute.closed'
-        : 'charge.dispute.funds_withdrawn';
+  if (kind === 'refund_failed' || kind === 'refund_updated') {
+    // The provider's Refund object: a failed refund carries a failure reason;
+    // an update carries whatever status the refund reached.
+    const status =
+      kind === 'refund_failed' ? 'failed' : (opts.refundStatus ?? 'succeeded');
+    return {
+      id: eventId,
+      type: kind === 'refund_failed' ? 'refund.failed' : 'refund.updated',
+      created,
+      data: {
+        object: {
+          id: opts.objectId ?? newStubId('re_stub'),
+          amount: amountCents,
+          currency,
+          charge: opts.chargeId ?? newStubId('ch_stub'),
+          payment_intent: opts.paymentIntentId ?? null,
+          status,
+          ...(status === 'failed'
+            ? { failure_reason: opts.reason ?? 'expired_or_canceled_card' }
+            : {}),
+        },
+      },
+    };
+  }
+
+  const DISPUTE_TYPES: Record<string, string> = {
+    dispute_created: 'charge.dispute.created',
+    dispute_updated: 'charge.dispute.updated',
+    dispute_closed: 'charge.dispute.closed',
+    dispute_funds_withdrawn: 'charge.dispute.funds_withdrawn',
+    dispute_funds_reinstated: 'charge.dispute.funds_reinstated',
+  };
+  const DISPUTE_STATUSES: Record<string, string> = {
+    dispute_created: 'needs_response',
+    dispute_updated: 'under_review',
+    dispute_closed: 'lost',
+    dispute_funds_withdrawn: 'needs_response',
+    dispute_funds_reinstated: 'won',
+  };
   return {
     id: eventId,
-    type,
+    type: DISPUTE_TYPES[kind],
     created,
     data: {
       object: {
@@ -667,7 +743,7 @@ function buildStubAccountEventObject(
         charge: opts.chargeId ?? newStubId('ch_stub'),
         payment_intent: opts.paymentIntentId ?? null,
         reason: opts.reason ?? 'fraudulent',
-        status: kind === 'dispute_closed' ? 'lost' : 'needs_response',
+        status: DISPUTE_STATUSES[kind],
       },
     },
   };
@@ -683,6 +759,7 @@ export function createStubPaymentAdapter(): StubPaymentAdapter {
   const ledgerSubscriptions = new Map<string, StripeSubscriptionSummary>();
   const ledgerInvoices = new Map<string, StripeInvoiceSummary>();
   let nextOutcome: StubOutcome = 'success';
+  let reportedMode: 'live' | 'test' | 'unknown' = 'test';
 
   function inWindow(createdAt: string, window: LedgerWindow): boolean {
     return createdAt >= window.createdAfter && createdAt < window.createdBefore;
@@ -719,7 +796,11 @@ export function createStubPaymentAdapter(): StubPaymentAdapter {
       });
       return;
     }
-    if (type === 'invoice.payment_succeeded' || type === 'invoice.payment_failed') {
+    if (
+      type === 'invoice.payment_succeeded'
+      || type === 'invoice.paid'
+      || type === 'invoice.payment_failed'
+    ) {
       const parent = obj.parent as
         | { subscription_details?: { subscription?: unknown } }
         | undefined;
@@ -729,7 +810,7 @@ export function createStubPaymentAdapter(): StubPaymentAdapter {
         subscriptionId: typeof linkedSubscription === 'string' ? linkedSubscription : null,
         amountPaidCents: typeof obj.amount_paid === 'number' ? obj.amount_paid : 0,
         currency: typeof obj.currency === 'string' ? obj.currency.toUpperCase() : 'USD',
-        status: type === 'invoice.payment_succeeded' ? 'paid' : 'open',
+        status: type === 'invoice.payment_failed' ? 'open' : 'paid',
         createdAt,
       });
     }
@@ -821,6 +902,7 @@ export function createStubPaymentAdapter(): StubPaymentAdapter {
       ledgerSubscriptions.clear();
       ledgerInvoices.clear();
       nextOutcome = 'success';
+      reportedMode = 'test';
     },
     setLedgerPaymentIntent(summary) {
       ledgerIntents.set(summary.id, { customerId: null, ...summary });
@@ -856,22 +938,27 @@ export function createStubPaymentAdapter(): StubPaymentAdapter {
       return recordSubscription(opts);
     },
     // The stub never holds a live credential and never moves real money, so it
-    // reports test mode outright rather than pretending not to know.
+    // reports test mode outright rather than pretending not to know. A test
+    // that needs the reconciliation to behave as it would under a live key, or
+    // under a credential that could not be read, sets the reported mode.
     loadedCredentialMode() {
-      return 'test' as const;
+      return reportedMode;
+    },
+    setLoadedCredentialModeForTests(mode) {
+      reportedMode = mode;
     },
     constructWebhookEvent(rawBody, signature) {
       const event = verifyStripeWebhook(rawBody, signature, stubSecret);
       return mapStripeEvent(event);
     },
-    buildSignedStubWebhookEvent(sessionId) {
+    buildSignedStubWebhookEvent(sessionId, opts = {}) {
       const session = sessions.get(sessionId);
       if (!session) {
         throw new Error(`Stub adapter: unknown session ${sessionId}`);
       }
       const eventId = newStubId('evt_stub');
       const created = Math.floor(Date.now() / 1000);
-      const event = buildStubEventObject(session, eventId, created);
+      const event = buildStubEventObject(session, eventId, created, opts);
       reflectEventIntoLedger(event);
       const rawBody = JSON.stringify(event);
       const signature = signStripeWebhook(rawBody, stubSecret);

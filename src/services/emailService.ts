@@ -116,8 +116,11 @@ function singleResult(outcome: EnqueueOutcome): SendResult {
 
 interface SendBase {
   recipientEmail: string;
-  /** Required: erasure reaches an outbox row only through this column. */
-  recipientMemberId: string;
+  /** Erasure reaches an outbox row only through this column, so it is set for
+   *  every member recipient. Null only for a platform role address, such as the
+   *  treasurer contact the reconciliation digest goes to, which belongs to no
+   *  member and has nothing to erase. */
+  recipientMemberId: string | null;
   idempotencyKey?: string;
   /** Use the strict enqueue (surfaces transport failures as 503) for security-signal emails. */
   strict?: boolean;

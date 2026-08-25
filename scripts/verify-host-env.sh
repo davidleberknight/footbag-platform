@@ -413,6 +413,22 @@ else
   check_equals "SES_FROM_IDENTITY" "$TF_SES_SENDER" "SES sender identity matches terraform"
 fi
 
+# Captcha. The one adapter that genuinely differs between the two environments
+# and, until now, the one nothing asserted: a divergence nothing states is
+# indistinguishable from a divergence nobody intended.
+#
+# Staging is pinned, because a live captcha there is not a preference but a
+# broken environment: a tester has no way to solve a challenge staging is not
+# wired to serve. Production is only required to be set, matching how the
+# safe-browsing and URL-reachability adapters are treated, because all three are
+# activated together as tracked operator work and a host that has not reached
+# that step yet is early rather than misconfigured.
+if [[ "$TARGET" == "staging" ]]; then
+  check_equals "CAPTCHA_ADAPTER" "stub" "captcha adapter (staging never challenges: no live captcha is wired there)"
+else
+  check_set "CAPTCHA_ADAPTER" "captcha adapter (expected 'live' once production captcha is activated)"
+fi
+
 # Media storage.
 check_equals "MEDIA_STORAGE_ADAPTER" "s3" "media storage adapter"
 check_equals "MEDIA_STORAGE_S3_BUCKET" "$TF_MEDIA_BUCKET" "media bucket matches terraform"

@@ -816,6 +816,10 @@ export interface RecurringDonationSubscriptionOverrides {
   canceled_at?: string | null;
   failure_count?: number;
   last_stripe_event_created?: string | null;
+  /** The mode the provider confirmed the subscription in. Defaults to live,
+   *  matching the payment factory; pass 0 for a rehearsal row and null for one
+   *  written before the mode was recorded. */
+  provider_livemode?: 0 | 1 | null;
 }
 
 export function insertRecurringDonationSubscription(
@@ -832,8 +836,8 @@ export function insertRecurringDonationSubscription(
       status, amount_cents, currency, billing_interval,
       started_at, status_updated_at,
       is_cancel_at_period_end, cancel_requested_at, canceled_at,
-      donation_comment, failure_count, last_stripe_event_created
-    ) VALUES (?, ?, 'system', ?, 'system', 1, ?, ?, ?, ?, ?, ?, ?, 'yearly', ?, ?, ?, ?, ?, ?, ?, ?)
+      donation_comment, failure_count, last_stripe_event_created, provider_livemode
+    ) VALUES (?, ?, 'system', ?, 'system', 1, ?, ?, ?, ?, ?, ?, ?, 'yearly', ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id, o.created_at ?? startedAt, startedAt,
     o.member_id,
@@ -855,6 +859,7 @@ export function insertRecurringDonationSubscription(
     o.donation_comment ?? null,
     o.failure_count ?? 0,
     o.last_stripe_event_created ?? null,
+    'provider_livemode' in o ? o.provider_livemode ?? null : 1,
   );
   return id;
 }

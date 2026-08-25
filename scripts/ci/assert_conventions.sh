@@ -323,6 +323,26 @@ if [ -n "$guard_hits" ]; then
   violations=$((violations + 1))
 fi
 
+# Rule: no tracked archives, and no Terraform state in any form.
+# Reason: every secret control here reads text, including the gitleaks history
+# scan, so an archive is a container none of them can see into. That is not
+# theoretical: a saved Terraform plan is a zip, and one committed under an
+# unmatched filename carried three live secrets in public history for seven
+# weeks with CI green throughout. Delegated so a test can run it inside a
+# throwaway repository.
+echo "[conventions] check: no tracked archives or Terraform state (delegated)"
+if ! bash "${ROOT}/scripts/ci/check_no_opaque_archives.sh"; then
+  violations=$((violations + 1))
+fi
+
+# Rule: a migration file is additive (expand and contract). Delegated, so the
+# gate can be run inside a throwaway repository by its own test rather than
+# proved by writing a fixture into this tree.
+echo "[conventions] check: migrations are additive (delegated)"
+if ! bash "${ROOT}/scripts/ci/check_migrations_additive.sh"; then
+  violations=$((violations + 1))
+fi
+
 # Rule: no test may reach real cloud object storage or a deployed database.
 # Reason: a test suite is collectible by anyone and runs unattended, so it is
 # the wrong place to hold something that mutates a live bucket or database.

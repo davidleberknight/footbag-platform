@@ -8,6 +8,7 @@ import { checkpointAndCloseDatabase } from './db/db';
 import { initCloudFrontSigningAdapter } from './adapters/cloudFrontSigningAdapter';
 import { initJwtSigningAdapter } from './adapters/jwtSigningAdapter';
 import { initDataOrigin } from './services/dataOriginService';
+import { operationsPlatformService } from './services/operationsPlatformService';
 
 const app = createApp();
 
@@ -73,6 +74,10 @@ async function probeImageWorkerForDev(): Promise<void> {
 let server: ReturnType<typeof app.listen> | undefined;
 Promise.all([initCloudFrontSigningAdapter(), initJwtSigningAdapter(), initDataOrigin()])
   .then(() => {
+    // The declared payment mode is recorded at boot, and only when it changed,
+    // so the admin payments-health page can say since when it has held without
+    // reaching the parameter store.
+    operationsPlatformService.recordDeclaredPaymentMode();
     server = app.listen(config.port, () => {
       logger.info('server started', {
         port: config.port,

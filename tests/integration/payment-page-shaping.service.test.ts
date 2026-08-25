@@ -181,7 +181,8 @@ describe('paymentService.getPaymentHistoryPage', () => {
       expect(row.date).toBe('2025-01-01');
       expect(row.amountDisplay).toMatch(/^\$\d+\.\d{2} USD$/);
     }
-    expect(vm.content.rows.map((r) => r.status).sort()).toEqual(['refunded', 'succeeded']);
+    // Plain words, never the stored status code.
+    expect(vm.content.rows.map((r) => r.statusLabel).sort()).toEqual(['Paid', 'Refunded']);
   });
 
   it('returns an empty rows array for a member with no payments', () => {

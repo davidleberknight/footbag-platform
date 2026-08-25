@@ -48,13 +48,32 @@
  * call: a page whose job is reporting whether an external dependency is healthy
  * must not depend on that dependency to render.
  */
-import { paymentVolume, stripeEvents, stripeWebhookFailures } from '../db/db';
+import { paymentVolume, stripeEvents, stripeWebhookFailures, systemConfig } from '../db/db';
 import { runSqliteRead } from './sqliteRetry';
 import { readIntConfig } from './configReader';
 import { config } from '../config/env';
 import { getPaymentAdapter } from '../adapters/paymentAdapter';
-import { paymentReconciliationService } from './paymentReconciliationService';
+import {
+  paymentReconciliationService,
+  PROVIDER_BOOK_OF_RECORD_LINE,
+} from './paymentReconciliationService';
 import type { PageViewModel } from '../types/page';
+
+/** The one-line disclosure beside the volume figures, or null when the window
+ *  held nothing but real money. Same wording as the All Payments totals. */
+function volumeExclusionLineFor(rows: Array<{ mode: string; n: number }>): string | null {
+  if (rows.length === 0) return null;
+  const testCount = rows.find((r) => r.mode === 'test')?.n ?? 0;
+  const unknownCount = rows.find((r) => r.mode === 'unknown')?.n ?? 0;
+  const parts: string[] = [];
+  if (testCount > 0) parts.push(`${testCount} test-mode payment${testCount === 1 ? '' : 's'}`);
+  if (unknownCount > 0) {
+    parts.push(
+      `${unknownCount} payment${unknownCount === 1 ? '' : 's'} whose provider mode was never recorded`,
+    );
+  }
+  return `These figures count real money only. Set aside: ${parts.join(' and ')}.`;
+}
 
 const HOUR_MS = 60 * 60 * 1000;
 /** A year. The floor stops a zero or negative configured value emptying the
@@ -132,6 +151,9 @@ export interface PaymentsHealthContent {
   credential: {
     runningModeLabel: string;
     declaredModeLabel: string;
+    /** When the declared mode last changed, from the boot-time record; null
+     *  until a process has recorded one. */
+    declaredSinceDisplay: string | null;
     isLiveMoney: boolean;
     /** True when the running credential and the declared arming state
      *  disagree, which is what a half-applied arming change looks like. */
@@ -154,6 +176,10 @@ export interface PaymentsHealthContent {
   volume: {
     rows: VolumeViewModel[];
     hasRows: boolean;
+    /** What the figures left out, live rows only being counted. */
+    exclusionLine: string | null;
+    hasExclusion: boolean;
+    providerBoundaryLine: string;
   };
   reconciliation: {
     outstandingCount: number;
@@ -163,6 +189,7 @@ export interface PaymentsHealthContent {
   links: {
     allPaymentsHref: string;
     reconciliationHref: string;
+    reportsHref: string;
   };
 }
 
@@ -233,6 +260,13 @@ export const paymentsHealthService = {
     const runningMode = getPaymentAdapter().loadedCredentialMode();
     const declaredArmed = config.paymentsArmed === 'armed';
     const declaredModeLabel = declaredArmed ? 'Armed (live money)' : 'Dark (no money moves)';
+    // The boot-time observation of the declared mode; its effective time is
+    // when the declaration last changed, read locally rather than from the
+    // parameter store this page must never call.
+    const declaredRow = systemConfig.getCurrentRowByKey.get('payments_declared_mode') as
+      | { value_json: string; effective_start_at: string }
+      | undefined;
+    const declaredSinceDisplay = declaredRow ? tsDisplay(declaredRow.effective_start_at) : null;
     // A running live credential under a dark declaration, or the reverse, is
     // the half-applied arming state that is otherwise invisible. 'unknown' is
     // not a disagreement: nothing has reached the provider since boot.
@@ -281,6 +315,9 @@ export const paymentsHealthService = {
       count: row.n,
       totalDisplay: amountDisplay(row.total_cents, row.currency),
     }));
+    const volumeExclusionLine = volumeExclusionLineFor(
+      paymentVolume.excludedSince.all(windowStart) as Array<{ mode: string; n: number }>,
+    );
 
     const outstandingCount = paymentReconciliationService.countOutstandingIssues();
 
@@ -292,6 +329,7 @@ export const paymentsHealthService = {
         credential: {
           runningModeLabel: runningModeLabel(runningMode),
           declaredModeLabel,
+          declaredSinceDisplay,
           isLiveMoney: runningMode === 'live',
           hasModeDisagreement,
           disagreementNote: hasModeDisagreement
@@ -326,6 +364,9 @@ export const paymentsHealthService = {
         volume: {
           rows: volume,
           hasRows: volume.length > 0,
+          exclusionLine: volumeExclusionLine,
+          hasExclusion: volumeExclusionLine !== null,
+          providerBoundaryLine: PROVIDER_BOOK_OF_RECORD_LINE,
         },
         reconciliation: {
           outstandingCount,
@@ -335,6 +376,7 @@ export const paymentsHealthService = {
         links: {
           allPaymentsHref: '/admin/payments',
           reconciliationHref: '/admin/payments/reconciliation',
+          reportsHref: '/admin/payments/reports',
         },
       },
     };

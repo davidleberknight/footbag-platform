@@ -20,7 +20,13 @@
 #   3. Hands the file to the shared deploy, which promotes the code.
 #   4. Stops the service, copies the database, applies the migration and its
 #      ledger row in one transaction, and checks integrity and foreign keys.
-#   5. Restores the copy and restarts if any of that fails.
+#   5. Restores the copy and restarts if any of that fails. Note what that does
+#      NOT undo: the code and images were promoted in step 3, before the
+#      migration ran, and nothing reverts them. A failed migration therefore
+#      leaves the host running the NEW release against the RESTORED
+#      pre-migration database. Recovery is a redeploy of the previous commit or
+#      a fix-forward migration, and the expand-and-contract rule in
+#      src/db/CLAUDE.md is what keeps that state serviceable rather than broken.
 #   6. Restarts and smokes exactly as an ordinary deploy does.
 #
 # Each migration is applied at most once. The host records the filename and a
@@ -45,15 +51,22 @@
 #
 # Reads the sudo password from stdin (line 1), like every other operator script
 # here, so nothing secret reaches an argument list on either machine:
-#   < <operator credential file> bash scripts/deploy-migrate.sh --migration path/to/change.sql
+#   DEPLOY_TARGET=footbag-production \
+#     < <operator credential file> bash scripts/deploy-migrate.sh --migration change.sql
+#
+# DEPLOY_TARGET is required and has no default: see the refusal below for why.
 # ============================================================================
 
 set -euo pipefail
 
 usage() {
   cat <<'USAGE'
-Usage: < <operator credential file> bash scripts/deploy-migrate.sh --migration <file.sql> [options]
+Usage: DEPLOY_TARGET=<footbag-staging|footbag-production> \
+         < <operator credential file> bash scripts/deploy-migrate.sh --migration <file.sql> [options]
 
+  DEPLOY_TARGET       Required, no default. Which host to migrate. Unset is
+                      refused rather than sent to staging, where a migration is
+                      skipped and the deploy reports success having done nothing.
   --migration <file>  Required. SQL applied to the live database in one transaction.
                       A bare name resolves against database/migrations/.
   --yes               Skip the confirmation prompt (for a scripted recovery).
@@ -120,6 +133,19 @@ if printf '%s' "$MIGRATION_SQL" | grep -qiE '^[[:space:]]*(BEGIN|COMMIT|ROLLBACK
   die "migration file must not manage its own transaction: the deploy wraps it in one"
 fi
 
+# Named rather than defaulted. The shared deploy defaults its target to staging,
+# and staging is rebuilt from scratch and ships with every committed migration
+# already recorded as applied: a migration aimed there is skipped, the deploy
+# finishes as an ordinary code deploy, and it reports success having changed
+# nothing. This path exists for the host whose data must survive, so a run that
+# does not say which host it means is refused rather than sent somewhere safe.
+# Staging is still accepted, because a staging host restored from a production
+# snapshot is where a migration is rehearsed before it reaches production.
+case "${DEPLOY_TARGET:-}" in
+  footbag-staging|footbag-production) ;;
+  *) die "set DEPLOY_TARGET to 'footbag-staging' or 'footbag-production' explicitly (got '${DEPLOY_TARGET:-}'); this deploy does not default" ;;
+esac
+
 # Shown rather than summarised. This is the one deploy step that can destroy
 # data no rebuild can recreate, and an operator who has not read the statements
 # is not in a position to confirm them.
@@ -136,7 +162,13 @@ if [[ "$ASSUME_YES" != "yes" ]]; then
   # From the terminal, never stdin: stdin carries the sudo password, and a read
   # against it would consume the credential as the answer and echo it on the
   # failed comparison.
-  [[ -r /dev/tty ]] || die "no terminal available to confirm on; pass --yes deliberately instead"
+  # The tty is probed by opening it, not with `[[ -r /dev/tty ]]`. That test
+  # checks the device node's permissions, which pass in a process with no
+  # controlling terminal, while the open then fails with "No such device or
+  # address" -- so the permission test reports a terminal that is not there and
+  # the prompt dies on its own redirection instead of refusing.
+  { true >/dev/tty; } 2>/dev/null \
+    || die "no terminal available to confirm on; pass --yes deliberately instead"
   printf 'Type APPLY to continue: ' > /dev/tty
   IFS= read -r reply < /dev/tty
   [[ "$reply" == "APPLY" ]] || die "not confirmed; nothing was deployed and nothing was migrated"

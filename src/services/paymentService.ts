@@ -138,6 +138,30 @@
  *     success afterwards puts a past-due donation back to active on the
  *     strength of stale news. A renewal charge is always booked, because the
  *     money moved either way, but a stale one does not move the subscription.
+ *   - One settlement, two events. The provider raises invoice.paid and
+ *     invoice.payment_succeeded for the same renewal, in no fixed order, and
+ *     only invoice.paid reports an invoice marked paid out of band. Both are
+ *     subscribed and both reach the same handler; the first to arrive books
+ *     the charge and a second that agrees with what is booked is a duplicate,
+ *     not an amount update. An invoice that collected nothing books no charge
+ *     and sends no receipt; it is acknowledged with an audit row.
+ *   - The settlement is checked against the row, not trusted for its id alone.
+ *     payment_intent.succeeded carries what the provider actually collected;
+ *     a disagreement with the local amount or currency still settles and
+ *     still grants, because the money moved and nothing here is revoked
+ *     automatically, and raises the same amount-mismatch discrepancy the
+ *     nightly pass would, inside the settlement transaction, so it is in front
+ *     of an administrator the same day.
+ *   - Money the platform cannot apply is recorded and raised, atomically. Every
+ *     dispute stage the provider reports (opened, evidence updated, closed,
+ *     funds withdrawn, funds reinstated), a refund it could not return to the
+ *     card or reversed, and a payout the bank refused each write an audit row
+ *     and, except for an evidence update, a work item, inside the same
+ *     transaction as the event claim. None moves a payment row: a disputed or
+ *     refund-failed payment keeps the status it earned.
+ *   - A confirmed subscription records the mode the provider confirmed it in,
+ *     from the event's own flag, as payments do, so the nightly comparison can
+ *     set a rehearsal aside rather than report it as missing at a live ledger.
  *     A charge settling on an already-active subscription still advances the
  *     watermark, since otherwise the guard has nothing to compare against.
  *   - Only a full refund reaches the terminal refunded state. The status machine
@@ -206,19 +230,25 @@
  *   payments, payment_status_transitions, stripe_events,
  *   recurring_donation_subscriptions,
  *   recurring_donation_subscription_transitions, members.stripe_customer_id,
- *   audit_entries.
+ *   audit_entries, and reconciliation_issues through the reconciliation
+ *   service's own raise path (the settlement-time amount mismatch).
  *
  * Side effects:
- *   - audit_entries append (checkout, status transitions, refunds, subscription
- *     lifecycle)
+ *   - audit_entries append (checkout, status transitions, refunds and a refund
+ *     the provider could not return, every dispute stage, a rejected payout, a
+ *     zero-amount renewal invoice, subscription lifecycle)
  *   - outbox_emails enqueue (payment receipt, recurring-donation lifecycle
  *     notices, admin alert when a recurring donation ends; all best-effort
  *     after the commit)
  *   - work_queue_items insert in the `payments` category for the money events an
  *     administrator must see: a declined recurring charge, a partially refunded
- *     payment, a refund matching no local record, a card dispute, a failed
- *     payout, a subscription paused at the provider, and a membership paid for
- *     by a member who already held that tier
+ *     payment, a refund matching no local record, a refund the provider could
+ *     not return to the card, a card dispute at every stage but an evidence
+ *     update (including the money coming back when it is won), a failed
+ *     payout, a subscription paused at the provider, a membership paid for by
+ *     a member who already held that tier, and a settlement that disagrees
+ *     with the local amount or currency (raised as a reconciliation
+ *     discrepancy)
  *
  * Provider contract:
  *   Payload shapes are specific to the pinned Stripe API version (see
@@ -265,6 +295,7 @@ import {
 import { emailService } from './emailService';
 import { formatDateDisplay } from './dateFormat';
 import { workQueueService } from './workQueueService';
+import { paymentReconciliationService } from './paymentReconciliationService';
 import { isSafePath } from '../lib/safePath';
 import type { PageViewModel } from '../types/page';
 import {
@@ -412,7 +443,8 @@ export interface PaymentHistoryRow {
    *  empty on every payment that carries no note. */
   noteDisplay: string;
   amountDisplay: string;
-  status: string;
+  /** Plain words for the payment's state, never the stored status code. */
+  statusLabel: string;
   /** Stable payment reference (the payment id) so support/admins can
    *  correlate a member's history row with internal reconciliation tools. */
   reference: string;
@@ -932,14 +964,24 @@ export const REQUIRED_WEBHOOK_EVENTS = [
   'payment_intent.succeeded',
   'payment_intent.payment_failed',
   'charge.refunded',
+  'refund.failed',
+  'refund.updated',
   'charge.dispute.created',
+  'charge.dispute.updated',
   'charge.dispute.closed',
   'charge.dispute.funds_withdrawn',
+  'charge.dispute.funds_reinstated',
   'payout.failed',
   'checkout.session.expired',
   'customer.subscription.created',
   'customer.subscription.updated',
   'customer.subscription.deleted',
+  // Both fire for one settled renewal. The provider recommends invoice.paid,
+  // which also covers an invoice marked paid out of band, and this endpoint was
+  // first registered on invoice.payment_succeeded; listening to both keeps a
+  // renewal booked whichever one the endpoint carries, and the second delivery
+  // for the same invoice books nothing.
+  'invoice.paid',
   'invoice.payment_succeeded',
   'invoice.payment_failed',
 ] as const;
@@ -952,9 +994,14 @@ function dispatchEvent(event: StripeWebhookEvent): WebhookOutcome {
       return handlePaymentIntentFailed(event);
     case 'charge.refunded':
       return handleChargeRefunded(event);
+    case 'refund.failed':
+    case 'refund.updated':
+      return handleRefundOutcome(event);
     case 'charge.dispute.created':
+    case 'charge.dispute.updated':
     case 'charge.dispute.closed':
     case 'charge.dispute.funds_withdrawn':
+    case 'charge.dispute.funds_reinstated':
       return handleChargeDispute(event);
     case 'payout.failed':
       return handlePayoutFailed(event);
@@ -966,6 +1013,7 @@ function dispatchEvent(event: StripeWebhookEvent): WebhookOutcome {
       return handleSubscriptionUpdated(event);
     case 'customer.subscription.deleted':
       return handleSubscriptionDeleted(event);
+    case 'invoice.paid':
     case 'invoice.payment_succeeded':
       return handleInvoicePaymentSucceeded(event);
     case 'invoice.payment_failed':
@@ -1098,6 +1146,28 @@ function claimEvent(event: StripeWebhookEvent): boolean {
     now,
   );
   return res.changes === 1;
+}
+
+/** The amount and currency a settlement event says were collected, or null when
+ *  the payload states neither usably. `amount_received` is what actually
+ *  settled; `amount` is what was asked for, and stands in when the received
+ *  figure is absent. */
+function settledAmountFrom(
+  event: StripeWebhookEvent,
+): { amountCents: number; currency: string } | null {
+  const obj = event.data?.object as
+    | { amount_received?: unknown; amount?: unknown; currency?: unknown }
+    | undefined;
+  const amountCents =
+    typeof obj?.amount_received === 'number'
+      ? obj.amount_received
+      : typeof obj?.amount === 'number'
+        ? obj.amount
+        : null;
+  if (amountCents === null || typeof obj?.currency !== 'string' || obj.currency === '') {
+    return null;
+  }
+  return { amountCents, currency: obj.currency.toUpperCase() };
 }
 
 function extractPaymentIntentId(event: StripeWebhookEvent): string {
@@ -1281,6 +1351,36 @@ function handlePaymentIntentSucceeded(event: StripeWebhookEvent): WebhookOutcome
           ].join('; '),
         });
       }
+    }
+    // The event says what the provider actually collected; the row says what
+    // the checkout asked for. The platform fixes the amount at checkout and the
+    // provider charges exactly that, so a disagreement is a defect or a
+    // provider-side edit, never a member choosing to pay less. The settlement
+    // and the grant stand either way, because the money moved and nothing here
+    // is ever revoked automatically; the disagreement is raised now, as the
+    // same discrepancy the nightly pass would find a day later, carrying both
+    // figures so an administrator can decide.
+    const settled = settledAmountFrom(event);
+    if (
+      settled !== null
+      && (settled.amountCents !== payment.amount_cents
+        || settled.currency !== payment.currency.toUpperCase())
+    ) {
+      paymentReconciliationService.raiseIssue({
+        issueType: 'payment_amount_mismatch',
+        paymentId: payment.id,
+        stripePaymentIntentId: paymentIntentId,
+        stripeSubscriptionId: null,
+        stripeInvoiceId: null,
+        details: {
+          reason: 'the settlement event reported a different amount or currency than the local record',
+          local_amount_cents: payment.amount_cents,
+          local_currency: payment.currency.toUpperCase(),
+          provider_amount_cents: settled.amountCents,
+          provider_currency: settled.currency,
+          stripe_event_id: event.id,
+        },
+      }, new Date());
     }
     return true;
   });
@@ -1625,9 +1725,6 @@ function handleChargeDispute(event: StripeWebhookEvent): WebhookOutcome {
     return recordIdempotentNoop(event, 'ignored');
   }
 
-  const claimed = transaction(() => claimEvent(event));
-  if (!claimed) return { outcome: 'duplicate' };
-
   const chargeId = stripeIdFrom(obj?.charge);
   const paymentIntentId = stripeIdFrom(obj?.payment_intent);
   const amountCents = typeof obj?.amount === 'number' ? obj.amount : null;
@@ -1635,12 +1732,14 @@ function handleChargeDispute(event: StripeWebhookEvent): WebhookOutcome {
   const reason = typeof obj?.reason === 'string' ? obj.reason : null;
   const status = typeof obj?.status === 'string' ? obj.status : null;
 
-  const actionType =
-    event.type === 'charge.dispute.created'
-      ? 'payment.dispute_opened'
-      : event.type === 'charge.dispute.closed'
-        ? 'payment.dispute_closed'
-        : 'payment.dispute_funds_withdrawn';
+  const stage = DISPUTE_STAGES[event.type];
+  if (!stage) {
+    // The dispatcher routes only the stages listed; anything else here is a
+    // wiring error, acknowledged rather than retried because no redelivery
+    // could change it.
+    logger.warn('stripe dispute event of an unrouted type', { eventId: event.id, type: event.type });
+    return recordIdempotentNoop(event, 'ignored');
+  }
 
   logger.warn('stripe reported a payment dispute', {
     eventId: event.id,
@@ -1649,48 +1748,189 @@ function handleChargeDispute(event: StripeWebhookEvent): WebhookOutcome {
     chargeId,
   });
 
-  appendAuditEntry({
-    actionType,
-    category: 'payment',
-    actorType: 'system',
-    actorMemberId: null,
-    entityType: 'stripe_dispute',
-    entityId: disputeId,
-    reasonText: null,
-    metadata: {
-      stripe_event_id: event.id,
-      stripe_event_type: event.type,
-      stripe_dispute_id: disputeId,
-      stripe_charge_id: chargeId,
-      stripe_payment_intent_id: paymentIntentId,
-      amount_cents: amountCents,
-      currency,
-      dispute_reason: reason,
-      dispute_status: status,
-    },
+  // The audit row and the work item are the whole durable record of a dispute
+  // stage, and they are written in the same transaction as the event claim: a
+  // claim committed ahead of a failed write would lose them for good, because
+  // the redelivery would then report a duplicate. Same rule as the refund paths.
+  const recorded = runNoopSideEffectOnce(event, () => {
+    appendAuditEntry({
+      actionType: stage.actionType,
+      category: 'payment',
+      actorType: 'system',
+      actorMemberId: null,
+      entityType: 'stripe_dispute',
+      entityId: disputeId,
+      reasonText: null,
+      metadata: {
+        stripe_event_id: event.id,
+        stripe_event_type: event.type,
+        stripe_dispute_id: disputeId,
+        stripe_charge_id: chargeId,
+        stripe_payment_intent_id: paymentIntentId,
+        amount_cents: amountCents,
+        currency,
+        dispute_reason: reason,
+        dispute_status: status,
+      },
+    });
+    // An evidence update is progress on a case an administrator already holds;
+    // every other stage is money moving or a decision landing, which needs a
+    // person to look.
+    if (stage.workItemReason !== null) {
+      workQueueService.enqueue({
+        actorId: 'system',
+        queueCategory: 'payments',
+        taskType: 'charge_dispute_review',
+        entityType: 'stripe_dispute',
+        entityId: disputeId,
+        priority: 0,
+        reasonText: stage.workItemReason,
+        detailText: [
+          `Dispute ${disputeId}`,
+          amountCents === null ? null : `amount ${formatAmount(amountCents, currency)}`,
+          reason === null ? null : `reason ${reason}`,
+          status === null ? null : `status ${status}`,
+          chargeId === null ? null : `charge ${chargeId}`,
+          paymentIntentId === null ? null : `payment intent ${paymentIntentId}`,
+        ]
+          .filter((part) => part !== null)
+          .join('; '),
+      });
+    }
+  });
+  return { outcome: recorded ? 'processed' : 'duplicate' };
+}
+
+/** What each dispute stage the provider reports is called on the ledger, and
+ *  what the work item raised for it tells the administrator. An evidence update
+ *  carries no work item: the case is already in front of someone. */
+const DISPUTE_STAGES: Record<string, { actionType: string; workItemReason: string | null }> = {
+  'charge.dispute.created': {
+    actionType: 'payment.dispute_opened',
+    workItemReason:
+      'A card dispute was raised against a payment; it must be worked in the Stripe dashboard.',
+  },
+  'charge.dispute.updated': {
+    actionType: 'payment.dispute_updated',
+    workItemReason: null,
+  },
+  'charge.dispute.closed': {
+    actionType: 'payment.dispute_closed',
+    workItemReason:
+      'A card dispute was closed at Stripe; the outcome is on the record and nothing further is collected or returned automatically.',
+  },
+  'charge.dispute.funds_withdrawn': {
+    actionType: 'payment.dispute_funds_withdrawn',
+    workItemReason:
+      'The disputed amount was withdrawn from the account pending the dispute outcome.',
+  },
+  'charge.dispute.funds_reinstated': {
+    actionType: 'payment.dispute_funds_reinstated',
+    workItemReason:
+      'The amount withdrawn for a card dispute was returned to the account: the dispute was won or withdrawn. Close the matching dispute item.',
+  },
+};
+
+/**
+ * Records a refund the provider could not complete, or one it reversed.
+ *
+ * A refund is issued at the provider and the platform learns of it from
+ * charge.refunded, which moves the payment to refunded, a terminal state. The
+ * provider can then fail to return the money (a closed card, a bank that
+ * declines the credit) or reverse the refund, reported as refund.failed or as a
+ * refund.updated carrying a failed or canceled status. The payment row cannot
+ * move back, so the failure is recorded beside it, on the same money-history
+ * list a dispute lands on, and put in front of an administrator who arranges
+ * another way to return the money at the provider. Any other refund.updated is
+ * progress the platform holds no state for, and is acknowledged.
+ */
+function handleRefundOutcome(event: StripeWebhookEvent): WebhookOutcome {
+  const obj = event.data?.object as
+    | {
+        id?: string;
+        status?: string;
+        charge?: unknown;
+        payment_intent?: unknown;
+        amount?: number;
+        currency?: string;
+        failure_reason?: string;
+      }
+    | undefined;
+  const refundId = typeof obj?.id === 'string' ? obj.id : null;
+  if (!refundId) {
+    logger.warn('stripe refund event carries no refund id', { eventId: event.id, type: event.type });
+    return recordIdempotentNoop(event, 'ignored');
+  }
+  const status = typeof obj?.status === 'string' ? obj.status : null;
+  const failed = event.type === 'refund.failed' || status === 'failed' || status === 'canceled';
+  if (!failed) return recordIdempotentNoop(event, 'ignored');
+
+  const chargeId = stripeIdFrom(obj?.charge);
+  const paymentIntentId = stripeIdFrom(obj?.payment_intent);
+  const amountCents = typeof obj?.amount === 'number' ? obj.amount : null;
+  const currency = typeof obj?.currency === 'string' ? obj.currency.toUpperCase() : CURRENCY;
+  const failureReason = typeof obj?.failure_reason === 'string' ? obj.failure_reason : null;
+  const payment = paymentIntentId
+    ? (paymentsDb.findByPaymentIntentId.get(paymentIntentId) as PaymentRow | undefined)
+    : undefined;
+
+  logger.warn('stripe reported a refund that did not complete', {
+    eventId: event.id,
+    type: event.type,
+    refundId,
+    chargeId,
+    failureReason,
   });
 
-  workQueueService.enqueue({
-    actorId: 'system',
-    queueCategory: 'payments',
-    taskType: 'charge_dispute_review',
-    entityType: 'stripe_dispute',
-    entityId: disputeId,
-    priority: 0,
-    reasonText:
-      'A card dispute was raised against a payment; it must be worked in the Stripe dashboard.',
-    detailText: [
-      `Dispute ${disputeId}`,
-      amountCents === null ? null : `amount ${formatAmount(amountCents, currency)}`,
-      reason === null ? null : `reason ${reason}`,
-      status === null ? null : `status ${status}`,
-      chargeId === null ? null : `charge ${chargeId}`,
-      paymentIntentId === null ? null : `payment intent ${paymentIntentId}`,
-    ]
-      .filter((part) => part !== null)
-      .join('; '),
+  // Claimed with its side effects, for the same reason a dispute is: the audit
+  // row and the work item are the only record this leaves anywhere.
+  const recorded = runNoopSideEffectOnce(event, () => {
+    appendAuditEntry({
+      actionType: 'payment.refund_not_returned',
+      category: 'payment',
+      actorType: 'system',
+      actorMemberId: null,
+      // Attributed to the payment when one is known, so the failure shows on
+      // that payment's own money history; otherwise to the refund itself.
+      entityType: payment ? 'payment' : 'stripe_refund',
+      entityId: payment ? payment.id : refundId,
+      reasonText: null,
+      metadata: {
+        member_id: payment?.member_id ?? null,
+        stripe_event_id: event.id,
+        stripe_event_type: event.type,
+        stripe_refund_id: refundId,
+        stripe_charge_id: chargeId,
+        stripe_payment_intent_id: paymentIntentId,
+        amount_cents: amountCents,
+        currency,
+        refund_status: status,
+        failure_reason: failureReason,
+      },
+    });
+    workQueueService.enqueue({
+      actorId: 'system',
+      queueCategory: 'payments',
+      taskType: 'refund_failed_review',
+      entityType: 'stripe_refund',
+      entityId: refundId,
+      priority: 0,
+      reasonText:
+        'A refund could not be returned to the card at Stripe, so the money is still in the account and another way to return it is needed.',
+      detailText: [
+        `Refund ${refundId}`,
+        payment ? `payment ${payment.id}` : 'no matching local payment',
+        amountCents === null ? null : `amount ${formatAmount(amountCents, currency)}`,
+        status === null ? null : `status ${status}`,
+        failureReason === null ? null : `reason ${failureReason}`,
+        chargeId === null ? null : `charge ${chargeId}`,
+        paymentIntentId === null ? null : `payment intent ${paymentIntentId}`,
+      ]
+        .filter((part) => part !== null)
+        .join('; '),
+    });
   });
-  return { outcome: 'processed' };
+  return { outcome: recorded ? 'processed' : 'duplicate' };
 }
 
 /**
@@ -1717,9 +1957,6 @@ function handlePayoutFailed(event: StripeWebhookEvent): WebhookOutcome {
     return recordIdempotentNoop(event, 'ignored');
   }
 
-  const claimed = transaction(() => claimEvent(event));
-  if (!claimed) return { outcome: 'duplicate' };
-
   const amountCents = typeof obj?.amount === 'number' ? obj.amount : null;
   const currency = typeof obj?.currency === 'string' ? obj.currency.toUpperCase() : CURRENCY;
   const failureCode = typeof obj?.failure_code === 'string' ? obj.failure_code : null;
@@ -1731,44 +1968,47 @@ function handlePayoutFailed(event: StripeWebhookEvent): WebhookOutcome {
     failureCode,
   });
 
-  appendAuditEntry({
-    // Named "rejected" rather than "failed": the receiving bank refused the
-    // transfer, which an administrator repairs in the account details, and it
-    // must not travel the operational-error path that raises the alarm.
-    actionType: 'payment.payout_rejected',
-    category: 'payment',
-    actorType: 'system',
-    actorMemberId: null,
-    entityType: 'stripe_payout',
-    entityId: payoutId,
-    reasonText: null,
-    metadata: {
-      stripe_event_id: event.id,
-      stripe_payout_id: payoutId,
-      amount_cents: amountCents,
-      currency,
-      failure_code: failureCode,
-    },
+  // Claimed in the same transaction as the two writes that are its only record;
+  // see the dispute handler for why a separate claim loses them.
+  const recorded = runNoopSideEffectOnce(event, () => {
+    appendAuditEntry({
+      // Named "rejected" rather than "failed": the receiving bank refused the
+      // transfer, which an administrator repairs in the account details, and it
+      // must not travel the operational-error path that raises the alarm.
+      actionType: 'payment.payout_rejected',
+      category: 'payment',
+      actorType: 'system',
+      actorMemberId: null,
+      entityType: 'stripe_payout',
+      entityId: payoutId,
+      reasonText: null,
+      metadata: {
+        stripe_event_id: event.id,
+        stripe_payout_id: payoutId,
+        amount_cents: amountCents,
+        currency,
+        failure_code: failureCode,
+      },
+    });
+    workQueueService.enqueue({
+      actorId: 'system',
+      queueCategory: 'payments',
+      taskType: 'payout_failed',
+      entityType: 'stripe_payout',
+      entityId: payoutId,
+      priority: 0,
+      reasonText: 'A payout to the organization bank account failed at Stripe.',
+      detailText: [
+        `Payout ${payoutId}`,
+        amountCents === null ? null : `amount ${formatAmount(amountCents, currency)}`,
+        failureCode === null ? null : `failure ${failureCode}`,
+        failureMessage,
+      ]
+        .filter((part) => part !== null)
+        .join('; '),
+    });
   });
-
-  workQueueService.enqueue({
-    actorId: 'system',
-    queueCategory: 'payments',
-    taskType: 'payout_failed',
-    entityType: 'stripe_payout',
-    entityId: payoutId,
-    priority: 0,
-    reasonText: 'A payout to the organization bank account failed at Stripe.',
-    detailText: [
-      `Payout ${payoutId}`,
-      amountCents === null ? null : `amount ${formatAmount(amountCents, currency)}`,
-      failureCode === null ? null : `failure ${failureCode}`,
-      failureMessage,
-    ]
-      .filter((part) => part !== null)
-      .join('; '),
-  });
-  return { outcome: 'processed' };
+  return { outcome: recorded ? 'processed' : 'duplicate' };
 }
 
 /**
@@ -2188,6 +2428,9 @@ function handleSubscriptionCreated(event: StripeWebhookEvent): WebhookOutcome {
         stripeSubscriptionId,
         stripeCustomerId,
         event.id,
+        // The mode the provider confirmed it in, from the event's own flag,
+        // so a test-mode rehearsal never reconciles against a live ledger.
+        event.livemode ? 1 : 0,
         now,
         now,
         now, 'payment_service',
@@ -2206,6 +2449,7 @@ function handleSubscriptionCreated(event: StripeWebhookEvent): WebhookOutcome {
         now,
         now,
         donationNote,
+        event.livemode ? 1 : 0,
       );
     }
     recordSubscriptionTransition({
@@ -2285,6 +2529,18 @@ function restateRecordedInvoiceCharge(
 ): WebhookOutcome {
   if (eventIsStaleForPayment(payment, event)) return recordIdempotentNoop(event, 'duplicate');
 
+  // One settlement arrives as two events (the provider raises invoice.paid and
+  // invoice.payment_succeeded for the same invoice), and either may come first.
+  // A second delivery that agrees with what is already booked restates
+  // nothing: recording it as an amount update would put a change on the ledger
+  // that never happened.
+  if (
+    payment.amount_cents === charge.amountCents
+    && payment.currency.toUpperCase() === charge.currency.toUpperCase()
+  ) {
+    return recordIdempotentNoop(event, 'duplicate');
+  }
+
   const now = new Date().toISOString();
   const claimed = transaction(() => {
     if (!claimEvent(event)) return false;
@@ -2336,6 +2592,36 @@ function handleInvoicePaymentSucceeded(event: StripeWebhookEvent): WebhookOutcom
   const { row: sub, stripeSubscriptionId } = found;
   const obj = eventObject(event);
   const invoiceId = typeof obj.id === 'string' ? obj.id : null;
+
+  // An invoice that collected nothing moved no money, so there is no charge to
+  // book and no receipt to send. It is recorded rather than retried, because
+  // the payload cannot improve, and rather than booked, because a zero-value
+  // payment row with a receipt would tell the member they gave when they did
+  // not. The subscription itself is left where the provider's status events put
+  // it.
+  if (typeof obj.amount_paid === 'number' && obj.amount_paid <= 0) {
+    const recorded = runNoopSideEffectOnce(event, () => {
+      appendAuditEntry({
+        actionType: 'payment.recurring_charge_zero_amount',
+        category: 'payment',
+        actorType: 'system',
+        actorMemberId: null,
+        entityType: 'recurring_donation_subscription',
+        entityId: sub.id,
+        reasonText: null,
+        metadata: {
+          member_id: sub.member_id,
+          stripe_event_id: event.id,
+          stripe_event_type: event.type,
+          stripe_invoice_id: invoiceId,
+          stripe_subscription_id: stripeSubscriptionId,
+          amount_paid_cents: obj.amount_paid,
+        },
+      });
+    });
+    return { outcome: recorded ? 'ignored' : 'duplicate' };
+  }
+
   const amountCents =
     typeof obj.amount_paid === 'number' ? obj.amount_paid : sub.amount_cents;
   // The invoice's own currency, not the subscription's stored copy. They agree
@@ -3126,6 +3412,17 @@ const PAYMENT_TYPE_LABEL = {
   event_registration: 'Event Registration',
 } as const;
 
+/** What each stored payment status is called on the member's own history. A
+ *  pending row is a checkout still open at the provider; canceled is one the
+ *  member walked away from or that expired. */
+const PAYMENT_STATUS_LABEL = {
+  pending: 'Awaiting payment',
+  succeeded: 'Paid',
+  failed: 'Failed',
+  canceled: 'Not completed',
+  refunded: 'Refunded',
+} as const;
+
 /**
  * The ids of the charges that opened a recurring donation, one per subscription.
  *
@@ -3165,10 +3462,10 @@ function getPaymentHistoryPage(
   const rows: PaymentHistoryRow[] = items.map((p) => ({
     date: p.createdAt.slice(0, 10),
     typeLabel: PAYMENT_TYPE_LABEL[p.paymentType],
+    statusLabel: PAYMENT_STATUS_LABEL[p.status],
     descriptor: historyItemText(p, opening.has(p.id)),
     noteDisplay: p.donationNote ?? '',
     amountDisplay: formatAmount(p.amountCents, p.currency),
-    status: p.status,
     reference: p.id,
   }));
   const recurringRows = listRecurringDonationsForMember(memberId).map((s) =>

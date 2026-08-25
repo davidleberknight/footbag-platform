@@ -272,4 +272,47 @@ describe('the read-only contract', () => {
     expect(html).toContain('New purchases and donations are refused.');
     expect(html).toContain('payments-pause script');
   });
+
+  it('says when the declared mode last changed once a boot has recorded it, and not before', async () => {
+    const before = await healthPage();
+    expect(before).toContain('not yet recorded');
+
+    const { operationsPlatformService } = await import('../../src/services/operationsPlatformService');
+    const first = operationsPlatformService.recordDeclaredPaymentMode(new Date('2026-07-01T10:00:00.000Z'));
+    expect(first.changed).toBe(true);
+    // A restart on the same declared mode appends nothing: the table records
+    // changes, not boots.
+    const again = operationsPlatformService.recordDeclaredPaymentMode(new Date('2026-07-02T10:00:00.000Z'));
+    expect(again.changed).toBe(false);
+    const rows = withDb((db) => (db.prepare(
+      "SELECT COUNT(*) AS c FROM system_config WHERE config_key = 'payments_declared_mode'",
+    ).get() as { c: number }).c);
+    expect(rows).toBe(1);
+
+    const after = await healthPage();
+    expect(after).toContain('Declared mode last changed');
+    expect(after).not.toContain('not yet recorded');
+    expect(after).toContain('2026-07-01');
+  });
+});
+
+describe('what the settled volume counts', () => {
+  it('counts real money only, says what it set aside, and names where fees and payouts live', async () => {
+    withDb((db) => {
+      insertPayment(db, {
+        id: 'ph-vol-live', member_id: MEMBER_ID, payment_type: 'donation', status: 'succeeded',
+        amount_cents: 5000, created_at: HOURS_AGO(1), provider_livemode: 1,
+      });
+      insertPayment(db, {
+        id: 'ph-vol-test', member_id: MEMBER_ID, payment_type: 'donation', status: 'succeeded',
+        amount_cents: 7000, created_at: HOURS_AGO(1), provider_livemode: 0,
+      });
+    });
+    const html = await healthPage();
+    expect(html).toContain('50.00 USD');
+    expect(html).not.toContain('120.00 USD');
+    expect(html).toContain('Set aside: 1 test-mode payment.');
+    expect(html).toContain('book of record for money movement');
+    expect(html).toContain('Go to Financial Reports');
+  });
 });
