@@ -272,14 +272,16 @@ blank-notation flailing row stays blank.
 
 ## Explicitly NOT derived (the boundary of what is proven)
 
-- **Slapping and flailing: confirm/deny hypotheses, not rulings.** FootbagMoves
-  defines bare `Slap` (`Toe > Op In (DEX) >> Same In (DEX)(XDEX) > Op Toe (DEL)`)
-  and documents `Flail = Symposium Illusion` (matching the canonical flail row).
-  But NO compound notation for a "Slapping X" or "Flailing X" exists to cross-check
-  a prefix reading — unlike motion, the operator bodies cannot be verified against
-  a second data point. Both stay with the expert, downgraded from open questions to
-  single confirm/deny hypotheses (is slapping/flailing the prefix form of the
-  documented bare structure?).
+- **Slapping: a confirm/deny hypothesis, not a ruling.** FootbagMoves defines bare
+  `Slap` (`Toe > Op In (DEX) >> Same In (DEX)(XDEX) > Op Toe (DEL)`), but NO compound
+  notation for a "Slapping X" exists to cross-check a prefix reading — unlike motion,
+  the operator body cannot be verified against a second data point. It stays with the
+  expert as a single confirm/deny hypothesis (is slapping the prefix form of the
+  documented bare structure?). The matching flailing hypothesis is closed: Red ruled
+  flailing a Symposium Atomic set, which denies the prefix reading rather than
+  confirming it, and the proof is in the flailing section above. FootbagMoves also
+  documents `Flail = Symposium Illusion`, which still matches the canonical flail row;
+  flail and flailing are separate identities and that entry is unaffected.
 - **Monster / Rotor / Wauxspin: downgraded to curator-held.** Monster ("Symp.
   Swirling Gyro Inside") and Rotor ("Swirling Gyro Inside Stall") are a consistent
   pair, but no canonical swirling+gyro stack exemplar exists to mirror a chassis
