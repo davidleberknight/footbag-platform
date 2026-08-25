@@ -311,8 +311,14 @@ const setSlugFor = (displayName: string): string =>
     .replace(/^_|_$/g, '');
 
 /** A canonical positional claim: a side VALUE. Naming the side axis itself
- *  ("separates them by terminal side") is not a claim about which side. */
-const SIDE_VALUE = /\bop[- ]side\b|\bopposite[- ]side\b|\bsame[- ]side\b|\bSAME\b|\bOP\b/i;
+ *  ("separates them by terminal side") is not a claim about which side, and
+ *  neither is ordinary prose that happens to contain the word "same".
+ *  The positional phrases are matched in any case; the bare notation markers
+ *  only in the upper case they are always written in, so "the same chassis"
+ *  reads as English rather than as a claim about which leg. */
+const namesASide = (text: string): boolean =>
+  /\bop[- ]side\b|\bopposite[- ]side\b|\bsame[- ]side\b/i.test(text)
+  || /\b(?:SAME|OP)\b/.test(text);
 
 /** Word-token tooltip labels, read as text because the map is module-private. */
 const tokenLabels = (): Map<string, string> => {
@@ -481,14 +487,14 @@ describe('an unresolved side relationship stays unresolved in the platform voice
 
   it('the set page states the movement without choosing a side', () => {
     const offenders = UNRESOLVED_SIDE_TOKENS
-      .filter((slug) => SIDE_VALUE.test(setEntry(slug).movementExplanation));
+      .filter((slug) => namesASide(setEntry(slug).movementExplanation));
     expect(offenders).toEqual([]);
   });
 
   it('the token label states the movement without choosing a side', () => {
     const labels = tokenLabels();
     const offenders = UNRESOLVED_SIDE_TOKENS
-      .filter((slug) => SIDE_VALUE.test(labels.get(slug) ?? ''));
+      .filter((slug) => namesASide(labels.get(slug) ?? ''));
     expect(offenders).toEqual([]);
   });
 
@@ -500,7 +506,7 @@ describe('an unresolved side relationship stays unresolved in the platform voice
         .find((m) => m.name === name)!;
       return [row.platformReading ?? '', row.note ?? '', card.structuralNote ?? ''];
     });
-    expect(platformVoice.filter((text) => SIDE_VALUE.test(text))).toEqual([]);
+    expect(platformVoice.filter((text) => namesASide(text))).toEqual([]);
   });
 
   it('the set-education prose neither collapses the set nor chooses a side', () => {
@@ -520,27 +526,35 @@ describe('an unresolved side relationship stays unresolved in the platform voice
     expect(blazing.formula).toMatch(/op side component/);
     expect(row.holdenReading).toMatch(/op side component/);
     const unattributed = blazing.equivalenceNotes
-      .filter((n) => SIDE_VALUE.test(n.reading) && !/Holden/.test(n.citation))
+      .filter((n) => namesASide(n.reading) && !/Holden/.test(n.citation))
       .map((n) => n.reading);
     expect(unattributed).toEqual([]);
   });
 
-  it('the sibling labels that still name a side are exactly the two on record', () => {
-    // Two cross-reference labels still describe the blazing and whirling
-    // relationship by side. They are public wording, queued for the next content
-    // pass rather than changed here. This case pins them so the problem cannot
-    // spread, and fails when either is fixed so the record is deleted with the
-    // defect it recorded.
-    const KNOWN = [
-      'Blazing (op-side-terminal variant)',
-      'Whirling (same-side terminal sibling)',
-    ];
-    const found = CANONICAL_SETS
+  it('the cross-reference labels between the pair name no side', () => {
+    // The two sets point at each other from their related-systems lists, and a
+    // label there is the platform describing the pair in its own voice. Naming a
+    // side in one states the relation the ruling left open, so neither may.
+    // Sibling pairs whose sides ARE settled keep theirs; this is scoped to the
+    // pair with the open question.
+    const offenders = CANONICAL_SETS
       .filter((s) => s.slug === 'blazing' || s.slug === 'whirling')
-      .flatMap((s) => s.relatedSystems)
-      .filter((r) => r.slug === 'blazing' || r.slug === 'whirling')
-      .map((r) => r.label)
-      .filter((label) => SIDE_VALUE.test(label));
-    expect([...new Set(found)].sort()).toEqual([...KNOWN].sort());
+      .flatMap((s) => s.relatedSystems.map((r) => ({ from: s.slug, to: r.slug, label: r.label })))
+      .filter((r) => r.to === 'blazing' || r.to === 'whirling')
+      .filter((r) => namesASide(r.label))
+      .map((r) => `${r.from} -> ${r.to}: ${r.label}`);
+    expect(offenders).toEqual([]);
+  });
+
+  it('neither set is cross-referenced as a variant or alias of the other', () => {
+    // The ruling holds them apart as distinct named sets precisely because the
+    // relation that would rank one under the other is unruled.
+    const offenders = CANONICAL_SETS
+      .filter((s) => s.slug === 'blazing' || s.slug === 'whirling')
+      .flatMap((s) => s.relatedSystems.map((r) => ({ from: s.slug, to: r.slug, label: r.label })))
+      .filter((r) => r.to === 'blazing' || r.to === 'whirling')
+      .filter((r) => /\bvariant\b|\balias\b/i.test(r.label))
+      .map((r) => `${r.from} -> ${r.to}: ${r.label}`);
+    expect(offenders).toEqual([]);
   });
 });

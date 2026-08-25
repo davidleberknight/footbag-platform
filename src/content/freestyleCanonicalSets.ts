@@ -788,7 +788,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
       { slug: 'pogo',       label: 'Pogo (Symposium Whirling)' },
     ],
     relatedSystems: [
-      { slug: 'blazing',    label: 'Blazing (op-side-terminal variant)' },
+      { slug: 'blazing',    label: 'Blazing (distinct set on the same chassis)' },
       { slug: 'swirling',   label: 'Swirling (SWIRL-token sibling)' },
     ],
     source: 'platform-tracked',
@@ -808,7 +808,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     ],
     derivedSystems: [],
     relatedSystems: [
-      { slug: 'whirling', label: 'Whirling (same-side terminal sibling)' },
+      { slug: 'whirling', label: 'Whirling (the chassis this set opens from)' },
     ],
     source: 'platform-tracked',
     sourceCitation: 'Red ruling (curator-relayed, 2026-08-21): blazing is a Whirling set; Holden compilation (2003) additionally distinguishes it by terminal side.',
