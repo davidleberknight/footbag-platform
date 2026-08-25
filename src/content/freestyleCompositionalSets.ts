@@ -18,7 +18,7 @@
  *   are quoted verbatim from Chris Holden's community compilation
  *   (circa 2003).
  * - **No forced canonicalization.** Holden-only entries (slapping,
- *   tapping, bubba, sailing, shooting, flailing, infracting) are
+ *   tapping, bubba, sailing, shooting, infracting) are
  *   marked status='holden-only'; never promoted to canonical without
  *   curator review.
  * - **Honest conflict surfacing.** Where Holden's decomposition
@@ -196,7 +196,7 @@ export const COMPOSITIONAL_SET_FAMILIES: readonly CompositionalSetFamily[] = [
       { name: 'Sailing',     notation: 'TOE > SAME IN [DEX] > OP OUT [DEX] >',                           statusHint: 'holden-only',       structuralNote: 'Holden parenthetical: Pixie Illusion.' },
       { name: 'Blurry',      notation: 'CLIP > OP IN [DEX] > OP OUT [DEX] > (op side)',                  statusHint: 'platform-tracked', structuralNote: 'Holden parenthetical: Stepping Paradox. Aligns with the platform ruling.' },
       { name: 'Frantic',     notation: 'TOE > SAME IN [DEX] > OP IN [DEX] >',                            statusHint: 'holden-only',       structuralNote: 'Holden reads as: pixie-quantum.' },
-      { name: 'Flailing',    notation: 'SET > (no plant while) OP OUT [BOD] [DEX] >',                    statusHint: 'holden-only',       structuralNote: 'Holden parenthetical: Symposium Reverse Miraging.' },
+      { name: 'Flailing',    notation: 'SET > (no plant while) OP OUT [BOD] [DEX] >',                    statusHint: 'platform-tracked',  structuralNote: 'A Symposium Atomic set contributing +2; Holden parenthetical: Symposium Reverse Miraging.' },
       { name: 'Fairy Atomic',notation: 'TOE > SAME OUT [DEX] > OP OUT [DEX] >',                          statusHint: 'holden-only',       structuralNote: null },
       { name: 'Shooting',    notation: 'CLIP > OP IN [DEX] > OP OUT [PDX][DEX] >',                       statusHint: 'holden-only',       structuralNote: 'Holden parenthetical: Stepping Paradox Illusion.' },
       { name: 'Furious',     notation: 'CLIP > OP IN [DEX] > SAME IN [DEX] >',                           statusHint: 'platform-tracked', structuralNote: 'A two-dex set (+2). Barraging is a legacy name pattern for this same Furious set, not a separate timing-defined operator; an older three-dex Barraging Paradox Miraging reading is superseded.' },
@@ -232,7 +232,7 @@ export const COMPOSITIONAL_SET_FAMILIES: readonly CompositionalSetFamily[] = [
     members: [
       { name: 'Swirling',   notation: 'CLIP > SAME BACK/FRONT SWIRL [DEX] >',         statusHint: 'platform-tracked', structuralNote: null },
       { name: 'Whirling',   notation: 'CLIP > OP IN [DEX] > (same side component)',   statusHint: 'platform-tracked', structuralNote: null },
-      { name: 'Blazing',    notation: 'CLIP > OP IN [DEX] > (op side component)',     statusHint: 'holden-only',       structuralNote: 'Whirling with the opposite-side terminal component.' },
+      { name: 'Blazing',    notation: 'CLIP > OP IN [DEX] > (op side component)',     statusHint: 'platform-tracked',  structuralNote: 'A distinct named set on the whirling chassis contributing +1; Holden separates it from whirling by terminal side.' },
       { name: 'Scattered',  notation: 'CLIP > OP OUT [DEX] > (same side component)',  statusHint: 'holden-only',       structuralNote: 'Holden parenthetical: Reverse Whirling (same side).' },
       { name: 'Shattered',  notation: 'CLIP > OP OUT [DEX] > (op side component)',    statusHint: 'holden-only',       structuralNote: 'Holden parenthetical: Reverse Whirling (op side).' },
       { name: 'Pogo',       notation: 'CLIP > (no plant while) OP IN [DEX] >',        statusHint: 'platform-tracked', structuralNote: 'Holden parenthetical: Symposium Whirling.' },
@@ -457,6 +457,20 @@ export const COMPOSITIONAL_AUDIT_ENTRIES: readonly CompositionalAuditEntry[] = [
     status:          'partial',
     note:            'Notation matches. Holden treats nuclear as a basic; the platform treats it as a compound paradox + illusion stack.',
   },
+  {
+    holdenName:      'Flailing',
+    holdenReading:   'SET > (no plant while) OP OUT [BOD] [DEX] >; Holden: Symposium Reverse Miraging.',
+    platformReading: 'Ruled a Symposium Atomic set contributing +2, corpus-settled across the six published atomic-symposium compounds.',
+    status:          'partial',
+    note:            'Notation is recorded as Holden wrote it, with its unusual explicit no-plant constraint. The readings diverge: Holden reads a reversed miraging body dex, and the platform reads the symposium and atomic treatments combined. Where a positional qualifier lands inside that chassis is not settled.',
+  },
+  {
+    holdenName:      'Blazing',
+    holdenReading:   'CLIP > OP IN [DEX] > (op side component); whirling op-side variant.',
+    platformReading: 'Ruled a distinct named set on the whirling chassis, an uptime whirl the following trick is performed off of, contributing +1.',
+    status:          'partial',
+    note:            'Notation is recorded as Holden wrote it. Holden additionally separates blazing from whirling by terminal side; that side relation is not settled, so the two stand as distinct named sets.',
+  },
 
   // ── Conflict (substantive decomposition disagreement) ────────────────
   {
@@ -475,7 +489,6 @@ export const COMPOSITIONAL_AUDIT_ENTRIES: readonly CompositionalAuditEntry[] = [
   // Multi-dex Holden compounds with no platform entry
   { holdenName: 'Sailing',          holdenReading: 'TOE > SAME IN [DEX] > OP OUT [DEX] >; Holden: Pixie Illusion.',              platformReading: null, status: 'holden-only', note: 'Structural decomposition reads cleanly as pixie + illusion-class second dex; not in current platform canonical.' },
   { holdenName: 'Frantic',          holdenReading: 'TOE > SAME IN [DEX] > OP IN [DEX] >; Holden: pixie-quantum.',                platformReading: null, status: 'holden-only', note: 'Decomposes mechanically to pixie + quantum-direction second dex.' },
-  { holdenName: 'Flailing',         holdenReading: 'SET > (no plant while) OP OUT [BOD] [DEX] >; Holden: Symposium Reverse Miraging.', platformReading: null, status: 'holden-only', note: 'Unusual notation with explicit no-plant constraint.' },
   { holdenName: 'Fairy Atomic',     holdenReading: 'TOE > SAME OUT [DEX] > OP OUT [DEX] >.',                                    platformReading: null, status: 'holden-only', note: null },
   { holdenName: 'Shooting',         holdenReading: 'CLIP > OP IN [DEX] > OP OUT [PDX][DEX] >; Holden: Stepping Paradox Illusion.', platformReading: null, status: 'holden-only', note: null },
   { holdenName: 'Infracting',       holdenReading: 'opposite of a Refraction, done as a set.',                                  platformReading: null, status: 'holden-only', note: 'Inverse pattern, not a literal grammar string.' },
@@ -489,7 +502,6 @@ export const COMPOSITIONAL_AUDIT_ENTRIES: readonly CompositionalAuditEntry[] = [
   { holdenName: 'Fairy Spinning',   holdenReading: 'TOE > SAME OUT [DEX] > (BACK) SPIN [BOD] >.',                               platformReading: null, status: 'holden-only', note: null },
   { holdenName: 'Pixie Inspinning', holdenReading: 'TOE > SAME IN [DEX] > (FRONT) SPIN [BOD] >.',                               platformReading: null, status: 'holden-only', note: null },
   // Whirl/swirl variants, Holden-only naming distinctions
-  { holdenName: 'Blazing',          holdenReading: 'CLIP > OP IN [DEX] > (op side component); whirling op-side variant.',       platformReading: null, status: 'holden-only', note: 'Holden distinguishes blazing from whirling by terminal-component side; the platform does not separate them.' },
   { holdenName: 'Scattered',        holdenReading: 'CLIP > OP OUT [DEX] > (same side); Holden: Reverse Whirling (same side).',  platformReading: null, status: 'holden-only', note: null },
   { holdenName: 'Shattered',        holdenReading: 'CLIP > OP OUT [DEX] > (op side); Holden: Reverse Whirling (op side).',      platformReading: null, status: 'holden-only', note: null },
   { holdenName: 'Broken',           holdenReading: 'CLIP > OP OUT [DEX] > (SAME); Holden: clipper reverse whirl.',              platformReading: 'Platform tracks rev-whirl as canonical; "Broken" itself is the Holden folk synonym.', status: 'holden-only', note: 'Asterisk in Holden\'s source. Name is folk; the underlying reverse-whirl shape is canonical.' },

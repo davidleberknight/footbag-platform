@@ -127,7 +127,7 @@ export const CORE_ATOM_EDUCATIONAL: readonly CoreAtomEducationalCard[] = [
     slug:        'butterfly',
     displayName: 'Butterfly',
     adds:        '3',
-    line:        "Formula: set + out-dex, same-side or opposite-side + cross-body clipper catch. A wing-like outward sweep of the foot across the body to a clipper landing, in both a same-side and an opposite-side variant.",
+    line:        "Formula: set + opposite-side out-dex + cross-body clipper catch. A wing-like outward sweep of the foot across the body to a clipper landing; the same-side execution is its own named variant, Butterfly Same Side.",
     relates:     "Butterfly is one of the twelve core atoms, a foundation rather than a combination. Its cross-body-landing neighbors are whirl and swirl; its descendants are the walking tricks.",
     reveal:      "The walking family is butterfly wearing operators: ripwalk is a stepping butterfly, dimwalk a pixie butterfly. A branch that looks like its own style is really one atom plus one modifier apiece, which is the recurring shape of the sport: a small set of atoms, a handful of operators, everything else composed.",
   },

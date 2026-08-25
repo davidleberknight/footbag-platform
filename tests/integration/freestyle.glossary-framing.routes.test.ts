@@ -574,7 +574,7 @@ describe('Freestyle Concepts foundational frame — Tricks / Sets / Modifiers + 
   it('makes the set-vs-trick contrast explicit and gives the modifier tell', async () => {
     const html = await concepts();
     expect(html).toContain('initiate movement rather than terminate it');
-    expect(html).toContain('Swirling is a modifier; Swirl is a trick');
+    expect(html).toContain('Spinning is a modifier; Spin is a trick');
   });
 
   it('frames Continuous-Control Lineage as an observational grouping, not a formal family', async () => {
