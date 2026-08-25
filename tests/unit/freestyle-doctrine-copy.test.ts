@@ -26,6 +26,18 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
+import { CANONICAL_SETS } from '../../src/content/freestyleCanonicalSets';
+import {
+  COMPOSITIONAL_SET_FAMILIES,
+  COMPOSITIONAL_AUDIT_ENTRIES,
+} from '../../src/content/freestyleCompositionalSets';
+import {
+  OPERATOR_REFERENCE_ENTRIES,
+  TIER1_OPERATOR_DEFINITIONS,
+} from '../../src/content/freestyleOperatorReference';
+import { CORE_ATOM_EDUCATIONAL_BY_SLUG } from '../../src/content/freestyleCoreAtomEducational';
+import { CORE_TRICK_SPEC } from '../../src/content/freestyleLandingContent';
+
 const ROOT = resolve(__dirname, '../..');
 const read = (p: string) => readFileSync(join(ROOT, p), 'utf8');
 const lineWith = (text: string, needle: string): string => {
@@ -258,5 +270,277 @@ describe('glossary side section, clipper, XBD labels, and side-variant cards', (
     expect(variantCard).toMatch(/positional-name variants/);
     expect(variantCard).toMatch(/do not redefine the operational SAME\/OP tokens/);
     expect(variantCard).not.toMatch(/Same-side \(near\) and far \(opposite\)/);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// Settled set classification, held consistent across the projections that
+// carry it.
+//
+// A ruled classification lives in one authoritative place and is restated by
+// hand in several others: a token label, a compositional card, an audit row, a
+// teaching card, a Concepts example. Each restatement is a place the ruling can
+// fail to arrive, and every case below is one that actually did.
+//
+// Expected values are derived from the authorities rather than repeated here,
+// so a future ruling that moves a set moves these assertions with it. The two
+// literal lists that remain are documented where they sit, and each is written
+// to fail when the thing it records is fixed, so neither outlives its cause.
+// ─────────────────────────────────────────────────────────────────────────
+
+/** Sets the platform has ruled on, as opposed to names it merely records from
+ *  an outside compilation. A source-only entry carries no platform claim, so
+ *  none of the checks below applies to one. */
+const PLATFORM_RULED_SETS = new Set(
+  CANONICAL_SETS.filter((s) => s.source !== 'holden-only').map((s) => s.slug),
+);
+
+const SOURCE_ONLY_SETS = new Set(
+  CANONICAL_SETS.filter((s) => s.source === 'holden-only').map((s) => s.slug),
+);
+
+/** Display name to set slug: drops a parenthetical gloss ("Terraging (Double
+ *  Pixie)") and takes the first name of a paired title ("Rooting / Rooted"). */
+const setSlugFor = (displayName: string): string =>
+  displayName
+    .split('/')[0]!
+    .replace(/\(.*?\)/g, '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_|_$/g, '');
+
+/** A canonical positional claim: a side VALUE. Naming the side axis itself
+ *  ("separates them by terminal side") is not a claim about which side. */
+const SIDE_VALUE = /\bop[- ]side\b|\bopposite[- ]side\b|\bsame[- ]side\b|\bSAME\b|\bOP\b/i;
+
+/** Word-token tooltip labels, read as text because the map is module-private. */
+const tokenLabels = (): Map<string, string> => {
+  const src = read('src/services/notationRendering.ts');
+  const out = new Map<string, string>();
+  for (const m of src.matchAll(/^\s*([A-Z][A-Z0-9_]*):\s*'((?:[^'\\]|\\.)*)',/gm)) {
+    out.set(m[1]!.toLowerCase(), m[2]!);
+  }
+  return out;
+};
+
+describe('a set the platform has ruled on is not labelled an ordinary operator', () => {
+  // Sets that also act as modifiers are labelled "set modifier", which is the
+  // ruled dual role and stays legal. What is not legal is filing a ruled set
+  // under the body or rotation operators, which is how blazing came to be called
+  // a body modifier after being ruled a set in its own right.
+  const ORDINARY_OPERATOR = /\b(body|rotation) modifier\b/;
+
+  // Weaving is ruled a ducking set whose launch incorporates the ducking body
+  // movement, yet its token label still calls it a body modifier. That is the
+  // same defect this block exists to catch, and it is left standing rather than
+  // corrected in passing, because the label also carries a difficulty figure the
+  // ducking-mirror rule appears to contradict, and that is a question for the
+  // curator rather than a rename. Delete this entry when the label is settled;
+  // the last case in this block fails if it is fixed and left listed.
+  const UNRECONCILED_OPERATOR_LABELS = new Set(['weaving']);
+
+  it('no ruled set is filed under the body or rotation operators', () => {
+    const offenders = [...tokenLabels()]
+      .filter(([token]) => PLATFORM_RULED_SETS.has(token))
+      .filter(([token]) => !UNRECONCILED_OPERATOR_LABELS.has(token))
+      .filter(([, label]) => ORDINARY_OPERATOR.test(label))
+      .map(([token, label]) => `${token}: ${label}`);
+    expect(offenders).toEqual([]);
+  });
+
+  it('where a ruled set is called a modifier at all, it is called a set modifier', () => {
+    // The dual role is real and its wording is the signal: "set modifier" says
+    // the token launches and can also be applied, which is what was ruled. Any
+    // other modifier wording on a ruled set is the drift this block catches.
+    // Derived from the labels themselves, so the roster of dual-role sets never
+    // has to be restated here.
+    const wrong = [...tokenLabels()]
+      .filter(([token]) => PLATFORM_RULED_SETS.has(token))
+      .filter(([token]) => !UNRECONCILED_OPERATOR_LABELS.has(token))
+      .filter(([, label]) => /modifier/.test(label))
+      .filter(([, label]) => !/set modifier/.test(label))
+      .map(([token, label]) => `${token}: ${label}`);
+    expect(wrong).toEqual([]);
+  });
+
+  it('every label recorded as unreconciled still is, so the list retires itself', () => {
+    const labels = tokenLabels();
+    const stale = [...UNRECONCILED_OPERATOR_LABELS]
+      .filter((t) => !ORDINARY_OPERATOR.test(labels.get(t) ?? ''));
+    expect(stale, 'these read correctly now; remove them from the unreconciled list')
+      .toEqual([]);
+  });
+});
+
+describe('a set the platform has ruled on is not filed as source-only', () => {
+  // The compositional surface keeps a bucket meaning "an outside compilation
+  // lists this name and the platform has no separate treatment of it". A set
+  // carrying a platform ruling contradicts that bucket by definition, which is
+  // how flailing and blazing came to sit there after being ruled.
+  it('no audit row files a ruled set as source-only', () => {
+    const offenders = COMPOSITIONAL_AUDIT_ENTRIES
+      .filter((e) => PLATFORM_RULED_SETS.has(setSlugFor(e.holdenName)))
+      .filter((e) => e.status === 'holden-only')
+      .map((e) => e.holdenName);
+    expect(offenders).toEqual([]);
+  });
+
+  it('no card files a ruled set as source-only', () => {
+    const offenders = COMPOSITIONAL_SET_FAMILIES
+      .flatMap((f) => f.members)
+      .filter((m) => PLATFORM_RULED_SETS.has(setSlugFor(m.name)))
+      .filter((m) => m.statusHint === 'holden-only')
+      .map((m) => m.name);
+    expect(offenders).toEqual([]);
+  });
+
+  it('a ruled set carries a platform reading rather than an empty one', () => {
+    const empty = ['Flailing', 'Blazing']
+      .map((name) => COMPOSITIONAL_AUDIT_ENTRIES.find((e) => e.holdenName === name))
+      .filter((row) => !row?.platformReading)
+      .map((row) => row?.holdenName ?? 'missing row');
+    expect(empty).toEqual([]);
+  });
+
+  it('names the platform only records are still allowed to stay source-only', () => {
+    // The rule runs one way. A compilation name with no platform ruling belongs
+    // in that bucket, and nothing here should push it out.
+    const sourceOnly = COMPOSITIONAL_AUDIT_ENTRIES
+      .filter((e) => SOURCE_ONLY_SETS.has(setSlugFor(e.holdenName)))
+      .filter((e) => e.status === 'holden-only');
+    expect(sourceOnly.length).toBeGreaterThan(5);
+  });
+});
+
+describe('butterfly teaching copy matches the side its notation carries', () => {
+  const card = CORE_ATOM_EDUCATIONAL_BY_SLUG.get('butterfly')!;
+  const spec = CORE_TRICK_SPEC.find((s) => s.slug === 'butterfly')!;
+
+  it('the pinned notation is the opposite-side form', () => {
+    expect(spec.operationalNotation).toMatch(/OP OUT/);
+  });
+
+  it('the card teaches the opposite-side execution as the base', () => {
+    expect(card.line).toMatch(/opposite-side out-dex/);
+  });
+
+  it('the card does not offer both sides as coequal unnamed base forms', () => {
+    expect(card.line).not.toMatch(/same-side or opposite-side/);
+    expect(card.line).not.toMatch(/in both a same-side and an opposite-side variant/);
+  });
+
+  it('the card keeps the same-side execution as a named variant', () => {
+    expect(card.line).toMatch(/Butterfly Same Side/);
+  });
+});
+
+describe('the modifier-versus-trick lesson uses operators, not sets', () => {
+  const modifierBlock = (): string => {
+    const concepts = read('src/views/freestyle/concepts.hbs');
+    return concepts.split('<dt>Modifier</dt>')[1]!.split('</dd>')[0]!;
+  };
+  const examples = (): string[] => {
+    const listed = /its own \(([^)]*)\)/.exec(modifierBlock());
+    if (listed === null) throw new Error('no modifier example list in the Concepts entry');
+    return listed[1]!.split(',').map((e) => e.trim()).filter(Boolean);
+  };
+  const operatorSlugs = new Set([
+    ...OPERATOR_REFERENCE_ENTRIES.map((e) => e.slug),
+    ...TIER1_OPERATOR_DEFINITIONS.map((e) => e.slug),
+  ]);
+
+  it('every example is an entry in the operator registry', () => {
+    expect(examples().filter((e) => !operatorSlugs.has(setSlugFor(e)))).toEqual([]);
+  });
+
+  it('no example is a set the platform has ruled on', () => {
+    expect(examples().filter((e) => PLATFORM_RULED_SETS.has(setSlugFor(e)))).toEqual([]);
+  });
+
+  it('the one-line tell contrasts a registry operator with its bare trick form', () => {
+    const tell = /tell: <strong>([^<]*)<\/strong>/.exec(modifierBlock());
+    expect(tell, 'modifier tell').not.toBeNull();
+    const subject = setSlugFor(tell![1]!.split(' is a modifier')[0]!);
+    expect([subject, operatorSlugs.has(subject), PLATFORM_RULED_SETS.has(subject)])
+      .toEqual([subject, true, false]);
+  });
+});
+
+describe('an unresolved side relationship stays unresolved in the platform voice', () => {
+  // Blazing is ruled a distinct set on the whirling chassis, and which side its
+  // opening dex takes is explicitly not ruled. A source may state a side and the
+  // platform may quote it; what the platform may not do is adopt one. So the
+  // source-attributed fields are exempt by construction and the platform's own
+  // prose is not.
+  //
+  // One token, because one token is what is open. Remove the entry when the side
+  // question is answered.
+  const UNRESOLVED_SIDE_TOKENS = ['blazing'];
+  const setEntry = (slug: string) => CANONICAL_SETS.find((s) => s.slug === slug)!;
+
+  it('the set page states the movement without choosing a side', () => {
+    const offenders = UNRESOLVED_SIDE_TOKENS
+      .filter((slug) => SIDE_VALUE.test(setEntry(slug).movementExplanation));
+    expect(offenders).toEqual([]);
+  });
+
+  it('the token label states the movement without choosing a side', () => {
+    const labels = tokenLabels();
+    const offenders = UNRESOLVED_SIDE_TOKENS
+      .filter((slug) => SIDE_VALUE.test(labels.get(slug) ?? ''));
+    expect(offenders).toEqual([]);
+  });
+
+  it('the compositional platform reading, note and card choose no side', () => {
+    const platformVoice = UNRESOLVED_SIDE_TOKENS.flatMap((slug) => {
+      const name = setEntry(slug).displayName;
+      const row = COMPOSITIONAL_AUDIT_ENTRIES.find((e) => e.holdenName === name)!;
+      const card = COMPOSITIONAL_SET_FAMILIES.flatMap((f) => f.members)
+        .find((m) => m.name === name)!;
+      return [row.platformReading ?? '', row.note ?? '', card.structuralNote ?? ''];
+    });
+    expect(platformVoice.filter((text) => SIDE_VALUE.test(text))).toEqual([]);
+  });
+
+  it('the set-education prose neither collapses the set nor chooses a side', () => {
+    const edu = read('src/services/symbolicSetEducation.ts');
+    const blazingLines = edu.split('\n').filter((l) => /blazing/i.test(l));
+    const offenders = blazingLines.filter((l) =>
+      /\bnot an independent set\b/.test(l)
+      || /\bop[- ]side\b|\bopposite[- ]side[- ]terminal\b/i.test(l));
+    expect(offenders).toEqual([]);
+  });
+
+  it('the source keeps its own side claim, quoted rather than adopted', () => {
+    // Deleting the compilation's reading would destroy the evidence the audit
+    // table exists to show. It stays, attributed.
+    const blazing = setEntry('blazing');
+    const row = COMPOSITIONAL_AUDIT_ENTRIES.find((e) => e.holdenName === 'Blazing')!;
+    expect(blazing.formula).toMatch(/op side component/);
+    expect(row.holdenReading).toMatch(/op side component/);
+    const unattributed = blazing.equivalenceNotes
+      .filter((n) => SIDE_VALUE.test(n.reading) && !/Holden/.test(n.citation))
+      .map((n) => n.reading);
+    expect(unattributed).toEqual([]);
+  });
+
+  it('the sibling labels that still name a side are exactly the two on record', () => {
+    // Two cross-reference labels still describe the blazing and whirling
+    // relationship by side. They are public wording, queued for the next content
+    // pass rather than changed here. This case pins them so the problem cannot
+    // spread, and fails when either is fixed so the record is deleted with the
+    // defect it recorded.
+    const KNOWN = [
+      'Blazing (op-side-terminal variant)',
+      'Whirling (same-side terminal sibling)',
+    ];
+    const found = CANONICAL_SETS
+      .filter((s) => s.slug === 'blazing' || s.slug === 'whirling')
+      .flatMap((s) => s.relatedSystems)
+      .filter((r) => r.slug === 'blazing' || r.slug === 'whirling')
+      .map((r) => r.label)
+      .filter((label) => SIDE_VALUE.test(label));
+    expect([...new Set(found)].sort()).toEqual([...KNOWN].sort());
   });
 });
