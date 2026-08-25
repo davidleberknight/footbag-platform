@@ -29,6 +29,10 @@ export const FLASH_KIND = {
   PROFILE_UPDATED: 'profile_updated',
   RECURRING_DONATION_CANCELED: 'recurring_donation_canceled',
   RECONCILIATION_RESOLVED: 'reconciliation_resolved',
+  // An administrator's correction on a member record. The payload is the
+  // outcome code the member service turns back into a sentence, so the wording
+  // lives with the surface rather than in a cookie.
+  MEMBER_RECORD_CORRECTED: 'member_record_corrected',
   ALARM_ACKNOWLEDGED: 'alarm_acknowledged',
   // A second administrator submitting the same acknowledgment, or one submitting
   // it after the condition cleared, changed nothing and must not be told they

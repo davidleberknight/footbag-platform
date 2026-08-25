@@ -15,7 +15,7 @@
     <form method="POST" action="/admin/honor-grants/grant" class="form-block">
       <div class="form-field">
         <label for="grant_member">Member id or slug</label>
-        <input id="grant_member" name="member_key" required maxlength="200" />
+        <input type="text" id="grant_member" name="member_key" required maxlength="200" />
       </div>
       <div class="form-field">
         <label for="grant_honor">Honor</label>
@@ -24,7 +24,66 @@
           <option value="bap">Big Add Posse</option>
         </select>
       </div>
+      <div class="form-field">
+        <label for="grant_year">Induction year</label>
+        <input type="text" id="grant_year" name="induction_year" maxlength="4" inputmode="numeric" />
+      </div>
       <button type="submit" class="btn btn-primary btn-sm">Review Honor Grant</button>
+    </form>
+  </section>
+
+  <section>
+    <div class="section-heading"><h2>Take Back a Grant Made in Error</h2></div>
+    <p class="text-muted fs-sm">This corrects the platform's record of a grant that should not have been made. It clears the badge and its induction year and leaves the membership tier alone. It does not revoke the honour itself, which is not the platform's to revoke.</p>
+    <form method="POST" action="/admin/honor-grants/remove" class="form-block">
+      <div class="form-field">
+        <label for="remove_member">Member id or slug</label>
+        <input type="text" id="remove_member" name="member_key" required maxlength="200" />
+      </div>
+      <div class="form-field">
+        <label for="remove_honor">Honor</label>
+        <select id="remove_honor" name="honor" required>
+          <option value="hof">Hall of Fame</option>
+          <option value="bap">Big Add Posse</option>
+        </select>
+      </div>
+      <div class="form-field">
+        <label for="remove_reason">Reason (required)</label>
+        <input type="text" id="remove_reason" name="reason" required maxlength="500" />
+      </div>
+      <button type="submit" class="btn btn-outline btn-sm">Review Taking Back the Grant</button>
+    </form>
+  </section>
+
+  <section>
+    <div class="section-heading"><h2>Put a Director on the Board</h2></div>
+    <p class="text-muted fs-sm">Board standing is Tier 3 and is set one director at a time, as each sitting director claims their account. It is temporary: on leaving the board the member returns to the tier recorded when they joined it.</p>
+    <form method="POST" action="/admin/honor-grants/board/set" class="form-block">
+      <div class="form-field">
+        <label for="board_set_member">Member id or slug</label>
+        <input type="text" id="board_set_member" name="member_key" required maxlength="200" />
+      </div>
+      <div class="form-field">
+        <label for="board_set_reason">Reason (required)</label>
+        <input type="text" id="board_set_reason" name="reason" required maxlength="500" />
+      </div>
+      <button type="submit" class="btn btn-primary btn-sm">Review Putting Them on the Board</button>
+    </form>
+  </section>
+
+  <section>
+    <div class="section-heading"><h2>Take a Director Off the Board</h2></div>
+    <p class="text-muted fs-sm">The board badge goes and the member returns to the tier recorded when they joined the board.</p>
+    <form method="POST" action="/admin/honor-grants/board/remove" class="form-block">
+      <div class="form-field">
+        <label for="board_remove_member">Member id or slug</label>
+        <input type="text" id="board_remove_member" name="member_key" required maxlength="200" />
+      </div>
+      <div class="form-field">
+        <label for="board_remove_reason">Reason (required)</label>
+        <input type="text" id="board_remove_reason" name="reason" required maxlength="500" />
+      </div>
+      <button type="submit" class="btn btn-outline btn-sm">Review Taking Them Off the Board</button>
     </form>
   </section>
 
@@ -35,7 +94,7 @@
     {{/unless}}
     {{#each content.recent}}
       <div class="card">
-        <div class="card-title">{{displayName}} <span class="badge">{{slug}}</span></div>
+        <div class="card-title">{{displayName}} <span class="text-muted fs-sm">{{slug}}</span></div>
         <p class="m-0 text-muted fs-sm">{{honorLabel}} &middot; {{occurredAt}}{{#if dataOriginLabel}} <span class="badge">{{dataOriginLabel}}</span>{{/if}}</p>
       </div>
     {{/each}}

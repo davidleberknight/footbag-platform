@@ -3,8 +3,9 @@
  *
  * Owns:
  *   - Membership-tier ledger writes (`member_tier_grants`)
- *   - HoF/BAP Tier 2 grants
- *   - Tier 3 governance set/remove
+ *   - HoF/BAP Tier 2 grants, the badge and induction-year columns they set, and
+ *     the correction that takes a grant made in error back
+ *   - Tier 3 governance set/remove, and the board badge that goes with it
  *   - Admin tier corrections
  *   - Admin-role grant and revoke (story A_Manage_Admin_Role)
  *   - The administrator-loss recruitment alert: the revoke-time raise and the
@@ -47,6 +48,17 @@
  *     throws `ConflictError` inside the grant transaction before any write, so no
  *     ledger row, audit row, or congrats email is produced. HoF and BAP are
  *     independent; a member may hold one of each.
+ *   - "Holds this honor" is decided by the ledger, not by a single row: a grant
+ *     counts unless a later removal row withdraws it. The ledger is append-only,
+ *     so a grant made in error stays visible as history and the honor can be
+ *     granted again afterwards.
+ *   - A grant sets its badge column and induction year in the same transaction
+ *     as the tier row, and carries a composed reason on both the ledger row and
+ *     the audit row. A badge set without its tier row, or a governance-
+ *     significant write with a null reason, are the two failures this prevents.
+ *   - Taking back an honor clears the badge and its year and leaves the
+ *     membership tier alone: a member may hold that tier for reasons unconnected
+ *     to the honor, and a correction does not guess which.
  *   - Refund does not write a `revoke` row.
  *   - A legacy-claim grant never lowers the member's tier: a member's claimed
  *     bases are evaluated together, so a lower later source never discards a
@@ -777,6 +789,48 @@ const HONOR_REASON_CODE: Record<'hof' | 'bap', string> = {
   bap: 'honor.bap_tier2_grant',
 };
 
+// The reversing ledger row for a grant made in error. A distinct code, so the
+// append-only ledger shows the grant and its withdrawal as two facts rather
+// than one ambiguous one, and so `hasHonorGrant` keeps meaning what it says.
+const HONOR_REMOVAL_REASON_CODE: Record<'hof' | 'bap', string> = {
+  hof: 'honor.hof_grant_removed',
+  bap: 'honor.bap_grant_removed',
+};
+
+/** Whether the member holds this honour by grant, removals accounted for. */
+function holdsHonorNow(memberId: string, honor: 'hof' | 'bap'): boolean {
+  return memberTier.hasHonorGrant.get(
+    memberId, HONOR_REASON_CODE[honor], memberId, HONOR_REMOVAL_REASON_CODE[honor],
+  ) !== undefined;
+}
+
+interface HonorState {
+  carriesBadge: boolean;
+  backedByRecord: boolean;
+}
+
+/**
+ * Where a member's honour actually stands, which the grant ledger alone cannot
+ * answer.
+ *
+ * A claim merge sets the badge from the claimed historical record and writes no
+ * ledger row, so a member can visibly hold an honour that the ledger knows
+ * nothing about. Reading the ledger alone would offer to grant an honour they
+ * already hold, and would then let a correction clear a badge the archive backs.
+ */
+function honorState(memberId: string, honor: 'hof' | 'bap'): HonorState {
+  const row = memberTier.getHonorState.get(memberId) as
+    | {
+        is_hof: number; is_bap: number;
+        record_hof: number | null; record_bap: number | null;
+      }
+    | undefined;
+  if (!row) return { carriesBadge: false, backedByRecord: false };
+  return honor === 'hof'
+    ? { carriesBadge: row.is_hof === 1, backedByRecord: row.record_hof === 1 }
+    : { carriesBadge: row.is_bap === 1, backedByRecord: row.record_bap === 1 };
+}
+
 /**
  * True when the member already holds a tier grant for this exact honor. HoF and
  * BAP are independent, so a member may hold one of each. The admin honor-grant
@@ -784,7 +838,7 @@ const HONOR_REASON_CODE: Record<'hof' | 'bap', string> = {
  * re-checks the same condition inside its transaction as the authoritative guard.
  */
 export function hasHonorGrant(memberId: string, honor: 'hof' | 'bap'): boolean {
-  return memberTier.hasHonorGrant.get(memberId, HONOR_REASON_CODE[honor]) !== undefined;
+  return holdsHonorNow(memberId, honor);
 }
 
 /**
@@ -800,18 +854,62 @@ export function hasHonorGrant(memberId: string, honor: 'hof' | 'bap'): boolean {
  *   ledger row, audit row, or congrats email is produced (HoF and BAP stay
  *   independent). hasHonorGrant exposes the same check for a pre-commit preview.
  */
+/**
+ * The reason an honour grant carries. It is formulaic by nature: the honour was
+ * won by vote and the member was inducted, and the only variable is the year.
+ * Composing it here means the ledger row and the audit row cannot disagree, and
+ * neither is left null on a governance-significant write.
+ */
+function honorReasonText(honor: 'hof' | 'bap', inductionYear: number | null): string {
+  const label = honor === 'hof' ? 'Hall of Fame' : 'Big Add Posse';
+  return inductionYear === null
+    ? `${label} induction`
+    : `${label} induction, ${inductionYear}`;
+}
+
+const EARLIEST_INDUCTION_YEAR = 1972;
+
+/** The induction year an administrator supplied, or null when they gave none. */
+function validateInductionYear(raw: number | null | undefined): number | null {
+  if (raw === null || raw === undefined) return null;
+  const year = Number(raw);
+  if (!Number.isInteger(year)) {
+    throw new ValidationError('Enter the induction year as a four-digit year.');
+  }
+  const thisYear = new Date().getUTCFullYear();
+  if (year < EARLIEST_INDUCTION_YEAR || year > thisYear) {
+    throw new ValidationError(
+      `The induction year must be between ${EARLIEST_INDUCTION_YEAR} and ${thisYear}.`,
+    );
+  }
+  return year;
+}
+
 export function applyHonorGrant(
   actorId: string,
   memberId: string,
   honor: 'hof' | 'bap',
+  rawInductionYear: number | null = null,
 ): { ok: true } {
   const reasonCode = HONOR_REASON_CODE[honor];
+  const inductionYear = validateInductionYear(rawInductionYear);
+  const reasonText = honorReasonText(honor, inductionYear);
 
   const result = transaction(() => {
-    if (memberTier.hasHonorGrant.get(memberId, reasonCode) !== undefined) {
+    if (holdsHonorNow(memberId, honor)) {
       throw new ConflictError(
         `This member already holds a ${honor.toUpperCase()} honor grant; ` +
         `a second ${honor.toUpperCase()} grant is not written.`,
+      );
+    }
+    // The badge without a grant row means the honour came from a claimed
+    // historical record. There is nothing to grant, and granting anyway would
+    // create a ledger row that a later correction could use to clear a badge
+    // the archive itself backs.
+    if (honorState(memberId, honor).carriesBadge) {
+      throw new ConflictError(
+        `This member already carries the ${honor.toUpperCase()} honor from a claimed historical `
+        + 'record, so there is nothing to grant.',
       );
     }
     const now = new Date().toISOString();
@@ -828,7 +926,7 @@ export function applyHonorGrant(
         oldUnderlying: current.underlying_tier_status,
         newUnderlying: 'tier2',
         reasonCode,
-        reasonText: null,
+        reasonText,
         relatedPaymentId: null,
         now,
       });
@@ -846,11 +944,24 @@ export function applyHonorGrant(
         oldUnderlying: null,
         newUnderlying: null,
         reasonCode,
-        reasonText: null,
+        reasonText,
         relatedPaymentId: null,
         now,
       });
     }
+
+    // The badge and its year, in the same transaction as the tier row. A member
+    // inducted without this shows no badge anywhere and is missing from the
+    // roster counts for the honour they hold.
+    memberTier.applyGrantedHonor.run(
+      honor === 'hof' ? 1 : 0,
+      honor === 'hof' ? inductionYear : null,
+      honor === 'bap' ? 1 : 0,
+      honor === 'bap' ? inductionYear : null,
+      now,
+      actorId,
+      memberId,
+    );
 
     audit({
       actionType: honor === 'hof' ? 'tier.hof_grant' : 'tier.bap_grant',
@@ -858,9 +969,10 @@ export function applyHonorGrant(
       actorType: 'admin',
       actorId,
       memberId,
-      reasonText: null,
+      reasonText,
       metadata: {
         honor,
+        induction_year: inductionYear,
         from: current.tier_status,
         from_underlying: current.underlying_tier_status,
       },
@@ -871,6 +983,96 @@ export function applyHonorGrant(
 
   enqueueHonorCongrats(memberId, honor, result.staysTier3, result.grantId);
   return { ok: true as const };
+}
+
+export type RemoveHonorGrantResult =
+  | { status: 'removed'; honor: 'hof' | 'bap' }
+  | { status: 'not_held'; honor: 'hof' | 'bap' };
+
+/**
+ * Take back a Hall of Fame or Big Add Posse honour granted in error.
+ *
+ * This corrects a mistaken grant; it does not revoke an honour. Both are
+ * permanent lifetime honours, and the platform has no mechanism for taking one
+ * away, because that is not the platform's to decide. What it can do is undo
+ * its own record of a grant that should never have been made.
+ *
+ * The badge and its year go, and a reversing ledger row records the correction.
+ * The ledger is append-only, so the original grant row stays exactly where it
+ * is and the trail shows both the grant and its withdrawal. The member's tier
+ * is deliberately left alone: they may hold Tier 2 for reasons that have
+ * nothing to do with this honour, and guessing which is not something a
+ * correction should do. An administrator who also needs the tier changed
+ * changes it from the member record, where that decision is explicit.
+ */
+export function removeHonorGrant(
+  actorId: string,
+  memberId: string,
+  honor: 'hof' | 'bap',
+  reasonText: string,
+): RemoveHonorGrantResult {
+  const reason = reasonText.trim();
+  if (!reason) {
+    throw new ValidationError('Enter the reason this honour is being taken back.');
+  }
+  const validatedReason = validateReasonText(reason);
+
+  return transaction(() => {
+    if (!holdsHonorNow(memberId, honor)) {
+      return { status: 'not_held' as const, honor };
+    }
+    const now = new Date().toISOString();
+    const current = getCurrent(memberId);
+
+    // The badge goes only if this grant is the reason the member carries it. A
+    // member who also holds the honour through a claimed historical record keeps
+    // it: the mistaken grant is what is being corrected, not the archive's own
+    // record of their induction.
+    const state = honorState(memberId, honor);
+    const clearBadge = !state.backedByRecord;
+    if (clearBadge) {
+      memberTier.clearGrantedHonor.run(
+        honor === 'hof' ? 1 : 0,
+        honor === 'hof' ? 1 : 0,
+        honor === 'bap' ? 1 : 0,
+        honor === 'bap' ? 1 : 0,
+        now,
+        actorId,
+        memberId,
+      );
+    }
+
+    insertGrant({
+      actorId,
+      memberId,
+      changeType: 'correct',
+      oldTier: current.tier_status,
+      newTier: current.tier_status,
+      oldUnderlying: current.underlying_tier_status,
+      newUnderlying: current.underlying_tier_status,
+      reasonCode: HONOR_REMOVAL_REASON_CODE[honor],
+      reasonText: validatedReason,
+      relatedPaymentId: null,
+      now,
+    });
+
+    audit({
+      actionType: honor === 'hof' ? 'tier.hof_grant_removed' : 'tier.bap_grant_removed',
+      category: 'governance_change',
+      actorType: 'admin',
+      actorId,
+      memberId,
+      reasonText: validatedReason,
+      metadata: {
+        honor,
+        tier_unchanged: current.tier_status,
+        badge_cleared: clearBadge,
+        badge_kept_from_claimed_record: !clearBadge,
+      },
+    });
+
+    return { status: 'removed' as const, honor };
+  });
 }
 
 /**
@@ -1038,7 +1240,9 @@ export function applyAutoLinkRevertGrantInTx(
 export function setGovernanceTier3(
   actorId: string,
   memberId: string,
+  reasonText: string | null = null,
 ): { ok: true } {
+  const reason = validateReasonText(reasonText?.trim() || null);
   return transaction(() => {
     const now = new Date().toISOString();
     const current = getCurrent(memberId);
@@ -1064,10 +1268,13 @@ export function setGovernanceTier3(
       oldUnderlying: null,
       newUnderlying,
       reasonCode: 'governance.tier3_set',
-      reasonText: null,
+      reasonText: reason,
       relatedPaymentId: null,
       now,
     });
+
+    // The board badge every surface reads, set with the tier it belongs to.
+    memberTier.setBoardFlag.run(1, now, actorId, memberId);
 
     audit({
       actionType: 'tier.governance_set',
@@ -1075,7 +1282,7 @@ export function setGovernanceTier3(
       actorType: 'admin',
       actorId,
       memberId,
-      reasonText: null,
+      reasonText: reason,
       metadata: {
         from: current.tier_status,
         new_underlying: newUnderlying,
@@ -1095,7 +1302,9 @@ export function setGovernanceTier3(
 export function removeGovernanceTier3(
   actorId: string,
   memberId: string,
+  reasonText: string | null = null,
 ): { ok: true } {
+  const reason = validateReasonText(reasonText?.trim() || null);
   return transaction(() => {
     const now = new Date().toISOString();
     const current = getCurrent(memberId);
@@ -1124,10 +1333,14 @@ export function removeGovernanceTier3(
       oldUnderlying: revertTo,
       newUnderlying: null,
       reasonCode: 'governance.tier3_removed',
-      reasonText: null,
+      reasonText: reason,
       relatedPaymentId: null,
       now,
     });
+
+    // The badge goes with the standing it records: a member off the board must
+    // not keep showing as on it.
+    memberTier.setBoardFlag.run(0, now, actorId, memberId);
 
     audit({
       actionType: 'tier.governance_removed',
@@ -1135,7 +1348,7 @@ export function removeGovernanceTier3(
       actorType: 'admin',
       actorId,
       memberId,
-      reasonText: null,
+      reasonText: reason,
       metadata: {
         revert_to: revertTo,
       },

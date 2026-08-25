@@ -1,0 +1,23 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+    <div class="card mb-6">
+      <p class="m-0 fw-500">{{content.personName}} &middot; {{content.personId}}</p>
+      <p class="m-0 mt-1 text-muted">Reason: {{content.reason}}</p>
+    </div>
+
+    <p>{{content.summary}}</p>
+
+    <form method="POST" action="{{content.confirmAction}}">
+      <input type="hidden" name="reason" value="{{content.reason}}" />
+      <button type="submit" class="btn btn-primary">{{content.confirmLabel}}</button>
+    </form>
+
+    <p class="mt-4"><a href="{{content.cancelHref}}">Cancel</a></p>
+  </section>
+</div>

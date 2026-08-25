@@ -2202,6 +2202,11 @@ CREATE TABLE members (
   -- onto members.hof_inducted_year at claim time. Intentional naming asymmetry.
   hof_inducted_year       INTEGER,
   is_bap      INTEGER NOT NULL DEFAULT 0 CHECK (is_bap      IN (0,1)),
+  -- Big Add Posse induction year (nullable; set when is_bap becomes 1), the
+  -- counterpart to hof_inducted_year above and named the same way. Without it
+  -- the year of a Big Add Posse induction has nowhere to live for a member with
+  -- no linked historical record, which is every member inducted from now on.
+  bap_inducted_year       INTEGER,
   is_deceased INTEGER NOT NULL DEFAULT 0 CHECK (is_deceased IN (0,1)),
   deceased_at   TEXT,
   deceased_note TEXT,
@@ -2841,6 +2846,20 @@ CREATE UNIQUE INDEX ux_club_leaders               ON club_leaders(club_id, membe
 -- idx_club_leaders_club dropped (left-prefix redundant with ux_club_leaders)
 -- idx_club_leaders_member dropped (left-prefix redundant with the member_id unique below)
 CREATE UNIQUE INDEX ux_one_club_leader_per_member  ON club_leaders(member_id);
+
+-- Leadership a club can actually rely on: rows whose member still has a live,
+-- non-deceased account. A leadership row outlives the member's account by
+-- design, so historical leadership stays attributable, which means the raw
+-- table answers "who has ever led this club" and this view answers "who leads
+-- it now". Every read that means the second one selects from here; without it a
+-- club whose only co-leader has died or deleted their account still reads as
+-- led, by someone who cannot act, and never reaches the needs-leader list.
+CREATE VIEW club_leaders_current AS
+SELECT cl.*
+FROM club_leaders AS cl
+JOIN members AS m ON m.id = cl.member_id
+WHERE m.deleted_at IS NULL
+  AND m.is_deceased = 0;
 
 -- Event organizer assignments: one organizer and up to 4 co-organizers per event
 -- (max 5 total; application-enforced). DB enforces that only one member holds

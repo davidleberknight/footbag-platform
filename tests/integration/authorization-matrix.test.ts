@@ -190,6 +190,8 @@ describe('admin gate — GET (allow admin only, deny everyone else)', () => {
   const ADMIN_GET_ROUTES = [
     '/admin',
     '/admin/admin-roles',
+    '/admin/members',
+    '/admin/historical-records',
     '/admin/work-queue',
     '/admin/audit-log',
     '/admin/audit-log/export',
@@ -230,23 +232,25 @@ describe('admin gate — GET (allow admin only, deny everyone else)', () => {
   }, 120_000);
 });
 
-describe('admin gate — parameterized GET (the payment-detail route sits behind the gate)', () => {
-  // The payment-detail route is addressed by a path parameter, so it cannot
-  // join the allow-200 sweep above: a placeholder id never resolves and an
-  // admin gets 404, not 200. The gate still runs before the handler, so the
-  // deny cells prove the route is protected, and the admin's 404 (rather than a
-  // leak) proves the gate passed before the id was ever looked up.
-  const route = '/admin/payments/ph';
+describe('admin gate — parameterized GET (detail routes sit behind the gate)', () => {
+  // These routes are addressed by a path parameter, so they cannot join the
+  // allow-200 sweep above: a placeholder id never resolves and an admin gets
+  // 404, not 200. The gate still runs before the handler, so the deny cells
+  // prove the route is protected, and the admin's 404 (rather than a leak)
+  // proves the gate passed before the id was ever looked up.
+  const ROUTES = ['/admin/payments/ph', '/admin/members/ph'];
 
   it('redirects the unauthenticated, 403s a non-admin, and 404s an admin on a placeholder id', async () => {
-    const anon = await request(createApp()).get(route);
-    expect(isLoginRedirect(anon), 'anonymous → login').toBe(true);
+    for (const route of ROUTES) {
+      const anon = await request(createApp()).get(route);
+      expect(isLoginRedirect(anon), `${route} anonymous → login`).toBe(true);
 
-    const nonAdmin = await request(createApp()).get(route).set('Cookie', cookies.get('t1_paid')!);
-    expect(nonAdmin.status, 't1_paid → non-admin deny').toBe(403);
+      const nonAdmin = await request(createApp()).get(route).set('Cookie', cookies.get('t1_paid')!);
+      expect(nonAdmin.status, `${route} t1_paid → non-admin deny`).toBe(403);
 
-    const admin = await request(createApp()).get(route).set('Cookie', cookies.get('admin_t2')!);
-    expect(admin.status, 'admin → gate passes, placeholder id 404s').toBe(404);
+      const admin = await request(createApp()).get(route).set('Cookie', cookies.get('admin_t2')!);
+      expect(admin.status, `${route} admin → gate passes, placeholder id 404s`).toBe(404);
+    }
   });
 });
 
@@ -259,6 +263,28 @@ describe('admin gate — POST (every state-changing admin route sits behind the 
   // mounted behind the gate, not accidentally above it the way bootstrap-claim
   // deliberately is.
   const ADMIN_POST_ROUTES = [
+    '/admin/members/ph/name',
+    '/admin/members/ph/name/confirm',
+    '/admin/members/ph/slug',
+    '/admin/members/ph/slug/confirm',
+    '/admin/members/ph/tier',
+    '/admin/members/ph/tier/confirm',
+    '/admin/members/ph/active-player',
+    '/admin/members/ph/active-player/confirm',
+    '/admin/members/ph/deceased',
+    '/admin/members/ph/deceased/confirm',
+    '/admin/members/ph/deceased/revert',
+    '/admin/members/ph/deceased/revert/confirm',
+    '/admin/historical-records/ph/deceased',
+    '/admin/historical-records/ph/deceased/confirm',
+    '/admin/historical-records/ph/deceased/revert',
+    '/admin/historical-records/ph/deceased/revert/confirm',
+    '/admin/honor-grants/remove',
+    '/admin/honor-grants/remove/confirm',
+    '/admin/honor-grants/board/set',
+    '/admin/honor-grants/board/set/confirm',
+    '/admin/honor-grants/board/remove',
+    '/admin/honor-grants/board/remove/confirm',
     '/admin/admin-roles/grant',
     '/admin/admin-roles/grant/confirm',
     '/admin/admin-roles/ph/revoke',

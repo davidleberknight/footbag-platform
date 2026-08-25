@@ -1,0 +1,30 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+    <div class="card mb-6">
+      <p class="m-0 fw-500">{{content.displayName}} <span class="text-muted fs-sm">{{content.slug}}</span></p>
+      <dl class="trick-structural-facts-list mt-1">
+        {{#each content.facts}}
+          <dt>{{label}}</dt><dd>{{value}}</dd>
+        {{/each}}
+      </dl>
+      <p class="m-0 mt-1 text-muted">Reason: {{content.reason}}</p>
+    </div>
+
+    <p>{{content.summary}}</p>
+
+    <form method="POST" action="{{content.confirmAction}}">
+      {{#each content.hiddenFields}}
+        <input type="hidden" name="{{name}}" value="{{value}}" />
+      {{/each}}
+      <button type="submit" class="btn btn-primary">{{content.confirmLabel}}</button>
+    </form>
+
+    <p class="mt-4"><a href="{{content.cancelHref}}">Cancel</a></p>
+  </section>
+</div>

@@ -2602,6 +2602,7 @@ section.home-media { padding-top: 0; }
 .form-field input[type="tel"],
 .form-field input[type="number"],
 .form-field input[type="url"],
+.form-field input[type="date"],
 .form-field textarea,
 .form-field select {
   width: 100%;
@@ -2968,6 +2969,21 @@ section.home-media { padding-top: 0; }
   padding-left: 12px;
   margin: 12px 0;
 }
+/* An administrator action on a record already dense with facts. Each action
+   collapses so the set reads as a short list of what can be done here, and one
+   opens at a time; stacked open, five forms bury the record they belong to.
+   The browser's own disclosure marker is kept rather than replaced. */
+.admin-action-disclosure {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+}
+.admin-action-disclosure > summary {
+  cursor: pointer;
+  font-weight: 600;
+  padding: 4px 0;
+}
+
 .queue-ask-member {
   margin: 12px 0;
 }

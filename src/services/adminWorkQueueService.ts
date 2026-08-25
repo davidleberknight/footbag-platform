@@ -319,6 +319,13 @@ export interface WorkQueueViewItem {
   entityId: string;
   entityHref: string | null;
   entityDisplayName: string | null;
+  /**
+   * The member's administrator record, for an item an administrator answers by
+   * changing the member's own row. Resolving the request means going there and
+   * coming back, so the card carries the way through rather than leaving the
+   * administrator to look the member up by hand. Null for a non-member entity.
+   */
+  memberRecordHref: string | null;
   reasonText: string | null;
   /** Full member-authored message (e.g. a contact request), shown to the admin
    *  so they can act on the whole request. Null for non-message task types. */
@@ -515,6 +522,7 @@ function shapeWorkQueueItem(
     entityId: raw.entityId,
     entityHref: raw.entityHref,
     entityDisplayName: raw.entityDisplayName,
+    memberRecordHref: raw.entityType === 'member' ? `/admin/members/${raw.entityId}` : null,
     // The link-help payload renders structured below; raw JSON would be noise.
     reasonText: isLinkHelpRequest ? null : raw.reasonText,
     detailText: isLinkHelpRequest ? null : raw.detailText,

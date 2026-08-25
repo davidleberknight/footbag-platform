@@ -21,14 +21,14 @@
     {{/unless}}
     {{#each content.admins}}
       <div class="card">
-        <div class="card-title"><a href="{{profileHref}}">{{displayName}}</a> <span class="badge">{{slug}}</span></div>
+        <div class="card-title"><a href="{{profileHref}}">{{displayName}}</a> <span class="text-muted fs-sm">{{slug}}</span></div>
         {{#if isSelf}}
           <p class="text-muted fs-sm">You cannot revoke your own admin role.</p>
         {{else}}
           <form method="POST" action="/admin/admin-roles/{{memberId}}/revoke" class="form-block">
             <div class="form-field">
               <label for="revoke_reason_{{memberId}}">Reason (required)</label>
-              <input id="revoke_reason_{{memberId}}" name="reason" required maxlength="500" />
+              <input type="text" id="revoke_reason_{{memberId}}" name="reason" required maxlength="500" />
             </div>
             <button type="submit" class="btn btn-outline btn-sm">Revoke Admin Role</button>
           </form>
@@ -43,11 +43,11 @@
     <form method="POST" action="/admin/admin-roles/grant" class="form-block">
       <div class="form-field">
         <label for="grant_member">Member id or slug</label>
-        <input id="grant_member" name="member_key" required maxlength="200" />
+        <input type="text" id="grant_member" name="member_key" required maxlength="200" />
       </div>
       <div class="form-field">
         <label for="grant_reason">Reason (required)</label>
-        <input id="grant_reason" name="reason" required maxlength="500" />
+        <input type="text" id="grant_reason" name="reason" required maxlength="500" />
       </div>
       <button type="submit" class="btn btn-primary btn-sm">Grant Admin Role</button>
     </form>

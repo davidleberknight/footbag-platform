@@ -7,6 +7,8 @@ import { adminBootstrapController } from '../controllers/adminBootstrapControlle
 import { adminClubLeadershipController } from '../controllers/adminClubLeadershipController';
 import { adminAdminRolesController } from '../controllers/adminAdminRolesController';
 import { adminHonorGrantsController } from '../controllers/adminHonorGrantsController';
+import { adminMemberController } from '../controllers/adminMemberController';
+import { adminHistoricalRecordController } from '../controllers/adminHistoricalRecordController';
 import { adminAuditLogController } from '../controllers/adminAuditLogController';
 import { adminEmailLogController } from '../controllers/adminEmailLogController';
 import { adminSystemHealthController } from '../controllers/adminSystemHealthController';
@@ -41,6 +43,41 @@ adminRouter.post('/admin-roles/:memberId/revoke/confirm', adminAdminRolesControl
 adminRouter.get('/honor-grants',               adminHonorGrantsController.index);
 adminRouter.post('/honor-grants/grant',         adminHonorGrantsController.grant);
 adminRouter.post('/honor-grants/grant/confirm', adminHonorGrantsController.grantConfirm);
+// Correcting a grant made in error, and the board standing that turns over with
+// each board. As elsewhere, the longer confirm paths precede their siblings.
+adminRouter.post('/honor-grants/remove/confirm',       adminHonorGrantsController.removeConfirm);
+adminRouter.post('/honor-grants/remove',               adminHonorGrantsController.remove);
+adminRouter.post('/honor-grants/board/set/confirm',    adminHonorGrantsController.boardConfirm(true));
+adminRouter.post('/honor-grants/board/set',            adminHonorGrantsController.board(true));
+adminRouter.post('/honor-grants/board/remove/confirm', adminHonorGrantsController.boardConfirm(false));
+adminRouter.post('/honor-grants/board/remove',         adminHonorGrantsController.board(false));
+// Member management: the lookup, the per-member record, and every correction
+// reached from it. Each correction previews first and writes only on confirm.
+adminRouter.get('/members',                                adminMemberController.index);
+adminRouter.get('/members/:memberId',                      adminMemberController.record);
+adminRouter.post('/members/:memberId/name',                adminMemberController.previewName);
+adminRouter.post('/members/:memberId/name/confirm',        adminMemberController.confirmName);
+adminRouter.post('/members/:memberId/slug',                adminMemberController.previewSlug);
+adminRouter.post('/members/:memberId/slug/confirm',        adminMemberController.confirmSlug);
+adminRouter.post('/members/:memberId/tier',                adminMemberController.previewTier);
+adminRouter.post('/members/:memberId/tier/confirm',        adminMemberController.confirmTier);
+adminRouter.post('/members/:memberId/active-player',         adminMemberController.previewActivePlayer);
+adminRouter.post('/members/:memberId/active-player/confirm', adminMemberController.confirmActivePlayer);
+// Order matters: the two `/revert` paths must precede their shorter siblings,
+// or `/deceased/confirm` would swallow `/deceased/revert/confirm`. Each handler
+// is told here whether it is the marking or its reversal, rather than reading
+// that back off the request path.
+adminRouter.post('/members/:memberId/deceased/revert/confirm', adminMemberController.confirmDeceased(true));
+adminRouter.post('/members/:memberId/deceased/revert',         adminMemberController.previewDeceased(true));
+adminRouter.post('/members/:memberId/deceased/confirm',        adminMemberController.confirmDeceased(false));
+adminRouter.post('/members/:memberId/deceased',                adminMemberController.previewDeceased(false));
+// The same affordance for a competition record nobody has claimed. Same
+// ordering rule: `/revert` before its shorter sibling.
+adminRouter.get('/historical-records',                                adminHistoricalRecordController.index);
+adminRouter.post('/historical-records/:personId/deceased/revert/confirm', adminHistoricalRecordController.confirm(false));
+adminRouter.post('/historical-records/:personId/deceased/revert',         adminHistoricalRecordController.preview(false));
+adminRouter.post('/historical-records/:personId/deceased/confirm',        adminHistoricalRecordController.confirm(true));
+adminRouter.post('/historical-records/:personId/deceased',                adminHistoricalRecordController.preview(true));
 adminRouter.get('/work-queue',                adminWorkQueueController.index);
 adminRouter.post('/work-queue/:id/claim',     adminWorkQueueController.claim);
 adminRouter.post('/work-queue/:id/resolve',   adminWorkQueueController.resolve);

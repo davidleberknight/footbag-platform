@@ -10,6 +10,7 @@
  *   - Active Player lifecycle ledger (`active_player_grants`)
  *   - Direct vouch action table (`active_player_vouches`)
  *   - `getStatus(memberId)` -- the sole authoritative Active Player read path
+ *   - `correctExpiry` -- an administrator's exceptional correction of an expiry
  *
  * Does not own:
  *   - Membership-tier writes (MembershipTieringService)
@@ -25,7 +26,9 @@
  *   - Active Player applies to Tier 0 only. Tier 1+ vouches and attendances are
  *     no-ops with audit-log only.
  *   - No-shorten rule: an older event, vouch, or club-join must not shorten an
- *     existing later expiry.
+ *     existing later expiry. An administrator's `correctExpiry` is the single
+ *     entry point exempt from it, because taking back a standing granted in
+ *     error is exactly what the rule is not meant to prevent.
  *   - Idempotency:
  *       - `ux_active_player_grants_registration_once` (per registration)
  *       - `ux_active_player_grants_vouch_once` (per vouch)
@@ -808,6 +811,94 @@ export function applyExpiry(memberId: string, now?: Date): { ok: true; expired: 
     });
   });
   return { ok: true, expired: true };
+}
+
+/** The calendar day two stored expiry moments fall on, or both absent. */
+function sameExpiryDate(a: string | null, b: string | null): boolean {
+  if (a === null || b === null) return a === b;
+  return a.slice(0, 10) === b.slice(0, 10);
+}
+
+export type CorrectExpiryResult =
+  | { status: 'corrected'; expiresAt: string | null }
+  | { status: 'unchanged' }
+  | { status: 'not_applicable'; reason: 'tier1_plus' };
+
+/**
+ * An administrator's correction of a member's Active Player expiry, for the
+ * exceptional remediation the ordinary pathways cannot express.
+ *
+ * This is the one entry point that may move an expiry earlier. Every other
+ * pathway is held to the no-shorten rule, because an older event or vouch
+ * arriving late must never cut short a standing already granted. A correction
+ * is precisely the case that rule is not meant to cover: an administrator
+ * fixing a standing that should not have been granted, or granted for too
+ * long. It writes a `correct` ledger row, which the current-status view reads
+ * as the latest word whichever direction it moves.
+ *
+ * Passing no date ends the standing outright, which is how a wrongly granted
+ * one is taken back.
+ *
+ * Active Player is a Tier 0 status, so a correction on a Tier 1, 2 or 3 member
+ * reports that rather than writing a row the status view would never surface.
+ */
+export function correctExpiry(
+  actorId: string,
+  memberId: string,
+  newExpiresAt: string | null,
+  reasonText: string,
+): CorrectExpiryResult {
+  const reason = reasonText.trim();
+  if (!reason) {
+    throw new ValidationError('Enter the reason for this correction.');
+  }
+  validateReasonText(reason);
+
+  const tier = readTier(memberId);
+  if (tier && tier.tier_status !== 'tier0') {
+    return { status: 'not_applicable' as const, reason: 'tier1_plus' as const };
+  }
+
+  const latest = readLatestGrant(memberId);
+  const oldExpiresAt = latest?.new_active_player_expires_at ?? null;
+  // Compared as dates, not as moments. An organic grant stores the moment the
+  // period runs out; the correction form offers a date, and converting that date
+  // back lands on a different moment every time. Comparing moments would make an
+  // untouched form a change, writing a ledger row and quietly moving the expiry
+  // by part of a day.
+  if (sameExpiryDate(oldExpiresAt, newExpiresAt)) return { status: 'unchanged' as const };
+
+  const nowIso = new Date().toISOString();
+  const id = newGrantId();
+  transaction(() => {
+    activePlayer.insertGrant.run(
+      id,
+      nowIso,
+      memberId,
+      actorId,
+      'correct',
+      oldExpiresAt,
+      newExpiresAt,
+      'admin_correction',
+      reason,
+      null, null, null, null, null,
+    );
+    appendAuditEntry({
+      actionType:    'active_player.admin_correction',
+      category:      'active_player_change',
+      actorType:     'admin',
+      actorMemberId: actorId,
+      entityType:    'member',
+      entityId:      memberId,
+      reasonText:    reason,
+      metadata: {
+        reason_code:    'admin_correction',
+        old_expires_at: oldExpiresAt,
+        new_expires_at: newExpiresAt,
+      },
+    });
+  });
+  return { status: 'corrected' as const, expiresAt: newExpiresAt };
 }
 
 // ── The member's Active Player obligation, as a dashboard action item ────────

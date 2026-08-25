@@ -1,0 +1,34 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+    <div class="card mb-6">
+      <p class="m-0 fw-500">{{content.displayName}} &middot; {{content.slugLabel}} &middot; {{content.memberId}}</p>
+      {{#if content.hasChanges}}
+        <dl class="trick-structural-facts-list mt-1">
+          {{#each content.changes}}
+            <dt>{{label}}</dt><dd>{{before}} &rarr; {{after}}</dd>
+          {{/each}}
+        </dl>
+      {{else}}
+        <p class="m-0 mt-1 text-muted">{{content.noChangeMessage}}</p>
+      {{/if}}
+      <p class="m-0 mt-1 text-muted">Reason: {{content.reason}}</p>
+    </div>
+
+    <p>{{content.summary}}</p>
+
+    <form method="POST" action="{{content.confirmAction}}">
+      {{#each content.hiddenFields}}
+        <input type="hidden" name="{{name}}" value="{{value}}" />
+      {{/each}}
+      <button type="submit" class="btn btn-primary">{{content.confirmLabel}}</button>
+    </form>
+
+    <p class="mt-4"><a href="{{content.cancelHref}}">Cancel</a></p>
+  </section>
+</div>

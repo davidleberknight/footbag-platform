@@ -3,6 +3,10 @@
  *
  * Owns:
  *   - Registration, email verification, credential check, password change/reset
+ *   - The member name rules, and every write of a member's recorded legal name
+ *     and display name: the registration write and an administrator's
+ *     correction both reach them through one shared validator, so a correction
+ *     cannot take a name registration would refuse
  *   - Legacy archive passthrough JWT
  *   - Legacy-account claim flow (two-step token + email-equality fast path)
  *   - Direct historical-person claim (surname-match precondition; first-name-variant warning)
@@ -194,7 +198,9 @@ import { isUniqueConstraintError } from './sqliteRetry';
 import { findAutoLinkCandidates } from './nameVariantsService';
 import { appendAuditEntry } from './auditService';
 import { recordOperationalError } from './operationalErrors';
-import { applyAutoLinkRevertGrantInTx, applyLegacyClaimGrantInTx } from './membershipTieringService';
+import {
+  applyAutoLinkRevertGrantInTx, applyLegacyClaimGrantInTx, hasHonorGrant,
+} from './membershipTieringService';
 import { createHash } from 'crypto';
 import { logger } from '../config/logger';
 import { type SimulatedEmailPreview } from './simulatedEmailService';
@@ -666,7 +672,7 @@ async function attemptLogin(
  * accents, apostrophes, hyphens, internal spaces and non-Latin scripts are all
  * real parts of real names.
  */
-function validateNameParts(givenNames: string, familyName: string): void {
+function validateNameParts(givenNames: string, familyName: string, opts: NameRuleOptions): void {
   if (!familyName) {
     throw new ValidationError(
       givenNames
@@ -678,13 +684,97 @@ function validateNameParts(givenNames: string, familyName: string): void {
   if (assembled.length > MAX_DISPLAY_NAME) {
     throw new ValidationError(`Your name must be ${MAX_DISPLAY_NAME} characters or fewer in total.`);
   }
-  if (givenNames) assertSafeNameCharacters(givenNames, 'Given name');
-  if (familyName) assertSafeNameCharacters(familyName, 'Family name');
+  if (givenNames) assertSafeNameCharacters(givenNames, 'Given name', opts);
+  if (familyName) assertSafeNameCharacters(familyName, 'Family name', opts);
   if (/\d/.test(assembled)) {
     throw new ValidationError('Your name must not contain digits.');
   }
   if (assembled.length < 2) {
     throw new ValidationError('Your name must be at least two characters.');
+  }
+}
+
+/**
+ * The names a member's record carries: the two recorded parts of the legal
+ * name, those parts assembled, the display name, and the surname key both name
+ * rules are held to.
+ *
+ * A blank display name falls back to the assembled legal name, which is what
+ * lets a member who wants no separate public name simply leave it empty.
+ */
+export interface MemberNames {
+  givenNames:  string;
+  familyName:  string;
+  realName:    string;
+  displayName: string;
+  surnameKey:  string;
+}
+
+/**
+ * What differs between the accounts these name rules run for.
+ *
+ * The platform's own account carries the display name shown as the uploader
+ * attribution on curated media. The reserved-word rule refuses a name that
+ * asserts an official IFPA or site position its holder does not hold, and that
+ * account is the one holder of the position, so it alone is lifted there. Every
+ * other rule applies to that account unchanged.
+ */
+interface NameRuleOptions {
+  isPlatformAccount: boolean;
+}
+
+/**
+ * Trim, NFC-normalize and assemble a member's names into the shape the rules
+ * and the write both read.
+ *
+ * Deriving the assembled legal name and the surname key here, rather than at
+ * each call site, is what keeps a name written at registration and a name
+ * written by an administrator correction from being held to different
+ * standards: both reach the rules through this one shape.
+ */
+function normalizeMemberNames(
+  givenNames: string,
+  familyName: string,
+  displayName: string,
+): MemberNames {
+  const trimmedGivenNames = givenNames.trim().normalize('NFC');
+  const trimmedFamilyName = familyName.trim().normalize('NFC');
+  const realName = assembleFullName(trimmedGivenNames, trimmedFamilyName);
+  return {
+    givenNames:  trimmedGivenNames,
+    familyName:  trimmedFamilyName,
+    realName,
+    displayName: displayName.trim().normalize('NFC') || realName,
+    // Both name rules key on the recorded family name rather than the last word
+    // of the full name. A member whose only name is a given name is held to that
+    // name, so neither rule becomes unsatisfiable for them.
+    surnameKey: memberSurnameKey({
+      family_name: trimmedFamilyName || null,
+      given_names: trimmedGivenNames || null,
+      real_name:   realName,
+    }),
+  };
+}
+
+/**
+ * The complete rule set a member's names are held to, wherever they are
+ * written. Registration and the administrator correction both run this, so a
+ * correction can never take a name registration would refuse.
+ *
+ * A display name equal to the assembled legal name skips the surname rule
+ * because it trivially satisfies it.
+ */
+function validateMemberNames(names: MemberNames, opts: NameRuleOptions): void {
+  validateNameParts(names.givenNames, names.familyName, opts);
+  if (names.displayName.length < MIN_DISPLAY_NAME) {
+    throw new ValidationError(`Display name must be at least ${MIN_DISPLAY_NAME} characters.`);
+  }
+  if (names.displayName.length > MAX_DISPLAY_NAME) {
+    throw new ValidationError(`Display name must be ${MAX_DISPLAY_NAME} characters or fewer.`);
+  }
+  assertSafeNameCharacters(names.displayName, 'Display name', opts);
+  if (names.displayName !== names.realName) {
+    validateDisplayNameSurname(names.displayName, names.surnameKey);
   }
 }
 
@@ -759,8 +849,8 @@ function isSingleAllowedScript(scripts: Set<string>): boolean {
  * - The mixed-script rule rejects letters drawn from more than one script (a
  *   Cyrillic 'а' hidden inside a Latin name).
  */
-function assertSafeNameCharacters(name: string, label: string): void {
-  if (matchReservedNameWord(name)) {
+function assertSafeNameCharacters(name: string, label: string, opts: NameRuleOptions): void {
+  if (!opts.isPlatformAccount && matchReservedNameWord(name)) {
     throw new ValidationError(`${label} must not include a word reserved for official IFPA and site roles.`);
   }
   if (/\p{C}/u.test(name)) {
@@ -775,7 +865,11 @@ const SLUG_PATTERN = /^[a-z0-9]([a-z0-9_]*[a-z0-9])?$/;
 const MAX_SLUG_LENGTH = 64;
 const MIN_SLUG_LENGTH = 2;
 
-function validateSlug(slug: string, registrantSurnameKey: string): void {
+function validateSlug(
+  slug: string,
+  registrantSurnameKey: string,
+  opts: NameRuleOptions = { isPlatformAccount: false },
+): void {
   if (slug.length < MIN_SLUG_LENGTH) {
     throw new ValidationError(`Profile URL must be at least ${MIN_SLUG_LENGTH} characters.`);
   }
@@ -787,8 +881,11 @@ function validateSlug(slug: string, registrantSurnameKey: string): void {
   }
   // A member-chosen URL is free text that need only carry the surname, so it can
   // claim a role the name itself is refused for; an auto-generated one derives
-  // from the already-checked display name and never reaches this.
-  if (matchReservedNameWord(slug)) {
+  // from the already-checked display name and never reaches this. The platform's
+  // own account is lifted from this rule for the same reason its name is: the
+  // rule refuses a claim to a position its holder does not hold, and that
+  // account holds it.
+  if (!opts.isPlatformAccount && matchReservedNameWord(slug)) {
     throw new ValidationError('Profile URL must not include a word reserved for official IFPA and site roles.');
   }
   // A profile URL carries no spaces, so a family name of several words could
@@ -866,32 +963,17 @@ async function registerMember(
     );
   }
 
-  const trimmedGivenNames = givenNames.trim().normalize('NFC');
-  const trimmedFamilyName = familyName.trim().normalize('NFC');
-  validateNameParts(trimmedGivenNames, trimmedFamilyName);
-  const trimmedRealName = assembleFullName(trimmedGivenNames, trimmedFamilyName);
-  const trimmedDisplayName = displayName.trim().normalize('NFC') || trimmedRealName;
+  // A registrant is a person claiming their own name, never the platform's own
+  // account, so the reserved-word rule always applies here.
+  const names = normalizeMemberNames(givenNames, familyName, displayName);
+  validateMemberNames(names, { isPlatformAccount: false });
+  const trimmedGivenNames  = names.givenNames;
+  const trimmedFamilyName  = names.familyName;
+  const trimmedRealName    = names.realName;
+  const trimmedDisplayName = names.displayName;
+  const registrantSurnameKey = names.surnameKey;
   const trimmedEmail = email.trim();
   const normalizedEmail = normalizeEmail(trimmedEmail);
-
-  if (trimmedDisplayName.length < MIN_DISPLAY_NAME) {
-    throw new ValidationError(`Display name must be at least ${MIN_DISPLAY_NAME} characters.`);
-  }
-  if (trimmedDisplayName.length > MAX_DISPLAY_NAME) {
-    throw new ValidationError(`Display name must be ${MAX_DISPLAY_NAME} characters or fewer.`);
-  }
-  assertSafeNameCharacters(trimmedDisplayName, 'Display name');
-  // Both rules key on the recorded family name rather than the last word of the
-  // full name. A member whose only name is a given name is held to that name,
-  // so neither rule becomes unsatisfiable for them.
-  const registrantSurnameKey = memberSurnameKey({
-    family_name: trimmedFamilyName || null,
-    given_names: trimmedGivenNames || null,
-    real_name:   trimmedRealName,
-  });
-  if (trimmedDisplayName !== trimmedRealName) {
-    validateDisplayNameSurname(trimmedDisplayName, registrantSurnameKey);
-  }
 
   const trimmedSlug = requestedSlug?.trim().toLowerCase() ?? '';
   const userProvidedSlug = trimmedSlug !== '';
@@ -4260,6 +4342,8 @@ function revertAutoLinkInTx(
           historical_person_id: string | null;
           login_email_normalized: string | null;
           email_verified_at: string | null;
+          is_hof: number;
+          is_bap: number;
         }
       | undefined;
     if (!member) return { status: 'not_found' as const };
@@ -4337,15 +4421,34 @@ function revertAutoLinkInTx(
     // legacy account -- no longer backs the flag, so the honors, and the public
     // badge and tier they confer, must drop with the reverted claim rather than
     // strand on a member who no longer holds them.
-    let retainsHonoredLink = false;
+    // Decided per honor. The two are independent, so a member can hold one from
+    // a still-linked historical record or an administrator's own grant while the
+    // other came from the claim being reverted; treating them together would
+    // either strand the claimed one or strip the standing one.
+    let hpBacksHof = false;
+    let hpBacksBap = false;
     if (member.historical_person_id !== null && !clearedHp) {
       const survivingHp = legacyClaim.findHistoricalPersonById.get(member.historical_person_id) as
         | { hof_member: number; bap_member: number }
         | undefined;
-      retainsHonoredLink = Boolean(survivingHp?.hof_member) || Boolean(survivingHp?.bap_member);
+      hpBacksHof = Boolean(survivingHp?.hof_member);
+      hpBacksBap = Boolean(survivingHp?.bap_member);
     }
-    if (!retainsHonoredLink) {
-      legacyMembers.clearDerivedHonors.run(now, actor.actorMemberId, memberId);
+    // An honor an administrator granted directly stands on its own ledger row
+    // and did not come from the claim, so a revert leaves it alone. Without this
+    // an administrator's grant would be stripped as collateral of an unrelated
+    // disputed claim.
+    // A flag the member does not carry is not something a revert clears, and
+    // reporting it as cleared would put a change in the trail that never
+    // happened.
+    const clearHof = member.is_hof === 1 && !hpBacksHof && !hasHonorGrant(memberId, 'hof');
+    const clearBap = member.is_bap === 1 && !hpBacksBap && !hasHonorGrant(memberId, 'bap');
+    if (clearHof || clearBap) {
+      legacyMembers.clearDerivedHonors.run(
+        clearHof ? 1 : 0, clearHof ? 1 : 0,
+        clearBap ? 1 : 0, clearBap ? 1 : 0,
+        now, actor.actorMemberId, memberId,
+      );
     }
 
     applyAutoLinkRevertGrantInTx(actor.actorMemberId, memberId, {
@@ -4367,7 +4470,11 @@ function revertAutoLinkInTx(
         legacy_member_id:        legacyMemberId,
         cleared_historical_person_id: clearedHp,
         scrubbed_legacy_fields:  legacyMemberId !== null,
-        cleared_derived_honors:  !retainsHonoredLink,
+        // What was actually cleared, not what the decision was about: the two
+        // honors are decided separately and either can survive alone.
+        cleared_derived_honors:  clearHof || clearBap,
+        cleared_derived_hof:     clearHof,
+        cleared_derived_bap:     clearBap,
       },
     });
 
@@ -5448,4 +5555,320 @@ function rejectLinkHelpRequest(
   });
 }
 
-export const identityAccessService = { attemptLogin, registerMember, lookupLegacyAccount, claimLegacyAccount, initiateLegacyClaim, peekLegacyClaim, consumeAndClaimLegacy, consumeAndClaimLegacyInTx, lookupHistoricalPersonForClaim, claimHistoricalPerson, claimHistoricalPersonInTx, recordHistoricalPersonClaimBlocked, changePassword, verifyEmailByToken, resendVerifyEmail, requestPasswordReset, completePasswordReset, getAutoLinkClassificationForMember, getLinkHistoryViewForWizard, findHistoricalPersonForLinkSubmit, revertAutoLink, revertClaimForDispute, stageAutoLinkCandidate, listOpenStagedCandidates, declineStagedCandidate, declineClassifierCandidate, declineOpenStagedCandidatesOnAttestationInTx, expireStagedCandidates, listClaimedLegacyIdentities, declareAnchor, listDeclaredAnchors, removeAnchor, requestAnchorMailboxVerification, consumeAnchorMailboxVerification, submitLinkHelpRequest, approveLinkHelpRequest, rejectLinkHelpRequest, findCrossSourceCandidateAfterHpClaim, findCrossSourceCandidateAfterLegacyClaim, offerCrossSourceCandidate, confirmCrossSourceLegacyCandidate, surnameMatchesWithAnchors, enforceHistoricalPersonClaimLimit, getClaimEvidenceForMember };
+/** The member names an administrator correction may rewrite. */
+export interface MemberNameCorrection {
+  givenNames:  string;
+  familyName:  string;
+  displayName: string;
+}
+
+export type CorrectMemberNamesResult =
+  | { status: 'corrected'; changedFields: readonly string[] }
+  | { status: 'unchanged' };
+
+const MAX_CORRECTION_REASON = 500;
+
+/** The member row a name correction resolves and validates against. */
+function readNamesForCorrection(memberId: string): {
+  family_name: string | null;
+  given_names: string | null;
+  real_name: string;
+  display_name: string;
+  is_system: number;
+} {
+  const row = account.findMemberForAdminRecord.get(memberId) as
+    | {
+        family_name: string | null;
+        given_names: string | null;
+        real_name: string;
+        display_name: string;
+        is_system: number;
+        personal_data_purged_at: string | null;
+      }
+    | undefined;
+  if (!row) throw new NotFoundError('No member with that id.');
+  assertNotErased(row.personal_data_purged_at);
+  return row;
+}
+
+/**
+ * Refuse to write personal data onto an account whose personal data has been
+ * erased.
+ *
+ * The row is an anonymized stub by then, and the erasure ledger records that it
+ * was cleared. Writing a fresh legal name onto it would put personal data back
+ * on a record that exists precisely to no longer carry any, and the audit row
+ * for the correction would then hold that name permanently, since the ledger is
+ * immutable and erasure cannot reach it.
+ */
+function assertNotErased(purgedAt: string | null): void {
+  if (purgedAt) {
+    throw new ConflictError(
+      "This account's personal data has been erased, so it cannot be corrected.",
+    );
+  }
+}
+
+/**
+ * Run a proposed correction's names through the rules and hand back what would
+ * be recorded, writing nothing.
+ *
+ * The confirmation an administrator reads is produced from this, so the names
+ * shown on it are the names the commit will write, and an illegal name is
+ * refused before the administrator is asked to confirm anything.
+ */
+function previewMemberNames(memberId: string, input: MemberNameCorrection): MemberNames {
+  const row = readNamesForCorrection(memberId);
+  const names = normalizeMemberNames(input.givenNames, input.familyName, input.displayName);
+  validateMemberNames(names, { isPlatformAccount: row.is_system === 1 });
+  return names;
+}
+
+/**
+ * Rewrite a member's recorded legal name and display name on an
+ * administrator's correction.
+ *
+ * The corrected names run the same rules a name runs at registration, through
+ * the same function, so a correction cannot take a name registration would
+ * refuse. The platform's own account is held to all of them but the
+ * reserved-word rule, which exists to refuse a name claiming a position its
+ * holder does not hold and which that account does hold.
+ *
+ * The profile slug is untouched, so the member's public address, their
+ * provenance tags and their galleries all stay as they are; a profile URL
+ * correction is a separate request.
+ *
+ * The audit row records each changed name before and after, alongside the
+ * administrator, the member and the reason, because an administrator's
+ * correction of someone else's record is reviewable and reversible only if the
+ * trail says what the name actually was. The surface that reads it is
+ * admin-only. The ledger is immutable, so a name recorded here outlives an
+ * account erasure that clears it everywhere else.
+ *
+ * A correction that changes nothing writes nothing, rather than recording a
+ * change that did not happen.
+ */
+function correctMemberNames(
+  actorId: string,
+  memberId: string,
+  input: MemberNameCorrection,
+  reasonText: string,
+): CorrectMemberNamesResult {
+  const row = readNamesForCorrection(memberId);
+
+  const reason = reasonText.trim();
+  if (!reason) {
+    throw new ValidationError('Enter the reason for this correction.');
+  }
+  if (reason.length > MAX_CORRECTION_REASON) {
+    throw new ValidationError(`The reason must be ${MAX_CORRECTION_REASON} characters or fewer.`);
+  }
+
+  const names = normalizeMemberNames(input.givenNames, input.familyName, input.displayName);
+  validateMemberNames(names, { isPlatformAccount: row.is_system === 1 });
+
+  // The three recorded names an administrator supplies. The assembled legal
+  // name and the normalized display name follow from them, so recording these
+  // three before and after is what makes the correction reversible from the
+  // trail alone.
+  const before: Record<string, string> = {};
+  const after:  Record<string, string> = {};
+  const noteChange = (field: string, was: string, now: string): void => {
+    if (was === now) return;
+    before[field] = was;
+    after[field]  = now;
+  };
+  noteChange('given_names',  row.given_names ?? '', names.givenNames);
+  noteChange('family_name',  row.family_name ?? '', names.familyName);
+  noteChange('display_name', row.display_name,      names.displayName);
+
+  const changedFields = Object.keys(after);
+  if (changedFields.length === 0) return { status: 'unchanged' as const };
+
+  const now = new Date().toISOString();
+  transaction(() => {
+    account.updateMemberNames.run(
+      names.familyName || null,
+      names.givenNames || null,
+      names.realName,
+      names.displayName,
+      names.displayName.toLowerCase(),
+      now,
+      actorId,
+      memberId,
+    );
+    appendAuditEntry({
+      actionType:    'member.name_corrected',
+      category:      'profile_change',
+      actorType:     'admin',
+      actorMemberId: actorId,
+      entityType:    'member',
+      entityId:      memberId,
+      reasonText:    reason,
+      metadata:      { fields: changedFields, before, after },
+    });
+  });
+  return { status: 'corrected' as const, changedFields };
+}
+
+/**
+ * Run a proposed profile URL through the rules and hand back the normalized
+ * form, writing nothing.
+ *
+ * The confirmation an administrator reads is produced from this, so an address
+ * the rules refuse is refused before they are asked to confirm it, the same way
+ * the name correction behaves.
+ */
+function previewMemberSlug(memberId: string, requestedSlug: string): string {
+  const row = account.findMemberForAdminRecord.get(memberId) as
+    | { slug: string | null; is_system: number; personal_data_purged_at: string | null }
+    | undefined;
+  if (!row) throw new NotFoundError('No member with that id.');
+  assertNotErased(row.personal_data_purged_at);
+
+  const slug = requestedSlug.trim().toLowerCase();
+  if (!slug) throw new ValidationError('Enter the new profile URL.');
+  if (slug === row.slug) return slug;
+
+  const parts = account.findNamePartsById.get(memberId) as
+    | { family_name: string | null; given_names: string | null; real_name: string | null }
+    | undefined;
+  validateSlug(
+    slug,
+    memberSurnameKey({
+      family_name: parts?.family_name ?? null,
+      given_names: parts?.given_names ?? null,
+      real_name:   parts?.real_name ?? '',
+    }),
+    { isPlatformAccount: row.is_system === 1 },
+  );
+  return slug;
+}
+
+export type CorrectMemberSlugResult =
+  | { status: 'corrected'; before: string; after: string; mediaTagsMoved: number }
+  | { status: 'unchanged' };
+
+const UPLOADER_TAG_PREFIX = '#by_';
+
+/**
+ * Move a member's profile URL on an administrator's correction.
+ *
+ * The new URL runs the same rules registration applies, through the same
+ * function, so a correction cannot take an address registration would refuse.
+ *
+ * A slug is not just a column. The member's uploader tag is `#by_<slug>`, every
+ * upload of theirs carries it, and their galleries key their criteria on it. The
+ * tag is therefore renamed in place, keeping its id: every media and gallery row
+ * references the tag by id, so all of them follow that one write. The copy of
+ * the tag text that `media_tags` keeps for display is refreshed alongside it.
+ *
+ * Gallery identifiers keep the spelling they were created with. They were fixed
+ * when each gallery was made, three tables reference them, and re-keying would
+ * break both those references and any address built from them. A gallery id is
+ * an identifier rather than a name, and it still resolves.
+ *
+ * The old profile URL stops resolving and nothing redirects from it. That is a
+ * real consequence for a member who has shared the old one, which is why the
+ * surface says so before the correction is made.
+ */
+function correctMemberSlug(
+  actorId: string,
+  memberId: string,
+  requestedSlug: string,
+  reasonText: string,
+): CorrectMemberSlugResult {
+  const row = account.findMemberForAdminRecord.get(memberId) as
+    | {
+        id: string;
+        slug: string | null;
+        is_system: number;
+        personal_data_purged_at: string | null;
+      }
+    | undefined;
+  if (!row) throw new NotFoundError('No member with that id.');
+  assertNotErased(row.personal_data_purged_at);
+
+  const reason = reasonText.trim();
+  if (!reason) throw new ValidationError('Enter the reason for this correction.');
+  if (reason.length > MAX_CORRECTION_REASON) {
+    throw new ValidationError(`The reason must be ${MAX_CORRECTION_REASON} characters or fewer.`);
+  }
+
+  const slug = requestedSlug.trim().toLowerCase();
+  if (!slug) throw new ValidationError('Enter the new profile URL.');
+  if (slug === row.slug) return { status: 'unchanged' as const };
+
+  const parts = account.findNamePartsById.get(memberId) as
+    | { family_name: string | null; given_names: string | null; real_name: string | null }
+    | undefined;
+  validateSlug(
+    slug,
+    memberSurnameKey({
+      family_name: parts?.family_name ?? null,
+      given_names: parts?.given_names ?? null,
+      real_name:   parts?.real_name ?? '',
+    }),
+    { isPlatformAccount: row.is_system === 1 },
+  );
+
+  const before = row.slug ?? '';
+  const now = new Date().toISOString();
+
+  try {
+    return transaction(() => {
+      account.updateMemberSlug.run(slug, now, actorId, memberId);
+
+      const renamed = `${UPLOADER_TAG_PREFIX}${slug}`;
+      // An uploader tag for the requested address can already exist, left behind
+      // by an erased account whose media survives. Renaming onto it would
+      // collide, and the collision would surface as though another member held
+      // the profile URL, which is a different and untrue thing to tell an
+      // administrator. Say what is actually in the way.
+      const occupied = account.findUploaderTag.get(renamed) as { id: string } | undefined;
+      if (occupied) {
+        throw new ConflictError(
+          'An uploader tag for that profile URL already exists, left by an account that has since '
+          + 'been erased. Choose a different profile URL.',
+        );
+      }
+
+      let mediaTagsMoved = 0;
+      const tag = account.findUploaderTag.get(`${UPLOADER_TAG_PREFIX}${before}`) as
+        | { id: string; tag_normalized: string }
+        | undefined;
+      if (tag) {
+        account.renameUploaderTag.run(renamed, renamed, now, actorId, tag.id);
+        mediaTagsMoved = account.refreshMediaTagDisplay.run(renamed, now, actorId, tag.id).changes;
+      }
+
+      appendAuditEntry({
+        actionType:    'member.slug_corrected',
+        category:      'profile_change',
+        actorType:     'admin',
+        actorMemberId: actorId,
+        entityType:    'member',
+        entityId:      memberId,
+        reasonText:    reason,
+        metadata: {
+          before,
+          after: slug,
+          uploader_tag_moved: Boolean(tag),
+          media_tags_moved: mediaTagsMoved,
+        },
+      });
+
+      return { status: 'corrected' as const, before, after: slug, mediaTagsMoved };
+    });
+  } catch (err) {
+    // The uploader-tag collision is caught inside the transaction and reported
+    // for what it is, so the only unique constraint that can reach here is the
+    // profile URL's own.
+    if (isUniqueConstraintError(err)) {
+      throw new ConflictError('Another member already holds that profile URL.');
+    }
+    throw err;
+  }
+}
+
+export const identityAccessService = { attemptLogin, registerMember, lookupLegacyAccount, claimLegacyAccount, initiateLegacyClaim, peekLegacyClaim, consumeAndClaimLegacy, consumeAndClaimLegacyInTx, lookupHistoricalPersonForClaim, claimHistoricalPerson, claimHistoricalPersonInTx, recordHistoricalPersonClaimBlocked, changePassword, verifyEmailByToken, resendVerifyEmail, requestPasswordReset, completePasswordReset, getAutoLinkClassificationForMember, getLinkHistoryViewForWizard, findHistoricalPersonForLinkSubmit, revertAutoLink, revertClaimForDispute, stageAutoLinkCandidate, listOpenStagedCandidates, declineStagedCandidate, declineClassifierCandidate, declineOpenStagedCandidatesOnAttestationInTx, expireStagedCandidates, listClaimedLegacyIdentities, declareAnchor, listDeclaredAnchors, removeAnchor, requestAnchorMailboxVerification, consumeAnchorMailboxVerification, submitLinkHelpRequest, approveLinkHelpRequest, rejectLinkHelpRequest, findCrossSourceCandidateAfterHpClaim, findCrossSourceCandidateAfterLegacyClaim, offerCrossSourceCandidate, confirmCrossSourceLegacyCandidate, surnameMatchesWithAnchors, enforceHistoricalPersonClaimLimit, getClaimEvidenceForMember, previewMemberNames, correctMemberNames, previewMemberSlug, correctMemberSlug };

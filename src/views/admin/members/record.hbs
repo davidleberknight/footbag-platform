@@ -1,0 +1,193 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  {{#if page.notice}}
+    <div class="notice notice-warn" role="status">{{page.notice}}</div>
+  {{/if}}
+  {{#if content.errorMessage}}
+    <div class="form-error-banner" role="alert">{{content.errorMessage}}</div>
+  {{/if}}
+
+  <div class="event-meta-row">
+    {{#each content.identifyingFacts}}<span>{{this}}</span>{{/each}}
+    {{#each content.stateLabels}}<span class="badge badge-tier">{{this}}</span>{{/each}}
+  </div>
+
+  {{#if content.isSystemAccount}}
+    <p class="text-muted fs-sm">This is the platform's own account. Its display name is the uploader attribution shown on curated media, and it is the one account allowed to carry a reserved site word in its name.</p>
+  {{/if}}
+
+  {{#if content.profileHref}}
+    <p><a href="{{content.profileHref}}">View the public profile</a></p>
+  {{/if}}
+
+  <section>
+    <div class="section-heading"><h2>Identity</h2></div>
+    <dl class="trick-structural-facts-list">
+      {{#each content.identity}}
+        <dt>{{label}}</dt><dd>{{value}}</dd>
+      {{/each}}
+    </dl>
+  </section>
+
+  <section>
+    <div class="section-heading"><h2>Membership Standing</h2></div>
+    <dl class="trick-structural-facts-list">
+      {{#each content.standing}}
+        <dt>{{label}}</dt><dd>{{value}}</dd>
+      {{/each}}
+    </dl>
+  </section>
+
+  <section>
+    <div class="section-heading"><h2>Account State</h2></div>
+    <dl class="trick-structural-facts-list">
+      {{#each content.accountState}}
+        <dt>{{label}}</dt><dd>{{value}}</dd>
+      {{/each}}
+    </dl>
+  </section>
+
+  <section>
+    <div class="section-heading"><h2>Contact Details</h2></div>
+    <p class="text-muted fs-sm">These fields are private to the member and to administrators. Members edit them themselves.</p>
+    <dl class="trick-structural-facts-list">
+      {{#each content.contact}}
+        <dt>{{label}}</dt><dd>{{value}}</dd>
+      {{/each}}
+    </dl>
+  </section>
+
+  {{#if content.hasIdentityLinks}}
+    <section>
+      <div class="section-heading"><h2>Identity Links</h2></div>
+      <dl class="trick-structural-facts-list">
+        {{#each content.identityLinks}}
+          <dt>{{label}}</dt><dd>{{value}}</dd>
+        {{/each}}
+      </dl>
+    </section>
+  {{/if}}
+
+  <section>
+    <div class="section-heading"><h2>Corrections</h2></div>
+    <p class="text-muted fs-sm">Every correction is shown for review before anything is written, takes a reason, and is recorded in this member's audit history.</p>
+
+    <details class="admin-action-disclosure">
+      <summary>Correct the Name</summary>
+      <p class="text-muted fs-sm">A corrected name is held to every rule a name is held to at registration. The profile URL is left alone, because correcting one is a separate action.</p>
+      <form method="POST" action="{{content.nameAction}}" class="form-block">
+        <div class="form-field">
+          <label for="given_names">Given names</label>
+          <input type="text" id="given_names" name="given_names" value="{{content.form.givenNames}}" maxlength="64" />
+        </div>
+        <div class="form-field">
+          <label for="family_name">Family name</label>
+          <input type="text" id="family_name" name="family_name" value="{{content.form.familyName}}" maxlength="64" required />
+        </div>
+        <div class="form-field">
+          <label for="display_name">Display name</label>
+          <input type="text" id="display_name" name="display_name" value="{{content.form.displayName}}" maxlength="64" />
+        </div>
+        <div class="form-field">
+          <label for="name_reason">Reason (required)</label>
+          <input type="text" id="name_reason" name="reason" maxlength="500" required />
+        </div>
+        <button type="submit" class="btn btn-primary">Review the Name Correction</button>
+      </form>
+    </details>
+
+    <details class="admin-action-disclosure">
+      <summary>Correct the Profile URL</summary>
+      <p class="text-muted fs-sm">The member's uploader tag moves with them, so their media and galleries keep resolving. The old URL stops working and nothing redirects from it, so any link they have already shared will lead nowhere.</p>
+      <form method="POST" action="{{content.slugAction}}" class="form-block">
+        <div class="form-field">
+          <label for="slug">Profile URL</label>
+          <input type="text" id="slug" name="slug" value="{{content.form.slug}}" maxlength="64" required />
+        </div>
+        <div class="form-field">
+          <label for="slug_reason">Reason (required)</label>
+          <input type="text" id="slug_reason" name="reason" maxlength="500" required />
+        </div>
+        <button type="submit" class="btn btn-primary">Review the Profile URL Correction</button>
+      </form>
+    </details>
+
+    <details class="admin-action-disclosure">
+      <summary>Change the Membership Tier</summary>
+      <p class="text-muted fs-sm">The member is emailed when their membership status changes. Active Player standing is managed separately, and director standing is set on the honour and board page, because it carries a badge and a record of the tier the member returns to.</p>
+      <form method="POST" action="{{content.tierAction}}" class="form-block">
+        <div class="form-field">
+          <label for="tier">Membership tier</label>
+          <select id="tier" name="tier" required>
+            {{#each content.form.tierOptions}}
+              <option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>
+            {{/each}}
+          </select>
+        </div>
+        <div class="form-field">
+          <label for="tier_reason">Reason (required)</label>
+          <input type="text" id="tier_reason" name="reason" maxlength="500" required />
+        </div>
+        <button type="submit" class="btn btn-primary">Review the Tier Change</button>
+      </form>
+    </details>
+
+    <details class="admin-action-disclosure">
+      <summary>Correct the Active Player Expiry</summary>
+      <p class="text-muted fs-sm">Active Player is a Tier 0 standing. Leave the date blank to end the standing, which is how one granted in error is taken back. The member is not emailed about this correction.</p>
+      <form method="POST" action="{{content.activePlayerAction}}" class="form-block">
+        <div class="form-field">
+          <label for="expires_on">Runs to the end of this date</label>
+          <input type="date" id="expires_on" name="expires_on" value="{{content.form.activePlayerExpiryDate}}" />
+        </div>
+        <div class="form-field">
+          <label for="ap_reason">Reason (required)</label>
+          <input type="text" id="ap_reason" name="reason" maxlength="500" required />
+        </div>
+        <button type="submit" class="btn btn-primary">Review the Expiry Correction</button>
+      </form>
+    </details>
+
+    {{#if content.isDeceasedMarked}}
+      <details class="admin-action-disclosure">
+        <summary>Remove the Deceased Marking</summary>
+        <p class="text-muted fs-sm">{{content.deceasedGraceNote}}</p>
+        <form method="POST" action="{{content.deceasedRevertAction}}" class="form-block">
+          <div class="form-field">
+            <label for="deceased_revert_reason">Reason (required)</label>
+            <input type="text" id="deceased_revert_reason" name="reason" maxlength="500" required />
+          </div>
+          <button type="submit" class="btn btn-outline">Review Removing the Marking</button>
+        </form>
+      </details>
+    {{else}}
+      <details class="admin-action-disclosure">
+        <summary>Mark the Member Deceased</summary>
+        <p class="text-muted fs-sm">Honours, uploaded media, competition results and club history are all preserved. A linked historical record is marked to match, the member is withdrawn from events that have not happened yet, and the platform sends them nothing.</p>
+        <form method="POST" action="{{content.deceasedMarkAction}}" class="form-block">
+          <div class="form-field">
+            <label for="deceased_reason">Reason (required)</label>
+            <input type="text" id="deceased_reason" name="reason" maxlength="500" required />
+          </div>
+          <button type="submit" class="btn btn-outline">Review Marking as Deceased</button>
+        </form>
+      </details>
+    {{/if}}
+  </section>
+
+  <section>
+    <div class="section-heading"><h2>Related Administrator Pages</h2></div>
+    {{#each content.elsewhereLinks}}
+      <p><a href="{{href}}">{{label}}</a></p>
+    {{/each}}
+  </section>
+
+  {{#each navigation.contextLinks}}
+    <p class="mt-4"><a href="{{href}}" class="btn btn-outline">{{label}}</a></p>
+  {{/each}}
+</div>

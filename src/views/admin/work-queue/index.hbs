@@ -48,6 +48,9 @@
             {{#if entityDisplayName}}
               &middot; {{#if entityHref}}<a href="{{entityHref}}">{{entityDisplayName}}</a>{{else}}{{entityDisplayName}}{{/if}}
             {{/if}}
+            {{#if memberRecordHref}}
+              &middot; <a href="{{memberRecordHref}}">Member record</a>
+            {{/if}}
           </p>
           {{#if reasonText}}
             <p>{{reasonText}}</p>

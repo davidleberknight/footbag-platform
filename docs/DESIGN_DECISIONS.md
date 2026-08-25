@@ -1279,20 +1279,20 @@ Impact:
 
 Decision:
 
-Registration collects the legal name as two recorded parts, `family_name` (required) and `given_names` (optional), plus `display_name` (optional, defaulting to the two assembled). The family name is recorded rather than guessed from the last word of one string, because that guess is wrong for a member with two surnames, a name particle, or a family name written first, and the family name is the private matching anchor every claim path gates on. It is the required half for the same reason, and a member whose legal name is a single word records it there. The display name must end with the recorded family name, after suffix stripping (Jr, Sr, II, III, IV); the slug is held to that name's final word, because a profile URL carries no spaces. The display name and its derived slug are permanent post-registration. Imported legacy account rows (`legacy_members`) carry a single name string, are never split, and are exempt from the surname constraint; the surname on that side of any comparison is still derived from the whole name.
+Registration collects the legal name as two recorded parts, `family_name` (required) and `given_names` (optional), plus `display_name` (optional, defaulting to the two assembled). The family name is recorded rather than guessed from the last word of one string, because that guess is wrong for a member with two surnames, a name particle, or a family name written first, and the family name is the private matching anchor every claim path gates on. It is the required half for the same reason, and a member whose legal name is a single word records it there. The display name must end with the recorded family name, after suffix stripping (Jr, Sr, II, III, IV); the slug is held to that name's final word, because a profile URL carries no spaces. The display name and its derived slug are permanent to the member: neither changes through any member-facing surface. An administrator can correct either on request, which is how a mistyped name or an unusable profile URL is put right. Imported legacy account rows (`legacy_members`) carry a single name string, are never split, and are exempt from the surname constraint; the surname on that side of any comparison is still derived from the whole name.
 
 Rationale:
 
 - Claim matching and auto-link depend on a reliable surname signal on live accounts; an unconstrained display name would break the primary non-email anchor.
 - The community expects real identities on member profiles, while a display name allows preferred forms (diminutives, alternate spellings) without severing the surname link between the two fields.
 - Legacy data predates the model; an imported `real_name` is the best-available name from the export and may be a display name or a username. Retrofitting the constraint onto imports would fabricate data.
-- A permanent slug keeps inbound links and person-link dispatch stable.
+- A slug the member cannot change keeps inbound links and person-link dispatch stable; the administrator correction is the deliberate, reasoned and audited exception to that stability.
 
 Requirements:
 
 - `real_name` is required: two words minimum, no digits, capitalization normalized on save rather than policed.
 - `display_name` is optional and defaults to `real_name`; the shared-surname constraint applies at registration and on every profile edit.
-- The slug derives from `display_name` and never changes after registration.
+- The slug derives from `display_name` at registration and never changes through a member-facing surface; only an administrator correction moves it, carrying the member's uploader tag with it.
 - `legacy_members` rows are exempt; the import preserves names as delivered.
 - Member-declared former surnames (stored as declared anchors, always private to the member and admin) extend the surname-matching surface across all claim paths; the variants table covers first-name equivalences only, never surname changes.
 
@@ -1300,7 +1300,7 @@ Trade-offs:
 
 - A member whose surname legally changed uses the declared-former-surname affordance rather than a divergent display name.
 - Suffix-stripping surname extraction is heuristic; unusual compound surnames may need the admin help path during claims.
-- Permanent slugs trade rename flexibility for link stability.
+- A slug the member cannot change trades rename flexibility for link stability. An administrator correction buys the rename back at the cost of the old address, which is why it is an administrative action and not a self-service one.
 
 Impact:
 

@@ -943,6 +943,11 @@ export const clubs = {
     WHERE
       mca.club_id = ?
       AND mca.is_current = 1
+      -- A member the platform has recorded as deceased leaves the roster, which
+      -- the deceased story requires. The affiliation row itself stays, so their
+      -- club history remains part of the archive the same story preserves; this
+      -- removes them from the club as it stands today, not from its record.
+      AND m.is_deceased = 0
     ORDER BY person_name ASC
   `); },
 
@@ -1603,7 +1608,7 @@ export const clubLeaders = {
   // Total co-leader headcount for a club. Used by the volunteer/claim paths to
   // enforce the application-level 5-max cap.
   get countByClubId() { return db.prepare(`
-    SELECT COUNT(*) AS c FROM club_leaders WHERE club_id = ?
+    SELECT COUNT(*) AS c FROM club_leaders_current WHERE club_id = ?
   `); },
 
   // Does this member already co-lead any club? A member co-leads at most one
@@ -1625,7 +1630,7 @@ export const clubLeaders = {
     SELECT c.id, c.name, c.city, c.country
     FROM clubs c
     WHERE c.status = 'active'
-      AND NOT EXISTS (SELECT 1 FROM club_leaders l WHERE l.club_id = c.id)
+      AND NOT EXISTS (SELECT 1 FROM club_leaders_current l WHERE l.club_id = c.id)
     ORDER BY c.name
   `); },
 
@@ -1644,7 +1649,7 @@ export const clubLeaders = {
   get listCurrentLeadersForClubPage() { return db.prepare(`
     SELECT l.member_id, l.role, m.display_name, m.login_email,
            m.whatsapp, m.whatsapp_visible
-    FROM club_leaders l
+    FROM club_leaders_current l
     JOIN members_active m ON m.id = l.member_id
     WHERE l.club_id = ?
     ORDER BY m.display_name COLLATE NOCASE
@@ -1656,14 +1661,14 @@ export const clubLeaders = {
   // page names the co-leader who created it.
   get listCurrentLeadersForAllClubs() { return db.prepare(`
     SELECT l.club_id, l.member_id, l.role, m.display_name
-    FROM club_leaders l
+    FROM club_leaders_current l
     JOIN members_active m ON m.id = l.member_id
     ORDER BY m.display_name COLLATE NOCASE
   `); },
 
   get listAffiliatedMembersForAdmin() { return db.prepare(`
     SELECT a.member_id, m.display_name, m.slug,
-           EXISTS (SELECT 1 FROM club_leaders l WHERE l.club_id = a.club_id AND l.member_id = a.member_id) AS is_leader
+           EXISTS (SELECT 1 FROM club_leaders_current l WHERE l.club_id = a.club_id AND l.member_id = a.member_id) AS is_leader
     FROM member_club_affiliations a
     JOIN members_active m ON m.id = a.member_id
     WHERE a.club_id = ? AND a.is_current = 1
@@ -1696,8 +1701,14 @@ export const clubLeaders = {
     WHERE club_id = ? AND status = 'provisional'
   `); },
 
+  // A member an administrator can appoint as co-leader. Excludes a member
+  // recorded as deceased: appointing one puts a row in the leadership table that
+  // the current-leadership view will not see, so the club stays on the
+  // needs-leader list while that member's single co-leadership slot is occupied
+  // by somebody who cannot act.
   get findMemberByKeyForAdmin() { return db.prepare(`
-    SELECT id, display_name, slug FROM members_active WHERE slug = ? OR id = ?
+    SELECT id, display_name, slug FROM members_active
+    WHERE (slug = ? OR id = ?) AND is_deceased = 0
   `); },
 
   get findCurrentAffiliation() { return db.prepare(`
@@ -1727,7 +1738,7 @@ export const clubLeaders = {
 
   get leaderClubNameForMember() { return db.prepare(`
     SELECT c.name AS club_name
-      FROM club_leaders AS cl
+      FROM club_leaders_current AS cl
       INNER JOIN clubs AS c ON c.id = cl.club_id
      WHERE cl.member_id = ?
      LIMIT 1
@@ -1790,6 +1801,11 @@ export const memberClubAffiliations = {
     SELECT
       (SELECT COUNT(*) FROM member_club_affiliations
         WHERE club_id = ? AND is_current = 1) AS member_count,
+      -- Deliberately the raw table, unlike the viability and needs-leader reads.
+      -- This one guards archiving, and archiving a club whose leadership row
+      -- still exists would strand that row pointing at an archived club. The
+      -- demote path removes the row first, so counting rows rather than people
+      -- able to act is the right question here.
       (SELECT COUNT(*) FROM club_leaders WHERE club_id = ?) AS leader_count
   `); },
 
@@ -5685,6 +5701,73 @@ export const account = {
     SELECT family_name, given_names, real_name FROM members WHERE id = ?
   `); },
 
+  // The whole member row an administrator's member record renders, plus the
+  // names its correction rewrites. Reads the bare members table rather than a
+  // visibility view: the record exists to reach members the member-facing views
+  // exclude by design, including opted-out, deceased, and soft-deleted accounts.
+  get findMemberForAdminRecord() { return db.prepare(`
+    SELECT id, slug, created_at,
+           login_email, email_verified_at, email_status, last_login_at,
+           family_name, given_names, real_name, display_name,
+           city, region, country, gender, birth_date, phone, whatsapp,
+           searchable, is_admin, is_system, is_board, is_hof, is_bap,
+           is_deceased, deceased_at,
+           deleted_at, deletion_grace_expires_at, personal_data_purged_at,
+           legacy_member_id, historical_person_id, ifpa_join_date
+    FROM members
+    WHERE id = ?
+  `); },
+
+  // Move a member's profile URL. Separate from the name write above, because
+  // the two are separate corrections and a slug carries derived copies a name
+  // does not.
+  get updateMemberSlug() { return db.prepare(`
+    UPDATE members
+    SET slug       = ?,
+        updated_at = ?,
+        updated_by = ?,
+        version    = version + 1
+    WHERE id = ?
+  `); },
+
+  // The member's uploader tag, which every upload of theirs carries and every
+  // gallery of theirs keys its criteria on.
+  get findUploaderTag() { return db.prepare(`
+    SELECT id, tag_normalized FROM tags WHERE tag_normalized = ?
+  `); },
+
+  // Rename that tag in place, keeping its id. Every media_tags and
+  // member_gallery_tags row references the tag by id, so all of them follow
+  // this one write and nothing needs re-pointing.
+  get renameUploaderTag() { return db.prepare(`
+    UPDATE tags
+    SET tag_normalized = ?, tag_display = ?, updated_at = ?, updated_by = ?, version = version + 1
+    WHERE id = ?
+  `); },
+
+  // media_tags keeps its own copy of the tag text for display, which the rename
+  // above would otherwise leave reading the member's old address.
+  get refreshMediaTagDisplay() { return db.prepare(`
+    UPDATE media_tags
+    SET tag_display = ?, updated_at = ?, updated_by = ?, version = version + 1
+    WHERE tag_id = ?
+  `); },
+
+  // Rewrite the recorded legal name and the display name together. The profile
+  // slug is deliberately absent: correcting it is its own action, above.
+  get updateMemberNames() { return db.prepare(`
+    UPDATE members
+    SET family_name             = ?,
+        given_names             = ?,
+        real_name               = ?,
+        display_name            = ?,
+        display_name_normalized = ?,
+        updated_at              = ?,
+        updated_by              = ?,
+        version                 = version + 1
+    WHERE id = ?
+  `); },
+
   // Resolve an admin's free-text member handle to member ids for the payments
   // search: an exact id, slug, or login email, or a display-name fragment. Reads
   // the full members table rather than a visibility view because it is an
@@ -5706,7 +5789,12 @@ export const account = {
       lm.claimed_at  AS legacy_claimed_at,
       m.historical_person_id,
       hp.person_name AS historical_person_name
-    FROM members_active AS m
+    -- Reads every member, not only live ones. A soft-deleted account is one of
+    -- the states the administrator member record exists to reach, and its
+    -- identity links are part of what an administrator opens that record to see.
+    -- An erased account has no links left to show, which the purge condition
+    -- below keeps true rather than assumed.
+    FROM members AS m
     LEFT JOIN legacy_members AS lm
       ON lm.legacy_member_id = m.legacy_member_id
     LEFT JOIN historical_persons AS hp
@@ -8493,9 +8581,13 @@ export const legacyClaim = {
   // (for post-claim redirect), real_name (for surname reconciliation against
   // the HP or legacy account), existing linkage state, and the verified-email
   // signal used by the email-equality fast path in initiateLegacyClaim.
+  // The honor flags come with the row because a revert decides, per honor,
+  // whether the flag the member carries came from the claim being reverted; a
+  // flag they never held is not something a revert can clear.
   get findClaimingMember() { return db.prepare(`
     SELECT id, slug, real_name, legacy_member_id, historical_person_id,
-           login_email_normalized, email_verified_at, birth_date, country
+           login_email_normalized, email_verified_at, birth_date, country,
+           is_hof, is_bap
     FROM members
     WHERE id = ?
       AND deleted_at IS NULL
@@ -8689,20 +8781,26 @@ export const legacyMembers = {
     WHERE id = ?
   `); },
 
-  // Drop the denormalized honor flags on a claim revert. members.is_hof /
-  // is_bap / hof_inducted_year are only ever written by the claim merge (from
-  // the claimed legacy row or its historical_persons record), so when a revert
-  // leaves the member linked to no honored record the flags came from the
-  // reverted claim and must go -- otherwise a reverted (often disputed) claim
+  // Drop the honor flags a claim merge derived, on a claim revert. When a revert
+  // leaves the member linked to no honored record, flags that came from the
+  // reverted claim must go -- otherwise a reverted (often disputed) claim
   // strands a HoF/BAP badge, and the public profile visibility it confers, on a
-  // member who no longer holds the honor. The caller skips this when a separate
-  // historical-person link survives the revert and still backs the honor.
+  // member who no longer holds the honor. The caller skips this in the two cases
+  // where the honor did not come from the reverted claim: a separate
+  // historical-person link that survives the revert and still backs it, and an
+  // administrator's own honor grant, which stands on its own ledger row.
+  // Decided per honor, because the two are independent: a member can hold one
+  // by an administrator's grant and the other from the reverted claim, and
+  // clearing both because one of them qualifies strands the other exactly the
+  // way this statement exists to prevent.
+  // Params: (clearHof, clearHof, clearBap, clearBap, updatedAt, updatedBy, memberId).
   get clearDerivedHonors() { return db.prepare(`
     UPDATE members
     SET
-      is_hof            = 0,
-      is_bap            = 0,
-      hof_inducted_year = NULL,
+      is_hof            = CASE WHEN ? = 1 THEN 0 ELSE is_hof END,
+      hof_inducted_year = CASE WHEN ? = 1 THEN NULL ELSE hof_inducted_year END,
+      is_bap            = CASE WHEN ? = 1 THEN 0 ELSE is_bap END,
+      bap_inducted_year = CASE WHEN ? = 1 THEN NULL ELSE bap_inducted_year END,
       updated_at        = ?,
       updated_by        = ?,
       version           = version + 1
@@ -9184,9 +9282,21 @@ export const memberTier = {
   // Honor-grant duplicate guard: one row per (member, honor reason_code) is the
   // block condition for the admin honor-grant surface. HoF and BAP use distinct
   // reason codes, so a member may hold one of each.
+  // Does the member hold this honor right now? A grant counts unless a later
+  // removal row withdraws it. The ledger is append-only, so a grant made in
+  // error stays visible as history; what decides the current answer is whether
+  // the newest of the two rows is the grant or the withdrawal.
+  // Params: (memberId, grantReasonCode, memberId, removalReasonCode).
   get hasHonorGrant() { return db.prepare(`
-    SELECT 1 FROM member_tier_grants
-    WHERE member_id = ? AND reason_code = ?
+    SELECT 1 FROM member_tier_grants AS g
+    WHERE g.member_id = ? AND g.reason_code = ?
+      AND NOT EXISTS (
+        SELECT 1 FROM member_tier_grants AS r
+        WHERE r.member_id = ?
+          AND r.reason_code = ?
+          AND (r.created_at > g.created_at
+               OR (r.created_at = g.created_at AND r.id > g.id))
+      )
     LIMIT 1
   `); },
 
@@ -9227,6 +9337,74 @@ export const memberTier = {
       AND reason_code != 'legacy.claim_tier_grant'
     ORDER BY created_at DESC, id DESC
     LIMIT 1
+  `); },
+
+  // Set the badge and its induction year alongside an administrator's honor
+  // grant, in the same transaction as the tier row. Without this a member
+  // inducted today receives Tier 2 and a congratulations email, shows no badge
+  // on any surface, and is missing from the roster counts for that honor.
+  // Params: (isHof, hofYear, isBap, bapYear, updatedAt, updatedBy, memberId).
+  get applyGrantedHonor() { return db.prepare(`
+    UPDATE members
+    SET
+      is_hof            = MAX(is_hof, ?),
+      hof_inducted_year = COALESCE(?, hof_inducted_year),
+      is_bap            = MAX(is_bap, ?),
+      bap_inducted_year = COALESCE(?, bap_inducted_year),
+      updated_at        = ?,
+      updated_by        = ?,
+      version           = version + 1
+    WHERE id = ?
+  `); },
+
+  // Take back one honor granted in error, leaving the other alone. The year
+  // goes with the badge, because a year without the honor it dates means
+  // nothing. Params: (clearHof, clearHof, clearBap, clearBap, updatedAt, updatedBy, memberId).
+  get clearGrantedHonor() { return db.prepare(`
+    UPDATE members
+    SET
+      is_hof            = CASE WHEN ? = 1 THEN 0 ELSE is_hof END,
+      hof_inducted_year = CASE WHEN ? = 1 THEN NULL ELSE hof_inducted_year END,
+      is_bap            = CASE WHEN ? = 1 THEN 0 ELSE is_bap END,
+      bap_inducted_year = CASE WHEN ? = 1 THEN NULL ELSE bap_inducted_year END,
+      updated_at        = ?,
+      updated_by        = ?,
+      version           = version + 1
+    WHERE id = ?
+  `); },
+
+  // Everything that decides whether a member holds an honor and where it came
+  // from: the badge they carry, and whether a linked historical record backs it.
+  // The honor ledger alone is not enough, because a claim merge sets the badge
+  // from the claimed record and writes no ledger row at all.
+  get getHonorState() { return db.prepare(`
+    SELECT m.is_hof, m.is_bap, m.historical_person_id,
+           hp.hof_member AS record_hof, hp.bap_member AS record_bap
+    FROM members AS m
+    LEFT JOIN historical_persons AS hp ON hp.person_id = m.historical_person_id
+    WHERE m.id = ?
+  `); },
+
+  // The honor grant row itself, for a correction that takes the honor back. The
+  // ledger is append-only, so this deletes nothing: it finds the row whose
+  // reason code names the honor, and the caller writes the reversing entry.
+  get findHonorGrant() { return db.prepare(`
+    SELECT id, created_at FROM member_tier_grants
+    WHERE member_id = ? AND reason_code = ?
+    ORDER BY created_at DESC, id DESC
+    LIMIT 1
+  `); },
+
+  // Set or clear the board flag alongside the governance tier row, so the badge
+  // the roster, the profile and member search all read agrees with the tier.
+  // Params: (isBoard, updatedAt, updatedBy, memberId).
+  get setBoardFlag() { return db.prepare(`
+    UPDATE members
+    SET is_board   = ?,
+        updated_at = ?,
+        updated_by = ?,
+        version    = version + 1
+    WHERE id = ?
   `); },
 };
 
@@ -9834,6 +10012,87 @@ export const memberMessages = {
   `); },
 };
 
+// Marking a member deceased, and the records that have to follow it. The flag
+// itself is affirmative-only: its presence records a person recognized as
+// deceased, its absence asserts nothing.
+export const deceasedMarking = {
+  get markMember() { return db.prepare(`
+    UPDATE members
+    SET is_deceased   = 1,
+        deceased_at   = ?,
+        deceased_note = ?,
+        updated_at    = ?,
+        updated_by    = ?,
+        version       = version + 1
+    WHERE id = ? AND is_deceased = 0
+  `); },
+
+  // Reversal inside the grace period, for a marking made in error. Guarded to
+  // rows still carrying the flag, so a repeat is a no-op rather than a second
+  // write.
+  get revertMember() { return db.prepare(`
+    UPDATE members
+    SET is_deceased   = 0,
+        deceased_at   = NULL,
+        deceased_note = NULL,
+        updated_at    = ?,
+        updated_by    = ?,
+        version       = version + 1
+    WHERE id = ? AND is_deceased = 1
+  `); },
+
+  get setHistoricalPersonDeceased() { return db.prepare(`
+    UPDATE historical_persons SET is_deceased = ? WHERE person_id = ?
+  `); },
+
+  // The record, plus whoever holds it. A soft-deleted claimant counts: their
+  // account can still be restored, so the record is not free to be marked
+  // independently of them.
+  get findHistoricalPerson() { return db.prepare(`
+    SELECT hp.person_id, hp.person_name, hp.is_deceased,
+           m.id AS claimed_by_member_id, m.display_name AS claimed_by_display_name
+    FROM historical_persons AS hp
+    LEFT JOIN members AS m ON m.historical_person_id = hp.person_id
+    WHERE hp.person_id = ?
+  `); },
+
+  // Historical records an administrator can mark, found by exact id or by part
+  // of the name. The claimed-by column tells the administrator which records
+  // are already somebody's account, because those are marked through the member
+  // record instead and the flag would otherwise be set in two places. A
+  // soft-deleted claimant still counts as holding the record: their account can
+  // be restored, and the record is not free to be marked independently of them.
+  // Params: (personId, escapedNameFragment, limit).
+  get searchHistoricalPersons() { return db.prepare(`
+    SELECT hp.person_id, hp.person_name, hp.country, hp.first_year, hp.last_year,
+           hp.is_deceased,
+           m.id AS claimed_by_member_id, m.display_name AS claimed_by_display_name
+    FROM historical_persons AS hp
+    LEFT JOIN members AS m
+      ON m.historical_person_id = hp.person_id
+    WHERE hp.person_id = ?
+       OR LOWER(hp.person_name) LIKE '%' || ? || '%' ESCAPE '\\'
+    ORDER BY hp.person_name COLLATE NOCASE
+    LIMIT ?
+  `); },
+
+  // Withdraw the member from events that have not happened yet. A completed
+  // event keeps its registration, because it is part of the historical record
+  // this marking exists to preserve.
+  get cancelUpcomingRegistrations() { return db.prepare(`
+    UPDATE registrations
+    SET status        = 'canceled',
+        cancel_reason = ?,
+        canceled_at   = ?,
+        updated_at    = ?,
+        updated_by    = ?,
+        version       = version + 1
+    WHERE member_id = ?
+      AND status IN ('pending', 'confirmed')
+      AND event_id IN (SELECT id FROM events WHERE start_date >= ?)
+  `); },
+};
+
 export const batchAutoLink = {
   // Tier 0 candidate set for the cutover batch auto-link pass. Excludes
   // already-linked members (either anchor present) and members without a
@@ -10269,7 +10528,7 @@ export const clubCleanupPredicates = {
     FROM clubs AS c
     WHERE c.status = 'active'
       AND NOT EXISTS (
-        SELECT 1 FROM club_leaders AS cl WHERE cl.club_id = c.id
+        SELECT 1 FROM club_leaders_current AS cl WHERE cl.club_id = c.id
       )
   `); },
 
@@ -10318,7 +10577,11 @@ export const clubEvidence = {
       c.external_url IS NOT NULL                                   AS has_external_url,
       c.external_url_validated_at IS NOT NULL                      AS url_verified,
 
-      (SELECT COUNT(*) FROM club_leaders AS cl WHERE cl.club_id = c.id) AS leader_count,
+      -- Leadership that can still act. A leader who has died or deleted their
+      -- account is not evidence the club is alive, which is what this count
+      -- feeds; the raw table would keep such a club out of every demotion
+      -- verdict indefinitely.
+      (SELECT COUNT(*) FROM club_leaders_current AS cl WHERE cl.club_id = c.id) AS leader_count,
       (SELECT COUNT(*) FROM member_club_affiliations AS mca
          WHERE mca.club_id = c.id AND mca.is_current = 1)               AS current_member_count,
       (SELECT COUNT(*) FROM events AS e WHERE e.host_club_id = c.id)    AS hosted_event_count,

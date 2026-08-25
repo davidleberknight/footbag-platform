@@ -12,7 +12,10 @@ linkage pull-back, the credential-header abort backstop, and the per-rule
 exclusion counts. This extractor only maps faithfully (no filtering: every
 member row is emitted with `member_valid` verbatim) and reports the dump-level
 counts the loader cannot see (rows examined, distinct MemberID, per-email-column
-population).
+population). The one thing it refuses to map faithfully is a contradiction: when
+a cutover date makes the legacy site's own tier computation available, the run
+aborts without writing a CSV if any row's derived tier flags fail to cover the
+standing that computation returns.
 
 Credentials: the `MemberPassword` and `MemberSession` tuple positions are passed
 over during parsing but their values are never mapped to a field, retained,
@@ -50,24 +53,27 @@ OUTPUT_FIELDS = [
     "legacy_member_modified",
 ]
 
-# The legacy site's IFPA tier code-set, taken from the site's own admin PHP
-# (the tier-conversion routine and the event auto-join routine), not inferred
-# from the dump's data values. `MemberIFPATier` is 0, 1, or 2:
-#   0 = never paid.
-#   1 = Tier 1. The site's one-time tier conversion granted every ever-paid
-#       member Tier 1 lifetime (MemberIFPAExpiration = -1, even if lapsed at
-#       conversion time); event auto-join afterwards issued Tier 1 annual with
-#       a real future MemberIFPAExpiration epoch.
-#   2 = Tier 2 (MemberIFPAExpiration2 = -1 lifetime, else annual).
-TIER1_CODE = "1"
-TIER2_CODE = "2"
+# Tier standing lives in the two expiration columns, and nowhere else.
+#
+#   MemberIFPAExpiration   Tier 1: -1 is lifetime, a real epoch is an annual
+#                          expiry, 0 is no Tier 1 standing ever.
+#   MemberIFPAExpiration2  Tier 2, same encoding.
+#
+# These are what the legacy site's own tier function reads, and the derivations
+# below read only them. The stored `MemberIFPATier` code is deliberately NOT
+# read: the site abandoned it in a one-time 2007 conversion, no live code path
+# writes it, and the site overwrites the stored value with the computed one
+# before displaying it. Deriving from it silently produced Tier 0 for members
+# holding live standing, because everyone who first paid after 2007 still
+# carries the pre-conversion code. `legacy_member_tier` below ports the site's
+# function so the quality check can prove the derivations agree with it.
 LIFETIME_EXPIRATION = "-1"
 
 # Board / Tier 3 standing is not derived from legacy data. It is an
 # administrator-set flag on the live member row, applied after cutover to the
-# handful of sitting directors. `MemberIFPATier` holds only 0, 1 and 2 and
-# encodes no governance status, so the extractor makes no board determination:
-# every row carries a definite non-board flag and no underlying paid tier.
+# handful of sitting directors. No legacy tier value encodes governance status,
+# so the extractor makes no board determination: every row carries a definite
+# non-board flag and no underlying paid tier.
 
 
 def parse_member_columns(sql: str) -> list[str]:
@@ -126,42 +132,60 @@ def _street(rec: dict) -> str:
     return ", ".join(p for p in parts if p)
 
 
-def derive_ever_paid_tier2(ifpa_tier_code: str) -> str:
-    """'1' when the member holds the Tier-2 code. Tier-2 standing at cutover
-    implies having paid; any other code carries no flag. This is accepted as
-    underinclusive: a member who once paid Tier 2 but no longer holds the code
-    claims on their remaining flags or honors instead."""
-    return "1" if (ifpa_tier_code or "").strip() == TIER2_CODE else "0"
+def _expiration(raw: str) -> int:
+    """A raw expiration column as an integer: -1 lifetime, 0 none, else an
+    epoch. Anything unparseable reads as 0, no standing."""
+    try:
+        return int((raw or "").strip())
+    except ValueError:
+        return 0
 
 
-def derive_ever_paid_tier1_lifetime(ifpa_tier_code: str, expiration_raw: str) -> str:
-    """'1' when the member holds Tier 1 with the lifetime expiration sentinel
-    (-1). The site's tier conversion granted lifetime Tier 1 to every ever-paid
-    member, so this flag is the ever-paid-Tier-1 signal."""
-    code = (ifpa_tier_code or "").strip()
-    exp = (expiration_raw or "").strip()
-    return "1" if code == TIER1_CODE and exp == LIFETIME_EXPIRATION else "0"
+def derive_ever_paid_tier2(expiration2_raw: str) -> str:
+    """'1' when the member has ever held Tier 2 standing: any non-zero Tier 2
+    expiration, lifetime or annual, expired or not. This is a history
+    predicate, so a lapsed Tier 2 member still carries it."""
+    return "1" if _expiration(expiration2_raw) != 0 else "0"
+
+
+def derive_ever_paid_tier1_lifetime(expiration_raw: str) -> str:
+    """'1' when the member holds the Tier 1 lifetime sentinel (-1). Also a
+    history predicate: lifetime standing does not lapse."""
+    return "1" if (expiration_raw or "").strip() == LIFETIME_EXPIRATION else "0"
 
 
 def derive_tier1_annual_active_at_cutover(
-    ifpa_tier_code: str, expiration_raw: str, cutover_epoch: int | None,
+    expiration_raw: str, cutover_epoch: int | None,
 ) -> str:
-    """'1' when the member holds Tier 1 annual (a real expiration epoch, not
-    the -1 lifetime sentinel and not 0/none) that is still unexpired at the
-    cutover moment. Without a cutover date the derivation is inert and no row
-    is flagged (nothing is guessed); a lapsed annual carries no flag and the
+    """'1' when the member holds a Tier 1 annual expiration (a real epoch, not
+    the -1 lifetime sentinel and not 0/none) still unexpired at the cutover
+    moment. Without a cutover date the derivation is inert and no row is
+    flagged (nothing is guessed); a lapsed annual carries no flag and the
     member claims on honors alone."""
     if cutover_epoch is None:
         return "0"
-    if (ifpa_tier_code or "").strip() != TIER1_CODE:
-        return "0"
-    try:
-        exp = int((expiration_raw or "").strip())
-    except ValueError:
-        return "0"
+    exp = _expiration(expiration_raw)
     if exp <= 0:
         return "0"
     return "1" if exp > cutover_epoch else "0"
+
+
+def legacy_member_tier(expiration_raw: str, expiration2_raw: str,
+                       now_epoch: int) -> int:
+    """The legacy site's own tier computation, ported branch for branch from
+    its member library, over the two expiration columns at a given moment.
+    Used only by the quality check: the derived flags are history predicates
+    and this is current standing, so the two are compared for coverage rather
+    than equality."""
+    exp1 = _expiration(expiration_raw)
+    exp2 = _expiration(expiration2_raw)
+    if exp2 == -1:
+        return 2                                  # lifetime Tier 2
+    if exp1 == -1:
+        return 2 if exp2 > now_epoch else 1       # annual Tier 2 still valid, else lifetime Tier 1
+    if exp1 > now_epoch:
+        return 1                                  # annual Tier 1 still valid
+    return 0                                      # no membership at all
 
 
 def map_record(rec: dict, cutover_epoch: int | None = None) -> dict:
@@ -171,8 +195,8 @@ def map_record(rec: dict, cutover_epoch: int | None = None) -> dict:
     last = _prefer_unicode(rec, "MemberLastName", "MemberLastNameUnicode")
     real_name = " ".join(p for p in (first, middle, last) if p)
     alias = _val(rec, "MemberAlias")
-    tier_code = _val(rec, "MemberIFPATier")
     expiration = _val(rec, "MemberIFPAExpiration")
+    expiration2 = _val(rec, "MemberIFPAExpiration2")
     return {
         "legacy_member_id": _val(rec, "MemberID"),
         "member_valid":     _val(rec, "MemberValid"),
@@ -194,10 +218,10 @@ def map_record(rec: dict, cutover_epoch: int | None = None) -> dict:
         "is_hof":           "",
         "is_bap":           "",
         "legacy_is_admin":  "",
-        "legacy_ever_paid_tier2":            derive_ever_paid_tier2(tier_code),
-        "legacy_ever_paid_tier1_lifetime":   derive_ever_paid_tier1_lifetime(tier_code, expiration),
+        "legacy_ever_paid_tier2":            derive_ever_paid_tier2(expiration2),
+        "legacy_ever_paid_tier1_lifetime":   derive_ever_paid_tier1_lifetime(expiration),
         "legacy_tier1_annual_active_at_cutover":
-            derive_tier1_annual_active_at_cutover(tier_code, expiration, cutover_epoch),
+            derive_tier1_annual_active_at_cutover(expiration, cutover_epoch),
         "legacy_was_board_at_cutover":       "0",
         "legacy_board_underlying_paid_tier": "",
         # Raw source record-modification timestamp, carried through untouched so
@@ -306,6 +330,28 @@ def assert_final_export_freshness(
     }
 
 
+def tier_coverage_violation(rec: dict, mapped: dict, cutover_epoch: int) -> str | None:
+    """The quality check behind the tier flags: whatever standing the legacy
+    site's own tier function computes for this row at the cutover moment must
+    be covered by a flag the claim-time grant can read. Tier 2 standing needs
+    the Tier 2 flag; Tier 1 standing needs the lifetime or the annual-active
+    flag. Returns a description of the failure, or None when covered.
+
+    Coverage, not equality: two of the three flags are history predicates and
+    the computed standing is current, so a lapsed Tier 2 member computes as
+    Tier 1 while correctly carrying the Tier 2 history flag. Requiring equality
+    would reject exactly the rows the design intends to grant on.
+    """
+    tier = legacy_member_tier(_val(rec, "MemberIFPAExpiration"),
+                              _val(rec, "MemberIFPAExpiration2"), cutover_epoch)
+    if tier == 2 and mapped["legacy_ever_paid_tier2"] != "1":
+        return "computes as Tier 2 but carries no ever-held-Tier-2 flag"
+    if tier == 1 and mapped["legacy_ever_paid_tier1_lifetime"] != "1" \
+            and mapped["legacy_tier1_annual_active_at_cutover"] != "1":
+        return "computes as Tier 1 but carries neither Tier 1 flag"
+    return None
+
+
 def extract(members_sql: Path, out_csv: Path, cutover_date: str | None = None,
             final_export: bool = False) -> dict:
     sql = members_sql.read_text(encoding="utf-8", errors="replace")
@@ -330,6 +376,8 @@ def extract(members_sql: Path, out_csv: Path, cutover_date: str | None = None,
     }
     distinct_ids: set[str] = set()
     email_pop = {"legacy_email": 0, "legacy_email2": 0, "legacy_email3": 0}
+    coverage_failures: list[str] = []
+    coverage_checked_failed = 0
 
     out_csv.parent.mkdir(parents=True, exist_ok=True)
     with out_csv.open("w", newline="", encoding="utf-8") as fh:
@@ -338,6 +386,13 @@ def extract(members_sql: Path, out_csv: Path, cutover_date: str | None = None,
         for rec in iter_member_rows(sql, columns):
             mapped = map_record(rec, cutover_epoch)
             examined += 1
+            if cutover_epoch is not None:
+                why = tier_coverage_violation(rec, mapped, cutover_epoch)
+                if why:
+                    coverage_checked_failed += 1
+                    if len(coverage_failures) < 20:
+                        coverage_failures.append(
+                            f"MemberID {mapped['legacy_member_id'] or '?'}: {why}")
             for col in tier_flags:
                 if mapped[col] == "1":
                     tier_flags[col] += 1
@@ -348,12 +403,30 @@ def extract(members_sql: Path, out_csv: Path, cutover_date: str | None = None,
                     email_pop[col] += 1
             w.writerow(mapped)
 
+    if coverage_checked_failed:
+        # The CSV is removed rather than left behind: a tier-mapping defect is
+        # silent downstream (a member simply arrives at the wrong tier), so the
+        # run must not hand on output that a later step would load without
+        # re-checking.
+        out_csv.unlink(missing_ok=True)
+        detail = "\n".join(f"    {line}" for line in coverage_failures)
+        more = ("\n    ... and "
+                f"{coverage_checked_failed - len(coverage_failures)} more"
+                if coverage_checked_failed > len(coverage_failures) else "")
+        raise SystemExit(
+            f"error: tier-flag quality check failed on {coverage_checked_failed} "
+            f"row(s); no CSV written.\n"
+            f"  The derived flags must cover the standing the legacy site's own "
+            f"tier function computes at the cutover moment.\n{detail}{more}"
+        )
+
     return {
         "columns_in_dump": len(columns),
         "rows_examined": examined,
         "distinct_member_id": len(distinct_ids),
         "email_population": email_pop,
         "tier_flags": tier_flags,
+        "tier_coverage_checked": cutover_epoch is not None,
         "cutover_epoch": cutover_epoch,
         "freshness": freshness,
     }
@@ -404,6 +477,10 @@ def main() -> None:
     annual_note = "" if stats["cutover_epoch"] is not None else \
         "  (derivation inert: no --cutover-date / FOOTBAG_CUTOVER_DATE)"
     print(f"  Tier 1 annual active:   {tf['legacy_tier1_annual_active_at_cutover']}{annual_note}")
+    if stats["tier_coverage_checked"]:
+        print("  tier-flag coverage:     PASS (every computed standing is carried by a flag)")
+    else:
+        print("  tier-flag coverage:     not checked (needs a cutover date to compute standing)")
     print("  (no filtering applied; the loader filters + pulls back)")
 
 

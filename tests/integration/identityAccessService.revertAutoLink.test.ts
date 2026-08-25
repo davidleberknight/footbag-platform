@@ -261,6 +261,51 @@ describe('identityAccessService.revertAutoLink', () => {
     expect(meta.cleared_derived_honors).toBe(false);
   });
 
+  it('decides each honor separately: an administrator grant survives while the claimed honor drops', () => {
+    // The case a single combined decision gets wrong in both directions. The
+    // member holds Big Add Posse because an administrator granted it, and Hall
+    // of Fame only because of the legacy account now being reverted. One
+    // decision covering both either strands the Hall of Fame flag on a member
+    // who no longer holds it, or strips a grant that had nothing to do with the
+    // claim.
+    const memberId = nextId('mem');
+    const legacyId = nextId('legmem');
+
+    const db = open();
+    insertMember(db, { id: memberId, login_email: `${memberId}@example.com`, real_name: 'Split Honors' });
+    insertLegacyMember(db, { legacy_member_id: legacyId, real_name: 'Split Honors', is_hof: 1 });
+    db.prepare('UPDATE members SET legacy_member_id = ?, is_hof = 1, is_bap = 1, bap_inducted_year = 2021 WHERE id = ?')
+      .run(legacyId, memberId);
+    db.prepare("UPDATE legacy_members SET claimed_by_member_id = ?, claimed_at = '2026-01-01T00:00:00.000Z' WHERE legacy_member_id = ?")
+      .run(memberId, legacyId);
+    // The administrator's own Big Add Posse grant, which stands on its own
+    // ledger row rather than on the claim.
+    db.prepare(`
+      INSERT INTO member_tier_grants (
+        id, created_at, created_by, member_id, actor_member_id, change_type,
+        old_tier_status, new_tier_status, reason_code, reason_text
+      ) VALUES (?, '2026-02-01T00:00:00.000Z', 'seed', ?, ?, 'grant',
+                'tier0', 'tier2', 'honor.bap_tier2_grant', 'Big Add Posse induction, 2021')
+    `).run(nextId('mtg'), memberId, memberId);
+    db.close();
+
+    const result = svc.revertAutoLink(memberId, 'audit-split-honors', {
+      actorType: 'member',
+      actorMemberId: memberId,
+    });
+    expect(result.status).toBe('reverted');
+
+    const after = memberRow(memberId);
+    expect(after.is_hof).toBe(0);                 // came from the reverted claim
+    expect(after.is_bap).toBe(1);                 // the administrator's grant stands
+    expect(after.bap_inducted_year).toBe(2021);   // and keeps its year
+
+    const audits = listAuditEntries(memberId, 'legacy.auto_link_revert');
+    const meta = JSON.parse(String(audits[audits.length - 1].metadata_json)) as Record<string, unknown>;
+    expect(meta.cleared_derived_hof).toBe(true);
+    expect(meta.cleared_derived_bap).toBe(false);
+  });
+
   it('clears honor flags when the surviving historical-person link does not itself carry the honor', () => {
     const memberId = nextId('mem');
     const legacyId = nextId('legmem');

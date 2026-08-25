@@ -5,6 +5,11 @@ mysqldump: the column-to-field map, that credential values are never emitted,
 three-email handling, Unicode-vs-latin1 name preference, birth-date and
 IFPA-join-date assembly, that NO source-validity filtering happens here (the
 loader owns that), and the dump-level counts the loader cannot see.
+
+Also covers the paid-tier derivations, which read the two expiration columns
+and never the stored tier code, and the quality check that aborts a run whose
+derived flags fail to carry the standing the legacy site's own tier
+computation returns.
 """
 import csv
 import importlib.util
@@ -75,6 +80,25 @@ INSERT INTO `members` VALUES """ + ",".join([
     # 5: Tier-1 annual lapsed (epoch 2008-01-10) — no flag; claims on honors alone
     "(12600,1,'pw5','Lars','','Lapsed','','','','lapsed@example.com','','',"
     "'','','','','','','','','',0,0,0,'','lapsed_user','sess5',0,'1',1200000000,0)",
+    # 6: stored code 0, lifetime Tier 2 — the member who first paid Tier 2 after
+    #    the stored code was abandoned. Standing lives in the expiration alone.
+    "(12700,1,'pw6','Pat','','Postconv','','','','post@example.com','','',"
+    "'','','','','','','','','',0,0,0,'','post_user','sess6',0,'0',0,-1)",
+    # 7: stored code 0, lifetime Tier 1
+    "(12800,1,'pw7','Lee','','Lifer','','','','lifer@example.com','','',"
+    "'','','','','','','','','',0,0,0,'','lifer_user','sess7',0,'0',-1,0)",
+    # 8: stored code 0, unexpired Tier-1 annual (epoch 2030-01-01) — the cohort
+    #    that no stored code ever marked, so the annual flag could never fire.
+    "(12900,1,'pw8','Ada','','Active','','','','active@example.com','','',"
+    "'','','','','','','','','',0,0,0,'','active_user','sess8',0,'0',1893456000,0)",
+    # 9: Tier 2 held and lapsed (epoch 2008-01-10) — the history flag stands,
+    #    because the grant reads Tier 2 standing expired or not.
+    "(13000,1,'pw9','Ola','','Lapsedtwo','','','','lapsed2@example.com','','',"
+    "'','','','','','','','','',0,0,0,'','lapsed2_user','sess9',0,'2',-1,1200000000)",
+    # 10: lifetime Tier 1 plus unexpired Tier 2 (epoch 2030-01-01) — both flags,
+    #     and the site computes Tier 2, which the grant's precedence gives them.
+    "(13100,1,'pw10','Kim','','Both','','','','both@example.com','','',"
+    "'','','','','','','','','',0,0,0,'','both_user','sess10',0,'1',-1,1893456000)",
 ]) + ";\n"
 
 # The go-live write-freeze moment the annual-expiration comparison uses; fixture
@@ -147,7 +171,7 @@ def test_birth_and_ifpa_dates(tmp_path):
 def test_no_filtering_invalid_row_emitted(tmp_path):
     _, rows, by_id, _ = _run(tmp_path)
     # The extractor does NOT filter; the MemberValid=0 row is emitted verbatim.
-    assert len(rows) == 5
+    assert len(rows) == 10
     assert by_id["99999"]["member_valid"] == "0"
     assert by_id["99999"]["real_name"] == "Junk User"
 
@@ -249,10 +273,10 @@ def test_member_modified_carried_through_to_output_raw(tmp_path):
 
 def test_dump_level_counts(tmp_path):
     stats, _, _, _ = _run(tmp_path)
-    assert stats["rows_examined"] == 5
-    assert stats["distinct_member_id"] == 5
+    assert stats["rows_examined"] == 10
+    assert stats["distinct_member_id"] == 10
     assert stats["email_population"] == {
-        "legacy_email": 4,    # 11983 + 99999 + 12500 + 12600
+        "legacy_email": 9,    # every row but 12000, which carries email3 only
         "legacy_email2": 1,   # 11983
         "legacy_email3": 1,   # 12000
     }
@@ -269,39 +293,63 @@ def test_board_columns_are_never_derived_from_legacy_data(tmp_path):
 
 
 def test_derive_ever_paid_tier2():
-    # Only the Tier-2 code flags; every other code (including Tier 1 and the
-    # never-paid 0) carries no flag.
-    assert elm.derive_ever_paid_tier2("2") == "1"
-    assert elm.derive_ever_paid_tier2(" 2 ") == "1"
-    assert elm.derive_ever_paid_tier2("1") == "0"
+    # Any non-zero Tier-2 expiration flags: lifetime, unexpired annual, and
+    # lapsed annual alike, because the grant reads Tier 2 standing held at
+    # cutover expired or not. Only "never held it" carries no flag.
+    assert elm.derive_ever_paid_tier2("-1") == "1"           # lifetime
+    assert elm.derive_ever_paid_tier2("1893456000") == "1"   # unexpired annual
+    assert elm.derive_ever_paid_tier2("1200000000") == "1"   # lapsed annual
+    assert elm.derive_ever_paid_tier2(" -1 ") == "1"
     assert elm.derive_ever_paid_tier2("0") == "0"
     assert elm.derive_ever_paid_tier2("") == "0"
     assert elm.derive_ever_paid_tier2(None) == "0"
+    assert elm.derive_ever_paid_tier2("not-a-number") == "0"
 
 
 def test_derive_ever_paid_tier1_lifetime():
-    # Tier 1 with the -1 lifetime sentinel flags; a real expiration epoch is
-    # annual (not lifetime), and Tier 2 / never-paid codes never flag here.
-    assert elm.derive_ever_paid_tier1_lifetime("1", "-1") == "1"
-    assert elm.derive_ever_paid_tier1_lifetime("1", "1893456000") == "0"
-    assert elm.derive_ever_paid_tier1_lifetime("1", "0") == "0"
-    assert elm.derive_ever_paid_tier1_lifetime("1", "") == "0"
-    assert elm.derive_ever_paid_tier1_lifetime("2", "-1") == "0"
-    assert elm.derive_ever_paid_tier1_lifetime("0", "-1") == "0"
+    # The -1 lifetime sentinel flags. A real epoch is annual, not lifetime, and
+    # 0 is no Tier 1 standing ever.
+    assert elm.derive_ever_paid_tier1_lifetime("-1") == "1"
+    assert elm.derive_ever_paid_tier1_lifetime(" -1 ") == "1"
+    assert elm.derive_ever_paid_tier1_lifetime("1893456000") == "0"
+    assert elm.derive_ever_paid_tier1_lifetime("0") == "0"
+    assert elm.derive_ever_paid_tier1_lifetime("") == "0"
+    assert elm.derive_ever_paid_tier1_lifetime(None) == "0"
 
 
 def test_derive_tier1_annual_active_at_cutover():
     cutover = elm.parse_cutover_date(CUTOVER_DATE)
-    # Unexpired annual flags; lapsed, lifetime (-1), none (0), non-numeric, and
-    # non-Tier-1 codes never flag.
-    assert elm.derive_tier1_annual_active_at_cutover("1", "1893456000", cutover) == "1"
-    assert elm.derive_tier1_annual_active_at_cutover("1", "1200000000", cutover) == "0"
-    assert elm.derive_tier1_annual_active_at_cutover("1", "-1", cutover) == "0"
-    assert elm.derive_tier1_annual_active_at_cutover("1", "0", cutover) == "0"
-    assert elm.derive_tier1_annual_active_at_cutover("1", "not-a-number", cutover) == "0"
-    assert elm.derive_tier1_annual_active_at_cutover("2", "1893456000", cutover) == "0"
+    # Unexpired annual flags; lapsed, lifetime (-1), none (0) and non-numeric
+    # never flag.
+    assert elm.derive_tier1_annual_active_at_cutover("1893456000", cutover) == "1"
+    assert elm.derive_tier1_annual_active_at_cutover("1200000000", cutover) == "0"
+    assert elm.derive_tier1_annual_active_at_cutover("-1", cutover) == "0"
+    assert elm.derive_tier1_annual_active_at_cutover("0", cutover) == "0"
+    assert elm.derive_tier1_annual_active_at_cutover("not-a-number", cutover) == "0"
     # Without a cutover date the derivation is inert: nothing is guessed.
-    assert elm.derive_tier1_annual_active_at_cutover("1", "1893456000", None) == "0"
+    assert elm.derive_tier1_annual_active_at_cutover("1893456000", None) == "0"
+
+
+def test_legacy_member_tier_ports_the_site_computation():
+    now = elm.parse_cutover_date(CUTOVER_DATE)
+    past, future = "1200000000", "1893456000"
+    # Lifetime Tier 2 wins outright, whatever the Tier 1 column says.
+    assert elm.legacy_member_tier("0", "-1", now) == 2
+    assert elm.legacy_member_tier("-1", "-1", now) == 2
+    assert elm.legacy_member_tier(future, "-1", now) == 2
+    # Lifetime Tier 1 with an unexpired Tier 2 annual is Tier 2; once that
+    # Tier 2 lapses the member falls back to their lifetime Tier 1.
+    assert elm.legacy_member_tier("-1", future, now) == 2
+    assert elm.legacy_member_tier("-1", past, now) == 1
+    assert elm.legacy_member_tier("-1", "0", now) == 1
+    # No lifetime standing: an unexpired Tier 1 annual is Tier 1, a lapsed one
+    # is no membership at all.
+    assert elm.legacy_member_tier(future, "0", now) == 1
+    assert elm.legacy_member_tier(past, "0", now) == 0
+    assert elm.legacy_member_tier("0", "0", now) == 0
+    # A Tier 2 annual without lifetime Tier 1 does not reach the Tier 2 branch,
+    # which is the site's own behaviour and why the check is coverage-only.
+    assert elm.legacy_member_tier(future, future, now) == 1
 
 
 def test_parse_cutover_date():
@@ -315,8 +363,9 @@ def test_parse_cutover_date():
 
 
 def test_tier_flags_without_cutover_date(tmp_path):
-    # The code-derived flags (Tier 2, Tier 1 lifetime) populate with no cutover
-    # date; the annual-active flag stays inert on every row.
+    # The two history flags populate with no cutover date; the annual-active
+    # flag stays inert on every row, and the coverage check does not run
+    # because there is no moment to compute standing at.
     stats, rows, by_id, _ = _run(tmp_path)
     assert by_id["11983"]["legacy_ever_paid_tier2"] == "1"
     assert by_id["11983"]["legacy_ever_paid_tier1_lifetime"] == "0"
@@ -327,28 +376,98 @@ def test_tier_flags_without_cutover_date(tmp_path):
     for r in rows:
         assert r["legacy_tier1_annual_active_at_cutover"] == "0"
     assert stats["cutover_epoch"] is None
+    assert stats["tier_coverage_checked"] is False
     assert stats["tier_flags"] == {
-        "legacy_ever_paid_tier2": 1,
-        "legacy_ever_paid_tier1_lifetime": 1,
+        "legacy_ever_paid_tier2": 4,
+        "legacy_ever_paid_tier1_lifetime": 4,
         "legacy_tier1_annual_active_at_cutover": 0,
     }
 
 
-def test_tier_flags_with_cutover_date(tmp_path):
+def _run_with_cutover(tmp_path, sql=FIXTURE_SQL):
     dump = tmp_path / "members.sql"
-    dump.write_text(FIXTURE_SQL, encoding="utf-8")
+    dump.write_text(sql, encoding="utf-8")
     out = tmp_path / "export.csv"
     stats = elm.extract(dump, out, cutover_date=CUTOVER_DATE)
-    by_id = {r["legacy_member_id"]: r for r in csv.DictReader(out.open(encoding="utf-8"))}
+    by_id = {r["legacy_member_id"]: r
+             for r in csv.DictReader(out.open(encoding="utf-8"))}
+    return stats, by_id, out
+
+
+def test_tier_flags_with_cutover_date(tmp_path):
+    stats, by_id, _ = _run_with_cutover(tmp_path)
     # The unexpired annual flags; the lapsed annual and the lifetime rows do not.
     assert by_id["12500"]["legacy_tier1_annual_active_at_cutover"] == "1"
     assert by_id["12600"]["legacy_tier1_annual_active_at_cutover"] == "0"
     assert by_id["12000"]["legacy_tier1_annual_active_at_cutover"] == "0"
-    # A lapsed annual carries no flag at all: the member claims on honors alone.
+    # A lapsed Tier 1 annual carries no flag at all: the member claims on
+    # honors alone.
     assert by_id["12600"]["legacy_ever_paid_tier2"] == "0"
     assert by_id["12600"]["legacy_ever_paid_tier1_lifetime"] == "0"
+    assert stats["tier_coverage_checked"] is True
     assert stats["tier_flags"] == {
-        "legacy_ever_paid_tier2": 1,
-        "legacy_ever_paid_tier1_lifetime": 1,
-        "legacy_tier1_annual_active_at_cutover": 1,
+        "legacy_ever_paid_tier2": 4,
+        "legacy_ever_paid_tier1_lifetime": 4,
+        "legacy_tier1_annual_active_at_cutover": 2,
     }
+
+
+def test_standing_is_read_from_the_expirations_not_the_stored_code(tmp_path):
+    # The stored tier code is dead: it was written once, in a one-time
+    # conversion, and every member who first paid afterwards still carries the
+    # pre-conversion 0. These three rows all carry a stored 0 while holding
+    # live standing, and each must be flagged on the expiration columns alone.
+    _, by_id, _ = _run_with_cutover(tmp_path)
+    assert by_id["12700"]["legacy_ever_paid_tier2"] == "1"              # lifetime Tier 2
+    assert by_id["12800"]["legacy_ever_paid_tier1_lifetime"] == "1"     # lifetime Tier 1
+    assert by_id["12900"]["legacy_tier1_annual_active_at_cutover"] == "1"
+
+
+def test_lapsed_tier2_keeps_the_history_flag(tmp_path):
+    # Tier 2 standing grants expired or not, so a lapsed Tier 2 expiration
+    # still carries the flag even though the member computes as Tier 1 today.
+    _, by_id, _ = _run_with_cutover(tmp_path)
+    assert by_id["13000"]["legacy_ever_paid_tier2"] == "1"
+    assert by_id["13000"]["legacy_ever_paid_tier1_lifetime"] == "1"
+
+
+def test_a_member_may_carry_several_flags(tmp_path):
+    # Lifetime Tier 1 plus an unexpired Tier 2 sets both history flags. The
+    # claim-time grant's precedence order resolves which tier is granted; the
+    # extractor's job is to report every standing the record carries.
+    _, by_id, _ = _run_with_cutover(tmp_path)
+    assert by_id["13100"]["legacy_ever_paid_tier2"] == "1"
+    assert by_id["13100"]["legacy_ever_paid_tier1_lifetime"] == "1"
+    assert by_id["13100"]["legacy_tier1_annual_active_at_cutover"] == "0"
+
+
+def test_coverage_check_aborts_when_a_standing_is_uncarried(tmp_path):
+    # The guard against this class of defect returning: a row that computes as
+    # Tier 2 while carrying no Tier 2 flag aborts the run and leaves no CSV
+    # behind, because a wrong tier is silent everywhere downstream.
+    cols = ["MemberID", "MemberValid", "MemberIFPATier",
+            "MemberIFPAExpiration", "MemberIFPAExpiration2"]
+    create = ("CREATE TABLE `members` (\n"
+              + ",\n".join(f"  `{c}` int(11) DEFAULT NULL" for c in cols)
+              + "\n) ENGINE=MyISAM DEFAULT CHARSET=utf8;\n")
+    sql = create + "INSERT INTO `members` VALUES (7001,1,0,0,-1);\n"
+    dump, out = _write_dump(tmp_path, sql)
+
+    original = elm.derive_ever_paid_tier2
+    elm.derive_ever_paid_tier2 = lambda _raw: "0"     # the defect, reintroduced
+    try:
+        with pytest.raises(SystemExit) as exc:
+            elm.extract(dump, out, cutover_date=CUTOVER_DATE)
+    finally:
+        elm.derive_ever_paid_tier2 = original
+    assert "tier-flag quality check failed on 1 row" in str(exc.value)
+    assert "MemberID 7001" in str(exc.value)
+    assert not out.exists()
+
+
+def test_coverage_check_passes_on_the_whole_fixture(tmp_path):
+    # Every fixture row's computed standing is carried by a flag, across
+    # lifetime, annual, lapsed, never-paid and multi-standing records.
+    stats, _, out = _run_with_cutover(tmp_path)
+    assert stats["tier_coverage_checked"] is True
+    assert out.exists()

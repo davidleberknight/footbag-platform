@@ -1,0 +1,59 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  {{#if content.errorMessage}}
+    <div class="form-error-banner" role="alert">{{content.errorMessage}}</div>
+  {{/if}}
+
+  <section>
+    <div class="section-heading"><h2>Find a Historical Record</h2></div>
+    <p class="text-muted fs-sm">A historical record is a competitor from the archive who has no member account. The one thing recorded here is that the person is recognized as deceased, which stops the platform offering their record for direct claiming. Their results, honours and name stay published.</p>
+    <div class="search-box-section">
+      <form method="GET" action="/admin/historical-records" class="search-box-form">
+        <input type="text" name="q" maxlength="200"
+               placeholder="Name, or the exact record id"
+               value="{{content.query}}"
+               aria-label="Find a historical record by name or record id"
+               class="search-box-input" />
+        <button type="submit" class="btn btn-primary">Search</button>
+      </form>
+    </div>
+
+    <p class="text-muted">{{content.resultSummary}}</p>
+
+    {{#each content.results}}
+      <div class="card">
+        <div class="card-title">{{personName}}
+          {{#if isDeceased}}<span class="badge badge-tier">Recorded as deceased</span>{{/if}}
+        </div>
+        <p class="m-0 text-muted fs-sm">{{#each facts}}{{this}} &middot; {{/each}}</p>
+        {{#if isClaimed}}
+          <p class="m-0 mt-1 text-muted fs-sm">{{claimedNote}}</p>
+          <p class="m-0 mt-1"><a href="{{claimedHref}}">Open that member record</a></p>
+        {{else if isDeceased}}
+          <form method="POST" action="{{revertAction}}" class="form-block">
+            <div class="form-field">
+              <label for="revert_reason_{{personId}}">Reason (required)</label>
+              <input type="text" id="revert_reason_{{personId}}" name="reason" maxlength="500" required />
+            </div>
+            <button type="submit" class="btn btn-outline btn-sm">Review Removing the Record</button>
+          </form>
+        {{else}}
+          <form method="POST" action="{{markAction}}" class="form-block">
+            <div class="form-field">
+              <label for="mark_reason_{{personId}}">Reason (required)</label>
+              <input type="text" id="mark_reason_{{personId}}" name="reason" maxlength="500" required />
+            </div>
+            <button type="submit" class="btn btn-outline btn-sm">Review Recording as Deceased</button>
+          </form>
+        {{/if}}
+      </div>
+    {{/each}}
+  </section>
+
+  <p class="mt-4"><a href="/admin">Back to the admin dashboard</a></p>
+</div>
