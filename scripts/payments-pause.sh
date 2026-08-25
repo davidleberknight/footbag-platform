@@ -61,7 +61,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/host-env-remote.sh
 source "${SCRIPT_DIR}/lib/host-env-remote.sh"
 
-REMOTE_HALF="${SCRIPT_DIR}/internal/payments-pause-remote.sh"
+REMOTE_HALF="${SCRIPT_DIR}/internal/runtime-pause-remote.sh"
 DB_FILE_DEFAULT="/srv/footbag/db/footbag.db"
 
 TARGET="production"
@@ -122,17 +122,22 @@ if [[ "$ACTION" != "status" ]]; then
   fi
   echo "  Reason recorded: ${REASON}"
   echo ""
-  confirm_from_tty "Type ${TARGET} to ${verb}: " "$TARGET" \
-    || die "not confirmed; nothing was changed"
+  if [[ "$ASSUME_YES" == "yes" ]]; then
+    echo "  Confirmation skipped (--yes)."
+  else
+    confirm_from_tty "Type ${TARGET} to ${verb}: " "$TARGET" \
+      || die "not confirmed; nothing was changed"
+  fi
 fi
 
 result=""
-# The remote half writes progress to stderr and only the PAYMENTS_PAUSED line to
+# The remote half writes progress to stderr and only the switch-state line to
 # stdout, so a diagnostic can never be mistaken for the value.
 if ! result="$(
   {
     printf '%s\n' "$SUDO_PASS"
     printf 'DB_FILE=%q\n' "$DB_FILE"
+    printf 'CONFIG_KEY=%q\n' 'payments_paused'
     printf 'ACTION=%q\n' "$ACTION"
     printf 'REASON=%q\n' "${REASON:-status read}"
     printf 'ACTOR=%q\n' "${ACTOR:-}"
@@ -142,7 +147,7 @@ if ! result="$(
   die "the remote step failed; nothing is assumed about the switch state"
 fi
 
-state="$(printf '%s\n' "$result" | sed -n 's/^PAYMENTS_PAUSED=//p' | tail -1)"
+state="$(printf '%s\n' "$result" | sed -n 's/^SWITCH_PAUSED=//p' | tail -1)"
 [[ -n "$state" ]] || die "the host did not report a switch state"
 
 echo ""

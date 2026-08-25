@@ -19,7 +19,6 @@ process.env.FOOTBAG_DB_PATH = ':memory:';
 process.env.PUBLIC_BASE_URL = 'https://footbag.org';
 process.env.SESSION_SECRET = 'a'.repeat(48);
 process.env.INTERNAL_EVENT_SECRET = 'c'.repeat(48);
-process.env.SES_FEEDBACK_WEBHOOK_KEY = 'b'.repeat(48);
 process.env.JWT_SIGNER = 'kms'; // production mandates the KMS signer; lazy init, nothing here signs a session
 process.env.JWT_KMS_KEY_ID = 'arn:aws:kms:us-east-1:000000000000:key/abcd-efgh';
 process.env.SES_ADAPTER = 'live';

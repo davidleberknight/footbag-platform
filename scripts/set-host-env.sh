@@ -128,6 +128,10 @@ if [[ -n "$ENV_FILE_OVERRIDE" ]]; then
     echo "ERROR: --env-file mode requires ALARM_TOPIC_ARN_VALUE and SES_FEEDBACK_TOPIC_ARN_VALUE." >&2
     exit 2
   fi
+  # The queue URLs may legitimately be empty: an environment whose feed queues
+  # have not been created yet reads no feed, which is inert rather than wrong.
+  ALARM_QUEUE_VALUE="${ALARM_QUEUE_URL_VALUE:-}"
+  SES_QUEUE_VALUE="${SES_FEEDBACK_QUEUE_URL_VALUE:-}"
 else
   # The bucket name is whatever Terraform actually built. Reading it rather than
   # accepting one typed in is the difference between a timer that uploads and
@@ -161,6 +165,13 @@ else
     echo "ERROR: an SNS topic ARN output resolved empty for ${TARGET}." >&2
     exit 1
   fi
+  # The queues the worker polls. Unlike the topic ARNs these are allowed to
+  # resolve empty: the outputs answer empty until the feed queues are enabled,
+  # and a host that holds no queue URL simply reads no feed. Writing the empty
+  # value is deliberate, so a host that once held a queue URL for a queue since
+  # removed stops polling one that no longer exists.
+  ALARM_QUEUE_VALUE="$("${TF_ENV[@]}" terraform -chdir="${REPO_ROOT}/terraform/${TARGET}" output -raw alarm_queue_url 2>/dev/null || true)"
+  SES_QUEUE_VALUE="$("${TF_ENV[@]}" terraform -chdir="${REPO_ROOT}/terraform/${TARGET}" output -raw ses_feedback_queue_url 2>/dev/null || true)"
 fi
 
 echo "== set-host-env: ${TARGET} =="
@@ -170,6 +181,8 @@ echo "  TRUST_PROXY=${TRUST_PROXY_VALUE}    expected for ${TARGET}: $(expected_t
 echo "  BACKUP_S3_BUCKET=${BUCKET_VALUE}"
 echo "  ALARM_TOPIC_ARN=${ALARM_TOPIC_VALUE}"
 echo "  SES_FEEDBACK_TOPIC_ARN=${SES_TOPIC_VALUE}"
+echo "  ALARM_QUEUE_URL=${ALARM_QUEUE_VALUE:-<none: this feed is not read here>}"
+echo "  SES_FEEDBACK_QUEUE_URL=${SES_QUEUE_VALUE:-<none: this feed is not read here>}"
 echo ""
 
 if [[ "$DRY_RUN" == "1" ]]; then
@@ -220,8 +233,9 @@ fi
 # parsing cannot diverge from the diff shown below. Values travel through the
 # environment rather than argv, so nothing lands in the process table.
 TP_VALUE="$TRUST_PROXY_VALUE" BK_VALUE="$BUCKET_VALUE" \
-AT_VALUE="$ALARM_TOPIC_VALUE" ST_VALUE="$SES_TOPIC_VALUE" awk '
-  BEGIN { seen_tp = 0; seen_bk = 0; seen_at = 0; seen_st = 0 }
+AT_VALUE="$ALARM_TOPIC_VALUE" ST_VALUE="$SES_TOPIC_VALUE" \
+AQ_VALUE="${ALARM_QUEUE_VALUE:-}" SQ_VALUE="${SES_QUEUE_VALUE:-}" awk '
+  BEGIN { seen_tp = 0; seen_bk = 0; seen_at = 0; seen_st = 0; seen_aq = 0; seen_sq = 0 }
   /^TRUST_PROXY=/ {
     if (!seen_tp) { print "TRUST_PROXY=" ENVIRON["TP_VALUE"]; seen_tp = 1 }
     next
@@ -238,12 +252,28 @@ AT_VALUE="$ALARM_TOPIC_VALUE" ST_VALUE="$SES_TOPIC_VALUE" awk '
     if (!seen_st) { print "SES_FEEDBACK_TOPIC_ARN=" ENVIRON["ST_VALUE"]; seen_st = 1 }
     next
   }
+  /^ALARM_QUEUE_URL=/ {
+    if (!seen_aq) { print "ALARM_QUEUE_URL=" ENVIRON["AQ_VALUE"]; seen_aq = 1 }
+    next
+  }
+  /^SES_FEEDBACK_QUEUE_URL=/ {
+    if (!seen_sq) { print "SES_FEEDBACK_QUEUE_URL=" ENVIRON["SQ_VALUE"]; seen_sq = 1 }
+    next
+  }
   { print }
   END {
     if (!seen_tp) print "TRUST_PROXY=" ENVIRON["TP_VALUE"]
     if (!seen_bk) print "BACKUP_S3_BUCKET=" ENVIRON["BK_VALUE"]
     if (!seen_at) print "ALARM_TOPIC_ARN=" ENVIRON["AT_VALUE"]
     if (!seen_st) print "SES_FEEDBACK_TOPIC_ARN=" ENVIRON["ST_VALUE"]
+    # Appended only when there is a queue to name. An environment whose feed
+    # queues do not exist yet reads no feed either way, so writing an empty
+    # assignment would add a line that changes nothing and would make a re-run
+    # against an already-correct file report a change. A line already present is
+    # rewritten above whatever its new value, including back to empty, which is
+    # what stops a host polling a queue that has since been removed.
+    if (!seen_aq && ENVIRON["AQ_VALUE"] != "") print "ALARM_QUEUE_URL=" ENVIRON["AQ_VALUE"]
+    if (!seen_sq && ENVIRON["SQ_VALUE"] != "") print "SES_FEEDBACK_QUEUE_URL=" ENVIRON["SQ_VALUE"]
   }
 ' "$OLD_LOCAL" > "$NEW_LOCAL"
 
@@ -252,11 +282,11 @@ if diff -q "$OLD_LOCAL" "$NEW_LOCAL" >/dev/null 2>&1; then
   exit 0
 fi
 
-# The four values this script writes are not secrets and are shown in full.
+# The values this script writes are not secrets and are shown in full.
 # The file around them is not: diff prints unchanged neighbour lines, and an
 # append at the end prints the file's tail, so a session or webhook secret
 # sitting next to a rewritten line would be printed in the clear.
-echo "Diff (the four rewritten values are non-secret and shown in full;"
+echo "Diff (the rewritten values are non-secret and shown in full;"
 echo "other secrets in the surrounding context are masked):"
 echo ""
 diff -u <(host_env_mask "$OLD_LOCAL") <(host_env_mask "$NEW_LOCAL") || true

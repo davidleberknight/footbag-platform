@@ -1,15 +1,21 @@
 #!/usr/bin/env bash
-# Root-side body for reading or setting the payments kill switch on a deployed
-# host. Never run directly: it expects the variable assignments its caller
-# emits ahead of this body on the same stdin stream, and it runs as root
-# because the caller pipes it into sudo.
+# Root-side body for reading or setting one of the platform's runtime kill
+# switches on a deployed host. Never run directly: it expects the variable
+# assignments its caller emits ahead of this body on the same stdin stream, and
+# it runs as root because the caller pipes it into sudo.
 #
-# Invoked via scripts/payments-pause.sh:
+# One body serves every switch, because how a switch is written is the part that
+# must not vary: the append-only insert, the millisecond timestamp, the reason
+# quoting and the read-back are the same whether payments or outbound mail is
+# being stopped. The caller names the key and owns the wording around it.
+#
+# Invoked via scripts/payments-pause.sh or scripts/outbound-mail-pause.sh:
 #   { printf '%s\n' "$SUDO_PASS";
 #     printf 'DB_FILE=%q\n' "$path";
+#     printf 'CONFIG_KEY=%q\n' "payments_paused|email_outbox_paused";
 #     printf 'ACTION=%q\n' "status|pause|resume";
 #     printf 'REASON=%q\n' "$reason";
-#     cat scripts/internal/payments-pause-remote.sh;
+#     cat scripts/internal/runtime-pause-remote.sh;
 #   } | ssh REMOTE 'sudo -k -S -p "" bash'
 #
 # The database file is root-owned, so something has to run as root to touch it.
@@ -23,17 +29,28 @@
 # reads, so what this prints is what the running platform will act on.
 #
 # Required shell variables (emitted by the caller ahead of this body):
-#   DB_FILE  absolute path of the SQLite database
-#   ACTION   status | pause | resume
+#   DB_FILE     absolute path of the SQLite database
+#   CONFIG_KEY  which switch to read or write
+#   ACTION      status | pause | resume
 #   REASON   free text recorded on the row (ignored by status)
 #   ACTOR    member id of the operator, recorded on the row (optional)
 
 set -euo pipefail
 
 : "${DB_FILE:?remote half requires DB_FILE}"
+: "${CONFIG_KEY:?remote half requires CONFIG_KEY}"
 : "${ACTION:?remote half requires ACTION}"
-: "${REASON:=set by payments-pause.sh}"
+: "${REASON:=set by a runtime-pause script}"
 : "${ACTOR:=}"
+
+# The key names a row this body will write, so it is checked against the switches
+# that exist rather than passed through. A typo would otherwise insert a
+# configuration row nothing reads and report success: the switch would appear to
+# have moved while the platform carried on unchanged.
+case "$CONFIG_KEY" in
+  payments_paused|email_outbox_paused) ;;
+  *) echo "ERROR: unknown CONFIG_KEY '$CONFIG_KEY'." >&2; exit 1 ;;
+esac
 
 command -v sqlite3 >/dev/null 2>&1 || {
   echo "ERROR: sqlite3 CLI is not installed on this host (apt-get install -y sqlite3)." >&2
@@ -48,13 +65,13 @@ fi
 read_state() {
   sqlite3 "$DB_FILE" \
     "SELECT COALESCE((SELECT value_json FROM system_config_current
-                      WHERE config_key = 'payments_paused'), '0');"
+                      WHERE config_key = '${CONFIG_KEY}'), '0');"
 }
 
 before="$(read_state)"
 
 if [[ "$ACTION" == "status" ]]; then
-  printf 'PAYMENTS_PAUSED=%s\n' "$before"
+  printf 'SWITCH_PAUSED=%s\n' "$before"
   exit 0
 fi
 
@@ -66,7 +83,7 @@ esac
 
 if [[ "$before" == "$want" ]]; then
   echo "    already in the requested state; no row written" >&2
-  printf 'PAYMENTS_PAUSED=%s\n' "$before"
+  printf 'SWITCH_PAUSED=%s\n' "$before"
   exit 0
 fi
 
@@ -100,7 +117,7 @@ PRAGMA busy_timeout=15000;
 INSERT INTO system_config
   (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
 VALUES
-  ('${row_id}', '${now}', 'payments_paused', '${want}', '${now}',
+  ('${row_id}', '${now}', '${CONFIG_KEY}', '${want}', '${now}',
    ${reason_sql}, ${actor_sql});
 SQL
 
@@ -110,5 +127,5 @@ if [[ "$after" != "$want" ]]; then
   exit 1
 fi
 
-echo "    wrote payments_paused=${want} effective ${now}" >&2
-printf 'PAYMENTS_PAUSED=%s\n' "$after"
+echo "    wrote ${CONFIG_KEY}=${want} effective ${now}" >&2
+printf 'SWITCH_PAUSED=%s\n' "$after"

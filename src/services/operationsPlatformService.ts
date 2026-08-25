@@ -8,7 +8,8 @@
  *   - The system_job_runs lifecycle wrapper (`recordJobRun`): insert on start,
  *     succeeded/failed on completion, stale-running reap for crash recovery
  *   - Worker-loop entry points and their config-tunable intervals: outbox
- *     drain, Active Player expiry, staged-candidate expiry, batch auto-link,
+ *     drain, notification-feed drain (the bounce/complaint and alarm queues),
+ *     Active Player expiry, staged-candidate expiry, batch auto-link,
  *     PII purge scan, hashtag-stats rebuild, administrator-loss sweep, payment
  *     reconciliation, its digest and the resolved-issue purge (self-gated:
  *     reconciliation to once per UTC day, the digest to its configured interval)
@@ -75,6 +76,10 @@ import { memberService } from './memberService';
 import { hashtagDiscoveryService } from './hashtagDiscoveryService';
 import { recordOperationalError } from './operationalErrors';
 import { getCommunicationService, type ProcessBatchResult } from './communicationService';
+import { getNotificationFeedAdapter } from '../adapters/notificationFeedAdapter';
+import { publishedByExpectedTopic } from '../lib/snsSignature';
+import { sesFeedbackService } from './sesFeedbackService';
+import { systemAlarmService } from './systemAlarmService';
 import { workQueueService } from './workQueueService';
 import {
   paymentReconciliationService,
@@ -185,6 +190,95 @@ export function readContainerMemoryUsedPercent(): number | null {
  */
 export class OperationsPlatformService {
   /**
+   * Single pass over both SNS notification feeds: the SES bounce and complaint
+   * feed, and the platform alarm feed. Each queue's envelopes go to the service
+   * that owns that feed, and a message is deleted only once its service has
+   * returned. A service that throws leaves the message on the queue, so a
+   * failure the platform could not record becomes a redelivery rather than a
+   * silent loss; the queue's own redrive policy is what stops a message the
+   * platform can never handle from blocking the ones behind it.
+   *
+   * A feed with no queue or no topic configured is not read. The pairing is
+   * deliberate: the topic is what a notification is authenticated against once
+   * it arrives, so a queue read without one would consume messages the platform
+   * has no way to attribute, and a consumed message is gone.
+   */
+  async runNotificationFeeds(
+    opts: { waitTimeSeconds?: number; abortSignal?: AbortSignal } = {},
+  ): Promise<{ handled: number; skipped: number }> {
+    const feeds = [
+      {
+        name: 'ses_feedback' as const,
+        queueUrl: config.sesFeedbackQueueUrl,
+        topicArn: config.sesFeedbackTopicArn,
+        handle: (body: string): void => {
+          sesFeedbackService.processSnsMessage(body);
+        },
+      },
+      {
+        name: 'platform_alarm' as const,
+        queueUrl: config.alarmQueueUrl,
+        topicArn: config.alarmTopicArn,
+        handle: (body: string): void => {
+          systemAlarmService.processSnsMessage(body);
+        },
+      },
+    ];
+
+    let handled = 0;
+    let skipped = 0;
+    const adapter = getNotificationFeedAdapter();
+
+    for (const feed of feeds) {
+      if (!feed.queueUrl || !feed.topicArn) continue;
+      const messages = await adapter.receive(feed.queueUrl, {
+        waitTimeSeconds: opts.waitTimeSeconds,
+        abortSignal: opts.abortSignal,
+      });
+      for (const message of messages) {
+        // The publishing topic is checked here rather than left to the feed
+        // services, because it decides whether the message belongs to this feed
+        // at all. IAM authorizes the read; this is what stops a message
+        // delivered onto the wrong queue being processed as though it were the
+        // right one. A mismatch is deleted, not retried: redelivering it would
+        // only produce the same refusal until the queue aged it out.
+        if (!publishedByExpectedTopic(message.body, feed.topicArn)) {
+          skipped += 1;
+          logger.warn('notification feed: message from an unexpected topic', {
+            feed: feed.name,
+          });
+          await adapter.deleteMessage(feed.queueUrl, message.receiptHandle);
+          continue;
+        }
+        feed.handle(message.body);
+        await adapter.deleteMessage(feed.queueUrl, message.receiptHandle);
+        handled += 1;
+      }
+    }
+
+    return { handled, skipped };
+  }
+
+  /**
+   * The wait a feed poll holds its connection open for. Twenty seconds is the
+   * longest the queue service accepts and the right choice at every volume this
+   * platform sees: a longer wait costs nothing and a shorter one only turns idle
+   * time into empty requests. Not configurable, because there is no operating
+   * condition that would want it lower.
+   */
+  getNotificationFeedWaitSeconds(): number {
+    return 20;
+  }
+
+  /** Whether either notification feed is configured to be read here. */
+  hasNotificationFeeds(): boolean {
+    return Boolean(
+      (config.sesFeedbackQueueUrl && config.sesFeedbackTopicArn)
+      || (config.alarmQueueUrl && config.alarmTopicArn),
+    );
+  }
+
+  /**
    * Single iteration of the email-outbox drain. Delegates to
    * CommunicationService.processSendQueue and logs the outcome. Returns the
    * structured result so callers (worker loop, tests) can act on it.
@@ -192,7 +286,15 @@ export class OperationsPlatformService {
   async runEmailWorker(opts: { limit?: number } = {}): Promise<ProcessBatchResult> {
     const comms = getCommunicationService();
     const result = await comms.processSendQueue({ limit: opts.limit });
-    if (result.paused) {
+    if (result.sendingDark) {
+      // Production holding the stub sender is an operational state someone must
+      // act on: mail is accumulating and no member is receiving any. It is
+      // deliberate while email is dark, and production runs at the warn level,
+      // so this is where an operator finds out the queue is filling.
+      logger.warn('email worker: production is dark, outbox held', {
+        depth: this.getOutboxBacklogDepth(),
+      });
+    } else if (result.paused) {
       logger.info('email worker: paused', { ...result });
     } else if (result.claimed > 0) {
       logger.info('email worker: drained batch', { ...result });

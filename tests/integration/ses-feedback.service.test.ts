@@ -1,36 +1,29 @@
 /**
- * SES feedback webhook contract: a permanent-bounce notification marks the
- * matching member's email_status 'bounced' with an audit row; a complaint
- * marks 'complained' and outranks a bounce; transient bounces change
- * nothing; an admin-set 'suppressed' status is never overwritten; a
- * subscription-confirmation message is recorded for out-of-band operator
- * confirmation and never auto-fetched; the shared-secret query key gates
- * every request; an unsigned/forged payload is rejected even when the URL
- * key is correct.
+ * What the platform records when the mail provider reports a bounce or a
+ * complaint: a permanent bounce marks the matching member's email_status
+ * 'bounced' with an audit row; a complaint marks 'complained' and outranks a
+ * bounce; transient bounces change nothing, and a 'not-spam' report is the
+ * opposite signal and changes nothing either; an admin-set 'suppressed' status
+ * is never overwritten; a subscription confirmation is recorded for out-of-band
+ * operator action and never auto-fetched; a malformed payload is refused; and
+ * the same notification arriving twice is processed exactly once.
  *
- * Behavior tests install a permissive signature verifier (real SNS
- * signatures require AWS-signed payloads and a network cert fetch); the
- * forged-payload test runs the real verifier.
+ * These drive the service with the envelope a notification carries. The
+ * transport is a queue the worker polls: the read is authorized by the runtime
+ * role and the publishing topic is checked before anything is dispatched here,
+ * so authentication is covered where it lives rather than restated per case.
+ * That the same notification can arrive twice is a property of the queue, which
+ * is why the idempotency case matters here.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
-import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
+import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
 import { insertMember } from '../fixtures/factories';
-import {
-  setSnsSignatureVerifierForTests,
-  resetSnsSignatureVerifierForTests,
-} from '../../src/lib/snsSignature';
 
 const { dbPath } = setTestEnv('3083');
 
-let createApp: Awaited<ReturnType<typeof importApp>>;
 let db: BetterSqlite3.Database;
-
-// The webhook authenticates with its own dedicated key (the env.ts dev
-// default when the env var is unset), never with INTERNAL_EVENT_SECRET.
-const KEY = process.env.SES_FEEDBACK_WEBHOOK_KEY ?? 'dev-ses-feedback-key-not-for-prod';
-const PATH_WITH_KEY = () => `/webhooks/ses-feedback?key=${encodeURIComponent(KEY)}`;
+let feedback: typeof import('../../src/services/sesFeedbackService')['sesFeedbackService'];
 
 beforeAll(async () => {
   db = createTestDb(dbPath);
@@ -38,12 +31,10 @@ beforeAll(async () => {
   insertMember(db, { id: 'sf-2', slug: 'sf_2', login_email: 'complainer@example.com' });
   insertMember(db, { id: 'sf-3', slug: 'sf_3', login_email: 'suppressed@example.com' });
   db.prepare(`UPDATE members SET email_status = 'suppressed' WHERE id = 'sf-3'`).run();
-  setSnsSignatureVerifierForTests(async () => true);
-  createApp = await importApp();
+  ({ sesFeedbackService: feedback } = await import('../../src/services/sesFeedbackService'));
 });
 
 afterAll(() => {
-  resetSnsSignatureVerifierForTests();
   db.close();
   cleanupTestDb(dbPath);
 });
@@ -72,6 +63,21 @@ function complaintBody(emails: string[], messageId?: string): string {
   }, messageId);
 }
 
+/** A complaint carrying the feedback type the provider assigned it. */
+function typedComplaintBody(
+  emails: string[],
+  feedbackType: string,
+  messageId?: string,
+): string {
+  return snsEnvelope({
+    notificationType: 'Complaint',
+    complaint: {
+      complainedRecipients: emails.map((e) => ({ emailAddress: e })),
+      complaintFeedbackType: feedbackType,
+    },
+  }, messageId);
+}
+
 function bounceAuditsFor(maskedEmail: string): number {
   const rows = db.prepare(
     `SELECT metadata_json FROM audit_entries WHERE action_type = 'email.bounce_recorded'`,
@@ -83,47 +89,9 @@ function statusOf(id: string): string {
   return (db.prepare('SELECT email_status FROM members WHERE id = ?').get(id) as { email_status: string }).email_status;
 }
 
-describe('SES feedback webhook', () => {
-  it('rejects requests without the shared-secret key', async () => {
-    const res = await request(createApp())
-      .post('/webhooks/ses-feedback?key=wrong')
-      .type('text/plain')
-      .send(bounceBody(['bouncer@example.com']));
-    expect(res.status).toBe(401);
-    expect(statusOf('sf-1')).toBe('ok');
-  });
-
-  it('rejects the worker IPC secret: an access-log leak of this URL must not extend to the IPC endpoints, and vice versa', async () => {
-    const ipcSecret = process.env.INTERNAL_EVENT_SECRET ?? '';
-    expect(ipcSecret).not.toBe('');
-    const res = await request(createApp())
-      .post(`/webhooks/ses-feedback?key=${encodeURIComponent(ipcSecret)}`)
-      .type('text/plain')
-      .send(bounceBody(['bouncer@example.com']));
-    expect(res.status).toBe(401);
-    expect(statusOf('sf-1')).toBe('ok');
-  });
-
-  it('rejects an unsigned forged payload even with the correct URL key (the key lands in access logs; the SNS signature must gate processing)', async () => {
-    resetSnsSignatureVerifierForTests();
-    try {
-      const res = await request(createApp())
-        .post(PATH_WITH_KEY())
-        .type('text/plain')
-        .send(bounceBody(['bouncer@example.com']));
-      expect(res.status).toBe(401);
-      expect(statusOf('sf-1')).toBe('ok');
-    } finally {
-      setSnsSignatureVerifierForTests(async () => true);
-    }
-  });
-
+describe('bounce and complaint notifications', () => {
   it('a synthetic permanent bounce marks the member bounced with an audit row', async () => {
-    const res = await request(createApp())
-      .post(PATH_WITH_KEY())
-      .type('text/plain')
-      .send(bounceBody(['Bouncer@Example.com']));
-    expect(res.status).toBe(200);
+    feedback.processSnsMessage(bounceBody(['Bouncer@Example.com']));
     expect(statusOf('sf-1')).toBe('bounced');
     const audits = db.prepare(
       `SELECT metadata_json FROM audit_entries WHERE action_type = 'email.bounce_recorded'`,
@@ -147,11 +115,7 @@ describe('SES feedback webhook', () => {
                 'newsletter', 'sf-sub', 'subscribed', '2026-01-01T00:00:00.000Z')
     `).run();
 
-    const res = await request(createApp())
-      .post(PATH_WITH_KEY())
-      .type('text/plain')
-      .send(bounceBody(['subscriber@example.com']));
-    expect(res.status).toBe(200);
+    feedback.processSnsMessage(bounceBody(['subscriber@example.com']));
 
     const sub = db.prepare(
       `SELECT status FROM mailing_list_subscriptions WHERE id = 'mls-sf-sub'`,
@@ -160,37 +124,21 @@ describe('SES feedback webhook', () => {
   });
 
   it('a transient bounce changes nothing', async () => {
-    const res = await request(createApp())
-      .post(PATH_WITH_KEY())
-      .type('text/plain')
-      .send(bounceBody(['complainer@example.com'], 'Transient'));
-    expect(res.status).toBe(200);
+    feedback.processSnsMessage(bounceBody(['complainer@example.com'], 'Transient'));
     expect(statusOf('sf-2')).toBe('ok');
   });
 
   it('a complaint marks complained and outranks a prior bounce; suppressed is never overwritten', async () => {
-    await request(createApp())
-      .post(PATH_WITH_KEY())
-      .type('text/plain')
-      .send(complaintBody(['complainer@example.com']));
+    feedback.processSnsMessage(complaintBody(['complainer@example.com']));
     expect(statusOf('sf-2')).toBe('complained');
 
     // Complaint outranks the bounce already recorded for sf-1.
-    await request(createApp())
-      .post(PATH_WITH_KEY())
-      .type('text/plain')
-      .send(complaintBody(['bouncer@example.com']));
+    feedback.processSnsMessage(complaintBody(['bouncer@example.com']));
     expect(statusOf('sf-1')).toBe('complained');
 
     // Suppressed stays suppressed through both notification kinds.
-    await request(createApp())
-      .post(PATH_WITH_KEY())
-      .type('text/plain')
-      .send(bounceBody(['suppressed@example.com']));
-    await request(createApp())
-      .post(PATH_WITH_KEY())
-      .type('text/plain')
-      .send(complaintBody(['suppressed@example.com']));
+    feedback.processSnsMessage(bounceBody(['suppressed@example.com']));
+    feedback.processSnsMessage(complaintBody(['suppressed@example.com']));
     expect(statusOf('sf-3')).toBe('suppressed');
   });
 
@@ -204,10 +152,7 @@ describe('SES feedback webhook', () => {
                 'newsletter', 'sf-csub', 'subscribed', '2026-01-01T00:00:00.000Z')
     `).run();
 
-    await request(createApp())
-      .post(PATH_WITH_KEY())
-      .type('text/plain')
-      .send(complaintBody(['csub@example.com']));
+    feedback.processSnsMessage(complaintBody(['csub@example.com']));
 
     const sub = db.prepare(
       `SELECT status, updated_by, version FROM mailing_list_subscriptions WHERE id = 'mls-sf-csub'`,
@@ -222,10 +167,7 @@ describe('SES feedback webhook', () => {
     // sf-1 was escalated to complained above. A subsequent permanent bounce
     // for the same address must not pull it back to bounced.
     expect(statusOf('sf-1')).toBe('complained');
-    await request(createApp())
-      .post(PATH_WITH_KEY())
-      .type('text/plain')
-      .send(bounceBody(['bouncer@example.com']));
+    feedback.processSnsMessage(bounceBody(['bouncer@example.com']));
     expect(statusOf('sf-1')).toBe('complained');
   });
 
@@ -233,15 +175,13 @@ describe('SES feedback webhook', () => {
     insertMember(db, { id: 'sf-dup', slug: 'sf_dup', login_email: 'dup@example.com' });
     const body = bounceBody(['dup@example.com'], 'Permanent', 'sns-msg-dup-1');
 
-    const first = await request(createApp()).post(PATH_WITH_KEY()).type('text/plain').send(body);
-    expect(first.status).toBe(200);
+    const first = feedback.processSnsMessage(body);
     expect(statusOf('sf-dup')).toBe('bounced');
     expect(bounceAuditsFor('d***@example.com')).toBe(1);
 
     // Redelivery of the identical message: status already bounced, and the
     // dedupe must prevent a second audit row.
-    const second = await request(createApp()).post(PATH_WITH_KEY()).type('text/plain').send(body);
-    expect(second.status).toBe(200);
+    const second = feedback.processSnsMessage(body);
     expect(statusOf('sf-dup')).toBe('bounced');
     expect(bounceAuditsFor('d***@example.com')).toBe(1);
 
@@ -251,15 +191,11 @@ describe('SES feedback webhook', () => {
   });
 
   it('a subscription confirmation is recorded for the operator, never auto-fetched', async () => {
-    const res = await request(createApp())
-      .post(PATH_WITH_KEY())
-      .type('text/plain')
-      .send(JSON.stringify({
+    feedback.processSnsMessage(JSON.stringify({
         Type: 'SubscriptionConfirmation',
         TopicArn: 'arn:aws:sns:us-east-1:000:t',
         SubscribeURL: 'https://sns.us-east-1.amazonaws.com/confirm?token=abc',
       }));
-    expect(res.status).toBe(200);
     const audits = db.prepare(
       `SELECT metadata_json FROM audit_entries WHERE action_type = 'email.sns_subscription_pending'`,
     ).all() as Array<{ metadata_json: string }>;
@@ -272,14 +208,34 @@ describe('SES feedback webhook', () => {
     expect(audits[0].metadata_json).not.toContain('sns.us-east-1.amazonaws.com');
   });
 
-  it('refuses a malformed payload, because it cannot be authenticated', async () => {
-    // An unparseable body carries no publishing topic, so it cannot clear the
-    // topic check and is refused rather than acknowledged. The sender does not
-    // redeliver: a 401 is a permanent failure to it, only 5xx and 429 retry.
-    const res = await request(createApp())
-      .post(PATH_WITH_KEY())
-      .type('text/plain')
-      .send('this is not json');
-    expect(res.status).toBe(401);
+  it('a not-spam report leaves the mailbox deliverable', () => {
+    // The recipient told their provider this mail was wrongly filtered, which
+    // arrives on the same notification type as an abuse report. Acting on it
+    // would let a member's vote of confidence be the thing that stops their
+    // mail, and terminally: nothing downgrades a complained mailbox.
+    insertMember(db, { id: 'sf-notspam', slug: 'sf_notspam', login_email: 'notspam@example.com' });
+    feedback.processSnsMessage(
+      typedComplaintBody(['notspam@example.com'], 'not-spam', 'sns-not-spam'),
+    );
+    expect(statusOf('sf-notspam')).toBe('ok');
+  });
+
+  it('an abuse report is still a complaint', () => {
+    // The feedback type narrows what counts as a complaint; it must not become
+    // a hole that lets a real abuse report through unrecorded.
+    insertMember(db, { id: 'sf-abuse', slug: 'sf_abuse', login_email: 'abuse@example.com' });
+    feedback.processSnsMessage(
+      typedComplaintBody(['abuse@example.com'], 'abuse', 'sns-abuse'),
+    );
+    expect(statusOf('sf-abuse')).toBe('complained');
+  });
+
+  it('ignores a malformed payload rather than throwing on it', () => {
+    // An unparseable body is reported, not raised: the feed loop deletes a
+    // message the service returns on and leaves one it throws on for
+    // redelivery, and redelivering a payload that will never parse would have
+    // the queue hand back the same body until it aged out.
+    const result = feedback.processSnsMessage('this is not json');
+    expect(result).toEqual({ status: 'ignored', reason: 'malformed' });
   });
 });

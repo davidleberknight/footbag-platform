@@ -658,3 +658,74 @@ resource "aws_sns_topic_subscription" "alarm_email_us_east_1" {
   protocol  = "email"
   endpoint  = var.alarm_email
 }
+
+# A notification that reached its dead-letter queue is one the platform never
+# recorded: a bounce that leaves a dead mailbox looking deliverable, or an alarm
+# nobody sees. The queue holds it for two weeks, which is only useful if someone
+# is told it is there, so each dead-letter queue is watched. One message is worth
+# waking on: these queues are empty in normal operation, so any depth at all is
+# the signal.
+resource "aws_cloudwatch_metric_alarm" "ses_feedback_feed_dlq_depth" {
+  count               = var.enable_feed_queues ? 1 : 0
+  alarm_name          = "${local.prefix}-ses-feedback-feed-dlq"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  metric_name         = "ApproximateNumberOfMessagesVisible"
+  namespace           = "AWS/SQS"
+  period              = 300
+  statistic           = "Maximum"
+  threshold           = 1
+  treat_missing_data  = "notBreaching"
+  alarm_description   = "A bounce or complaint notification could not be processed and is held in the dead-letter queue; until it is handled the platform's record of which mailboxes are dead is incomplete"
+  alarm_actions       = [aws_sns_topic.alarms.arn]
+  ok_actions          = [aws_sns_topic.alarms.arn]
+
+  dimensions = {
+    QueueName = aws_sqs_queue.ses_feedback_feed_dlq[0].name
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "alarm_feed_dlq_depth" {
+  count               = var.enable_feed_queues ? 1 : 0
+  alarm_name          = "${local.prefix}-alarm-feed-dlq"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  metric_name         = "ApproximateNumberOfMessagesVisible"
+  namespace           = "AWS/SQS"
+  period              = 300
+  statistic           = "Maximum"
+  threshold           = 1
+  treat_missing_data  = "notBreaching"
+  alarm_description   = "An alarm notification could not be processed and is held in the dead-letter queue, so it never reached the administrator surface; the operator mailbox still received it"
+  alarm_actions       = [aws_sns_topic.alarms.arn]
+  ok_actions          = [aws_sns_topic.alarms.arn]
+
+  dimensions = {
+    QueueName = aws_sqs_queue.alarm_feed_dlq[0].name
+  }
+}
+
+# The feed itself falling behind. A worker that has stopped polling leaves
+# notifications waiting rather than losing them, which is the whole point of the
+# queue, but it is still a failure: bounces stop being recorded and alarms stop
+# reaching the administrator surface while everything else looks healthy. Fifteen
+# minutes of unread age is well past any deploy.
+resource "aws_cloudwatch_metric_alarm" "ses_feedback_feed_age" {
+  count               = var.enable_feed_queues ? 1 : 0
+  alarm_name          = "${local.prefix}-ses-feedback-feed-age"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 2
+  metric_name         = "ApproximateAgeOfOldestMessage"
+  namespace           = "AWS/SQS"
+  period              = 300
+  statistic           = "Maximum"
+  threshold           = 900
+  treat_missing_data  = "notBreaching"
+  alarm_description   = "Bounce and complaint notifications are waiting unread, so the worker is not polling the feed"
+  alarm_actions       = [aws_sns_topic.alarms.arn]
+  ok_actions          = [aws_sns_topic.alarms.arn]
+
+  dimensions = {
+    QueueName = aws_sqs_queue.ses_feedback_feed[0].name
+  }
+}

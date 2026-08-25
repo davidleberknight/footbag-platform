@@ -159,6 +159,44 @@ describe('set-host-env.sh rewrite contract', () => {
       expect(readFileSync(path, 'utf-8')).toBe(contents);
     });
   });
+
+  it('writes the queue the worker polls when there is one to name', () => {
+    withEnvFile('TRUST_PROXY=2\n', (path) => {
+      const r = run(['--target', 'staging', '--env-file', path], {
+        BACKUP_S3_BUCKET_VALUE: 'b',
+        ALARM_QUEUE_URL_VALUE: 'https://sqs.us-east-1.amazonaws.com/000/alarm-feed',
+        SES_FEEDBACK_QUEUE_URL_VALUE: 'https://sqs.us-east-1.amazonaws.com/000/ses-feed',
+      });
+      expect(r.exitCode).toBe(0);
+      const written = readFileSync(path, 'utf-8');
+      expect(written).toContain('ALARM_QUEUE_URL=https://sqs.us-east-1.amazonaws.com/000/alarm-feed');
+      expect(written).toContain('SES_FEEDBACK_QUEUE_URL=https://sqs.us-east-1.amazonaws.com/000/ses-feed');
+    });
+  });
+
+  it('adds no queue line for an environment that has no queues yet', () => {
+    // An empty assignment reads no feed either way, so appending one would put a
+    // line in the file that changes nothing and would make a re-run against an
+    // already-correct host report a change it did not make.
+    withEnvFile('TRUST_PROXY=2\n', (path) => {
+      const r = run(['--target', 'staging', '--env-file', path], { BACKUP_S3_BUCKET_VALUE: 'b' });
+      expect(r.exitCode).toBe(0);
+      expect(readFileSync(path, 'utf-8')).not.toContain('QUEUE_URL');
+    });
+  });
+
+  it('clears a queue line already on the host when the queue is gone', () => {
+    // The host must stop polling a queue that no longer exists. A line already
+    // present is rewritten whatever its new value, empty included, which is what
+    // an existing assignment and an absent one differ on.
+    withEnvFile('TRUST_PROXY=2\nALARM_QUEUE_URL=https://sqs.us-east-1.amazonaws.com/000/retired\n',
+      (path) => {
+        const r = run(['--target', 'staging', '--env-file', path], { BACKUP_S3_BUCKET_VALUE: 'b' });
+        expect(r.exitCode).toBe(0);
+        expect(readFileSync(path, 'utf-8')).toContain('ALARM_QUEUE_URL=\n');
+        expect(readFileSync(path, 'utf-8')).not.toContain('retired');
+      });
+  });
 });
 
 describe('set-host-env.sh refusals', () => {

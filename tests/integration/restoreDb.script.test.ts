@@ -246,13 +246,31 @@ describe('restoring a snapshot onto a host', () => {
 });
 
 describe('the operator-facing restore script', () => {
-  function runOperator(args: string[]): { status: number; stdout: string; stderr: string } {
+  function runOperator(
+    args: string[],
+    env?: NodeJS.ProcessEnv,
+  ): { status: number; stdout: string; stderr: string } {
     const res = spawnSync('setsid', ['bash', OPERATOR_SCRIPT, ...args], {
       encoding: 'utf8',
       input: '',
+      ...(env ? { env } : {}),
       ...SPAWN_GUARD,
     });
     return { status: res.status ?? -1, stdout: res.stdout ?? '', stderr: res.stderr ?? '' };
+  }
+
+  /**
+   * An AWS CLI that answers the way an unusable one does: 253 is what it returns
+   * when the environment or profile it was told to use does not resolve, which is
+   * the state of any machine that holds no credentials for this account.
+   */
+  function withBrokenAws(): NodeJS.ProcessEnv {
+    const stubDir = join(workDir, 'broken-bin');
+    mkdirSync(stubDir, { recursive: true });
+    const stub = join(stubDir, 'aws');
+    writeFileSync(stub, ['#!/usr/bin/env bash', 'exit 253'].join('\n'));
+    chmodSync(stub, 0o755);
+    return { ...process.env, PATH: `${stubDir}:${process.env.PATH ?? ''}` };
   }
 
   it('refuses without a destination rather than choosing one', () => {
@@ -287,6 +305,20 @@ describe('the operator-facing restore script', () => {
     const existing = join(workDir, 'already-here.db');
     writeFileSync(existing, 'do not clobber me');
     const res = runOperator(['--to-local', existing, '--source', 'staging']);
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain('refusing to overwrite');
+    expect(readFileSync(existing, 'utf8')).toBe('do not clobber me');
+  });
+
+  it('refuses to overwrite before it needs AWS, so the refusal survives a machine with no credentials', () => {
+    // The destination check is a local fact and must answer first. Behind a
+    // snapshot listing it never runs on a machine whose AWS CLI cannot resolve
+    // an account: the listing fails, the script exits on that instead, and the
+    // operator is told about credentials rather than about the file they were
+    // about to lose.
+    const existing = join(workDir, 'guarded.db');
+    writeFileSync(existing, 'do not clobber me');
+    const res = runOperator(['--to-local', existing, '--source', 'staging'], withBrokenAws());
     expect(res.status).toBe(1);
     expect(res.stderr).toContain('refusing to overwrite');
     expect(readFileSync(existing, 'utf8')).toBe('do not clobber me');

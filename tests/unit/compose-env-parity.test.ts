@@ -216,7 +216,6 @@ const STAGING_FIXTURE: Record<string, string> = {
   // Deployed hosts get this from Parameter Store via the deploy, and the prod
   // overlay requires it rather than defaulting, so the fixture supplies it.
   LOG_LEVEL: 'warn',
-  // SES_FEEDBACK_WEBHOOK_KEY deliberately absent: staging runs the SES stub
   // and must boot without the feedback-webhook key (env.ts requires it only
   // when SES_ADAPTER=live).
   // Match PRODUCTION_FIXTURE for the intra-docker URL vars. Without these,
@@ -282,7 +281,6 @@ const PRODUCTION_FIXTURE: Record<string, string> = {
   CAPTCHA_ADAPTER: 'live',
   TURNSTILE_SITE_KEY: '0xSTUBPRODSITEKEY',
   INTERNAL_EVENT_SECRET: 'a'.repeat(48),
-  SES_FEEDBACK_WEBHOOK_KEY: 'b'.repeat(48),
   LOG_LEVEL: 'warn',
   WORKER_INTERNAL_URL: 'http://worker:3100',
   WEB_INTERNAL_URL: 'http://web:3000',

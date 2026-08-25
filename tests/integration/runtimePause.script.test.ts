@@ -1,5 +1,5 @@
 /**
- * scripts/internal/payments-pause-remote.sh -- the payments kill switch.
+ * scripts/internal/runtime-pause-remote.sh -- the platform's runtime kill switches.
  *
  * A real run reaches a deployed host over ssh, which CI cannot exercise. The
  * root-side body is the whole of the behaviour, though: it takes its inputs as
@@ -13,9 +13,15 @@
  * is recorded verbatim including one carrying an apostrophe; and the body
  * refuses rather than guesses when the database is absent.
  *
- * This matters because until this script existed the documented kill switch
+ * One body serves every switch, so the same cases cover payments and outbound
+ * mail: how a switch is written is the part that must not vary between them.
+ * The key it is given is checked against the switches that exist, because a
+ * typo would otherwise write a configuration row nothing reads and report
+ * success, leaving the switch apparently moved and the platform unchanged.
+ *
+ * This matters because until these scripts existed the documented kill switches
  * could only be pulled by hand-writing SQL into the production database during
- * an incident: the application has no write path to it and none is planned.
+ * an incident: the application has no write path to either and none is planned.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
@@ -26,7 +32,9 @@ import BetterSqlite3 from 'better-sqlite3';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 
-const REMOTE_HALF = join(process.cwd(), 'scripts/internal/payments-pause-remote.sh');
+const REMOTE_HALF = join(process.cwd(), 'scripts/internal/runtime-pause-remote.sh');
+const PAYMENTS_KEY = 'payments_paused';
+const EMAIL_KEY = 'email_outbox_paused';
 const SCHEMA = join(process.cwd(), 'database/schema.sql');
 
 let workDir: string;
@@ -40,7 +48,7 @@ interface RunResult {
 
 function run(env: Record<string, string>): RunResult {
   const res = spawnSync('bash', [REMOTE_HALF], {
-    env: { ...process.env, ...SPAWN_GUARD, ...env },
+    env: { ...process.env, ...SPAWN_GUARD, CONFIG_KEY: PAYMENTS_KEY, ...env },
     encoding: 'utf8',
   });
   return {
@@ -51,7 +59,7 @@ function run(env: Record<string, string>): RunResult {
 }
 
 function reportedState(res: RunResult): string {
-  const match = /^PAYMENTS_PAUSED=(\d)$/m.exec(res.stdout);
+  const match = /^SWITCH_PAUSED=(\d)$/m.exec(res.stdout);
   expect(match, `no state line in stdout:\n${res.stdout}\n${res.stderr}`).not.toBeNull();
   return match![1];
 }
@@ -68,18 +76,18 @@ function withDb<T>(fn: (db: BetterSqlite3.Database) => T): T {
 /** Every payments_paused row, oldest first. The schema seeds one at its
  *  default, so these are counted from a baseline rather than from zero: what
  *  matters is what the script added. */
-function pauseRows(): { value_json: string; reason_text: string }[] {
+function pauseRows(key: string = PAYMENTS_KEY): { value_json: string; reason_text: string }[] {
   return withDb((db) => db.prepare(
     `SELECT value_json, reason_text FROM system_config
-     WHERE config_key = 'payments_paused' ORDER BY effective_start_at`,
-  ).all() as { value_json: string; reason_text: string }[]);
+     WHERE config_key = ? ORDER BY effective_start_at`,
+  ).all(key) as { value_json: string; reason_text: string }[]);
 }
 
-let seededRows = 0;
+let seededRows: Record<string, number> = {};
 
 /** The rows this test wrote, with the seeded default excluded. */
-function writtenRows(): { value_json: string; reason_text: string }[] {
-  return pauseRows().slice(seededRows);
+function writtenRows(key: string = PAYMENTS_KEY): { value_json: string; reason_text: string }[] {
+  return pauseRows(key).slice(seededRows[key] ?? 0);
 }
 
 beforeEach(() => {
@@ -88,7 +96,10 @@ beforeEach(() => {
   const db = new BetterSqlite3(dbFile);
   db.exec(readFileSync(SCHEMA, 'utf8'));
   db.close();
-  seededRows = pauseRows().length;
+  seededRows = {
+    [PAYMENTS_KEY]: pauseRows(PAYMENTS_KEY).length,
+    [EMAIL_KEY]: pauseRows(EMAIL_KEY).length,
+  };
 });
 
 afterEach(() => {
@@ -208,5 +219,92 @@ describe('pausing and resuming', () => {
     // record with duplicates.
     expect(writtenRows()).toHaveLength(1);
     expect(res.stderr).toContain('already in the requested state');
+  });
+});
+
+describe('the outbound-mail switch', () => {
+  it('pauses outbound mail without touching payments', () => {
+    const res = run({ DB_FILE: dbFile, CONFIG_KEY: EMAIL_KEY, ACTION: 'pause', REASON: 'wrong template went out' });
+    expect(res.exitCode).toBe(0);
+    expect(reportedState(res)).toBe('1');
+
+    const effective = withDb((db) => db.prepare(
+      `SELECT value_json FROM system_config_current WHERE config_key = ?`,
+    ).get(EMAIL_KEY) as { value_json: string });
+    expect(effective.value_json).toBe('1');
+
+    // The two switches are independent levers. Stopping mail must not stop
+    // money, or an operator reaching for one gets the other as well.
+    expect(writtenRows(PAYMENTS_KEY)).toHaveLength(0);
+  });
+
+  it('resumes outbound mail, and both flips stay on the record', () => {
+    run({ DB_FILE: dbFile, CONFIG_KEY: EMAIL_KEY, ACTION: 'pause', REASON: 'stop' });
+    run({ DB_FILE: dbFile, CONFIG_KEY: EMAIL_KEY, ACTION: 'resume', REASON: 'template corrected' });
+    const rows = writtenRows(EMAIL_KEY);
+    expect(rows.map((r) => r.value_json)).toEqual(['1', '0']);
+    expect(rows.map((r) => r.reason_text)).toEqual(['stop', 'template corrected']);
+  });
+
+  it('refuses a switch that does not exist rather than writing a row nothing reads', () => {
+    // A configuration row under a mistyped key is read by nothing, so the write
+    // would succeed, the script would report the switch moved, and the platform
+    // would carry on unchanged. That is the worst outcome available here.
+    const res = run({ DB_FILE: dbFile, CONFIG_KEY: 'emails_paused', ACTION: 'pause', REASON: 'typo' });
+    expect(res.exitCode).not.toBe(0);
+    expect(res.stderr).toContain('unknown CONFIG_KEY');
+    expect(withDb((db) => (db.prepare(
+      `SELECT COUNT(*) AS n FROM system_config WHERE config_key = 'emails_paused'`,
+    ).get() as { n: number }).n)).toBe(0);
+  });
+});
+
+describe('the wire the operator half actually uses', () => {
+  /**
+   * The operator half does not pass these as environment variables: it prints
+   * shell assignments ahead of the body on one stdin stream, the same way every
+   * privileged remote step here carries its values. That quoting is what a
+   * reason typed in prose during an incident passes through, so it is exercised
+   * in the form it really takes rather than in the convenient one.
+   */
+  function runOverWire(assignments: Record<string, string>): RunResult {
+    const body = readFileSync(REMOTE_HALF, 'utf8');
+    const lines = Object.entries(assignments)
+      .map(([name, value]) => `${name}=${quoteForShell(value)}`)
+      .join('\n');
+    const res = spawnSync('bash', ['-s'], {
+      input: `${lines}\n${body}`,
+      encoding: 'utf8',
+      ...SPAWN_GUARD,
+    });
+    return { exitCode: res.status ?? -1, stdout: res.stdout ?? '', stderr: res.stderr ?? '' };
+  }
+
+  /** What printf '%q' produces for these values. */
+  function quoteForShell(value: string): string {
+    return `'${value.replace(/'/g, `'\\''`)}'`;
+  }
+
+  it('carries a multi-line reason pasted out of an incident thread', () => {
+    const reason = "duplicate sends reported\nby two members; operator's call";
+    const res = runOverWire({
+      DB_FILE: dbFile,
+      CONFIG_KEY: EMAIL_KEY,
+      ACTION: 'pause',
+      REASON: reason,
+      ACTOR: '',
+    });
+    expect(res.exitCode).toBe(0);
+    expect(reportedState(res)).toBe('1');
+
+    const rows = writtenRows(EMAIL_KEY);
+    expect(rows).toHaveLength(1);
+    // Collapsed to one line, because a SQL string literal cannot span an
+    // unquoted newline, and every word survives: the reason is the only thing
+    // that tells the next person why mail stopped.
+    expect(rows[0].reason_text).not.toContain('\n');
+    for (const word of ['duplicate', 'sends', 'reported', 'members', "operator's"]) {
+      expect(rows[0].reason_text).toContain(word);
+    }
   });
 });

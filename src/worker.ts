@@ -1,7 +1,7 @@
 /**
  * Worker entry point.
  *
- * Hosts three concerns in one Node process:
+ * Hosts four concerns in one Node process:
  *   1. Email-outbox polling loop: drains transactional emails. Polling is
  *      fine here because outbound email is not a foreground UX.
  *   2. Daily jobs loop: Active Player expiry (Tier 0 scan, reminder enqueue,
@@ -11,7 +11,12 @@
  *      system_job_runs row per job per pass. A job needing a
  *      slower or wall-clock cadence self-gates inside its service rather than
  *      owning a loop.
- *   3. Curator video transcode HTTP server: receives /transcode/dispatch
+ *   3. Notification feed loop: drains the SES bounce/complaint queue and the
+ *      platform alarm queue, handing each envelope to the service that owns
+ *      that feed. Reading these from a queue rather than being pushed to over
+ *      HTTPS is what makes a notification arriving while the platform is down
+ *      wait to be read instead of being discarded.
+ *   4. Curator video transcode HTTP server: receives /transcode/dispatch
  *      pushes from the web container, runs ffmpeg, posts state events back.
  *      Dispatch is event-driven; a recurring reap loop re-runs the
  *      expired-lease recovery pass, because a job claimed just before a
@@ -30,6 +35,14 @@ import { checkpointAndCloseDatabase } from './db/db';
 import { initDataOrigin } from './services/dataOriginService';
 
 let stopping = false;
+
+/** Pause after a feed read fails, so a persistent failure is not a hot loop. */
+const FEED_ERROR_BACKOFF_MS = 30_000;
+
+// Aborts the in-flight feed poll at shutdown. The poll waits with the
+// connection open, so without this the loop is unreachable for the length of a
+// wait and a shutdown lands inside one.
+const feedPollAbort = new AbortController();
 
 // Do NOT unref() the email-outbox sleep timer: better-sqlite3 is synchronous,
 // so an unref'd timer lets Node exit the event loop mid-sleep (exit code 0,
@@ -68,6 +81,43 @@ async function emailOutboxLoop(): Promise<void> {
     await sleep(intervalMs);
   }
   logger.info('worker: email-outbox loop stopped');
+}
+
+/**
+ * Drains the SES bounce/complaint and platform alarm queues.
+ *
+ * The poll holds its connection open waiting for a message, which is what keeps
+ * an idle feed cheap and is also why this loop needs an abort: for the length of
+ * a wait it is unreachable, and a shutdown arriving mid-wait would otherwise sit
+ * on a database that has already been closed. Aborting on the signal turns that
+ * wait into an ordinary return.
+ */
+async function notificationFeedLoop(abortSignal: AbortSignal): Promise<void> {
+  if (!operationsPlatformService.hasNotificationFeeds()) {
+    logger.info('worker: notification feeds not configured, loop not started');
+    return;
+  }
+  logger.info('worker: notification feed loop started');
+  while (!stopping) {
+    try {
+      await operationsPlatformService.runNotificationFeeds({
+        waitTimeSeconds: operationsPlatformService.getNotificationFeedWaitSeconds(),
+        abortSignal,
+      });
+    } catch (err) {
+      if (stopping) break;
+      // A feed that cannot be read is one an operator must act on: bounces stop
+      // reaching the suppression record and alarms stop reaching the admin
+      // surface, and neither failure is visible anywhere else. The short pause
+      // keeps a persistent failure from becoming a hot loop against AWS.
+      logger.error('worker: notification feed unexpected error', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      if (stopping) break;
+      await sleep(FEED_ERROR_BACKOFF_MS);
+    }
+  }
+  logger.info('worker: notification feed loop stopped');
 }
 
 async function activePlayerExpiryLoop(): Promise<void> {
@@ -228,6 +278,9 @@ function shutdown(signal: NodeJS.Signals): void {
   // job. Checkpoint the WAL and close so the on-disk DB is consistent for the
   // post-stop host backup.
   stopping = true;
+  // The feed poll is the one wait long enough to still be in flight when the
+  // database closes below, so it is cut rather than waited out.
+  feedPollAbort.abort();
   if (transcodeServer) {
     transcodeServer.close().catch((err) => {
       logger.warn('worker: transcode server close error', {
@@ -261,6 +314,12 @@ process.on('SIGINT', shutdown);
   });
   activePlayerExpiryLoop().catch((err) => {
     logger.error('worker: fatal AP expiry loop error', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    process.exit(1);
+  });
+  notificationFeedLoop(feedPollAbort.signal).catch((err) => {
+    logger.error('worker: fatal notification feed loop error', {
       error: err instanceof Error ? err.message : String(err),
     });
     process.exit(1);

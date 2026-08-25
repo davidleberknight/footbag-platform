@@ -125,33 +125,52 @@ resource "aws_sns_topic" "ses_feedback" {
 # environment's own, so it stays: the webhook subscription below is what staging
 # exercises.
 
-resource "aws_sns_topic_subscription" "ses_feedback_webhook" {
-  count                  = var.ses_feedback_webhook_url == "" ? 0 : 1
-  topic_arn              = aws_sns_topic.ses_feedback.arn
-  protocol               = "https"
-  endpoint               = var.ses_feedback_webhook_url
-  endpoint_auto_confirms = false
+# SES feedback loop -- bounce/complaint notifications to the worker's queue
+# =============================================================================
+# The queue transport is how the application is meant to read this feed. SNS
+# gives an HTTPS endpoint three retries inside a one-hour ceiling and then
+# discards the message; a queue subscription holds it for the queue's retention
+# window instead, so a bounce arriving during a deploy waits rather than
+# vanishing. Delivery is authorized by the runtime role's IAM grant, so the feed
+# needs no shared secret and nothing lands in an access log.
+#
+# Raw message delivery stays off. The queue body is then the same SNS envelope
+# an HTTPS endpoint receives, carrying MessageId and TopicArn, which is what the
+# application claims for idempotency and checks against the configured topic.
+#
+# The sender identity's notification settings belong to production, as recorded
+# above, so nothing publishes here on its own. This environment is where the
+# queue path is rehearsed: a message published to the topic by hand exercises
+# the whole poll, and that is the rehearsal production's first real bounce
+# should not be.
 
-  # SNS retries an HTTPS endpoint three times inside a one-hour ceiling and then
-  # discards the message, so without this a bounce arriving during a deploy is
-  # lost. The account-level suppression list still stops SES sending to a
-  # hard-bounced address, so the loss here is the platform's own record of which
-  # member bounced rather than a sending risk, but that record is what the admin
-  # surfaces read.
+resource "aws_sqs_queue" "ses_feedback_feed" {
+  count                      = var.enable_feed_queues ? 1 : 0
+  name                       = "${local.prefix}-ses-feedback-feed"
+  message_retention_seconds  = 1209600
+  visibility_timeout_seconds = 60
+  sqs_managed_sse_enabled    = true
+
+  # A message the worker keeps failing on must stop blocking the ones behind it.
+  # Five attempts is enough to ride out a restart or a locked database and short
+  # enough that a message the application cannot parse reaches the dead-letter
+  # queue while an operator can still act on the retention window.
   redrive_policy = jsonencode({
-    deadLetterTargetArn = aws_sqs_queue.ses_feedback_webhook_dlq[0].arn
+    deadLetterTargetArn = aws_sqs_queue.ses_feedback_feed_dlq[0].arn
+    maxReceiveCount     = 5
   })
 }
 
-resource "aws_sqs_queue" "ses_feedback_webhook_dlq" {
-  count                     = var.ses_feedback_webhook_url == "" ? 0 : 1
-  name                      = "${local.prefix}-ses-feedback-webhook-dlq"
+resource "aws_sqs_queue" "ses_feedback_feed_dlq" {
+  count                     = var.enable_feed_queues ? 1 : 0
+  name                      = "${local.prefix}-ses-feedback-feed-dlq"
   message_retention_seconds = 1209600
+  sqs_managed_sse_enabled   = true
 }
 
-resource "aws_sqs_queue_policy" "ses_feedback_webhook_dlq" {
-  count     = var.ses_feedback_webhook_url == "" ? 0 : 1
-  queue_url = aws_sqs_queue.ses_feedback_webhook_dlq[0].id
+resource "aws_sqs_queue_policy" "ses_feedback_feed" {
+  count     = var.enable_feed_queues ? 1 : 0
+  queue_url = aws_sqs_queue.ses_feedback_feed[0].id
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -159,10 +178,18 @@ resource "aws_sqs_queue_policy" "ses_feedback_webhook_dlq" {
       Effect    = "Allow"
       Principal = { Service = "sns.amazonaws.com" }
       Action    = "sqs:SendMessage"
-      Resource  = aws_sqs_queue.ses_feedback_webhook_dlq[0].arn
+      Resource  = aws_sqs_queue.ses_feedback_feed[0].arn
       Condition = {
         ArnEquals = { "aws:SourceArn" = aws_sns_topic.ses_feedback.arn }
       }
     }]
   })
+}
+
+resource "aws_sns_topic_subscription" "ses_feedback_feed" {
+  count                = var.enable_feed_queues ? 1 : 0
+  topic_arn            = aws_sns_topic.ses_feedback.arn
+  protocol             = "sqs"
+  endpoint             = aws_sqs_queue.ses_feedback_feed[0].arn
+  raw_message_delivery = false
 }

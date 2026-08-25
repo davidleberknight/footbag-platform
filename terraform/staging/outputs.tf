@@ -103,3 +103,13 @@ output "ses_configuration_set_bulk" {
   description = "SES configuration set carrying the bulk sending reputation. Read by scripts/test-smoke.sh so the raw-MIME probe names a set that exists in the environment under test."
   value       = aws_ses_configuration_set.bulk.name
 }
+
+output "ses_feedback_queue_url" {
+  description = "URL of the SQS queue carrying SES bounce and complaint notifications. The worker polls it; it is set on the host by scripts/set-host-env.sh, and is empty until the feed queues are enabled."
+  value       = var.enable_feed_queues ? aws_sqs_queue.ses_feedback_feed[0].url : ""
+}
+
+output "alarm_queue_url" {
+  description = "URL of the SQS queue carrying platform alarm notifications. The worker polls it; it is set on the host by scripts/set-host-env.sh, and is empty until the feed queues are enabled."
+  value       = var.enable_feed_queues ? aws_sqs_queue.alarm_feed[0].url : ""
+}

@@ -21,11 +21,11 @@
 #     arrive a week or two later into an endpoint Stripe has given up on.
 #
 #   email, going armed: the process REFUSES TO BOOT with the live SES adapter
-#     unless SES_FEEDBACK_WEBHOOK_KEY is on the host, so arming email without
-#     it takes production down rather than turning mail on. The sender identity
-#     must also be verified and the account out of the SES sandbox, or mail is
-#     accepted and delivered nowhere. This script cannot check any of that from
-#     here, so it states each one and requires the operator to confirm it.
+#     unless the bounce and complaint queue is on the host, so mail would go out
+#     with nothing recording which addresses died. The sender identity must also
+#     be verified and the account out of the SES sandbox, or mail is accepted and
+#     delivered nowhere. This script cannot check any of that from here, so it
+#     states each one and requires the operator to confirm it.
 #
 # This script is the FULL stop, not the first one to reach for. The fast stop is
 # scripts/payments-pause.sh, which sets the platform's payments_paused runtime
@@ -251,6 +251,8 @@ elif [[ "$SWITCH" == "payments" && "$STATE" == "armed" ]]; then
   PRECONDITION="payments-readiness"
 elif [[ "$SWITCH" == "email" && "$STATE" == "armed" ]]; then
   PRECONDITION="ses-readiness"
+elif [[ "$SWITCH" == "email" && "$STATE" == "dark" ]]; then
+  PRECONDITION="outbox-drained"
 fi
 
 # Reads a secret parameter's value only to classify it: present and real, still
@@ -292,9 +294,16 @@ if (( DRY_RUN )); then
       echo "     finished takes production down instead of turning payments on."
       ;;
     ses-readiness)
-      echo "  1. Confirm every SES precondition, one at a time. The live SES adapter"
-      echo "     REFUSES TO BOOT without SES_FEEDBACK_WEBHOOK_KEY on the host, so"
-      echo "     arming without it takes production down instead of turning mail on."
+      echo "  1. Confirm every SES precondition, one at a time. Without the bounce"
+      echo "     and complaint queue on the host, arming turns mail on with nothing"
+      echo "     recording which addresses died."
+      ;;
+    outbox-drained)
+      echo "  1. Confirm what happens to mail already queued. Disarming is not a"
+      echo "     pause: a dark production holds the outbox rather than draining it,"
+      echo "     so queued mail waits, undelivered, until email is armed again."
+      echo "     To stop mail and then continue, the reversible lever is"
+      echo "     scripts/outbound-mail-pause.sh, which needs no deploy."
       ;;
     *)
       echo "  1. (no provider-side precondition for $SWITCH going $STATE)"
@@ -345,14 +354,13 @@ if (( FROM_STEP <= 1 )) && [[ "$PRECONDITION" == "ses-readiness" ]]; then
   echo ""
   echo "Arming email with any of these unmet does harm rather than nothing:"
   echo ""
-  echo "  a. SES_FEEDBACK_WEBHOOK_KEY is installed on the host."
-  echo "     Without it the process REFUSES TO BOOT under the live SES adapter, so"
-  echo "     this takes production down rather than turning mail on. Install it"
-  echo "     with: scripts/set-host-env.sh --target $TARGET  then"
-  echo "           scripts/activate-ses-feedback.sh --target $TARGET"
-  echo "  b. The SNS feedback subscription exists, which means the URL that script"
-  echo "     printed is set as the ses_feedback_webhook_url Terraform variable and"
-  echo "     applied. Without it bounces and complaints reach nobody."
+  echo "  a. The bounce and complaint queue is on the host, as"
+  echo "     SES_FEEDBACK_QUEUE_URL. Without it nothing records a bounce: sending"
+  echo "     carries on while the platform's view of which mailboxes are dead"
+  echo "     stops being updated. Enable the feed queues in terraform, apply, then"
+  echo "     scripts/set-host-env.sh --target $TARGET"
+  echo "  b. The queue is subscribed to the feedback topic, which the same apply"
+  echo "     does, and the worker is running a build that polls it."
   echo "  c. The sender identity is VERIFIED with AWS, not Pending."
   echo "  d. The account is OUT of the SES sandbox. Inside it, mail is accepted and"
   echo "     delivered only to individually verified addresses, so 'live' silently"
@@ -368,6 +376,29 @@ if (( FROM_STEP <= 1 )) && [[ "$PRECONDITION" == "ses-readiness" ]]; then
     echo "Aborted: nothing has been changed. Email stays dark, which is the safe" >&2
     echo "state: the check-email page keeps rendering the verification link on" >&2
     echo "screen, so registration still works end to end." >&2
+    exit 1
+  fi
+  echo ""
+fi
+
+if (( FROM_STEP <= 1 )) && [[ "$PRECONDITION" == "outbox-drained" ]]; then
+  echo "-- step 1: what happens to mail already queued --"
+  echo ""
+  echo "Disarming email is not a pause. A dark production holds the outbox: the"
+  echo "worker stops draining, and every queued message waits, undelivered, until"
+  echo "email is armed again. Anyone mid-registration waits with it, because their"
+  echo "verification mail is in that queue and the on-screen link comes back only"
+  echo "on the next deploy."
+  echo ""
+  echo "If the intent is to stop mail and then continue, the reversible lever is"
+  echo "  scripts/outbound-mail-pause.sh --target $TARGET --pause --reason '...'"
+  echo "which stops the drain in seconds without a deploy and keeps the queue."
+  echo "Disarm when the sender itself must go away, not merely stop."
+  echo ""
+  printf "Type 'HOLD THE QUEUE' to disarm email anyway: "
+  read -r TYPED
+  if [[ "$TYPED" != "HOLD THE QUEUE" ]]; then
+    echo "Aborted: nothing has been changed. Email stays armed." >&2
     exit 1
   fi
   echo ""
@@ -590,6 +621,14 @@ if [[ "$SWITCH" == "email" && "$STATE" == "armed" ]]; then
   echo "The check-email page no longer renders the verification link on screen: that"
   echo "behaviour is keyed on the mail adapter being stubbed. Anyone registering from"
   echo "now on depends on real mail arriving, so send yourself one before trusting it."
+fi
+
+if [[ "$SWITCH" == "email" && "$STATE" == "dark" ]]; then
+  echo ""
+  echo "The outbox is now held rather than drained: queued mail waits and nothing"
+  echo "is sent. Watch the backlog while it stays dark, and expect anyone who"
+  echo "registered in the meantime to be waiting on a verification email that"
+  echo "arrives when email is armed again."
 fi
 
 if [[ "$SWITCH" == "payments" && "$STATE" == "dark" ]]; then

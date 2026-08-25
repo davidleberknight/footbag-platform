@@ -173,12 +173,10 @@ services:
       # allowed here because the runtime requires it only when SES_ADAPTER=live
       # (production); env.ts fail-fasts there. scripts/activate-ses-feedback.sh
       # provisions it at live-email activation.
-      SES_FEEDBACK_WEBHOOK_KEY: ${SES_FEEDBACK_WEBHOOK_KEY:-}
       # Dedicated key for the platform-alarm webhook, separate from every other
       # secret for the same access-log reason. Optional at boot: an unset key
       # makes the endpoint refuse deliveries quietly, which is the state before
       # the alarm subscription is pointed at the app.
-      ALARM_WEBHOOK_KEY: ${ALARM_WEBHOOK_KEY:-}
       # Expected publishing topic for each SNS feed. A valid signature proves
       # only that some topic in some AWS account signed the payload, so AWS's own
       # guidance pairs signature verification with rejecting an unexpected
@@ -186,6 +184,8 @@ services:
       # cannot be authenticated is off rather than trusting.
       SES_FEEDBACK_TOPIC_ARN: ${SES_FEEDBACK_TOPIC_ARN:-}
       ALARM_TOPIC_ARN: ${ALARM_TOPIC_ARN:-}
+      SES_FEEDBACK_QUEUE_URL: ${SES_FEEDBACK_QUEUE_URL:-}
+      ALARM_QUEUE_URL: ${ALARM_QUEUE_URL:-}
       # Base URL of the members-only legacy archive, served by its own
       # CloudFront distribution. Optional: unset hides the home page's Legacy
       # Archive card, so an environment without an archive renders no dead
@@ -331,12 +331,10 @@ services:
       WORKER_INTERNAL_URL: ${WORKER_INTERNAL_URL:-http://worker:3100}
       WEB_INTERNAL_URL: ${WEB_INTERNAL_URL:-http://web:3000}
       INTERNAL_EVENT_SECRET: ${INTERNAL_EVENT_SECRET:?must be set in /srv/footbag/env (worker<->web auth)}
-      SES_FEEDBACK_WEBHOOK_KEY: ${SES_FEEDBACK_WEBHOOK_KEY:-}
       # Dedicated key for the platform-alarm webhook, separate from every other
       # secret for the same access-log reason. Optional at boot: an unset key
       # makes the endpoint refuse deliveries quietly, which is the state before
       # the alarm subscription is pointed at the app.
-      ALARM_WEBHOOK_KEY: ${ALARM_WEBHOOK_KEY:-}
       # Expected publishing topic for each SNS feed. A valid signature proves
       # only that some topic in some AWS account signed the payload, so AWS's own
       # guidance pairs signature verification with rejecting an unexpected
@@ -344,6 +342,8 @@ services:
       # cannot be authenticated is off rather than trusting.
       SES_FEEDBACK_TOPIC_ARN: ${SES_FEEDBACK_TOPIC_ARN:-}
       ALARM_TOPIC_ARN: ${ALARM_TOPIC_ARN:-}
+      SES_FEEDBACK_QUEUE_URL: ${SES_FEEDBACK_QUEUE_URL:-}
+      ALARM_QUEUE_URL: ${ALARM_QUEUE_URL:-}
     deploy:
       resources:
         limits:

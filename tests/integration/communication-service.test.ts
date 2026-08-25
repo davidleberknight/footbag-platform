@@ -834,3 +834,88 @@ describe('enqueue: mailing-list fan-out', () => {
     })).toThrow(ValidationError);
   });
 });
+
+describe('the suppression gate at send', () => {
+  /**
+   * The gate runs at both ends, and the second run is what closes the window
+   * between a message being written and being sent. A bounce arriving inside
+   * that window is the ordinary case, not an exotic one: a queue held through a
+   * pause or a dark production keeps rows for as long as the hold lasts.
+   */
+  // The member seeded for this file; its own mailbox is what the gate reads.
+  const MAILBOX = 'comms-recipient@example.com';
+
+  function bounceMailbox(email: string): void {
+    const db = new BetterSqlite3(dbPath);
+    try {
+      db.prepare(
+        `UPDATE members SET email_status = 'bounced' WHERE login_email_normalized = ?`,
+      ).run(email.toLowerCase());
+    } finally {
+      db.close();
+    }
+  }
+
+  function restoreMailbox(email: string): void {
+    const db = new BetterSqlite3(dbPath);
+    try {
+      db.prepare(
+        `UPDATE members SET email_status = 'ok' WHERE login_email_normalized = ?`,
+      ).run(email.toLowerCase());
+    } finally {
+      db.close();
+    }
+  }
+
+  it('withholds a routine message whose mailbox bounced after it was queued', async () => {
+    const stub = createStubSesAdapter();
+    const svc = createCommunicationService(stub);
+    const { id } = callOne(svc, {
+      recipientEmail: MAILBOX,
+      recipientMemberId: RECIPIENT_ID,
+      subject: 'Newsletter',
+      bodyText: 'routine',
+    });
+
+    bounceMailbox(MAILBOX);
+    try {
+      const res = await svc.processSendQueue();
+      expect(res.suppressed).toBe(1);
+      expect(res.sent).toBe(0);
+      // Nothing reached the sender: the address is dead, and sending to it is
+      // what damages the platform's standing with the provider.
+      expect(stub.sentMessages).toHaveLength(0);
+      const row = readRow(id);
+      expect(row.status).toBe('dead_letter');
+      expect(row.last_error).toContain('bounced');
+    } finally {
+      restoreMailbox(MAILBOX);
+    }
+  });
+
+  it('still sends a strict security message to a bounced mailbox', async () => {
+    // A password reset must go out even to an address that has bounced:
+    // refusing it either strands the member or lets an anti-enumeration surface
+    // answer differently for a bounced address. The enqueue-time bypass has to
+    // survive onto the row, or the second gate undoes the first one's decision.
+    const stub = createStubSesAdapter();
+    const svc = createCommunicationService(stub);
+    callOne(svc, {
+      recipientEmail: MAILBOX,
+      recipientMemberId: RECIPIENT_ID,
+      subject: 'Reset your password',
+      bodyText: 'the link',
+      idempotencyKey: 'strict-to-bounced-mailbox',
+    }, true);
+
+    bounceMailbox(MAILBOX);
+    try {
+      const res = await svc.processSendQueue();
+      expect(res.suppressed).toBe(0);
+      expect(res.sent).toBe(1);
+      expect(stub.sentMessages).toHaveLength(1);
+    } finally {
+      restoreMailbox(MAILBOX);
+    }
+  });
+});

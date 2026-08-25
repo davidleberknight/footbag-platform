@@ -15,7 +15,6 @@ import { contactRequestController } from '../controllers/contactRequestControlle
 import { memberQuestionController } from '../controllers/memberQuestionController';
 import { authController } from '../controllers/authController';
 import { memberOnboardingController } from '../controllers/memberOnboardingController';
-import { ipcController } from '../controllers/ipcController';
 import { emailPreferenceController } from '../controllers/emailPreferenceController';
 import { UNSUBSCRIBE_PATH } from '../services/communicationService';
 import { hofController } from '../controllers/hofController';
@@ -303,27 +302,6 @@ publicRouter.post('/logout',                authController.postLogout);
 // parser-skip and the origin exemption can never drift from the route.
 export const STRIPE_WEBHOOK_PATH = '/payments/webhook';
 
-// SES feedback webhook: SNS delivers bounce/complaint notifications here as
-// text/plain (the global JSON parser ignores that type, so the route mounts
-// its own text parser). Auth is the shared-secret query key checked in the
-// controller; like Stripe, the path is exempt from the Origin-pin gate.
-export const SES_FEEDBACK_WEBHOOK_PATH = '/webhooks/ses-feedback';
-publicRouter.post(
-  SES_FEEDBACK_WEBHOOK_PATH,
-  express.text({ type: '*/*', limit: '1mb' }),
-  ipcController.receiveSesFeedback,
-);
-
-// Platform-alarm webhook: the monitoring service's notification topic delivers
-// alarm state changes here in the same text/plain shape as the feedback
-// notifications, with the same query-key plus payload-signature auth, so it
-// takes the same parser and the same Origin-pin exemption.
-export const ALARM_WEBHOOK_PATH = '/webhooks/platform-alarm';
-publicRouter.post(
-  ALARM_WEBHOOK_PATH,
-  express.text({ type: '*/*', limit: '1mb' }),
-  ipcController.receiveAlarmNotification,
-);
 // One-click unsubscribe: the recipient's mail client posts here from the
 // List-Unsubscribe headers on a bulk message. There is no session and no Origin
 // header, exactly as with the webhooks above, and the signed token in the query

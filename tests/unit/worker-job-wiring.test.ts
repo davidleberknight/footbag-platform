@@ -40,6 +40,23 @@ describe('worker daily tick', () => {
     ).toBe(true);
   });
 
+  it('drains the notification feeds, and cuts the poll short at shutdown', () => {
+    // The feed poll holds its connection open waiting for a message, so a loop
+    // that is never started reads no bounce and no alarm while looking healthy,
+    // and one that is never aborted is still waiting when the database closes
+    // underneath it.
+    expect(
+      workerSource.includes('operationsPlatformService.runNotificationFeeds('),
+      'src/worker.ts never drains the notification feeds, so bounces would never reach '
+        + 'the suppression record and alarms would never reach the admin surface.',
+    ).toBe(true);
+    expect(
+      workerSource.includes('feedPollAbort.abort()'),
+      'shutdown never aborts the feed poll, so a stop arriving mid-wait leaves the poll '
+        + 'running against a database that has been closed.',
+    ).toBe(true);
+  });
+
   it('guards each job separately so one failure cannot cancel the rest of the tick', () => {
     // A single try/catch around the whole tick would let the first failing job
     // silently skip every job after it, on every run, until someone noticed.

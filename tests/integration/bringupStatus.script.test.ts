@@ -196,7 +196,7 @@ describe('bringup-status.sh — pending steps name their next command', () => {
     expect(result.stdout).toMatch(/4\. Backup pipeline\s+PENDING/);
     expect(result.stdout).toMatch(/scripts\/install-backup-timer\.sh --target staging/);
     expect(result.stdout).toMatch(/5\. SES feedback\s+PENDING/);
-    expect(result.stdout).toMatch(/ses_feedback_webhook_url/);
+    expect(result.stdout).toMatch(/enable_feed_queues/);
     expect(result.stdout).toMatch(/verify-prod-email\.sh/);
     expect(result.stdout).toMatch(/8\. Deployed runtime\s+PENDING/);
     expect(result.stdout).toMatch(/\.\/deploy_to_aws\.sh/);

@@ -127,8 +127,8 @@ describe('redactTokenPaths', () => {
     });
 
     it('redacts the SNS feedback webhook secret key parameter', () => {
-      expect(redactTokenPaths('/webhooks/ses-feedback?key=super-secret-value'))
-        .toBe('/webhooks/ses-feedback?key=[redacted]');
+      expect(redactTokenPaths('/email/unsubscribe?key=super-secret-value'))
+        .toBe('/email/unsubscribe?key=[redacted]');
     });
 
     it('does not redact parameters that merely share the key prefix', () => {

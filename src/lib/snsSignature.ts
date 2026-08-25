@@ -102,6 +102,30 @@ export function safeSubscribeUrlForLog(raw: unknown): string {
   return raw;
 }
 
+/**
+ * Whether an envelope names the topic the feed reading it expects.
+ *
+ * On a queue this is the whole of the check. The read itself is authorized by
+ * the runtime role, so nothing unauthenticated can put a message there and a
+ * signature adds no fact the queue has not already established; what remains
+ * worth asserting is that the message belongs to this feed rather than another
+ * one delivered onto the same queue by a subscription nobody meant to make.
+ * Unset expectation refuses, matching the signature path: a feed that cannot
+ * say what it expects is a feed that reads nothing.
+ */
+export function publishedByExpectedTopic(
+  rawBody: string,
+  expectedTopicArn: string | undefined,
+): boolean {
+  if (!expectedTopicArn) return false;
+  try {
+    const parsed = JSON.parse(rawBody) as Record<string, unknown>;
+    return parsed.TopicArn === expectedTopicArn;
+  } catch {
+    return false;
+  }
+}
+
 export function setSnsSignatureVerifierForTests(verifier: SnsVerifier): void {
   overrideForTests = verifier;
 }

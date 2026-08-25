@@ -377,6 +377,8 @@ At least one of `recipient_email`, `recipient_member_id`, or `mailing_list_id` m
 
 `outbox_emails.stream` records which sending reputation the message is charged against, `transactional` or `bulk`. It is written when the row is enqueued, decided by the audience the caller named, rather than inferred later from which foreign key is set: an event-participant send carries an event and no list, and reading it off the list column would misfile it. The drain names the SES configuration set matching the stream.
 
+`outbox_emails.bypasses_suppression` records whether the message goes out even to a mailbox that has since bounced or complained. It is set for the strict security sends a member asks for themselves (password reset, email verification, account-change confirmation), where refusing would either strand the member or let an anti-enumeration surface answer differently for a bounced address. The suppression gate runs twice, once when the row is written and again when it is sent, because a mailbox can fail in between and a queue held through a pause keeps rows for as long as the hold lasts; by then nothing else on the row distinguishes a reset from a routine notification. A message withheld at send becomes a dead letter carrying the reason, and its body is cleared.
+
 #### Voting receipt tokens
 The sender worker scrubs `outbox_emails.body_text` (sets it to `NULL`) on every successful delivery, so no message body is retained in the outbox after send. This blanket scrub is load-bearing for voting confirmation emails, whose `body_text` carries a plaintext receipt token; the ballot row's `receipt_token_hash` is retained. See APP-019.
 

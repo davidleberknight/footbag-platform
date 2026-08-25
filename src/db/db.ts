@@ -6134,6 +6134,10 @@ export interface OutboxRow {
   stream: 'transactional' | 'bulk';
   retry_count: number;
   idempotency_key: string | null;
+  // Whether the drain sends this message even to a mailbox that has since
+  // bounced or complained. Carried on the row because the fact is decided at
+  // enqueue and the suppression gate runs again at send.
+  bypasses_suppression: number;
 }
 
 export interface AccountTokenRow {
@@ -6478,18 +6482,21 @@ export const outbox = {
       recipient_email, recipient_member_id, mailing_list_id,
       sender_member_id, from_identity, stream,
       subject, body_text, template_key,
+      bypasses_suppression,
       status, retry_count, scheduled_for
     ) VALUES (?, ?, 'system', ?, 'system', 1,
       ?,
       ?, ?, ?,
       ?, ?, ?,
       ?, ?, ?,
+      ?,
       'pending', 0, ?)
   `); },
 
   get selectPendingBatch() { return db.prepare(`
     SELECT id, recipient_email, recipient_member_id, subject, body_text,
-           from_identity, mailing_list_id, stream, retry_count, idempotency_key
+           from_identity, mailing_list_id, stream, retry_count, idempotency_key,
+           bypasses_suppression
     FROM outbox_emails
     WHERE status = 'pending'
       AND (scheduled_for IS NULL OR scheduled_for <= ?)
@@ -6570,6 +6577,23 @@ export const outbox = {
   // otherwise keep it indefinitely. The manual-review endings deliberately
   // keep theirs, because that status exists for an operator to read the
   // message and decide whether to resend it.
+  // Withheld at send because the recipient's mailbox stopped accepting mail
+  // after the message was queued. It is a dead letter rather than a failure:
+  // nothing was attempted, no retry could succeed, and the reason belongs on
+  // the row where an administrator reviewing the queue will read it. The body
+  // is cleared as on any terminal outcome, so a message that will never be
+  // delivered does not sit in backups carrying its contents.
+  get markSuppressedAtSend() { return db.prepare(`
+    UPDATE outbox_emails
+    SET status = 'dead_letter',
+        last_error = ?,
+        body_text = NULL,
+        updated_at = ?,
+        updated_by = 'system',
+        version = version + 1
+    WHERE id = ?
+  `); },
+
   get markDeadLetter() { return db.prepare(`
     UPDATE outbox_emails
     SET status = 'dead_letter',

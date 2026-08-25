@@ -12,10 +12,10 @@
  *      persistence). Operators retain the path and parameter names; the
  *      values are redacted.
  *
- * The current set is `q` (member-search query) and `key` (the SNS feedback
- * webhook's shared-secret query key). Add a new param here (with a
- * regression test) when a new free-text or secret-bearing query-string
- * input lands on any route.
+ * The current set is `q` (member-search query) and `key` (the signed token a
+ * one-click unsubscribe carries). Add a new param here (with a regression
+ * test) when a new free-text or secret-bearing query-string input lands on any
+ * route.
  */
 const PII_QUERY_PARAMS = ['q', 'key'] as const;
 

@@ -405,3 +405,31 @@ resource "aws_iam_role_policy" "s3_replication" {
     ]
   })
 }
+
+# The worker reads both notification feeds from queues rather than being pushed
+# to over HTTPS, so this grant is what authorizes the feed at all: with it the
+# poll needs no shared secret in a URL, and without it the feed is silent.
+# GetQueueAttributes is what lets the worker report queue depth; receive and
+# delete are the poll itself.
+resource "aws_iam_role_policy" "app_sqs_feeds" {
+  count = var.enable_feed_queues ? 1 : 0
+  name  = "sqs-feeds"
+  role  = aws_iam_role.app_runtime.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid    = "PollNotificationFeeds"
+      Effect = "Allow"
+      Action = [
+        "sqs:ReceiveMessage",
+        "sqs:DeleteMessage",
+        "sqs:GetQueueAttributes"
+      ]
+      Resource = [
+        aws_sqs_queue.ses_feedback_feed[0].arn,
+        aws_sqs_queue.alarm_feed[0].arn
+      ]
+    }]
+  })
+}

@@ -62,7 +62,15 @@
  *     because the provider send has no idempotency token and a retry could
  *     deliver the same email twice.
  *   - scheduled_for defers a row until due (the pending batch filters on it).
+ *   - The suppression gate runs at enqueue AND at send: a mailbox can stop
+ *     accepting mail while a message waits, and a queue held through a pause
+ *     keeps rows for as long as the hold. A row carrying bypasses_suppression
+ *     is exempt at both ends.
  *   - Admin pause flag (email_outbox_paused) halts draining without losing rows.
+ *   - A production host not holding the live sender refuses to drain at all.
+ *     The stub reports every send as delivered, so draining would mark queued
+ *     mail sent and clear its body; holding it is what makes disarming email
+ *     recoverable.
  *
  * Persistence:
  *   outbox_emails; mailing_lists, mailing_list_subscriptions, registrations
@@ -208,6 +216,19 @@ export interface ProcessBatchResult {
   deadLettered: number;
   manualReview: number;
   paused: boolean;
+  /**
+   * Messages withheld at send because the recipient's mailbox stopped accepting
+   * mail after they were queued. Counted separately from a failure: nothing was
+   * attempted and no retry could succeed.
+   */
+  suppressed: number;
+  /**
+   * The drain declined to run because this production host holds the stub
+   * sender. Distinct from `paused`, which is the administrator's own switch:
+   * this one is a consequence of how the host is armed, and the queue is being
+   * held rather than emptied.
+   */
+  sendingDark: boolean;
 }
 
 export interface CommunicationService {
@@ -513,6 +534,10 @@ export function createCommunicationService(
           input.subject,
           input.bodyText,
           input.templateKey ?? null,
+          // The same flag that let this row past the gate above is carried onto
+          // the row, because the gate runs again at send and nothing else there
+          // tells a password reset from a routine notification.
+          input.bypassSuppression ? 1 : 0,
           input.scheduledFor ?? null,
         );
         return { id, status: 'enqueued' };
@@ -625,12 +650,26 @@ export function createCommunicationService(
         failed: 0,
         deadLettered: 0,
         manualReview: 0,
+        suppressed: 0,
         paused: false,
+        sendingDark: false,
       };
 
       const paused = readIntConfig('email_outbox_paused', 0) === 1;
       if (paused) {
         result.paused = true;
+        return result;
+      }
+
+      // A production host holding the stub sender must not drain. The stub
+      // reports every send as delivered, so draining would mark each queued
+      // message sent and clear its body: the queue would empty, nothing would
+      // arrive, and there would be nothing left to send again. Holding the rows
+      // is what makes disarming email recoverable, and it is the difference
+      // between a stop and a silent discard. Development and staging drain into
+      // the stub on purpose, which is how their captured mail is read back.
+      if (config.footbagEnv === 'production' && config.sesAdapter !== 'live') {
+        result.sendingDark = true;
         return result;
       }
 
@@ -658,6 +697,27 @@ export function createCommunicationService(
       const rows = outbox.selectPendingBatch.all(now, limit) as OutboxRow[];
 
       for (const row of rows) {
+        // The suppression gate runs again here, against the mailbox as it reads
+        // now rather than as it read when the message was written. A bounce or
+        // complaint arriving between the two is the whole point: without this
+        // the enqueue-time check leaves a window in which a dead mailbox still
+        // receives routine mail, and on a queue held through a pause or a dark
+        // production that window is as long as the hold.
+        if (!row.bypasses_suppression && row.recipient_email) {
+          const mailbox = account.emailStatusByNormalizedLoginEmail.get(
+            row.recipient_email.toLowerCase().trim(),
+          ) as { id: string; email_status: string } | undefined;
+          if (mailbox && mailbox.email_status !== 'ok') {
+            outbox.markSuppressedAtSend.run(
+              `withheld at send: recipient mailbox is ${mailbox.email_status}`,
+              new Date().toISOString(),
+              row.id,
+            );
+            result.suppressed += 1;
+            continue;
+          }
+        }
+
         const claimedNow = outbox.markSending.run(now, now, row.id);
         if (claimedNow.changes !== 1) continue;
         result.claimed += 1;

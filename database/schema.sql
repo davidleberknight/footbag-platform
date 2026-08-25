@@ -662,6 +662,17 @@ CREATE TABLE outbox_emails (
   -- email compose service); the admin viewer reads it for type and PII class.
   template_key TEXT,
 
+  -- Whether this message goes out even to a mailbox that has since bounced or
+  -- complained. Set for the strict security sends a member asks for themselves
+  -- (password reset, email verification, account-change confirmation), which
+  -- refusing would either strand them or let an anti-enumeration surface answer
+  -- differently for a bounced address. It is recorded here because the fact is
+  -- known when the message is enqueued and needed again when it is sent: the
+  -- suppression gate runs at both ends, and by drain time nothing else on the
+  -- row distinguishes a reset from a routine notification.
+  bypasses_suppression INTEGER NOT NULL DEFAULT 0
+    CHECK (bypasses_suppression IN (0,1)),
+
   status TEXT NOT NULL DEFAULT 'pending'
     CHECK (status IN ('pending','sending','sent','failed','dead_letter','manual_review')),
   retry_count     INTEGER NOT NULL DEFAULT 0,

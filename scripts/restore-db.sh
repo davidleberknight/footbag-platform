@@ -108,6 +108,17 @@ if [[ -n "$TARGET" ]]; then
   esac
 fi
 
+# Everything a local destination needs before the network is touched. Both of
+# these refuse the run outright, so checking them after the snapshot lookup
+# means listing a bucket for a run that was never going to proceed, and it means
+# an unusable AWS environment answers first: the listing fails, the script exits
+# on its own error, and the operator is told about credentials rather than about
+# the file they were seconds from overwriting.
+if [[ -n "$TO_LOCAL" ]]; then
+  command -v sqlite3 >/dev/null 2>&1 || die "sqlite3 CLI not installed"
+  [[ -e "$TO_LOCAL" ]] && die "refusing to overwrite an existing file at ${TO_LOCAL}"
+fi
+
 # The two buckets are not named to the same pattern, which is a fact about the
 # deployed estate rather than a choice available here: production's snapshot
 # bucket carries a db- infix and staging's does not. Guessing one shape for both
@@ -161,9 +172,6 @@ echo "    snapshot: s3://${BUCKET}/${SNAPSHOT_KEY}"
 
 # ── Local destination: a drill, and the default posture ──────────────────────
 if [[ -n "$TO_LOCAL" ]]; then
-  command -v sqlite3 >/dev/null 2>&1 || die "sqlite3 CLI not installed"
-  [[ -e "$TO_LOCAL" ]] && die "refusing to overwrite an existing file at ${TO_LOCAL}"
-
   umask 077
   work="$(mktemp -d)"
   trap 'rm -rf "$work"' EXIT INT TERM

@@ -177,14 +177,19 @@ export interface AppConfig {
   // Shared secret for the worker<->web internal-event channel. Always
   // required: the /ipc router that trusts it is always mounted.
   internalEventSecret: string;
-  sesFeedbackWebhookKey: string | undefined;
-  alarmWebhookKey: string | undefined;
   // Expected publishing topic per SNS feed. A valid signature proves only that
   // some topic in some AWS account signed the payload, so AWS's own guidance
   // pairs signature verification with rejecting an unexpected TopicArn. Unset
   // means the feed refuses every delivery: an unauthenticatable feed is off.
   sesFeedbackTopicArn: string | undefined;
   alarmTopicArn: string | undefined;
+  // The queues the worker polls for each feed. Unset means that feed is not
+  // read here, which is the state of an environment whose queues have not been
+  // created yet; boot does not require them, because a queue is created and
+  // subscribed independently of a deploy and refusing to start a host that has
+  // no feed yet would make the ordering between the two load-bearing.
+  sesFeedbackQueueUrl: string | undefined;
+  alarmQueueUrl: string | undefined;
   // Lease duration for a worker's claim on a media_jobs row. Worker boot-time
   // recovery considers any 'processing' row whose lease has expired to be
   // orphaned by a crash and resets it to pending_transcode for re-dispatch.
@@ -829,37 +834,16 @@ function loadConfig(): AppConfig {
       'INTERNAL_EVENT_SECRET is required (worker<->web event channel; the /ipc router is always mounted)',
     );
   }
-  // SES_FEEDBACK_WEBHOOK_KEY authenticates the public SNS feedback webhook
-  // (/webhooks/ses-feedback). It is deliberately a separate secret from
-  // INTERNAL_EVENT_SECRET: the SNS subscription URL carries the key in the
-  // query string, where instance access logs capture it on every delivery,
-  // so a leak there must not extend to the worker IPC endpoints.
-  const explicitSesFeedbackKey = process.env.SES_FEEDBACK_WEBHOOK_KEY || undefined;
-  const sesFeedbackWebhookKey =
-    explicitSesFeedbackKey ?? (isProd ? undefined : 'dev-ses-feedback-key-not-for-prod');
-  if (sesAdapter === 'live' && !sesFeedbackWebhookKey) {
-    throw new Error(
-      'SES_FEEDBACK_WEBHOOK_KEY is required when SES_ADAPTER=live (SNS feedback webhook auth)',
-    );
-  }
-  // ALARM_WEBHOOK_KEY authenticates the public alarm-notification webhook
-  // (/webhooks/platform-alarm). Separate from every other secret for the same
-  // reason the feedback key is: the subscription URL carries it in the query
-  // string, where instance access logs capture it on every delivery, so a leak
-  // there must reach nothing else. Boot does not require it, because the
-  // notification subscription is created independently of a deploy; an
-  // unconfigured key makes the endpoint refuse every delivery, which is the safe
-  // state, while a boot-time requirement would refuse to start a host that has
-  // no alarm feed yet. The refusal is deliberately quiet: an unauthenticated
-  // caller must never be able to choose the log level on a public endpoint, and
-  // an error-level line here is escalated to the operator mailbox.
-  const explicitAlarmWebhookKey = process.env.ALARM_WEBHOOK_KEY || undefined;
-  const alarmWebhookKey =
-    explicitAlarmWebhookKey ?? (isProd ? undefined : 'dev-alarm-webhook-key-not-for-prod');
   // Expected publishing topic per feed; see the interface comment. Both fail
-  // closed when unset, so a feed is authenticated by key AND topic or not at all.
+  // closed when unset, so a feed reads nothing rather than reading a message it
+  // cannot attribute.
   const sesFeedbackTopicArn = process.env.SES_FEEDBACK_TOPIC_ARN || undefined;
   const alarmTopicArn = process.env.ALARM_TOPIC_ARN || undefined;
+  // The queue per feed; see the interface comment. A queue without its topic
+  // ARN is not read, so an environment cannot end up consuming notifications it
+  // has no way to attribute.
+  const sesFeedbackQueueUrl = process.env.SES_FEEDBACK_QUEUE_URL || undefined;
+  const alarmQueueUrl = process.env.ALARM_QUEUE_URL || undefined;
   const mediaJobLeaseSeconds = parseIntEnv('MEDIA_JOB_LEASE_SECONDS', 1200, 60, 7200);
   const mediaJobMaxRetries = parseIntEnv('MEDIA_JOB_MAX_RETRIES', 1, 1, 10);
   const videoMaxHeight = parseIntEnv('VIDEO_MAX_HEIGHT', DEFAULT_VIDEO_MAX_HEIGHT, 240, 2160);
@@ -1098,10 +1082,10 @@ function loadConfig(): AppConfig {
     workerInternalUrl,
     webInternalUrl,
     internalEventSecret,
-    sesFeedbackWebhookKey,
-    alarmWebhookKey,
     sesFeedbackTopicArn,
     alarmTopicArn,
+    sesFeedbackQueueUrl,
+    alarmQueueUrl,
     mediaJobLeaseSeconds,
     mediaJobMaxRetries,
     videoMaxHeight,

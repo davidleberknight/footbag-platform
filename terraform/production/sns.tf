@@ -12,41 +12,41 @@ resource "aws_sns_topic_subscription" "alarm_email" {
   endpoint  = var.alarm_email
 }
 
-# Second delivery of the same alarms into the application, so an administrator
-# reads and acknowledges them in the admin UI instead of only in a mailbox. The
-# email subscription above stays: it reaches an operator when the application
-# itself is the thing that is down. Empty URL means no subscription, so this is
-# inert until the endpoint and its key are configured.
-resource "aws_sns_topic_subscription" "alarm_webhook" {
-  count                  = var.alarm_webhook_url == "" ? 0 : 1
-  topic_arn              = aws_sns_topic.alarms.arn
-  protocol               = "https"
-  endpoint               = var.alarm_webhook_url
-  endpoint_auto_confirms = false
+# Alarm delivery into the application over a queue the worker polls. The email
+# subscription above is the path that survives the application being down; this
+# is the path that puts an alarm in front of an administrator to acknowledge.
+#
+# A queue rather than an HTTPS push for the reason this feed feels most sharply:
+# the alarm most worth reading is the one raised while the application could not
+# accept it, and SNS discards an undelivered HTTPS message once its one-hour
+# retry ceiling passes. A queue holds it until the worker is back.
+#
+# Raw message delivery stays off, so the body carries the MessageId the
+# application claims for idempotency and the TopicArn it checks.
 
-  # Without this an undelivered alarm is destroyed. SNS retries an HTTPS
-  # endpoint three times inside a one-hour ceiling and then discards the
-  # message, and only 5xx and 429 count as retryable at all, so a deploy, a
-  # restart, or the very outage the alarm is reporting loses it outright. The
-  # dead-letter queue is AWS's documented remedy for exactly that, and it is what
-  # lets an alarm raised while the application was down still be read afterwards.
+resource "aws_sqs_queue" "alarm_feed" {
+  count                      = var.enable_feed_queues ? 1 : 0
+  name                       = "${local.prefix}-alarm-feed"
+  message_retention_seconds  = 1209600
+  visibility_timeout_seconds = 60
+  sqs_managed_sse_enabled    = true
+
   redrive_policy = jsonencode({
-    deadLetterTargetArn = aws_sqs_queue.alarm_webhook_dlq[0].arn
+    deadLetterTargetArn = aws_sqs_queue.alarm_feed_dlq[0].arn
+    maxReceiveCount     = 5
   })
 }
 
-# Fourteen days is the SQS maximum and the right choice here: the queue only
-# ever holds alarms the application failed to accept, so the retention window is
-# how long an operator has to notice and redrive them.
-resource "aws_sqs_queue" "alarm_webhook_dlq" {
-  count                     = var.alarm_webhook_url == "" ? 0 : 1
-  name                      = "${local.prefix}-alarm-webhook-dlq"
+resource "aws_sqs_queue" "alarm_feed_dlq" {
+  count                     = var.enable_feed_queues ? 1 : 0
+  name                      = "${local.prefix}-alarm-feed-dlq"
   message_retention_seconds = 1209600
+  sqs_managed_sse_enabled   = true
 }
 
-resource "aws_sqs_queue_policy" "alarm_webhook_dlq" {
-  count     = var.alarm_webhook_url == "" ? 0 : 1
-  queue_url = aws_sqs_queue.alarm_webhook_dlq[0].id
+resource "aws_sqs_queue_policy" "alarm_feed" {
+  count     = var.enable_feed_queues ? 1 : 0
+  queue_url = aws_sqs_queue.alarm_feed[0].id
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -54,10 +54,18 @@ resource "aws_sqs_queue_policy" "alarm_webhook_dlq" {
       Effect    = "Allow"
       Principal = { Service = "sns.amazonaws.com" }
       Action    = "sqs:SendMessage"
-      Resource  = aws_sqs_queue.alarm_webhook_dlq[0].arn
+      Resource  = aws_sqs_queue.alarm_feed[0].arn
       Condition = {
         ArnEquals = { "aws:SourceArn" = aws_sns_topic.alarms.arn }
       }
     }]
   })
+}
+
+resource "aws_sns_topic_subscription" "alarm_feed" {
+  count                = var.enable_feed_queues ? 1 : 0
+  topic_arn            = aws_sns_topic.alarms.arn
+  protocol             = "sqs"
+  endpoint             = aws_sqs_queue.alarm_feed[0].arn
+  raw_message_delivery = false
 }

@@ -106,3 +106,13 @@ output "ses_feedback_topic_arn" {
   description = "ARN of the SNS topic carrying SES bounce and complaint notifications. The app checks an inbound notification's publishing topic against this value, so it is set on the host by scripts/set-host-env.sh."
   value       = aws_sns_topic.ses_feedback.arn
 }
+
+output "ses_feedback_queue_url" {
+  description = "URL of the SQS queue carrying SES bounce and complaint notifications. The worker polls it; it is set on the host by scripts/set-host-env.sh, and is empty until the feed queues are enabled."
+  value       = var.enable_feed_queues ? aws_sqs_queue.ses_feedback_feed[0].url : ""
+}
+
+output "alarm_queue_url" {
+  description = "URL of the SQS queue carrying platform alarm notifications. The worker polls it; it is set on the host by scripts/set-host-env.sh, and is empty until the feed queues are enabled."
+  value       = var.enable_feed_queues ? aws_sqs_queue.alarm_feed[0].url : ""
+}

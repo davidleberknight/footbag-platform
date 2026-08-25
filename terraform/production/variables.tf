@@ -195,20 +195,6 @@ variable "enable_replication_alarm" {
   default     = false
 }
 
-variable "ses_feedback_webhook_url" {
-  description = "Full HTTPS URL of the app's SES-feedback webhook, including the shared-secret query key (e.g. https://<host>/webhooks/ses-feedback?key=...). Empty disables the subscription."
-  type        = string
-  default     = ""
-  sensitive   = true
-}
-
-variable "alarm_webhook_url" {
-  description = "Full HTTPS URL of the app's platform-alarm webhook, including the shared-secret query key (e.g. https://<host>/webhooks/platform-alarm?key=...). Set it once the app is serving that endpoint and its key is on the host; empty disables the subscription and alarms reach the operator mailbox only."
-  type        = string
-  default     = ""
-  sensitive   = true
-}
-
 # ── Production arming switches ────────────────────────────────────────────────
 # Each switch is published as an SSM app/* parameter and synced into the host
 # env by every deploy, which also derives the matching adapter on production
@@ -237,4 +223,17 @@ variable "email_send_armed" {
     condition     = contains(["armed", "dark"], var.email_send_armed)
     error_message = "email_send_armed must be exactly 'armed' or 'dark'."
   }
+}
+
+variable "enable_feed_queues" {
+  description = <<-EOT
+    Create the SQS queues the worker polls for the SES bounce/complaint feed and
+    the platform alarm feed, and subscribe each to its topic.
+    Flip once the application deployed to this environment runs a build that
+    polls them: the queues fill from the moment they are subscribed, and a
+    subscribed queue nothing drains is a backlog that ages out rather than an
+    error anyone sees.
+  EOT
+  type        = bool
+  default     = false
 }

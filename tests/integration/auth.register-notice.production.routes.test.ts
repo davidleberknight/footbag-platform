@@ -18,7 +18,6 @@ const { dbPath } = setTestEnv('3213');
 process.env.NODE_ENV = 'production';
 process.env.FOOTBAG_ENV = 'production';
 process.env.SESSION_SECRET = 'a'.repeat(48);
-process.env.SES_FEEDBACK_WEBHOOK_KEY = 'b'.repeat(48);
 process.env.INTERNAL_EVENT_SECRET = 'c'.repeat(48);
 process.env.JWT_SIGNER = 'kms';
 process.env.JWT_KMS_KEY_ID = 'arn:aws:kms:us-east-1:000000000000:key/abcd-efgh';

@@ -345,17 +345,19 @@ describe('arming.sh — the email switch', () => {
     expect(res.stderr).toMatch(/--switch must be 'payments' or 'email'/);
   });
 
-  it('names the boot refusal as the reason arming email is gated', () => {
-    // Arming email without the feedback key does not fail to send mail, it
-    // stops the process starting. That is the one fact an operator must have
-    // before they run this, so the plan has to state it.
+  it('names the missing feedback queue as the reason arming email is gated', () => {
+    // Arming email with no queue for bounces and complaints turns mail on while
+    // nothing records which addresses died: sending carries on and the
+    // platform's view of its own mailboxes silently stops being updated. That
+    // is the fact an operator must have before they run this, so the plan has
+    // to state it.
     const res = dryRun(
       ['--target', 'production', '--switch', 'email', '--state', 'armed'],
       EMAIL_TFVARS,
     );
     expect(res.exitCode).toBe(0);
-    expect(res.stdout).toMatch(/REFUSES TO BOOT/);
-    expect(res.stdout).toMatch(/SES_FEEDBACK_WEBHOOK_KEY/);
+    expect(res.stdout).toMatch(/bounce/i);
+    expect(res.stdout).toMatch(/queue/i);
   });
 
   it('warns that arming email withdraws the on-screen verification link', () => {
@@ -382,6 +384,43 @@ describe('arming.sh — the email switch', () => {
     expect(readFileSync(tfvars, 'utf-8')).toMatch(/email_send_armed\s+= "dark"/);
   });
 
+  it('states that disarming email holds the queue rather than pausing it', () => {
+    // The direction that discards mail had no precondition at all and printed
+    // "no provider-side precondition", which is true about the provider and
+    // silent about the platform: a dark production holds every queued message.
+    const res = dryRun(
+      ['--target', 'production', '--switch', 'email', '--state', 'dark'],
+      EMAIL_TFVARS,
+    );
+    expect(res.exitCode).toBe(0);
+    expect(res.stdout).not.toMatch(/no provider-side precondition/);
+    expect(res.stdout).toMatch(/queued/);
+  });
+
+  it('names the reversible lever, so a pause is not taken as a disarm', () => {
+    const res = dryRun(
+      ['--target', 'production', '--switch', 'email', '--state', 'dark'],
+      EMAIL_TFVARS,
+    );
+    expect(res.stdout).toMatch(/outbound-mail-pause\.sh/);
+  });
+
+  it('aborts a disarm, changing nothing, when the queue consequence is not accepted', () => {
+    const tfvars = writeTfvars([
+      'environment      = "production"',
+      'payments_armed   = "dark"',
+      'email_send_armed = "armed"',
+    ]);
+    const res = run(
+      ARMING,
+      ['--target', 'production', '--switch', 'email', '--state', 'dark', '--tfvars', tfvars],
+      'not really\n',
+    );
+    expect(res.exitCode).toBe(1);
+    expect(res.stdout).not.toMatch(/step 2: tfvars/);
+    expect(readFileSync(tfvars, 'utf-8')).toMatch(/email_send_armed\s+= "armed"/);
+  });
+
   it('rewrites only the email scalar, leaving the payments switch untouched', () => {
     const tfvars = writeTfvars(EMAIL_TFVARS);
     const res = run(
@@ -401,8 +440,12 @@ describe('arming.sh — the email switch', () => {
       ['--target', 'production', '--switch', 'email', '--state', 'dark'],
       EMAIL_TFVARS,
     );
+    // Disarming email has a precondition of its own, about the queue it holds.
+    // What must not appear is the payments one: the Stripe endpoint has nothing
+    // to do with mail, and an operator told to disable it would be acting on the
+    // wrong provider entirely.
     expect(res.stdout).not.toMatch(/DISABLED in the dashboard/);
-    expect(res.stdout).toMatch(/no provider-side precondition/);
+    expect(res.stdout).not.toMatch(/Stripe/);
   });
 });
 

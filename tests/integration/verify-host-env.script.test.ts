@@ -43,7 +43,10 @@ const CLEAN_STAGING_ENV = [
   'HTTP_REACHABILITY_ADAPTER=live',
   'CAPTCHA_ADAPTER=stub',
   `INTERNAL_EVENT_SECRET=${'a'.repeat(64)}`,
-  `SES_FEEDBACK_WEBHOOK_KEY=${'b'.repeat(64)}`,
+  'SES_FEEDBACK_QUEUE_URL=https://sqs.us-east-1.amazonaws.com/000/footbag-staging-ses-feedback-feed',
+  'SES_FEEDBACK_TOPIC_ARN=arn:aws:sns:us-east-1:000:footbag-staging-ses-feedback',
+  'ALARM_QUEUE_URL=https://sqs.us-east-1.amazonaws.com/000/footbag-staging-alarm-feed',
+  'ALARM_TOPIC_ARN=arn:aws:sns:us-east-1:000:footbag-staging-alarms',
   'PUBLIC_BASE_URL=https://staging.footbag.org',
   'FOOTBAG_DB_PATH=/srv/footbag/data/footbag.db',
   'PORT=3000',
@@ -205,46 +208,31 @@ describe('verify-host-env.sh — critical invariant FAIL boundaries', () => {
     expect(result.stdout).toContain('is the dev-default literal');
   });
 
-  it('SES_FEEDBACK_WEBHOOK_KEY checks are skipped while SES is stubbed (key unset → still PASS)', () => {
-    // The key authenticates the SNS feedback webhook, which only exists
-    // once live SES is activated; a stub-SES host must not be forced to
-    // carry it.
-    const env = mutate(/^SES_FEEDBACK_WEBHOOK_KEY=.+\n/m, '');
+  it('the feedback queue is not required while SES is stubbed', () => {
+    // The queue carries bounce and complaint notifications, which only exist
+    // once live SES is activated; a stub-SES host must not be forced to carry
+    // one.
+    const env = mutate(/^SES_FEEDBACK_QUEUE_URL=.+\n/m, '');
     const result = runScript({ envFilePath: writeEnvFile(env) });
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain('not required (SES_ADAPTER is not');
   });
 
-  it('SES_FEEDBACK_WEBHOOK_KEY unset under live SES → FAIL', () => {
-    const env = liveSesEnv().replace(/^SES_FEEDBACK_WEBHOOK_KEY=.+\n/m, '');
+  it('the feedback queue missing under live SES fails, because nothing would record a bounce', () => {
+    // Sending would carry on while the platform's view of which mailboxes are
+    // dead silently stopped being updated. That is invisible until a member
+    // reports mail they should never have received.
+    const env = liveSesEnv().replace(/^SES_FEEDBACK_QUEUE_URL=.+\n/m, '');
     const result = runScript({ envFilePath: writeEnvFile(env), target: 'production' });
     expect(result.exitCode).toBe(1);
-    expect(result.stdout).toContain('SES_FEEDBACK_WEBHOOK_KEY is unset');
+    expect(result.stdout).toContain('SES_FEEDBACK_QUEUE_URL is unset');
   });
 
-  it('SES_FEEDBACK_WEBHOOK_KEY = dev-default literal under live SES → FAIL', () => {
-    const env = mutate(
-      /SES_FEEDBACK_WEBHOOK_KEY=.+/,
-      'SES_FEEDBACK_WEBHOOK_KEY=dev-ses-feedback-key-not-for-prod',
-      liveSesEnv(),
-    );
+  it('an alarm queue without its topic fails, because the read cannot be attributed', () => {
+    const env = mutate(/^ALARM_TOPIC_ARN=.+\n/m, '', liveSesEnv());
     const result = runScript({ envFilePath: writeEnvFile(env), target: 'production' });
     expect(result.exitCode).toBe(1);
-    expect(result.stdout).toContain('is the dev-default literal');
-  });
-
-  it('SES_FEEDBACK_WEBHOOK_KEY equal to INTERNAL_EVENT_SECRET under live SES → FAIL', () => {
-    // The webhook key rides the subscription URL's query string, which
-    // access logs capture; sharing the IPC secret would extend that
-    // exposure to the worker endpoints.
-    const env = mutate(
-      /SES_FEEDBACK_WEBHOOK_KEY=.+/,
-      `SES_FEEDBACK_WEBHOOK_KEY=${'a'.repeat(64)}`,
-      liveSesEnv(),
-    );
-    const result = runScript({ envFilePath: writeEnvFile(env), target: 'production' });
-    expect(result.exitCode).toBe(1);
-    expect(result.stdout).toContain('must not equal INTERNAL_EVENT_SECRET');
+    expect(result.stdout).toContain('ALARM_TOPIC_ARN is not');
   });
 
   it('IMAGE_PROCESSOR_URL pointing at localhost → FAIL', () => {

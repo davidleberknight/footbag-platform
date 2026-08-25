@@ -216,7 +216,7 @@ else
           && P[TF_BACKUP_ALARM]=present || P[TF_BACKUP_ALARM]=absent
         grep -q 'aws_cloudwatch_metric_alarm\.cutover_zero_logins' <<< "$STATE_LIST" \
           && P[TF_CUTOVER_ALARM]=present || P[TF_CUTOVER_ALARM]=absent
-        grep -q 'aws_sns_topic_subscription\.ses_feedback_webhook' <<< "$STATE_LIST" \
+        grep -q 'aws_sns_topic_subscription\.ses_feedback_feed' <<< "$STATE_LIST" \
           && P[TF_SES_SUBSCRIPTION]=present || P[TF_SES_SUBSCRIPTION]=absent
       fi
     fi
@@ -385,11 +385,11 @@ fi
 # 5. SES feedback loop
 case "${P[TF_SES_SUBSCRIPTION]}" in
   present)
-    row 5 "SES feedback" DONE "SNS webhook subscription in terraform state (verify: SubscribeURL confirmed + bounce probe)"
+    row 5 "SES feedback" DONE "queue subscribed to the feedback topic in terraform state (verify: bounce probe)"
     ;;
   absent)
-    row 5 "SES feedback" PENDING "no SNS webhook subscription in terraform state"
-    next_cmd "run scripts/activate-ses-feedback.sh to generate SES_FEEDBACK_WEBHOOK_KEY (must differ from INTERNAL_EVENT_SECRET; it travels in the SNS subscription URL and lands in access logs), set tfvar ses_feedback_webhook_url (includes ?key=<SES_FEEDBACK_WEBHOOK_KEY>), apply, confirm the SubscribeURL from the audit row, then scripts/verify-prod-email.sh --profile <profile> --confirm-production --bounce-probe"
+    row 5 "SES feedback" PENDING "no queue subscribed to the feedback topic in terraform state"
+    next_cmd "set enable_feed_queues = true in this environment's tfvars and apply, which creates the queue and subscribes it; then scripts/set-host-env.sh --target <env> to put SES_FEEDBACK_QUEUE_URL on the host, redeploy so the worker polls it, and prove it with scripts/verify-prod-email.sh --profile <profile> --confirm-production --bounce-probe"
     ;;
   *)
     row 5 "SES feedback" UNKNOWN "terraform state unavailable"

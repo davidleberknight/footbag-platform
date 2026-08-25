@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { config } from '../config/env';
-import { ALARM_WEBHOOK_PATH, SES_FEEDBACK_WEBHOOK_PATH, STRIPE_WEBHOOK_PATH } from '../routes/publicRoutes';
+import { STRIPE_WEBHOOK_PATH } from '../routes/publicRoutes';
 import { UNSUBSCRIBE_PATH } from '../services/communicationService';
 import { renderForbidden } from '../lib/controllerErrors';
 
@@ -23,7 +23,7 @@ export const EXEMPT_PREFIXES = ['/ipc/'];
 // drifts stops testing a route that should be pinned, and reports a route that is
 // pinned by design as a hole.
 export const EXEMPT_EXACT = new Set<string>([
-  STRIPE_WEBHOOK_PATH, SES_FEEDBACK_WEBHOOK_PATH, ALARM_WEBHOOK_PATH, UNSUBSCRIBE_PATH,
+  STRIPE_WEBHOOK_PATH, UNSUBSCRIBE_PATH,
 ]);
 
 let cachedExpectedOrigin: string | null = null;

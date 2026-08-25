@@ -464,24 +464,18 @@ else
   check_pass "internal event secret: INTERNAL_EVENT_SECRET present, not the dev default"
 fi
 
-# SNS feedback-webhook key. Deliberately a separate secret from
-# INTERNAL_EVENT_SECRET: the subscription URL carries it in the query
-# string, where access logs capture it, so the two must never share a value.
-# Required only when the host runs live SES (the runtime enforces the same
-# condition); a stub-SES host sends no real mail and has no SNS subscription.
-SES_FEEDBACK_KEY_ACTUAL="${HOST_ENV[SES_FEEDBACK_WEBHOOK_KEY]:-}"
+# The queue the worker polls for bounce and complaint notifications. A host
+# running live SES with no queue records no bounce and no complaint: sending
+# carries on and the platform's own view of which mailboxes are dead stops
+# being updated, which is invisible until a member reports mail they should
+# never have received.
+SES_FEEDBACK_QUEUE_ACTUAL="${HOST_ENV[SES_FEEDBACK_QUEUE_URL]:-}"
 if [[ "${HOST_ENV[SES_ADAPTER]:-}" != "live" ]]; then
-  check_pass "ses feedback key: not required (SES_ADAPTER is not 'live'; key is checked at live-email activation)"
-elif [[ -z "$SES_FEEDBACK_KEY_ACTUAL" ]]; then
-  check_fail "ses feedback key: SES_FEEDBACK_WEBHOOK_KEY is unset (required when SES_ADAPTER=live; run scripts/activate-ses-feedback.sh)"
-elif [[ "$SES_FEEDBACK_KEY_ACTUAL" == "dev-ses-feedback-key-not-for-prod" ]]; then
-  check_fail "ses feedback key: SES_FEEDBACK_WEBHOOK_KEY is the dev-default literal (must be a fresh value on $TARGET)"
-elif [[ "$SES_FEEDBACK_KEY_ACTUAL" == "$INTERNAL_SECRET_ACTUAL" ]]; then
-  check_fail "ses feedback key: SES_FEEDBACK_WEBHOOK_KEY must not equal INTERNAL_EVENT_SECRET (access-log exposure would extend to the worker IPC endpoints)"
-elif [[ ${#SES_FEEDBACK_KEY_ACTUAL} -lt 32 ]]; then
-  check_warn "ses feedback key: SES_FEEDBACK_WEBHOOK_KEY is ${#SES_FEEDBACK_KEY_ACTUAL} chars (suggest >= 32 for collision resistance)"
+  check_pass "ses feedback queue: not required (SES_ADAPTER is not 'live')"
+elif [[ -z "$SES_FEEDBACK_QUEUE_ACTUAL" ]]; then
+  check_fail "ses feedback queue: SES_FEEDBACK_QUEUE_URL is unset, so no bounce or complaint is ever recorded (enable the feed queues in terraform, then run scripts/set-host-env.sh)"
 else
-  check_pass "ses feedback key: SES_FEEDBACK_WEBHOOK_KEY present, distinct from INTERNAL_EVENT_SECRET, not the dev default"
+  check_pass "ses feedback queue: SES_FEEDBACK_QUEUE_URL present"
 fi
 
 # Expected publishing topic per SNS feed. The webhooks authenticate on the shared
@@ -518,15 +512,15 @@ else
 fi
 
 ALARM_ARN_ACTUAL="${HOST_ENV[ALARM_TOPIC_ARN]:-}"
-ALARM_KEY_ACTUAL="${HOST_ENV[ALARM_WEBHOOK_KEY]:-}"
-if [[ -z "$ALARM_KEY_ACTUAL" && -z "$ALARM_ARN_ACTUAL" ]]; then
-  check_pass "alarm feed: not configured (endpoint refuses deliveries quietly; alarms still reach the operator mailbox)"
+ALARM_QUEUE_ACTUAL="${HOST_ENV[ALARM_QUEUE_URL]:-}"
+if [[ -z "$ALARM_QUEUE_ACTUAL" && -z "$ALARM_ARN_ACTUAL" ]]; then
+  check_pass "alarm feed: not configured (alarms still reach the operator mailbox)"
 elif [[ -z "$ALARM_ARN_ACTUAL" ]]; then
-  check_fail "alarm feed: ALARM_WEBHOOK_KEY is set but ALARM_TOPIC_ARN is not, so every alarm delivery is refused"
-elif [[ -z "$ALARM_KEY_ACTUAL" ]]; then
-  check_fail "alarm feed: ALARM_TOPIC_ARN is set but ALARM_WEBHOOK_KEY is not, so every alarm delivery is refused"
+  check_fail "alarm feed: ALARM_QUEUE_URL is set but ALARM_TOPIC_ARN is not, so every alarm read is refused as unattributable"
+elif [[ -z "$ALARM_QUEUE_ACTUAL" ]]; then
+  check_fail "alarm feed: ALARM_TOPIC_ARN is set but ALARM_QUEUE_URL is not, so no alarm reaches the admin surface"
 else
-  check_pass "alarm feed: ALARM_WEBHOOK_KEY and ALARM_TOPIC_ARN both present"
+  check_pass "alarm feed: ALARM_QUEUE_URL and ALARM_TOPIC_ARN both present"
 fi
 
 # Public-facing required vars.

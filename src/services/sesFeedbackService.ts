@@ -36,7 +36,10 @@ export type SesFeedbackResult =
   | { status: 'processed'; kind: 'bounce' | 'complaint'; recipients: number; membersUpdated: number }
   | { status: 'duplicate'; kind: 'bounce' | 'complaint' | 'subscription_confirmation' }
   | { status: 'subscription_pending' }
-  | { status: 'ignored'; reason: 'transient_bounce' | 'unknown_type' | 'malformed' };
+  | {
+    status: 'ignored';
+    reason: 'transient_bounce' | 'not_spam_feedback' | 'unknown_type' | 'malformed';
+  };
 
 function maskEmail(email: string): string {
   return email.replace(/^(.).*(@.*)$/, '$1***$2');
@@ -128,6 +131,14 @@ function processSnsMessage(rawBody: string): SesFeedbackResult {
 
   if (message.notificationType === 'Complaint') {
     const complaint = (message.complaint ?? {}) as Record<string, unknown>;
+    // A complaint feedback type of 'not-spam' is the opposite report: the
+    // recipient told their provider this mail was wrongly filtered. Treating it
+    // like an abuse report would let a member's vote of confidence be the thing
+    // that stops their mail, and terminally, since nothing downgrades a
+    // complained mailbox. Every other type, and an absent one, is a complaint.
+    if (complaint.complaintFeedbackType === 'not-spam') {
+      return { status: 'ignored', reason: 'not_spam_feedback' };
+    }
     const recipients = (Array.isArray(complaint.complainedRecipients) ? complaint.complainedRecipients : [])
       .map((r) => (r as Record<string, unknown>).emailAddress)
       .filter((v): v is string => typeof v === 'string');
