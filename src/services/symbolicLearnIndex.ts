@@ -117,12 +117,12 @@ const MODIFIER_PEDAGOGY_SECTION: LearnIndexSection = {
 
 const REFERENCE_SECTION: LearnIndexSection = {
   heading:    'Reference surfaces',
-  introBlurb: 'Authoritative reference pages for the symbolic vocabulary itself: the Freestyle Concepts connective panels for high-value terms, and the set-notation reference that names the operational language.',
+  introBlurb: 'Reference pages for the symbolic vocabulary itself: the Freestyle Concepts connective panels for high-value terms, which carry current platform doctrine, and the historical move-set compilation, which is preserved as source evidence rather than as current classification.',
   entries: [
     {
-      title:      'Set notation reference',
+      title:      'Historical Move-Set Reference',
       href:       '/freestyle/sets/reference',
-      shortBlurb: 'The legacy set-notation language: how Pixie, Fairy, Atomic, Quantum, Nuclear, Barraging, Furious and the rest are described in TOE / CLIP / SET grammar. The operational layer of the movement language.',
+      shortBlurb: 'A historical community compilation of the set-notation language: how Pixie, Fairy, Atomic, Quantum, Nuclear, Barraging, Furious and the rest were described in TOE / CLIP / SET grammar. Its classifications are source evidence and may differ from current platform doctrine.',
       status:     'shipped',
       isShipped:  true,
     },

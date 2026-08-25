@@ -16,6 +16,12 @@
 
 <div class="wrapper">
 
+  <section class="content-section source-provenance">
+    <p class="source-note">{{content.provenance.sourceNote}}</p>
+    <p>{{content.provenance.groupingNote}}</p>
+    <p><a href="{{content.provenance.currentHref}}">{{content.provenance.currentLabel}}</a></p>
+  </section>
+
   <section class="content-section">
     <h2 class="section-heading">Reading Set Notation</h2>
     <p>
@@ -95,10 +101,5 @@
       {{/each}}
     </div>
   </section>
-
-  <p class="source-note">
-    Set notation sourced from the freestyle discussion archive.
-    Original reference: the legacy footbag.org freestyle sets page.
-  </p>
 
 </div>

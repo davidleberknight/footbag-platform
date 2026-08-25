@@ -295,11 +295,63 @@ describe('/freestyle/compositional-sets — §4 consistency audit', () => {
   });
 });
 
-describe('/freestyle/sets/reference — flat Holden table', () => {
+// The flat move-set table reproduces a community compilation. Its names,
+// classifications and formulas are source evidence, not current platform
+// classification, and the reader has to meet that fact before the table rather
+// than after it. These cases pin that framing, and pin that the roster was left
+// as the source wrote it: the framing is what changed, not the data.
+describe('/freestyle/sets/reference — historical source reproduction', () => {
   it('renders 200 at its own path, as a sibling of the Set Encyclopedia rather than a replacement', async () => {
     const res = await request(createApp()).get('/freestyle/sets/reference');
     expect(res.status).toBe(200);
-    expect(res.text).toMatch(/Freestyle Move Sets/);
+    expect(res.text).toMatch(/Historical Move-Set Reference/);
+  });
+
+  it('declares the source before the reader reaches the table', async () => {
+    const res = await request(createApp()).get('/freestyle/sets/reference');
+    const provenance = res.text.indexOf('Set notation sourced from the freestyle discussion archive');
+    const firstTable = res.text.indexOf('Reading Set Notation');
+    expect(provenance).toBeGreaterThan(-1);
+    expect(firstTable).toBeGreaterThan(-1);
+    expect(provenance).toBeLessThan(firstTable);
+  });
+
+  it('says the compilation reproduced here may differ from current platform doctrine', async () => {
+    const res = await request(createApp()).get('/freestyle/sets/reference');
+    expect(res.text).toContain('reproduces a historical community compilation');
+    expect(res.text).toContain('may differ from current platform doctrine');
+  });
+
+  it('says the groupings are the compilation\'s classification rather than the platform\'s', async () => {
+    const res = await request(createApp()).get('/freestyle/sets/reference');
+    expect(res.text).toMatch(/groupings and headings below are the compilation&#x27;s own classification/);
+    expect(res.text).toContain('does not make the historical classification current');
+  });
+
+  it('points the reader at the Set Encyclopedia for current classification', async () => {
+    const res = await request(createApp()).get('/freestyle/sets/reference');
+    expect(res.text).toContain('href="/freestyle/sets"');
+    expect(res.text).toMatch(/current set classifications, use the Set Encyclopedia/);
+  });
+
+  it('no longer leaves the attribution to a closing footer', async () => {
+    const res = await request(createApp()).get('/freestyle/sets/reference');
+    const attribution = res.text.indexOf('Original reference: the legacy footbag.org freestyle sets page');
+    const lastSection = res.text.lastIndexOf('class="moves-tag-list"');
+    expect(attribution).toBeGreaterThan(-1);
+    expect(attribution).toBeLessThan(lastSection);
+  });
+
+  it('reproduces the source roster untouched, including entries the platform does not treat as sets', async () => {
+    const res = await request(createApp()).get('/freestyle/sets/reference');
+    // Miraging is descriptive movement language and Barraging is retired into
+    // the Furious set, so neither is a current platform set. Both stay here
+    // because this page records what the compilation said.
+    expect(res.text).toMatch(/Miraging/);
+    expect(res.text).toMatch(/Barraging/);
+    // Source formulas, quoted as the compilation wrote them.
+    expect(res.text).toContain('SET &gt; OP IN [DEX] &gt;');
+    expect(res.text).toContain('SET &gt; (no plant while) OP OUT [BOD] [DEX] &gt;');
   });
 
   it('/freestyle/sets renders the standalone Set Encyclopedia (HTTP 200)', async () => {

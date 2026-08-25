@@ -956,6 +956,17 @@ export interface FreestyleMoveLabel {
 }
 
 export interface FreestyleMovesContent {
+  /**
+   * Source provenance, rendered above the table rather than in a footer: this
+   * page reproduces a community compilation, and a reader must meet that fact
+   * before the classifications rather than after them.
+   */
+  provenance: {
+    sourceNote:   string;
+    groupingNote: string;
+    currentLabel: string;
+    currentHref:  string;
+  };
   basicSets:          FreestyleMoveLabel[];
   spinningVariants:   FreestyleMoveLabel[];
   whirlSwirlVariants: FreestyleMoveLabel[];
@@ -11679,21 +11690,35 @@ export const freestyleService = {
       seo: {
         title: 'Freestyle Move Sets',
         description:
-          'Reference guide to freestyle footbag move set notation: Pixie, Fairy, Nuclear, and more.',
+          'A historical community compilation of freestyle move-set names, classifications, and notation, preserved as source evidence.',
       },
       page: {
         sectionKey: 'freestyle',
         pageKey:    'freestyle_moves',
-        title:      'Freestyle Move Sets',
-        intro:      'A reference guide to the set notation system used in new-school freestyle footbag.',
+        title:      'Historical Move-Set Reference',
+        intro:
+          'This page reproduces a historical community compilation of freestyle move sets and ' +
+          'notation. Its names, classifications, and formulas are preserved as source evidence ' +
+          'and may differ from current platform doctrine.',
       },
       navigation: {
         breadcrumbs: [
           { label: 'Freestyle', href: '/freestyle' },
-          { label: 'Move Sets' },
+          { label: 'Historical Move-Set Reference' },
         ],
       },
       content: {
+        provenance: {
+          sourceNote:
+            'Set notation sourced from the freestyle discussion archive. Original reference: ' +
+            'the legacy footbag.org freestyle sets page.',
+          groupingNote:
+            'The groupings and headings below are the compilation\'s own classification, not the ' +
+            'platform\'s. Names that link out lead to current trick pages for navigation; the link ' +
+            'does not make the historical classification current.',
+          currentLabel: 'For the platform\'s current set classifications, use the Set Encyclopedia',
+          currentHref:  '/freestyle/sets',
+        },
         basicSets: [
           shape('Pixie',                       'TOE > SAME IN [DEX] >'),
           shape('Fairy',                       'TOE > SAME OUT [DEX] >'),

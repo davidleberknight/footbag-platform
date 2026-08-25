@@ -524,10 +524,10 @@ describe('Set-notation reference cross-links', () => {
     expect(linkIdx).toBeGreaterThan(intermediateIdx);
   });
 
-  it('/freestyle/learn lists the set notation reference as a shipped entry', async () => {
+  it('/freestyle/learn lists the historical move-set compilation as a shipped entry, named as historical', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/learn');
-    expect(res.text).toMatch(/href="\/freestyle\/sets\/reference"[^>]*>Set notation reference/);
+    expect(res.text).toMatch(/href="\/freestyle\/sets\/reference"[^>]*>Historical Move-Set Reference/);
   });
 
   it('landing surfaces Operators & Modifiers as a banner tile linking to /freestyle/operators', async () => {
