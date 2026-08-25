@@ -257,6 +257,24 @@ if [[ "$FOOTBAG_ENV_VAL" == "staging" || "$FOOTBAG_ENV_VAL" == "development" ]];
   mv "$env_tmp" "$ENV_PATH"
   chmod 600 "$ENV_PATH"
   chown root:root "$ENV_PATH"
+
+  # The captcha adapter is pinned the same way and for the same kind of reason:
+  # a live challenge on a non-production host is not a preference but a broken
+  # environment, because a tester has no way to solve one staging is not wired
+  # to serve. The compose file defaults it to the stub, so the container behaves
+  # correctly with the value absent, but the host env file is what the
+  # environment verifier reads and what an operator inspects, and a value that
+  # is only ever a default is a value nobody can see. Production is left alone:
+  # there the live captcha is activation work with its own step.
+  echo "==> Reconciling CAPTCHA_ADAPTER=stub into $ENV_PATH (FOOTBAG_ENV=$FOOTBAG_ENV_VAL; non-production never challenges)..."
+  env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
+  chmod 600 "$env_tmp"
+  chown root:root "$env_tmp"
+  grep -v '^CAPTCHA_ADAPTER=' "$ENV_PATH" > "$env_tmp" || true
+  printf 'CAPTCHA_ADAPTER=%s\n' 'stub' >> "$env_tmp"
+  mv "$env_tmp" "$ENV_PATH"
+  chmod 600 "$ENV_PATH"
+  chown root:root "$ENV_PATH"
 fi
 
 # PAYMENT_ADAPTER: seed the stub on a fresh non-production host so the compose

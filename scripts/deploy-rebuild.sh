@@ -203,7 +203,10 @@ fi
 
 if [[ "$SKIP_DB_REBUILD" != "yes" ]]; then
   echo "==> Rebuilding local database from scratch..."
-  bash scripts/reset-local-db.sh
+  # Built to be shipped, so the builder leaves out the affordances that only
+  # make sense on a developer's own machine. They live in the file and would
+  # otherwise travel to the host with it.
+  FOOTBAG_DB_FOR_DEPLOY=1 bash scripts/reset-local-db.sh
 else
   echo "==> Skipping local DB rebuild (SKIP_DB_REBUILD=yes)"
 fi

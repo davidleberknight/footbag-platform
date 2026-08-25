@@ -72,3 +72,32 @@ describe('deploy-code-remote.sh promotes the release without deleting the live d
     expect(code).toMatch(/--exclude=\/media\b/);
   });
 });
+
+describe('deploy-code-remote.sh pins the non-production adapters on every deploy', () => {
+  it('forces the stub mail sender and the stub captcha together on a non-production host', () => {
+    // Both are pinned for the same reason and in the same place: a live sender
+    // on staging would put real mail in a real inbox, and a live captcha there
+    // is a challenge a tester has no way to solve because staging is not wired
+    // to serve one. The compose file defaults both, so the container behaves
+    // correctly with either absent, but the host env file is what the
+    // environment verifier reads and what an operator inspects; a value that is
+    // only ever a default is a value nobody can see, and it reads as drift.
+    const code = remoteExecutableLines().join('\n');
+    const guard = code.slice(code.indexOf('FOOTBAG_ENV_VAL'));
+    expect(guard).toMatch(/printf 'SES_ADAPTER=%s\\n' 'stub'/);
+    expect(guard).toMatch(/printf 'CAPTCHA_ADAPTER=%s\\n' 'stub'/);
+  });
+
+  it('leaves production out of that reconciliation', () => {
+    // Production derives its mail adapter from the arming switch, and its live
+    // captcha is activation work with its own step. Forcing either here would
+    // silently undo them on the next deploy.
+    const code = remoteExecutableLines().join('\n');
+    const captchaAt = code.indexOf("printf 'CAPTCHA_ADAPTER=%s");
+    expect(captchaAt).toBeGreaterThan(-1);
+    const guardAbove = code.slice(0, captchaAt);
+    const lastCondition = guardAbove.lastIndexOf('FOOTBAG_ENV_VAL" == "staging"');
+    expect(lastCondition).toBeGreaterThan(-1);
+    expect(guardAbove.slice(lastCondition)).not.toMatch(/^fi$/m);
+  });
+});

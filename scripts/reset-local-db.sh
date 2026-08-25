@@ -123,9 +123,20 @@ done
 # default, so a stub-captured email appears at /dev/outbox within a refresh or
 # two rather than a half-minute. system_config is append-only; this layers a
 # later-effective override row that system_config_current resolves ahead of the
-# schema's epoch-seeded default, leaving the production seed untouched.
-echo "  → Setting fast local outbox poll interval..."
-sqlite3 "${DB_FILE}" "INSERT INTO system_config (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id) VALUES ('cfg_dev_outbox_poll', strftime('%Y-%m-%dT%H:%M:%fZ','now'), 'outbox_poll_interval_seconds', '2', strftime('%Y-%m-%dT%H:%M:%fZ','now'), 'Local dev fast outbox poll so the captured-email viewer updates promptly', NULL);"
+# schema's epoch-seeded default.
+#
+# Skipped when this database is being built to be shipped. The row lives in the
+# file, so a rebuild-and-replace deploy carries it to whatever host it lands on,
+# and a host polling every two seconds does thirty times the work and thirty
+# times the logging for an affordance only a developer watching a local page
+# benefits from. Appending a correcting row afterwards would leave both on the
+# permanent record for a reader to reconcile; not writing it is cleaner.
+if [[ "${FOOTBAG_DB_FOR_DEPLOY:-}" == "1" ]]; then
+  echo "  → Skipping the fast local outbox poll interval (database is being built for a host)."
+else
+  echo "  → Setting fast local outbox poll interval..."
+  sqlite3 "${DB_FILE}" "INSERT INTO system_config (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id) VALUES ('cfg_dev_outbox_poll', strftime('%Y-%m-%dT%H:%M:%fZ','now'), 'outbox_poll_interval_seconds', '2', strftime('%Y-%m-%dT%H:%M:%fZ','now'), 'Local dev fast outbox poll so the captured-email viewer updates promptly', NULL);"
+fi
 
 # TEMP-DEVIATION: legacy_members seed source.
 # Current: legacy_members is seeded from the mirror-derived extract before

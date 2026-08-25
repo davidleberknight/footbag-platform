@@ -13,7 +13,7 @@
  * and staging are deliberately excluded: they drain into the stub on purpose,
  * which is how their captured mail is read back on screen.
  */
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
@@ -108,5 +108,30 @@ describe('the outbox drain on a dark production host', () => {
     const res = await svc.processSendQueue();
     expect(res.sendingDark).toBe(true);
     expect(res.paused).toBe(false);
+  });
+});
+
+describe('the dark-production notice is said once, not on every pass', () => {
+  it('reports the held outbox on the first drain and stays quiet afterwards', async () => {
+    // The condition is steady, not an event: it holds for as long as email is
+    // dark, and the drain runs on a short interval. A line per pass would be
+    // tens of identical warnings a minute, at a level production shows, for as
+    // long as the state lasts — which buries the lines an operator needs.
+    const [{ operationsPlatformService }, { logger }] = await Promise.all([
+      import('../../src/services/operationsPlatformService'),
+      import('../../src/config/logger'),
+    ]);
+    const warn = vi.spyOn(logger, 'warn');
+    try {
+      await operationsPlatformService.runEmailWorker();
+      await operationsPlatformService.runEmailWorker();
+      await operationsPlatformService.runEmailWorker();
+      const darkLines = warn.mock.calls.filter(
+        ([msg]) => typeof msg === 'string' && msg.includes('production is dark'),
+      );
+      expect(darkLines).toHaveLength(1);
+    } finally {
+      warn.mockRestore();
+    }
   });
 });

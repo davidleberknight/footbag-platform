@@ -190,6 +190,13 @@ export function readContainerMemoryUsedPercent(): number | null {
  */
 export class OperationsPlatformService {
   /**
+   * Whether this process has already reported that production is holding the
+   * outbox because it does not have the live sender. The state is steady rather
+   * than an event, so it is said once and not on every drain pass.
+   */
+  private reportedSendingDark = false;
+
+  /**
    * Single pass over both SNS notification feeds: the SES bounce and complaint
    * feed, and the platform alarm feed. Each queue's envelopes go to the service
    * that owns that feed, and a message is deleted only once its service has
@@ -287,13 +294,17 @@ export class OperationsPlatformService {
     const comms = getCommunicationService();
     const result = await comms.processSendQueue({ limit: opts.limit });
     if (result.sendingDark) {
-      // Production holding the stub sender is an operational state someone must
-      // act on: mail is accumulating and no member is receiving any. It is
-      // deliberate while email is dark, and production runs at the warn level,
-      // so this is where an operator finds out the queue is filling.
-      logger.warn('email worker: production is dark, outbox held', {
-        depth: this.getOutboxBacklogDepth(),
-      });
+      // Reported once per process rather than once per pass. The condition is
+      // steady, not an event: it holds for as long as email is dark, and the
+      // drain runs on a short interval, so a line per pass would be tens of
+      // identical warnings a minute for as long as the state lasts. The
+      // outbox-depth line below carries the part that actually moves.
+      if (!this.reportedSendingDark) {
+        this.reportedSendingDark = true;
+        logger.warn('email worker: production is dark, outbox held', {
+          depth: this.getOutboxBacklogDepth(),
+        });
+      }
     } else if (result.paused) {
       logger.info('email worker: paused', { ...result });
     } else if (result.claimed > 0) {

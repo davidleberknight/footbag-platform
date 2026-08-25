@@ -95,3 +95,28 @@ describe('scripts/reset-local-db.sh — environment refusal gate', () => {
     }
   });
 });
+
+describe('the database built for a host carries no local-only affordances', () => {
+  const SOURCE = fs.readFileSync(path.join(REPO_ROOT, SCRIPT), 'utf8');
+  const REBUILD = fs.readFileSync(path.join(REPO_ROOT, 'scripts/deploy-rebuild.sh'), 'utf8');
+
+  it('writes the fast outbox poll only when the database stays on this machine', () => {
+    // The override lives in the database file, so a rebuild-and-replace deploy
+    // carries it to whatever host it lands on. A host polling every two seconds
+    // does thirty times the work and thirty times the logging, for an
+    // affordance only a developer watching a local page benefits from.
+    const guarded = SOURCE.slice(SOURCE.indexOf('FOOTBAG_DB_FOR_DEPLOY'));
+    expect(guarded).toContain('outbox_poll_interval_seconds');
+    // The insert sits on the else branch: reached only when the flag is absent.
+    const insertAt = SOURCE.indexOf("'outbox_poll_interval_seconds', '2'");
+    const flagAt = SOURCE.indexOf('FOOTBAG_DB_FOR_DEPLOY');
+    expect(flagAt).toBeGreaterThan(-1);
+    expect(insertAt).toBeGreaterThan(flagAt);
+  });
+
+  it('is asked for that by the deploy path that ships the database', () => {
+    // Without this the guard exists and nothing ever sets it, which reads as
+    // fixed while behaving exactly as before.
+    expect(REBUILD).toMatch(/FOOTBAG_DB_FOR_DEPLOY=1 bash scripts\/reset-local-db\.sh/);
+  });
+});
