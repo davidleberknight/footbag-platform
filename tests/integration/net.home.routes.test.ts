@@ -124,15 +124,6 @@ function setupDb(db: BetterSqlite3.Database): void {
   insertNetTeamMember(db, { team_id: TEAM_CD, person_id: PERSON_D, position: 'b' });
   insertNetTeamAppearance(db, { team_id: TEAM_CD, event_id: ev2020, discipline_id: disc2020, result_entry_id: entry_cd_2020, placement: 2, event_year: 2020 });
 
-  // QC: multi_stage_result for ev2020
-  db.prepare(`
-    INSERT INTO net_review_queue
-      (id, source_file, item_type, priority, event_id, discipline_id,
-       check_id, severity, reason_code, message, resolution_status, imported_at)
-    VALUES (?, 'test', 'qc_issue', 2, ?, NULL,
-            'hm-check-1', 'medium', 'multi_stage_result',
-            'Multi-stage detected', 'open', '2025-01-01T00:00:00.000Z')
-  `).run('rq-hm-1', 'event-hm-2020');
 }
 
 beforeAll(async () => {

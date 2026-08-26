@@ -51,7 +51,6 @@ export interface NetHomeRecentEventViewModel {
   eventHref:           string;
   eventYear:           number;
   appearanceCount:     number;
-  hasMultiStageHint:   boolean;
 }
 
 interface NotableBucketViewModel {
@@ -249,12 +248,6 @@ interface NetTeamsContent {
   pagination:      NetTeamsPagination;
 }
 
-export interface NetEventQcHints {
-  hasMultiStageHint:         boolean;
-  unknownTeamExcludedCount:  number;
-  disciplineReviewCount:     number;
-}
-
 export interface NetEventViewModel {
   eventId:          string;
   eventTitle:       string;
@@ -266,7 +259,9 @@ export interface NetEventViewModel {
   appearanceCount:  number;
   disciplineCount:  number;
   teamCount:        number;
-  qcHints:          NetEventQcHints;
+  // At least one discipline at this event matched its canonical group ambiguously, so
+  // the grouping shown elsewhere is a best guess rather than a settled classification.
+  hasDisciplineReview: boolean;
 }
 
 interface NetEventsContent {
@@ -383,7 +378,6 @@ function shapeHomeRecentEvent(row: NetHomeRecentEventRow): NetHomeRecentEventVie
     eventHref:         publicEventHref(row.event_tag_normalized),
     eventYear:         row.event_year,
     appearanceCount:   row.appearance_count,
-    hasMultiStageHint: row.has_multi_stage_hint === 1,
   };
 }
 
@@ -399,11 +393,7 @@ export function shapeEventSummary(row: NetEventSummaryRow): NetEventViewModel {
     appearanceCount: row.appearance_count,
     disciplineCount: row.discipline_count,
     teamCount:       row.team_count,
-    qcHints: {
-      hasMultiStageHint:        row.has_multi_stage_hint === 1,
-      unknownTeamExcludedCount: row.unknown_team_excluded_count,
-      disciplineReviewCount:    row.discipline_review_count,
-    },
+    hasDisciplineReview: row.discipline_review_count > 0,
   };
 }
 

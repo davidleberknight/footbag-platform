@@ -20,18 +20,6 @@
 
   <p class="source-note">{{content.disclaimer}}</p>
 
-  {{#if content.event.qcHints.hasMultiStageHint}}
-  <div class="notice notice-warn">
-    <strong>Multi-stage results:</strong> This event used a bracket or multi-stage format. Results reflect final placements only.
-  </div>
-  {{/if}}
-
-  {{#if content.event.qcHints.unknownTeamExcludedCount}}
-  <div class="notice notice-warn">
-    <strong>{{content.event.qcHints.unknownTeamExcludedCount}} result(s) not shown</strong> because the team could not be linked to player records.
-  </div>
-  {{/if}}
-
   {{#if content.byDiscipline}}
   {{#each content.byDiscipline}}
   <section class="content-section">

@@ -41,9 +41,7 @@
           <td class="col-num">{{teamCount}}</td>
           <td class="col-num">{{appearanceCount}}</td>
           <td class="badge-cell">
-            {{#if qcHints.hasMultiStageHint}}<span class="badge badge-warn">Multi-stage</span>{{/if}}
-            {{#if qcHints.unknownTeamExcludedCount}}<span class="badge badge-warn">{{qcHints.unknownTeamExcludedCount}} unlinked</span>{{/if}}
-            {{#if qcHints.disciplineReviewCount}}<span class="badge badge-warn">Discipline review</span>{{/if}}
+            {{#if hasDisciplineReview}}<span class="badge badge-warn">Discipline review</span>{{/if}}
           </td>
         </tr>
         {{/each}}

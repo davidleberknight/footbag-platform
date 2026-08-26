@@ -11,7 +11,7 @@
  *   - Events ordered by start_date DESC
  *   - Events without net appearances do NOT appear in the list
  *   - Event detail shows discipline grouping, placement labels, player links
- *   - QC hints: multi_stage_hint badge, unknown_team excluded count notice
+ *   - The discipline-review badge follows net_discipline_group.conflict_flag alone
  *   - inferred_partial appearances do NOT appear
  *   - No rankings, win/loss, or head-to-head stats appear
  */
@@ -36,6 +36,7 @@ import {
   insertNetTeam,
   insertNetTeamMember,
   insertNetTeamAppearance,
+  insertNetDisciplineGroup,
   createTestSessionJwt,
 } from '../fixtures/factories';
 
@@ -121,11 +122,9 @@ function setupDb(db: BetterSqlite3.Database): void {
   });
 
   // Register conflict_flag discipline
-  db.prepare(`
-    INSERT INTO net_discipline_group
-      (discipline_id, canonical_group, match_method, review_needed, conflict_flag, mapped_at, mapped_by)
-    VALUES (?, 'mixed_doubles', 'pattern', 1, 1, '2025-01-01T00:00:00.000Z', 'test')
-  `).run('disc-ev-conflict-2012');
+  insertNetDisciplineGroup(db, disc2012_conflict, {
+    canonical_group: 'mixed_doubles', review_needed: 1, conflict_flag: 1,
+  });
 
   // FK chain
   const member   = insertMember(db);
@@ -166,35 +165,6 @@ function setupDb(db: BetterSqlite3.Database): void {
   insertNetTeamAppearance(db, { team_id: TEAM_CD, event_id: ev2015, discipline_id: disc2015a,      result_entry_id: entry_cd_2015_open, placement: 2, event_year: 2015 });
   insertNetTeamAppearance(db, { team_id: TEAM_CD, event_id: ev2012, discipline_id: disc2012_conflict, result_entry_id: entry_cd_2012_conf, placement: 1, event_year: 2012 });
 
-  // QC review items
-  // multi_stage_result hint for ev2015
-  db.prepare(`
-    INSERT INTO net_review_queue
-      (id, source_file, item_type, priority, event_id, discipline_id,
-       check_id, severity, reason_code, message, resolution_status, imported_at)
-    VALUES (?, 'test', 'qc_issue', 2, ?, NULL,
-            'test-check-1', 'medium', 'multi_stage_result',
-            'Multi-stage bracket detected', 'open', '2025-01-01T00:00:00.000Z')
-  `).run('rq-ev-multi-1', EVENT_2015_ID);
-
-  // unknown_team items for ev2012 (2 excluded results)
-  db.prepare(`
-    INSERT INTO net_review_queue
-      (id, source_file, item_type, priority, event_id, discipline_id,
-       check_id, severity, reason_code, message, resolution_status, imported_at)
-    VALUES (?, 'test', 'qc_issue', 2, ?, ?,
-            'test-check-2', 'medium', 'unknown_team',
-            'Team not resolved', 'open', '2025-01-01T00:00:00.000Z')
-  `).run('rq-ev-unk-1', EVENT_2012_ID, 'disc-ev-open-2012');
-
-  db.prepare(`
-    INSERT INTO net_review_queue
-      (id, source_file, item_type, priority, event_id, discipline_id,
-       check_id, severity, reason_code, message, resolution_status, imported_at)
-    VALUES (?, 'test', 'qc_issue', 2, ?, ?,
-            'test-check-3', 'medium', 'unknown_team',
-            'Team not resolved', 'open', '2025-01-01T00:00:00.000Z')
-  `).run('rq-ev-unk-2', EVENT_2012_ID, 'disc-ev-open-2012');
 }
 
 beforeAll(async () => {
@@ -254,16 +224,25 @@ describe('GET /net/events', () => {
     expect(res.text).not.toContain('/internal/net/events/');
   });
 
-  it('shows multi-stage QC badge for ev2015', async () => {
+  it('badges the event whose discipline matched its canonical group ambiguously', async () => {
     const app = createApp();
     const res = await request(app).get('/net/events');
-    expect(res.text).toContain('Multi-stage');
+    // ev2012 carries the only conflict_flag discipline in this fixture.
+    expect(res.text).toContain('Discipline review');
   });
 
-  it('shows unknown_team excluded count for ev2012', async () => {
+  it('badges only that event, not every event in the list', async () => {
     const app = createApp();
     const res = await request(app).get('/net/events');
-    expect(res.text).toContain('2 unlinked');
+    const badges = res.text.match(/Discipline review/g) ?? [];
+    expect(badges).toHaveLength(1);
+  });
+
+  it('carries no badge whose meaning came from the review queue', async () => {
+    const app = createApp();
+    const res = await request(app).get('/net/events');
+    expect(res.text).not.toContain('Multi-stage');
+    expect(res.text).not.toContain('unlinked');
   });
 
   it('does not show rankings, win/loss, or head-to-head stats', async () => {
@@ -333,18 +312,6 @@ describe('GET /internal/net/events/:eventId (QC reviewer view)', () => {
     const res = await internalGet(app, `/internal/net/events/${EVENT_2015_ID}`);
     expect(res.text).toContain('1st');
     expect(res.text).toContain('2nd');
-  });
-
-  it('shows multi-stage notice on ev2015', async () => {
-    const app = createApp();
-    const res = await internalGet(app, `/internal/net/events/${EVENT_2015_ID}`);
-    expect(res.text).toContain('Multi-stage results');
-  });
-
-  it('shows unknown_team excluded notice on ev2012', async () => {
-    const app = createApp();
-    const res = await internalGet(app, `/internal/net/events/${EVENT_2012_ID}`);
-    expect(res.text).toContain('2 result(s) not shown');
   });
 
   it('renders raw discipline name when conflict_flag=1', async () => {

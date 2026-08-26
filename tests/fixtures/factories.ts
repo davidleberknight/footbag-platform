@@ -1022,6 +1022,41 @@ export function insertNetReviewQueueItem(
   return id;
 }
 
+export interface NetDisciplineGroupOverrides {
+  canonical_group?: string;
+  match_method?:    'exact' | 'pattern' | 'fallback';
+  review_needed?:   0 | 1;
+  conflict_flag?:   0 | 1;
+  mapped_by?:       string;
+}
+
+/**
+ * Annotates a discipline with its canonical net group. conflict_flag = 1 means the
+ * discipline matched more than one group pattern, so the stored group is a best guess
+ * and the public net events page shows that a review is outstanding.
+ */
+export function insertNetDisciplineGroup(
+  db: BetterSqlite3.Database,
+  disciplineId: string,
+  o: NetDisciplineGroupOverrides = {},
+): string {
+  db.prepare(`
+    INSERT INTO net_discipline_group
+      (discipline_id, canonical_group, match_method, review_needed, conflict_flag,
+       mapped_at, mapped_by)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    disciplineId,
+    o.canonical_group ?? 'open_doubles',
+    o.match_method    ?? 'pattern',
+    o.review_needed   ?? 0,
+    o.conflict_flag   ?? 0,
+    TS,
+    o.mapped_by       ?? 'test',
+  );
+  return disciplineId;
+}
+
 export function insertNetCuratedMatch(
   db: BetterSqlite3.Database,
   o: NetCuratedMatchOverrides,

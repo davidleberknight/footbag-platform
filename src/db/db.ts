@@ -4329,10 +4329,9 @@ export const netRecoveryApproval = {
 // view, which enforces evidence_class = 'canonical_only' at the DB layer.
 // Never query net_team_appearance directly from this statement group.
 //
-// QC hints surfaced to public pages (safe summaries only, never raw review queue rows):
-//   has_multi_stage_hint        = event contains multi-stage bracket results
-//   unknown_team_excluded_count = count of results where team could not be linked
-//   discipline_review_count     = count of disciplines flagged for review
+// discipline_review_count = disciplines at this event whose canonical-group match was
+// ambiguous (net_discipline_group.conflict_flag = 1), so the stored grouping is a best
+// guess. Public pages surface only that the ambiguity exists, never the annotation rows.
 //
 // Routes: /net/events  |  /net/events/:eventId
 // ---------------------------------------------------------------------------
@@ -4347,8 +4346,6 @@ export interface NetEventSummaryRow {
   appearance_count:            number;
   discipline_count:            number;
   team_count:                  number;
-  has_multi_stage_hint:        number;   // 0 or 1
-  unknown_team_excluded_count: number;
   discipline_review_count:     number;
 }
 
@@ -4384,26 +4381,11 @@ const EVENT_SUMMARY_SELECT = `
       COUNT(a.id)                     AS appearance_count,
       COUNT(DISTINCT a.discipline_id) AS discipline_count,
       COUNT(DISTINCT a.team_id)       AS team_count,
-      COALESCE((
-        SELECT 1 FROM net_review_queue rq
-        WHERE rq.event_id = e.id AND rq.reason_code = 'multi_stage_result' LIMIT 1
-      ), 0) AS has_multi_stage_hint,
       (
-        SELECT COUNT(*) FROM net_review_queue rq
-        WHERE rq.event_id = e.id AND rq.reason_code = 'unknown_team'
-      ) AS unknown_team_excluded_count,
-      (
-        SELECT COUNT(DISTINCT disc_id) FROM (
-          SELECT a2.discipline_id AS disc_id
-          FROM net_team_appearance_canonical a2
-          JOIN net_discipline_group dg ON dg.discipline_id = a2.discipline_id
-          WHERE a2.event_id = e.id AND dg.conflict_flag = 1
-          UNION
-          SELECT rq2.discipline_id AS disc_id
-          FROM net_review_queue rq2
-          WHERE rq2.event_id = e.id AND rq2.reason_code = 'discipline_team_type_mismatch'
-            AND rq2.discipline_id IS NOT NULL
-        )
+        SELECT COUNT(DISTINCT a2.discipline_id)
+        FROM net_team_appearance_canonical a2
+        JOIN net_discipline_group dg ON dg.discipline_id = a2.discipline_id
+        WHERE a2.event_id = e.id AND dg.conflict_flag = 1
       ) AS discipline_review_count
     FROM events e
     JOIN tags t                          ON t.id = e.hashtag_tag_id
@@ -4516,7 +4498,6 @@ export interface NetHomeRecentEventRow {
   start_date:           string;
   event_year:           number;
   appearance_count:     number;
-  has_multi_stage_hint: number;   // 0 or 1
 }
 
 export interface NetHomeInterestingTeamRow {
@@ -4589,11 +4570,7 @@ export const netHome = {
       e.title                             AS event_title,
       e.start_date,
       CAST(SUBSTR(e.start_date, 1, 4) AS INTEGER) AS event_year,
-      COUNT(a.id)                         AS appearance_count,
-      COALESCE((
-        SELECT 1 FROM net_review_queue rq
-        WHERE rq.event_id = e.id AND rq.reason_code = 'multi_stage_result' LIMIT 1
-      ), 0) AS has_multi_stage_hint
+      COUNT(a.id)                         AS appearance_count
     FROM events e
     JOIN tags t                          ON t.id = e.hashtag_tag_id
     JOIN net_team_appearance_canonical a ON a.event_id = e.id

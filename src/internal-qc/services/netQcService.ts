@@ -1610,9 +1610,8 @@ export const netQcService = {
 
   // ── Net event detail (QC reviewer view) ─────────────────────────────────
   // /internal/net/events/:eventId: net-specific discipline grouping with
-  // conflict_flag-aware labels and QC hints (multi-stage, unknown-team
-  // excluded count, discipline review count). Internal use only: the public
-  // surface routes to the canonical /events/:eventKey page instead.
+  // conflict_flag-aware labels. Internal use only: the public surface routes
+  // to the canonical /events/:eventKey page instead.
 
   getNetEventDetailPage(eventId: string): PageViewModel<NetEventDetailContent> {
     const eventRow = netEvents.getEventSummary.get(eventId) as NetEventSummaryRow | undefined;
