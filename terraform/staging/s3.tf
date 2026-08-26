@@ -215,6 +215,11 @@ resource "aws_s3_bucket_lifecycle_configuration" "media" {
 # PUT preflight. AllowedHeaders=* covers Content-Type (signed) plus the
 # AWS-SDK-emitted x-amz-* headers. Empty when CloudFront is not yet enabled
 # since there is no public origin to cross from.
+#
+# One origin, and it diverges from production deliberately: staging serves on its
+# default CloudFront name permanently and attaches no custom domain, so that name
+# is the only address an admin page is ever loaded from here. Production's list
+# gains the canonical host and the preview subdomain as their flags turn on.
 
 resource "aws_s3_bucket_cors_configuration" "media" {
   count  = var.enable_cloudfront ? 1 : 0
@@ -222,11 +227,7 @@ resource "aws_s3_bucket_cors_configuration" "media" {
 
   cors_rule {
     allowed_methods = ["PUT"]
-    allowed_origins = [
-      var.domain_name != ""
-      ? "https://${var.domain_name}"
-      : "https://${aws_cloudfront_distribution.main[0].domain_name}",
-    ]
+    allowed_origins = ["https://${aws_cloudfront_distribution.main[0].domain_name}"]
     allowed_headers = ["*"]
     expose_headers  = ["ETag"]
     max_age_seconds = 3000

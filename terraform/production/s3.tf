@@ -204,9 +204,16 @@ resource "aws_s3_bucket_replication_configuration" "media" {
 # bytes directly to this bucket via presigned URLs. AllowedHeaders=* covers
 # Content-Type (signed) plus AWS-SDK-emitted x-amz-* headers. Gated on
 # enable_cloudfront exactly like staging: before the distribution exists
-# there is no public origin to cross from, and once it does, the CORS origin
-# must exist even while the platform still serves only on the default
-# cloudfront.net name (var.domain_name serves nothing pre-cutover).
+# there is no public origin to cross from.
+#
+# The list is every address the admin page is actually served from, because a
+# browser sends the origin it loaded the page from and S3 compares it literally.
+# The distribution's own generated name is first and is always allowed: it is how
+# the platform is reached until the custom domain is enabled, and it stays
+# reachable afterwards. The preview subdomain follows it while that name exists.
+# The canonical host joins them once the custom domain is on -- www, not the bare
+# apex, because the apex only redirects and no page is ever served under it, so
+# no browser ever presents it as an origin.
 
 resource "aws_s3_bucket_cors_configuration" "media" {
   count  = var.enable_cloudfront ? 1 : 0
@@ -214,11 +221,11 @@ resource "aws_s3_bucket_cors_configuration" "media" {
 
   cors_rule {
     allowed_methods = ["PUT"]
-    allowed_origins = [
-      var.domain_name != ""
-      ? "https://${var.domain_name}"
-      : "https://${aws_cloudfront_distribution.main[0].domain_name}",
-    ]
+    allowed_origins = concat(
+      ["https://${aws_cloudfront_distribution.main[0].domain_name}"],
+      var.enable_platform_custom_domain ? ["https://www.${var.domain_name}"] : [],
+      var.enable_platform_custom_domain && var.enable_preview_record ? ["https://preview.${var.domain_name}"] : [],
+    )
     allowed_headers = ["*"]
     expose_headers  = ["ETag"]
     max_age_seconds = 3000

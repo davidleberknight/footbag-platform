@@ -9,10 +9,14 @@
 # Declaring both states in one resource is what makes the switch a planned
 # change. A record created by hand and later created again by Terraform collides
 # instead, because allow_overwrite is deliberately left at its default so an
-# unimported record fails loudly rather than being silently replaced. www also
-# changes type at the switch (CNAME to A), and Route 53 will not hold a CNAME and
-# an A for the same name at once, so the old record has to be gone before the new
-# one is written -- which is exactly what a type change on one resource does.
+# unimported record fails loudly rather than being silently replaced.
+#
+# Both names keep their type across the switch, so neither is ever deleted and
+# recreated: the apex is an address record throughout, and www is an alias
+# throughout, pointed at the apex in this zone before the freeze and at the
+# distribution after it. Only an alias target changes, which Route 53 applies as
+# one in-place update, so no interim window exists in which either name fails to
+# resolve -- in that direction or on the way back.
 #
 # The hosted zone must exist before apply (import it; Console edits are not
 # the canonical path).
@@ -74,26 +78,86 @@ resource "aws_route53_record" "apex_a" {
   }
 }
 
-# www is a CNAME to the apex on the legacy zone and an A ALIAS to the
-# distribution afterwards. type is ForceNew, so the flip destroys the CNAME and
-# creates the A within one plan, in the order Route 53 requires.
+# www is an ALIAS in both states: to the apex record in this same zone through
+# the zone-move window, and to the distribution from the freeze. Only the target
+# changes, so the flip and its revert are each a single in-place update.
+#
+# The legacy zone reaches www by a CNAME onto the apex, and copying that shape
+# here would make the flip a type change. Type is ForceNew, so Route 53 would
+# have to delete the CNAME and then create the address record as two separate
+# calls -- Route 53 will not hold a CNAME and an address record at one name at
+# the same time -- and between them www does not exist.
+#
+# Two exposures, and the second is the serious one. A resolver asking in that gap
+# caches the no-such-name answer for the zone's SOA minimum, which on Route 53 is
+# 60 seconds by default: the same order as the record TTL, so bad but bounded.
+# The unbounded case is an apply that fails between the delete and the create,
+# which leaves the canonical hostname absent until someone notices and re-applies.
+# The rollback is the same change in reverse, so both exposures would land again
+# during an incident, which is when they are least affordable.
+#
+# An alias avoids both outright, and Route 53 recommends an alias over a CNAME for
+# a name pointing at another record in the same zone anyway. The runbook's own
+# rule forbids replacing a record by deleting and recreating it, so this shape was
+# the one place the tree contradicted it.
+#
+# What it costs, and only until the freeze: a CNAME answers a query of any type
+# by chasing it to the target, while an alias answers only its own type. A mail
+# lookup against www currently reaches the apex MX and afterwards gets an empty
+# answer. Every mail-carrying name in the zone snapshot is elsewhere, and from
+# the freeze both shapes behave identically because www points at the
+# distribution either way.
 resource "aws_route53_record" "www" {
   count   = local.apex_alias_mode || var.enable_legacy_mirror_records ? 1 : 0
   zone_id = var.route53_zone_id
   name    = "www.${var.domain_name}"
-  type    = local.apex_alias_mode ? "A" : "CNAME"
+  type    = "A"
 
-  ttl     = local.apex_alias_mode ? null : 60
-  records = local.apex_alias_mode ? null : [var.domain_name]
+  alias {
+    name    = local.apex_alias_mode ? aws_cloudfront_distribution.main[0].domain_name : var.domain_name
+    zone_id = local.apex_alias_mode ? aws_cloudfront_distribution.main[0].hosted_zone_id : var.route53_zone_id
 
-  dynamic "alias" {
-    for_each = local.apex_alias_mode ? [1] : []
-    content {
-      name                   = aws_cloudfront_distribution.main[0].domain_name
-      zone_id                = aws_cloudfront_distribution.main[0].hosted_zone_id
-      evaluate_target_health = false
-    }
+    # An in-zone alias inherits the target's TTL and answer, so the apex's 60s
+    # carries to www without being restated.
+    evaluate_target_health = false
   }
+
+  # The in-zone target is a bare name, which creates no implicit dependency, so
+  # nothing would otherwise stop Terraform creating www before the apex exists.
+  depends_on = [aws_route53_record.apex_a]
+}
+
+variable "legacy_apex_cname_records" {
+  description = "Legacy names that are CNAMEs onto the apex or www, as name => target, read from the fresh zone snapshot. Set in tfvars while enable_legacy_mirror_records is on. The zone transfer found five (fi, ftp, v, worlds, worldchampionships); take the set from the capture rather than from that list. Anything left out of this map is not carried through the zone move at all, and anything left in it after the flip resolves to a distribution that refuses it."
+  type        = map(string)
+  default     = {}
+}
+
+# The names that ride the apex and www, and therefore have to leave with them.
+#
+# Because each is a CNAME onto one of the two names being switched, the instant
+# the flip lands they follow it to the distribution -- which answers a hostname
+# its certificate does not cover with a refusal rather than a page. So they
+# cannot be deferred to a later cleanup pass: deferring by even an hour means an
+# hour of visitors reaching an error on names that served a page a moment
+# earlier. The gate for their removal is therefore the flip itself, not the
+# mirror flag, which stays on past the flip because the mail records count on it.
+# Removed in the same apply that switches the alias, which is what the cutover
+# runbook requires and what nothing previously implemented: these names had no
+# Terraform resource, so no apply could remove them.
+#
+# The rest of the mirrored zone is not here. The transfer returns 51 names and
+# the capture that enumerates them is taken immediately before the move, so the
+# values are not knowable now; these five are, because the design names them
+# explicitly and their disposition is fixed by their shape.
+resource "aws_route53_record" "legacy_apex_cnames" {
+  for_each = var.enable_legacy_mirror_records && !local.apex_alias_mode ? var.legacy_apex_cname_records : {}
+
+  zone_id = var.route53_zone_id
+  name    = "${each.key}.${var.domain_name}"
+  type    = "CNAME"
+  ttl     = 60
+  records = [each.value]
 }
 
 # The legacy zone carries no AAAA at either name, so the v6 records exist only in

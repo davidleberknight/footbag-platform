@@ -58,6 +58,20 @@ legacy_apex_ipv4             = ""
 legacy_apex_spf              = ""
 legacy_mx_records            = []
 
+# The legacy names that are CNAMEs onto the apex or www, as name => target, taken
+# from the fresh zone capture. They are mirrored with the rest of the zone and
+# removed in the same apply that flips the alias, because each one follows the
+# name it points at to the distribution, which refuses a hostname its certificate
+# does not cover. The transfer found five; confirm the set and the targets
+# against the capture rather than trusting this list.
+legacy_apex_cname_records = {
+  # fi                 = "footbag.org"
+  # ftp                = "footbag.org"
+  # v                  = "www.footbag.org"
+  # worlds             = "www.footbag.org"
+  # worldchampionships = "www.footbag.org"
+}
+
 # Workspace DKIM public key for the google selector, generated in the Workspace
 # admin console. The key cannot be generated until Gmail has served the domain
 # for a day or more, so this stays empty when the MX first moves and is filled

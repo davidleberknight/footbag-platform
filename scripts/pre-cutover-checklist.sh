@@ -19,7 +19,8 @@
 #   FOOTBAG_PRECUTOVER_SKIP_TESTS=1  skip npm run test:smoke / test:e2e
 #
 # Flags:
-#   --mock-aws     run DNS TTL + SES smoke in mock mode (no AWS calls)
+#   --mock-aws     run the DNS TTL and QC gates in mock mode (no AWS calls, and
+#                  the DNS gate then proves nothing about the zone)
 #   --skip-tests   skip the smoke + e2e suites
 #
 # Exit codes:
@@ -123,12 +124,19 @@ else
   run_step "QC-ABSENCE" bash scripts/validate-qc-absence.sh
 fi
 
-# NOTE: no DNS step here. The go-live flip is the webmaster's manual switch
-# of apex/www on his own authoritative zone, including its T-48h TTL
-# pre-shrink — his manual actions, not steps this script runs.
-# scripts/dns-ttl-preflight.sh --phase handover applies only at the later,
-# optional Route 53 handover milestone. The email-day MX/TXT TTL pre-shrink
-# is likewise the webmaster's manual action on his authoritative zone.
+# 10. DNS TTL observed from the zone's own nameservers ahead of the apex/www flip.
+#     The flip is operator-executed on Route 53 through Terraform, so this gate is
+#     ours and belongs in the aggregator rather than in anyone's head. It reads
+#     and never writes: Terraform already owns the TTL in both states.
+if [[ "${MOCK_AWS}" -eq 1 ]]; then
+  run_step "DNS-TTL" bash scripts/dns-ttl-preflight.sh --phase handover --mock
+else
+  run_step "DNS-TTL" bash scripts/dns-ttl-preflight.sh --phase handover
+fi
+
+# NOTE: the email-day MX and apex-TXT TTL is a separate, earlier shrink on the
+# same zone and is not checked here; the apex MX TTL is a day as served today, so
+# it has to lead the MX flip by at least that.
 
 echo
 echo "=== pre-cutover summary ==="

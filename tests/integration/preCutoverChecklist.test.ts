@@ -186,9 +186,13 @@ describe('pre-cutover checklist orchestrator', () => {
     const r = runChecklist(dbPath, snapshotDir);
     expect(r.status, `stdout:\n${r.stdout}\nstderr:\n${r.stderr}`).toBe(0);
     expect(r.stdout).toMatch(/READY: all gates PASS/);
-    for (const label of ['SNAPSHOT', 'G1', 'G7', 'G8', 'G11', 'DEV-ADMIN-AUDIT', 'SHOWCASE-PRESENCE', 'PAYMENTS-BOOT', 'QC-ABSENCE']) {
+    for (const label of ['SNAPSHOT', 'G1', 'G7', 'G8', 'G11', 'DEV-ADMIN-AUDIT', 'SHOWCASE-PRESENCE', 'PAYMENTS-BOOT', 'QC-ABSENCE', 'DNS-TTL']) {
       expect(r.stdout).toMatch(new RegExp(`GATE: ${label}[^\\n]*PASS`));
     }
+    // The DNS gate is the one the cutover runbook calls for and the aggregator
+    // previously disclaimed. Under mock it makes no lookup, and it says so
+    // rather than reading as a verified zone.
+    expect(r.stdout).toMatch(/GATE: DNS-TTL PASS: mock mode/);
     // The integration / smoke / e2e suites report SKIP under --skip-tests,
     // keeping this orchestrator test hermetic; assert the claim-safety step
     // is wired and properly skip-gated.

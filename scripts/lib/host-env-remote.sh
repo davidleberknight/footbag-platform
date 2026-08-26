@@ -333,13 +333,23 @@ ASSUME_YES="${ASSUME_YES:-no}"
 # Without a terminal and without --yes this refuses rather than defaulting. The
 # prompt guards overwriting a deployed host's configuration, and a default of
 # "go ahead" is not one to take on a caller's behalf.
+#
+# Opening /dev/tty is necessary but not sufficient, because a controlling
+# terminal outlives the redirection of the standard streams. A script spawned by
+# a test harness from an interactive shell has stdout and stderr on pipes while
+# /dev/tty still reaches the developer's terminal, so probing the device alone
+# would print a prompt into their session and block the suite on an answer only a
+# human could give. Requiring stdout and stderr to be terminals as well makes the
+# refusal deterministic wherever output is captured. stdin is deliberately not
+# checked: under the credential-pipe pattern it belongs to the piped secret, which
+# is the whole reason this reads from /dev/tty instead.
 confirm_from_tty() {
   local prompt="$1" expected="$2" answer=""
   if [[ "$ASSUME_YES" == "yes" ]]; then
     echo "${prompt}[--yes]" >&2
     return 0
   fi
-  if ! { true >/dev/tty; } 2>/dev/null; then
+  if [[ ! -t 1 || ! -t 2 ]] || ! { true >/dev/tty; } 2>/dev/null; then
     echo "" >&2
     echo "ERROR: no terminal to confirm on, and --yes was not given." >&2
     echo "       Re-run from an interactive shell, or pass --yes to accept this change." >&2

@@ -127,6 +127,40 @@ resource "aws_cloudfront_function" "strip_media_store_prefix" {
 }
 
 # =============================================================================
+# CloudFront Function: redirect the bare apex to the canonical www host
+# The front door is www; the apex only redirects. Nothing implements that
+# outside this function, and it cannot be implemented anywhere else: the
+# default behaviour's origin request policy withholds the viewer Host header
+# from the origin, and nginx pins the upstream Host to one canonical value, so
+# the application cannot learn which name the visitor typed. A viewer-request
+# function decides it at the edge, before the cache is consulted.
+# =============================================================================
+
+resource "aws_cloudfront_function" "apex_redirect" {
+  count   = var.enable_cloudfront ? 1 : 0
+  name    = "${local.prefix}-apex-redirect"
+  runtime = "cloudfront-js-2.0"
+  publish = true
+  comment = "Redirects the bare apex to the canonical www host with path and query intact"
+  code    = file("${path.module}/cloudfront-functions/apex-redirect.js")
+
+  lifecycle {
+    # Same reason as the function above: a distribution that references it
+    # blocks its deletion, so a replacement has to be created first.
+    create_before_destroy = true
+
+    # The function carries the two hostnames literally, because an edge function
+    # takes no variables. This keeps that copy honest: if the domain is ever
+    # changed here, the apply fails loudly instead of leaving every apex visitor
+    # redirected to a host the distribution no longer serves.
+    precondition {
+      condition     = var.domain_name == "footbag.org"
+      error_message = "cloudfront-functions/apex-redirect.js hardcodes footbag.org and www.footbag.org; update it to match domain_name before changing that variable."
+    }
+  }
+}
+
+# =============================================================================
 # Planned maintenance
 # Two independent ways the maintenance page reaches a visitor. The automatic one
 # is the 5xx fallback below: the origin breaks, CloudFront substitutes the page.
@@ -237,9 +271,34 @@ resource "aws_cloudfront_distribution" "main" {
 
     cache_policy_id          = var.enable_planned_maintenance ? data.aws_cloudfront_cache_policy.caching_optimized.id : data.aws_cloudfront_cache_policy.caching_disabled.id
     origin_request_policy_id = var.enable_planned_maintenance ? null : data.aws_cloudfront_origin_request_policy.all_viewer_except_host_header.id
+
+    # The apex redirect is associated here and nowhere else, deliberately. Only
+    # pages are indexed and every page routes through this behaviour, so the
+    # ordered behaviours below need no copy: an asset or media URL under the apex
+    # is reached from a page that was itself redirected. /media-store/* could not
+    # take it in any case, because CloudFront allows one function per event type
+    # per behaviour and the prefix stripper already holds that slot there.
+    #
+    # It fires with planned maintenance both on and off. That toggle swaps this
+    # behaviour's target origin, not the behaviour itself, and a viewer-request
+    # function runs before CloudFront selects an origin, so the apex keeps
+    # redirecting through the migration window, which is the correct behaviour.
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.apex_redirect[0].arn
+    }
   }
 
   # ── Static assets — longer cache ─────────────────────────────────────────
+  # WART: cors_s3_origin is the AWS-managed policy for S3 CORS preflight; it
+  # forwards three CORS request headers to the origin. The four behaviors
+  # below (/css/*, /js/*, /img/*, /fonts/*) target Lightsail nginx, not S3,
+  # so the CORS forwarding is semantically misplaced but functionally
+  # harmless (nginx ignores those headers for static assets). Future work:
+  # switch to all_viewer_except_host_header or omit the origin request
+  # policy entirely. Annotated in both trees: staging carried this note and
+  # production carried the same misplacement unannotated, which reads as a
+  # divergence to the parity audit when it is the same wart twice.
   ordered_cache_behavior {
     path_pattern           = "/css/*"
     target_origin_id       = "lightsail-origin"

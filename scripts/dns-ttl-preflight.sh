@@ -1,55 +1,63 @@
 #!/usr/bin/env bash
-# scripts/dns-ttl-preflight.sh -- T-48h DNS TTL drop before the apex/www switch.
-# The zone moves to Route 53 as go-live preparation and the operator applies
-# every record there afterwards; the webmaster applies no record after the move
-# and performs no DNS action at the cutover. This script drives Route 53, so it
-# runs after the zone move and ahead of the record switch at the write-freeze:
+# scripts/dns-ttl-preflight.sh -- the T-48h DNS TTL gate before the apex/www flip.
 #
-#   --phase handover  drops TTL on the apex A/AAAA + www records ahead of the
-#                     apex/www switch on Route 53.
-#                     Default records: "footbag.org.,www.footbag.org.".
+# The zone moves to Route 53 as go-live preparation and the operator applies every
+# record there through Terraform afterwards; nothing is hand-applied on any zone
+# and no DNS action at the cutover belongs to anyone else.
 #
-# The MX/TXT TTL pre-shrink before the mail cutover is a separate step on the
-# same zone, not done here: this script rewrites A/AAAA only. The apex MX TTL is
-# 1 day as served today, so that pre-shrink has to lead the MX flip by at least
-# that.
+# This script OBSERVES and never writes. The gate it serves asks for the 60-second
+# TTL on the apex and www to be seen coming out of the authoritative nameservers
+# 48 hours before the freeze, with the value recorded, so that the previously
+# cached TTL has certainly expired before the records change. Terraform already
+# sets that TTL, in both the legacy-mirror state and the alias state, precisely so
+# there is no separate drop step to forget -- which is why lowering it here would
+# be a second writer for a value Terraform owns, and the collision between a
+# hand-applied record and the apply that follows it is the failure the whole
+# records-actor posture exists to prevent. What was missing was never the write.
+# It was the observation.
 #
-# Lowers the TTL on the selected records to 60 seconds, issued 48 hours
-# before the swap so the previously-cached TTL has expired by the moment.
+#   --phase handover   verify the apex and www TTL as served by the zone's own
+#                      nameservers, ahead of the flip at the write-freeze.
+#                      Default records: "footbag.org.,www.footbag.org.".
+#
+# The MX/TXT TTL before the mail cutover is a separate step on the same zone and
+# is not checked here: this reads A/AAAA only. The apex MX TTL is 1 day as served
+# today, so that pre-shrink has to lead the MX flip by at least that.
 #
 # Required env vars:
-#   FOOTBAG_LEGACY_HOSTED_ZONE_ID    Hosted-zone id for footbag.org
-#   FOOTBAG_LEGACY_RECORDS           Comma-separated record names (overrides
-#                                    the per-phase default)
+#   FOOTBAG_LEGACY_HOSTED_ZONE_ID    Hosted-zone id for the zone
 # Optional:
-#   FOOTBAG_DNS_TTL_SECONDS          New TTL value (default: 60)
-#   --dry-run                        Print the change-batch JSON; do not call AWS
-#   --mock                           Skip AWS entirely; emit PASS for tests
+#   FOOTBAG_DNS_ZONE                 Zone apex (default: footbag.org)
+#   FOOTBAG_LEGACY_RECORDS           Comma-separated record names, trailing dot,
+#                                    overriding the per-phase default
+#   FOOTBAG_DNS_TTL_SECONDS          TTL the gate requires (default: 60)
+#   FOOTBAG_DNS_AUTHORITATIVE_NS     Comma-separated nameservers to ask, instead
+#                                    of the zone's own NS set
+#   --mock                           Skip every lookup; emit PASS so the
+#                                    aggregator can be exercised without network
 #
-# Exits non-zero on AWS call failure or precondition failure.
+# Exits non-zero when a required TTL is not observed, or a lookup cannot be made.
 
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-DRY_RUN=0
 MOCK=0
 PHASE=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --dry-run) DRY_RUN=1; shift ;;
-    --mock)    MOCK=1; shift ;;
-    --phase)   PHASE="$2"; shift 2 ;;
+    --mock) MOCK=1; shift ;;
+    --phase) PHASE="$2"; shift 2 ;;
     *) echo "unknown arg: $1" >&2; exit 2 ;;
   esac
 done
 
 case "${PHASE}" in
   handover) DEFAULT_RECORDS="footbag.org.,www.footbag.org." ;;
-  *) echo "--phase handover is required (the go-live flip is the webmaster's manual switch on his own zone; the MX/TXT TTL is likewise his manual action there)" >&2; exit 2 ;;
+  *) echo "--phase handover is required (it is the only phase: the apex/www TTL ahead of the operator's flip on Route 53)" >&2; exit 2 ;;
 esac
 
 if [[ "${MOCK}" -eq 1 ]]; then
-  printf 'GATE: DNS-TTL PASS: mock mode (no AWS call)\n'
+  printf 'GATE: DNS-TTL PASS: mock mode (no lookup performed; proves nothing about the zone)\n'
   exit 0
 fi
 
@@ -59,59 +67,130 @@ if [[ -z "${ZONE_ID}" ]]; then
   exit 1
 fi
 
+ZONE="${FOOTBAG_DNS_ZONE:-footbag.org}"
 RECORDS="${FOOTBAG_LEGACY_RECORDS:-${DEFAULT_RECORDS}}"
 TTL="${FOOTBAG_DNS_TTL_SECONDS:-60}"
 
-if ! command -v aws >/dev/null 2>&1; then
-  echo "aws CLI not found in PATH" >&2
+if ! [[ "${TTL}" =~ ^[0-9]+$ ]]; then
+  echo "FOOTBAG_DNS_TTL_SECONDS must be a whole number of seconds, got '${TTL}'" >&2
   exit 1
 fi
 
-# Build the change-batch JSON. The AWS CLI returns existing record values
-# we can splice into a TTL-only UPDATE, but the safe operator path is to
-# require the operator to confirm the resource values explicitly.
-# We construct UPSERT operations on the A/AAAA record sets; the operator
-# is expected to inspect the dry-run output before applying.
-changes_json=""
+for tool in dig aws; do
+  if ! command -v "${tool}" >/dev/null 2>&1; then
+    echo "${tool} not found in PATH" >&2
+    exit 1
+  fi
+done
+
+# The gate says "from the authoritative nameservers", so the zone's own NS set is
+# what gets asked, not whatever the local resolver has cached. Every one of them
+# is asked: a zone whose delegation includes a server that answers differently,
+# or does not answer at all, is exactly the condition worth catching before the
+# flip rather than during it.
+if [[ -n "${FOOTBAG_DNS_AUTHORITATIVE_NS:-}" ]]; then
+  NS_LIST="${FOOTBAG_DNS_AUTHORITATIVE_NS}"
+else
+  NS_LIST=$(dig +short NS "${ZONE}" 2>/dev/null | sed 's/\.$//' | paste -sd, - || true)
+fi
+
+if [[ -z "${NS_LIST}" ]]; then
+  echo "no authoritative nameservers found for ${ZONE}; set FOOTBAG_DNS_AUTHORITATIVE_NS to name them" >&2
+  exit 1
+fi
+
+fail=0
+observed_any=0
+
+# What Route 53 holds, as opposed to what it serves. This is the half that dig
+# cannot answer: an alias is served as an ordinary address record, so a resolver
+# sees a TTL that the alias does not own and cannot be asked to change -- Route 53
+# takes it from the target. Saying so is the honest result for a name that has
+# already flipped, and it is why reading the API here is worth the call.
+classify_record() {
+  local name="$1" rtype="$2" sets
+  sets=$(aws route53 list-resource-record-sets \
+    --hosted-zone-id "${ZONE_ID}" \
+    --query "ResourceRecordSets[?Name=='${name}' && Type=='${rtype}']" \
+    --output json) || return 1
+  printf '%s' "${sets}" | python3 -c '
+import json, sys
+
+sets = json.load(sys.stdin)
+if not sets:
+    print("absent")
+elif len(sets) > 1:
+    # More than one set at one name and type means a routing policy is in play and
+    # each set carries its own TTL. Reporting it beats picking the first and
+    # calling the name verified.
+    print("multiple %d" % len(sets))
+elif "AliasTarget" in sets[0]:
+    print("alias")
+else:
+    print("simple %s" % sets[0].get("TTL", "none"))
+'
+}
+
 IFS=',' read -ra REC_LIST <<< "${RECORDS}"
+IFS=',' read -ra NS_ARR <<< "${NS_LIST}"
+
 for rec in "${REC_LIST[@]}"; do
   for rtype in A AAAA; do
-    # Look up the existing record's ResourceRecords list; skip the record
-    # if it doesn't exist (e.g. AAAA may not be present).
-    existing=$(aws route53 list-resource-record-sets \
-      --hosted-zone-id "${ZONE_ID}" \
-      --query "ResourceRecordSets[?Name=='${rec}' && Type=='${rtype}']" \
-      --output json 2>/dev/null || echo "[]")
-    if [[ "${existing}" == "[]" || -z "${existing}" ]]; then
+    if ! shape=$(classify_record "${rec}" "${rtype}"); then
+      printf 'GATE: DNS-TTL FAIL: cannot read %s %s from zone %s\n' "${rec}" "${rtype}" "${ZONE_ID}"
+      fail=1
       continue
     fi
-    rrs=$(printf '%s' "${existing}" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(json.dumps(d[0]["ResourceRecords"]))')
-    change=$(printf '{"Action":"UPSERT","ResourceRecordSet":{"Name":"%s","Type":"%s","TTL":%s,"ResourceRecords":%s}}' \
-      "${rec}" "${rtype}" "${TTL}" "${rrs}")
-    if [[ -z "${changes_json}" ]]; then
-      changes_json="${change}"
-    else
-      changes_json="${changes_json},${change}"
-    fi
+
+    case "${shape}" in
+      absent)
+        # The legacy zone carries no IPv6 at either name, so an absent AAAA is the
+        # expected state and not a finding.
+        continue
+        ;;
+      multiple*)
+        printf 'GATE: DNS-TTL FAIL: %s %s has %s record sets; each carries its own TTL and this check assumes one\n' \
+          "${rec}" "${rtype}" "${shape#multiple }"
+        fail=1
+        continue
+        ;;
+      alias)
+        printf 'note: %s %s is an ALIAS, so it has no TTL of its own; the value served below is inherited from its target\n' \
+          "${rec}" "${rtype}"
+        ;;
+    esac
+
+    for ns in "${NS_ARR[@]}"; do
+      answer=$(dig "@${ns}" +noall +answer "${rec}" "${rtype}" 2>/dev/null || true)
+      served=$(printf '%s' "${answer}" | sed -E 's/[[:space:]]+/ /g' | cut -d' ' -f2 | head -1)
+      if [[ -z "${served}" ]]; then
+        printf 'GATE: DNS-TTL FAIL: %s %s returned no answer from %s\n' "${rec}" "${rtype}" "${ns}"
+        fail=1
+        continue
+      fi
+      observed_any=1
+      # The observed value is printed for every name and every server whether it
+      # passes or fails: this line is what the cutover log keeps as the record
+      # that the TTL was seen, and when it was.
+      printf 'observed: %s %s ttl=%s from %s (required %s)\n' "${rec}" "${rtype}" "${served}" "${ns}" "${TTL}"
+      if [[ "${served}" != "${TTL}" ]]; then
+        printf 'GATE: DNS-TTL FAIL: %s %s served ttl %s from %s, gate requires %s\n' \
+          "${rec}" "${rtype}" "${served}" "${ns}" "${TTL}"
+        fail=1
+      fi
+    done
   done
 done
 
-if [[ -z "${changes_json}" ]]; then
-  echo "no matching A/AAAA records found in zone ${ZONE_ID} for ${RECORDS}" >&2
+if [[ "${observed_any}" -eq 0 && "${fail}" -eq 0 ]]; then
+  printf 'GATE: DNS-TTL FAIL: no A or AAAA record was observed for %s; the gate cannot pass on an empty result\n' "${RECORDS}"
   exit 1
 fi
 
-batch=$(printf '{"Changes":[%s]}' "${changes_json}")
-
-if [[ "${DRY_RUN}" -eq 1 ]]; then
-  printf 'GATE: DNS-TTL PASS: dry-run, change-batch follows\n'
-  printf '%s\n' "${batch}"
-  exit 0
+if [[ "${fail}" -ne 0 ]]; then
+  exit 1
 fi
 
-result=$(aws route53 change-resource-record-sets \
-  --hosted-zone-id "${ZONE_ID}" \
-  --change-batch "${batch}")
-change_id=$(printf '%s' "${result}" | python3 -c 'import json,sys; print(json.load(sys.stdin)["ChangeInfo"]["Id"])')
-printf 'GATE: DNS-TTL PASS: change submitted (id=%s, ttl=%s)\n' "${change_id}" "${TTL}"
+printf 'GATE: DNS-TTL PASS: every checked record served ttl %s from all %d authoritative nameservers\n' \
+  "${TTL}" "${#NS_ARR[@]}"
 exit 0
