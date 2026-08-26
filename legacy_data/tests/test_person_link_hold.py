@@ -2,12 +2,19 @@
 test_person_link_hold.py
 ========================
 
-Contract for the fail-closed Stage B person-link hold. A hold_link decision
-suppresses exactly one mechanically-proposed link, preserves the suppressed
-proposal in the audit, creates no alternative link, and fails closed on any drift of
-the decision boundary (survivor account set, candidate person, candidate set,
-proposal method, match facts, or frozen input boundary). With no hold input the
-proposals are unchanged.
+Contract for the fail-closed Stage B person-link adjudications.
+
+A hold_link decision suppresses exactly one mechanically-proposed link, preserves
+the suppressed proposal in the audit, creates no alternative link, and fails closed
+on any drift of the decision boundary (survivor account set, candidate person,
+candidate set, proposal method, match facts, or frozen input boundary). With no
+hold input the proposals are unchanged.
+
+The two person-scoped decisions record why a person has no link at all: no_account
+when the member population holds none, and duplicate_person when the row is the
+same human as another person row. Both bind to the evidence that made them true,
+so a ruling cannot outlive it, and a completeness gate refuses a load in which any
+eligible person carries neither a proposal nor a decision.
 
 All data is synthetic; no real member or person data appears here.
 """
@@ -187,7 +194,17 @@ def test_load_rejects_unknown_decision(tmp_path):
 def test_load_rejects_unknown_reason(tmp_path):
     p = tmp_path / "h.csv"
     _write(p, [[plh.HOLD_LINK, "100|200", "P1", "because", "a" * 64, "n"]])
-    with pytest.raises(plh.PersonLinkHoldError, match="unknown reason"):
+    with pytest.raises(plh.PersonLinkHoldError, match="not valid for decision"):
+        plh.load_holds(p)
+
+
+def test_load_rejects_a_reason_belonging_to_a_different_decision(tmp_path):
+    # Each decision owns its reason codes. A shared vocabulary would let a
+    # no-account ruling wear a hold_link reason and read as adjudicated.
+    p = tmp_path / "h.csv"
+    _write(p, [[plh.HOLD_LINK, "100|200", "P1",
+                plh.NO_VALID_ACCOUNT_IN_MEMBER_POPULATION, "a" * 64, "n"]])
+    with pytest.raises(plh.PersonLinkHoldError, match="not valid for decision"):
         plh.load_holds(p)
 
 
@@ -207,3 +224,155 @@ def test_load_round_trip(tmp_path):
     assert len(holds) == 1
     kept, audit = plh.apply_holds([d], holds)
     assert kept == [] and len(audit) == 1
+
+
+# --- person-scoped dispositions --------------------------------------------
+#
+# A person with no proposed link and a person nobody has looked at are the same
+# row until somebody records a decision. These fix what that record has to prove.
+
+def _person(pid="P9", name="sam rivera", accounts=(), boundary=BOUNDARY):
+    def fingerprint_for(duplicate_of=""):
+        return plh.person_boundary_fingerprint(pid, name, accounts, duplicate_of, boundary)
+    return {"candidate_person_id": pid, "normalized_name": name,
+            "account_ids_bearing_name": set(accounts),
+            "fingerprint_for": fingerprint_for}
+
+
+def _disposition(pid, decision, reason, fingerprint, duplicate_of=""):
+    return plh.PersonLinkHold(decision, frozenset(), pid, reason, fingerprint,
+                              "synthetic", duplicate_of)
+
+
+def test_no_account_disposition_records_the_decision_and_creates_no_link():
+    d = _person()
+    audit = plh.apply_person_dispositions(
+        [d], [_disposition("P9", plh.NO_ACCOUNT,
+                           plh.NO_VALID_ACCOUNT_IN_MEMBER_POPULATION,
+                           d["fingerprint_for"](""))],
+        known_person_ids={"P9"})
+    assert len(audit) == 1
+    assert audit[0]["decision"] == plh.NO_ACCOUNT
+    assert audit[0]["link_created"] is False
+
+
+def test_no_account_disposition_goes_stale_when_an_account_appears():
+    # The ruling was true of a population with no account by this name. A delivery
+    # that introduces one must force the ruling to be made again rather than let
+    # the old one stand over new evidence.
+    made_against = _person(accounts=())
+    fingerprint = made_against["fingerprint_for"]("")
+    now = _person(accounts=("4242",))
+    with pytest.raises(plh.PersonLinkHoldError, match="stale decision boundary"):
+        plh.apply_person_dispositions(
+            [now], [_disposition("P9", plh.NO_ACCOUNT,
+                                 plh.NO_VALID_ACCOUNT_IN_MEMBER_POPULATION, fingerprint)],
+            known_person_ids={"P9"})
+
+
+def test_duplicate_person_disposition_carries_the_row_it_duplicates():
+    d = _person()
+    audit = plh.apply_person_dispositions(
+        [d], [_disposition("P9", plh.DUPLICATE_PERSON,
+                           plh.DUPLICATE_STROKE_LETTER_VARIANT,
+                           d["fingerprint_for"]("P1"), duplicate_of="P1")],
+        known_person_ids={"P9", "P1"})
+    assert audit[0]["duplicate_of_person_id"] == "P1"
+    assert audit[0]["link_created"] is False
+
+
+def test_duplicate_person_disposition_rejects_an_unknown_target():
+    d = _person()
+    with pytest.raises(plh.PersonLinkHoldError, match="not in the person population"):
+        plh.apply_person_dispositions(
+            [d], [_disposition("P9", plh.DUPLICATE_PERSON,
+                               plh.DUPLICATE_SPELLING_VARIANT,
+                               d["fingerprint_for"]("P404"), duplicate_of="P404")],
+            known_person_ids={"P9"})
+
+
+def test_disposition_for_a_person_no_longer_awaiting_one_is_refused():
+    d = _person()
+    with pytest.raises(plh.PersonLinkHoldError, match="no such person awaiting"):
+        plh.apply_person_dispositions(
+            [], [_disposition("P9", plh.NO_ACCOUNT,
+                              plh.NO_VALID_ACCOUNT_IN_MEMBER_POPULATION,
+                              d["fingerprint_for"](""))],
+            known_person_ids={"P9"})
+
+
+def test_repeated_disposition_for_one_person_is_refused():
+    d = _person()
+    one = _disposition("P9", plh.NO_ACCOUNT,
+                       plh.NO_VALID_ACCOUNT_IN_MEMBER_POPULATION,
+                       d["fingerprint_for"](""))
+    with pytest.raises(plh.PersonLinkHoldError, match="duplicate disposition"):
+        plh.apply_person_dispositions([d], [one, one], known_person_ids={"P9"})
+
+
+def test_every_person_must_carry_a_disposition():
+    # The gate the final load runs: an unreviewed person must not pass as an
+    # accepted absence.
+    with pytest.raises(plh.PersonLinkHoldError, match="neither a proposed link nor"):
+        plh.assert_every_person_dispositioned([_person(pid="P9")], [])
+
+
+def test_the_completeness_gate_passes_once_each_person_is_ruled_on():
+    d = _person(pid="P9")
+    plh.assert_every_person_dispositioned(
+        [d], [_disposition("P9", plh.NO_ACCOUNT,
+                           plh.NO_VALID_ACCOUNT_IN_MEMBER_POPULATION,
+                           d["fingerprint_for"](""))])
+
+
+def test_person_scoped_rows_never_reach_the_proposal_path():
+    # The two kinds of decision share a file. A disposition says nothing about a
+    # proposal, so it must not suppress one or be treated as an unmatched hold.
+    d = _descriptor({"701"}, "P1", ["P1"])
+    kept, audit = plh.apply_holds(
+        [d], [_disposition("P9", plh.NO_ACCOUNT,
+                           plh.NO_VALID_ACCOUNT_IN_MEMBER_POPULATION, "c" * 64)])
+    assert kept == [d["proposal"]]
+    assert audit == []
+
+
+def test_load_rejects_a_person_scoped_row_carrying_accounts(tmp_path):
+    p = tmp_path / "h.csv"
+    _write(p, [[plh.NO_ACCOUNT, "100|200", "P9",
+                plh.NO_VALID_ACCOUNT_IN_MEMBER_POPULATION, "a" * 64, "n"]])
+    with pytest.raises(plh.PersonLinkHoldError, match="survivor_account_ids must be empty"):
+        plh.load_holds(p)
+
+
+def test_load_rejects_a_duplicate_decision_with_no_target(tmp_path):
+    p = tmp_path / "h.csv"
+    _write(p, [[plh.DUPLICATE_PERSON, "", "P9",
+                plh.DUPLICATE_SPELLING_VARIANT, "a" * 64, "n"]])
+    with pytest.raises(plh.PersonLinkHoldError, match="must name the row it duplicates"):
+        plh.load_holds(p)
+
+
+def test_load_rejects_an_adjudication_with_no_note(tmp_path):
+    p = tmp_path / "h.csv"
+    _write(p, [[plh.NO_ACCOUNT, "", "P9",
+                plh.NO_VALID_ACCOUNT_IN_MEMBER_POPULATION, "a" * 64, ""]])
+    with pytest.raises(plh.PersonLinkHoldError, match="carries a note"):
+        plh.load_holds(p)
+
+
+def test_a_cohort_review_row_is_unresolved_not_spoken_for():
+    # Inside an adjudicated cohort a review row is the unresolved case, so it must
+    # still demand a ruling. Outside one it is an ordinary queue somebody works.
+    import reconcile_legacy_members as rlm
+    accounts = [{"legacy_member_id": "1", "member_valid": "1", "real_name": "sam rivera",
+                 "birth_date": "1990-01-01", "legacy_email": ""}]
+    hps = [{"person_id": "P1", "person_name": "sam rivera", "legacy_member_id": "",
+            "source": "MEMBERSHIP", "source_scope": "PROVISIONAL"}]
+    review = [{"historical_person_id": "P1"}]
+
+    inside = rlm._build_person_disposition_descriptors(
+        [], review, accounts, hps, cohort_person_ids={"P1"})
+    assert [d["candidate_person_id"] for d in inside] == ["P1"]
+
+    outside = rlm._build_person_disposition_descriptors([], review, accounts, hps)
+    assert outside == []

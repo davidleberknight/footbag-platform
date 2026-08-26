@@ -1289,7 +1289,8 @@ def read_historical_persons(db_path: Path) -> list[dict[str, str]]:
     conn.row_factory = sqlite3.Row
     try:
         rows = conn.execute(
-            "SELECT person_id, person_name, legacy_member_id FROM historical_persons"
+            "SELECT person_id, person_name, legacy_member_id, source, source_scope "
+            "FROM historical_persons"
         ).fetchall()
     finally:
         conn.close()
@@ -1303,6 +1304,85 @@ def _write_rows(rows: list[dict[str, str]], fields: list[str], out_path: Path) -
         w.writeheader()
         w.writerows(rows)
     return len(rows)
+
+
+# The person cohort whose non-link dispositions are adjudicated alongside the
+# member load. Named by where the rows came from rather than by a person list, so
+# a re-delivery that adds or drops a membership-only person is covered without an
+# edit here. Other provisional cohorts have their own owners and are not gated on
+# this load.
+MEMBERSHIP_PROVISIONAL_COHORT = ("MEMBERSHIP", "PROVISIONAL")
+
+
+def membership_provisional_person_ids(hps: list[dict[str, str]]) -> set[str]:
+    source, scope = MEMBERSHIP_PROVISIONAL_COHORT
+    return {(hp.get("person_id") or "").strip() for hp in hps
+            if (hp.get("source") or "") == source
+            and (hp.get("source_scope") or "") == scope
+            and (hp.get("person_id") or "").strip()}
+
+
+def _build_person_disposition_descriptors(proposed: list[dict[str, str]],
+                                          review: list[dict[str, str]],
+                                          accounts: list[dict[str, str]],
+                                          hps: list[dict[str, str]],
+                                          cohort_person_ids: "set[str] | None" = None) -> list[dict]:
+    """One descriptor per person eligible for a person-scoped disposition: unlinked,
+    carrying no proposed link, and in no review group, so nothing mechanical will
+    say anything about them again.
+
+    `cohort_person_ids` bounds which people a caller has undertaken to adjudicate.
+    Without it every unlinked person qualifies, which is thousands of rows spanning
+    several unrelated bodies of work, and a completeness gate over that would block
+    a load on somebody else's backlog. A caller adjudicating one cohort passes it.
+
+    The decision boundary is the person, their normalized name, and the valid
+    accounts bearing that name. That last part is empty when a no-account ruling is
+    made and stops being empty the moment a delivery introduces a matching account,
+    which is exactly when the ruling has to be revisited.
+    """
+    import person_link_hold as plh
+    boundary = _boundary_fingerprint(accounts)
+    spoken_for = {p["historical_person_id"] for p in proposed}
+    if cohort_person_ids is None:
+        # Unbounded: a review row is a queue somebody works, so it counts as
+        # spoken for and needs no separate ruling.
+        spoken_for |= {r["historical_person_id"] for r in review}
+    else:
+        # Inside an adjudicated cohort a review row is the opposite: it is the
+        # unresolved case, and the whole point of the gate is that it cannot pass
+        # as settled. A person who was proposed last run and has fallen into
+        # review this run therefore becomes eligible and blocks the load until
+        # somebody rules on them. Persons outside the cohort keep the ordinary
+        # meaning, so this narrows nothing for anybody else.
+        spoken_for |= {r["historical_person_id"] for r in review
+                       if r["historical_person_id"] not in cohort_person_ids}
+    accounts_by_name: dict[str, set[str]] = defaultdict(set)
+    for a in _valid_rows(accounts):
+        mid = (a.get("legacy_member_id") or "").strip()
+        if mid:
+            accounts_by_name[normalize_name(a.get("real_name") or "")].add(mid)
+
+    out: list[dict] = []
+    for hp in hps:
+        pid = (hp.get("person_id") or "").strip()
+        if not pid or pid in spoken_for:
+            continue
+        if cohort_person_ids is not None and pid not in cohort_person_ids:
+            continue          # outside the cohort this caller adjudicates
+        if (hp.get("legacy_member_id") or "").strip():
+            continue          # already linked; nothing to dispose of
+        nm = normalize_name(hp.get("person_name") or "")
+        bearing = accounts_by_name.get(nm, set())
+        out.append({
+            "candidate_person_id": pid,
+            "normalized_name": nm,
+            "account_ids_bearing_name": bearing,
+            "fingerprint_for": (
+                lambda duplicate_of, _pid=pid, _nm=nm, _b=bearing:
+                plh.person_boundary_fingerprint(_pid, _nm, _b, duplicate_of, boundary)),
+        })
+    return out
 
 
 def _build_link_hold_descriptors(proposed: list[dict[str, str]],
@@ -1384,6 +1464,7 @@ def stage_b_link_historical_persons(
     survivor_view: "StageASurvivorView | None" = None,
     person_link_holds: "list | None" = None,
     review_resolutions: "list | None" = None,
+    require_complete_dispositions: bool = False,
 ) -> dict[str, object]:
     """Read the intermediate CSV and historical_persons, propose links, and write
     the proposed-link and review CSVs. Read-only on the database; proposes, never
@@ -1410,11 +1491,22 @@ def stage_b_link_historical_persons(
     hps = read_historical_persons(Path(db_path))
     proposed, review = build_stage_b(universe, hps)
     link_hold_audit: list = []
+    person_disposition_audit: list = []
     if person_link_holds:
         import person_link_hold as plh
         provenance = survivor_view.provenance if survivor_view is not None else {}
         descriptors = _build_link_hold_descriptors(proposed, accounts, hps, provenance)
         proposed, link_hold_audit = plh.apply_holds(descriptors, person_link_holds)
+        # Person-scoped rulings are checked against the people Stage B produced no
+        # proposal for, which is only knowable after the holds above have run.
+        pdesc = _build_person_disposition_descriptors(
+            proposed, review, accounts, hps,
+            cohort_person_ids=membership_provisional_person_ids(hps))
+        person_disposition_audit = plh.apply_person_dispositions(
+            pdesc, person_link_holds,
+            known_person_ids={(hp.get("person_id") or "") for hp in hps})
+        if require_complete_dispositions:
+            plh.assert_every_person_dispositioned(pdesc, person_link_holds)
     review_resolution_audit: list = []
     if review_resolutions:
         import review_resolution as rr
@@ -1436,6 +1528,9 @@ def stage_b_link_historical_persons(
         "name_email_links": sum(1 for r in proposed if r["match_signal"] == "name_email"),
         "review_rows": len(review),
         "review_groups": len({r["review_group"] for r in review}),
+        "person_dispositions": len(person_disposition_audit),
+        "person_dispositions_by_decision": dict(Counter(
+            a["decision"] for a in person_disposition_audit)),
         "hp_linked_to_missing_account": orphans,
         "collapsed_stage_a_merges": len(survivor_view.collapsed_group_ids) if survivor_view else 0,
         "loser_accounts_hidden": len(survivor_view.loser_to_survivor) if survivor_view else 0,
@@ -1454,7 +1549,8 @@ def run_stage_b(csv_path: Path, db_path: Path | None,
                 use_survivor_view: bool = False,
                 overrides_path: Path | None = None,
                 link_holds_path: Path | None = None,
-                review_resolutions_path: Path | None = None) -> int:
+                review_resolutions_path: Path | None = None,
+                require_complete_dispositions: bool = False) -> int:
     if not csv_path.exists():
         print(
             f"error: intermediate CSV not found at {csv_path}.\n"
@@ -1469,8 +1565,18 @@ def run_stage_b(csv_path: Path, db_path: Path | None,
             file=sys.stderr,
         )
         return 1
-    holds = load_person_link_holds(link_holds_path)
-    resolutions = load_review_resolutions(review_resolutions_path)
+    # A malformed adjudication file is an operator error, not a defect to show a
+    # stack trace for: the message has to say which line and what was expected.
+    try:
+        holds = load_person_link_holds(link_holds_path)
+        resolutions = load_review_resolutions(review_resolutions_path)
+    except Exception as e:
+        if e.__class__.__name__ in ("PersonLinkHoldError", "ReviewResolutionError"):
+            print(f"error: adjudication input rejected: {e}\n"
+                  f"  Fix the row in {link_holds_path or review_resolutions_path} "
+                  "and re-run.", file=sys.stderr)
+            return 2
+        raise
     view = None
     if use_survivor_view:
         with Path(csv_path).open(encoding="utf-8", newline="") as f:
@@ -1497,13 +1603,17 @@ def run_stage_b(csv_path: Path, db_path: Path | None,
               f"merges; {len(view.loser_to_survivor)} loser accounts hidden; "
               f"plan fp {view.plan_fingerprint[:16]}")
     try:
-        s = stage_b_link_historical_persons(csv_path, db_path, proposed_out, review_out,
-                                            view, holds, resolutions)
+        s = stage_b_link_historical_persons(
+            csv_path, db_path, proposed_out, review_out, view, holds, resolutions,
+            require_complete_dispositions=require_complete_dispositions)
     except Exception as e:
         if e.__class__.__name__ in ("PersonLinkHoldError", "ReviewResolutionError"):
             print(f"error: Stage B adjudication failed closed: {e}", file=sys.stderr)
             return 2
         raise
+    if s["person_dispositions"]:
+        print(f"person dispositions recorded (no link, decision on file): "
+              f"{s['person_dispositions']}  {s['person_dispositions_by_decision']}")
     if s["person_links_held"]:
         print(f"person links held (withheld from application): {s['person_links_held']}")
     if s["review_groups_resolved"]:
@@ -1681,6 +1791,11 @@ def main() -> None:
                     help="Stage A shared-email resolution report CSV, one row per collision "
                          "group with winner / cleared / adjudication disposition "
                          "(git-ignored out/ by default)")
+    ap.add_argument("--require-complete-dispositions", action="store_true",
+                    help="refuse unless every membership-only provisional person carries "
+                         "either a proposed link or a recorded disposition. The final "
+                         "production load sets this so an unreviewed person cannot pass "
+                         "as an accepted absence.")
     ap.add_argument("--link-holds", type=Path, default=None,
                     help="Stage B person-link hold CSV (private input; fail-closed). "
                          "Suppresses adjudicated proposed links before the proposal CSV is "
@@ -1709,7 +1824,8 @@ def main() -> None:
                              use_survivor_view=args.stage_b_survivor_view,
                              overrides_path=args.overrides,
                              link_holds_path=args.link_holds,
-                             review_resolutions_path=args.review_resolutions))
+                             review_resolutions_path=args.review_resolutions,
+                             require_complete_dispositions=args.require_complete_dispositions))
     if args.qc_gate:
         sys.exit(run_qc_gate(args.out, args.proposed_out, args.review_out))
     if args.dry_run_merge:

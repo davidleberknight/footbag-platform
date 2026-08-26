@@ -71,6 +71,15 @@ a fallback the reset stages only if `canonical_input/` is absent.
   `deploy-local-data.sh --soup-to-nuts` / `--from-csv`); the default
   `reset-local-db.sh` / `./run_dev.sh` skip it.
 
+  It is an identity and provenance source, not a standing source. Every row in it
+  reads as active and carries a provisional tier, so it expresses no lapsed
+  standing, and that tier reaches nothing: `historical_persons` has no tier or
+  membership column for it to land in. The member dump is authoritative for
+  standing, which it states precisely as lifetime, an annual expiry that may be
+  past, or never held. What the roster uniquely carries is the identities behind
+  the membership-only person rows, with the page each came from, which is why it
+  is retained rather than retired once the dump supersedes it on standing.
+
 **Never commit member emails or pipeline-output snapshots.** Member contact emails
 and membership status stay out of the repo. The `out/` dirs are gitignored, and so
 are `clubs/snapshots/` and `legacy_data/snapshots/` — do not re-add point-in-time
