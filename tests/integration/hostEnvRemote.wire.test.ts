@@ -19,6 +19,11 @@
  * What it cannot cover: the network, and a body genuinely running as uid 0.
  * The `install` stand-in exists for exactly that reason and does nothing but
  * drop the ownership flags a non-root process cannot honour.
+ *
+ * Every connection-opening function refuses to run without a pinned host-key
+ * file, so the suite supplies its own inside the throwaway work directory. It
+ * must never read the operator's pin: a suite that does passes on the one
+ * machine that has it installed and fails everywhere else.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
@@ -34,7 +39,16 @@ const PASSWORD = 'correct horse battery staple';
 
 let workDir: string;
 let binDir: string;
+let pinFile: string;
 let capturedFirstLine: string;
+
+/**
+ * A stand-in for the operator's pinned host-key file. The stand-in `ssh`
+ * ignores the verification options entirely, so the content only has to look
+ * like a known-hosts line; what the suite needs from it is that the pin
+ * resolves and carries a mode the pin check accepts.
+ */
+const PIN_LINE = '[203.0.113.10]:22 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITESTKEYFORWIRESUITE\n';
 
 /**
  * Stands in for `ssh <opts> <alias> 'sudo -k -S -p "" bash'`. It records and
@@ -74,8 +88,18 @@ interface RunResult {
   stderr: string;
 }
 
-/** Runs one shell snippet with the library sourced and the stand-ins on PATH. */
-function runWithLib(snippet: string, stdin: string): RunResult {
+/**
+ * Runs one shell snippet with the library sourced and the stand-ins on PATH.
+ * The capture file is cleared first, so an empty `capturedFirstLine` means this
+ * run never reached the stand-in rather than that some earlier run did.
+ */
+function runWithLib(
+  snippet: string,
+  stdin: string,
+  envOverrides: Record<string, string> = {},
+): RunResult {
+  const firstLine = join(workDir, 'first-line');
+  rmSync(firstLine, { force: true });
   const r = spawnSync('bash', ['-c', `source "${LIB}"\n${snippet}`], {
     cwd: process.cwd(),
     encoding: 'utf-8',
@@ -83,13 +107,13 @@ function runWithLib(snippet: string, stdin: string): RunResult {
     env: {
       ...process.env,
       PATH: `${binDir}:${process.env.PATH ?? ''}`,
-      FAKE_SSH_FIRST_LINE: join(workDir, 'first-line'),
+      FAKE_SSH_FIRST_LINE: firstLine,
+      FOOTBAG_KNOWN_HOSTS: pinFile,
+      ...envOverrides,
     },
     ...SPAWN_GUARD,
   });
-  capturedFirstLine = existsSync(join(workDir, 'first-line'))
-    ? readFileSync(join(workDir, 'first-line'), 'utf-8')
-    : '';
+  capturedFirstLine = existsSync(firstLine) ? readFileSync(firstLine, 'utf-8') : '';
   return { exitCode: r.status ?? -1, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
 }
 
@@ -102,6 +126,10 @@ beforeAll(() => {
   chmodSync(join(binDir, 'ssh'), 0o755);
   writeFileSync(join(binDir, 'install'), FAKE_INSTALL, 'utf-8');
   chmodSync(join(binDir, 'install'), 0o755);
+
+  pinFile = join(workDir, 'known_hosts');
+  writeFileSync(pinFile, PIN_LINE, 'utf-8');
+  chmodSync(pinFile, 0o600);
 });
 
 afterAll(() => rmSync(workDir, { recursive: true, force: true }));
@@ -258,6 +286,45 @@ describe('the wire installs a rewritten file without staging it on the host', ()
     );
     expect(install.exitCode).toBe(0);
     expect(readFileSync(host, 'utf-8')).toBe(`${original}D=added\n`);
+  });
+});
+
+describe('the host-key pin gates the connection', () => {
+  it('stops a fetch before the pipe opens when no pin is installed', () => {
+    const src = join(workDir, 'env-pin');
+    const dest = join(workDir, 'out-pin');
+    writeFileSync(src, 'SECRET=1\n', 'utf-8');
+
+    const r = runWithLib(
+      `require_operator_stdin "x" && host_env_fetch host "${dest}" "" "${src}"`,
+      `${PASSWORD}\n`,
+      { FOOTBAG_KNOWN_HOSTS: join(workDir, 'no-such-pin') },
+    );
+
+    expect(r.exitCode).not.toBe(0);
+    expect(r.stderr).toContain(join(workDir, 'no-such-pin'));
+    // The whole point of the pin is that the sudo password never reaches a
+    // host nobody vetted, so the refusal has to land before anything is
+    // written to the stream, not after.
+    expect(capturedFirstLine).toBe('');
+    expect(existsSync(dest)).toBe(false);
+  });
+
+  it('stops an install before the pipe opens when no pin is installed', () => {
+    const dest = join(workDir, 'install-pin');
+    const staged = join(workDir, 'new-pin');
+    writeFileSync(dest, 'KEEP=1\n', 'utf-8');
+    writeFileSync(staged, 'NEW=2\n', 'utf-8');
+
+    const r = runWithLib(
+      `require_operator_stdin "x" && host_env_install host "${staged}" "${dest}"`,
+      `${PASSWORD}\n`,
+      { FOOTBAG_KNOWN_HOSTS: join(workDir, 'no-such-pin') },
+    );
+
+    expect(r.exitCode).not.toBe(0);
+    expect(capturedFirstLine).toBe('');
+    expect(readFileSync(dest, 'utf-8')).toBe('KEEP=1\n');
   });
 });
 
