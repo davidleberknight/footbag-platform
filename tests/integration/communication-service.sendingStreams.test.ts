@@ -7,9 +7,12 @@
  *
  * The stream follows the audience, decided at enqueue and stored on the row:
  * bulk whenever the recipient has a subscription they could act on, which
- * covers the many-recipient audiences and equally a one-member send that
- * belongs to a list, such as a reminder a sweep delivers one member at a time.
- * A send carrying no list and no broadcast audience is transactional.
+ * covers a list they may leave themselves, a group roster, an event's
+ * participants, and equally a one-member send that belongs to such a list, such
+ * as a reminder a sweep delivers one member at a time. A send carrying no list
+ * and no broadcast audience is transactional, and so is a list members cannot
+ * manage: it offers nothing to withdraw from, and its alerts have to survive
+ * the bulk stream being stopped.
  */
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
@@ -19,6 +22,7 @@ import {
   insertMailingList,
   insertMailingListSubscription,
   insertOutboxEmail,
+  insertSystemConfig,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('4074');
@@ -44,6 +48,12 @@ beforeAll(async () => {
   insertMailingListSubscription(db, {
     id: 'sub-stream', list_slug: LIST_SLUG, member_id: SUBSCRIBER_ID, status: 'subscribed',
   });
+  // The alert list is seeded is_member_manageable = 0. Subscribed here rather
+  // than per test: the row is unique per list and member, so a second insert in
+  // any test that needs it would collide with the first one to run.
+  insertMailingListSubscription(db, {
+    id: 'sub-alerts', list_slug: 'admin-alerts', member_id: SUBSCRIBER_ID, status: 'subscribed',
+  });
   db.close();
   createCommunicationService = (await import('../../src/services/communicationService')).createCommunicationService;
   createStubSesAdapter = (await import('../../src/adapters/sesAdapter')).createStubSesAdapter;
@@ -52,10 +62,32 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
+/**
+ * Sets a runtime switch. `system_config` is append-only and unique on key plus
+ * start instant, so a later start instant is the only way one write supersedes
+ * another; a counter supplies it, because two writes inside the same
+ * millisecond would otherwise collide.
+ */
+let configWrites = 0;
+function setConfig(key: string, value: string): void {
+  configWrites += 1;
+  const db = new BetterSqlite3(dbPath);
+  insertSystemConfig(db, {
+    config_key: key,
+    value_json: value,
+    effective_start_at: new Date(Date.UTC(2025, 6, 1, 0, 0, configWrites)).toISOString(),
+  });
+  db.close();
+}
+
 beforeEach(() => {
   const db = new BetterSqlite3(dbPath);
   db.prepare('DELETE FROM outbox_emails').run();
   db.close();
+  // Returned to its shipped default every test. Without this a single paused
+  // test silently withholds every later bulk send in the file, which reads as a
+  // broken unsubscribe header rather than as leaked state.
+  setConfig('bulk_send_paused', '0');
 });
 
 function storedStream(recipientEmail: string): string {
@@ -125,12 +157,6 @@ describe('sending stream attribution', () => {
   });
 
   it('offers no unsubscribe control on a list members are not allowed to manage', async () => {
-    const db = new BetterSqlite3(dbPath);
-    insertMailingListSubscription(db, {
-      id: 'sub-alerts', list_slug: 'admin-alerts', member_id: SUBSCRIBER_ID, status: 'subscribed',
-    });
-    db.close();
-
     const adapter = createStubSesAdapter();
     const svc = createCommunicationService(adapter);
     svc.enqueue({
@@ -147,6 +173,56 @@ describe('sending stream attribution', () => {
     // a capability the interface deliberately withholds.
     expect(adapter.sentMessages).toHaveLength(1);
     expect(adapter.sentMessages[0].headers).toBeUndefined();
+  });
+
+  it('charges a list members cannot manage to the transactional stream', async () => {
+    const adapter = createStubSesAdapter();
+    const svc = createCommunicationService(adapter);
+    // The design counts four kinds of send that carry no unsubscribe control
+    // and names only two of them bulk: the group roster and the event's
+    // participants. An operational alert list is the third, and it belongs with
+    // transactional mail -- it reaches a handful of verified administrator
+    // addresses rather than the many addresses of mixed freshness that put a
+    // sending reputation at risk.
+    const alert = svc.enqueue({
+      audience: { kind: 'list', slug: 'admin-alerts' },
+      subject: 'Urgent: work queue item',
+      bodyText: 'body',
+      idempotencyKey: 'alerts-stream',
+    });
+
+    expect(alert.stream).toBe('transactional');
+    expect(storedStream('stream-subscriber@example.test')).toBe('transactional');
+
+    await svc.processSendQueue();
+    expect(adapter.sentMessages[0].configurationSet).toBe('footbag-test-transactional');
+  });
+
+  it('delivers an unmanageable list while the bulk stream is stopped', async () => {
+    setConfig('bulk_send_paused', '1');
+
+    const adapter = createStubSesAdapter();
+    const svc = createCommunicationService(adapter);
+    // The point of the classification. An administrator learns of an incident
+    // through the same alert list an operator silences when they stop a bulk
+    // send, so an alert on the bulk stream is an alert withheld during exactly
+    // the incident that stopped it.
+    svc.enqueue({
+      audience: { kind: 'list', slug: 'admin-alerts' },
+      subject: 'Urgent: work queue item',
+      bodyText: 'body',
+      idempotencyKey: 'alerts-paused',
+    });
+    svc.enqueue({
+      audience: { kind: 'list', slug: LIST_SLUG },
+      subject: 'Newsletter',
+      bodyText: 'body',
+      idempotencyKey: 'newsletter-paused',
+    });
+
+    await svc.processSendQueue();
+
+    expect(adapter.sentMessages.map((m) => m.subject)).toEqual(['Urgent: work queue item']);
   });
 
   it('offers no unsubscribe control on a group-backed list, whose recipients are a roster', async () => {

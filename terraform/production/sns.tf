@@ -4,6 +4,45 @@
 
 resource "aws_sns_topic" "alarms" {
   name = "${local.prefix}-alarms"
+
+  # Encrypted for the same reason as the feedback topic: the provider's security
+  # baseline fails an unencrypted topic, and alarm bodies quote log lines and
+  # metric context that are not meant to be readable at rest by anything but
+  # this account. The monitoring service is granted use of the key in kms.tf.
+  kms_master_key_id = aws_kms_key.main.arn
+}
+
+# See the equivalent policy on the mail feedback topic for why the owner
+# statement is restated. Here the publisher is the monitoring service, which is
+# what raises every alarm that reaches this topic; budgets notify by email
+# directly and never publish here.
+resource "aws_sns_topic_policy" "alarms" {
+  arn = aws_sns_topic.alarms.arn
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "OwnerFullAccess"
+        Effect    = "Allow"
+        Principal = { AWS = "arn:aws:iam::${var.aws_account_id}:root" }
+        Action    = "SNS:*"
+        Resource  = aws_sns_topic.alarms.arn
+      },
+      {
+        Sid       = "AllowCloudWatchPublish"
+        Effect    = "Allow"
+        Principal = { Service = "cloudwatch.amazonaws.com" }
+        Action    = "SNS:Publish"
+        Resource  = aws_sns_topic.alarms.arn
+        Condition = {
+          StringEquals = {
+            "AWS:SourceAccount" = var.aws_account_id
+          }
+        }
+      }
+    ]
+  })
 }
 
 resource "aws_sns_topic_subscription" "alarm_email" {

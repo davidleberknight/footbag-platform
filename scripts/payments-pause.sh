@@ -74,7 +74,10 @@ DB_FILE="${DB_FILE_DEFAULT}"
 die() { echo "payments-pause: $*" >&2; exit 1; }
 
 usage() {
-  sed -n '2,55p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  # Bounded by the first `set -eu` rather than a line number, so editing the
+  # header cannot silently truncate the help text. It had: the fixed range
+  # stopped two lines short of the end of the header.
+  sed -n '2,/^set -eu/{/^set -eu/d;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
   exit "${1:-0}"
 }
 

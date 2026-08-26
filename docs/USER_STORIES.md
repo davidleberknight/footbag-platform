@@ -192,6 +192,7 @@ document follows.
   - [7.6 System Configuration](#76-system-configuration)
     - [A_View_Stripe_Config_And_Payments](#a_view_stripe_config_and_payments)
     - [A_Configure_System_Parameters](#a_configure_system_parameters)
+    - [A_Manage_Email_Templates](#a_manage_email_templates)
     - [A_Manage_Admin_Role](#a_manage_admin_role)
   - [7.7 Configurable Parameters](#77-configurable-parameters)
     - [Membership Pricing / Dues (IFPA-derived)](#membership-pricing--dues-ifpa-derived)
@@ -3443,6 +3444,24 @@ Success Criteria:
 - Price schedule changes are audit-logged with admin ID, old active price, new price, effectiveStartDate, reason, timestamp.
 - Past entries are immutable/read-only (no edit/delete); admins can only supersede by adding a new entry.
 
+### A_Manage_Email_Templates
+
+Access: Only admins can view or edit email templates. An unauthenticated visitor is redirected to log in; an authenticated non-admin receives 403.
+
+Story: As an admin, I can edit the wording of the emails the platform sends and turn an email type off, so that the platform's voice and its policy can change without a code deployment, while which emails exist and where they are sent from stays under engineering control.
+
+Success Criteria:
+
+- A list view shows every registered template with its key, subject, enabled state, PII classification, and when it was last changed.
+- An edit view changes four things and nothing else: subject, body, enabled flag, and PII classification. Templates cannot be created or deleted through the interface. A template's existence, its merge fields, and the code site that sends it are code, so an interface that could create one would only produce a template nothing ever sends.
+- Bodies are plain text carrying logic-less single-brace `{token}` merge fields. Validation refuses doubled braces, unbalanced or nested braces, a malformed token, and any token outside the set that variant declares. The token set must match the declared set exactly: an omitted required token sends a broken email, such as a verification message with no link, and an unknown token reaches the member as literal braces.
+- Subject and body are both required, and bounded at 300 and 20000 characters.
+- Disabling a template suppresses that email type at send time without deleting its content. The edit view warns before a disable takes effect, most strongly for a restricted template, because those are the emails a member cannot complete an action without.
+- The PII classification (public, internal, confidential, restricted) is a property of the template rather than of any one message, and it bounds how much of a sent message an admin may read afterwards on the email log: public and internal bodies may be shown, a confidential body only behind a justification-logged reveal, and a restricted body never, because it holds a live credential link until the post-send scrub clears it.
+- Every save appends exactly one audit entry in the same transaction as the update, so a wording change that committed always carries its record.
+- Editing an unknown template key is a 404.
+- Template content is seeded from committed sidecars before go-live; from go-live the database is the sole source, per the curator content source-of-truth model.
+
 ### A_Manage_Admin_Role
 
 Access: Only admins can grant or revoke the admin role for authorized members.
@@ -3507,6 +3526,12 @@ Seed these defaults into the database-backed configuration store during initial 
 - `outbox_sending_lease_seconds = 600 seconds` (lease before a stranded sending outbox row is reaped back to pending for retry)
 - `outbox_retry_base_seconds = 60 seconds` (base interval for the exponential backoff applied after a definitive send failure)
 - `outbox_throttle_retry_seconds = 120 seconds` (delay applied when the mail provider throttles, which does not consume a retry attempt)
+- `outbox_batch_limit = 10` (messages the outbox worker sends in one polling pass, both streams together)
+- `outbox_bulk_batch_limit = 5` (most of one polling pass bulk mail may take. Transactional mail fills each pass first, so a bulk run can never delay a password reset behind it; this caps how fast the bulk run itself goes)
+- `bounce_rate_alarm_threshold_per_10k = 500` (bulk sending stops at or above this bounce rate, in ten-thousandths of messages sent, so 500 is five per cent, the rate at which the mail provider places an account under review. Transactional mail is unaffected)
+- `complaint_rate_alarm_threshold_per_10k = 25` (bulk sending stops at or above this complaint rate, in ten-thousandths of messages sent, so 25 is a quarter of one per cent. The provider places an account under review at a tenth of one per cent and may pause sending at half of one per cent, so this sits between the two: late enough that a small list's first complaint does not stop a run, early enough to act well before sending is paused)
+- `bulk_halt_min_sent_in_window = 50` (messages that must have been sent inside the health window before those two rates are judged at all, so one bounce against an idle sender cannot stop a run)
+- `bulk_send_paused = 0` (read-only on this screen, like the outbox and payments switches. Stops the bulk stream only: a send can be called off while verification, password reset and receipt mail keeps going out, so an operator never has to reach for the whole-outbox pause to stop a newsletter. Unlike the automatic feedback halt, it does not clear itself. Set by operator script, never from the browser. DB literal `0/1`)
 - `email_outbox_paused = 0` (read-only on this screen, like the payments switch: the outbox worker halts on it and loses no queued rows, so a pause is recoverable in a way that disarming the sender is not. It is set by operator script, the sibling of the payments pause, never from the browser. DB literal `0/1`)
 - `event_registration_reminder_days = 7 days`
 
@@ -3830,7 +3855,7 @@ Success Criteria:
 - Worker respects the admin Pause Sending toggle: when enabled, the worker does not attempt new sends, but enqueued items remain pending.
 - Emails are sent only via the outbox pattern: request-time controllers enqueue outbox entries and never call SES directly; a background worker polls the outbox on a configurable interval (default: every 30 seconds), sends via SES, and records sent/failed status.
 - Failed email deliveries are logged and retried up to 5 times with exponential backoff; after the maximum retry count the outbox item is moved to a dead-letter queue/folder for admin review and possible replay.
-- Email templates are stored as plain text in the database and are editable by Administrators via the configuration interface. Template changes are audit-logged. 
+- Email templates are stored as plain text in the database and are editable by Administrators through the email-template editor (`A_Manage_Email_Templates`). Template changes are audit-logged. 
 - Different mailing lists can have different from addresses configured and this job will use them. The special no-reply from address will be an option. Otherwise, all other reply addresses must go to a real inbox for a human to receive replies.
 - All sent emails are logged to CloudWatch with template ID, member ID, outbox message ID, timestamp, and delivery result (do not log raw email addresses or full subject lines).
 

@@ -176,6 +176,21 @@ resource "aws_iam_role_policy" "app_jwt_ses" {
           ] : [
           aws_ses_email_identity.sender[0].arn
         ]
+        # And the address, not only the identity that covers it. While the
+        # identity is a single verified address the resource above already
+        # bounds this to that address; the moment domain auth is enabled the
+        # resource becomes the whole domain and the same grant would authorise
+        # sending as any address at it, the officer and board addresses
+        # included. That flip is exactly when nobody is looking at this file, so
+        # the bound is written here rather than left to follow from which
+        # identity object happens to exist.
+        #
+        # Staging pins the same way; this makes the two trees agree.
+        Condition = {
+          StringEquals = {
+            "ses:FromAddress" = local.ses_from_addresses
+          }
+        }
       }
     ]
   })

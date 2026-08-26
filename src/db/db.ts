@@ -5422,15 +5422,23 @@ export const outbox = {
       'pending', 0, ?)
   `); },
 
-  get selectPendingBatch() { return db.prepare(`
+  get selectPendingBatchByStream() { return db.prepare(`
     SELECT id, recipient_email, recipient_member_id, subject, body_text,
            from_identity, mailing_list_id, stream, retry_count, idempotency_key,
            bypasses_suppression
     FROM outbox_emails
     WHERE status = 'pending'
+      AND stream = ?
       AND (scheduled_for IS NULL OR scheduled_for <= ?)
     ORDER BY created_at ASC
     LIMIT ?
+  `); },
+
+  get countPendingByStream() { return db.prepare(`
+    SELECT stream, COUNT(*) AS n
+    FROM outbox_emails
+    WHERE status = 'pending'
+    GROUP BY stream
   `); },
 
   get findByIdempotencyKey() { return db.prepare(`
@@ -5536,7 +5544,7 @@ export const outbox = {
   `); },
 
   // Crash recovery: a worker killed between markSending and markSent leaves
-  // the row 'sending' forever, and selectPendingBatch reads 'pending' only.
+  // the row 'sending' forever, and the pending selects read 'pending' only.
   // A stranded row's true outcome is unknowable (the crash may have happened
   // after a successful provider send), so it parks for manual review rather
   // than silently retrying into a possible duplicate delivery.

@@ -5,6 +5,41 @@
 
 resource "aws_sns_topic" "alarms" {
   name = "${local.prefix}-alarms"
+
+  # Encrypted to match production; the monitoring service is granted use of the
+  # key in kms.tf.
+  kms_master_key_id = aws_kms_key.main.arn
+}
+
+# Mirrors production. See the mail feedback topic's policy for why the owner
+# statement is restated rather than inherited.
+resource "aws_sns_topic_policy" "alarms" {
+  arn = aws_sns_topic.alarms.arn
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "OwnerFullAccess"
+        Effect    = "Allow"
+        Principal = { AWS = "arn:aws:iam::${var.aws_account_id}:root" }
+        Action    = "SNS:*"
+        Resource  = aws_sns_topic.alarms.arn
+      },
+      {
+        Sid       = "AllowCloudWatchPublish"
+        Effect    = "Allow"
+        Principal = { Service = "cloudwatch.amazonaws.com" }
+        Action    = "SNS:Publish"
+        Resource  = aws_sns_topic.alarms.arn
+        Condition = {
+          StringEquals = {
+            "AWS:SourceAccount" = var.aws_account_id
+          }
+        }
+      }
+    ]
+  })
 }
 
 resource "aws_sns_topic_subscription" "alarm_email" {

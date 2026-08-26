@@ -23,18 +23,25 @@
  *     retries still needs attention after the window closes.
  *   - The window is read at request time from the administrator-configurable
  *     setting, floor-clamped so a bad value cannot produce an empty page.
+ *   - The release rate and the bulk-stream halt are read from the same
+ *     configuration keys and the same evaluation the drain itself uses, never
+ *     recomputed here, so the page cannot report a pacing the worker is not
+ *     actually applying.
  *
- * Persistence: reads outbox_emails, ses_events, system_job_runs,
- * system_alarm_events, system_config_current. Writes nothing.
+ * Persistence: reads outbox_emails, system_job_runs, system_alarm_events and
+ * system_config_current directly, and reaches ses_events only through the
+ * drain's own feedback evaluation rather than querying it a second time.
+ * Writes nothing.
  *
  * Side effects: none.
  *
  * Service shape: object-literal singleton (`systemHealthService`); no adapters.
  */
-import { outbox, sesEvents, systemJobRuns } from '../db/db';
+import { outbox, systemJobRuns } from '../db/db';
 import { runSqliteRead } from './sqliteRetry';
-import { readIntConfig } from './configReader';
+import { readIntConfig, readHealthWindowHours } from './configReader';
 import { systemAlarmService } from './systemAlarmService';
+import { evaluateBulkFeedbackHalt } from './communicationService';
 import type { PageViewModel } from '../types/page';
 
 const RECENT_RUN_LIMIT = 25;
@@ -87,6 +94,26 @@ export interface SystemHealthContent {
     sendingPaused: boolean;
     pausedLabel: string;
   };
+  /**
+   * How the drain is releasing mail: the per-pass sizes, what is waiting on
+   * each stream, and whether the bulk stream is currently stopped on feedback.
+   * An operator running a staged send reads this to know whether the run is
+   * moving, and an operator who sees a bulk backlog reads it to know why.
+   */
+  pacing: {
+    passLimit: number;
+    bulkPassLimit: number;
+    pollIntervalSeconds: number;
+    throughputNote: string;
+    transactionalPending: number;
+    bulkPending: number;
+    hasBulkPending: boolean;
+    bulkPaused: boolean;
+    bulkHalted: boolean;
+    bulkStateLabel: string;
+    bulkHaltNote: string | null;
+    bulkPausedNote: string | null;
+  };
   delivery: {
     sentInWindow: number;
     bounceCount: number;
@@ -119,7 +146,7 @@ export interface SystemHealthBadges {
 }
 
 interface StatusCountRow { status: string; n: number }
-interface TypeCountRow { event_type: string; n: number }
+interface StreamCountRow { stream: string; n: number }
 
 interface JobSummaryRow {
   job_name: string;
@@ -173,19 +200,19 @@ function rateLabel(numerator: number, denominator: number): string {
   return `${((numerator / denominator) * 100).toFixed(1)}%`;
 }
 
+/** A threshold stored in ten-thousandths, read back as the per cent it means. */
+function per10kLabel(value: number): string {
+  return `${value / 100}%`;
+}
+
+function windowLabelFor(hours: number): string {
+  return `the last ${hours} hour${hours === 1 ? '' : 's'}`;
+}
+
 function windowStartIso(hours: number, nowMs: number): string {
   return new Date(nowMs - hours * HOUR_MS).toISOString();
 }
 
-// A year. The floor stops a zero or negative value emptying the page; the
-// ceiling stops a large one producing a window start the date arithmetic cannot
-// express, which throws the whole page rather than showing a wide window.
-const MAX_WINDOW_HOURS = 8760;
-
-function readWindowHours(): number {
-  const configured = readIntConfig('system_health_window_hours', 24);
-  return Math.min(MAX_WINDOW_HOURS, Math.max(1, configured));
-}
 
 export const systemHealthService = {
   /** The counts the admin dashboard shows as badges, without shaping the whole
@@ -217,7 +244,7 @@ export const systemHealthService = {
     // The scheduled jobs are half of what the health page reports, so the badge
     // reads them too: a job failing, stuck mid-run, or that has never once
     // succeeded is exactly the quiet failure a dashboard exists to surface.
-    const windowHours = readWindowHours();
+    const windowHours = readHealthWindowHours();
     const since = windowStartIso(windowHours, Date.now());
     const jobRows = systemJobRuns.summarizeByJob.all(since, since) as JobSummaryRow[];
     const failing = jobRows.filter((r) => r.failures_in_window > 0).length;
@@ -259,7 +286,7 @@ export const systemHealthService = {
 
   readSystemHealthPage(): PageViewModel<SystemHealthContent> {
     const nowMs = Date.now();
-    const windowHours = readWindowHours();
+    const windowHours = readHealthWindowHours();
     const since = windowStartIso(windowHours, nowMs);
 
     // What was sent is a volume figure and is windowed; what is waiting or in
@@ -269,24 +296,51 @@ export const systemHealthService = {
     for (const row of outbox.countByUnsentStatus.all() as StatusCountRow[]) {
       statusCounts.set(row.status, row.n);
     }
-    statusCounts.set('sent', (outbox.countSentInWindow.get(since) as { n: number }).n);
     const backlogCount = (statusCounts.get('pending') ?? 0) + (statusCounts.get('sending') ?? 0);
     const deadLetterCount = (outbox.countDeadLetterAllTime.get() as { n: number }).n;
     const sendingPaused = readIntConfig('email_outbox_paused', 0) === 1;
 
-    const feedbackCounts = new Map<string, number>();
-    for (const row of sesEvents.countByTypeSince.all(since) as TypeCountRow[]) {
-      feedbackCounts.set(row.event_type, row.n);
-    }
+    // The drain's own evaluation, which already carries the windowed sent count
+    // and the feedback counts it judged on. Reading them back from it rather
+    // than re-running the same two aggregates is what makes this page report
+    // the figures the worker actually acted on, instead of a second set that
+    // could differ by whatever landed between the two reads.
+    const bulkPaused = readIntConfig('bulk_send_paused', 0) === 1;
+    const halt = evaluateBulkFeedbackHalt(nowMs);
     // The two halves are measured over the same window but not over the same
     // messages: the denominator is what was sent inside it, the numerator is
     // the feedback that arrived inside it, which can concern mail sent before
     // it. Nothing links a bounce back to the message that caused it, so a
     // cohort rate is not available; this is a volume comparison, and a busy
     // recovery period can put it above one hundred per cent.
-    const sentInWindow = statusCounts.get('sent') ?? 0;
-    const bounceCount = feedbackCounts.get('bounce') ?? 0;
-    const complaintCount = feedbackCounts.get('complaint') ?? 0;
+    const sentInWindow = halt.sentInWindow;
+    const bounceCount = halt.bounceCount;
+    const complaintCount = halt.complaintCount;
+    statusCounts.set('sent', sentInWindow);
+
+    // The drain's own view of itself, read from the same places the drain reads
+    // it, so the page cannot report a pacing the worker is not using.
+    const pendingByStream = new Map<string, number>();
+    for (const row of outbox.countPendingByStream.all() as StreamCountRow[]) {
+      pendingByStream.set(row.stream, row.n);
+    }
+    const bulkPending = pendingByStream.get('bulk') ?? 0;
+    const passLimit = readIntConfig('outbox_batch_limit', 10);
+    const bulkPassLimit = readIntConfig('outbox_bulk_batch_limit', 5);
+    const pollIntervalSeconds = readIntConfig('outbox_poll_interval_seconds', 30);
+    const haltLimitLabel = halt.reason === 'complaint_rate'
+      ? per10kLabel(readIntConfig('complaint_rate_alarm_threshold_per_10k', 25))
+      : per10kLabel(readIntConfig('bounce_rate_alarm_threshold_per_10k', 500));
+    // Read back from the same ten-thousandths the halt compared, not recomputed
+    // from the counts at a coarser precision. Rendering one decimal of percent
+    // against a two-decimal threshold produces a notice that contradicts
+    // itself: one complaint in 401 sent halts at exactly 25 per ten-thousand
+    // and used to display "is 0.2% of what was sent, at or above the 0.25%
+    // limit". The number shown has to be the number that decided.
+    const haltRateLabel = halt.reason === 'complaint_rate'
+      ? per10kLabel(halt.complaintPer10k)
+      : per10kLabel(halt.bouncePer10k);
+    const haltMeasure = halt.reason === 'complaint_rate' ? 'complaint rate' : 'bounce rate';
 
     const summaryRows = systemJobRuns.summarizeByJob.all(since, since) as JobSummaryRow[];
     const runRows = systemJobRuns.listRecentRuns.all(RECENT_RUN_LIMIT) as JobRunRow[];
@@ -296,7 +350,7 @@ export const systemHealthService = {
       seo: { title: 'System Health', noindex: true },
       page: { sectionKey: 'admin', pageKey: 'admin_system_health', title: 'System Health' },
       content: {
-        windowLabel: `the last ${windowHours} hour${windowHours === 1 ? '' : 's'}`,
+        windowLabel: windowLabelFor(windowHours),
         outbox: {
           statuses: OUTBOX_STATUSES.map((status) => ({
             statusLabel: titleize(status),
@@ -310,6 +364,38 @@ export const systemHealthService = {
           deadLetterHref: '/admin/email-log?status=dead_letter',
           sendingPaused,
           pausedLabel: sendingPaused ? 'Paused' : 'Draining',
+        },
+        pacing: {
+          passLimit,
+          bulkPassLimit,
+          pollIntervalSeconds,
+          throughputNote:
+            `Up to ${passLimit} message${passLimit === 1 ? '' : 's'} every `
+            + `${pollIntervalSeconds} second${pollIntervalSeconds === 1 ? '' : 's'}, `
+            + `of which at most ${bulkPassLimit} may be bulk. Transactional mail fills `
+            + 'each pass first, so a bulk run never delays it.',
+          transactionalPending: pendingByStream.get('transactional') ?? 0,
+          bulkPending,
+          hasBulkPending: bulkPending > 0,
+          bulkPaused,
+          bulkHalted: halt.halted && !bulkPaused,
+          // The operator switch outranks the feedback halt in what it says,
+          // because it is the answer to "why has this stopped": somebody
+          // stopped it, and no rate falling back will restart it.
+          bulkStateLabel: bulkPaused
+            ? 'Stopped by operator'
+            : (halt.halted ? 'Stopped on feedback' : 'Draining'),
+          bulkHaltNote: (halt.halted && !bulkPaused)
+            ? `Bulk sending is stopped: the ${haltMeasure} over ${windowLabelFor(windowHours)} `
+              + `is ${haltRateLabel} of what was sent, at or above the ${haltLimitLabel} limit. `
+              + 'Transactional mail is unaffected and still going out. Sending resumes on its own '
+              + 'once the rate falls back inside the window.'
+            : null,
+          bulkPausedNote: bulkPaused
+            ? 'Bulk sending is stopped by an operator. Queued bulk messages are being kept, '
+              + 'not discarded, and go out when it is cleared. Transactional mail is unaffected '
+              + 'and still going out. This does not clear itself.'
+            : null,
         },
         delivery: {
           sentInWindow,

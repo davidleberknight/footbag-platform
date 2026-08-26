@@ -53,6 +53,29 @@ variable "ses_sender_identity" {
   }
 }
 
+variable "ses_permitted_from_addresses" {
+  description = <<-EOT
+    Every From address the runtime role may send as. Empty means the sender
+    identity alone, which is the state today: no mailing list sets its own from
+    address and no caller passes one, so every message goes out as
+    ses_sender_identity.
+
+    This exists because the send grant's resource cannot narrow far enough on
+    its own. While a single verified address is the identity, naming it as the
+    resource does bound the grant to that address. Once domain authentication is
+    enabled the identity becomes the whole domain, and the same grant then
+    authorises sending as any address at it, the officer and board addresses
+    included. The condition built from this list keeps the bound where it was.
+
+    A list rather than one value so the documented per-list from address stays
+    reachable: a mailing list that needs its own sender is added here, and the
+    failure if it is not is an apply-time absence rather than an unexplained
+    authorisation denial in the middle of a send.
+  EOT
+  type        = list(string)
+  default     = []
+}
+
 variable "ses_enable_domain_auth" {
   description = <<-EOT
     Set to true to provision the SES domain identity, its DNS verification
@@ -392,17 +415,84 @@ resource "aws_ses_configuration_set" "bulk" {
 }
 
 # =============================================================================
-# SES feedback loop -- bounce/complaint notifications to the app webhook
+# SES feedback loop -- bounce/complaint notifications to the worker's queue
 # =============================================================================
-# Bounces and complaints publish to an SNS topic subscribed to the app's
-# public webhook (shared-secret query key in the endpoint URL). The app marks
-# the matching member's email_status so transactional sends skip dead or
-# complaining addresses. The HTTPS subscription requires an out-of-band
-# confirmation: the app records the SubscribeURL in an audit row and the
-# operator confirms it once.
+# Bounces and complaints publish to an SNS topic, and a queue subscribed to
+# that topic is polled by the worker. The app marks the matching member's
+# email_status so later sends skip dead or complaining addresses. There is no
+# public endpoint and no shared secret: the queue read is authorized by the
+# host's own runtime role, and a queue subscription needs no out-of-band
+# confirmation.
+#
+# The flag does NOT gate this whole section, and the difference matters. The
+# topic below and the identity notification settings that publish into it stand
+# unconditionally (the notification settings follow ses_enable_domain_auth,
+# which decides which identity they attach to, not whether they exist). Only the
+# queue, its dead-letter queue, their policies and the subscription are counted
+# on enable_feed_queues.
+#
+# So turning the flag off, or never turning it on, leaves the provider still
+# publishing bounces and complaints into a topic with nothing subscribed, and
+# the provider discards them. Mail goes out, dead mailboxes are never recorded,
+# and the bulk stream's feedback halt reads an empty table and reports a healthy
+# send throughout a bounce storm. Nothing here refuses that combination: the
+# ordering is deliberately enforced by the operator activation sequence rather
+# than at apply time, so that standing the queues up and arming the sender stay
+# independent steps.
 
 resource "aws_sns_topic" "ses_feedback" {
   name = "${local.prefix}-ses-feedback"
+
+  # Bounce and complaint notifications carry the recipient's address, so they
+  # are member data at rest here as much as anywhere else in this tree. The
+  # provider's own security baseline treats an unencrypted topic as a failing
+  # control. The queue leg is already encrypted; this closes the hop before it.
+  #
+  # The main key rather than the managed one, because the mail service can only
+  # be granted use of a customer-managed key, and it needs that use to publish
+  # into an encrypted topic at all. The grant lives in kms.tf beside the
+  # equivalent one for parameter store.
+  kms_master_key_id = aws_kms_key.main.arn
+}
+
+# Attaching any policy replaces the default one, so the owner statement is
+# restated here rather than inherited: without it this account keeps access only
+# through identity policies, and a topic whose resource policy names nobody is a
+# trap for the next person to touch it.
+#
+# The publish statement is the point. The default policy blocks other accounts
+# but says nothing about which service may publish, so the mail service's own
+# setup documentation supplies this shape: the service principal, pinned to this
+# account and to the identity the notifications belong to. Without the pin, any
+# principal that can publish here could inject a bounce that arrives wrapped in
+# the genuine topic identity the application checks before acting on it.
+resource "aws_sns_topic_policy" "ses_feedback" {
+  arn = aws_sns_topic.ses_feedback.arn
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "OwnerFullAccess"
+        Effect    = "Allow"
+        Principal = { AWS = "arn:aws:iam::${var.aws_account_id}:root" }
+        Action    = "SNS:*"
+        Resource  = aws_sns_topic.ses_feedback.arn
+      },
+      {
+        Sid       = "AllowSesPublish"
+        Effect    = "Allow"
+        Principal = { Service = "ses.amazonaws.com" }
+        Action    = "SNS:Publish"
+        Resource  = aws_sns_topic.ses_feedback.arn
+        Condition = {
+          StringEquals = {
+            "AWS:SourceAccount" = var.aws_account_id
+          }
+        }
+      }
+    ]
+  })
 }
 
 resource "aws_ses_identity_notification_topic" "sender_bounce" {

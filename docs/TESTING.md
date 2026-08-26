@@ -324,7 +324,7 @@ The five layers and what each owns:
 
 Every promised email is covered by construction. The email catalog names each email by key, owning service, and idempotency-key prefix; the email-catalog sweep (§17.2) asserts each entry has a live enqueue site and a firing test, so an email that a service contract promises and the code never sends fails the suite.
 
-Armed production differs in what the live path adds: it resolves `SES_ADAPTER=live` and sends through SES; it honors the SES suppression list, so an address that has hard-bounced or complained is withheld; it records bounce and complaint feedback through the webhook; and it carries the sender-identity, DKIM, and DMARC records that the stub path does not exercise. Production safety rests on the build-time strip and config guards (§7.1, §9.5); below production, the stub captures every message.
+Armed production differs in what the live path adds: it resolves `SES_ADAPTER=live` and sends through SES; it honors the SES suppression list, so an address that has hard-bounced or complained is withheld; it records bounce and complaint feedback from the queue the worker polls, where that environment's feedback queue has been brought up; and it carries the sender-identity, DKIM, and DMARC records that the stub path does not exercise. Production safety rests on the build-time strip and config guards (§7.1, §9.5); below production, the stub captures every message.
 
 ### 5.10 Real-claim crawl (development)
 

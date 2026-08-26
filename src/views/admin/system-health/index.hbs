@@ -16,6 +16,14 @@
       <p class="form-notice" role="status">Sending is paused. Messages are still being queued and will go out when sending resumes.</p>
     {{/if}}
 
+    {{#if content.pacing.bulkPaused}}
+      <p class="form-notice" role="status">{{content.pacing.bulkPausedNote}}</p>
+    {{/if}}
+
+    {{#if content.pacing.bulkHalted}}
+      <p class="form-notice" role="status">{{content.pacing.bulkHaltNote}}</p>
+    {{/if}}
+
     <p class="card-meta">
       Worker state: <span class="fw-600">{{content.outbox.pausedLabel}}</span>
       &middot; Dead-lettered all time:
@@ -24,6 +32,16 @@
       {{else}}
         <span class="fw-600">0</span>
       {{/if}}
+    </p>
+
+    <p class="card-meta">
+      Release rate: {{content.pacing.throughputNote}}
+    </p>
+
+    <p class="card-meta">
+      Waiting now &middot; transactional: <span class="fw-600">{{content.pacing.transactionalPending}}</span>
+      &middot; bulk: <span class="fw-600">{{content.pacing.bulkPending}}</span>
+      &middot; bulk stream: <span class="fw-600">{{content.pacing.bulkStateLabel}}</span>
     </p>
 
     <table class="data-table">

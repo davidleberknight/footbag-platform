@@ -690,6 +690,9 @@ CREATE TABLE outbox_emails (
 
 CREATE INDEX        idx_outbox_status     ON outbox_emails(status);
 CREATE INDEX        idx_outbox_scheduled  ON outbox_emails(status, scheduled_for);
+-- The drain selects each stream separately (transactional first, then bulk),
+-- so its due-row lookup filters on stream as well as status.
+CREATE INDEX        idx_outbox_stream_due ON outbox_emails(status, stream, scheduled_for);
 -- The admin health view counts what went out inside its window; without this it
 -- reads every row the table has ever held to answer one figure.
 CREATE INDEX        idx_outbox_sent       ON outbox_emails(status, sent_at);
@@ -3187,6 +3190,12 @@ VALUES
 --   vouch_rate_limit_window_minutes        Sliding window (minutes) for vouch rate limiting
 --   outbox_max_retry_attempts       Max email retries before dead-letter queue
 --   outbox_poll_interval_seconds    Outbox worker polling interval (seconds)
+--   outbox_batch_limit              Messages sent per polling pass (both streams)
+--   outbox_bulk_batch_limit         Most of one pass bulk mail may take
+--   bounce_rate_alarm_threshold_per_10k      Bulk halt bounce rate (ten-thousandths)
+--   complaint_rate_alarm_threshold_per_10k   Bulk halt complaint rate (ten-thousandths)
+--   bulk_halt_min_sent_in_window    Sent-message floor before those rates are judged
+--   bulk_send_paused                Operator stop for the bulk stream only
 --   token_cleanup_threshold_days    Age threshold (days) for expired/consumed token cleanup
 --   deceased_cleanup_grace_days     Grace period (days) before PII removal after marked deceased
 --   data_export_link_expiry_hours   Hours before a data export download link expires
@@ -3353,6 +3362,60 @@ VALUES
    'outbox_poll_interval_seconds', '30',
    '2000-01-01T00:00:00.000Z',
    'Outbox worker polling interval in seconds (default: 30).',
+   NULL
+  ),
+
+  (
+   'seed-outbox-batch-limit',
+   '2000-01-01T00:00:00.000Z',
+   'outbox_batch_limit', '10',
+   '2000-01-01T00:00:00.000Z',
+   'Messages the outbox worker sends in one polling pass, both streams together (default: 10).',
+   NULL
+  ),
+
+  (
+   'seed-outbox-bulk-batch-limit',
+   '2000-01-01T00:00:00.000Z',
+   'outbox_bulk_batch_limit', '5',
+   '2000-01-01T00:00:00.000Z',
+   'Most of one polling pass bulk mail may take, so a bulk run paces itself and never delays transactional mail (default: 5).',
+   NULL
+  ),
+
+  (
+   'seed-bounce-rate-alarm-threshold-per-10k',
+   '2000-01-01T00:00:00.000Z',
+   'bounce_rate_alarm_threshold_per_10k', '500',
+   '2000-01-01T00:00:00.000Z',
+   'Bulk mail stops at or above this bounce rate, in ten-thousandths of messages sent (default: 500, five per cent, the rate at which the provider places an account under review).',
+   NULL
+  ),
+
+  (
+   'seed-complaint-rate-alarm-threshold-per-10k',
+   '2000-01-01T00:00:00.000Z',
+   'complaint_rate_alarm_threshold_per_10k', '25',
+   '2000-01-01T00:00:00.000Z',
+   'Bulk mail stops at or above this complaint rate, in ten-thousandths of messages sent (default: 25, a quarter of one per cent, tighter than the provider''s own review point).',
+   NULL
+  ),
+
+  (
+   'seed-bulk-send-paused',
+   '2000-01-01T00:00:00.000Z',
+   'bulk_send_paused', '0',
+   '2000-01-01T00:00:00.000Z',
+   'Operator switch stopping the bulk stream only, leaving transactional mail flowing (0 = releasing, 1 = stopped).',
+   NULL
+  ),
+
+  (
+   'seed-bulk-halt-min-sent-in-window',
+   '2000-01-01T00:00:00.000Z',
+   'bulk_halt_min_sent_in_window', '50',
+   '2000-01-01T00:00:00.000Z',
+   'Messages that must have been sent inside the health window before the bounce and complaint rates are judged at all, so one bounce against an idle sender cannot stop a run (default: 50).',
    NULL
   ),
 

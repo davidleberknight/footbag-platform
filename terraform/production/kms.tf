@@ -45,6 +45,36 @@ resource "aws_kms_key" "main" {
             "aws:SourceAccount" = var.aws_account_id
           }
         }
+      },
+      {
+        # The two notification topics are encrypted under this key, and a
+        # service can only publish into an encrypted topic if it may produce a
+        # data key under that key. Without this the mail service's bounce
+        # notifications and the monitoring service's alarms both fail to
+        # publish, silently from the platform's side: nothing arrives and
+        # nothing says why.
+        #
+        # Same confused-deputy condition as the statement above, and for the
+        # same reason: a service principal in a resource policy is granted for
+        # every account until the source account says otherwise.
+        Sid    = "AllowNotificationServicesUseForTopics"
+        Effect = "Allow"
+        Principal = {
+          Service = [
+            "ses.amazonaws.com",
+            "cloudwatch.amazonaws.com"
+          ]
+        }
+        Action = [
+          "kms:GenerateDataKey*",
+          "kms:Decrypt"
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "aws:SourceAccount" = var.aws_account_id
+          }
+        }
       }
     ]
   })

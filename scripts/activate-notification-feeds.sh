@@ -278,6 +278,19 @@ if (( FROM_STEP <= 1 )); then
       # environment the first time a feed is brought up on it, and demanding the
       # operator hand-add a line before the script will run reintroduces exactly
       # the manual step this exists to remove.
+      #
+      # It is still shown and still confirmed, like the rewrite below. The first
+      # activation on an environment is precisely when an operator has least
+      # idea what the file already says, and an unshown, unasked-for edit to a
+      # values file is the one change here that survives an abort: the apply can
+      # be declined, but the line stays written.
+      echo ""
+      echo "  + $TFVAR_NAME = $WANTED_FLAG    (appended; the file declares no value today)"
+      echo ""
+      if ! confirm_from_tty "Append this line to ${TFVARS_PATH}? (yes/no): " "yes"; then
+        echo "Aborted: tfvars not changed." >&2
+        exit 1
+      fi
       printf '\n%s = %s\n' "$TFVAR_NAME" "$WANTED_FLAG" >> "$TFVARS_PATH"
       echo "  $TFVAR_NAME = $WANTED_FLAG appended."
     else
@@ -311,7 +324,7 @@ fi
 if (( SYNTHETIC )); then
   echo "-- synthetic mode: stopping before terraform, host-env and deploy --"
   echo "Would next run:"
-  echo "  terraform -chdir=$TF_DIR apply"
+  echo "  terraform -chdir=$TF_DIR plan -out=<temp>, then apply that plan"
   echo "  scripts/set-host-env.sh --target $TARGET"
   echo "  DEPLOY_TARGET=$SSH_ALIAS $DEPLOY_CMD ${DEPLOY_ARGS[*]}"
   echo "  scripts/verify-host-env.sh --target $TARGET"
@@ -335,12 +348,46 @@ if (( FROM_STEP <= 2 )); then
     echo "any reason to think the worker has not kept up."
   fi
   echo ""
-  if ! confirm_from_tty "Type 'APPLY' to run terraform apply: " "APPLY"; then
+  # Plan to a file, confirm, then apply that exact plan. terraform is never
+  # asked to prompt.
+  #
+  # A bare `terraform apply` reads its approval from standard input, which here
+  # belongs to the operator credential file: the sudo password is taken off line
+  # one at startup into a variable so nothing later drains it, and the file is
+  # one line, so terraform reads end of file and cancels. Handing it /dev/tty
+  # instead trades that for a subtler failure, because the terminal it is handed
+  # is the same one the confirmation above just read a line from, and whatever
+  # remains buffered there is consumed as the answer -- an apply cancelled while
+  # the operator's "yes" echoes on screen unread.
+  #
+  # Applying a saved plan removes the prompt entirely, and removes the window
+  # between deciding and acting: what gets applied is what was shown, not a
+  # freshly recomputed plan that may have moved. The single typed gate below is
+  # the approval, which is what an operator reading this script would expect it
+  # to be.
+  #
+  # The plan file is mode 600 and shredded on every exit path. A saved plan is
+  # an opaque archive that can carry live values, so it never lands anywhere
+  # durable and never anywhere a credential scan cannot see into.
+  TF_PLAN="$(mktemp "${TMPDIR:-/tmp}/footbag-feeds-plan.XXXXXX")"
+  chmod 600 "$TF_PLAN"
+  trap 'rm -f "${TF_PLAN:-}" "${TFVARS_TMP:-}"' EXIT INT TERM
+
+  if ! terraform -chdir="$TF_DIR" plan -out="$TF_PLAN"; then
+    echo "ERROR: terraform plan failed. Nothing was applied." >&2
+    echo "       Resume with --from-step 2 once fixed." >&2
+    exit 1
+  fi
+  echo ""
+  echo "Read the plan above before answering. It covers this whole environment,"
+  echo "not only the feeds: anything else pending in the tree is applied with them."
+  echo ""
+  if ! confirm_from_tty "Type 'APPLY' to apply the plan shown above: " "APPLY"; then
     echo "Aborted before terraform apply. The tfvars change is already written;" >&2
     echo "resume with --from-step 2 when ready." >&2
     exit 1
   fi
-  if ! terraform -chdir="$TF_DIR" apply; then
+  if ! terraform -chdir="$TF_DIR" apply "$TF_PLAN"; then
     echo "ERROR: terraform apply failed. Resume with --from-step 2 once fixed." >&2
     exit 1
   fi

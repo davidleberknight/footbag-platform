@@ -458,6 +458,47 @@ expect "$H" 'npm run test:integration' defer
 expect "$H" './run_all_tests.sh' defer
 expect "$H" 'npx tsc -p tsconfig.json' defer
 
+H=guard-interpreter-writes.sh
+
+# An interpreter handed its program inline writes files with no shell redirect at all,
+# so the redirect guard above cannot see it. Denied when the inline program actually
+# writes; a read-only program, or a real script file, is left alone.
+expect "$H" 'python3 - <<PY
+open(p,"w").write(s)
+PY' deny
+expect "$H" "python3 - <<'PY'
+import json; json.dump(d, open(f,'a'))
+PY" deny
+expect "$H" 'node -e "require(\"fs\").writeFileSync(p,s)"' deny
+expect "$H" 'python3 -c "import shutil; shutil.move(a,b)"' deny
+expect "$H" 'python3 - <<PY
+import os; os.rename(a,b)
+PY' deny
+expect "$H" 'python3 - <<PY
+import json
+print(json.load(open(p))["k"])
+PY' defer
+expect "$H" 'node -e "console.log(process.version)"' defer
+expect "$H" 'python3 scripts/ci/assert_loader_row_counts.py' defer
+expect "$H" 'grep -n foo src/app.ts' defer
+expect "$H" 'perl -ne "print if /x/" file.txt' defer
+
+# Bypass classes. Each of these reached the tree before the guard was tightened,
+# and the fixtures above did not notice because none of them tried: the suite was
+# green while a missing space defeated a hook that calls itself a hard block.
+expect "$H" 'node -erequire("fs").writeFileSync(p,s)' deny
+expect "$H" 'node --eval "require(\"fs\").writeFileSync(p,s)"' deny
+expect "$H" 'python3.11 -c open(x,"w").write(s)' deny
+expect "$H" 'python2 -c open(x,"w").write(s)' deny
+expect "$H" 'perl -e open(F,">",$x); print F $s' deny
+expect "$H" 'ruby -e File.write("o",s)' deny
+expect "$H" 'ruby -e IO.write("o",s)' deny
+
+# And the false positive the redirect clause caused: writing into the session
+# scratchpad is sanctioned, and guard-readonly-bash.sh exempts it, but a deny
+# here outranked that exemption.
+expect "$H" 'python3 -c "print(1)" > /tmp/claude-1000/x/scratchpad/out.txt' defer
+
 H=guard-leading-cd.sh
 
 # A command that begins with cd/pushd is denied so it gets rewritten with an absolute
@@ -1037,6 +1078,7 @@ expect_err2 guard-leading-cd.sh
 expect_err2 guard-shell-loop.sh
 expect_err2 guard-process-substitution.sh
 expect_err2 guard-aws-reach.sh
+expect_err2 guard-interpreter-writes.sh
 
 if [ "$fail" -ne 0 ]; then
   echo "[hooks] FAIL: one or more hook fixtures failed." >&2

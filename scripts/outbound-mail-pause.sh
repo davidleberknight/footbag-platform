@@ -21,11 +21,17 @@
 # WHY THIS AND NOT DISARMING.
 #
 # Disarming email (scripts/arming.sh --switch email --state dark) is NOT a
-# pause. It swaps the live sender for the stub, and the stub reports every send
-# as delivered, so the drain marks each queued message sent and clears its body.
-# The queue empties, nothing arrives, and there is nothing left to resend. Reach
-# for this script whenever the intent is "stop, then continue", and disarm only
-# to take the provider integration itself out of the picture.
+# pause, but not for the reason this comment used to give. It claimed the stub
+# would report every queued message as delivered and clear its body, emptying
+# the queue with nothing left to resend. That hazard is real below production
+# and is exactly why the drain refuses to run at all on a production host that
+# holds the stub: a dark production HOLDS the outbox rather than emptying it.
+#
+# What makes disarming the wrong reach for "stop, then continue" is simpler.
+# It is a values-file edit, an apply and a full deploy, so it takes minutes
+# rather than seconds, and coming back costs the same again. This script is one
+# command and reverses with one. Disarm only to take the provider integration
+# itself out of the picture.
 #
 # WHY A SCRIPT AND NOT A BUTTON.
 #
@@ -73,7 +79,10 @@ DB_FILE="${DB_FILE_DEFAULT}"
 die() { echo "outbound-mail-pause: $*" >&2; exit 1; }
 
 usage() {
-  sed -n '2,57p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  # Bounded by the first `set -eu` rather than a line number, so editing the
+  # header cannot silently truncate the help text. It had: the fixed range
+  # stopped five lines short and --help ended mid-sentence.
+  sed -n '2,/^set -eu/{/^set -eu/d;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
   exit "${1:-0}"
 }
 

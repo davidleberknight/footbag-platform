@@ -706,6 +706,24 @@ if [[ "$FOOTBAG_ENV_VAL" == "production" ]]; then
   [[ "$EMAIL_SEND_ARMED_VAL" == "armed" ]] && SES_ADAPTER_DERIVED='live'
   PAYMENT_ADAPTER_DERIVED='stub'
   [[ "$PAYMENTS_ARMED_VAL" == "armed" ]] && PAYMENT_ADAPTER_DERIVED='live'
+  # Same shape as the SESSION_SECRET checks above, and for the same reason: fail
+  # the deploy loud rather than crash-looping the stack on restart. The live
+  # mail adapter requires SES_FROM_IDENTITY at boot and the production compose
+  # file interpolates it with no default, so arming without it takes production
+  # down. Nothing upstream can catch this: a code-only deploy neither writes the
+  # value nor checks it, and the host env verifier's mail checks self-neutralise
+  # while the host is still dark, so it cannot warn beforehand. This is the last
+  # point before the restart at which the value is knowable.
+  if [[ "$SES_ADAPTER_DERIVED" == "live" ]] && ! grep -qE '^SES_FROM_IDENTITY=.+' "$ENV_PATH"; then
+    echo "ERROR: email is armed but $ENV_PATH carries no SES_FROM_IDENTITY." >&2
+    echo "       The live mail adapter requires it at boot and compose supplies no" >&2
+    echo "       default, so restarting now would crash-loop production." >&2
+    echo "       No script writes it: set-host-env.sh owns the proxy hop count, the" >&2
+    echo "       backup bucket and the feed topic and queue values, not this one." >&2
+    echo "       Add SES_FROM_IDENTITY to $ENV_PATH, matching the environment's" >&2
+    echo "       terraform output ses_sender_identity, then re-run this deploy." >&2
+    exit 1
+  fi
   echo "==> Deriving production adapters from arming switches: SES_ADAPTER=$SES_ADAPTER_DERIVED PAYMENT_ADAPTER=$PAYMENT_ADAPTER_DERIVED ..."
   env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
   chmod 600 "$env_tmp"

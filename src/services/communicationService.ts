@@ -24,12 +24,25 @@
  *     subscriptions, so there is no membership copy that can drift.
  *   - Stream attribution, decided by the audience at enqueue and stored on the
  *     row: bulk whenever the recipient has a subscription they could act on,
- *     which covers the many-recipient audiences and a one-member send that
- *     belongs to a list; transactional otherwise. Each stream names its own SES
- *     configuration set, so one stream's complaint rate never lands on the
- *     other's sending reputation.
+ *     which covers a list they may leave themselves, a group roster, an event's
+ *     participants, and a one-member send belonging to a manageable list;
+ *     transactional otherwise. A list members cannot manage is transactional,
+ *     the operational alert lists being the case: they offer nothing to
+ *     unsubscribe from, and an alert withheld by the bulk stream's stop is an
+ *     alert withheld during the incident that stopped it. Each stream names its
+ *     own SES configuration set, so one stream's complaint rate never lands on
+ *     the other's sending reputation.
  *   - The send-queue drain batch: stale-sending reap, claim, SES send,
  *     retry/backoff/dead-letter/manual-review bookkeeping
+ *   - Drain priority between the two streams. One pass fills with pending
+ *     transactional rows first and gives bulk only the remainder, itself
+ *     capped, so a bulk run paces itself and never delays a password reset
+ *     behind it.
+ *   - The bulk feedback halt: between passes the recent bounce and complaint
+ *     rates are read, and bulk mail stops while either is at or above threshold.
+ *     Transactional mail keeps flowing, because the halt protects the sending
+ *     reputation a bulk run puts at risk and refusing security mail protects
+ *     nothing.
  *
  * Does not own:
  *   - Triggering sends, and choosing the audience (callers name one; this
@@ -67,6 +80,9 @@
  *     keeps rows for as long as the hold. A row carrying bypasses_suppression
  *     is exempt at both ends.
  *   - Admin pause flag (email_outbox_paused) halts draining without losing rows.
+ *   - Operator bulk switch (bulk_send_paused) stops the bulk stream only, so a
+ *     send can be called off without holding back anybody's password reset.
+ *     Both switches are read here and written only by operator script.
  *   - A production host not holding the live sender refuses to drain at all.
  *     The stub reports every send as delivered, so draining would mark queued
  *     mail sent and clear its body; holding it is what makes disarming email
@@ -75,21 +91,24 @@
  * Persistence:
  *   outbox_emails; mailing_lists, mailing_list_subscriptions, registrations
  *   and members_active
- *   (read-only: audience resolution and the suppression lookup).
+ *   (read-only: audience resolution and the suppression lookup);
+ *   ses_events (read-only: the bounce and complaint counts the bulk halt
+ *   is judged on).
  *
  * Side effects:
  *   - SES adapter sendEmail per claimed row
  *   - logger.error on dead-letter and on manual-review parking (drives the
  *     CloudWatch alarm)
+ *   - logger.warn when the bulk halt withholds queued bulk mail
  *
  * Service shape: factory `createCommunicationService(adapter)` with the
  * `getCommunicationService()` lazy singleton; tests inject a stub adapter.
  */
 import { randomUUID } from 'node:crypto';
-import { account, outbox, mailingListSubscriptions, type OutboxRow } from '../db/db';
+import { account, outbox, sesEvents, mailingListSubscriptions, type OutboxRow } from '../db/db';
 import { config } from '../config/env';
 import { logger } from '../config/logger';
-import { readIntConfig } from './configReader';
+import { readIntConfig, readHealthWindowHours } from './configReader';
 import { ServiceError, ServiceUnavailableError, ValidationError } from './serviceErrors';
 import { SesAdapter, getSesAdapter } from '../adapters/sesAdapter';
 import { mintUnsubscribeToken } from '../lib/unsubscribeToken';
@@ -106,10 +125,13 @@ export const UNSUBSCRIBE_PATH = '/email/unsubscribe';
  * every message obeys and no caller can reach the outbox around it.
  *
  * A send is bulk when the recipient has something they could unsubscribe from,
- * which is the same test a mail provider applies: any of the three
- * many-recipient kinds, and equally a one-member send that belongs to a list,
- * such as a reminder the member subscribes to and a sweep delivers one at a
- * time. Everything else is transactional. `listTag` is what carries that case:
+ * which is the same test a mail provider applies: a list they may leave
+ * themselves, a group roster, an event's participants, and equally a one-member
+ * send that belongs to such a list, such as a reminder the member subscribes to
+ * and a sweep delivers one at a time. Everything else is transactional,
+ * including a list members cannot manage, which offers nothing to withdraw from
+ * and whose alerts must survive the bulk stream being stopped.
+ * `listTag` is what carries the single-send case:
  * it names the list a single send belongs to, for the archive, the admin
  * surfaces and the unsubscribe header, without making the list the audience.
  */
@@ -229,6 +251,105 @@ export interface ProcessBatchResult {
    * held rather than emptied.
    */
   sendingDark: boolean;
+  /**
+   * Bulk mail was withheld this pass because bounce or complaint feedback is
+   * at or above threshold. Transactional mail is unaffected and still drained: the
+   * halt protects the sending reputation a bulk run puts at risk, and refusing
+   * a password reset would protect nothing.
+   */
+  bulkHalted: boolean;
+  /**
+   * Bulk mail was withheld this pass because an operator stopped that stream.
+   * Distinct from `bulkHalted`, which is the platform stopping itself on
+   * feedback: this one clears only when somebody clears it.
+   */
+  bulkPaused: boolean;
+}
+
+/**
+ * Why the bulk stream is or is not being drained, and the figures behind it.
+ * Returned so the drain can act on it and the admin health surface can show
+ * the same answer rather than recomputing a second version of it.
+ */
+export interface BulkFeedbackHalt {
+  halted: boolean;
+  reason: 'bounce_rate' | 'complaint_rate' | null;
+  /** Below this the rates are not judged at all; see the sample floor below. */
+  sentInWindow: number;
+  bounceCount: number;
+  complaintCount: number;
+  /** Observed rates, in the same ten-thousandths the thresholds are set in. */
+  bouncePer10k: number;
+  complaintPer10k: number;
+  windowHours: number;
+}
+
+const HOUR_MS = 60 * 60 * 1000;
+
+function per10k(numerator: number, denominator: number): number {
+  if (denominator <= 0) return 0;
+  return Math.round((numerator / denominator) * 10_000);
+}
+
+/**
+ * Whether a bulk run should stop, judged on the bounce and complaint feedback
+ * of the recent window.
+ *
+ * The thresholds default to the figures the provider itself acts on: a bounce
+ * rate of five per cent puts an account under review, and the complaint line is
+ * set tighter still, at a quarter of one per cent against the provider's own
+ * tenth-of-a-per-cent review point, because this list is small enough that a
+ * handful of complaints is already a signal. Both are stored in ten-thousandths
+ * because runtime configuration here is whole numbers, and both carry that unit
+ * in their key names so nobody reads 500 as five hundred per cent.
+ *
+ * Two properties worth stating, because both limit what this can claim:
+ *
+ * The numerator and the denominator are measured over the same window but not
+ * over the same messages. Nothing links a bounce back to the message that
+ * caused it, so what a batch itself produced is not knowable and this is a
+ * windowed comparison rather than a cohort rate. It is the same figure the
+ * admin health page shows, deliberately, so the two never disagree.
+ *
+ * Below a floor of sent messages the rates are not judged at all. Without it
+ * the first bounce against a nearly idle sender reads as a catastrophic rate
+ * and stops a run that has barely started, which is exactly the state a
+ * newly armed production is in.
+ */
+export function evaluateBulkFeedbackHalt(nowMs: number = Date.now()): BulkFeedbackHalt {
+  const windowHours = readHealthWindowHours();
+  const since = new Date(nowMs - windowHours * HOUR_MS).toISOString();
+
+  const sentInWindow = (outbox.countSentInWindow.get(since) as { n: number }).n;
+  const feedback = new Map<string, number>();
+  for (const row of sesEvents.countByTypeSince.all(since) as { event_type: string; n: number }[]) {
+    feedback.set(row.event_type, row.n);
+  }
+  const bounceCount = feedback.get('bounce') ?? 0;
+  const complaintCount = feedback.get('complaint') ?? 0;
+
+  const bouncePer10k = per10k(bounceCount, sentInWindow);
+  const complaintPer10k = per10k(complaintCount, sentInWindow);
+  const base: Omit<BulkFeedbackHalt, 'halted' | 'reason'> = {
+    sentInWindow, bounceCount, complaintCount, bouncePer10k, complaintPer10k, windowHours,
+  };
+
+  const minSample = readIntConfig('bulk_halt_min_sent_in_window', 50);
+  if (sentInWindow < minSample) return { halted: false, reason: null, ...base };
+
+  const bounceLimit = readIntConfig('bounce_rate_alarm_threshold_per_10k', 500);
+  const complaintLimit = readIntConfig('complaint_rate_alarm_threshold_per_10k', 25);
+
+  // Complaints are read first: a complaint is a recipient saying the mail was
+  // unwanted, which is the reason a bulk run should stop rather than a
+  // deliverability problem to work around.
+  if (complaintPer10k >= complaintLimit) {
+    return { halted: true, reason: 'complaint_rate', ...base };
+  }
+  if (bouncePer10k >= bounceLimit) {
+    return { halted: true, reason: 'bounce_rate', ...base };
+  }
+  return { halted: false, reason: null, ...base };
 }
 
 export interface CommunicationService {
@@ -245,7 +366,14 @@ export interface CommunicationService {
    * delivery problem never unwinds the committed action that triggered it.
    */
   enqueue(input: EnqueueInput): EnqueueOutcome;
-  processSendQueue(opts?: { limit?: number }): Promise<ProcessBatchResult>;
+  /**
+   * Drains one pass. `limit` caps the whole pass; `bulkLimit` caps how much of
+   * that pass bulk mail may take, so a bulk run paces itself and can never
+   * starve transactional mail. Both default to their system_config keys
+   * (`outbox_batch_limit`, `outbox_bulk_batch_limit`); the arguments exist so a
+   * test can drive a boundary without writing config.
+   */
+  processSendQueue(opts?: { limit?: number; bulkLimit?: number }): Promise<ProcessBatchResult>;
 }
 
 type SendErrorOutcome = 'throttle' | 'ambiguous' | 'failure';
@@ -345,14 +473,42 @@ function unsubscribeHeadersFor(row: {
 }
 
 /**
- * Bulk when the recipient has a subscription they could act on: any
- * many-recipient audience, and a single send that belongs to a list. A
- * password reset is transactional; a reminder the member subscribes to is not,
- * even though the sweep sends it one member at a time.
+ * True when a list is one its members may subscribe to and leave themselves.
+ *
+ * An unknown slug answers true so an unresolvable list lands on the bulk
+ * reputation rather than the transactional one. Such an audience resolves to
+ * nobody, so this only decides which configuration set an impossible send would
+ * have named, and the safe direction is away from transactional.
+ */
+function listIsMemberManageable(slug: string): boolean {
+  const list = mailingListSubscriptions.getListBySlug.get(slug) as MailingListRow | undefined;
+  return list ? list.is_member_manageable === 1 : true;
+}
+
+/**
+ * Bulk when the recipient has a subscription they could act on: a list they may
+ * leave themselves, a group roster, an event's participants, and a single send
+ * belonging to a manageable list. A password reset is transactional; a reminder
+ * the member subscribes to is not, even though the sweep sends it one at a time.
+ *
+ * A list members cannot manage is transactional, not bulk. The operational alert
+ * lists are the case: they offer nothing to unsubscribe from, they reach a handful
+ * of verified administrator addresses rather than the many addresses of mixed
+ * freshness that put a sending reputation at risk, and the urgent ones must go out
+ * during exactly the incident that stops the bulk stream. Classifying them bulk
+ * would let the operator stop and the automatic feedback halt withhold the alerts
+ * an administrator needs to see the incident. Group and event mail stay bulk: they
+ * carry no unsubscribe control either, but they reach a membership rather than an
+ * operator, and each carries standing text telling the reader how to act on the
+ * site.
  */
 function streamFor(audience: SendAudience): SendStream {
   if (audience.kind === 'address' || audience.kind === 'member') {
-    return audience.listTag ? 'bulk' : 'transactional';
+    if (!audience.listTag) return 'transactional';
+    return listIsMemberManageable(audience.listTag) ? 'bulk' : 'transactional';
+  }
+  if (audience.kind === 'list') {
+    return listIsMemberManageable(audience.slug) ? 'bulk' : 'transactional';
   }
   return 'bulk';
 }
@@ -592,8 +748,11 @@ export function createCommunicationService(
       // never masks another's first attempt. The rule reads the audience kind,
       // never how many recipients happened to resolve: a list that today has
       // one subscriber must not start colliding with unrelated single sends
-      // that chose the same key.
-      const perRecipientKey = stream === 'bulk' && input.audience.kind !== 'address'
+      // that chose the same key. It reads the kind alone, and deliberately not
+      // the stream: an alert list fans out to every administrator while being
+      // transactional, so a stream test here would hand them all one key and
+      // let the first row dedupe the rest away.
+      const perRecipientKey = input.audience.kind !== 'address'
         && input.audience.kind !== 'member';
 
       // A fan-out send must carry a key. Without one every recipient row gets a
@@ -653,6 +812,8 @@ export function createCommunicationService(
         suppressed: 0,
         paused: false,
         sendingDark: false,
+        bulkHalted: false,
+        bulkPaused: false,
       };
 
       const paused = readIntConfig('email_outbox_paused', 0) === 1;
@@ -674,7 +835,12 @@ export function createCommunicationService(
       }
 
       const maxRetries = readIntConfig('outbox_max_retry_attempts', 5);
-      const limit = opts.limit ?? 10;
+      // Floored at zero because the arguments bypass readIntConfig's own
+      // positive-only guard, and SQLite reads a negative LIMIT as unlimited:
+      // one negative number would turn a bounded pass into "send everything
+      // pending", which is the opposite of what this method is for.
+      const limit = Math.max(0, opts.limit ?? readIntConfig('outbox_batch_limit', 10));
+      const bulkLimit = Math.max(0, opts.bulkLimit ?? readIntConfig('outbox_bulk_batch_limit', 5));
       const now = new Date().toISOString();
 
       // Crash recovery: rows stranded in 'sending' by a worker killed mid-send
@@ -694,7 +860,68 @@ export function createCommunicationService(
         });
       }
 
-      const rows = outbox.selectPendingBatch.all(now, limit) as OutboxRow[];
+      // Transactional mail is selected first and bulk fills only what is left,
+      // because the two streams carry opposite risk and share one queue. A
+      // single created_at ordering would let one bulk run put every password
+      // reset behind it: the drain sends one row at a time, so N queued bulk
+      // rows delay the next transactional message by N/batch polling
+      // intervals. Taking transactional first means a member locked out of
+      // their account waits one interval however large the run is, and the
+      // separate bulk cap is what paces the run itself. `stream` is already
+      // decided and stored at enqueue, so this reads a fact rather than
+      // recomputing one.
+      const transactionalRows = outbox.selectPendingBatchByStream
+        .all('transactional', now, limit) as OutboxRow[];
+
+      // Two ways the bulk stream stops, and they are not the same thing. The
+      // operator switch is a decision somebody made and is cleared the same
+      // way; the feedback halt is a condition that clears itself when the rates
+      // fall back. Reporting them separately is what lets an operator tell "I
+      // stopped this" from "the mail is going badly". Neither touches
+      // transactional mail, which is the whole point of stopping only one
+      // stream rather than reaching for the outbox pause.
+      const bulkPaused = readIntConfig('bulk_send_paused', 0) === 1;
+
+      // Feedback is read between passes rather than mid-pass, which is what
+      // makes a paced release worth having: the run stops at a batch boundary
+      // on evidence that arrived since the last one, instead of discovering the
+      // problem after the whole list has gone out.
+      // Skipped when bulk has no slots to lose anyway: the operator switch is
+      // already down, or transactional mail has filled the pass. Both are two
+      // aggregate queries the answer cannot change, paid every poll.
+      const freeSlots = Math.min(bulkLimit, limit - transactionalRows.length);
+      const halt = (bulkPaused || freeSlots <= 0)
+        ? null
+        : evaluateBulkFeedbackHalt();
+      const bulkSlots = (bulkPaused || halt?.halted) ? 0 : freeSlots;
+      const bulkRows = bulkSlots > 0
+        ? outbox.selectPendingBatchByStream.all('bulk', now, bulkSlots) as OutboxRow[]
+        : [];
+      const rows = [...transactionalRows, ...bulkRows];
+
+      result.bulkPaused = bulkPaused;
+      if (halt?.halted) {
+        result.bulkHalted = true;
+        // Only worth saying when it actually withheld something. A halt with an
+        // empty bulk queue is a state, not an event, and logging it every poll
+        // would bury the passes where mail was really held back. The operator
+        // switch gets no line at all: they know, they set it.
+        const pendingByStream = new Map<string, number>();
+        for (const row of outbox.countPendingByStream.all() as { stream: string; n: number }[]) {
+          pendingByStream.set(row.stream, row.n);
+        }
+        const heldBack = pendingByStream.get('bulk') ?? 0;
+        if (heldBack > 0) {
+          logger.warn('outbox bulk stream halted on feedback', {
+            reason: halt.reason,
+            heldBack,
+            windowHours: halt.windowHours,
+            sentInWindow: halt.sentInWindow,
+            bouncePer10k: halt.bouncePer10k,
+            complaintPer10k: halt.complaintPer10k,
+          });
+        }
+      }
 
       for (const row of rows) {
         // The suppression gate runs again here, against the mailbox as it reads

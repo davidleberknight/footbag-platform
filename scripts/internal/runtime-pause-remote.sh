@@ -12,7 +12,7 @@
 # Invoked via scripts/payments-pause.sh or scripts/outbound-mail-pause.sh:
 #   { printf '%s\n' "$SUDO_PASS";
 #     printf 'DB_FILE=%q\n' "$path";
-#     printf 'CONFIG_KEY=%q\n' "payments_paused|email_outbox_paused";
+#     printf 'CONFIG_KEY=%q\n' "payments_paused|email_outbox_paused|bulk_send_paused";
 #     printf 'ACTION=%q\n' "status|pause|resume";
 #     printf 'REASON=%q\n' "$reason";
 #     cat scripts/internal/runtime-pause-remote.sh;
@@ -48,7 +48,7 @@ set -euo pipefail
 # configuration row nothing reads and report success: the switch would appear to
 # have moved while the platform carried on unchanged.
 case "$CONFIG_KEY" in
-  payments_paused|email_outbox_paused) ;;
+  payments_paused|email_outbox_paused|bulk_send_paused) ;;
   *) echo "ERROR: unknown CONFIG_KEY '$CONFIG_KEY'." >&2; exit 1 ;;
 esac
 

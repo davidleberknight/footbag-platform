@@ -216,8 +216,13 @@ host_log_tail() {
 # readable so the operator can still check the host and route in a diff.
 #
 # The host env mask cannot be reused here: it keys on SECRET or KEY appearing in
-# the variable's NAME, and `alarm_webhook_url` carries neither, so it would
-# print the key in full. Here the secret is in the value's query string.
+# the variable's NAME, and a variable whose name carries neither would have its
+# key printed in full. Here the secret is in the value's query string instead of
+# the whole value, which is why this masks a pattern rather than a line.
+#
+# No variable in either tree needs this today: the feed URLs it was written for
+# were retired with the webhook transport. It stays because the failure it
+# prevents is silent and the cost of keeping it is a regex.
 tfvars_mask() {
   sed -E 's/([?&]key=)[A-Za-z0-9._~-]+/\1********/g' "$1"
 }

@@ -43,6 +43,8 @@ hooks:
         - type: command
           command: "$CLAUDE_PROJECT_DIR/.claude/hooks/guard-process-substitution.sh"
         - type: command
+          command: "$CLAUDE_PROJECT_DIR/.claude/hooks/guard-interpreter-writes.sh"
+        - type: command
           command: "$CLAUDE_PROJECT_DIR/.claude/hooks/allow-readonly-bash.sh"
 ---
 

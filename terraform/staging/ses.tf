@@ -106,24 +106,67 @@ resource "aws_ses_configuration_set" "bulk" {
 }
 
 # =============================================================================
-# SES feedback loop -- bounce/complaint notifications to the app webhook
+# SES feedback topic for this environment
 # =============================================================================
-# Bounces and complaints publish to an SNS topic subscribed to the app's
-# public webhook (shared-secret query key in the endpoint URL). The app marks
-# the matching member's email_status so transactional sends skip dead or
-# complaining addresses. The HTTPS subscription requires an out-of-band
-# confirmation: the app records the SubscribeURL in an audit row and the
-# operator confirms it once.
+# Bounces and complaints publish to an SNS topic, and a queue subscribed to that
+# topic is polled by the worker. There is no public endpoint and no shared
+# secret: the queue read is authorized by the host's own runtime role.
 
 resource "aws_sns_topic" "ses_feedback" {
   name = "${local.prefix}-ses-feedback"
+
+  # Encrypted to match production. Nothing publishes here today, as the note
+  # below explains, so this protects hand-published rehearsal messages rather
+  # than real member addresses; parity is the point, so that what is proved
+  # against this topic is proved against the shape production runs.
+  kms_master_key_id = aws_kms_key.main.arn
+}
+
+# Mirrors production's policy. Attaching any policy replaces the default one, so
+# the owner statement is restated rather than inherited. The mail-service
+# statement is inert in this environment, because the shared sender identity
+# publishes to production's topic and not to this one, but it is kept so the two
+# trees do not differ in a way nobody meant.
+resource "aws_sns_topic_policy" "ses_feedback" {
+  arn = aws_sns_topic.ses_feedback.arn
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "OwnerFullAccess"
+        Effect    = "Allow"
+        Principal = { AWS = "arn:aws:iam::${var.aws_account_id}:root" }
+        Action    = "SNS:*"
+        Resource  = aws_sns_topic.ses_feedback.arn
+      },
+      {
+        Sid       = "AllowSesPublish"
+        Effect    = "Allow"
+        Principal = { Service = "ses.amazonaws.com" }
+        Action    = "SNS:Publish"
+        Resource  = aws_sns_topic.ses_feedback.arn
+        Condition = {
+          StringEquals = {
+            "AWS:SourceAccount" = var.aws_account_id
+          }
+        }
+      }
+    ]
+  })
 }
 
 # The bounce and complaint notification settings that would publish into this
 # topic belong to the shared sender identity, so production declares them and
 # staging does not; the detachment is recorded above. The topic itself is this
-# environment's own, so it stays: the webhook subscription below is what staging
-# exercises.
+# environment's own, so it stays.
+#
+# The consequence is worth stating plainly, because it is easy to misread this
+# environment as having a working feedback loop: nothing publishes to this
+# topic. The shared identity points at production's. So staging's queue and
+# subscription below exercise the polling mechanism against messages published
+# by hand, and staging has never carried a real provider bounce end to end.
+# That proof belongs to production.
 
 # SES feedback loop -- bounce/complaint notifications to the worker's queue
 # =============================================================================

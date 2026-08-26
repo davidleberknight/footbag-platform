@@ -29,7 +29,8 @@ usage() {
 Usage: bash deploy_to_aws.sh [flags]                       (recommended)
    or: < <operator credential file> bash scripts/deploy-to-aws.sh [flags]
 
-Default (no flags): code-only — ship code + images, run tests + smoke; the
+Default (no flags): code-only — ship code + images, run the post-deploy smoke
+check (not `npm test`, which is the local pre-PR gate — see ALWAYS-ON); the
 staging DB and S3 media are left untouched. A DB rebuild + staging replace is
 opt-in via --from-csv or --soup-to-nuts. Media sync is opt-in via -m /
 --sync-media (default off). Prompts before the media clean-sync step.
@@ -133,10 +134,13 @@ Combinations work: `-rmW` = reuse local DB, sync media, additive (no S3 wipe).
 
 ALWAYS-ON
 ─────────────────────────────────────────────────────────────────────
-Code + docker images ship every deploy. `npm test` runs every deploy. The
-post-deploy smoke check runs every deploy. The curator seed step
-(seed_fh_curator.py against /curated/**/*.meta.json sidecars) runs
-unconditionally before any DB ships to staging.
+Code + docker images ship every deploy. The post-deploy smoke check runs every
+deploy, and a production deploy additionally runs the route smoke and security
+probes against staging first and refuses if either fails, unless SKIP_SMOKE=yes
+is set. `npm test` is NOT run by the deploy: it is the local pre-PR gate, and
+the deploy assumes it passed. The curator seed step (seed_fh_curator.py against
+/curated/**/*.meta.json sidecars) runs unconditionally before any DB ships to
+staging.
 
 ENV OVERRIDES
 ─────────────────────────────────────────────────────────────────────

@@ -93,10 +93,12 @@ fi
 
 if [[ "$BOUNCE_PROBE" -eq 1 ]]; then
   # Synthetic feedback-loop validation: the bounce simulator generates a
-  # reputation-safe permanent bounce, which flows SES -> SNS -> the app's
-  # /webhooks/ses-feedback endpoint. The simulator address matches no member
-  # row, so the app records an email.bounce_recorded audit row with
-  # member_matched=false and no member state changes.
+  # reputation-safe permanent bounce, which flows SES -> SNS -> the feedback
+  # queue the worker polls. The simulator address matches no member row, so the
+  # app records an email.bounce_recorded audit row with member_matched=false and
+  # no member state changes. Nothing arrives at all where the environment's
+  # feedback queue has not been brought up: the notification is published to a
+  # topic with no subscriber and dropped.
   echo "Sending to bounce simulator ($BOUNCE_SIMULATOR)..."
   echo "  MessageId: $(send_one "$BOUNCE_SIMULATOR")"
   echo "  Within a few minutes, verify an 'email.bounce_recorded' audit row"
@@ -115,6 +117,6 @@ Manual confirmation checklist:
      preview card. The preview card is a development and staging affordance
      only; production must never render it.
   3. Bounce and complaint suppression wiring: run with --bounce-probe to
-     exercise the full SES -> SNS -> webhook loop with a reputation-safe
+     exercise the full SES -> SNS -> feedback-queue loop with a reputation-safe
      synthetic bounce, then check the audit query the probe prints.
 EOF

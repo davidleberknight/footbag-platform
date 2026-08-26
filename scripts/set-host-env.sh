@@ -23,7 +23,7 @@
 #                     emitted, and the timer still reports healthy. Installing
 #                     the timer before this value is set produces a backup
 #                     pipeline that runs and uploads nothing.
-#   ALARM_TOPIC_ARN   the publishing topic the platform-alarm webhook accepts.
+#   ALARM_TOPIC_ARN   the publishing topic the platform-alarm feed accepts.
 #   SES_FEEDBACK_TOPIC_ARN
 #                     the same for the mail bounce and complaint feed. Each feed
 #                     authenticates on its shared key AND its publishing topic,

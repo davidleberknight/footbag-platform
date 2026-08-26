@@ -20,12 +20,25 @@
 #     the endpoint itself, and the deliveries that matter — the payout events —
 #     arrive a week or two later into an endpoint Stripe has given up on.
 #
-#   email, going armed: the process REFUSES TO BOOT with the live SES adapter
-#     unless the bounce and complaint queue is on the host, so mail would go out
-#     with nothing recording which addresses died. The sender identity must also
-#     be verified and the account out of the SES sandbox, or mail is accepted and
-#     delivered nowhere. This script cannot check any of that from here, so it
-#     states each one and requires the operator to confirm it.
+#   email, going armed: two different hazards, and only one of them stops the
+#     host.
+#
+#     What DOES stop the host: SES_FROM_IDENTITY missing from /srv/footbag/env.
+#     It is required at boot under the live adapter and the compose file
+#     interpolates it with no default, so arming without it crash-loops
+#     production. A code-only deploy neither writes it nor checks it, and
+#     verify-host-env.sh cannot warn you beforehand because its SES checks
+#     self-neutralise while the host is still dark. Confirm it on the host
+#     first; step 1 asks.
+#
+#     What does NOT stop the host, contrary to what this comment said before:
+#     a missing bounce and complaint queue. Boot deliberately does not require
+#     it, because a queue is created and subscribed independently of a deploy.
+#     The cost is quieter and still serious: mail goes out with nothing
+#     recording which addresses died. The sender identity must also be verified
+#     and the account out of the SES sandbox, or mail is accepted and delivered
+#     nowhere. This script cannot check any of that from here, so it states
+#     each one and requires the operator to confirm it.
 #
 # This script is the FULL stop, not the first one to reach for. The fast stop is
 # scripts/payments-pause.sh, which sets the platform's payments_paused runtime
@@ -354,6 +367,13 @@ if (( FROM_STEP <= 1 )) && [[ "$PRECONDITION" == "ses-readiness" ]]; then
   echo ""
   echo "Arming email with any of these unmet does harm rather than nothing:"
   echo ""
+  echo "  0. SES_FROM_IDENTITY is present in /srv/footbag/env on the host."
+  echo "     This is the one that takes production DOWN rather than degrading"
+  echo "     it: the live adapter requires it at boot, the compose file has no"
+  echo "     default for it, and a code-only deploy neither writes nor checks"
+  echo "     it. verify-host-env.sh cannot warn you while the host is still"
+  echo "     dark, because its SES checks self-neutralise until the adapter is"
+  echo "     live. Read the host env file and confirm the line is there."
   echo "  a. The bounce and complaint queue is on the host, as"
   echo "     SES_FEEDBACK_QUEUE_URL. Without it nothing records a bounce: sending"
   echo "     carries on while the platform's view of which mailboxes are dead"
@@ -370,7 +390,7 @@ if (( FROM_STEP <= 1 )) && [[ "$PRECONDITION" == "ses-readiness" ]]; then
   echo "     providers, which is worse than dark: dark at least renders the"
   echo "     verification link on screen where the member can use it."
   echo ""
-  printf "Type 'SES READY' only if every one of a-e is true: "
+  printf "Type 'SES READY' only if every one of 0 and a-e is true: "
   read -r TYPED
   if [[ "$TYPED" != "SES READY" ]]; then
     echo "Aborted: nothing has been changed. Email stays dark, which is the safe" >&2
@@ -524,6 +544,20 @@ fi
 # ── Step 3: publish it ───────────────────────────────────────────────────────
 if (( FROM_STEP <= 3 )); then
   echo "-- step 3: terraform apply --"
+  # Re-read the file rather than trusting what step 2 believed. Step 1 reads it
+  # once at startup, and a resume with --from-step 3 never revisits step 2, so
+  # an operator who aborted at the step-2 prompt and came back later would
+  # otherwise publish the OLD value while every message on screen announces the
+  # new one. The half-applied state that results is invisible: tfvars says one
+  # thing and the running host does another, which is the failure this whole
+  # script exists to prevent.
+  ON_DISK="$(read_tfvars_armed "$TFVARS_PATH")"
+  if [[ "$ON_DISK" != "$STATE" ]]; then
+    echo "ERROR: $TFVARS_PATH declares $TFVAR_NAME = \"${ON_DISK:-<absent>}\", not \"$STATE\"." >&2
+    echo "       Apply would publish the value on disk, not the one asked for here." >&2
+    echo "       Re-run from step 2 to write it: --from-step 2" >&2
+    exit 1
+  fi
   echo ""
   echo "This publishes $TFVAR_NAME = \"$STATE\" as SSM /footbag/$TARGET/app/$SSM_SUFFIX."
   echo "Blast radius is small: the arming parameter, plus the CloudFront origin CIDR"
@@ -557,7 +591,13 @@ if (( FROM_STEP <= 4 )); then
     echo "  The deploy needs SSH to $SSH_ALIAS from an allowlisted address."
   else
     echo "  This workstation's egress address: $EGRESS_IP"
-    if grep -q "$EGRESS_IP/32" "$TFVARS_PATH"; then
+    # Fixed-string, and quoted as the list actually writes it. An unanchored
+    # regex here matched far too much: dots match any character, so 1.2.3.4
+    # "passed" against an entry for 51.2.3.4/32 by substring alone, and the
+    # check then reported the address covered when it was not. The deploy
+    # strands part-way through its remote half, which is exactly what this
+    # check exists to prevent.
+    if grep -qF -- "\"$EGRESS_IP/32\"" "$TFVARS_PATH"; then
       echo "  Found $EGRESS_IP/32 in the operator allowlist."
     else
       echo "  $EGRESS_IP/32 is not listed verbatim in operator_cidrs; it may still fall"
@@ -585,8 +625,13 @@ if (( FROM_STEP <= 4 )); then
   # defaults to no and aborts. Arming must never be able to become a database
   # replace, whatever is answered here.
   if ! DEPLOY_TARGET="$SSH_ALIAS" "$DEPLOY_CMD" "${DEPLOY_ARGS[@]}"; then
-    echo "ERROR: the deploy failed. SSM already declares \"$STATE\" but the host does not" >&2
-    echo "       yet run it. Resume with --from-step 4." >&2
+    # Read it rather than assert it. This message used to state that SSM
+    # already declared the new value, which the script had never checked: on a
+    # --from-step 4 resume the apply may never have run, and the operator was
+    # being told the parameter was published when it was not.
+    echo "ERROR: the deploy failed. Resume with --from-step 4." >&2
+    echo "       SSM /footbag/$TARGET/app/$SSM_SUFFIX reads: $(read_ssm_armed)" >&2
+    echo "       If that is not \"$STATE\", step 3 has not run; resume with --from-step 3." >&2
     exit 1
   fi
   echo ""

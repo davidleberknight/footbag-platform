@@ -60,12 +60,16 @@ resource "aws_iam_role_policy" "app_ssm_read" {
         Resource = "arn:aws:ssm:${var.aws_region}:${var.aws_account_id}:parameter${local.ssm_prefix}/app/bootstrap/admin_token"
       },
       {
-        Sid    = "DecryptSSMParameters"
-        Effect = "Allow"
-        Action = [
-          "kms:Decrypt",
-          "kms:GenerateDataKey"
-        ]
+        # Reading a SecureString parameter needs Decrypt and nothing else. The
+        # application never encrypts under this key: it writes no parameters, and
+        # ballot envelope encryption uses its own dedicated key rather than this
+        # one. GenerateDataKey was granted here and never called, which is a
+        # standing grant to produce key material under the key that protects
+        # every secret this environment holds. Removed to match production,
+        # which dropped it for the same reason.
+        Sid      = "DecryptSSMParameters"
+        Effect   = "Allow"
+        Action   = ["kms:Decrypt"]
         Resource = aws_kms_key.main.arn
       }
     ]

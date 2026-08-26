@@ -87,7 +87,7 @@ beforeEach(() => {
     db.prepare('DELETE FROM ses_events').run();
     db.prepare('DELETE FROM system_job_runs').run();
     db.prepare('DELETE FROM system_alarm_events').run();
-    db.prepare(`DELETE FROM system_config WHERE config_key IN ('system_health_window_hours','email_outbox_paused')`).run();
+    db.prepare(`DELETE FROM system_config WHERE config_key IN ('system_health_window_hours','email_outbox_paused','bulk_send_paused')`).run();
   });
 });
 
@@ -347,5 +347,119 @@ describe('feedback arriving in a window that sent nothing', () => {
     expect(html).toContain('there is no share to report against');
     expect(html).toMatch(/Hard bounces[\s\S]*?4[\s\S]*?--/);
     expect(html).toMatch(/Complaints[\s\S]*?2[\s\S]*?--/);
+  });
+});
+
+// An operator running a staged bulk send reads this page to answer two
+// questions: is the run moving, and if it is not, why not. The release rate and
+// the per-stream backlog answer the first; the halt notice answers the second.
+describe('release rate and the bulk stream', () => {
+  it('states the pass size, the bulk share of it, and the interval', async () => {
+    const html = await healthPage();
+    expect(html).toContain('Release rate:');
+    expect(html).toContain('Up to 10 messages every 30 seconds, of which at most 5 may be bulk.');
+  });
+
+  it('reports what is waiting on each stream separately', async () => {
+    withDb((db) => {
+      insertOutboxEmail(db, { status: 'pending', stream: 'transactional' });
+      insertOutboxEmail(db, { status: 'pending', stream: 'bulk' });
+      insertOutboxEmail(db, { status: 'pending', stream: 'bulk' });
+    });
+    const html = await healthPage();
+    expect(html).toMatch(/transactional:\s*<span class="fw-600">1<\/span>/);
+    expect(html).toMatch(/bulk:\s*<span class="fw-600">2<\/span>/);
+  });
+
+  it('shows the bulk stream draining while the feedback is clean', async () => {
+    const html = await healthPage();
+    expect(html).toMatch(/bulk stream:\s*<span class="fw-600">Draining<\/span>/);
+    expect(html).not.toContain('Bulk sending is stopped');
+  });
+
+  it('explains the stop, and which rate caused it, when bulk is halted', async () => {
+    withDb((db) => {
+      for (let i = 0; i < 100; i += 1) {
+        insertOutboxEmail(db, {
+          status: 'sent', sent_at: HOURS_AGO(1), recipient_email: `sent-${i}@example.test`,
+        });
+      }
+      insertSesEvent(db, { event_type: 'complaint', created_at: HOURS_AGO(1) });
+    });
+    const html = await healthPage();
+    expect(html).toMatch(/bulk stream:\s*<span class="fw-600">Stopped on feedback<\/span>/);
+    expect(html).toContain('Bulk sending is stopped: the complaint rate over the last 24 hours');
+    expect(html).toContain('at or above the 0.25% limit');
+    expect(html).toContain('Transactional mail is unaffected and still going out.');
+  });
+
+  it('says an operator stopped the bulk stream, and that it will not clear itself', async () => {
+    withDb((db) => {
+      insertSystemConfig(db, {
+        config_key: 'bulk_send_paused',
+        value_json: '1',
+        effective_start_at: HOURS_AGO(1),
+      });
+    });
+    const html = await healthPage();
+    expect(html).toMatch(/bulk stream:\s*<span class="fw-600">Stopped by operator<\/span>/);
+    expect(html).toContain('Bulk sending is stopped by an operator.');
+    expect(html).toContain('This does not clear itself.');
+  });
+
+  it('attributes the stop to the operator rather than to feedback when both would apply', async () => {
+    // An operator who stopped a send while the rates were also bad needs to be
+    // told which fact they are looking at: clearing the rates will not restart
+    // it, because a person stopped it.
+    withDb((db) => {
+      for (let i = 0; i < 100; i += 1) {
+        insertOutboxEmail(db, {
+          status: 'sent', sent_at: HOURS_AGO(1), recipient_email: `sent-${i}@example.test`,
+        });
+      }
+      insertSesEvent(db, { event_type: 'complaint', created_at: HOURS_AGO(1) });
+      insertSystemConfig(db, {
+        config_key: 'bulk_send_paused',
+        value_json: '1',
+        effective_start_at: HOURS_AGO(1),
+      });
+    });
+    const html = await healthPage();
+    expect(html).toMatch(/bulk stream:\s*<span class="fw-600">Stopped by operator<\/span>/);
+    expect(html).not.toContain('Bulk sending is stopped: the complaint rate');
+  });
+
+  it('states a rate that agrees with the limit it is being compared against', async () => {
+    // One complaint in 401 sent is exactly 25 ten-thousandths, so it halts at
+    // the limit. Rendering the observed rate to one decimal of percent while
+    // rendering the limit to two produced "is 0.2% ... at or above the 0.25%
+    // limit", which is arithmetic nonsense to the operator reading it during
+    // the low-volume early send this feature exists to protect.
+    withDb((db) => {
+      for (let i = 0; i < 401; i += 1) {
+        insertOutboxEmail(db, {
+          status: 'sent', sent_at: HOURS_AGO(1), recipient_email: `sent-${i}@example.test`,
+        });
+      }
+      insertSesEvent(db, { event_type: 'complaint', created_at: HOURS_AGO(1) });
+    });
+    const html = await healthPage();
+    expect(html).toContain('Bulk sending is stopped: the complaint rate');
+    expect(html).toContain('is 0.25% of what was sent, at or above the 0.25% limit');
+    expect(html).not.toContain('is 0.2% of what was sent');
+  });
+
+  it('names the bounce rate when that is what crossed the line', async () => {
+    withDb((db) => {
+      for (let i = 0; i < 100; i += 1) {
+        insertOutboxEmail(db, {
+          status: 'sent', sent_at: HOURS_AGO(1), recipient_email: `sent-${i}@example.test`,
+        });
+      }
+      insertSesEvent(db, { event_type: 'bounce', created_at: HOURS_AGO(1), recipient_count: 6 });
+    });
+    const html = await healthPage();
+    expect(html).toContain('Bulk sending is stopped: the bounce rate over the last 24 hours');
+    expect(html).toContain('at or above the 5% limit');
   });
 });

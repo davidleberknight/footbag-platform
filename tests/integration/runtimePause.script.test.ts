@@ -35,6 +35,7 @@ import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 const REMOTE_HALF = join(process.cwd(), 'scripts/internal/runtime-pause-remote.sh');
 const PAYMENTS_KEY = 'payments_paused';
 const EMAIL_KEY = 'email_outbox_paused';
+const BULK_KEY = 'bulk_send_paused';
 const SCHEMA = join(process.cwd(), 'database/schema.sql');
 
 let workDir: string;
@@ -99,6 +100,7 @@ beforeEach(() => {
   seededRows = {
     [PAYMENTS_KEY]: pauseRows(PAYMENTS_KEY).length,
     [EMAIL_KEY]: pauseRows(EMAIL_KEY).length,
+    [BULK_KEY]: pauseRows(BULK_KEY).length,
   };
 });
 
@@ -244,6 +246,23 @@ describe('the outbound-mail switch', () => {
     const rows = writtenRows(EMAIL_KEY);
     expect(rows.map((r) => r.value_json)).toEqual(['1', '0']);
     expect(rows.map((r) => r.reason_text)).toEqual(['stop', 'template corrected']);
+  });
+
+  it('stops bulk sending without touching the outbox or payments', () => {
+    // Three independent levers. The bulk switch is the one to reach for when a
+    // send is going wrong, precisely because it leaves the other two alone: the
+    // verification mail somebody is waiting on keeps going out.
+    const res = run({ DB_FILE: dbFile, CONFIG_KEY: BULK_KEY, ACTION: 'pause', REASON: 'wrong list selected' });
+    expect(res.exitCode).toBe(0);
+    expect(reportedState(res)).toBe('1');
+
+    const effective = withDb((db) => db.prepare(
+      `SELECT value_json FROM system_config_current WHERE config_key = ?`,
+    ).get(BULK_KEY) as { value_json: string });
+    expect(effective.value_json).toBe('1');
+
+    expect(writtenRows(EMAIL_KEY)).toHaveLength(0);
+    expect(writtenRows(PAYMENTS_KEY)).toHaveLength(0);
   });
 
   it('refuses a switch that does not exist rather than writing a row nothing reads', () => {

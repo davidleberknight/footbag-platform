@@ -2914,7 +2914,7 @@ Rationale:
 
 - Security-critical and governance-critical flows such as account verification, password reset, and election communications rely on reliable email delivery with retries and auditability, which the Outbox pattern provides.
 
-- Transactional and bulk mail carry opposite risk. A transactional message is one member and one action they took, and non-delivery of a password reset locks a person out of their account. A bulk message goes to hundreds of addresses of mixed freshness and is where complaints and hard bounces originate. On a shared sending reputation the second degrades the first, and SES reputation is slow to rebuild, so the two are separated before the first staged bulk send.
+- Transactional and bulk mail carry opposite risk. A transactional message is one member and one action they took, and non-delivery of a password reset locks a person out of their account. A bulk message goes to hundreds of addresses at once and is where complaints and hard bounces originate. On a shared sending reputation the second degrades the first, and SES reputation is slow to rebuild, so the two are separated before the first staged bulk send.
 
 - Member-controlled subscription preferences, stored via MailingListSubscription and projected into Member.subscriptions, provide transparency and control.
 
@@ -2923,12 +2923,14 @@ Rationale:
 - Simple metrics and alarms provide operational visibility without heavy analytics infrastructure.
 
 - The first bulk send to the migrated member list is rate-limited and staged, never
-  issued as a single blast. The list is built from legacy addresses of unknown
-  freshness, so a full-volume first send risks a bounce spike, and SES scores bounce
-  rate against the account's sending reputation, which is slow to rebuild and degrades
-  every later transactional message. Sending in bounded batches, with the bounce and
-  complaint rates observed between batches and the send halted if they climb, keeps a
-  stale-address problem operational rather than reputational.
+  issued as a single blast. Every recipient is a registered or claimed account whose
+  address passed verification, so freshness is not the risk; the risk is that this is
+  a cold sending identity with no reputation history to spend, and a full-volume first
+  send from one risks a bounce or complaint spike. SES scores both against the
+  account's sending reputation, which is slow to rebuild and degrades every later
+  transactional message. Sending in bounded batches, with the bounce and complaint
+  rates observed between batches and the send halted if they climb, keeps a
+  bad-address problem operational rather than reputational.
 
 Trade-offs:
 
@@ -2970,6 +2972,8 @@ Impact:
 
 - Four kinds of send deliberately carry no unsubscribe control, because in each the member has no mailing preference the control could withdraw. Transactional mail answers an action the member took, and offering to switch it off would let them turn off their own security mail. A list members cannot manage, which the `is_member_manageable` flag marks and the operational alert lists are, would otherwise hand an administrator a mail-client button removing them from urgent alerts, which the interface deliberately does not offer; the flag already means "members may self-subscribe and unsubscribe", so it is exactly the right condition to read. Group mail reaches a member because they are on the group's roster, so an unsubscribe would either leave them on the roster still receiving, or remove them from a committee, which is a governance act rather than something a mail client's button performs. Event-participant mail reaches them because they entered the event. The two bulk cases carry standing instructional text instead, telling the reader why they received the message and how to act on the site: leave the group from its page, or manage the registration from the event's page. That text is part of the message template rather than something a sender types, so it cannot be omitted or reworded per send.
 
+- One drain pass fills with pending transactional rows first and gives bulk only the remainder, itself capped, so a bulk run paces itself and can never delay a password reset behind it; the two streams already carry the right value on every row. The priority is absolute rather than weighted, which means bulk mail can be starved for as long as transactional mail fills every pass, with no ageing and no reserved floor. That is accepted: the two carry opposite risk, a delayed newsletter costs nothing a member notices, and a delayed password reset locks somebody out. The sustained rate needed to starve bulk indefinitely is the whole pass limit every interval, which cutover day could plausibly reach for a while; a broadcast begun then simply waits, and the admin health page shows the bulk backlog and the reason it is not moving. Between passes the recent bounce and complaint rates are read and the bulk stream stops while either is at or above threshold, transactional mail continuing throughout. Nothing links a bounce to the message that caused it, so that is a windowed rate rather than a per-batch one, and it is judged only once a floor of messages has actually been sent.
+
 - Controllers only enqueue outbox entries; they never call SES directly.
 
 - Services enqueue emails by creating outbox entities with recipient, subject, body, status. The background worker scans for pending entries on a system-wide configurable interval (default: every 30 seconds; configuration key `outbox_poll_interval_seconds`). After successful send via SES, it updates entry status. After failure, the worker classifies the error: provider throttling or quota exhaustion defers the entry with a delay without consuming a retry attempt (pressure is not a verdict on the email); an ambiguous outcome — an error that leaves delivery unknowable, such as a timeout mid-call — moves the entry to `manual_review` for an admin decision, because SES sends carry no idempotency token and an automatic retry could deliver the same email twice; a definitive failure increments retryCount and defers the entry with exponential backoff. Maximum retries are controlled by the system-wide configuration value outbox_max_retry_attempts (not a per-row outbox override field); when retryCount reaches the configured limit, the worker moves the entry to dead_letter for admin review. An entry stranded mid-send by a crashed worker likewise moves to `manual_review` rather than silently retrying, its outcome being equally unknowable.
@@ -2982,7 +2986,7 @@ Impact:
 
 - Bounce and complaint idempotency: inbound SNS messages carry a `messageId`; the feed handler claims processed `messageId` values in a `ses_events` table with `messageId` as primary key, inside the same transaction as the status write. A redelivery leaves the record exactly as it stands. This is not an optimisation: the queue promises at-least-once delivery, so the same notification arriving twice is ordinary rather than exceptional. Parallel to the `stripe_events` idempotency in §6.1.
 
-- Alerting: bounce rate exceeding `bounce_rate_alarm_threshold` (USER_STORIES) and complaint rate exceeding `complaint_rate_alarm_threshold` (USER_STORIES) emit CloudWatch alarms per §8.2.
+- Alerting: bounce rate at or above `bounce_rate_alarm_threshold_per_10k` and complaint rate at or above `complaint_rate_alarm_threshold_per_10k` (both in the user stories' configurable parameters, in ten-thousandths of messages sent) stop the bulk stream at the drain. The CloudWatch alarms under Monitoring and Alerting are a parallel signal on the provider's own account-level reputation metrics, with their own fixed thresholds; changing these values moves the drain halt and not those alarms.
 
 - Member soft-delete behavior for subscriptions and outbox: during the grace period, `MailingListSubscription` state (including `subscribed`, `unsubscribed`, `bounced`, and `complained` flags) is frozen and preserved. The soft-deleted member cannot change subscriptions because the account is inaccessible. New outbox entries are not enqueued for a soft-deleted member; queued entries addressed to them at the time of soft-delete are moved to `dead_letter` with reason `recipient_soft_deleted`. Missed sends during the grace period are not replayed.
 
@@ -3256,7 +3260,7 @@ Requirements:
 
 Trade-offs:
 
-- Arming is a deploy-shaped change (tfvars + apply + deploy), deliberately slower than a runtime toggle; the runtime kill switches (payments_paused, email_outbox_paused) remain the fast levers for incidents after arming. Both are operator levers, set by script rather than from the browser: the application reads them and has no write path to either. Payments is `scripts/payments-pause.sh`; the outbound-mail lever is its sibling, taking the same arguments and writing the same way. Each pause and resume appends to the append-only configuration table with its reason, so the switch carries its own history.
+- Arming is a deploy-shaped change (tfvars + apply + deploy), deliberately slower than a runtime toggle; the runtime kill switches (payments_paused, email_outbox_paused, bulk_send_paused) remain the fast levers for incidents after arming. All three are operator levers, set by script rather than from the browser: the application reads them and has no write path to any of them. Payments is `scripts/payments-pause.sh`; the outbound-mail lever and the bulk-only lever are its siblings, taking the same arguments and writing the same way. The third exists because the other two are too blunt for a bulk send going wrong: stopping the whole outbox to stop a newsletter strands everyone waiting on a verification link, so the bulk switch holds only the bulk stream and leaves transactional mail flowing. It is distinct from the automatic feedback halt, which stops the same stream on a bounce or complaint spike and clears itself when the rates fall back; a decision somebody made is cleared only by somebody. Each pause and resume appends to the append-only configuration table with its reason, so the switch carries its own history.
 
 Impact:
 
