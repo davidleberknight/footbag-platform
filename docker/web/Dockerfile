@@ -54,17 +54,11 @@ COPY --from=builder /app/dist ./dist
 # dist/dev-bootstrap. Statically-imported modules are replaced with no-op stubs
 # so app boot stays intact.
 ARG INCLUDE_DEV_SHORTCUTS=0
-# The internal QC subsystem (dist/internal-qc) ships in source but must never
-#   reach a production runtime image; it is stripped alongside the dev/staging
-#   subtrees as the interim safeguard, and its statically-imported router module
-#   is replaced with a null stub so app boot stays intact.
-# Target: the QC retirement removes the source subtree and this strip together.
 RUN if [ "$INCLUDE_DEV_SHORTCUTS" != "1" ]; then \
-      rm -rf dist/testkit dist/dev-bootstrap dist/internal-qc && \
+      rm -rf dist/testkit dist/dev-bootstrap && \
       mkdir -p dist/testkit && \
       printf 'module.exports = { devRouter: null };\n' > dist/testkit/devRoutes.js && \
       printf 'module.exports = { getDevOutboxCaptureClient: function () { return { fetchWorkerCaptured: function () { return Promise.resolve([]); } }; } };\n' > dist/testkit/devOutboxCaptureClient.js && \
-      printf 'module.exports = { internalRouter: null };\n' > dist/routes/internalRoutes.js && \
       mkdir -p dist/dev-bootstrap && \
       printf 'module.exports = { applyDevStagingBootstrapAdmin: function () { return { applied: false }; }, getInitialAdminEmails: function () { return new Set(); } };\n' > dist/dev-bootstrap/runtime.js; \
     fi

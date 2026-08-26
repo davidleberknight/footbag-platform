@@ -81,14 +81,6 @@ const SEED_ROOTS = [
   // Admin claim form: requireAuth-only, above the admin gate, linked from no
   // page. Anonymous/non-admin see the redirect/gate; the crawl confirms it wires.
   '/admin/bootstrap-claim',
-  // Operator QC surface: admin-gated GET pages linked from no crawled page, so
-  // seeded directly. Anonymous redirects to /login and a non-admin member gets
-  // 403 (both skipped); only the admin persona renders them. Detail pages that
-  // need a row id are reached via links from these lists when data exists.
-  '/internal/persons/qc', '/internal/persons/browse',
-  '/internal/net/team-corrections', '/internal/net/recovery-signals',
-  '/internal/net/recovery-candidates', '/internal/net/review/summary',
-  '/internal/net/review', '/internal/net/curated', '/internal/net/candidates',
 ];
 
 // The freestyle tricks this fixture seeds; trick-detail links outside this set
@@ -404,11 +396,10 @@ describe('route wiring crawl', () => {
     const cookie = `__Host-footbag_session=${createTestSessionJwt({ memberId: ADMIN_ID, role: 'admin' })}`;
     const { failures, visited } = await crawlAs('admin', cookie);
     expect(failures).toEqual([]);
-    // The operator QC pages are admin-gated and linked from no crawled page, so
-    // a silently-skipped non-200 would still pass the crawl. Pin that the admin
-    // persona actually renders one, proving real coverage past both gates.
-    const qc = await request(createApp()).get('/internal/persons/qc').set('Cookie', cookie);
-    expect(qc.status).toBe(200);
+    // The retired operator surface stays unreachable even for an admin, who is
+    // the one persona that could have rendered it.
+    const retired = await request(createApp()).get('/internal/persons/qc').set('Cookie', cookie);
+    expect(retired.status).toBe(404);
     // Guards the entity-decode path: a query-string link (the `?as=` carries an
     // HTML-escaped `=`) must be followed with its value intact, not truncated.
     expect(visited.has('/dev/switch?as=t0_fresh')).toBe(true);

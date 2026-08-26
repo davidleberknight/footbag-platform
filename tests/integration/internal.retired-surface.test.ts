@@ -1,19 +1,15 @@
 /**
- * Mount-gate acceptance test: the /internal QC router is mounted only when
- * config.footbagEnv is not 'production' (src/app.ts), so under
- * FOOTBAG_ENV=production the entire /internal surface must be unreachable
- * (404). The 404 — rather than the 302-to-login or 403 the router's own auth
- * gate produces when mounted — proves the router is absent, not merely gated.
+ * The internal QC subsystem is retired, so the whole /internal surface is
+ * unreachable. There is no router to mount and no environment in which one
+ * appears, which is why every path under it answers 404 rather than the
+ * 302-to-login or 403 an auth gate would produce.
  *
- * The mounted-environment behavior (login redirect, 403 for non-admins, 200
- * for admins) is covered by internal.auth-gate.test.ts; this file owns the
- * production-refusal case. The config singleton freezes on the first
- * importApp, so this file boots exactly one env (production).
- *
- * The runtime mount gate is one of two safeguards that keep the QC subsystem
- * out of production; the other is the production image build, which strips
- * dist/internal-qc and stubs the router module. This test pins the runtime
- * layer, which protects even an image built with the strip disabled.
+ * This file runs the case under a full production boot, because production is
+ * the environment the retirement exists to protect and a valid production
+ * baseline also proves the 404s reflect an absent route rather than a boot
+ * failure. The dev-environment case, where the router used to mount, is
+ * covered by the admin crawl in route-wiring.crawl.test.ts. The config
+ * singleton freezes on the first importApp, so this file boots exactly one env.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -63,28 +59,37 @@ afterAll(() => {
   else process.env.NODE_ENV = PRIOR_NODE_ENV;
 });
 
-describe('/internal/* — production mount gate', () => {
+describe('/internal/* — the retired QC surface', () => {
   it('boots under FOOTBAG_ENV=production', () => {
     // Proves the prod baseline above is valid and the app actually booted in
-    // production mode, so the 404s below reflect an unmounted router rather
-    // than a boot failure or a misconfigured env.
+    // production mode, so the 404s below reflect an absent route rather than a
+    // boot failure or a misconfigured env.
     const app = createApp();
     expect(app).toBeTypeOf('function');
   });
 
-  it('returns 404 for GET /internal/persons/qc (router not mounted in production)', async () => {
+  it('returns 404 for the retired persons QC page', async () => {
     const app = createApp();
     const res = await request(app).get('/internal/persons/qc');
     expect(res.status).toBe(404);
   });
 
-  it('returns 404 for GET /internal/net/review (router not mounted in production)', async () => {
+  it('returns 404 for the retired net review page', async () => {
     const app = createApp();
     const res = await request(app).get('/internal/net/review');
     expect(res.status).toBe(404);
   });
 
-  it('returns 404 for a state-changing POST under /internal (router not mounted in production)', async () => {
+  it('returns 404 for the retired bookmark redirect', async () => {
+    // This path once forwarded to the admin workbench, which is a keeper
+    // surface reached at /admin/freestyle/emerging-vocabulary. The forward went
+    // with the router: /internal answers nothing at all.
+    const app = createApp();
+    const res = await request(app).get('/internal/freestyle/emerging-vocabulary');
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 404 for a state-changing POST under the retired surface', async () => {
     const app = createApp();
     // Send a matching Origin so the origin pin passes; the request then falls
     // through to the catch-all 404 (proving the route is unregistered), rather

@@ -12,10 +12,6 @@ import { FLASH_KIND, readFlash, clearFlash } from './lib/flashCookie';
 import { healthRouter }   from './routes/healthRoutes';
 import { seoRouter }      from './routes/seoRoutes';
 import { ipcRouter }      from './routes/ipcRoutes';
-// The internal QC subsystem router. Production images strip dist/internal-qc
-// and replace this module with a stub exporting null, so the import is safe
-// everywhere and the null guard below keeps production from mounting it.
-import { internalRouter } from './routes/internalRoutes';
 import { adminRouter }    from './routes/adminRoutes';
 import { publicRouter, STRIPE_WEBHOOK_PATH }   from './routes/publicRoutes';
 // Permanent test scaffolding: the persona harness dev router. Mounted only in
@@ -452,12 +448,6 @@ export function createApp(): express.Application {
   // before any of its routes, and a crawler never meets a member-capability gate.
   app.use(seoRouter);
   app.use('/ipc',      ipcRouter);
-  // Internal QC subsystem: dev/staging tooling only, retired at go-live.
-  // Double gate: env check plus the null guard (production images stub the
-  // router module to null after stripping dist/internal-qc).
-  if (config.footbagEnv !== 'production' && internalRouter) {
-    app.use('/internal', internalRouter);
-  }
   app.use('/admin',    adminRouter);
   // Permanent test scaffolding mount. Registered only when footbagEnv is
   // 'development' or 'staging', so the /dev surface (persona switch + listing)

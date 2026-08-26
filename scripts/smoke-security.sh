@@ -110,9 +110,10 @@ echo "────────────────────────�
 # ── Auth-gate enforcement ─────────────────────────────────────────────────────
 check_login_redirect "member-only route gated"  "/members/placeholder/edit"
 check_login_redirect "admin-only route gated"   "/admin/"
-if [[ "$SMOKE_ENV" != "production" ]]; then
-  check_login_redirect "internal tooling gated" "/internal/"
-fi
+# The internal QC subsystem is retired. /internal/ has no router in any
+# environment, so absence is the contract everywhere rather than a login gate
+# in dev and a 404 in production.
+check_status "internal tooling absent: /internal/" 404 "/internal/"
 
 # ── Anti-enumeration response equivalence ─────────────────────────────────────
 if [[ "$SMOKE_ENV" == "production" ]]; then
@@ -150,7 +151,6 @@ if [[ "$SMOKE_ENV" == "production" ]]; then
   check_status "dev harness absent: /dev/switch"    404 "/dev/switch"
   check_status "dev harness absent: /dev/personas"  404 "/dev/personas"
   check_status "dev harness absent: /dev/outbox"    404 "/dev/outbox"
-  check_status "internal tooling absent: /internal/" 404 "/internal/"
 else
   check_status "dev harness present: /dev/personas" 200 "/dev/personas"
 fi

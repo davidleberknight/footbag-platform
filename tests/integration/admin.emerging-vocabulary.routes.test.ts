@@ -1,14 +1,14 @@
 /**
  * Emerging Vocabulary workbench (/admin/freestyle/emerging-vocabulary).
  *
- * A keeper curator surface on the admin mount (it outlives the internal-QC
- * subsystem). Admin-gated: unauthenticated requests redirect to /login,
+ * A keeper curator surface on the admin mount; it outlived the internal QC
+ * subsystem. Admin-gated: unauthenticated requests redirect to /login,
  * authenticated non-admins get 403. Renders the curator decision packet (the
  * compact decision groups with question, recommendation, alternatives, evidence,
  * and consequences — presented for decision, never auto-applied) and the
  * full-dimension row table with query-param filters. Diagnostics (parser
  * confidence, failure class, ledger provenance) are operator-only and render
- * here, never on the public page. The former internal URL redirects here.
+ * here, never on the public page.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
@@ -25,7 +25,6 @@ const ADMIN_ID  = 'admin-ev-workbench';
 const MEMBER_COOKIE = `__Host-footbag_session=${createTestSessionJwt({ memberId: MEMBER_ID })}`;
 const ADMIN_COOKIE  = `__Host-footbag_session=${createTestSessionJwt({ memberId: ADMIN_ID })}`;
 const PATH = '/admin/freestyle/emerging-vocabulary';
-const LEGACY_PATH = '/internal/freestyle/emerging-vocabulary';
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -93,10 +92,3 @@ describe('workbench content', () => {
   });
 });
 
-describe('legacy internal URL', () => {
-  it('permanently redirects an admin bookmark to the admin workbench', async () => {
-    const res = await request(createApp()).get(LEGACY_PATH).set('Cookie', ADMIN_COOKIE);
-    expect(res.status).toBe(301);
-    expect(res.headers['location']).toBe(PATH);
-  });
-});

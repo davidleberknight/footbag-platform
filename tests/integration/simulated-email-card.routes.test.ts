@@ -192,11 +192,9 @@ describe('GET /register/check-email — dev mode (SES_ADAPTER=stub)', () => {
 });
 
 describe('GET /internal/dev-outbox — retired', () => {
-  it('no longer serves the dev-outbox view (route removed; /internal/* now requires auth and /dev-outbox has no handler)', async () => {
+  it('no longer serves the dev-outbox view (route removed, and /internal has no router at all)', async () => {
     const app = createApp();
     const res = await request(app).get('/internal/dev-outbox');
-    // Unauthenticated falls through to requireAuth → 302 /login. Either way
-    // the response body must not contain the old dev-outbox template.
     expect(res.status).not.toBe(200);
     expect(res.text).not.toContain('Dev Outbox');
     expect(res.text).not.toContain('Delivered At');

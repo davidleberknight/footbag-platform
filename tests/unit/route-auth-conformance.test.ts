@@ -27,7 +27,6 @@ function readRoutes(file: string): string {
 
 const PUBLIC_ROUTES   = readRoutes('publicRoutes.ts');
 const ADMIN_ROUTES    = readRoutes('adminRoutes.ts');
-const INTERNAL_ROUTES = readRoutes('internalRoutes.ts');
 
 // The only path prefixes a pending registrant may reach while authenticated.
 const PENDING_ALLOWED = [
@@ -209,8 +208,15 @@ describe('membership-authorization route conformance', () => {
     expect(offenders, offenders.join('\n')).toEqual([]);
   });
 
-  it('the internal operator router gates on requireMember before requireAdmin', () => {
-    expect(INTERNAL_ROUTES).toMatch(/internalRouter\.use\(\s*requireMember\s*,\s*requireAdmin\s*\)/);
-    expect(INTERNAL_ROUTES).not.toMatch(/\brequireAuth\b/);
+  it('no router file reintroduces the retired internal operator mount', () => {
+    // The QC subsystem is retired. Its router carried admin-gated pages onto an
+    // /internal mount; a file bringing that back would need its own auth review,
+    // so the conformance contract is that it does not exist.
+    const routeFiles = fs.readdirSync(path.join(process.cwd(), 'src', 'routes'));
+    expect(routeFiles).not.toContain('internalRoutes.ts');
+    const offenders = routeFiles
+      .filter((f) => f.endsWith('.ts'))
+      .filter((f) => /['"]\/internal['"]|internalRouter/.test(readRoutes(f)));
+    expect(offenders, offenders.join('\n')).toEqual([]);
   });
 });
