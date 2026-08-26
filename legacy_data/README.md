@@ -153,7 +153,8 @@ the mode exits early.
 ### Net enrichment (`net_enrichment` / included in `full`)
 
 Additive layer that reads canonical tables read-only and populates net-specific
-enrichment tables (discipline groups, teams, appearances, review queue).
+enrichment tables (discipline groups, teams, appearances). QC findings from the
+team builder are written to `out/net_team_qc_issues.jsonl`, not to a table.
 Requires the canonical DB to already be loaded.
 
 ### CSV-only rebuild (`csv_only`)
@@ -236,7 +237,7 @@ fixtures only if `canonical_input/` is somehow absent). Underlies
 - Does NOT run the phase C/D/E/F/G enrichment pipeline. Clubs and club
   members are seeded from the committed seed CSVs, which populate
   `legacy_club_candidates` and `legacy_person_club_affiliations`
-  directly. Phase NET (scripts 12, 13, 14) and phase V
+  directly. Phase NET (scripts 12, 13) and phase V
   (`load_name_variants_seed.py --apply`) DO run. Provisional
   `historical_persons` rows are not populated. Use `run_pipeline.sh
   csv_only` or `deploy-local-data.sh --from-csv` when you need the full

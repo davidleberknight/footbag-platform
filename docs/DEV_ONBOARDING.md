@@ -738,7 +738,7 @@ The events + health slice below was the original proof-of-stack; the platform no
 - `/` (public) — the public site: events, clubs, freestyle, net, sideline, records, hof, bap, media, rules, ifpa, history, legal, plus member auth and onboarding (login, register, verify, password, members, payments, tags)
 - `/admin` — admin and curator workflows (authentication + admin gated)
 - `/ipc` — internal worker channel (shared-secret auth)
-- `/internal` and `/dev` — development and staging only (QC tooling and the persona-switch harness); never mounted in production
+- `/dev` — development and staging only (the persona-switch harness); never mounted in production
 
 The original events routes (`GET /events`, `GET /events/year/:year`, `GET /events/:eventKey`) remain the canonical example of the route-to-service-to-view shape; their contract is §2.4.
 

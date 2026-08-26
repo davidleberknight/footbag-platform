@@ -582,16 +582,12 @@ Impact:
 
 Decision:
 
-Temporary internal tooling lives under a dedicated subtree at `src/internal-<purpose>/**` with a matching view tree at `src/views/internal-<purpose>/**`, kept separate from the permanent product surface in `src/services/**`, `src/controllers/**`, and `src/views/**`. `src/internal-qc/**` is the one such subtree: dev- and staging-only historical-data QC tooling that retires before go-live (the QC-subsystem retirement gate in `docs/MIGRATION_PLAN.md`), which a production deployment never carries. Permanent role-gated admin tooling is product code and lives in the ordinary trees under the established `admin` naming, separated from member-facing surfaces by the admin authorization gate rather than by file location. The separation is orthogonal to the dev/staging/production adapter parity model defined in §1.9 and §5.3.
-
-Internal-only subtree:
-
-- `src/internal-qc/{controllers,services}/**`: historical-data QC tooling (net team corrections, persons data-quality review). Every file in this subtree carries the banner `// ---- QC-only (delete with pipeline-qc subsystem) ----` so the retirement scope is mechanically greppable at retirement time.
+Temporary internal tooling lives under a dedicated subtree at `src/internal-<purpose>/**` with a matching view tree at `src/views/internal-<purpose>/**`, kept separate from the permanent product surface in `src/services/**`, `src/controllers/**`, and `src/views/**`. The pattern currently has no instance: the historical-data QC tooling that occupied `src/internal-qc/**` retired before go-live, and its subtree went with it. Permanent role-gated admin tooling is product code and lives in the ordinary trees under the established `admin` naming, separated from member-facing surfaces by the admin authorization gate rather than by file location. The separation is orthogonal to the dev/staging/production adapter parity model defined in §1.9 and §5.3.
 
 Rationale:
 
-- A distinct subtree signals at a glance whether code serves the public product or serves operator/maintainer needs. Nothing in `src/services/` or `src/controllers/` is silently QC-only.
-- The QC-only banner on every source file makes the "delete with pipeline-qc subsystem" scope mechanically greppable at retirement time.
+- A distinct subtree signals at a glance whether code serves the public product or serves operator/maintainer needs. Nothing in `src/services/` or `src/controllers/` is silently internal-only.
+- Every file in such a subtree carries a retirement banner naming the subsystem it dies with, so the scope is mechanically greppable at retirement time rather than reconstructed by hand. The one subtree that has retired so far was removed that way, and its banner is what proved the scope empty afterwards.
 - Keeping internal-only code out of `src/services/` keeps the permanent product service surface free of internal-only tooling. Internal-only code is documented in its relevant runbook.
 - Admin tooling is permanent product code and is separated by authorization, not by file location: it exists in every environment and is reachable only through the admin gate, which a subtree boundary would restate without enforcing. QC tooling is separated by subtree because it is excluded from production and deleted wholesale at retirement, which a file-location boundary makes mechanical.
 
@@ -602,8 +598,8 @@ Trade-offs:
 
 Impact:
 
-- The historical-data QC subsystem lives entirely under `src/internal-qc/`. Role-gated admin tooling lives in the ordinary trees, named `admin<Surface>Controller`, `admin<Surface>Service`, and `src/views/admin/<surface>/`.
-- New QC code must land under `src/internal-qc/**` on first commit. Do not merge a QC addition into the main trees with intent to move later.
+- Role-gated admin tooling lives in the ordinary trees, named `admin<Surface>Controller`, `admin<Surface>Service`, and `src/views/admin/<surface>/`.
+- New internal-only tooling lands under its own `src/internal-<purpose>/**` on first commit. Do not merge such an addition into the main trees with intent to move later.
 - Integration tests for internal-only routes continue to live in `tests/integration/` alongside other route tests. Test-file paths do not mirror the src-layer separation today; if a convention for that is adopted later, it is a test-layout decision, not a change to this rule.
 - Internal-only subtrees are not part of the permanent product service surface; permanent product services are, and the high-stakes write-path ones carry the file-header JSDoc convention.
 

@@ -798,31 +798,22 @@ Calibrated for a small, volunteer-run international nonprofit handling member PI
 - **Go / no-go decision.** The primary maintainer records a written go/no-go against the go-live gate index (GO_LIVE_PLAN.md, private GitHub repo), with the latest-safe rollback time agreed, before the cutover deploy. Precondition: the §27 monitoring thresholds are validated against the staging baseline first — the deployed origin-latency alarm (p90 above 3s sustained for 15 minutes) carries a default nobody has measured, and the production cutover alarm on zero successful logins over 2 hours is confirmed armed for the window rather than calibrated. A go/no-go cannot be checked against thresholds nobody has measured.
 - **Post-launch close-watch period (hypercare).** Immediately after cutover the team watches the system closely and responds fast to issues. Before the encrypted working copies are destroyed and the legacy webmaster's role closes, a 14-day close-watch window from cutover (inside the 30-day artifact retention) passes with no unresolved high-severity issues and error/latency within target, extendable if a high-severity issue is open when it lapses. This defines the "stable post-cutover operation" the legacy retirement milestones depend on.
 
-## 30. QC subsystem retirement (go-live gate)
+## 30. QC subsystem retirement (go-live gate, met)
 
-The internal QC subsystem (`/internal/net/*`, `/internal/persons/*`, and supporting code, tables, and tests) is a hard go-live gate: no production deployment may carry QC code, routes, or tables. Deletion is not a post-launch tidy-up. Scope at retirement time: every `/internal/*` route, its controller and service code, its Handlebars views, its schema tables, its `db.ts` prepared-statement groups, and its tests.
+The internal QC subsystem is retired. It was operator tooling for reviewing imported net results, mounted only in dev and staging, and the gate was that no production deployment carry its code, routes or tables. Nothing of it remains: the `/internal` router and its mount, the controllers, services and views under `src/internal-qc/` and `src/views/internal-qc/`, the prepared-statement groups in `src/db/db.ts`, six schema tables, the pipeline scripts that filled and drained them, and their tests.
 
 Sign-off on QC retirement is a prerequisite for the State 3 → State 4 transition (the cutover state machine in GO_LIVE_PLAN.md, private GitHub repo).
 
-**QC retirement inventory** (canonical list of paths and tables to delete; the retirement PR maintainer extends this list if files have been added since):
+**What the public site kept.** Two of the three data-quality badges on the net events page were derived only from the retired review queue and went with it: Multi-stage and {n} unlinked. The third, Discipline review, also had an independent source: `net_discipline_group.conflict_flag`, a canonical grouping annotation for an ambiguous match rather than QC review state. It survives on that source alone. Whether it should say "Discipline review" to a visitor is a question about public wording, open and independent of this gate.
 
-- Controllers: `src/internal-qc/controllers/netQcController.ts`, `src/internal-qc/controllers/personsQcController.ts`.
-- Services: `src/internal-qc/services/netQcService.ts`, `src/internal-qc/services/personsQcChecks.ts`, `src/internal-qc/services/personsQcService.ts`.
-- Views: every `.hbs` file under `src/views/internal-qc/`.
-- `src/db/db.ts`: every prepared-statement group banner-marked `// ---- QC-only (delete with pipeline-qc subsystem) ----`.
-- Schema tables in `database/schema.sql`: `net_review_queue` (and any future QC-only tables added under the same banner). Before deleting, resolve whether `net_candidate_match`, `net_curated_match`, and `net_raw_fragment` are QC-only or pipeline-load tables.
-- Tests: `tests/integration/persons.qc.routes.test.ts` and every `net.*.routes.test.ts` (`net.candidates`, `net.candidate-curation-conflict`, `net.curated`, `net.curated-browse`, `net.events`, `net.home`, `net.review`, `net.routes`), plus any others that exercise the deleted routes.
-- Route mounting in `src/app.ts` for the `/internal/*` router (and the router file itself if it serves only QC).
-- Production image hygiene: `docker/web/Dockerfile` strips `dist/internal-qc` from the production stage as an interim safeguard until source deletion lands; the retirement PR removes the strip line together with the source.
+**Where the loader findings go.** The net team builder still runs its seven checks, including a priority-one identity conflict that exists in no other output. They are written to `legacy_data/out/net_team_qc_issues.jsonl`, beside the QC artifacts the canonicalization stage already writes there. Every field is derived from the data rather than the run, so a rerun over unchanged data reproduces the file byte for byte and a diff means the data moved.
 
-**Keeper carve-out.** The emerging-vocabulary workbench is already relocated out of the internal-QC subsystem: its controller is `src/controllers/emergingVocabController.ts`, its view is `src/views/admin/emerging-vocabulary.hbs`, and it is served at `/admin/freestyle/emerging-vocabulary` on the production admin router under the same admin gate. It sits under no internal-qc path, so the views deletion, the `dist/internal-qc` strip, the router deletion, and the CI grep do not touch it. The former `/internal/freestyle/emerging-vocabulary` URL redirects there until `internalRouter` is removed.
+**Automated enforcement**: two layers, paired so a typo or rename cannot silently slip through.
 
-**Automated enforcement**: two layers, paired so a typo or rename can't silently slip through:
+1. **Positive-assertion test.** `tests/unit/qc-subsystem-retired.test.ts` names every retired directory, file and table and requires each to be absent. Absence is the success signal. It also refuses to pass if its own lists are emptied, and checks that each path sits under a real top-level directory, because a path with a typo would be absent for the wrong reason and would pass forever while checking nothing. This catches a deleted file being restored.
+2. **Pattern scan** (defense in depth). The convention gate scans for QC entry points and retired table names. Its scope is the surfaces that ship or that build the database — application source, the schema, and the pipeline — because a QC page cannot return without code in one and a table in the other. Tests are deliberately outside that scope: the tests proving the subsystem is gone have to name it, and no pattern can tell those apart from a test exercising a restored one. This catches QC code returning under a name the first layer cannot know.
 
-1. **Positive-assertion test** (preferred). A test asserts that named QC files (the controllers, services, views, and schema table definitions deleted at retirement) no longer exist in the source tree. The test is keyed to the retirement PR's file list; absence is the success signal. This catches the case where someone restores a deleted file but the grep pattern wasn't extended to cover its name.
-2. **Pattern grep** (defense in depth). A CI check runs against every PR targeting `main` that greps the source tree for known QC entry points (`/internal/`, `internalRoutes`, `netQcController`, `personsQcController`, `internal_qc` schema table names) and fails the build if any are found. The grep pattern list is maintained alongside the QC retirement PR.
-
-The retirement PR adds both layers to `.github/workflows/ci.yml`. R1 sign-off asserts both layers are present and green.
+Both run in continuous integration through jobs that already exist, the unit-test job and the convention gate, rather than through workflow steps of their own. R1 sign-off asserts both layers are present and green.
 
 ## 31. Primary-maintainer test-user retirement (retired early)
 
