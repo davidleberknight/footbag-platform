@@ -3524,6 +3524,33 @@ section.home-media { padding-top: 0; }
 .ifpa-footer-back,
 .ifpa-footer-link { margin-top: 24px; }
 
+/* ── Official IFPA Roster: summary counts ────────────────────── */
+/* Reads like .club-detail-meta, but its labels are sentences rather than the
+   one or two words a club fact carries. A plain `max-content` label track sizes
+   itself to the longest of them and pushes the whole page wider than a phone,
+   so the label track takes a zero minimum and wraps instead. On a phone even a
+   wrapped label leaves the count no room beside it, so the two stack. */
+.roster-summary-meta {
+  display: grid;
+  grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
+  gap: 6px 20px;
+  font-size: 1rem;
+  margin-bottom: 24px;
+}
+.roster-summary-meta dt {
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.roster-summary-meta dd {
+  margin: 0;
+  color: var(--text);
+}
+@media (max-width: 480px) {
+  .roster-summary-meta { grid-template-columns: 1fr; gap: 0; }
+  .roster-summary-meta dt { margin-top: 10px; }
+  .roster-summary-meta dt:first-child { margin-top: 0; }
+}
+
 /* ── Responsive ─────────────────────────────────────────────── */
 @media (max-width: 768px) {
   h1 { font-size: 1.5rem; }
