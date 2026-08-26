@@ -21,6 +21,16 @@ appearance_count definition:
   count(distinct (event_id, discipline_id)) — not raw entry count.
   A team entering two divisions at the same event counts as 2 appearances.
 
+Also writes a review artifact (not a database table):
+  legacy_data/out/net_team_qc_issues.jsonl — one JSON object per finding
+  (--qc-out redirects the directory; a test points it at a temp path so the
+   run never writes into the real legacy_data tree)
+
+  The findings below used to land in an operator review queue in the database.
+  That queue is retired, so they are reported as a file alongside the pipeline's
+  other QC artifacts. self_team in particular is a priority-1 identity conflict
+  that exists nowhere else, so it is reported rather than dropped.
+
 QC checks and their semantics:
   unknown_team (priority 3)
     Both participants resolve to the shared Unknown sentinel UUID. Entry excluded from
@@ -59,6 +69,7 @@ Or via run_pipeline.sh which resolves --db automatically.
 """
 
 import argparse
+import json
 import os
 try:
     import pysqlite3 as sqlite3
@@ -68,6 +79,7 @@ import sys
 import uuid
 from collections import defaultdict
 from datetime import datetime, timezone
+from pathlib import Path
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "scripts", "lib")))
 from db_cutover_guard import assert_maintainer_db_target  # noqa: E402
@@ -115,12 +127,16 @@ def qc_row(
     severity: str,
     reason_code: str,
     message: str,
-    now: str,
 ) -> dict:
+    # Every field is derived from the check and its context, never from the run.
+    # A rerun over unchanged data therefore reproduces the artifact byte for
+    # byte, so a diff means the data moved. That is why there is no per-finding
+    # timestamp: it would be the same value on every line of a file that is
+    # rewritten whole each run, and it would defeat the comparison. When the run
+    # happened is the file's own mtime and the pipeline log.
     return {
         'id': make_qc_id(check_id, context),
         'source_file': SCRIPT_NAME,
-        'item_type': 'qc_issue',
         'priority': priority,
         'event_id': event_id,
         'discipline_id': discipline_id,
@@ -128,13 +144,6 @@ def qc_row(
         'severity': severity,
         'reason_code': reason_code,
         'message': message,
-        'raw_context': None,
-        'review_stage': 'script_13',
-        'resolution_status': 'open',
-        'resolution_notes': None,
-        'resolved_by': None,
-        'resolved_at': None,
-        'imported_at': now,
     }
 
 
@@ -184,7 +193,7 @@ def build_teams(
     Returns:
       teams       — {team_id: team_dict}
       appearances — {(team_id, event_id, discipline_id): best appearance dict}
-      qc_issues   — list of net_review_queue dicts
+      qc_issues   — list of QC finding dicts for the review artifact
     """
     teams: dict[str, dict] = {}
     # Keyed by (team_id, event_id, discipline_id) — holds best-placement appearance
@@ -221,7 +230,6 @@ def build_teams(
                     f"team_type='doubles' but name suggests singles. "
                     f"Likely a canonical data entry error."
                 ),
-                now=now,
             ))
 
         # QC: participant count must be exactly 2
@@ -237,7 +245,6 @@ def build_teams(
                     f"Doubles entry {result_entry_id} has {participant_count} participant(s), "
                     f"expected 2. PIDs: {pid_csv!r}"
                 ),
-                now=now,
             ))
             continue
 
@@ -253,7 +260,6 @@ def build_teams(
                 message=(
                     f"Doubles entry {result_entry_id} has {unlinked_count} unlinked participant(s)."
                 ),
-                now=now,
             ))
             continue
 
@@ -276,7 +282,6 @@ def build_teams(
                         f"(sentinel UUID {UNKNOWN_PERSON_ID}). Excluded from net_team — "
                         f"no meaningful team identity can be constructed."
                     ),
-                    now=now,
                 ))
             else:
                 # Same non-Unknown person on both sides — genuine identity conflict
@@ -292,7 +297,6 @@ def build_teams(
                         f"person_id on both sides: {pid_a!r}. Likely an identity "
                         f"resolution error in the canonical pipeline."
                     ),
-                    now=now,
                 ))
             continue
 
@@ -308,7 +312,6 @@ def build_teams(
                 message=(
                     f"Entry {result_entry_id} has impossible placement {placement}."
                 ),
-                now=now,
             ))
             continue
 
@@ -354,7 +357,6 @@ def build_teams(
                     f"(placement {displaced['placement']}) in favour of best placement "
                     f"{best_appearances[key]['placement']}."
                 ),
-                now=now,
             ))
             # Still accumulate year stats (both rounds happened)
         else:
@@ -420,11 +422,24 @@ def detect_position_flips(conn: sqlite3.Connection, teams: dict) -> None:
         print(f"  {flip_count} team(s) with participant_order flips (non-blocking; position field is non-semantic)")
 
 
+def write_qc_report(qc_issues: list[dict], out_dir) -> None:
+    """
+    Writes the QC findings as JSONL beside the pipeline's other QC artifacts.
+    Findings are a report, not state: nothing reads this file back, and no run
+    depends on a previous one, so the file is rewritten whole each time.
+    """
+    out_dir.mkdir(parents=True, exist_ok=True)
+    path = out_dir / 'net_team_qc_issues.jsonl'
+    with open(path, 'w', encoding='utf-8', newline='\n') as f:
+        for issue in sorted(qc_issues, key=lambda q: (q['check_id'], q['id'])):
+            f.write(json.dumps(issue, ensure_ascii=False) + '\n')
+    print(f"Wrote: {path} ({len(qc_issues)} findings)")
+
+
 def write_results(
     conn: sqlite3.Connection,
     teams: dict,
     appearances: list[dict],
-    qc_issues: list[dict],
     now: str,
 ) -> dict[str, int]:
     """
@@ -433,8 +448,8 @@ def write_results(
     longer referenced by any surviving appearance. A team (and its members) that
     a curated / inferred / candidate appearance still points at — evidence_class
     other than 'canonical_only', written by loaders 12/16 or curation — is
-    preserved, as are resolved net_review_queue rows. Returns the number of rows
-    actually inserted per table (INSERT OR IGNORE skips rows that already exist).
+    preserved. Returns the number of rows actually inserted per table
+    (INSERT OR IGNORE skips rows that already exist).
     """
     inserted: dict[str, int] = {}
     with conn:
@@ -451,12 +466,6 @@ def write_results(
             "DELETE FROM net_team "
             "WHERE team_id NOT IN (SELECT DISTINCT team_id FROM net_team_appearance)"
         )
-        # Clear only unresolved script-13 QC rows so manual resolutions survive
-        conn.execute(
-            "DELETE FROM net_review_queue WHERE source_file = ? AND resolution_status = 'open'",
-            (SCRIPT_NAME,)
-        )
-
         # Insert teams (OR IGNORE: a team preserved above already exists, so this
         # is a no-op rather than a primary-key error).
         before = conn.total_changes
@@ -505,24 +514,6 @@ def write_results(
         """, appearances)
         inserted['appearances'] = conn.total_changes - before
 
-        # QC issues: OR IGNORE preserves any existing manual resolutions. Count
-        # the rows actually inserted, not the in-memory candidate total — an
-        # ignored duplicate must not inflate the reported QC-issue count.
-        before = conn.total_changes
-        conn.executemany("""
-            INSERT OR IGNORE INTO net_review_queue
-              (id, source_file, item_type, priority, event_id, discipline_id,
-               check_id, severity, reason_code, message, raw_context,
-               review_stage, resolution_status, resolution_notes,
-               resolved_by, resolved_at, imported_at)
-            VALUES
-              (:id, :source_file, :item_type, :priority, :event_id, :discipline_id,
-               :check_id, :severity, :reason_code, :message, :raw_context,
-               :review_stage, :resolution_status, :resolution_notes,
-               :resolved_by, :resolved_at, :imported_at)
-        """, qc_issues)
-        inserted['qc_issues'] = conn.total_changes - before
-
     return inserted
 
 
@@ -533,8 +524,7 @@ def print_summary(
     print(f"  Teams inserted:       {inserted['teams']:>6,}  (of {len(teams):,} built)")
     print(f"  Members inserted:     {inserted['members']:>6,}  (of {len(teams) * 2:,} built)")
     print(f"  Appearances inserted: {inserted['appearances']:>6,}  (of {len(appearances):,} built)")
-    print(f"  QC issues inserted:   {inserted['qc_issues']:>6,}  "
-          f"(of {len(qc_issues):,} flagged; existing/resolved duplicates skipped)")
+    print(f"  QC issues flagged:    {len(qc_issues):>6,}  (reported to the QC artifact, not the database)")
 
     by_check: dict[str, int] = defaultdict(int)
     for q in qc_issues:
@@ -547,6 +537,11 @@ def print_summary(
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--db', required=True, help='Path to footbag.db')
+    parser.add_argument(
+        '--qc-out',
+        default=None,
+        help='Directory for the QC findings artifact (default: legacy_data/out/)',
+    )
     args = parser.parse_args()
 
     assert_maintainer_db_target(args.db, "13_build_net_teams.py")
@@ -573,7 +568,13 @@ def main() -> None:
     detect_position_flips(conn, teams)
 
     print("Writing results...")
-    inserted = write_results(conn, teams, appearances, qc_issues, now)
+    inserted = write_results(conn, teams, appearances, now)
+
+    # __file__ is legacy_data/event_results/scripts/13_… so .parent×3 = legacy_data/
+    qc_out = Path(args.qc_out) if args.qc_out else (
+        Path(__file__).resolve().parent.parent.parent / 'out'
+    )
+    write_qc_report(qc_issues, qc_out)
 
     print_summary(inserted, teams, appearances, qc_issues)
     print("\nDone.")

@@ -65,7 +65,6 @@ EXPECTATIONS: list[Expectation] = [
     Expectation("net_team", 2, "4 doubles_net result pairs in fixture form distinct teams"),
     Expectation("net_team_member", 4, "2 members per team"),
     Expectation("net_team_appearance", 2, "1 appearance per team-event"),
-    Expectation("net_review_queue", 1, "stage2_qc_issues stub + script 13 QC findings"),
     # Step 17: load_clubs_seed.py
     Expectation("clubs", 3, "3 clubs from mirror fixture"),
     # Step 19: load_club_members_seed.py — THE REGRESSION-PRECEDENT TABLE

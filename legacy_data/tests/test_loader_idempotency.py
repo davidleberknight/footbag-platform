@@ -707,7 +707,15 @@ def _load_canonical_doubles(tmp_path: Path, with_qc: bool = False) -> Path:
 
 
 def _loader13(db: Path) -> list[str]:
-    return ["legacy_data/event_results/scripts/13_build_net_teams.py", "--db", str(db)]
+    # --qc-out keeps the QC findings artifact beside the temp database. Without
+    # it the loader writes into the real legacy_data/out tree, which no test may
+    # touch.
+    return ["legacy_data/event_results/scripts/13_build_net_teams.py",
+            "--db", str(db), "--qc-out", str(db.parent)]
+
+
+def _qc_findings(db: Path) -> str:
+    return (db.parent / "net_team_qc_issues.jsonl").read_text(encoding="utf-8")
 
 
 def test_net_teams_first_load(tmp_path: Path) -> None:
@@ -793,32 +801,49 @@ def test_net_teams_rerun_preserves_curated_appearance(tmp_path: Path) -> None:
         conn.close()
 
 
-def test_net_teams_qc_counter_honest_under_ignored_duplicate(tmp_path: Path) -> None:
-    """When INSERT OR IGNORE skips a QC row that already exists (resolved), the
-    summary reports rows actually inserted, not the in-memory flagged count."""
-    import re as _re
+def test_net_teams_qc_findings_reported_to_artifact_not_database(tmp_path: Path) -> None:
+    """A malformed entry is reported as a QC finding in the artifact, and the
+    loader writes no review table to hold it."""
+    import json as _json
     db = _load_canonical_doubles(tmp_path, with_qc=True)
-    assert run(_loader13(db)).returncode == 0
-    # Resolve the flagged QC row so the teardown (open-only) keeps it.
+    r = run(_loader13(db))
+    assert r.returncode == 0
+    findings = [_json.loads(line) for line in _qc_findings(db).splitlines() if line.strip()]
+    assert any(f["check_id"] == "wrong_participant_count" for f in findings), findings
+    # Every finding carries what a reviewer needs to act without the database.
+    for f in findings:
+        assert f["priority"] and f["severity"] and f["message"]
+    # The review table is being retired. While the schema still carries it the
+    # loader must leave it empty; once it is gone there is nothing to check.
     conn = sqlite3.connect(db)
     try:
-        assert count(db, "net_review_queue") >= 1
-        conn.execute("UPDATE net_review_queue SET resolution_status = 'resolved'")
-        conn.commit()
+        still_present = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'net_review_queue'"
+        ).fetchone()
+        if still_present:
+            assert conn.execute("SELECT COUNT(*) FROM net_review_queue").fetchone()[0] == 0
     finally:
         conn.close()
-    queue_before = count(db, "net_review_queue")
-    r2 = run(_loader13(db))
-    assert r2.returncode == 0
-    # The resolved duplicate is skipped, so nothing new is inserted and the count
-    # does not grow.
-    assert count(db, "net_review_queue") == queue_before
-    m = _re.search(r"QC issues inserted:\s+([\d,]+)\s+\(of\s+([\d,]+)\s+flagged", r2.stdout)
-    assert m, f"summary line not found.\nstdout: {r2.stdout}"
-    inserted = int(m.group(1).replace(",", ""))
-    flagged = int(m.group(2).replace(",", ""))
-    assert inserted == 0, f"reported {inserted} inserted but the duplicate was skipped"
-    assert flagged >= 1, "expected at least one flagged QC issue"
+
+
+def test_net_teams_qc_artifact_is_byte_identical_on_rerun(tmp_path: Path) -> None:
+    """Rerunning over unchanged data reproduces the artifact exactly, so a diff
+    means the data moved rather than that the loader ran again."""
+    import json as _json
+    import time as _time
+    db = _load_canonical_doubles(tmp_path, with_qc=True)
+    assert run(_loader13(db)).returncode == 0
+    first = _qc_findings(db)
+    assert first.strip(), "expected at least one finding to compare"
+    # No finding may carry a value taken from the run rather than from the data.
+    # A wall-clock field would make two runs in the same second agree and two
+    # runs either side of a tick disagree, which is a comparison that passes by
+    # luck. Sleeping past a tick is what turns that into a real check.
+    for finding in (_json.loads(line) for line in first.splitlines() if line.strip()):
+        assert not [k for k in finding if k.endswith("_at")], finding
+    _time.sleep(1.1)
+    assert run(_loader13(db)).returncode == 0
+    assert _qc_findings(db) == first
 
 
 # ---------------------------------------------------------------------------

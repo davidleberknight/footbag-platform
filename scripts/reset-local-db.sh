@@ -196,10 +196,6 @@ echo "  → Building net teams..."
 "${PYTHON}" legacy_data/event_results/scripts/13_build_net_teams.py \
   --db "${DB_FILE}"
 
-echo "  → Importing net review queue..."
-"${PYTHON}" legacy_data/event_results/scripts/14_import_net_review_queue.py \
-  --db "${DB_FILE}"
-
 # Load club seed data into database (CSV is preflight-required; produced
 # upstream by legacy_data/scripts/extract_clubs.py and committed under
 # legacy_data/seed/clubs.csv).

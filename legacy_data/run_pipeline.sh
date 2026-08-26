@@ -761,7 +761,8 @@ run_phase_v() {
 #   net_team_member        — per-team member rows
 #   net_team_appearance    — per-team × event_discipline placement cache
 #   net_stat_policy        — evidence class policy registry
-#   net_review_queue       — QC items and quarantine events
+#   (QC findings from the net loaders are written to out/net_team_qc_issues.jsonl,
+#    not to a database table)
 #
 # Scripts run in order: 12 → 13 → 14
 # Script 15 is NOT included (net_relative_performance deferred from phase 1).
@@ -778,9 +779,6 @@ run_phase_net() {
         --db "${REPO_ROOT}/database/footbag.db"
 
     python event_results/scripts/13_build_net_teams.py \
-        --db "${REPO_ROOT}/database/footbag.db"
-
-    python event_results/scripts/14_import_net_review_queue.py \
         --db "${REPO_ROOT}/database/footbag.db"
 
     echo ""
