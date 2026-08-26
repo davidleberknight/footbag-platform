@@ -87,10 +87,14 @@ CUTOVER_GUARD="${SCRIPT_DIR}/internal/deploy-rebuild-cutover-guard.sh"
 # independently when the on-host database already holds real member accounts.
 PROD_LIVE_GUARD="${SCRIPT_DIR}/internal/deploy-rebuild-production-live-guard.sh"
 
+# shellcheck source=lib/ssh-known-hosts.sh
+source "${REPO_ROOT}/scripts/lib/ssh-known-hosts.sh"
+
 # SSH connection options. Parallel to scripts/deploy-code.sh; see that file
-# for the rationale (host-key pinning on first contact, fail-fast on dead
-# targets, keepalives across the long docker-save and rsync streams).
-SSH_OPTS=(-o "StrictHostKeyChecking=accept-new" -o "ConnectTimeout=10" -o "ServerAliveInterval=30")
+# for the rationale (verification against the pinned host-key file, fail-fast
+# on dead targets, keepalives across the long docker-save and rsync streams).
+require_pinned_known_hosts || exit 1
+SSH_OPTS=("${FOOTBAG_SSH_PIN_OPTS[@]}" -o "ConnectTimeout=10" -o "ServerAliveInterval=30")
 
 # Derive FOOTBAG_ENV from the SSH alias; passed to the remote-half so it can
 # fetch the matching /footbag/{env}/secrets/origin_verify_secret from SSM.

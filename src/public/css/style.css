@@ -3475,6 +3475,17 @@ section.home-media { padding-top: 0; }
   font-family: var(--font-mono);
 }
 
+/* ── Admin: archived broadcast body ──────────────────────────── */
+/* The message exactly as it went out. Plain text, so the line breaks the
+   sender typed are the ones a reader must see, and a long line wraps rather
+   than pushing the page sideways. */
+.broadcast-body {
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  margin: 0;
+  font-family: var(--font-body);
+}
+
 /* ── Gallery edit: current-items picker ──────────────────────── */
 .picker-grid {
   display: grid;

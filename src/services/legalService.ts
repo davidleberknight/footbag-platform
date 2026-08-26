@@ -38,7 +38,7 @@ export interface LegalContent {
 // Static content
 // ---------------------------------------------------------------------------
 
-const LAST_UPDATED = '2026-04-14';
+const LAST_UPDATED = '2026-08-26';
 
 const PRIVACY_SECTION: LegalSection = {
   id: 'privacy',
@@ -57,7 +57,7 @@ const PRIVACY_SECTION: LegalSection = {
     {
       subheading: 'Cookies',
       bodyHtml:
-        'This site sets one strictly-necessary session cookie after login to keep you signed in. No tracking, advertising, or analytics cookies are used. A cookie consent banner is not required for strictly-necessary cookies under GDPR and the ePrivacy Directive.',
+        'This site sets only strictly-necessary cookies. A session cookie is set when you sign in and keeps you signed in until it expires or you sign out. Where the members-only archive of the legacy site is available, signing in also sets short-lived access cookies that let the archive confirm you are signed in; they expire with your session and are cleared when you sign out. A separate cookie carries a one-time confirmation message (for example, "Profile updated") across a page redirect and expires within a minute. No tracking, advertising, or analytics cookies are used. A cookie consent banner is not required for strictly-necessary cookies under GDPR and the ePrivacy Directive.',
     },
     {
       subheading: 'Analytics',
@@ -72,7 +72,12 @@ const PRIVACY_SECTION: LegalSection = {
     {
       subheading: 'Third-party embeds',
       bodyHtml:
-        'Video embeds use a click-to-load facade. YouTube and Vimeo are contacted only when you choose to play a video; no connection is made on page load. No other third-party services are loaded.',
+        'Video embeds use a click-to-load facade: the YouTube or Vimeo player, and any cookies it sets, load only when you choose to play a video. The still image shown on a video tile is served by YouTube\'s or Vimeo\'s image servers, so displaying a page that lists videos does send a request to those image servers, including your IP address and browser details.',
+    },
+    {
+      subheading: 'Human verification',
+      bodyHtml:
+        'Sign-in, registration, the two password-reset pages, the confirm-your-email page, and the legacy-account claim step in the registration wizard use Cloudflare Turnstile to tell people apart from automated scripts. On those pages your browser loads a script from Cloudflare, which receives your IP address and browser details in order to run the check. It is used only on those pages and only to prevent abuse, not for analytics or advertising. No other third-party services are loaded.',
     },
     {
       subheading: 'Your rights',

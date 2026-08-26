@@ -8521,6 +8521,237 @@ export const mailingListSubscriptions = {
         updated_at = ?, updated_by = ?, version = version + 1
     WHERE mailing_list_id = ? AND member_id = ?
   `); },
+
+  // The lists a member may manage for themselves, each carrying whatever status
+  // that member currently holds on it. Archived lists and group-backed lists are
+  // excluded: an archived list is no longer offered, and being in the group is
+  // what puts a member on a group-backed one, so there is no choice to show.
+  // The LEFT JOIN keeps a list the member has no row for at all, which is every
+  // list until they act on it.
+  get listMemberManageableForMember() { return db.prepare(`
+    SELECT
+      ml.slug, ml.name, ml.description,
+      s.status AS subscription_status,
+      s.status_updated_at
+    FROM mailing_lists AS ml
+    LEFT JOIN mailing_list_subscriptions AS s
+      ON s.mailing_list_id = ml.slug AND s.member_id = ?
+    WHERE ml.status = 'active'
+      AND ml.is_member_manageable = 1
+      AND ml.recipient_source = 'subscription'
+    ORDER BY ml.name
+  `); },
+
+  // The member subscribing themselves. A row an administrator suppressed is left
+  // alone: that state is an operational decision made about this address, and a
+  // member clearing it from their own screen would overturn it silently. A row
+  // already subscribed is left alone too, so re-choosing the state it already
+  // holds reports zero changes rather than a write the member did not make.
+  get memberSubscribe() { return db.prepare(`
+    INSERT INTO mailing_list_subscriptions (
+      id, created_at, created_by, updated_at, updated_by, version,
+      mailing_list_id, member_id, status, status_updated_at
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, 'subscribed', ?)
+    ON CONFLICT(mailing_list_id, member_id) DO UPDATE SET
+      status = 'subscribed',
+      status_updated_at = excluded.status_updated_at,
+      updated_at = excluded.updated_at,
+      updated_by = excluded.updated_by,
+      version = version + 1
+    WHERE mailing_list_subscriptions.status NOT IN ('suppressed', 'subscribed')
+  `); },
+
+  // The member withdrawing themselves, leaving a suppressed row as it stands for
+  // the same reason, and an already-withdrawn row for the no-op reason. A member
+  // with no row for the list is already not on it, so the update matches nothing
+  // and the action is a no-op there too.
+  get memberUnsubscribe() { return db.prepare(`
+    UPDATE mailing_list_subscriptions
+    SET status = 'unsubscribed', status_updated_at = ?,
+        updated_at = ?, updated_by = ?, version = version + 1
+    WHERE mailing_list_id = ? AND member_id = ?
+      AND status NOT IN ('suppressed', 'unsubscribed')
+  `); },
+};
+
+export interface MailingListRow {
+  slug: string;
+  updated_at: string;
+  name: string;
+  description: string;
+  status: string;
+  is_member_manageable: number;
+  from_identity: string | null;
+  rules_text: string | null;
+  subject_prefix: string;
+  restricted_sending: number;
+  recipient_source: string;
+  source_group_id: string | null;
+}
+
+/** A list row carrying its subscriber counts, one column per subscription status. */
+export interface MailingListWithCountsRow extends MailingListRow {
+  subscribed_count: number;
+  unsubscribed_count: number;
+  bounced_count: number;
+  complained_count: number;
+  suppressed_count: number;
+  total_count: number;
+}
+
+// Administration of the lists themselves, as distinct from the subscription
+// rows above and from the send path that reads them. Every statement here backs
+// an admin surface; the send path never uses them.
+export const mailingLists = {
+  // The admin index. One row per list with its subscriber counts by status, so
+  // the page needs a single statement rather than a count query per list. The
+  // LEFT JOIN keeps a list with no subscribers at all, which every newly
+  // created list is.
+  get listWithCounts() { return db.prepare(`
+    SELECT
+      ml.slug, ml.updated_at, ml.name, ml.description, ml.status,
+      ml.is_member_manageable, ml.from_identity, ml.rules_text,
+      ml.subject_prefix, ml.restricted_sending,
+      ml.recipient_source, ml.source_group_id,
+      COALESCE(SUM(CASE WHEN s.status = 'subscribed'   THEN 1 ELSE 0 END), 0) AS subscribed_count,
+      COALESCE(SUM(CASE WHEN s.status = 'unsubscribed' THEN 1 ELSE 0 END), 0) AS unsubscribed_count,
+      COALESCE(SUM(CASE WHEN s.status = 'bounced'      THEN 1 ELSE 0 END), 0) AS bounced_count,
+      COALESCE(SUM(CASE WHEN s.status = 'complained'   THEN 1 ELSE 0 END), 0) AS complained_count,
+      COALESCE(SUM(CASE WHEN s.status = 'suppressed'   THEN 1 ELSE 0 END), 0) AS suppressed_count,
+      COUNT(s.id) AS total_count
+    FROM mailing_lists AS ml
+    LEFT JOIN mailing_list_subscriptions AS s ON s.mailing_list_id = ml.slug
+    GROUP BY ml.slug
+    ORDER BY ml.status, ml.name
+  `); },
+
+  // One list with the same counts, for its detail page.
+  get getWithCounts() { return db.prepare(`
+    SELECT
+      ml.slug, ml.updated_at, ml.name, ml.description, ml.status,
+      ml.is_member_manageable, ml.from_identity, ml.rules_text,
+      ml.subject_prefix, ml.restricted_sending,
+      ml.recipient_source, ml.source_group_id,
+      COALESCE(SUM(CASE WHEN s.status = 'subscribed'   THEN 1 ELSE 0 END), 0) AS subscribed_count,
+      COALESCE(SUM(CASE WHEN s.status = 'unsubscribed' THEN 1 ELSE 0 END), 0) AS unsubscribed_count,
+      COALESCE(SUM(CASE WHEN s.status = 'bounced'      THEN 1 ELSE 0 END), 0) AS bounced_count,
+      COALESCE(SUM(CASE WHEN s.status = 'complained'   THEN 1 ELSE 0 END), 0) AS complained_count,
+      COALESCE(SUM(CASE WHEN s.status = 'suppressed'   THEN 1 ELSE 0 END), 0) AS suppressed_count,
+      COUNT(s.id) AS total_count
+    FROM mailing_lists AS ml
+    LEFT JOIN mailing_list_subscriptions AS s ON s.mailing_list_id = ml.slug
+    WHERE ml.slug = ?
+    GROUP BY ml.slug
+  `); },
+
+  // The bare row, for the edit form and for the existence checks the write
+  // paths make before they touch anything.
+  get getBySlug() { return db.prepare(`
+    SELECT slug, updated_at, name, description, status,
+           is_member_manageable, from_identity, rules_text,
+           subject_prefix, restricted_sending,
+           recipient_source, source_group_id
+    FROM mailing_lists WHERE slug = ?
+  `); },
+
+  // Administrator-created lists are subscription-backed. A group-backed list is
+  // created by the groups build when an administrator enables a group's mail,
+  // never from the list surfaces, which is why this statement names no group.
+  get insertList() { return db.prepare(`
+    INSERT INTO mailing_lists (
+      slug, updated_at, name, description, status,
+      is_member_manageable, from_identity, subject_prefix, restricted_sending,
+      recipient_source, source_group_id
+    ) VALUES (?, ?, ?, ?, 'active', ?, ?, ?, 0, 'subscription', NULL)
+  `); },
+
+  // The editable fields. slug is the stable reference every subscription,
+  // outbox row and archive row holds, so it is never rewritten; status moves
+  // only through the archive statement below.
+  get updateList() { return db.prepare(`
+    UPDATE mailing_lists
+    SET name = ?, description = ?, is_member_manageable = ?,
+        from_identity = ?, subject_prefix = ?, restricted_sending = ?,
+        updated_at = ?
+    WHERE slug = ?
+  `); },
+
+  // Archiving keeps every subscription and every historical send: the list
+  // stops appearing in the member subscription screen and in new send flows,
+  // and nothing else about it changes. Guarded on the current status so a
+  // second archive of the same list reports zero changes rather than writing a
+  // second audit row for a state that did not move.
+  get archiveList() { return db.prepare(`
+    UPDATE mailing_lists
+    SET status = 'archived', updated_at = ?
+    WHERE slug = ? AND status = 'active'
+  `); },
+
+  // The exceptional manual adjustment an administrator makes on a member's
+  // behalf, most often to release an address the provider marked bounced once
+  // the member has fixed it. Distinct from the member's own writes and from the
+  // provider feedback flips, and stamped with the acting administrator so the
+  // row itself says an administrator moved it.
+  get adminSetSubscriptionStatus() { return db.prepare(`
+    UPDATE mailing_list_subscriptions
+    SET status = ?, status_updated_at = ?,
+        updated_at = ?, updated_by = ?, version = version + 1
+    WHERE mailing_list_id = ? AND member_id = ?
+  `); },
+};
+
+export interface EmailArchiveRow {
+  id: string;
+  created_at: string;
+  archive_type: string;
+  mailing_list_id: string | null;
+  event_id: string | null;
+  sender_member_id: string | null;
+  from_identity: string | null;
+  subject: string;
+  body_text: string;
+  sent_at: string;
+  recipient_count: number;
+}
+
+// The record of what the platform said in IFPA's name: one row per broadcast,
+// naming no recipient. The per-recipient copies live in outbox_emails and age
+// out on their own retention window; these rows are kept indefinitely.
+export const emailArchives = {
+  get insertArchive() { return db.prepare(`
+    INSERT INTO email_archives (
+      id, created_at, created_by, updated_at, updated_by, version,
+      archive_type, mailing_list_id, event_id,
+      sender_member_id, from_identity, subject, body_text, sent_at, recipient_count
+    ) VALUES (?, ?, ?, ?, ?, 1,
+              ?, ?, NULL,
+              ?, ?, ?, ?, ?, ?)
+  `); },
+
+  // Newest first, which is the order an administrator reads a send history in.
+  // The list name is joined in so the index reads as words rather than slugs.
+  get listRecent() { return db.prepare(`
+    SELECT
+      a.id, a.created_at, a.archive_type, a.mailing_list_id, a.event_id,
+      a.sender_member_id, a.from_identity, a.subject, a.body_text,
+      a.sent_at, a.recipient_count,
+      ml.name AS mailing_list_name
+    FROM email_archives AS a
+    LEFT JOIN mailing_lists AS ml ON ml.slug = a.mailing_list_id
+    ORDER BY a.sent_at DESC, a.id DESC
+    LIMIT ?
+  `); },
+
+  get getById() { return db.prepare(`
+    SELECT
+      a.id, a.created_at, a.archive_type, a.mailing_list_id, a.event_id,
+      a.sender_member_id, a.from_identity, a.subject, a.body_text,
+      a.sent_at, a.recipient_count,
+      ml.name AS mailing_list_name
+    FROM email_archives AS a
+    LEFT JOIN mailing_lists AS ml ON ml.slug = a.mailing_list_id
+    WHERE a.id = ?
+  `); },
 };
 
 // Steady-state admin-role flag write for the in-app grant/revoke action: an

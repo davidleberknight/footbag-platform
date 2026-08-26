@@ -1652,7 +1652,7 @@ Story: As a member, I can manage my mailing list subscriptions so that I control
 
 Success Criteria:
 
-- Member profile includes a subscriptions list with categories: all-members, newsletter, board-announcements, event-notifications, technical-updates, active-player-reminders.
+- Member profile includes a subscriptions list with categories: all-members, newsletter, board-announcements, event-notifications, technical-updates, active-player-reminders, announce.
 - Member can subscribe or unsubscribe via profile settings.
 - System uses the subscriptions list to determine which bulk emails the member receives in each category.
 - Changes made in the member's profile are respected by all future bulk emails for those categories.
@@ -3557,6 +3557,7 @@ Seed these defaults into the database-backed configuration store during initial 
 - `media_flag_rate_limit_per_hour = 10` (maximum media flags per member per hour to prevent abuse)
 - `curator_write_rate_limit_per_hour = 60` (maximum curated-media writes per curator per hour)
 - `group_email_rate_limit_per_hour = 30` (maximum messages one member may post to one group per hour; an abuse ceiling, set well above what a live debate needs)
+- `announce_send_rate_limit_per_day = 2` (maximum community announcements one organizer member may send per day)
 - `media_edit_rate_limit_per_hour = 15` (maximum edits to a member's own media per hour)
 - `gallery_write_rate_limit_per_hour = 30` (maximum gallery creates, renames and deletes per member per hour)
 - `profile_edit_rate_limit_per_hour = 20` (maximum profile edits per member per hour)

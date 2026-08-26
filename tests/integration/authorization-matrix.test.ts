@@ -196,6 +196,9 @@ describe('admin gate — GET (allow admin only, deny everyone else)', () => {
     '/admin/audit-log',
     '/admin/audit-log/export',
     '/admin/email-log',
+    '/admin/mailing-lists',
+    '/admin/mailing-lists/new',
+    '/admin/broadcasts',
     '/admin/payments',
     '/admin/payments/reports',
     '/admin/payments/health',
@@ -238,7 +241,11 @@ describe('admin gate — parameterized GET (detail routes sit behind the gate)',
   // 404, not 200. The gate still runs before the handler, so the deny cells
   // prove the route is protected, and the admin's 404 (rather than a leak)
   // proves the gate passed before the id was ever looked up.
-  const ROUTES = ['/admin/payments/ph', '/admin/members/ph'];
+  const ROUTES = [
+    '/admin/payments/ph', '/admin/members/ph',
+    '/admin/mailing-lists/ph', '/admin/mailing-lists/ph/edit', '/admin/mailing-lists/ph/compose',
+    '/admin/broadcasts/ph',
+  ];
 
   it('redirects the unauthenticated, 403s a non-admin, and 404s an admin on a placeholder id', async () => {
     for (const route of ROUTES) {
@@ -316,6 +323,11 @@ describe('admin gate — POST (every state-changing admin route sits behind the 
     '/admin/curator/galleries',
     '/admin/curator/galleries/ph/edit',
     '/admin/curator/galleries/ph/delete',
+    '/admin/mailing-lists/new',
+    '/admin/mailing-lists/ph/edit',
+    '/admin/mailing-lists/ph/archive',
+    '/admin/mailing-lists/ph/subscriptions/adjust',
+    '/admin/mailing-lists/ph/compose',
   ];
 
   it('403s an authenticated non-admin and redirects the unauthenticated', async () => {

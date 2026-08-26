@@ -1,0 +1,53 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    {{#if content.isNew}}
+    <p class="text-muted">A new list takes its recipients from its own subscribers. A list backed by a group's roster is created by enabling that group's mail, not here.</p>
+    {{else}}
+    <p class="text-muted">The list's web address is fixed when it is created, because every subscription and every past send refers to it.</p>
+    {{/if}}
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+    {{#if content.hasErrors}}
+    <div class="form-error-banner">
+      {{#each content.errorList}}<p>{{this}}</p>{{/each}}
+    </div>
+    {{/if}}
+
+    <form method="POST" action="{{content.formAction}}" class="form-block">
+      <div class="form-field">
+        <label for="name">Name</label>
+        <input type="text" id="name" name="name" value="{{content.fields.name}}" maxlength="{{content.nameMax}}" required />
+      </div>
+      <div class="form-field">
+        <label for="description">Description</label>
+        <textarea id="description" name="description" rows="3" maxlength="{{content.descriptionMax}}">{{content.fields.description}}</textarea>
+        <p class="text-muted fs-sm">Shown to members on their subscription screen, so write it for them.</p>
+      </div>
+      <div class="form-field">
+        <label for="fromIdentity">From address</label>
+        <input type="text" id="fromIdentity" name="fromIdentity" value="{{content.fields.fromIdentity}}" maxlength="{{content.fromIdentityMax}}" />
+        <p class="text-muted fs-sm">Leave empty to send from the platform default.</p>
+      </div>
+      <div class="form-field">
+        <label for="subjectPrefix">Subject prefix</label>
+        <input type="text" id="subjectPrefix" name="subjectPrefix" value="{{content.fields.subjectPrefix}}" maxlength="{{content.subjectPrefixMax}}" />
+        <p class="text-muted fs-sm">Prepended in square brackets to every subject sent to this list. Leave empty for none.</p>
+      </div>
+      <div class="form-field">
+        <label><input type="checkbox" name="isMemberManageable" value="1" {{#if content.fields.isMemberManageable}}checked{{/if}} /> Members may subscribe and unsubscribe themselves</label>
+        <p class="text-muted fs-sm">Leave this off for an operational list administrators must not be able to leave. Only a list members can manage carries an unsubscribe control on its mail.</p>
+      </div>
+      {{#if content.isNew}}
+      <button type="submit" class="btn btn-primary">Create the List</button>
+      {{else}}
+      <button type="submit" class="btn btn-primary">Save the List</button>
+      {{/if}}
+    </form>
+
+    <p class="mt-4"><a href="{{content.backHref}}" class="btn btn-outline">Back to Mailing Lists</a></p>
+  </section>
+</div>

@@ -15,6 +15,8 @@ import { adminSystemHealthController } from '../controllers/adminSystemHealthCon
 import { adminAlarmsController } from '../controllers/adminAlarmsController';
 import { adminPaymentsController } from '../controllers/adminPaymentsController';
 import { adminEmailTemplateController } from '../controllers/adminEmailTemplateController';
+import { adminMailingListController } from '../controllers/adminMailingListController';
+import { adminBroadcastController } from '../controllers/adminBroadcastController';
 import { adminFreestyleController } from '../controllers/adminFreestyleController';
 import { emergingVocabController } from '../controllers/emergingVocabController';
 import { requireMember } from '../middleware/auth';
@@ -105,6 +107,22 @@ adminRouter.get('/alarms',                    adminAlarmsController.index);
 adminRouter.post('/alarms/:id/acknowledge',   adminAlarmsController.acknowledge);
 // Email-template editor: edit wording, enabled flag, and classification of the
 // registered outbound templates. Edit-only; template existence is code.
+// Mailing-list administration. Order matters: the literal `new` path must
+// precede `/mailing-lists/:slug`, or a list slug of "new" would be looked up
+// instead of the create form being rendered.
+adminRouter.get('/mailing-lists',                     adminMailingListController.index);
+adminRouter.get('/mailing-lists/new',                 adminMailingListController.newForm);
+adminRouter.post('/mailing-lists/new',                adminMailingListController.create);
+adminRouter.get('/mailing-lists/:slug',               adminMailingListController.detail);
+adminRouter.get('/mailing-lists/:slug/compose',       adminBroadcastController.composeForm);
+adminRouter.post('/mailing-lists/:slug/compose',      adminBroadcastController.send);
+adminRouter.get('/mailing-lists/:slug/edit',          adminMailingListController.editForm);
+adminRouter.post('/mailing-lists/:slug/edit',         adminMailingListController.update);
+adminRouter.post('/mailing-lists/:slug/archive',      adminMailingListController.archive);
+adminRouter.post('/mailing-lists/:slug/subscriptions/adjust', adminMailingListController.adjustSubscription);
+// The record of what was sent, across every audience a send can name.
+adminRouter.get('/broadcasts',                        adminBroadcastController.index);
+adminRouter.get('/broadcasts/:id',                    adminBroadcastController.detail);
 adminRouter.get('/email-templates',           adminEmailTemplateController.index);
 adminRouter.get('/email-templates/:key/edit', adminEmailTemplateController.edit);
 adminRouter.post('/email-templates/:key/edit', adminEmailTemplateController.update);

@@ -87,8 +87,12 @@ REMOTE="${DEPLOY_TARGET:-footbag-staging}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REMOTE_HALF="${SCRIPT_DIR}/internal/install-cwagent-remote.sh"
 
+# shellcheck source=lib/ssh-known-hosts.sh
+source "${SCRIPT_DIR}/lib/ssh-known-hosts.sh"
+
 # SSH options: parallel to scripts/deploy-code.sh.
-SSH_OPTS=(-o "StrictHostKeyChecking=accept-new" -o "ConnectTimeout=10" -o "ServerAliveInterval=30")
+require_pinned_known_hosts || exit 1
+SSH_OPTS=("${FOOTBAG_SSH_PIN_OPTS[@]}" -o "ConnectTimeout=10" -o "ServerAliveInterval=30")
 
 [[ -r "$KEYS_FILE" ]]   || { echo "ERROR: cannot read keys file: $KEYS_FILE" >&2; exit 1; }
 [[ -r "$REMOTE_HALF" ]] || { echo "ERROR: missing remote-half: $REMOTE_HALF" >&2; exit 1; }

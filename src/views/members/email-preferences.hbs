@@ -1,0 +1,42 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    <p>Choose which IFPA mailings you receive. Turning one off stops it until you turn it back on. Mail about your own account, such as a password reset or a receipt, is not a mailing and is always sent.</p>
+  </div>
+</div>
+
+<div class="wrapper">
+  {{#if content.hasError}}
+  <div class="form-error-banner"><p>{{content.errorMessage}}</p></div>
+  {{/if}}
+  {{#if content.hasNotice}}
+  <p class="notice notice-info">{{content.notice}}</p>
+  {{/if}}
+
+  {{#if content.hasLists}}
+  {{#each content.lists}}
+  <div class="card mb-2">
+    <div class="card-title">{{name}}</div>
+    {{#if description}}<p class="card-description">{{description}}</p>{{/if}}
+    <p class="card-meta">{{stateLabel}}</p>
+    <p class="text-muted fs-sm">{{stateExplanation}}</p>
+    {{#unless isLocked}}
+    <form method="POST" action="{{../content.formAction}}" class="form-block">
+      <input type="hidden" name="slug" value="{{slug}}" />
+      {{#if isSubscribed}}
+      <input type="hidden" name="subscribe" value="0" />
+      <button type="submit" class="btn btn-outline">Turn This Off</button>
+      {{else}}
+      <input type="hidden" name="subscribe" value="1" />
+      <button type="submit" class="btn btn-primary">Turn This On</button>
+      {{/if}}
+    </form>
+    {{/unless}}
+  </div>
+  {{/each}}
+  {{else}}
+  <p class="text-muted">There are no mailings to choose from at the moment.</p>
+  {{/if}}
+
+  <p class="mt-4"><a href="{{content.backHref}}" class="btn btn-outline">Back to My Profile</a></p>
+</div>

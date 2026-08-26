@@ -1334,6 +1334,12 @@ export interface MailingListOverrides {
   /** Where the recipients come from: their own subscriptions, or a group roster. */
   recipient_source?: 'subscription' | 'group';
   source_group_id?: string | null;
+  /** The list's outbound alias; null means the platform default sender. */
+  from_identity?: string | null;
+  /** Prepended to outgoing subjects; the column defaults to empty. */
+  subject_prefix?: string;
+  /** Whether composing is limited to a configured sender population. */
+  restricted_sending?: 0 | 1;
 }
 
 /**
@@ -1349,8 +1355,9 @@ export function insertMailingList(db: BetterSqlite3.Database, o: MailingListOver
   db.prepare(`
     INSERT INTO mailing_lists (
       slug, updated_at, name, description, status,
-      is_member_manageable, recipient_source, source_group_id
-    ) VALUES (?, ?, ?, '', ?, ?, ?, ?)
+      is_member_manageable, recipient_source, source_group_id,
+      from_identity, subject_prefix, restricted_sending
+    ) VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?)
   `).run(
     slug, TS,
     o.name ?? slug,
@@ -1358,6 +1365,9 @@ export function insertMailingList(db: BetterSqlite3.Database, o: MailingListOver
     o.is_member_manageable ?? 1,
     o.recipient_source ?? 'subscription',
     o.source_group_id ?? null,
+    o.from_identity ?? null,
+    o.subject_prefix ?? '',
+    o.restricted_sending ?? 0,
   );
   return slug;
 }

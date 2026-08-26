@@ -34,12 +34,31 @@
 
 HOST_ENV_PATH_DEFAULT="/srv/footbag/env"
 
-# accept-new pins the host key on first contact and fails closed if it later
-# changes; ConnectTimeout fails fast on a dead target; ServerAliveInterval keeps
-# the pipe alive across NAT idle timeouts. Same set the deploy scripts use.
-HOST_SSH_OPTS=(-o "StrictHostKeyChecking=accept-new" -o "ConnectTimeout=10" -o "ServerAliveInterval=30")
-
 HOST_ENV_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=ssh-known-hosts.sh
+source "${HOST_ENV_LIB_DIR}/ssh-known-hosts.sh"
+
+# The host is verified against the operator's pinned host-key file and an
+# unrecognized key aborts before the pipe opens, which is what keeps the sudo
+# password on line one from reaching a substituted host; ConnectTimeout fails
+# fast on a dead target; ServerAliveInterval keeps the pipe alive across NAT
+# idle timeouts. Same set the deploy scripts use.
+#
+# Filled on first use rather than at source time: several consumers offer a
+# dry-run that opens no connection, and those must still run on a workstation
+# that has no pin installed.
+HOST_SSH_OPTS=()
+
+# require_host_ssh_opts
+# Resolves the pinned host-key file and builds the connection options. Every
+# function here that opens a connection calls it first, so a missing pin stops
+# the step rather than downgrading it.
+require_host_ssh_opts() {
+  [[ ${#HOST_SSH_OPTS[@]} -gt 0 ]] && return 0
+  require_pinned_known_hosts || return 1
+  HOST_SSH_OPTS=("${FOOTBAG_SSH_PIN_OPTS[@]}" -o "ConnectTimeout=10" -o "ServerAliveInterval=30")
+  return 0
+}
 HOST_ENV_READ_HALF="${HOST_ENV_LIB_DIR}/../internal/host-env-read-remote.sh"
 HOST_ENV_WRITE_HALF="${HOST_ENV_LIB_DIR}/../internal/host-env-write-remote.sh"
 HOST_LOG_GREP_HALF="${HOST_ENV_LIB_DIR}/../internal/host-log-grep-remote.sh"
@@ -97,6 +116,8 @@ host_env_fetch() {
     echo "ERROR: missing remote half: $HOST_ENV_READ_HALF" >&2
     return 1
   }
+
+  require_host_ssh_opts || return 1
 
   # The returned stream is held in a variable, never a temp file. It carries the
   # host's entire secret set in base64, and a file holding that would need a
@@ -161,6 +182,8 @@ host_env_install() {
     return 1
   }
 
+  require_host_ssh_opts || return 1
+
   encoded="$(base64 -w0 < "$src")"
 
   if ! {
@@ -202,6 +225,8 @@ host_log_tail() {
     echo "ERROR: missing remote half: $HOST_LOG_GREP_HALF" >&2
     return 1
   }
+
+  require_host_ssh_opts || return 1
 
   {
     printf '%s\n' "$SUDO_PASS"

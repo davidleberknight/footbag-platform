@@ -607,6 +607,19 @@ CREATE TABLE mailing_lists (
   from_identity     TEXT,
   rules_text        TEXT,
 
+  -- Prepended to every outgoing subject as `[prefix] subject` when non-empty.
+  -- Capped at 32 characters: a prefix long enough to crowd the subject out of a
+  -- mail client's list view defeats the labelling it exists for.
+  subject_prefix    TEXT NOT NULL DEFAULT ''
+    CHECK (length(subject_prefix) <= 32),
+
+  -- Whether composing to this list is limited to a configured sender population
+  -- rather than open to whoever holds the send permission. False on a general
+  -- list, whose senders are the administrators. True on a group-backed list,
+  -- where the group's own owner maintains the setting.
+  restricted_sending INTEGER NOT NULL DEFAULT 0
+    CHECK (restricted_sending IN (0,1)),
+
   -- Where the list's recipients come from, read by the send path when it
   -- resolves an audience. 'subscription': the mailing_list_subscriptions rows,
   -- which members manage themselves. 'group': the named group's current
@@ -3163,6 +3176,20 @@ VALUES
    'active', 1
   );
 
+-- The community announce list. Unlike the seven above it is not written to by
+-- the platform on its own behalf: an organizer-tier member composes to it, which
+-- is why it carries its own outbound address. Seeded separately so the send path
+-- and the member subscription screen both find it from a fresh database.
+INSERT OR IGNORE INTO mailing_lists
+  (updated_at, slug, name, description, status, is_member_manageable, from_identity)
+VALUES
+  (
+   '2000-01-01T00:00:00.000Z',
+   'announce', 'Community Announcements',
+   'Announcements from IFPA organizer members: events, projects, and news from the wider footbag community. Members may subscribe or unsubscribe.',
+   'active', 1, 'announce@footbag.org'
+  );
+
 -- ---------------------------------------------------------------------------
 -- SYSTEM CONFIG
 -- All operational defaults and pricing. One row per config key, using the
@@ -3693,6 +3720,15 @@ VALUES
    'avatar_upload_rate_limit_per_hour', '10',
    '2000-01-01T00:00:00.000Z',
    'Max avatar uploads per member per hour (default: 10).',
+   NULL
+  ),
+
+  (
+   'seed-announce-send-rate-limit-per-day',
+   '2000-01-01T00:00:00.000Z',
+   'announce_send_rate_limit_per_day', '2',
+   '2000-01-01T00:00:00.000Z',
+   'Max community announcements one organizer member may send per day (default: 2).',
    NULL
   ),
 

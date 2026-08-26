@@ -16,6 +16,7 @@ import { memberQuestionController } from '../controllers/memberQuestionControlle
 import { authController } from '../controllers/authController';
 import { memberOnboardingController } from '../controllers/memberOnboardingController';
 import { emailPreferenceController } from '../controllers/emailPreferenceController';
+import { memberAnnounceController } from '../controllers/memberAnnounceController';
 import { UNSUBSCRIBE_PATH } from '../services/communicationService';
 import { hofController } from '../controllers/hofController';
 import { bapController } from '../controllers/bapController';
@@ -206,6 +207,14 @@ publicRouter.post('/members/:memberKey/purchase-tier', requireMember, memberCont
 publicRouter.get('/members/:memberKey/payments',       requireMember, paymentController.getPaymentHistory);
 publicRouter.post('/members/:memberKey/recurring-donations/:stripeSubscriptionId/cancel',
   requireMember, paymentController.postCancelRecurringDonation);
+// The member's own mailing choices. The signed-in member is who the write acts
+// on; the path's member key must be theirs, and a mismatch is a 404.
+// The community announcement an organizer-tier member sends. The tier gate sits
+// beside the member gate; ownership of the member key is checked in the handler.
+publicRouter.get('/members/:memberKey/announce',  requireMember, requireTier2Plus(), memberAnnounceController.getForm);
+publicRouter.post('/members/:memberKey/announce', requireMember, requireTier2Plus(), memberAnnounceController.postSend);
+publicRouter.get('/members/:memberKey/email-preferences',  requireMember, emailPreferenceController.getSubscriptions);
+publicRouter.post('/members/:memberKey/email-preferences', requireMember, emailPreferenceController.postSubscription);
 publicRouter.get('/members/:memberKey/contact-admin',  requireMember, contactRequestController.getForm);
 publicRouter.post('/members/:memberKey/contact-admin', requireMember, contactRequestController.postSubmit);
 // The other direction: questions an administrator has put to this member.

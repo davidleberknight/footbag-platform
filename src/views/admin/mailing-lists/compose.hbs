@@ -1,0 +1,42 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    <p class="text-muted">To {{content.listName}}, from {{content.fromIdentityDisplay}}.</p>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+    {{#if content.hasErrors}}
+    <div class="form-error-banner">
+      {{#each content.errorList}}<p>{{this}}</p>{{/each}}
+    </div>
+    {{/if}}
+
+    {{#if content.hasRecipients}}
+    <p class="notice notice-info">{{content.recipientCount}} members are subscribed. The exact set is worked out when you send, so anyone whose address has since bounced is left out.</p>
+    {{else}}
+    <p class="notice notice-warn">Nobody is subscribed to this list. Sending now would reach no one and record nothing.</p>
+    {{/if}}
+
+    {{#if content.hasSubjectPrefix}}
+    <p class="text-muted fs-sm">Every subject on this list goes out with <code>[{{content.subjectPrefixDisplay}}]</code> in front of it. Write the subject without it.</p>
+    {{/if}}
+
+    <form method="POST" action="{{content.formAction}}" class="form-block">
+      <input type="hidden" name="sendToken" value="{{content.sendToken}}" />
+      <div class="form-field">
+        <label for="subject">Subject</label>
+        <input type="text" id="subject" name="subject" value="{{content.subject}}" maxlength="{{content.subjectMax}}" required />
+      </div>
+      <div class="form-field">
+        <label for="bodyText">Message</label>
+        <textarea id="bodyText" name="bodyText" rows="16" maxlength="{{content.bodyMax}}" required>{{content.bodyText}}</textarea>
+        <p class="text-muted fs-sm">Plain text only. Do not write an unsubscribe line: the platform attaches the control mail clients use, on the sends that carry one.</p>
+      </div>
+      <button type="submit" class="btn btn-primary">Send to the List</button>
+    </form>
+
+    <p class="mt-4"><a href="{{content.backHref}}" class="btn btn-outline">Back to the List</a></p>
+  </section>
+</div>

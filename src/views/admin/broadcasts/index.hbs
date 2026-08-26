@@ -1,0 +1,39 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    <p>What the platform has sent in IFPA's name, one entry per send. Each entry holds the subject, the message and how many copies were queued. No recipient is named here.</p>
+  </div>
+</div>
+
+<div class="wrapper">
+  {{#if content.hasRows}}
+  {{#if content.isCapped}}
+  <p class="text-muted">The {{content.pageSize}} most recent sends.</p>
+  {{else}}
+  <p class="text-muted">{{content.totalCount}} sends.</p>
+  {{/if}}
+
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Subject</th>
+        <th>Audience</th>
+        <th>Copies queued</th>
+        <th>Sent</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{#each content.rows}}
+      <tr>
+        <td><a href="{{detailHref}}">{{subject}}</a></td>
+        <td class="fs-sm">{{audienceLabel}}</td>
+        <td>{{recipientCount}}</td>
+        <td class="fs-sm">{{sentAtDisplay}}</td>
+      </tr>
+      {{/each}}
+    </tbody>
+  </table>
+  {{else}}
+  <p class="text-muted">Nothing has been sent yet. A message composed to a mailing list is recorded here.</p>
+  {{/if}}
+</div>

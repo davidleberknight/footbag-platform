@@ -1,0 +1,98 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{content.name}}</h1>
+    <p class="text-muted">{{content.statusLabel}} &middot; {{content.audienceLabel}} &middot; {{content.manageabilityLabel}}</p>
+  </div>
+</div>
+
+<div class="wrapper">
+  {{#if content.hasSavedNotice}}
+  <p class="notice notice-info">{{content.savedNotice}}</p>
+  {{/if}}
+  {{#if content.hasErrors}}
+  <div class="form-error-banner">
+    {{#each content.errorList}}<p>{{this}}</p>{{/each}}
+  </div>
+  {{/if}}
+
+  <section>
+    <div class="section-heading"><h2>The List</h2></div>
+    {{#if content.description}}<p>{{content.description}}</p>{{/if}}
+    <table class="data-table">
+      <tbody>
+        <tr><th>Web address</th><td>{{content.slug}}</td></tr>
+        <tr><th>From address</th><td>{{content.fromIdentityDisplay}}</td></tr>
+        <tr><th>Subject prefix</th><td>{{content.subjectPrefixDisplay}}</td></tr>
+      </tbody>
+    </table>
+    <p>
+      <a href="{{content.editHref}}" class="btn btn-outline">Edit the List</a>
+      {{#if content.canCompose}}
+      <a href="{{content.composeHref}}" class="btn btn-primary">Compose a Message</a>
+      {{/if}}
+    </p>
+    {{#unless content.canCompose}}
+    <p class="text-muted fs-sm">{{content.cannotComposeReason}}</p>
+    {{/unless}}
+  </section>
+
+  <section>
+    <div class="section-heading"><h2>Subscribers</h2></div>
+    <p class="text-muted fs-sm">{{content.totalCount}} in total, counted from the subscription records.</p>
+    <table class="data-table">
+      <thead>
+        <tr><th>State</th><th>Count</th><th>What it means</th></tr>
+      </thead>
+      <tbody>
+        {{#each content.countRows}}
+        <tr><th>{{label}}</th><td>{{value}}</td><td class="fs-sm text-muted">{{explanation}}</td></tr>
+        {{/each}}
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <div class="section-heading"><h2>Administrative Actions</h2></div>
+
+    {{#if content.canAdjust}}
+    <details class="admin-action-disclosure">
+      <summary>Change One Member's Subscription</summary>
+      <p class="text-muted fs-sm">For the exceptional case, most often releasing an address the mail provider marked bounced once the member has fixed it. A member's own choices are theirs to make on their subscription screen. The reason is required and the change is recorded against you. Find the member's identifier on their record under Members.</p>
+      <form method="POST" action="{{content.adjustAction}}" class="form-block">
+        <div class="form-field">
+          <label for="memberId">Member identifier</label>
+          <input type="text" id="memberId" name="memberId" maxlength="64" required />
+        </div>
+        <div class="form-field">
+          <label for="status">New state</label>
+          <select id="status" name="status">
+            {{#each content.statusOptions}}<option value="{{value}}">{{label}}</option>{{/each}}
+          </select>
+          <p class="text-muted fs-sm">Bounced and complained are facts the mail provider reported, so neither can be set here.</p>
+        </div>
+        <div class="form-field">
+          <label for="reason">Reason (required)</label>
+          <input type="text" id="reason" name="reason" maxlength="{{content.reasonMax}}" required />
+        </div>
+        <button type="submit" class="btn btn-primary">Change the Subscription</button>
+      </form>
+    </details>
+    {{else}}
+    <p class="text-muted fs-sm">This list takes its recipients from a group's roster, so there is no subscription here to change. A member leaves it by leaving the group.</p>
+    {{/if}}
+
+    {{#if content.canArchive}}
+    <details class="admin-action-disclosure">
+      <summary>Archive the List</summary>
+      <p class="text-muted fs-sm">Every subscription and every past send is kept. The list stops appearing on the member subscription screen and stops being offered for new sends.</p>
+      <form method="POST" action="{{content.archiveAction}}" class="form-block">
+        <button type="submit" class="btn btn-primary">Archive the List</button>
+      </form>
+    </details>
+    {{else}}
+    <p class="text-muted fs-sm">This list is archived. Its subscriptions and its history are kept, and nothing further is sent to it.</p>
+    {{/if}}
+  </section>
+
+  <p class="mt-4"><a href="{{content.backHref}}" class="btn btn-outline">Back to Mailing Lists</a></p>
+</div>

@@ -1,0 +1,40 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    <p>The lists the platform can send to. A list takes its recipients either from its own subscribers, who manage themselves, or from a group's roster. Archiving a list keeps everything it has and stops it being offered.</p>
+  </div>
+</div>
+
+<div class="wrapper">
+  <p class="text-muted">{{content.totalCount}} lists{{#if content.hasArchived}} &middot; {{content.archivedCount}} archived{{/if}}</p>
+
+  <p><a href="{{content.newHref}}" class="btn btn-primary">Create a Mailing List</a></p>
+
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>List</th>
+        <th>Recipients</th>
+        <th>Subscribed</th>
+        <th>Bounced</th>
+        <th>Complained</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{#each content.rows}}
+      <tr>
+        <td>
+          <a href="{{detailHref}}">{{name}}</a>
+          <div class="fs-sm text-muted">{{manageabilityLabel}}</div>
+        </td>
+        <td class="fs-sm">{{audienceLabel}}</td>
+        <td>{{subscribedCount}}</td>
+        <td>{{bouncedCount}}</td>
+        <td>{{complainedCount}}</td>
+        <td>{{#if isArchived}}<span class="badge">{{statusLabel}}</span>{{else}}{{statusLabel}}{{/if}}</td>
+      </tr>
+      {{/each}}
+    </tbody>
+  </table>
+</div>

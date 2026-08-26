@@ -50,9 +50,9 @@
 # actually in force.
 #
 # Usage:
-#   < ~/.footbag/operator-sudo bash scripts/outbound-mail-pause.sh --target production --status
-#   < ~/.footbag/operator-sudo bash scripts/outbound-mail-pause.sh --target production --pause  --reason "wrong template went out"
-#   < ~/.footbag/operator-sudo bash scripts/outbound-mail-pause.sh --target production --resume --reason "template corrected"
+#   < <operator credential file> bash scripts/outbound-mail-pause.sh --target production --status
+#   < <operator credential file> bash scripts/outbound-mail-pause.sh --target production --pause  --reason "wrong template went out"
+#   < <operator credential file> bash scripts/outbound-mail-pause.sh --target production --resume --reason "template corrected"
 #   ... --pause --yes        skip the confirmation prompt (for a scripted incident response)
 #   ... --actor <member-id>  record who flipped it, so the platform's own
 #                            configuration history answers that question rather

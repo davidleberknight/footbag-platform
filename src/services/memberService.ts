@@ -125,7 +125,7 @@ import type { PlayerEventGroup, PlayerHeroData } from '../types/playerProfile';
 import { getTierStatus, tierBadgeShort, type MemberTier, type UnderlyingTier } from './membershipTieringService';
 import { getStatus as getActivePlayerStatus } from './activePlayerService';
 import { memberActionService, type MemberActions } from './memberActionService';
-import { mayCreateClub } from './tierPredicates';
+import { mayCreateClub, isTier2Plus } from './tierPredicates';
 import { paymentService } from './paymentService';
 import { mediaService, type ProfileMediaView } from './mediaService';
 import { formatDateDisplay } from './dateFormat';
@@ -985,7 +985,7 @@ export const memberService = {
         actions:      memberActionService.collectFor({ memberId: row.id, slug }),
         membership:   buildTierStatusView(row.id, slug),
         identity:     buildIdentityLinkView(row.id),
-        quickActions: buildQuickActions(slug),
+        quickActions: buildQuickActions(row.id, slug),
         search,
         myClubs:      buildMyClubsView(row.id),
         media:        buildMemberMediaView(row.id, slug),
@@ -1763,11 +1763,17 @@ function buildTierStatusView(memberId: string, slug: string): TierStatusView {
 // Standing shortcuts only. An outstanding administrator question is an
 // obligation, not a shortcut, and is carried by the action block above the
 // profile; offering it here as well would put the same thing on one page twice.
-function buildQuickActions(slug: string): QuickAction[] {
-  return [
+function buildQuickActions(memberId: string, slug: string): QuickAction[] {
+  const actions: QuickAction[] = [
     { label: 'My Galleries',  href: `/members/${slug}/galleries` },
     { label: 'Upload Media',  href: `/members/${slug}/media/upload` },
   ];
+  // Writing to the community announce list is an organizer-tier capability, so
+  // the shortcut appears only for the members who hold it.
+  if (isTier2Plus(memberId)) {
+    actions.push({ label: 'Send an Announcement', href: `/members/${slug}/announce` });
+  }
+  return actions;
 }
 
 interface CurrentAffiliationRow {

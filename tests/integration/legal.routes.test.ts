@@ -10,6 +10,9 @@
  *   - includes the operator identity and contact email
  *   - includes Apache-2.0 source-code license reference
  *   - includes IFPA trademark notice and Hacky Sack descriptive-use notice
+ *   - privacy disclosures match what the site actually loads: every cookie the
+ *     app sets, the Cloudflare human-verification check and the pages it runs
+ *     on, and the video-thumbnail requests behind the click-to-load facade
  *   - includes last-updated date
  *   - footer legal-link row is present on the page layout
  */
@@ -93,10 +96,34 @@ describe('GET /legal', () => {
     expect(res.text).toMatch(/descriptive/i);
   });
 
+  it('discloses every cookie the app sets, by purpose', async () => {
+    const app = createApp();
+    const res = await request(app).get('/legal');
+    // All three kinds the app can set: the session cookie, the members-only
+    // archive's access cookies, and the short-lived one-time-message cookie.
+    expect(res.text).toMatch(/session cookie/i);
+    expect(res.text).toMatch(/members-only archive[^.]*access cookies/i);
+    expect(res.text).toMatch(/one-time confirmation message/i);
+  });
+
+  it('discloses the human-verification check and the pages it runs on', async () => {
+    const app = createApp();
+    const res = await request(app).get('/legal');
+    expect(res.text).toContain('Cloudflare Turnstile');
+    expect(res.text).toMatch(/legacy-account claim/i);
+  });
+
+  it('discloses the video thumbnail requests and keeps the click-to-load statement', async () => {
+    const app = createApp();
+    const res = await request(app).get('/legal');
+    expect(res.text).toMatch(/image servers/i);
+    expect(res.text).toMatch(/click-to-load facade/i);
+  });
+
   it('shows the last-updated date', async () => {
     const app = createApp();
     const res = await request(app).get('/legal');
-    expect(res.text).toContain('2026-04-14');
+    expect(res.text).toContain('2026-08-26');
   });
 
   it('includes the footer legal-links row on every layout', async () => {

@@ -70,13 +70,19 @@ REMOTE_HALF="${SCRIPT_DIR}/internal/deploy-code-remote.sh"
 # shellcheck source=lib/image-transfer.sh
 source "${REPO_ROOT}/scripts/lib/image-transfer.sh"
 
-# SSH connection options. accept-new pins the host key on first contact; later
-# connections fail-closed if the host key changes (MITM / instance rotation
-# without known_hosts cleanup). ConnectTimeout fails fast on dead targets.
-# ServerAliveInterval keeps the long-running cat-pipe and docker-save streams
-# alive across NAT/idle timeouts. These options apply to every ssh and rsync-
-# over-ssh invocation; see scripts/deploy-rebuild.sh for the parallel set.
-SSH_OPTS=(-o "StrictHostKeyChecking=accept-new" -o "ConnectTimeout=10" -o "ServerAliveInterval=30")
+# shellcheck source=lib/ssh-known-hosts.sh
+source "${REPO_ROOT}/scripts/lib/ssh-known-hosts.sh"
+
+# SSH connection options. The host is verified against the operator's pinned
+# host-key file and an unrecognized key fails the deploy, which matters here
+# because the sudo password goes out as line one of the SSH stream. See
+# scripts/lib/ssh-known-hosts.sh for how the pin is sourced and rebuilt.
+# ConnectTimeout fails fast on dead targets. ServerAliveInterval keeps the
+# long-running cat-pipe and docker-save streams alive across NAT/idle timeouts.
+# These options apply to every ssh and rsync-over-ssh invocation; see
+# scripts/deploy-rebuild.sh for the parallel set.
+require_pinned_known_hosts || exit 1
+SSH_OPTS=("${FOOTBAG_SSH_PIN_OPTS[@]}" -o "ConnectTimeout=10" -o "ServerAliveInterval=30")
 
 # Derive FOOTBAG_ENV from the SSH alias so the remote-half can read the right
 # /footbag/{env}/secrets/origin_verify_secret SSM parameter without the

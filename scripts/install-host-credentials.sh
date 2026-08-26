@@ -135,7 +135,14 @@ REMOTE_HALF="${SCRIPT_DIR}/internal/install-host-credentials-remote.sh"
 
 AWS_REGION_VAL="${AWS_REGION:-us-east-1}"
 
-SSH_OPTS=(-o "StrictHostKeyChecking=accept-new" -o "ConnectTimeout=10" -o "ServerAliveInterval=30")
+# shellcheck source=lib/ssh-known-hosts.sh
+source "${SCRIPT_DIR}/lib/ssh-known-hosts.sh"
+
+# SSH options: parallel to scripts/deploy-code.sh. This script carries AWS
+# access keys as well as the sudo password, so an unverified host is the one
+# thing it must never connect to.
+require_pinned_known_hosts || exit 1
+SSH_OPTS=("${FOOTBAG_SSH_PIN_OPTS[@]}" -o "ConnectTimeout=10" -o "ServerAliveInterval=30")
 
 echo "== installing AWS credential chain on $TARGET (ssh alias: $SSH_ALIAS) =="
 ssh "${SSH_OPTS[@]}" "$SSH_ALIAS" "echo '    SSH OK'" </dev/null

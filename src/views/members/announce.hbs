@@ -1,0 +1,41 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    <p>Write to the members who have subscribed to community announcements: an event you are running, a project, news worth the community's attention. It goes out from {{content.fromIdentityDisplay}}.</p>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+    {{#if content.hasErrors}}
+    <div class="form-error-banner">
+      {{#each content.errorList}}<p>{{this}}</p>{{/each}}
+    </div>
+    {{/if}}
+    {{#if content.hasNotice}}
+    <p class="notice notice-info">{{content.notice}}</p>
+    {{/if}}
+
+    {{#if content.hasRecipients}}
+    <p class="text-muted">{{content.recipientCount}} members currently receive these.</p>
+    {{else}}
+    <p class="notice notice-warn">Nobody is subscribed to community announcements at the moment, so a message sent now would reach no one.</p>
+    {{/if}}
+
+    <form method="POST" action="{{content.formAction}}" class="form-block">
+      <input type="hidden" name="sendToken" value="{{content.sendToken}}" />
+      <div class="form-field">
+        <label for="subject">Subject</label>
+        <input type="text" id="subject" name="subject" value="{{content.subject}}" maxlength="{{content.subjectMax}}" required />
+      </div>
+      <div class="form-field">
+        <label for="bodyText">Message</label>
+        <textarea id="bodyText" name="bodyText" rows="16" maxlength="{{content.bodyMax}}" required>{{content.bodyText}}</textarea>
+        <p class="text-muted fs-sm">Plain text only. Every recipient chose to receive these and can stop at any time from their own email preferences, so there is no need to write an unsubscribe line.</p>
+      </div>
+      <button type="submit" class="btn btn-primary">Send the Announcement</button>
+    </form>
+
+    <p class="mt-4"><a href="{{content.backHref}}" class="btn btn-outline">Back to My Profile</a></p>
+  </section>
+</div>
