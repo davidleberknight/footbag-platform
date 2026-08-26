@@ -471,3 +471,158 @@ def test_coverage_check_passes_on_the_whole_fixture(tmp_path):
     stats, _, out = _run_with_cutover(tmp_path)
     assert stats["tier_coverage_checked"] is True
     assert out.exists()
+
+
+# ---------------------------------------------------------------------------
+# Encoding repair: which of a field's two stored spellings is the real one
+#
+# The legacy database holds most non-ASCII fields twice, and neither column is
+# reliably right. These tests fix the rules for choosing between them. They are
+# deliberately independent of any particular delivery: a later dump may carry a
+# different number of damaged rows without weakening any contract here.
+# ---------------------------------------------------------------------------
+
+def resolve(plain: str, unicode_col: str):
+    """(value, how it was chosen) for one field's pair of stored spellings."""
+    return elm._resolve_pair(plain, unicode_col)
+
+
+def test_correctly_encoded_value_is_left_exactly_alone():
+    value, how = resolve("Jose Nunez", "José Núñez")
+    assert value == "José Núñez"
+    assert how == elm.SELECTED_UNICODE
+
+
+def test_adjacent_accents_are_not_mistaken_for_double_encoding():
+    # Two real accented letters side by side encode to Latin-1 happily, which is
+    # what a character-pattern check trips over. The bytes are not valid UTF-8,
+    # so the evidence test declines and the value stands.
+    for genuine in ("Neusäß", "Lääkkö", "Kuopion Lääni"):
+        value, how = resolve("", genuine)
+        assert value == genuine
+        assert how == elm.SELECTED_UNICODE
+
+
+def test_double_encoded_value_loses_to_a_clean_companion():
+    # The dump already holds the right spelling; nothing is transformed.
+    value, how = resolve("Côté", "CÃ´tÃ©")
+    assert value == "Côté"
+    assert how == elm.SELECTED_COMPANION
+
+
+def test_double_encoded_value_is_reversed_when_no_clean_companion_exists():
+    value, how = resolve("", "RenÃ©")
+    assert value == "René"
+    assert how == elm.SELECTED_REVERSED
+
+
+def test_companion_that_disagrees_is_not_used_for_a_double_encoded_value():
+    # Two columns naming different people is a disagreement to report, not to
+    # resolve by preferring one. The reversal still applies.
+    value, how = resolve("Andersson", "CÃ´tÃ©")
+    assert value == "Côté"
+    assert how == elm.SELECTED_REVERSED
+
+
+def test_damaged_value_is_recovered_from_a_corresponding_companion():
+    # The question mark stands where the legacy system dropped a character it
+    # could not represent, so there is nothing to reverse. The other column
+    # survived it and proves to be the same name.
+    value, how = resolve("Öhman", "Ã?hman")
+    assert value == "Öhman"
+    assert how == elm.SELECTED_UNDAMAGED
+
+
+def test_damaged_value_keeps_a_companion_that_fails_correspondence():
+    # Individually valid, non-ASCII, and not double-encoded, but not this name:
+    # a different name, a longer one, and one whose surviving letters disagree.
+    for unrelated in ("Nilsson", "Öhmann", "Ölund", "Öhma"):
+        value, how = resolve(unrelated, "Ã?hman")
+        assert value == "Ã?hman", unrelated
+        assert how == elm.SELECTED_UNICODE, unrelated
+
+
+def test_correspondence_confirms_consistency_not_uniqueness():
+    # The destroyed character is exactly the one that told these two apart, so
+    # both companions are consistent with the same damaged value and both are
+    # accepted. That is the honest limit of the proof: it establishes that the
+    # companion is this field's own name surviving the damage, not that the
+    # missing character could have been only one thing. There is a single
+    # companion per row and it is that member's own stored spelling, so the
+    # question the proof has to answer is whether it is the same name, and it is.
+    assert elm._corresponds("Ã?hman", "Öhman") is True
+    assert elm._corresponds("Ã?hman", "Ähman") is True
+    # What it must still reject: anything whose surviving characters disagree.
+    assert elm._corresponds("Ã?hman", "Ölund") is False
+
+
+def test_wrong_codepage_companion_is_not_selected_over_a_damaged_value():
+    # Both columns are corrupt, in different ways. Choosing the companion would
+    # swap one corruption for another, so neither is touched here.
+    for damaged, wrong_codepage in (
+        ("JiÅ?Ã\xad", "Jiøí"),          # Czech r-caron stored as o-slash
+        ("StaroÅ?", "Staroñ"),          # Polish n-acute stored as n-tilde
+        ("Ð?Ð»ÐµÐ±", "³ÛÕÑ"),           # Cyrillic through two different codepages
+    ):
+        value, how = resolve(wrong_codepage, damaged)
+        assert value == damaged, wrong_codepage
+        assert how == elm.SELECTED_UNICODE, wrong_codepage
+
+
+def test_a_double_encoding_is_reversed_around_a_destroyed_character():
+    # No companion to fall back on, and the value carries a character the legacy
+    # system destroyed. The double-encoding is still undone: that is a separate
+    # fault and repairing it leaves the question mark exactly where it was.
+    damaged = "BarnabÃ¡?"
+    value, how = resolve("", damaged)
+    assert value == "Barnabá?"
+    assert how == elm.SELECTED_REVERSED
+    assert value.count("?") == damaged.count("?")
+
+
+def test_reversal_is_refused_if_it_would_disturb_a_destroyed_character():
+    # The guarantee is stated, not assumed: a decode that consumed or invented a
+    # question mark must not be allowed to rewrite a name.
+    original = elm._undouble
+    elm._undouble = lambda s: "Barnaba" if s == "BarnabÃ¡?" else original(s)
+    try:
+        value, how = resolve("", "BarnabÃ¡?")
+    finally:
+        elm._undouble = original
+    assert value == "BarnabÃ¡?"
+    assert how == elm.SELECTED_LEFT
+
+
+def test_a_literal_question_mark_is_never_filled_in():
+    # Whatever path a damaged value takes, the question mark survives it. Nothing
+    # here may put a character back where the legacy system removed one.
+    for plain, uni in (("", "Ð?Ð»ÐµÐ³Ð¾Ð²Ð¸Ñ?"), ("", "BarnabÃ¡?"),
+                       ("Barnabá?", "BarnabÃ¡?")):
+        value, _ = resolve(plain, uni)
+        assert "?" in value, (plain, uni, value)
+
+
+def test_repair_is_idempotent():
+    # Feeding a repaired value back in must be a no-op, or a second extraction
+    # would keep transforming the same name.
+    for plain, uni in (("Côté", "CÃ´tÃ©"), ("", "RenÃ©"), ("Öhman", "Ã?hman")):
+        once, _ = resolve(plain, uni)
+        twice, how = resolve(once, once)
+        assert twice == once
+        assert how == elm.SELECTED_UNICODE
+
+
+def test_correspondence_requires_a_real_substitution():
+    # Identical strings are not evidence of damage; a pair must actually differ
+    # at a question mark for the companion to win on those grounds.
+    assert elm._corresponds("Öhman", "Öhman") is False
+    assert elm._corresponds("Ã?hman", "Öhman") is True
+
+
+def test_recovered_spelling_comes_verbatim_from_the_companion():
+    # No character is invented: the output is the companion's own text.
+    companion = "Häßler"
+    value, how = resolve(companion, "HÃ¤Ã?ler")
+    assert value is not None
+    assert value == companion
+    assert how == elm.SELECTED_UNDAMAGED

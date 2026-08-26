@@ -96,9 +96,130 @@ def _val(rec: dict, col: str) -> str:
     return "" if v is None else str(v).strip()
 
 
+# A literal question mark sitting immediately after a non-ASCII character. The
+# legacy system wrote it in place of a character it could not represent, before
+# the dump was taken, so what it stood for is not in this source at all.
+_DESTROYED_BYTE = re.compile(r"[^\x00-\x7f]\?")
+
+
+def _undouble(s: str) -> str | None:
+    """Return `s` with one layer of mis-decoding undone, or None if there is none.
+
+    A value is double-encoded when its own characters all fit in Latin-1 AND
+    those bytes are themselves valid UTF-8 AND decoding them changes the value.
+    All three must hold, which is what makes this evidence rather than a guess:
+    a name with two genuinely adjacent accents encodes to Latin-1 happily, but
+    its bytes are not valid UTF-8, so it is left alone. A value corrupted through
+    some other codepage fails the same way and is likewise left alone.
+    """
+    try:
+        raw = s.encode("latin-1")
+    except UnicodeEncodeError:
+        return None
+    try:
+        decoded = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+    return decoded if decoded != s else None
+
+
+def _corresponds(damaged: str, companion: str) -> bool:
+    """Is `damaged` the same name as `companion`, with some characters destroyed?
+
+    Put the companion through the same mis-decode that produced the damaged
+    value, and the two must then agree character for character except where the
+    damaged side carries a question mark. That is the correspondence proof: every
+    surviving character has to line up, so a companion holding a different
+    spelling, a longer name, or another person entirely cannot qualify merely
+    because the preferred value is broken.
+
+    Nothing is reconstructed from this. The proof only licenses using the
+    companion's own text verbatim.
+    """
+    expected = companion.encode("utf-8").decode("latin-1")
+    if len(expected) != len(damaged):
+        return False
+    substituted = False
+    for want, got in zip(expected, damaged):
+        if got == want:
+            continue
+        if got == "?":
+            # A character the legacy system could not represent, standing in for
+            # exactly the one the companion still has.
+            substituted = True
+            continue
+        return False
+    return substituted
+
+
+# How a field's value was arrived at. Counted per extraction so a run reports
+# what it repaired and what it could not, rather than a single success number.
+SELECTED_UNICODE   = "unicode column as delivered"
+SELECTED_COMPANION = "companion column, unicode column double-encoded"
+SELECTED_REVERSED  = "double-encoding reversed, no clean companion"
+SELECTED_UNDAMAGED = "companion column, unicode column positively damaged"
+SELECTED_LEFT      = "left as delivered, not recoverable here"
+
+
+def _resolve_pair(base_val: str, uni_val: str) -> tuple[str, str]:
+    """Choose between a field's two stored spellings, and say why.
+
+    The dump keeps most non-ASCII fields twice, and the Unicode column is the
+    better source for ordinary rows, so it stays the default. On some rows that
+    column holds a value that was decoded once too often before the dump was
+    taken, and there the plain column is the one the legacy system got right.
+    Preferring it recovers the real spelling without transforming any bytes.
+
+    Reversal is the fallback for a row where neither column is clean. It is
+    applied only when it is lossless: a value whose reversal still carries a
+    question mark stands where a byte was destroyed inside the legacy system,
+    and no rule here can know what it was, so the value is passed through as
+    delivered and counted as such.
+    """
+    chosen = uni_val if uni_val else base_val
+    if not chosen:
+        return "", SELECTED_UNICODE
+
+    reversed_ = _undouble(chosen)
+    if reversed_ is None:
+        # Not double-encoded, so there is nothing to reverse. It may still be
+        # damaged: a question mark straight after a non-ASCII character is where
+        # the legacy system dropped a character it could not represent. When the
+        # other column survived that, and proves to be the same name, it is the
+        # spelling to use.
+        if _DESTROYED_BYTE.search(chosen) and base_val and base_val is not chosen \
+                and not _DESTROYED_BYTE.search(base_val) \
+                and _undouble(base_val) is None \
+                and _corresponds(chosen, base_val):
+            return base_val, SELECTED_UNDAMAGED
+        return chosen, SELECTED_UNICODE
+
+    # The legacy system already stored the right spelling in the other column.
+    # Requiring the two to agree is what makes this a confirmation rather than a
+    # swap: a companion that says something else is a disagreement to report,
+    # not to silently resolve.
+    if base_val and _undouble(base_val) is None and base_val == reversed_:
+        return base_val, SELECTED_COMPANION
+
+    # A reversal is applied even when the value carries a character the legacy
+    # system destroyed. Undoing the double-encoding does not touch that: the
+    # question mark is ASCII, and an ASCII byte survives a UTF-8 decode as
+    # itself, so it comes through in place and nothing is put back where it
+    # stands. Repairing what can be repaired beats shipping a name that is wrong
+    # twice over, and the value is still reported as unresolved either way.
+    #
+    # The count check states that guarantee rather than assuming it, so a later
+    # change to the decode that consumed or produced a question mark would fall
+    # out here instead of quietly rewriting names.
+    if reversed_.count("?") == chosen.count("?"):
+        return reversed_, SELECTED_REVERSED
+
+    return chosen, SELECTED_LEFT
+
+
 def _prefer_unicode(rec: dict, base: str, uni: str) -> str:
-    u = _val(rec, uni)
-    return u if u else _val(rec, base)
+    value, _ = _resolve_pair(_val(rec, base), _val(rec, uni))
+    return value
 
 
 def _epoch_to_date(rec: dict, col: str) -> str:
@@ -186,6 +307,57 @@ def legacy_member_tier(expiration_raw: str, expiration2_raw: str,
     if exp1 > now_epoch:
         return 1                                  # annual Tier 1 still valid
     return 0                                      # no membership at all
+
+
+NAME_PAIRS = [
+    ("MemberFirstName", "MemberFirstNameUnicode"),
+    ("MemberMiddleName", "MemberMiddleNameUnicode"),
+    ("MemberLastName", "MemberLastNameUnicode"),
+]
+OTHER_PAIRS = [
+    ("MemberCity", "MemberCityUnicode"),
+    ("MemberState", "MemberStateUnicode"),
+    ("MemberCountry", "MemberCountryUnicode"),
+]
+
+def audit_record_encoding(rec: dict) -> dict:
+    """Report how each stored-twice field of one row resolved, and what is wrong
+    with the ones that did not.
+
+    Separate from map_record so that counting cannot drift from the mapping: the
+    same _resolve_pair decides both, and this only describes the outcome.
+    """
+    outcomes: dict[str, str] = {}
+    problems: list[dict] = []
+    for base, uni in NAME_PAIRS + OTHER_PAIRS:
+        base_val, uni_val = _val(rec, base), _val(rec, uni)
+        value, how = _resolve_pair(base_val, uni_val)
+        outcomes[base] = how
+        if not value or value.isascii():
+            continue
+        # Corruption this pass deliberately does not touch. Named by the evidence
+        # for it, never by a guess at which codepage produced it.
+        # The reason says what is still wrong with the value; `resolution` says
+        # how far this pass got. Keeping them apart matters, because a value can
+        # be repaired as far as the evidence allows and still be listed here.
+        if how == SELECTED_LEFT:
+            reason = "reversal would not have preserved a destroyed character"
+        elif _DESTROYED_BYTE.search(value):
+            reason = "a destroyed character remains; this source cannot say what it was"
+        elif base_val and uni_val and base_val != uni_val \
+                and _undouble(base_val) is not None:
+            reason = "columns disagree: the plain column is double-encoded"
+        else:
+            continue
+        problems.append({
+            "legacy_member_id": _val(rec, "MemberID"),
+            "column": base,
+            "reason": reason,
+            "resolution": how,
+            "stored_unicode_column": uni_val,
+            "stored_plain_column": base_val,
+        })
+    return {"outcomes": outcomes, "problems": problems}
 
 
 def map_record(rec: dict, cutover_epoch: int | None = None) -> dict:
@@ -378,6 +550,18 @@ def extract(members_sql: Path, out_csv: Path, cutover_date: str | None = None,
     email_pop = {"legacy_email": 0, "legacy_email2": 0, "legacy_email3": 0}
     coverage_failures: list[str] = []
     coverage_checked_failed = 0
+    # Members whose name resolved each way, and the field values this pass
+    # deliberately leaves alone. Counted per delivery: the rules below are fixed,
+    # the tally they produce is a property of the dump being extracted.
+    name_repair: dict[str, set[str]] = {
+        SELECTED_COMPANION: set(), SELECTED_REVERSED: set(),
+        SELECTED_UNDAMAGED: set(), SELECTED_LEFT: set(),
+    }
+    city_repair: dict[str, set[str]] = {
+        SELECTED_COMPANION: set(), SELECTED_REVERSED: set(),
+        SELECTED_UNDAMAGED: set(), SELECTED_LEFT: set(),
+    }
+    problems: list[dict] = []
 
     out_csv.parent.mkdir(parents=True, exist_ok=True)
     with out_csv.open("w", newline="", encoding="utf-8") as fh:
@@ -386,6 +570,16 @@ def extract(members_sql: Path, out_csv: Path, cutover_date: str | None = None,
         for rec in iter_member_rows(sql, columns):
             mapped = map_record(rec, cutover_epoch)
             examined += 1
+            audit = audit_record_encoding(rec)
+            member_id = mapped["legacy_member_id"] or ""
+            for base, how in audit["outcomes"].items():
+                if how == SELECTED_UNICODE:
+                    continue
+                if base in ("MemberFirstName", "MemberMiddleName", "MemberLastName"):
+                    name_repair[how].add(member_id)
+                elif base == "MemberCity":
+                    city_repair[how].add(member_id)
+            problems.extend(audit["problems"])
             if cutover_epoch is not None:
                 why = tier_coverage_violation(rec, mapped, cutover_epoch)
                 if why:
@@ -420,11 +614,30 @@ def extract(members_sql: Path, out_csv: Path, cutover_date: str | None = None,
             f"tier function computes at the cutover moment.\n{detail}{more}"
         )
 
+    # The values this pass will not touch go to their own file, so a follow-up
+    # ruling has the evidence and nothing is folded into a repair count.
+    problems_csv = out_csv.parent / "legacy_members_encoding_problems.csv"
+    with problems_csv.open("w", newline="", encoding="utf-8") as fh:
+        pw = csv.DictWriter(
+            fh, lineterminator="\n",
+            fieldnames=["legacy_member_id", "column", "reason", "resolution",
+                        "stored_unicode_column", "stored_plain_column"])
+        pw.writeheader()
+        for row in sorted(problems, key=lambda r: (r["legacy_member_id"], r["column"])):
+            pw.writerow(row)
+
     return {
         "columns_in_dump": len(columns),
         "rows_examined": examined,
         "distinct_member_id": len(distinct_ids),
         "email_population": email_pop,
+        "name_repair": {k: len(v) for k, v in name_repair.items()},
+        "city_repair": {k: len(v) for k, v in city_repair.items()},
+        "name_members_repaired": len(
+            name_repair[SELECTED_COMPANION] | name_repair[SELECTED_REVERSED]
+            | name_repair[SELECTED_UNDAMAGED] | name_repair[SELECTED_LEFT]),
+        "encoding_problems": len(problems),
+        "encoding_problems_csv": problems_csv,
         "tier_flags": tier_flags,
         "tier_coverage_checked": cutover_epoch is not None,
         "cutover_epoch": cutover_epoch,
@@ -481,6 +694,17 @@ def main() -> None:
         print("  tier-flag coverage:     PASS (every computed standing is carried by a flag)")
     else:
         print("  tier-flag coverage:     not checked (needs a cutover date to compute standing)")
+    nr, cr = stats["name_repair"], stats["city_repair"]
+    print(f"  names repaired:         {stats['name_members_repaired']} member(s)")
+    print(f"    from clean companion: {nr[SELECTED_COMPANION]}")
+    print(f"    by reversal:          {nr[SELECTED_REVERSED]}")
+    print(f"    from undamaged column:{nr[SELECTED_UNDAMAGED]}")
+    print(f"    left as delivered:    {nr[SELECTED_LEFT]}")
+    print(f"  cities repaired:        "
+          f"{cr[SELECTED_COMPANION] + cr[SELECTED_REVERSED] + cr[SELECTED_UNDAMAGED]}"
+          f"  (left as delivered: {cr[SELECTED_LEFT]})")
+    print(f"  encoding problems:      {stats['encoding_problems']} field value(s) "
+          f"not touched -> {stats['encoding_problems_csv']}")
     print("  (no filtering applied; the loader filters + pulls back)")
 
 
