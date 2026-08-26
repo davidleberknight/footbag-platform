@@ -1035,31 +1035,58 @@ fi
 
 # Rule: every static import of a production-stripped subtree has a no-op stub in
 # the web image.
-# Reason: the production web image deletes dist/testkit, dist/dev-bootstrap and
-# dist/internal-qc, then hand-writes no-op stubs for the modules that are still
+# Reason: the production web image deletes dist/testkit and dist/dev-bootstrap,
+# then hand-writes no-op stubs for the modules that are still
 # statically imported, so app boot survives. That stub list is maintained by hand
 # and nothing else checks it, so an import added later resolves fine everywhere
 # it is tested and then dies at boot with MODULE_NOT_FOUND on production alone.
 # Staging cannot catch it: staging builds with the subtrees included, so it never
 # runs the stripped image at all.
-#
-# src/routes/internalRoutes.ts is exempt because the image replaces that file
-# itself, so nothing it imports is ever resolved.
 echo "[conventions] check: stripped-subtree imports have a stub in docker/web/Dockerfile"
-stripped_hits=$(grep -rn --include='*.ts' -oE "from '[^']*(testkit|dev-bootstrap|internal-qc)/[A-Za-z0-9_/-]+'" src/ \
-  | grep -vE '^src/(testkit|dev-bootstrap|internal-qc)/' \
-  | grep -v '^src/routes/internalRoutes\.ts:' \
+stripped_hits=$(grep -rn --include='*.ts' -oE "from '[^']*(testkit|dev-bootstrap)/[A-Za-z0-9_/-]+'" src/ \
+  | grep -vE '^src/(testkit|dev-bootstrap)/' \
   || true)
 while IFS= read -r hit; do
   [ -n "$hit" ] || continue
   # Reduce "src/a/b.ts:12:from '../testkit/x'" to the dist path the image must carry.
-  module=$(printf '%s' "$hit" | sed -E "s|.*from '||; s|'$||; s|.*/(testkit\|dev-bootstrap\|internal-qc)/|\1/|")
+  module=$(printf '%s' "$hit" | sed -E "s|.*from '||; s|'$||; s|.*/(testkit\|dev-bootstrap)/|\1/|")
   if ! grep -q "dist/${module}.js" docker/web/Dockerfile; then
     echo "$hit" >&2
     echo "  needs a stub written to dist/${module}.js" >&2
     violations=$((violations + 1))
   fi
 done <<< "$stripped_hits"
+
+# Rule: the retired internal QC subsystem does not come back.
+# Reason: it was operator tooling mounted only in dev and staging, and no
+# production deployment may carry its code, routes or tables. A test asserts the
+# named files and tables are absent; that catches a file being restored. This
+# catches the other direction, QC code reappearing under a name that list does
+# not know, so a rename cannot slip past both.
+#
+# Scope is the surfaces that ship or that build the database: application source,
+# the schema, and the pipeline. A QC page cannot return without code in src/ and a
+# table in the schema, so scanning those two catches the return itself. Tests are
+# deliberately outside it, because the tests proving the subsystem is gone have to
+# name it, and telling those apart from a test exercising a restored one is not
+# something a pattern can do. Their side is covered by the absence suite instead.
+#
+# scripts/validate-qc-absence.sh is exempt because it greps a built production
+# image for exactly this list. scripts/internal/ is deploy tooling unrelated to
+# the retired /internal HTTP mount, which is why the route pattern requires a QC
+# path segment rather than matching the word alone.
+echo "[conventions] check: the retired QC subsystem has not returned"
+qc_hits=$(grep -rnE --exclude-dir=node_modules --exclude-dir=__pycache__ --exclude-dir=tests \
+  'internal-qc|internalRouter|netQcController|personsQcController|netQcService|personsQcService|personsQcChecks|/internal/(net|persons|freestyle)/|net_review_queue|net_candidate_match|net_curated_match|net_raw_fragment|net_recovery_alias_candidate|net_team_correction_candidate' \
+  src database legacy_data scripts 2>/dev/null \
+  | grep -vE '^scripts/validate-qc-absence\.sh:' \
+  | grep -vE '^scripts/ci/assert_conventions\.sh:' \
+  || true)
+if [ -n "$qc_hits" ]; then
+  echo "$qc_hits" >&2
+  echo "  FAIL: the internal QC subsystem is retired; these name its code, routes or tables" >&2
+  violations=$((violations + 1))
+fi
 
 if [ "$violations" -gt 0 ]; then
   echo "[conventions] $violations rule(s) violated" >&2

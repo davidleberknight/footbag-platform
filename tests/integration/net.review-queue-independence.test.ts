@@ -1,14 +1,13 @@
 /**
- * The public net pages must not read the net review queue.
+ * The public net pages must not read the retired QC tables.
  *
- * The queue is an internal curator table. Every public surface that once summarised it
- * now derives what it shows from canonical data instead, so the queue can be dropped
- * without taking a public page down with it.
+ * They were internal curator tables, and every public surface that once summarised
+ * one now derives what it shows from canonical data instead. The tables are gone
+ * from the schema, so a page that still read one would fail outright.
  *
- * These tests build a normal net fixture, drop the table outright, and require both
- * public routes to render exactly as they would with the table present. A route that
- * still touched the queue would fail here with a missing-table error rather than
- * failing silently once the table is really gone.
+ * These tests build a normal net fixture and require both public routes to render
+ * against a schema that has never carried those tables, which is what every
+ * environment now builds.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -82,23 +81,32 @@ function setupDb(db: BetterSqlite3.Database): void {
 beforeAll(async () => {
   const db = createTestDb(dbPath);
   setupDb(db);
-  // The table exists in schema.sql, so a route reading it would pass unnoticed.
-  // Dropping it is what turns that read into a failure.
-  db.prepare('DROP TABLE net_review_queue').run();
   db.close();
   createApp = await importApp();
 });
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('public net pages with the review queue dropped', () => {
-  it('the fixture really has no review-queue table', () => {
+describe('public net pages against a schema with no QC tables', () => {
+  it('the schema carries none of the retired QC tables', () => {
+    // Named individually rather than as a count, so dropping one and adding
+    // another back under a new name cannot pass.
+    const RETIRED = [
+      'net_review_queue', 'net_candidate_match', 'net_curated_match',
+      'net_raw_fragment', 'net_recovery_alias_candidate',
+      'net_team_correction_candidate',
+    ];
     const probe = new BetterSqlite3(dbPath, { readonly: true });
-    const row = probe
-      .prepare(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'net_review_queue'`)
-      .get();
+    const present = probe
+      .prepare(`SELECT name FROM sqlite_master WHERE type = 'table'`)
+      .all()
+      .map((r) => (r as { name: string }).name);
     probe.close();
-    expect(row).toBeUndefined();
+    expect(RETIRED.filter((t) => present.includes(t))).toEqual([]);
+    // The tables the net pages actually read must still be there, so an empty
+    // schema cannot satisfy the check above.
+    expect(present).toContain('net_discipline_group');
+    expect(present).toContain('net_team_appearance');
   });
 
   it('GET /net renders', async () => {
