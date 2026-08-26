@@ -7,9 +7,13 @@
  *   - tier filter narrows the result set
  *   - summary reports total + per-tier + per-honor breakdown + total
  *     registered accounts (the comparison count includes Tier 0 without AP)
- *   - exportCsv produces the prescribed header comment line, column header,
- *     YYYYMMDD filename, and applies the email opt-in redaction
+ *   - list redacts a member's sign-in address to their own visibility choice
+ *   - getOfficialRosterPage shapes the whole-roster summary figures, the
+ *     searched and tier-filtered member rows, the filter controls, and paging
  *   - every call writes a category='roster_access' audit entry
+ *
+ * The roster is never exported: the IFPA governing documents grant access and
+ * say nothing about taking a copy, so there is no CSV and no download.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
@@ -34,7 +38,7 @@ const ADMIN_NAME = 'Roster Admin';
 beforeAll(async () => {
   const db = createTestDb(dbPath);
 
-  // Admin actor (also has display name used in the CSV header comment).
+  // Admin actor, used as the audited reader in every call below.
   insertMember(db, {
     id: ADMIN_ID, slug: 'roster_admin',
     display_name: ADMIN_NAME, real_name: ADMIN_NAME,
@@ -58,7 +62,7 @@ beforeAll(async () => {
     member_id: 'm-t1', new_tier_status: 'tier1', reason_code: 'purchase.tier1',
   });
 
-  // tier2: private email (must be redacted in CSV)
+  // tier2: private email (must be redacted everywhere it could surface)
   insertMember(db, {
     id: 'm-t2', slug: 't2', display_name: 'Bob Tier2',
     login_email: 'bob@example.com', city: 'Boulder', country: 'US',
@@ -227,126 +231,187 @@ describe('summary', () => {
   });
 });
 
-describe('exportCsv', () => {
-  it('filename is official_roster_YYYYMMDD.csv based on UTC now', () => {
-    const { filename } = ors.exportCsv(ADMIN_ID);
-    expect(filename).toMatch(/^official_roster_\d{8}\.csv$/);
+describe('list email redaction', () => {
+  it('carries the sign-in address for a member who opted in', () => {
+    const alice = ors.list(ADMIN_ID).find((r) => r.member_id === 'm-t1');
+    expect(alice?.email).toBe('alice@example.com');
   });
 
-  it('first line is the prescribed header comment with admin display name', () => {
-    const { csv } = ors.exportCsv(ADMIN_ID);
-    const firstLine = csv.split('\n')[0];
-    expect(firstLine).toMatch(
-      /^# Official IFPA Roster - Tier 1, Tier 2, Tier 3, and Tier 0 Active Player members - Generated \d{4}-\d{2}-\d{2} by Roster Admin$/,
-    );
+  it('returns null instead of the address for a member who did not opt in', () => {
+    const bob = ors.list(ADMIN_ID).find((r) => r.member_id === 'm-t2');
+    expect(bob).toBeDefined();
+    expect(bob?.email).toBeNull();
   });
 
-  it('second line is the column header row', () => {
-    const { csv } = ors.exportCsv(ADMIN_ID);
-    const lines = csv.split('\n');
-    expect(lines[1]).toBe(
-      'member_id,display_name,tier_status,underlying_tier_status,' +
-      'is_active_player,active_player_expires_at,' +
-      'is_hof,is_bap,is_board,' +
-      'email,city,region,country',
-    );
+  it('never returns the raw login_email or the visibility flag to callers', () => {
+    const row = ors.list(ADMIN_ID)[0] as Record<string, unknown>;
+    expect(row).not.toHaveProperty('login_email');
+    expect(row).not.toHaveProperty('email_visibility');
+  });
+});
+
+describe('getOfficialRosterPage', () => {
+  it('shapes the page envelope for the IFPA section and keeps it out of search engines', () => {
+    const vm = ors.getOfficialRosterPage(ADMIN_ID);
+    expect(vm.page.sectionKey).toBe('ifpa');
+    expect(vm.page.pageKey).toBe('ifpa_roster');
+    expect(vm.seo.noindex).toBe(true);
   });
 
-  it('emits one data row per roster member', () => {
-    const { csv } = ors.exportCsv(ADMIN_ID);
-    const lines = csv.trim().split('\n');
-    // header comment + column header + 5 data rows
-    expect(lines).toHaveLength(2 + 5);
+  it('reports the roster total and the registered-account comparison count', () => {
+    const vm = ors.getOfficialRosterPage(ADMIN_ID);
+    const total = vm.content.summaryRows.find((r) => r.label === 'Total on Roster');
+    expect(total?.value).toBe('5');
+    expect(vm.content.totalRegistered).toBe(9);
   });
 
-  it('excludes Tier 0 without AP and deceased members from the CSV', () => {
-    const { csv } = ors.exportCsv(ADMIN_ID);
-    expect(csv).not.toMatch(/m-t0-only/);
-    expect(csv).not.toMatch(/m-t0-expired/);
-    expect(csv).not.toMatch(/m-t1-deceased/);
+  it('leaves the summary figures whole-roster while a filter narrows only the list', () => {
+    const vm = ors.getOfficialRosterPage(ADMIN_ID, { tier: ['tier3'] });
+    const total = vm.content.summaryRows.find((r) => r.label === 'Total on Roster');
+    expect(total?.value).toBe('5');
+    expect(vm.content.members).toHaveLength(1);
+    expect(vm.content.summaryScopeNote).toMatch(/whole roster/i);
   });
 
-  it('redacts email for members with email_visibility=private (Bob Tier2)', () => {
-    const { csv } = ors.exportCsv(ADMIN_ID);
-    const bobLine = csv.split('\n').find((l) => l.startsWith('m-t2,'));
-    expect(bobLine).toBeDefined();
-    // Email column is the 10th comma-separated value (index 9).
-    const cells = bobLine!.split(',');
-    expect(cells[9]).toBe('');
-    // bob's email is NOT present anywhere
-    expect(csv).not.toMatch(/bob@example\.com/);
+  it('lists every roster member ordered by display name', () => {
+    const vm = ors.getOfficialRosterPage(ADMIN_ID);
+    expect(vm.content.members.map((m) => m.displayName)).toEqual([
+      'Alice Tier1', 'Bob Tier2', 'Carol Tier3', 'Dan Active', 'Eve Big Add',
+    ]);
+    expect(vm.content.matchCount).toBe(5);
   });
 
-  it('includes email for members with non-private visibility (Alice + Carol)', () => {
-    const { csv } = ors.exportCsv(ADMIN_ID);
-    expect(csv).toMatch(/alice@example\.com/);
-    expect(csv).toMatch(/carol@example\.com/);
+  it('links a member to their profile by slug, not by member id', () => {
+    const vm = ors.getOfficialRosterPage(ADMIN_ID);
+    const alice = vm.content.members.find((m) => m.displayName === 'Alice Tier1');
+    expect(alice?.profileHref).toBe('/members/t1');
   });
 
-  it('writes a roster.export audit entry with row_count and filename', () => {
-    const before = rosterAuditCount('roster.export');
-    ors.exportCsv(ADMIN_ID);
-    expect(rosterAuditCount('roster.export')).toBe(before + 1);
-
-    const dbh = new BetterSqlite3(dbPath, { readonly: true });
-    const row = dbh
-      .prepare(
-        `SELECT metadata_json FROM audit_entries
-         WHERE category = 'roster_access' AND action_type = 'roster.export'
-         ORDER BY created_at DESC, id DESC LIMIT 1`,
-      )
-      .get() as { metadata_json: string };
-    dbh.close();
-    const meta = JSON.parse(row.metadata_json);
-    expect(meta.row_count).toBe(5);
-    expect(meta.filename).toMatch(/^official_roster_\d{8}\.csv$/);
+  it('shows an opted-in address and marks a withheld one as not shared', () => {
+    const vm = ors.getOfficialRosterPage(ADMIN_ID);
+    const alice = vm.content.members.find((m) => m.memberId === 'm-t1');
+    const bob = vm.content.members.find((m) => m.memberId === 'm-t2');
+    expect(alice?.hasEmail).toBe(true);
+    expect(alice?.email).toBe('alice@example.com');
+    expect(bob?.hasEmail).toBe(false);
+    expect(bob?.email).toBeNull();
   });
 
-  it('rejects an unknown actorId', () => {
-    expect(() => ors.exportCsv('does-not-exist')).toThrow(/not found/);
+  it('labels the honours a member holds', () => {
+    const vm = ors.getOfficialRosterPage(ADMIN_ID);
+    const carol = vm.content.members.find((m) => m.memberId === 'm-t3');
+    expect(carol?.honorLabels).toEqual(['Hall of Fame', 'IFPA Board']);
   });
 
-  it('CSV-escapes display names containing commas and quotes', () => {
-    // Add a member whose display_name needs escaping.
-    const db = new BetterSqlite3(dbPath);
-    insertMember(db, {
-      id: 'm-comma', slug: 'comma_quote',
-      display_name: 'Sneaky, "Display"',
-      login_email: 'sneaky@example.com',
-    });
-    db.prepare(`UPDATE members SET email_visibility = 'members' WHERE id = ?`)
-      .run('m-comma');
-    insertMemberTierGrant(db, {
-      member_id: 'm-comma', new_tier_status: 'tier1',
-      reason_code: 'purchase.tier1',
-    });
-    db.close();
-
-    const { csv } = ors.exportCsv(ADMIN_ID);
-    // Display name appears wrapped in quotes with internal quotes doubled.
-    expect(csv).toMatch(/"Sneaky, ""Display"""/);
+  it('narrows to a single tier when the tier filter is set', () => {
+    const vm = ors.getOfficialRosterPage(ADMIN_ID, { tier: ['tier2'] });
+    expect(vm.content.members.map((m) => m.memberId)).toEqual(['m-t2', 'm-t2-bap']);
+    expect(vm.content.isFiltered).toBe(true);
+    expect(vm.content.tierOptions.find((o) => o.value === 'tier2')?.isActive).toBe(true);
   });
 
-  // Display-name validation constrains only length, and a spreadsheet reads a
-  // leading '=', '+', '-' or '@' as the start of a formula, so an unneutralised
-  // cell executes member input on the administrator's machine.
-  it('neutralises a display name that would read as a spreadsheet formula', () => {
-    const db = new BetterSqlite3(dbPath);
-    insertMember(db, {
-      id: 'm-formula', slug: 'formula_name',
-      display_name: '=cmd|calc',
-      login_email: 'formula@example.com',
-    });
-    insertMemberTierGrant(db, {
-      member_id: 'm-formula', new_tier_status: 'tier1',
-      reason_code: 'purchase.tier1',
-    });
-    db.close();
+  it('narrows by search term, matching part of a display name case-insensitively', () => {
+    const vm = ors.getOfficialRosterPage(ADMIN_ID, { q: 'carol' });
+    expect(vm.content.members.map((m) => m.memberId)).toEqual(['m-t3']);
+    expect(vm.content.hasSearch).toBe(true);
+    expect(vm.content.matchCount).toBe(1);
+  });
 
-    const { csv } = ors.exportCsv(ADMIN_ID);
-    const line = csv.split('\n').find((l) => l.startsWith('m-formula,'));
-    expect(line).toBeDefined();
-    expect(line).toContain(`'=cmd|calc`);
-    expect(line).not.toMatch(/,=cmd/);
+  it('reports an empty result rather than failing when nothing matches', () => {
+    const vm = ors.getOfficialRosterPage(ADMIN_ID, { q: 'nobody-by-this-name' });
+    expect(vm.content.members).toEqual([]);
+    expect(vm.content.hasMembers).toBe(false);
+    expect(vm.content.emptyStateText).toMatch(/No roster member matches/);
+  });
+
+  it('rejects an unknown tier value rather than silently ignoring it', () => {
+    expect(() =>
+      ors.getOfficialRosterPage(ADMIN_ID, { tier: ['tier9' as unknown as 'tier1'] }),
+    ).toThrow(/invalid tier filter value/);
+  });
+
+  it('keeps everything on one page while the roster fits, and offers no pager', () => {
+    const vm = ors.getOfficialRosterPage(ADMIN_ID);
+    expect(vm.content.pageCount).toBe(1);
+    expect(vm.content.hasPaging).toBe(false);
+    expect(vm.content.previousHref).toBeNull();
+    expect(vm.content.nextHref).toBeNull();
+    expect(vm.content.rangeLabel).toBe('Showing 1 to 5 of 5');
+  });
+
+  it('clamps a page number past the end back onto the last page', () => {
+    const vm = ors.getOfficialRosterPage(ADMIN_ID, { page: 99 });
+    expect(vm.content.page).toBe(1);
+    expect(vm.content.members).toHaveLength(5);
+  });
+
+  it('carries the search term into each tier filter link so the two compose', () => {
+    const vm = ors.getOfficialRosterPage(ADMIN_ID, { q: 'tier' });
+    const tier2 = vm.content.tierOptions.find((o) => o.value === 'tier2');
+    expect(tier2?.href).toBe('/ifpa/roster?tier=tier2&q=tier');
+  });
+
+  it('audits the page view under roster_access', () => {
+    const beforeList = rosterAuditCount('roster.list');
+    const beforeSummary = rosterAuditCount('roster.summary');
+    ors.getOfficialRosterPage(ADMIN_ID);
+    expect(rosterAuditCount('roster.list')).toBe(beforeList + 1);
+    expect(rosterAuditCount('roster.summary')).toBe(beforeSummary + 1);
+  });
+
+  it('exposes no export, download, or file-producing method', () => {
+    const surface = ors as unknown as Record<string, unknown>;
+    expect(surface.exportCsv).toBeUndefined();
+    expect(Object.keys(surface).filter((k) => /export|csv|download/i.test(k))).toEqual([]);
+  });
+});
+
+describe('roster page controls keep the reader oriented', () => {
+  it('carries the chosen tier back into the search form so searching keeps it', () => {
+    const vm = ors.getOfficialRosterPage(ADMIN_ID, { tier: ['tier2'] });
+    expect(vm.content.activeTier).toBe('tier2');
+  });
+
+  it('leaves the carried tier empty when no tier is chosen', () => {
+    const vm = ors.getOfficialRosterPage(ADMIN_ID);
+    expect(vm.content.activeTier).toBe('');
+  });
+
+  it('offers an all-tiers option that widens the tier filter and keeps the search term', () => {
+    const vm = ors.getOfficialRosterPage(ADMIN_ID, { tier: ['tier2'], q: 'bob' });
+    const all = vm.content.tierOptions.find((o) => o.label === 'All Tiers');
+    expect(all).toBeDefined();
+    expect(all?.href).toBe('/ifpa/roster?q=bob');
+    expect(all?.isActive).toBe(false);
+  });
+
+  it('marks all-tiers as the active option when no tier is chosen', () => {
+    const vm = ors.getOfficialRosterPage(ADMIN_ID);
+    const all = vm.content.tierOptions.find((o) => o.label === 'All Tiers');
+    expect(all?.isActive).toBe(true);
+  });
+
+  it('says nothing about a range when there is no result to range over', () => {
+    const vm = ors.getOfficialRosterPage(ADMIN_ID, { q: 'nobody-by-this-name' });
+    expect(vm.content.rangeLabel).toBe('');
+  });
+
+  it('offers a way back to the IFPA section', () => {
+    const vm = ors.getOfficialRosterPage(ADMIN_ID);
+    expect(vm.content.backHref).toBe('/ifpa');
+    expect(vm.content.backLabel).toBe('Back to IFPA Documents');
+  });
+
+  it('states a standing for a member holding no honours rather than leaving it blank', () => {
+    const vm = ors.getOfficialRosterPage(ADMIN_ID);
+    const alice = vm.content.members.find((m) => m.memberId === 'm-t1');
+    expect(alice?.hasHonors).toBe(false);
+    expect(alice?.noHonorsLabel).toBe('None');
+  });
+
+  it('writes the Active Player expiry in the site date format, not a raw timestamp', () => {
+    const vm = ors.getOfficialRosterPage(ADMIN_ID);
+    const dan = vm.content.members.find((m) => m.memberId === 'm-t0-ap');
+    expect(dan?.activePlayerLabel).toBe('Active Player through 1 Jan 2099');
   });
 });

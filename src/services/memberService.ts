@@ -75,7 +75,7 @@
  *     two claim merges in IdentityAccessService (which normalise the same way
  *     but never refuse). A rule enforced on only one path is not a rule:
  *     whatever the wizard refuses could otherwise be stored by editing the
- *     profile afterwards, and the Official IFPA Roster export carries whatever
+ *     profile afterwards, and the Official IFPA Roster shows whatever
  *     lands.
  *   - Max 3 external URLs per member; one avatar per member (partial UNIQUE
  *     index `ux_media_avatar_per_member`).
@@ -220,6 +220,12 @@ export interface TierStatusView {
   activePlayer: ActivePlayerView | null;
   /** Tier 3 only; null otherwise. */
   underlyingTierBadgeText: string | null;
+  /** Whether this member is on the Official IFPA Roster, stated plainly. The
+   *  member can already deduce it from the tier and Active Player badges beside
+   *  it; saying it removes the deduction. Own-profile only: the roster's
+   *  audience is Tier 2 and above, and printing it on the profile other members
+   *  see would let any signed-in member rebuild the roster profile by profile. */
+  rosterStatusText: string;
   showTier1Upgrade: boolean;
   showTier2Upgrade: boolean;
   showUpgradeForm: boolean;
@@ -1712,11 +1718,23 @@ function buildTierStatusView(memberId: string, slug: string): TierStatusView {
   const showTier2Upgrade = tier.tier_status === 'tier0' || tier.tier_status === 'tier1';
   const canUpgrade = showTier1Upgrade || showTier2Upgrade;
 
+  // Roster membership per the IFPA membership rules: Tier 1 and above, plus a
+  // Tier 0 member for as long as Active Player status is current.
+  let rosterStatusText: string;
+  if (tier.tier_status === 'tier0') {
+    rosterStatusText = isAp
+      ? 'You are on the Official IFPA Roster while your Active Player status is current.'
+      : 'You are not on the Official IFPA Roster. Tier 1 membership or current Active Player status puts you on it.';
+  } else {
+    rosterStatusText = 'You are on the Official IFPA Roster.';
+  }
+
   return {
     tierBadgeText: TIER_BADGE_TEXT[tier.tier_status],
     benefitsBlurb: tierBenefitsBlurb(tier.tier_status),
     activePlayer,
     underlyingTierBadgeText,
+    rosterStatusText,
     showTier1Upgrade,
     showTier2Upgrade,
     showUpgradeForm: canUpgrade,

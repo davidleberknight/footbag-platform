@@ -1,0 +1,104 @@
+{{! /ifpa/roster — Official IFPA Roster, Tier 2 and above }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    {{#if page.intro}}<p class="hero-subtitle">{{page.intro}}</p>{{/if}}
+  </div>
+</div>
+
+<div class="wrapper">
+
+  <div class="notice-card notice-card--info mb-6">
+    <p>{{content.accessNotice}}</p>
+  </div>
+
+  <section>
+    <h2>Roster Summary</h2>
+    <p class="text-muted">{{content.summaryScopeNote}}</p>
+    <dl class="club-detail-meta">
+      {{#each content.summaryRows}}
+        <dt>{{label}}</dt>
+        <dd>{{value}}</dd>
+      {{/each}}
+    </dl>
+  </section>
+
+  <section>
+    <h2>Find a Member</h2>
+    <form method="GET" action="/ifpa/roster" class="mb-4">
+      {{! The chosen tier rides along, so searching narrows the tier the reader
+          picked instead of silently dropping back to every tier. }}
+      <input type="hidden" name="tier" value="{{content.activeTier}}">
+      <p>
+        <label>Member name <input type="text" name="q" value="{{content.searchTerm}}"></label>
+        <button type="submit" class="btn btn-primary">Search</button>
+        {{#if content.isFiltered}}<a href="{{content.clearFiltersHref}}" class="btn btn-outline">Clear Search and Filter</a>{{/if}}
+      </p>
+    </form>
+    <div class="tag-chip-row">
+      {{#each content.tierOptions}}
+        <a href="{{href}}" class="tag-chip"{{#if isActive}} aria-current="true"{{/if}}>{{label}}</a>
+      {{/each}}
+    </div>
+  </section>
+
+  <section>
+    <h2>Roster Members</h2>
+    {{#if content.rangeLabel}}<p class="text-muted">{{content.rangeLabel}}</p>{{/if}}
+
+    {{#if content.hasMembers}}
+      {{! Six columns of member facts overflow a phone; the wrap scrolls the
+          table on its own rather than squeezing every column unreadable. }}
+      <div class="records-table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th scope="col">Name</th>
+            <th scope="col">Membership</th>
+            <th scope="col">Active Player</th>
+            <th scope="col">Honors</th>
+            <th scope="col">Location</th>
+            <th scope="col">Email</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.members}}
+            <tr>
+              <td>{{#if profileHref}}<a href="{{profileHref}}">{{displayName}}</a>{{else}}{{displayName}}{{/if}}</td>
+              <td>
+                {{tierLabel}}
+                {{#if underlyingTierLabel}}<br><span class="detail-muted">{{underlyingTierLabel}}</span>{{/if}}
+              </td>
+              <td>{{#if activePlayerLabel}}{{activePlayerLabel}}{{else}}<span class="detail-muted">Not an Active Player</span>{{/if}}</td>
+              <td>
+                {{#if hasHonors}}
+                  {{#each honorLabels}}<span class="badge">{{this}}</span> {{/each}}
+                {{else}}
+                  <span class="detail-muted">{{noHonorsLabel}}</span>
+                {{/if}}
+              </td>
+              <td>{{#if locationLabel}}{{locationLabel}}{{else}}<span class="detail-muted">Not given</span>{{/if}}</td>
+              <td>{{#if hasEmail}}{{email}}{{else}}<span class="detail-muted">Not shared</span>{{/if}}</td>
+            </tr>
+          {{/each}}
+        </tbody>
+      </table>
+      </div>
+    {{else}}
+      <div class="empty-state">
+        <p>{{content.emptyStateText}}</p>
+      </div>
+    {{/if}}
+
+    {{#if content.hasPaging}}
+      <p class="mt-4">
+        {{#if content.previousHref}}<a href="{{content.previousHref}}" class="btn btn-outline">Previous</a>{{/if}}
+        {{#if content.nextHref}}<a href="{{content.nextHref}}" class="btn btn-outline">Next</a>{{/if}}
+      </p>
+    {{/if}}
+  </section>
+
+  <p class="mt-6"><a href="{{content.backHref}}" class="action-link">{{content.backLabel}}</a></p>
+
+</div>

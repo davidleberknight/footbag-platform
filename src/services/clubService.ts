@@ -31,7 +31,7 @@
  *     region only when every club in that country has one, so a single
  *     region-less row flattens the whole country into one list. This is the
  *     opposite of the member column, which stores the two-letter code for the
- *     roster export; nothing joins them and they must not be unified. The fold
+ *     roster; nothing joins them and they must not be unified. The fold
  *     happens at the write path only: correcting a misspelling already on a row
  *     stays a curated-data fix made at source, so the render layer is never
  *     taught a geography table.
@@ -195,7 +195,7 @@ export type ClubRegionResolution =
  *
  * Clubs store the FULL NAME ("New York"), the opposite of the member column,
  * which stores the two-letter code ("NY"). That is deliberate and the two must
- * not be unified: the member column feeds the Official IFPA Roster export,
+ * not be unified: the member column feeds the Official IFPA Roster,
  * where a fixed-width code is the reconcilable form, while a club's region is
  * read by visitors as a heading on the country page, where the name is what
  * reads. Nothing joins the two columns.

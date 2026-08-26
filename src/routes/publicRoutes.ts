@@ -25,10 +25,11 @@ import { netController } from '../controllers/netController';
 import { sidelineController } from '../controllers/sidelineController';
 import { rulesController } from '../controllers/rulesController';
 import { ifpaController } from '../controllers/ifpaController';
+import { officialRosterController } from '../controllers/officialRosterController';
 import { legalController } from '../controllers/legalController';
 import { tagSuggestController } from '../controllers/tagSuggestController';
 import { requireAuth, requireMember } from '../middleware/auth';
-import { requireTier1Benefits, requireMayCreateClub } from '../middleware/requireTier';
+import { requireTier1Benefits, requireMayCreateClub, requireTier2Plus } from '../middleware/requireTier';
 
 export const publicRouter = Router();
 // Membership is an authorization level: an account is pending until every
@@ -162,6 +163,15 @@ publicRouter.get('/rules',                                          rulesControl
 publicRouter.get('/rules/:disciplineSlug/:ruleSlug',                rulesController.detail);
 
 publicRouter.get('/ifpa',           ifpaController.index);
+// IMPORTANT: /ifpa/roster MUST be registered before /ifpa/:docSlug. Express
+// matches routes in registration order, so without this the literal segment
+// "roster" is captured as :docSlug and 404s as an unknown governance document.
+//
+// The tier gate is the IFPA membership rules' own grant: Tier 2 (IFPA
+// Organizer Member) and above may access the roster for official IFPA event
+// and organizer purposes. Site administrators must already hold Tier 2 or
+// Tier 3, so this one gate serves administrators, directors and organizers.
+publicRouter.get('/ifpa/roster',    requireMember, requireTier2Plus(), officialRosterController.index);
 publicRouter.get('/ifpa/:docSlug',  ifpaController.detail);
 
 // IMPORTANT: /events/year/:year MUST be registered before /events/:eventKey.

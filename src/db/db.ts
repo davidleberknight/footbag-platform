@@ -8460,7 +8460,7 @@ export const legacyClaim = {
 
   // Street address and postal code are deliberately NOT copied here. Nothing
   // on the platform reads them off a member row: there is no edit surface, no
-  // page renders them, and the roster export does not carry them. Personal data
+  // page renders them, and the Official IFPA Roster does not show them. Personal data
   // is not retained without a stated purpose, so they stay in the archival
   // legacy snapshot, which is where the historical record belongs. The purge
   // and revert-scrub statements still clear both columns, because rows claimed
@@ -10356,9 +10356,7 @@ export interface OfficialRosterRow {
   is_hof: 0 | 1;
   is_bap: 0 | 1;
   is_board: 0 | 1;
-}
-
-export interface OfficialRosterExportRow extends OfficialRosterRow {
+  slug: string | null;
   login_email: string | null;
   email_visibility: 'private' | 'members';
 }
@@ -10376,24 +10374,16 @@ export interface OfficialRosterSummaryRow {
 }
 
 export const officialRoster = {
+  // The roster read. Joins members so the service can apply the email opt-in
+  // redaction (US A_View_Official_Roster_Reports: "email (opt-in only)") at
+  // the service layer instead of in SQL; the raw address never leaves the
+  // service, which returns the redacted field.
   get selectAll() { return db.prepare(`
-    SELECT member_id, display_name, city, region, country,
-           tier_status, underlying_tier_status,
-           is_active_player, active_player_expires_at,
-           is_hof, is_bap, is_board
-    FROM official_ifpa_roster_current
-    ORDER BY display_name COLLATE NOCASE, member_id
-  `); },
-
-  // CSV-export read. Joins members so the export pipeline can apply the
-  // email opt-in redaction (US A_View_Official_Roster_Reports: "email
-  // (opt-in only)") at the service layer instead of in SQL.
-  get selectAllForExport() { return db.prepare(`
     SELECT r.member_id, r.display_name, r.city, r.region, r.country,
            r.tier_status, r.underlying_tier_status,
            r.is_active_player, r.active_player_expires_at,
            r.is_hof, r.is_bap, r.is_board,
-           m.login_email, m.email_visibility
+           m.slug, m.login_email, m.email_visibility
     FROM official_ifpa_roster_current r
     JOIN members m ON m.id = r.member_id
     ORDER BY r.display_name COLLATE NOCASE, r.member_id
@@ -10422,11 +10412,6 @@ export const officialRoster = {
     SELECT COUNT(*) AS n
     FROM members_active
     WHERE personal_data_purged_at IS NULL
-  `); },
-
-  // Display-name lookup for the CSV header comment ("Generated ... by <name>").
-  get findDisplayNameById() { return db.prepare(`
-    SELECT display_name FROM members WHERE id = ?
   `); },
 };
 

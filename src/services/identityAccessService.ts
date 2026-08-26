@@ -3713,7 +3713,7 @@ function claimHistoricalPersonInTxInner(
 // in, and city, country and date of birth are fields the personal-details step
 // requires. A member who happened to type the same city as their linked record
 // therefore loses it on a revert, while the step stays completed: nothing
-// re-asks them, and the Official IFPA Roster export carries the blank. Putting
+// re-asks them, and the Official IFPA Roster shows the blank. Putting
 // the step back in front of them is the honest repair -- the same posture the
 // platform takes elsewhere with unresolved legacy residue, which is labelled
 // and re-asked rather than quietly carried.

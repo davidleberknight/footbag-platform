@@ -2,7 +2,7 @@
  * The rules a member's location and first-competition year must satisfy, and
  * the single home for them.
  *
- * These columns feed the Official IFPA Roster export, where one place recorded
+ * These columns feed the Official IFPA Roster, where one place recorded
  * as CA, California and Calif. cannot be reconciled afterwards. That is why the
  * region for a country with an official state or province set must be the
  * two-letter code, and why the country must be the one name the picker offers:
@@ -118,7 +118,7 @@ export interface ValidatedMemberLocation {
 /**
  * The shape both member-facing write paths store. A rule enforced on only one
  * of them is not a rule: whatever the wizard refuses, a member could otherwise
- * store by editing their profile afterwards, and the roster export carries
+ * store by editing their profile afterwards, and the roster shows
  * whatever lands.
  *
  * Gender is deliberately NOT here. The wizard is the primary collection point
