@@ -89,7 +89,7 @@ function simpleSet(ttl: number): string {
 
 function aliasSet(): string {
   return JSON.stringify([
-    { Name: 'x', Type: 'A', AliasTarget: { DNSName: 'd111111abcdef8.cloudfront.net.' } },
+    { Name: 'x', Type: 'A', AliasTarget: { DNSName: 'd1234abcdef8.cloudfront.net.' } },
   ]);
 }
 

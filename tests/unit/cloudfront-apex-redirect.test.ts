@@ -99,7 +99,7 @@ describe('apex redirect: which hosts are redirected', () => {
   });
 
   it("passes the distribution's own generated name through, so the platform stays reachable before the custom domain is enabled", () => {
-    const event = viewerRequest('d111111abcdef8.cloudfront.net', '/');
+    const event = viewerRequest('d1234abcdef8.cloudfront.net', '/');
     expect(handler(event)).toBe(event.request);
   });
 
