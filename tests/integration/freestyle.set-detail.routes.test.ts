@@ -562,3 +562,53 @@ describe('GET /freestyle/sets/:slug — migrated set-education pages (pixie / fa
     });
   }
 });
+
+// A set formula is usually quoted from an outside compilation rather than
+// authored here, so the page names its source before showing the notation. The
+// case that matters is blazing: it shows the compilation's notation carrying a
+// terminal-side component while the platform has not ruled that side, and
+// without the attribution a reader has no way to tell those apart.
+describe('/freestyle/sets/:slug — formula provenance', () => {
+  const formulaSection = (html: string): string | null => {
+    const m = /aria-label="Formula">([\s\S]*?)<\/section>/.exec(html);
+    return m ? m[1]! : null;
+  };
+
+  it('names the source above the formula, and that source is the compilation for blazing', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets/blazing');
+    expect(res.status).toBe(200);
+    const body = formulaSection(res.text);
+    expect(body, 'formula section').not.toBeNull();
+    expect(body!).toContain('Source: Holden compilation (2003)');
+    // Read before the notation, not inferred from the footer afterwards.
+    expect(body!.indexOf('Source:')).toBeLessThan(body!.indexOf('set-detail-formula'));
+    // The notation is untouched, and the ruling its citation opens with is not
+    // credited for a string it did not author.
+    expect(body!).toContain('CLIP &gt; OP IN [DEX] &gt; (op side component)');
+    expect(body!).not.toMatch(/Source:[^<]*Red/);
+  });
+
+  it('keeps saying the blazing terminal side is unsettled alongside the attributed formula', async () => {
+    const res = await request(await createApp()).get('/freestyle/sets/blazing');
+    expect(res.text).toMatch(/side relation is not settled/);
+  });
+
+  it('credits the platform, not the compilation, where the formula is the platform own', async () => {
+    for (const slug of ['toe', 'clipper']) {
+      const res = await request(await createApp()).get(`/freestyle/sets/${slug}`);
+      const body = formulaSection(res.text);
+      expect(body, slug).not.toBeNull();
+      expect(body!).toContain('Source: Platform entry-surface reference');
+      expect(body!).not.toContain('Holden');
+    }
+  });
+
+  it('shows no bare formula to attribute on a set that teaches its notation instead', async () => {
+    // These render an education block with notation prose in place of the bare
+    // Formula section, so no unattributed notation string reaches the page.
+    const res = await request(await createApp()).get('/freestyle/sets/whirling');
+    expect(res.status).toBe(200);
+    expect(res.text).not.toMatch(/aria-label="Formula"/);
+    expect(res.text).toMatch(/aria-label="JOB notation"/);
+  });
+});

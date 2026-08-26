@@ -212,6 +212,7 @@ import {
   CANONICAL_SETS,
   SET_SUBTYPE_SPECS,
   findCanonicalSetBySlug,
+  formulaSourceLabel,
   resolveSetRouteRedirect,
 } from '../content/freestyleCanonicalSets';
 import { COMPETITION_FORMATS } from '../content/freestyleCompetitionFormats';
@@ -2913,6 +2914,10 @@ export interface FreestyleSetDetailContent {
   subtype:              SetSubtypeKey;
   subtypeLabel:         string;
   formula:              string;
+  /** Short attribution for the formula above, derived from this set's own
+   *  sourceCitation. Null where the set shows no formula. The full citation is
+   *  unchanged and still renders in the provenance footer. */
+  formulaSource:        string | null;
   movementExplanation:  string;
   equivalenceReadings:  readonly string[];
   // Doctrine-supported alternate / historic set names, distinct from the
@@ -11356,6 +11361,7 @@ export const freestyleService = {
         source:                set.source,
         sourceLabel:           sourceLabels[set.source],
         sourceCitation:        set.sourceCitation,
+        formulaSource:         formulaSourceLabel(set),
         auditStatus:           set.auditStatus,
         auditStatusLabel:      set.auditStatus ? auditLabels[set.auditStatus] : undefined,
         componentMechanicsNote:

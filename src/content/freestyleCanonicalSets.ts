@@ -1179,3 +1179,53 @@ export function resolveSetRouteRedirect(slug: string): string | null {
 export function canonicalSetsBySubtype(subtype: SetSubtype): readonly CanonicalSet[] {
   return CANONICAL_SETS.filter(s => s.subtype === subtype);
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// Formula provenance
+//
+// A set page shows its formula under a bare heading, which leaves the reader to
+// guess whose notation it is. That guess is wrong often enough to matter: most
+// formulas here are quoted from an outside compilation, a handful are the
+// platform's own, and one is derived from a single outside source.
+//
+// The label is read off `sourceCitation`, which is where provenance already
+// lives, so no second record of it exists to drift. What it must NOT do is take
+// the citation's opening clause: blazing and flailing both open with the ruling
+// that settled their identity while their formula is still the compilation's
+// notation, so the opening clause would credit the ruling for a string it did
+// not author. On blazing that would read as the platform having settled the
+// terminal side, which is the open question the page says is unsettled.
+//
+// So the rules look for the source actually responsible for the notation, and
+// the compilation is tested first for exactly that reason. A formula whose
+// citation matches nothing throws rather than defaulting: inventing provenance,
+// and defaulting to the compilation in particular, is the failure this exists to
+// prevent.
+// ─────────────────────────────────────────────────────────────────────────
+
+const FORMULA_SOURCE_RULES: readonly { marker: string; label: string }[] = [
+  { marker: 'Holden compilation',               label: 'Holden compilation (2003)' },
+  { marker: 'curator-ruled',                    label: 'Curator ruling' },
+  { marker: 'Platform-tracked',                 label: 'Platform-tracked definition' },
+  { marker: 'Platform entry-surface reference', label: 'Platform entry-surface reference' },
+  { marker: 'FootbagMoves',                     label: 'Derived from FootbagMoves (single source)' },
+];
+
+/**
+ * Concise attribution for a set's displayed formula, or null where the set shows
+ * no formula and therefore attributes nothing. The full citation is unchanged and
+ * still renders in the page's provenance footer; this is a short form of the part
+ * of it that names where the notation came from.
+ */
+export function formulaSourceLabel(set: CanonicalSet): string | null {
+  if (!set.formula.trim()) return null;
+  const rule = FORMULA_SOURCE_RULES.find(r => set.sourceCitation.includes(r.marker));
+  if (!rule) {
+    throw new Error(
+      `${set.slug} shows a formula but its sourceCitation names no source for it: ` +
+      `${JSON.stringify(set.sourceCitation)}. Add the provenance to the citation rather ` +
+      `than assuming a default here.`,
+    );
+  }
+  return rule.label;
+}
