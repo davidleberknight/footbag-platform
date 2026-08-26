@@ -18,7 +18,7 @@
         {{/if}}
       {{/if}}
     </div>
-    <p>{{rosterStatusText}}</p>
+    {{#if rosterStatusText}}<p>{{rosterStatusText}}</p>{{/if}}
     {{#if activePlayer.hasLapsed}}
       <p class="text-muted">{{activePlayer.lapsedExplanation}}</p>
     {{/if}}

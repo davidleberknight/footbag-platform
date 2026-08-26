@@ -163,7 +163,7 @@ describe('region must be an official state or province code', () => {
 
   it('accepts a code in any casing and stores the canonical form', async () => {
     // One place must reach the database under one spelling: this column feeds
-    // the official roster export, which cannot reconcile variants afterwards.
+    // the Official IFPA Roster, which cannot reconcile variants afterwards.
     const res = await postEdit({ region: 'or' });
     expect(res.status).toBe(303);
     expect(storedRegion()).toBe('OR');

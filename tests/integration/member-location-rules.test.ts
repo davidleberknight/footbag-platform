@@ -3,7 +3,7 @@
  * them: the onboarding wizard's personal-details step and the profile edit
  * form.
  *
- * The country column feeds the Official IFPA Roster export alongside the
+ * The country column feeds the Official IFPA Roster alongside the
  * region column, so one country recorded under several spellings splits a
  * roster the same way one state recorded as CA, California and Calif. does.
  * A submitted country therefore folds to the single name the picker offers,
@@ -129,8 +129,7 @@ describe('country spelling cannot be used to escape the region rule', () => {
 
 describe('length caps apply on the profile edit path too', () => {
   // The wizard has always capped these. The edit form did not, so a member
-  // could store through it what the wizard refused, and the roster export
-  // carried it.
+  // could store through it what the wizard refused, and the roster showed it.
   it('refuses an over-long city', async () => {
     const { id, slug } = seedMember({ country: 'United States', region: 'OR', city: 'Portland' });
     await expect(

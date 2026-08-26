@@ -12,6 +12,7 @@ import {
   insertMember,
   insertActivePlayerGrant,
   createMemberAtTier,
+  createTier0WithActivePlayer,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3086');
@@ -132,6 +133,88 @@ describe('getOwnProfile().content.membership', () => {
     db.close();
     const vm = memberServiceMod.memberService.getOwnProfile(m.slug);
     expect(vm.content.membership!.underlyingTierBadgeText).toMatch(/Reverts to Tier 2 IFPA Organizer Member/);
+  });
+});
+
+/**
+ * The membership block renders its paragraphs consecutively, so the roster line
+ * is stated only where no neighbouring sentence already answers it. Each
+ * suppression case below also asserts the sentence that earns the suppression:
+ * reword that neighbour to drop the roster and the case goes red, rather than
+ * leaving the member with no answer at all.
+ */
+describe('getOwnProfile().content.membership.rosterStatusText', () => {
+  it('tells a Tier 0 member who has never held Active Player status where they stand', () => {
+    const db = new BetterSqlite3(dbPath);
+    const m = nextMember();
+    insertMember(db, { id: m.id, slug: m.slug });
+    db.close();
+    const membership = memberServiceMod.memberService.getOwnProfile(m.slug).content.membership!;
+    expect(membership.rosterStatusText).toBe(
+      'You are not on the Official IFPA Roster. Tier 1 membership or current Active Player status puts you on it.',
+    );
+  });
+
+  it('stays silent for a current Active Player, whose status sentence already says it', () => {
+    const db = new BetterSqlite3(dbPath);
+    const m = nextMember();
+    createTier0WithActivePlayer(db, {
+      id: m.id, slug: m.slug, expiresAt: '2099-09-15T12:00:00.000Z',
+    });
+    db.close();
+    const membership = memberServiceMod.memberService.getOwnProfile(m.slug).content.membership!;
+    expect(membership.activePlayer?.isCurrent).toBe(true);
+    expect(membership.activePlayer?.currentExplanation).toMatch(/Official IFPA Roster/);
+    expect(membership.rosterStatusText).toBeNull();
+  });
+
+  it('stays silent for a lapsed Active Player, whose lapse sentence already says it', () => {
+    const db = new BetterSqlite3(dbPath);
+    const m = nextMember();
+    createTier0WithActivePlayer(db, {
+      id: m.id, slug: m.slug, expiresAt: '2020-06-01T00:00:00.000Z',
+    });
+    db.close();
+    const membership = memberServiceMod.memberService.getOwnProfile(m.slug).content.membership!;
+    expect(membership.activePlayer?.hasLapsed).toBe(true);
+    expect(membership.activePlayer?.lapsedExplanation).toMatch(/Official IFPA Roster/);
+    expect(membership.rosterStatusText).toBeNull();
+  });
+
+  it('stays silent for Tier 1, whose benefits sentence already says it', () => {
+    const db = new BetterSqlite3(dbPath);
+    const m = nextMember();
+    createMemberAtTier(db, { id: m.id, slug: m.slug, tier: 'tier1' });
+    db.close();
+    const membership = memberServiceMod.memberService.getOwnProfile(m.slug).content.membership!;
+    expect(membership.benefitsBlurb).toMatch(/listed on the Official IFPA Roster/);
+    expect(membership.rosterStatusText).toBeNull();
+  });
+
+  it('tells a Tier 2 member they are on it, which their benefits sentence does not', () => {
+    const db = new BetterSqlite3(dbPath);
+    const m = nextMember();
+    createMemberAtTier(db, { id: m.id, slug: m.slug, tier: 'tier2' });
+    db.close();
+    const membership = memberServiceMod.memberService.getOwnProfile(m.slug).content.membership!;
+    // Tier 2's benefits sentence offers the roster to read, never says the
+    // member is listed on it, which is why the line is worth its space here.
+    expect(membership.benefitsBlurb).not.toMatch(/listed on the Official IFPA Roster/);
+    expect(membership.rosterStatusText).toBe('You are on the Official IFPA Roster.');
+  });
+
+  it('tells a Tier 3 director they are on it, which their governance sentence does not', () => {
+    const db = new BetterSqlite3(dbPath);
+    const m = nextMember();
+    createMemberAtTier(db, {
+      id: m.id, slug: m.slug, tier: 'tier3',
+      underlying_tier_status: 'tier2',
+      actor_member_id: ADMIN_ID,
+    });
+    db.close();
+    const membership = memberServiceMod.memberService.getOwnProfile(m.slug).content.membership!;
+    expect(membership.benefitsBlurb).not.toMatch(/Official IFPA Roster/);
+    expect(membership.rosterStatusText).toBe('You are on the Official IFPA Roster.');
   });
 });
 

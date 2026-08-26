@@ -224,8 +224,10 @@ export interface TierStatusView {
    *  member can already deduce it from the tier and Active Player badges beside
    *  it; saying it removes the deduction. Own-profile only: the roster's
    *  audience is Tier 2 and above, and printing it on the profile other members
-   *  see would let any signed-in member rebuild the roster profile by profile. */
-  rosterStatusText: string;
+   *  see would let any signed-in member rebuild the roster profile by profile.
+   *  Null where a neighbouring sentence in the same block already answers it,
+   *  so the reader is not told the same fact twice running. */
+  rosterStatusText: string | null;
   showTier1Upgrade: boolean;
   showTier2Upgrade: boolean;
   showUpgradeForm: boolean;
@@ -1720,12 +1722,22 @@ function buildTierStatusView(memberId: string, slug: string): TierStatusView {
 
   // Roster membership per the IFPA membership rules: Tier 1 and above, plus a
   // Tier 0 member for as long as Active Player status is current.
-  let rosterStatusText: string;
+  //
+  // Said only where no other sentence in this block already says it, because
+  // the block renders these paragraphs consecutively and a reader who meets the
+  // same fact twice running reads the second as a different fact and looks for
+  // the difference. The Tier 1 benefits sentence states the listing; both
+  // Active Player sentences state what the status carries and what lapsing
+  // takes away. What is left unanswered is the Tier 0 member who has never held
+  // the status, and Tier 2 and Tier 3, whose benefits mention reading the
+  // roster but never being on it.
+  let rosterStatusText: string | null = null;
   if (tier.tier_status === 'tier0') {
-    rosterStatusText = isAp
-      ? 'You are on the Official IFPA Roster while your Active Player status is current.'
-      : 'You are not on the Official IFPA Roster. Tier 1 membership or current Active Player status puts you on it.';
-  } else {
+    if (!isAp && !activePlayer?.hasLapsed) {
+      rosterStatusText =
+        'You are not on the Official IFPA Roster. Tier 1 membership or current Active Player status puts you on it.';
+    }
+  } else if (tier.tier_status !== 'tier1') {
     rosterStatusText = 'You are on the Official IFPA Roster.';
   }
 

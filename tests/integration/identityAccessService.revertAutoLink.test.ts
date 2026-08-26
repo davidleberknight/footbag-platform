@@ -650,8 +650,8 @@ describe('identityAccessService.revertClaimForDispute (queue-item binding)', () 
   // The scrub clears every field still matching what the claim copied in, and
   // the personal-details step requires city, country and date of birth. A
   // member left short of one of those is a full member on paper carrying an
-  // incomplete row, which the Official IFPA Roster export renders as a blank
-  // cell, so the step goes back in front of them rather than staying silently
+  // incomplete row, which the Official IFPA Roster shows as a blank cell, so
+  // the step goes back in front of them rather than staying silently
   // completed.
   it('re-opens the personal-details step when the scrub clears a field that step requires', () => {
     const { memberId, legacyId } = setupClaimed({ withHpBackLink: false });

@@ -125,9 +125,10 @@ describe('imported location is held to the shape rules, but never refused', () =
 
 describe('the claim does not copy imported address columns onto the member row', () => {
   // Nothing on the platform reads a member's street address or postal code:
-  // no page renders them, there is no edit surface, and the roster export does
-  // not carry them. Personal data is not retained without a stated purpose, so
-  // they stay in the archival legacy snapshot where the historical record lives.
+  // no page renders them, there is no edit surface, and the Official IFPA
+  // Roster does not show them. Personal data is not retained without a stated
+  // purpose, so they stay in the archival legacy snapshot where the historical
+  // record lives.
   it('leaves street address and postal code unset, and keeps them on the snapshot', () => {
     const memberId = nextId('mem');
     const legacyId = nextId('leg');

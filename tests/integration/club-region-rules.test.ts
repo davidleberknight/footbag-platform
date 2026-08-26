@@ -9,7 +9,7 @@
  *
  * Clubs store the full state or province name ("New York"), which is the
  * opposite of the member column's two-letter code ("NY"). That is deliberate:
- * the member column feeds the Official IFPA Roster export, where a fixed code
+ * the member column feeds the Official IFPA Roster, where a fixed code
  * is the reconcilable form, while a club's region is read by visitors as a
  * page heading. Nothing joins the two columns.
  */
