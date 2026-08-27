@@ -81,12 +81,27 @@ export const memberController = {
       try {
         const flash = readFlash(req);
         let profileNotice: string | undefined;
+        let clubActionNotice: string | undefined;
         if (flash?.kind === FLASH_KIND.PROFILE_UPDATED) {
           profileNotice = flash.payload || 'Profile updated.';
           clearFlash(res, req);
+        } else if (flash?.kind === FLASH_KIND.CLUB_ACTION) {
+          // Leaving a club, swapping the primary, stepping down as co-leader,
+          // and parking or reactivating a club all land here, so this page is
+          // the one that has to say how they went. Cleared whatever the
+          // payload turns out to be: a note left behind in the cookie surfaces
+          // on the next club page the member opens, telling them something
+          // happened there that happened somewhere else.
+          clubActionNotice = flash.payload ?? undefined;
+          clearFlash(res, req);
         }
         const query = typeof req.query.q === 'string' ? req.query.q : undefined;
-        const vm = memberService.getOwnProfile(memberKey, { query, notice: profileNotice, ip: req.ip });
+        const vm = memberService.getOwnProfile(memberKey, {
+          query,
+          notice: profileNotice,
+          clubActionNotice,
+          ip: req.ip,
+        });
         res.render('members/profile', vm);
       } catch (err) {
         if (err instanceof NotFoundError) { renderNotFound(res); return; }

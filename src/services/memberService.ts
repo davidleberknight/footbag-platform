@@ -372,6 +372,11 @@ export interface OwnProfileContent {
   media?: OwnProfileMediaView;
   /** Validated external links (max 3), shown on the profile. */
   links?: MemberLinkView[];
+  /** The outcome of a club action that redirected here. Carried apart from
+   *  page.notice because these messages are as often a refusal as a
+   *  confirmation, so they render in the neutral band rather than the success
+   *  one the profile-updated note owns. */
+  clubActionNotice?: string;
 }
 
 /** A legacy account the member has claimed. Display-only: a member who believes
@@ -975,7 +980,7 @@ export const memberService = {
 
   getOwnProfile(
     slug: string,
-    opts?: { query?: string; notice?: string; ip?: string },
+    opts?: { query?: string; notice?: string; clubActionNotice?: string; ip?: string },
   ): PageViewModel<OwnProfileContent> {
     const row = fetchMemberBySlug(slug);
     const eventGroups = fetchEventGroups(row);
@@ -1021,6 +1026,7 @@ export const memberService = {
         media:        buildOwnProfileMediaView(row.id, slug),
         memberSlug:   slug,
         links:        buildMemberLinksView(row.id),
+        ...(opts?.clubActionNotice ? { clubActionNotice: opts.clubActionNotice } : {}),
       },
     };
   },
