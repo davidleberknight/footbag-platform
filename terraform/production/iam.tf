@@ -166,16 +166,25 @@ resource "aws_iam_role_policy" "app_jwt_ses" {
         # send with AccessDenied while transactional mail keeps working -- a
         # split failure that would first appear on the first broadcast.
         Action = ["ses:SendEmail", "ses:SendRawEmail"]
-        # SES authorises a send against the identity that covers the From
-        # address, so the grant must name whichever identity exists: the
-        # single-address one before domain auth, the domain one after. Naming
-        # the address identity while sending under the domain identity is
-        # refused at send time, not at apply time.
-        Resource = var.ses_enable_domain_auth ? [
-          aws_ses_domain_identity.main[0].arn
-          ] : [
-          aws_ses_email_identity.sender[0].arn
-        ]
+        # Every identity in the account, with the From-address condition below
+        # carrying the whole bound. This matches staging, which has always been
+        # written this way, and naming the sender identity here instead is a
+        # divergence that breaks sending rather than tightening it.
+        #
+        # Two reasons, and the second is the one that bites today. Which identity
+        # object covers the sender address changes when domain authentication is
+        # enabled, so a grant naming the address identity silently stops
+        # authorising the moment sending moves under the domain identity, at send
+        # time rather than at apply time. And while the account is still in the
+        # SES sandbox, SES authorises every send against the DESTINATION identity
+        # as well as the sender: a resource pinned to the sender can never satisfy
+        # that, so each message to a real verified address is refused as
+        # unauthorised on the recipient's identity ARN while the simulator
+        # addresses succeed. The wildcard does not bypass the sandbox check, which
+        # still requires each recipient to be verified; it only lets the role
+        # reach identities in this account. Once production access is granted the
+        # recipient check disappears and this may be narrowed to the sender.
+        Resource = "*"
         # And the address, not only the identity that covers it. While the
         # identity is a single verified address the resource above already
         # bounds this to that address; the moment domain auth is enabled the

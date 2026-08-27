@@ -15,14 +15,29 @@
  * startup and again on a recurring reap cycle, because a row claimed shortly
  * before a restart still holds a live lease at boot and its lease then expires
  * with no further boot coming. Only expired leases are ever reset; a live one
- * is proof the attempt may still be running. findRetryEligiblePendingTranscode
- * lists parked retry rows and runs at startup only, since the in-process retry
- * loop re-claims parked rows during steady state.
+ * is proof the attempt may still be running. findDispatchablePendingTranscode
+ * lists every row awaiting transcode and runs at startup only, since during
+ * steady state the in-process retry loop re-claims a parked row itself. It is
+ * deliberately not narrowed to rows that have already been attempted: a row
+ * whose dispatch push never reached the worker has never been attempted and is
+ * exactly the row nothing else will ever pick up.
  *
  * getJobForAdmin matches on (jobId, admin_member_id), so a job initiated by a
  * different admin returns null and reads as not-found (404, not 403); the admin
  * status surface cannot be enumerated. This authorization scoping is separate
  * from the in-progress optimistic lock on state transitions.
+ *
+ * getJobStatusForAdmin is that same scoped read for the surfaces that DISPLAY
+ * the state, and it reconciles one thing on the way past: a row still waiting
+ * on the browser whose upload window has closed becomes abandoned, because the
+ * grants it was signed for no longer open and no bytes or finalize can follow.
+ * Reconciling on the read rather than from a scan keeps the expired-lease pass
+ * the only scan of this table, which is the one that has no alternative: its
+ * subject is a claim that outlived the process holding it, observable no other
+ * way. Finalize deliberately uses the plain read instead, because a browser
+ * that finished its upload just before the window closed has bytes in storage
+ * and a legitimate finalize to make, and the size check ahead of it is what
+ * decides whether those bytes are really there.
  *
  * Persistence: media_jobs only.
  *
@@ -96,10 +111,10 @@ export interface MediaJobService {
   markSucceeded(jobId: string, mediaId: string): void;
   markFailed(jobId: string, errorMessage: string, maxRetries: number): MarkFailedResult;
   getJobForAdmin(jobId: string, adminMemberId: string): MediaJobRow | null;
+  getJobStatusForAdmin(jobId: string, adminMemberId: string): MediaJobRow | null;
   recoverOrphanedProcessingJobs(nowIso: string): RecoverResult;
-  findRetryEligiblePendingTranscode(): MediaJobRow[];
+  findDispatchablePendingTranscode(): MediaJobRow[];
   markAbandoned(jobId: string): void;
-  findExpiredPendingUploads(nowIso: string): MediaJobRow[];
 }
 
 export function createMediaJobService(): MediaJobService {
@@ -209,6 +224,35 @@ export function createMediaJobService(): MediaJobService {
       return row ?? null;
     },
 
+    getJobStatusForAdmin(jobId, adminMemberId) {
+      const row = mediaJobs.findByIdForAdmin.get(jobId, adminMemberId) as
+        | MediaJobRow
+        | undefined;
+      if (!row) return null;
+      // A row still waiting on the browser past its upload window is an upload
+      // that is not coming: the grants it was signed for no longer open, so no
+      // further bytes can arrive under those keys and no finalize will follow.
+      // Reconciling it when the state is asked for keeps the single scan of
+      // this table the one that has to be a scan, the expired-lease pass,
+      // whose subject is a claim that outlived the process holding it and can
+      // therefore be observed no other way. This one has a reader by
+      // definition, so it needs no pass of its own. The transition is guarded
+      // on the state it expects, so two readers racing make one write and
+      // agree on the answer.
+      if (
+        row.state === 'pending_upload' &&
+        row.expires_at !== null &&
+        row.expires_at <= new Date().toISOString()
+      ) {
+        mediaJobs.markAbandoned.run(new Date().toISOString(), SYSTEM_ACTOR, jobId);
+        const reconciled = mediaJobs.findByIdForAdmin.get(jobId, adminMemberId) as
+          | MediaJobRow
+          | undefined;
+        return reconciled ?? null;
+      }
+      return row;
+    },
+
     recoverOrphanedProcessingJobs(nowIso) {
       const candidates = mediaJobs.selectOrphanedProcessing.all(nowIso) as MediaJobRow[];
       const recoveredIds: string[] = [];
@@ -225,17 +269,13 @@ export function createMediaJobService(): MediaJobService {
       return { recoveredIds };
     },
 
-    findRetryEligiblePendingTranscode() {
-      return mediaJobs.selectRetryEligiblePendingTranscode.all() as MediaJobRow[];
+    findDispatchablePendingTranscode() {
+      return mediaJobs.selectDispatchablePendingTranscode.all() as MediaJobRow[];
     },
 
     markAbandoned(jobId) {
       const now = new Date().toISOString();
       mediaJobs.markAbandoned.run(now, SYSTEM_ACTOR, jobId);
-    },
-
-    findExpiredPendingUploads(nowIso) {
-      return mediaJobs.selectExpiredPendingUploads.all(nowIso) as MediaJobRow[];
     },
   };
 }

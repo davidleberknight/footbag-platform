@@ -1518,50 +1518,68 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       const posterDisplayKey = `${systemMemberId}/detached/${mediaId}-poster-display.jpg`;
       const posterThumbKey = `${systemMemberId}/detached/${mediaId}-poster-thumb.jpg`;
 
-      // Slot-1 semaphore prevents two concurrent finalize calls from OOMing
-      // the host. Single dispatch endpoint + slot-1 semaphore is belt-and-
-      // suspenders against accidental double-dispatch.
-      await transcodeBound.acquire();
-      let processed: Awaited<ReturnType<ImageProcessingAdapter['processPhoto']>>;
-      let transcoded: Awaited<ReturnType<ReturnType<typeof videoTranscoder>['transcodeFromStorage']>>;
-      try {
-        [transcoded, processed] = await Promise.all([
-          videoTranscoder().transcodeFromStorage(job.source_video_key, videoKey),
-          rejectImageAsValidation(imageProcessor.processPhoto(posterBuffer)),
-        ]);
-      } finally {
-        transcodeBound.release();
-      }
-      const videoMime = `video/${transcoded.outputFormat}`;
-
-      // Video object already at videoKey from transcodeFromStorage; only the
-      // poster derivatives are uploaded by this process.
-      await storage.put(posterDisplayKey, processed.display);
-      await storage.put(posterThumbKey, processed.thumb);
-
-      const now = new Date().toISOString();
-      const thumbnailUrl = storage.constructURL(posterDisplayKey);
-
+      // Everything between the encode starting and the row committing can
+      // leave objects behind. The transcode writes the encoded video straight
+      // to its final key and the two poster derivatives are uploaded before
+      // the row that references them exists, and none of those three keys sit
+      // under the pending prefix the lifecycle rule expires. A retry mints a
+      // fresh media id and therefore fresh keys, so anything a failure leaves
+      // here is referenced by nothing and expires never. Delete what may have
+      // been written, best effort, and let the original failure propagate.
       let appliedTagIds: string[] = [];
-      transaction(() => {
-        media.insertCuratorVideo.run(
-          mediaId, now, now,
-          systemMemberId, job.caption, now,
-          videoKey, thumbnailUrl,
-          processed.widthPx, processed.heightPx,
-          job.source_filename, videoMime,
-        );
-        appliedTagIds = applyTagsForCurator(mediaId, tags, now);
-        appendAuditEntry({
-          actionType: 'media.curated_uploaded',
-          category: 'media',
-          actorType: 'admin',
-          actorMemberId: job.admin_member_id,
-          entityType: 'media_item',
-          entityId: mediaId,
-          metadata: { mediaType: 'video', tags, mediaJobId: job.id },
+      try {
+        // Slot-1 semaphore prevents two concurrent finalize calls from OOMing
+        // the host. Single dispatch endpoint + slot-1 semaphore is belt-and-
+        // suspenders against accidental double-dispatch.
+        await transcodeBound.acquire();
+        let processed: Awaited<ReturnType<ImageProcessingAdapter['processPhoto']>>;
+        let transcoded: Awaited<ReturnType<ReturnType<typeof videoTranscoder>['transcodeFromStorage']>>;
+        try {
+          [transcoded, processed] = await Promise.all([
+            videoTranscoder().transcodeFromStorage(job.source_video_key, videoKey),
+            rejectImageAsValidation(imageProcessor.processPhoto(posterBuffer)),
+          ]);
+        } finally {
+          transcodeBound.release();
+        }
+        const videoMime = `video/${transcoded.outputFormat}`;
+
+        // Video object already at videoKey from transcodeFromStorage; only the
+        // poster derivatives are uploaded by this process.
+        await storage.put(posterDisplayKey, processed.display);
+        await storage.put(posterThumbKey, processed.thumb);
+
+        const now = new Date().toISOString();
+        const thumbnailUrl = storage.constructURL(posterDisplayKey);
+
+        const shaped = processed;
+        transaction(() => {
+          media.insertCuratorVideo.run(
+            mediaId, now, now,
+            systemMemberId, job.caption, now,
+            videoKey, thumbnailUrl,
+            shaped.widthPx, shaped.heightPx,
+            job.source_filename, videoMime,
+          );
+          appliedTagIds = applyTagsForCurator(mediaId, tags, now);
+          appendAuditEntry({
+            actionType: 'media.curated_uploaded',
+            category: 'media',
+            actorType: 'admin',
+            actorMemberId: job.admin_member_id,
+            entityType: 'media_item',
+            entityId: mediaId,
+            metadata: { mediaType: 'video', tags, mediaJobId: job.id },
+          });
         });
-      });
+      } catch (err) {
+        await Promise.all([
+          storage.delete(videoKey).catch(() => undefined),
+          storage.delete(posterDisplayKey).catch(() => undefined),
+          storage.delete(posterThumbKey).catch(() => undefined),
+        ]);
+        throw err;
+      }
       hashtagDiscoveryService.incrementTagStats(appliedTagIds);
 
       // Best-effort cleanup of pending sources. S3 lifecycle on the pending/
@@ -1579,7 +1597,9 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
      * (source video + poster). The browser PUTs the bytes directly to storage
      * with these URLs, so large source bytes never traverse nginx or
      * CloudFront. Adapter access stays inside the service; the controller owns
-     * only request validation and the media-job row.
+     * only request validation and the media-job row. The per-actor
+     * curator-write throttle for this path sits on the job row the same call
+     * creates, so signing is gated once rather than twice.
      */
     async signCuratorUploadTargets(input: {
       sourceVideoKey: string;

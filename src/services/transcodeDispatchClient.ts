@@ -22,8 +22,21 @@ export class TranscodeDispatchError extends Error {
   }
 }
 
-export function createTranscodeDispatchClient(): TranscodeDispatchClient {
+/**
+ * Ceiling on the dispatch push. The worker claims the row and answers 202
+ * before it starts any work, so a healthy dispatch returns in milliseconds and
+ * this only ever fires on a worker that accepted the connection and then went
+ * quiet. Without it the admin's finalize request stays open on that worker for
+ * as long as the proxy chain allows, which reads to the admin as a hung upload
+ * rather than a worker fault.
+ */
+const DISPATCH_TIMEOUT_MS = 10_000;
+
+export function createTranscodeDispatchClient(
+  opts: { timeoutMs?: number } = {},
+): TranscodeDispatchClient {
   const url = `${config.workerInternalUrl.replace(/\/$/, '')}/transcode/dispatch`;
+  const timeoutMs = opts.timeoutMs ?? DISPATCH_TIMEOUT_MS;
   return {
     async dispatch(jobId: string): Promise<void> {
       const secret = config.internalEventSecret;
@@ -32,6 +45,8 @@ export function createTranscodeDispatchClient(): TranscodeDispatchClient {
           'INTERNAL_EVENT_SECRET not configured; cannot dispatch to worker',
         );
       }
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
       let res: Response;
       try {
         res = await fetch(url, {
@@ -41,10 +56,18 @@ export function createTranscodeDispatchClient(): TranscodeDispatchClient {
             'x-internal-secret': secret,
           },
           body: JSON.stringify({ jobId }),
+          signal: controller.signal,
         });
       } catch (err) {
+        if ((err as { name?: string })?.name === 'AbortError') {
+          throw new TranscodeDispatchError(
+            `worker dispatch timed out after ${timeoutMs}ms`,
+          );
+        }
         const msg = err instanceof Error ? err.message : String(err);
         throw new TranscodeDispatchError(`worker dispatch transport failure: ${msg}`);
+      } finally {
+        clearTimeout(timer);
       }
       if (!res.ok) {
         const body = await res.text().catch(() => '');

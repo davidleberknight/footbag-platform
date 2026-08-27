@@ -309,14 +309,15 @@ describe('recoverOrphanedProcessingJobs', () => {
   });
 });
 
-describe('findRetryEligiblePendingTranscode', () => {
-  it('returns parked retry rows but never fresh pending_transcode rows', () => {
-    // A fresh pending_transcode row (retry_count 0) is awaiting its normal
-    // finalize dispatch and must not be hijacked by boot recovery; a parked
-    // row (retry_count > 0) was failed retryably and has no dispatcher left.
+describe('findDispatchablePendingTranscode', () => {
+  it('returns every row awaiting transcode, whether or not it has been attempted', () => {
+    // Both kinds have source bytes in storage and no process working on them.
+    // A row that was failed retryably lost its dispatcher to a crash; a row
+    // that has never been attempted lost its dispatch push to an unreachable
+    // worker. Nothing else covers either one, so boot recovery covers both.
     const svc = createMediaJobService();
-    const fresh = svc.createPendingUploadJob(makeInput({ sourceVideoKey: 'pending/fresh/source.mp4' })).id;
-    svc.markPendingTranscode(fresh, adminId);
+    const neverAttempted = svc.createPendingUploadJob(makeInput({ sourceVideoKey: 'pending/fresh/source.mp4' })).id;
+    svc.markPendingTranscode(neverAttempted, adminId);
 
     const parked = svc.createPendingUploadJob(makeInput({ sourceVideoKey: 'pending/parked/source.mp4' })).id;
     svc.markPendingTranscode(parked, adminId);
@@ -324,33 +325,96 @@ describe('findRetryEligiblePendingTranscode', () => {
     const r = svc.markFailed(parked, 'transient failure', 3);
     expect(r.state).toBe('pending_transcode');
 
-    const rows = svc.findRetryEligiblePendingTranscode();
-    expect(rows.map((row) => row.id)).toEqual([parked]);
+    const rows = svc.findDispatchablePendingTranscode();
+    expect(rows.map((row) => row.id).sort()).toEqual([neverAttempted, parked].sort());
+  });
+
+  it('excludes rows that are not awaiting transcode', () => {
+    const svc = createMediaJobService();
+    const stillUploading = svc.createPendingUploadJob(makeInput({ sourceVideoKey: 'pending/uploading/source.mp4' })).id;
+
+    const claimed = svc.createPendingUploadJob(makeInput({ sourceVideoKey: 'pending/claimed/source.mp4' })).id;
+    svc.markPendingTranscode(claimed, adminId);
+    svc.claimForProcessing(claimed, '2099-01-01T00:00:00.000Z');
+
+    const rows = svc.findDispatchablePendingTranscode().map((row) => row.id);
+    expect(rows).not.toContain(stillUploading);
+    expect(rows).not.toContain(claimed);
   });
 });
 
-describe('markAbandoned and findExpiredPendingUploads', () => {
-  it('finds pending_upload rows past expires_at and marks them abandoned', () => {
+describe('markAbandoned', () => {
+  it('marks a row still waiting on the browser as abandoned', () => {
     const svc = createMediaJobService();
-    const fresh = svc.createPendingUploadJob(makeInput({ expiresAtIso: '2099-01-01T00:00:00.000Z' }));
-    const stale = svc.createPendingUploadJob(makeInput({ expiresAtIso: '2024-01-01T00:00:00.000Z' }));
-
-    const expired = svc.findExpiredPendingUploads('2026-01-01T00:00:00.000Z');
-    expect(expired.map((r) => r.id)).toEqual([stale.id]);
-
-    svc.markAbandoned(stale.id);
-    const staleRow = readRow(stale.id);
-    expect(staleRow?.state).toBe('abandoned');
-    const freshRow = readRow(fresh.id);
-    expect(freshRow?.state).toBe('pending_upload');
+    const { id } = svc.createPendingUploadJob(makeInput());
+    svc.markAbandoned(id);
+    expect(readRow(id)?.state).toBe('abandoned');
   });
 
-  it('markAbandoned is a no-op on rows past pending_upload', () => {
+  it('is a no-op on rows past pending_upload', () => {
     const svc = createMediaJobService();
     const { id } = svc.createPendingUploadJob(makeInput());
     svc.markPendingTranscode(id, adminId);
     svc.markAbandoned(id);
     const row = readRow(id);
     expect(row?.state).toBe('pending_transcode');
+  });
+});
+
+/**
+ * The status read reconciles one thing the state machine cannot learn any
+ * other way from an event: an upload the browser never finished. The grants it
+ * was signed for stop opening at the recorded moment, so no further bytes and
+ * no finalize can follow, and the row would otherwise say it is still
+ * uploading for as long as it exists.
+ */
+describe('getJobStatusForAdmin', () => {
+  it('reconciles a row whose upload window has closed to abandoned', () => {
+    const svc = createMediaJobService();
+    const { id } = svc.createPendingUploadJob(makeInput({ expiresAtIso: '2024-01-01T00:00:00.000Z' }));
+
+    const job = svc.getJobStatusForAdmin(id, adminId);
+    expect(job?.state).toBe('abandoned');
+    // Reconciled on the row itself, not only in what this call returned.
+    expect(readRow(id)?.state).toBe('abandoned');
+  });
+
+  it('leaves a row whose window is still open alone', () => {
+    const svc = createMediaJobService();
+    const { id } = svc.createPendingUploadJob(makeInput({ expiresAtIso: '2099-01-01T00:00:00.000Z' }));
+
+    expect(svc.getJobStatusForAdmin(id, adminId)?.state).toBe('pending_upload');
+    expect(readRow(id)?.state).toBe('pending_upload');
+  });
+
+  it('never reconciles a row that is past waiting on the browser', () => {
+    const svc = createMediaJobService();
+    const { id } = svc.createPendingUploadJob(makeInput({ expiresAtIso: '2024-01-01T00:00:00.000Z' }));
+    svc.markPendingTranscode(id, adminId);
+
+    expect(svc.getJobStatusForAdmin(id, adminId)?.state).toBe('pending_transcode');
+    expect(readRow(id)?.state).toBe('pending_transcode');
+  });
+
+  it('keeps the owner scoping of the plain read: another admin sees nothing', () => {
+    const svc = createMediaJobService();
+    const { id } = svc.createPendingUploadJob(makeInput({ expiresAtIso: '2024-01-01T00:00:00.000Z' }));
+
+    expect(svc.getJobStatusForAdmin(id, 'member-someone-else')).toBeNull();
+    // And the row another admin could not see was not reconciled on their behalf.
+    expect(readRow(id)?.state).toBe('pending_upload');
+  });
+
+  it('leaves the finalize path reading the unreconciled row, so a late finish still completes', () => {
+    // An upload that finished just before its window closed has bytes in
+    // storage and a legitimate finalize to make. The plain read finalize uses
+    // must not reconcile the row out from under it.
+    const svc = createMediaJobService();
+    const { id } = svc.createPendingUploadJob(makeInput({ expiresAtIso: '2024-01-01T00:00:00.000Z' }));
+
+    expect(svc.getJobForAdmin(id, adminId)?.state).toBe('pending_upload');
+    expect(readRow(id)?.state).toBe('pending_upload');
+    svc.markPendingTranscode(id, adminId);
+    expect(readRow(id)?.state).toBe('pending_transcode');
   });
 });

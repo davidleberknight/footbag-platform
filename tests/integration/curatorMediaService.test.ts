@@ -2195,6 +2195,46 @@ describe('curatorMediaService.finalizeTranscodeForJob', () => {
     } finally { db.close(); }
   });
 
+  it('deletes the objects it wrote when the upload fails before the media row is committed', async () => {
+    // The encoded video and the two poster derivatives are written to their
+    // final keys before the row that references them exists, and those keys
+    // sit outside the prefix whose lifecycle rule expires abandoned bytes. A
+    // retry mints a new media id and new keys, so anything left behind here is
+    // referenced by nothing and is never collected.
+    const storage = makeStubStorage();
+    await storage.put('pending/job-orphan/source.mp4', makeFakeMp4());
+    await storage.put('pending/job-orphan/source-poster.jpg', await makeJpegBuffer());
+    storage.puts.length = 0;
+    storage.deletes.length = 0;
+    // Fail the last of the three output uploads: by then the encoded video and
+    // the display poster are already written.
+    storage.failOnNthPut = 2;
+
+    const svc = svcModule.createCuratorMediaService({
+      storage, imageProcessor: makeStubImageProcessor(), videoTranscoder: fakeTranscoder(storage),
+    });
+    const job = makeJobRow({
+      id: 'mediajob_orphan',
+      source_video_key: 'pending/job-orphan/source.mp4',
+      source_poster_key: 'pending/job-orphan/source-poster.jpg',
+      source_filename: 'clip-orphan.mp4',
+    });
+
+    await expect(svc.finalizeTranscodeForJob(job)).rejects.toThrow(/stub storage failure/);
+
+    const videoKey = storage.puts.map((p) => p.key).find((k) => k.endsWith('-video.mp4'));
+    expect(videoKey).toBeDefined();
+    const mediaId = videoKey!.split('/').pop()!.replace('-video.mp4', '');
+    expect(storage.deletes).toContain(videoKey);
+    expect(storage.deletes.some((k) => k.endsWith(`${mediaId}-poster-display.jpg`))).toBe(true);
+    expect(storage.deletes.some((k) => k.endsWith(`${mediaId}-poster-thumb.jpg`))).toBe(true);
+    expect(await storage.exists(videoKey!)).toBe(false);
+    // The sources are untouched: nothing succeeded, and the pending prefix's
+    // own expiry owns them either way.
+    expect(storage.deletes).not.toContain('pending/job-orphan/source.mp4');
+    expect(storage.deletes).not.toContain('pending/job-orphan/source-poster.jpg');
+  });
+
   it('parses space-separated tags and applies them', async () => {
     const storage = makeStubStorage();
     await storage.put('pending/job-finalize-tags/source.mp4', makeFakeMp4());

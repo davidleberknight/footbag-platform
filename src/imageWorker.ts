@@ -467,6 +467,12 @@ export function createImageWorkerApp(opts: ImageWorkerOptions = {}): express.Exp
       }
 
       try {
+        // Read the floor again, now that the slot is held and the encode is
+        // the very next thing to happen. The reading taken at the top of this
+        // request was before the source download, which on a large clip is
+        // minutes and a whole other tenant's workload ago, and admitting an
+        // encode on a stale reading is the one thing the floor exists to stop.
+        if (refuseIfHostMemoryLow(res)) return;
         const result = await transcodeVideoFileFn(inputPath, outputPath, videoTuning);
         const { size } = await stat(outputPath);
         // Explicit Content-Length: undici omits it for stream bodies, and a

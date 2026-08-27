@@ -389,6 +389,35 @@ ensure_swapfile() {
 }
 ensure_swapfile
 
+# The instances ship with a compressed in-RAM swap device, and the vendor
+# generator gives it priority 100 against the disk swapfile's -2. Every page
+# therefore goes to the compressed device first and the disk valve provisioned
+# above never sees one. On a small host that is the wrong shape twice over: the
+# compressed store occupies RAM in proportion to what it holds, so under
+# pressure it grows into the memory it is meant to be relieving, and the bytes
+# video work moves do not compress, so what it holds is close to what it costs.
+# Production has room to spare and never reaches that point, so this is scoped
+# to everything else, leaving production on the vendor default.
+#
+# Disabling is what the vendor generator itself documents: an empty override
+# file suppresses the device. Deliberately NOT swapoff, which is why this only
+# takes effect at the next boot: the device holds live anonymous pages, and
+# paging them back into a host with less free memory than they occupy is the
+# exact starvation this exists to prevent.
+ensure_zram_disabled() {
+  if [[ "$FOOTBAG_ENV" == "production" ]]; then
+    return 0
+  fi
+  if [[ -f /etc/systemd/zram-generator.conf && ! -s /etc/systemd/zram-generator.conf ]]; then
+    echo "==> Compressed in-RAM swap already suppressed for the next boot"
+    return 0
+  fi
+  echo "==> Suppressing the compressed in-RAM swap device (takes effect at next boot)..."
+  : > /etc/systemd/zram-generator.conf
+  chmod 644 /etc/systemd/zram-generator.conf
+}
+ensure_zram_disabled
+
 # Sync X_ORIGIN_VERIFY_SECRET from SSM to /srv/footbag/env. Both the value
 # CloudFront injects (via data.aws_ssm_parameter.origin_verify_secret) and the
 # value nginx compares against (rendered into /etc/nginx/nginx.conf by

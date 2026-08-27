@@ -26,8 +26,14 @@ resource "aws_sns_topic_policy" "alarms" {
         Sid       = "OwnerFullAccess"
         Effect    = "Allow"
         Principal = { AWS = "arn:aws:iam::${var.aws_account_id}:root" }
-        Action    = "SNS:*"
-        Resource  = aws_sns_topic.alarms.arn
+        # Enumerated rather than a wildcard: SNS validates every action in a
+        # topic policy against its own list and rejects `SNS:*` outright with
+        # "Policy statement action out of service scope", so a wildcard here
+        # fails the apply rather than granting broadly. This is the same set the
+        # default topic policy grants the owner, which is what this statement
+        # restores after attaching a policy replaces that default.
+        Action   = local.sns_owner_actions
+        Resource = aws_sns_topic.alarms.arn
       },
       {
         Sid       = "AllowCloudWatchPublish"

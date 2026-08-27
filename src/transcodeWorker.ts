@@ -220,16 +220,14 @@ export function createTranscodeWorker(opts: TranscodeWorkerOptions = {}): Transc
       let busyWaits = 0;
       while (current) {
         const attempt = current;
+        // Only the encode itself is guarded here. The bookkeeping that follows
+        // a finished encode is deliberately outside this block: finalize
+        // commits the media row and its audit entry before it returns, so a
+        // failure recording that outcome is not a transcode failure and must
+        // never be reported to the curator as one.
+        let result: { mediaId: string };
         try {
-          const result = await finalize(attempt);
-          mediaJobs.markSucceeded(attempt.id, result.mediaId);
-          await postEvent({
-            jobId: attempt.id,
-            state: 'succeeded',
-            mediaId: result.mediaId,
-            occurredAtIso: nowIso(),
-          });
-          return;
+          result = await finalize(attempt);
         } catch (err) {
           // A busy answer from the media worker (slot taken, or the host is
           // below its memory admission floor) is pressure, not failure: wait
@@ -306,7 +304,35 @@ export function createTranscodeWorker(opts: TranscodeWorkerOptions = {}): Transc
           current = mediaJobs.claimForProcessing(attempt.id, leaseExpiresAt());
           // A null claim means another dispatcher won the row; it finishes
           // there, not here.
+          continue;
         }
+
+        // The encode finished and the media row, its tags and its audit entry
+        // are committed. Recording that on the job row can still fail, because
+        // the transition refuses a row that is no longer processing, which is
+        // what a reclaimed lease leaves behind. That is an operator's problem
+        // and not the curator's: their upload exists and is openable, so the
+        // event tells them so and the failure to record it is logged for
+        // someone who can reconcile the row.
+        try {
+          mediaJobs.markSucceeded(attempt.id, result.mediaId);
+        } catch (bookkeepingErr) {
+          logger.error('transcodeWorker: could not record a finished job as succeeded', {
+            jobId: attempt.id,
+            mediaId: result.mediaId,
+            error:
+              bookkeepingErr instanceof Error
+                ? bookkeepingErr.message
+                : String(bookkeepingErr),
+          });
+        }
+        await postEvent({
+          jobId: attempt.id,
+          state: 'succeeded',
+          mediaId: result.mediaId,
+          occurredAtIso: nowIso(),
+        });
+        return;
       }
     } finally {
       if (acquired) semaphore.release();
@@ -415,17 +441,22 @@ export function createTranscodeWorker(opts: TranscodeWorkerOptions = {}): Transc
 
   async function recoverOnBoot(): Promise<{ reclaimedIds: string[] }> {
     const orphanReclaims = await reapExpiredProcessing();
-    // Parked retries: rows a previous process failed retryably and then
-    // crashed or shut down before re-claiming. Boot-only: during steady state
-    // the in-process retry loop re-claims a parked row itself, and a recurring
+    // Every row still awaiting transcode: one a previous process failed
+    // retryably and then crashed before re-claiming, and one whose dispatch
+    // push never arrived because the worker was unreachable when the browser
+    // finalized. The second kind has been attempted zero times and no other
+    // pass covers it — the recurring reap looks only at claimed rows with dead
+    // leases — so without this it waits forever while its status page says the
+    // transcode is about to start. Boot-only: during steady state the
+    // in-process retry loop re-claims a parked row itself, and a recurring
     // pass could race it. The guarded claim keeps a row that the orphan pass
     // already reclaimed from being dispatched twice.
-    const parkedRetryIds = mediaJobs
-      .findRetryEligiblePendingTranscode()
+    const awaitingTranscodeIds = mediaJobs
+      .findDispatchablePendingTranscode()
       .map((row) => row.id)
       .filter((id) => !orphanReclaims.reclaimedIds.includes(id));
     const reclaimedIds = [...orphanReclaims.reclaimedIds];
-    for (const id of parkedRetryIds) {
+    for (const id of awaitingTranscodeIds) {
       const claimed = mediaJobs.claimForProcessing(id, leaseExpiresAt());
       if (!claimed) continue;
       reclaimedIds.push(id);

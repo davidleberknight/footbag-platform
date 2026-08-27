@@ -22,6 +22,12 @@ let adminId: string;
 beforeAll(async () => {
   const db = createTestDb(dbPath);
   adminId = insertMember(db, { id: 'member-twk-admin', is_admin: 1 });
+  // The media row a finished encode points the job at. Recording success
+  // carries a foreign key to it, so a suite whose finalize returns an id with
+  // no row behind it is testing the bookkeeping failure rather than whatever
+  // it meant to test.
+  insertMediaItem(db, { id: 'media_default', uploader_member_id: adminId });
+  insertMediaItem(db, { id: 'media_double_001', uploader_member_id: adminId });
   db.close();
   const svcMod = await import('../../src/services/mediaJobService');
   const wkMod = await import('../../src/transcodeWorker');
@@ -172,7 +178,6 @@ describe('POST /transcode/dispatch — happy path', () => {
   });
 
   it('cannot be double-claimed: second dispatch returns 409', async () => {
-    expectLoggedError('transcodeWorker: finalize failed');
     const events: CapturedEvent[] = [];
     let resolveFinalize: (() => void) | null = null;
     const w = makeWorker({
@@ -225,6 +230,40 @@ describe('POST /transcode/dispatch — failure path', () => {
 
     const failed = events.find((e) => e.state === 'failed');
     expect(failed?.errorMessage).toBe('synthetic transcode failure');
+  });
+
+  it('reports a finished encode as succeeded even when the job row can no longer record it', async () => {
+    // The media row, its tags and its audit entry are committed before
+    // finalize returns. Recording that on the job row can still be refused,
+    // because the transition takes only a row that is still processing and a
+    // reclaimed lease leaves one that is not. The curator's upload exists and
+    // is openable either way, so telling them it failed would be false; the
+    // unrecorded outcome is an operator's problem and is logged as one.
+    expectLoggedError('transcodeWorker: could not record a finished job as succeeded');
+    const events: CapturedEvent[] = [];
+    seedMediaItem('media_bookkeeping_001');
+    const w = makeWorker({
+      finalize: async (job) => {
+        // Take the row out from under the pending transition, the way an
+        // expired lease reclaimed by the recurring pass would.
+        createMediaJobService().markFailed(job.id, 'lease reclaimed underneath', 3);
+        return { mediaId: 'media_bookkeeping_001' };
+      },
+      events,
+      maxRetries: 3,
+    });
+    const jobId = seedPendingTranscode();
+
+    await request(w.app)
+      .post('/transcode/dispatch')
+      .set('x-internal-secret', SECRET)
+      .send({ jobId });
+    await w.pendingForTests();
+
+    expect(events.map((e) => e.state)).toContain('succeeded');
+    expect(events.map((e) => e.state)).not.toContain('failed');
+    const succeeded = events.find((e) => e.state === 'succeeded');
+    expect(succeeded?.mediaId).toBe('media_bookkeeping_001');
   });
 });
 
@@ -361,16 +400,21 @@ describe('recoverOnBoot', () => {
     expect(row?.state).toBe('succeeded');
   });
 
-  it('does not hijack fresh pending_transcode rows that await their normal dispatch', async () => {
+  it('re-enqueues a row awaiting transcode that has never been attempted', async () => {
+    // The shape a failed dispatch push leaves behind: the browser uploaded
+    // both source objects and finalized, the push to the worker did not get
+    // through, and the row sits awaiting a transcode with no attempt against
+    // it. The recurring expired-lease pass never looks at it, because it was
+    // never claimed, so boot recovery is the only thing that can collect it.
     const jobId = seedPendingTranscode();
 
     const w = makeWorker({});
     const result = await w.recoverOnBoot();
-    expect(result.reclaimedIds).toEqual([]);
+    expect(result.reclaimedIds).toEqual([jobId]);
 
+    await w.pendingForTests();
     const row = readRow(jobId);
-    expect(row?.state).toBe('pending_transcode');
-    expect(row?.retry_count).toBe(0);
+    expect(row?.state).toBe('succeeded');
   });
 });
 

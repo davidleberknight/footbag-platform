@@ -32,9 +32,22 @@
 #                     refuses every delivery, which reads as a quiet feed rather
 #                     than a broken one -- which is exactly why it is set here
 #                     rather than remembered.
+#   SES_FROM_IDENTITY the address every outbound message is sent as. It has to
+#                     be the identity SES has actually verified, which is not
+#                     always the canonical one: the canonical address cannot be
+#                     verified until mail for the domain is reachable, so an
+#                     interim identity carries sending until then. Set to the
+#                     canonical address early and nothing warns you, because the
+#                     application stamps it onto every outbox row at enqueue and
+#                     the refusal arrives later, at the drain, as an
+#                     authorization error naming a resource rather than a sender.
+#                     verify-host-env.sh has always compared this against the
+#                     Terraform sender identity, but nothing wrote it from there,
+#                     so the two could disagree for as long as the mail adapter
+#                     stayed stubbed and that comparison stayed dormant.
 #
-# The bucket name and both ARNs are read from Terraform outputs rather than
-# typed, so they cannot drift from what actually exists.
+# The bucket name, both ARNs and the sender identity are read from Terraform
+# outputs rather than typed, so they cannot drift from what actually exists.
 #
 # Usage (the sudo password is read from stdin, line 1):
 #   < <operator credential file> bash scripts/set-host-env.sh --target production --profile <prod-profile>
@@ -132,6 +145,9 @@ if [[ -n "$ENV_FILE_OVERRIDE" ]]; then
   # have not been created yet reads no feed, which is inert rather than wrong.
   ALARM_QUEUE_VALUE="${ALARM_QUEUE_URL_VALUE:-}"
   SES_QUEUE_VALUE="${SES_FEEDBACK_QUEUE_URL_VALUE:-}"
+  # Optional in this mode alone, so a fixture that predates this value still
+  # exercises the rewrite. The real path below requires it.
+  SES_SENDER_VALUE="${SES_FROM_IDENTITY_VALUE:-}"
 else
   # The bucket name is whatever Terraform actually built. Reading it rather than
   # accepting one typed in is the difference between a timer that uploads and
@@ -172,6 +188,17 @@ else
   # removed stops polling one that no longer exists.
   ALARM_QUEUE_VALUE="$("${TF_ENV[@]}" terraform -chdir="${REPO_ROOT}/terraform/${TARGET}" output -raw alarm_queue_url 2>/dev/null || true)"
   SES_QUEUE_VALUE="$("${TF_ENV[@]}" terraform -chdir="${REPO_ROOT}/terraform/${TARGET}" output -raw ses_feedback_queue_url 2>/dev/null || true)"
+  # Required, like the ARNs and unlike the queue URLs: a host with no sender
+  # cannot boot the live adapter at all, and a host with the wrong one accepts
+  # every message and fails every send.
+  if ! SES_SENDER_VALUE="$("${TF_ENV[@]}" terraform -chdir="${REPO_ROOT}/terraform/${TARGET}" output -raw ses_sender_identity 2>/dev/null)"; then
+    echo "ERROR: could not read ses_sender_identity from terraform/${TARGET}." >&2
+    exit 1
+  fi
+  if [[ -z "$SES_SENDER_VALUE" ]]; then
+    echo "ERROR: the ses_sender_identity output resolved empty for ${TARGET}." >&2
+    exit 1
+  fi
 fi
 
 echo "== set-host-env: ${TARGET} =="
@@ -183,6 +210,7 @@ echo "  ALARM_TOPIC_ARN=${ALARM_TOPIC_VALUE}"
 echo "  SES_FEEDBACK_TOPIC_ARN=${SES_TOPIC_VALUE}"
 echo "  ALARM_QUEUE_URL=${ALARM_QUEUE_VALUE:-<none: this feed is not read here>}"
 echo "  SES_FEEDBACK_QUEUE_URL=${SES_QUEUE_VALUE:-<none: this feed is not read here>}"
+echo "  SES_FROM_IDENTITY=${SES_SENDER_VALUE:-<none: not supplied in this mode>}"
 echo ""
 
 if [[ "$DRY_RUN" == "1" ]]; then
@@ -234,8 +262,9 @@ fi
 # environment rather than argv, so nothing lands in the process table.
 TP_VALUE="$TRUST_PROXY_VALUE" BK_VALUE="$BUCKET_VALUE" \
 AT_VALUE="$ALARM_TOPIC_VALUE" ST_VALUE="$SES_TOPIC_VALUE" \
-AQ_VALUE="${ALARM_QUEUE_VALUE:-}" SQ_VALUE="${SES_QUEUE_VALUE:-}" awk '
-  BEGIN { seen_tp = 0; seen_bk = 0; seen_at = 0; seen_st = 0; seen_aq = 0; seen_sq = 0 }
+AQ_VALUE="${ALARM_QUEUE_VALUE:-}" SQ_VALUE="${SES_QUEUE_VALUE:-}" \
+SI_VALUE="${SES_SENDER_VALUE:-}" awk '
+  BEGIN { seen_tp = 0; seen_bk = 0; seen_at = 0; seen_st = 0; seen_aq = 0; seen_sq = 0; seen_si = 0 }
   /^TRUST_PROXY=/ {
     if (!seen_tp) { print "TRUST_PROXY=" ENVIRON["TP_VALUE"]; seen_tp = 1 }
     next
@@ -260,6 +289,17 @@ AQ_VALUE="${ALARM_QUEUE_VALUE:-}" SQ_VALUE="${SES_QUEUE_VALUE:-}" awk '
     if (!seen_sq) { print "SES_FEEDBACK_QUEUE_URL=" ENVIRON["SQ_VALUE"]; seen_sq = 1 }
     next
   }
+  /^SES_FROM_IDENTITY=/ {
+    if (!seen_si) {
+      # Left alone when this mode supplied no value, so a fixture that predates
+      # the sender identity keeps whatever it already carried rather than having
+      # it blanked. The real path always supplies one.
+      if (ENVIRON["SI_VALUE"] != "") { print "SES_FROM_IDENTITY=" ENVIRON["SI_VALUE"] }
+      else { print }
+      seen_si = 1
+    }
+    next
+  }
   { print }
   END {
     if (!seen_tp) print "TRUST_PROXY=" ENVIRON["TP_VALUE"]
@@ -274,6 +314,7 @@ AQ_VALUE="${ALARM_QUEUE_VALUE:-}" SQ_VALUE="${SES_QUEUE_VALUE:-}" awk '
     # what stops a host polling a queue that has since been removed.
     if (!seen_aq && ENVIRON["AQ_VALUE"] != "") print "ALARM_QUEUE_URL=" ENVIRON["AQ_VALUE"]
     if (!seen_sq && ENVIRON["SQ_VALUE"] != "") print "SES_FEEDBACK_QUEUE_URL=" ENVIRON["SQ_VALUE"]
+    if (!seen_si && ENVIRON["SI_VALUE"] != "") print "SES_FROM_IDENTITY=" ENVIRON["SI_VALUE"]
   }
 ' "$OLD_LOCAL" > "$NEW_LOCAL"
 

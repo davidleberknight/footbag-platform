@@ -920,6 +920,29 @@ describe('POST /process/video-from-storage', () => {
       expect(warned).toContain('below floor');
     });
 
+    it('refuses when the host fell below the floor while the source was downloading', async () => {
+      // The floor is read before the source download and again with the encode
+      // slot held. On a large clip those two moments are minutes apart, so
+      // admitting on the first reading alone admits on a number that stopped
+      // being true before ffmpeg ever started.
+      const readings = [512 * 1024 * 1024, 64 * 1024 * 1024];
+      const { fetchImpl, puts } = makeFakeFetch({ sources: { [SOURCE_URL]: makeFakeMp4() } });
+      const app = createImageWorkerApp({
+        internalSecret: TEST_SECRET,
+        fetchImpl,
+        transcodeVideoFileImpl: fileTranscodeStub(),
+        readMemAvailableBytesImpl: () => readings.shift() ?? 64 * 1024 * 1024,
+        minHostAvailableBytes: 128 * 1024 * 1024,
+      });
+      const res = await request(app)
+        .post('/process/video-from-storage')
+        .set('x-internal-secret', TEST_SECRET)
+        .send({ sourceUrl: SOURCE_URL, putUrl: PUT_URL, putContentType: 'video/mp4' });
+      expect(res.status).toBe(503);
+      expect(res.body.error).toMatch(/admission floor/);
+      expect(puts).toHaveLength(0);
+    });
+
     it('admits when host memory reads above the floor', async () => {
       const { app } = admissionApp({
         memAvailable: 512 * 1024 * 1024,

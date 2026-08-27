@@ -7173,23 +7173,15 @@ export const mediaJobs = {
     WHERE id = ? AND state = 'pending_upload'
   `); },
 
-  get selectExpiredPendingUploads() { return db.prepare(`
-    SELECT * FROM media_jobs
-    WHERE state = 'pending_upload'
-      AND expires_at IS NOT NULL
-      AND expires_at <= ?
-  `); },
-
   get selectOrphanedProcessing() { return db.prepare(`
     SELECT * FROM media_jobs
     WHERE state = 'processing'
       AND (lease_expires_at IS NULL OR lease_expires_at <= ?)
   `); },
 
-  get selectRetryEligiblePendingTranscode() { return db.prepare(`
+  get selectDispatchablePendingTranscode() { return db.prepare(`
     SELECT * FROM media_jobs
     WHERE state = 'pending_transcode'
-      AND retry_count > 0
   `); },
 
   get resetOrphanedToTranscode() { return db.prepare(`

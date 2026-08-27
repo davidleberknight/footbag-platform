@@ -69,19 +69,41 @@ send_one() {
 # Fail before sending rather than after: SES refuses an unverified sender with
 # an error that reads like a permissions problem, and the operator is left
 # guessing which of the two it is.
-SENDER_VERIFIED=$(
+#
+# Three outcomes here, not two, because reading an identity and sending as it
+# are authorized separately. This script must run as the runtime role, since
+# that is the principal production sends as, and that role deliberately grants
+# only the two send actions: reading an identity's verification status is not a
+# call the application makes, so it is not a permission the role carries. A
+# denied read therefore says nothing at all about the sender, and collapsing it
+# into "not verified" reintroduces the exact ambiguity this check exists to
+# remove — pointing the operator at a verification problem that does not exist
+# while the real one is a permission the role is not supposed to have.
+if SENDER_STATUS=$(
   aws sesv2 get-email-identity \
     --email-identity "$SENDER" \
     --region "$REGION" \
     --profile "$PROFILE" \
-    --query VerifiedForSendingStatus --output text 2>/dev/null
-) || SENDER_VERIFIED="absent"
-if [[ "$SENDER_VERIFIED" != "True" && "$SENDER_VERIFIED" != "true" ]]; then
-  echo "ERROR: sender '$SENDER' is not a verified SES identity in $REGION (status: $SENDER_VERIFIED)." >&2
-  echo "       Verify it, or pass --sender with the identity production is configured to send from." >&2
+    --query VerifiedForSendingStatus --output text 2>&1
+); then
+  if [[ "$SENDER_STATUS" != "True" && "$SENDER_STATUS" != "true" ]]; then
+    echo "ERROR: sender '$SENDER' is not a verified SES identity in $REGION (status: $SENDER_STATUS)." >&2
+    echo "       Verify it, or pass --sender with the identity production is configured to send from." >&2
+    exit 1
+  fi
+  echo "Sender identity: $SENDER (verified)"
+elif printf '%s' "$SENDER_STATUS" | grep -qiE 'accessdenied|not authorized'; then
+  echo "Sender identity: $SENDER (status not readable by this profile; sending anyway)"
+  echo "  The send principal grants sending only, so it cannot read an identity."
+  echo "  If a send below fails as though unauthorized, confirm the identity with"
+  echo "  a profile that can read it before suspecting the grant:"
+  echo "    aws sesv2 get-email-identity --email-identity $SENDER --region $REGION \\"
+  echo "      --profile <operator profile> --query VerifiedForSendingStatus"
+else
+  echo "ERROR: could not read the verification status of '$SENDER' in $REGION." >&2
+  printf '%s\n' "$SENDER_STATUS" | sed 's/^/       /' >&2
   exit 1
 fi
-echo "Sender identity: $SENDER (verified)"
 
 echo "Sending to mailbox simulator ($SIMULATOR)..."
 echo "  MessageId: $(send_one "$SIMULATOR")"

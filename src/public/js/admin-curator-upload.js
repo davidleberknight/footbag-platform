@@ -43,9 +43,36 @@
     try { data = JSON.parse(text); } catch (e) { data = null; }
     if (!res.ok) {
       var msg = (data && data.error) || ('HTTP ' + res.status);
-      throw new Error(msg);
+      var err = new Error(msg);
+      // Carried so a caller can tell a request that will never succeed on a
+      // repeat (a rejected file, a job that is not the caller's) from one that
+      // failed on something transient behind the server.
+      err.status = res.status;
+      throw err;
     }
     return data;
+  }
+
+  // The source bytes are already in storage by the time finalize runs, so a
+  // failure here must never send the admin back to pick the file again. A
+  // server-side fault is retried a few times; if it still cannot get through,
+  // the job stays queued and the browser goes to its status page rather than
+  // to the form, because the worker collects every job still awaiting
+  // transcode when it next starts. Only a fault the server owns is retried: a
+  // rejection of the upload itself repeats identically and is raised at once.
+  async function finalizeWithRetry(jobId) {
+    for (var attempt = 0; attempt < 3; attempt++) {
+      try {
+        return await fetchJson('/admin/curator/upload/finalize', { jobId: jobId });
+      } catch (err) {
+        if (!err || typeof err.status !== 'number' || err.status < 500) throw err;
+        await new Promise(function (resolve) { setTimeout(resolve, 2000); });
+      }
+    }
+    return {
+      statusUrl: '/admin/curator/upload/jobs/' + encodeURIComponent(jobId),
+      queued: true,
+    };
   }
 
   function putWithProgress(url, file, onProgress) {
@@ -183,8 +210,16 @@
         ]);
 
         setStatus(statusEl, 'Upload complete; queueing transcode…', 'info');
-        var fin = await fetchJson('/admin/curator/upload/finalize', { jobId: sign.jobId });
-        setStatus(statusEl, 'Transcode queued. Redirecting to status page…', 'success');
+        var fin = await finalizeWithRetry(sign.jobId);
+        if (fin.queued) {
+          setStatus(
+            statusEl,
+            'The media worker is not answering. Your video is uploaded and will transcode when the worker returns; opening its status page…',
+            'info',
+          );
+        } else {
+          setStatus(statusEl, 'Transcode queued. Redirecting to status page…', 'success');
+        }
         window.location.assign(fin.statusUrl);
       } catch (err) {
         setStatus(statusEl, 'Upload failed: ' + (err && err.message ? err.message : String(err)), 'error');

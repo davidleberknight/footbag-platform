@@ -1063,9 +1063,10 @@ export const adminCuratorController = {
    * success rather than 409, so a transient browser retry doesn't error.
    */
   async postFinalizeUpload(req: Request, res: Response, next: NextFunction): Promise<void> {
-    // No curator-write limit here: the abusable op (presigned PUT) is already gated at
-    // postSignUpload, and finalize is idempotent/retry-safe — throttling it would 429 a
-    // benign browser retry of an already-authorized, already-rate-limited upload.
+    // No curator-write limit here: signing already spent a slot in the per-actor
+    // curator-write bucket, and finalize is idempotent and retry-safe — throttling it
+    // would 429 a benign browser retry of an already-authorized, already-throttled
+    // upload, which is precisely the retry the stranded-dispatch path depends on.
     try {
       const adminMemberId = req.user!.userId;
       const jobId = String((req.body as Record<string, unknown> | undefined)?.jobId ?? '').trim();
@@ -1127,15 +1128,25 @@ export const adminCuratorController = {
         await getTranscodeDispatchClient().dispatch(jobId);
       } catch (err) {
         if (err instanceof TranscodeDispatchError) {
-          logger.error('finalize: worker dispatch failed', {
-            jobId,
-            error: err.message,
-            status: err.status,
-          });
-          res.status(502).json({ error: 'worker dispatch failed' });
-          return;
+          // The worker answers 409 when the row is no longer awaiting
+          // transcode, which is what a second finalize on an already-claimed
+          // job looks like from here. Nothing is wrong in that case: the job
+          // this call was asked to start is already running, so the caller is
+          // told the same thing the first call told it.
+          if (err.status === 409) {
+            logger.info('finalize: worker already claimed this job', { jobId });
+          } else {
+            logger.error('finalize: worker dispatch failed', {
+              jobId,
+              error: err.message,
+              status: err.status,
+            });
+            res.status(502).json({ error: 'worker dispatch failed' });
+            return;
+          }
+        } else {
+          throw err;
         }
-        throw err;
       }
 
       res.json({
@@ -1159,7 +1170,7 @@ export const adminCuratorController = {
     try {
       const adminMemberId = req.user!.userId;
       const jobId = req.params.jobId;
-      const job = getMediaJobService().getJobForAdmin(jobId, adminMemberId);
+      const job = getMediaJobService().getJobStatusForAdmin(jobId, adminMemberId);
       if (!job) {
         res.status(404).render('admin/curator/job-status', {
           seo: { title: 'Curator Upload: Not Found' },
@@ -1209,7 +1220,7 @@ export const adminCuratorController = {
   streamJobEvents(req: Request, res: Response, _next: NextFunction): void {
     const adminMemberId = req.user!.userId;
     const jobId = req.params.jobId;
-    const job = getMediaJobService().getJobForAdmin(jobId, adminMemberId);
+    const job = getMediaJobService().getJobStatusForAdmin(jobId, adminMemberId);
     if (!job) {
       res.status(404).end();
       return;

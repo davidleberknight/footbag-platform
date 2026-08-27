@@ -45,6 +45,10 @@ let resetTranscodeDispatchClientForTests: typeof import('../../src/services/tran
 interface DispatchedJob { jobId: string }
 const dispatchedJobs: DispatchedJob[] = [];
 let dispatchShouldFail = false;
+// The status the worker answers with when the fake is set to refuse. 409 is
+// its answer for a row that is no longer awaiting transcode, which is a
+// different situation from a worker that cannot take the job at all.
+let dispatchFailStatus = 500;
 
 const ADMIN_A = 'member-async-admin-a';
 const ADMIN_B = 'member-async-admin-b';
@@ -77,7 +81,10 @@ beforeAll(async () => {
   setTranscodeDispatchClientForTests({
     async dispatch(jobId: string) {
       if (dispatchShouldFail) {
-        throw new dispatchMod.TranscodeDispatchError('synthetic dispatch failure', 500);
+        throw new dispatchMod.TranscodeDispatchError(
+          'synthetic dispatch refusal',
+          dispatchFailStatus,
+        );
       }
       dispatchedJobs.push({ jobId });
     },
@@ -98,6 +105,7 @@ beforeEach(() => {
   db.close();
   dispatchedJobs.length = 0;
   dispatchShouldFail = false;
+  dispatchFailStatus = 500;
 });
 
 function seedJob(adminId: string, state: 'pending_upload' | 'pending_transcode' | 'processing' | 'succeeded' | 'failed' = 'pending_transcode'): string {
@@ -241,6 +249,33 @@ describe('GET /admin/curator/upload/jobs/:jobId', () => {
       .get('/admin/curator/upload/jobs/mediajob_does_not_exist')
       .set('Cookie', adminACookie());
     expect(res.status).toBe(404);
+  });
+
+  it('tells the admin an unfinished upload expired, instead of that it is still uploading', async () => {
+    // The browser was closed part way through. Nothing pushes an event for
+    // that, so the row would otherwise claim the upload is still in progress
+    // for as long as it exists; the read reconciles it and the page says what
+    // actually happened.
+    const app = createApp();
+    const svc = createMediaJobService();
+    const { id } = svc.createPendingUploadJob({
+      kind: 'curator_video',
+      adminMemberId: ADMIN_A,
+      sourceVideoKey: 'pending/job-expired/source.mp4',
+      sourcePosterKey: 'pending/job-expired/source-poster.jpg',
+      caption: null,
+      tags: '',
+      sourceFilename: 'never-finished.mp4',
+      expiresAtIso: '2024-01-01T00:00:00.000Z',
+    });
+
+    const res = await request(app)
+      .get(`/admin/curator/upload/jobs/${id}`)
+      .set('Cookie', adminACookie());
+
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('The upload session expired before finalizing');
+    expect(res.text).not.toContain('Waiting for the browser to finish uploading');
   });
 
   it('shows succeeded message and link when state=succeeded', async () => {
@@ -694,6 +729,26 @@ describe('POST /admin/curator/upload/finalize', () => {
       .send({ jobId });
     expect(second.status).toBe(200);
     expect(dispatchedJobs).toHaveLength(2);
+  });
+
+  it('treats a worker that has already claimed the job as success, not a dispatch failure', async () => {
+    // The worker refuses a job that is no longer awaiting transcode. That is
+    // what a second finalize on a job already being encoded looks like from
+    // here, and nothing is wrong in it: the transcode this call asked for is
+    // running. Reporting it as a dispatch failure sends the admin back to
+    // re-upload a file that is already being processed.
+    const { jobId, videoKey, posterKey } = await signFor(adminACookie());
+    writeLocalMediaFile(videoKey);
+    writeLocalMediaFile(posterKey);
+    dispatchShouldFail = true;
+    dispatchFailStatus = 409;
+    const app = createApp();
+    const res = await request(app)
+      .post('/admin/curator/upload/finalize')
+      .set('Cookie', adminACookie())
+      .send({ jobId });
+    expect(res.status).toBe(200);
+    expect(res.body.statusUrl).toBe(`/admin/curator/upload/jobs/${jobId}`);
   });
 
   it('returns 502 when worker dispatch fails', async () => {
