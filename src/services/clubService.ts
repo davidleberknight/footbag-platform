@@ -25,9 +25,12 @@
  *     leaderless state: the club persists, stays joinable, and stays listed.
  *   - Standard hashtag (`#club_{slug}`) persisted via `mediaTags.insertStandardTag` at
  *     creation; permanent (not HD).
- *   - Every path that creates a club row applies `resolveClubRegion`: a country
- *     with an official state or province set must name one, stored as the FULL
- *     NAME, with a submitted code folded to it. The country page groups by
+ *   - Every path that writes a club row's location applies `resolveClubRegion`,
+ *     creation and co-leader edit alike: a country with an official state or
+ *     province set must name one, stored as the FULL NAME, with a submitted
+ *     code folded to it. On an edit the region is resolved against whichever
+ *     country the row will carry once the edit lands, since changing the
+ *     country changes both whether a region is required and which names count. The country page groups by
  *     region only when every club in that country has one, so a single
  *     region-less row flattens the whole country into one list. This is the
  *     opposite of the member column, which stores the two-letter code for the
@@ -36,7 +39,10 @@
  *     stays a curated-data fix made at source, so the render layer is never
  *     taught a geography table.
  *   - Club display names are not required to be globally unique; the hashtag is the
- *     canonical identifier.
+ *     canonical identifier. Within one country an exact name is still taken by
+ *     at most one club, blocked with no override on creation and on rename
+ *     alike; a club's own row never collides with itself, so a co-leader can
+ *     recase or repunctuate their own name.
  *   - A club has no club-level contact field; it is reachable through its
  *     co-leaders' own contact. The creator's own contact serves the new club,
  *     so creation requires no contact field. Promoted candidates derive their
@@ -457,6 +463,31 @@ export interface ClubLeader {
   whatsappLabel?: string;       // present only when showWhatsapp === true
 }
 
+/**
+ * What the club page needs beyond the club itself: the outcome of the action
+ * that redirected here, and, when a co-leader's save was refused, what they
+ * submitted and why it was refused.
+ */
+export interface ClubPageOptions {
+  notice?: string | null;
+  editErrors?: Record<string, string> | null;
+  editValues?: Record<string, string> | null;
+}
+
+export interface ClubEditForm {
+  values: {
+    name: string;
+    description: string;
+    city: string;
+    region: string;
+    country: string;
+    externalUrl: string;
+  };
+  errors: Record<string, string>;
+  // Pre-shaped so the template renders the error summary without counting keys.
+  hasErrors: boolean;
+}
+
 export interface PublicClubDetail extends PublicClubSummary {
   description: string;
   // True when a legacy free-text description carries embedded personal data
@@ -489,6 +520,11 @@ export interface PublicClubDetail extends PublicClubSummary {
   // this club. The invite is an email pointing at the volunteer affordance.
   inviteHref: string | null;
   contentEditHref: string | null;
+  // The co-leader edit form's field values and per-field errors. Shaped only
+  // for a co-leader of this club, and read unmasked: the public read hides an
+  // unverified or quarantined URL, so prefilling the editor from it would make
+  // "I left that field alone" indistinguishable from "clear the URL".
+  editForm: ClubEditForm | null;
   joinHref: string | null;
   viewGalleryHref: string | null;
   // An inactive club is hidden from the directory but still reachable by direct
@@ -741,6 +777,7 @@ function toPublicClubDetail(
     showLeadershipBlock: false,
     inviteHref: null,
     contentEditHref: null,
+    editForm: null,
     joinHref: null,
     viewGalleryHref: null,
     isInactive: row.status === 'inactive',
@@ -1027,11 +1064,61 @@ function enqueueVolunteerLeadershipEmails(opts: {
   }
 }
 
+/**
+ * The co-leader edit form's state: the club's stored values, or the values the
+ * co-leader just submitted when the save was refused, so a single bad field
+ * does not discard everything else they typed.
+ *
+ * Values come from the edit read rather than the public one. The public read
+ * masks an external URL that has not passed verification or has been
+ * quarantined, and an editor prefilled from that would show an empty box for a
+ * URL the club still holds, making an untouched save look like a deletion.
+ */
+function buildClubEditForm(
+  clubId: string,
+  opts?: { editErrors?: Record<string, string> | null; editValues?: Record<string, string> | null },
+): ClubEditForm | null {
+  const row = clubContent.findClubContentForEdit.get(clubId) as
+    | {
+        name: string;
+        description: string | null;
+        city: string;
+        region: string | null;
+        country: string;
+        external_url: string | null;
+      }
+    | undefined;
+  if (!row) return null;
+
+  const submitted = opts?.editValues ?? null;
+  const pick = (key: string, stored: string | null): string =>
+    submitted && typeof submitted[key] === 'string' ? submitted[key] : (stored ?? '');
+
+  const errors = opts?.editErrors ?? {};
+  return {
+    values: {
+      name:        pick('name', row.name),
+      description: pick('description', row.description),
+      city:        pick('city', row.city),
+      region:      pick('region', row.region),
+      country:     pick('country', row.country),
+      externalUrl: pick('external_url', row.external_url),
+    },
+    errors,
+    hasErrors: Object.keys(errors).length > 0,
+  };
+}
+
 export class ClubService {
   /** Resolve GET /clubs/:key to the correct page (club detail or country). */
-  resolveByKey(key: string, isAuthenticated: boolean, viewerMemberId?: string | null): ClubRouteResult {
+  resolveByKey(
+    key: string,
+    isAuthenticated: boolean,
+    viewerMemberId?: string | null,
+    opts?: ClubPageOptions,
+  ): ClubRouteResult {
     if (key.startsWith('club_')) {
-      return { template: 'clubs/detail', vm: this.getPublicClubPage(key, isAuthenticated, viewerMemberId) };
+      return { template: 'clubs/detail', vm: this.getPublicClubPage(key, isAuthenticated, viewerMemberId, opts) };
     }
     return { template: 'clubs/country', vm: this.getPublicCountryPage(key, isAuthenticated) };
   }
@@ -1238,7 +1325,12 @@ export class ClubService {
     });
   }
 
-  getPublicClubPage(clubKey: string, isAuthenticated: boolean, viewerMemberId?: string | null): PageViewModel<{ club: PublicClubDetail }> {
+  getPublicClubPage(
+    clubKey: string,
+    isAuthenticated: boolean,
+    viewerMemberId?: string | null,
+    opts?: ClubPageOptions,
+  ): PageViewModel<{ club: PublicClubDetail }> {
     const tagNormalized = normalizePublicClubKeyToStoredTag(clubKey);
 
     return runSqliteRead('clubService.getPublicClubPage', () => {
@@ -1398,6 +1490,7 @@ export class ClubService {
         if (club.viewerIsLeader) {
           club.contentEditHref = `/clubs/${encodeURIComponent(clubKey)}/content/edit`;
           club.inviteHref = `/clubs/${encodeURIComponent(clubKey)}/invite`;
+          club.editForm = buildClubEditForm(row.club_id, opts);
         }
 
         // Standing volunteer affordance: shown only to a current member who
@@ -1432,6 +1525,7 @@ export class ClubService {
           sectionKey: 'clubs',
           pageKey: 'clubs_detail',
           title: club.name,
+          ...(opts?.notice ? { notice: opts.notice } : {}),
         },
         navigation: {
           breadcrumbs: [
@@ -2521,18 +2615,35 @@ export class ClubService {
   }
 
   /**
-   * Content-validation loop: a club leader or co-leader (an authoritative
-   * editor) edits description and external URL directly, no approval gate.
-   * External URLs pass URL verification before touching the live row; a
-   * failed verification changes nothing and surfaces the validator's error.
+   * A club leader or co-leader (an authoritative editor) edits their own
+   * club's information directly, with no approval gate. A field the
+   * submission omits is left alone, so a partial form never blanks the rest
+   * of the row. External URLs pass URL verification before touching the live
+   * row; a failed verification changes nothing and surfaces the validator's
+   * error.
    */
   async editClubContent(
     actorMemberId: string,
     clubId: string,
-    input: { description?: string; externalUrl?: string },
+    input: {
+      name?: string;
+      description?: string;
+      city?: string;
+      region?: string;
+      country?: string;
+      externalUrl?: string;
+    },
   ): Promise<void> {
     const club = clubContent.findClubContentForEdit.get(clubId) as
-      | { id: string; description: string | null; external_url: string | null }
+      | {
+          id: string;
+          name: string;
+          description: string | null;
+          city: string;
+          region: string | null;
+          country: string;
+          external_url: string | null;
+        }
       | undefined;
     if (!club) throw new NotFoundError('Club not found.');
     const leadership = clubLeaders.memberInClubLeadership.get(clubId, actorMemberId) as
@@ -2543,6 +2654,54 @@ export class ClubService {
     }
 
     const changes: Record<string, { before: unknown; after: unknown }> = {};
+    const fieldErrors: Record<string, string> = {};
+
+    const name = input.name?.trim();
+    if (name !== undefined) {
+      if (!name) fieldErrors.name = 'Club name is required.';
+      else if (name.length > 150) fieldErrors.name = 'Club name must be 150 characters or fewer.';
+    }
+    const city = input.city?.trim();
+    if (city !== undefined && !city) fieldErrors.city = 'City is required.';
+    const country = input.country?.trim();
+    if (country !== undefined && !country) fieldErrors.country = 'Country is required.';
+
+    // Region is resolved against whichever country the row will carry once
+    // this edit lands, because changing the country changes whether a region
+    // is required at all and which names are recognised.
+    const effectiveCountry = country || club.country;
+    let storedRegion: string | null | undefined;
+    if (input.region !== undefined || country !== undefined) {
+      const submittedRegion = input.region !== undefined ? input.region.trim() || null : club.region;
+      const regionResolution = resolveClubRegion(effectiveCountry, submittedRegion);
+      if (regionResolution.status === 'missing') {
+        fieldErrors.region = CLUB_REGION_REQUIRED_MESSAGE;
+      } else if (regionResolution.status === 'unrecognized') {
+        fieldErrors.region = CLUB_REGION_NAME_MESSAGE;
+      } else {
+        storedRegion = regionResolution.region;
+      }
+    }
+
+    if (Object.keys(fieldErrors).length > 0) {
+      throw new ValidationError('Please fix the errors below.', { fieldErrors });
+    }
+
+    // Two clubs never share an exact name within one country, so a rename
+    // obeys the same block creation does. The club's own row is not a
+    // collision with itself, which is what lets a leader recase their name.
+    if (name !== undefined && name !== club.name) {
+      const dupRow = clubs.findByNameAndCountry.get(name, effectiveCountry) as
+        | { club_id: string; name: string } | undefined;
+      if (dupRow && dupRow.club_id !== clubId) {
+        throw new ValidationError('Please fix the errors below.', {
+          fieldErrors: {
+            name: `A club named "${dupRow.name}" already exists in that country.`,
+          },
+        });
+      }
+    }
+
     let normalizedUrl: string | null | undefined;
     if (input.externalUrl !== undefined) {
       const trimmed = input.externalUrl.trim();
@@ -2551,25 +2710,46 @@ export class ClubService {
       } else {
         const validated = await validateExternalUrl(trimmed);
         if (!validated.valid) {
-          throw new ValidationError(validated.error ?? 'That URL did not pass verification.');
+          throw new ValidationError('Please fix the errors below.', {
+            fieldErrors: {
+              external_url: validated.error ?? 'That URL did not pass verification.',
+            },
+          });
         }
         normalizedUrl = validated.normalizedUrl;
       }
       changes.external_url = { before: club.external_url, after: normalizedUrl };
     }
     const description = input.description?.trim();
-    if (description !== undefined) {
+
+    if (name !== undefined && name !== club.name) changes.name = { before: club.name, after: name };
+    if (description !== undefined && description !== club.description) {
       changes.description = { before: club.description, after: description };
     }
+    if (city !== undefined && city !== club.city) changes.city = { before: club.city, after: city };
+    if (storedRegion !== undefined && storedRegion !== club.region) {
+      changes.region = { before: club.region, after: storedRegion };
+    }
+    if (country !== undefined && country !== club.country) {
+      changes.country = { before: club.country, after: country };
+    }
+
     if (Object.keys(changes).length === 0) {
       throw new ValidationError('Nothing to update.');
     }
 
     const now = new Date().toISOString();
     transaction(() => {
-      if (description !== undefined) {
-        clubContent.updateClubDescription.run(description, now, actorMemberId, clubId);
-      }
+      clubContent.updateClubProfile.run(
+        name ?? club.name,
+        description ?? club.description ?? '',
+        city ?? club.city,
+        storedRegion !== undefined ? storedRegion : club.region,
+        country ?? club.country,
+        now,
+        actorMemberId,
+        clubId,
+      );
       if (normalizedUrl !== undefined) {
         clubContent.updateClubExternalUrl.run(
           normalizedUrl, normalizedUrl ? now : null, now, actorMemberId, clubId,

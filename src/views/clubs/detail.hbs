@@ -15,6 +15,10 @@
 <div class="wrapper">
   <div class="club-detail">
 
+    {{#if page.notice}}
+    <p class="notice" role="status">{{page.notice}}</p>
+    {{/if}}
+
     {{#if content.club.isInactive}}
     <p class="notice notice-warn">This club is inactive. It stays reachable by direct link but does not appear in the club directory. A co-leader can reactivate it at any time.</p>
     {{/if}}
@@ -44,16 +48,58 @@
 
     {{#if content.club.contentEditHref}}
     <section class="mt-4">
-      <div class="section-heading"><h2>Edit Club Content</h2></div>
+      <div class="section-heading"><h2>Edit Club Details</h2></div>
+      {{#if content.club.editForm.hasErrors}}
+      <div class="form-error-banner" role="alert">
+        <p>Please fix the errors below.</p>
+      </div>
+      {{/if}}
       <form method="POST" action="{{content.club.contentEditHref}}" class="form-block">
         <div class="form-field">
+          <label for="club_name">Club name</label>
+          <input id="club_name" name="name" maxlength="150" required value="{{content.club.editForm.values.name}}" />
+          {{#if content.club.editForm.errors.name}}
+          <p class="form-field-error" role="alert">{{content.club.editForm.errors.name}}</p>
+          {{/if}}
+        </div>
+        <div class="form-field">
           <label for="club_description">Description</label>
-          <textarea id="club_description" name="description" rows="4" maxlength="2000">{{content.club.description}}</textarea>
+          <textarea id="club_description" name="description" rows="4" maxlength="2000">{{content.club.editForm.values.description}}</textarea>
+          {{#if content.club.editForm.errors.description}}
+          <p class="form-field-error" role="alert">{{content.club.editForm.errors.description}}</p>
+          {{/if}}
+        </div>
+        <div class="form-field">
+          <label for="club_city">City</label>
+          <input id="club_city" name="city" required value="{{content.club.editForm.values.city}}" />
+          {{#if content.club.editForm.errors.city}}
+          <p class="form-field-error" role="alert">{{content.club.editForm.errors.city}}</p>
+          {{/if}}
+        </div>
+        <div class="form-field">
+          <label for="club_region">Region / State</label>
+          <input id="club_region" name="region" value="{{content.club.editForm.values.region}}" />
+          {{#if content.club.editForm.errors.region}}
+          <p class="form-field-error" role="alert">{{content.club.editForm.errors.region}}</p>
+          {{/if}}
+        </div>
+        <div class="form-field">
+          <label for="club_country">Country</label>
+          <input id="club_country" name="country" required value="{{content.club.editForm.values.country}}" />
+          {{#if content.club.editForm.errors.country}}
+          <p class="form-field-error" role="alert">{{content.club.editForm.errors.country}}</p>
+          {{/if}}
         </div>
         <div class="form-field">
           <label for="club_external_url">External URL (verified before it appears publicly; leave blank to remove)</label>
-          <input id="club_external_url" name="external_url" maxlength="2048" value="{{content.club.externalUrl}}" />
+          <input id="club_external_url" name="external_url" maxlength="2048" value="{{content.club.editForm.values.externalUrl}}" />
+          {{#if content.club.editForm.errors.external_url}}
+          <p class="form-field-error" role="alert">{{content.club.editForm.errors.external_url}}</p>
+          {{/if}}
         </div>
+        {{#if content.club.editForm.errors.form}}
+        <p class="form-field-error" role="alert">{{content.club.editForm.errors.form}}</p>
+        {{/if}}
         <button type="submit" class="btn btn-primary btn-sm">Save Changes</button>
       </form>
     </section>

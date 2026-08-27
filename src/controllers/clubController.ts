@@ -2,8 +2,19 @@ import { Request, Response, NextFunction } from 'express';
 import { clubService } from '../services/clubService';
 import { ValidationError } from '../services/serviceErrors';
 import { handleControllerError, renderNotFound } from '../lib/controllerErrors';
-import { writeFlash } from '../lib/flashCookie';
+import { writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
 import { FLASH_KIND } from '../lib/flashCookie';
+
+// Every club action redirects here and leaves its outcome in the flash cookie,
+// so the club page is the surface that has to consume it. Taken once and
+// cleared, because a notice that survived a reload would tell a visitor an
+// action happened that did not happen on this request.
+function takeActionNotice(req: Request, res: Response): string | null {
+  const flash = readFlash(req);
+  if (flash?.kind !== FLASH_KIND.CLUB_ACTION) return null;
+  clearFlash(res, req);
+  return flash.payload ?? null;
+}
 
 /**
  * Thin controller layer for the public Clubs routes.
@@ -43,6 +54,7 @@ export const clubController = {
         req.params.key,
         req.isMember,
         req.isMember ? req.user?.userId : undefined,
+        { notice: takeActionNotice(req, res) },
       );
       res.render(result.template, result.vm);
     } catch (err) {
@@ -58,14 +70,28 @@ export const clubController = {
   async postContentEdit(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const clubId = clubService.resolveClubIdByKey(req.params.key);
+      const str = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined);
       await clubService.editClubContent(req.user!.userId, clubId, {
-        description: typeof req.body.description === 'string' ? req.body.description : undefined,
-        externalUrl: typeof req.body.external_url === 'string' ? req.body.external_url : undefined,
+        name:        str(req.body.name),
+        description: str(req.body.description),
+        city:        str(req.body.city),
+        region:      str(req.body.region),
+        country:     str(req.body.country),
+        externalUrl: str(req.body.external_url),
       });
+      writeFlash(res, req, FLASH_KIND.CLUB_ACTION, 'Club updated.');
       res.redirect(303, `/clubs/${encodeURIComponent(req.params.key)}`);
     } catch (err) {
       if (err instanceof ValidationError) {
-        res.status(422).type('text/plain').send(err.message);
+        // Re-render the club page carrying what was typed, so one bad field
+        // does not cost the co-leader everything else in the form.
+        const vm = clubService.getPublicClubPage(
+          req.params.key,
+          req.isMember,
+          req.user?.userId,
+          { editErrors: err.fieldErrors ?? { form: err.message }, editValues: req.body },
+        );
+        res.status(422).render('clubs/detail', vm);
         return;
       }
       handleControllerError(err, res, next, 'clubs controller');

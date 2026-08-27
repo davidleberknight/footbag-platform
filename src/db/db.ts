@@ -1573,17 +1573,22 @@ export const clubBootstrapLeaderSignals = {
 // SqliteError SQLITE_CONSTRAINT_UNIQUE on either is the conflict signal.
 // ---------------------------------------------------------------------------
 
-// Club content-validation loop rows: member-proposed description and
-// external-URL replacements awaiting leader/contact/admin review.
+// The club fields a co-leader edits directly. There is no suggestion or review
+// queue behind these: a co-leader is an authoritative editor of their own club,
+// and every other member reports an inaccuracy to them out of band.
 export const clubContent = {
   get findClubContentForEdit() { return db.prepare(`
-    SELECT id, description, external_url,
+    SELECT id, name, description, city, region, country, external_url,
            external_url_validated_at, external_url_quarantine_reason
     FROM clubs WHERE id = ?
   `); },
 
-  get updateClubDescription() { return db.prepare(`
-    UPDATE clubs SET description = ?, updated_at = ?, updated_by = ?, version = version + 1
+  // The whole leader-editable field set in one write, so one edit is one
+  // version bump whatever it touched. The service passes the current value
+  // back for any field the submission left alone.
+  get updateClubProfile() { return db.prepare(`
+    UPDATE clubs SET name = ?, description = ?, city = ?, region = ?, country = ?,
+        updated_at = ?, updated_by = ?, version = version + 1
     WHERE id = ?
   `); },
 
