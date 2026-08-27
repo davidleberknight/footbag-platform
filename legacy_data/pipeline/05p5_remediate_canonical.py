@@ -2178,6 +2178,128 @@ else:
     print(f"  Result conflicts flagged: {_m_results_conflict}")
     print(f"  Participant rows added:   {_m_parts_added}")
 
+
+# ── Fix 13: Empty prefixed competition slots left by the pre-1985 merge ───────
+# The merge above adds a loser discipline whenever its key is absent from the
+# winner's set, comparing keys as exact strings. The merged-away pre-1985 Worlds
+# events spell their disciplines with an `open_` prefix and the survivors spell
+# them without it, so both spellings survive and the public results page shows a
+# second, empty section for the same competition.
+#
+# Which spelling is correct is not the question. Across the archive the prefixed
+# form is the majority and the division map turns the bare name into the Open
+# name, so the naming evidence points the other way; the ruling follows which
+# copy carries the competitors, and on these four events that is the bare one.
+# Do not "correct" this back toward the majority spelling.
+#
+# Named pairs only. No inference and no general rule, because the same prefixed
+# key on a fifth event carries real competitors and must survive: the mixture is
+# a property of which events were merged, not of the key.
+#
+# This is deletion, not a fold. The surviving copies already hold every placement
+# with its competitors, so nothing transfers. On one of these events the fold
+# model breaks outright: a prefixed golf slot has no bare counterpart at all.
+print("\n[Fix 13] Removing empty prefixed competition slots from merged pre-1985 events...")
+
+_F13_TARGETS: list[tuple[str, str]] = [
+    ("1982_worlds_oregon_city", "open_doubles_net"),
+    ("1982_worlds_oregon_city", "open_golf"),
+    ("1982_worlds_oregon_city", "open_singles_consecutive"),
+    ("1982_worlds_oregon_city", "open_singles_freestyle"),
+    ("1982_worlds_oregon_city", "open_singles_net"),
+    ("1982_worlds_oregon_city", "open_team_freestyle"),
+    ("1983_worlds_boulder_wfa", "open_golf"),
+    ("1983_worlds_boulder_wfa", "open_singles_net"),
+    ("1983_worlds_boulder_nhsa", "open_doubles_net"),
+    ("1983_worlds_boulder_nhsa", "open_golf"),
+    ("1983_worlds_boulder_nhsa", "open_singles_consecutive"),
+    ("1983_worlds_boulder_nhsa", "open_singles_freestyle"),
+    ("1983_worlds_boulder_nhsa", "open_singles_net"),
+    ("1983_worlds_boulder_nhsa", "open_team_freestyle"),
+    ("1984_worlds_golden_wfa", "open_doubles_net"),
+    ("1984_worlds_golden_wfa", "open_golf"),
+    ("1984_worlds_golden_wfa", "open_singles_consecutive"),
+    ("1984_worlds_golden_wfa", "open_singles_freestyle"),
+    ("1984_worlds_golden_wfa", "open_singles_net"),
+    ("1984_worlds_golden_wfa", "open_team_freestyle"),
+]
+
+
+def _f13_slot_is_empty(_ev: str, _dk: str, _results: list, _participants: list) -> str:
+    """"" when the slot carries nothing, otherwise what it carries.
+
+    Two different states, deliberately answered differently by the caller. A
+    target that is absent is a no-op, because a rebuild may already be clean and
+    a run over corrected data must not start failing. A target that is present
+    and carries anything is an abort, because the ruling covers empty slots and
+    a slot holding a competitor is a different event than the one that was
+    ruled on.
+    """
+    _slot_placements = {
+        _r["placement"] for _r in _results
+        if _r["event_key"] == _ev and _r["discipline_key"] == _dk
+    }
+    for _p in _participants:
+        if (_p["event_key"] == _ev and _p["discipline_key"] == _dk
+                and _p["placement"] in _slot_placements):
+            return "a participant"
+    for _r in _results:
+        if _r["event_key"] != _ev or _r["discipline_key"] != _dk:
+            continue
+        if (_r.get("score_text") or "").strip():
+            return "score text"
+        if (_r.get("notes") or "").strip():
+            return "a note"
+    return ""
+
+
+_f13_discs_removed = 0
+_f13_results_removed = 0
+_f13_absent = 0
+
+for _f13_ev, _f13_dk in _F13_TARGETS:
+    _f13_present = any(
+        _d["event_key"] == _f13_ev and _d["discipline_key"] == _f13_dk
+        for _d in disciplines
+    )
+    if not _f13_present:
+        _f13_absent += 1
+        continue
+
+    _f13_carries = _f13_slot_is_empty(_f13_ev, _f13_dk, results, participants)
+    if _f13_carries:
+        raise SystemExit(
+            f"[Fix 13] refusing to remove {_f13_ev}/{_f13_dk}: it carries "
+            f"{_f13_carries}. This correction removes empty duplicate competition "
+            "slots left by the pre-1985 merge. A slot holding data is a different "
+            "case and needs its own ruling; re-check which copy of the competition "
+            "holds the competitors before changing this list."
+        )
+
+    # Discipline and its result rows go together. Leaving either behind trips the
+    # orphaned-reference check in the relational report, which is a hard failure.
+    _f13_before = len(results)
+    results = [
+        _r for _r in results
+        if not (_r["event_key"] == _f13_ev and _r["discipline_key"] == _f13_dk)
+    ]
+    _f13_results_removed += _f13_before - len(results)
+    disciplines = [
+        _d for _d in disciplines
+        if not (_d["event_key"] == _f13_ev and _d["discipline_key"] == _f13_dk)
+    ]
+    _f13_discs_removed += 1
+    # Written to survive a future delivery in which one of these slots does carry
+    # a participant: today the guard above has already aborted in that case.
+    participants = [
+        _p for _p in participants
+        if not (_p["event_key"] == _f13_ev and _p["discipline_key"] == _f13_dk)
+    ]
+
+print(f"  Empty slots removed:      {_f13_discs_removed}")
+print(f"  Result rows removed:      {_f13_results_removed}")
+print(f"  Targets already absent:   {_f13_absent}")
+
 # ── Referential closure: backfill persons injected by 05p5 fixes ─────────────
 # _PART_A / _NEW_PLACEMENTS / inject blocks may set person_ids that were not
 # emitted by stage 05 (e.g. parse-failure corrections).  Ensure every non-empty
