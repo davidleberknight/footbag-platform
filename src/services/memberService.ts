@@ -702,6 +702,24 @@ function fetchEventGroups(row: MemberProfileRow): PlayerEventGroup[] {
     selfPersonId = linked?.person_id ?? null;
   }
 
+  // Last, the claimed archival identity. A member who claimed a historical
+  // person that never had an old-site account has no legacy id for the lookup
+  // above, so without this their profile says they have no competitive results
+  // while the archive holds them, and the claim page that persuaded them to
+  // claim promised the opposite.
+  //
+  // Appended rather than inserted: each branch runs only when the one before it
+  // found nothing, so this can add results to an empty section and can never
+  // change what a member with a working account already sees. The person id is
+  // the member's own, so unlike the account branch it needs no lookup to know
+  // who to suppress from their own partner list.
+  if (resultRows.length === 0 && row.historical_person_id) {
+    resultRows = runSqliteRead('listResultsByPersonAnchor', () =>
+      account.listResultsByPersonAnchor.all(row.historical_person_id),
+    ) as MemberResultRow[];
+    selfPersonId = row.historical_person_id;
+  }
+
   return groupPlayerResults(resultRows, { selfMemberId: row.id, selfPersonId });
 }
 

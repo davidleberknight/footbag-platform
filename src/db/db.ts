@@ -4739,6 +4739,70 @@ export const account = {
       erp_co.participant_order ASC
   `); },
 
+  /**
+   * The same member-profile result rows, reached by the claimed historical
+   * person rather than by an old-site account.
+   *
+   * A member who claimed an archival identity that never had an account has no
+   * legacy_member_id to look up, so the account-keyed statement above cannot
+   * find them and their profile renders empty while the archive holds their
+   * results. This is that statement with one predicate changed: it keys on the
+   * participant's person directly, which also makes the join to
+   * historical_persons unnecessary, since nothing but that filter used it.
+   *
+   * Column set and ordering are identical on purpose. The profile's grouping
+   * consumes MemberResultRow, and a second shape here would mean a second shape
+   * to keep in step every time the first one moves.
+   *
+   * Deliberately not the public player-page statement, which filters on the same
+   * predicate but carries a different column set: it adds the discipline sort
+   * order and the participant order and omits the co-competitor's member id,
+   * which is what links a teammate to their profile here.
+   */
+  get listResultsByPersonAnchor() { return db.prepare(`
+    SELECT
+      e.id                        AS event_id,
+      e.title                     AS event_title,
+      e.start_date,
+      e.city,
+      e.region                    AS event_region,
+      e.country                   AS event_country,
+      t.tag_normalized            AS event_tag_normalized,
+      ed.name                     AS discipline_name,
+      ed.discipline_category,
+      ed.team_type,
+      ere.placement,
+      ere.score_text,
+      erp_co.display_name         AS participant_display_name,
+      erp_co.historical_person_id AS participant_person_id,
+      COALESCE(m_co_linked.slug, m_co_via_hp.slug) AS participant_member_slug,
+      erp_co.member_id            AS participant_member_id
+    FROM event_result_entry_participants AS erp_me
+    JOIN event_result_entries AS ere
+      ON ere.id = erp_me.result_entry_id
+    JOIN events AS e
+      ON e.id = ere.event_id
+    JOIN tags AS t
+      ON t.id = e.hashtag_tag_id
+    LEFT JOIN event_disciplines AS ed
+      ON ed.id = ere.discipline_id
+    JOIN event_result_entry_participants AS erp_co
+      ON erp_co.result_entry_id = ere.id
+    LEFT JOIN members AS m_co_linked
+      ON m_co_linked.id = erp_co.member_id
+      AND m_co_linked.deleted_at IS NULL
+    LEFT JOIN members AS m_co_via_hp
+      ON m_co_via_hp.historical_person_id = erp_co.historical_person_id
+      AND m_co_via_hp.deleted_at IS NULL
+    WHERE erp_me.historical_person_id = ?
+    ORDER BY
+      e.start_date DESC,
+      COALESCE(ed.sort_order, 0) ASC,
+      COALESCE(ed.name, '') COLLATE NOCASE ASC,
+      ere.placement ASC,
+      erp_co.participant_order ASC
+  `); },
+
   get searchMembers() { return db.prepare(`
     SELECT m.slug, m.display_name, m.country, m.is_hof, m.is_bap, m.is_board,
            m.gender, m.show_gender,
