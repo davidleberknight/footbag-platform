@@ -105,7 +105,7 @@ committed as the curated, seed, and identity inputs below.
 
 | CSV (path / glob) | Git | Read by | What it is |
 |---|---|---|---|
-| `membership/inputs/membership_input_normalized.csv` | **gitignored** | `membership/scripts/01_build_membership_enrichment.py` (phase C) | IFPA member roster (real member PII); operator handoff, not regenerable |
+| `membership/inputs/membership_input_normalized.csv` | **gitignored** | `membership/scripts/01_build_membership_enrichment.py` (phase C) | IFPA member roster (names and membership status, no contact data); operator handoff, not regenerable |
 | `event_results/canonical_input/*.csv` (5 files) | committed | `reset-local-db.sh`, `run_pipeline.sh` canonical loaders | real committed competitor event data (event results and historical persons, `legacy_email` empty); the maintainer regenerates it from the mirror |
 | `seed/clubs.csv`, `seed/club_members.csv`, `seed/clubs_url_verdicts.csv` | committed | `load_clubs_seed.py`, `load_club_members_seed.py` | mirror-derived club seed (names and locations) |
 | `inputs/name_variants.csv` | committed | `load_name_variants_seed.py` | name-variant pairs (generated; only HIGH rows load) |

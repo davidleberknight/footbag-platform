@@ -1,7 +1,11 @@
 # =============================================================================
 # terraform.tfvars.example — production
-# Copy to terraform.tfvars and fill in all TODO values.
-# NEVER commit terraform.tfvars — it contains secrets and account details.
+# Reference copy of this environment's variable values. A real terraform.tfvars
+# is never created in this tree: it lives in the maintainers' private operations
+# checkout and is reached from this directory by a gitignored symlink, because
+# the values carry operator CIDR ranges. To add or change a value, edit the
+# private file the symlink points at. Without that checkout you cannot apply
+# this environment at all.
 # =============================================================================
 
 environment    = "production"
@@ -16,7 +20,9 @@ lightsail_blueprint_id = "amazon_linux_2023"
 
 ssh_public_key = "ssh-ed25519 AAAAC3Nza... TODO-your-production-deploy-key"
 
-alarm_email = "TODO-ops-alert@footbag.org"
+# alarm_email is declared sensitive, so it is set nowhere in any repository:
+# its value is vault-governed and lives in the gitignored secrets.auto.tfvars
+# beside the values file, which Terraform auto-loads.
 
 # Operator-supplied; verification happens via the SES email loop after apply.
 # Real verified address (e.g. noreply@footbag.org). The TODO- prefix is

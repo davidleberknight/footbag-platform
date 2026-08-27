@@ -12,6 +12,16 @@ and activation procedures live in `AWS_OPERATIONS.md` (private GitHub repo) and
 `DEVOPS_GUIDE.md` (private GitHub repo); this rule covers how to write the code,
 not what the values are.
 
+## The private operations checkout is a prerequisite, not a convenience
+
+Every environment's `terraform.tfvars` is a symlink into the maintainers' private operations
+checkout, and the bring-up runbooks live there too. Without that checkout the symlinks dangle, so
+no environment can be planned or applied and no runbook step can be followed. This is a hard
+prerequisite for all operations work, while a developer or tester without it stays a fully
+supported configuration for everything else. When it is absent, say so in one line, carry on with
+the part of the task that does not need it, and never improvise a values file: a real
+`terraform.tfvars` is never created in this tree.
+
 ## New optional infrastructure ships behind a default-false gate
 
 Both trees are applied in passes, so anything that cannot exist on the first

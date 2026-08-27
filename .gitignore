@@ -207,9 +207,10 @@ plan.out
 # Generated cache files (never commit)
 legacy_data/legacy_mirror/robots_cache.json
 
-# Real member data: a normalized extract of the private IFPA admin membership
-# report. Operator-provided and held locally only; never committed (same model
-# as the mirror above).
+# IFPA membership roster: a normalized extract of the admin membership report
+# (names and membership status; no contact data). Operator-provided, not
+# regenerable from any committed source, and held locally only as a maintainer
+# handoff; never committed (same model as the mirror above).
 legacy_data/membership/inputs/membership_input_normalized.csv
 
 # Freestyle research tree: relocated to the maintainers' private repository.

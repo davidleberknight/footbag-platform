@@ -745,6 +745,11 @@ if ! bash scripts/ci/check_no_terraform_artifacts.sh; then
   violations=$((violations + 1))
 fi
 
+echo "[conventions] check: no sensitive variable assigned in a tracked tfvars example (delegated)"
+if ! bash scripts/ci/check_tfvars_sensitive.sh; then
+  violations=$((violations + 1))
+fi
+
 echo "[conventions] check: config seed / Configurable Parameters parity (delegated)"
 if ! bash scripts/ci/check_config_seed_parity.sh; then
   violations=$((violations + 1))

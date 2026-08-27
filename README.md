@@ -76,7 +76,7 @@ This repository doubles as a worked example of a production Claude Code harness:
 ## Contributing
 
 - Talk to Dave.
-- You can run this code locally (see Quickstart above), but to contribute you must have an invitation to the private repo. 
+- You can run this code locally (see Quickstart above), but to contribute you must have an invitation to the private repo. Access to it is also a hard prerequisite for all operations work: every environment's Terraform values live there and are reached by symlink, so without it no AWS environment can be planned or applied. Local development and the test suite need none of it.
 - [CONTRIBUTING.md](CONTRIBUTING.md).
 - [SECURITY.md](SECURITY.md) for vulnerability reporting (Bug reporting is in the separate private GitHub repo).
 - **Do not report security vulnerabilities in public.** 
