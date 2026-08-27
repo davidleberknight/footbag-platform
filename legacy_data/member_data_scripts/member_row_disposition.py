@@ -47,12 +47,17 @@ VALID_DECISIONS = frozenset({KEEP, CLEAR, DEFER})
 CURATED_IDENTITY_VOUCHES = "curated_identity_vouches_for_the_id"
 CLUB_ROSTER_ONLY = "club_roster_membership_only"
 EXPORT_DEFECT_SUSPECTED = "export_defect_suspected_recheck_next_delivery"
+# A row the platform creates for itself, standing for something that never had a
+# legacy account. Its absence from the export is the design working, not a gap,
+# so it needs a reason of its own: reading it as a curated identity or a suspected
+# export defect would both invite someone to go looking for the missing account.
+SYSTEM_FIXTURE_BY_DESIGN = "system_fixture_absent_from_the_export_by_design"
 SUPERSEDED_BY_CLEARED_LINK = "superseded_the_dependent_person_link_is_cleared_too"
 UNDECIDED_PENDING_REVIEW = "undecided_pending_review"
 
 REASONS_BY_DECISION: dict[str, frozenset[str]] = {
     KEEP: frozenset({CURATED_IDENTITY_VOUCHES, CLUB_ROSTER_ONLY,
-                     EXPORT_DEFECT_SUSPECTED}),
+                     EXPORT_DEFECT_SUSPECTED, SYSTEM_FIXTURE_BY_DESIGN}),
     CLEAR: frozenset({SUPERSEDED_BY_CLEARED_LINK}),
     DEFER: frozenset({UNDECIDED_PENDING_REVIEW}),
 }

@@ -73,6 +73,35 @@ def test_a_keep_decision_is_recorded_and_clears_nothing():
     assert audit[0]["row_cleared"] is False
 
 
+def test_a_system_fixture_can_be_kept_for_being_absent_by_design(tmp_path):
+    # A row the platform creates for itself never had a legacy account, so the
+    # export not carrying it is the design working. Recording that as a curated
+    # identity or a suspected export defect would both send the next reader
+    # looking for an account that was never supposed to exist.
+    #
+    # Loaded from file rather than constructed, because the reason vocabulary is
+    # enforced on the way in: building the object directly would assert nothing
+    # about whether this reason is actually accepted.
+    u = _uncovered(source="system_fixture", rule="not_in_export", deps=["P1"])
+    p = tmp_path / "d.csv"
+    _write(p, [[mrd.KEEP, u["legacy_member_id"], mrd.SYSTEM_FIXTURE_BY_DESIGN,
+                u["fingerprint"], "the platform's own fixture row"]])
+    audit = mrd.apply_dispositions([u], mrd.load_dispositions(p))
+    assert audit[0]["decision"] == mrd.KEEP
+    assert audit[0]["row_cleared"] is False
+
+
+def test_the_by_design_reason_is_not_available_to_clear_or_defer(tmp_path):
+    # It explains why a row stays. Offering it as grounds for removing one would
+    # let "this was never a real account" argue for deleting the person link that
+    # depends on it.
+    for decision in (mrd.CLEAR, mrd.DEFER):
+        p = tmp_path / f"{decision}.csv"
+        _write(p, [[decision, "100", mrd.SYSTEM_FIXTURE_BY_DESIGN, "a" * 64, "n"]])
+        with pytest.raises(mrd.MemberRowDispositionError, match="not valid for decision"):
+            mrd.load_dispositions(p)
+
+
 def test_the_audit_carries_the_rule_that_dropped_the_row():
     # Attribution is the point of persisting exclusion provenance; a disposition
     # that could not name the rule would be a decision about nothing.
