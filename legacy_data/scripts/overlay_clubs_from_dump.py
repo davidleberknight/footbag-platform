@@ -211,6 +211,58 @@ def load_text_corrections(path: Path = TEXT_CORRECTIONS_CSV) -> dict[tuple[str, 
     return load_club_text_corrections(path)
 
 
+# US state and territory codes to the names the country page headings read as.
+# The legacy dump is not uniformly coded: its USA rows carry a two-letter code
+# while its Canadian rows already carry full province names, so the country page
+# splits into roughly twice as many sections as there are states, half of them
+# reading as an abbreviation.
+#
+# Normalising toward the full name is the direction that matches what most rows
+# already hold, matches the region corrections already recorded, leaves Canada
+# alone, and keeps every heading reading as a place name. It also keeps the
+# boundary that an abbreviation is corrected at source and never folded at
+# render, so no display code changes.
+#
+# The member roster export keeps two-letter codes and is unaffected; nothing
+# joins the two.
+_US_STATE_NAMES = {
+    "AL": "Alabama", "AK": "Alaska", "AZ": "Arizona", "AR": "Arkansas",
+    "CA": "California", "CO": "Colorado", "CT": "Connecticut", "DE": "Delaware",
+    "DC": "District of Columbia", "FL": "Florida", "GA": "Georgia", "HI": "Hawaii",
+    "ID": "Idaho", "IL": "Illinois", "IN": "Indiana", "IA": "Iowa",
+    "KS": "Kansas", "KY": "Kentucky", "LA": "Louisiana", "ME": "Maine",
+    "MD": "Maryland", "MA": "Massachusetts", "MI": "Michigan", "MN": "Minnesota",
+    "MS": "Mississippi", "MO": "Missouri", "MT": "Montana", "NE": "Nebraska",
+    "NV": "Nevada", "NH": "New Hampshire", "NJ": "New Jersey", "NM": "New Mexico",
+    "NY": "New York", "NC": "North Carolina", "ND": "North Dakota", "OH": "Ohio",
+    "OK": "Oklahoma", "OR": "Oregon", "PA": "Pennsylvania", "RI": "Rhode Island",
+    "SC": "South Carolina", "SD": "South Dakota", "TN": "Tennessee", "TX": "Texas",
+    "UT": "Utah", "VT": "Vermont", "VA": "Virginia", "WA": "Washington",
+    "WV": "West Virginia", "WI": "Wisconsin", "WY": "Wyoming",
+    "PR": "Puerto Rico", "GU": "Guam", "VI": "U.S. Virgin Islands",
+    "AS": "American Samoa", "MP": "Northern Mariana Islands",
+}
+
+#: The country spelling the dump uses for the United States.
+_US_COUNTRY_VALUES = frozenset({"USA", "UNITED STATES", "U.S.A.", "US"})
+
+
+def expand_us_state_code(region: str, country: str) -> str:
+    """A USA two-letter state code as its full name; anything else unchanged.
+
+    Deliberately not a length rule. Exactly one club outside the USA carries a
+    two-letter region — a Chilean club in Región Metropolitana, recorded as RM —
+    and a rule that keyed on length alone would rewrite it into a US state. The
+    test is both the country and membership of the table above, so an
+    abbreviation this table does not know is left exactly as it is rather than
+    guessed at.
+    """
+    code = (region or "").strip()
+    if (country or "").strip().upper() not in _US_COUNTRY_VALUES:
+        return region
+    return _US_STATE_NAMES.get(code.upper(), region) if len(code) == 2 else region
+
+
 def dump_row_to_seed_row(rec: dict, corrections: dict[tuple[str, str], str] | None = None) -> dict:
     """Map one approved dump clubs record (column_name -> value) to a seed row.
 
@@ -228,7 +280,11 @@ def dump_row_to_seed_row(rec: dict, corrections: dict[tuple[str, str], str] | No
         "legacy_club_key": club_id,
         "name": _prefer_undamaged(rec.get("ClubNameUnicode"), rec.get("Name")),
         "city": blank_location_placeholder(rec.get("City")),
-        "region": blank_location_placeholder(rec.get("State")),
+        # Country is read before region so the expansion can be scoped by it.
+        # Dump-derived rows are rebuilt every run, so the preserve-verbatim
+        # contract is not involved here and no mirror row is touched.
+        "region": expand_us_state_code(
+            blank_location_placeholder(rec.get("State")), _clean(rec.get("Country"))),
         "country": _clean(rec.get("Country")),
         "contact_member_id": "",
         "external_url": url,
