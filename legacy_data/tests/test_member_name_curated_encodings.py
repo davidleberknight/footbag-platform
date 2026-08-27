@@ -275,11 +275,16 @@ def test_clean_unicode_columns_are_untouched_by_an_override():
 
 @pytest.mark.skipif(not PROBLEMS.exists(),
                     reason="the delivered extract is operator-supplied and absent here")
-def test_the_delivered_inventory_still_matches_the_audit():
+def test_the_delivered_inventory_is_the_destroyed_residue():
+    # The audit reads the curated codepages, so a member the curator ruled on
+    # leaves this file. What a delivered extract still lists is the destroyed
+    # residue: names that lost a byte before the dump was taken, which naming an
+    # encoding cannot bring back. The audited totals above are the partition
+    # this file is the remainder of, not its expected length.
     with PROBLEMS.open(newline="", encoding="utf-8") as fh:
         rows = list(csv.DictReader(fh))
-    assert len(rows) == TOTAL_VALUES
-    assert len({r["legacy_member_id"] for r in rows}) == TOTAL_MEMBERS
+    assert len(rows) == DESTROYED_VALUES
+    assert len({r["legacy_member_id"] for r in rows}) == DESTROYED_MEMBERS
 
 
 @pytest.mark.skipif(not PROBLEMS.exists(),

@@ -1,43 +1,33 @@
 /**
  * The /media/browse landing (no query) leads with the search form, then the
- * Popular tags chip cloud. That list is composed, not ranked alone: real popular
- * tags lead by usage, and curated starter seeds pad the unfilled slots so
- * representative club, event, and style tags are there to click before anyone
- * has uploaded. The seeds are squeezed out as community usage accrues, with no
- * flag to flip. The old hardcoded "Try one" fallback chips are gone.
+ * Popular tags chip cloud. That list is composed, not ranked alone: real
+ * community tags lead by usage and curator-published tags fill the rest. Nothing
+ * pads it, so the block is only ever as long as recorded usage makes it and no
+ * chip on it is a tag the platform holds no media for. The old hardcoded
+ * "Try one" fallback chips are gone.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
-import type BetterSqlite3 from 'better-sqlite3';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-import { insertMember, insertTag, insertMediaItem } from '../fixtures/factories';
+import { insertMember, insertFreeformTag, insertMediaItem, attachMediaTag } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3075');
-const TS = '2025-01-01T00:00:00.000Z';
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
-function insertMediaTag(db: BetterSqlite3.Database, id: string, mediaId: string, tagId: string, tagDisplay: string): void {
-  db.prepare(`
-    INSERT INTO media_tags (
-      id, created_at, created_by, updated_at, updated_by, version,
-      media_id, tag_id, tag_display
-    ) VALUES (?, ?, 'test', ?, 'test', 1, ?, ?, ?)
-  `).run(id, TS, TS, mediaId, tagId, tagDisplay);
-}
-
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-  // Single curator/system account: its catalog tags are public and popular.
+  // Single curator/system account: its catalog tags are public and popular. The
+  // tag is freeform, so the Popular Tags block is the only place it can appear
+  // and an assertion about that block cannot be satisfied elsewhere.
   const curator = insertMember(db, {
     id: 'member-curator', slug: 'footbag_hacky', is_system: 1,
     login_email: 'curator@example.com', real_name: 'Footbag Hacky', display_name: 'Footbag Hacky',
   });
-  const tag = insertTag(db, { id: 'tag-pbr', tag_normalized: '#passback_records', tag_display: '#passback_records' });
+  const tag = insertFreeformTag(db, { tag_normalized: '#passback_records', tag_display: '#passback_records' });
   for (let i = 0; i < 3; i += 1) {
-    const m = insertMediaItem(db, { uploader_member_id: curator, caption: `curated-${i}` });
-    insertMediaTag(db, `mt-${i}`, m, tag, '#passback_records');
+    attachMediaTag(db, insertMediaItem(db, { uploader_member_id: curator, caption: `curated-${i}` }), tag);
   }
   db.close();
 
@@ -57,13 +47,14 @@ describe('GET /media/browse landing — search leads, popular tags follow', () =
     expect(res.text).toContain('#passback_records');
   });
 
-  it('pads the unfilled slots with the curated starter seeds alongside the real tag', async () => {
+  it('leaves the unfilled slots empty rather than padding them with tags that match nothing', async () => {
     const res = await request(createApp()).get('/media/browse');
-    // One real public tag leads; the curated seeds fill the rest of the block.
+    // The one real public tag is the whole block. Nothing else is offered,
+    // because nothing else in this database has media behind it.
     expect(res.text).toContain('#passback_records');
-    expect(res.text).toContain('#club_wellington');
-    expect(res.text).toContain('#event_2026_worlds_japan');
-    expect(res.text).toContain('#chinlone');
+    expect(res.text).not.toContain('#club_wellington');
+    expect(res.text).not.toContain('#event_2026_worlds_japan');
+    expect(res.text).not.toContain('#chinlone');
   });
 
   it('drops the hardcoded fallback chips and the separate club/event sections', async () => {

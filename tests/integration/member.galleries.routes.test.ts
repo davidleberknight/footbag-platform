@@ -195,15 +195,15 @@ describe('GET /members/:memberKey/galleries', () => {
     expect(res.text).toContain('My Galleries');
     expect(res.text).toContain('Create New Gallery');
     // A member with no galleries (so no media) sees the teaching empty state:
-    // a prompt, the upload CTA, and seed-padded popular-tag chips, in place of
-    // the old bare "no galleries yet" message.
+    // a prompt and the upload CTA, in place of the old bare "no galleries yet"
+    // message.
     expect(res.text).toContain('You have not shared any photos or videos yet.');
-    expect(res.text).toContain('Popular Tags');
-    // With no real popular tags accrued, the curated starter seeds fill the
-    // chips: a representative club, the upcoming worlds event, and a style tag.
-    expect(res.text).toContain('#club_wellington');
-    expect(res.text).toContain('#event_2026_worlds_japan');
-    expect(res.text).toContain('#chinlone');
+    // No public tag has accrued in this database, so the popular-tag block is
+    // absent rather than filled with tags that would lead nowhere.
+    expect(res.text).not.toContain('Popular Tags');
+    expect(res.text).not.toContain('#club_wellington');
+    expect(res.text).not.toContain('#event_2026_worlds_japan');
+    expect(res.text).not.toContain('#chinlone');
     // Replaced the old developer-spec description with member-facing copy.
     expect(res.text).toContain('saved view of your photos and videos');
   });

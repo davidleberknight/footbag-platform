@@ -6,13 +6,14 @@
  *   - Popular public tags: the most-used tags that are public, meaning used by
  *     2+ distinct members OR carried by curator/system-uploaded content. A single
  *     non-system member's personal tags stay out so they never leak into discovery.
- *   - Suggestion tags composed in three tiers (real community-popular tags, then
- *     pinned curated starters, then curator-published backfill) and the hashtag
- *     summary; the starters are visible while the community is quiet and are
- *     phased out as real community usage accrues
+ *   - Suggestion tags composed in two tiers (real community-popular tags, then
+ *     curator-published backfill) and the hashtag summary. Both tiers come from
+ *     recorded usage, so every suggested tag carries media; when neither tier
+ *     has anything the list is empty and the caller shows nothing rather than a
+ *     tag that leads to an empty gallery
  *   - Standard tags with media (club/event tags that have tagged content)
  *   - The hashtag index blocks the /media/browse landing renders: Popular Tags
- *     (the three-tier composition, at the landing's wider limit) and All Tags
+ *     (the two-tier composition, at the landing's wider limit) and All Tags
  *     (community tags only, alphabetical), plus a highlight of recent event
  *     hashtags and the tutorial hashtag. Popular and All Tags are deliberately
  *     different populations: curated single-uploader tags are public and belong
@@ -49,13 +50,11 @@ import {
   type MemberTagRow,
 } from '../db/db';
 import { runSqliteRead } from './sqliteRetry';
-import { TEACHING_TAG_SEEDS, composeSuggestedTags } from '../content/teachingTagSeeds';
 
 /**
- * How many chips the landing's Popular Tags block carries. The list is composed,
- * not ranked alone: real community tags lead, the pinned curated starters fill
- * the remaining slots so the block is useful before anyone has uploaded, and the
- * starters are squeezed out as community usage accrues.
+ * The cap on the landing's Popular Tags block. The list is composed, not ranked
+ * alone: real community tags lead and curator-published tags fill the remaining
+ * slots. Nothing pads it, so the block is as short as recorded usage makes it.
  */
 const BROWSE_POPULAR_LIMIT = 30;
 /** How many event hashtags the recency highlight carries. */
@@ -93,7 +92,7 @@ export interface MemberTagSuggestions {
  * page envelope: mediaService nests this in the browse page view-model.
  */
 export interface HashtagIndexContent {
-  /** Popular tags: real community usage first, curated starters filling the rest. */
+  /** Popular tags: real community usage first, curator-published tags filling the rest. */
   popularTags: TagChipShape[];
   hasPopularTags: boolean;
   /** Community tags only, alphabetically. A single member's tags stay personal. */
@@ -123,6 +122,25 @@ function rowToChip(row: { tag_normalized: string; tag_display: string }): TagChi
     normalized: row.tag_normalized,
     href: tagToBrowseHref(row.tag_normalized),
   };
+}
+
+/** Community chips first, curator-published chips filling the rest, capped at
+ *  `limit` and de-duplicated case-insensitively across both tiers. */
+function mergeTagTiers(
+  community: TagChipShape[],
+  curator: TagChipShape[],
+  limit: number,
+): TagChipShape[] {
+  const out: TagChipShape[] = [];
+  const seen = new Set<string>();
+  for (const chip of [...community, ...curator]) {
+    if (out.length >= limit) break;
+    const key = chip.normalized.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(chip);
+  }
+  return out;
 }
 
 export const hashtagDiscoveryService = {
@@ -175,23 +193,22 @@ export const hashtagDiscoveryService = {
     });
   },
 
-  // Suggestion surface: real community-popular tags first, then the pinned
-  // curated starter seeds, then curator-published tags backfilling the rest.
-  // Before community usage accrues the seeds are visible at the top; as members
-  // upload and real community tags fill the high slots, the seeds are squeezed
-  // out automatically (the composer dedups and respects the limit).
-  getPopularTagsWithSeeds(limit: number = 8): TagChipShape[] {
-    return runSqliteRead('hashtagDiscoveryService.getPopularTagsWithSeeds', () => {
+  // Suggestion surface: real community-popular tags first, then curator-published
+  // tags backfilling the rest. Both tiers read recorded usage, so every tag
+  // offered here has media behind it; nothing pads the list, and while neither
+  // tier has anything the caller gets an empty list and shows no chips at all.
+  getPopularTagsCommunityFirst(limit: number = 8): TagChipShape[] {
+    return runSqliteRead('hashtagDiscoveryService.getPopularTagsCommunityFirst', () => {
       const community = (tagStats.listMemberCommunityPopularTags.all(limit) as PopularTagRow[]).map(rowToChip);
       const curator = (tagStats.listCuratorPublishedPopularTags.all(limit) as PopularTagRow[]).map(rowToChip);
-      return composeSuggestedTags(community, TEACHING_TAG_SEEDS, curator, limit, tagToBrowseHref);
+      return mergeTagTiers(community, curator, limit);
     });
   },
 
   // Aggregated hashtag statistics for the teaching empty state. The count is
   // capped at the read limit; a teaching surface does not need an exact total.
   // At cold start every value is empty/false, so the caller hides the stats
-  // block and shows only the seeded chips.
+  // block.
   getCommunityHashtagSummary(): HashtagStatsSummary {
     const top = hashtagDiscoveryService.getPopularTags(50);
     return {
@@ -223,7 +240,7 @@ export const hashtagDiscoveryService = {
   // vocabulary rather than a dump of the catalog.
   getHashtagIndexContent(): HashtagIndexContent {
     return runSqliteRead('hashtagDiscoveryService.getHashtagIndexContent', () => {
-      const popularTags = hashtagDiscoveryService.getPopularTagsWithSeeds(BROWSE_POPULAR_LIMIT);
+      const popularTags = hashtagDiscoveryService.getPopularTagsCommunityFirst(BROWSE_POPULAR_LIMIT);
       const communityTags = (tagStats.listCommunityTagsAlphabetical.all() as PopularTagRow[])
         .map(rowToChip);
 

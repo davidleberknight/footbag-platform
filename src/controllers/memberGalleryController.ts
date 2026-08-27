@@ -168,7 +168,7 @@ export const memberGalleryController = {
       // attach the teaching content. Skipped entirely once any gallery exists.
       const teaching = summaries.length > 0 ? null : {
         exampleItems: mediaService.listRecentCommunityMedia(TEACHING_EXAMPLE_LIMIT, listHref(memberKey)),
-        popularTags: hashtagDiscoveryService.getPopularTagsWithSeeds(TEACHING_TAG_LIMIT),
+        popularTags: hashtagDiscoveryService.getPopularTagsCommunityFirst(TEACHING_TAG_LIMIT),
         stats: hashtagDiscoveryService.getCommunityHashtagSummary(),
       };
       res.render('members/galleries/list', {
