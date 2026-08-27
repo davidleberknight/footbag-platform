@@ -27,10 +27,17 @@ _SCRIPTS = _ROOT / "legacy_data" / "member_data_scripts"
 REQUIRE_ENV = "FOOTBAG_REQUIRE_DUMP"
 
 # The audited partition for the delivery in hand.
-COHORT = 272
+#
+# Four membership names that once entered this cohort no longer reach it: they
+# were the same humans as canonical people under a different spelling, and the
+# curated consolidation now resolves them upstream, so the provisional builder
+# never emits a stub for them. They needed a disposition only for as long as they
+# existed as separate identities. Every person still awaiting one holds no site
+# account, which is why the duplicate bucket below is empty rather than small.
+COHORT = 268
 STAGE_B_PROPOSALS = 152
 STAGE_B_REVIEW_ROWS = 0
-EXPLICIT_DISPOSITIONS = 120
+EXPLICIT_DISPOSITIONS = 116
 
 
 def _load(name):
@@ -125,7 +132,12 @@ def test_a_drafted_disposition_set_satisfies_the_gate(tmp_path, delivery):
     by_decision = {}
     for h in holds:
         by_decision[h.decision] = by_decision.get(h.decision, 0) + 1
-    assert by_decision == {plh.NO_ACCOUNT: 116, plh.DUPLICATE_PERSON: 4}
+    # No duplicate bucket: a membership name that is really a canonical person
+    # under another spelling is consolidated upstream and never reaches the
+    # cohort, so nothing is left here to rule on. The check below still stands,
+    # because a duplicate arriving again would be a new identity conflict and
+    # must name the person it duplicates rather than being waved through.
+    assert by_decision == {plh.NO_ACCOUNT: EXPLICIT_DISPOSITIONS}
     for h in holds:
         if h.decision == plh.DUPLICATE_PERSON:
             assert h.duplicate_of_person_id, h

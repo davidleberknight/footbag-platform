@@ -93,7 +93,7 @@ def build_sandbox(tmp_path: Path, omit_inputs: list[str] | None = None) -> Path:
 
     identity = root / "pipeline" / "identity"
     identity.mkdir(parents=True)
-    for name in ("__init__.py", "alias_resolver.py"):
+    for name in ("__init__.py", "alias_resolver.py", "person_consolidation.py"):
         shutil.copy2(LEGACY / "pipeline" / "identity" / name, identity / name)
 
     canonical = root / "out" / "canonical"

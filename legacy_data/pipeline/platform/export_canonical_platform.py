@@ -61,6 +61,7 @@ from pathlib import Path
 # Shared alias resolution (see pipeline/identity/alias_resolver.py).
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from pipeline.identity.alias_resolver import AliasResolver
+from pipeline.identity import person_consolidation as pconsol
 
 # Resolve the sibling helper whether this file is run as a script or imported.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -85,6 +86,8 @@ LOCK_DIR     = ROOT / "inputs" / "identity_lock"
 HOF_CSV      = ROOT / "inputs" / "hof.csv"
 DISPLAY_NAMES_CSV    = LOCK_DIR / "Person_Display_Names_v1.csv"
 MEMBER_ID_SUPPLEMENT = LOCK_DIR / "member_id_supplement.csv"
+# Curated identity consolidation, applied before persons.csv is written.
+PERSON_MERGES_CSV    = ROOT / "overrides" / "person_merges.csv"
 
 # The five files are one output set, published together or not at all. This is
 # both the generation order and the replacement order, and it is also the list
@@ -897,6 +900,30 @@ def main() -> None:
             print(f"  {r['event_key']} / {r['discipline_key']} / p{r['placement']} "
                   f"— person_id={r['person_id']}", file=sys.stderr)
         sys.exit(1)
+
+    # ── 13b. Curated identity consolidation ───────────────────────────────────
+    # A person who exists twice is consolidated here, before persons.csv is
+    # written, so a full rebuild reproduces the correction instead of reverting
+    # it. This producer owns the canonical-scoped rules: it retires the duplicate
+    # canonical row, transfers a member binding that exactly one side carries,
+    # and applies survivor-level name and country corrections. The provisional
+    # producer owns the rest, and the accounting below proves each rule was
+    # consumed once by whichever owns it.
+    consolidation_audit: list[dict] = []
+    try:
+        rules = pconsol.load_rules(PERSON_MERGES_CSV)
+        persons, consolidation_audit = pconsol.apply_canonical(persons, rules)
+    except pconsol.PersonConsolidationError as exc:
+        print(f"\nERROR: curated person consolidation failed closed: {exc}", file=sys.stderr)
+        print(f"  Fix the rule in {PERSON_MERGES_CSV} and re-run.", file=sys.stderr)
+        sys.exit(EXIT_MISSING_INTERMEDIATES)
+    if consolidation_audit:
+        print(f"  identity consolidation: {len(consolidation_audit)} canonical row(s) retired")
+        for entry in consolidation_audit:
+            moved = entry["member_id_transferred"]
+            print(f"    {entry['retired'][:12]} -> {entry['survivor'][:12]}  "
+                  f"name={entry['surviving_name']!r}"
+                  + (f"  member id {moved} follows the identity" if moved else ""))
 
     # ── 14. Sort persons alphabetically ───────────────────────────────────────
     persons.sort(key=lambda p: (p.get("person_name", "").lower(), p.get("person_id", "")))

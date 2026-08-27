@@ -1957,7 +1957,7 @@ Piia Tantarimäki,1dc7bf3f-8a4d-57b0-912b-b6626fb29cfb,Piia Tantarimäki,verifie
 Piia Tantarimäki Uli Haase,1dc7bf3f-8a4d-57b0-912b-b6626fb29cfb,Piia Tantarimäki,verified,quarantine_split:redirect_from_concat
 Piia Tantarimki,1dc7bf3f-8a4d-57b0-912b-b6626fb29cfb,Piia Tantarimäki,verified,encoding_corruption
 Piotr Ba?trukiewicz,0bc42b4b-243a-5665-9861-217774d91498,Piotr Ba?trukiewicz,verified,
-Piotr Baltrukiewicz,0bc42b4b-243a-5665-9861-217774d91498,Piotr Baltrukiewicz,verified,
+Piotr Baltrukiewicz,0bc42b4b-243a-5665-9861-217774d91498,Piotr Bałtrukiewicz,verified,folded spelling kept searchable after the diacritic form was promoted onto the survivor
 Piotr Kosciekny,64336b8d-cd07-5851-a083-617bb0f65bee,Piotr Kosciekny,verified,
 Piotr Koscielny,64336b8d-cd07-5851-a083-617bb0f65bee,Piotr Kosciekny,verified,
 Piotr Kościelny,64336b8d-cd07-5851-a083-617bb0f65bee,Piotr Kosciekny,verified,
@@ -2777,3 +2777,10 @@ Przemysaw Pietrzycki,8a15006e-bc85-5621-bbe6-66090397b7d2,Przemysław Pietrzycki
 Radosaw Turek,2002626c-155f-5447-8115-bba010c6a418,Radosław Turek,verified,character-loss spelling; the stroke letter was dropped downstream of the crawl and the form was minted as an unclaimable duplicate
 Ren Ruhr,9585ffd8-cc96-528e-ba4a-4211da8cef00,Rene Ruehr,verified,character-loss spelling; the accented letter was dropped downstream of the crawl and the form was minted as an unclaimable duplicate
 Premek Pietrzycki,8a15006e-bc85-5621-bbe6-66090397b7d2,Przemysław Pietrzycki,verified,character-loss spelling of the already-verified Przemek variant; one letter dropped from the same diminutive
+Gergo Csallo,58e6ac47-fc96-5e9d-9121-99ef6927e939,Gergo Csallo,verified,identity alias for the consolidated survivor; the membership report and the member export both give this spelling and it is what the provisional builder must resolve
+Csallo Gergo,58e6ac47-fc96-5e9d-9121-99ef6927e939,Gergo Csallo,verified,Hungarian surname-first rendering of the survivor's own name; kept searchable after the surviving spelling moved to natural order
+Georgo Csallo,58e6ac47-fc96-5e9d-9121-99ef6927e939,Gergo Csallo,verified,corrupted given name on a retired duplicate row; kept searchable so the spelling the old site displayed still finds the person
+Lukasz Krysiewicz,75235a9f-e5ba-5876-9908-1901cd20c6fa,Łukasz Krysiewicz,verified,stroke letter folded away; the member account and the membership report both spell it this way and the canonical normalization does not fold it
+Piotr Bałtrukiewicz,0bc42b4b-243a-5665-9861-217774d91498,Piotr Bałtrukiewicz,verified,identity alias for the consolidated survivor after the diacritic spelling was promoted from the membership report
+Łukasz Osiński,430445ab-eb65-5f09-a5e1-4bc4f1187c00,Łukasz Osiński,verified,identity alias for the consolidated survivor after the diacritic spelling was promoted from the membership report
+Lukasz Osinski,430445ab-eb65-5f09-a5e1-4bc4f1187c00,Łukasz Osiński,verified,stroke letters folded away; the form the mirror and the event records carry, kept searchable after the surviving spelling gained its diacritics

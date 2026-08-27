@@ -15,6 +15,9 @@ OUT = ROOT / "legacy_data/persons/provisional/out/provisional_persons_master.csv
 # Make pipeline.identity importable when this script is run directly.
 sys.path.insert(0, str(ROOT / "legacy_data"))
 from pipeline.identity.alias_resolver import load_default_resolver  # noqa: E402
+from pipeline.identity import person_consolidation as pconsol  # noqa: E402
+
+PERSON_MERGES_CSV = ROOT / "legacy_data/overrides/person_merges.csv"
 
 
 def make_id(key):
@@ -70,12 +73,34 @@ def main():
             })
 
     out = pd.DataFrame(rows).drop_duplicates(subset=["provisional_person_id"])
+
+    # Curated identity consolidation, provisional half. Suppression itself is the
+    # alias guard above; this proves the guard had what it needed and acted. A
+    # rule whose name does not resolve, resolves to somebody else, or whose stub
+    # was emitted anyway fails the build rather than producing a duplicate person
+    # that the loader would then have to clean up.
+    try:
+        rules = pconsol.load_rules(PERSON_MERGES_CSV)
+        prov_audit = pconsol.verify_provisional(
+            rules, resolver.resolve if resolver else (lambda _n: None),
+            emitted_names=out["person_name"].tolist() if len(out) else [])
+    except pconsol.PersonConsolidationError as exc:
+        print(f"ERROR: curated person consolidation failed closed: {exc}", file=sys.stderr)
+        print(f"  Fix the rule in {PERSON_MERGES_CSV} or the alias pair behind it, "
+              "then re-run.", file=sys.stderr)
+        raise SystemExit(2)
+
     OUT.parent.mkdir(parents=True, exist_ok=True)
     out.to_csv(OUT, index=False)
 
     print(f"Wrote {len(out)} rows")
     if n_alias_dropped_m or n_alias_dropped_c:
         print(f"  Alias guard dropped: {n_alias_dropped_m} from membership, {n_alias_dropped_c} from clubs")
+    if prov_audit:
+        print(f"  Identity consolidation: {len(prov_audit)} provisional duplicate(s) "
+              "suppressed and verified against the alias registry")
+        for entry in prov_audit:
+            print(f"    {entry['retired']!r} -> {entry['survivor'][:12]}")
 
 
 if __name__ == "__main__":
