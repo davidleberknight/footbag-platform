@@ -1,14 +1,23 @@
 #!/usr/bin/env python3
-"""Seed the legacy_members table with a temporary mirror-derived population.
+"""Seed the legacy_members table with a temporary local bootstrap population.
 
 This population is TEMPORARY. It exists to unblock the FK
-historical_persons.legacy_member_id -> legacy_members(legacy_member_id).
-The legacy-site data dump will supersede these rows with full profile
-fields and flip import_source from 'mirror' to 'legacy_site_data'.
+historical_persons.legacy_member_id -> legacy_members(legacy_member_id) on a
+machine that has no delivered export. The legacy-site data dump supersedes these
+rows with full profile fields and sets import_source='legacy_site_data'.
+
+The rows are written as import_source='system_fixture', because that is what they
+are: development fixture data standing in for a population this machine has not
+been given. They are derived from the mirror, but they are not the mirror-derived
+delivered population, and labelling them as though they were made a local
+bootstrap indistinguishable from real data in every report that reads provenance.
+'legacy_site_data' remains the only authoritative label, and the uncovered-row
+report defines its subject as everything that is not that, so this bootstrap is
+reported like any other uncovered row rather than exempted from the invariant.
 
 Seeds legacy_member_id (PK), display_name, display_name_normalized,
-imported_at, import_source='mirror'. Other columns are left NULL; the
-legacy-site data dump populates the full profile fields authoritatively.
+imported_at, import_source. Other columns are left NULL; the legacy-site data
+dump populates the full profile fields authoritatively.
 
 Sources:
   legacy_data/seed/club_members.csv                       (2,372 unique
@@ -123,7 +132,7 @@ def main() -> None:
                 INSERT OR IGNORE INTO legacy_members
                   (legacy_member_id, display_name, display_name_normalized,
                    imported_at, import_source, version)
-                VALUES (?, ?, ?, ?, 'mirror', 1)
+                VALUES (?, ?, ?, ?, 'system_fixture', 1)
                 """,
                 (mid, display_name, display_name_normalized, ts),
             )

@@ -221,6 +221,10 @@ def main() -> None:
     ap.add_argument("--db", default=os.environ.get("FOOTBAG_DB_PATH", "database/footbag.db"))
     ap.add_argument("--apply", action="store_true",
                     help="perform the writes; without this flag the loader is a dry run")
+    ap.add_argument("--exclusions-out", default=None,
+                    help="where to write the per-id exclusion provenance (default: "
+                         "legacy_data/member_data_scripts/out/legacy_export_exclusions.csv). "
+                         "Written on a dry run too.")
     ap.add_argument("--merge-map", default=None,
                     help="final-load only: the loser->survivor auto-merge mapping CSV "
                          "(reconcile stage_a_merged_accounts.csv). Applies the live-reference "
@@ -479,7 +483,10 @@ def main() -> None:
             ts,
         )
         if existing:
-            if existing["import_source"] == "mirror":
+            # A pre-load row is anything that is not the authoritative delivered
+            # population, so this counter stays correct whatever the local
+            # bootstrap calls itself and for a row still carrying an older label.
+            if (existing["import_source"] or "") != "legacy_site_data":
                 updated_from_mirror += 1
             else:
                 re_applied += 1
@@ -501,6 +508,24 @@ def main() -> None:
         conn.commit()
     conn.close()
 
+    # Every excluded id, not the eight the summary has room for. A row the export
+    # leaves uncovered has to be attributable to the rule that dropped it, and a
+    # printed sample cannot answer that after the fact. Written on a dry run too,
+    # so the report can be read before anything is loaded.
+    exclusions_csv = Path(args.exclusions_out) if args.exclusions_out else (
+        Path(args.db).parent.parent / "legacy_data" / "member_data_scripts" / "out"
+        / "legacy_export_exclusions.csv")
+    exclusions_csv.parent.mkdir(parents=True, exist_ok=True)
+    pulled_back = {pk for pk, _ in exceptions_pulled_back}
+    with exclusions_csv.open("w", encoding="utf-8", newline="") as fh:
+        w = csv.DictWriter(fh, fieldnames=["legacy_member_id", "exclusion_rule",
+                                           "pulled_back"], lineterminator="\n")
+        w.writeheader()
+        for rule in EXCLUSION_RULES:
+            for pk in sorted(excluded[rule]):
+                w.writerow({"legacy_member_id": pk, "exclusion_rule": rule,
+                            "pulled_back": "1" if pk in pulled_back else "0"})
+
     mode = "APPLY" if args.apply else "DRY-RUN (no writes; pass --apply to load)"
     print(f"legacy export load [{mode}]")
     print(f"  rows examined:            {len(raw_rows)}")
@@ -508,6 +533,7 @@ def main() -> None:
         ids = excluded[rule]
         suffix = f"  ({', '.join(ids[:8])}{', ...' if len(ids) > 8 else ''})" if ids else ""
         print(f"  excluded[{rule}]:".ljust(28) + f"{len(ids)}{suffix}")
+    print(f"  exclusions written to:    {exclusions_csv}")
     print(f"  exceptions pulled back:   {len(exceptions_pulled_back)}"
           + (f"  ({', '.join(f'{pk}[{rule}]' for pk, rule in exceptions_pulled_back[:8])})"
              if exceptions_pulled_back else ""))

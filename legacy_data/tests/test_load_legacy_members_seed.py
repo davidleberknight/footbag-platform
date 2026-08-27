@@ -2,11 +2,13 @@
 test_load_legacy_members_seed.py
 ================================
 
-Contract tests for the mirror-derived dev-seed loader
+Contract tests for the local bootstrap seed loader
 (legacy_data/scripts/load_legacy_members_seed.py):
 
-  * the loader seeds a mirror row (name only, import_source='mirror', version=1)
-    from the club-roster and persons sources.
+  * the loader seeds a bootstrap row (name only, import_source='system_fixture',
+    version=1) from the club-roster and persons sources. It is derived from the
+    mirror but is not a delivered population, and carries the fixture provenance
+    so no report mistakes it for one.
   * the production/staging guard refuses before any work when the target smells
     like a deployed environment, and passes through on a plain local target.
 
@@ -56,7 +58,7 @@ def run_loader(db: str, extra: list[str], env_overrides: dict[str, str] | None =
 
 # ── Phase-1 mirror seeding ───────────────────────────────────────────────────
 
-def test_seeds_mirror_row_name_only(tmp_path: Path) -> None:
+def test_seeds_bootstrap_row_name_only(tmp_path: Path) -> None:
     db = make_db(tmp_path)
 
     club_members = write_csv(
@@ -81,9 +83,10 @@ def test_seeds_mirror_row_name_only(tmp_path: Path) -> None:
             "SELECT display_name, import_source, version, bio, city, country, ifpa_join_date "
             "FROM legacy_members WHERE legacy_member_id = 'm1'"
         ).fetchone()
-    # Name only, tagged as the mirror stand-in; profile fields stay NULL for the
-    # real member load to populate authoritatively.
-    assert row == ("Jane Roe", "mirror", 1, None, None, None, None), row
+    # Name only, tagged as the local bootstrap fixture it is rather than as a
+    # delivered population; profile fields stay NULL for the real member load to
+    # populate authoritatively.
+    assert row == ("Jane Roe", "system_fixture", 1, None, None, None, None), row
 
 
 # ── Production/staging guard ─────────────────────────────────────────────────

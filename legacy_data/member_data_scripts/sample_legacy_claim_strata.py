@@ -111,7 +111,7 @@ BEHAVIOR = {
         "No email on file: no auto-suggestion is possible; only manual search, "
         "verified anchors, or admin link-help can reach this account.",
     "collision_stub":
-        "Bare mirror stub (collision hold-out): it carries only a seeded display "
+        "Bare bootstrap stub (collision hold-out): it carries only a seeded display "
         "name, with no email and no legacy user id, and the claim lookup matches on "
         "ids and email columns alone, so no search or registration email should ever "
         "reach it.",
@@ -199,12 +199,18 @@ STRATA_SQL = {
     "no_email": f"""
         {LM_SELECT}
         WHERE {CLAIMABLE} AND NOT {EMAIL_PRESENT}
-          AND COALESCE(lm.import_source, '') != 'mirror'
         ORDER BY lm.legacy_member_id
     """,
+    # The one stratum that is a hold-out rather than a sample. It selects rows a
+    # tester must NOT be able to reach, to prove the flow never reaches them, so
+    # it is the one query that cannot draw from CLAIMABLE: that predicate exists
+    # to exclude exactly these. It still refuses a claimed row and a persona,
+    # because neither would show what this checks.
     "collision_stub": f"""
         {LM_SELECT}
-        WHERE {CLAIMABLE} AND lm.import_source = 'mirror'
+        WHERE lm.claimed_by_member_id IS NULL
+          AND lm.legacy_member_id NOT LIKE 'legmem_persona_%'
+          AND lm.import_source = 'system_fixture'
         ORDER BY lm.legacy_member_id
     """,
 }
