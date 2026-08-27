@@ -63,6 +63,7 @@ from club_curation import (  # noqa: E402
     blank_location_placeholder,
     clean_club_text,
     decode_numeric_entities,
+    has_c1_controls,
     load_club_text_corrections,
     repair_doubled_url_scheme,
 )
@@ -151,11 +152,6 @@ def _clean(text: str | None) -> str:
     return clean_club_text(text)
 
 
-def _prefer(primary: str | None, fallback: str | None) -> str:
-    p = _clean(primary)
-    return p if p else _clean(fallback)
-
-
 def _repaired_if_double_encoded(text: str) -> str | None:
     """The repaired string when `text` is UTF-8 bytes that were stored after
     being decoded as a single-byte codepage, otherwise None.
@@ -173,6 +169,24 @@ def _repaired_if_double_encoded(text: str) -> str | None:
     return repaired if repaired != text else None
 
 
+def _was_damaged(text: str | None) -> bool:
+    """True when the raw value shows either kind of codepage damage.
+
+    Two shapes reach us and only one is a round trip. Whole-string mojibake is
+    reversible and detected above. A single CP1252 byte inside otherwise-correct
+    text is not: it fails that round trip, which is exactly why it used to pass
+    through untouched. It leaves a C1 control instead, and a control character in
+    a club name or description is damage by construction, since no club field has
+    any use for one.
+
+    Read on the RAW value, before cleaning: the shared cleaner now repairs the
+    control, so asking afterwards would always answer no and the preference below
+    would lose the provenance it exists to keep."""
+    if not text:
+        return False
+    return has_c1_controls(text) or _repaired_if_double_encoded(text) is not None
+
+
 def _prefer_undamaged(primary: str | None, fallback: str | None) -> str:
     """Prefer the primary value, except when it was stored already double-encoded
     and the fallback holds the same text intact.
@@ -185,7 +199,7 @@ def _prefer_undamaged(primary: str | None, fallback: str | None) -> str:
     p, f = _clean(primary), _clean(fallback)
     if not p:
         return f
-    if f and _repaired_if_double_encoded(p) is not None and _repaired_if_double_encoded(f) is None:
+    if f and _was_damaged(primary) and not _was_damaged(fallback):
         return f
     return p
 
@@ -218,7 +232,11 @@ def dump_row_to_seed_row(rec: dict, corrections: dict[tuple[str, str], str] | No
         "country": _clean(rec.get("Country")),
         "contact_member_id": "",
         "external_url": url,
-        "description": _scrub_description_pii(_prefer(rec.get("TagLine"), rec.get("Welcome"))),
+        # Undamaged, not merely first: the description is where the codepage
+        # damage actually showed up, so a damaged primary yields to a clean
+        # alternative here on the same reasoning the club name already used.
+        "description": _scrub_description_pii(
+            _prefer_undamaged(rec.get("TagLine"), rec.get("Welcome"))),
         "created": _epoch_to_datetime_text(rec.get("Created")),
         "last_updated": _epoch_to_datetime_text(rec.get("Modified")),
     }

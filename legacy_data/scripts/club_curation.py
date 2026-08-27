@@ -24,6 +24,29 @@ from pathlib import Path
 # A numeric character reference, decimal or hexadecimal.
 _NUMERIC_ENTITY_RE = re.compile(r"&#(?:[0-9]{1,7}|[xX][0-9a-fA-F]{1,6});")
 
+# The C1 range, U+0080 to U+009F. These code points are unassigned controls in
+# Unicode and in Latin-1, and printable punctuation in CP1252: curly quotes, en
+# and em dashes, the ellipsis. Legacy text reaching us with one in it was written
+# as a CP1252 byte and read back by a decoder that did not know that codepage, so
+# the byte survived as a control with no glyph. No club field has any use for a
+# control character, which is what makes their presence a reliable damage signal
+# rather than a guess about content.
+#
+# Written as a numeric range rather than a character class so the bounds stay
+# legible in source: the characters themselves are invisible, and a literal one
+# is the kind of thing an editor silently eats.
+_C1_FIRST, _C1_LAST = 0x80, 0x9F
+
+# Five of those byte values are genuinely undefined in CP1252, so there is no
+# character to restore them to. They are left as they are rather than mapped to
+# something plausible.
+_CP1252_FROM_C1: dict[str, str] = {}
+for _cp in range(_C1_FIRST, _C1_LAST + 1):
+    try:
+        _CP1252_FROM_C1[chr(_cp)] = bytes([_cp]).decode("cp1252")
+    except UnicodeDecodeError:
+        pass
+
 LEGACY_DATA_ROOT = Path(__file__).resolve().parent.parent
 
 # The committed club seed's columns, in order. Both producers write this shape.
@@ -44,6 +67,36 @@ CLUB_DUPLICATES_CSV = LEGACY_DATA_ROOT / "overrides" / "club_duplicates.csv"
 CLUB_TEXT_CORRECTIONS_CSV = LEGACY_DATA_ROOT / "overrides" / "club_text_corrections.csv"
 
 
+def has_c1_controls(text: str | None) -> bool:
+    """True when the text carries a C1 control, which no club field ever should."""
+    if not text:
+        return False
+    return any(_C1_FIRST <= ord(c) <= _C1_LAST for c in str(text))
+
+
+def repair_cp1252_controls(text: str | None) -> str:
+    """Restore CP1252 punctuation that survived as a C1 control.
+
+    The narrower repair the overlay applies reverses whole-string mojibake, where
+    UTF-8 bytes were stored after being read as a single-byte codepage. It detects
+    that by round-tripping the text and re-decoding, which only succeeds for text
+    that really carries that damage. A lone CP1252 byte inside otherwise-correct
+    text fails that round trip and passes through untouched, which is how a
+    working em dash became U+0097 the moment a club's description started coming
+    from the dump instead of the mirror.
+
+    This repair is per character and needs no round trip, so the two compose: the
+    whole-string reversal handles its case, and whatever it leaves behind in the
+    C1 range is restored here.
+    """
+    if not text:
+        return ""
+    s = str(text)
+    if not has_c1_controls(s):
+        return s
+    return "".join(_CP1252_FROM_C1.get(c, c) for c in s)
+
+
 def decode_numeric_entities(text: str) -> str:
     """Turn HTML numeric character references back into the characters they stand
     for. Several legacy club records store non-Latin text this way, which would
@@ -59,14 +112,22 @@ def decode_numeric_entities(text: str) -> str:
 
 
 def clean_club_text(text: str | None) -> str:
-    """Trim, restore numerically-escaped characters, and settle line endings to LF.
+    """Trim, restore numerically-escaped characters, repair CP1252 punctuation that
+    arrived as a control, and settle line endings to LF.
 
     Decoding happens at this boundary so every consumer sees real characters,
     including the description scrubber, which could not recognise an address or a
-    phone number still hidden behind escapes. Line endings are settled here too:
-    the legacy dump escapes multi-line text with carriage returns and the seed
-    dialect is LF, so a value carrying CRLF would otherwise make the written bytes
-    depend on how a checkout normalises them.
+    phone number still hidden behind escapes. The CP1252 repair belongs at the same
+    boundary and for the same reason: a control character is not a real character,
+    and leaving it for each consumer to notice is how one reached the published
+    club seed. Line endings are settled here too: the legacy dump escapes
+    multi-line text with carriage returns and the seed dialect is LF, so a value
+    carrying CRLF would otherwise make the written bytes depend on how a checkout
+    normalises them.
+
+    Numeric references are decoded first, because a reference can itself denote a
+    C1 code point and would otherwise become a control this function has already
+    walked past.
 
     Shared, because a curated correction has to be decoded identically by both seed
     producers; cleaning it in only one of them would make the repair depend on
@@ -74,7 +135,7 @@ def clean_club_text(text: str | None) -> str:
     """
     if text is None:
         return ""
-    cleaned = decode_numeric_entities(str(text).strip())
+    cleaned = repair_cp1252_controls(decode_numeric_entities(str(text).strip()))
     return cleaned.replace("\r\n", "\n").replace("\r", "\n")
 
 
