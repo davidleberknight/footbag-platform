@@ -479,6 +479,59 @@ describe('POST /register/wizard/:taskType/skip — 303 advance to next task', ()
     expect(page.text).not.toContain('I Never Had an Old Account');
   });
 
+  it('each non-claiming answer records its own value, and only with the completion', async () => {
+    // The two answers are different facts about the member, and the one that
+    // says they held an old account and cannot find it is marked nowhere else
+    // in the system. Recorded under one value they would be indistinguishable
+    // afterwards, so each gets its own, and neither is written unless the
+    // completion it belongs to is written too.
+    const NEVER = 'wizard.legacy_claim.never_had_account';
+    const CANNOT = 'wizard.legacy_claim.cannot_find_record';
+    const stamp = Date.now();
+
+    const neverId = insertClaimReadyMember({ slug: `wiz_ans_never_${stamp}`, login_email: `wiz-ans-never-${stamp}@example.com` });
+    const neverCookie = cookieFor(neverId);
+    // A refused answer completes nothing, so it records nothing either.
+    const refused = await request(createApp())
+      .post('/register/wizard/legacy_claim/continue-without-linking')
+      .set('Cookie', neverCookie).type('form').send({ no_link_answer: 'whatever' });
+    expect(refused.status).toBe(422);
+    expect(countAuditEntries(neverId, NEVER)).toBe(0);
+    expect(countAuditEntries(neverId, CANNOT)).toBe(0);
+
+    await request(createApp())
+      .post('/register/wizard/legacy_claim/continue-without-linking')
+      .set('Cookie', neverCookie).type('form').send({ no_link_answer: 'never_had_one' });
+    expect(getTaskState(neverId, 'legacy_claim')).toBe('completed');
+    expect(countAuditEntries(neverId, NEVER)).toBe(1);
+    expect(countAuditEntries(neverId, CANNOT)).toBe(0);
+
+    // A replayed POST is refused by the completed task, so it cannot add a
+    // second answer to a question already settled.
+    await request(createApp())
+      .post('/register/wizard/legacy_claim/continue-without-linking')
+      .set('Cookie', neverCookie).type('form').send({ no_link_answer: 'cannot_find_it' });
+    expect(countAuditEntries(neverId, NEVER)).toBe(1);
+    expect(countAuditEntries(neverId, CANNOT)).toBe(0);
+
+    const cannotId = insertClaimReadyMember({ slug: `wiz_ans_cannot_${stamp}`, login_email: `wiz-ans-cannot-${stamp}@example.com` });
+    await request(createApp())
+      .post('/register/wizard/legacy_claim/continue-without-linking')
+      .set('Cookie', cookieFor(cannotId)).type('form').send({ no_link_answer: 'cannot_find_it' });
+    expect(getTaskState(cannotId, 'legacy_claim')).toBe('completed');
+    expect(countAuditEntries(cannotId, CANNOT)).toBe(1);
+    expect(countAuditEntries(cannotId, NEVER)).toBe(0);
+
+    // The two are separable after the fact, which is the whole point of
+    // recording them apart: filtering to one answer returns only its members.
+    const cannotActors = testDb.prepare(
+      'SELECT actor_member_id AS id FROM audit_entries WHERE action_type = ?',
+    ).all(CANNOT) as { id: string }[];
+    const ids = cannotActors.map((row) => row.id);
+    expect(ids).toContain(cannotId);
+    expect(ids).not.toContain(neverId);
+  });
+
   it('lets a registrant correct the date the matcher runs on, and re-checks', async () => {
     const stamp = Date.now();
     const memberId = insertClaimReadyMember({ slug: `wiz_dob_${stamp}`, login_email: `wiz-dob-${stamp}@example.com` });

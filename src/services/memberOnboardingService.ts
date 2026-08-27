@@ -104,7 +104,7 @@ import {
   type WizardMembershipCardRow,
   type WizardLeadershipCardRow,
 } from '../db/db';
-import { appendAuditEntry } from './auditService';
+import { appendAuditEntry, type AuditAppendInput } from './auditService';
 import { BirthDateParts } from '../lib/birthDate';
 import { memberService } from './memberService';
 import { clubService } from './clubService';
@@ -1696,6 +1696,33 @@ function readNoLinkAnswer(raw: unknown): NoLinkAnswer | null {
 }
 
 /**
+ * Record which of the two answers finished the task, as the member's own stated
+ * fact about themselves.
+ *
+ * The two answers get two action types rather than one carrying the answer in
+ * its metadata, because the surface an administrator reads the ledger back on
+ * filters by action type alone. Merged, the members who say they held an old
+ * account and cannot find it — the only ones an administrator can help, and the
+ * only place in the system that fact is marked — would be buried inside the far
+ * larger population that needs nothing. The answer needs no metadata beyond the
+ * value itself, which the action type already carries.
+ */
+function recordNoLinkAnswer(memberId: string, answer: NoLinkAnswer): void {
+  const entry: Omit<AuditAppendInput, 'actionType'> = {
+    category:      'onboarding',
+    actorType:     'member',
+    actorMemberId: memberId,
+    entityType:    'member',
+    entityId:      memberId,
+  };
+  if (answer === 'never_had_one') {
+    appendAuditEntry({ actionType: 'wizard.legacy_claim.never_had_account', ...entry });
+  } else {
+    appendAuditEntry({ actionType: 'wizard.legacy_claim.cannot_find_record', ...entry });
+  }
+}
+
+/**
  * The legacy-claim task's non-claiming resolutions, both of which COMPLETE the
  * required task. There is no skip anywhere in the wizard; these are the task's
  * two explicit negative answers, gated on the personal-details prerequisite
@@ -1705,7 +1732,9 @@ function readNoLinkAnswer(raw: unknown): NoLinkAnswer | null {
  * same transaction that completes the task, so the task can never finish with a
  * card left open: a completed claim task keeps rendering while open candidates
  * remain, which would otherwise go on offering records to someone who has just
- * said none of them are theirs.
+ * said none of them are theirs. Which answer was given is recorded in that same
+ * transaction, so the member's stated fact and everything it settles commit
+ * together or not at all.
  *
  * The cannot-find-it answer additionally opens one last attempt at the match.
  * That attempt gates nothing, because completion has already happened by the
@@ -1731,6 +1760,7 @@ function processContinueWithoutLinking(
   }
   transaction(() => {
     identityAccessService.declineOpenStagedCandidatesOnAttestationInTx(memberId);
+    recordNoLinkAnswer(memberId, answer);
     completeTask(memberId, 'legacy_claim');
   });
   if (answer === 'cannot_find_it') {
