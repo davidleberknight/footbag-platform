@@ -227,7 +227,7 @@ const DIFFICULTY_ARCHITECTURE_TERMS: readonly ComboAnalysisArchitectureTerm[] = 
   {
     anchorId:   'difficulty-plateau',
     term:       'Difficulty plateau',
-    definition: 'The observation that competitive maximum-ADD appears to have plateaued around 2008, with no clearly documented increase since. This may reflect a biomechanical ceiling rather than a scoring choice, though whether the limit is the body\'s or a matter of what has been documented is not settled. Eight ADD is the highest currently video-corroborated landing represented in the dictionary: Carousel (Surging Ducking Paradox Symposium Whirling Rake) is its video-documented example, with Surging Ducking Paradox Blender and Surging Ducking Paradox Torque as close 8-ADD contenders. Nine-ADD landings survive only as unverified, disputed historical reports, and none is identified as verified without new corroborating footage.',
+    definition: 'The observation that competitive maximum-ADD appears to have plateaued around 2008, with no clearly documented increase since. This may reflect a biomechanical ceiling rather than a scoring choice, though whether the limit is the body\'s or a matter of what has been documented is not settled. Eight ADD is the highest currently video-corroborated landing represented in the dictionary: Carousel (Surging Ducking Paradox Symposium Whirling Rake) is its video-documented example, with Surging Ducking Paradox Torque as a close 8-ADD contender. Nine-ADD landings survive only as unverified, disputed historical reports, and none is identified as verified without new corroborating footage.',
   },
 ];
 
