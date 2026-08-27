@@ -1889,6 +1889,89 @@ for _ev in events:
 print(f"  S-18: 1985_mountainregion renamed: {_s18_count}")
 print(f"  S-19: 1985_western_national_chicago renamed: {_s19_count}")
 
+# S-20 and S-21: the two removals from overrides/andy_linder_corrections.yaml that
+# this block had not yet carried across.
+#
+# That file is the record of what the competitor told us about his own results.
+# It is provenance, not a directive set, and it is deliberately not read at run
+# time: its `division` tokens name no discipline key that exists (`singles_
+# consecutives` against `open_singles_footbag_consecutive`), four of its event
+# names are not event keys at all, several of its entries are questions rather
+# than instructions ("confirm", "results valid", "Andy did not attend"), and its
+# removal list names events without saying which result. Resolving any of that is
+# a person reading both sides, which is what S-17 to S-19 already were. These two
+# are the same work, finished.
+#
+# What the file asks for, resolved against the real keys:
+#   remove_participation: 1995_worlds   -> open_singles_5_minute_consecutive, p3
+#   remove_results:       1986_worlds_golden, division "singles_consecutives"
+#                                       -> open_singles_footbag_consecutive, p4
+#
+# Not done here, deliberately: the file also lists 1991_worlds under
+# remove_results with the note "incorrect events listed" and no division. Andy
+# holds two results there and another entry in the same file confirms one of them
+# as correct, so which row it means is exactly the kind of thing this block must
+# not guess. It stays for a ruling.
+_ANDY_REMOVALS = [
+    ("S-20", "1995_worlds", "open_singles_5_minute_consecutive", "3"),
+    ("S-21", "1986_worlds_golden", "open_singles_footbag_consecutive", "4"),
+]
+
+def andy_row_to_remove(rows: list, tag: str, event: str, discipline: str,
+                       placement: str, person_id: str) -> dict:
+    """The single participant row a correction names, or refuse.
+
+    Fails closed on drift in both directions. Unlike a correction that removes
+    something the same run created, these rows come from the parsed source and
+    are present on every build, so an absent target means the upstream moved
+    under a decision made against it: skipping would retire a correction nobody
+    withdrew. Two matches means the correction names one result and the data has
+    more than one, which is not a thing to resolve by picking.
+    """
+    matches = [
+        row for row in rows
+        if row["event_key"] == event and row["discipline_key"] == discipline
+        and row["placement"] == placement and row.get("person_id", "") == person_id
+    ]
+    if not matches:
+        raise SystemExit(
+            f"[Andy Linder corrections] {tag}: expected {event}/{discipline}/"
+            f"p{placement} to carry this competitor and it does not. The "
+            "correction was recorded against a state this build no longer has, "
+            "so it cannot be applied as written. Re-read "
+            "overrides/andy_linder_corrections.yaml against the current results "
+            "before changing this list."
+        )
+    if len(matches) > 1:
+        raise SystemExit(
+            f"[Andy Linder corrections] {tag}: {event}/{discipline}/p{placement} "
+            f"matches {len(matches)} participant rows for one person. The "
+            "correction names a single result and this is ambiguous; resolve the "
+            "duplicate before applying it."
+        )
+    return matches[0]
+
+
+for _tag, _ev, _dk, _pl in _ANDY_REMOVALS:
+    _match = andy_row_to_remove(participants, _tag, _ev, _dk, _pl, _ANDY_ID)
+    participants = [row for row in participants if row is not _match]
+    print(f"  {_tag}: Andy removed from {_ev}/{_dk}/p{_pl}: 1")
+
+# Cascade for S-20 and S-21, on the same rule S-17 uses: a result row nothing
+# references any more is dropped, so no orphan reaches the closure check.
+_result_keys_with_parts3: set[tuple[str, str, str]] = {
+    (r["event_key"], r["discipline_key"], r["placement"]) for r in participants
+}
+_s2021_cascade = 0
+_clean_results3 = []
+for _row in results:
+    if (_row["event_key"], _row["discipline_key"], _row["placement"]) in _result_keys_with_parts3:
+        _clean_results3.append(_row)
+    else:
+        _s2021_cascade += 1
+results = _clean_results3
+print(f"  S-20/S-21: Orphaned result rows cascaded: {_s2021_cascade}")
+
 # ── Pre-1997 parse failure repairs + authoritative enrichment ─────────────────
 #
 # Source: authoritative-results-1980-1985.txt (ground truth)
