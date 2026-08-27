@@ -38,6 +38,8 @@ export const adminWorkQueueController = {
       let claimedFlag = false;
       let claimNoopFlag = false;
       let memberAskedFlag = false;
+      let parkedFlag = false;
+      let unparkedFlag = false;
       if (flash?.kind === FLASH_KIND.WORK_QUEUE_RESOLVED) {
         // A payments-task resolve (and a contact resolve with no member email)
         // notified nobody, so the page confirms it without the email banner.
@@ -49,6 +51,10 @@ export const adminWorkQueueController = {
         clearFlash(res, req);
       } else if (flash?.kind === FLASH_KIND.WORK_QUEUE_MEMBER_ASKED) {
         memberAskedFlag = true;
+        clearFlash(res, req);
+      } else if (flash?.kind === FLASH_KIND.WORK_QUEUE_PARKED) {
+        parkedFlag = flash.payload === 'parked';
+        unparkedFlag = flash.payload !== 'parked';
         clearFlash(res, req);
       } else if (flash?.kind === FLASH_KIND.WORK_QUEUE_CLAIMED) {
         // The claim POST carries its outcome in the flash payload so the queue
@@ -65,6 +71,8 @@ export const adminWorkQueueController = {
         claimedFlag,
         claimNoopFlag,
         memberAskedFlag,
+        parkedFlag,
+        unparkedFlag,
         // The deep link the story specifies: a matter that needs the member's
         // own answer names itself here, and its composer opens already drafted.
         askItemId: typeof req.query.ask === 'string' ? req.query.ask : null,
@@ -120,6 +128,54 @@ export const adminWorkQueueController = {
       }
       if (err instanceof RateLimitedError) {
         sendRateLimited(res, err);
+        return;
+      }
+      handleControllerError(err, res, next, 'admin work queue controller');
+    }
+  },
+
+  /** POST /admin/work-queue/:id/park
+   *
+   * Set an item aside with a reason. It leaves the working queue, the digests
+   * and the escalation sweep, and waits in the parked listing until the member
+   * answers or an administrator takes it back. */
+  park(req: Request, res: Response, next: NextFunction): void {
+    const queueItemId = req.params['id'] ?? '';
+    const note = String(req.body?.note ?? '');
+    try {
+      adminWorkQueueService.park({ queueItemId, adminMemberId: req.user!.userId, note });
+      writeFlash(res, req, FLASH_KIND.WORK_QUEUE_PARKED, 'parked');
+      res.redirect(303, queueReturnPath(req));
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        res.status(422).render('admin/work-queue/index', adminWorkQueueService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: err.message }));
+        return;
+      }
+      if (err instanceof NotFoundError) {
+        res.status(404).render('admin/work-queue/index', adminWorkQueueService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: 'That item cannot be parked.' }));
+        return;
+      }
+      if (err instanceof RateLimitedError) {
+        sendRateLimited(res, err);
+        return;
+      }
+      handleControllerError(err, res, next, 'admin work queue controller');
+    }
+  },
+
+  /** POST /admin/work-queue/:id/unpark
+   *
+   * Take a parked item back into the working queue. Any administrator may do it,
+   * not only the one who parked it. */
+  unpark(req: Request, res: Response, next: NextFunction): void {
+    const queueItemId = req.params['id'] ?? '';
+    try {
+      adminWorkQueueService.unpark({ queueItemId, adminMemberId: req.user!.userId });
+      writeFlash(res, req, FLASH_KIND.WORK_QUEUE_PARKED, 'unparked');
+      res.redirect(303, queueReturnPath(req));
+    } catch (err) {
+      if (err instanceof NotFoundError) {
+        res.status(404).render('admin/work-queue/index', adminWorkQueueService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: 'That item is not parked.' }));
         return;
       }
       handleControllerError(err, res, next, 'admin work queue controller');
@@ -186,7 +242,36 @@ export const adminWorkQueueController = {
     }
   },
 
-  /** POST /admin/work-queue/:id/link-help/approve */
+  /** POST /admin/work-queue/:id/link-help/approve
+   *
+   * Shows whose record is about to be bound to whose account. Writes nothing:
+   * an opaque id typed by hand is exactly the case where a mistyped character
+   * links the wrong person, and every other consequential write on a person is
+   * previewed the same way. */
+  linkHelpApprovePreview(req: Request, res: Response, next: NextFunction): void {
+    const queueItemId = req.params['id'] ?? '';
+    try {
+      res.render('admin/work-queue/link-help-confirm', adminWorkQueueService.getLinkHelpApprovalConfirmPage({
+        adminMemberId:      req.user!.userId,
+        queueItemId,
+        legacyMemberId:     String(req.body?.target_legacy_member_id ?? ''),
+        historicalPersonId: String(req.body?.target_historical_person_id ?? ''),
+        category:           typeof req.body?.category === 'string' ? req.body.category : null,
+      }));
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        res.status(422).render('admin/work-queue/index', adminWorkQueueService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: err.message }));
+        return;
+      }
+      if (err instanceof NotFoundError) {
+        res.status(404).render('admin/work-queue/index', adminWorkQueueService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: err.message }));
+        return;
+      }
+      handleControllerError(err, res, next, 'admin work queue controller');
+    }
+  },
+
+  /** POST /admin/work-queue/:id/link-help/approve/confirm */
   async linkHelpApprove(req: Request, res: Response, next: NextFunction): Promise<void> {
     const queueItemId = req.params['id'] ?? '';
     const targetLegacyMemberId = String(req.body?.target_legacy_member_id ?? '');

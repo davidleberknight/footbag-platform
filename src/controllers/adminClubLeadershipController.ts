@@ -74,7 +74,35 @@ export const adminClubLeadershipController = {
     }
   },
 
-  /** POST /admin/clubs/:clubId/leadership/demote */
+  /** POST /admin/clubs/:clubId/leadership/demote
+   *
+   * Shows what the demotion does before it does it. Removing an affiliation
+   * ends a member's membership of the club, which the form's dropdown said in
+   * four words and nothing else. */
+  demotePreview(req: Request, res: Response, next: NextFunction): void {
+    const clubId = req.params.clubId ?? '';
+    try {
+      const mode = req.body.mode;
+      if (mode !== 'to_member' && mode !== 'remove_affiliation') {
+        renderDetailError(res, next, clubId, new ValidationError('Choose how to demote the leader.'));
+        return;
+      }
+      res.render('admin/club-leadership/demote-confirm', adminClubLeadershipService.previewDemote(
+        clubId,
+        String(req.body.member_id ?? ''),
+        mode,
+        String(req.body.reason ?? ''),
+      ));
+    } catch (err) {
+      if (err instanceof ValidationError || err instanceof NotFoundError) {
+        renderDetailError(res, next, clubId, err);
+        return;
+      }
+      handleControllerError(err, res, next, 'admin club leadership controller');
+    }
+  },
+
+  /** POST /admin/clubs/:clubId/leadership/demote/confirm */
   demote(req: Request, res: Response, next: NextFunction): void {
     const clubId = req.params.clubId ?? '';
     try {

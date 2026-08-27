@@ -224,25 +224,36 @@ describe('verifyEmailByToken auto-link classification', () => {
     });
   });
 
+  // A low outcome carries the evidence it was reached on: the old account the
+  // anchor found, and the records the name reached. An administrator later asked
+  // to judge the match is shown those; without them the only thing that survived
+  // the function was the word "low".
   it('low confidence: multiple HP candidates for the same real_name never auto-link', async () => {
     const result = await verifyFor('mem-tier3-multi');
-    expect(result!.autoLinkClassification).toEqual({
+    expect(result!.autoLinkClassification).toMatchObject({
       confidence: 'low',
       reason: 'multiple_name_candidates',
     });
+    const low = result!.autoLinkClassification as { candidates?: Array<{ personName: string }> };
+    // The tie itself is the finding, so both sides of it are carried.
+    expect(low.candidates?.length).toBeGreaterThan(1);
   });
 
   it('low confidence: email anchor + no name candidate', async () => {
     const result = await verifyFor('mem-tier3-nocand');
-    expect(result!.autoLinkClassification).toEqual({
+    expect(result!.autoLinkClassification).toMatchObject({
       confidence: 'low',
       reason: 'no_name_candidate',
     });
+    const low = result!.autoLinkClassification as { legacyMatch?: { legacyMemberId: string } };
+    // The account the anchor did reach, which is what the administrator judges
+    // the missing competition record against.
+    expect(low.legacyMatch?.legacyMemberId).toBeTruthy();
   });
 
   it('low confidence: name candidate points to a different HP than the email provenance', async () => {
     const result = await verifyFor('mem-tier3-mismatch');
-    expect(result!.autoLinkClassification).toEqual({
+    expect(result!.autoLinkClassification).toMatchObject({
       confidence: 'low',
       reason: 'hp_mismatch',
     });
@@ -250,7 +261,7 @@ describe('verifyEmailByToken auto-link classification', () => {
 
   it('low confidence: email anchor exists but no HP back-links to the legacy account', async () => {
     const result = await verifyFor('mem-tier3-nohp');
-    expect(result!.autoLinkClassification).toEqual({
+    expect(result!.autoLinkClassification).toMatchObject({
       confidence: 'low',
       reason: 'no_hp_for_legacy_account',
     });
@@ -262,7 +273,7 @@ describe('verifyEmailByToken auto-link classification', () => {
     // Classifier must refuse high/medium so the UX does not route the user
     // to an endpoint that will reject them.
     const result = await verifyFor('mem-surname-split');
-    expect(result!.autoLinkClassification).toEqual({
+    expect(result!.autoLinkClassification).toMatchObject({
       confidence: 'low',
       reason: 'hp_mismatch',
     });

@@ -51,7 +51,16 @@
  *     (exactly one target type: a legacy account or a historical-person
  *     record) with admin-vetted evidence and resolves the item atomically;
  *     admin-vetted evidence bypasses the self-serve surname gate, never the
- *     deceased or already-claimed integrity gates; reject records the reason
+ *     deceased or already-claimed integrity gates; reject records the reason.
+ *     The approval is previewed before it is applied: the preview runs the same
+ *     refusals in the same order and reports the two records about to be bound,
+ *     so a mistyped opaque id is caught by the administrator reading a name
+ *     rather than by a member finding somebody else's history on their profile
+ *   - The two admin-facing reads behind that decision: the evidence standing
+ *     behind a member's past claim attempts, and the candidates the platform can
+ *     already see for them (their anchors against the old accounts, their name
+ *     against the competition records). Reads only, and the same primitives the
+ *     member's own claim wizard runs on
  *   - Revert of a confirmed claim by its claim-audit id (idempotent), and
  *     the admin dispute revert that pairs claim.dispute_opened with
  *     claim.revert_applied in one transaction; covers legacy-linked and
@@ -195,7 +204,7 @@ import { ConflictError, NotFoundError, RateLimitedError, ServiceError, ServiceUn
 import { createSessionJwt } from './jwtService';
 import { compareBirthDates, type RecordedBirthDateComparison } from '../lib/birthDate';
 import { isUniqueConstraintError } from './sqliteRetry';
-import { findAutoLinkCandidates } from './nameVariantsService';
+import { findAutoLinkCandidates, type AutoLinkCandidate } from './nameVariantsService';
 import { appendAuditEntry } from './auditService';
 import { recordOperationalError } from './operationalErrors';
 import {
@@ -1173,13 +1182,30 @@ export type AutoLinkClassification =
     }
   | {
       confidence: 'low';
-      reason:
-        | 'no_hp_for_legacy_account'
-        | 'no_name_candidate'
-        | 'multiple_name_candidates'
-        | 'hp_mismatch'
-        | 'ambiguous_email_anchor';
+      reason: AutoLinkLowReason;
+      /**
+       * The old account the member's own anchor reached, where it reached one.
+       *
+       * The classifier computes this on its way to the verdict and used to drop
+       * it at the boundary, which left an administrator adjudicating the match
+       * with nothing in front of them but the word "low". Absent only where no
+       * anchor matched an account at all.
+       */
+      legacyMatch?: LegacyAccountLookupResult;
+      /**
+       * The competition records the member's name reached: the set that could
+       * not be narrowed, or the single one that turned out to be somebody else's.
+       * Absent where the name reached none.
+       */
+      candidates?: readonly AutoLinkCandidate[];
     };
+
+export type AutoLinkLowReason =
+  | 'no_hp_for_legacy_account'
+  | 'no_name_candidate'
+  | 'multiple_name_candidates'
+  | 'hp_mismatch'
+  | 'ambiguous_email_anchor';
 
 export interface VerifyEmailResult {
   memberId: string;
@@ -1943,12 +1969,12 @@ function classifyAutoLink(
     legacyMatch.legacyMemberId,
   ) as HistoricalPersonClaimRow | undefined;
   if (!hpProvenance) {
-    return { confidence: 'low', reason: 'no_hp_for_legacy_account' };
+    return { confidence: 'low', reason: 'no_hp_for_legacy_account', legacyMatch };
   }
 
   const candidates = findAutoLinkCandidates(realName ?? '');
   if (candidates.length === 0) {
-    return { confidence: 'low', reason: 'no_name_candidate' };
+    return { confidence: 'low', reason: 'no_name_candidate', legacyMatch };
   }
   if (candidates.length > 1) {
     // Birth-date disambiguation among tied same-name candidates. Only agreement
@@ -1970,17 +1996,17 @@ function classifyAutoLink(
         ? candidates.find((c) => c.personId === hpProvenance.person_id) ?? null
         : null);
     if (!narrowed) {
-      return { confidence: 'low', reason: 'multiple_name_candidates' };
+      return { confidence: 'low', reason: 'multiple_name_candidates', legacyMatch, candidates };
     }
     if (!surnamesAgree(narrowed.personName)) {
-      return { confidence: 'low', reason: 'hp_mismatch' };
+      return { confidence: 'low', reason: 'hp_mismatch', legacyMatch, candidates: [narrowed] };
     }
     return classifyNarrowedCandidate(narrowed, anchorSource, memberBirthDate);
   }
 
   const candidate = candidates[0];
   if (candidate.personId !== hpProvenance.person_id) {
-    return { confidence: 'low', reason: 'hp_mismatch' };
+    return { confidence: 'low', reason: 'hp_mismatch', legacyMatch, candidates };
   }
 
   // Align with lookupHistoricalPersonForClaim's surname block. A legitimate
@@ -1990,7 +2016,7 @@ function classifyAutoLink(
   // refuse such a claim at 422; downgrade the classification here so the
   // UX never sends such a user to an endpoint that will reject them.
   if (!surnamesAgree(candidate.personName)) {
-    return { confidence: 'low', reason: 'hp_mismatch' };
+    return { confidence: 'low', reason: 'hp_mismatch', legacyMatch, candidates };
   }
 
   return classifyNarrowedCandidate(candidate, anchorSource, memberBirthDate);
@@ -2332,6 +2358,104 @@ export interface ClaimEvidence {
   attempts: ClaimEvidenceAttempt[];
   /** The member's own date, which is what every comparison here was against. */
   memberBirthDate: string | null;
+}
+
+/** What the platform can already see for a member an administrator must link. */
+export interface AdminLinkCandidates {
+  /** Old accounts reached by the member's own anchors: their verified sign-in
+   *  address and any old address they declared. */
+  legacyAccounts: Array<{
+    legacyMemberId: string;
+    displayName: string | null;
+    country: string | null;
+    birthDate: string | null;
+    /** How this account was reached, so the administrator can weigh it. */
+    anchorLabel: string;
+  }>;
+  /** Competition records carrying the member's name, exactly or through a
+   *  recorded name variant. */
+  historicalPersons: Array<{
+    personId: string;
+    personName: string;
+    isVariantMatch: boolean;
+  }>;
+  /** An anchor that matched more than one old account, which is a fact about
+   *  the member rather than a candidate: none of them may be assumed theirs. */
+  ambiguousAnchors: string[];
+}
+
+/**
+ * The candidates behind a member, for the administrator answering their
+ * link-help request.
+ *
+ * The same two primitives the member's own claim wizard runs on: their anchors
+ * against the old accounts, and their name against the competition records. The
+ * wizard has always had this; the administrator's card showed only what the
+ * member typed and their past attempts, so the one surface that applies a link
+ * was the one with nothing in front of it.
+ *
+ * Reads only. It reports what a claimed record is rather than hiding it, because
+ * an administrator adjudicating a doubtful link needs to see that the record
+ * they were about to attach is already somebody else's.
+ */
+function getLinkCandidatesForAdmin(memberId: string): AdminLinkCandidates {
+  const member = legacyClaim.findClaimingMember.get(memberId) as
+    | { id: string; real_name: string }
+    | undefined;
+  if (!member) {
+    return { legacyAccounts: [], historicalPersons: [], ambiguousAnchors: [] };
+  }
+
+  const loginEmail = (auth.findMemberForSessionAfterVerify.get(memberId) as
+    | { login_email: string | null }
+    | undefined)?.login_email;
+  const anchors: Array<{ value: string; label: string }> = [];
+  if (loginEmail) anchors.push({ value: loginEmail, label: 'their sign-in address' });
+  for (const declared of getDeclaredAnchorValues(memberId).oldEmailsDetailed) {
+    anchors.push({
+      value: declared.value,
+      label: declared.verified
+        ? 'an old address they proved they can read'
+        : 'an old address they declared',
+    });
+  }
+
+  const legacyAccounts: AdminLinkCandidates['legacyAccounts'] = [];
+  const ambiguousAnchors: string[] = [];
+  const seen = new Set<string>();
+  for (const anchor of anchors) {
+    let lookup: LegacyAccountLookup;
+    try {
+      lookup = lookupLegacyAccount(memberId, anchor.value);
+    } catch {
+      // The member already holds a link, or the anchor is unusable. Neither is
+      // a candidate, and neither stops the rest of the list being useful.
+      continue;
+    }
+    if (lookup.kind === 'ambiguous_email') {
+      ambiguousAnchors.push(anchor.label);
+      continue;
+    }
+    if (lookup.kind !== 'single' || seen.has(lookup.result.legacyMemberId)) continue;
+    seen.add(lookup.result.legacyMemberId);
+    legacyAccounts.push({
+      legacyMemberId: lookup.result.legacyMemberId,
+      displayName:    lookup.result.displayName,
+      country:        lookup.result.country,
+      birthDate:      lookup.result.birthDate,
+      anchorLabel:    anchor.label,
+    });
+  }
+
+  return {
+    legacyAccounts,
+    historicalPersons: findAutoLinkCandidates(member.real_name).map((c) => ({
+      personId:       c.personId,
+      personName:     c.personName,
+      isVariantMatch: c.matchKind === 'variant',
+    })),
+    ambiguousAnchors,
+  };
 }
 
 /**
@@ -5374,6 +5498,135 @@ export interface LinkHelpApproveTarget {
   historicalPersonId?: string;
 }
 
+/** The two records an approval is about to bind, before anything is written. */
+export interface LinkHelpApprovalPreview {
+  workQueueItemId: string;
+  member: { memberId: string; displayName: string; realName: string; birthDate: string | null };
+  target: {
+    kindLabel: string;
+    recordId: string;
+    /** The name on the record, which is the thing a mistyped id gets wrong. */
+    recordName: string;
+    facts: string[];
+  };
+  /** Which of the two ids the confirmation must carry back. */
+  legacyMemberId: string | null;
+  historicalPersonId: string | null;
+}
+
+/**
+ * What an approval is about to do, read before anything is written.
+ *
+ * The approve form takes an opaque id typed by hand. Every other consequential
+ * administrative write on a person shows the record first and writes on confirm;
+ * this one bound a member account to whatever id was typed, so a mistyped
+ * character linked the wrong person silently and the administrator saw nothing
+ * about whose record it was.
+ *
+ * Runs the same refusals the apply path runs, in the same order, so the
+ * confirmation never offers a step that will then be refused.
+ */
+function previewLinkHelpApproval(
+  adminMemberId: string,
+  workQueueItemId: string,
+  target: LinkHelpApproveTarget,
+): LinkHelpApprovalPreview {
+  const legacyId = target.legacyMemberId?.trim() ?? '';
+  const personId = target.historicalPersonId?.trim() ?? '';
+  if ((legacyId && personId) || (!legacyId && !personId)) {
+    throw new ValidationError(
+      'Enter exactly one link target: a legacy account id or a historical person id.',
+    );
+  }
+  const item = loadOpenLinkHelpItem(workQueueItemId);
+  if (item.entity_id === adminMemberId) {
+    throw new ValidationError(
+      'You cannot approve your own help request. Another administrator must review it.',
+    );
+  }
+  const member = legacyClaim.findClaimingMember.get(item.entity_id) as
+    | { id: string; real_name: string; birth_date: string | null }
+    | undefined;
+  const memberContact = account.findContactInfoById.get(item.entity_id) as
+    | { display_name: string }
+    | undefined;
+  if (!member) throw new NotFoundError('That member no longer exists.');
+
+  const shared = {
+    workQueueItemId,
+    member: {
+      memberId:    item.entity_id,
+      displayName: memberContact?.display_name ?? member.real_name,
+      realName:    member.real_name,
+      birthDate:   member.birth_date,
+    },
+  };
+
+  if (legacyId) {
+    const row = legacyMembers.findByLegacyMemberId.get(legacyId) as
+      | {
+        legacy_member_id: string; real_name: string | null; display_name: string | null;
+        birth_date: string | null; city: string | null; region: string | null; country: string | null;
+        first_competition_year: number | null; claimed_by_member_id: string | null;
+      }
+      | undefined;
+    // A ValidationError, not a not-found: the id came from a form field an
+    // administrator typed, so an unknown one is a correction to make here rather
+    // than a missing page.
+    if (!row) throw new ValidationError('No legacy account with that id.');
+    if (row.claimed_by_member_id) {
+      throw new ValidationError(
+        'Another member already holds that legacy account, so it cannot be linked here.',
+      );
+    }
+    return {
+      ...shared,
+      target: {
+        kindLabel:  'Legacy account',
+        recordId:   row.legacy_member_id,
+        recordName: row.display_name ?? row.real_name ?? row.legacy_member_id,
+        facts: [
+          row.real_name && row.real_name !== row.display_name ? row.real_name : null,
+          [row.city, row.region, row.country].filter(Boolean).join(', ') || null,
+          row.first_competition_year ? `First competed ${row.first_competition_year}` : null,
+          row.birth_date ? `Date of birth on the account: ${row.birth_date}` : null,
+        ].filter((f): f is string => Boolean(f)),
+      },
+      legacyMemberId:     row.legacy_member_id,
+      historicalPersonId: null,
+    };
+  }
+
+  const person = legacyClaim.findHistoricalPersonById.get(personId) as
+    | { person_id: string; person_name: string; country: string | null; first_year: number | null }
+    | undefined;
+  if (!person) throw new ValidationError('No competition record with that id.');
+  // A deceased holder keeps the link through the contact scrub, so both lookups
+  // are asked: treating the record as free because the live-holder query filters
+  // that member out is exactly how it would be handed to somebody else.
+  const holder = legacyClaim.findMemberClaimingHp.get(personId) as { id: string } | undefined
+    ?? legacyClaim.findDeceasedMemberHoldingHp.get(personId) as { id: string } | undefined;
+  if (holder) {
+    throw new ValidationError(
+      'Another member already holds that competition record, so it cannot be linked here.',
+    );
+  }
+  return {
+    ...shared,
+    target: {
+      kindLabel:  'Competition record',
+      recordId:   person.person_id,
+      recordName: person.person_name,
+      facts: [
+        person.country,
+        person.first_year ? `First competed ${person.first_year}` : null,
+      ].filter((f): f is string => Boolean(f)),
+    },
+    legacyMemberId:     null,
+    historicalPersonId: person.person_id,
+  };
+}
+
 /**
  * Admin approval: applies the link with admin-vetted evidence and resolves
  * the queue item, atomically. The target is exactly one of a legacy account
@@ -5871,4 +6124,4 @@ function correctMemberSlug(
   }
 }
 
-export const identityAccessService = { attemptLogin, registerMember, lookupLegacyAccount, claimLegacyAccount, initiateLegacyClaim, peekLegacyClaim, consumeAndClaimLegacy, consumeAndClaimLegacyInTx, lookupHistoricalPersonForClaim, claimHistoricalPerson, claimHistoricalPersonInTx, recordHistoricalPersonClaimBlocked, changePassword, verifyEmailByToken, resendVerifyEmail, requestPasswordReset, completePasswordReset, getAutoLinkClassificationForMember, getLinkHistoryViewForWizard, findHistoricalPersonForLinkSubmit, revertAutoLink, revertClaimForDispute, stageAutoLinkCandidate, listOpenStagedCandidates, declineStagedCandidate, declineClassifierCandidate, declineOpenStagedCandidatesOnAttestationInTx, expireStagedCandidates, listClaimedLegacyIdentities, declareAnchor, listDeclaredAnchors, removeAnchor, requestAnchorMailboxVerification, consumeAnchorMailboxVerification, submitLinkHelpRequest, approveLinkHelpRequest, rejectLinkHelpRequest, findCrossSourceCandidateAfterHpClaim, findCrossSourceCandidateAfterLegacyClaim, offerCrossSourceCandidate, confirmCrossSourceLegacyCandidate, surnameMatchesWithAnchors, enforceHistoricalPersonClaimLimit, getClaimEvidenceForMember, previewMemberNames, correctMemberNames, previewMemberSlug, correctMemberSlug };
+export const identityAccessService = { attemptLogin, registerMember, lookupLegacyAccount, claimLegacyAccount, initiateLegacyClaim, peekLegacyClaim, consumeAndClaimLegacy, consumeAndClaimLegacyInTx, lookupHistoricalPersonForClaim, claimHistoricalPerson, claimHistoricalPersonInTx, recordHistoricalPersonClaimBlocked, changePassword, verifyEmailByToken, resendVerifyEmail, requestPasswordReset, completePasswordReset, getAutoLinkClassificationForMember, getLinkHistoryViewForWizard, findHistoricalPersonForLinkSubmit, revertAutoLink, revertClaimForDispute, stageAutoLinkCandidate, listOpenStagedCandidates, declineStagedCandidate, declineClassifierCandidate, declineOpenStagedCandidatesOnAttestationInTx, expireStagedCandidates, listClaimedLegacyIdentities, declareAnchor, listDeclaredAnchors, removeAnchor, requestAnchorMailboxVerification, consumeAnchorMailboxVerification, submitLinkHelpRequest, approveLinkHelpRequest, rejectLinkHelpRequest, findCrossSourceCandidateAfterHpClaim, findCrossSourceCandidateAfterLegacyClaim, offerCrossSourceCandidate, confirmCrossSourceLegacyCandidate, surnameMatchesWithAnchors, enforceHistoricalPersonClaimLimit, getClaimEvidenceForMember, getLinkCandidatesForAdmin, previewLinkHelpApproval, previewMemberNames, correctMemberNames, previewMemberSlug, correctMemberSlug };

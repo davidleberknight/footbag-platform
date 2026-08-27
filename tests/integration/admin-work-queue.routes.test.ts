@@ -557,10 +557,15 @@ describe('POST /admin/work-queue/:id/resolve — payments tasks', () => {
   const PAYMENTS_TASKS: Array<{ taskType: string; entityType: string; entityId: string }> = [
     { taskType: 'unattributed_refund',                entityType: 'stripe_payment_intent',           entityId: 'pi_unattributed' },
     { taskType: 'partial_refund_review',              entityType: 'payment',                          entityId: 'pay_partial' },
+    { taskType: 'refund_failed_review',               entityType: 'stripe_refund',                    entityId: 're_failed' },
     { taskType: 'charge_dispute_review',              entityType: 'stripe_dispute',                   entityId: 'di_dispute' },
     { taskType: 'payout_failed',                      entityType: 'stripe_payout',                    entityId: 'po_failed' },
     { taskType: 'recurring_donation_charge_declined', entityType: 'recurring_donation_subscription',  entityId: 'rds_declined' },
     { taskType: 'recurring_donation_paused',          entityType: 'recurring_donation_subscription',  entityId: 'rds_paused' },
+    // The member paid for a tier they already held, so real money is sitting
+    // where a refund or credit decision is owed. It reached an administrator as
+    // a card with no control on it and could not be closed from anywhere.
+    { taskType: 'membership_overcharge_review',       entityType: 'payment',                          entityId: 'pay_overcharge' },
   ];
 
   async function seedPaymentsTask(
@@ -634,6 +639,44 @@ describe('POST /admin/work-queue/:id/resolve — payments tasks', () => {
       }
     });
   }
+
+  // "Handled in Stripe" is a decision about somebody's money. The card named a
+  // payment id as plain text while the page holding that payment sat one click
+  // away, and never said whose money it was.
+  it('links a payment row to its payment page and names the member it is about', async () => {
+    const app = createApp();
+    const { insertPayment } = await import('../fixtures/factories');
+    const db = new BetterSqlite3(dbPath);
+    const paymentId = insertPayment(db, {
+      id: 'pay_linked_row', member_id: MEMBER_ID, amount_cents: 3500, status: 'succeeded',
+    });
+    db.close();
+
+    await seedPaymentsTask('partial_refund_review', 'payment', paymentId);
+
+    const res = await request(app).get('/admin/work-queue').set('Cookie', adminCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain(`href="/admin/payments/${paymentId}"`);
+    expect(res.text).toContain('WQ Member');
+    expect(res.text).toContain(`href="/admin/members/${MEMBER_ID}"`);
+  });
+
+  it('renders a working control on the overcharge card', async () => {
+    // Every task type declares its actions, and the card renders that list. A
+    // type whose actions nobody declared carries its detail and no way to act on
+    // it: readable, and impossible to close. This one is real money owed back.
+    const app = createApp();
+    await seedPaymentsTask(
+      'membership_overcharge_review', 'payment', 'pay_card_render',
+      'Payment pay_card_render, paid for tier2, member already at tier2',
+    );
+
+    const res = await request(app).get('/admin/work-queue').set('Cookie', adminCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Membership paid for but not granted');
+    expect(res.text).toContain('member already at tier2');
+    expect(res.text).toContain('Handled in Stripe');
+  });
 
   it('sends no member email on a payments resolution', async () => {
     const app = createApp();
@@ -814,6 +857,147 @@ describe('POST /admin/work-queue/:id/resolve — payments tasks', () => {
   });
 });
 
+// Parking is what an administrator does with an item they cannot advance yet
+// and should not keep being shown. It has no deadline: a timer would hand the
+// item back with nothing new about it. The item leaves the working queue, every
+// digest and the escalation sweep, and waits under the reason given until the
+// member answers or somebody takes it back. Its status stays open throughout, so
+// the duplicate probe and both close paths still see it.
+describe('POST /admin/work-queue/:id/park', () => {
+  async function seedLinkHelpItem(memberId: string): Promise<string> {
+    const db = new BetterSqlite3(dbPath);
+    const { insertWorkQueueItem: insert } = await import('../fixtures/factories');
+    const id = insert(db, {
+      queue_category: 'membership',
+      task_type: 'member_link_help_request',
+      entity_id: memberId,
+      reason_text: JSON.stringify({ statement: 'I cannot find my old record', is_dispute: false }),
+    });
+    db.close();
+    return id;
+  }
+
+  function parkedRow(id: string): { parked_at: string | null; park_reason: string | null; status: string } {
+    const db = new BetterSqlite3(dbPath);
+    try {
+      return db
+        .prepare('SELECT parked_at, park_reason, status FROM work_queue_items WHERE id = ?')
+        .get(id) as { parked_at: string | null; park_reason: string | null; status: string };
+    } finally {
+      db.close();
+    }
+  }
+
+  it('offers the control on a link-help request, which is where a story asks for it', async () => {
+    const app = createApp();
+    const queueId = await seedLinkHelpItem(MEMBER_ID);
+    const res = await request(app).get('/admin/work-queue').set('Cookie', adminCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain(`action="/admin/work-queue/${queueId}/park"`);
+  });
+
+  it('parks the item out of the working queue and into the parked listing, still open', async () => {
+    const app = createApp();
+    const queueId = await seedLinkHelpItem(MEMBER_ID);
+
+    const res = await request(app)
+      .post(`/admin/work-queue/${queueId}/park`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ note: 'Waiting for them to dig out the old email address.' });
+    expect(res.status).toBe(303);
+
+    const row = parkedRow(queueId);
+    expect(row.parked_at).toBeTruthy();
+    expect(row.park_reason).toBe('Waiting for them to dig out the old email address.');
+    // A parked status would hide the row from the duplicate probe and both close
+    // paths, so the park is recorded beside the status rather than in it.
+    expect(row.status).toBe('open');
+
+    const page = await request(app).get('/admin/work-queue').set('Cookie', adminCookie());
+    expect(page.text).toContain('Parked');
+    expect(page.text).toContain('Waiting for them to dig out the old email address.');
+    expect(page.text).toContain(`action="/admin/work-queue/${queueId}/unpark"`);
+    // Out of the working queue: the card's own resolve controls are gone with it.
+    expect(page.text).not.toContain(`action="/admin/work-queue/${queueId}/link-help/approve"`);
+  });
+
+  it('drops the parked item from the digest and the escalation sweep', async () => {
+    const app = createApp();
+    const queueId = await seedLinkHelpItem(MEMBER_ID);
+    const { workQueue } = await import('../../src/db/db');
+
+    const beforeDigest = (workQueue.listOpenForDigest.all() as Array<{ id: string }>).map((r) => r.id);
+    expect(beforeDigest).toContain(queueId);
+
+    await request(app)
+      .post(`/admin/work-queue/${queueId}/park`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ note: 'Waiting on the member.' });
+
+    const afterDigest = (workQueue.listOpenForDigest.all() as Array<{ id: string }>).map((r) => r.id);
+    expect(afterDigest).not.toContain(queueId);
+
+    const stale = workQueue.listStaleForEscalation.all(
+      '2999-01-01T00:00:00.000Z', '2999-01-01T00:00:00.000Z',
+    ) as Array<{ id: string }>;
+    expect(stale.map((r) => r.id)).not.toContain(queueId);
+  });
+
+  it('returns a parked item to the queue on request, from any administrator', async () => {
+    const app = createApp();
+    const queueId = await seedLinkHelpItem(MEMBER_ID);
+    await request(app)
+      .post(`/admin/work-queue/${queueId}/park`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ note: 'Waiting on the member.' });
+
+    // The park is a note about the item, not a hold on it: a colleague can take
+    // the work back without the administrator who parked it.
+    const res = await request(app)
+      .post(`/admin/work-queue/${queueId}/unpark`)
+      .set('Cookie', admin2Cookie());
+    expect(res.status).toBe(303);
+    expect(parkedRow(queueId).parked_at).toBeNull();
+
+    const page = await request(app).get('/admin/work-queue').set('Cookie', adminCookie());
+    expect(page.text).toContain(`action="/admin/work-queue/${queueId}/link-help/approve"`);
+  });
+
+  it('refuses a park with no reason, and one on a type that does not offer it', async () => {
+    const app = createApp();
+    const queueId = await seedLinkHelpItem(OTHER_ID);
+    const noReason = await request(app)
+      .post(`/admin/work-queue/${queueId}/park`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ note: '   ' });
+    expect(noReason.status).toBe(422);
+    expect(parkedRow(queueId).parked_at).toBeNull();
+
+    // A contact request is answered, not set aside: the member is waiting on a
+    // reply, so its declaration offers no park and the endpoint says so.
+    const contactId = await postOneOpenRequest(app, MEMBER_ID, MEMBER_SLUG);
+    const wrongType = await request(app)
+      .post(`/admin/work-queue/${contactId}/park`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ note: 'later' });
+    expect(wrongType.status).toBe(404);
+  });
+
+  it('unparking an item that is not parked reports not-found', async () => {
+    const app = createApp();
+    const queueId = await seedLinkHelpItem(MEMBER_ID);
+    const res = await request(app)
+      .post(`/admin/work-queue/${queueId}/unpark`)
+      .set('Cookie', adminCookie());
+    expect(res.status).toBe(404);
+  });
+});
+
 // A claim says an administrator is handling an item: it drops the item from
 // every other administrator's digest and out of the escalation sweep. That
 // makes it a coordination signal with a shelf life, not a lock. A claim that
@@ -937,6 +1121,48 @@ describe('POST /admin/work-queue/:id/dismiss — low-confidence auto-link match'
       db.close();
     }
   }
+
+  // Two of the classifier's stopping points call for opposite actions: several
+  // people share this name, so choose; and this old account has no competition
+  // record at all, so there is nothing to link. A card that does not say which
+  // one happened hands the administrator the same page for both.
+  it('says why the match stopped, in words, from the reason kept on the row', async () => {
+    const app = createApp();
+    const db = new BetterSqlite3(dbPath);
+    const { insertWorkQueueItem: insert } = await import('../fixtures/factories');
+    insert(db, {
+      queue_category: 'membership',
+      task_type: 'auto_link_match',
+      entity_id: MEMBER_ID,
+      reason_text: JSON.stringify({ reason: 'no_hp_for_legacy_account' }),
+    });
+    db.close();
+
+    const res = await request(app).get('/admin/work-queue').set('Cookie', adminCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('no competition record attached to it');
+    expect(res.text).toContain('usually closed as reviewed');
+    // The stored payload is never printed at an administrator as it stands.
+    expect(res.text).not.toContain('no_hp_for_legacy_account');
+  });
+
+  it('falls back to plain wording on a row raised before the reason was kept', async () => {
+    const app = createApp();
+    const queueId = await seedAutoLinkMatch(OTHER_ID);
+    expect(queueId).toBeTruthy();
+    const res = await request(app).get('/admin/work-queue').set('Cookie', adminCookie());
+    expect(res.text).toContain('raised before the reason was recorded');
+    expect(res.text).not.toContain('Batch auto-link match (low)');
+  });
+
+  it('does not tell the administrator the member was linked when they were not', async () => {
+    // The classifier also falls silent for a member with nothing to match on, so
+    // the card reads the member's own links rather than inferring from silence.
+    const app = createApp();
+    await seedAutoLinkMatch(MEMBER_ID);
+    const res = await request(app).get('/admin/work-queue').set('Cookie', adminCookie());
+    expect(res.text).not.toContain('has been linked since the match was raised');
+  });
 
   it('renders a dismissal control the administrator can act on', async () => {
     const app = createApp();

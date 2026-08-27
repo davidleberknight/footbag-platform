@@ -202,6 +202,7 @@ document follows.
     - [Retention / Cleanup](#retention--cleanup)
   - [7.8 Monitoring and Audit](#78-monitoring-and-audit)
     - [A_View_Dashboard](#a_view_dashboard)
+    - [A_Manage_Work_Queue](#a_manage_work_queue)
     - [A_Resolve_Contact_IFPA_Admin_Request](#a_resolve_contact_ifpa_admin_request)
     - [A_View_System_Health](#a_view_system_health)
     - [A_View_Audit_Logs](#a_view_audit_logs)
@@ -2889,7 +2890,10 @@ Success Criteria:
 - Post-onboarding linking is admin-only: self-serve legacy claiming is confined to the onboarding wizard, so a member who needs to link an identity after completing onboarding submits a request via `M_Contact_IFPA_Admin` with the Identity-link issue category and an admin performs the link on their behalf. Admin can link either target type — a `legacy_members` account or a `historical_persons` record — applying the same field-level merge and tier-grant rules as a wizard claim, including that a claim never lowers the member's existing tier.
 - Admin can reject with a reason. Rejection is audit-logged.
 - Both answers reach the member. Submitting the request promised a reply, and this is the one contact category an administrator answers by applying a link rather than by writing back, so neither answer may be silent. An approval tells the member their records are now linked and that they will find them on their profile, which is where the in-app half of the answer lives; a rejection carries the administrator's reason, because a refusal a member cannot see the reason for leaves them with no way to answer it. The member's own submitted words are never echoed back, matching the contact-request resolution reply. The notice is enqueued after the decision commits, so the decision stands whatever the outbox does, and a notice that cannot be enqueued records an operational failure for an operator rather than being dropped in silence.
-- Admin can defer for further investigation.
+- Admin can defer for further investigation, which parks the request: it leaves the working queue with a reason on it until the member answers or an administrator takes it back.
+- The card carries what the platform can already see for the member: the old accounts their own anchors reach, the competition records under their name, and the date of birth held on each, alongside the member's own past claim attempts. Where nothing on file reaches a record, the card says so rather than falling silent.
+- An administrator can search the old accounts nobody has claimed, by name, account id, username, or an exact email address, because approving a request asks for an account id and no other admin surface can produce one. Only unclaimed accounts are listed; an account someone holds is reached from that member's record. An email address is matched whole rather than by fragment, so the search cannot be used to read through the archived addresses.
+- Approval shows the member and the record it is about to bind, naming both, and applies only on confirmation. An unknown identifier, and a record another member already holds, are refused at that step with the request left open.
 - Approval never auto-promotes legacy `is_admin` metadata to a live admin role.
 - The legacy banned flag is recorded as audit metadata only and does not gate admin approval; any disciplinary state on the new platform is handled by the new platform's discipline mechanisms.
 - Dispute reverts (member confirmed a wrong card or impersonator-confirmed claim): admin can revert a previously-confirmed claim, clearing the back-link columns and revoking the tier grant. The admin names the disputed record — a `legacy_members` account or a `historical_persons` record — and the platform reverts whichever member currently holds it; the member to revert is never supplied directly. The record is bounded as well: a dispute records the conflicting records the platform detected when it was filed, together with who held each of them, and the revert refuses any record outside that set and any record that has since changed hands. A revert therefore reaches only the member the dispute was actually filed against, and a second dispute naming the same record cannot strip a holder an admin has since vetted onto it. Upholding a dispute clears the disputed record itself whatever its provenance, along with the rest of that member's claimed identity links and the tier grant they conferred. An admin cannot resolve a dispute they raised themselves. Where no member holds the record, the revert reports that there is nothing to revert and the queue item stays open. The revert is audit-logged with the original-claim audit row identifier for traceability.
@@ -3626,6 +3630,23 @@ Success Criteria:
 - Dashboard highlights any categories with urgent items (for example, failed backups, alarmed cost thresholds, many failed payments, email outbox dead-letter growth) using a simple visual indicator.
 - Admin sees only data they are permitted to act on; no member personal data beyond what existing admin stories allow.
 - Dashboard view is read-only; all state changes happen in the underlying queues and flows already defined in other admin stories.
+
+### A_Manage_Work_Queue
+
+Access: Only admins can read the admin work queue or act on anything in it.
+
+Story: As an administrator, I can see every open task the platform has raised, act on each one from the card that raises it, say when I am handling something, and set aside what I cannot advance yet, so that the queue is a shared and current picture of what needs a person rather than a list nobody can tell the state of.
+
+Success Criteria:
+
+- Every task type is declared in one place: its display label, its queue category, the entity types a row of that type may point at, whether it is urgent, how its evidence renders, and the ordered actions an administrator may take on it. A task type with no declaration cannot be enqueued, so an item can never reach the queue with no way to close it.
+- Each action declares its own wording, whether it takes a note and whether that note is required, its own decision vocabulary where it has one, any further fields it needs, the audit event it writes where the queue writes one, and whether the member is told. A decision is validated only against the vocabulary of the action being taken, so one family's decisions can never be recorded against another's.
+- Every card reads the same way: what the task is, who or what it concerns, the evidence, who is holding it, then the actions. An administrator who learns one card can work every type.
+- An administrator can claim an open item to say they are handling it, which drops it from every other administrator's digest. A claim is a coordination signal and not a lock: it expires on the same measure the queue uses for an item going stale, after which the item returns to every digest and can be claimed again, and the card still names who held it last so the next administrator can ask rather than repeat the work.
+- Each administrator is emailed a periodic digest of the open routine items on a configured cadence. An item left open, unclaimed and unresolved past the stale threshold escalates once with a single email to the administrators' alert list. An urgent task type is in neither, because it emailed every administrator when it was raised.
+- An administrator can park an item they cannot advance yet, with a reason. A parked item leaves the working queue, every digest and the escalation sweep, and is listed separately with who parked it and why. Parking carries no deadline and no expiry: the item returns when the member answers a question on it, or when any administrator takes it back. Its status stays open throughout, so the duplicate probe that stops a second item being raised for the same matter, and both close paths, still see it.
+- Parking is offered only on the task types whose declaration allows it. A matter where the member is waiting for an answer is answered, not set aside.
+- Non-admin authenticated users receive 403 from the queue and from every action on it; unauthenticated traffic is redirected to login.
 
 ### A_Resolve_Contact_IFPA_Admin_Request
 

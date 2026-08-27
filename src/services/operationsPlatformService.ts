@@ -689,7 +689,12 @@ export class OperationsPlatformService {
               entityType:    'member',
               entityId:      c.id,
               priority:      5,
-              reasonText:    'Batch auto-link match (low)',
+              // Why the match could not be made, kept on the row rather than
+              // only in the application log. Two of these reasons ask an
+              // administrator for opposite things -- choose between namesakes,
+              // or accept that there is nothing to link -- and a card saying
+              // only that a match was weak tells them neither.
+              reasonText:    JSON.stringify({ reason: classification.reason }),
               detailText:    null,
             });
           });

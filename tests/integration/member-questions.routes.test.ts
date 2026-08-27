@@ -399,6 +399,40 @@ describe('the member reads and answers', () => {
     expect(res.text).toContain(`/members/${MEMBER_SLUG}/questions`);
   });
 
+  // A park has no clock, so the member's answer is the one thing that can
+  // genuinely un-stick the matter. It brings the item back by itself; otherwise
+  // the answer arrives and the item sits unread in the parked listing.
+  it('brings a parked item back to the working queue when the answer arrives', async () => {
+    const itemId = seedItem();
+    await ask(itemId);
+    await request(createApp())
+      .post(`/admin/work-queue/${itemId}/park`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ note: 'Waiting on their answer.' });
+
+    const parked = readDb();
+    expect((parked.prepare('SELECT parked_at FROM work_queue_items WHERE id = ?')
+      .get(itemId) as { parked_at: string | null }).parked_at).toBeTruthy();
+    parked.close();
+
+    const messageId = messageRow()!.id as string;
+    const res = await request(createApp())
+      .post(`/members/${MEMBER_SLUG}/questions/${messageId}/answer`)
+      .set('Cookie', memberCookie())
+      .type('form')
+      .send({ dateAnswer: 'confirm', note: 'That date is right.' });
+    expect(res.status).toBe(303);
+
+    const after = readDb();
+    const row = after.prepare('SELECT parked_at, park_reason, status FROM work_queue_items WHERE id = ?')
+      .get(itemId) as { parked_at: string | null; park_reason: string | null; status: string };
+    after.close();
+    expect(row.parked_at).toBeNull();
+    expect(row.park_reason).toBeNull();
+    expect(row.status).toBe('open');
+  });
+
   it('confirming the date on file records the outcome and leaves it alone', async () => {
     const itemId = seedItem();
     await ask(itemId);

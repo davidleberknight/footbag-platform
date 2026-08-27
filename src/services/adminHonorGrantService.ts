@@ -38,6 +38,18 @@ const TIER_LABEL: Record<MemberTier, string> = {
 
 const RECENT_LIMIT = 20;
 
+/** A roster row as the page shows it: who they are, and the id the forms take. */
+function readHolders(rows: unknown[]): HolderRow[] {
+  return (rows as Array<{
+    id: string; display_name: string | null; slug: string | null; inducted_year?: number | null;
+  }>).map((r) => ({
+    displayName: r.display_name ?? r.id,
+    slug:        r.slug ?? r.id,
+    memberId:    r.id,
+    yearLabel:   r.inducted_year ? `Inducted ${r.inducted_year}` : null,
+  }));
+}
+
 interface RecentHonorGrant {
   honorLabel: string;
   displayName: string;
@@ -47,9 +59,27 @@ interface RecentHonorGrant {
   dataOriginLabel: string | null;
 }
 
+/** One current holder, as the page lists them. */
+interface HolderRow {
+  displayName: string;
+  slug: string;
+  memberId: string;
+  /** The year, where one is recorded; a legacy induction may carry none. */
+  yearLabel: string | null;
+}
+
 interface HonorGrantsContent {
   errorMessage?: string;
   recent: RecentHonorGrant[];
+  /**
+   * Who currently holds each honor, and who currently sits on the board. The
+   * page offers to take a grant back and to take a director off the board, both
+   * keyed on a member id typed by hand; without these rosters the page that
+   * removes a director cannot say who the directors are.
+   */
+  hofHolders: HolderRow[];
+  bapHolders: HolderRow[];
+  boardMembers: HolderRow[];
 }
 
 interface HonorGrantConfirmContent {
@@ -146,7 +176,13 @@ export const adminHonorGrantService = {
     return {
       seo: { title: 'Grant an Honor Tier', noindex: true },
       page: { sectionKey: '', pageKey: 'admin_honor_grants', title: 'Grant an Honor Tier' },
-      content: { errorMessage: opts.errorMessage, recent },
+      content: {
+        errorMessage: opts.errorMessage,
+        recent,
+        hofHolders:   readHolders(memberTier.listCurrentHofHolders.all()),
+        bapHolders:   readHolders(memberTier.listCurrentBapHolders.all()),
+        boardMembers: readHolders(memberTier.listCurrentBoardMembers.all()),
+      },
     };
   },
 

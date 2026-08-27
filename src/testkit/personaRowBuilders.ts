@@ -1177,6 +1177,10 @@ export interface WorkQueueItemOverrides {
   /** Set both together to mint an already-resolved item. */
   resolved_at?: string | null;
   resolved_by_member_id?: string | null;
+  /** Set together to mint an item an administrator has already parked. */
+  parked_at?: string | null;
+  parked_by_member_id?: string | null;
+  park_reason?: string | null;
 }
 
 export function insertWorkQueueItem(
@@ -1188,8 +1192,9 @@ export function insertWorkQueueItem(
     INSERT INTO work_queue_items
       (id, created_at, created_by, updated_at, updated_by, version,
        queue_category, task_type, entity_type, entity_id, status, priority,
-       opened_at, reason_text, detail_text, resolved_at, resolved_by_member_id)
-    VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       opened_at, reason_text, detail_text, resolved_at, resolved_by_member_id,
+       parked_at, parked_by_member_id, park_reason)
+    VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id, TS, SYS, TS, SYS,
     o.queue_category ?? 'membership',
@@ -1203,6 +1208,9 @@ export function insertWorkQueueItem(
     o.detail_text ?? null,
     o.resolved_at ?? null,
     o.resolved_by_member_id ?? null,
+    o.parked_at ?? null,
+    o.parked_by_member_id ?? null,
+    o.park_reason ?? null,
   );
   return id;
 }

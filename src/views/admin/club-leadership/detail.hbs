@@ -63,11 +63,22 @@
       <button type="submit" class="btn btn-primary btn-sm">Assign</button>
     </form>
 
+    {{! Which member the id belongs to is the whole question this form asks, and
+        the club's own roster answers it for most cases. Anyone else is found in
+        the member lookup, which the form never named. }}
     {{#if content.club.affiliatedMembers.length}}
-      <p class="mt-4 text-muted fs-sm">Affiliated members available to assign:
-        {{#each content.club.affiliatedMembers}}{{displayName}} ({{slug}}){{#unless @last}}, {{/unless}}{{/each}}
-      </p>
+      <p class="mt-4 text-muted fs-sm">Members of this club who are not co-leaders. Any member can be assigned, not only these.</p>
+      {{#each content.club.affiliatedMembers}}
+        <div class="card">
+          <div class="card-title">{{displayName}} <span class="text-muted fs-sm">{{memberId}}</span></div>
+          <p class="m-0 mt-1 text-muted fs-sm">{{slug}}</p>
+          <p class="m-0 mt-1"><a href="{{recordHref}}">Open their member record</a></p>
+        </div>
+      {{/each}}
+    {{else}}
+      <p class="mt-4 text-muted fs-sm">No member of this club is available to assign. Any member can be assigned, not only members of the club.</p>
     {{/if}}
+    <p class="text-muted fs-sm"><a href="/admin/members">Find a member</a> to get the id or profile URL this form takes.</p>
   </section>
 
   <p class="mt-4"><a href="/admin/clubs/leadership">Back to the remediation queue</a></p>

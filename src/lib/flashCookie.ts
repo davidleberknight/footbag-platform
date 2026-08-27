@@ -24,6 +24,9 @@ export const FLASH_KIND = {
   WORK_QUEUE_REVIEWED: 'work_queue_reviewed',
   WORK_QUEUE_CLAIMED: 'work_queue_claimed',
   WORK_QUEUE_MEMBER_ASKED: 'work_queue_member_asked',
+  // An item set aside, or taken back out of the parked listing. The payload
+  // distinguishes the two so one banner kind covers both directions.
+  WORK_QUEUE_PARKED: 'work_queue_parked',
   MEMBER_QUESTION_ANSWERED: 'member_question_answered',
   CLUB_ACTION: 'club_action',
   PROFILE_UPDATED: 'profile_updated',

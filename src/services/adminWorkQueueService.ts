@@ -6,17 +6,23 @@
  *   - Contact-request submission (category-validated, per-member open-request cap),
  *     except the identity-link category, which is handed to the link-help
  *     workflow because an administrator answers it by applying a link
- *   - Contact-request resolution (decision label + admin note + member notification)
- *   - Resolution of the system-raised payments tasks (unattributed refund,
- *     partial-refund review, charge-dispute review, failed payout, recurring
- *     charge declined, recurring paused): decision label + admin note, recorded
- *     with admin identity and timestamp, and NO member email
- *   - Dismissal of internal-review items that have no member reply (the
- *     low-confidence auto-link match and the administrator-loss recruitment
- *     alert): closes the row with an audit entry
- *     and sends NO member email, unlike contact-request resolution
+ *   - Resolution of any item whose task type declares a decide action: the
+ *     decision label and the administrator's note, recorded with admin identity
+ *     and timestamp, and the member notification where that type says the answer
+ *     is the member's to receive (a contact request) rather than a record of a
+ *     provider-side matter (every payments task)
+ *   - Dismissal of internal-review items whose type declares a close action
+ *     because they have no member reply (the low-confidence auto-link match, the
+ *     administrator-loss recruitment alert): closes the row with the audit entry
+ *     that type names for itself, and sends NO member email
+ *   - Parking an item whose type offers it, and returning one to the queue: a
+ *     parked item keeps status 'open' and leaves the working list, every digest
+ *     and the escalation sweep, with no deadline. It comes back when the member
+ *     answers a question on it or when any administrator takes it back
  *   - Admin work-queue page shaping (open items grouped by category, optionally
- *     narrowed to one category, including structured link-help payload display)
+ *     narrowed to one category, plus the unfiltered parked listing), rendering
+ *     each card from its type's declaration: one skeleton, one evidence block,
+ *     one list of actions
  *   - The admin dashboard's two work-queue reads: the per-category open counts,
  *     and how much of the queue the viewing administrator is holding, decided by
  *     the digest's own claim rule so the page and the digest email agree
@@ -43,10 +49,14 @@
  *   - Work-queue UPDATE and the resolution audit row commit in one
  *     transaction; the member notification enqueue happens after commit and
  *     records an operational error on failure instead of rolling back.
- *   - A resolve is validated against its task family: the decision label set for
- *     a payments task is distinct from the contact-request set and never crosses.
- *     Only the six payments task types and the contact-request type resolve here;
- *     any other open item is reported not-found, the same answer as an unknown id.
+ *   - A decision is validated against the vocabulary the acting action itself
+ *     declares, so a payments decision on a contact request (or the reverse) is
+ *     impossible by construction rather than by two validators agreeing not to
+ *     cross. A type declaring no such action does not resolve here at all and is
+ *     reported not-found, the same answer as an unknown id.
+ *   - A row is refused when its entity type is not one its task type declares:
+ *     acting on it would record a decision about a record the type does not
+ *     describe.
  *   - Per-member open-request cap is 3, counted across every request the member
  *     raised themselves (contact requests and link-help requests alike) and
  *     freed as each is answered; the 4th open submission throws
@@ -57,25 +67,29 @@
  *   work_queue_items, audit_entries.
  *
  * Side effects:
- *   - audit_entries append (support.contact_request_submitted / _resolved;
- *     payment.queue_item_resolved on a payments-task resolution; and the
- *     dismissal event each internal-review task type names for itself, such as
- *     legacy.auto_link_match_reviewed on a low-confidence auto-link dismissal)
+ *   - audit_entries append (support.contact_request_submitted on submit, plus the
+ *     event the acting action names: support.contact_request_resolved,
+ *     payment.queue_item_resolved, or the dismissal event each internal-review
+ *     type names for itself, such as legacy.auto_link_match_reviewed)
  *   - outbox_emails enqueue (admin-alerts fan-out on submit; member
- *     notification on a contact-request resolve; NONE on a payments-task
- *     resolution or a review dismissal)
+ *     notification only where the acting action says the member is answered;
+ *     NONE on a payments-task resolution or a review dismissal)
  *   - operational-error audit + alarm on post-commit notification failure
  *
  * Service shape: singleton object (no external adapters beyond db.ts).
  */
-import { workQueue, memberMessages, account, transaction } from '../db/db';
+import { workQueue, memberMessages, account, payments, transaction } from '../db/db';
 import {
   enforceWorkQueueResolveLimit, identityAccessService,
-  type ClaimEvidence,
+  type ClaimEvidence, type AutoLinkLowReason,
 } from './identityAccessService';
 import { appendAuditEntry } from './auditService';
 import { emailService } from './emailService';
 import { workQueueService, claimIsLive, claimStaleCutoffIso } from './workQueueService';
+import {
+  workQueueDescriptorFor, workQueueActionFor, requireWorkQueueDescriptor,
+  type WorkQueueAction,
+} from './workQueueTaskTypes';
 import {
   questionRecipientFor, ANSWER_KINDS, type ExpectedAnswerKind,
 } from './memberMessageService';
@@ -101,71 +115,10 @@ export const CONTACT_CATEGORY_LABELS: Record<ContactCategory, string> = {
   other:                   'Other',
 };
 
-export const DECISION_LABELS = [
-  'corrected',
-  'denied',
-  'duplicate',
-  'out_of_scope',
-] as const;
-export type DecisionLabel = (typeof DECISION_LABELS)[number];
-
-export const DECISION_LABEL_DISPLAY: Record<DecisionLabel, string> = {
-  corrected:    'Corrected',
-  denied:       'Denied',
-  duplicate:    'Duplicate',
-  out_of_scope: 'Out of scope',
-};
-
-// The decisions an admin records when closing a system-raised payments task.
-// Every payments task ends one of three ways: the admin fixed it on the Stripe
-// side (a dispute worked, a payout's bank details were repaired, a stray refund
-// was located in the dashboard), the event needed no action (an expected pause,
-// a test charge), or a platform-side follow-up was completed. These are a
-// distinct set from the contact-request decisions and never cross.
-export const PAYMENT_DECISION_LABELS = [
-  'handled_in_stripe',
-  'no_action_needed',
-  'follow_up_complete',
-] as const;
-export type PaymentDecisionLabel = (typeof PAYMENT_DECISION_LABELS)[number];
-
-export const PAYMENT_DECISION_LABEL_DISPLAY: Record<PaymentDecisionLabel, string> = {
-  handled_in_stripe:  'Handled in Stripe',
-  no_action_needed:   'No action needed',
-  follow_up_complete: 'Follow-up complete',
-};
-
 const TASK_TYPE = 'member_contact_request';
 // The other queue a member can put work into themselves. Everything else in the
 // queue is raised by the platform about a member, not by the member.
 const LINK_HELP_TASK_TYPE = 'member_link_help_request';
-
-// The system-raised payments tasks an admin closes through the generic resolve
-// form. Resolving one records the decision and note but sends no email: these
-// rows point at provider-side records, and any member-facing message already
-// went out when the underlying event was recorded.
-const PAYMENTS_RESOLVABLE_TASK_TYPES: ReadonlySet<string> = new Set([
-  'unattributed_refund',
-  'partial_refund_review',
-  'refund_failed_review',
-  'charge_dispute_review',
-  'payout_failed',
-  'recurring_donation_charge_declined',
-  'recurring_donation_paused',
-]);
-
-// The entity a payments task legitimately points at, per task type. A row whose
-// entity type falls outside this set is corrupt, reported the same way the
-// contact path reports a non-member entity.
-const PAYMENTS_TASK_ENTITY_TYPES: Record<string, ReadonlySet<string>> = {
-  unattributed_refund:                new Set(['stripe_payment_intent', 'stripe_charge']),
-  partial_refund_review:              new Set(['payment']),
-  refund_failed_review:               new Set(['stripe_refund']),
-  charge_dispute_review:              new Set(['stripe_dispute']),
-  payout_failed:                      new Set(['stripe_payout']),
-  recurring_donation_charge_declined: new Set(['recurring_donation_subscription']),
-  recurring_donation_paused:          new Set(['recurring_donation_subscription']),
-};
 
 // Human labels for the entity a queue card points at, so the admin sees "Stripe
 // dispute di_123" rather than a bare id. A member entity is intentionally absent:
@@ -210,6 +163,10 @@ export interface ContactRequestRow {
   entityId: string;
   entityHref: string | null;
   entityDisplayName: string | null;
+  /** The member the matter is about, whether the row names them directly or
+   *  names a record of theirs. Null where no member is behind it at all, which
+   *  is every provider-side row. */
+  subjectMemberId: string | null;
   reasonText: string | null;
   detailText: string | null;
   claimedByMemberId: string | null;
@@ -224,18 +181,23 @@ function validateCategory(c: unknown): ContactCategory {
   return c as ContactCategory;
 }
 
-function validateDecisionLabel(d: unknown): DecisionLabel {
-  if (typeof d !== 'string' || !DECISION_LABELS.includes(d as DecisionLabel)) {
-    throw new ValidationError(`Invalid decision label: ${String(d)}`);
+/**
+ * A decision is valid only against the vocabulary the acting action itself
+ * declares. There was a validator per task family and a comment saying the two
+ * sets must never cross; reading the vocabulary off the action makes crossing
+ * them impossible rather than forbidden.
+ */
+function validateDecisionAgainst(
+  action: { decisions: readonly { value: string; label: string }[] },
+  raw: unknown,
+): { value: string; label: string } {
+  const match = typeof raw === 'string'
+    ? action.decisions.find((d) => d.value === raw)
+    : undefined;
+  if (!match) {
+    throw new ValidationError(`Invalid decision label: ${String(raw)}`);
   }
-  return d as DecisionLabel;
-}
-
-function validatePaymentDecisionLabel(d: unknown): PaymentDecisionLabel {
-  if (typeof d !== 'string' || !PAYMENT_DECISION_LABELS.includes(d as PaymentDecisionLabel)) {
-    throw new ValidationError(`Invalid decision label: ${String(d)}`);
-  }
-  return d as PaymentDecisionLabel;
+  return match;
 }
 
 // Admin work-queue page-model builder. The work-queue groups every open
@@ -268,50 +230,177 @@ export const LIVE_WORK_QUEUE_CATEGORIES: readonly string[] = [
   'system',
 ];
 
-const WORK_QUEUE_TASK_TYPE_LABELS: Record<string, string> = {
-  member_contact_request:    'Member contact request',
-  membership_overcharge_review: 'Membership paid for but not granted',
-  auto_link_match:           'Auto-link match',
-  member_link_help_request:  'Member link help request',
-  recurring_donation_charge_declined: 'Recurring donation renewal charge declined',
-  reconciliation_discrepancy: 'Payment reconciliation discrepancy',
-  unattributed_refund: 'Refund with no matching payment record',
-  partial_refund_review: 'Partially refunded payment',
-  refund_failed_review: 'Refund that could not be returned to the card',
-  charge_dispute_review: 'Card dispute raised against a payment',
-  payout_failed: 'Payout to the bank account failed',
-  recurring_donation_paused: 'Recurring donation paused at Stripe',
-  admin_loss_recruitment: 'Administrator lost; recruit a replacement',
-};
-
-// Internal-review items an admin closes with a dismissal (no member reply, no
-// email), distinct from the contact-request resolve path. The generic resolve
-// form does not apply to these; the page renders a dismiss control instead.
-// Each type names the audit event its dismissal records, because the ledger is
-// append-only: a shared event name would file one type's review under another's
-// and the wrong entry could never be corrected.
-const DISMISSIBLE_REVIEW_AUDIT: ReadonlyMap<string, { actionType: string; category: string; reasonText: string; hint: string }> = new Map([
-  ['auto_link_match', {
-    actionType: 'legacy.auto_link_match_reviewed',
-    category:   'identity',
-    reasonText: 'Low-confidence auto-link match reviewed; no link applied.',
-    hint:       'No link was applied, so there is nothing to undo. To link this member, use the member link-help path.',
-  }],
-  ['admin_loss_recruitment', {
-    actionType: 'admin.loss_alert_dismissed',
-    category:   'admin',
-    reasonText: 'Administrator-loss recruitment alert reviewed and closed.',
-    hint:       'Dismiss this once a replacement admin volunteer is recruited, or once the team agrees the current admin roster is sufficient. Granting the role to the replacement is done on the admin roles page.',
-  }],
-]);
-
-const DISMISSIBLE_REVIEW_TASK_TYPES: ReadonlySet<string> = new Set(DISMISSIBLE_REVIEW_AUDIT.keys());
+/**
+ * The close action of an internal-review type: an item an administrator ends
+ * with a dismissal because there is no member to answer and nothing to undo.
+ * Null for every other type, which is what makes the dismiss endpoint refuse
+ * anything else.
+ */
+function closeActionFor(taskType: string): Extract<WorkQueueAction, { kind: 'close' }> | null {
+  const action = workQueueActionFor(taskType, 'dismiss');
+  return action?.kind === 'close' ? action : null;
+}
 
 // Which matters may carry a question is decided by memberMessageService, on the
 // single structural rule that the item resolves to one live, signed-up member.
 // The card asks that service rather than keeping a second copy of the answer:
 // two lists in two files were what let the control render on a matter the send
 // path then refused, with a message that named the wrong reason.
+
+/** One input an action needs, addressed so two cards on a page never collide. */
+export interface WorkQueueActionFieldView {
+  name: string;
+  label: string;
+  inputId: string;
+  isTextarea: boolean;
+  maxLength: number;
+  required: boolean;
+}
+
+/** The note an action records, which is a field like any other except that the
+ *  wording tells the administrator who ends up reading it. */
+export interface WorkQueueActionNoteView extends WorkQueueActionFieldView {
+  placeholder: string;
+}
+
+/**
+ * One thing an administrator can do to an item, shaped into the control that
+ * does it. Every card renders its list of these the same way, so learning one
+ * card teaches every card.
+ */
+export interface WorkQueueActionView {
+  key: string;
+  label: string;
+  buttonClass: string;
+  /** A resolution that lives on another page: rendered as a link, not a form. */
+  isLink: boolean;
+  href: string | null;
+  /** Where the form posts. Null on a link action. */
+  actionPath: string | null;
+  decisions: Array<{ value: string; label: string }>;
+  hasDecisions: boolean;
+  decisionInputId: string;
+  fields: WorkQueueActionFieldView[];
+  hasFields: boolean;
+  note: WorkQueueActionNoteView | null;
+  /** What this action does or does not do, where that is not obvious from its
+   *  label and getting it wrong is expensive. */
+  hint: string | null;
+}
+
+/**
+ * What the administrator decides on, shaped per the type's declaration. The
+ * booleans are the pre-shaped switch the card renders on; only one is ever true.
+ */
+export interface WorkQueueEvidenceView {
+  /** The platform's own words about the item. */
+  isReasonText: boolean;
+  /** The member's own words, shown as theirs. */
+  isMemberMessage: boolean;
+  /** A member's request to be linked to a record, with what they have tried. */
+  isLinkHelp: boolean;
+  /** A match the batch classifier could not make on its own. */
+  isAutoLink: boolean;
+  reasonText: string | null;
+  detailText: string | null;
+  linkHelp: {
+    statement: string;
+    isDispute: boolean;
+    /** The records this dispute named when it was filed, detected server-side.
+     *  The revert accepts only one of these, so the card must show them: without
+     *  them an administrator has no way to learn an id the action will take. */
+    disputedRecords: Array<{ kindLabel: string; recordId: string }>;
+    hasDisputedRecords: boolean;
+  } | null;
+  /**
+   * What the ledger says about this member's past claim attempts, rendered on
+   * the matters that ask an administrator to judge an identity. Null elsewhere.
+   */
+  claimEvidence: ClaimEvidence | null;
+  /** The records the platform can already see for this member, on the card that
+   *  asks an administrator to name one. Null where the type does not ask that. */
+  candidates: LinkCandidatesView | null;
+  autoLink: AutoLinkEvidenceView | null;
+}
+
+/**
+ * What the platform can see behind a member asking to be linked: the old
+ * accounts their own anchors reach, and the competition records under their
+ * name, each with the id the approve form takes.
+ */
+export interface LinkCandidatesView {
+  legacyAccounts: Array<{
+    legacyMemberId: string;
+    displayName: string;
+    facts: string[];
+    birthDate: string | null;
+  }>;
+  hasLegacyAccounts: boolean;
+  historicalPersons: Array<{
+    personId: string;
+    personName: string;
+    matchNote: string | null;
+  }>;
+  hasHistoricalPersons: boolean;
+  /** Said plainly, because an anchor matching several accounts is why a link
+   *  cannot simply be applied. */
+  ambiguousNotes: string[];
+  hasAmbiguousNotes: boolean;
+  hasAny: boolean;
+  /** Where an administrator goes when none of this is enough. */
+  lookupHref: string;
+}
+
+/**
+ * A match the batch classifier could not make, as the administrator needs to see
+ * it: why it stopped, the old account it reached, and the competition records it
+ * could not choose between.
+ *
+ * The records are read at render time rather than copied onto the row when the
+ * item was raised, because the pass runs once at cutover and a record can change
+ * hands afterwards; the stored reason is the historical fact, the records are
+ * the current one.
+ */
+export interface AutoLinkEvidenceView {
+  /** Why the classifier stopped, in words. */
+  reasonLabel: string;
+  /** What the administrator is being asked to do about it. */
+  actionLabel: string;
+  legacyAccount: {
+    legacyMemberId: string;
+    displayName: string | null;
+    country: string | null;
+    birthDate: string | null;
+  } | null;
+  candidates: Array<{ personId: string; personName: string }>;
+  hasCandidates: boolean;
+  /** The member has been linked since this was raised, so there is nothing left
+   *  to judge and the item is only waiting to be closed. */
+  settledSince: boolean;
+}
+
+/** The two records a link-help approval is about to bind, shown before it is. */
+export interface LinkHelpConfirmContent {
+  summary: string;
+  member: {
+    displayName: string;
+    realNameNote: string | null;
+    birthDate: string | null;
+    recordHref: string;
+  };
+  target: {
+    kindLabel: string;
+    recordId: string;
+    recordName: string;
+    facts: string[];
+  };
+  confirmAction: string;
+  confirmLabel: string;
+  cancelHref: string;
+  legacyMemberId: string;
+  historicalPersonId: string;
+  filterCategory: string;
+}
 
 /** One question put to the member on this item, as the administrator sees it. */
 export interface MemberQuestionAdminView {
@@ -344,34 +433,20 @@ export interface WorkQueueViewItem {
    * administrator to look the member up by hand. Null for a non-member entity.
    */
   memberRecordHref: string | null;
-  reasonText: string | null;
-  /** Full member-authored message (e.g. a contact request), shown to the admin
-   *  so they can act on the whole request. Null for non-message task types. */
-  detailText: string | null;
   /** The provider or domain record this task points at, rendered as
    *  "<label> <id>" on the card. Null for member-entity rows, where the
-   *  member's name link already identifies the subject. */
-  entityReference: { label: string; id: string } | null;
-  decisionLabels: Array<{ value: string; label: string }>;
-  /** Member link-help requests render structured payload + approve/reject
-   * forms instead of the generic resolve form. */
-  isLinkHelpRequest: boolean;
-  /** Internal-review flags (a low-confidence auto-link match, an
-   * administrator-loss recruitment alert) render a dismiss control instead of
-   * the generic resolve form, which does not apply to them. */
-  isReviewFlag: boolean;
-  /** What dismissing this review type does and does not undo, worded per type
-   * because the two say opposite things about an applied link. */
-  reviewHint: string | null;
-  /** A reconciliation discrepancy is resolved on the reconciliation page, not
-   *  here; its card links there instead of rendering the resolve form. */
-  isReconciliationItem: boolean;
-  /** True when the card renders the generic decision + note resolve form
-   *  (contact requests and the system-raised payments tasks). */
-  showResolveForm: boolean;
-  /** Placeholder wording for the note field: a contact-request note is emailed
-   *  to the member; a payments note is an internal record. */
-  resolutionNotePlaceholder: string;
+   *  member's name link already identifies the subject. Carries a link where the
+   *  platform holds the record itself: deciding a payment matter off-page while
+   *  the page that holds the payment sits one click away is a lookup the card
+   *  should have saved. */
+  entityReference: { label: string; id: string; href: string | null } | null;
+  /** Everything this type's administrator can do, in the order its declaration
+   *  gives, each already shaped into the form or link that carries it out. The
+   *  card renders this list and nothing else, so a type cannot arrive with a
+   *  control the page forgot to draw. */
+  actions: WorkQueueActionView[];
+  /** How this card shows what the decision is made on. */
+  evidence: WorkQueueEvidenceView;
   /** Claim state for the claim-and-digest flow: an unclaimed item shows a
    *  Claim control; a claimed item shows who is handling it. `claimedByMe`
    *  distinguishes the viewing admin's own claim from another admin's. */
@@ -390,11 +465,6 @@ export interface WorkQueueViewItem {
   askPrefill: { subject: string; body: string; answerKind: string } | null;
   /** True on the card a deep link named, so its composer is already open. */
   askOpen: boolean;
-  /**
-   * What the ledger says about this member's past claim attempts, rendered on
-   * the matters that ask an administrator to judge an identity. Empty elsewhere.
-   */
-  claimEvidence: ClaimEvidence | null;
   /** Why the control is absent on an item that would otherwise carry it. Null
    *  when it is shown, and on every item the channel does not serve. */
   askBlockedReason: string | null;
@@ -405,15 +475,6 @@ export interface WorkQueueViewItem {
   /** Questions already put to this member on this item, newest last, with the
    *  answer where one has come back. */
   memberQuestions: MemberQuestionAdminView[];
-  linkHelp: {
-    statement: string;
-    isDispute: boolean;
-    /** The records this dispute named when it was filed, detected server-side.
-     *  The revert accepts only one of these, so the card must show them: without
-     *  them an administrator has no way to learn an id the action will take. */
-    disputedRecords: Array<{ kindLabel: string; recordId: string }>;
-    hasDisputedRecords: boolean;
-  } | null;
 }
 
 export interface WorkQueueGroup {
@@ -422,8 +483,31 @@ export interface WorkQueueGroup {
   items: WorkQueueViewItem[];
 }
 
+/**
+ * An item an administrator set aside. It carries what it is and why it is
+ * waiting, and one control to take it back; the actions that resolve it live on
+ * the working card it becomes again.
+ */
+export interface ParkedWorkQueueItemView {
+  id: string;
+  taskTypeLabel: string;
+  categoryLabel: string;
+  parkedAtDisplay: string;
+  parkedByName: string | null;
+  parkReason: string | null;
+  summary: string | null;
+  entityDisplayName: string | null;
+  entityHref: string | null;
+  returnAction: string;
+}
+
 export interface WorkQueueContent {
   groups: WorkQueueGroup[];
+  /** Items waiting on something outside the queue, listed apart from the work. */
+  parked: ParkedWorkQueueItemView[];
+  hasParked: boolean;
+  parkedFlag: boolean;
+  unparkedFlag: boolean;
   /** Items on the page, which is the filtered count when a filter is on. */
   totalOpen: number;
   /** The category being shown alone, named for the reader; null when showing all. */
@@ -480,7 +564,7 @@ export interface WorkQueueSummary {
   hasOpen: boolean;
 }
 
-function parseLinkHelpPayload(reasonText: string | null): WorkQueueViewItem['linkHelp'] {
+function parseLinkHelpPayload(reasonText: string | null): WorkQueueEvidenceView['linkHelp'] {
   if (!reasonText) return null;
   try {
     const p = JSON.parse(reasonText) as Record<string, unknown>;
@@ -503,16 +587,235 @@ function parseLinkHelpPayload(reasonText: string | null): WorkQueueViewItem['lin
   }
 }
 
+/** An element id built from an item and an action, unique on a page of cards. */
+function inputIdFor(itemId: string, actionKey: string, field: string): string {
+  return `${actionKey.replace(/[^a-z0-9]+/gi, '_')}_${field}_${itemId}`;
+}
+
+function shapeActionField(
+  itemId: string,
+  actionKey: string,
+  field: { name: string; label: string; input: 'text' | 'textarea'; maxLength: number; required: boolean },
+): WorkQueueActionFieldView {
+  return {
+    name:       field.name,
+    label:      field.label,
+    inputId:    inputIdFor(itemId, actionKey, field.name),
+    isTextarea: field.input === 'textarea',
+    maxLength:  field.maxLength,
+    required:   field.required,
+  };
+}
+
+/**
+ * The declared actions of a type, as the controls that carry them out.
+ *
+ * The order is the declaration's order, so what an administrator reaches for
+ * first is decided once, per type, rather than by where a branch happened to sit
+ * in the template.
+ */
+function shapeActions(
+  itemId: string,
+  taskType: string,
+  linkHelp: WorkQueueEvidenceView['linkHelp'],
+): WorkQueueActionView[] {
+  const descriptor = workQueueDescriptorFor(taskType);
+  if (!descriptor) return [];
+  const out: WorkQueueActionView[] = [];
+  for (const action of descriptor.actions) {
+    if (action.kind === 'elsewhere') {
+      out.push({
+        key: 'elsewhere', label: action.label, buttonClass: 'btn btn-outline btn-sm',
+        isLink: true, href: action.href, actionPath: null,
+        decisions: [], hasDecisions: false, decisionInputId: '',
+        fields: [], hasFields: false, note: null, hint: null,
+      });
+      continue;
+    }
+    // A dispute revert has nothing to revert on a request that named no
+    // conflicting record, so it is not offered there at all.
+    if (action.kind === 'act' && action.disputeOnly && !linkHelp?.isDispute) continue;
+
+    const decisions = action.kind === 'decide' ? [...action.decisions] : [];
+    const fields = action.kind === 'act'
+      ? action.fields.map((f) => shapeActionField(itemId, action.key, f))
+      : [];
+    const note = action.kind === 'decide' || action.kind === 'close' || action.kind === 'park'
+      ? {
+        ...shapeActionField(itemId, action.key, { ...action.note, input: 'textarea' as const }),
+        placeholder: action.note.placeholder,
+      }
+      : null;
+    out.push({
+      key:             action.key,
+      label:           action.label,
+      buttonClass:     action.style === 'primary' ? 'btn btn-primary btn-sm' : 'btn btn-outline btn-sm',
+      isLink:          false,
+      href:            null,
+      actionPath:      `/admin/work-queue/${itemId}/${action.key}`,
+      decisions,
+      hasDecisions:    decisions.length > 0,
+      decisionInputId: inputIdFor(itemId, action.key, 'decision'),
+      fields,
+      hasFields:       fields.length > 0,
+      note,
+      hint:            action.kind === 'act' || action.kind === 'close' || action.kind === 'park'
+        ? action.hint ?? null
+        : null,
+    });
+  }
+  return out;
+}
+
+/**
+ * Why a batch auto-link match stopped where it did, in words an administrator
+ * can act on, and what each reason actually asks of them.
+ *
+ * Deliberately says nothing about confidence: what the classifier's bands mean
+ * is an open question in its own right, and the administrator's decision does
+ * not wait on it. What they need is the obstacle and the next move.
+ */
+const AUTO_LINK_REASONS: Record<AutoLinkLowReason, { reason: string; action: string }> = {
+  no_hp_for_legacy_account: {
+    reason: 'The old account was found, but it has no competition record attached to it.',
+    action: 'There is nothing to link it to, so this is usually closed as reviewed.',
+  },
+  no_name_candidate: {
+    reason: 'The old account was found, but no competition record carries this name.',
+    action: 'There is nothing to link it to, so this is usually closed as reviewed.',
+  },
+  multiple_name_candidates: {
+    reason: 'More than one competition record carries this name, and nothing on file chose between them.',
+    action: 'Compare the records below with the member before anything is linked.',
+  },
+  hp_mismatch: {
+    reason: 'The competition record the old account points at is filed under a different surname from this member.',
+    action: 'Check whether the two are the same person before anything is linked.',
+  },
+  ambiguous_email_anchor: {
+    reason: 'The email address on file matches more than one old account, so none of them can be taken as theirs.',
+    action: 'Ask the member which address was theirs before anything is linked.',
+  },
+};
+
+/** Whether this member already holds a legacy account or a competition record. */
+function hasIdentityLink(memberId: string): boolean {
+  const links = account.findIdentityLinks.get(memberId) as
+    | { legacy_member_id: string | null; historical_person_id: string | null }
+    | undefined;
+  return Boolean(links?.legacy_member_id || links?.historical_person_id);
+}
+
+/** The reason code stored on the row when the item was raised. */
+function parseAutoLinkReason(reasonText: string | null): AutoLinkLowReason | null {
+  if (!reasonText) return null;
+  try {
+    const parsed = JSON.parse(reasonText) as { reason?: unknown };
+    const reason = typeof parsed.reason === 'string' ? parsed.reason : null;
+    return reason && reason in AUTO_LINK_REASONS ? reason as AutoLinkLowReason : null;
+  } catch {
+    // A row raised before the reason was recorded, or one erasure has scrubbed.
+    return null;
+  }
+}
+
+function shapeAutoLinkEvidence(raw: ContactRequestRow): AutoLinkEvidenceView {
+  const live = identityAccessService.getAutoLinkClassificationForMember(raw.entityId);
+  const storedReason = parseAutoLinkReason(raw.reasonText);
+  const reason = storedReason ?? (live.confidence === 'low' ? live.reason : null);
+  const words = reason ? AUTO_LINK_REASONS[reason] : null;
+  const lowNow = live.confidence === 'low' ? live : null;
+  return {
+    reasonLabel: words?.reason
+      ?? 'This match was raised before the reason was recorded, so why it stopped is not on file.',
+    actionLabel: words?.action
+      ?? 'Judge it from the member record and the competition records under their name.',
+    legacyAccount: lowNow?.legacyMatch
+      ? {
+        legacyMemberId: lowNow.legacyMatch.legacyMemberId,
+        displayName:    lowNow.legacyMatch.displayName,
+        country:        lowNow.legacyMatch.country,
+        birthDate:      lowNow.legacyMatch.birthDate,
+      }
+      : null,
+    candidates: (lowNow?.candidates ?? []).map((c) => ({
+      personId:   c.personId,
+      personName: c.personName,
+    })),
+    hasCandidates: (lowNow?.candidates?.length ?? 0) > 0,
+    // Read from the member's own links rather than inferred from the classifier
+    // falling silent: it also falls silent for a member who simply has no
+    // anchors to match on, and telling an administrator that member was linked
+    // would be a plain untruth on the card they are deciding from.
+    settledSince: hasIdentityLink(raw.entityId),
+  };
+}
+
+/**
+ * The records the platform can already see for this member, as the card shows
+ * them: each with the id the approve form takes, so the administrator never has
+ * to go and find an identifier the page could have handed them.
+ */
+function shapeLinkCandidates(memberId: string): LinkCandidatesView {
+  const found = identityAccessService.getLinkCandidatesForAdmin(memberId);
+  const legacyAccounts = found.legacyAccounts.map((a) => ({
+    legacyMemberId: a.legacyMemberId,
+    displayName:    a.displayName ?? a.legacyMemberId,
+    facts: [a.legacyMemberId, a.country, `Found through ${a.anchorLabel}`]
+      .filter((f): f is string => Boolean(f)),
+    birthDate: a.birthDate,
+  }));
+  const historicalPersons = found.historicalPersons.map((p) => ({
+    personId:   p.personId,
+    personName: p.personName,
+    matchNote:  p.isVariantMatch ? 'Matched through a recorded name variant' : null,
+  }));
+  const ambiguousNotes = found.ambiguousAnchors.map(
+    (label) => `More than one old account carries ${label}, so none of them can be taken as theirs.`,
+  );
+  return {
+    legacyAccounts,
+    hasLegacyAccounts: legacyAccounts.length > 0,
+    historicalPersons,
+    hasHistoricalPersons: historicalPersons.length > 0,
+    ambiguousNotes,
+    hasAmbiguousNotes: ambiguousNotes.length > 0,
+    hasAny: legacyAccounts.length > 0 || historicalPersons.length > 0,
+    lookupHref: '/admin/legacy-accounts',
+  };
+}
+
+/** What the card shows the decision being made on, per the type's declaration. */
+function shapeEvidence(raw: ContactRequestRow): WorkQueueEvidenceView {
+  const evidence = workQueueDescriptorFor(raw.taskType)?.evidence ?? { kind: 'reason_text' as const };
+  const isLinkHelp = evidence.kind === 'structured' && evidence.payload === 'link_help';
+  const isAutoLink = evidence.kind === 'structured' && evidence.payload === 'auto_link';
+  return {
+    isReasonText:    evidence.kind === 'reason_text',
+    isMemberMessage: evidence.kind === 'member_message',
+    isLinkHelp,
+    isAutoLink,
+    // A structured payload holds JSON in the same column, so the raw text is
+    // withheld there rather than printed as noise.
+    reasonText: evidence.kind === 'structured' ? null : raw.reasonText,
+    detailText: evidence.kind === 'structured' ? null : raw.detailText,
+    linkHelp:   isLinkHelp ? parseLinkHelpPayload(raw.reasonText) : null,
+    candidates: isLinkHelp ? shapeLinkCandidates(raw.entityId) : null,
+    autoLink:   isAutoLink ? shapeAutoLinkEvidence(raw) : null,
+    // The evidence an identity decision is actually made on. Offered only on the
+    // matters that ask an administrator to judge one, because everywhere else it
+    // is a member's claim history shown for no reason.
+    claimEvidence: isLinkHelp
+      ? identityAccessService.getClaimEvidenceForMember(raw.entityId)
+      : null,
+  };
+}
+
 function shapeWorkQueueItem(
   raw: ContactRequestRow,
   viewingAdminId: string,
   askItemId: string | null,
 ): WorkQueueViewItem {
-  const isLinkHelpRequest = raw.taskType === 'member_link_help_request';
-  const isReviewFlag = DISMISSIBLE_REVIEW_TASK_TYPES.has(raw.taskType);
-  const isReconciliationItem = raw.taskType === 'reconciliation_discrepancy';
-  const isPaymentsResolvable = PAYMENTS_RESOLVABLE_TASK_TYPES.has(raw.taskType);
-  const isContactRequest = raw.taskType === TASK_TYPE;
   // A claim expires, so an item whose holder never came back is offered to
   // everyone again rather than sitting silently under a name.
   const isClaimed = claimIsLive(raw.claimedAt, claimStaleCutoffIso());
@@ -531,54 +834,41 @@ function shapeWorkQueueItem(
   const canAskMember = askable && memberCanRead;
   const questions = askable ? buildMemberQuestions(raw.id) : [];
 
-  // The resolve form applies to contact requests and the system-raised payments
-  // tasks; link-help, review flags, and reconciliation twins each have their own
-  // control (or none). A card outside those families shows no form.
-  const showResolveForm = isContactRequest || isPaymentsResolvable;
-  const decisionLabels = isPaymentsResolvable
-    ? PAYMENT_DECISION_LABELS.map((d) => ({ value: d, label: PAYMENT_DECISION_LABEL_DISPLAY[d] }))
-    : isContactRequest
-      ? DECISION_LABELS.map((d) => ({ value: d, label: DECISION_LABEL_DISPLAY[d] }))
-      : [];
+  const evidence = shapeEvidence(raw);
 
   // The member entity is identified by its name link, not a raw id; every other
   // entity shows a labelled reference so the admin can cross-reference in Stripe.
   const entityReference = raw.entityType === 'member'
     ? null
-    : { label: ENTITY_REFERENCE_LABELS[raw.entityType] ?? raw.entityType, id: raw.entityId };
+    : {
+      label: ENTITY_REFERENCE_LABELS[raw.entityType] ?? raw.entityType,
+      id:    raw.entityId,
+      // A payment is the platform's own record and has a page; a Stripe id
+      // belongs to the provider's dashboard and gets no link from here.
+      href:  raw.entityType === 'payment' ? `/admin/payments/${raw.entityId}` : null,
+    };
 
   return {
     id: raw.id,
     queueCategory: raw.queueCategory,
     taskType: raw.taskType,
-    taskTypeLabel: WORK_QUEUE_TASK_TYPE_LABELS[raw.taskType] ?? raw.taskType,
+    taskTypeLabel: workQueueDescriptorFor(raw.taskType)?.label ?? raw.taskType,
     openedAtIso: raw.openedAtIso,
     openedAtDisplay: raw.openedAtIso.slice(0, 10),
     entityType: raw.entityType,
     entityId: raw.entityId,
     entityHref: raw.entityHref,
     entityDisplayName: raw.entityDisplayName,
-    memberRecordHref: raw.entityType === 'member' ? `/admin/members/${raw.entityId}` : null,
-    // The link-help payload renders structured below; raw JSON would be noise.
-    reasonText: isLinkHelpRequest ? null : raw.reasonText,
-    detailText: isLinkHelpRequest ? null : raw.detailText,
+    memberRecordHref: raw.subjectMemberId ? `/admin/members/${raw.subjectMemberId}` : null,
     entityReference,
-    decisionLabels,
-    isLinkHelpRequest,
-    isReviewFlag,
-    reviewHint: DISMISSIBLE_REVIEW_AUDIT.get(raw.taskType)?.hint ?? null,
-    isReconciliationItem,
-    showResolveForm,
-    resolutionNotePlaceholder: isContactRequest
-      ? 'Sent to the member by email'
-      : 'Internal note; kept on the queue record',
+    evidence,
+    actions: shapeActions(raw.id, raw.taskType, evidence.linkHelp),
     isClaimed,
     claimedByMe: isClaimed && raw.claimedByMemberId === viewingAdminId,
     claimedByName: raw.claimedByName,
     // A lapsed claim still names who had it, so the next administrator can ask
     // rather than duplicating work already done.
     lapsedClaimByName: !isClaimed && raw.claimedByName !== null ? raw.claimedByName : null,
-    linkHelp: isLinkHelpRequest ? parseLinkHelpPayload(raw.reasonText) : null,
     canAskMember,
     // Said plainly on the card, so an administrator who expected the control
     // knows it is a matter of timing rather than a missing feature.
@@ -587,14 +877,8 @@ function shapeWorkQueueItem(
       : null,
     awaitingMemberSince: questions.find((q) => !q.isAnswered)?.sentAtDisplay ?? null,
     memberQuestions: questions,
-    // The evidence an identity decision is actually made on. Offered only on
-    // the matters that ask an administrator to judge one, because everywhere
-    // else it is a member's claim history shown for no reason.
     askPrefill: canAskMember ? ASK_PREFILLS[raw.taskType] ?? null : null,
     askOpen: canAskMember && raw.id === askItemId,
-    claimEvidence: isLinkHelpRequest
-      ? identityAccessService.getClaimEvidenceForMember(raw.entityId)
-      : null,
   };
 }
 
@@ -662,18 +946,30 @@ function buildMemberQuestions(queueItemId: string): MemberQuestionAdminView[] {
   }));
 }
 
-// Resolve a contact request: record the decision and note, then email the
-// requesting member. The queue UPDATE and the audit row commit together; the
-// email is enqueued after commit and a failure there surfaces as a 503 without
-// rolling the resolution back.
-async function resolveContactRequestItem(
-  row: { entity_type: string; entity_id: string },
+/**
+ * Resolve an item whose type declares a decide action: record the decision and
+ * the note, and answer the member where that type says the answer is theirs to
+ * receive. The queue UPDATE and the audit row commit together; any email is
+ * enqueued after commit and a failure there surfaces as a 503 without rolling
+ * the resolution back.
+ *
+ * The decision vocabulary, the audit event, and whether a member hears about it
+ * are read off the action rather than branched on the task family here, so a
+ * type cannot be resolved with another family's vocabulary or filed under
+ * another family's audit event.
+ */
+async function resolveDecidedItem(
+  row: { entity_type: string; entity_id: string; task_type: string },
+  action: Extract<WorkQueueAction, { kind: 'decide' }>,
   input: WorkQueueResolveInput,
   note: string,
 ): Promise<{ status: 'resolved'; memberNotified: boolean }> {
-  const decisionLabel = validateDecisionLabel(input.decisionLabel);
-  if (row.entity_type !== 'member') {
-    throw new ValidationError('Unexpected entity type on contact-request row.');
+  const decision = validateDecisionAgainst(action, input.decisionLabel);
+  const decisionLabel = decision.value;
+  // A row pointing at an entity its type never points at is corrupt, and acting
+  // on it would write a decision about a record the type does not describe.
+  if (!requireWorkQueueDescriptor(row.task_type).entityTypes.includes(row.entity_type)) {
+    throw new ValidationError('Unexpected entity type on queue row.');
   }
 
   const nowIso = new Date().toISOString();
@@ -688,14 +984,14 @@ async function resolveContactRequestItem(
       input.queueItemId,
     );
     if (result.changes === 0) {
-      throw new NotFoundError(`Open contact request not found: ${input.queueItemId}`);
+      throw new NotFoundError(`Open work-queue item not found: ${input.queueItemId}`);
     }
     appendAuditEntry({
-      actionType:    'support.contact_request_resolved',
-      category:      'support',
+      actionType:    action.auditActionType,
+      category:      action.auditCategory,
       actorType:     'admin',
       actorMemberId: input.adminMemberId,
-      entityType:    'member',
+      entityType:    row.entity_type,
       entityId:      row.entity_id,
       reasonText:    decisionLabel,
       // Free text stays out of the metadata: the audit ledger is append-only
@@ -712,13 +1008,20 @@ async function resolveContactRequestItem(
     });
   });
 
+  // A decision on a provider-side record reaches no member: the row points at a
+  // payment record rather than a person, and any member-facing message went out
+  // when the underlying event was recorded.
+  if (!action.notifiesSubject) {
+    return { status: 'resolved', memberNotified: false };
+  }
+
   const member = account.findContactInfoById.get(row.entity_id) as
     | { id: string; slug: string; display_name: string; login_email: string }
     | undefined;
   if (!member || !member.login_email) {
     return { status: 'resolved', memberNotified: false };
   }
-  const displayDecision = DECISION_LABEL_DISPLAY[decisionLabel];
+  const displayDecision = decision.label;
 
   // Strict enqueue: an outbox failure after the resolve committed must surface to
   // the admin as a 503 rather than silently drop the member's resolution
@@ -761,55 +1064,6 @@ async function resolveContactRequestItem(
     throw err;
   }
   return { status: 'resolved', memberNotified: notified };
-}
-
-// Resolve a system-raised payments task: record the decision and note, with no
-// member email. The row points at a provider-side record, and any member-facing
-// message already went out when the underlying event was recorded. The queue
-// UPDATE and the audit row commit together.
-function resolvePaymentsTaskItem(
-  row: { entity_type: string; entity_id: string; task_type: string },
-  input: WorkQueueResolveInput,
-  note: string,
-): void {
-  const decisionLabel = validatePaymentDecisionLabel(input.decisionLabel);
-  const allowed = PAYMENTS_TASK_ENTITY_TYPES[row.task_type];
-  if (!allowed || !allowed.has(row.entity_type)) {
-    throw new ValidationError('Unexpected entity type on payments queue row.');
-  }
-
-  const nowIso = new Date().toISOString();
-  transaction(() => {
-    const result = workQueue.resolve.run(
-      nowIso,
-      input.adminMemberId,
-      decisionLabel,
-      note.slice(0, MAX_RESOLUTION_NOTE),
-      nowIso,
-      input.adminMemberId,
-      input.queueItemId,
-    );
-    if (result.changes === 0) {
-      throw new NotFoundError(`Open work-queue item not found: ${input.queueItemId}`);
-    }
-    appendAuditEntry({
-      actionType:    'payment.queue_item_resolved',
-      category:      'payment',
-      actorType:     'admin',
-      actorMemberId: input.adminMemberId,
-      entityType:    row.entity_type,
-      entityId:      row.entity_id,
-      reasonText:    decisionLabel,
-      // Same reasoning as the contact-request resolution above: the note is
-      // free text written about a member and belongs in the purgeable
-      // work-queue row, not in the append-only ledger. The decision label is
-      // what the ledger keeps.
-      metadata:      {
-        queue_item_id: input.queueItemId,
-        decision_label: decisionLabel,
-      },
-    });
-  });
 }
 
 export const adminWorkQueueService = {
@@ -944,17 +1198,102 @@ export const adminWorkQueueService = {
       throw new NotFoundError(`Open work-queue item not found: ${input.queueItemId}`);
     }
 
-    if (row.task_type === TASK_TYPE) {
-      return resolveContactRequestItem(row, input, note);
+    // Only a type that declares a decide action resolves here. Reconciliation
+    // twins close with their issue; link-help and review items have their own
+    // controls. None of those is resolvable here, and each is reported like an
+    // unknown id so the endpoint reveals nothing about which type a hidden item
+    // is.
+    const action = workQueueActionFor(row.task_type, 'resolve');
+    if (action?.kind !== 'decide') {
+      throw new NotFoundError(`Open work-queue item not found: ${input.queueItemId}`);
     }
-    if (PAYMENTS_RESOLVABLE_TASK_TYPES.has(row.task_type)) {
-      resolvePaymentsTaskItem(row, input, note);
-      return { status: 'resolved', memberNotified: false };
-    }
-    // Reconciliation twins close with their issue; link-help and review flags
-    // have their own controls. None is resolvable here, reported like an unknown
-    // id so the endpoint reveals nothing about which type a hidden item is.
-    throw new NotFoundError(`Open work-queue item not found: ${input.queueItemId}`);
+    return resolveDecidedItem(row, action, input, note);
+  },
+
+  /**
+   * The confirmation page for a link-help approval: whose record is about to be
+   * bound to whose account, before anything is written. The write happens on the
+   * confirm step, which is what every other consequential correction on a person
+   * already does.
+   */
+  getLinkHelpApprovalConfirmPage(opts: {
+    adminMemberId: string;
+    queueItemId: string;
+    legacyMemberId: string;
+    historicalPersonId: string;
+    category?: string | null;
+  }): PageViewModel<LinkHelpConfirmContent> {
+    const preview = identityAccessService.previewLinkHelpApproval(
+      opts.adminMemberId,
+      opts.queueItemId,
+      { legacyMemberId: opts.legacyMemberId, historicalPersonId: opts.historicalPersonId },
+    );
+    const title = 'Confirm: Link This Record to This Member';
+    return {
+      seo:  { title, noindex: true },
+      page: { sectionKey: 'admin', pageKey: 'admin_link_help_confirm', title },
+      content: {
+        summary: 'Linking merges the record into the member\'s account and grants any tier the '
+          + 'record carries. It is recorded as vetted by you. Check that these are the same person.',
+        member: {
+          displayName: preview.member.displayName,
+          // Shown only where it differs: an administrator judging an identity is
+          // comparing names, and a repeated one is noise on the page.
+          realNameNote: preview.member.realName !== preview.member.displayName
+            ? `Registered name: ${preview.member.realName}`
+            : null,
+          birthDate:  preview.member.birthDate,
+          recordHref: `/admin/members/${preview.member.memberId}`,
+        },
+        target: preview.target,
+        confirmAction: `/admin/work-queue/${opts.queueItemId}/link-help/approve/confirm`,
+        confirmLabel:  'Yes, Link Them',
+        cancelHref:    '/admin/work-queue',
+        legacyMemberId:     preview.legacyMemberId ?? '',
+        historicalPersonId: preview.historicalPersonId ?? '',
+        filterCategory:     opts.category ?? '',
+      },
+    };
+  },
+
+  /**
+   * The items an administrator has set aside, newest park first. Read apart from
+   * the working queue so a parked item stays visible without counting as work
+   * waiting on anyone.
+   */
+  listParkedForAdmin(): ParkedWorkQueueItemView[] {
+    const rows = workQueue.listParkedForAdmin.all() as Array<{
+      id: string;
+      queue_category: string;
+      task_type: string;
+      entity_type: string;
+      entity_id: string;
+      reason_text: string | null;
+      detail_text: string | null;
+      parked_at: string;
+      park_reason: string | null;
+      parked_by_name: string | null;
+    }>;
+    return rows.map((r) => {
+      const member = r.entity_type === 'member'
+        ? account.findContactInfoById.get(r.entity_id) as { slug: string; display_name: string } | undefined
+        : undefined;
+      // A link-help payload is JSON in the same column, so the parked row says
+      // what it is by its type label rather than printing the payload.
+      const isStructured = workQueueDescriptorFor(r.task_type)?.evidence.kind === 'structured';
+      return {
+        id:                r.id,
+        taskTypeLabel:     workQueueDescriptorFor(r.task_type)?.label ?? r.task_type,
+        categoryLabel:     WORK_QUEUE_CATEGORY_LABELS[r.queue_category] ?? r.queue_category,
+        parkedAtDisplay:   r.parked_at.slice(0, 10),
+        parkedByName:      r.parked_by_name,
+        parkReason:        r.park_reason,
+        summary:           isStructured ? null : r.reason_text,
+        entityDisplayName: member?.display_name ?? null,
+        entityHref:        member ? `/members/${member.slug}` : null,
+        returnAction:      `/admin/work-queue/${r.id}/unpark`,
+      };
+    });
   },
 
   /**
@@ -977,12 +1316,22 @@ export const adminWorkQueueService = {
     }>;
     return rows.map((r) => {
       // Entity-display lookup belongs in the service (db.ts is the only SQL
-      // surface; controllers are HTTP glue). Resolves member rows only;
-      // other entity types render as plain ID + type label.
+      // surface; controllers are HTTP glue). A Stripe-side entity has no row
+      // here and renders as its labelled reference alone.
       let entityHref: string | null = null;
       let entityDisplayName: string | null = null;
+      let subjectMemberId: string | null = null;
       if (r.entity_type === 'member') {
-        const m = account.findContactInfoById.get(r.entity_id) as
+        subjectMemberId = r.entity_id;
+      } else if (r.entity_type === 'payment') {
+        // A payment matter is about a person as much as about an amount, and
+        // the row names only the payment. Without this the administrator holds
+        // a payment id and has to go and find out whose money it was.
+        const p = payments.findById.get(r.entity_id) as { member_id: string } | undefined;
+        subjectMemberId = p?.member_id ?? null;
+      }
+      if (subjectMemberId) {
+        const m = account.findContactInfoById.get(subjectMemberId) as
           | { slug: string; display_name: string }
           | undefined;
         if (m) {
@@ -999,6 +1348,7 @@ export const adminWorkQueueService = {
         entityId: r.entity_id,
         entityHref,
         entityDisplayName,
+        subjectMemberId,
         reasonText: r.reason_text,
         detailText: r.detail_text,
         claimedByMemberId: r.claimed_by_member_id,
@@ -1089,6 +1439,8 @@ export const adminWorkQueueService = {
     claimedFlag?: boolean;
     claimNoopFlag?: boolean;
     memberAskedFlag?: boolean;
+    parkedFlag?: boolean;
+    unparkedFlag?: boolean;
     /** A deep link naming the item whose composer should open already drafted. */
     askItemId?: string | null;
     /** Show one category alone. An unknown value shows the whole queue. */
@@ -1109,6 +1461,8 @@ export const adminWorkQueueService = {
     claimedFlag?: boolean;
     claimNoopFlag?: boolean;
     memberAskedFlag?: boolean;
+    parkedFlag?: boolean;
+    unparkedFlag?: boolean;
     /** A deep link naming the item whose composer should open already drafted. */
     askItemId?: string | null;
     /** Show one category alone. An unknown value shows the whole queue. */
@@ -1142,11 +1496,19 @@ export const adminWorkQueueService = {
         items,
       });
     }
+    // The parked listing is not filtered with the queue: it is a short list of
+    // what is set aside across the whole queue, and hiding part of it behind the
+    // category filter would let a parked item disappear from both views.
+    const parked = this.listParkedForAdmin();
     return {
       seo:  { title: 'Admin Work Queue' },
       page: { sectionKey: 'admin', pageKey: 'admin_work_queue', title: 'Admin Work Queue' },
       content: {
         groups,
+        parked,
+        hasParked: parked.length > 0,
+        parkedFlag: opts.parkedFlag ?? false,
+        unparkedFlag: opts.unparkedFlag ?? false,
         totalOpen: rows.length,
         // A filtered state says where the reader is and how to leave it, so a
         // deep link never reads as an oddly short queue.
@@ -1176,6 +1538,56 @@ export const adminWorkQueueService = {
    * per-admin resolve rate-limit bucket. Throws NotFoundError when the id is
    * not an open item of a dismissible review type.
    */
+  /**
+   * Park an open item an administrator cannot advance yet: it leaves the working
+   * queue, every administrator's digest and the escalation sweep, and waits in
+   * the parked listing under the reason given. There is no deadline, because a
+   * timer would hand the item back with nothing new about it; it returns when the
+   * member answers a question on it, or when an administrator takes it back.
+   *
+   * Only a type whose declaration offers a park action can be parked. Anything
+   * else is reported not-found, the same answer as an unknown id.
+   */
+  park(input: { queueItemId: string; adminMemberId: string; note: string }): void {
+    enforceWorkQueueResolveLimit(input.adminMemberId);
+    const reason = (input.note ?? '').trim();
+    if (reason.length === 0) {
+      throw new ValidationError('A reason is required to park an item.');
+    }
+    if (reason.length > MAX_RESOLUTION_NOTE) {
+      throw new ValidationError(`Reason must be ${MAX_RESOLUTION_NOTE} characters or fewer.`);
+    }
+    const row = workQueue.findById.get(input.queueItemId) as
+      | { status: string; task_type: string }
+      | undefined;
+    const parkable = row && row.status === 'open'
+      && workQueueActionFor(row.task_type, 'park')?.kind === 'park';
+    if (!parkable) {
+      throw new NotFoundError(`Open work-queue item not found: ${input.queueItemId}`);
+    }
+    const nowIso = new Date().toISOString();
+    const result = workQueue.parkItem.run(
+      nowIso, input.adminMemberId, reason, nowIso, input.adminMemberId, input.queueItemId,
+    );
+    if (result.changes === 0) {
+      // Already parked, or closed between the read and the write.
+      throw new NotFoundError(`Open work-queue item not found: ${input.queueItemId}`);
+    }
+  },
+
+  /**
+   * Return a parked item to the working queue. Any administrator may do it, not
+   * only the one who parked it: the park is a note about the item, not a hold on
+   * it, and the team can always take the work back.
+   */
+  unpark(input: { queueItemId: string; adminMemberId: string }): void {
+    const nowIso = new Date().toISOString();
+    const result = workQueue.unparkItem.run(nowIso, input.adminMemberId, input.queueItemId);
+    if (result.changes === 0) {
+      throw new NotFoundError(`Parked work-queue item not found: ${input.queueItemId}`);
+    }
+  },
+
   dismiss(input: { queueItemId: string; adminMemberId: string; note: string }): void {
     enforceWorkQueueResolveLimit(input.adminMemberId);
     const note = (input.note ?? '').trim();
@@ -1185,7 +1597,8 @@ export const adminWorkQueueService = {
     const row = workQueue.findById.get(input.queueItemId) as
       | { status: string; task_type: string; entity_type: string; entity_id: string }
       | undefined;
-    if (!row || row.status !== 'open' || !DISMISSIBLE_REVIEW_TASK_TYPES.has(row.task_type)) {
+    const closeAction = row && row.status === 'open' ? closeActionFor(row.task_type) : null;
+    if (!closeAction) {
       throw new NotFoundError(`Open review item not found: ${input.queueItemId}`);
     }
     const nowIso = new Date().toISOString();
@@ -1201,16 +1614,15 @@ export const adminWorkQueueService = {
       if (result.changes === 0) {
         throw new NotFoundError(`Open review item not found: ${input.queueItemId}`);
       }
-      const auditFor = DISMISSIBLE_REVIEW_AUDIT.get(row.task_type)!;
       appendAuditEntry({
-        actionType:    auditFor.actionType,
-        category:      auditFor.category,
+        actionType:    closeAction.auditActionType,
+        category:      closeAction.auditCategory,
         actorType:     'admin',
         actorMemberId: input.adminMemberId,
-        entityType:    row.entity_type,
-        entityId:      row.entity_id,
-        reasonText:    auditFor.reasonText,
-        // Same rule as the two resolution paths above: the admin's note is free
+        entityType:    row!.entity_type,
+        entityId:      row!.entity_id,
+        reasonText:    closeAction.auditReasonText,
+        // Same rule as the resolution path above: the admin's note is free
         // text written about a member and belongs in the purgeable work-queue
         // row, which now carries it. The ledger keeps the fixed decision.
         metadata:      { queue_item_id: input.queueItemId },

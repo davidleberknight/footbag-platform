@@ -7695,6 +7695,34 @@ export const legacyMembers = {
       AND historical_person_id IS NULL
   `); },
 
+  // Administrator's lookup over the old accounts nobody holds, by exact id or
+  // username, or by part of the name or an email address. The member-facing
+  // paths match on an exact identifier only, which is right for a member
+  // proving an account is theirs and useless to an administrator who has been
+  // asked to find one. Claimed rows are excluded because there is nothing left
+  // to decide about them and their holder is reachable from the member lookup.
+  //
+  // Admin-only, and read behind the admin route gate: identity resolution is
+  // internal, and these rows carry a person's legal name and date of birth.
+  get searchUnclaimedForAdmin() { return db.prepare(`
+    SELECT legacy_member_id, legacy_user_id, real_name, display_name,
+           birth_date, city, region, country,
+           ifpa_join_date, first_competition_year, is_hof, is_bap
+    FROM legacy_members
+    WHERE claimed_by_member_id IS NULL
+      AND (
+        legacy_member_id = ?
+        OR legacy_user_id = ?
+        OR LOWER(COALESCE(real_name, '')) LIKE '%' || ? || '%' ESCAPE '\\'
+        OR LOWER(COALESCE(display_name, '')) LIKE '%' || ? || '%' ESCAPE '\\'
+        OR LOWER(COALESCE(legacy_email, '')) = ?
+        OR LOWER(COALESCE(legacy_email2, '')) = ?
+        OR LOWER(COALESCE(legacy_email3, '')) = ?
+      )
+    ORDER BY COALESCE(display_name, real_name) COLLATE NOCASE
+    LIMIT ?
+  `); },
+
   // Profile-settings listing: every legacy_members row claimed by a live
   // member. Today there is at most one per member (single-claim enforced
   // by the partial UNIQUE on members.legacy_member_id), but the listing
@@ -8159,6 +8187,33 @@ export const memberTier = {
     WHERE a.action_type IN ('tier.hof_grant', 'tier.bap_grant')
     ORDER BY a.occurred_at DESC, a.id DESC
     LIMIT ?
+  `); },
+
+  // Who currently holds an honor, and who currently sits on the board. The
+  // honor-grants page offers to take a grant back and to take a director off the
+  // board, each keyed on a member id typed in by hand, and its only listing was
+  // a recency feed of grants made: a page that removes a director could not
+  // answer who the directors are. Live members only, since a soft-deleted or
+  // erased account is not a current holder of anything.
+  get listCurrentHofHolders() { return db.prepare(`
+    SELECT id, display_name, slug, hof_inducted_year AS inducted_year
+    FROM members_active
+    WHERE is_hof = 1
+    ORDER BY display_name COLLATE NOCASE
+  `); },
+
+  get listCurrentBapHolders() { return db.prepare(`
+    SELECT id, display_name, slug, bap_inducted_year AS inducted_year
+    FROM members_active
+    WHERE is_bap = 1
+    ORDER BY display_name COLLATE NOCASE
+  `); },
+
+  get listCurrentBoardMembers() { return db.prepare(`
+    SELECT id, display_name, slug
+    FROM members_active
+    WHERE is_board = 1
+    ORDER BY display_name COLLATE NOCASE
   `); },
 
   // Most recent governance_set row for this member, used by removeGovernanceTier3
@@ -8892,8 +8947,46 @@ export const workQueue = {
            wq.claimed_by_member_id, wq.claimed_at, cm.display_name AS claimed_by_name
     FROM work_queue_items AS wq
     LEFT JOIN members AS cm ON cm.id = wq.claimed_by_member_id
-    WHERE wq.status = 'open'
+    WHERE wq.status = 'open' AND wq.parked_at IS NULL
     ORDER BY wq.queue_category, wq.opened_at
+  `); },
+
+  // The parked half of the open queue: items an administrator set aside, newest
+  // park first, with who parked each and why. Listed apart from the working
+  // queue so a parked item is visible rather than lost, and never mixed into the
+  // counts an administrator reads as work waiting on them.
+  get listParkedForAdmin() { return db.prepare(`
+    SELECT wq.id, wq.opened_at, wq.queue_category, wq.task_type,
+           wq.entity_type, wq.entity_id, wq.reason_text, wq.detail_text,
+           wq.parked_at, wq.park_reason, pm.display_name AS parked_by_name
+    FROM work_queue_items AS wq
+    LEFT JOIN members AS pm ON pm.id = wq.parked_by_member_id
+    WHERE wq.status = 'open' AND wq.parked_at IS NOT NULL
+    ORDER BY wq.parked_at DESC
+  `); },
+
+  // Park an open, unparked item. Parking twice is a no-op rather than a second
+  // park under a new name, so the reason on the row is the one that took it out
+  // of the queue. The claim is released with it: the item is nobody's while it
+  // waits, and whoever takes it back picks it up fresh.
+  // Params: (nowIso, adminId, reason, nowIso, adminId, itemId).
+  get parkItem() { return db.prepare(`
+    UPDATE work_queue_items
+    SET parked_at = ?, parked_by_member_id = ?, park_reason = ?,
+        claimed_by_member_id = NULL, claimed_at = NULL,
+        updated_at = ?, updated_by = ?, version = version + 1
+    WHERE id = ? AND status = 'open' AND parked_at IS NULL
+  `); },
+
+  // Return a parked item to the working queue, whether an administrator asked
+  // for it or the member's answer arrived. Clearing the reason with it keeps the
+  // row from carrying a park that no longer holds.
+  // Params: (nowIso, actorId, itemId).
+  get unparkItem() { return db.prepare(`
+    UPDATE work_queue_items
+    SET parked_at = NULL, parked_by_member_id = NULL, park_reason = NULL,
+        updated_at = ?, updated_by = ?, version = version + 1
+    WHERE id = ? AND status = 'open' AND parked_at IS NOT NULL
   `); },
 
   // Claim an open item: stamp the claiming admin. A claim is a coordination
@@ -8916,7 +9009,7 @@ export const workQueue = {
   get listOpenForDigest() { return db.prepare(`
     SELECT id, queue_category, task_type, entity_id, opened_at, claimed_by_member_id, claimed_at
     FROM work_queue_items
-    WHERE status = 'open'
+    WHERE status = 'open' AND parked_at IS NULL
     ORDER BY opened_at
   `); },
 
@@ -8937,7 +9030,7 @@ export const workQueue = {
   get listStaleForEscalation() { return db.prepare(`
     SELECT w.id, w.task_type, w.entity_id, w.opened_at
     FROM work_queue_items w
-    WHERE w.status = 'open' AND w.opened_at < ?
+    WHERE w.status = 'open' AND w.parked_at IS NULL AND w.opened_at < ?
       AND (w.claimed_by_member_id IS NULL OR w.claimed_at < ?)
       AND NOT EXISTS (
         SELECT 1 FROM member_messages m
@@ -8984,7 +9077,7 @@ export const workQueue = {
   // Look up a single queue row by id (for resolve-flow validation).
   get findById() { return db.prepare(`
     SELECT id, queue_category, task_type, entity_type, entity_id, status,
-           reason_text, opened_at
+           reason_text, opened_at, parked_at
     FROM work_queue_items
     WHERE id = ?
   `); },

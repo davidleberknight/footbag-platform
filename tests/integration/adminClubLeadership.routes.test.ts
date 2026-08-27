@@ -222,8 +222,19 @@ describe('demote', () => {
       .send({ member_id: m, mode: 'remove_affiliation', reason: '  ' });
     expect(noReason.status).toBe(422);
 
-    const res = await request(createApp())
+    // Removing the affiliation ends their membership of the club, so it is
+    // shown before it is done, like every other admin write on a person.
+    const preview = await request(createApp())
       .post(`/admin/clubs/${clubId}/leadership/demote`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ member_id: m, mode: 'remove_affiliation', reason: 'Unreachable for a year.' });
+    expect(preview.status).toBe(200);
+    expect(preview.text).toContain('stop being a member of this club');
+    expect(leaders(clubId)).toHaveLength(1);
+
+    const res = await request(createApp())
+      .post(`/admin/clubs/${clubId}/leadership/demote/confirm`)
       .set('Cookie', adminCookie())
       .type('form')
       .send({ member_id: m, mode: 'remove_affiliation', reason: 'Unreachable for a year.' });

@@ -110,6 +110,16 @@ describe('GET /admin/honor-grants', () => {
     expect(res.text).toContain('Grant an Honor Tier');
     expect(res.text).toContain('/admin/honor-grants/grant');
   });
+  // The page offers to take a grant back, keyed on a member id typed by hand.
+  // Its only listing was a recency feed of grants made, which answers a
+  // different question from who holds the honour now.
+  it('carries a roster of current holders, empty before any grant is made', async () => {
+    const res = await request(createApp()).get('/admin/honor-grants').set('Cookie', adminCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Current Hall of Fame (0)');
+    expect(res.text).toContain('No member holds the Hall of Fame honor yet.');
+    expect(res.text).toContain('Current Big Add Posse (0)');
+  });
 });
 
 describe('POST /admin/honor-grants/grant (preview)', () => {
@@ -196,6 +206,19 @@ describe('POST /admin/honor-grants/grant/confirm (commit)', () => {
   it('non-admin actor → 403, no grant', async () => {
     const res = await grant(memberCookie(), PREVIEW_T2, 'hof');
     expect(res.status).toBe(403);
+  });
+});
+
+describe('the roster of current holders', () => {
+  it('names each holder and the member id the take-back form takes', async () => {
+    // The grants above have landed by now, so this reads the same state an
+    // administrator would arrive at.
+    const res = await request(createApp()).get('/admin/honor-grants').set('Cookie', adminCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Current Hall of Fame');
+    expect(res.text).toContain(HOF_T0);
+    expect(res.text).toContain('Current Big Add Posse');
+    expect(res.text).toContain(BAP_T2);
   });
 });
 

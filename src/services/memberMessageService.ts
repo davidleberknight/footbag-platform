@@ -15,7 +15,10 @@
  *   - The work-queue item itself, its status, or its closure (AdminWorkQueueService).
  *     A question never changes the item's status: it stays 'open' while it waits,
  *     because the de-duplication probe and both close paths select on that value,
- *     and an administrator still decides when the matter is finished.
+ *     and an administrator still decides when the matter is finished. The one
+ *     thing an answer does to the item is return it from the parked listing: a
+ *     park waits on new evidence with no deadline, and the answer is that
+ *     evidence, so it would otherwise arrive with the item still set aside.
  *   - The member's date of birth (MemberService owns the write; a correction is
  *     handed to it rather than written here)
  *   - Email delivery (CommunicationService outbox)
@@ -46,11 +49,12 @@
  *     rolled-back send cannot leave a nudge announcing a question that does not
  *     exist.
  *
- * Persistence: member_messages (read and write), work_queue_items (read only),
- * audit_entries (append), outbox_emails (via the email service).
+ * Persistence: member_messages (read and write), work_queue_items (read, plus
+ * the park release on an answer), audit_entries (append), outbox_emails (via the
+ * email service).
  *
  * Side effects: audit append (member_message.sent, member_message.answered),
- * outbox enqueue (member_question_waiting).
+ * outbox enqueue (member_question_waiting), work-queue park release on an answer.
  */
 import { randomUUID } from 'crypto';
 import {
@@ -361,7 +365,7 @@ export const memberMessageService = {
     }
 
     const row = memberMessages.findUnansweredForMember.get(input.messageId, input.memberId) as
-      | { id: string; expected_answer_kind: string }
+      | { id: string; expected_answer_kind: string; work_queue_item_id: string }
       | undefined;
     if (!row) throw new NotFoundError(`No question waiting: ${input.messageId}`);
 
@@ -415,6 +419,11 @@ export const memberMessageService = {
       if (result.changes === 0) {
         throw new NotFoundError(`No question waiting: ${input.messageId}`);
       }
+      // An answer is the new evidence a parked item was waiting for, so the item
+      // returns to the working queue by itself. A park has no clock, so without
+      // this the one thing that can genuinely un-stick the matter would arrive
+      // and leave the item sitting in the parked listing unread.
+      workQueue.unparkItem.run(now, input.memberId, row.work_queue_item_id);
       appendAuditEntry({
         actionType:    'member_message.answered',
         category:      'support',

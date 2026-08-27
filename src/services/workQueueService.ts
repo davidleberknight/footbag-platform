@@ -7,19 +7,24 @@
  * convention gate), claiming an item, and the two scheduled notification passes
  * (per-administrator digest, one-time stale escalation).
  *
+ * Required pattern: a task type with no entry in the task-type table cannot be
+ * enqueued. `enqueue` asserts the declaration exists before it writes, so a type
+ * nobody declared is refused at the point of creation rather than becoming a card
+ * an administrator can read and never close.
+ *
  * Notification policy (routing by urgency, never a per-event broadcast to every
- * administrator): a task type on the urgent allowlist emails the admin-alerts
- * mailing list immediately on enqueue, using the notification the allowlist
- * pairs with it; every other (routine) task type sends no per-event email and is
- * read on the work-queue dashboard, with a periodic digest per administrator
- * rolling up the open routine items. An administrator who claims an item drops
- * it from every other administrator's digest. An item left open and unclaimed
- * past the stale threshold escalates once with a single email to admin-alerts,
- * which an urgent type skips because it already broadcast on enqueue. Every
- * notification carries task type and entity id only (no member personal data).
- * The administrator-loss recruitment alert is the one shipped type on the
- * allowlist; a future task type meeting the same-day security, data-integrity,
- * or continuity bar opts in by joining it with its own notification.
+ * administrator): a task type whose declaration names an urgent notification
+ * emails the admin-alerts mailing list immediately on enqueue with it; every
+ * other (routine) task type sends no per-event email and is read on the
+ * work-queue dashboard, with a periodic digest per administrator rolling up the
+ * open routine items. An administrator who claims an item drops it from every
+ * other administrator's digest. An item left open and unclaimed past the stale
+ * threshold escalates once with a single email to admin-alerts, which an urgent
+ * type skips because it already broadcast on enqueue. Every notification carries
+ * task type and entity id only (no member personal data). The administrator-loss
+ * recruitment alert is the one shipped urgent type; a future task type meeting
+ * the same-day security, data-integrity, or continuity bar opts in by naming its
+ * own notification in the table.
  *
  * Transaction discipline: `enqueue` and `claim` perform only synchronous DB
  * writes and never open their own transaction; call them inside the caller's
@@ -39,6 +44,7 @@
 import { randomUUID } from 'crypto';
 import { workQueue, mailingListSubscriptions } from '../db/db';
 import { emailService } from './emailService';
+import { requireWorkQueueDescriptor, workQueueDescriptorFor } from './workQueueTaskTypes';
 import { readIntConfig } from './configReader';
 import { config } from '../config/env';
 import { logger } from '../config/logger';
@@ -68,23 +74,17 @@ function adminQueueUrl(): string {
 }
 
 /**
- * Task types that email every administrator immediately on enqueue (a security,
- * data-integrity, or administrative-continuity event needing same-day action),
- * each paired with the notification it sends. A task type outside this map is
- * routine: it sends no per-event email and is read on the dashboard plus the
- * digest. Losing an administrator is the one shipped type that meets the bar,
- * because the people who must act on it are exactly the shrinking set the loss
- * is about, and a digest entry days later is too late to be that prompt.
+ * Whether a task type emails every administrator the moment an item is raised.
+ * The task-type table decides it: an urgent type names the notification it
+ * sends, and a type that names none is routine, read on the dashboard and rolled
+ * up in the periodic digest. An unknown type is treated as routine here rather
+ * than crashing the digest pass, because a scheduled read must survive a row
+ * whose type has since been withdrawn; the enqueue path is where a type without
+ * a declaration is refused.
  */
-const URGENT_TASK_EMAILS: ReadonlyMap<string, (entityId: string, idempotencyKeyPrefix: string) => void> = new Map([
-  [ADMIN_LOSS_TASK_TYPE, (entityId: string, idempotencyKeyPrefix: string) => {
-    emailService.sendToAdmins({
-      template: 'admin_loss_recruitment',
-      params: { entityId, queueUrl: adminQueueUrl() },
-      idempotencyKeyPrefix,
-    });
-  }],
-]);
+function isUrgentTaskType(taskType: string): boolean {
+  return workQueueDescriptorFor(taskType)?.urgentAdminAlert != null;
+}
 
 interface DigestRow {
   id: string;
@@ -133,6 +133,10 @@ export const workQueueService = {
    *  email and is surfaced on the dashboard and the digest. Returns the
    *  generated work-item id for the caller's audit row / return. */
   enqueue(input: WorkQueueEnqueueInput): { id: string } {
+    // A type with no declaration would render a card carrying no action, which
+    // an administrator can read and never close. Refusing the row here is what
+    // makes that state unrepresentable rather than merely fixed once.
+    const descriptor = requireWorkQueueDescriptor(input.taskType);
     const id = `wq_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
     const nowIso = new Date().toISOString();
     workQueue.insertItem.run(
@@ -146,9 +150,12 @@ export const workQueueService = {
       input.reasonText,
       input.detailText,
     );
-    const sendUrgent = URGENT_TASK_EMAILS.get(input.taskType);
-    if (sendUrgent) {
-      sendUrgent(input.entityId, `admin-alerts:${input.taskType}:${id}`);
+    if (descriptor.urgentAdminAlert) {
+      emailService.sendToAdmins({
+        template: descriptor.urgentAdminAlert,
+        params:   { entityId: input.entityId, queueUrl: adminQueueUrl() },
+        idempotencyKeyPrefix: `admin-alerts:${input.taskType}:${id}`,
+      });
     }
     return { id };
   },
@@ -179,7 +186,7 @@ export const workQueueService = {
    *  batch. Idempotent within a calendar day via a per-administrator key. */
   sendAdminQueueDigests(): { admins: number; sent: number; openRoutineItems: number } {
     const open = workQueue.listOpenForDigest.all() as DigestRow[];
-    const routine = open.filter((i) => !URGENT_TASK_EMAILS.has(i.task_type));
+    const routine = open.filter((i) => !isUrgentTaskType(i.task_type));
     if (routine.length === 0) return { admins: 0, sent: 0, openRoutineItems: 0 };
 
     const admins = mailingListSubscriptions.listActiveSubscribersBySlug.all('admin-alerts') as AdminSubscriberRow[];
@@ -231,7 +238,7 @@ export const workQueueService = {
     const queueUrl = adminQueueUrl();
     let escalated = 0;
     for (const item of stale) {
-      if (URGENT_TASK_EMAILS.has(item.task_type)) continue;
+      if (isUrgentTaskType(item.task_type)) continue;
       const ageDays = Math.max(1, Math.floor((Date.now() - Date.parse(item.opened_at)) / 86_400_000));
       const result = emailService.sendToAdmins({
         template: 'admin_queue_stale_escalation',

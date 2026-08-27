@@ -67,12 +67,13 @@ const ADMIN_ID  = 'crawl-admin-001';
 // the small seed corpus; the crawl logs what it visited on failure.
 //
 // The crawl seeds the whole persona catalog, so each added persona brings its
-// profile and any seeded resource pages with it: the widest run sits between
-// 450 and 480 pages today. The bound keeps roughly a quarter of that as
+// profile and any seeded resource pages with it, and every admin surface that
+// names a member by their record adds that record too: the widest run sits
+// between 610 and 650 pages today. The bound keeps roughly a quarter of that as
 // headroom, so a persona or two costs nothing while a genuine link explosion
 // still trips it. Raise it when the crawl reports the cap, never lower it to
 // make a run fit.
-const MAX_PAGES = 600;
+const MAX_PAGES = 800;
 
 const SEED_ROOTS = [
   '/', '/members', '/clubs', '/events', '/media', '/media/browse', '/hof',

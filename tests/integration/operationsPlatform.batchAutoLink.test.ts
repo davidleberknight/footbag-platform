@@ -235,6 +235,16 @@ describe('runBatchAutoLink — stage-and-confirm', () => {
     const mem = memberRow(t.memberId);
     expect(mem.legacy_member_id).toBeNull();
     expect(workQueueCount(t.memberId)).toBe(1);
+
+    // Why the match stopped is kept on the row, not only in the application log.
+    // Two of these reasons ask an administrator for opposite things, and a row
+    // that records neither leaves them nothing to tell the cases apart by.
+    const conn = openRO();
+    const row = conn.prepare(
+      `SELECT reason_text FROM work_queue_items WHERE entity_id = ?`,
+    ).get(t.memberId) as { reason_text: string };
+    conn.close();
+    expect(JSON.parse(row.reason_text)).toEqual({ reason: 'no_name_candidate' });
   });
 
   it('already-linked candidates are filtered at the candidate query (nothing staged)', async () => {

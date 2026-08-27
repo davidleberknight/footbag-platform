@@ -1,0 +1,39 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+    <p>{{content.summary}}</p>
+
+    <div class="card mb-6">
+      <div class="card-title">The member</div>
+      <p class="m-0 fw-600">{{content.member.displayName}}</p>
+      {{#if content.member.realNameNote}}<p class="m-0 mt-1 text-muted fs-sm">{{content.member.realNameNote}}</p>{{/if}}
+      {{#if content.member.birthDate}}
+        <p class="m-0 mt-1 card-meta claim-evidence-revealed">Date of birth on their account: <strong>{{content.member.birthDate}}</strong></p>
+      {{/if}}
+      <p class="m-0 mt-1"><a href="{{content.member.recordHref}}">Open their member record</a></p>
+    </div>
+
+    <div class="card mb-6">
+      <div class="card-title">{{content.target.kindLabel}}</div>
+      <p class="m-0 fw-600">{{content.target.recordName}}</p>
+      <p class="m-0 mt-1 text-muted fs-sm">{{content.target.recordId}}</p>
+      {{#each content.target.facts}}
+        <p class="m-0 mt-1 text-muted fs-sm">{{this}}</p>
+      {{/each}}
+    </div>
+
+    <form method="POST" action="{{content.confirmAction}}">
+      <input type="hidden" name="target_legacy_member_id" value="{{content.legacyMemberId}}" />
+      <input type="hidden" name="target_historical_person_id" value="{{content.historicalPersonId}}" />
+      <input type="hidden" name="category" value="{{content.filterCategory}}" />
+      <button type="submit" class="btn btn-primary">{{content.confirmLabel}}</button>
+    </form>
+
+    <p class="mt-4"><a href="{{content.cancelHref}}">Cancel</a></p>
+  </section>
+</div>

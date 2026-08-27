@@ -30,6 +30,12 @@
   {{#if content.claimNoopFlag}}
     <p class="form-notice" role="status">That item was already claimed or is no longer open.</p>
   {{/if}}
+  {{#if content.parkedFlag}}
+    <p class="form-success-banner" role="status">Item parked. It is out of the queue, the digests and the escalation sweep until the member answers or you take it back.</p>
+  {{/if}}
+  {{#if content.unparkedFlag}}
+    <p class="form-success-banner" role="status">Item back in the queue.</p>
+  {{/if}}
   {{#if content.errorMessage}}
     <div class="form-error-banner" role="alert">{{content.errorMessage}}</div>
   {{/if}}
@@ -58,14 +64,18 @@
               &middot; <a href="{{memberRecordHref}}">Member record</a>
             {{/if}}
           </p>
-          {{#if reasonText}}
-            <p>{{reasonText}}</p>
+          {{#if evidence.reasonText}}
+            <p>{{evidence.reasonText}}</p>
           {{/if}}
-          {{#if detailText}}
-            <p class="text-secondary">{{detailText}}</p>
+          {{#if evidence.detailText}}
+            <p class="text-secondary">{{evidence.detailText}}</p>
           {{/if}}
           {{#if entityReference}}
-            <p class="card-meta">{{entityReference.label}} {{entityReference.id}}</p>
+            {{#if entityReference.href}}
+              <p class="card-meta">{{entityReference.label}} <a href="{{entityReference.href}}">{{entityReference.id}}</a></p>
+            {{else}}
+              <p class="card-meta">{{entityReference.label}} {{entityReference.id}}</p>
+            {{/if}}
           {{/if}}
 
           {{#if isClaimed}}
@@ -135,21 +145,21 @@
             {{/if}}
           {{/if}}
 
-          {{#if isLinkHelpRequest}}
-            {{#if linkHelp}}
-              {{#if linkHelp.isDispute}}<p class="badge">Conflict dispute</p>{{/if}}
-              <p>{{linkHelp.statement}}</p>
+          {{! The evidence the decision is actually made on. Without it an
+              administrator adjudicates on what the member typed and nothing
+              else, then types an identifier found somewhere off this page. }}
+          {{#if evidence.isLinkHelp}}
+            {{#if evidence.linkHelp}}
+              {{#if evidence.linkHelp.isDispute}}<p class="badge">Conflict dispute</p>{{/if}}
+              <p>{{evidence.linkHelp.statement}}</p>
             {{/if}}
-            {{! The evidence the decision is actually made on. Without it an
-                administrator adjudicates on what the member typed and nothing
-                else, then types an identifier found somewhere off this page. }}
-            {{#if claimEvidence.attempts.length}}
+            {{#if evidence.claimEvidence.attempts.length}}
               <div class="section-heading"><h3>What This Member Has Already Tried</h3></div>
-              {{#if claimEvidence.memberBirthDate}}
-                <p class="card-meta claim-evidence-revealed">Date of birth on this account: <strong>{{claimEvidence.memberBirthDate}}</strong></p>
+              {{#if evidence.claimEvidence.memberBirthDate}}
+                <p class="card-meta claim-evidence-revealed">Date of birth on this account: <strong>{{evidence.claimEvidence.memberBirthDate}}</strong></p>
               {{/if}}
               <ul class="claim-evidence-list">
-                {{#each claimEvidence.attempts}}
+                {{#each evidence.claimEvidence.attempts}}
                   <li class="claim-evidence-item">
                     <p class="claim-evidence-outcome">
                       {{this.outcomeLabel}}{{#if this.targetLabel}}: {{this.targetLabel}}{{/if}}{{#if this.dataOriginLabel}} <span class="badge">{{this.dataOriginLabel}}</span>{{/if}}
@@ -168,89 +178,147 @@
             {{else}}
               <p class="card-meta">This member has not attempted a claim, so there is no evidence on file yet.</p>
             {{/if}}
-            <form method="POST" action="/admin/work-queue/{{id}}/link-help/approve" class="form-block">
-              <input type="hidden" name="category" value="{{@root.content.filterCategory}}" />
-              <div class="form-field">
-                <label for="link_help_target_{{id}}">Legacy account id to link</label>
-                <input id="link_help_target_{{id}}" name="target_legacy_member_id" maxlength="200" />
-              </div>
-              <div class="form-field">
-                <label for="link_help_target_hp_{{id}}">Historical person id to link</label>
-                <input id="link_help_target_hp_{{id}}" name="target_historical_person_id" maxlength="200" />
-              </div>
-              <p class="card-meta">Enter exactly one target: the legacy account id, or the historical person id for a competition-record link.</p>
-              <button type="submit" class="btn btn-primary btn-sm">Approve and Link</button>
-            </form>
-            <form method="POST" action="/admin/work-queue/{{id}}/link-help/reject" class="form-block">
-              <input type="hidden" name="category" value="{{@root.content.filterCategory}}" />
-              <div class="form-field">
-                <label for="link_help_reason_{{id}}">Rejection reason</label>
-                <textarea id="link_help_reason_{{id}}" name="reason" rows="2" maxlength="500" required></textarea>
-              </div>
-              <button type="submit" class="btn btn-outline btn-sm">Reject</button>
-            </form>
-            {{#if linkHelp.isDispute}}
-            <form method="POST" action="/admin/work-queue/{{id}}/link-help/dispute-revert" class="form-block">
-              <input type="hidden" name="category" value="{{@root.content.filterCategory}}" />
-              <div class="form-field">
-                <label for="dispute_legacy_{{id}}">Disputed legacy account id</label>
-                <input id="dispute_legacy_{{id}}" name="target_legacy_member_id" maxlength="200" />
-              </div>
-              <div class="form-field">
-                <label for="dispute_hp_{{id}}">Disputed historical person id</label>
-                <input id="dispute_hp_{{id}}" name="target_historical_person_id" maxlength="200" />
-              </div>
-              {{#if linkHelp.hasDisputedRecords}}
+
+            {{! What the platform can already see for this member, with the ids
+                the approve form takes. Without it the administrator is asked to
+                type an identifier the admin interface never showed them. }}
+            <div class="section-heading"><h3>What the Platform Can See for Them</h3></div>
+            {{#if evidence.candidates.hasLegacyAccounts}}
+              <p class="card-meta">Old accounts their own addresses reach:</p>
+              <ul class="claim-evidence-list">
+                {{#each evidence.candidates.legacyAccounts}}
+                  <li class="claim-evidence-item">
+                    <p class="claim-evidence-outcome">{{this.displayName}}</p>
+                    <p class="card-meta">{{#each this.facts}}{{this}} &middot; {{/each}}</p>
+                    {{#if this.birthDate}}
+                      <p class="card-meta claim-evidence-revealed">Date of birth on that account: <strong>{{this.birthDate}}</strong></p>
+                    {{/if}}
+                  </li>
+                {{/each}}
+              </ul>
+            {{/if}}
+            {{#if evidence.candidates.hasHistoricalPersons}}
+              <p class="card-meta">Competition records under their name:</p>
+              <ul class="card-meta">
+                {{#each evidence.candidates.historicalPersons}}
+                  <li>{{this.personName}} ({{this.personId}}){{#if this.matchNote}} &middot; {{this.matchNote}}{{/if}}</li>
+                {{/each}}
+              </ul>
+            {{/if}}
+            {{#each evidence.candidates.ambiguousNotes}}
+              <p class="card-meta">{{this}}</p>
+            {{/each}}
+            {{#unless evidence.candidates.hasAny}}
+              <p class="card-meta">Nothing on file reaches an old account or a competition record for this member.</p>
+            {{/unless}}
+            <p class="card-meta"><a href="{{evidence.candidates.lookupHref}}">Search the unclaimed legacy accounts</a></p>
+            {{#if evidence.linkHelp.isDispute}}
+              {{#if evidence.linkHelp.hasDisputedRecords}}
                 <p class="card-meta">Records this dispute named when it was filed:</p>
                 <ul class="card-meta">
-                  {{#each linkHelp.disputedRecords}}
+                  {{#each evidence.linkHelp.disputedRecords}}
                     <li>{{this.kindLabel}}: {{this.recordId}}</li>
                   {{/each}}
                 </ul>
               {{else}}
                 <p class="card-meta">This dispute named no records, so no revert can be applied to it.</p>
               {{/if}}
-              <p class="card-meta">Enter exactly one disputed record. The claim reverted is whoever currently holds it.</p>
-              <div class="form-field">
-                <label for="dispute_reason_{{id}}">Dispute reason</label>
-                <textarea id="dispute_reason_{{id}}" name="reason" rows="2" maxlength="500" required></textarea>
-              </div>
-              <button type="submit" class="btn btn-outline btn-sm">Uphold Dispute: Revert Holder's Claim</button>
-            </form>
             {{/if}}
-          {{else if isReviewFlag}}
-            <form method="POST" action="/admin/work-queue/{{id}}/dismiss" class="form-block">
-              <input type="hidden" name="category" value="{{@root.content.filterCategory}}" />
-              <div class="form-field">
-                <label for="review_note_{{id}}">Review note (optional)</label>
-                <textarea id="review_note_{{id}}" name="note" rows="2" maxlength="500" placeholder="Internal note; not sent to the member"></textarea>
-              </div>
-              {{#if reviewHint}}<p class="card-meta">{{reviewHint}}</p>{{/if}}
-              <button type="submit" class="btn btn-outline btn-sm">Mark Reviewed</button>
-            </form>
-          {{else if isReconciliationItem}}
-            <p><a href="/admin/payments/reconciliation" class="btn btn-outline btn-sm">Review on the Reconciliation Page</a></p>
-          {{else if showResolveForm}}
-            <form method="POST" action="/admin/work-queue/{{id}}/resolve" class="form-block">
-              <input type="hidden" name="category" value="{{@root.content.filterCategory}}" />
-              <div class="form-field">
-                <label for="decision_label_{{id}}">Decision</label>
-                <select id="decision_label_{{id}}" name="decision_label" required>
-                  <option value="" disabled selected>Choose a decision&hellip;</option>
-                  {{#each decisionLabels}}
-                    <option value="{{value}}">{{label}}</option>
-                  {{/each}}
-                </select>
-              </div>
-              <div class="form-field">
-                <label for="resolution_note_{{id}}">Resolution note</label>
-                <textarea id="resolution_note_{{id}}" name="resolution_note" rows="2" maxlength="500" required placeholder="{{resolutionNotePlaceholder}}"></textarea>
-              </div>
-              <button type="submit" class="btn btn-primary btn-sm">Resolve</button>
-            </form>
           {{/if}}
+
+          {{#if evidence.isAutoLink}}
+            <p>{{evidence.autoLink.reasonLabel}}</p>
+            {{#if evidence.autoLink.settledSince}}
+              <p class="card-meta">This member has been linked since the match was raised, so there is nothing left to judge here.</p>
+            {{else}}
+              <p class="card-meta">{{evidence.autoLink.actionLabel}}</p>
+            {{/if}}
+            {{#if evidence.autoLink.legacyAccount}}
+              <p class="card-meta">Old account reached: <strong>{{evidence.autoLink.legacyAccount.displayName}}</strong>
+                ({{evidence.autoLink.legacyAccount.legacyMemberId}}){{#if evidence.autoLink.legacyAccount.country}} &middot; {{evidence.autoLink.legacyAccount.country}}{{/if}}</p>
+              {{#if evidence.autoLink.legacyAccount.birthDate}}
+                <p class="card-meta claim-evidence-revealed">Date of birth on that account: <strong>{{evidence.autoLink.legacyAccount.birthDate}}</strong></p>
+              {{/if}}
+            {{/if}}
+            {{#if evidence.autoLink.hasCandidates}}
+              <p class="card-meta">Competition records under this name:</p>
+              <ul class="card-meta">
+                {{#each evidence.autoLink.candidates}}
+                  <li>{{this.personName}} ({{this.personId}})</li>
+                {{/each}}
+              </ul>
+            {{/if}}
+          {{/if}}
+
+          {{! One loop over what this type declares an administrator may do, so
+              every card in the queue reads and behaves the same way. }}
+          {{#each actions}}
+            {{#if this.isLink}}
+              <p><a href="{{this.href}}" class="{{this.buttonClass}}">{{this.label}}</a></p>
+            {{else}}
+              <form method="POST" action="{{this.actionPath}}" class="form-block">
+                <input type="hidden" name="category" value="{{@root.content.filterCategory}}" />
+                {{#if this.hasDecisions}}
+                  <div class="form-field">
+                    <label for="{{this.decisionInputId}}">Decision</label>
+                    <select id="{{this.decisionInputId}}" name="decision_label" required>
+                      <option value="" disabled selected>Choose a decision&hellip;</option>
+                      {{#each this.decisions}}
+                        <option value="{{this.value}}">{{this.label}}</option>
+                      {{/each}}
+                    </select>
+                  </div>
+                {{/if}}
+                {{#each this.fields}}
+                  <div class="form-field">
+                    <label for="{{this.inputId}}">{{this.label}}</label>
+                    {{#if this.isTextarea}}
+                      <textarea id="{{this.inputId}}" name="{{this.name}}" rows="2" maxlength="{{this.maxLength}}" {{#if this.required}}required{{/if}}></textarea>
+                    {{else}}
+                      <input type="text" id="{{this.inputId}}" name="{{this.name}}" maxlength="{{this.maxLength}}" {{#if this.required}}required{{/if}} />
+                    {{/if}}
+                  </div>
+                {{/each}}
+                {{#if this.note}}
+                  <div class="form-field">
+                    <label for="{{this.note.inputId}}">{{this.note.label}}</label>
+                    <textarea id="{{this.note.inputId}}" name="{{this.note.name}}" rows="2" maxlength="{{this.note.maxLength}}" {{#if this.note.required}}required{{/if}} placeholder="{{this.note.placeholder}}"></textarea>
+                  </div>
+                {{/if}}
+                {{#if this.hint}}<p class="card-meta">{{this.hint}}</p>{{/if}}
+                <button type="submit" class="{{this.buttonClass}}">{{this.label}}</button>
+              </form>
+            {{/if}}
+          {{/each}}
         </div>
       {{/each}}
     </section>
   {{/each}}
+
+  {{#if content.hasParked}}
+    <section>
+      <div class="section-heading">
+        <h2>Parked</h2>
+        <span class="section-count">{{content.parked.length}}</span>
+      </div>
+      <p class="text-muted fs-sm">Set aside with no deadline. Each comes back on its own when the member answers a question on it, and anyone can take one back sooner.</p>
+      {{#each content.parked}}
+        <div class="card work-queue-item">
+          <div class="card-title">{{this.taskTypeLabel}}</div>
+          <p class="card-meta">
+            {{this.categoryLabel}} &middot; Parked {{this.parkedAtDisplay}}{{#if this.parkedByName}} by {{this.parkedByName}}{{/if}}
+            {{#if this.entityDisplayName}}
+              &middot; {{#if this.entityHref}}<a href="{{this.entityHref}}">{{this.entityDisplayName}}</a>{{else}}{{this.entityDisplayName}}{{/if}}
+            {{/if}}
+          </p>
+          {{#if this.summary}}<p class="text-secondary">{{this.summary}}</p>{{/if}}
+          {{#if this.parkReason}}<p>{{this.parkReason}}</p>{{/if}}
+          <form method="POST" action="{{this.returnAction}}" class="form-block">
+            <input type="hidden" name="category" value="{{@root.content.filterCategory}}" />
+            <button type="submit" class="btn btn-outline btn-sm">Return to the Queue</button>
+          </form>
+        </div>
+      {{/each}}
+    </section>
+  {{/if}}
 </div>

@@ -1,0 +1,42 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  {{#if content.errorMessage}}
+    <div class="form-error-banner" role="alert">{{content.errorMessage}}</div>
+  {{/if}}
+
+  <section>
+    <div class="section-heading"><h2>Find an Unclaimed Legacy Account</h2></div>
+    <p class="text-muted fs-sm">A legacy account is a sign-in from the old footbag.org that no member has claimed yet. This is where the account id comes from when a member link-help request asks you to apply a link. Accounts already held by a member are not listed; those are reached from the member record.</p>
+    <div class="search-box-section">
+      <form method="GET" action="/admin/legacy-accounts" class="search-box-form">
+        <input type="text" name="q" maxlength="200"
+               placeholder="Name, account id, username, or an exact email address"
+               value="{{content.query}}"
+               aria-label="Find an unclaimed legacy account"
+               class="search-box-input" />
+        <button type="submit" class="btn btn-primary">Search</button>
+      </form>
+    </div>
+
+    <p class="text-muted">{{content.resultSummary}}</p>
+
+    {{#each content.results}}
+      <div class="card">
+        <div class="card-title">{{displayName}}
+          {{#each badges}}<span class="badge">{{this}}</span>{{/each}}
+        </div>
+        <p class="m-0 text-muted fs-sm">{{#each facts}}{{this}} &middot; {{/each}}</p>
+        {{#if birthDate}}
+          <p class="m-0 mt-1 card-meta claim-evidence-revealed">Date of birth on this account: <strong>{{birthDate}}</strong></p>
+        {{/if}}
+      </div>
+    {{/each}}
+  </section>
+
+  <p class="mt-4"><a href="/admin">Back to the admin dashboard</a></p>
+</div>

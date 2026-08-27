@@ -42,7 +42,7 @@
  * Service shape: singleton object.
  */
 import { randomUUID } from 'crypto';
-import { clubLeaders, clubs as clubsDb, memberClubAffiliations, transaction } from '../db/db';
+import { account, clubLeaders, clubs as clubsDb, memberClubAffiliations, transaction } from '../db/db';
 import { appendAuditEntry } from './auditService';
 import { NotFoundError, ValidationError } from './serviceErrors';
 import { PageViewModel } from '../types/page';
@@ -68,7 +68,11 @@ export interface ClubLeadershipContent {
   name: string;
   needsLeader: boolean;
   leaders: Array<{ memberId: string; displayName: string; slug: string; role: string; roleLabel: string }>;
-  affiliatedMembers: Array<{ memberId: string; displayName: string; slug: string }>;
+  /** Members of this club who are not co-leaders, each with the id the assign
+   *  form takes and the way through to their record. */
+  affiliatedMembers: Array<{
+    memberId: string; displayName: string; slug: string; recordHref: string;
+  }>;
   leadershipCount: number;
   capReached: boolean;
   notice: string | null;
@@ -120,7 +124,12 @@ function getClubLeadershipPage(
     member_id: string; display_name: string; slug: string; is_leader: number;
   }>)
     .filter((m) => !m.is_leader)
-    .map((m) => ({ memberId: m.member_id, displayName: m.display_name, slug: m.slug }));
+    .map((m) => ({
+      memberId:    m.member_id,
+      displayName: m.display_name,
+      slug:        m.slug,
+      recordHref:  `/admin/members/${m.member_id}`,
+    }));
   return {
     seo:  { title: `Leadership: ${club.name}` },
     page: { sectionKey: '', pageKey: 'admin_club_leadership', title: `Leadership: ${club.name}` },
@@ -264,6 +273,70 @@ function assignLeader(
   });
 }
 
+/** The two records a demotion is about, and what it will do, before it does it. */
+export interface ClubDemoteConfirmContent {
+  clubId: string;
+  clubName: string;
+  memberId: string;
+  memberName: string;
+  memberRecordHref: string;
+  mode: 'to_member' | 'remove_affiliation';
+  reason: string;
+  summary: string;
+  confirmAction: string;
+  confirmLabel: string;
+  cancelHref: string;
+}
+
+/**
+ * What the demotion is about to do, read before anything is written.
+ *
+ * Removing an affiliation ends a member's membership of a club, which nothing
+ * on the page said and no other admin write on a person does without showing it
+ * first. Both modes preview, because they are one control with a mode select and
+ * an asymmetry there would be its own trap.
+ */
+function previewDemote(
+  clubId: string,
+  memberId: string,
+  mode: 'to_member' | 'remove_affiliation',
+  reason: string,
+): PageViewModel<ClubDemoteConfirmContent> {
+  const trimmedReason = requireReason(reason);
+  const club = loadClub(clubId);
+  const row = clubLeaders.findLeaderRow.get(clubId, memberId) as { id: string; role: string } | undefined;
+  if (!row) throw new NotFoundError('That member holds no leadership row at this club.');
+  const member = account.findContactInfoById.get(memberId) as
+    | { display_name: string }
+    | undefined;
+  const title = mode === 'remove_affiliation'
+    ? 'Confirm: Remove Them From This Club'
+    : 'Confirm: Demote to Ordinary Member';
+  return {
+    seo:  { title, noindex: true },
+    page: { sectionKey: '', pageKey: 'admin_club_demote_confirm', title },
+    content: {
+      clubId:           club.id,
+      clubName:         club.name,
+      memberId,
+      memberName:       member?.display_name ?? memberId,
+      memberRecordHref: `/admin/members/${memberId}`,
+      mode,
+      reason:           trimmedReason,
+      summary: mode === 'remove_affiliation'
+        ? 'They stop being a co-leader and stop being a member of this club at all. '
+          + 'If this was their primary club, another of their clubs becomes primary. '
+          + 'They can join again themselves afterwards.'
+        : 'They stop being a co-leader and stay a member of the club.',
+      confirmAction: `/admin/clubs/${club.id}/leadership/demote/confirm`,
+      confirmLabel: mode === 'remove_affiliation'
+        ? 'Yes, Remove Them From the Club'
+        : 'Yes, Demote Them',
+      cancelHref: `/admin/clubs/${club.id}/leadership`,
+    },
+  };
+}
+
 /** Remove a co-leader row back to ordinary member, or remove the member's
  * affiliation entirely. Reason is mandatory. */
 function demoteLeader(
@@ -315,5 +388,6 @@ export const adminClubLeadershipService = {
   getLeadershipQueuePage,
   getClubLeadershipPage,
   assignLeader,
+  previewDemote,
   demoteLeader,
 };

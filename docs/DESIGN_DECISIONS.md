@@ -85,6 +85,7 @@ Current implementation status and accepted temporary deviations are tracked in t
   - [5.7 Adapter contract parity for security-sensitive paths](#57-adapter-contract-parity-for-security-sensitive-paths)
   - [5.8 Production Arming Switches](#58-production-arming-switches)
   - [5.9 Member Action Sources](#59-member-action-sources)
+  - [5.10 Admin Work-Queue Task Types](#510-admin-work-queue-task-types)
 - [6. External Services and Integrations](#6-external-services-and-integrations)
   - [6.1 Stripe Payments](#61-stripe-payments)
   - [6.2 CloudFront CDN](#62-cloudfront-cdn)
@@ -3323,6 +3324,34 @@ Impact:
 - An obligation that can be declined cannot ship until its own domain can record the decline.
 
 - The site layout gains one banner slot, and the hero notice field stays per-page state.
+
+## 5.10 Admin Work-Queue Task Types
+
+Decision:
+
+Every admin work-queue task type is declared in one table in the application: its display label, its queue category, the entity types a row of that type may point at, whether it notifies every administrator the moment it is raised, how its evidence renders, and the ordered actions an administrator may take on it. Each action carries its own wording, its note, its decision vocabulary, any further fields, the audit event the queue writes for it, and whether the member is told. The queue page renders one card skeleton and one loop over the declared actions. The enqueue path asserts that a declaration exists before it writes the row.
+
+Rationale:
+
+- Modelling a task type as membership of a hardcoded family spreads it across a predicate, a boolean on the view model, and a branch in the template. Adding a type then means editing all three, and missing one produces a card an administrator can read and never close. The cost is not hypothetical: an item saying a member paid for a tier they already held, which is real money owed back, is exactly the kind that goes unactionable that way.
+
+- The failure is silent by construction. Nothing is missing at compile time and the card still renders, so only a person opening that exact card would find it. Asserting the declaration at enqueue turns it into a refusal to create the row, and a test reading every enqueued task-type literal in the source turns it into a failure before anything is deployed.
+
+- One vocabulary per action makes crossing two decision sets impossible rather than forbidden by a comment, which is what a pair of parallel validators amounted to.
+
+- An administrator who learns one card can work every type. That is what keeps a queue holding a dozen unrelated matters usable by volunteers who visit it occasionally.
+
+Requirements:
+
+- A task type with no declaration cannot be enqueued.
+
+- Every declaration carries at least one action, and a test holds all of them to it.
+
+- An action's own decision vocabulary is the only vocabulary its decision is validated against.
+
+- Where the queue writes the audit row, the action names the event; where another service owns the write, the action names none and that service keeps its own.
+
+- Adding a task type is one entry in the table and needs no template change.
 
 ## 6.1 Stripe Payments
 

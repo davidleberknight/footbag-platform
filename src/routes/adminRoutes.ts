@@ -9,6 +9,7 @@ import { adminAdminRolesController } from '../controllers/adminAdminRolesControl
 import { adminHonorGrantsController } from '../controllers/adminHonorGrantsController';
 import { adminMemberController } from '../controllers/adminMemberController';
 import { adminHistoricalRecordController } from '../controllers/adminHistoricalRecordController';
+import { adminLegacyAccountController } from '../controllers/adminLegacyAccountController';
 import { adminAuditLogController } from '../controllers/adminAuditLogController';
 import { adminEmailLogController } from '../controllers/adminEmailLogController';
 import { adminSystemHealthController } from '../controllers/adminSystemHealthController';
@@ -75,6 +76,9 @@ adminRouter.post('/members/:memberId/deceased/confirm',        adminMemberContro
 adminRouter.post('/members/:memberId/deceased',                adminMemberController.previewDeceased(false));
 // The same affordance for a competition record nobody has claimed. Same
 // ordering rule: `/revert` before its shorter sibling.
+// The old sign-ins nobody has claimed. Read-only: this is where the account id
+// a link-help approval asks for actually comes from.
+adminRouter.get('/legacy-accounts',                                   adminLegacyAccountController.index);
 adminRouter.get('/historical-records',                                adminHistoricalRecordController.index);
 adminRouter.post('/historical-records/:personId/deceased/revert/confirm', adminHistoricalRecordController.confirm(false));
 adminRouter.post('/historical-records/:personId/deceased/revert',         adminHistoricalRecordController.preview(false));
@@ -84,8 +88,13 @@ adminRouter.get('/work-queue',                adminWorkQueueController.index);
 adminRouter.post('/work-queue/:id/claim',     adminWorkQueueController.claim);
 adminRouter.post('/work-queue/:id/resolve',   adminWorkQueueController.resolve);
 adminRouter.post('/work-queue/:id/dismiss',   adminWorkQueueController.dismiss);
+adminRouter.post('/work-queue/:id/park',      adminWorkQueueController.park);
+adminRouter.post('/work-queue/:id/unpark',    adminWorkQueueController.unpark);
 adminRouter.post('/work-queue/:id/ask-member', adminWorkQueueController.askMember);
-adminRouter.post('/work-queue/:id/link-help/approve', adminWorkQueueController.linkHelpApprove);
+// The longer confirm path precedes its sibling, as elsewhere: the approval
+// previews first and writes only on confirm.
+adminRouter.post('/work-queue/:id/link-help/approve/confirm', adminWorkQueueController.linkHelpApprove);
+adminRouter.post('/work-queue/:id/link-help/approve', adminWorkQueueController.linkHelpApprovePreview);
 adminRouter.post('/work-queue/:id/link-help/reject',  adminWorkQueueController.linkHelpReject);
 adminRouter.post('/work-queue/:id/link-help/dispute-revert', adminWorkQueueController.linkHelpDisputeRevert);
 // Inbound payments, the retained nightly reports, and the reconciliation queue.
@@ -130,7 +139,10 @@ adminRouter.post('/email-templates/:key/edit', adminEmailTemplateController.upda
 adminRouter.get('/clubs/leadership',          adminClubLeadershipController.queue);
 adminRouter.get('/clubs/:clubId/leadership',  adminClubLeadershipController.detail);
 adminRouter.post('/clubs/:clubId/leadership/assign',  adminClubLeadershipController.assign);
-adminRouter.post('/clubs/:clubId/leadership/demote',  adminClubLeadershipController.demote);
+// The longer confirm path first, as elsewhere: a demotion previews and writes
+// only on confirm, because removing an affiliation ends a club membership.
+adminRouter.post('/clubs/:clubId/leadership/demote/confirm', adminClubLeadershipController.demote);
+adminRouter.post('/clubs/:clubId/leadership/demote',  adminClubLeadershipController.demotePreview);
 adminRouter.get('/club-cleanup',              adminClubCleanupController.index);
 adminRouter.post('/club-cleanup/claim',       adminClubCleanupController.claim);
 adminRouter.post('/club-cleanup/bulk-resolve', adminClubCleanupController.bulkResolve);

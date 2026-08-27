@@ -1,0 +1,27 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+    <div class="card mb-6">
+      <div class="card-title">{{content.memberName}}</div>
+      <p class="m-0 mt-1 text-muted fs-sm">{{content.memberId}} &middot; co-leader of {{content.clubName}}</p>
+      <p class="m-0 mt-1"><a href="{{content.memberRecordHref}}">Open their member record</a></p>
+    </div>
+
+    <p>{{content.summary}}</p>
+    <p class="text-muted fs-sm">Reason: {{content.reason}}</p>
+
+    <form method="POST" action="{{content.confirmAction}}">
+      <input type="hidden" name="member_id" value="{{content.memberId}}" />
+      <input type="hidden" name="mode" value="{{content.mode}}" />
+      <input type="hidden" name="reason" value="{{content.reason}}" />
+      <button type="submit" class="btn btn-primary">{{content.confirmLabel}}</button>
+    </form>
+
+    <p class="mt-4"><a href="{{content.cancelHref}}">Cancel</a></p>
+  </section>
+</div>

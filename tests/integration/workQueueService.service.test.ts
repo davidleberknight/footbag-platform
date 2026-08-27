@@ -98,6 +98,22 @@ describe('workQueueService.enqueue', () => {
       .get() as { n: number };
     expect(alertCount.n).toBe(0);
   });
+
+  it('refuses a task type that has no declaration, and writes no row', () => {
+    // A type nobody declared has no label, no evidence and no action, so its
+    // card would reach an administrator with nothing on it to press. Refusing
+    // the insert is what keeps that state from existing at all.
+    expect(() => svc.enqueue({
+      actorId: 'system', queueCategory: 'membership', taskType: 'undeclared_task_type',
+      entityType: 'member', entityId: ENTITY_MEMBER_ID, priority: 0,
+      reasonText: 'no descriptor', detailText: null,
+    })).toThrow(/undeclared_task_type/);
+
+    const count = testDb
+      .prepare(`SELECT COUNT(*) AS n FROM work_queue_items WHERE task_type = 'undeclared_task_type'`)
+      .get() as { n: number };
+    expect(count.n).toBe(0);
+  });
 });
 
 describe('workQueueService.claim', () => {

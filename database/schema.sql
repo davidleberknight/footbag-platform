@@ -819,7 +819,20 @@ CREATE TABLE work_queue_items (
   -- NULL means unclaimed; the claimer is retained after resolution as a record
   -- of who handled the item.
   claimed_by_member_id  TEXT REFERENCES members(id),
-  claimed_at            TEXT
+  claimed_at            TEXT,
+  -- An administrator parks an item they cannot advance yet: it leaves the
+  -- working queue, every digest and the escalation sweep, and waits in the
+  -- parked listing under the reason they gave. There is no deadline and no
+  -- expiry, because a timer would re-present an item with nothing new about it.
+  -- It returns when the member answers a question on it, or when any
+  -- administrator takes it back by hand.
+  --
+  -- The status stays 'open' throughout, deliberately. A parked status would hide
+  -- the row from the de-duplication probe that stops a second item being raised
+  -- for the same matter, and from both close paths.
+  parked_at             TEXT,
+  parked_by_member_id   TEXT REFERENCES members(id),
+  park_reason           TEXT
 );
 
 CREATE INDEX idx_work_queue_status ON work_queue_items(status, queue_category);

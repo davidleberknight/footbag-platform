@@ -370,8 +370,20 @@ describe('admin review', () => {
       .send({ category: 'identity_link_issue', message:'These records are mine.' });
     const item = openItems(memberId)[0];
 
-    const res = await request(createApp())
+    // The approval previews first and writes on confirm, like every other
+    // consequential correction to a person's record.
+    const preview = await request(createApp())
       .post(`/admin/work-queue/${item.id}/link-help/approve`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ target_legacy_member_id: `LM-${memberId}` });
+    expect(preview.status).toBe(200);
+    expect(preview.text).toContain('Old Self');
+    const beforeConfirm = db.prepare('SELECT legacy_member_id FROM members WHERE id = ?').get(memberId) as Record<string, unknown>;
+    expect(beforeConfirm.legacy_member_id).toBeNull();
+
+    const res = await request(createApp())
+      .post(`/admin/work-queue/${item.id}/link-help/approve/confirm`)
       .set('Cookie', adminCookie())
       .type('form')
       .send({ target_legacy_member_id: `LM-${memberId}` });
@@ -407,7 +419,7 @@ describe('admin review', () => {
     const before = mailTo(memberId).length;
 
     await request(createApp())
-      .post(`/admin/work-queue/${item.id}/link-help/approve`)
+      .post(`/admin/work-queue/${item.id}/link-help/approve/confirm`)
       .set('Cookie', adminCookie())
       .type('form')
       .send({ target_legacy_member_id: `LM-${memberId}` });
@@ -461,7 +473,7 @@ describe('admin review', () => {
 
     const res = action === 'approve'
       ? await request(createApp())
-          .post(`/admin/work-queue/${item.id}/link-help/approve`)
+          .post(`/admin/work-queue/${item.id}/link-help/approve/confirm`)
           .set('Cookie', adminCookie()).type('form')
           .send({ target_legacy_member_id: `LM-${memberId}` })
       : await request(createApp())
@@ -513,8 +525,18 @@ describe('admin review', () => {
       .send({ category: 'identity_link_issue', message:'The competition record is mine.' });
     const item = openItems(memberId)[0];
 
-    const res = await request(createApp())
+    const preview = await request(createApp())
       .post(`/admin/work-queue/${item.id}/link-help/approve`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ target_historical_person_id: personId });
+    expect(preview.status).toBe(200);
+    // The name on the record is the thing a mistyped id gets wrong, so the
+    // confirmation says it before the link is applied.
+    expect(preview.text).toContain('Different Surname');
+
+    const res = await request(createApp())
+      .post(`/admin/work-queue/${item.id}/link-help/approve/confirm`)
       .set('Cookie', adminCookie())
       .type('form')
       .send({ target_historical_person_id: personId });
@@ -635,6 +657,46 @@ describe('admin review', () => {
     expect(res.text).toContain('Render me.');
     expect(res.text).toContain('/link-help/approve');
     expect(res.text).toContain('/link-help/reject');
+  });
+
+  // The card asks an administrator to name a legacy account id or a competition
+  // record id. The candidate machinery behind the member's own claim wizard
+  // already knows what their anchors and their name reach, so the card that asks
+  // the question carries the answer rather than sending them off the page.
+  it('shows what the platform can already see for the member, with the ids the form takes', async () => {
+    const memberId = seedRequester('Candidate Person');
+    insertLegacyMember(db, {
+      legacy_member_id: `LM-cand-${memberId}`,
+      legacy_email: `${memberId}@example.com`,
+      real_name: 'Candidate Person', display_name: 'Candidate Person',
+      birth_date: '1988-02-29',
+    });
+    insertHistoricalPerson(db, {
+      person_id: `hp-cand-${memberId}`, person_name: 'Candidate Person',
+    });
+    await askAdminToLink(memberId, 'Please find my old records.');
+
+    const res = await request(createApp())
+      .get('/admin/work-queue')
+      .set('Cookie', adminCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('What the Platform Can See for Them');
+    expect(res.text).toContain(`LM-cand-${memberId}`);
+    expect(res.text).toContain('Found through their sign-in address');
+    expect(res.text).toContain('1988-02-29');
+    expect(res.text).toContain(`hp-cand-${memberId}`);
+    // And where none of it is enough, the lookup that can produce an id.
+    expect(res.text).toContain('/admin/legacy-accounts');
+  });
+
+  it('says plainly when nothing on file reaches a record for the member', async () => {
+    const memberId = seedRequester('Nobody Findable');
+    await askAdminToLink(memberId, 'I am sure I had an account.');
+
+    const res = await request(createApp())
+      .get('/admin/work-queue')
+      .set('Cookie', adminCookie());
+    expect(res.text).toContain('Nothing on file reaches an old account or a competition record');
   });
 
   it('puts the evidence behind the decision on the card, in words rather than codes', async () => {

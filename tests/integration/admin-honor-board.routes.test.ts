@@ -314,4 +314,27 @@ describe('board standing', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('Reverts to on leaving the board');
   });
+
+  // The page offers to take a director off the board, keyed on a member id
+  // typed by hand. A page that removes a director has to be able to answer who
+  // the directors are; a feed of recent grants answers a different question.
+  it('lists the sitting directors, with the id the removal form takes', async () => {
+    await post('/admin/honor-grants/board/set/confirm', {
+      member_key: BOARD_T0_ID, reason: 'elected at the November meeting',
+    });
+
+    const page = await request(createApp())
+      .get('/admin/honor-grants').set('Cookie', adminCookie());
+    expect(page.status).toBe(200);
+    expect(page.text).toContain('Sitting Directors (1)');
+    expect(page.text).toContain(BOARD_T0_ID);
+
+    await post('/admin/honor-grants/board/remove/confirm', {
+      member_key: BOARD_T0_ID, reason: 'term ended',
+    });
+    const after = await request(createApp())
+      .get('/admin/honor-grants').set('Cookie', adminCookie());
+    expect(after.text).toContain('Sitting Directors (0)');
+    expect(after.text).toContain('No member is recorded as sitting on the board.');
+  });
 });
