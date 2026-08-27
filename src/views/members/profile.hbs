@@ -23,15 +23,15 @@
       <div class="profile-main">
 
         {{! Sections run in the order a member reads them: what the platform is
-            waiting on, then who you are, then what you can do, then your own
-            things, then account administration. Nothing outstanding renders
-            nothing at all: no empty state, no "all caught up". }}
+            waiting on, then who you are, then what being a member gets you,
+            then your own things, then account administration. Nothing
+            outstanding renders nothing at all: no empty state, no "all caught
+            up". The member's own links sit inside About rather than taking a
+            heading of their own, because they are part of who you are. }}
 
         {{#unless content.actions.isEmpty}}
           {{> member-block-actions content.actions}}
         {{/unless}}
-
-        {{> member-block-membership content.membership}}
 
         <div class="profile-section">
           <h2 class="profile-section-heading">About</h2>
@@ -40,30 +40,31 @@
           {{else}}
             <p class="text-muted">No bio yet. <a href="{{content.profileBase}}/edit">Edit your profile</a> to tell people about yourself.</p>
           {{/if}}
+          {{#if content.links.length}}
+            <ul>
+              {{#each content.links}}
+                <li>{{{externalLink this.url label=this.label}}}</li>
+              {{/each}}
+            </ul>
+          {{/if}}
         </div>
 
-        {{#if content.links.length}}
-        <div class="profile-section">
-          <h2 class="profile-section-heading">Links</h2>
-          <ul>
-            {{#each content.links}}
-              <li>{{{externalLink this.url label=this.label}}}</li>
-            {{/each}}
-          </ul>
-        </div>
-        {{/if}}
-
-        {{> member-block-identity content.identity}}
-
-        {{> member-block-quick-actions content.quickActions}}
+        {{> member-block-membership content.membership}}
 
         {{> member-block-search content.search}}
 
+        {{! Only an organizer-tier member has a shortcut left here, so the block
+            is absent for everyone else rather than standing empty. It sits with
+            the other things a tier buys. }}
+        {{#if content.quickActions.length}}
+          {{> member-block-quick-actions content.quickActions}}
+        {{/if}}
+
         {{> member-block-my-clubs content.myClubs}}
 
-        {{#if content.media.hasContent}}
-          {{> member-block-media content.media}}
-        {{/if}}
+        {{! Rendered whether or not the member has media: this is where sharing
+            is found, so a member with none needs it most. }}
+        {{> member-block-media content.media}}
 
         <div class="profile-section">
           {{#if content.eventGroups.length}}
@@ -74,6 +75,8 @@
           {{/unless}}
           {{> player-results eventGroups=content.eventGroups firstCompetitionYear=content.firstCompetitionYear showCompetingSince=content.showCompetingSince}}
         </div>
+
+        {{> member-block-identity content.identity}}
 
         <div class="profile-section">
           <h2 class="profile-section-heading">Account</h2>

@@ -10,14 +10,14 @@
  *   - Service-layer auto-applies the uploader tag (#<slug>) and
  *     materializes the per-member Personal Gallery on first upload.
  *
- * Tier gating: POST /members/:memberKey/media/upload is gated by
- * `requireTier1Benefits()`. GET is intentionally open to all authenticated
- * owners so the form is visible as a read-only preview (the form copy
- * surfaces the tier requirement; the user gets an actionable upgrade path
- * rather than a bare 403). Defense in depth: the service layer's
- * `assertTier1Benefits` enforces the same predicate at upload-time so a
- * forged POST that bypasses the middleware (e.g. test seam misuse) still
- * fails before any media is written.
+ * Tier gating: both the GET form and the POST are gated by
+ * `requireTier1Benefits()`. The form is unreachable to a member the submission
+ * would refuse, so nobody fills it in and loses what they typed; the refusal
+ * names the benefit and how to earn it, and the member's own gallery list
+ * carries the same text where the upload control would have been. Defense in
+ * depth: the service layer's `assertTier1Benefits` enforces the same predicate
+ * at upload-time so a forged POST that bypasses the middleware (e.g. test seam
+ * misuse) still fails before any media is written.
  */
 import { Request, Response, NextFunction } from 'express';
 import Busboy from 'busboy';

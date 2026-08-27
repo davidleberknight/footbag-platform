@@ -54,8 +54,30 @@ describe('getOwnProfile().content.membership', () => {
     expect(vm.content.membership!.showTier1Upgrade).toBe(true);
     expect(vm.content.membership!.showTier2Upgrade).toBe(true);
     expect(vm.content.membership!.benefitsBlurb).toMatch(/You can browse the platform/);
+    // Never held the status, so the one-time club-join grant is still open to
+    // them and the text says so as a fact rather than as a condition to resolve.
+    expect(vm.content.membership!.benefitsBlurb).toMatch(/once by joining your first club/);
     expect(vm.content.membership!.tier1PriceDisplay).toBe('$10 USD');
     expect(vm.content.membership!.tier2PriceDisplay).toBe('$50 USD');
+  });
+
+  it('tier0 who has held Active Player before: the club route is not offered again', () => {
+    const db = new BetterSqlite3(dbPath);
+    const m = nextMember();
+    insertMember(db, { id: m.id, slug: m.slug });
+    insertActivePlayerGrant(db, {
+      member_id: m.id,
+      change_type: 'grant',
+      new_active_player_expires_at: '2099-09-15T12:00:00.000Z',
+      reason_code: 'official_event_attendance',
+    });
+    db.close();
+    const vm = memberServiceMod.memberService.getOwnProfile(m.slug);
+    // The one-time grant reaches only a member who has never held the status,
+    // so naming it here would advertise a route that would refuse them.
+    expect(vm.content.membership!.benefitsBlurb).not.toMatch(/joining your first club/);
+    expect(vm.content.membership!.benefitsBlurb).toMatch(/attending a qualifying event/);
+    expect(vm.content.membership!.benefitsBlurb).toMatch(/can also vouch for you/);
   });
 
   it('tier0 with current AP: AP block carries the formatted expiry date', () => {
@@ -219,18 +241,49 @@ describe('getOwnProfile().content.membership.rosterStatusText', () => {
 });
 
 describe('getOwnProfile().content.quickActions', () => {
-  it('offers only actions no other control on the page already offers', () => {
+  it('offers nothing to a member whose every shortcut has a home elsewhere', () => {
     const db = new BetterSqlite3(dbPath);
     const m = nextMember();
-    insertMember(db, { id: m.id, slug: m.slug });
+    createMemberAtTier(db, { id: m.id, slug: m.slug, tier: 'tier1' });
     db.close();
     const vm = memberServiceMod.memberService.getOwnProfile(m.slug);
-    // The profile editor is reached from the sidebar button, so it is absent
-    // here rather than offered twice under two different labels.
+    // The profile editor is reached from the sidebar button, and both media
+    // routes from the Media section, which is where a member looks for their
+    // own photos and videos. Repeating either here would put one destination
+    // on the page twice.
+    expect(vm.content.quickActions).toEqual([]);
+  });
+
+  it('offers the announcement shortcut to an organizer-tier member', () => {
+    const db = new BetterSqlite3(dbPath);
+    const m = nextMember();
+    createMemberAtTier(db, { id: m.id, slug: m.slug, tier: 'tier2' });
+    db.close();
+    const vm = memberServiceMod.memberService.getOwnProfile(m.slug);
     expect(vm.content.quickActions).toEqual([
-      { label: 'My Galleries', href: `/members/${m.slug}/galleries` },
-      { label: 'Upload Media', href: `/members/${m.slug}/media/upload` },
+      { label: 'Send an Announcement', href: `/members/${m.slug}/announce` },
     ]);
+  });
+
+  it('gives a member the media routes in the Media section, gated on the benefit', () => {
+    const db = new BetterSqlite3(dbPath);
+    const paid = nextMember();
+    createMemberAtTier(db, { id: paid.id, slug: paid.slug, tier: 'tier1' });
+    const free = nextMember();
+    insertMember(db, { id: free.id, slug: free.slug });
+    db.close();
+
+    const held = memberServiceMod.memberService.getOwnProfile(paid.slug).content.media!;
+    expect(held.galleriesHref).toBe(`/members/${paid.slug}/galleries`);
+    expect(held.uploadMediaHref).toBe(`/members/${paid.slug}/media/upload`);
+    expect(held.benefitNotice).toBeNull();
+
+    // Without the benefit there is no upload route to offer, so the section
+    // carries the card explaining what unlocks it instead.
+    const missing = memberServiceMod.memberService.getOwnProfile(free.slug).content.media!;
+    expect(missing.galleriesHref).toBe(`/members/${free.slug}/galleries`);
+    expect(missing.uploadMediaHref).toBeNull();
+    expect(missing.benefitNotice?.lead).toBe('Sharing media is a Tier 1 benefit.');
   });
 });
 

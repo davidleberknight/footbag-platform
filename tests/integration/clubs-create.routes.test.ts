@@ -158,13 +158,28 @@ describe('GET /clubs/create', () => {
     expect(res.text).toContain('#club_');
   });
 
-  it('form states the Tier 1 requirement and points at the clubs page', async () => {
+  it('refuses a lapsed Active Player member and names the benefit instead of the generic wall', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .get('/clubs/create')
+      .set('Cookie', authCookie(TIER0_LAPSED_ID));
+    expect(res.status).toBe(403);
+    expect(res.text).toContain('Starting a new club is a Tier 1 benefit');
+    expect(res.text).toContain('Upgrade Your Membership');
+    expect(res.text).not.toContain('have permission to view this page');
+  });
+
+  it('form states what creating makes you and points at the clubs page', async () => {
     const app = createApp();
     const res = await request(app)
       .get('/clubs/create')
       .set('Cookie', authCookie(HAPPY_ID));
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Creating a club requires IFPA Membership (Tier 1)');
+    expect(res.text).toContain('You become the club');
+    expect(res.text).toContain('first leader.');
+    // The gate decides who reaches this page, so the page no longer restates
+    // the requirement to a reader who has already met it.
+    expect(res.text).not.toContain('requires IFPA Membership');
     expect(res.text).toContain('href="/clubs"');
   });
 });

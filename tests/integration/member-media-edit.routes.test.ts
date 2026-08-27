@@ -7,8 +7,9 @@
  * mismatched ownership (valid mediaId but uploaded by someone else)
  * both render 404 (anti-enumeration; matches the rest of /members/).
  *
- * Tier gating: POST is gated by requireTier1Benefits; GET stays open
- * so tier-0 owners can read their own existing items.
+ * Tier gating: the GET form and the POST are both gated by
+ * requireTier1Benefits, so an owner the save would refuse is never handed the
+ * form. The item itself stays readable on its own page.
  *
  * Route ordering: /media/upload must match before /media/:mediaId/edit;
  * the controller also guards :mediaId === 'upload' defensively.
@@ -208,10 +209,23 @@ describe('member per-item media edit routes', () => {
     expect(findMediaCaption(mediaId)).toBe('untouched');
   });
 
+  it("GET tier-gated: tier-0 owner → 403 naming the benefit, not the generic wall", async () => {
+    const db = new BetterSqlite3(TEST_DB_PATH);
+    db.pragma('foreign_keys = ON');
+    const mediaId = insertMediaItem(db, { uploader_member_id: TIER0_ID, source_filename: 'tier0-get.jpg', caption: 'orig' });
+    db.close();
+
+    const res = await request(createApp())
+      .get(`/members/${TIER0_SLUG}/media/${mediaId}/edit`)
+      .set('Cookie', cookieFor(TIER0_ID));
+    expect(res.status).toBe(403);
+    expect(res.text).toContain('Sharing media is a Tier 1 benefit.');
+    expect(res.text).not.toContain('have permission to view this page');
+  });
+
   it("POST tier-gated: tier-0 owner → 403 from requireTier1Benefits", async () => {
-    // Insert a media row owned by the tier-0 member. The GET path is open
-    // to tier-0 (read-only), but POST must 403 at the middleware before
-    // touching the service.
+    // Insert a media row owned by the tier-0 member. POST must 403 at the
+    // middleware before touching the service.
     const db = new BetterSqlite3(TEST_DB_PATH);
     db.pragma('foreign_keys = ON');
     const mediaId = insertMediaItem(db, { uploader_member_id: TIER0_ID, source_filename: 'tier0.jpg', caption: 'orig' });

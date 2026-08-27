@@ -149,7 +149,11 @@ describe('specific failure reasons on This Is Me confirmation', () => {
 });
 
 describe('the claim task after onboarding completes', () => {
-  it('the profile identity section keeps the claim-task link while nothing is linked', async () => {
+  it('the profile identity section sends an unlinked member to an administrator, not back to the closed task', async () => {
+    // The claim task closes with the wizard, and this profile renders only for
+    // a member who has finished, so a control pointing at the task would bounce
+    // every reader of it to where they already are. The route that still works
+    // is the identity-link topic of their own contact form.
     const t = tag('cta');
     const slug = `wf_cta_${t}`;
     const memberId = insertMember(db, {
@@ -160,7 +164,10 @@ describe('the claim task after onboarding completes', () => {
       .get(`/members/${slug}`)
       .set('Cookie', cookieFor(memberId));
     expect(res.status).toBe(200);
-    expect(res.text).toContain('/register/wizard/legacy_claim');
+    expect(res.text).toContain(`href="/members/${slug}/contact-admin?category`);
+    expect(res.text).toContain('identity_link_issue');
+    expect(res.text).toContain('Ask an administrator to link your history');
+    expect(res.text).not.toContain('/register/wizard/legacy_claim');
   });
 
   it('a member with no linkage is bounced away too: claiming belongs to signing up', async () => {

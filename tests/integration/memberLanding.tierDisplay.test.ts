@@ -105,11 +105,17 @@ describe('GET /members/<slug> — Membership block rendering on personal home', 
     // No Active Player badge for the no-AP case.
     expect(res.text).not.toMatch(/Active Player\s*—/);
     // Club-less Tier 0 without Active Player: creating a club requires Tier 1
-    // benefits, so the My Clubs block shows the Tier-1 requirement note rather
-    // than a create-club action.
+    // benefits, so the My Clubs block names the benefit and how to earn it
+    // rather than offering a create-club action that would refuse them.
     expect(res.text).toContain('You have no club affiliations yet.');
     expect(res.text).not.toContain('Start a New Club');
-    expect(res.text).toContain('Creating a club requires IFPA Membership (Tier 1)');
+    expect(res.text).toContain('Starting a new club is a Tier 1 benefit');
+    expect(res.text).toContain('first leader.');
+    expect(res.text).toContain('Upgrade Your Membership');
+    // The same member is not offered the upload form either, for the same
+    // reason: the shortcut would land on a page that refuses them.
+    expect(res.text).toContain('My Galleries');
+    expect(res.text).not.toContain('Upload Media');
   });
 
   it('tier0 with current AP: renders Tier 0 badge + Active Player line with formatted expiry', async () => {
@@ -153,11 +159,13 @@ describe('GET /members/<slug> — Membership block rendering on personal home', 
     expect(res.text).toContain('Reverts to Tier 2 IFPA Organizer Member');
   });
 
-  it('quick actions render slug-scoped links for each live surface', async () => {
+  it('the media routes are slug-scoped and live in the Media section, not a shortcut list', async () => {
     const res = await getDashboard(T1_ID);
-    expect(res.text).toContain('Quick Actions');
     expect(res.text).toContain('href="/members/mlt_t1/galleries"');
     expect(res.text).toContain('href="/members/mlt_t1/media/upload"');
+    // Nothing is left in the shortcut block for a member below the organizer
+    // tier, and an empty heading is worse than no block, so it is absent.
+    expect(res.text).not.toContain('Quick Actions');
   });
 
   it('the profile editor is offered once, from the sidebar', async () => {

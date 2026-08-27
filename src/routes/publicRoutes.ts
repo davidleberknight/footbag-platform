@@ -47,7 +47,7 @@ publicRouter.get('/',      homeController.home);
 publicRouter.get('/archive', requireMember, homeController.archiveRedirect);
 publicRouter.get('/clubs',                  clubController.index);
 publicRouter.post('/clubs/swap-primary',    requireMember, clubController.postSwapPrimary);
-publicRouter.get('/clubs/create',           requireMember, clubController.getCreate);
+publicRouter.get('/clubs/create',           requireMember, requireMayCreateClub(), clubController.getCreate);
 publicRouter.post('/clubs/create',          requireMember, requireMayCreateClub(), clubController.postCreate);
 publicRouter.get('/clubs/:key',             clubController.byKey);
 publicRouter.post('/clubs/:key/join',           requireMember, clubController.postJoin);
@@ -228,33 +228,33 @@ publicRouter.post('/members/:memberKey/questions/:messageId/answer',
 // level than `:id` so are unambiguous, but registering them explicitly
 // keeps intent clear. All routes 404 (anti-enumeration) when the
 // authenticated user's slug does not match :memberKey.
+// The list stays open to every owner: a member whose benefits lapsed keeps the
+// read of what they own, and it is the page that tells them what they no longer
+// hold. Every form behind it carries the gate, so no member is handed a form
+// that will refuse the submission.
 publicRouter.get('/members/:memberKey/galleries',                requireMember, memberGalleryController.getList);
-publicRouter.get('/members/:memberKey/galleries/new',            requireMember, memberGalleryController.getNew);
-publicRouter.post('/members/:memberKey/galleries',               requireMember, requireTier1Benefits(), memberGalleryController.postCreate);
-publicRouter.get('/members/:memberKey/galleries/:id/edit',       requireMember, memberGalleryController.getEdit);
-publicRouter.post('/members/:memberKey/galleries/:id/edit',      requireMember, requireTier1Benefits(), memberGalleryController.postUpdate);
-publicRouter.post('/members/:memberKey/galleries/:id/delete',    requireMember, requireTier1Benefits(), memberGalleryController.postDelete);
+publicRouter.get('/members/:memberKey/galleries/new',            requireMember, requireTier1Benefits('media'), memberGalleryController.getNew);
+publicRouter.post('/members/:memberKey/galleries',               requireMember, requireTier1Benefits('media'), memberGalleryController.postCreate);
+publicRouter.get('/members/:memberKey/galleries/:id/edit',       requireMember, requireTier1Benefits('media'), memberGalleryController.getEdit);
+publicRouter.post('/members/:memberKey/galleries/:id/edit',      requireMember, requireTier1Benefits('media'), memberGalleryController.postUpdate);
+publicRouter.post('/members/:memberKey/galleries/:id/delete',    requireMember, requireTier1Benefits('media'), memberGalleryController.postDelete);
 
 // Owner-only member upload. Same anti-enumeration 404 pattern as the
 // gallery routes above. POST is multipart/form-data (busboy in the
 // controller); the service layer auto-applies #<slug> as the
 // uploader tag and materializes the per-member Personal Gallery on
-// first upload.
-// GET stays open to all authenticated owners as a read-only form preview
-// (intentional UX; the under-tiered member can see the upload affordance,
-// the form copy can communicate the tier requirement, and they get an
-// actionable upgrade path without hitting a bare 403). POST is the gate:
-// requireTier1Benefits returns 403 to under-tiered submissions, with
-// defense-in-depth in curatorMediaService.assertTier1Benefits.
-publicRouter.get('/members/:memberKey/media/upload',  requireMember, memberMediaUploadController.getUpload);
-publicRouter.post('/members/:memberKey/media/upload', requireMember, requireTier1Benefits(), memberMediaUploadController.postUpload);
+// first upload. Defense in depth behind the gate:
+// curatorMediaService.assertTier1Benefits enforces the same predicate at
+// upload time.
+publicRouter.get('/members/:memberKey/media/upload',  requireMember, requireTier1Benefits('media'), memberMediaUploadController.getUpload);
+publicRouter.post('/members/:memberKey/media/upload', requireMember, requireTier1Benefits('media'), memberMediaUploadController.postUpload);
 
 // Per-item edit (caption + tags + external URL) and permanent delete.
 // MUST be registered after /media/upload so the literal `upload` segment
 // wins on POST; controller also defends with an `:mediaId === 'upload'` 404.
-publicRouter.get('/members/:memberKey/media/:mediaId/edit',  requireMember, memberMediaEditController.getEdit);
-publicRouter.post('/members/:memberKey/media/:mediaId/edit', requireMember, requireTier1Benefits(), memberMediaEditController.postUpdate);
-publicRouter.post('/members/:memberKey/media/:mediaId/delete', requireMember, requireTier1Benefits(), memberMediaEditController.postDelete);
+publicRouter.get('/members/:memberKey/media/:mediaId/edit',  requireMember, requireTier1Benefits('media'), memberMediaEditController.getEdit);
+publicRouter.post('/members/:memberKey/media/:mediaId/edit', requireMember, requireTier1Benefits('media'), memberMediaEditController.postUpdate);
+publicRouter.post('/members/:memberKey/media/:mediaId/delete', requireMember, requireTier1Benefits('media'), memberMediaEditController.postDelete);
 
 // The catch-all for this prefix, so it decides what every unrecognized
 // /members/<a>/<b> URL looks like — including the old site's member-profile

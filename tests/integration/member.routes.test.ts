@@ -352,17 +352,21 @@ describe('GET /members/:memberKey/edit — edit form', () => {
     expect(res.text).toContain('Edit Profile');
   });
 
-  it('unlinked but onboarding-complete member: the claim-task link persists', async () => {
-    // The wizard's claim task is the sole claim and anchor surface, reached
-    // from the profile during onboarding and afterward alike, so an unlinked
-    // member keeps the link after completing onboarding.
+  it('unlinked but onboarding-complete member: the administrator route persists', async () => {
+    // The wizard's claim task is the sole claim and anchor surface and it
+    // closes when signing up finishes, so a member who is still unlinked
+    // afterward is offered the route that remains: the identity-link topic of
+    // their own contact form, which an administrator answers by applying the
+    // link.
     const app = createApp();
     const res = await request(app)
       .get(`/members/${OWN_SLUG}/edit`)
       .set('Cookie', ownCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('href="/register/wizard/legacy_claim"');
-    expect(res.text).toContain('Link your legacy account, results, and clubs');
+    expect(res.text).toContain(`href="/members/${OWN_SLUG}/contact-admin?category`);
+    expect(res.text).toContain('identity_link_issue');
+    expect(res.text).toContain('Ask an administrator to link your history');
+    expect(res.text).not.toContain('/register/wizard/legacy_claim');
   });
 
   it('fully-linked member: link-history CTA is hidden', async () => {
@@ -372,9 +376,9 @@ describe('GET /members/:memberKey/edit — edit form', () => {
       .set('Cookie', linkedCookie());
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('/register/wizard/legacy_claim');
-    expect(res.text).not.toContain('Link your legacy account, results, and clubs');
-    expect(res.text).not.toContain('Link your old footbag.org account');
-    expect(res.text).not.toContain('Link your competition history');
+    expect(res.text).not.toContain('Ask an administrator to link your history');
+    expect(res.text).not.toContain('Ask an administrator to link your old footbag.org account');
+    expect(res.text).not.toContain('Ask an administrator to link your competition history');
   });
 
   // The date is what matches a member to their legacy account and their

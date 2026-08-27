@@ -820,6 +820,17 @@ th.sortable:hover { color: var(--primary); }
 
 .card-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; }
 
+/* A card that is one short statement and one action reads across rather than
+   stacking two short lines into a tall band, and stacks at the narrow
+   breakpoint like the site's other horizontal strips. */
+.card-inline { flex-direction: row; align-items: center; gap: 20px; }
+.card-inline p { flex: 1; min-width: 0; margin: 0; }
+.card-inline .btn { margin-top: 0; align-self: center; flex-shrink: 0; }
+@media (max-width: 480px) {
+  .card-inline { flex-direction: column; align-items: stretch; }
+  .card-inline .btn { align-self: stretch; text-align: center; }
+}
+
 /* Secondary in-card link: used to position a reference (e.g. Glossary)
    below tutorial-series buttons without making it a peer button. */
 .card-secondary-link {

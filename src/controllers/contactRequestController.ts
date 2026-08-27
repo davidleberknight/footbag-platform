@@ -57,7 +57,15 @@ export const contactRequestController = {
         successFlag = true;
         clearFlash(res, req);
       }
-      const vm = buildViewModel(req, { successFlag });
+      // A control that names what it is for arrives with its topic chosen, so
+      // the member writes their message instead of answering a question their
+      // click already answered. Anything not on the list is ignored rather
+      // than rejected: a stale or hand-edited link should still open the form.
+      const requested = String(req.query.category ?? '');
+      const prefilledCategory = (CONTACT_CATEGORIES as readonly string[]).includes(requested)
+        ? requested
+        : undefined;
+      const vm = buildViewModel(req, { successFlag, prefilledCategory });
       res.render('members/contact-admin', vm);
     } catch (err) {
       handleControllerError(err, res, next, 'contact request controller');

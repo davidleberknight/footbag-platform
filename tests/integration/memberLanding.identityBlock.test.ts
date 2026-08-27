@@ -95,33 +95,41 @@ async function getDashboard(memberId: string): Promise<request.Response> {
 }
 
 describe('GET /members/<slug> — Identity & History block', () => {
-  it('no/no: shows combined empty line + wizard CTA', async () => {
+  // Claiming belongs to signing up, and the wizard closes that surface once
+  // signing up is finished. This profile renders only for a finished member, so
+  // the control asks an administrator to apply the link instead, and never
+  // points back at the wizard, which would bounce the reader to where they are.
+  it('no/no: shows combined empty line + the ask-an-administrator control', async () => {
     const res = await getDashboard(NO_NO_ID);
     expect(res.status).toBe(200);
     expect(res.text).toContain('Identity');
     expect(res.text).toContain('No past account or competition record linked.');
-    expect(res.text).toContain('Link your legacy account, results, and clubs');
-    expect(res.text).toContain('href="/register/wizard/legacy_claim"');
+    expect(res.text).toContain('Ask an administrator to link your history');
+    expect(res.text).toContain(`href="/members/${NO_NO_SLUG}/contact-admin?category`);
+    expect(res.text).toContain('identity_link_issue');
+    expect(res.text).not.toContain('/register/wizard/legacy_claim');
     expect(res.text).not.toContain('Legacy account: linked');
     expect(res.text).not.toContain('Competition record:');
   });
 
-  it('yes/no: shows linked-since date, HP not-yet-linked line, wizard CTA labelled for the missing link', async () => {
+  it('yes/no: shows linked-since date, HP not-yet-linked line, control labelled for the missing link', async () => {
     const res = await getDashboard(YES_NO_ID);
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/Legacy account: linked.*Jan.*2024/);
     expect(res.text).toContain('Competition record: not yet linked.');
-    expect(res.text).toContain('Link your competition history');
-    expect(res.text).toContain('href="/register/wizard/legacy_claim"');
+    expect(res.text).toContain('Ask an administrator to link your competition history');
+    expect(res.text).toContain(`href="/members/${YES_NO_SLUG}/contact-admin?category`);
+    expect(res.text).toContain('identity_link_issue');
+    expect(res.text).not.toContain('/register/wizard/legacy_claim');
   });
 
-  it('no/yes: shows HP summary, legacy none-on-file, wizard CTA labelled for the missing link', async () => {
+  it('no/yes: shows HP summary, legacy none-on-file, control labelled for the missing link', async () => {
     const res = await getDashboard(NO_YES_ID);
     expect(res.status).toBe(200);
     expect(res.text).toContain('Legacy account: none on file.');
     expect(res.text).toContain(`>${HP_NAME}</a>.`);
     expect(res.text).toMatch(/href="\/history\/[^"]+"/);
-    expect(res.text).toContain('Link your old footbag.org account');
+    expect(res.text).toContain('Ask an administrator to link your old footbag.org account');
   });
 
   it('yes/yes: shows both linked summaries, no CTA', async () => {

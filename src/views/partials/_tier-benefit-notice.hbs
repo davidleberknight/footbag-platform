@@ -1,0 +1,16 @@
+{{!--
+  A Tier 1 benefit the viewing member does not hold, rendered where the control
+  it unlocks would otherwise sit. The member learns the feature exists and what
+  unlocks it, and gets the one control they can act on, in place of a control
+  that would refuse them. The static card variant, because the card itself is
+  not clickable and should not lift under the pointer as if it were; the inline
+  variant, because one statement and one action read across rather than stacking
+  into a band taller than what they say.
+
+  Caller passes:
+    notice — { lead, explanation, upgradeLabel, upgradeHref } shaped by the service
+--}}
+<div class="card card-static card-inline">
+  <p>{{notice.lead}} {{notice.explanation}}</p>
+  <a href="{{notice.upgradeHref}}" class="btn btn-primary">{{notice.upgradeLabel}}</a>
+</div>

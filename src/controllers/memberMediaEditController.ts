@@ -12,10 +12,11 @@
  *     scoped to the requesting member's id; a non-owned id returns
  *     null / NotFoundError, also rendered as 404.
  *
- * Tier gating: POST is gated by `requireTier1Benefits()`. GET is open
- * to all authenticated owners so the form is visible read-only on
- * tier 0 (the user can review their existing media without an upgrade
- * gate). The service's `assertTier1Benefits` re-enforces on save.
+ * Tier gating: the GET form and both POSTs are gated by
+ * `requireTier1Benefits()`. Losing the benefits costs the member nothing they
+ * own: the item itself, its caption and its tags stay readable on the item's
+ * own page, and only the form that would refuse the save goes away. The
+ * service's `assertTier1Benefits` re-enforces on save.
  *
  * Route ordering note: `/members/:memberKey/media/:mediaId/edit` is
  * registered after `/members/:memberKey/media/upload`, so the literal

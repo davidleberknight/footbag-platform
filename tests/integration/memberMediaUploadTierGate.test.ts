@@ -119,11 +119,23 @@ describe('Owner-check still fires after the gate', () => {
   });
 });
 
-describe('GET upload form stays open to Tier 0 owners (read-only path preserved)', () => {
-  it('GET /members/:memberKey/media/upload renders for tier0 no-AP owner', async () => {
+describe('GET upload form is gated too, so nobody fills in a form that refuses them', () => {
+  it('GET /members/:memberKey/media/upload refuses a tier0 no-AP owner and names the benefit', async () => {
     const res = await request(createApp())
       .get(`/members/mut_t0_noap/media/upload`)
       .set('Cookie', cookieFor('mut-t0-noap'));
+    expect(res.status).toBe(403);
+    expect(res.text).toContain('Sharing media is a Tier 1 benefit.');
+    expect(res.text).toContain('Upgrade Your Membership');
+    // The refusal replaces the generic permission wall, which told the member
+    // nothing about what would unlock the feature.
+    expect(res.text).not.toContain('have permission to view this page');
+  });
+
+  it('GET /members/:memberKey/media/upload renders for an owner holding the benefits', async () => {
+    const res = await request(createApp())
+      .get(`/members/mut_t0_ap/media/upload`)
+      .set('Cookie', cookieFor('mut-t0-ap'));
     expect(res.status).toBe(200);
   });
 });

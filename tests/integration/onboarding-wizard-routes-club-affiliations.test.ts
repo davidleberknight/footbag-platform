@@ -927,7 +927,7 @@ describe('POST /register/wizard/club_affiliations/submit — unpromoted-candidat
     // point, so the wizard offers neither action nor any outward link.
     expect(wrapUp.text).not.toContain('Create a New Club');
     expect(wrapUp.text).not.toContain('Browse Clubs');
-    expect(wrapUp.text).not.toContain('Creating a club requires IFPA Membership (Tier 1)');
+    expect(wrapUp.text).not.toContain('Starting a new club is a Tier 1 benefit');
 
     const answer = await request(createApp())
       .post('/register/wizard/club_affiliations/none')

@@ -81,6 +81,28 @@ describe('GET /members/:slug/contact-admin', () => {
     expect(res.text).toContain('Other');
   });
 
+  // The profile's identity control links here naming what it is for, so the
+  // form opens with that topic chosen rather than asking a question the click
+  // already answered.
+  it('opens with the topic a link asked for already selected', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .get(`/members/${OWNER_SLUG}/contact-admin?category=identity_link_issue`)
+      .set('Cookie', ownerCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toMatch(/value="identity_link_issue"\s+selected/);
+  });
+
+  it('ignores a topic that is not one of its own, rather than refusing the form', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .get(`/members/${OWNER_SLUG}/contact-admin?category=not_a_real_topic`)
+      .set('Cookie', ownerCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('not_a_real_topic');
+    expect(res.text).toMatch(/Choose a topic/);
+  });
+
   it('non-owner → 404 (anti-enumeration)', async () => {
     const app = createApp();
     const res = await request(app)

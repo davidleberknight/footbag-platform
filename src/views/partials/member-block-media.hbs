@@ -1,6 +1,12 @@
 {{!-- Member's media: links to the member's named galleries (cards) plus a
-      "view all media" link. No inline thumbnails. Receives a ProfileMediaView;
-      the caller renders it only when content.media.hasContent. --}}
+      "view all media" link. No inline thumbnails.
+
+      On a member's own profile this is where sharing media is found, so it
+      renders whether or not they have any: the caller passes an
+      OwnProfileMediaView carrying the routes in, and the empty state offers
+      them. On another member's profile the caller renders it only when
+      content.media.hasContent, and passes a plain ProfileMediaView whose extra
+      fields are absent, so none of the owner controls appear. --}}
 <div class="profile-section">
   <h2 class="profile-section-heading">Media</h2>
   {{#if galleries.length}}
@@ -13,8 +19,17 @@
         </div>
       {{/each}}
     </div>
+  {{else}}
+    {{#if galleriesHref}}
+      <p class="text-muted">You have not shared any photos or videos yet.</p>
+    {{/if}}
   {{/if}}
-  {{#if allMediaHref}}
-    <p class="mt-4"><a href="{{allMediaHref}}" class="btn btn-outline">View All Media</a></p>
+  {{#if benefitNotice}}
+    {{> _tier-benefit-notice notice=benefitNotice}}
   {{/if}}
+  <p class="mt-4">
+    {{#if allMediaHref}}<a href="{{allMediaHref}}" class="btn btn-outline">View All Media</a>{{/if}}
+    {{#if galleriesHref}}<a href="{{galleriesHref}}" class="btn btn-outline">My Galleries</a>{{/if}}
+    {{#if uploadMediaHref}}<a href="{{uploadMediaHref}}" class="btn btn-primary">Upload Media</a>{{/if}}
+  </p>
 </div>

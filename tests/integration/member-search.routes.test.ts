@@ -32,9 +32,12 @@ function searcherCookie(): string {
 function resultsBlock(html: string): string {
   const start = html.indexOf('<div class="search-box-results">');
   if (start === -1) return '';
-  // The search block is the last section on the page, so everything from here
-  // on is results plus the site footer, which carries no badges.
-  return html.slice(start);
+  // Stop at the next profile section. Later sections of the same page speak
+  // about membership standing in their own right, so a slice that ran to the
+  // end of the document would read their prose as though it were a badge on a
+  // result row.
+  const end = html.indexOf('<div class="profile-section">', start);
+  return end === -1 ? html.slice(start) : html.slice(start, end);
 }
 
 let createApp: Awaited<ReturnType<typeof importApp>>;

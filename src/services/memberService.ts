@@ -119,13 +119,14 @@ import { readIntConfig } from './configReader';
 import { appendAuditEntry } from './auditService';
 import { runSqliteRead } from './sqliteRetry';
 import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
-import { PageViewModel } from '../types/page';
+import { PageViewModel, TierBenefitNotice } from '../types/page';
 import { groupPlayerResults } from './playerShaping';
 import type { PlayerEventGroup, PlayerHeroData } from '../types/playerProfile';
 import { getTierStatus, tierBadgeShort, type MemberTier, type UnderlyingTier } from './membershipTieringService';
 import { getStatus as getActivePlayerStatus } from './activePlayerService';
 import { memberActionService, type MemberActions } from './memberActionService';
-import { mayCreateClub, isTier2Plus } from './tierPredicates';
+import { mayCreateClub, isTier2Plus, hasTier1Benefits } from './tierPredicates';
+import { buildTierBenefitNotice } from './tierBenefitNotice';
 import { paymentService } from './paymentService';
 import { mediaService, type ProfileMediaView } from './mediaService';
 import { formatDateDisplay } from './dateFormat';
@@ -242,6 +243,16 @@ export interface QuickAction {
   href: string;
 }
 
+/** The Media section as the member's own profile renders it: what mediaService
+ *  shapes, plus the routes into sharing. `uploadMediaHref` is null and the
+ *  notice present for a member whose benefits do not cover uploading, so the
+ *  section never offers a control that would refuse them. */
+export interface OwnProfileMediaView extends ProfileMediaView {
+  galleriesHref: string;
+  uploadMediaHref: string | null;
+  benefitNotice: TierBenefitNotice | null;
+}
+
 export interface IdentityLinkView {
   legacyAccount: {
     linked: boolean;
@@ -307,7 +318,7 @@ export interface MyClubsView {
   browseClubsHref: string;
   createClubHref: string | null;
   swapPrimaryHref: string | null;
-  showCreateTierNote: boolean;
+  createTierNotice: TierBenefitNotice | null;
   nearbySuggestions: NearbyClubSuggestion[];
 }
 
@@ -356,8 +367,9 @@ export interface OwnProfileContent {
   search?: SearchBlockView;
   memberSlug?: string;
   myClubs?: MyClubsView;
-  /** Thumbnail preview of the member's own uploaded media. */
-  media?: ProfileMediaView;
+  /** The member's own media, and the routes into it. Rendered whether or not
+   *  they have any, because this section is where sharing media is found. */
+  media?: OwnProfileMediaView;
   /** Validated external links (max 3), shown on the profile. */
   links?: MemberLinkView[];
 }
@@ -1002,11 +1014,11 @@ export const memberService = {
         eventGroups,
         actions:      memberActionService.collectFor({ memberId: row.id, slug }),
         membership:   buildTierStatusView(row.id, slug),
-        identity:     buildIdentityLinkView(row.id),
+        identity:     buildIdentityLinkView(row.id, slug),
         quickActions: buildQuickActions(row.id, slug),
         search,
-        myClubs:      buildMyClubsView(row.id),
-        media:        buildMemberMediaView(row.id, slug),
+        myClubs:      buildMyClubsView(row.id, slug),
+        media:        buildOwnProfileMediaView(row.id, slug),
         memberSlug:   slug,
         links:        buildMemberLinksView(row.id),
       },
@@ -1140,6 +1152,7 @@ export const memberService = {
         }
       : splitBirthDateParts(row.birth_date);
     const cta = buildIdentityCta(
+      slug,
       row.legacy_member_id !== null,
       row.historical_person_id !== null,
     );
@@ -1682,10 +1695,18 @@ function welcomeTierContent(): MemberWelcomeTier[] {
 const ACTIVE_PLAYER_CURRENT_EXPLANATION =
   'You enjoy Tier 1 benefits while Active Player status is current, including Official IFPA Roster inclusion.';
 
-function tierBenefitsBlurb(tier: MemberTier): string {
+// The Tier 0 text states the routes this member actually has, rather than
+// setting a condition for them to resolve: the record already says whether they
+// have ever held Active Player status, and the one-time club-join grant reaches
+// only a member who never has. Naming it to anyone else advertises a route that
+// would refuse them. The vouch is stated as something a Tier 2 or Tier 3 member
+// does, because it is theirs to give and not this member's to take.
+function tierBenefitsBlurb(tier: MemberTier, hasEverHeldActivePlayer: boolean): string {
   switch (tier) {
     case 'tier0':
-      return 'You can browse the platform, search the membership, and earn Active Player status through qualifying event attendance or a vouch. If you have never held Active Player status, joining your first club earns it once.';
+      return hasEverHeldActivePlayer
+        ? 'You can browse the platform and search the membership. Active Player status gives you Tier 1 benefits while it is current: you earn it by attending a qualifying event, and a Tier 2 or Tier 3 member can also vouch for you.'
+        : 'You can browse the platform and search the membership. Active Player status gives you Tier 1 benefits while it is current: you earn it by attending a qualifying event, or once by joining your first club, and a Tier 2 or Tier 3 member can also vouch for you.';
     case 'tier1':
       return 'You support the IFPA, are listed on the Official IFPA Roster, vote in IFPA elections, and can create clubs and basic events.';
     case 'tier2':
@@ -1761,7 +1782,7 @@ function buildTierStatusView(memberId: string, slug: string): TierStatusView {
 
   return {
     tierBadgeText: TIER_BADGE_TEXT[tier.tier_status],
-    benefitsBlurb: tierBenefitsBlurb(tier.tier_status),
+    benefitsBlurb: tierBenefitsBlurb(tier.tier_status, ap.active_player_last_expires_at != null),
     activePlayer,
     underlyingTierBadgeText,
     rosterStatusText,
@@ -1781,11 +1802,12 @@ function buildTierStatusView(memberId: string, slug: string): TierStatusView {
 // Standing shortcuts only. An outstanding administrator question is an
 // obligation, not a shortcut, and is carried by the action block above the
 // profile; offering it here as well would put the same thing on one page twice.
+// Media is not here. Both media shortcuts moved into the Media section, which
+// is where a member looks for their own photos and videos and is now rendered
+// whether they have any or not; offering the same two destinations twice put
+// the section's own reason for existing somewhere else on the page.
 function buildQuickActions(memberId: string, slug: string): QuickAction[] {
-  const actions: QuickAction[] = [
-    { label: 'My Galleries',  href: `/members/${slug}/galleries` },
-    { label: 'Upload Media',  href: `/members/${slug}/media/upload` },
-  ];
+  const actions: QuickAction[] = [];
   // Writing to the community announce list is an organizer-tier capability, so
   // the shortcut appears only for the members who hold it.
   if (isTier2Plus(memberId)) {
@@ -1821,13 +1843,29 @@ function buildMemberMediaView(memberId: string, slug: string): ProfileMediaView 
   return mediaService.getMemberProfileMedia(memberId, slug);
 }
 
-function buildMyClubsView(memberId: string): MyClubsView {
+// The same section on the member's own profile, which is the one place sharing
+// media is found. It renders whether or not they have any, so it carries the
+// routes in as well as the content: a member with nothing yet would otherwise
+// have no way to reach the surface that lets them start, and a member whose
+// benefits do not cover it would be left to guess why.
+function buildOwnProfileMediaView(memberId: string, slug: string): OwnProfileMediaView {
+  const base = buildMemberMediaView(memberId, slug);
+  const holdsBenefits = hasTier1Benefits(memberId);
+  return {
+    ...base,
+    galleriesHref: `/members/${slug}/galleries`,
+    uploadMediaHref: holdsBenefits ? `/members/${slug}/media/upload` : null,
+    benefitNotice: holdsBenefits ? null : buildTierBenefitNotice(slug, 'media'),
+  };
+}
+
+function buildMyClubsView(memberId: string, slug: string): MyClubsView {
   const rows = memberClubAffiliations.listCurrentWithClubName.all(memberId) as CurrentAffiliationRow[];
   const tier = getTierStatus(memberId);
-  const hasTier1Benefits = tier != null && tier.tier_status !== 'tier0';
+  const holdsPaidTier = tier != null && tier.tier_status !== 'tier0';
   // Volunteering to co-lead follows the Tier-1-benefits rule (Tier 1+ OR an
   // active Active-Player period).
-  const volunteerBenefits = hasTier1Benefits || getActivePlayerStatus(memberId).is_active_player === 1;
+  const volunteerBenefits = holdsPaidTier || getActivePlayerStatus(memberId).is_active_player === 1;
   // Creating a club uses the bootstrap eligibility: Tier 1 benefits, or a Tier 0
   // member who has never held Active Player (create grants the one-time period).
   const canCreateClubBenefits = mayCreateClub(memberId);
@@ -1883,9 +1921,16 @@ function buildMyClubsView(memberId: string): MyClubsView {
     browseClubsHref: '/clubs',
     createClubHref: canCreateClubBenefits && !coLeadsAnyClub ? '/clubs/create' : null,
     swapPrimaryHref: rows.length === 2 ? '/clubs/swap-primary' : null,
-    // A club-less member ineligible to create a club (a lapsed-AP Tier 0 member)
-    // sees the requirement instead of the create path being hidden entirely.
-    showCreateTierNote: rows.length === 0 && !canCreateClubBenefits,
+    // A member ineligible to create a club (a lapsed-AP Tier 0 member) reads
+    // what the benefit is and how to earn it, instead of the create path being
+    // hidden with nothing said. Having a club already is no reason to withhold
+    // it: wanting a second club, or a club of one's own, is not a state the
+    // benefit distinguishes. A member who already co-leads is excluded because
+    // the benefit is not what stops them, so naming it would misdescribe why
+    // the path is closed: one member co-leads at most one club.
+    createTierNotice: canCreateClubBenefits || coLeadsAnyClub
+      ? null
+      : buildTierBenefitNotice(slug, 'club'),
     nearbySuggestions,
   };
 }
@@ -2057,27 +2102,30 @@ async function validateMemberLinks(
   return validated;
 }
 
+// Claiming belongs to signing up, and the wizard closes its claim surface the
+// moment signing up finishes. This profile renders only for a member who has
+// finished, so a control pointing back at that surface would bounce every
+// reader of it straight to where they already are. The remaining route is the
+// one the wizard itself names: the identity-link topic of the contact form,
+// which an administrator answers by applying the link. The topic arrives
+// selected, because clicking a control that says what it is for has already
+// answered the form's first question.
 function buildIdentityCta(
+  slug: string,
   legacyLinked: boolean,
   hpLinked: boolean,
 ): IdentityLinkView['cta'] {
-  // The wizard's claim task is the sole claim and anchor surface, reachable
-  // from this profile link during onboarding and afterward alike, so the CTA
-  // persists whenever a linkage is missing.
   if (legacyLinked && hpLinked) return null;
-  // CTA target is the onboarding wizard's legacy_claim task, which renders
-  // the unified candidate list and manual-id input for whichever linkage is
-  // missing. Slug is not part of the URL; the wizard scopes to req.user.
-  const href = '/register/wizard/legacy_claim';
+  const href = `/members/${slug}/contact-admin?category=identity_link_issue`;
   const label = !legacyLinked && !hpLinked
-    ? 'Link your legacy account, results, and clubs'
+    ? 'Ask an administrator to link your history'
     : !legacyLinked
-    ? 'Link your old footbag.org account'
-    : 'Link your competition history';
+    ? 'Ask an administrator to link your old footbag.org account'
+    : 'Ask an administrator to link your competition history';
   return { href, label };
 }
 
-function buildIdentityLinkView(memberId: string): IdentityLinkView {
+function buildIdentityLinkView(memberId: string, slug: string): IdentityLinkView {
   const row = runSqliteRead('findIdentityLinks', () =>
     account.findIdentityLinks.get(memberId),
   ) as IdentityLinksRow | undefined;
@@ -2097,7 +2145,7 @@ function buildIdentityLinkView(memberId: string): IdentityLinkView {
         ? `/history/${encodeURIComponent(row.historical_person_id)}`
         : null,
     },
-    cta: buildIdentityCta(legacyLinked, hpLinked),
+    cta: buildIdentityCta(slug, legacyLinked, hpLinked),
     claimedIdentities: buildClaimedLegacyIdentitiesView(memberId),
   };
 }

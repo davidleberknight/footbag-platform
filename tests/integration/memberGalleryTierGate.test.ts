@@ -196,18 +196,30 @@ describe('Owner-check still fires after the gate', () => {
   });
 });
 
-describe('GET routes stay open to Tier 0 owners (read-only paths preserved)', () => {
-  it('GET /members/:memberKey/galleries renders for tier0 no-AP owner', async () => {
+describe('The list stays open and states the benefit; the form behind it does not', () => {
+  it('GET /members/:memberKey/galleries renders for a tier0 no-AP owner, naming the benefit instead of the controls', async () => {
     const res = await request(createApp())
       .get(`/members/tg_t0_noap/galleries`)
       .set('Cookie', cookieFor('mtg-t0-noap'));
     expect(res.status).toBe(200);
+    expect(res.text).toContain('Sharing media is a Tier 1 benefit.');
+    expect(res.text).not.toContain('Upload Media');
+    expect(res.text).not.toContain('Create New Gallery');
   });
 
-  it('GET /members/:memberKey/galleries/new renders for tier0 no-AP owner', async () => {
+  it('GET /members/:memberKey/galleries/new refuses a tier0 no-AP owner and names the benefit', async () => {
     const res = await request(createApp())
       .get(`/members/tg_t0_noap/galleries/new`)
       .set('Cookie', cookieFor('mtg-t0-noap'));
+    expect(res.status).toBe(403);
+    expect(res.text).toContain('Sharing media is a Tier 1 benefit.');
+    expect(res.text).not.toContain('have permission to view this page');
+  });
+
+  it('GET /members/:memberKey/galleries/new renders for an owner holding the benefits', async () => {
+    const res = await request(createApp())
+      .get(`/members/tg_t0_ap/galleries/new`)
+      .set('Cookie', cookieFor('mtg-t0-ap'));
     expect(res.status).toBe(200);
   });
 });

@@ -552,17 +552,27 @@ describe('owner gate — member-owned gallery by resource id (adjacent-owner BOL
 
 describe('tier gate — an owned gallery outliving the benefits that created it', () => {
   // Membership tiers do not expire and Active Player does, so this is the only
-  // state where the permission to edit lapses while the resource survives. The
-  // read must still work: losing benefits does not dispossess a member of what
-  // they already own.
+  // state where the permission to edit lapses while the resource survives.
+  // Losing the benefits does not dispossess a member of what they already own:
+  // the gallery keeps listing on their own galleries page, with its name and
+  // every saved setting. What closes is the form, because a member the write
+  // would refuse should never be handed the form that submits it.
   const SLUG = 'gallery_owner_ap_expired';
   const GALLERY = 'gallery_persona_gallery_owner_ap_expired';
 
-  it('still serves the owner its own gallery after the Active Player grant expired', async () => {
+  it('still lists the owner its own gallery after the Active Player grant expired', async () => {
+    const res = await request(createApp())
+      .get(`/members/${SLUG}/galleries`)
+      .set('Cookie', cookies.get(SLUG)!);
+    expect(res.status, 'expired Active Player -> own gallery read (allow)').toBe(200);
+    expect(res.text, 'expired Active Player -> own gallery still named').toContain(GALLERY);
+  });
+
+  it('closes the edit form once the Active Player grant that conferred the benefits expired', async () => {
     const res = await request(createApp())
       .get(`/members/${SLUG}/galleries/${GALLERY}/edit`)
       .set('Cookie', cookies.get(SLUG)!);
-    expect(res.status, 'expired Active Player -> own gallery read (allow)').toBe(200);
+    expect(res.status, 'expired Active Player -> own gallery edit form (tier deny)').toBe(403);
   });
 
   it('denies the write once the Active Player grant that conferred the benefits expired', async () => {

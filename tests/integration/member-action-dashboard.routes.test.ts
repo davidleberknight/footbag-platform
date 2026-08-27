@@ -315,9 +315,13 @@ describe('an administrator question', () => {
   });
 
   it('is offered once on the page, not also as a quick action', async () => {
+    // An outstanding question is an obligation, not a shortcut, so it never
+    // joins the shortcut block. This member holds no shortcut at all, and the
+    // block is absent rather than standing as an empty heading.
     const res = await ownProfile(ASKED_ID, ASKED_SLUG);
-    expect(res.text).toContain('Quick Actions');
+    expect(res.text).toContain('An IFPA administrator has a question for you');
     expect(res.text).not.toContain('Answer IFPA');
+    expect(res.text).not.toContain('Quick Actions');
   });
 });
 

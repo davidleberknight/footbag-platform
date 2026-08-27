@@ -7,7 +7,10 @@
  * Authz model:
  *   - `requireAuth` middleware redirects unauthenticated requests to /login.
  *   - `requireTier1Benefits` middleware returns 403 for under-tiered
- *     members on the four POST routes (create / edit / delete / upload).
+ *     members on every write route and on the two forms that lead to one
+ *     (the new-gallery form and a gallery's edit form), so a member the
+ *     write would refuse never reaches the form. The list itself stays
+ *     open and carries the benefit text where its controls would be.
  *   - This controller asserts `req.user.slug === req.params.memberKey`;
  *     a mismatch returns 404 (anti-enumeration; matches the existing
  *     memberController convention so a probe for another member's
@@ -28,6 +31,8 @@ import { renderNotFound } from '../lib/controllerErrors';
 import { isOwnMemberRoute } from '../lib/routeOwnership';
 import { mediaService } from '../services/mediaService';
 import { hashtagDiscoveryService } from '../services/hashtagDiscoveryService';
+import { hasTier1Benefits } from '../services/tierPredicates';
+import { buildTierBenefitNotice } from '../services/tierBenefitNotice';
 
 type MediaSavedSubKind = 'create' | 'edit' | 'delete' | 'upload';
 
@@ -116,6 +121,9 @@ function renderListWithError(
       galleries,
       newGalleryHref: `/members/${memberKey}/galleries/new`,
       uploadMediaHref: `/members/${memberKey}/media/upload`,
+      // This path re-renders a failed write, which only a member holding the
+      // benefits can have attempted, so the controls belong on the page.
+      benefitNotice: null,
       errorMessage,
     },
   });
@@ -133,6 +141,13 @@ export const memberGalleryController = {
       const memberId = req.user!.userId;
       const svc = buildSvc();
       const summaries = svc.listGalleriesForOwner(memberId);
+      // The one surface a member without the benefits still reaches, so it is
+      // where they learn what they no longer hold. Its presence is also what
+      // decides whether the page renders write controls at all: every one of
+      // them leads to a form the gate would refuse.
+      const benefitNotice = hasTier1Benefits(memberId)
+        ? null
+        : buildTierBenefitNotice(req.user!.slug, 'media');
       const savedFlag = readMediaSavedFlag(req, res);
       const confirmDeleteId = typeof req.query.confirmDelete === 'string' ? req.query.confirmDelete : null;
       const galleries = summaries.map((g) => ({
@@ -162,8 +177,11 @@ export const memberGalleryController = {
         content: {
           galleries,
           listHref: listHref(memberKey),
-          newGalleryHref: `/members/${memberKey}/galleries/new`,
-          uploadMediaHref: `/members/${memberKey}/media/upload`,
+          // No href for a form the member cannot open, so nothing downstream
+          // can render a control that leads to a refusal.
+          newGalleryHref: benefitNotice ? null : `/members/${memberKey}/galleries/new`,
+          uploadMediaHref: benefitNotice ? null : `/members/${memberKey}/media/upload`,
+          benefitNotice,
           teaching,
           // Pre-shaped flash message so the template never branches on the
           // raw flash code.

@@ -1,7 +1,7 @@
 import { NextFunction, Response } from 'express';
 import { NotFoundError, ServiceUnavailableError, ValidationError } from '../services/serviceErrors';
 import { logger } from '../config/logger';
-import { ErrorPageContent, NavLink, PageViewModel } from '../types/page';
+import { ErrorPageContent, NavLink, PageViewModel, TierBenefitNotice } from '../types/page';
 
 /**
  * Every error surface on the site renders one template through these helpers.
@@ -65,6 +65,25 @@ export function renderForbidden(res: Response): void {
       ? 'You need to be signed in to view this page.'
       : "You don't have permission to view this page."],
     [signedOut ? SIGN_IN_ACTION : HOME_ACTION],
+  );
+}
+
+/**
+ * The refusal a member meets on a form that a benefit they do not hold stands
+ * behind. It answers the same 403 as the generic refusal and carries the same
+ * one error template, but it names the benefit and what unlocks it, because a
+ * member one purchase away from the feature learns nothing from being told they
+ * lack permission. The single control stands: an error page still offers one
+ * destination, and here the useful one is the route to the benefit rather than
+ * the front door.
+ */
+export function renderTierBenefitRequired(res: Response, notice: TierBenefitNotice): void {
+  renderErrorPage(
+    res,
+    403,
+    'Tier 1 Benefit Required',
+    [notice.lead, notice.explanation],
+    [{ label: notice.upgradeLabel, href: notice.upgradeHref }],
   );
 }
 

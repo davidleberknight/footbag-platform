@@ -7,10 +7,14 @@
     tag, and none of the excluded tags.
   </p>
 
-  <p>
-    <a href="{{content.uploadMediaHref}}" class="btn btn-primary">Upload Media</a>
-    <a href="{{content.newGalleryHref}}" class="btn">Create New Gallery</a>
-  </p>
+  {{#if content.benefitNotice}}
+    {{> _tier-benefit-notice notice=content.benefitNotice}}
+  {{else}}
+    <p>
+      <a href="{{content.uploadMediaHref}}" class="btn btn-primary">Upload Media</a>
+      <a href="{{content.newGalleryHref}}" class="btn">Create New Gallery</a>
+    </p>
+  {{/if}}
 
   {{#if content.savedMessage}}
     <div class="form-success-banner" role="status">
@@ -55,22 +59,27 @@
             </td>
             <td>{{itemCount}}</td>
             <td>
-              <a href="{{editHref}}">Edit</a>
+              {{! Without the benefits the row keeps its read and loses its
+                  write controls. The notice above the table says why once,
+                  rather than repeating itself on every row. }}
+              {{#unless ../content.benefitNotice}}<a href="{{editHref}}">Edit</a>{{/unless}}
               <a href="/media/{{id}}" target="_blank" rel="noopener noreferrer">View</a>
-              {{#if isDefault}}
-                <span class="text-muted">Created for you, and kept</span>
-              {{else if isConfirmDelete}}
-                <form method="POST" action="{{deleteHref}}" class="inline-form">
-                  <input type="hidden" name="confirmed" value="1" />
-                  <span class="text-secondary">Are you sure?</span>
-                  <button type="submit" class="btn-link-danger">Confirm Delete</button>
-                  <a href="{{../content.listHref}}">Cancel</a>
-                </form>
-              {{else}}
-                <form method="POST" action="{{deleteHref}}" class="inline-form" data-confirm="Delete this gallery? This cannot be undone.">
-                  <button type="submit" class="btn-link-danger">Delete</button>
-                </form>
-              {{/if}}
+              {{#unless ../content.benefitNotice}}
+                {{#if isDefault}}
+                  <span class="text-muted">Created for you, and kept</span>
+                {{else if isConfirmDelete}}
+                  <form method="POST" action="{{deleteHref}}" class="inline-form">
+                    <input type="hidden" name="confirmed" value="1" />
+                    <span class="text-secondary">Are you sure?</span>
+                    <button type="submit" class="btn-link-danger">Confirm Delete</button>
+                    <a href="{{../content.listHref}}">Cancel</a>
+                  </form>
+                {{else}}
+                  <form method="POST" action="{{deleteHref}}" class="inline-form" data-confirm="Delete this gallery? This cannot be undone.">
+                    <button type="submit" class="btn-link-danger">Delete</button>
+                  </form>
+                {{/if}}
+              {{/unless}}
             </td>
           </tr>
         {{/each}}

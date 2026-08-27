@@ -1142,8 +1142,8 @@ async function registerMember(
  * Outcome of combining the email-anchor check with name-variant candidates.
  * Read-only classification; never initiates a link.
  *
- * Tier 1/2 are only emitted when THREE anchors all agree:
- *   1. The member's login_email matches a legacy_members row.
+ * `high` and `medium` are only emitted when THREE anchors all agree:
+ *   1. One of the member's anchor emails matches a legacy_members row.
  *   2. A historical_persons row provenances to that legacy account
  *      (HP.legacy_member_id == legacy_members.legacy_member_id).
  *   3. findAutoLinkCandidates(real_name) returns exactly one candidate,
@@ -1151,6 +1151,11 @@ async function registerMember(
  *
  * Anything short of that collapses to `low` confidence (review). `none`
  * applies when there is no email anchor at all.
+ *
+ * The band decides how far the platform goes on its own before it asks the
+ * member, and nothing else. Which anchor email carried the match is recorded
+ * in `anchorSource` and sets the evidence-strength tag the confirmed claim is
+ * judged on later; it never raises or lowers the band itself.
  *
  * Note: `confidence` here is the auto-link match confidence, not the member
  * tier-grant level. The two are distinct concepts that share unrelated

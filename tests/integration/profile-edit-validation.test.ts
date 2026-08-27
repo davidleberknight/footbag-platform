@@ -178,16 +178,20 @@ describe('region must be an official state or province code', () => {
 
 // ── Legacy-claim anchors removed from Edit Profile ───────────────────────────
 
-describe('Edit Profile offers the claim task while a linkage is missing', () => {
-  it('shows the claim call-to-action to a member holding neither identity link', async () => {
-    // The claim task is the only claim and anchor surface, so this link is how
-    // a member who finished onboarding without claiming reaches it later.
+describe('Edit Profile offers a route to the missing linkage', () => {
+  it('sends a member holding neither identity link to an administrator', async () => {
+    // Claiming belongs to signing up and its wizard surface closes when signing
+    // up finishes, so a member who got here without claiming cannot be sent
+    // back to it. The identity-link topic of their own contact form is the
+    // route that still works, and it arrives preselected.
     const res = await request(createApp())
       .get(`/members/${MEMBER_SLUG}/edit`)
       .set('Cookie', ownCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('/register/wizard/legacy_claim');
-    expect(res.text).toContain('Link your legacy account, results, and clubs');
+    expect(res.text).toContain(`href="/members/${MEMBER_SLUG}/contact-admin?category`);
+    expect(res.text).toContain('identity_link_issue');
+    expect(res.text).toContain('Ask an administrator to link your history');
+    expect(res.text).not.toContain('/register/wizard/legacy_claim');
   });
 
   it('hides it once the member holds both identity links', async () => {
@@ -195,6 +199,7 @@ describe('Edit Profile offers the claim task while a linkage is missing', () => 
       .get(`/members/${LINKED_SLUG}/edit`)
       .set('Cookie', linkedCookie());
     expect(res.status).toBe(200);
+    expect(res.text).not.toContain('Ask an administrator to link');
     expect(res.text).not.toContain('/register/wizard/legacy_claim');
   });
 });

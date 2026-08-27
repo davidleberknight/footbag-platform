@@ -5,13 +5,17 @@
 
   Caller passes:
     teaching         — { exampleItems[], popularTags[], stats }
-    uploadMediaHref  — the member's upload form URL
+    uploadMediaHref  — the member's upload form URL, absent when the member does
+                       not hold the benefit that opens it (the caller states the
+                       benefit above this block instead)
 --}}
 <div class="teaching-empty-state">
   <p class="empty-state">You have not shared any photos or videos yet.</p>
-  <p>
-    <a href="{{uploadMediaHref}}" class="btn btn-primary">Upload Your First Media</a>
-  </p>
+  {{#if uploadMediaHref}}
+    <p>
+      <a href="{{uploadMediaHref}}" class="btn btn-primary">Upload Your First Media</a>
+    </p>
+  {{/if}}
 
   {{#if teaching.popularTags.length}}
     <div class="teaching-block">
