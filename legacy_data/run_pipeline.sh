@@ -103,17 +103,20 @@ curated_hashes() {
 }
 
 curated_lock() {
-    local t bad
-    # Whitespace in these paths would break the manifest parsing below. Refuse
-    # rather than mis-parse: a guard that quietly compares the wrong thing is
-    # worse than no guard.
-    bad="$(curated_present_trees | while read -r t; do find "$t" -name '* *' -o -name '*	*'; done)"
-    if [ -n "$bad" ]; then
-        echo "ERROR: curated guard cannot run — whitespace in a protected path:" >&2
-        echo "$bad" >&2
-        exit 1
-    fi
-    curated_present_trees | while read -r t; do find "$t" -printf '%m %p\n'; done > "$CURATED_MODES"
+    local t
+    # Mode and path go out as two separately NUL-delimited fields, so no filename
+    # can be misread. A space cannot split a mode from a path, and a newline
+    # cannot split one record into two, because the only delimiter is a byte that
+    # cannot occur in a filename at all.
+    #
+    # This used to refuse any protected path containing whitespace, on the
+    # grounds that mis-parsing is worse than not running. That was the right
+    # instinct and the wrong remedy: the curated trees hold hand-authored
+    # archival material, and magazine scans and the like legitimately carry
+    # spaces, so refusing left the most irreplaceable files in the repository
+    # unprotected and blocked every mirror-backed run on the machines that have
+    # them. Parsing them correctly is strictly better than refusing to look.
+    curated_present_trees | while read -r t; do find "$t" -printf '%m\0%p\0'; done > "$CURATED_MODES"
     curated_hashes > "$CURATED_HASHES_BEFORE"
     curated_present_trees | while read -r t; do chmod -R a-w "$t"; done
     echo "── Curated-tree guard ─────────────────────────────────────────────────"
@@ -127,7 +130,13 @@ curated_unlock_and_verify() {
         # `if` rather than `&&`: under `set -e` a trailing false test would end
         # the trap early and leave the rest of the trees locked, which is the
         # one outcome this function exists to make impossible.
-        while read -r mode path; do
+        #
+        # Two reads per record, matching the two NUL-delimited fields the lock
+        # wrote. `IFS=` keeps a leading or trailing space in a filename, which a
+        # bare `read` would strip and then restore the mode of a path that does
+        # not exist. Pairing the reads with `&&` means a truncated final record
+        # ends the loop rather than restoring a mode onto a half-read path.
+        while IFS= read -r -d '' mode && IFS= read -r -d '' path; do
             if [ -e "$path" ]; then
                 chmod "$mode" "$path"
             fi
