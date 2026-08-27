@@ -159,10 +159,102 @@ SELECTED_COMPANION = "companion column, unicode column double-encoded"
 SELECTED_REVERSED  = "double-encoding reversed, no clean companion"
 SELECTED_UNDAMAGED = "companion column, unicode column positively damaged"
 SELECTED_LEFT      = "left as delivered, not recoverable here"
+SELECTED_CURATED   = "companion column, decoded through the curated codepage"
+
+# The curated record of which codepage a member's name was written in.
+MEMBER_NAME_ENCODINGS_CSV = (
+    Path(__file__).resolve().parent.parent / "overrides" / "member_name_encodings.csv")
+
+# The encodings a curator may name. A closed set on purpose: the point of this
+# file is that a human decided, so an unrecognised value is a mistake to surface
+# rather than something to attempt.
+ALLOWED_CODEPAGES = frozenset({"cp1250", "cp1251", "iso8859-5"})
 
 
-def _resolve_pair(base_val: str, uni_val: str) -> tuple[str, str]:
+# Which stored column each curated field token names.
+CURATED_FIELD_COLUMNS = {
+    "given": "MemberFirstName",
+    "middle": "MemberMiddleName",
+    "surname": "MemberLastName",
+}
+
+
+def load_member_name_encodings(
+    path: Path = MEMBER_NAME_ENCODINGS_CSV,
+) -> dict[str, tuple[str, frozenset[str]]]:
+    """Curated member id -> (codepage, the columns it applies to).
+
+    The columns matter as much as the codepage. A member can have one name
+    written in a codepage nobody recorded while another is already correct, and
+    re-reading the correct one would damage it: a Czech surname holding a letter
+    that exists in both codepages decodes cleanly to the wrong letter, so it comes
+    out looking repaired and is wrong. The curator names the affected fields and
+    nothing else is touched.
+
+    An unknown codepage or field token is rejected loudly. A typo that silently
+    did nothing would leave a name corrupt while the file claimed it was handled,
+    which is the failure this record exists to prevent.
+    """
+    if not path.exists():
+        return {}
+    out: dict[str, tuple[str, frozenset[str]]] = {}
+    with path.open(newline="", encoding="utf-8") as fh:
+        for row in csv.DictReader(fh):
+            mid = (row.get("legacy_member_id") or "").strip()
+            cp = (row.get("codepage") or "").strip()
+            if not mid:
+                continue
+            if cp not in ALLOWED_CODEPAGES:
+                raise SystemExit(
+                    f"member_name_encodings.csv: member {mid} names codepage {cp!r}, "
+                    f"which is not one of {sorted(ALLOWED_CODEPAGES)}")
+            tokens = [t.strip() for t in (row.get("fields") or "").split("+") if t.strip()]
+            unknown = [t for t in tokens if t not in CURATED_FIELD_COLUMNS]
+            if not tokens or unknown:
+                raise SystemExit(
+                    f"member_name_encodings.csv: member {mid} names field(s) "
+                    f"{unknown or '(none)'}, expected some of "
+                    f"{sorted(CURATED_FIELD_COLUMNS)}")
+            out[mid] = (cp, frozenset(CURATED_FIELD_COLUMNS[t] for t in tokens))
+    return out
+
+
+def decode_through_codepage(text: str, codepage: str) -> str | None:
+    """The text re-read in the codepage it was written in, or None.
+
+    The stored value is text that was decoded as Western European from bytes that
+    were never Western European. Encoding it straight back recovers those bytes
+    exactly, and decoding them with the named codepage is what the legacy system
+    should have done. Both halves are exact: no character is inferred, replaced or
+    moved, and there is no scoring or preference anywhere in it.
+
+    None whenever the round trip cannot be made, and None when a destroyed
+    character survives it: naming an encoding cannot bring back a byte that is
+    already gone, and a value that still carries one is not repaired.
+    """
+    if not text:
+        return None
+    try:
+        out = text.encode("cp1252").decode(codepage)
+    except (UnicodeEncodeError, UnicodeDecodeError, LookupError):
+        return None
+    if not out or out == text:
+        return None
+    if "?" in out or "�" in out:
+        return None
+    return out
+
+
+def _resolve_pair(base_val: str, uni_val: str,
+                  codepage: str | None = None) -> tuple[str, str]:
     """Choose between a field's two stored spellings, and say why.
+
+    A curated codepage, when one is recorded for this member, is consulted first
+    and only for the plain column. That column is intact for those members; it was
+    simply written in an encoding nobody recorded, so every rule below reads it as
+    Western European and sees unrelated letters. Decoding it as the curator named
+    is exact, and it is skipped the moment it fails or leaves a destroyed
+    character, so an override can only ever produce a clean name or stand aside.
 
     The dump keeps most non-ASCII fields twice, and the Unicode column is the
     better source for ordinary rows, so it stays the default. On some rows that
@@ -176,6 +268,11 @@ def _resolve_pair(base_val: str, uni_val: str) -> tuple[str, str]:
     and no rule here can know what it was, so the value is passed through as
     delivered and counted as such.
     """
+    if codepage and base_val:
+        curated = decode_through_codepage(base_val, codepage)
+        if curated is not None:
+            return curated, SELECTED_CURATED
+
     chosen = uni_val if uni_val else base_val
     if not chosen:
         return "", SELECTED_UNICODE
@@ -217,8 +314,9 @@ def _resolve_pair(base_val: str, uni_val: str) -> tuple[str, str]:
     return chosen, SELECTED_LEFT
 
 
-def _prefer_unicode(rec: dict, base: str, uni: str) -> str:
-    value, _ = _resolve_pair(_val(rec, base), _val(rec, uni))
+def _prefer_unicode(rec: dict, base: str, uni: str,
+                    codepage: str | None = None) -> str:
+    value, _ = _resolve_pair(_val(rec, base), _val(rec, uni), codepage)
     return value
 
 
@@ -320,18 +418,25 @@ OTHER_PAIRS = [
     ("MemberCountry", "MemberCountryUnicode"),
 ]
 
-def audit_record_encoding(rec: dict) -> dict:
+def audit_record_encoding(rec: dict, codepage: str | None = None,
+                          fields: frozenset[str] = frozenset()) -> dict:
     """Report how each stored-twice field of one row resolved, and what is wrong
     with the ones that did not.
 
     Separate from map_record so that counting cannot drift from the mapping: the
-    same _resolve_pair decides both, and this only describes the outcome.
+    same _resolve_pair decides both, and this only describes the outcome. The
+    curated codepage is passed through for that reason: an audit that did not see
+    it would keep reporting a member as unrepaired after the curator had ruled.
     """
     outcomes: dict[str, str] = {}
     problems: list[dict] = []
     for base, uni in NAME_PAIRS + OTHER_PAIRS:
         base_val, uni_val = _val(rec, base), _val(rec, uni)
-        value, how = _resolve_pair(base_val, uni_val)
+        # The ruling covers named fields on named members. A location column, or
+        # a name column the curator did not list, must resolve here exactly as it
+        # does in the mapping.
+        cp = codepage if base in fields else None
+        value, how = _resolve_pair(base_val, uni_val, cp)
         outcomes[base] = how
         if not value or value.isascii():
             continue
@@ -360,11 +465,23 @@ def audit_record_encoding(rec: dict) -> dict:
     return {"outcomes": outcomes, "problems": problems}
 
 
-def map_record(rec: dict, cutover_epoch: int | None = None) -> dict:
+def map_record(rec: dict, cutover_epoch: int | None = None,
+               name_encodings: dict[str, str] | None = None) -> dict:
     """Map a members row to the canonical loader-input fields."""
-    first = _prefer_unicode(rec, "MemberFirstName", "MemberFirstNameUnicode")
-    middle = _prefer_unicode(rec, "MemberMiddleName", "MemberMiddleNameUnicode")
-    last = _prefer_unicode(rec, "MemberLastName", "MemberLastNameUnicode")
+    # Only the name columns consult the curated codepage. A member's city or
+    # country carrying the same damage is a different question and is not what
+    # was ruled on, and the surname is what gates their claim.
+    codepage, fields = (name_encodings or {}).get(_val(rec, "MemberID"), (None, frozenset()))
+
+    def cp_for(column: str) -> str | None:
+        return codepage if column in fields else None
+
+    first = _prefer_unicode(rec, "MemberFirstName", "MemberFirstNameUnicode",
+                            cp_for("MemberFirstName"))
+    middle = _prefer_unicode(rec, "MemberMiddleName", "MemberMiddleNameUnicode",
+                             cp_for("MemberMiddleName"))
+    last = _prefer_unicode(rec, "MemberLastName", "MemberLastNameUnicode",
+                           cp_for("MemberLastName"))
     real_name = " ".join(p for p in (first, middle, last) if p)
     alias = _val(rec, "MemberAlias")
     expiration = _val(rec, "MemberIFPAExpiration")
@@ -556,21 +673,25 @@ def extract(members_sql: Path, out_csv: Path, cutover_date: str | None = None,
     name_repair: dict[str, set[str]] = {
         SELECTED_COMPANION: set(), SELECTED_REVERSED: set(),
         SELECTED_UNDAMAGED: set(), SELECTED_LEFT: set(),
+        SELECTED_CURATED: set(),
     }
     city_repair: dict[str, set[str]] = {
         SELECTED_COMPANION: set(), SELECTED_REVERSED: set(),
         SELECTED_UNDAMAGED: set(), SELECTED_LEFT: set(),
+        SELECTED_CURATED: set(),
     }
     problems: list[dict] = []
+    name_encodings = load_member_name_encodings()
 
     out_csv.parent.mkdir(parents=True, exist_ok=True)
     with out_csv.open("w", newline="", encoding="utf-8") as fh:
         w = csv.DictWriter(fh, fieldnames=OUTPUT_FIELDS, lineterminator="\n")
         w.writeheader()
         for rec in iter_member_rows(sql, columns):
-            mapped = map_record(rec, cutover_epoch)
+            mapped = map_record(rec, cutover_epoch, name_encodings)
             examined += 1
-            audit = audit_record_encoding(rec)
+            cp_rule = name_encodings.get(_val(rec, "MemberID"), (None, frozenset()))
+            audit = audit_record_encoding(rec, cp_rule[0], cp_rule[1])
             member_id = mapped["legacy_member_id"] or ""
             for base, how in audit["outcomes"].items():
                 if how == SELECTED_UNICODE:
@@ -633,9 +754,14 @@ def extract(members_sql: Path, out_csv: Path, cutover_date: str | None = None,
         "email_population": email_pop,
         "name_repair": {k: len(v) for k, v in name_repair.items()},
         "city_repair": {k: len(v) for k, v in city_repair.items()},
+        # Every member whose name did not come through as the unicode column
+        # delivered it, whichever route decided the value — including the curated
+        # codepage, which is a repair and not a fifth kind of failure.
         "name_members_repaired": len(
             name_repair[SELECTED_COMPANION] | name_repair[SELECTED_REVERSED]
-            | name_repair[SELECTED_UNDAMAGED] | name_repair[SELECTED_LEFT]),
+            | name_repair[SELECTED_UNDAMAGED] | name_repair[SELECTED_LEFT]
+            | name_repair[SELECTED_CURATED]),
+        "name_members_by_curated_codepage": len(name_repair[SELECTED_CURATED]),
         "encoding_problems": len(problems),
         "encoding_problems_csv": problems_csv,
         "tier_flags": tier_flags,

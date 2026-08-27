@@ -26,17 +26,22 @@ REQUIRE_ENV = "FOOTBAG_REQUIRE_DUMP"
 
 # The audited result for the delivery in hand. Every figure is a property of that
 # dump, not of the extractor.
-AFFECTED_NAME_MEMBERS = 139
+AFFECTED_NAME_MEMBERS = 161
 BY_CLEAN_COMPANION = 131
 BY_REVERSAL = 6
 BY_UNDAMAGED_COMPANION = 2
 BLOCKED_IN_REPAIR_CLASS = 0
 AFFECTED_CITY_MEMBERS = 0
+# Members whose name is decoded through a codepage a curator recorded for them,
+# after a ruling on the values no automatic rule could resolve. Purely additive:
+# every figure above is what it was before that ruling, because the curated route
+# reaches only the fields the curator named and those fields had no other route.
+BY_CURATED_CODEPAGE = 26
 # Counted per field value, not per member, and deliberately not added to the
 # figures above: some of these members had a different field repaired
 # successfully in the same run.
-RESIDUAL_PROBLEM_VALUES = 47
-RESIDUAL_PROBLEM_MEMBERS = 31
+RESIDUAL_PROBLEM_VALUES = 5
+RESIDUAL_PROBLEM_MEMBERS = 5
 
 # Two members whose name is recovered from an intact companion column because
 # the preferred value carries a destroyed character. Named individually because
@@ -83,6 +88,8 @@ def test_name_repair_breakdown_matches_the_audited_delivery(extraction):
     assert repair[elm.SELECTED_REVERSED] == BY_REVERSAL
     assert repair[elm.SELECTED_UNDAMAGED] == BY_UNDAMAGED_COMPANION
     assert repair[elm.SELECTED_LEFT] == BLOCKED_IN_REPAIR_CLASS
+    assert repair[elm.SELECTED_CURATED] == BY_CURATED_CODEPAGE
+    assert stats["name_members_by_curated_codepage"] == BY_CURATED_CODEPAGE
 
 
 def test_no_city_value_needs_repair_in_this_delivery(extraction):

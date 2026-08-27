@@ -1,0 +1,27 @@
+legacy_member_id,codepage,fields,note
+70559,cp1250,surname,Central European
+78092,cp1250,middle,Central European
+81058,cp1250,middle,Central European
+81067,cp1250,middle,Central European
+81147,cp1250,given,Central European
+81161,cp1250,surname,Central European
+81180,cp1250,surname,Central European
+81242,iso8859-5,middle+surname,Cyrillic; cp1251 yields nonsense
+81321,cp1250,given,Central European
+81333,cp1251,given+surname,Cyrillic
+81414,iso8859-5,given+middle+surname,Cyrillic; cp1251 yields nonsense
+81492,iso8859-5,given+surname,Cyrillic; cp1251 yields nonsense
+81506,cp1251,given+middle+surname,Cyrillic
+81511,iso8859-5,given+middle+surname,Cyrillic; cp1251 yields nonsense
+81797,cp1250,given,Central European
+82357,cp1250,given,Central European
+82366,cp1250,surname,Central European
+82417,iso8859-5,given+surname,Cyrillic; cp1251 yields nonsense
+82418,iso8859-5,given+middle+surname,Cyrillic; cp1251 yields nonsense
+82685,iso8859-5,given+surname,Cyrillic; cp1251 yields nonsense
+82691,iso8859-5,given+middle+surname,Cyrillic; cp1251 yields nonsense
+82696,iso8859-5,given+surname,Cyrillic; cp1251 yields nonsense
+82768,cp1250,surname,Central European
+82832,cp1250,given,Central European
+82881,cp1250,given,Central European
+83240,cp1251,surname,Cyrillic
