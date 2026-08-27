@@ -1148,6 +1148,10 @@ export interface AuditEntryOverrides {
   category?: string;
   reason_text?: string | null;
   metadata?: Record<string, unknown>;
+  /** When the event happened, for a reader that groups or filters by period.
+   *  Defaults to the shared fixture timestamp, so a suite that does not care
+   *  about time gets the same row it always did. */
+  occurred_at?: string;
   // Verbatim metadata_json, bypassing JSON.stringify. The only use is seeding a
   // deliberately invalid metadata_json (the column has no JSON CHECK) to prove
   // a reader survives corrupt metadata; normal callers pass `metadata`.
@@ -1279,7 +1283,7 @@ export function insertAuditEntry(db: BetterSqlite3.Database, o: AuditEntryOverri
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id, TS, o.created_by ?? SYS,
-    TS, o.actor_type ?? 'system', o.actor_member_id ?? null,
+    o.occurred_at ?? TS, o.actor_type ?? 'system', o.actor_member_id ?? null,
     o.action_type, o.entity_type ?? 'member', o.entity_id,
     o.category ?? 'identity', o.reason_text ?? null,
     metadataJson,

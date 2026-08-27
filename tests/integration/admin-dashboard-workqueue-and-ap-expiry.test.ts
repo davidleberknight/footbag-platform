@@ -64,7 +64,11 @@ describe('admin dashboard work-queue summary', () => {
     expect(byCategory.membership.count).toBe(2);
     expect(byCategory.membership.hasUrgent).toBe(true);
     expect(byCategory.membership.label).toBe('Membership');
-    expect(byCategory.membership.href).toBe('/admin/work-queue');
+    // Each count leads to its own category. Sending them all to the queue root
+    // makes the administrator find their category again by eye, which is the
+    // work the number was meant to save.
+    expect(byCategory.membership.href).toBe('/admin/work-queue?category=membership');
+    expect(byCategory.events.href).toBe('/admin/work-queue?category=events');
 
     expect(byCategory.events.count).toBe(1);
     expect(byCategory.events.hasUrgent).toBe(false);

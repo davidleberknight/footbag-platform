@@ -1,11 +1,13 @@
 /**
  * Admin audit-log viewer service.
  *
- * Owns: the read-and-shape surface for the admin audit-log page over
- * `audit_entries`, and the audit-of-audit write that records each admin's
- * access to it. Does not own: writing domain audit rows (that is each owning
- * service via `appendAuditEntry`), or any mutation of `audit_entries` (the
- * table is append-only and immutable).
+ * Owns: the read-and-shape surface for the admin audit-log page and its
+ * periodic summary over `audit_entries`, and the audit-of-audit write that
+ * records each admin's access to either. The summary takes the same filters as
+ * the list, so it is the filtered view aggregated rather than a second question
+ * with a scope of its own. Does not own: writing domain audit rows (that is
+ * each owning service via `appendAuditEntry`), or any mutation of
+ * `audit_entries` (the table is append-only and immutable).
  *
  * Audience: admin only (Sensitivity 4). The page is read-only; it never edits
  * or deletes entries. Content is shown as logged: domain rows already exclude
@@ -21,6 +23,7 @@ import {
   queryAuditLog,
   countAuditLog,
   listAuditLogCategories,
+  summarizeAuditLogByMonthAndCategory,
   type AuditLogFilters,
   type AuditLogQueryRow,
 } from '../db/db';
@@ -80,6 +83,22 @@ export interface AuditLogContent {
   actorTypeOptions: string[];
   exportCsvHref: string;
   exportJsonHref: string;
+  summaryHref: string;
+}
+
+/** One month of the periodic summary: its categories and their counts. */
+export interface AuditSummaryMonth {
+  month: string;
+  monthLabel: string;
+  total: number;
+  rows: Array<{ category: string; count: number }>;
+}
+
+export interface AuditLogSummaryContent {
+  months: AuditSummaryMonth[];
+  hasMonths: boolean;
+  rangeSummary: string;
+  backHref: string;
 }
 
 // Real business is unlabelled and everything else is called out, the same
@@ -141,6 +160,40 @@ function exportHref(q: AuditLogQuery, format: 'csv' | 'json'): string {
   const p = filterParams(q);
   p.set('format', format);
   return `/admin/audit-log/export?${p.toString()}`;
+}
+
+function summaryHref(q: AuditLogQuery): string {
+  const qs = filterParams(q).toString();
+  return qs ? `/admin/audit-log/summary?${qs}` : '/admin/audit-log/summary';
+}
+
+/** How many months the summary covers when the reader named no range. */
+const SUMMARY_DEFAULT_MONTHS = 12;
+
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
+/** '2026-08' as 'August 2026'. Unparseable input is shown as it was stored. */
+function monthLabel(month: string): string {
+  const m = /^(\d{4})-(\d{2})$/.exec(month);
+  if (!m) return month;
+  const name = MONTH_NAMES[Number(m[2]) - 1];
+  return name ? `${name} ${m[1]}` : month;
+}
+
+/**
+ * The start of the window when the reader named no dates. Without one the
+ * summary would grow a row per month forever and the recent months, which are
+ * the ones anyone is reporting on, would sink down the page.
+ */
+function defaultSummaryFrom(nowMs: number): string {
+  const d = new Date(nowMs);
+  d.setUTCDate(1);
+  d.setUTCHours(0, 0, 0, 0);
+  d.setUTCMonth(d.getUTCMonth() - (SUMMARY_DEFAULT_MONTHS - 1));
+  return d.toISOString();
 }
 
 // Quote a CSV cell when it carries a delimiter, quote, or newline; an internal
@@ -247,6 +300,53 @@ export const auditLogService = {
         actorTypeOptions: [...ACTOR_TYPES],
         exportCsvHref: exportHref(q, 'csv'),
         exportJsonHref: exportHref(q, 'json'),
+        summaryHref: summaryHref(q),
+      },
+    };
+  },
+
+  /**
+   * The periodic summary the audit story asks for: counts per category per
+   * month. It takes the same filters as the list, so it is the filtered view
+   * aggregated rather than a second, differently-scoped question, and a reader
+   * who narrowed the list can carry that narrowing straight into the summary.
+   */
+  getAuditLogSummaryPage(q: AuditLogQuery): PageViewModel<AuditLogSummaryContent> {
+    return runSqliteRead('admin audit log summary page', () => this.readAuditLogSummaryPage(q));
+  },
+
+  readAuditLogSummaryPage(q: AuditLogQuery): PageViewModel<AuditLogSummaryContent> {
+    const { filters } = normalize(q);
+    const windowed: AuditLogFilters = {
+      ...filters,
+      fromDate: filters.fromDate ?? defaultSummaryFrom(Date.now()),
+    };
+    const rows = summarizeAuditLogByMonthAndCategory(windowed);
+
+    const byMonth = new Map<string, AuditSummaryMonth>();
+    for (const r of rows) {
+      const entry = byMonth.get(r.month) ?? {
+        month: r.month,
+        monthLabel: monthLabel(r.month),
+        total: 0,
+        rows: [],
+      };
+      entry.rows.push({ category: r.category, count: r.n });
+      entry.total += r.n;
+      byMonth.set(r.month, entry);
+    }
+    const months = [...byMonth.values()];
+
+    return {
+      seo: { title: 'Audit Summary', noindex: true },
+      page: { sectionKey: 'admin', pageKey: 'admin_audit_summary', title: 'Audit Summary' },
+      content: {
+        months,
+        hasMonths: months.length > 0,
+        rangeSummary: filters.fromDate === null
+          ? `Counts per category for the last ${SUMMARY_DEFAULT_MONTHS} months.`
+          : 'Counts per category over the dates you selected.',
+        backHref: hrefFor(q, 1),
       },
     };
   },

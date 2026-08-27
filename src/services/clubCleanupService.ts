@@ -10,8 +10,9 @@
  *   - `stale_provisional_leader` predicate
  *   - Admin club cleanup queue page shaping (with category/region filter
  *     and sort, applied in-service on the assembled queue)
- *   - Admin-home backlog badge (open-item count plus oldest-item age,
- *     computed from the same queue assembly so badge and queue agree)
+ *   - Admin-home backlog badge (open-item count plus oldest-item age, and the
+ *     same figures for the review half alone, computed from the same queue
+ *     assembly so badge and queue agree)
  *   - Admin club cleanup resolution (demote, archive, dismiss, park). A parked
  *     club stays in the parked listing until the working queue has actually
  *     taken it back, so no club falls between the two listings. The action, the
@@ -699,6 +700,17 @@ export interface BacklogBadge {
   oldestOpenAt: string | null;
   oldestOpenAgeLabel: string | null;
   hasBacklog: boolean;
+  /** The queue's two halves, counted apart. A club with no co-leader is a
+   *  tolerated state and an opportunity, not remediation work, and before
+   *  members have claimed their clubs it matches most of the active universe.
+   *  Blended into one figure it reads as a backlog nobody could ever work
+   *  down, which is the opposite of what the queue is telling an admin. */
+  reviewCount: number;
+  opportunityCount: number;
+  /** Age of the oldest item that actually wants a decision. Opportunities are
+   *  excluded for the same reason: an old one is not a queue falling behind. */
+  oldestReviewOpenAt: string | null;
+  oldestReviewOpenAgeLabel: string | null;
 }
 
 function monthsAgeLabel(since: string): string {
@@ -1336,7 +1348,9 @@ function getCleanupQueuePage(filter?: CleanupQueueFilter): PageViewModel<Cleanup
 }
 
 // Backlog badge for the admin home page: how much queue work is waiting and
-// how long the oldest item has waited, visible without opening the queue.
+// how long the oldest item has waited, visible without opening the queue, with
+// the review half and the opportunity half counted apart so the admin home can
+// show them as the different things they are.
 // Evaluated fresh on each admin-home load; there is no background process.
 function getBacklogBadge(): BacklogBadge {
   const { items, residue, candidates, junkCandidates, candidateFlags } = assembleQueue();
@@ -1352,11 +1366,28 @@ function getBacklogBadge(): BacklogBadge {
   ].filter((t) => typeof t === 'string' && t.length > 0);
   const oldestOpenAt = timestamps.length ? timestamps.reduce((a, b) => (a < b ? a : b)) : null;
 
+  const opportunities = items.filter((i) => i.isOpportunity === true);
+  const opportunityCount = opportunities.length;
+  const reviewTimestamps = [
+    ...items.filter((i) => i.isOpportunity !== true).map((i) => i.openSince),
+    ...residue.map((r) => r.oldestPendingAt),
+    ...candidates.map((c) => c.createdAt),
+    ...junkCandidates.map((c) => c.createdAt),
+    ...candidateFlags.map((c) => c.oldestFlagAt),
+  ].filter((t) => typeof t === 'string' && t.length > 0);
+  const oldestReviewOpenAt = reviewTimestamps.length
+    ? reviewTimestamps.reduce((a, b) => (a < b ? a : b))
+    : null;
+
   return {
     openCount,
     oldestOpenAt,
     oldestOpenAgeLabel: oldestOpenAt ? monthsAgeLabel(oldestOpenAt) : null,
     hasBacklog: openCount > 0,
+    reviewCount: openCount - opportunityCount,
+    opportunityCount,
+    oldestReviewOpenAt,
+    oldestReviewOpenAgeLabel: oldestReviewOpenAt ? monthsAgeLabel(oldestReviewOpenAt) : null,
   };
 }
 

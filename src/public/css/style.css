@@ -3464,6 +3464,69 @@ section.home-media { padding-top: 0; }
 .btn-link-danger:hover { color: var(--danger-text); }
 .work-queue-item { margin-bottom: 14px; }
 
+/* ── Admin: dashboard queue rows and navigation groups ───────── */
+/* A queue on the admin home page is a row, not a card. The page carries one
+   row per queue and a link for every admin surface, and card chrome around
+   each of those turns a page an administrator scans in a glance into a page
+   they scroll. The row keeps the card's hover affordance and drops everything
+   else: no border, no padding block, no description. */
+.admin-queue-row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  padding: 5px 10px;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  text-decoration: none;
+}
+.admin-queue-row:hover { background: var(--bg-light); }
+.admin-queue-row-label { font-weight: 600; min-width: 150px; }
+.admin-queue-row-meta { font-size: 0.9rem; color: var(--text-muted); }
+
+/* The admin home is an index, not a reading page: it is scanned for a number
+   and left again. It therefore takes a tighter rhythm than the browse pages
+   the site default is tuned for, scoped to this page so nothing else shifts,
+   and tiles its blocks side by side rather than stacking four screens of them. */
+.admin-dashboard section { padding: 20px 0; }
+.admin-dashboard .section-heading { margin-bottom: 8px; }
+.admin-tile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 8px 32px;
+  align-items: start;
+}
+/* A grid child defaults to min-content width, so a long meta line inside one
+   tile would widen its column and push the page sideways. */
+.admin-tile { min-width: 0; }
+/* Prose inside a wide tile still takes a reading measure; the tile keeps its
+   width for the rows, which carry their own structure. */
+.admin-tile-note {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  max-width: 60ch;
+  margin: 4px 0 0 10px;
+}
+
+/* The navigation half. Groups size themselves to the content rather than to a
+   fixed column count, so adding a surface to one group never reflows the rest
+   into a different arrangement. */
+.admin-goto-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 12px 24px;
+}
+.admin-goto-group h3 {
+  font-size: 1rem;
+  margin-bottom: 4px;
+}
+.admin-goto-group ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.admin-goto-group li { margin-bottom: 2px; font-size: 0.9rem; }
+
 /* ── Admin: email-log template-body disclosure ───────────────── */
 .email-log-template summary { cursor: pointer; font-size: 0.9em; color: var(--text-muted); padding: 0.25rem 0; }
 .email-log-template pre {
@@ -3625,6 +3688,12 @@ section.home-media { padding-top: 0; }
   .browse-search-form { flex-direction: column; align-items: stretch; }
   .browse-search-form .browse-search-input { max-width: none; width: 100%; }
   .browse-search-form .btn { width: 100%; }
+
+  /* Admin queue rows: the label column reserves width so the badges line up
+     across rows, which stops being worth anything once the row wraps. */
+  .admin-queue-row-label { min-width: 0; }
+  .admin-goto-grid { grid-template-columns: 1fr; }
+  .admin-tile-grid { grid-template-columns: 1fr; gap: 16px; }
 }
 
 /* ==========================================================================

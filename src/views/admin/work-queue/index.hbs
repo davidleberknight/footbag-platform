@@ -6,6 +6,12 @@
 </div>
 
 <div class="wrapper">
+  {{#if content.isFiltered}}
+    <p class="card-meta">
+      Showing {{content.filterLabel}} only, out of {{content.wholeQueueTotal}} open across the whole queue.
+      <a href="/admin/work-queue">Show every category</a>
+    </p>
+  {{/if}}
   {{#if content.resolvedFlag}}
     <p class="form-success-banner" role="status">Item resolved and email reply dispatched.</p>
   {{/if}}
@@ -67,10 +73,12 @@
           {{else if lapsedClaimByName}}
             <p class="card-meta">{{lapsedClaimByName}} claimed this earlier and has not closed it. It is open to anyone again.</p>
             <form method="POST" action="/admin/work-queue/{{id}}/claim" class="form-block">
+              <input type="hidden" name="category" value="{{@root.content.filterCategory}}" />
               <button type="submit" class="btn btn-outline btn-sm">Claim</button>
             </form>
           {{else}}
             <form method="POST" action="/admin/work-queue/{{id}}/claim" class="form-block">
+              <input type="hidden" name="category" value="{{@root.content.filterCategory}}" />
               <button type="submit" class="btn btn-outline btn-sm">Claim</button>
             </form>
           {{/if}}
@@ -103,6 +111,7 @@
               <details class="queue-ask-member" {{#if askOpen}}open{{/if}}>
                 <summary>Ask the member</summary>
                 <form method="POST" action="/admin/work-queue/{{id}}/ask-member" class="form-block">
+                  <input type="hidden" name="category" value="{{@root.content.filterCategory}}" />
                   <div class="form-field">
                     <label for="ask_kind_{{id}}">What do you need back?</label>
                     <select id="ask_kind_{{id}}" name="expectedAnswerKind" required>
@@ -160,6 +169,7 @@
               <p class="card-meta">This member has not attempted a claim, so there is no evidence on file yet.</p>
             {{/if}}
             <form method="POST" action="/admin/work-queue/{{id}}/link-help/approve" class="form-block">
+              <input type="hidden" name="category" value="{{@root.content.filterCategory}}" />
               <div class="form-field">
                 <label for="link_help_target_{{id}}">Legacy account id to link</label>
                 <input id="link_help_target_{{id}}" name="target_legacy_member_id" maxlength="200" />
@@ -172,6 +182,7 @@
               <button type="submit" class="btn btn-primary btn-sm">Approve and Link</button>
             </form>
             <form method="POST" action="/admin/work-queue/{{id}}/link-help/reject" class="form-block">
+              <input type="hidden" name="category" value="{{@root.content.filterCategory}}" />
               <div class="form-field">
                 <label for="link_help_reason_{{id}}">Rejection reason</label>
                 <textarea id="link_help_reason_{{id}}" name="reason" rows="2" maxlength="500" required></textarea>
@@ -180,6 +191,7 @@
             </form>
             {{#if linkHelp.isDispute}}
             <form method="POST" action="/admin/work-queue/{{id}}/link-help/dispute-revert" class="form-block">
+              <input type="hidden" name="category" value="{{@root.content.filterCategory}}" />
               <div class="form-field">
                 <label for="dispute_legacy_{{id}}">Disputed legacy account id</label>
                 <input id="dispute_legacy_{{id}}" name="target_legacy_member_id" maxlength="200" />
@@ -208,6 +220,7 @@
             {{/if}}
           {{else if isReviewFlag}}
             <form method="POST" action="/admin/work-queue/{{id}}/dismiss" class="form-block">
+              <input type="hidden" name="category" value="{{@root.content.filterCategory}}" />
               <div class="form-field">
                 <label for="review_note_{{id}}">Review note (optional)</label>
                 <textarea id="review_note_{{id}}" name="note" rows="2" maxlength="500" placeholder="Internal note; not sent to the member"></textarea>
@@ -219,6 +232,7 @@
             <p><a href="/admin/payments/reconciliation" class="btn btn-outline btn-sm">Review on the Reconciliation Page</a></p>
           {{else if showResolveForm}}
             <form method="POST" action="/admin/work-queue/{{id}}/resolve" class="form-block">
+              <input type="hidden" name="category" value="{{@root.content.filterCategory}}" />
               <div class="form-field">
                 <label for="decision_label_{{id}}">Decision</label>
                 <select id="decision_label_{{id}}" name="decision_label" required>

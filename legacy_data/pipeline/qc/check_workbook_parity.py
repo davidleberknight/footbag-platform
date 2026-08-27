@@ -24,7 +24,8 @@ canonical_input is the workbook's source of truth.
 ## Exit codes
 
     0  PASS — counts match
-    0  SKIP — release workbook absent (nothing to compare)
+    0  SKIP — release workbook absent, or older than canonical_input/events.csv
+           (nothing comparable to compare)
     1  FAIL — counts differ
     2  ERROR — canonical_input/events.csv absent or unreadable
 """
@@ -33,6 +34,7 @@ from __future__ import annotations
 
 import csv
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -49,6 +51,13 @@ SHEET_NAME = "EVENT INDEX"
 # Data rows are identified by a first-column value that parses as a year.
 _YEAR_MIN = 1970
 _YEAR_MAX = 2030
+
+
+def iso_mtime(path: Path) -> str:
+    """The file's modification time as a UTC stamp naming its zone, matching how
+    every other operator-facing timestamp in this project is written."""
+    stamp = datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc)
+    return stamp.strftime("%Y-%m-%d %H:%M:%S UTC")
 
 
 def count_canonical_events(path: Path) -> int:
@@ -111,6 +120,23 @@ def main() -> int:
         print(f"\nSKIP: release workbook not found (expected at {workbook}).")
         print(f"canonical_input/events.csv rows: {canonical_count}")
         print("No comparison performed.")
+        return 0
+
+    # A workbook older than the events file it is an identity pass over is not
+    # evidence of anything: the two were built from different canonical sets, so
+    # a difference measures their age gap rather than a fault in the builder.
+    # This is the normal state of a csv_only build, which rebuilds canonical_input
+    # and deliberately leaves the workbook to the mirror pipeline, so failing here
+    # would report a defect on every such run for as long as an old workbook sits
+    # on disk.
+    if workbook.stat().st_mtime < canonical_input.stat().st_mtime:
+        print(f"\nSKIP: release workbook is older than {canonical_input.name}.")
+        print(f"  workbook:        {workbook} ({iso_mtime(workbook)})")
+        print(f"  canonical_input: {canonical_input} ({iso_mtime(canonical_input)})")
+        print("The two were built from different canonical sets, so their counts")
+        print("are not comparable. Rebuild the workbook through the mirror")
+        print("pipeline (./run_pipeline.sh full) to compare them.")
+        print(f"canonical_input/events.csv rows: {canonical_count}")
         return 0
 
     try:

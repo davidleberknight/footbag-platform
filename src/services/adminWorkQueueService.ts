@@ -15,9 +15,11 @@
  *     low-confidence auto-link match and the administrator-loss recruitment
  *     alert): closes the row with an audit entry
  *     and sends NO member email, unlike contact-request resolution
- *   - Admin work-queue page shaping (all open items grouped by category,
- *     including structured link-help payload display) and the per-category
- *     summary for the admin dashboard work-queue card
+ *   - Admin work-queue page shaping (open items grouped by category, optionally
+ *     narrowed to one category, including structured link-help payload display)
+ *   - The admin dashboard's two work-queue reads: the per-category open counts,
+ *     and how much of the queue the viewing administrator is holding, decided by
+ *     the digest's own claim rule so the page and the digest email agree
  *
  * Does not own:
  *   - Link-help request workflow (IdentityAccessService; this service routes the
@@ -241,7 +243,7 @@ function validatePaymentDecisionLabel(d: unknown): PaymentDecisionLabel {
 // form per row. Category and task-type display labels live here so the
 // admin controller stays a thin HTTP adapter.
 
-const WORK_QUEUE_CATEGORY_LABELS: Record<string, string> = {
+export const WORK_QUEUE_CATEGORY_LABELS: Record<string, string> = {
   events:          'Events',
   media:           'Media',
   membership:      'Membership',
@@ -251,8 +253,24 @@ const WORK_QUEUE_CATEGORY_LABELS: Record<string, string> = {
   club_leadership: 'Club leadership',
 };
 
+// The categories anything in `src/` can actually enqueue into today. The label
+// map above is wider because the schema's CHECK constraint is wider, and a
+// category no producer writes to is not an empty queue: it is a queue that
+// cannot exist yet, and showing a permanent zero for one tells an admin they
+// are up to date on work the platform has no way to create. Events, media and
+// elections wait on their own surfaces being built; club leadership is
+// different again, because that queue does exist and lives in the club cleanup
+// queue rather than here. A unit test reads every enqueue call site in `src/`
+// and fails if this list drifts from what the code can actually produce.
+export const LIVE_WORK_QUEUE_CATEGORIES: readonly string[] = [
+  'membership',
+  'payments',
+  'system',
+];
+
 const WORK_QUEUE_TASK_TYPE_LABELS: Record<string, string> = {
   member_contact_request:    'Member contact request',
+  membership_overcharge_review: 'Membership paid for but not granted',
   auto_link_match:           'Auto-link match',
   member_link_help_request:  'Member link help request',
   recurring_donation_charge_declined: 'Recurring donation renewal charge declined',
@@ -406,7 +424,19 @@ export interface WorkQueueGroup {
 
 export interface WorkQueueContent {
   groups: WorkQueueGroup[];
+  /** Items on the page, which is the filtered count when a filter is on. */
   totalOpen: number;
+  /** The category being shown alone, named for the reader; null when showing all. */
+  filterLabel: string | null;
+  /** The same category as its key, for the forms that carry it back so an
+   *  action does not drop the administrator out of the category they are
+   *  working. Carried in the body rather than the action URL, because a
+   *  template may not assemble a URL from more than one value. */
+  filterCategory: string | null;
+  isFiltered: boolean;
+  /** How many items the unfiltered queue holds, so a filtered state can say
+   *  what it is a subset of rather than leaving the reader to guess. */
+  wholeQueueTotal: number;
   resolvedFlag: boolean;
   /** A resolution that notified no member (a system-raised payments task, or a
    *  contact request whose member has no email): confirmed without claiming an
@@ -436,6 +466,12 @@ export interface WorkQueueSummaryCategory {
   count: number;
   hasUrgent: boolean;
   href: string;
+}
+
+/** What one administrator is holding, and what the rest of the team is. */
+export interface WorkQueueClaimSummary {
+  claimedByYou: number;
+  heldByOthers: number;
 }
 
 export interface WorkQueueSummary {
@@ -1000,10 +1036,43 @@ export const adminWorkQueueService = {
         label: WORK_QUEUE_CATEGORY_LABELS[category] ?? category,
         count: acc.count,
         hasUrgent: acc.hasUrgent,
-        href: '/admin/work-queue',
+        // Each count leads to its own category rather than to the queue root.
+        // Sending every count to one undifferentiated page makes the
+        // administrator find their category again by eye, which is the work the
+        // number was supposed to have saved them.
+        href: `/admin/work-queue?category=${category}`,
       }))
       .sort((a, b) => a.label.localeCompare(b.label));
     return { categories, totalOpen: rows.length, hasOpen: rows.length > 0 };
+  },
+
+  /**
+   * How much of the open queue this administrator is personally holding.
+   *
+   * The rule is the digest's, not a second one: a claim counts only while it is
+   * younger than the staleness cutoff, so an administrator who claimed an item
+   * and went away stops holding it rather than holding it forever. Reading it
+   * here through the same two helpers the digest uses is what keeps an
+   * administrator's home page and their digest email saying the same thing.
+   */
+  getClaimSummary(adminMemberId: string): WorkQueueClaimSummary {
+    return runSqliteRead('admin dashboard claim summary', () => this.readClaimSummary(adminMemberId));
+  },
+
+  readClaimSummary(adminMemberId: string): WorkQueueClaimSummary {
+    const rows = workQueue.listOpenForAdmin.all() as Array<{
+      claimed_by_member_id: string | null;
+      claimed_at: string | null;
+    }>;
+    const staleCutoffIso = claimStaleCutoffIso();
+    let claimedByYou = 0;
+    let heldByOthers = 0;
+    for (const r of rows) {
+      if (!claimIsLive(r.claimed_at, staleCutoffIso)) continue;
+      if (r.claimed_by_member_id === adminMemberId) claimedByYou += 1;
+      else heldByOthers += 1;
+    }
+    return { claimedByYou, heldByOthers };
   },
 
   /**
@@ -1022,6 +1091,8 @@ export const adminWorkQueueService = {
     memberAskedFlag?: boolean;
     /** A deep link naming the item whose composer should open already drafted. */
     askItemId?: string | null;
+    /** Show one category alone. An unknown value shows the whole queue. */
+    category?: string | null;
     errorMessage?: string;
   }): PageViewModel<WorkQueueContent> {
     // A contended database renders the standard temporarily-unavailable page
@@ -1040,9 +1111,23 @@ export const adminWorkQueueService = {
     memberAskedFlag?: boolean;
     /** A deep link naming the item whose composer should open already drafted. */
     askItemId?: string | null;
+    /** Show one category alone. An unknown value shows the whole queue. */
+    category?: string | null;
     errorMessage?: string;
   }): PageViewModel<WorkQueueContent> {
-    const rows = this.listOpenForAdmin();
+    // An unrecognized category shows the whole queue rather than an error page:
+    // this is an administrator's read-only surface reached from a link, and a
+    // stale or mistyped one is better answered with everything than with a
+    // refusal.
+    const filterCategory = opts.category && WORK_QUEUE_CATEGORY_LABELS[opts.category]
+      ? opts.category
+      : null;
+
+    const allRows = this.listOpenForAdmin();
+    const rows = filterCategory === null
+      ? allRows
+      : allRows.filter((r) => r.queueCategory === filterCategory);
+
     const groupMap = new Map<string, WorkQueueViewItem[]>();
     for (const r of rows) {
       const arr = groupMap.get(r.queueCategory) ?? [];
@@ -1063,6 +1148,14 @@ export const adminWorkQueueService = {
       content: {
         groups,
         totalOpen: rows.length,
+        // A filtered state says where the reader is and how to leave it, so a
+        // deep link never reads as an oddly short queue.
+        filterLabel: filterCategory === null
+          ? null
+          : WORK_QUEUE_CATEGORY_LABELS[filterCategory] ?? filterCategory,
+        filterCategory,
+        isFiltered: filterCategory !== null,
+        wholeQueueTotal: allRows.length,
         resolvedFlag: opts.resolvedFlag ?? false,
         resolvedQuietFlag: opts.resolvedQuietFlag ?? false,
         reviewedFlag: opts.reviewedFlag ?? false,

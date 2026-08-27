@@ -49,13 +49,19 @@ describe('admin-home backlog badge', () => {
     expect(res.status).toBe(403);
   });
 
-  it('with no open queue items the dashboard shows no badge', async () => {
+  it('with no open queue items the dashboard shows the queue at zero and no age', async () => {
     const res = await request(createApp())
       .get('/admin')
       .set('Cookie', adminCookie());
     expect(res.status).toBe(200);
-    expect(res.text).not.toContain('open</span>');
-    expect(res.text).not.toContain('Oldest open item:');
+    // The row itself always renders, because an administrator learns the queue
+    // inventory once rather than inferring it from which rows happen to show.
+    // What an empty queue drops is the age and the opportunity split, which
+    // have nothing to say.
+    expect(res.text).toContain('Club Cleanup');
+    expect(res.text).toContain('0 open');
+    expect(res.text).not.toContain('oldest ');
+    expect(res.text).not.toContain('could use a leader');
   });
 
   it('counts predicate items, residue clubs, and promotable candidates together', async () => {
@@ -87,8 +93,14 @@ describe('admin-home backlog badge', () => {
     // so it is nobody's work and the badge does not offer it as any. That
     // leaves club B's missing leader, club B's residue, and the unpromoted
     // candidate.
-    expect(res.text).toContain('3 open');
-    expect(res.text).toContain('Oldest open item:');
+    //
+    // The badge counts the two halves apart. Club B's residue and the
+    // unpromoted candidate want a decision; club B's missing leader is a
+    // tolerated state and an opportunity, and blending it into the same figure
+    // would report three items of work when there are two.
+    expect(res.text).toContain('2 open');
+    expect(res.text).toContain('1 club could use a leader');
+    expect(res.text).toContain('oldest ');
     expect(res.text).not.toContain('Backlog Club A');
   });
 

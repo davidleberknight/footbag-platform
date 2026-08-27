@@ -1,0 +1,39 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    <p>{{content.rangeSummary}}</p>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+    <p class="card-meta"><a href="{{content.backHref}}">Back to the Audit Log</a></p>
+
+    {{#if content.hasMonths}}
+      {{#each content.months}}
+      <div class="section-heading">
+        <h2>{{this.monthLabel}}</h2>
+        <span class="section-count">{{this.total}}</span>
+      </div>
+      <table class="data-table records-table-sm">
+        <thead>
+          <tr>
+            <th scope="col">Category</th>
+            <th scope="col">Entries</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each this.rows}}
+          <tr>
+            <td>{{this.category}}</td>
+            <td>{{this.count}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+      {{/each}}
+    {{else}}
+      <p class="empty-state">No audit entries in this period.</p>
+    {{/if}}
+  </section>
+</div>

@@ -100,6 +100,7 @@ adminRouter.get('/payments/reconciliation',           adminPaymentsController.re
 adminRouter.post('/payments/reconciliation/:issueId/resolve', adminPaymentsController.resolve);
 adminRouter.get('/payments/:paymentId',               adminPaymentsController.detail);
 adminRouter.get('/audit-log',                 adminAuditLogController.index);
+adminRouter.get('/audit-log/summary',         adminAuditLogController.summary);
 adminRouter.get('/audit-log/export',          adminAuditLogController.exportLog);
 adminRouter.get('/email-log',                 adminEmailLogController.index);
 adminRouter.get('/system-health',             adminSystemHealthController.index);

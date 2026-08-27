@@ -5230,6 +5230,31 @@ export function queryAuditLog(filters: AuditLogFilters, limit: number, offset: n
   `).all(...params, limit, offset) as AuditLogQueryRow[];
 }
 
+export interface AuditLogSummaryRow {
+  month: string;    // 'YYYY-MM'
+  category: string;
+  n: number;
+}
+
+/**
+ * Counts per category per calendar month, for the periodic-summary view. Takes
+ * the same filters as the list so the summary is the filtered view aggregated
+ * rather than a second, differently-scoped question.
+ *
+ * Months come from the stored UTC timestamp with no conversion, matching every
+ * other figure the platform reports; a month boundary is therefore the UTC one.
+ */
+export function summarizeAuditLogByMonthAndCategory(filters: AuditLogFilters): AuditLogSummaryRow[] {
+  const { sql, params } = buildAuditLogWhere(filters);
+  return db.prepare(`
+    SELECT strftime('%Y-%m', a.occurred_at) AS month, a.category AS category, COUNT(*) AS n
+    FROM audit_entries a
+    ${sql}
+    GROUP BY month, a.category
+    ORDER BY month DESC, a.category
+  `).all(...params) as AuditLogSummaryRow[];
+}
+
 export function countAuditLog(filters: AuditLogFilters): number {
   const { sql, params } = buildAuditLogWhere(filters);
   const row = db.prepare(`SELECT COUNT(*) AS n FROM audit_entries a ${sql}`).get(...params) as { n: number };

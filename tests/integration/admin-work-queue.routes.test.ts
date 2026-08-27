@@ -4,7 +4,7 @@ import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-import { insertMember, createTestSessionJwt } from '../fixtures/factories';
+import { insertMember, insertWorkQueueItem, createTestSessionJwt } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3130');
 
@@ -1028,5 +1028,79 @@ describe('POST /admin/work-queue/:id/dismiss — low-confidence auto-link match'
     const after = (db1.prepare('SELECT COUNT(*) AS c FROM outbox_emails').get() as { c: number }).c;
     db1.close();
     expect(after).toBe(before);
+  });
+});
+
+describe('working one category at a time', () => {
+  function seedTwoCategories(): string {
+    const db = new BetterSqlite3(dbPath);
+    const membership = insertWorkQueueItem(db, {
+      queue_category: 'membership', task_type: 'member_contact_request',
+      entity_id: MEMBER_ID, reason_text: 'A membership matter',
+    });
+    insertWorkQueueItem(db, {
+      queue_category: 'payments', task_type: 'reconciliation_discrepancy',
+      entity_id: MEMBER_ID, reason_text: 'A payments matter',
+    });
+    db.close();
+    return membership;
+  }
+
+  it('shows one category alone and says what it is a subset of', async () => {
+    seedTwoCategories();
+
+    const res = await request(createApp())
+      .get('/admin/work-queue?category=membership')
+      .set('Cookie', adminCookie());
+
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('A membership matter');
+    expect(res.text).not.toContain('A payments matter');
+    // A deep link that just showed a short queue would read as a queue with
+    // less in it than there is.
+    expect(res.text).toContain('Showing Membership only');
+    expect(res.text).toContain('href="/admin/work-queue"');
+  });
+
+  it('shows the whole queue for a category that does not exist', async () => {
+    seedTwoCategories();
+
+    const res = await request(createApp())
+      .get('/admin/work-queue?category=not_a_category')
+      .set('Cookie', adminCookie());
+
+    // An administrator following a stale or mistyped link is better served
+    // everything than a refusal, on a read-only surface with nothing to protect.
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('A membership matter');
+    expect(res.text).toContain('A payments matter');
+    expect(res.text).not.toContain('Showing');
+  });
+
+  it('keeps the administrator in their category after acting on an item', async () => {
+    const membership = seedTwoCategories();
+
+    const res = await request(createApp())
+      .post(`/admin/work-queue/${membership}/claim`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ category: 'membership' });
+
+    // Losing the filter on every action would make it useless after one item.
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/admin/work-queue?category=membership');
+  });
+
+  it('returns to the whole queue when no category was being worked', async () => {
+    const membership = seedTwoCategories();
+
+    const res = await request(createApp())
+      .post(`/admin/work-queue/${membership}/claim`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ category: '' });
+
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/admin/work-queue');
   });
 });

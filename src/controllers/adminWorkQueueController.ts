@@ -14,6 +14,19 @@ function sendRateLimited(res: Response, err: RateLimitedError): void {
   res.status(429).type('text/plain').send(err.message);
 }
 
+/**
+ * Where a completed action returns to. An administrator working one category
+ * stays in it: dropping the filter on every action would make it useless after
+ * the first item. The service decides what an unrecognized value means, so the
+ * raw query value is passed straight back rather than validated twice.
+ */
+function queueReturnPath(req: Request): string {
+  const body = (req.body ?? {}) as { category?: unknown };
+  const raw = typeof body.category === 'string' ? body.category : req.query['category'];
+  if (typeof raw !== 'string' || raw === '') return '/admin/work-queue';
+  return `/admin/work-queue?category=${encodeURIComponent(raw)}`;
+}
+
 export const adminWorkQueueController = {
   /** GET /admin/work-queue */
   index(req: Request, res: Response, next: NextFunction): void {
@@ -55,6 +68,7 @@ export const adminWorkQueueController = {
         // The deep link the story specifies: a matter that needs the member's
         // own answer names itself here, and its composer opens already drafted.
         askItemId: typeof req.query.ask === 'string' ? req.query.ask : null,
+        category: typeof req.query.category === 'string' ? req.query.category : null,
       }));
     } catch (err) {
       if (err instanceof RateLimitedError) {
@@ -75,7 +89,7 @@ export const adminWorkQueueController = {
     try {
       const result = workQueueService.claim({ queueItemId, adminMemberId: req.user!.userId });
       writeFlash(res, req, FLASH_KIND.WORK_QUEUE_CLAIMED, result.status);
-      res.redirect(303, '/admin/work-queue');
+      res.redirect(303, queueReturnPath(req));
     } catch (err) {
       handleControllerError(err, res, next, 'admin work queue controller');
     }
@@ -94,7 +108,7 @@ export const adminWorkQueueController = {
         resolutionNote,
       });
       writeFlash(res, req, FLASH_KIND.WORK_QUEUE_RESOLVED, result.memberNotified ? 'notified' : 'quiet');
-      res.redirect(303, '/admin/work-queue');
+      res.redirect(303, queueReturnPath(req));
     } catch (err) {
       if (err instanceof ValidationError) {
         res.status(422).render('admin/work-queue/index', adminWorkQueueService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: err.message }));
@@ -123,7 +137,7 @@ export const adminWorkQueueController = {
     try {
       adminWorkQueueService.dismiss({ queueItemId, adminMemberId: req.user!.userId, note });
       writeFlash(res, req, FLASH_KIND.WORK_QUEUE_REVIEWED, queueItemId);
-      res.redirect(303, '/admin/work-queue');
+      res.redirect(303, queueReturnPath(req));
     } catch (err) {
       if (err instanceof ValidationError) {
         res.status(422).render('admin/work-queue/index', adminWorkQueueService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: err.message }));
@@ -158,7 +172,7 @@ export const adminWorkQueueController = {
         expectedAnswerKind: req.body?.expectedAnswerKind,
       });
       writeFlash(res, req, FLASH_KIND.WORK_QUEUE_MEMBER_ASKED, queueItemId);
-      res.redirect(303, '/admin/work-queue');
+      res.redirect(303, queueReturnPath(req));
     } catch (err) {
       if (err instanceof ValidationError) {
         res.status(422).render('admin/work-queue/index', adminWorkQueueService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: err.message }));
@@ -183,7 +197,7 @@ export const adminWorkQueueController = {
         historicalPersonId: targetHistoricalPersonId,
       });
       writeFlash(res, req, FLASH_KIND.WORK_QUEUE_RESOLVED, queueItemId);
-      res.redirect(303, '/admin/work-queue');
+      res.redirect(303, queueReturnPath(req));
     } catch (err) {
       if (err instanceof ValidationError || err instanceof ConflictError) {
         res.status(422).render('admin/work-queue/index', adminWorkQueueService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: err.message }));
@@ -221,7 +235,7 @@ export const adminWorkQueueController = {
         return;
       }
       writeFlash(res, req, FLASH_KIND.WORK_QUEUE_RESOLVED, req.params['id'] ?? '');
-      res.redirect(303, '/admin/work-queue');
+      res.redirect(303, queueReturnPath(req));
     } catch (err) {
       if (err instanceof ValidationError) {
         res.status(422).render('admin/work-queue/index', adminWorkQueueService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: err.message }));
@@ -246,7 +260,7 @@ export const adminWorkQueueController = {
     try {
       identityAccessService.rejectLinkHelpRequest(req.user!.userId, queueItemId, reason);
       writeFlash(res, req, FLASH_KIND.WORK_QUEUE_RESOLVED, queueItemId);
-      res.redirect(303, '/admin/work-queue');
+      res.redirect(303, queueReturnPath(req));
     } catch (err) {
       if (err instanceof ValidationError) {
         res.status(422).render('admin/work-queue/index', adminWorkQueueService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: err.message }));

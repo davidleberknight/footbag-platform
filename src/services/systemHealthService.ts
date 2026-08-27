@@ -141,7 +141,12 @@ export interface SystemHealthBadges {
   sendingPaused: boolean;
   hasUrgent: boolean;
   /** One finished sentence per thing wanting attention, already pluralized, so
-   *  the dashboard renders them rather than assembling copy from counts. */
+   *  the dashboard renders them rather than assembling copy from counts.
+   *
+   *  Unacknowledged alarms are deliberately absent: `activeAlarmCount` carries
+   *  that fact, and the dashboard gives alarms a row of their own with a link
+   *  to the surface that acknowledges them. A sentence here as well would put
+   *  the same condition in two places, where the second one leads nowhere. */
   attentionNotes: string[];
 }
 
@@ -235,11 +240,6 @@ export const systemHealthService = {
       attentionNotes.push(deadLetterCount === 1
         ? 'One message was dead-lettered.'
         : `${deadLetterCount} messages were dead-lettered.`);
-    }
-    if (activeAlarmCount > 0) {
-      attentionNotes.push(activeAlarmCount === 1
-        ? 'One alarm is waiting for an administrator.'
-        : `${activeAlarmCount} alarms are waiting for an administrator.`);
     }
     // The scheduled jobs are half of what the health page reports, so the badge
     // reads them too: a job failing, stuck mid-run, or that has never once

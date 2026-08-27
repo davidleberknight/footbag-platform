@@ -46,10 +46,18 @@ discipline, and service-owned shaping. Internal `/internal/*` tooling is exempt 
 
 Compose every public page from one small set: site frame (header / main / footer), page hero
 (eyebrow / title / subtitle / notice), content section, compact disclosure card grid, event card,
-discipline tag, result section, year navigation, metadata / summary rows, prominent action link,
+discipline tag, result section, year navigation, metadata / summary rows, queue row, grouped link
+index, prominent action link,
 empty state, and notice / coming-soon block. A new page
 joins the standard only if it can be expressed through these. A genuinely new reusable primitive is
 added to the standard first, then applied across the relevant pages, never invented per page.
+
+A **queue row** (`.admin-queue-row`) is one line naming a queue, its count as a badge, and an
+optional second line carrying an age or a split of that count, linking to the queue it counts. It is
+the primitive for a page listing many queues at once, where a card each would bury the counts in
+chrome and description. A **grouped link index** (`.admin-goto-grid`) is columns of plain links
+under group headings, carrying no counts and no descriptions, for the navigation half of a page
+whose destinations a reader learns the position of. Both are used on the administrator's home page.
 
 The page hero carries only its own parts (eyebrow, title, subtitle, notice). Primary navigation, back
 links, and item pagers belong in the page body, never in the hero. Never render the same action's

@@ -35,6 +35,20 @@ export const adminAuditLogController = {
     }
   },
 
+  /** GET /admin/audit-log/summary */
+  summary(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const query = parseQuery(req);
+      const vm = auditLogService.getAuditLogSummaryPage(query);
+      // Reading the summary is reading the audit log, so it is recorded the
+      // same way the list is.
+      auditLogService.recordAuditLogView(req.user!.userId, query);
+      res.render('admin/audit-log/summary', vm);
+    } catch (err) {
+      handleControllerError(err, res, next, 'admin audit-log summary');
+    }
+  },
+
   /** GET /admin/audit-log/export */
   exportLog(req: Request, res: Response, next: NextFunction): void {
     try {

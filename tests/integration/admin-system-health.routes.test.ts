@@ -282,7 +282,11 @@ describe('the admin dashboard surfaces the same health signals', () => {
     expect(res.text).toContain('href="/admin/alarms"');
     expect(res.text).toContain('Needs attention');
     expect(res.text).toContain('One message was dead-lettered.');
-    expect(res.text).toContain('One alarm is waiting for an administrator.');
+    // An unacknowledged alarm reaches the administrator as its own row with a
+    // count and a link to the surface that acknowledges it, not as a second
+    // sentence under system health that leads somewhere unable to act on it.
+    expect(res.text).toContain('1 active');
+    expect(res.text).not.toContain('One alarm is waiting for an administrator.');
   });
 
   // The scheduled jobs are half of what the health page reports. A dashboard

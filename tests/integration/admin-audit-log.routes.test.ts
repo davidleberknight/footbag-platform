@@ -15,6 +15,8 @@ const OTHER_ID    = 'al_member_002';
 const OTHER_SLUG  = 'al_member_two';
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+let auditLogService: typeof import('../../src/services/auditLogService').auditLogService;
 
 function adminCookie(): string {
   return `__Host-footbag_session=${createTestSessionJwt({ memberId: ADMIN_ID, role: 'admin' })}`;
@@ -43,6 +45,7 @@ beforeAll(async () => {
   db.exec(`DROP TRIGGER IF EXISTS trg_audit_no_update; DROP TRIGGER IF EXISTS trg_audit_no_delete;`);
   db.close();
   createApp = await importApp();
+  auditLogService = (await import('../../src/services/auditLogService')).auditLogService;
 });
 
 afterAll(() => cleanupTestDb(dbPath));
@@ -258,5 +261,113 @@ describe('GET /admin/audit-log/export', () => {
     const res = await request(app).get(`/admin/audit-log/export?format=csv&member=${MEMBER_ID}`).set('Cookie', adminCookie());
     expect(res.status).toBe(200);
     expect(res.text).toContain('"has, comma ""quote"""');
+  });
+});
+
+describe('GET /admin/audit-log/summary', () => {
+  /**
+   * The same category in two different months, plus a second category in one
+   * of them. A summary that grouped by category alone, or by month alone,
+   * would collapse this into a shape the assertions below reject.
+   */
+  function seedTwoMonths(): void {
+    withDb((db) => {
+      insertAuditEntry(db, {
+        actor_type: 'admin', actor_member_id: ADMIN_ID, action_type: 'tier.admin_override',
+        entity_id: MEMBER_ID, category: 'tier_change', occurred_at: '2026-07-04T10:00:00.000Z',
+      });
+      insertAuditEntry(db, {
+        actor_type: 'admin', actor_member_id: ADMIN_ID, action_type: 'tier.admin_override',
+        entity_id: OTHER_ID, category: 'tier_change', occurred_at: '2026-07-19T10:00:00.000Z',
+      });
+      insertAuditEntry(db, {
+        actor_type: 'admin', actor_member_id: ADMIN_ID, action_type: 'tier.admin_override',
+        entity_id: MEMBER_ID, category: 'tier_change', occurred_at: '2026-08-11T10:00:00.000Z',
+      });
+      insertAuditEntry(db, {
+        actor_type: 'admin', actor_member_id: ADMIN_ID, action_type: 'admin.role_granted',
+        entity_id: MEMBER_ID, category: 'admin_role', occurred_at: '2026-08-02T10:00:00.000Z',
+      });
+    });
+  }
+
+  it('refuses a non-admin and redirects an unauthenticated visitor', async () => {
+    const app = createApp();
+    const anon = await request(app).get('/admin/audit-log/summary');
+    expect(anon.status).toBe(302);
+    const member = await request(app).get('/admin/audit-log/summary').set('Cookie', memberCookie());
+    expect(member.status).toBe(403);
+  });
+
+  it('counts entries per category within each month, not across them', async () => {
+    seedTwoMonths();
+
+    const vm = auditLogService.getAuditLogSummaryPage({ fromDate: '2026-01-01' });
+
+    // Newest month first, so the period anyone is reporting on leads.
+    expect(vm.content.months.map((m) => m.month)).toEqual(['2026-08', '2026-07']);
+
+    const july = vm.content.months.find((m) => m.month === '2026-07')!;
+    expect(july.monthLabel).toBe('July 2026');
+    expect(july.total).toBe(2);
+    expect(july.rows).toEqual([{ category: 'tier_change', count: 2 }]);
+
+    // The same category in the other month keeps its own count. One figure
+    // spanning both months would be a different, less useful report.
+    const august = vm.content.months.find((m) => m.month === '2026-08')!;
+    expect(august.total).toBe(2);
+    expect(august.rows).toEqual([
+      { category: 'admin_role', count: 1 },
+      { category: 'tier_change', count: 1 },
+    ]);
+  });
+
+  it('renders each month with its categories', async () => {
+    seedTwoMonths();
+
+    const res = await request(createApp())
+      .get('/admin/audit-log/summary?from=2026-01-01')
+      .set('Cookie', adminCookie());
+
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('July 2026');
+    expect(res.text).toContain('August 2026');
+    expect(res.text).toContain('tier_change');
+    expect(res.text).toContain('admin_role');
+  });
+
+  it('carries the filters the reader was already using', async () => {
+    seedTwoMonths();
+
+    const res = await request(createApp())
+      .get('/admin/audit-log/summary?from=2026-01-01&category=admin_role')
+      .set('Cookie', adminCookie());
+
+    expect(res.status).toBe(200);
+    // The summary is the filtered view aggregated, not a second question with
+    // a scope of its own, so a reader who narrowed the list keeps that narrowing.
+    expect(res.text).toContain('admin_role');
+    expect(res.text).not.toContain('tier_change');
+    expect(res.text).not.toContain('July 2026');
+  });
+
+  it('records the read as an audit access, like the list does', async () => {
+    seedTwoMonths();
+
+    await request(createApp()).get('/admin/audit-log/summary').set('Cookie', adminCookie());
+
+    const viewed = withDb((db) => db
+      .prepare("SELECT COUNT(*) AS c FROM audit_entries WHERE action_type = 'audit.viewed'")
+      .get() as { c: number });
+    expect(viewed.c).toBe(1);
+  });
+
+  it('says so plainly when the period holds nothing', async () => {
+    const res = await request(createApp())
+      .get('/admin/audit-log/summary')
+      .set('Cookie', adminCookie());
+
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('No audit entries in this period.');
   });
 });

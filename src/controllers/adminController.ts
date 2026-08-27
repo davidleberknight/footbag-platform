@@ -1,22 +1,16 @@
-import { Request, Response, NextFunction } from 'express';
-import { clubCleanupService } from '../services/clubCleanupService';
-import { adminWorkQueueService } from '../services/adminWorkQueueService';
-import { systemHealthService } from '../services/systemHealthService';
+import type { Request, Response, NextFunction } from 'express';
+import { adminDashboardService, type AdminDashboardContent } from '../services/adminDashboardService';
+import { handleControllerError } from '../lib/controllerErrors';
+import type { PageViewModel } from '../types/page';
 
 export const adminController = {
-  index(_req: Request, res: Response, next: NextFunction): void {
+  /** GET /admin */
+  index(req: Request, res: Response, next: NextFunction): void {
     try {
-      res.render('admin/dashboard', {
-        seo: { title: 'Admin Dashboard' },
-        page: { sectionKey: 'admin', pageKey: 'admin_dashboard', title: 'Admin Dashboard' },
-        content: {
-          backlog: clubCleanupService.getBacklogBadge(),
-          workQueue: adminWorkQueueService.getWorkQueueSummary(),
-          health: systemHealthService.getHealthBadges(),
-        },
-      });
+      const vm = adminDashboardService.getAdminDashboardPage(req.user!.userId);
+      res.render('admin/dashboard', vm satisfies PageViewModel<AdminDashboardContent>);
     } catch (err) {
-      next(err);
+      handleControllerError(err, res, next, 'admin dashboard');
     }
   },
 };

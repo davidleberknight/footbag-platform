@@ -116,7 +116,8 @@ export const memberActionService = {
     return buildMemberActions(ctx, defaultSources());
   },
 
-  /** The registered set, for the test that pins which domains contribute. */
+  /** The registered set, so a caller can name which domains contribute without
+   *  reaching into the private list. */
   listSourceKeys(): string[] {
     return defaultSources().map((s) => s.sourceKey);
   },

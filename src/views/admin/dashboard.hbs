@@ -1,95 +1,91 @@
 <div class="hero hero-sm">
   <div>
-    <h1>Admin Dashboard</h1>
-    <p>Administrative actions for managing platform content and configuration.</p>
+    <h1>{{page.title}}</h1>
+    <p>What is waiting on an administrator, then everywhere else you can go.</p>
   </div>
 </div>
 
-<div class="wrapper">
+<div class="wrapper admin-dashboard">
+  {{#if content.hasNeedsYouNow}}
   <section>
-    <div class="card-grid card-grid-2col">
-      <div class="card">
-        <div class="card-title"><a href="/admin/curator/media">Curated media</a></div>
-        <p class="card-description">Browse, edit, and delete curated photos and videos attributed to the system curator account. Upload new items from the list page.</p>
+    <div class="section-heading">
+      <h2>Needs You Now</h2>
+    </div>
+    {{#each content.needsYouNow}}
+    <a class="admin-queue-row" href="{{this.href}}">
+      <span class="admin-queue-row-label">{{this.label}}</span>
+      <span class="badge badge-warn">{{this.countLabel}}</span>
+      {{#if this.metaLabel}}<span class="admin-queue-row-meta">{{this.metaLabel}}</span>{{/if}}
+    </a>
+    {{/each}}
+  </section>
+  {{/if}}
+
+  <section>
+    <div class="admin-tile-grid">
+      <div class="admin-tile">
+        <div class="section-heading">
+          <h2>Work Waiting</h2>
+        </div>
+        {{#each content.workWaiting}}
+        <a class="admin-queue-row" href="{{this.href}}">
+          <span class="admin-queue-row-label">{{this.label}}</span>
+          <span class="badge{{#if this.isZero}} badge-muted{{/if}}">{{this.countLabel}}</span>
+          {{#if this.metaLabel}}<span class="admin-queue-row-meta">{{this.metaLabel}}</span>{{/if}}
+        </a>
+        {{/each}}
       </div>
-      <div class="card">
-        <div class="card-title"><a href="/admin/curator/galleries">Manage galleries</a></div>
-        <p class="card-description">Create, edit, and delete the FH-curated named galleries that appear on /media. Member-owned galleries are managed by their owners.</p>
+
+      <div class="admin-tile">
+        <div class="section-heading">
+          <h2>Claimed by You</h2>
+        </div>
+        <a class="admin-queue-row" href="{{content.ownWork.href}}">
+          <span class="admin-queue-row-label">Yours</span>
+          <span class="badge{{#if content.ownWork.isZero}} badge-muted{{/if}}">{{content.ownWork.countLabel}}</span>
+        </a>
+        <p class="admin-tile-note">{{content.ownWork.detail}}</p>
       </div>
-      <div class="card">
-        <div class="card-title"><a href="/admin/work-queue">Work queue</a>{{#if content.workQueue.hasOpen}} <span class="badge">{{content.workQueue.totalOpen}} open</span>{{/if}}</div>
-        <p class="card-description">Open admin tasks across membership, events, media, payments, elections, and system. Member contact requests land here for review and resolution.</p>
-        {{#if content.workQueue.hasOpen}}
-        <p class="card-meta">{{#each content.workQueue.categories}}<a href="{{this.href}}"{{#if this.hasUrgent}} class="fw-600"{{/if}}>{{this.label}}: {{this.count}}</a>{{#unless @last}} &middot; {{/unless}}{{/each}}</p>
+
+      <div class="admin-tile">
+        <div class="section-heading">
+          <h2>System Health</h2>
+          <span class="badge{{#if content.systemStatus.isOk}} badge-muted{{else}} badge-warn{{/if}}">{{content.systemStatus.statusLabel}}</span>
+        </div>
+        {{#each content.systemStatus.notes}}
+        <p class="admin-tile-note">{{this}}</p>
+        {{/each}}
+        {{#if content.systemStatus.hasFacts}}
+        <div class="event-meta-row">
+          {{#each content.systemStatus.facts}}
+          <span><strong>{{this.label}}:</strong> {{this.value}}</span>
+          {{/each}}
+        </div>
         {{/if}}
+        <p class="card-meta">
+          {{#each content.systemStatus.links}}
+          <a href="{{this.href}}">{{this.label}}</a>
+          {{/each}}
+        </p>
       </div>
-      <div class="card">
-        <div class="card-title"><a href="/admin/payments">Payments</a></div>
-        <p class="card-description">Every inbound payment, filterable by type, date, status, member, and reference, with the donor note visible on a donation. The reconciliation queue beside it lists where our records and the payment provider's ledger disagree.</p>
-        <p class="card-meta"><a href="/admin/payments/health">Payments health</a> &middot; <a href="/admin/payments/reports">Financial reports</a></p>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-heading">
+      <h2>Admin Tools</h2>
+    </div>
+    <div class="admin-goto-grid">
+      {{#each content.toolGroups}}
+      <div class="admin-goto-group">
+        <h3>{{this.title}}</h3>
+        <ul>
+          {{#each this.links}}
+          <li><a href="{{this.href}}">{{this.label}}</a></li>
+          {{/each}}
+        </ul>
       </div>
-      <div class="card">
-        <div class="card-title"><a href="/admin/club-cleanup">Club cleanup</a>{{#if content.backlog.hasBacklog}} <span class="badge">{{content.backlog.openCount}} open</span>{{/if}}</div>
-        <p class="card-description">Review clubs with crowdsourced viability signals from onboarding. Demote inactive clubs, archive junk, or dismiss false positives.</p>
-        {{#if content.backlog.hasBacklog}}
-        <p class="card-meta">Oldest open item: {{content.backlog.oldestOpenAgeLabel}}</p>
-        {{/if}}
-      </div>
-      <div class="card">
-        <div class="card-title"><a href="/admin/freestyle/tricks">Freestyle content</a></div>
-        <p class="card-description">Browse and search the freestyle trick dictionary by name or slug, filtered by active state and review status, and open a trick to edit it.</p>
-      </div>
-      <div class="card">
-        <div class="card-title"><a href="/admin/members">Members</a></div>
-        <p class="card-description">Find any member account, including those held back from member search and those marked deceased, and open their record to correct a name, change a membership tier, or correct an Active Player expiry. Every correction is confirmed, reasoned, and audited.</p>
-      </div>
-      <div class="card">
-        <div class="card-title"><a href="/ifpa/roster">Official IFPA Roster</a></div>
-        <p class="card-description">The current Official IFPA Roster with its membership breakdown: Tier 1, Tier 2 and Tier 3 members, plus Tier 0 members holding current Active Player status. Searchable and filterable by tier. Read-only, never public, and never downloadable; every visit is audited.</p>
-      </div>
-      <div class="card">
-        <div class="card-title"><a href="/admin/historical-records">Historical Records</a></div>
-        <p class="card-description">Find a competitor from the archive who has no member account, and record that they are recognized as deceased so the platform stops offering their record for direct claiming. Their results, honours and name stay published.</p>
-      </div>
-      <div class="card">
-        <div class="card-title"><a href="/admin/admin-roles">Admin Roles</a></div>
-        <p class="card-description">Grant or revoke the platform administrator role. Granting requires the member to hold Tier 2 or Tier 3, and every change is reasoned, audited, and emailed to the member.</p>
-      </div>
-      <div class="card">
-        <div class="card-title"><a href="/admin/honor-grants">Honor tier grants</a></div>
-        <p class="card-description">Grant a Hall of Fame or Big Add Posse honoree their Tier 2 membership when a claim-time grant did not fire (a late roster link or a new induction). Confirmed, audited, and emailed; the same honor is granted only once.</p>
-      </div>
-      <div class="card">
-        <div class="card-title"><a href="/admin/system-health">System health</a>{{#if content.health.hasUrgent}} <span class="badge badge-warn">Needs attention</span>{{/if}}</div>
-        <p class="card-description">Outbound email backlog and dead-lettered messages, bounce and complaint rates, scheduled-job run history, and whether email sending is paused. Read-only.</p>
-        {{#if content.health.hasUrgent}}
-        <p class="card-meta">{{#each content.health.attentionNotes}}{{this}} {{/each}}</p>
-        {{/if}}
-      </div>
-      <div class="card">
-        <div class="card-title"><a href="/admin/alarms">Platform alarms</a>{{#if content.health.activeAlarmCount}} <span class="badge">{{content.health.activeAlarmCount}} active</span>{{/if}}</div>
-        <p class="card-description">Alarms reported by the monitoring service: high bounce or complaint rates, backup failures, cost thresholds. Acknowledge one with a note to record that you are handling it.</p>
-      </div>
-      <div class="card">
-        <div class="card-title"><a href="/admin/audit-log">Audit log</a></div>
-        <p class="card-description">Search the append-only audit trail by member, date, action type, or category to investigate a complaint or confirm a flow logged correctly. Read-only.</p>
-      </div>
-      <div class="card">
-        <div class="card-title"><a href="/admin/email-log">Email log</a></div>
-        <p class="card-description">Browse outbound email by recipient, template, or status to diagnose a delivery problem or confirm a message was queued. Bodies shown as unpopulated templates; read-only.</p>
-      </div>
-      <div class="card">
-        <div class="card-title"><a href="/admin/email-templates">Email templates</a></div>
-        <p class="card-description">Edit the wording, enabled flag, and classification of the platform's outbound email templates. Audited per save; editing only.</p>
-      </div>
-      <div class="card">
-        <div class="card-title"><a href="/admin/mailing-lists">Mailing lists</a></div>
-        <p class="card-description">Create, edit, and archive the lists the platform sends to, compose a message to one, and read each list's subscriber counts by state.</p>
-      </div>
-      <div class="card">
-        <div class="card-title"><a href="/admin/broadcasts">Broadcasts</a></div>
-        <p class="card-description">What the platform has sent in IFPA's name: subject, message, audience, and how many copies were queued. Names no recipient; read-only.</p>
-      </div>
+      {{/each}}
     </div>
   </section>
 </div>
