@@ -93,12 +93,8 @@ import {
 } from './operationalNotationRendering';
 import {
   FreestyleRelatedTrick,
-  FreestyleNextTrick,
-  FreestylePreviousTrick,
   FreestyleRelativeSideVariants,
   buildRelatedTricks,
-  buildNextTricks,
-  buildPreviousTricks,
   buildRelativeSideVariants,
   buildStructuralRelatives,
   buildStructuralAbout,
@@ -1659,12 +1655,6 @@ export interface FreestyleTrickContent {
   // panels. Currently triggers: butterfly-wing-topology → walking progression;
   // spinning-family / whirl-rotational-topology → spinning modifier page.
   symbolicEducationCtas: SymbolicEducationCta[];
-  // Next Tricks: same family + higher ADD; per-bucket-2 sampling, capped at 5.
-  // Family-scoped progression; cross-family progression intentionally excluded.
-  nextTricks: FreestyleNextTrick[];
-  // Previous Tricks: same family + lower ADD; per-bucket-2 sampling, capped at 5.
-  // Family base trick (slug == trick_family) is preferred first within its bucket.
-  previousTricks: FreestylePreviousTrick[];
   // Reference Media — split by source tier:
   // - tutorialMedia: instructional sources (TT, AnzTrikz, FootbagSpot,
   //   Shred Global, Polini Pointers, Footbag Foundations, Everything Footbag)
@@ -7969,8 +7959,6 @@ export const freestyleService = {
             );
             return facts.hasAny ? facts : null;
           })(),
-          previousTricks:   dictRow ? buildPreviousTricks(dictRow, allDictRows) : [],
-          nextTricks:       dictRow ? buildNextTricks(dictRow, allDictRows) : [],
           tutorialMedia,
           demoMedia,
           hasReferenceMedia,

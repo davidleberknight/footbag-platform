@@ -81,14 +81,6 @@ Three rules in priority order; within each, ADD-bucket round-robin sampling (slu
 - **R2 modifier-prefix:** slug starts with `{first-underscore-segment}_` AND family differs. Captures cross-family modifier siblings (`paradox_mirage` ↔ `paradox_torque`).
 - **R3 grandparent:** `current.base_trick → that row's base_trick → if active, non-modifier, family differs → include`. Fires only when R1 + R2 < 6; yields at most 1.
 
-### `buildNextTricks` (family-scoped progression by ADD, cap = 5)
-
-Strict same-family. `adds > current.adds`. Group by ADD, slug ASC within bucket, **take ≤2 per bucket**, flatten ASC. The per-bucket cap is load-bearing: without it a heavily-populated bucket buries higher tiers. Cross-family progression is intentionally out of scope (belongs in `buildRelatedTricks`).
-
-### `buildPreviousTricks` (family-scoped regression by ADD, cap = 5)
-
-Mirror of Next. `adds < current.adds`. Same per-bucket-2 sampling, flattened DESC (closest easier first). **Family-base tiebreaker (Previous only):** within each bucket, the row whose `slug == current.trick_family` sorts first, so foundational base tricks (`whirl`) surface in their compounds' Previous lists. Not applied to Next (base tricks are the lowest ADD in their family and never eligible as "next").
-
 ### Adding a new navigation surface
 
-Default to extending `freestyleRelatedTricks.ts` rather than spawning new files (the helpers share a filter → bucket-by-ADD → sort → flatten-with-cap shape). "Structurally similar?" → Related; "harder in same family?" → Next; "easier in same family?" → Previous; "all whirl tricks?" → family filter.
+Default to extending `freestyleRelatedTricks.ts` rather than spawning new files (the helpers share a filter → bucket-by-ADD → sort → flatten-with-cap shape). "Structurally similar?" → Related; "all whirl tricks?" → family filter. Same-family navigation by ADD is owned by the family ladder, not by a helper here.
