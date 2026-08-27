@@ -25,6 +25,13 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts" / "lib"))
 from db_cutover_guard import assert_maintainer_db_target  # noqa: E402
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # legacy_data/
+from pipeline.identity.person_scopes import (  # noqa: E402
+    CANONICAL,
+    KNOWN_SCOPES,
+    UNRESOLVED_STUB,
+)
+
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
@@ -128,6 +135,14 @@ HISTORICAL_PERSON_REFERENCE_OWNERS = {
     "net_team_member": "net teams (loader 13)",
     "event_result_entry_participants": "loader 08 (cleared earlier in this reseed)",
 }
+
+# Tables whose owning stage runs after this loader in the same orchestrated run
+# and rebuilds its rows wholesale from the canonical data this reseed just wrote.
+# A retiring stub referenced only from here is safe to leave standing for the rest
+# of the run: the rebuild drops the stale reference, and script 14 then retires
+# the row. Membership in this set is a statement about stage ordering, so a table
+# only belongs here while its owner genuinely runs later and genuinely rebuilds.
+REBUILT_BY_A_LATER_STAGE = frozenset({"net_team", "net_team_member"})
 
 
 def historical_person_referencers(conn) -> list[tuple[str, str]]:
@@ -419,20 +434,43 @@ def main() -> None:
         # re-run never treats it as removed.
         incoming_canonical_ids = seed_person_ids | {fx_person_id}
 
-        existing_canonical_ids = {
-            r[0]
-            for r in conn.execute(
-                "SELECT person_id FROM historical_persons "
-                "WHERE source_scope = 'CANONICAL' OR source_scope IS NULL"
+        # Ownership is read from the row, never inferred. A scope this loader does
+        # not recognise stops the load: silently claiming an unlabelled row is what
+        # made unresolved placeholders look like vanished identities and deadlocked
+        # the reseed against a guard meant to protect real people.
+        existing_by_scope: dict[str, set[str]] = {}
+        unlabelled: list[str] = []
+        for pid, scope in conn.execute(
+            "SELECT person_id, source_scope FROM historical_persons"
+        ):
+            if scope is None or not str(scope).strip():
+                unlabelled.append(pid)
+            elif scope in KNOWN_SCOPES:
+                existing_by_scope.setdefault(scope, set()).add(pid)
+            else:
+                unlabelled.append(pid)
+        if unlabelled:
+            shown = "\n".join(f"    {pid}" for pid in sorted(unlabelled)[:20])
+            more = "" if len(unlabelled) <= 20 else f"\n    ... and {len(unlabelled) - 20} more"
+            raise SystemExit(
+                f"08 aborted: {len(unlabelled)} historical_persons row(s) carry no "
+                "recognised source_scope, so this loader cannot tell whether it owns "
+                "them. Ownership decides whether a row vanishing from the seed is a "
+                "lost identity or a resolved placeholder, and guessing it is the bug "
+                "this check exists to prevent. Run "
+                "tools/backfill_unresolved_stub_scope.py to label the rows it can "
+                "positively identify, and resolve the rest by hand:\n" + shown + more
             )
-        }
-        removed_ids = existing_canonical_ids - incoming_canonical_ids
+
+        removed_canonical = existing_by_scope.get(CANONICAL, set()) - incoming_canonical_ids
+        removed_stubs = existing_by_scope.get(UNRESOLVED_STUB, set()) - incoming_canonical_ids
+
+        referencers = historical_person_referencers(conn)
 
         # Guard: refuse to delete a removed canonical person that any table
         # loader 08 does not own still references. Referencers come from the live
         # schema so a new foreign-key child is covered without touching this code.
-        referencers = historical_person_referencers(conn)
-        blocked = references_to_removed_persons(conn, referencers, removed_ids)
+        blocked = references_to_removed_persons(conn, referencers, removed_canonical)
         if blocked:
             report = []
             for pid in sorted(blocked):
@@ -446,6 +484,37 @@ def main() -> None:
                 "keep these persons, or clear the references through their owning "
                 "loader / patch toolchain first:\n" + "\n".join(report)
             )
+
+        # A stub leaving the seed means its display name finally resolved, which is
+        # the pipeline working rather than data going missing. Retiring it is
+        # correct; the question is only whether it can be retired yet.
+        stub_refs = references_to_removed_persons(conn, referencers, removed_stubs)
+        deferred_stubs: set[str] = set()
+        stranding = []
+        for pid in sorted(stub_refs):
+            foreign = [(t, c, n) for t, c, n in stub_refs[pid]
+                       if t not in REBUILT_BY_A_LATER_STAGE]
+            if foreign:
+                for table, column, n in foreign:
+                    owner = HISTORICAL_PERSON_REFERENCE_OWNERS.get(table, "unknown owner")
+                    stranding.append(f"    {pid}  <- {table}.{column}  x{n:,}  ({owner})")
+            else:
+                deferred_stubs.add(pid)
+        if stranding:
+            raise SystemExit(
+                f"08 aborted: {len(stranding)} resolved stub person(s) are referenced by "
+                "a table no later stage rebuilds, so retiring them here would strand "
+                "those rows. A stub reaching a surface that outlives the pipeline means "
+                "a placeholder was treated as a real identity somewhere upstream; fix "
+                "that rather than deleting the reference:\n" + "\n".join(stranding)
+            )
+        if deferred_stubs:
+            # Left in place, unreferenced-by-then, and swept after the owning stage
+            # has rebuilt. Deleting now would break the foreign key mid-run.
+            print(f"  stub persons pending retirement: {len(deferred_stubs):,} "
+                  f"(retired by script 14 once their references are rebuilt)")
+
+        removed_ids = removed_canonical | (removed_stubs - deferred_stubs)
 
         # Guard: refuse to delete a removed canonical person that carries a
         # hand-set value. No seed file holds these columns, so the delete would

@@ -39,6 +39,13 @@ import pandas as pd
 _THIS_FILE = Path(__file__).resolve()
 sys.path.insert(0, str(_THIS_FILE.parents[2]))  # legacy_data/
 from pipeline.identity.alias_resolver import AliasResolver, normalize_name  # noqa: E402
+from pipeline.identity.person_scopes import CANONICAL, UNRESOLVED_STUB  # noqa: E402
+
+#: Scope stamped on every stub this builder mints. A stub records that a display
+#: name went unmatched, so it is owned separately from the canonical people and
+#: may retire when the name later resolves. Leaving it blank is what previously
+#: let the seed loader claim these rows as canonical identities.
+STUB_SOURCE_SCOPE = UNRESOLVED_STUB
 
 
 def _build_alias_resolver(persons_df: pd.DataFrame) -> AliasResolver | None:
@@ -78,6 +85,19 @@ def auto_person_id(display_name: str) -> str:
     producing two distinct stub person rows.
     """
     return str(uuid.uuid5(_AUTO_PERSON_NS, normalize_name(display_name)))
+
+
+def stub_person_row(display_name: str) -> dict:
+    """The person row minted for a display name nothing could resolve.
+
+    Deliberately minimal: an id derived from the name, the name itself, and the
+    scope that says this is a placeholder rather than a claimed identity.
+    """
+    return {
+        "person_id": auto_person_id(display_name),
+        "person_name": display_name,
+        "source_scope": STUB_SOURCE_SCOPE,
+    }
 
 
 # ── Person-likeness gate (mirrors export_canonical_platform.py step 5b) ───────
@@ -389,11 +409,12 @@ def main() -> None:
                     event_result_participants.at[idx, "display_name"] = key_to_name[key]
 
     # ------------------------------------------------------------------
-    # Mark canonical persons (loaded from canonical_input/persons.csv)
-    # Auto-assigned minimal records created below get no source_scope.
+    # Mark canonical persons (loaded from canonical_input/persons.csv).
+    # Stubs minted below carry UNRESOLVED_STUB instead, so the seed loader can
+    # tell a claimed identity that vanished from a placeholder that resolved.
     # ------------------------------------------------------------------
     persons = persons.copy()
-    persons["source_scope"] = "CANONICAL"
+    persons["source_scope"] = CANONICAL
 
     # ------------------------------------------------------------------
     # Normalise display_name to canonical person_name for resolved persons
@@ -472,7 +493,7 @@ def main() -> None:
                     continue
                 if _is_person_like(dn):
                     seen_good.add(pid)
-                    new_rows.append({"person_id": pid, "person_name": dn})
+                    new_rows.append(stub_person_row(dn))
                     print(f"    STUB: '{dn}' → {pid}")
                 else:
                     seen_bad.add(pid)

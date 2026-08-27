@@ -790,6 +790,15 @@ run_phase_net() {
     python event_results/scripts/13_build_net_teams.py \
         --db "${REPO_ROOT}/database/footbag.db"
 
+    # Retire the placeholder people whose display names have since resolved. The
+    # seed load leaves one standing when the team tables above still point at it,
+    # because deleting it there would break a foreign key mid-run. Loader 13 has
+    # just rebuilt those tables against the current canonical data, so the stale
+    # references are gone and the rows can go. Safe whenever it runs: it only
+    # deletes stub-scoped rows nothing references.
+    python event_results/scripts/14_retire_resolved_stub_persons.py \
+        --db "${REPO_ROOT}/database/footbag.db"
+
     echo ""
     echo "╔══════════════════════════════════════════════════════╗"
     echo "║  PHASE NET DONE                                      ║"
