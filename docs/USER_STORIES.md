@@ -3132,7 +3132,7 @@ Success Criteria, Activation and publication:
 
 Success Criteria, Atomicity:
 
-- Each save rewrites the trick row and its attached alias, source, and modifier-link rows in a single transaction; a partial write never lands.
+- Each curator action is independently transactional: the submitted trick, alias, source, or modifier-link change and its audit entry either land together or not at all. The actions are independent by design, and one action never rewrites attached rows the curator did not submit, so a trick edit cannot disturb alias curation and an alias edit cannot disturb the trick row.
 
 Audit:
 

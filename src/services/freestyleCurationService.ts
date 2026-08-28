@@ -36,10 +36,25 @@
  * marker booleans, the browse sort position a whole number zero or greater with a
  * cleared field meaning the unset zero, each
  * editorial prose field within a length cap) plus one
- * structural doctrine check: when the ADD is numeric and the execution notation
- * carries scoring brackets, the scoring-bracket count must equal the ADD. Rows
- * with no scoring brackets are not checked. Terminal-atom and name-to-slug
- * doctrine remain out of scope. A save that changes either notation field or the
+ * structural doctrine checks. When the ADD is numeric and the execution notation
+ * carries scoring brackets, the scoring-bracket count must equal the ADD; rows
+ * with no scoring brackets are not checked, because a blank notation is the
+ * recorded state of the rows whose operator contribution is still unruled, and
+ * refusing them would lock a curator out of exactly the rows a ruling will move.
+ * When the curator changes the display name, the name must fold back to the slug
+ * under the curated exception list, the same gate the content pipeline applies,
+ * so a save the pipeline would later reject is refused here instead; a name the
+ * curator did not touch is never re-judged, which keeps a row whose stored name
+ * predates the one-time normalization editable in its other fields.
+ *
+ * Terminal-contact validation is deliberately absent rather than missing: the
+ * corpus uses several notation registers whose terminal is legitimately neither
+ * a stall nor a kick, and the terminal-contact vocabulary is itself an open
+ * doctrine question. Operator-reference consistency is likewise deferred: the
+ * reference is a curated subset today, authoritative where an entry exists, and
+ * a membership rule would refuse half the linked corpus.
+ *
+ * A save that changes either notation field or the
  * asserted ADD also clears the row's stored notation parse (the structural parse,
  * the computed ADD and its formula, and the parse status) in the same
  * transaction, and records that it did so on the audit entry: those fields are
@@ -125,6 +140,10 @@ import { ForbiddenError, NotFoundError, ValidationError } from './serviceErrors'
 import { PageViewModel } from '../types/page';
 import { checkAddMatchesScoringBrackets } from '../lib/freestyleNotation';
 import { trickNameToSlug } from './freestyleRecordShaping';
+import {
+  DISPLAY_NAME_ROW_EXCEPTIONS,
+  GENUINE_HYPHEN_TOKENS,
+} from '../content/freestyleDisplayNameExceptions';
 import { config } from '../config/env';
 import { isSeededTestPersonaMemberId } from '../lib/personaGuards';
 
@@ -452,6 +471,36 @@ const displayDefaultForAliasType = (aliasType: string): number =>
 /** Shortest reason that can carry a judgement rather than a keystroke. */
 const ALIAS_REASON_MIN = 12;
 const ALIAS_REASON_MAX = 500;
+
+/**
+ * Why this display name may not be stored under this slug, or null when it may.
+ *
+ * The same three tests the content pipeline's naming gate applies, in the same
+ * order, so a name accepted here is one the pipeline will accept on its next
+ * run. A name is fine when the curator has approved it verbatim for this slug;
+ * otherwise it must carry no underscore, its hyphens must sit only inside the
+ * approved compound adjectives, and folding it must reproduce the slug.
+ *
+ * The slug is never rewritten to follow the name. It is the primary key every
+ * identifier surface derives from, so the name follows it, not the reverse.
+ */
+function displayNameViolation(slug: string, name: string): string | null {
+  if (DISPLAY_NAME_ROW_EXCEPTIONS.get(slug) === name) return null;
+  if (name.includes('_')) {
+    return 'Display name carries an underscore. Write the readable name; the slug keeps the underscores.';
+  }
+  const withoutApprovedHyphens = GENUINE_HYPHEN_TOKENS.reduce(
+    (acc, token) => acc.replace(new RegExp(`\\b${token}\\b`, 'gi'), ''),
+    name,
+  );
+  if (withoutApprovedHyphens.includes('-')) {
+    return 'Display name carries a hyphen used as a separator. Only genuine compound adjectives keep one.';
+  }
+  if (trickNameToSlug(name) !== slug) {
+    return `Display name does not fold back to the slug "${slug}". Rename it so it does, or record a curator exception.`;
+  }
+  return null;
+}
 const ALIAS_TEXT_MAX = 200;
 
 // Pre-go-live guardrail, parallel to the curated-media one. It fires only where a
@@ -917,6 +966,18 @@ export const freestyleCurationService = {
       const noun = bracketCheck.bracketCount === 1 ? 'scoring bracket' : 'scoring brackets';
       fieldErrors.executionNotation =
         `Execution notation shows ${bracketCheck.bracketCount} ${noun} but ADD is ${bracketCheck.add}; they must match.`;
+    }
+
+    // The naming rule, applied only to a name the curator actually changed. A row
+    // whose stored name predates the one-time normalization stays editable in its
+    // other fields: refusing it would strand exactly the rows most in need of
+    // correction behind a rule about a field the curator did not touch.
+    // Only when the name is otherwise sound: an empty name has already failed on
+    // a plainer ground, and replacing that message with one about folding back to
+    // a slug would answer a question the curator did not ask.
+    if (!fieldErrors.canonicalName && canonicalName !== current.canonical_name) {
+      const naming = displayNameViolation(slug, canonicalName);
+      if (naming) fieldErrors.canonicalName = naming;
     }
 
     if (Object.keys(fieldErrors).length > 0) {

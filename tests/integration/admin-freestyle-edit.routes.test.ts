@@ -45,6 +45,14 @@ function cookieFor(memberId: string, role: 'admin' | 'member'): string {
 // A complete, valid scalar body for a save. The execution notation carries two
 // scoring brackets ([XBD] [DEL]), so ADD is 2 to satisfy bracket-count parity.
 // Individual tests override a field to exercise a single validation or change path.
+/**
+ * A complete, valid scalar-save body.
+ *
+ * The canonical name defaults to one that folds back to the slug under test,
+ * because a name the curator changes is now checked against it. A case about
+ * something other than naming passes its row's own name and is never judged on
+ * it; a case about naming overrides it deliberately.
+ */
 function validBody(overrides: Record<string, string> = {}): Record<string, string> {
   return {
     canonicalName:     'Save OK',
@@ -248,6 +256,34 @@ beforeAll(async () => {
     adds: '2', trick_family: 'whirl', base_trick: 'whirl', category: 'compound',
     review_status: 'curated', is_active: 1, is_core: 1, sort_order: 7,
   });
+  // Naming rows. One whose slug carries an approved compound adjective, the
+  // reverse-whirl row that is a curator-approved exception, and one standing in
+  // for a row whose stored name predates the one-time normalization.
+  insertFreestyleTrick(db, {
+    slug: 'naming_ok',
+    canonical_name: 'naming ok',
+    adds: '2', trick_family: 'whirl', base_trick: 'whirl', category: 'compound',
+    review_status: 'curated', is_active: 1, sort_order: 0,
+  });
+  insertFreestyleTrick(db, {
+    slug: 'cross_body_host',
+    canonical_name: 'cross body host',
+    adds: '2', trick_family: 'whirl', base_trick: 'whirl', category: 'compound',
+    review_status: 'curated', is_active: 1, sort_order: 0,
+  });
+  insertFreestyleTrick(db, {
+    slug: 'rev_whirl',
+    canonical_name: 'rev whirl',
+    adds: '3', trick_family: 'whirl', base_trick: 'whirl', category: 'dex',
+    review_status: 'curated', is_active: 1, sort_order: 0,
+  });
+  insertFreestyleTrick(db, {
+    slug: 'legacy_naming',
+    canonical_name: 'A Name From Before Normalization',
+    adds: '2', trick_family: 'whirl', base_trick: 'whirl', category: 'compound',
+    review_status: 'curated', is_active: 1, sort_order: 0,
+  });
+
   // Never saved successfully: the rejection tests assert it is untouched.
   insertFreestyleTrick(db, {
     slug: 'core_guard',
@@ -308,8 +344,8 @@ const admin = () => cookieFor(ADMIN_ID, 'admin');
 
 function trickRow(slug: string) {
   return db.prepare(
-    'SELECT canonical_name, category, review_status, is_active, updated_at FROM freestyle_tricks WHERE slug = ?',
-  ).get(slug) as { canonical_name: string; category: string | null; review_status: string; is_active: number; updated_at: string | null };
+    'SELECT canonical_name, adds, category, review_status, is_active, updated_at FROM freestyle_tricks WHERE slug = ?',
+  ).get(slug) as { canonical_name: string; adds: string | null; category: string | null; review_status: string; is_active: number; updated_at: string | null };
 }
 
 function coreRow(slug: string) {
@@ -459,7 +495,7 @@ describe('POST /admin/freestyle/tricks/:slug/edit — validation', () => {
   });
 
   it('rejects a non-numeric ADD with 422', async () => {
-    const res = await post('/admin/freestyle/tricks/save_guard/edit', admin(), validBody({ adds: 'lots' }));
+    const res = await post('/admin/freestyle/tricks/save_guard/edit', admin(), validBody({ canonicalName: 'Save Guard', adds: 'lots' }));
     expect(res.status).toBe(422);
     expect(res.text).toContain('ADD must be');
   });
@@ -473,7 +509,7 @@ describe('POST /admin/freestyle/tricks/:slug/edit — validation', () => {
   });
 
   it('rejects a review status outside the admin set with 422', async () => {
-    const res = await post('/admin/freestyle/tricks/save_guard/edit', admin(), validBody({ reviewStatus: 'scraped' }));
+    const res = await post('/admin/freestyle/tricks/save_guard/edit', admin(), validBody({ canonicalName: 'Save Guard', reviewStatus: 'scraped' }));
     expect(res.status).toBe(422);
     expect(res.text).toContain('Review status must be');
     expect(auditRows('save_guard')).toHaveLength(0);
@@ -494,16 +530,16 @@ describe('POST /admin/freestyle/tricks/:slug/edit — scoring-bracket parity', (
 
   it('saves when the ADD is numeric but the execution notation has no scoring brackets', async () => {
     const res = await post('/admin/freestyle/tricks/save_skip/edit', admin(),
-      validBody({ canonicalName: 'Skip Blank Notation', adds: '2', executionNotation: '' }));
+      validBody({ canonicalName: 'Save Skip', adds: '2', executionNotation: '' }));
     expect(res.status).toBe(303);
-    expect(trickRow('save_skip').canonical_name).toBe('Skip Blank Notation');
+    expect(trickRow('save_skip').adds).toBe('2');
   });
 
   it('saves when the execution notation has scoring brackets but the ADD is non-numeric', async () => {
     const res = await post('/admin/freestyle/tricks/save_skip/edit', admin(),
-      validBody({ canonicalName: 'Skip Blank Add', adds: '', executionNotation: 'OP IN [DEX] [DEL]' }));
+      validBody({ canonicalName: 'Save Skip', adds: '', executionNotation: 'OP IN [DEX] [DEL]' }));
     expect(res.status).toBe(303);
-    expect(trickRow('save_skip').canonical_name).toBe('Skip Blank Add');
+    expect(trickRow('save_skip').adds).toBeNull();
   });
 });
 
@@ -517,7 +553,7 @@ describe('POST /admin/freestyle/tricks/:slug/edit — derived notation parse', (
     expect(before.structural_parse_json).not.toBeNull();
 
     const res = await post('/admin/freestyle/tricks/parse_movement/edit', admin(),
-      validBody({ movementNotation: 'CLIP > OP IN [DEX] different_marker' }));
+      validBody({ canonicalName: 'Parse Movement', movementNotation: 'CLIP > OP IN [DEX] different_marker' }));
     expect(res.status).toBe(303);
 
     const after = parseRow('parse_movement');
@@ -529,7 +565,7 @@ describe('POST /admin/freestyle/tricks/:slug/edit — derived notation parse', (
 
   it('clears the stored parse when the execution notation changes', async () => {
     const res = await post('/admin/freestyle/tricks/parse_execution/edit', admin(),
-      validBody({ executionNotation: 'CLIP > OP CLIP [XBD] different_marker [DEL]' }));
+      validBody({ canonicalName: 'Parse Execution', executionNotation: 'CLIP > OP CLIP [XBD] different_marker [DEL]' }));
     expect(res.status).toBe(303);
 
     const after = parseRow('parse_execution');
@@ -539,9 +575,9 @@ describe('POST /admin/freestyle/tricks/:slug/edit — derived notation parse', (
 
   it('clears the stored parse when the asserted ADD changes, since the parse is graded against it', async () => {
     const res = await post('/admin/freestyle/tricks/parse_adds/edit', admin(),
-      validBody({ adds: '5', executionNotation: 'CLIP > OP CLIP no_brackets' }));
+      validBody({ canonicalName: 'Parse Adds', adds: '5', executionNotation: 'CLIP > OP CLIP no_brackets' }));
     expect(res.status).toBe(303);
-    expect(trickRow('parse_adds').canonical_name).toBe('Save OK'); // the save really landed
+    expect(trickRow('parse_adds').adds).toBe('5'); // the save really landed
 
     const after = parseRow('parse_adds');
     expect(after.structural_parse_json).toBeNull();
@@ -550,7 +586,7 @@ describe('POST /admin/freestyle/tricks/:slug/edit — derived notation parse', (
 
   it('keeps the stored parse when the save changes neither notation nor the ADD', async () => {
     const res = await post('/admin/freestyle/tricks/parse_prose/edit', admin(),
-      validBody({ description: 'Fresh editorial prose.' }));
+      validBody({ canonicalName: 'Parse Prose', description: 'Fresh editorial prose.' }));
     expect(res.status).toBe(303);
     expect(proseRow('parse_prose').description).toBe('Fresh editorial prose.');
 
@@ -580,14 +616,100 @@ describe('POST /admin/freestyle/tricks/:slug/edit — derived notation parse', (
   });
 });
 
+// A trick's display name is the readable form of its slug, and the slug is the
+// primary key every identifier surface derives from, so the name follows it. The
+// content pipeline enforces this as a hard gate; the save enforces the same rule
+// so a curator cannot store a name the next pipeline run would reject.
+//
+// The carve-out matters as much as the rule. A row whose stored name predates the
+// one-time normalization stays editable in its other fields, because refusing it
+// would strand exactly the rows most in need of correction behind a complaint
+// about a field the curator never touched.
+describe('POST /admin/freestyle/tricks/:slug/edit — the display name folds back to the slug', () => {
+  it('accepts a renamed row whose new name folds back to the slug', async () => {
+    const res = await post('/admin/freestyle/tricks/naming_ok/edit', admin(),
+      validBody({ canonicalName: 'Naming Ok' }));
+    expect(res.status).toBe(303);
+    expect(trickRow('naming_ok').canonical_name).toBe('Naming Ok');
+  });
+
+  it('refuses a rename that would not fold back, and writes nothing', async () => {
+    const before = trickRow('save_guard');
+    const res = await post('/admin/freestyle/tricks/save_guard/edit', admin(),
+      validBody({ canonicalName: 'Something Else Entirely' }));
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('does not fold back to the slug');
+    expect(trickRow('save_guard').canonical_name).toBe(before.canonical_name);
+    expect(auditRows('save_guard')).toHaveLength(0);
+  });
+
+  it('refuses a name carrying an underscore, naming the plainer fault', async () => {
+    // A curator pasting the slug into the name is the common mistake, and it
+    // deserves its own message rather than the folding one.
+    const res = await post('/admin/freestyle/tricks/save_guard/edit', admin(),
+      validBody({ canonicalName: 'save_guard' }));
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('carries an underscore');
+  });
+
+  it('refuses a hyphen used as a separator', async () => {
+    const res = await post('/admin/freestyle/tricks/save_guard/edit', admin(),
+      validBody({ canonicalName: 'save-guard' }));
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('hyphen used as a separator');
+  });
+
+  it('allows a genuine compound adjective to keep its hyphen', async () => {
+    // The display keeps the hyphen and the slug folds it to an underscore, so
+    // the approved tokens are removed before the separator test. Seeded without
+    // the hyphen, so adding it is a real change and the token is exercised.
+    expect(trickRow('cross_body_host').canonical_name).toBe('cross body host');
+    const res = await post('/admin/freestyle/tricks/cross_body_host/edit', admin(),
+      validBody({ canonicalName: 'cross-body host' }));
+    expect(res.status).toBe(303);
+    expect(trickRow('cross_body_host').canonical_name).toBe('cross-body host');
+  });
+
+  it('allows a curator-approved name that deliberately does not fold back', async () => {
+    // The reverse-whirl family keeps a stable abbreviated slug while the display
+    // spells the word out. Without the exception list this is the rejection case
+    // above; with it, it is a recorded ruling.
+    // Seeded as "rev whirl", which folds. Saving the spelled-out form is a
+    // real change, so the check runs and only the curated exception lets it pass.
+    expect(trickRow('rev_whirl').canonical_name).toBe('rev whirl');
+    const res = await post('/admin/freestyle/tricks/rev_whirl/edit', admin(),
+      validBody({ canonicalName: 'reverse whirl' }));
+    expect(res.status).toBe(303);
+    expect(trickRow('rev_whirl').canonical_name).toBe('reverse whirl');
+  });
+
+  it('leaves a legacy row editable in its other fields while its name is untouched', async () => {
+    // The carve-out. This row's stored name does not fold back to its slug and
+    // never will; a curator fixing its category must not be asked to rename it.
+    const before = trickRow('legacy_naming');
+    const res = await post('/admin/freestyle/tricks/legacy_naming/edit', admin(),
+      validBody({ canonicalName: before.canonical_name, category: 'dex' }));
+    expect(res.status).toBe(303);
+    expect(trickRow('legacy_naming').category).toBe('dex');
+    expect(trickRow('legacy_naming').canonical_name).toBe(before.canonical_name);
+  });
+
+  it('judges that same legacy row the moment its name is the thing being changed', async () => {
+    const res = await post('/admin/freestyle/tricks/legacy_naming/edit', admin(),
+      validBody({ canonicalName: 'Another Unfolding Name' }));
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('does not fold back to the slug');
+  });
+});
+
 describe('POST /admin/freestyle/tricks/:slug/edit — successful save', () => {
   it('persists the scalar change, writes one audit row, stamps updated_at, and redirects with a saved indicator', async () => {
-    const res = await post('/admin/freestyle/tricks/save_ok/edit', admin(), validBody({ canonicalName: 'Save OK Edited', reviewStatus: 'curated' }));
+    const res = await post('/admin/freestyle/tricks/save_ok/edit', admin(), validBody({ canonicalName: 'Save Ok', reviewStatus: 'curated' }));
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/admin/freestyle/tricks/save_ok/edit?saved=1');
 
     const row = trickRow('save_ok');
-    expect(row.canonical_name).toBe('Save OK Edited');
+    expect(row.canonical_name).toBe('Save Ok');
     expect(row.review_status).toBe('curated');       // also changed from expert_reviewed
     expect(row.updated_at).toMatch(/^\d{4}-\d{2}-\d{2}T.*Z$/);
 
@@ -601,7 +723,7 @@ describe('POST /admin/freestyle/tricks/:slug/edit — successful save', () => {
     const res = await get('/admin/freestyle/tricks/save_ok/edit?saved=1', admin());
     expect(res.status).toBe(200);
     expect(res.text).toContain('Saved.');
-    expect(res.text).toContain('Save OK Edited');
+    expect(res.text).toContain('Save Ok');
   });
 });
 
