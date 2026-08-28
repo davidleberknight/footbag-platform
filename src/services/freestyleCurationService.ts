@@ -230,8 +230,6 @@ export interface FreestyleTrickEditFields {
   category: string;
   isActive: boolean;
   activeLabel: string;
-  isCore: boolean;
-  coreLabel: string;
   sortOrder: string;
   reviewStatus: string;
   reviewStatusLabel: string;
@@ -323,7 +321,6 @@ export interface FreestyleTrickScalarInput {
   category?: string;
   reviewStatus?: string;
   isActive?: boolean;
-  isCore?: boolean;
   sortOrder?: string;
   description?: string;
   shortDescription?: string;
@@ -357,7 +354,6 @@ interface CurationEditDbRow {
   base_trick: string | null;
   category: string | null;
   is_active: number;
-  is_core: number;
   sort_order: number;
   review_status: string;
   description: string | null;
@@ -755,7 +751,6 @@ export const freestyleCurationService = {
     const category     = sub ? (sub.category ?? '') : (row.category ?? '');
     const reviewStatus = sub ? (sub.reviewStatus ?? '') : row.review_status;
     const isActive     = sub ? sub.isActive === true : row.is_active === 1;
-    const isCore       = sub ? sub.isCore === true : row.is_core === 1;
 
     const fields: FreestyleTrickEditFields = {
       canonicalName:     sub ? (sub.canonicalName ?? '') : row.canonical_name,
@@ -767,8 +762,6 @@ export const freestyleCurationService = {
       category,
       isActive,
       activeLabel:       isActive ? 'Active' : 'Inactive',
-      isCore,
-      coreLabel:         isCore ? 'Core primitive' : 'Not a core primitive',
       sortOrder:         sub ? (sub.sortOrder ?? '') : String(row.sort_order),
       reviewStatus,
       reviewStatusLabel: REVIEW_STATUS_LABELS[reviewStatus] ?? reviewStatus,
@@ -870,7 +863,6 @@ export const freestyleCurationService = {
     }
 
     const isActive = input.isActive === true ? 1 : 0;
-    const isCore = input.isCore === true ? 1 : 0;
 
     // Browse sort position. The column is NOT NULL and its unset state is zero
     // (the load order the retiring content pipeline stamped), so a cleared field
@@ -940,7 +932,6 @@ export const freestyleCurationService = {
     if (baseTrick !== (current.base_trick ?? null))             changedFields.push('base_trick');
     if (category !== (current.category ?? null))                changedFields.push('category');
     if (isActive !== current.is_active)                         changedFields.push('is_active');
-    if (isCore !== current.is_core)                             changedFields.push('is_core');
     if (sortOrder !== current.sort_order)                       changedFields.push('sort_order');
     if (reviewStatus !== current.review_status)                 changedFields.push('review_status');
     if (description !== (current.description ?? null))          changedFields.push('description');
@@ -964,7 +955,7 @@ export const freestyleCurationService = {
     transaction(() => {
       freestyleTricks.updateScalars.run(
         canonicalName, adds, movementNotation, executionNotation,
-        family, baseTrick, category, isActive, isCore, sortOrder, reviewStatus,
+        family, baseTrick, category, isActive, sortOrder, reviewStatus,
         description, shortDescription, executionSummary, learningNotes,
         prerequisiteNotes, pronunciation, operationalNotationSource, slug,
       );
@@ -1338,8 +1329,13 @@ export const freestyleCurationService = {
     const statusFilter = TIP_STATUS_VALUES.includes(filter.status ?? '') ? (filter.status as string) : '';
     const trickSlug = (filter.trickSlug ?? '').trim();
 
+    // The slug side of the search treats every separator as a space, so the
+    // needle has to arrive the same way: a curator typing the natural spaced
+    // name, the underscored slug form, or the stored hyphenated one all reach
+    // the same placeholder row.
+    const slugNeedle = query.replace(/[-_:]+/g, ' ');
     const dbRows = query
-      ? (freestyleTrickTips.searchForModeration.all(`%${query}%`, `%${query}%`) as TipModerationDbRow[])
+      ? (freestyleTrickTips.searchForModeration.all(`%${query}%`, `%${slugNeedle}%`) as TipModerationDbRow[])
       : (freestyleTrickTips.listForModeration.all() as TipModerationDbRow[]);
     const rows = dbRows
       .filter((r) => {

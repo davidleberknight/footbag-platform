@@ -5044,7 +5044,17 @@ CREATE TABLE freestyle_tricks (
   operational_notation TEXT,                       -- Set-arc operational notation (execution mechanics; FootbagMoves-style). Independent of `notation` (semantic Jobs notation). Curator-authored or curator-reviewed FM-derived. NEVER read by parser; NEVER overrides editorial truth. Renders in the trick-detail "Set notation (operational)" section when populated.
   operational_notation_source TEXT,                -- Free-form curator-authored provenance/citation for operational_notation. Renders as a muted italic line beneath the notation block. Supports three real states (FM curator-reviewed / IFPA-authored / FM alternative-reading) plus ontology-conflict transparency notes (e.g. blur "Blurry Mirage" vs IFPA "Stepping Paradox Mirage"). Omitted entirely from the page when null. NEVER read by parser; presentation-layer only.
   review_status   TEXT NOT NULL DEFAULT 'curated', -- v2.1: 'curated' | 'scraped' | 'expert_reviewed' | 'pending' (no CHECK)
-  is_core         INTEGER NOT NULL DEFAULT 0,      -- v2.1: 1 for irreducible dex/body/set primitives only (not modifiers)
+  -- Written by the dictionary loaders and read by nothing. The application does
+  -- not consult it, and the admin control that set it was removed once that was
+  -- established, because a curator setting it changed nothing a reader saw.
+  --
+  -- It is NOT the public core set. That set is the twelve Passback foundation
+  -- tricks, held in code and used by the mosaic and the atom-versus-compound
+  -- rendering decision. This column was filled from a different list with a
+  -- different scope: the base dex, body and set primitives, which includes
+  -- clipper, guay, pixie and fairy and omits toe stall, clipper stall and orbit.
+  -- The two lists answer different questions and are deliberately not reconciled.
+  is_core         INTEGER NOT NULL DEFAULT 0,      -- unused by the application; see above
   is_active       INTEGER NOT NULL DEFAULT 1,      -- v2.1: 0 hides from public listings (used for review_status='pending' rows)
   sort_order      INTEGER NOT NULL DEFAULT 0,      -- load order from source CSV
   loaded_at       TEXT NOT NULL,

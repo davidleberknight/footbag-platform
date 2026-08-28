@@ -669,45 +669,56 @@ describe('POST/GET /admin/freestyle/tricks/:slug/edit — editorial prose fields
 // the retiring content pipeline used to own. They need an in-app write path
 // because nothing else maintains them once the live database is the source of
 // truth for freestyle content.
-describe('POST/GET /admin/freestyle/tricks/:slug/edit — core marker and sort position', () => {
-  it('displays the stored core marker and sort position for editing', async () => {
+describe('POST/GET /admin/freestyle/tricks/:slug/edit — sort position, and the retired core marker', () => {
+  it('displays the stored sort position for editing', async () => {
     const res = await get('/admin/freestyle/tricks/core_host/edit', admin());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('name="isCore"');
-    expect(res.text).toMatch(/name="isCore"[^>]*checked/);
     expect(res.text).toContain('value="42"');           // sort position input
   });
 
-  it('leaves the core checkbox unchecked for a row that is not a core primitive', async () => {
-    const res = await get('/admin/freestyle/tricks/core_set/edit', admin());
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('name="isCore"');
-    expect(res.text).not.toMatch(/name="isCore"[^>]*checked/);
+  it('offers no core-primitive control, because nothing reads the column it set', async () => {
+    // The public core set is the twelve foundation tricks held in code. The
+    // column this control wrote is read nowhere, so a curator ticking it changed
+    // nothing a reader saw, which is worse than the control being absent.
+    for (const slug of ['core_host', 'core_set']) {
+      const res = await get(`/admin/freestyle/tricks/${slug}/edit`, admin());
+      expect(res.status).toBe(200);
+      expect(res.text, `${slug} must not offer a core control`).not.toContain('name="isCore"');
+      expect(res.text).not.toContain('Core primitive');
+    }
   });
 
-  it('sets the core marker and the sort position, and names both in the audit metadata', async () => {
+  it('sets the sort position and names it in the audit metadata', async () => {
     const res = await post('/admin/freestyle/tricks/core_set/edit', admin(),
-      validBody({ canonicalName: 'Core Set', isCore: 'on', sortOrder: '17' }));
+      validBody({ canonicalName: 'Core Set', sortOrder: '17' }));
     expect(res.status).toBe(303);
-
-    const row = coreRow('core_set');
-    expect(row.is_core).toBe(1);
-    expect(row.sort_order).toBe(17);
+    expect(coreRow('core_set').sort_order).toBe(17);
 
     const audits = auditRows('core_set');
     expect(audits).toHaveLength(1);
-    expect(audits[0].metadata_json).toContain('is_core');
     expect(audits[0].metadata_json).toContain('sort_order');
+    expect(audits[0].metadata_json).not.toContain('is_core');
   });
 
-  it('clears the core marker when the checkbox is absent, and stores zero for a cleared sort position', async () => {
+  it('leaves a marked row still marked after a save, rather than zeroing it', async () => {
+    // The hazard the retirement had to avoid. An unchecked box submits nothing,
+    // so had the control simply been deleted from the form while the update
+    // still wrote the column, the first save of any trick would have silently
+    // cleared every marked row.
+    const before = coreRow('core_host');
+    expect(before.is_core).toBe(1);
+
+    const res = await post('/admin/freestyle/tricks/core_host/edit', admin(),
+      validBody({ canonicalName: 'Core Host', sortOrder: '42' }));
+    expect(res.status).toBe(303);
+    expect(coreRow('core_host').is_core).toBe(1);
+  });
+
+  it('stores zero for a cleared sort position', async () => {
     const res = await post('/admin/freestyle/tricks/core_clear/edit', admin(),
       validBody({ canonicalName: 'Core Clear', sortOrder: '' }));
     expect(res.status).toBe(303);
-
-    const row = coreRow('core_clear');
-    expect(row.is_core).toBe(0);
-    expect(row.sort_order).toBe(0);
+    expect(coreRow('core_clear').sort_order).toBe(0);
   });
 
   it('rejects a non-numeric sort position and persists nothing', async () => {

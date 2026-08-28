@@ -92,6 +92,10 @@ beforeAll(async () => {
   tipRestoreInactive = insertFreestyleTrickTip(db, { trick_slug: 'retired_trick', tip_text: 'SENTINEL_RESTORE_INACTIVE.', status: 'hidden', display_order: 6 });
   tipRemap          = insertFreestyleTrickTip(db, { trick_slug: 'unresolved:Mystery Move', tip_text: 'SENTINEL_REMAP advice text.', status: 'unresolved_freestyle', display_order: 7 });
   tipFutureNet      = insertFreestyleTrickTip(db, { trick_slug: 'unresolved:net:Side Axe', tip_text: 'SENTINEL_FUTURE_NET.', status: 'future_net', display_order: 8 });
+  // A placeholder keyed the way the import actually writes one: kebab-cased and
+  // colon-prefixed. No curator types that from memory, so the search has to
+  // reach it from the natural spelling of the name inside it.
+  insertFreestyleTrickTip(db, { trick_slug: 'unresolved:pogo-op-whirling-swirl', tip_text: 'SENTINEL_KEBAB placeholder advice.', status: 'unresolved_frontier', display_order: 12 });
   tipGuard          = insertFreestyleTrickTip(db, { trick_slug: 'whirl', tip_text: 'SENTINEL_GUARD untouched.', status: 'published', display_order: 9 });
   tipAlreadyHidden  = insertFreestyleTrickTip(db, { trick_slug: 'whirl', tip_text: 'SENTINEL_ALREADY_HIDDEN.', status: 'hidden', display_order: 10 });
   // The display-order rows sit on the second trick, so the trick filter has a
@@ -179,6 +183,30 @@ describe('GET /admin/freestyle/tips — admin gate and listing', () => {
     const res = await get('/admin/freestyle/tips?q=Mystery', admin());
     expect(res.text).toContain('SENTINEL_REMAP');
     expect(res.text).not.toContain('SENTINEL_GUARD');
+  });
+
+  // A tip the import could not resolve is keyed on a kebab-cased placeholder
+  // that exists only inside the pipeline. A curator looking for it knows the
+  // trick's name, not that spelling, so every separator has to be equivalent on
+  // the slug side of the search. Without this the tip is reachable only by
+  // filtering its status, or by guessing the hyphenation.
+  it.each([
+    ['the spaced name a curator would type', 'whirling swirl'],
+    ['the underscored slug form',            'whirling_swirl'],
+    ['the stored hyphenated form',           'whirling-swirl'],
+  ])('search reaches a kebab-cased placeholder by %s', async (_label, needle) => {
+    const res = await get(`/admin/freestyle/tips?q=${encodeURIComponent(needle)}`, admin());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('SENTINEL_KEBAB');
+    expect(res.text).not.toContain('SENTINEL_GUARD');
+  });
+
+  it('does not turn the separator rule into a match on the advice text', async () => {
+    // The prose side stays literal: a curator searching words reads them as
+    // words, and collapsing separators there would make unrelated tips collide.
+    const res = await get('/admin/freestyle/tips?q=SENTINEL-KEBAB', admin());
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('SENTINEL_KEBAB placeholder advice');
   });
 });
 

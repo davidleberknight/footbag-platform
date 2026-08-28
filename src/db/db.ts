@@ -2664,7 +2664,7 @@ export const freestyleTricks = {
   // `operational_notation` is the execution notation.
   get getForCurationBySlug() { return db.prepare(`
     SELECT slug, canonical_name, adds, notation, operational_notation,
-           trick_family, base_trick, category, is_active, is_core, sort_order,
+           trick_family, base_trick, category, is_active, sort_order,
            review_status,
            description, short_description, execution_summary, learning_notes,
            prerequisite_notes, pronunciation, operational_notation_source
@@ -2683,16 +2683,20 @@ export const freestyleTricks = {
 
   // Admin curation scalar edit: update the editable row fields of one trick,
   // the structural fields plus the editorial prose fields (slug is the identity
-  // key and stays fixed). The core-primitive marker and the browse sort position
-  // are included because the content pipeline that used to set them stops running
-  // at the source-of-truth cutover, so this is their only remaining write path.
-  // Stamps updated_at. Attached aliases, sources, and modifier links are
-  // untouched here.
+  // key and stays fixed). The browse sort position is included because the content
+  // pipeline that used to set it stops running at the source-of-truth cutover, so
+  // this is its only remaining write path. Stamps updated_at. Attached aliases,
+  // sources, and modifier links are untouched here.
+  //
+  // is_core is deliberately absent. Nothing in the application reads it, so a
+  // curator setting it changed nothing a reader saw; the column stays in the
+  // schema, written only by the dictionary loaders, and this statement leaves it
+  // alone rather than zeroing every marked row on the first save.
   get updateScalars() { return db.prepare(`
     UPDATE freestyle_tricks
     SET canonical_name = ?, adds = ?, notation = ?, operational_notation = ?,
         trick_family = ?, base_trick = ?, category = ?, is_active = ?,
-        is_core = ?, sort_order = ?,
+        sort_order = ?,
         review_status = ?, description = ?, short_description = ?,
         execution_summary = ?, learning_notes = ?, prerequisite_notes = ?,
         pronunciation = ?, operational_notation_source = ?,
@@ -2969,10 +2973,18 @@ export const freestyleTrickTips = {
   `); },
   // Free-text moderation search over the advice text and the (canonical or
   // unresolved:<name>) slug. Both bind the same LIKE pattern.
+  // Free-text moderation search over the advice and the slug. Separators are
+  // interchangeable on the slug side: an unresolved tip is keyed on a kebab-cased
+  // placeholder ("unresolved:pogo-op-whirling-swirl") that no curator would type
+  // from memory, so "whirling swirl" and "whirling_swirl" have to reach it as
+  // readily as the hyphenated form. Both the stored slug and the needle collapse
+  // to a single separator before matching. The advice side matches literally,
+  // since prose is what the curator actually read.
   get searchForModeration() { return db.prepare(`
     SELECT id, trick_slug, tip_text, status, display_order, created_at_legacy
     FROM freestyle_trick_tips
-    WHERE tip_text LIKE ? OR trick_slug LIKE ?
+    WHERE tip_text LIKE ?
+       OR REPLACE(REPLACE(REPLACE(trick_slug, '-', ' '), '_', ' '), ':', ' ') LIKE ?
     ORDER BY status, trick_slug, display_order, id
   `); },
 

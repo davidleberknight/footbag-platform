@@ -61,6 +61,16 @@ CURATED_V1_SOURCE_ID = "curated-v1"
 CURATED_V1_RETRIEVED_AT = "2026-04-20T00:00:00.000Z"
 
 # v2.1: irreducible trick primitives. Modifier rows are excluded by design.
+# The base primitives of the movement system: the smallest unit of each kind of
+# movement. Nothing in the application reads the column this fills, and the admin
+# control that let a curator edit it was removed once that was established.
+#
+# This is NOT the public core set, and the two are deliberately not reconciled.
+# The public set is the twelve Passback foundation tricks, held in code, driving
+# the mosaic and the atom-versus-compound rendering decision. This list answers a
+# different question, which is why it carries clipper, guay, pixie and fairy and
+# omits toe stall, clipper stall and orbit. Making either match the other would
+# destroy the distinction rather than fix a discrepancy.
 IS_CORE_SLUGS = frozenset({
     # dex primitives (10)
     "clipper", "mirage", "legover", "pickup", "guay", "illusion",
