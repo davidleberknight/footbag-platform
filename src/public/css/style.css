@@ -2845,6 +2845,19 @@ section.home-media { padding-top: 0; }
 .freestyle-edit-list li {
   margin: 3px 0;
 }
+/* The reason an alias is published against its class, or held back against it.
+   Sits under the class and display controls it explains rather than beside
+   them, because a one-line box invites a keystroke where a judgement belongs. */
+.freestyle-edit-reason {
+  display: block;
+  margin: 4px 0;
+  max-width: 480px;
+}
+.freestyle-edit-reason textarea {
+  display: block;
+  width: 100%;
+  font-size: 0.9rem;
+}
 .cleanup-action-form {
   display: flex;
   gap: 4px;

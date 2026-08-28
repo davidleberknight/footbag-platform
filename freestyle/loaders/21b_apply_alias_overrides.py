@@ -97,10 +97,41 @@ def apply_overrides(db_path: str) -> None:
             elif action == "retype":
                 atype = r["alias_type"].strip()
                 adisplay = int(r["alias_display"].strip())
-                conn.execute(
-                    "UPDATE freestyle_trick_aliases SET alias_type = ?, alias_display = ? "
-                    "WHERE alias_slug = ?",
-                    (atype, adisplay, slug))
+                # A row whose display state follows its class explains itself. One
+                # set against the class is a curator judgement, and the running
+                # application now refuses to save such a row without a reason. The
+                # reasons for the rows ruled before that requirement existed live
+                # in this file, so carry them into the table: otherwise every
+                # pre-existing exception would look unexplained after cutover,
+                # when this loader no longer runs and the note is all that is left.
+                if (adisplay == 1) != (atype == "common"):
+                    note = (r.get("note") or "").strip()
+                    if not note:
+                        sys.exit(
+                            f"ERROR: {slug!r} sets display={adisplay} against class "
+                            f"{atype!r} with no note. A divergence must say why.")
+                    existing = conn.execute(
+                        "SELECT notes FROM freestyle_trick_aliases WHERE alias_slug = ?",
+                        (slug,)).fetchone()
+                    prior = ((existing[0] if existing else None) or "").strip()
+                    # Fail closed rather than replace. A note already on the row
+                    # came from somewhere this file cannot see, and overwriting
+                    # provenance silently is the failure worth refusing.
+                    if prior and prior != note:
+                        sys.exit(
+                            f"ERROR: {slug!r} already carries a note this override "
+                            f"would replace. Reconcile them by hand rather than "
+                            f"letting a rebuild overwrite provenance.")
+                    conn.execute(
+                        "UPDATE freestyle_trick_aliases "
+                        "SET alias_type = ?, alias_display = ?, notes = ? "
+                        "WHERE alias_slug = ?",
+                        (atype, adisplay, note, slug))
+                else:
+                    conn.execute(
+                        "UPDATE freestyle_trick_aliases SET alias_type = ?, alias_display = ? "
+                        "WHERE alias_slug = ?",
+                        (atype, adisplay, slug))
                 retyped_by_type[atype] = retyped_by_type.get(atype, 0) + 1
             else:
                 sys.exit(f"ERROR: unknown action {action!r} for alias_slug {slug!r} "

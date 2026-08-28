@@ -64,6 +64,13 @@
             {{#each this.typeOptions}}<option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>{{/each}}
           </select>
           <label><input type="checkbox" name="aliasDisplay" {{#if this.isDisplayed}}checked{{/if}} /> Show beside the trick name</label>
+          {{! The reason is required only when the two disagree, but the field is
+              always rendered: revealing it with script would make the rule
+              invisible without JavaScript, and the page must work without it. }}
+          <label class="freestyle-edit-reason">
+            {{#if this.divergesFromClass}}Why this differs from the class (required){{else}}Why, if you set this against the class{{/if}}
+            <textarea name="divergenceReason" rows="2" maxlength="500">{{this.divergenceReason}}</textarea>
+          </label>
           <button type="submit" class="btn btn-outline btn-sm">Save Alias</button>
         </form>
         <form method="POST" action="{{this.deleteHref}}" class="inline-form">

@@ -145,6 +145,7 @@ export const adminFreestyleController = {
     const input: FreestyleAliasClassInput = {
       aliasType: str(req.body.aliasType),
       aliasDisplay: str(req.body.aliasDisplay),
+      divergenceReason: str(req.body.divergenceReason),
     };
 
     try {

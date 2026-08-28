@@ -56,9 +56,14 @@
  * the only one a reader sees by default. updateAlias sets both fields on an
  * existing alias, keeping the class editable for the life of the row and letting a
  * curator display a non-nickname alias, or hide a nickname, as a deliberate
- * exception; it is scoped to the alias's own trick and records the previous class
- * and display state on its audit entry. removeAlias is scoped to the alias's own
- * trick. attachSource links one
+ * exception; where the display state disagrees with what the class implies it
+ * requires a reason and writes it to the alias's notes in the same statement, so
+ * an exception and its explanation cannot be stored apart, and it clears that note
+ * when the row returns to agreeing with its class. An edit that leaves the reason
+ * blank keeps the standing one, because the field records a judgement rather than
+ * re-confirming it. It is scoped to the alias's own trick and records the previous
+ * class and display state, whether the save diverges, and the reason, on its audit
+ * entry. removeAlias is scoped to the alias's own trick. attachSource links one
  * existing registry source with an optional external URL and asserted ADD (the
  * other link columns stay unset), rejecting an unknown source id or a duplicate
  * link; detachSource is keyed on both the trick and the source. attachModifier
@@ -186,6 +191,12 @@ export interface FreestyleTrickEditAlias {
   typeOptions: FilterOption[];
   isDisplayed: boolean;
   displayLabel: string;
+  /** True when the publication state is set against what the class implies, so
+   *  the form can mark the reason required and say which way it diverges. */
+  divergesFromClass: boolean;
+  /** The standing reason for that divergence, shown so a curator sees why the
+   *  exception exists before changing it. */
+  divergenceReason: string;
   updateHref: string;
   deleteHref: string;
 }
@@ -278,6 +289,9 @@ export interface FreestyleAliasInput {
 export interface FreestyleAliasClassInput {
   aliasType?: string;
   aliasDisplay?: string;
+  /** Why this alias is published against what its class implies, or held back
+   *  against it. Required only when the two disagree. */
+  divergenceReason?: string;
 }
 
 /** The source-link fields the attach-source form submits. */
@@ -359,6 +373,8 @@ interface AliasDbRow {
   alias_text: string;
   alias_type: string;
   alias_display: number;
+  /** Why the display state diverges from the class, when it does. */
+  notes: string | null;
 }
 interface FullAliasDbRow extends AliasDbRow { trick_slug: string; }
 interface SourceLinkDbRow {
@@ -430,8 +446,16 @@ const ALIAS_TYPES = Object.keys(ALIAS_TYPE_LABELS);
 // when it is created, and a curator changes that state only as a deliberate
 // exception (a structural reading a trick's page genuinely needs beside it).
 const NICKNAME_ALIAS_TYPES = ['common'];
+// The single definition of what a class implies about publication. Both the add
+// and the edit path read it, and the curated-override loader carries the same
+// rule in Python because the two cannot share an implementation; a test pins the
+// two definitions equivalent rather than a configuration layer existing to hold
+// one line.
 const displayDefaultForAliasType = (aliasType: string): number =>
   (NICKNAME_ALIAS_TYPES.includes(aliasType) ? 1 : 0);
+/** Shortest reason that can carry a judgement rather than a keystroke. */
+const ALIAS_REASON_MIN = 12;
+const ALIAS_REASON_MAX = 500;
 const ALIAS_TEXT_MAX = 200;
 
 // Pre-go-live guardrail, parallel to the curated-media one. It fires only where a
@@ -669,6 +693,8 @@ export const freestyleCurationService = {
         })),
         isDisplayed: a.alias_display === 1,
         displayLabel: a.alias_display === 1 ? 'Shown beside the trick name' : 'Search only',
+        divergesFromClass: a.alias_display !== displayDefaultForAliasType(a.alias_type),
+        divergenceReason: (a.notes ?? '').trim(),
         updateHref: `/admin/freestyle/tricks/${slug}/aliases/${encodeURIComponent(a.alias_slug)}`,
         deleteHref: `/admin/freestyle/tricks/${slug}/aliases/${encodeURIComponent(a.alias_slug)}/delete`,
       }));
@@ -1054,8 +1080,32 @@ export const freestyleCurationService = {
     // An unchecked checkbox submits nothing, so absence is the hidden state.
     const aliasDisplay = input.aliasDisplay === 'on' || input.aliasDisplay === '1' ? 1 : 0;
 
+    // A publication state that follows the class needs no defending. One set
+    // against it is a judgement the class cannot record, and an unexplained one
+    // is indistinguishable later from a mistake: the curated overrides all carry
+    // a reason by convention, and this is where that convention becomes a rule,
+    // because after cutover this surface is the only writer.
+    const diverges = aliasDisplay !== displayDefaultForAliasType(aliasType);
+    const submittedReason = (input.divergenceReason ?? '').trim();
+    // An existing reason still standing is the row's own explanation, so leaving
+    // the field untouched on an unrelated edit is not an unexplained exception.
+    const reason = submittedReason || (diverges ? (existing.notes ?? '').trim() : '');
+    if (diverges && reason.length < ALIAS_REASON_MIN) {
+      throw new ValidationError(
+        aliasDisplay === 1
+          ? 'Publishing an alias whose class would keep it hidden needs a reason saying why this trick needs it beside the name.'
+          : 'Holding back an alias whose class would publish it needs a reason saying why a reader should not see it.',
+      );
+    }
+    if (reason.length > ALIAS_REASON_MAX) {
+      throw new ValidationError(`The reason must be ${ALIAS_REASON_MAX} characters or fewer.`);
+    }
+    // Agreeing with the class clears any reason a previous exception left, so a
+    // stale explanation cannot outlive the exception it explained.
+    const notes = diverges ? reason : null;
+
     transaction(() => {
-      freestyleTrickAliases.updateClassForTrick.run(aliasType, aliasDisplay, aliasSlug, trickSlug);
+      freestyleTrickAliases.updateClassForTrick.run(aliasType, aliasDisplay, notes, aliasSlug, trickSlug);
       appendAuditEntry({
         actionType:    'freestyle.trick_alias.updated',
         category:      'content',
@@ -1071,6 +1121,10 @@ export const freestyleCurationService = {
           aliasDisplay,
           previousAliasType:    existing.alias_type,
           previousAliasDisplay: existing.alias_display,
+          // Recorded on the entry as well as the row: the row keeps only the
+          // standing reason, while the log keeps the one given at the time.
+          divergesFromClass:    diverges,
+          divergenceReason:     notes,
         },
       });
     });

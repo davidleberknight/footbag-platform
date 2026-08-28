@@ -332,10 +332,10 @@ function auditByAction(entityId: string, actionType: string) {
 
 function aliasRow(aliasSlug: string) {
   return db.prepare(
-    'SELECT alias_slug, alias_text, alias_type, alias_display, trick_slug FROM freestyle_trick_aliases WHERE alias_slug = ?',
+    'SELECT alias_slug, alias_text, alias_type, alias_display, trick_slug, notes FROM freestyle_trick_aliases WHERE alias_slug = ?',
   ).get(aliasSlug) as {
     alias_slug: string; alias_text: string; alias_type: string;
-    alias_display: number; trick_slug: string;
+    alias_display: number; trick_slug: string; notes: string | null;
   } | undefined;
 }
 
@@ -867,14 +867,92 @@ describe('POST /admin/freestyle/tricks/:slug/aliases/:aliasSlug — reclassify',
     expect(audits[0].metadata_json).toContain('"previousAliasDisplay":1');
   });
 
-  it('displays a non-nickname class when a curator sets it deliberately', async () => {
+  it('displays a non-nickname class when a curator sets it deliberately and says why', async () => {
+    // Publishing a class the default would hide is allowed, and now has to carry
+    // the judgement the class cannot record. The reason is stored on the row, so
+    // a later reader finds the exception explained rather than bare.
+    const reason = 'the orbit page is poorer without the reading that names the trick';
     const res = await post('/admin/freestyle/tricks/alias_host/aliases/hidden_structural', admin(),
-      { aliasType: 'structural', aliasDisplay: 'on' });
+      { aliasType: 'structural', aliasDisplay: 'on', divergenceReason: reason });
     expect(res.status).toBe(303);
 
     const row = aliasRow('hidden_structural')!;
     expect(row.alias_type).toBe('structural');
     expect(row.alias_display).toBe(1);
+    expect(row.notes).toBe(reason);
+  });
+
+  // An alias whose publication state follows its class needs no defending. One
+  // set against it records a judgement the class cannot hold, and after cutover
+  // this surface is the only writer, so an unexplained exception here would be
+  // indistinguishable from a mistake for good.
+  it('refuses to publish against the class with no reason, and writes nothing', async () => {
+    // Put the row back to what its class implies first, which clears any reason
+    // an earlier case left standing. Without this the fallback to the standing
+    // reason would carry the save, and the test would depend on file order.
+    await post('/admin/freestyle/tricks/alias_host/aliases/hidden_structural', admin(),
+      { aliasType: 'structural' });
+
+    const before = aliasRow('hidden_structural')!;
+    const res = await post('/admin/freestyle/tricks/alias_host/aliases/hidden_structural', admin(),
+      { aliasType: 'structural', aliasDisplay: 'on' });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('needs a reason');
+
+    const after = aliasRow('hidden_structural')!;
+    expect(after.alias_display).toBe(before.alias_display);
+    expect(after.alias_type).toBe(before.alias_type);
+  });
+
+  it('refuses to hold back a nickname with no reason, the other direction of the same rule', async () => {
+    const res = await post('/admin/freestyle/tricks/alias_host/aliases/retype_me', admin(),
+      { aliasType: 'common' });   // nickname class, unchecked box: hidden against the default
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('needs a reason');
+  });
+
+  it('rejects a reason too short to carry a judgement', async () => {
+    const res = await post('/admin/freestyle/tricks/alias_host/aliases/hidden_structural', admin(),
+      { aliasType: 'structural', aliasDisplay: 'on', divergenceReason: 'because' });
+    expect(res.status).toBe(422);
+  });
+
+  it('needs no reason when the publication state follows the class', async () => {
+    const res = await post('/admin/freestyle/tricks/alias_host/aliases/retype_me', admin(),
+      { aliasType: 'technical' });
+    expect(res.status).toBe(303);
+    expect(aliasRow('retype_me')!.notes).toBeNull();
+  });
+
+  it('surfaces a standing reason on the edit page so a curator sees it before changing it', async () => {
+    const reason = 'held back as a name a reader can reconstruct from the canonical one';
+    await post('/admin/freestyle/tricks/alias_host/aliases/abbrev_form', admin(),
+      { aliasType: 'common', divergenceReason: reason });
+    const res = await get('/admin/freestyle/tricks/alias_host/edit', admin());
+    expect(res.text).toContain(reason);
+    expect(res.text).toContain('required');
+  });
+
+  it('keeps a standing reason when an unrelated edit leaves the field empty', async () => {
+    // The field is not a re-confirmation. An edit that does not touch it must not
+    // erase the explanation that is still true.
+    const reason = 'the page needs the reading that names this trick beside it';
+    await post('/admin/freestyle/tricks/alias_host/aliases/hidden_structural', admin(),
+      { aliasType: 'structural', aliasDisplay: 'on', divergenceReason: reason });
+    const res = await post('/admin/freestyle/tricks/alias_host/aliases/hidden_structural', admin(),
+      { aliasType: 'structural', aliasDisplay: 'on' });
+    expect(res.status).toBe(303);
+    expect(aliasRow('hidden_structural')!.notes).toBe(reason);
+  });
+
+  it('clears the reason when the exception it explained is withdrawn', async () => {
+    // A stale explanation outliving its exception is worse than none: it would
+    // describe a state the row no longer holds.
+    await post('/admin/freestyle/tricks/alias_host/aliases/hidden_structural', admin(),
+      { aliasType: 'structural', aliasDisplay: 'on', divergenceReason: 'published on purpose for now' });
+    await post('/admin/freestyle/tricks/alias_host/aliases/hidden_structural', admin(),
+      { aliasType: 'structural' });   // back to what the class implies
+    expect(aliasRow('hidden_structural')!.notes).toBeNull();
   });
 
   it('rejects an unrecognized class with 422 and writes nothing', async () => {

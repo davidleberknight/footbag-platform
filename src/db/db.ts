@@ -2833,7 +2833,7 @@ export const freestyleTrickAliases = {
   // type, and public-display state, for listing, per-row editing and per-row
   // deletion.
   get listForCuration() { return db.prepare(`
-    SELECT alias_slug, alias_text, alias_type, alias_display
+    SELECT alias_slug, alias_text, alias_type, alias_display, notes
     FROM freestyle_trick_aliases
     WHERE trick_slug = ?
     ORDER BY alias_text COLLATE NOCASE
@@ -2843,7 +2843,7 @@ export const freestyleTrickAliases = {
   // service to detect a slug collision before an insert and to capture the row's
   // text, type and display state for the audit entry before a change is applied.
   get getByAliasSlug() { return db.prepare(`
-    SELECT alias_slug, alias_text, alias_type, alias_display, trick_slug
+    SELECT alias_slug, alias_text, alias_type, alias_display, trick_slug, notes
     FROM freestyle_trick_aliases
     WHERE alias_slug = ?
   `); },
@@ -2859,12 +2859,16 @@ export const freestyleTrickAliases = {
     VALUES (?, ?, ?, ?, ?, NULL, NULL, strftime('%Y-%m-%dT%H:%M:%fZ','now'))
   `); },
 
-  // Admin curation: set an existing alias's semantic class and its public-display
-  // state. Scoped to the trick so an edit page can never retype another trick's
-  // alias by slug alone.
+  // Admin curation: set an existing alias's semantic class, its public-display
+  // state, and the reason for any divergence between them. Scoped to the trick so
+  // an edit page can never retype another trick's alias by slug alone.
+  //
+  // The reason travels in the same statement as the two fields it explains, so a
+  // published exception and the note saying why it exists can never be written
+  // apart or half-applied.
   get updateClassForTrick() { return db.prepare(`
     UPDATE freestyle_trick_aliases
-    SET alias_type = ?, alias_display = ?
+    SET alias_type = ?, alias_display = ?, notes = ?
     WHERE alias_slug = ? AND trick_slug = ?
   `); },
 
