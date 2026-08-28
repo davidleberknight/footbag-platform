@@ -5064,7 +5064,7 @@ CREATE TABLE freestyle_tricks (
   -- All six are nullable; existing rows load unchanged.
   jobs_notation_raw         TEXT,                  -- canonical raw Jobs notation; never mutated. Backfill source = current `notation` column.
   jobs_notation_normalized  TEXT,                  -- whitespace-collapsed / case-standardized form for diff + QC. Derived; regenerable from jobs_notation_raw.
-  structural_parse_json     TEXT,                  -- JSON: {core_family, set, rotation, modifier, dex_structure, delay_surface, ...}. Per PROPOSAL §2.
+  structural_parse_json     TEXT,                  -- JSON the notation parser emits: {descriptive_roles, add_contributing_roles, policy_tokens, additive_flags, parse_warnings, parser_version, parsed_at, parse_source, raw_token_count, resolved_token_count}.
   computed_add_formula      TEXT,                  -- human-readable ADD derivation, e.g. 'spinning(+1 rot) + whirl(3) = 4'. NULL when unresolved.
   computed_adds             INTEGER,               -- numeric ADD when derivable. NULL otherwise. Diagnostic only — does NOT override `adds` above.
   add_formula_status        TEXT,                  -- 'exact_modifier_derived' | 'exact_self_atom' | 'approximate' | 'unresolved' | 'policy_dependent' (no CHECK; see PROPOSAL §7.2 + PHASE_2_5_REFINEMENTS §2)

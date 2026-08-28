@@ -511,10 +511,10 @@ describe('GET /freestyle/families/:slug — family cards distinguish base from f
   it('whirl card describes the base whirl with entry-generic wording and notes the family extends beyond clipper entries', async () => {
     const res = await request(await createApp()).get('/freestyle/families/whirl');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('It can be entered from a clipper or a toe delay');
+    expect(res.text).toContain('It can be entered from a clipper or a toe stall');
     expect(res.text).toContain('not every whirl-family trick starts from a clipper');
     // The base is never locked to a clipper-only entry; the trick page says it
-    // can start from a clipper or a toe delay.
+    // can start from a clipper or a toe stall.
     expect(res.text).not.toContain('clipper-to-clipper');
   });
 

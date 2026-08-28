@@ -3,7 +3,7 @@
  *
  * Adds movement-intuition prose for eclipse on the trick-detail page.
  * The prose surfaces the airborne-hop-over topology framing in
- * movement-language terms (jump-and-hover; held-delay leg-over
+ * movement-language terms (jump-and-hover; held-stall leg-over
  * chassis lifted off the ground) without modifying notation, ADD
  * accounting, or any ontology field.
  *
@@ -51,7 +51,7 @@ describe('Eclipse intuition entry — content module', () => {
     const entry = getTrickIntuition('eclipse');
     expect(entry).not.toBeNull();
     expect(entry?.prose ?? '').toMatch(/jump.*support leg/i);
-    expect(entry?.prose ?? '').toMatch(/held-delay leg-over chassis/i);
+    expect(entry?.prose ?? '').toMatch(/held-stall leg-over chassis/i);
     expect(entry?.prose ?? '').toMatch(/hop-over/i);
   });
 
@@ -71,7 +71,7 @@ describe('Eclipse intuition rendering on /freestyle/tricks/eclipse', () => {
     expect(res.text).toMatch(/Movement intuition/i);
     // The signature framing phrases appear in the rendered HTML.
     expect(res.text).toMatch(/jump-and-hover/i);
-    expect(res.text).toMatch(/held-delay leg-over chassis/i);
+    expect(res.text).toMatch(/held-stall leg-over chassis/i);
   });
 
   it('detail page preserves the existing 3 ADD chip + JOB tokens (intuition does NOT replace notation)', async () => {

@@ -1,5 +1,5 @@
 /**
- * GET /freestyle/tricks/:slug — held-delay leg-over Movement neighbours overlay.
+ * GET /freestyle/tricks/:slug — held-stall leg-over Movement neighbours overlay.
  *
  * wrap / walk-over / hop-over / eclipse each sit in their own singleton family,
  * so the curated movement-neighbourhood overlay is the only surface that links
@@ -34,9 +34,9 @@ async function page(slug: string): Promise<string> {
   return res.text;
 }
 
-const RATIONALE = 'Continuous-control held-delay leg-over lineage. Walk-over is the stepping variant, Hop-over the jumping variant, and Eclipse the airborne extension.';
+const RATIONALE = 'Continuous-control held-stall leg-over lineage. Walk-over is the stepping variant, Hop-over the jumping variant, and Eclipse the airborne extension.';
 
-describe('Held-delay leg-over Movement neighbours overlay', () => {
+describe('Held-stall leg-over Movement neighbours overlay', () => {
   const all = ['wrap', 'walk_over', 'hop_over', 'eclipse'];
   for (const slug of all) {
     it(`${slug} lists the other three under Movement neighbours with the lineage rationale`, async () => {

@@ -2242,7 +2242,7 @@ const ROLE_BUCKET_ORDER: ReadonlyArray<{ key: string; label: string }> = [
   { key: 'set',              label: 'Set' },
   { key: 'rotation',         label: 'Rotation' },
   { key: 'modifier',         label: 'Modifier' },
-  { key: 'delay_surface',    label: 'Delay surface' },
+  { key: 'delay_surface',    label: 'Stall surface' },
   { key: 'directionality',   label: 'Directionality' },
   { key: 'unusual_surface',  label: 'Unusual surface' },
   { key: 'unresolved_tokens', label: 'Unresolved tokens' },
@@ -3717,7 +3717,7 @@ const SET_MODIFIER_FEEL_CARDS: readonly ModifierFeelCard[] = [
     slug:        'fairy',
     name:        'Fairy',
     glyph:       'FAIRY',
-    feel:        'Fairy sets the bag from a toe delay, then dexes outward on the same side before the base; the outward-circling mirror of pixie.',
+    feel:        'Fairy sets the bag from a toe stall, then dexes outward on the same side before the base; the outward-circling mirror of pixie.',
     intuition:   'A set primitive in its own right, the directional opposite of pixie: pixie dexes inward, fairy outward. It pairs with most bases like the other sets.',
     example:     'Appears as both a standalone base and a modifier on other bases.',
     familyHint:  null,
@@ -3887,7 +3887,7 @@ const GLOSSARY_ABBREVIATIONS: FreestyleGlossaryAbbreviations = {
     { short: 'BOD',  meaning: 'Body-position component. Spin, duck, dive, flying, or paradox pose change. Carries +1 ADD in body-modifier accounting (e.g. BOD(1) + clipper(1) for flying clipper).' },
     { short: 'CLIP', meaning: 'Clipper: inside-arch shoe surface.' },
     { short: 'TOE',  meaning: 'Toe surface: top of the shoe.' },
-    { short: 'UNS',  meaning: 'Unusual surface. Non-standard delay or kick surface (sole, cloud, knee-front, etc.). Carries 1 ADD in surface-anchor accounting (e.g. UNS(1) = 1 ADD for sole-kick / cloud-kick).' },
+    { short: 'UNS',  meaning: 'Unusual surface. Non-standard stall or kick surface (sole, cloud, knee-front, etc.). Carries 1 ADD in surface-anchor accounting (e.g. UNS(1) = 1 ADD for sole-kick / cloud-kick).' },
     { short: 'DEL',  meaning: 'Delay / terminal stall component closing a JOB-notation chain.' },
   ],
 };
@@ -5156,7 +5156,7 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'predator',                // atomic(+1) + dlo(3) = 4 ADD (PB-source: 3)
   'schmoe',                  // stepping(+1) + legover(2) = 3 ADD (PB-source: 2)
   // ── Polish promotions: three ATW-family promoted
-  //    rows + three held-delay leg-over family rows + butterfly-kick
+  //    rows + three held-stall leg-over family rows + butterfly-kick
   //    correction. Each has operationalNotation populated via the
   //    RESOLVED_FORMULAS overlay; promotion to FIRST_CLASS_TIER_2 here
   //    surfaces the JOB+ADD browse-card row (was: bare op-notation
@@ -5164,11 +5164,11 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'around_the_world_kick',       // around-the-world chain without the terminal (ss toe) stall = 1 ADD
   'triple_around_the_world',     // dex(3) + stall(1) = 4 ADD
   'double_around_the_world_heel', // dex(2) + unusual-surface(1) + heel-stall(1) = 4 ADD
-  'hop_over',                    // inside-delay(1) + bod(1) = 2 ADD
-  'walk_over',                   // inside-delay(1) + dex(1) = 2 ADD
-  'wrap',                        // inside-delay(1) + dex(1) = 2 ADD
+  'hop_over',                    // inside-stall(1) + bod(1) = 2 ADD
+  'walk_over',                   // inside-stall(1) + dex(1) = 2 ADD
+  'wrap',                        // inside-stall(1) + dex(1) = 2 ADD
   'butterfly_kick',              // bod(1) + dex(1) = 2 ADD (corrected; was 3 ADD with extra [XBD])
-  'eclipse',                     // bod(1) + del(1) + dex(1) = 3 ADD (airborne hop-over topology; curator-supplied JOB)
+  'eclipse',                     // bod(1) + stall(1) + dex(1) = 3 ADD (airborne hop-over topology; curator-supplied JOB)
   // ── Deferred-candidate promotions (pixie family + toe-blizzard alias):
   //    pixie-opposite-clipper / pixie-same-clipper = pixie(+1) + clipper-stall(2) = 3 ADD;
   //    toe-blizzard is an alias of quantum-illusion (not a new canonical row).
@@ -7776,7 +7776,7 @@ export const freestyleService = {
             rationale: isSwingElement
               ? 'Completed by the swing action itself; the terminal is open (stall, kick, hand catch, or a follow-on trick).'
               : isHeldDelayLegover
-              ? 'Continuous-control held-delay leg-over lineage. Walk-over is the stepping variant, Hop-over the jumping variant, and Eclipse the airborne extension.'
+              ? 'Continuous-control held-stall leg-over lineage. Walk-over is the stepping variant, Hop-over the jumping variant, and Eclipse the airborne extension.'
               : null },
         ] as const).flatMap(g => {
           const tricks = relatedList.filter(r => r.rule === g.key);

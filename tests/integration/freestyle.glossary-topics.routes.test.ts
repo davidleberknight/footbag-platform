@@ -88,7 +88,7 @@ describe('Freestyle Concepts — flat chapter architecture (reference-manual tab
   it('names each chapter exactly once, never repeating the title inside the card', async () => {
     const html = await concepts();
     const titles = [
-      'Movement Basics', 'Contact Surfaces &amp; Delays',
+      'Movement Basics', 'Contact Surfaces &amp; Stalls',
       'Dexterities', 'Timing &amp; Sets', 'Operators &amp; Modifiers',
       'Family Encyclopedia', 'Structural Analysis', 'ADD Accounting',
       'Runs &amp; Sequences', 'Reference &amp; History',

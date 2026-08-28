@@ -37,7 +37,7 @@ export const TRICK_PROGRESSIVE_READINGS_ENTRIES: readonly TrickProgressiveReadin
     stages: [
       {
         stage:   'Simple atom',
-        reading: "TOE > OP IN [DEX] > OP TOE [DEL]: toe set, opposite-side inward dex, opposite toe delay.",
+        reading: "TOE > OP IN [DEX] > OP TOE [DEL]: toe set, opposite-side inward dex, opposite toe stall.",
       },
       {
         stage:   'Topology transformation',

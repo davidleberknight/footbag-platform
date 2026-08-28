@@ -75,7 +75,7 @@ export const TRICK_ONTOLOGY_ROLE_ENTRIES: readonly TrickOntologyRole[] = [
     slug: 'drifter',
     role: 'Terminal-surface-shift exemplar',
     prose:
-      "Drifter is the canonical exemplar for terminal-surface shifts on the mirage chassis. Where mirage terminates on a toe delay, drifter shifts the terminal to a clipper stall while preserving the in-to-out dex directionality. This terminal-shift is what anchors the broader shred lineage: compounds built on drifter (paradox-drifter, smoke, vortex, lotus, tombstone, fume, quantum-drifter) all inherit the mirage-dex-into-clipper-terminal structural signature. Drifter's productivity comes from being the cleanest demonstration of how a terminal-surface shift opens a new family branch.",
+      "Drifter is the canonical exemplar for terminal-surface shifts on the mirage chassis. Where mirage terminates on a toe stall, drifter shifts the terminal to a clipper stall while preserving the in-to-out dex directionality. This terminal-shift is what anchors the broader shred lineage: compounds built on drifter (paradox-drifter, smoke, vortex, lotus, tombstone, fume, quantum-drifter) all inherit the mirage-dex-into-clipper-terminal structural signature. Drifter's productivity comes from being the cleanest demonstration of how a terminal-surface shift opens a new family branch.",
   },
 
   {

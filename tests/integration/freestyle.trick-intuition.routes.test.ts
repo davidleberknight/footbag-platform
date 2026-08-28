@@ -69,13 +69,13 @@ describe('Movement intuition — flagship pages render the section', () => {
   it('butterfly renders the section', async () => {
     const res = await request(createApp()).get('/freestyle/tricks/butterfly');
     expect(res.text).toContain('class="content-section trick-intuition"');
-    expect(res.text).toMatch(/A leg over straight to a clipper delay/);
+    expect(res.text).toMatch(/A leg over straight to a clipper stall/);
   });
 
   it('osis renders the section', async () => {
     const res = await request(createApp()).get('/freestyle/tricks/osis');
     expect(res.text).toContain('class="content-section trick-intuition"');
-    expect(res.text).toMatch(/Spin into a clipper delay/);
+    expect(res.text).toMatch(/Spin into a clipper stall/);
   });
 
   it('illusion renders the section', async () => {

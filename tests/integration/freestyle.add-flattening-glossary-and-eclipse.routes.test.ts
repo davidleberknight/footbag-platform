@@ -5,7 +5,7 @@
  *
  * 1. The Freestyle Concepts ADD Accounting chapter carries an advanced-tier note
  *    explaining that historically-assigned ADD values can flatten
- *    execution-difficulty differences. The held-delay leg-over family
+ *    execution-difficulty differences. The held-stall leg-over family
  *    (hop-over / walk-over / wrap) is the worked example.
  *
  * 2. Eclipse trick: curator-supplied operational notation
@@ -96,11 +96,11 @@ describe('Freestyle Concepts ADD Accounting — ADD-flattening note', () => {
     expect(res.text).toContain('ADD value can flatten execution difficulty');
   });
 
-  it('the note cites hop-over / walk-over / wrap as the 2-ADD held-delay leg-over family example', async () => {
+  it('the note cites hop-over / walk-over / wrap as the 2-ADD held-stall leg-over family example', async () => {
     const res = await request(await createApp()).get('/freestyle/concepts');
     expect(res.text).toMatch(/hop-over[\s\S]*walk-over[\s\S]*wrap/);
     // Allow whitespace (incl. newlines from HTML wrapping) between tokens
-    expect(res.text).toMatch(/held-delay\s+leg-over chassis/);
+    expect(res.text).toMatch(/held-stall\s+leg-over chassis/);
   });
 
   it('the note preserves the doctrine framing (historical ADD stays canonical; structural / mechanical relationships discussed separately)', async () => {
@@ -117,7 +117,7 @@ describe('Eclipse — curator-supplied operational notation', () => {
     expect(entry?.totalAdd).toBe(3);
     expect(entry?.operationalNotation).toBe('SET > (jump) [BOD] > SAME or OP INSIDE [DEL] > OP OUT [DEX] > (land)');
     expect(entry?.provenance ?? '').toMatch(/airborne[\s\S]*hop-over topology/i);
-    expect(entry?.derivation ?? '').toMatch(/bod\(1\)[^=]*\+[^=]*del\(1\)[^=]*\+[^=]*dex\(1\)[^=]*=[^=]*3 ADD/);
+    expect(entry?.derivation ?? '').toMatch(/bod\(1\)[^=]*\+[^=]*stall\(1\)[^=]*\+[^=]*dex\(1\)[^=]*=[^=]*3 ADD/);
   });
 
   it('/freestyle/tricks/eclipse renders the curator-supplied op-notation tokens', async () => {
@@ -158,7 +158,7 @@ describe('Eclipse — curator-supplied operational notation', () => {
 //   - peak-stall: folk-name unusual-surface stall (peak = rim of ballcap);
 //     JOB = "[set] > peak"; ADD = stall(1).
 //   - multi-bag doctrine: "one additional ADD per simultaneously controlled
-//     bag"; 2-bag-juggling = TOE > TOE, ADD = delay(2). Boundary-object
+//     bag"; 2-bag-juggling = TOE > TOE, two simultaneous stalls. Boundary-object
 //     ontology; future dedicated multi-bag module pending.
 // ─────────────────────────────────────────────────────────────────────────
 

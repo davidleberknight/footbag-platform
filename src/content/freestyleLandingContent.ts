@@ -6,7 +6,7 @@
  *
  * Three exports:
  *   - BASIC_COMPONENTS: six conceptual primitives per the PassBack glossary
- *     (Contact / Set / Dex / Spin / Duck / Delay). Dex carries sub-fields.
+ *     (Contact / Set / Dex / Spin / Duck / Stall). Dex carries sub-fields.
  *   - CORE_TRICK_SPEC: twelve irreducible base-trick slugs with their
  *     canonical `≡` equivalence readings. ADD values are joined from
  *     `freestyle_tricks` at service-shape time; this file does not encode
@@ -83,7 +83,7 @@ export const BASIC_COMPONENTS: readonly BasicComponentSpec[] = [
   },
   {
     key:         'delay',
-    name:        'Delay',
+    name:        'Stall',
     description: 'Controlled hold on a surface (the catch).',
     subfields:   [],
     source:      'Freestyle glossary, [DEL] component flag',

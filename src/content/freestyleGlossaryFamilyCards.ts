@@ -154,13 +154,13 @@ export const ROOT_TERMINAL_FAMILIES: readonly GlossaryFamilyCard[] = [
     observationalNotes: [
       {
         title: 'Why whirl anchors combinations',
-        body:  'Whirl ends on a cross-body clipper delay, making it a useful structural anchor for combinations. Blurry Whirl adds the Blurry structure to the same Whirl base, while other family members vary the entry and modifiers around that terminal pattern.',
+        body:  'Whirl ends on a cross-body clipper stall, making it a useful structural anchor for combinations. Blurry Whirl adds the Blurry structure to the same Whirl base, while other family members vary the entry and modifiers around that terminal pattern.',
       },
     ],
     teaching: {
-      hook: 'Whirl became the trick freestyle is built around, because it resolves to a cross-body clipper delay that gives the family a stable receiving structure and lets a combo keep going.',
+      hook: 'Whirl became the trick freestyle is built around, because it resolves to a cross-body clipper stall that gives the family a stable receiving structure and lets a combo keep going.',
       physicalDescription:
-        'The base whirl circles the leg around the bag, over the top, and lands cross-body on a clipper. It can be entered from a clipper or a toe delay. It is one of the first rotational moves a player owns, and one they never stop using. The whirl family extends that clipper ending through different entries, sets, and modifiers, so not every whirl-family trick starts from a clipper.',
+        'The base whirl circles the leg around the bag, over the top, and lands cross-body on a clipper. It can be entered from a clipper or a toe stall. It is one of the first rotational moves a player owns, and one they never stop using. The whirl family extends that clipper ending through different entries, sets, and modifiers, so not every whirl-family trick starts from a clipper.',
       importance:
         'Whirl became the hub because it starts and ends in the same position, a clipper: you can enter it from almost anything that lands in a clipper and leave it into almost anything that starts from one. That points at something larger about advanced freestyle. Many tricks are valuable not simply because they are hard, but because they leave the player in a position where the next trick is possible. Whirl became central because it returns the player to one of the most reusable positions in the sport, which is a large part of why the clipper became the language advanced freestyle is built on.',
       variantsIntro:
@@ -548,7 +548,7 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     teaching: {
       hook: 'Swirl is one cell of the clipper-terminal matrix: the same-side leg circles outward and the bag lands on a same-side clipper.',
       physicalDescription:
-        'In a swirl the same-side leg (the leg on the side the bag occupies) circles outward around the bag once, and the bag is caught on a same-side clipper. The entry is flexible: it can be set from a clipper, a toe delay, or a plain set; the clipper is the terminus, not the start. The swirl family extends that ending pattern through different entries, sets, and modifiers.',
+        'In a swirl the same-side leg (the leg on the side the bag occupies) circles outward around the bag once, and the bag is caught on a same-side clipper. The entry is flexible: it can be set from a clipper, a toe stall, or a plain set; the clipper is the terminus, not the start. The swirl family extends that ending pattern through different entries, sets, and modifiers.',
       importance:
         'Swirl matters because it completes a structural family. Whirl, reverse whirl, swirl, and reverse swirl are the four cells of one clipper-terminal matrix: which leg performs the dexterity (opposite or same side) crossed with which way it circles (in or out). All four launch from a flexible set, all four land on a clipper, and all four score the same three ADD. Seeing the four together turns four separate trick names into one small system.',
       variantsIntro:
@@ -788,7 +788,7 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     observationalNotes: [
       {
         title: 'Airborne hop-over',
-        body:  'Eclipse lifts the held-delay leg-over chassis of hop-over off the ground: after a jump off the support leg, both the inside-foot held delay and the outward dex happen in flight. The jump is a body-bearing scored element, which is why eclipse reads as 3 ADD where its grounded hop-over cousin reads as 2.',
+        body:  'Eclipse lifts the held-stall leg-over chassis of hop-over off the ground: after a jump off the support leg, both the inside-foot held stall and the outward dex happen in flight. The jump is a body-bearing scored element, which is why eclipse reads as 3 ADD where its grounded hop-over cousin reads as 2.',
       },
     ],
   },
@@ -1138,7 +1138,7 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     teaching: {
       hook: 'Inside-stall is a catch surface of its own, the inside of the foot, and the guay lineage is what lands there.',
       physicalDescription:
-        'An inside-stall catches the bag on the inside of the foot rather than the toes or across the body on a clipper. It is a place a trick can end, a third delay surface beside the toe stall and the clipper, reached here by one inward dexterity.',
+        'An inside-stall catches the bag on the inside of the foot rather than the toes or across the body on a clipper. It is a place a trick can end, a third stall surface beside the toe stall and the clipper, reached here by one inward dexterity.',
       importance:
         'Inside-stall matters as a surface, a distinct place to catch, more than as one move. Its productive lineage is the guay, which reaches the inside stall much the way a pickup reaches a toe, and the guay\'s variants all land on the same surface. Recognizing the inside-stall as its own catch, not a kind of toe stall, is what lets that lineage read as one family.',
       variantsIntro:

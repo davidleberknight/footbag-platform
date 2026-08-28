@@ -57,25 +57,25 @@ export const TRICK_INTUITION_ENTRIES: readonly TrickIntuitionEntry[] = [
   {
     slug: 'toe_stall',
     prose:
-      'The foundational delay surface for upright freestyle. The bag rests on top of the foot just behind the toes, with the foot dorsiflexed (top of foot lifted, toes raised) so the bag sits in the small cup formed where the laces meet the ankle. Balance comes from the supporting leg with a slight forward lean; the catching foot holds the bag still for a beat before the next move. Most upright tricks open from a toe set or terminate on a toe delay.',
+      'The foundational stall surface for upright freestyle. The bag rests on top of the foot just behind the toes, with the foot dorsiflexed (top of foot lifted, toes raised) so the bag sits in the small cup formed where the laces meet the ankle. Balance comes from the supporting leg with a slight forward lean; the catching foot holds the bag still for a beat before the next move. Most upright tricks open from a toe set or terminate on a toe stall.',
     attribution: '',
   },
   {
     slug: 'clipper_stall',
     prose:
-      'Delay the footbag on the inside surface of the foot with the catching leg tucked behind the support leg, so the catch sits across the body on your support side, sole turned inward. Bend the support leg deeply and lean slightly over it for balance, and let the bag settle still in the pocket on the inside of the foot for a beat before the next move. Because so many tricks both finish in a clipper and start again from one, learning to hold it comfortably and settled is worth the time.',
+      'Stall the footbag on the inside surface of the foot with the catching leg tucked behind the support leg, so the catch sits across the body on your support side, sole turned inward. Bend the support leg deeply and lean slightly over it for balance, and let the bag settle still in the pocket on the inside of the foot for a beat before the next move. Because so many tricks both finish in a clipper and start again from one, learning to hold it comfortably and settled is worth the time.',
     attribution: '',
   },
   {
     slug: 'around_the_world',
     prose:
-      'From a toe delay, set the footbag up in front of you and circle one leg all the way around the bag, passing it around and back down to a toe delay. The leg makes a full loop around the footbag while the bag hangs roughly in place. Around the world circles the leg inward around the supporting leg; the outward, reverse circle is a separate move, the orbit. Keep your eyes on the bag through the whole circle so the toe arrives back underneath it cleanly.',
+      'From a toe stall, set the footbag up in front of you and circle one leg all the way around the bag, passing it around and back down to a toe stall. The leg makes a full loop around the footbag while the bag hangs roughly in place. Around the world circles the leg inward around the supporting leg; the outward, reverse circle is a separate move, the orbit. Keep your eyes on the bag through the whole circle so the toe arrives back underneath it cleanly.',
     attribution: '',
   },
   {
     slug: 'orbit',
     prose:
-      'Orbit circles one leg around the footbag once between two toe delays, in the reverse direction from an around-the-world. From a toe delay, set the bag and pass the leg around it the opposite way, then catch it again on a toe delay. If you can already do an around-the-world, orbit is a close cousin: the same kind of full leg circle, but circled the other way, so the two are distinct moves rather than one.',
+      'Orbit circles one leg around the footbag once between two toe stalls, in the reverse direction from an around-the-world. From a toe stall, set the bag and pass the leg around it the opposite way, then catch it again on a toe stall. If you can already do an around-the-world, orbit is a close cousin: the same kind of full leg circle, but circled the other way, so the two are distinct moves rather than one.',
     attribution: '',
   },
   {
@@ -87,43 +87,43 @@ export const TRICK_INTUITION_ENTRIES: readonly TrickIntuitionEntry[] = [
   {
     slug: 'illusioning_flail',
     prose:
-      'Set the bag and circle an outward leg-swing under and then over it while the bag is on its way down rather than on its rise, so the swing rides the bag\'s downtime. Without replanting the support foot, immediately take a second outward swing with the body suspended in the air, and catch on a toe delay. It reads as two low, flowing outward circles, the second one stolen mid-float.',
+      'Set the bag and circle an outward leg-swing under and then over it while the bag is on its way down rather than on its rise, so the swing rides the bag\'s downtime. Without replanting the support foot, immediately take a second outward swing with the body suspended in the air, and catch on a toe stall. It reads as two low, flowing outward circles, the second one stolen mid-float.',
     attribution: '',
   },
   {
     slug: 'illusioning_osis',
     prose:
-      'Open with a downtime outward leg-circle: swing under and over the bag as it falls. Flow straight out of it into a full body spin, carrying the bag wide of the body, and finish by catching it cross-body on a clipper delay. The feel is one continuous move, a downtime outward circle that unwinds directly into the rotation.',
+      'Open with a downtime outward leg-circle: swing under and over the bag as it falls. Flow straight out of it into a full body spin, carrying the bag wide of the body, and finish by catching it cross-body on a clipper stall. The feel is one continuous move, a downtime outward circle that unwinds directly into the rotation.',
     attribution: '',
   },
   {
     slug: 'mirage',
     prose:
-      'From a toe delay or a clipper delay, set the bag straight up, and swing the support leg from in to out over the footbag, catching it with the setting leg on a toe delay. The set from a clipper delay is easier once you know how to do a clipper. With a toe-set mirage, the support leg has to first swing under, then back over the bag.',
+      'From a toe stall or a clipper stall, set the bag straight up, and swing the support leg from in to out over the footbag, catching it with the setting leg on a toe stall. The set from a clipper stall is easier once you know how to do a clipper. With a toe-set mirage, the support leg has to first swing under, then back over the bag.',
     attribution: '',
   },
   {
     slug: 'whirl',
     prose:
-      'From either a clipper or a toe delay, set the footbag up, then with the support leg circle the footbag from the front up and over the footbag. Hop off the original setting leg as you finish the dexterity and catch the bag on a clipper delay. It is easiest to point your toes down as you circle the bag because this makes it faster and less likely to snag the bag as you circle it.',
+      'From either a clipper or a toe stall, set the footbag up, then with the support leg circle the footbag from the front up and over the footbag. Hop off the original setting leg as you finish the dexterity and catch the bag on a clipper stall. It is easiest to point your toes down as you circle the bag because this makes it faster and less likely to snag the bag as you circle it.',
     attribution: '',
   },
   {
     slug: 'butterfly',
     prose:
-      'A leg over straight to a clipper delay. From a right toe set the footbag up and slightly towards yourself. Hop off your right leg and pass your left leg over the footbag, then delay the footbag with the inside surface of the right foot in a cross-body position, i.e. a clipper delay.',
+      'A leg over straight to a clipper stall. From a right toe set the footbag up and slightly towards yourself. Hop off your right leg and pass your left leg over the footbag, then stall the footbag with the inside surface of the right foot in a cross-body position, i.e. a clipper stall.',
     attribution: '',
   },
   {
     slug: 'osis',
     prose:
-      'Spin into a clipper delay. It is easiest to set this from a clipper stall on the other foot or from a toe delay with the other foot straight in front of you (not behind you). From a right toe set, set straight in front of you, about waist high, and turn to the left so the footbag passes behind your back. Keep your head down with your eyes on the footbag until just before it lands on the inside surface of your right foot. Then turn quickly to the left and catch the footbag on a clipper delay.',
+      'Spin into a clipper stall. It is easiest to set this from a clipper stall on the other foot or from a toe stall with the other foot straight in front of you (not behind you). From a right toe set, set straight in front of you, about waist high, and turn to the left so the footbag passes behind your back. Keep your head down with your eyes on the footbag until just before it lands on the inside surface of your right foot. Then turn quickly to the left and catch the footbag on a clipper stall.',
     attribution: '',
   },
   {
     slug: 'illusion',
     prose:
-      'From a toe or a clipper delay, set the bag straight up about waist high. As you plant your set leg, bring your support leg up and over the bag from out to in, a reverse miraging motion. Plant the dexterity leg and catch the bag on the toe of the setting foot.',
+      'From a toe or a clipper stall, set the bag straight up about waist high. As you plant your set leg, bring your support leg up and over the bag from out to in, a reverse miraging motion. Plant the dexterity leg and catch the bag on the toe of the setting foot.',
     attribution: '',
   },
   {
@@ -141,7 +141,7 @@ export const TRICK_INTUITION_ENTRIES: readonly TrickIntuitionEntry[] = [
   {
     slug: 'blur',
     prose:
-      'Blur stretches a paradox-mirage across two complete dex moments instead of one. The first dex steps the bag laterally on the inside; the second carries the bag through the paradox hip-pivot to the catch. The rhythm runs noticeably longer than paradox-mirage: two distinct beats of dex motion before the bag returns to a toe delay. Balance and forward momentum have to carry through the multi-step pattern without the body settling between dexes.',
+      'Blur stretches a paradox-mirage across two complete dex moments instead of one. The first dex steps the bag laterally on the inside; the second carries the bag through the paradox hip-pivot to the catch. The rhythm runs noticeably longer than paradox-mirage: two distinct beats of dex motion before the bag returns to a toe stall. Balance and forward momentum have to carry through the multi-step pattern without the body settling between dexes.',
     attribution: '',
   },
   {
@@ -159,7 +159,7 @@ export const TRICK_INTUITION_ENTRIES: readonly TrickIntuitionEntry[] = [
   {
     slug: 'drifter',
     prose:
-      "Drifter holds the same in-to-out dex pattern as mirage but lands cross-body on a clipper stall instead of returning to a toe delay. The support leg swings inside-then-outside under-and-over the bag; the catch arrives on the inside surface of the opposite foot rather than the toes. The body finishes facing more cross-body than after a mirage: weight settles onto the clipper terminal rather than rebalancing through a toe delay. The rhythm is mirage-paced through the dex, then resolves into the wider clipper landing.",
+      "Drifter holds the same in-to-out dex pattern as mirage but lands cross-body on a clipper stall instead of returning to a toe stall. The support leg swings inside-then-outside under-and-over the bag; the catch arrives on the inside surface of the opposite foot rather than the toes. The body finishes facing more cross-body than after a mirage: weight settles onto the clipper terminal rather than rebalancing through a toe stall. The rhythm is mirage-paced through the dex, then resolves into the wider clipper landing.",
     attribution: '',
   },
   {
@@ -171,7 +171,7 @@ export const TRICK_INTUITION_ENTRIES: readonly TrickIntuitionEntry[] = [
   {
     slug: 'barrage',
     prose:
-      "Barrage feels like two complete same-side inside dexes stacked back-to-back, ending on a toe delay. The support leg swings inside-and-back on the first dex, settles briefly, then swings inside-and-back again on the second, a doubled same-side pattern that builds momentum through repetition rather than direction change. The rhythm is a paired cadence; balance has to hold steady across two beats of identical motion before the catch arrives.",
+      "Barrage feels like two complete same-side inside dexes stacked back-to-back, ending on a toe stall. The support leg swings inside-and-back on the first dex, settles briefly, then swings inside-and-back again on the second, a doubled same-side pattern that builds momentum through repetition rather than direction change. The rhythm is a paired cadence; balance has to hold steady across two beats of identical motion before the catch arrives.",
     attribution: 'A standalone family anchor, distinct from the Furious two-dex set (historically named barraging).',
   },
   {
@@ -225,7 +225,7 @@ export const TRICK_INTUITION_ENTRIES: readonly TrickIntuitionEntry[] = [
   {
     slug: 'eclipse',
     prose:
-      "Set the bag from a toe delay, then jump off the support leg as the bag rises; in mid-air, the inside of the opposite foot catches the bag briefly for a held delay, then swings outward into an outward dex while still airborne, with the landing arriving as the dex carries through. The defining feel is the jump-and-hover: eclipse takes the held-delay leg-over chassis of hop-over (where the body jumps over a grounded held delay) and lifts the entire structure off the ground, so both the inside-delay and the outward dex happen in flight rather than over a planted foot. The jump itself counts as a body-bearing scored element, which is why eclipse reads as 3 ADD where its grounded hop-over cousin reads as 2.",
+      "Set the bag from a toe stall, then jump off the support leg as the bag rises; in mid-air, the inside of the opposite foot catches the bag briefly for a held stall, then swings outward into an outward dex while still airborne, with the landing arriving as the dex carries through. The defining feel is the jump-and-hover: eclipse takes the held-stall leg-over chassis of hop-over (where the body jumps over a grounded held stall) and lifts the entire structure off the ground, so both the inside-stall and the outward dex happen in flight rather than over a planted foot. The jump itself counts as a body-bearing scored element, which is why eclipse reads as 3 ADD where its grounded hop-over cousin reads as 2.",
     attribution: '',
   },
 ];

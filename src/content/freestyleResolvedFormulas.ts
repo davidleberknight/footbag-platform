@@ -1607,7 +1607,7 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
     base:        'eclipse',
     baseAdd:     3,
     totalAdd:    3,
-    derivation:  'bod(1) + del(1) + dex(1) = 3 ADD (jump + mid-flight inside delay + outward dex)',
+    derivation:  'bod(1) + stall(1) + dex(1) = 3 ADD (jump + mid-flight inside stall + outward dex)',
     operationalNotation: 'SET > (jump) [BOD] > SAME or OP INSIDE [DEL] > OP OUT [DEX] > (land)',  // Curator-supplied; fb.org-aligned (pt1 jump-bearing 3-ADD reading); airborne hop-over topology.
     provenance:  'Curator-published operational notation. Eclipse structurally an airborne symposium-style evolution of hop-over topology: jump-initiated aerial dexterity sequence with mid-flight held inside delay. bod(1) + del(1) + dex(1) = 3 ADD. fb.org-aligned (pt1 ruled jump-bearing 3-ADD). Historical alias "Catwalk" preserved on DB row.',
   },

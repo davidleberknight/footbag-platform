@@ -194,7 +194,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     slug: 'toe', hashtag: '#set_toe', displayName: 'Toe Set', subtype: 'true-core',
     formula: 'TOE >',
     movementExplanation:
-      'The foundational entry surface: the bag is set up from a toe delay with no added ' +
+      'The foundational entry surface: the bag is set up from a toe stall with no added ' +
       'dexterity. Most sets are this toe set plus a pre-base motion.',
     equivalenceNotes: [],
     derivedSystems: [],
@@ -209,7 +209,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     formula: 'CLIP >',
     movementExplanation:
       'The other foundational entry surface: the bag is set from a clipper (cross-body ' +
-      'inside-surface) delay with no added dexterity. Many cross-body sets start here.',
+      'inside-surface) stall with no added dexterity. Many cross-body sets start here.',
     equivalenceNotes: [],
     derivedSystems: [],
     relatedSystems: [

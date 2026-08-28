@@ -63,7 +63,7 @@ beforeAll(async () => {
     review_status: 'curated', is_active: 1,
   });
 
-  // Terminology note: clipper (kick) and clipper stall (delay) are distinct records.
+  // Terminology note: clipper (the kick) and clipper stall (the catch) are distinct records.
   insertFreestyleTrick(testDbHandle, {
     slug: 'clipper', canonical_name: 'clipper', adds: '1',
     base_trick: 'clipper', trick_family: 'clipper', category: 'body',
@@ -158,7 +158,7 @@ describe('Naming & interpretation overlay — terminology note (clipper)', () =>
     expect(res.text).toContain('Naming &amp; interpretation');
     expect(res.text).toMatch(/Canonical reading[\s\S]*?cross-body inside-foot kick/);
     expect(res.text).toMatch(/1-ADD cross-body inside-foot kick/);
-    expect(res.text).toMatch(/clipper stall is a separate move[\s\S]*?2-ADD delay/);
+    expect(res.text).toMatch(/clipper stall is a separate move[\s\S]*?2-ADD stall/);
   });
 
   it('does NOT frame the clipper as a stall', async () => {

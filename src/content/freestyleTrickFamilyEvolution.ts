@@ -57,7 +57,7 @@ export const TRICK_FAMILY_EVOLUTION_ENTRIES: readonly TrickFamilyEvolution[] = [
       {
         branchAxis: 'Terminal surface shift',
         prose:
-          "Shifting the terminal from a toe delay to a clipper stall transforms mirage into drifter: same core in-to-out dex pattern, different landing surface.",
+          "Shifting the terminal from a toe stall to a clipper stall transforms mirage into drifter: same core in-to-out dex pattern, different landing surface.",
         exemplarSlugs: ['drifter'],
       },
     ],

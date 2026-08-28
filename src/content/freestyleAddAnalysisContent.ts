@@ -246,7 +246,7 @@ const BRACKET_RULE_NOTE =
   'components, and the number of scoring brackets equals its published ADD. ' +
   'Reading left to right, each one counts one: [DEX] a dexterity, [BOD] a body ' +
   'movement such as a spin or a duck, [XBD] a cross-body traversal, [PDX] a ' +
-  'paradox, [DEL] a delay (the catch), [UNS] an unusual-surface catch, and ' +
+  'paradox, [DEL] a stall (the catch), [UNS] an unusual-surface catch, and ' +
   '[XDEX] a cross-dex bonus. The notation is not just a description of the ' +
   'movement; it is the score, spelled out. Wherever a page shows the notation ' +
   'and the number together, the brackets and the number agree.';
@@ -333,7 +333,7 @@ const WORKED_EXAMPLES: readonly AddAnalysisWorkedExample[] = [
     addLabel:   '2 ADD',
     components: 'Cross-body kick + stall.',
     derivation: 'xbody(1) + stall(1) = 2 ADD',
-    whyNote:    'Unlike the toe stall (a single 1-ADD stall), the clipper first crosses the body ([XBD]) and then delays on the clipper surface ([DEL]), so it scores xbody(1) + stall(1) = 2. This cross-body traversal is the whole difference. Direct arithmetic; no operators in play.',
+    whyNote:    'Unlike the toe stall (a single 1-ADD stall), the clipper first crosses the body ([XBD]) and then stalls on the clipper surface ([DEL]), so it scores xbody(1) + stall(1) = 2. This cross-body traversal is the whole difference. Direct arithmetic; no operators in play.',
   },
   {
     trickName:  'Mirage',

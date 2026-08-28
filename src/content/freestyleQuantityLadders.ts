@@ -35,7 +35,7 @@ export const QUANTITY_LADDERS: readonly QuantityLadder[] = [
     ladder:    'around_the_world',
     label:     'Around-the-world ladder',
     members:   ['around_the_world', 'double_around_the_world', 'triple_around_the_world'],
-    rationale: 'Each rung adds one more full circle of the foot around the bag between toe delays.',
+    rationale: 'Each rung adds one more full circle of the foot around the bag between toe stalls.',
   },
   {
     ladder:    'orbit',

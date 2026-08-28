@@ -17,7 +17,7 @@ export interface MosaicAtom {
 }
 
 export const TRICKS_MOSAIC: readonly MosaicAtom[] = [
-  { slug: 'toe_stall',        label: 'Toe Delay' },
+  { slug: 'toe_stall',        label: 'Toe Stall' },
   { slug: 'clipper_stall',    label: 'Clipper' },
   { slug: 'around_the_world', label: 'Around the World' },
   { slug: 'orbit',            label: 'Orbit' },

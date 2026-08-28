@@ -156,7 +156,7 @@ export const TRICK_INTERPRETATION_ENTRIES: readonly TrickInterpretationEntry[] =
     historicalReadings: [],
     structuralNotes: [
       'Clipper is the 1-ADD cross-body inside-foot kick: the inside surface of the kicking foot strikes the bag with the kicking leg swung behind and across the support leg.',
-      'The clipper stall is a separate move: a 2-ADD delay of the bag on the inside surface of the foot, across the support leg.',
+      'The clipper stall is a separate move: a 2-ADD stall of the bag on the inside surface of the foot, across the support leg.',
       'The kick and the stall are distinct canonical records with their own pages; they are not the same trick.',
     ],
   },

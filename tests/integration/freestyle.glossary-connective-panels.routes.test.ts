@@ -236,12 +236,12 @@ describe('GET /freestyle/concepts — connective panels do not break existing co
   });
 });
 
-describe('GET /freestyle/concepts — inside-delay stationary-transition case study', () => {
+describe('GET /freestyle/concepts — inside-stall stationary-transition case study', () => {
   it('renders the case-study section heading + anchor', async () => {
     const res = await request(createApp()).get('/freestyle/concepts');
     expect(res.status).toBe(200);
     expect(res.text).toContain('id="inside-clipper-neighborhood"');
-    expect(res.text).toMatch(/inside-delay stationary-transition neighborhood/i);
+    expect(res.text).toMatch(/inside-stall stationary-transition neighborhood/i);
   });
 
   it('renders all four neighborhood tricks with detail-page links', async () => {

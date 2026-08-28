@@ -208,6 +208,7 @@ paradox_t,retype,technical,0,abbreviation of the canonical name
 park_walk,retype,technical,0,spacing or spelling variant of the canonical name
 paste_ss,retype,positional,0,same-side / opposite-side marker on the canonical name
 peak,retype,technical,0,truncation of the canonical
+peak_delay,retype,historical,0,delay-form of the canonical stall name
 pickup_ss,retype,positional,0,same-side / opposite-side marker on the canonical name
 pigbeater_ss,retype,positional,0,same-side / opposite-side marker on the canonical name
 pincher_squeeze,retype,structural,0,the pincher nickname compounded with the canonical

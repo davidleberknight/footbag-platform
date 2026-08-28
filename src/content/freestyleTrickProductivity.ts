@@ -44,7 +44,7 @@ export const TRICK_PRODUCTIVITY_ENTRIES: readonly TrickProductivity[] = [
       { slug: 'blur',           label: 'blur',           note: 'Stepping multi-dex extension over the paradox-mirage chassis.' },
       { slug: 'fury',           label: 'fury',           note: 'Three-dex extension on the blur chassis.' },
       { slug: 'sumo',           label: 'sumo',           note: 'Nuclear with an [XDEX] in its notation; 5 ADD.' },
-      { slug: 'drifter',        label: 'drifter',        note: 'Terminal-surface shift from toe delay to clipper stall.' },
+      { slug: 'drifter',        label: 'drifter',        note: 'Terminal-surface shift from toe stall to clipper stall.' },
     ],
   },
 

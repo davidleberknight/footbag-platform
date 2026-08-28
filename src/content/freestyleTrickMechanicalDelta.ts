@@ -83,7 +83,7 @@ export const TRICK_MECHANICAL_DELTA_ENTRIES: readonly TrickMechanicalDelta[] = [
     slug:        'whirl',
     parentSlugs: [],
     prose:
-      "Whirl's defining mechanical pattern is a cross-body rotational dex: the support leg circles the bag from the front, up and over, while the original setting leg hops off and the catching foot arrives on a clipper delay. The rotational character (the leg circles rather than swings) distinguishes whirl from non-rotational cross-body moves like butterfly. The terminal is always a clipper stall; the entry can be either clipper or toe. The directional flow at the dex moment is up-and-over rather than under-or-around.",
+      "Whirl's defining mechanical pattern is a cross-body rotational dex: the support leg circles the bag from the front, up and over, while the original setting leg hops off and the catching foot arrives on a clipper stall. The rotational character (the leg circles rather than swings) distinguishes whirl from non-rotational cross-body moves like butterfly. The terminal is always a clipper stall; the entry can be either clipper or toe. The directional flow at the dex moment is up-and-over rather than under-or-around.",
     topologyKind: 'rotational',
   },
 
@@ -121,7 +121,7 @@ export const TRICK_MECHANICAL_DELTA_ENTRIES: readonly TrickMechanicalDelta[] = [
     slug:        'drifter',
     parentSlugs: ['mirage', 'clipper_stall'],
     prose:
-      "Drifter combines mirage's in-to-out dex pattern with a clipper-stall terminal. Where mirage returns to a toe delay (same-surface termination), drifter shifts the terminal to a cross-body clipper: the support leg swings under-and-over inside-then-outside, but the catch arrives on the inside surface of the opposite foot rather than the toes.\n\n" +
+      "Drifter combines mirage's in-to-out dex pattern with a clipper-stall terminal. Where mirage returns to a toe stall (same-surface termination), drifter shifts the terminal to a cross-body clipper: the support leg swings under-and-over inside-then-outside, but the catch arrives on the inside surface of the opposite foot rather than the toes.\n\n" +
       "The 3-ADD count reads as either mirage(2) + cross-body-terminal-shift(+1) or clipper-stall(2) + mirage-operator(+1); both decompositions arrive at the same total. The structural signature (mirage's directional dex paired with a clipper-anchored cross-body terminal) anchors the shred lineage of compounds that build on the drifter chassis.",
     topologyKind: 'cross-body',
   },

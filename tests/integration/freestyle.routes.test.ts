@@ -1625,7 +1625,7 @@ describe('Freestyle Concepts framing paragraphs + history page contracts', () =>
     // Canonical whirl uses generic SET (may enter from toe or clipper), so the card
     // must describe only the terminal, never a fixed clipper entry or a "lands where
     // it began" relationship.
-    expect(res.text).toContain('ends on a cross-body clipper delay');
+    expect(res.text).toContain('ends on a cross-body clipper stall');
     expect(res.text).not.toMatch(/same clipper surface it set from/);
     expect(res.text).not.toMatch(/ends exactly where it begins/i);
     expect(res.text).not.toMatch(/lands where it beg|resolves where it beg|whirl sets from a clipper/i);
