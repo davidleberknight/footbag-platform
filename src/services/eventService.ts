@@ -415,6 +415,19 @@ function groupPublicResultRows(resultRows: PublicEventResultRow[]): PublicResult
 }
 
 /**
+ * Whether the featured event card still describes something ahead of, or
+ * currently happening on, the given day. Exported for unit testing.
+ *
+ * The card is hand-authored ahead of its event and reads in the future tense,
+ * which stops being true the day after the event ends. Comparing calendar days
+ * rather than instants puts the boundary on the end date itself, so an event
+ * still features on its final day and stops the following morning.
+ */
+export function isFeaturedPromoCurrent(endDate: string, nowIso: string): boolean {
+  return nowIso.slice(0, 10) <= endDate;
+}
+
+/**
  * Resolve sibling-archive-year navigation for a given year. Exported for
  * unit testing.
  *
@@ -528,7 +541,25 @@ export class EventService {
     });
   }
 
-  private getFeaturedPromo(): FeaturedPromoCard {
+  /** The hand-authored featured card, or null once its event has finished.
+   *
+   *  The card's copy is written ahead of the event and reads in the future
+   *  tense, so it is only true up to the day the event ends. Nothing about the
+   *  card knows that on its own: it is a literal, and a literal cannot age. The
+   *  dates it already carries are what decide, compared against the request's
+   *  own day, so the card stops featuring the morning after the event without
+   *  anyone editing this file. An event still running features on its last day.
+   *
+   *  This is only about when the card renders. Retiring a finished event from
+   *  the page is not the same as archiving it: an event reaches the year
+   *  archive by being an ordinary event row, which a promo for an external
+   *  event is not. */
+  private getFeaturedPromo(nowIso: string): FeaturedPromoCard | null {
+    const promo = this.featuredPromoCard();
+    return isFeaturedPromoCurrent(promo.endDate, nowIso) ? promo : null;
+  }
+
+  private featuredPromoCard(): FeaturedPromoCard {
     return {
       title: '45th IFPA World Footbag Championships 2026',
       href: 'https://www.footbag.jp/FootbagWorlds2026',
@@ -555,7 +586,7 @@ export class EventService {
         intro: 'Tournaments, competitions, and gatherings from around the world.',
       },
       content: {
-        featuredPromo: this.getFeaturedPromo(),
+        featuredPromo: this.getFeaturedPromo(nowIso) ?? undefined,
         upcomingEvents: this.listPublicUpcomingEvents(nowIso),
         archiveYears: this.listPublicArchiveYears(),
       },
