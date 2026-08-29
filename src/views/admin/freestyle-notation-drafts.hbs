@@ -46,7 +46,10 @@
             {{authoredAt}}
             <p class="text-muted fs-sm">{{authoredBy}}</p>
           </td>
-          <td><a href="{{authorHref}}">Edit</a></td>
+          <td>
+            <a href="{{authorHref}}">Edit</a>
+            {{#if publishable}} &middot; <a href="{{publishHref}}">Publish</a>{{/if}}
+          </td>
         </tr>
         {{/each}}
       </tbody>

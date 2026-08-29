@@ -669,6 +669,8 @@ export interface FreestyleNotationDraftRow {
   blockerId: string;
   owner: string;
   authorHref: string;
+  publishHref: string;
+  publishable: boolean;
 }
 
 export interface FreestyleNotationDraftsContent {
@@ -676,6 +678,67 @@ export interface FreestyleNotationDraftsContent {
   totalCount: number;
   hasRows: boolean;
   backlogHref: string;
+}
+
+// ── Publishing an authored draft as a canonical trick ──────────────────────
+
+/** Only what a curator decides at publication. Everything the draft already
+ *  settled (the movement, what it rests on, how it was produced) is carried from
+ *  the ruling and never re-entered here, so the two can never disagree. */
+export interface FreestyleTrickPublicationInput {
+  canonicalName?: string;
+  adds?: string;
+  baseTrick?: string;
+  category?: string;
+  familyOverride?: string;
+  description?: string;
+  /** Pipe-separated display texts; each becomes one alias row. */
+  aliases?: string;
+  sourceId?: string;
+  sourceUrl?: string;
+  sourceAssertedNotation?: string;
+  /** Pipe-separated registry modifier slugs, in the order they apply. */
+  modifierLinks?: string;
+}
+
+export interface FreestyleTrickPublicationContent {
+  candidateId: string;
+  submittedName: string;
+  /** What the ruling settled, shown so the curator is not asked to restate it. */
+  settled: FreestyleNotationBacklogRow;
+  /** Carried from the draft: displayed, never re-entered. */
+  notation: string;
+  scoringBracketCount: number;
+  evidenceBasisLabel: string;
+  derivationLabel: string;
+  conventionTitle: string;
+  provenanceNote: string;
+  fields: {
+    canonicalName: string;
+    adds: string;
+    baseTrick: string;
+    category: string;
+    familyOverride: string;
+    description: string;
+    aliases: string;
+    sourceId: string;
+    sourceUrl: string;
+    sourceAssertedNotation: string;
+    modifierLinks: string;
+  };
+  categoryOptions: FilterOption[];
+  sourceOptions: FilterOption[];
+  /** Whether the notation's own evidence basis obliges a source link, and
+   *  whether that link must record what the source itself wrote. */
+  sourceRequired: boolean;
+  assertedNotationRequired: boolean;
+  /** Why this ruling cannot be published, empty when it can. */
+  refusal: string;
+  publishable: boolean;
+  publishHref: string;
+  draftsHref: string;
+  errorList: string[];
+  hasErrors: boolean;
 }
 
 // Readable words for the two ledger vocabularies this queue displays. A curator
@@ -767,6 +830,71 @@ function adjudicationNameKey(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
+// ── Publishing a draft as a canonical trick ────────────────────────────────
+
+/** Why this ruling cannot be published, or null when it can.
+ *
+ *  Read entirely from the durable adjudication fields; there is no workflow
+ *  state and this gate does not add one. Each clause refuses a different way of
+ *  publishing something nobody decided:
+ *
+ *  - A resolved ruling has already been published or archived.
+ *  - A ruling with no authored movement has nothing to publish.
+ *  - A set-operator or an observational name is not a trick.
+ *  - A doctrine or undefined-operator state is an identity hold, whether or not
+ *    a question id is attached to it.
+ *  - A question id always names an OPEN doctrine question, because the content
+ *    build refuses a row citing a closed one. Publishing would settle the name
+ *    by action rather than by ruling.
+ *  - A source-recovery hold means nobody has established where the name came
+ *    from. A movement being supported says nothing about whether the name is
+ *    attested, and publishing would answer that by side effect. */
+function publicationRefusal(row: AuthoringDbRow): string | null {
+  if (row.final_disposition !== 'C') {
+    return 'This ruling is already resolved, so there is nothing left to publish.';
+  }
+  if (!row.authored_notation) {
+    return 'Author the movement notation before publishing.';
+  }
+  if (row.object_type !== 'complete-trick') {
+    return `This ruling is about a ${row.object_type}, which is not a trick.`;
+  }
+  if (row.ev_state === 'doctrine' || row.ev_state === 'undefined_operator') {
+    return 'This name is held on an identity question, so it cannot be published yet.';
+  }
+  if (row.blocker_id.startsWith('Q')) {
+    return `This name is held on the open doctrine question ${row.blocker_id}, `
+         + 'so publishing it would settle the question by action rather than by ruling.';
+  }
+  if (row.blocker_id === 'source-recovery') {
+    return 'This name is held pending recovery of its source, so its attestation is '
+         + 'not established. A movement notation does not settle that.';
+  }
+  return null;
+}
+
+// The two evidence bases that claim an outside source: one says the source wrote
+// a notation, the other says it wrote prose. Both oblige the published trick to
+// link to the source it rests on. Footage, testimony and platform structure rest
+// on no registered source, and a link is never invented to make one look sourced.
+const NOTATION_BASES_NEEDING_SOURCE = new Set(['source-notation', 'source-prose']);
+
+/** The citation line a reader sees beneath the notation, written from the same
+ *  claims the structured columns carry: what the notation rests on, what was
+ *  done to produce it, the convention where one governed it, and the curator's
+ *  own note when the ruling carried one. Readers get a sentence; an audit gets
+ *  the fields. */
+function publicationCitationLine(row: AuthoringDbRow): string {
+  const basis  = notationBasisLabel(row.notation_evidence_basis ?? '');
+  const method = notationMethodLabel(row.notation_derivation_method ?? '');
+  const parts = [`${basis}, ${method.toLowerCase()}`];
+  if (row.notation_convention_id) {
+    parts.push(`under the ${notationConventionTitle(row.notation_convention_id).toLowerCase()}`);
+  }
+  const line = `Notation: ${parts.join(', ')}.`;
+  return row.notation_provenance_note ? `${line} ${row.notation_provenance_note}` : line;
+}
+
 /**
  * Resolve the published name's ruling, inside the caller's transaction.
  *
@@ -789,9 +917,18 @@ function resolveAdjudicationOnPublication(
   slug: string,
   canonicalName: string,
   actorMemberId: string,
+  // The funnel knows exactly which ruling it is publishing, so it names it
+  // rather than letting the lookup find one: a curator may publish under a
+  // display name that no longer matches the corpus spelling the ruling was filed
+  // under, and matching by name would then resolve nothing.
+  knownCandidateId?: string,
 ): string | null {
-  const linked = freestyleEvAdjudications.getByTrickSlug.get(slug) as
-    FreestyleEvAdjudicationRow | undefined;
+  const byId = knownCandidateId
+    ? (freestyleEvAdjudications.getForAuthoring.get(knownCandidateId) as
+        FreestyleEvAdjudicationRow | undefined)
+    : undefined;
+  const linked = byId
+    ?? (freestyleEvAdjudications.getByTrickSlug.get(slug) as FreestyleEvAdjudicationRow | undefined);
   const byName = linked
     ?? (freestyleEvAdjudications.getByNormalizedName.get(adjudicationNameKey(canonicalName)) as
       FreestyleEvAdjudicationRow | undefined);
@@ -1230,6 +1367,294 @@ export const freestyleCurationService = {
     });
   },
 
+  // The publication form for one authored draft. Everything the draft already
+  // holds is shown and never re-asked; what remains is what only a curator can
+  // decide about the canonical row. Returns null for an unknown ruling.
+  getTrickPublicationPage(
+    candidateId: string,
+    opts: { submitted?: FreestyleTrickPublicationInput; fieldErrors?: Record<string, string> } = {},
+  ): PageViewModel<FreestyleTrickPublicationContent> | null {
+    const row = freestyleEvAdjudications.getForAuthoring.get(candidateId) as AuthoringDbRow | undefined;
+    if (!row) return null;
+
+    const refusal = publicationRefusal(row);
+    const sub = opts.submitted;
+    const fieldErrors = opts.fieldErrors ?? {};
+    const notation = row.authored_notation ?? '';
+
+    return {
+      seo:  { title: `Publish: ${row.submitted_name}` },
+      page: {
+        sectionKey: 'admin',
+        pageKey:    'admin_freestyle_trick_publication',
+        title:      `Publish: ${row.submitted_name}`,
+        intro:      'Create the canonical trick from this authored draft.',
+      },
+      content: {
+        candidateId:   row.candidate_id,
+        submittedName: row.submitted_name,
+        settled:       shapeBacklogRow(row),
+        // Inherited from the draft, displayed and never re-entered.
+        notation,
+        scoringBracketCount: countScoringBrackets(notation),
+        evidenceBasisLabel:  notationBasisLabel(row.notation_evidence_basis ?? ''),
+        derivationLabel:     notationMethodLabel(row.notation_derivation_method ?? ''),
+        conventionTitle:     row.notation_convention_id ? notationConventionTitle(row.notation_convention_id) : '',
+        provenanceNote:      row.notation_provenance_note ?? '',
+        // What only a curator can decide.
+        fields: {
+          canonicalName: sub ? (sub.canonicalName ?? '') : row.submitted_name.toLowerCase(),
+          adds:          sub ? (sub.adds ?? '') : '',
+          baseTrick:     sub ? (sub.baseTrick ?? '') : '',
+          category:      sub ? (sub.category ?? '') : 'compound',
+          familyOverride: sub ? (sub.familyOverride ?? '') : '',
+          description:   sub ? (sub.description ?? '') : '',
+          aliases:       sub ? (sub.aliases ?? '') : '',
+          sourceId:      sub ? (sub.sourceId ?? '') : '',
+          sourceUrl:     sub ? (sub.sourceUrl ?? '') : '',
+          sourceAssertedNotation: sub ? (sub.sourceAssertedNotation ?? '') : '',
+          modifierLinks: sub ? (sub.modifierLinks ?? '') : '',
+        },
+        categoryOptions: allowedCategories().map((c) => ({
+          value: c, label: c, selected: (sub?.category ?? 'compound') === c,
+        })),
+        sourceOptions: (freestyleTrickSources.listAll.all() as { id: string; source_label: string }[])
+          .map((s) => ({ value: s.id, label: s.source_label, selected: (sub?.sourceId ?? '') === s.id })),
+        // A source link is required only where the notation claims to rest on a
+        // source; footage, testimony and platform structure require none, and
+        // one is never invented to make a row look sourced.
+        sourceRequired:          NOTATION_BASES_NEEDING_SOURCE.has(row.notation_evidence_basis ?? ''),
+        assertedNotationRequired: (row.notation_evidence_basis ?? '') === 'source-notation',
+        refusal:    refusal ?? '',
+        publishable: refusal === null,
+        publishHref: `/admin/freestyle/notation-backlog/${row.candidate_id}/publish`,
+        draftsHref:  '/admin/freestyle/notation-drafts',
+        errorList:  Object.values(fieldErrors),
+        hasErrors:  Object.keys(fieldErrors).length > 0,
+      },
+    };
+  },
+
+  // Create the canonical trick from an authored draft, and resolve the ruling in
+  // the same transaction. Everything is validated before anything is written: a
+  // trick that exists while its aliases were refused is a worse outcome than a
+  // refusal, and there is no second transaction that could leave one behind.
+  publishCanonicalTrick(
+    candidateId: string,
+    input: FreestyleTrickPublicationInput,
+    actorMemberId: string,
+  ): string {
+    assertActorMayCurateFreestyle(actorMemberId);
+    const draft = freestyleEvAdjudications.getForAuthoring.get(candidateId) as AuthoringDbRow | undefined;
+    if (!draft) throw new NotFoundError(`No adjudication "${candidateId}"`);
+
+    // 1. The ruling is publishable at all.
+    const refusal = publicationRefusal(draft);
+    if (refusal) throw new ValidationError(refusal, { fieldErrors: { publication: refusal } });
+
+    const fieldErrors: Record<string, string> = {};
+    const notation = draft.authored_notation ?? '';
+    const basis = draft.notation_evidence_basis ?? '';
+
+    // 3. The name folds to a slug, under the same rule the trick editor applies.
+    const canonicalName = (input.canonicalName ?? '').trim();
+    if (!canonicalName) {
+      fieldErrors.canonicalName = 'Canonical name is required.';
+    } else if (canonicalName.length > CANONICAL_NAME_MAX) {
+      fieldErrors.canonicalName = `Canonical name must be ${CANONICAL_NAME_MAX} characters or fewer.`;
+    } else {
+      const naming = displayNameViolation(trickNameToSlug(canonicalName), canonicalName);
+      if (naming) fieldErrors.canonicalName = naming;
+    }
+    const slug = canonicalName ? trickNameToSlug(canonicalName) : '';
+    if (canonicalName && !slug) {
+      fieldErrors.canonicalName = 'The name must contain at least one letter or number.';
+    }
+
+    // 4. Nothing already owns that slug or name, as a trick or as an alias.
+    if (slug) {
+      if (freestyleTricks.getForCurationBySlug.get(slug)) {
+        fieldErrors.canonicalName = `"${slug}" is already a trick in the dictionary.`;
+      } else if (freestyleTrickAliases.getByAliasSlug.get(slug)) {
+        fieldErrors.canonicalName = `"${slug}" is already an alias of another trick.`;
+      }
+    }
+
+    // 5. The difficulty and the scoring brackets agree, checked by the one
+    //    implementation that already does this for the trick editor.
+    const adds = (input.adds ?? '').trim();
+    if (!/^\d+$/.test(adds)) {
+      fieldErrors.adds = 'ADD must be a whole number.';
+    } else {
+      const bracketCheck = checkAddMatchesScoringBrackets(adds, notation);
+      if (bracketCheck && !bracketCheck.ok) {
+        const noun = bracketCheck.bracketCount === 1 ? 'scoring bracket' : 'scoring brackets';
+        fieldErrors.adds =
+          `The authored notation shows ${bracketCheck.bracketCount} ${noun} but ADD is `
+          + `${bracketCheck.add}; they must match.`;
+      }
+    }
+
+    // 6. The base exists, because the family is derived from it.
+    const baseTrick = (input.baseTrick ?? '').trim();
+    if (!baseTrick) {
+      fieldErrors.baseTrick = 'Name the base trick this is built on.';
+    } else if (!freestyleTricks.getForCurationBySlug.get(baseTrick)) {
+      fieldErrors.baseTrick = `"${baseTrick}" is not a trick in the dictionary.`;
+    }
+
+    const category = (input.category ?? '').trim();
+    if (!category) {
+      fieldErrors.category = 'Choose a category.';
+    } else if (!allowedCategories().includes(category)) {
+      fieldErrors.category = 'Choose a category the dictionary already uses.';
+    }
+
+    // 7. The family defaults to the base's own slug, never to the family the base
+    //    sits in. Inheriting the base's family transitively would put a compound
+    //    straight into its grandparent's family and silently make the override
+    //    unnecessary in exactly the cases that need one: a base that is itself a
+    //    compound of another family. The dictionary carries those as explicit
+    //    corrections, and publication has to produce the same default the rest of
+    //    the dictionary was built with, or a row published here would be
+    //    classified by a different rule from its neighbours.
+    //
+    //    The first three branches are the dictionary's rule written whole. Only
+    //    the last is reachable from this form, because publication refuses a row
+    //    with no base and refuses a name whose slug is already taken, which is
+    //    what a trick standing as its own base would need. They are kept so the
+    //    two derivations can be read against each other rather than inferred.
+    const derivedFamily = (() => {
+      if (category === 'modifier') return '';
+      if (!baseTrick) return slug;
+      return baseTrick === slug ? slug : baseTrick;
+    })();
+    const familyOverride = (input.familyOverride ?? '').trim();
+    if (familyOverride
+        && (freestyleTricks.countFamilyMembers.get(familyOverride) as { n: number }).n === 0) {
+      fieldErrors.familyOverride = `No trick carries the family "${familyOverride}".`;
+    }
+    const family = familyOverride || derivedFamily;
+
+    // 8. Aliases: same rules the alias editor applies, checked before any write.
+    const aliasTexts = (input.aliases ?? '').split('|').map((a) => a.trim()).filter(Boolean);
+    const aliasRows: { slug: string; text: string }[] = [];
+    for (const text of aliasTexts) {
+      const aliasSlug = trickNameToSlug(text);
+      if (!aliasSlug) {
+        fieldErrors.aliases = `"${text}" does not produce a usable alias.`;
+      } else if (aliasSlug === slug) {
+        fieldErrors.aliases = `"${text}" is the trick's own name, not an alias of it.`;
+      } else if (freestyleTricks.getForCurationBySlug.get(aliasSlug)) {
+        fieldErrors.aliases = `"${aliasSlug}" is already a canonical trick slug.`;
+      } else if (freestyleTrickAliases.getByAliasSlug.get(aliasSlug)) {
+        fieldErrors.aliases = `"${aliasSlug}" is already an alias.`;
+      } else if (aliasRows.some((a) => a.slug === aliasSlug)) {
+        fieldErrors.aliases = `"${aliasSlug}" is listed twice.`;
+      } else {
+        aliasRows.push({ slug: aliasSlug, text });
+      }
+    }
+
+    // 9. Source links must match what the notation claims to rest on.
+    const sourceId = (input.sourceId ?? '').trim();
+    const sourceUrl = (input.sourceUrl ?? '').trim();
+    const assertedNotation = (input.sourceAssertedNotation ?? '').trim();
+    if (sourceId && !freestyleTrickSources.getById.get(sourceId)) {
+      fieldErrors.sourceId = 'Choose a registered source.';
+    }
+    if (NOTATION_BASES_NEEDING_SOURCE.has(basis) && !sourceId) {
+      fieldErrors.sourceId =
+        'The notation rests on a source, so the trick must link to the source it rests on.';
+    }
+    if (basis === 'source-notation' && sourceId && !assertedNotation) {
+      fieldErrors.sourceAssertedNotation =
+        'The notation was taken from a source that wrote one, so record what that source wrote.';
+    }
+    if (assertedNotation && !sourceId) {
+      fieldErrors.sourceAssertedNotation = 'Name the source that stated this notation.';
+    }
+
+    // 10. Modifier links, when given, name real modifiers.
+    const modifierSlugs = (input.modifierLinks ?? '').split('|').map((m) => m.trim()).filter(Boolean);
+    for (const modifierSlug of modifierSlugs) {
+      if (!freestyleTrickModifiers.getBySlug.get(modifierSlug)) {
+        fieldErrors.modifierLinks = `"${modifierSlug}" is not a registered modifier.`;
+      }
+    }
+
+    const description = emptyToNull(input.description);
+    if (description && description.length > PROSE_MAX) {
+      fieldErrors.description = `Description must be ${PROSE_MAX} characters or fewer.`;
+    }
+
+    if (Object.keys(fieldErrors).length > 0) {
+      throw new ValidationError('Some fields need attention.', { fieldErrors });
+    }
+
+    const sortOrder = ((freestyleTricks.maxSortOrder.get() as { max_sort: number }).max_sort) + 1;
+
+    transaction(() => {
+      freestyleTricks.insertPublished.run(
+        slug, canonicalName, adds, baseTrick, family === '' ? null : family, category, description,
+        notation,
+        // The reader-facing citation line, written from the same claims the
+        // structured columns carry, because a reader gets prose and an audit
+        // gets fields.
+        publicationCitationLine(draft),
+        draft.notation_evidence_basis,
+        draft.notation_derivation_method,
+        draft.notation_convention_id,
+        sortOrder,
+      );
+      for (const alias of aliasRows) {
+        // Class and display follow the alias contract's default: a community
+        // nickname is displayed, and a divergence needs a reason, which is the
+        // alias editor's business and not this form's.
+        freestyleTrickAliases.insert.run(alias.slug, alias.text, slug, 'common', 1);
+      }
+      if (sourceId) {
+        freestyleTrickSourceLinks.insertForPublication.run(
+          slug, sourceId, sourceUrl === '' ? null : sourceUrl,
+          assertedNotation === '' ? null : assertedNotation,
+        );
+      }
+      modifierSlugs.forEach((modifierSlug, i) => {
+        freestyleTrickModifierLinks.insert.run(slug, modifierSlug, i + 1);
+      });
+
+      const resolved = resolveAdjudicationOnPublication(slug, canonicalName, actorMemberId, candidateId);
+
+      appendAuditEntry({
+        actionType:    'freestyle.trick.published',
+        category:      'content',
+        actorType:     'admin',
+        actorMemberId,
+        entityType:    'freestyle_trick',
+        entityId:      slug,
+        metadata:      {
+          candidateId,
+          submittedName: draft.submitted_name,
+          canonicalName,
+          adds,
+          baseTrick,
+          family,
+          familyOverridden: familyOverride !== '',
+          category,
+          aliasSlugs: aliasRows.map((a) => a.slug),
+          sourceId: sourceId === '' ? null : sourceId,
+          modifierSlugs,
+          notationEvidenceBasis:    draft.notation_evidence_basis,
+          notationDerivationMethod: draft.notation_derivation_method,
+          notationConventionId:     draft.notation_convention_id,
+          resolvedAdjudication:     resolved,
+        },
+      });
+    });
+
+    return slug;
+  },
+
   // The authored drafts: a movement written, no canonical trick yet. The backlog
   // drops a ruling the moment its notation is saved, so without this view the
   // work would be invisible the next morning.
@@ -1250,6 +1675,11 @@ export const freestyleCurationService = {
       blockerId:           r.blocker_id,
       owner:               r.owner,
       authorHref:          `/admin/freestyle/notation-backlog/${r.candidate_id}/author`,
+      publishHref:         `/admin/freestyle/notation-backlog/${r.candidate_id}/publish`,
+      // A draft whose ruling cannot be published still lists here and still
+      // edits; the publication page states the refusal rather than the row
+      // hiding a link with no explanation.
+      publishable:         publicationRefusal(r) === null,
     }));
 
     return {

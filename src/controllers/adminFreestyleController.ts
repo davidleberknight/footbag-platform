@@ -7,6 +7,7 @@ import {
   FreestyleSourceLinkInput,
   FreestyleModifierLinkInput,
   FreestyleSourceInput,
+  FreestyleTrickPublicationInput,
 } from '../services/freestyleCurationService';
 import {
   freestyleRecordCurationService,
@@ -81,6 +82,63 @@ export const adminFreestyleController = {
           return;
         }
         res.status(422).render('admin/freestyle-notation-author', vm);
+        return;
+      }
+      if (err instanceof NotFoundError) {
+        renderNotFound(res);
+        return;
+      }
+      next(err);
+    }
+  },
+
+  /** GET /admin/freestyle/notation-backlog/:candidateId/publish */
+  trickPublishForm(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const vm = freestyleCurationService.getTrickPublicationPage(req.params['candidateId'] ?? '');
+      if (!vm) {
+        renderNotFound(res);
+        return;
+      }
+      res.render('admin/freestyle-trick-publish', vm);
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  /** POST /admin/freestyle/notation-backlog/:candidateId/publish */
+  trickPublishSave(req: Request, res: Response, next: NextFunction): void {
+    const candidateId = req.params['candidateId'] ?? '';
+    const str = (v: unknown): string => (typeof v === 'string' ? v : '');
+    const submitted: FreestyleTrickPublicationInput = {
+      canonicalName:          str(req.body.canonicalName),
+      adds:                   str(req.body.adds),
+      baseTrick:              str(req.body.baseTrick),
+      category:               str(req.body.category),
+      familyOverride:         str(req.body.familyOverride),
+      description:            str(req.body.description),
+      aliases:                str(req.body.aliases),
+      sourceId:               str(req.body.sourceId),
+      sourceUrl:              str(req.body.sourceUrl),
+      sourceAssertedNotation: str(req.body.sourceAssertedNotation),
+      modifierLinks:          str(req.body.modifierLinks),
+    };
+    try {
+      const slug = freestyleCurationService.publishCanonicalTrick(
+        candidateId, submitted, req.user!.userId,
+      );
+      res.redirect(303, `/admin/freestyle/tricks/${slug}/edit`);
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        const vm = freestyleCurationService.getTrickPublicationPage(candidateId, {
+          submitted,
+          fieldErrors: err.fieldErrors ?? {},
+        });
+        if (!vm) {
+          renderNotFound(res);
+          return;
+        }
+        res.status(422).render('admin/freestyle-trick-publish', vm);
         return;
       }
       if (err instanceof NotFoundError) {

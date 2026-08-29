@@ -2632,6 +2632,14 @@ export const freestyleTricks = {
     ORDER BY sort_order ASC
   `); },
 
+  // How many active tricks already carry a family name. A publication form uses
+  // it to refuse a family override that names a family nothing belongs to, which
+  // is how a typo would otherwise create a one-member family nobody meant.
+  get countFamilyMembers() { return db.prepare(`
+    SELECT COUNT(*) AS n FROM freestyle_tricks
+    WHERE trick_family = ? AND is_active = 1
+  `); },
+
   // Category and active flag for a slug regardless of is_active, so the
   // trick-detail route can redirect modifier / operator rows to their operator
   // page, and let an active canonical trick always win its own URL even when an
@@ -2702,6 +2710,30 @@ export const freestyleTricks = {
         pronunciation = ?, operational_notation_source = ?,
         updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
     WHERE slug = ?
+  `); },
+
+  // Canonical creation from the curation funnel. Writes the row already active:
+  // a two-step insert-then-activate would leave a window in which the dictionary
+  // holds a trick nobody decided to publish. review_status is 'curated' because
+  // publication is a curator's act; expert review is a later, separate one.
+  //
+  // The derived parse columns are deliberately absent: a parse is produced by the
+  // content pipeline, not by the application, and a newly authored trick simply
+  // has none until one is derived.
+  get insertPublished() { return db.prepare(`
+    INSERT INTO freestyle_tricks
+      (slug, canonical_name, adds, base_trick, trick_family, category, description,
+       aliases_json, notation, operational_notation, operational_notation_source,
+       notation_evidence_basis, notation_derivation_method, notation_convention_id,
+       review_status, is_active, is_core, sort_order, loaded_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, '[]', NULL, ?, ?, ?, ?, ?, 'curated', 1, 0, ?,
+            strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+  `); },
+
+  // Where a newly published trick sorts. The loaders assign ascending order per
+  // source batch, so a funnel-published row goes after everything that exists.
+  get maxSortOrder() { return db.prepare(`
+    SELECT COALESCE(MAX(sort_order), 0) AS max_sort FROM freestyle_tricks
   `); },
 
   // Drop the notation parse derived for this row. The parse fields are a function
@@ -2803,6 +2835,7 @@ export const freestyleEvAdjudications = {
   // and appear nowhere, which is a good way to lose a curator's work.
   get listAuthoredDrafts() { return db.prepare(`
     SELECT candidate_id, submitted_name, normalized_name, blocker_id, owner,
+           ev_state, final_disposition, object_type,
            authored_notation, notation_evidence_basis, notation_derivation_method,
            notation_convention_id, notation_provenance_note,
            notation_authored_at, notation_authored_by, published_trick_slug
@@ -3068,6 +3101,17 @@ export const freestyleTrickSourceLinks = {
       (trick_slug, source_id, external_ref, external_url,
        asserted_adds, asserted_notation, asserted_category, notes)
     VALUES (?, ?, NULL, ?, ?, NULL, NULL, NULL)
+  `); },
+
+  // Canonical creation from the funnel. Unlike the curation attach above, this
+  // carries what the source itself stated in its own notation, which some
+  // sources do and most do not. It records what a source claims about the trick
+  // and is never the platform's own operational notation for it.
+  get insertForPublication() { return db.prepare(`
+    INSERT INTO freestyle_trick_source_links
+      (trick_slug, source_id, external_ref, external_url,
+       asserted_adds, asserted_notation, asserted_category, notes)
+    VALUES (?, ?, NULL, ?, NULL, ?, NULL, NULL)
   `); },
 
   // Admin curation: detach one source link, scoped to its trick so an edit page

@@ -163,6 +163,8 @@ adminRouter.get('/freestyle/notation-backlog',   adminFreestyleController.notati
 adminRouter.get('/freestyle/notation-drafts',    adminFreestyleController.notationDrafts);
 adminRouter.get('/freestyle/notation-backlog/:candidateId/author',  adminFreestyleController.notationAuthorForm);
 adminRouter.post('/freestyle/notation-backlog/:candidateId/author', adminFreestyleController.notationAuthorSave);
+adminRouter.get('/freestyle/notation-backlog/:candidateId/publish',  adminFreestyleController.trickPublishForm);
+adminRouter.post('/freestyle/notation-backlog/:candidateId/publish', adminFreestyleController.trickPublishSave);
 adminRouter.get('/freestyle/tricks',             adminFreestyleController.index);
 adminRouter.get('/freestyle/tricks/:slug/edit',  adminFreestyleController.edit);
 adminRouter.post('/freestyle/tricks/:slug/edit', adminFreestyleController.update);

@@ -1,0 +1,141 @@
+{{! /admin/freestyle/notation-backlog/:candidateId/publish — create the canonical
+    trick from an authored draft. Everything the ruling and the draft already
+    settled is shown, never re-entered; the form asks only for what a curator
+    decides at publication. }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    <p class="hero-subtitle">{{page.intro}}</p>
+  </div>
+</div>
+
+<div class="wrapper">
+
+  {{#unless content.publishable}}
+  <p class="notice notice-warn">{{content.refusal}}</p>
+  {{/unless}}
+
+  {{#if content.hasErrors}}
+  <div class="form-error-banner">
+    {{#each content.errorList}}<p>{{this}}</p>{{/each}}
+  </div>
+  {{/if}}
+
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>What the Draft Already Settled</h2>
+    </div>
+    <dl class="trick-structural-facts-list">
+      <dt>Submitted name</dt>
+      <dd>{{content.submittedName}}</dd>
+      <dt>Movement notation</dt>
+      <dd><code>{{content.notation}}</code></dd>
+      <dt>Scoring brackets</dt>
+      <dd>{{content.scoringBracketCount}}</dd>
+      <dt>Notation rests on</dt>
+      <dd>{{content.evidenceBasisLabel}}</dd>
+      <dt>Produced by</dt>
+      <dd>{{content.derivationLabel}}{{#if content.conventionTitle}} &middot; {{content.conventionTitle}}{{/if}}</dd>
+      {{#if content.provenanceNote}}
+      <dt>Provenance note</dt>
+      <dd>{{content.provenanceNote}}</dd>
+      {{/if}}
+      <dt>Ruling</dt>
+      <dd>{{content.settled.rulingLabel}}{{#if content.settled.blockerSubtype}} &middot; {{content.settled.blockerSubtype}}{{/if}}</dd>
+      <dt>Released by</dt>
+      <dd>{{#if content.settled.blockerTitle}}{{content.settled.blockerTitle}}{{else}}{{content.settled.blockerId}}{{/if}}</dd>
+      <dt>Difficulty derivation</dt>
+      <dd>{{#if content.settled.proposedFormula}}<code>{{content.settled.proposedFormula}}</code>{{else}}&mdash;{{/if}}</dd>
+    </dl>
+  </section>
+
+  {{#if content.publishable}}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>The Canonical Trick</h2>
+    </div>
+
+    <form method="POST" action="{{content.publishHref}}" class="freestyle-edit-form">
+      <p>
+        <label for="canonicalName">Canonical name</label><br>
+        <input type="text" id="canonicalName" name="canonicalName" maxlength="200"
+               value="{{content.fields.canonicalName}}">
+      </p>
+      <p class="text-muted fs-sm">The slug is folded from this name, and nothing may already hold it.</p>
+
+      <p>
+        <label for="adds">Difficulty (ADD)</label><br>
+        <input type="text" id="adds" name="adds" inputmode="numeric" value="{{content.fields.adds}}">
+      </p>
+      <p class="text-muted fs-sm">Must equal the notation's scoring-bracket count above.</p>
+
+      <p>
+        <label for="baseTrick">Base trick slug</label><br>
+        <input type="text" id="baseTrick" name="baseTrick" value="{{content.fields.baseTrick}}">
+      </p>
+      <p class="text-muted fs-sm">The trick this is built on. Its family becomes this trick's family.</p>
+
+      <p>
+        <label for="familyOverride">Family override</label><br>
+        <input type="text" id="familyOverride" name="familyOverride" value="{{content.fields.familyOverride}}">
+      </p>
+      <p class="text-muted fs-sm">Leave empty unless the base's own family is not the family this trick belongs to.</p>
+
+      <p>
+        <label for="category">Category</label><br>
+        <select id="category" name="category">
+          {{#each content.categoryOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+        </select>
+      </p>
+
+      <p>
+        <label for="description">Description</label><br>
+        <textarea id="description" name="description" rows="4" maxlength="4000">{{content.fields.description}}</textarea>
+      </p>
+
+      <p>
+        <label for="aliases">Aliases</label><br>
+        <input type="text" id="aliases" name="aliases" value="{{content.fields.aliases}}">
+      </p>
+      <p class="text-muted fs-sm">Separate several with a vertical bar. Each is added as a displayed community nickname.</p>
+
+      <p>
+        <label for="sourceId">Source</label><br>
+        <select id="sourceId" name="sourceId">
+          <option value="">None</option>
+          {{#each content.sourceOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+        </select>
+      </p>
+      {{#if content.sourceRequired}}
+      <p class="text-muted fs-sm">The notation rests on a source, so this trick must link to the source it rests on.</p>
+      {{/if}}
+
+      <p>
+        <label for="sourceUrl">Source URL</label><br>
+        <input type="url" id="sourceUrl" name="sourceUrl" maxlength="500" value="{{content.fields.sourceUrl}}">
+      </p>
+
+      <p>
+        <label for="sourceAssertedNotation">Notation the source itself wrote</label><br>
+        <input type="text" id="sourceAssertedNotation" name="sourceAssertedNotation"
+               value="{{content.fields.sourceAssertedNotation}}">
+      </p>
+      {{#if content.assertedNotationRequired}}
+      <p class="text-muted fs-sm">Required: the notation was taken from a source that wrote one, so record what it wrote.</p>
+      {{/if}}
+
+      <p>
+        <label for="modifierLinks">Modifier slugs</label><br>
+        <input type="text" id="modifierLinks" name="modifierLinks" value="{{content.fields.modifierLinks}}">
+      </p>
+      <p class="text-muted fs-sm">Separate several with a vertical bar, in the order they apply.</p>
+
+      <p><button type="submit" class="btn btn-primary btn-sm">Publish Trick</button></p>
+    </form>
+  </section>
+  {{/if}}
+
+  <p><a href="{{content.draftsHref}}">Back to the authored drafts</a></p>
+
+</div>
