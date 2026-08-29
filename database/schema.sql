@@ -5243,6 +5243,93 @@ CREATE INDEX idx_freestyle_trick_tips_trick
 -- inputs/team_corrections.csv remain the home for those decisions.
 
 -- =============================================================================
+-- EMERGING VOCABULARY ADJUDICATIONS
+-- The writable ruling record for observational freestyle names: one row per
+-- adjudicated name, carrying the durable decision about what that name IS.
+-- Seeded from the committed ruling ledger CSV, and writable afterwards, so a
+-- ruling made once the rebuild pipeline retires still has a home.
+--
+-- What this table is NOT:
+--   * It is not the observational row source. The observational corpus is
+--     composed from the committed corpus inputs; this table supplies each
+--     composed row's ruling. The two counts differ by design and are not
+--     nested: a name can carry a ruling and never appear in the corpus, and a
+--     corpus name can carry no ruling at all.
+--   * It carries no workflow-state column. Public placement (layer, section,
+--     publication state) stays a derived projection computed at generation and
+--     request time; the durable adjudication fields below already carry the
+--     lifecycle, and a second, writable copy of it would drift.
+--
+-- Publication is expressed by the explicit trick link plus the disposition
+-- transition, never by a status column: an adjudication linked to a trick row
+-- that is live and reviewed describes a published name, and one linked to a
+-- held-out row (is_active=0, review_status='pending') describes a candidate
+-- still in the funnel. Reading the live trick row is what tells the two apart.
+-- =============================================================================
+CREATE TABLE freestyle_ev_adjudications (
+  -- Surrogate identity. normalized_name is derived from the submitted name, so
+  -- correcting a misspelled submission would otherwise destroy the row's
+  -- identity and its history along with it. Seeded rows derive this
+  -- deterministically from the ledger so a rebuild reproduces the same ids.
+  candidate_id  TEXT PRIMARY KEY,
+  -- Recorded order. The rulings are an ordered record, and the generated
+  -- projection emits its trick-link map in that order, so dropping the order
+  -- would make the migration lossy in a way that shows up as a diff in
+  -- generated content rather than as missing data.
+  sequence_no   INTEGER NOT NULL,
+  created_at    TEXT NOT NULL,
+  created_by    TEXT NOT NULL,
+  updated_at    TEXT NOT NULL,
+  updated_by    TEXT NOT NULL,
+  version       INTEGER NOT NULL DEFAULT 1,
+
+  -- ── The durable ruling ─────────────────────────────────────────────────
+  -- Preserved unchanged in meaning from the ruling ledger. Empty string means
+  -- "not recorded" throughout: the ledger records absence that way, and
+  -- storing it as NULL instead would make a seeded row and a re-seeded row
+  -- compare unequal for no gain.
+  submitted_name          TEXT NOT NULL,          -- the name as it was submitted, display form
+  normalized_name         TEXT NOT NULL,          -- comparison key; the generator joins the corpus on it
+  ev_state                TEXT NOT NULL,          -- 'alias' | 'doctrine' | 'folk' | 'parser' | 'undefined_operator' | 'canonical' | 'authoring' | 'deferred' | 'ready' | 'governance' (no CHECK)
+  final_disposition       TEXT NOT NULL,          -- single-letter ledger disposition
+  evidence_state          TEXT NOT NULL,          -- what evidence exists for the name (notation, footage, folk report, none)
+  object_type             TEXT NOT NULL,          -- what the name denotes: complete trick, operator, observational name, fragment
+  blocker_id              TEXT NOT NULL DEFAULT '',  -- open doctrine question, curator decision group, 'source-recovery', or empty
+  blocker_subtype         TEXT NOT NULL DEFAULT '',  -- the specific hold within the blocker
+  hold_kind               TEXT NOT NULL DEFAULT '',  -- ledger hold classification
+  matched_existing_object TEXT NOT NULL DEFAULT '',  -- the object this name was adjudicated to be, when it resolved to one
+  match_type              TEXT NOT NULL DEFAULT '',  -- how that match was made (formula identity, alias resolution, positional)
+  note                    TEXT NOT NULL DEFAULT '',  -- curator free text; historical, never parsed for meaning
+  source                  TEXT NOT NULL DEFAULT '',  -- which corpus the name came from
+  confidence              TEXT NOT NULL DEFAULT '',  -- curator confidence in the ruling
+  owner                   TEXT NOT NULL DEFAULT '',  -- who owns the next step
+
+  -- Recorded by the ledger and read by no generator. Kept so the migration off
+  -- the committed ledger loses nothing: they are the curator's working notes on
+  -- why a name failed to resolve and where the residual decision lives.
+  proposed_formula        TEXT NOT NULL DEFAULT '',
+  failure_class           TEXT NOT NULL DEFAULT '',
+  residual_home           TEXT NOT NULL DEFAULT '',
+
+  -- The adjudicated name's trick row, when one exists. NULL is the ordinary
+  -- case: most rulings are about names that have no trick row and are never
+  -- meant to get one (aliases, folk names, duplicates). Deliberately not
+  -- ON DELETE CASCADE and not ON DELETE SET NULL: an adjudication is durable
+  -- lexical history, so a trick row cannot be deleted out from under it.
+  published_trick_slug    TEXT REFERENCES freestyle_tricks(slug)
+);
+
+-- One ruling per name: the generator joins the corpus to this table on the
+-- normalized name, and two rulings for one name would make that join
+-- non-deterministic.
+CREATE UNIQUE INDEX ux_freestyle_ev_adjudications_normalized
+  ON freestyle_ev_adjudications(normalized_name);
+CREATE UNIQUE INDEX ux_freestyle_ev_adjudications_sequence
+  ON freestyle_ev_adjudications(sequence_no);
+CREATE INDEX idx_freestyle_ev_adjudications_trick
+  ON freestyle_ev_adjudications(published_trick_slug);
+
+-- =============================================================================
 -- Symbolic-grammar observational layer.
 -- Pipeline-loaded (DELETE+INSERT) from the committed symbolic-grammar CSVs by
 -- freestyle/loaders/26_load_symbolic_grammar.py; symbolicGrammarService reads

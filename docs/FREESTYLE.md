@@ -83,8 +83,8 @@ authority order in the root `CLAUDE.md`.
 ## 3. The data model (table level)
 
 Column-level detail lives in the inline comments in `database/schema.sql`; this
-section is the table-level home that `docs/DATA_MODEL.md` points to. Sixteen
-tables are freestyle-owned: nine `freestyle_*` tables, `consecutive_kicks_records`,
+section is the table-level home that `docs/DATA_MODEL.md` points to. Seventeen
+tables are freestyle-owned: ten `freestyle_*` tables, `consecutive_kicks_records`,
 and six `symbolic_*` tables.
 
 - **`freestyle_tricks`** - the trick corpus. Load-bearing columns: `adds` (the ADD
@@ -115,6 +115,17 @@ and six `symbolic_*` tables.
   placeholder slug with no foreign key (`unresolved:<name>`, or
   `unresolved:net:<name>` for net techniques held for future Net pages) and is
   remapped when the canonical trick or Net page is authored.
+- **`freestyle_ev_adjudications`** - the Emerging Vocabulary ruling record: one
+  row per adjudicated observational name, carrying what the name is, what it
+  resolved to, what evidence exists, what blocks it, and who owns the next step.
+  Seeded from the committed ruling ledger and writable afterwards, so a ruling
+  made once the rebuild pipeline retires still has a home. It is the ruling
+  authority, never the observational row source: the corpus is composed from the
+  committed corpus inputs and this table supplies each composed row's ruling, so
+  the two counts differ by design. It carries no workflow-state column; public
+  placement stays a derived projection, and publication is expressed by the
+  nullable `published_trick_slug` link plus the disposition transition, with the
+  live trick row deciding whether a linked name is still a candidate.
 - **`freestyle_records`** and **`consecutive_kicks_records`** - the world-record
   and consecutive-kicks corpora, with confidence and superseded-by state.
 - **The six `symbolic_*` tables** - `symbolic_equivalence_clusters`,

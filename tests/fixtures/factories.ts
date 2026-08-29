@@ -809,6 +809,88 @@ export function insertFreestyleTrick(
   return slug;
 }
 
+// ── Emerging Vocabulary adjudication ─────────────────────────────────────────
+//
+// One durable ruling about an observational freestyle name. published_trick_slug
+// is the optional link to the trick row the name denotes; most rulings have none
+// because most adjudicated names are aliases, folk names or duplicates that never
+// become a trick row of their own.
+
+export interface FreestyleEvAdjudicationOverrides {
+  candidate_id?:            string;
+  // Recorded position. Defaults to the next free position so a test that does
+  // not care about ordering never has to pick one.
+  sequence_no?:             number;
+  submitted_name?:          string;
+  normalized_name?:         string;
+  ev_state?:                string;
+  final_disposition?:       string;
+  evidence_state?:          string;
+  object_type?:             string;
+  blocker_id?:              string;
+  blocker_subtype?:         string;
+  hold_kind?:               string;
+  matched_existing_object?: string;
+  match_type?:              string;
+  note?:                    string;
+  source?:                  string;
+  confidence?:              string;
+  owner?:                   string;
+  proposed_formula?:        string;
+  failure_class?:           string;
+  residual_home?:           string;
+  // FK to freestyle_tricks(slug); null (the default) is the ordinary case.
+  published_trick_slug?:    string | null;
+}
+
+export function insertFreestyleEvAdjudication(
+  db: BetterSqlite3.Database,
+  o: FreestyleEvAdjudicationOverrides = {},
+): string {
+  const candidateId = o.candidate_id ?? `ev-${uid()}`;
+  const submitted   = o.submitted_name ?? `Adjudicated Name ${candidateId}`;
+  const nextSeq = (db
+    .prepare('SELECT COALESCE(MAX(sequence_no), 0) + 1 AS next FROM freestyle_ev_adjudications')
+    .get() as { next: number }).next;
+  db.prepare(`
+    INSERT INTO freestyle_ev_adjudications
+      (candidate_id, sequence_no, created_at, created_by, updated_at, updated_by, version,
+       submitted_name, normalized_name, ev_state, final_disposition, evidence_state,
+       object_type, blocker_id, blocker_subtype, hold_kind, matched_existing_object,
+       match_type, note, source, confidence, owner,
+       proposed_formula, failure_class, residual_home, published_trick_slug)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    candidateId,
+    o.sequence_no ?? nextSeq,
+    TS,
+    SYS,
+    TS,
+    SYS,
+    1,
+    submitted,
+    o.normalized_name ?? submitted.toLowerCase().replace(/[^a-z0-9]/g, ''),
+    o.ev_state                ?? 'doctrine',
+    o.final_disposition       ?? 'C',
+    o.evidence_state          ?? 'compositional-name-only',
+    o.object_type             ?? 'complete-trick',
+    o.blocker_id              ?? '',
+    o.blocker_subtype         ?? '',
+    o.hold_kind               ?? '',
+    o.matched_existing_object ?? '',
+    o.match_type              ?? '',
+    o.note                    ?? '',
+    o.source                  ?? '',
+    o.confidence              ?? 'high',
+    o.owner                   ?? 'mechanical',
+    o.proposed_formula        ?? '',
+    o.failure_class           ?? '',
+    o.residual_home           ?? '',
+    o.published_trick_slug    ?? null,
+  );
+  return candidateId;
+}
+
 // ── Freestyle Trick Tip (legacy footbag.org Member Tips) ──────────────────────
 
 export interface FreestyleTrickTipOverrides {
