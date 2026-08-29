@@ -146,6 +146,7 @@ import {
   DISPLAY_NAME_ROW_EXCEPTIONS,
   GENUINE_HYPHEN_TOKENS,
 } from '../content/freestyleDisplayNameExceptions';
+import { EMERGING_DECISION_GROUPS } from '../content/freestyleObservationalUniverse';
 import { config } from '../config/env';
 import { isSeededTestPersonaMemberId } from '../lib/personaGuards';
 
@@ -520,6 +521,92 @@ function assertActorMayCurateFreestyle(actorMemberId: string): void {
   }
 }
 
+// ── The notation-authoring backlog ─────────────────────────────────────────
+
+interface NotationBacklogDbRow {
+  candidate_id: string;
+  submitted_name: string;
+  normalized_name: string;
+  ev_state: string;
+  evidence_state: string;
+  object_type: string;
+  blocker_id: string;
+  blocker_subtype: string;
+  owner: string;
+  source: string;
+  confidence: string;
+  matched_existing_object: string;
+  match_type: string;
+  proposed_formula: string;
+  residual_home: string;
+  note: string;
+  published_trick_slug: string | null;
+}
+
+export interface FreestyleNotationBacklogRow {
+  candidateId: string;
+  submittedName: string;
+  normalizedName: string;
+  evidenceLabel: string;
+  rulingLabel: string;
+  objectType: string;
+  blockerId: string;
+  blockerTitle: string;
+  blockerSubtype: string;
+  owner: string;
+  source: string;
+  confidence: string;
+  matchedObject: string;
+  matchType: string;
+  proposedFormula: string;
+  residualHome: string;
+  note: string;
+  trickSlug: string;
+  hasTrickRow: boolean;
+  trickHref: string;
+}
+
+export interface FreestyleNotationBacklogGroup {
+  blockerId: string;
+  blockerTitle: string;
+  count: number;
+  rows: FreestyleNotationBacklogRow[];
+}
+
+export interface FreestyleNotationBacklogContent {
+  groups: FreestyleNotationBacklogGroup[];
+  totalCount: number;
+  hasRows: boolean;
+}
+
+// Readable words for the two ledger vocabularies this queue displays. A curator
+// reading a work queue should not have to translate the record's own shorthand,
+// and an unmapped value falls through as itself rather than being hidden.
+const EVIDENCE_STATE_LABELS: Record<string, string> = {
+  'compositional-name-only': 'Name only, composition understood',
+  'partial-structure':       'Partial structure',
+  'folk-name-only':          'Folk name only',
+  'contradictory':           'Contradictory evidence',
+  'none':                    'No evidence recorded',
+  'not-applicable':          'Not applicable',
+};
+
+const EV_STATE_LABELS: Record<string, string> = {
+  authoring:           'Awaiting authoring',
+  parser:              'Parser-held',
+  doctrine:            'Doctrine-held',
+  undefined_operator:  'Undefined operator',
+  deferred:            'Deferred',
+};
+
+// The curator decision groups by the id each ruling carries, so the queue says
+// what released a name rather than only which code gated it. Titles come from
+// the generated corpus module, which is the single home for the group registry;
+// a group with no entry shows its id alone rather than an invented title.
+const DECISION_GROUP_TITLES: Record<string, string> = Object.fromEntries(
+  EMERGING_DECISION_GROUPS.map((g) => [g.id, g.title]),
+);
+
 // ── Publication and the adjudication record ────────────────────────────────
 //
 // A trick held out of the dictionary with is_active = 0 and review_status
@@ -783,6 +870,78 @@ export const freestyleCurationService = {
           isFiltered: query !== '' || activeFilter !== '' || reviewFilter !== '',
         },
         hasRows: rows.length > 0,
+      },
+    };
+  },
+
+  // The notation-authoring backlog: the rulings whose identity and difficulty
+  // are settled and whose movement is not. Read-only, and read from the
+  // adjudication table rather than the generated corpus module, because the
+  // table is what a curator will author into and a queue read from the
+  // projection would lag whatever was just written.
+  //
+  // Each row carries what is already settled about the name, so a curator
+  // authoring notation is not asked to re-establish facts the funnel has:
+  // what the ruling decided, what evidence it rests on, what released it, who
+  // owns it, where the difficulty derivation came from, and the trick row if
+  // one already exists. Aliases and folk names still live in the corpus module
+  // and join later, with the authoring form that needs them.
+  getNotationBacklogPage(): PageViewModel<FreestyleNotationBacklogContent> {
+    const rows = freestyleEvAdjudications.listNotationBacklog.all() as NotationBacklogDbRow[];
+
+    const shaped: FreestyleNotationBacklogRow[] = rows.map((r) => ({
+      candidateId:      r.candidate_id,
+      submittedName:    r.submitted_name,
+      normalizedName:   r.normalized_name,
+      evidenceLabel:    EVIDENCE_STATE_LABELS[r.evidence_state] ?? r.evidence_state,
+      rulingLabel:      EV_STATE_LABELS[r.ev_state] ?? r.ev_state,
+      objectType:       r.object_type,
+      blockerId:        r.blocker_id,
+      blockerTitle:     DECISION_GROUP_TITLES[r.blocker_id] ?? '',
+      blockerSubtype:   r.blocker_subtype,
+      owner:            r.owner,
+      source:           r.source,
+      confidence:       r.confidence,
+      matchedObject:    r.matched_existing_object,
+      matchType:        r.match_type,
+      proposedFormula:  r.proposed_formula,
+      residualHome:     r.residual_home,
+      note:             r.note,
+      trickSlug:        r.published_trick_slug ?? '',
+      hasTrickRow:      r.published_trick_slug !== null,
+      // A candidate that already has a held-out trick row is reachable; one that
+      // exists only as a ruling has nothing to link to yet, which is the ordinary
+      // case in this queue.
+      trickHref:        r.published_trick_slug ? `/admin/freestyle/tricks/${r.published_trick_slug}/edit` : '',
+    }));
+
+    // Grouped by what released each name, because a curator works a decision
+    // group at a time: one answer settles a whole cluster.
+    const byBlocker = new Map<string, FreestyleNotationBacklogRow[]>();
+    for (const row of shaped) {
+      const list = byBlocker.get(row.blockerId) ?? [];
+      list.push(row);
+      byBlocker.set(row.blockerId, list);
+    }
+    const groups: FreestyleNotationBacklogGroup[] = [...byBlocker.entries()].map(([id, list]) => ({
+      blockerId:    id,
+      blockerTitle: DECISION_GROUP_TITLES[id] ?? '',
+      count:        list.length,
+      rows:         list,
+    }));
+
+    return {
+      seo:  { title: 'Notation Authoring Backlog' },
+      page: {
+        sectionKey: 'admin',
+        pageKey:    'admin_freestyle_notation_backlog',
+        title:      'Notation Authoring Backlog',
+        intro:      'Rulings whose identity and difficulty are settled and whose movement notation is not yet authored.',
+      },
+      content: {
+        groups,
+        totalCount: shaped.length,
+        hasRows:    shaped.length > 0,
       },
     };
   },

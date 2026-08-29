@@ -157,6 +157,9 @@ adminRouter.post('/club-cleanup/candidates/:candidateId/resolve', adminClubClean
 // Freestyle dictionary curation: browse the trick rows, open one for edit, and
 // save its scalar fields. An alias can be added, reclassified, or removed on the
 // edit page; attached sources and modifier links are attach-or-detach only.
+// Before the /tricks routes: a work queue over the adjudication record, read
+// from the table the funnel writes rather than from generated content.
+adminRouter.get('/freestyle/notation-backlog',   adminFreestyleController.notationBacklog);
 adminRouter.get('/freestyle/tricks',             adminFreestyleController.index);
 adminRouter.get('/freestyle/tricks/:slug/edit',  adminFreestyleController.edit);
 adminRouter.post('/freestyle/tricks/:slug/edit', adminFreestyleController.update);

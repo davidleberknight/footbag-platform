@@ -1,0 +1,93 @@
+{{! /admin/freestyle/notation-backlog — the rulings waiting on a movement
+    notation, read from the adjudication record. Read-only: this queue shows
+    what is settled about each name so the authoring step, which lands later,
+    does not ask a curator to re-establish it. }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    <p class="hero-subtitle">{{page.intro}}</p>
+    <div class="hero-stats">
+      <span>{{content.totalCount}} rulings</span>
+      <span>{{content.groups.length}} decision groups</span>
+    </div>
+  </div>
+</div>
+
+<div class="wrapper">
+
+  {{#if content.hasRows}}
+    {{#each content.groups}}
+    <section class="content-section">
+      <div class="section-heading">
+        <h2>{{#if blockerTitle}}{{blockerTitle}}{{else}}{{blockerId}}{{/if}}</h2>
+        <p class="text-muted fs-sm">{{blockerId}} &middot; {{count}} waiting on notation</p>
+      </div>
+
+      <table class="freestyle-admin-table mt-2">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Ruling</th>
+            <th>Evidence</th>
+            <th>Resolved to</th>
+            <th>Difficulty derivation</th>
+            <th>Owner</th>
+            <th>Trick row</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each rows}}
+          <tr>
+            <td>
+              <strong>{{submittedName}}</strong>
+              {{#if note}}<p class="text-muted fs-sm">{{note}}</p>{{/if}}
+            </td>
+            <td>
+              {{rulingLabel}}
+              {{#if blockerSubtype}}<p class="text-muted fs-sm">{{blockerSubtype}}</p>{{/if}}
+            </td>
+            <td>
+              {{evidenceLabel}}
+              <p class="text-muted fs-sm">{{source}} &middot; {{confidence}}</p>
+            </td>
+            <td>
+              {{#if matchedObject}}
+                <code>{{matchedObject}}</code>
+                {{#if matchType}}<p class="text-muted fs-sm">{{matchType}}</p>{{/if}}
+              {{else}}
+                <span class="text-muted">&mdash;</span>
+              {{/if}}
+            </td>
+            <td>
+              {{#if proposedFormula}}
+                <code>{{proposedFormula}}</code>
+              {{else}}
+                <span class="text-muted">&mdash;</span>
+              {{/if}}
+              {{#if residualHome}}<p class="text-muted fs-sm">{{residualHome}}</p>{{/if}}
+            </td>
+            <td>{{owner}}</td>
+            <td>
+              {{#if hasTrickRow}}
+                <a href="{{trickHref}}">{{trickSlug}}</a>
+              {{else}}
+                <span class="text-muted">Not yet created</span>
+              {{/if}}
+            </td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </section>
+    {{/each}}
+  {{else}}
+    <section class="content-section">
+      <p class="notice notice-info">
+        No ruling is waiting on a movement notation. A name reaches this queue when
+        its identity and difficulty are settled and its movement is not.
+      </p>
+    </section>
+  {{/if}}
+
+</div>

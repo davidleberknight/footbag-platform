@@ -2755,6 +2755,34 @@ export const freestyleEvAdjudications = {
     WHERE normalized_name = ?
   `); },
 
+  // The notation-authoring backlog: rulings whose identity and difficulty are
+  // settled and whose movement is not, waiting for a curator to author it.
+  //
+  // Derived, never flagged. A ruling qualifies when its evidence does not
+  // already carry the movement (a source's own notation, footage, authoritative
+  // prose, or a structure the platform can derive), when it is still open, when
+  // a curator decision rather than a doctrine question is what gates it, and
+  // when nobody has authored a notation for it yet. Operator composition gives
+  // the difficulty and generally not the movement, which is why arithmetic
+  // certainty never puts a row on this list.
+  //
+  // This counts rulings. The public projection counts identities, collapsing
+  // lexical variants of one name, so the two totals differ by design in the same
+  // way the ledger's row count and the corpus row count do.
+  get listNotationBacklog() { return db.prepare(`
+    SELECT candidate_id, submitted_name, normalized_name, ev_state, evidence_state,
+           object_type, blocker_id, blocker_subtype, owner, source, confidence,
+           matched_existing_object, match_type, proposed_formula, residual_home,
+           note, published_trick_slug
+    FROM freestyle_ev_adjudications
+    WHERE authored_notation IS NULL
+      AND final_disposition = 'C'
+      AND evidence_state NOT IN
+          ('exact-notation', 'verified-footage', 'authoritative-prose', 'derivable-notation')
+      AND blocker_id LIKE 'D%'
+    ORDER BY blocker_id ASC, submitted_name ASC
+  `); },
+
   // Publication, applied to the ruling. The name becomes canonical, the
   // disposition transitions to resolved, and the trick row it resolved to is
   // recorded on both the durable match field and the link. Nothing else on the

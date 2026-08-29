@@ -20,6 +20,16 @@ import { NotFoundError, ValidationError } from '../services/serviceErrors';
 import { renderNotFound } from '../lib/controllerErrors';
 
 export const adminFreestyleController = {
+  /** GET /admin/freestyle/notation-backlog */
+  notationBacklog(_req: Request, res: Response, next: NextFunction): void {
+    try {
+      const vm = freestyleCurationService.getNotationBacklogPage();
+      res.render('admin/freestyle-notation-backlog', vm);
+    } catch (err) {
+      next(err);
+    }
+  },
+
   index(req: Request, res: Response, next: NextFunction): void {
     try {
       const vm = freestyleCurationService.getBrowsePage({
