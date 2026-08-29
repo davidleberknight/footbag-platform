@@ -510,8 +510,8 @@ The hello-world clone runs on the committed real event data (`canonical_input`) 
 Request whichever you need from the maintainer, then load:
 
 ```bash
-./run_dev.sh --from-csv      # full enrichment rebuild + media + personas; no mirror, no dev-admins; needs the member roster
-./run_dev.sh --soup-to-nuts  # everything --from-csv does, plus mirror rebuild + dev admins
+./run_dev.sh --from-csv      # full enrichment rebuild + media + personas; no mirror, no dev-admin allowlist; needs the member roster
+./run_dev.sh --soup-to-nuts  # everything --from-csv does, plus mirror rebuild + the dev-admin allowlist
 ```
 
 The **freestyle** tables are not part of this handoff: they build entirely from committed inputs via `freestyle/run_freestyle.sh` (which `reset-local-db.sh` runs automatically), so freestyle content is already complete on a fresh hello-world clone.
@@ -662,7 +662,7 @@ Several conveniences exist to reduce friction during local manual testing. They 
 |---|---|---|---|
 | `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` | env var | development AND staging | Email allowlist matched at registration; matching registrants get `is_admin=1` plus a Tier 2 grant plus audit rows in one transaction. The deploy pipeline parses `.local/initial-admins.txt` into this env var; the workstation file is the dev source. Production refused at boot and at deploy time. |
 | `GET /dev/switch?as=<slug>` | dev route | development and staging | Issues a real session cookie for a seeded persona via the production JWT primitive, so you act as any persona without a login chain. Audit-marked `testkit.persona_switch`. |
-| `./scripts/manage-test-personas.sh --seed-test-personas` (or `./run_dev.sh --seed-test-personas`) | operator script | development AND staging | Seeds the canonical persona catalog. Tier grants marked `dev_persona_seed.tier_grant`. Production blocked by the testkit import guard and the production image strip. |
+| `./scripts/manage-test-personas.sh --seed-test-personas` (or `./run_dev.sh --seed-test-personas`) | operator script | development AND staging | Seeds the canonical persona catalog. The rebuild modes that seed personas (`--from-csv`, `--all-data`, `--soup-to-nuts`) run this too, so a rebuilt database carries the catalog, including its two admin personas, without the dev-admin allowlist being involved. Tier grants marked `dev_persona_seed.tier_grant`. Production blocked by the testkit import guard and the production image strip. |
 | `./scripts/manage-test-personas.sh --refresh-test-personas --apply` (or the default refresh on `./run_dev.sh` and a code-only staging deploy) | operator script | development AND staging | Rebuilds every persona from its current spec, deleting persona-owned rows first. The only path that makes an existing database match a changed catalog; reports and writes nothing without `--apply`, and leaves a database with no personas untouched. Production blocked by the same import guard and image strip, and refused for any deploy target but staging. |
 
 Production carries none of these tools. Production admins requiring legacy-claim recovery use `manualLegacyClaimRecovery` (DD §3.9).
