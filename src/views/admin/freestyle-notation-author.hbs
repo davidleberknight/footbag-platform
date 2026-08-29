@@ -1,0 +1,113 @@
+{{! /admin/freestyle/notation-backlog/:candidateId/author — write one movement.
+    The ruling's settled facts sit beside the field so the curator is not asked to
+    re-establish them. No canonical trick is created here. }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    <p class="hero-subtitle">{{page.intro}}</p>
+  </div>
+</div>
+
+<div class="wrapper">
+
+  {{#if content.saved}}
+  <p class="notice notice-info">Saved. The draft is listed under authored drafts until its trick is published.</p>
+  {{/if}}
+
+  {{#if content.hasErrors}}
+  <div class="form-error-banner">
+    {{#each content.errorList}}<p>{{this}}</p>{{/each}}
+  </div>
+  {{/if}}
+
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>What the Ruling Already Settled</h2>
+    </div>
+    <dl class="trick-structural-facts-list">
+      <dt>Ruling</dt>
+      <dd>{{content.settled.rulingLabel}}{{#if content.settled.blockerSubtype}} &middot; {{content.settled.blockerSubtype}}{{/if}}</dd>
+      <dt>Released by</dt>
+      <dd>{{#if content.settled.blockerTitle}}{{content.settled.blockerTitle}}{{else}}{{content.settled.blockerId}}{{/if}}</dd>
+      <dt>Evidence</dt>
+      <dd>{{content.settled.evidenceLabel}} &middot; {{content.settled.source}} &middot; {{content.settled.confidence}}</dd>
+      <dt>Resolved to</dt>
+      <dd>{{#if content.settled.matchedObject}}<code>{{content.settled.matchedObject}}</code>{{else}}&mdash;{{/if}}</dd>
+      <dt>Difficulty derivation</dt>
+      <dd>{{#if content.settled.proposedFormula}}<code>{{content.settled.proposedFormula}}</code>{{else}}&mdash;{{/if}}</dd>
+      <dt>Owner</dt>
+      <dd>{{content.settled.owner}}</dd>
+      <dt>Trick row</dt>
+      <dd>{{#if content.settled.hasTrickRow}}<a href="{{content.settled.trickHref}}">{{content.settled.trickSlug}}</a>{{else}}Not yet created{{/if}}</dd>
+      {{#if content.settled.note}}
+      <dt>Curator note</dt>
+      <dd>{{content.settled.note}}</dd>
+      {{/if}}
+    </dl>
+  </section>
+
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>The Movement</h2>
+    </div>
+
+    <form method="POST" action="{{content.saveHref}}" class="freestyle-edit-form">
+      <p>
+        <label for="notation">Movement notation</label><br>
+        <textarea id="notation" name="notation" rows="3" maxlength="500">{{content.fields.notation}}</textarea>
+      </p>
+      {{! Information, not a verdict: the difficulty this count has to match is
+          asserted when the canonical trick is created, so there is nothing yet to
+          check it against. }}
+      <p class="text-muted fs-sm">{{content.bracketCountLine}} The difficulty it must match is set when the trick is published.</p>
+
+      <p>
+        <label for="evidenceBasis">Where did the notation come from?</label><br>
+        <select id="evidenceBasis" name="evidenceBasis">
+          <option value="">Choose one</option>
+          {{#each content.basisOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+        </select>
+      </p>
+      <ul class="text-muted fs-sm">
+        {{#each content.basisHelp}}<li><strong>{{label}}</strong> &mdash; {{help}}</li>{{/each}}
+      </ul>
+
+      <p>
+        <label for="derivationMethod">How was it produced?</label><br>
+        <select id="derivationMethod" name="derivationMethod">
+          <option value="">Choose one</option>
+          {{#each content.methodOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+        </select>
+      </p>
+      <ul class="text-muted fs-sm">
+        {{#each content.methodHelp}}<li><strong>{{label}}</strong> &mdash; {{help}}</li>{{/each}}
+      </ul>
+
+      <p>
+        <label for="conventionId">Which convention, if it was derived under one?</label><br>
+        <select id="conventionId" name="conventionId">
+          <option value="">None &mdash; it was not derived under a convention</option>
+          {{#each content.conventionOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+        </select>
+      </p>
+      <ul class="text-muted fs-sm">
+        {{#each content.conventionSummaries}}<li><strong>{{title}}</strong> &mdash; {{summary}}</li>{{/each}}
+      </ul>
+
+      <p>
+        <label for="provenanceNote">Provenance note</label><br>
+        <textarea id="provenanceNote" name="provenanceNote" rows="3" maxlength="4000">{{content.fields.provenanceNote}}</textarea>
+      </p>
+
+      <p><button type="submit" class="btn btn-primary btn-sm">Save Notation</button></p>
+    </form>
+
+    {{#if content.isAuthored}}
+    <p class="text-muted fs-sm">Last authored {{content.authoredAt}} by {{content.authoredBy}}.</p>
+    {{/if}}
+  </section>
+
+  <p><a href="{{content.backlogHref}}">Back to the backlog</a></p>
+
+</div>

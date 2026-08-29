@@ -160,6 +160,9 @@ adminRouter.post('/club-cleanup/candidates/:candidateId/resolve', adminClubClean
 // Before the /tricks routes: a work queue over the adjudication record, read
 // from the table the funnel writes rather than from generated content.
 adminRouter.get('/freestyle/notation-backlog',   adminFreestyleController.notationBacklog);
+adminRouter.get('/freestyle/notation-drafts',    adminFreestyleController.notationDrafts);
+adminRouter.get('/freestyle/notation-backlog/:candidateId/author',  adminFreestyleController.notationAuthorForm);
+adminRouter.post('/freestyle/notation-backlog/:candidateId/author', adminFreestyleController.notationAuthorSave);
 adminRouter.get('/freestyle/tricks',             adminFreestyleController.index);
 adminRouter.get('/freestyle/tricks/:slug/edit',  adminFreestyleController.edit);
 adminRouter.post('/freestyle/tricks/:slug/edit', adminFreestyleController.update);

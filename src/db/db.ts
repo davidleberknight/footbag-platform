@@ -2783,6 +2783,53 @@ export const freestyleEvAdjudications = {
     ORDER BY blocker_id ASC, submitted_name ASC
   `); },
 
+  // One ruling, for the authoring form and for the save that follows it. Carries
+  // the settled facts the form displays beside the notation field, and the
+  // authoring fields as they stand, so a save can record what it replaced.
+  get getForAuthoring() { return db.prepare(`
+    SELECT candidate_id, submitted_name, normalized_name, ev_state, final_disposition,
+           evidence_state, object_type, blocker_id, blocker_subtype, owner, source,
+           confidence, matched_existing_object, match_type, proposed_formula,
+           residual_home, note, published_trick_slug, version,
+           authored_notation, notation_evidence_basis, notation_derivation_method,
+           notation_convention_id, notation_provenance_note,
+           notation_authored_at, notation_authored_by
+    FROM freestyle_ev_adjudications
+    WHERE candidate_id = ?
+  `); },
+
+  // The drafts: rulings whose movement has been authored and whose canonical row
+  // has not been created. Without this view a saved draft would leave the backlog
+  // and appear nowhere, which is a good way to lose a curator's work.
+  get listAuthoredDrafts() { return db.prepare(`
+    SELECT candidate_id, submitted_name, normalized_name, blocker_id, owner,
+           authored_notation, notation_evidence_basis, notation_derivation_method,
+           notation_convention_id, notation_provenance_note,
+           notation_authored_at, notation_authored_by, published_trick_slug
+    FROM freestyle_ev_adjudications
+    WHERE authored_notation IS NOT NULL
+      AND final_disposition = 'C'
+    ORDER BY notation_authored_at DESC, submitted_name ASC
+  `); },
+
+  // The authoring write. Touches the notation and its provenance and nothing
+  // else: the ruling's own decision, its blocker, its owner and its history are
+  // not this surface's business.
+  get saveAuthoredNotation() { return db.prepare(`
+    UPDATE freestyle_ev_adjudications
+    SET authored_notation          = ?,
+        notation_evidence_basis    = ?,
+        notation_derivation_method = ?,
+        notation_convention_id     = ?,
+        notation_provenance_note   = ?,
+        notation_authored_at       = strftime('%Y-%m-%dT%H:%M:%fZ','now'),
+        notation_authored_by       = ?,
+        updated_at                 = strftime('%Y-%m-%dT%H:%M:%fZ','now'),
+        updated_by                 = ?,
+        version                    = version + 1
+    WHERE candidate_id = ?
+  `); },
+
   // Publication, applied to the ruling. The name becomes canonical, the
   // disposition transitions to resolved, and the trick row it resolved to is
   // recorded on both the durable match field and the link. Nothing else on the

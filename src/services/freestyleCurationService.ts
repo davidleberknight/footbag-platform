@@ -147,6 +147,21 @@ import {
   GENUINE_HYPHEN_TOKENS,
 } from '../content/freestyleDisplayNameExceptions';
 import { EMERGING_DECISION_GROUPS } from '../content/freestyleObservationalUniverse';
+import {
+  NOTATION_EVIDENCE_BASES,
+  NOTATION_DERIVATION_METHODS,
+  NOTATION_CONVENTIONS,
+  CONVENTION_DERIVATION,
+  isNotationEvidenceBasis,
+  isNotationDerivationMethod,
+  isNotationConvention,
+  notationBasisLabel,
+  notationMethodLabel,
+  notationConventionTitle,
+  type ProvenanceOption,
+  type NotationConvention,
+} from '../content/freestyleNotationProvenance';
+import { countScoringBrackets } from '../lib/freestyleNotation';
 import { config } from '../config/env';
 import { isSeededTestPersonaMemberId } from '../lib/personaGuards';
 
@@ -564,6 +579,7 @@ export interface FreestyleNotationBacklogRow {
   trickSlug: string;
   hasTrickRow: boolean;
   trickHref: string;
+  authorHref: string;
 }
 
 export interface FreestyleNotationBacklogGroup {
@@ -577,6 +593,89 @@ export interface FreestyleNotationBacklogContent {
   groups: FreestyleNotationBacklogGroup[];
   totalCount: number;
   hasRows: boolean;
+  draftsHref: string;
+  draftCount: number;
+}
+
+// ── Authoring one ruling's notation ────────────────────────────────────────
+
+interface AuthoringDbRow extends NotationBacklogDbRow {
+  final_disposition: string;
+  version: number;
+  authored_notation: string | null;
+  notation_evidence_basis: string | null;
+  notation_derivation_method: string | null;
+  notation_convention_id: string | null;
+  notation_provenance_note: string | null;
+  notation_authored_at: string | null;
+  notation_authored_by: string | null;
+}
+
+export interface FreestyleNotationAuthoringInput {
+  notation?: string;
+  evidenceBasis?: string;
+  derivationMethod?: string;
+  conventionId?: string;
+  provenanceNote?: string;
+}
+
+export interface FreestyleNotationAuthoringContent {
+  candidateId: string;
+  submittedName: string;
+  /** What the ruling already settled, so the curator is not asked to restate it. */
+  settled: FreestyleNotationBacklogRow;
+  /** The form's current values: the saved draft, or what was just submitted. */
+  fields: {
+    notation: string;
+    evidenceBasis: string;
+    derivationMethod: string;
+    conventionId: string;
+    provenanceNote: string;
+  };
+  basisOptions: FilterOption[];
+  methodOptions: FilterOption[];
+  conventionOptions: FilterOption[];
+  basisHelp: ProvenanceOption[];
+  methodHelp: ProvenanceOption[];
+  conventionSummaries: NotationConvention[];
+  /** Information, not a gate: the difficulty this notation will have to match is
+   *  asserted when the canonical trick is created, and does not exist yet. */
+  scoringBracketCount: number;
+  bracketCountLine: string;
+  isAuthored: boolean;
+  authoredAt: string;
+  authoredBy: string;
+  saveHref: string;
+  backlogHref: string;
+  /** Messages for the banner, the way every other admin form on this surface
+   *  reports a refusal. Keyed messages stay on the service contract; the page
+   *  renders the list. */
+  errorList: string[];
+  hasErrors: boolean;
+  saved: boolean;
+}
+
+export interface FreestyleNotationDraftRow {
+  candidateId: string;
+  submittedName: string;
+  notation: string;
+  scoringBracketCount: number;
+  basisLabel: string;
+  methodLabel: string;
+  conventionTitle: string;
+  provenanceNote: string;
+  authoredAt: string;
+  authoredBy: string;
+  blockerId: string;
+  owner: string;
+  authorHref: string;
+}
+
+export interface FreestyleNotationDraftsContent {
+  rows: FreestyleNotationDraftRow[];
+  totalCount: number;
+  hasRows: boolean;
+  backlogHref: string;
 }
 
 // Readable words for the two ledger vocabularies this queue displays. A curator
@@ -606,6 +705,39 @@ const EV_STATE_LABELS: Record<string, string> = {
 const DECISION_GROUP_TITLES: Record<string, string> = Object.fromEntries(
   EMERGING_DECISION_GROUPS.map((g) => [g.id, g.title]),
 );
+
+// A movement notation is a line, not an essay: the longest in the corpus is well
+// under this, and the cap is here to reject a pasted document rather than to
+// shape authoring.
+const NOTATION_MAX = 500;
+
+/** One ruling's settled facts, shaped the same way wherever they are shown: in
+ *  the queue, and beside the notation field on the authoring form. */
+function shapeBacklogRow(r: NotationBacklogDbRow): FreestyleNotationBacklogRow {
+  return {
+    candidateId:     r.candidate_id,
+    submittedName:   r.submitted_name,
+    normalizedName:  r.normalized_name,
+    evidenceLabel:   EVIDENCE_STATE_LABELS[r.evidence_state] ?? r.evidence_state,
+    rulingLabel:     EV_STATE_LABELS[r.ev_state] ?? r.ev_state,
+    objectType:      r.object_type,
+    blockerId:       r.blocker_id,
+    blockerTitle:    DECISION_GROUP_TITLES[r.blocker_id] ?? '',
+    blockerSubtype:  r.blocker_subtype,
+    owner:           r.owner,
+    source:          r.source,
+    confidence:      r.confidence,
+    matchedObject:   r.matched_existing_object,
+    matchType:       r.match_type,
+    proposedFormula: r.proposed_formula,
+    residualHome:    r.residual_home,
+    note:            r.note,
+    trickSlug:       r.published_trick_slug ?? '',
+    hasTrickRow:     r.published_trick_slug !== null,
+    trickHref:       r.published_trick_slug ? `/admin/freestyle/tricks/${r.published_trick_slug}/edit` : '',
+    authorHref:      `/admin/freestyle/notation-backlog/${r.candidate_id}/author`,
+  };
+}
 
 // ── Publication and the adjudication record ────────────────────────────────
 //
@@ -889,31 +1021,10 @@ export const freestyleCurationService = {
   getNotationBacklogPage(): PageViewModel<FreestyleNotationBacklogContent> {
     const rows = freestyleEvAdjudications.listNotationBacklog.all() as NotationBacklogDbRow[];
 
-    const shaped: FreestyleNotationBacklogRow[] = rows.map((r) => ({
-      candidateId:      r.candidate_id,
-      submittedName:    r.submitted_name,
-      normalizedName:   r.normalized_name,
-      evidenceLabel:    EVIDENCE_STATE_LABELS[r.evidence_state] ?? r.evidence_state,
-      rulingLabel:      EV_STATE_LABELS[r.ev_state] ?? r.ev_state,
-      objectType:       r.object_type,
-      blockerId:        r.blocker_id,
-      blockerTitle:     DECISION_GROUP_TITLES[r.blocker_id] ?? '',
-      blockerSubtype:   r.blocker_subtype,
-      owner:            r.owner,
-      source:           r.source,
-      confidence:       r.confidence,
-      matchedObject:    r.matched_existing_object,
-      matchType:        r.match_type,
-      proposedFormula:  r.proposed_formula,
-      residualHome:     r.residual_home,
-      note:             r.note,
-      trickSlug:        r.published_trick_slug ?? '',
-      hasTrickRow:      r.published_trick_slug !== null,
-      // A candidate that already has a held-out trick row is reachable; one that
-      // exists only as a ruling has nothing to link to yet, which is the ordinary
-      // case in this queue.
-      trickHref:        r.published_trick_slug ? `/admin/freestyle/tricks/${r.published_trick_slug}/edit` : '',
-    }));
+    // A candidate that already has a held-out trick row links to it; one that
+    // exists only as a ruling has nothing to link to yet, which is the ordinary
+    // case in this queue.
+    const shaped: FreestyleNotationBacklogRow[] = rows.map(shapeBacklogRow);
 
     // Grouped by what released each name, because a curator works a decision
     // group at a time: one answer settles a whole cluster.
@@ -930,6 +1041,8 @@ export const freestyleCurationService = {
       rows:         list,
     }));
 
+    const drafts = freestyleEvAdjudications.listAuthoredDrafts.all() as { candidate_id: string }[];
+
     return {
       seo:  { title: 'Notation Authoring Backlog' },
       page: {
@@ -942,6 +1055,216 @@ export const freestyleCurationService = {
         groups,
         totalCount: shaped.length,
         hasRows:    shaped.length > 0,
+        draftsHref: '/admin/freestyle/notation-drafts',
+        draftCount: drafts.length,
+      },
+    };
+  },
+
+  // The authoring form for one ruling. Shows what the ruling already settled
+  // beside the notation field, so a curator authoring a movement is not asked to
+  // re-establish the identity, the evidence or the decision that released it.
+  // Returns null for an unknown id (the controller maps null to 404).
+  getNotationAuthoringPage(
+    candidateId: string,
+    opts: { submitted?: FreestyleNotationAuthoringInput; fieldErrors?: Record<string, string>; saved?: boolean } = {},
+  ): PageViewModel<FreestyleNotationAuthoringContent> | null {
+    const row = freestyleEvAdjudications.getForAuthoring.get(candidateId) as AuthoringDbRow | undefined;
+    if (!row) return null;
+
+    const sub = opts.submitted;
+    const fields = {
+      notation:         sub ? (sub.notation ?? '') : (row.authored_notation ?? ''),
+      evidenceBasis:    sub ? (sub.evidenceBasis ?? '') : (row.notation_evidence_basis ?? ''),
+      derivationMethod: sub ? (sub.derivationMethod ?? '') : (row.notation_derivation_method ?? ''),
+      conventionId:     sub ? (sub.conventionId ?? '') : (row.notation_convention_id ?? ''),
+      provenanceNote:   sub ? (sub.provenanceNote ?? '') : (row.notation_provenance_note ?? ''),
+    };
+
+    const brackets = countScoringBrackets(fields.notation);
+    const fieldErrors = opts.fieldErrors ?? {};
+
+    return {
+      seo:  { title: `Author Notation: ${row.submitted_name}` },
+      page: {
+        sectionKey: 'admin',
+        pageKey:    'admin_freestyle_notation_authoring',
+        title:      `Author notation: ${row.submitted_name}`,
+        intro:      'Write the movement, and record where it came from and what was done to produce it.',
+      },
+      content: {
+        candidateId:   row.candidate_id,
+        submittedName: row.submitted_name,
+        settled:       shapeBacklogRow(row),
+        fields,
+        basisOptions: NOTATION_EVIDENCE_BASES.map((o) => ({
+          value: o.value, label: o.label, selected: fields.evidenceBasis === o.value,
+        })),
+        methodOptions: NOTATION_DERIVATION_METHODS.map((o) => ({
+          value: o.value, label: o.label, selected: fields.derivationMethod === o.value,
+        })),
+        conventionOptions: NOTATION_CONVENTIONS.map((c) => ({
+          value: c.id, label: c.title, selected: fields.conventionId === c.id,
+        })),
+        basisHelp:           [...NOTATION_EVIDENCE_BASES],
+        methodHelp:          [...NOTATION_DERIVATION_METHODS],
+        conventionSummaries: [...NOTATION_CONVENTIONS],
+        scoringBracketCount: brackets,
+        // Said as information rather than as a verdict: the difficulty this count
+        // will have to match is asserted when the canonical trick is created, so
+        // there is nothing yet to check it against.
+        bracketCountLine: brackets === 1
+          ? 'This notation carries 1 scoring bracket.'
+          : `This notation carries ${brackets} scoring brackets.`,
+        isAuthored:  row.authored_notation !== null,
+        authoredAt:  row.notation_authored_at ?? '',
+        authoredBy:  row.notation_authored_by ?? '',
+        saveHref:    `/admin/freestyle/notation-backlog/${row.candidate_id}/author`,
+        backlogHref: '/admin/freestyle/notation-backlog',
+        errorList: Object.values(fieldErrors),
+        hasErrors: Object.keys(fieldErrors).length > 0,
+        saved: opts.saved === true,
+      },
+    };
+  },
+
+  // Save an authored notation and its provenance. Validates the shape of the
+  // record only: that the two claims are answered from the vocabularies, that a
+  // derivation names a registered convention and nothing else carries one, and
+  // that the notation is present and within its cap. What makes a notation
+  // publishable — the difficulty it must match, the collisions it must avoid, the
+  // family it must inherit — is checked when the canonical trick is created,
+  // because none of it can be checked against a record that does not exist yet.
+  //
+  // The previous notation and its provenance go into the audit entry. The ledger
+  // is curation history rather than personal data, and a notation that was
+  // replaced is exactly what an audit of this surface needs to be able to read.
+  saveAuthoredNotation(
+    candidateId: string,
+    input: FreestyleNotationAuthoringInput,
+    actorMemberId: string,
+  ): void {
+    assertActorMayCurateFreestyle(actorMemberId);
+    const current = freestyleEvAdjudications.getForAuthoring.get(candidateId) as AuthoringDbRow | undefined;
+    if (!current) throw new NotFoundError(`No adjudication "${candidateId}"`);
+
+    const fieldErrors: Record<string, string> = {};
+
+    const notation = (input.notation ?? '').trim();
+    if (!notation) {
+      fieldErrors.notation = 'A movement notation is required.';
+    } else if (notation.length > NOTATION_MAX) {
+      fieldErrors.notation = `Notation must be ${NOTATION_MAX} characters or fewer.`;
+    }
+
+    const evidenceBasis = (input.evidenceBasis ?? '').trim();
+    if (!evidenceBasis) {
+      fieldErrors.evidenceBasis = 'Say where the notation came from.';
+    } else if (!isNotationEvidenceBasis(evidenceBasis)) {
+      fieldErrors.evidenceBasis = 'Choose one of the listed answers.';
+    }
+
+    const derivationMethod = (input.derivationMethod ?? '').trim();
+    if (!derivationMethod) {
+      fieldErrors.derivationMethod = 'Say what was done to produce it.';
+    } else if (!isNotationDerivationMethod(derivationMethod)) {
+      fieldErrors.derivationMethod = 'Choose one of the listed answers.';
+    }
+
+    // The convention belongs to exactly one method. Typing a rule nobody ratified
+    // is what the registry exists to prevent: a derivation that names an
+    // unratified convention cannot later be excluded from corroborating it.
+    const conventionId = (input.conventionId ?? '').trim();
+    if (derivationMethod === CONVENTION_DERIVATION) {
+      if (!conventionId) {
+        fieldErrors.conventionId = 'Name the convention this was derived under.';
+      } else if (!isNotationConvention(conventionId)) {
+        fieldErrors.conventionId = 'Choose a ratified convention from the list.';
+      }
+    } else if (conventionId) {
+      fieldErrors.conventionId = 'A convention belongs only to a derivation.';
+    }
+
+    const provenanceNote = (input.provenanceNote ?? '').trim();
+    if (provenanceNote.length > PROSE_MAX) {
+      fieldErrors.provenanceNote = `Provenance note must be ${PROSE_MAX} characters or fewer.`;
+    }
+
+    if (Object.keys(fieldErrors).length > 0) {
+      throw new ValidationError('Some fields need attention.', { fieldErrors });
+    }
+
+    transaction(() => {
+      freestyleEvAdjudications.saveAuthoredNotation.run(
+        notation,
+        evidenceBasis,
+        derivationMethod,
+        derivationMethod === CONVENTION_DERIVATION ? conventionId : null,
+        provenanceNote === '' ? null : provenanceNote,
+        actorMemberId,
+        actorMemberId,
+        candidateId,
+      );
+      appendAuditEntry({
+        actionType:    'freestyle.adjudication_notation.authored',
+        category:      'content',
+        actorType:     'admin',
+        actorMemberId,
+        entityType:    'freestyle_ev_adjudication',
+        entityId:      candidateId,
+        metadata:      {
+          submittedName:    current.submitted_name,
+          notation,
+          evidenceBasis,
+          derivationMethod,
+          conventionId:     derivationMethod === CONVENTION_DERIVATION ? conventionId : null,
+          scoringBrackets:  countScoringBrackets(notation),
+          // What this replaced. Null throughout on a first authoring, which is
+          // how the log distinguishes writing from rewriting.
+          previousNotation:         current.authored_notation,
+          previousEvidenceBasis:    current.notation_evidence_basis,
+          previousDerivationMethod: current.notation_derivation_method,
+          previousConventionId:     current.notation_convention_id,
+        },
+      });
+    });
+  },
+
+  // The authored drafts: a movement written, no canonical trick yet. The backlog
+  // drops a ruling the moment its notation is saved, so without this view the
+  // work would be invisible the next morning.
+  getNotationDraftsPage(): PageViewModel<FreestyleNotationDraftsContent> {
+    const rows = freestyleEvAdjudications.listAuthoredDrafts.all() as AuthoringDbRow[];
+
+    const shaped: FreestyleNotationDraftRow[] = rows.map((r) => ({
+      candidateId:         r.candidate_id,
+      submittedName:       r.submitted_name,
+      notation:            r.authored_notation ?? '',
+      scoringBracketCount: countScoringBrackets(r.authored_notation ?? ''),
+      basisLabel:          notationBasisLabel(r.notation_evidence_basis ?? ''),
+      methodLabel:         notationMethodLabel(r.notation_derivation_method ?? ''),
+      conventionTitle:     r.notation_convention_id ? notationConventionTitle(r.notation_convention_id) : '',
+      provenanceNote:      r.notation_provenance_note ?? '',
+      authoredAt:          r.notation_authored_at ?? '',
+      authoredBy:          r.notation_authored_by ?? '',
+      blockerId:           r.blocker_id,
+      owner:               r.owner,
+      authorHref:          `/admin/freestyle/notation-backlog/${r.candidate_id}/author`,
+    }));
+
+    return {
+      seo:  { title: 'Authored Notation Drafts' },
+      page: {
+        sectionKey: 'admin',
+        pageKey:    'admin_freestyle_notation_drafts',
+        title:      'Authored Notation Drafts',
+        intro:      'Movements written and not yet published as canonical tricks.',
+      },
+      content: {
+        rows:        shaped,
+        totalCount:  shaped.length,
+        hasRows:     shaped.length > 0,
+        backlogHref: '/admin/freestyle/notation-backlog',
       },
     };
   },

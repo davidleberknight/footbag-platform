@@ -1,0 +1,66 @@
+{{! /admin/freestyle/notation-drafts — movements written, canonical tricks not yet
+    created. The backlog drops a ruling the moment its notation is saved, so this
+    is where a saved draft stays findable. }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    <p class="hero-subtitle">{{page.intro}}</p>
+    <div class="hero-stats">
+      <span>{{content.totalCount}} drafts</span>
+    </div>
+  </div>
+</div>
+
+<div class="wrapper">
+
+  {{#if content.hasRows}}
+  <section class="content-section">
+    <table class="freestyle-admin-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Notation</th>
+          <th>Provenance</th>
+          <th>Authored</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each content.rows}}
+        <tr>
+          <td>
+            <strong>{{submittedName}}</strong>
+            <p class="text-muted fs-sm">{{blockerId}} &middot; {{owner}}</p>
+          </td>
+          <td>
+            <code>{{notation}}</code>
+            <p class="text-muted fs-sm">{{scoringBracketCount}} scoring brackets</p>
+          </td>
+          <td>
+            {{basisLabel}} &middot; {{methodLabel}}
+            {{#if conventionTitle}}<p class="text-muted fs-sm">{{conventionTitle}}</p>{{/if}}
+            {{#if provenanceNote}}<p class="text-muted fs-sm">{{provenanceNote}}</p>{{/if}}
+          </td>
+          <td>
+            {{authoredAt}}
+            <p class="text-muted fs-sm">{{authoredBy}}</p>
+          </td>
+          <td><a href="{{authorHref}}">Edit</a></td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+  </section>
+  {{else}}
+  <section class="content-section">
+    <p class="notice notice-info">
+      No movement has been authored yet. A ruling appears here once its notation is
+      written, and leaves when its canonical trick is published.
+    </p>
+  </section>
+  {{/if}}
+
+  <p><a href="{{content.backlogHref}}">Back to the backlog</a></p>
+
+</div>

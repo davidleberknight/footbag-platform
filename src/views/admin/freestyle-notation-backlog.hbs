@@ -10,11 +10,14 @@
     <div class="hero-stats">
       <span>{{content.totalCount}} rulings</span>
       <span>{{content.groups.length}} decision groups</span>
+      <span>{{content.draftCount}} authored drafts</span>
     </div>
   </div>
 </div>
 
 <div class="wrapper">
+
+  <p><a href="{{content.draftsHref}}">Authored drafts ({{content.draftCount}})</a></p>
 
   {{#if content.hasRows}}
     {{#each content.groups}}
@@ -34,6 +37,7 @@
             <th>Difficulty derivation</th>
             <th>Owner</th>
             <th>Trick row</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
@@ -75,6 +79,7 @@
                 <span class="text-muted">Not yet created</span>
               {{/if}}
             </td>
+            <td><a href="{{authorHref}}">Author notation</a></td>
           </tr>
           {{/each}}
         </tbody>

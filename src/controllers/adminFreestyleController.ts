@@ -30,6 +30,67 @@ export const adminFreestyleController = {
     }
   },
 
+  /** GET /admin/freestyle/notation-drafts */
+  notationDrafts(_req: Request, res: Response, next: NextFunction): void {
+    try {
+      res.render('admin/freestyle-notation-drafts', freestyleCurationService.getNotationDraftsPage());
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  /** GET /admin/freestyle/notation-backlog/:candidateId/author */
+  notationAuthorForm(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const vm = freestyleCurationService.getNotationAuthoringPage(req.params['candidateId'] ?? '', {
+        saved: req.query.saved === '1',
+      });
+      if (!vm) {
+        renderNotFound(res);
+        return;
+      }
+      res.render('admin/freestyle-notation-author', vm);
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  /** POST /admin/freestyle/notation-backlog/:candidateId/author */
+  notationAuthorSave(req: Request, res: Response, next: NextFunction): void {
+    const candidateId = req.params['candidateId'] ?? '';
+    const submitted = {
+      notation:         typeof req.body.notation === 'string' ? req.body.notation : '',
+      evidenceBasis:    typeof req.body.evidenceBasis === 'string' ? req.body.evidenceBasis : '',
+      derivationMethod: typeof req.body.derivationMethod === 'string' ? req.body.derivationMethod : '',
+      conventionId:     typeof req.body.conventionId === 'string' ? req.body.conventionId : '',
+      provenanceNote:   typeof req.body.provenanceNote === 'string' ? req.body.provenanceNote : '',
+    };
+    try {
+      freestyleCurationService.saveAuthoredNotation(candidateId, submitted, req.user!.userId);
+      res.redirect(303, `/admin/freestyle/notation-backlog/${candidateId}/author?saved=1`);
+    } catch (err) {
+      // A validation failure re-renders the form with what was submitted and the
+      // per-field messages, the same shape the trick edit uses.
+      if (err instanceof ValidationError) {
+        const vm = freestyleCurationService.getNotationAuthoringPage(candidateId, {
+          submitted,
+          fieldErrors: err.fieldErrors ?? {},
+        });
+        if (!vm) {
+          renderNotFound(res);
+          return;
+        }
+        res.status(422).render('admin/freestyle-notation-author', vm);
+        return;
+      }
+      if (err instanceof NotFoundError) {
+        renderNotFound(res);
+        return;
+      }
+      next(err);
+    }
+  },
+
   index(req: Request, res: Response, next: NextFunction): void {
     try {
       const vm = freestyleCurationService.getBrowsePage({
