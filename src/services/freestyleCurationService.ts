@@ -127,6 +127,8 @@
  */
 import {
   freestyleTricks,
+  freestyleEvAdjudications,
+  type FreestyleEvAdjudicationRow,
   freestyleTrickAliases,
   freestyleTrickSources,
   freestyleTrickSourceLinks,
@@ -518,6 +520,77 @@ function assertActorMayCurateFreestyle(actorMemberId: string): void {
   }
 }
 
+// ── Publication and the adjudication record ────────────────────────────────
+//
+// A trick held out of the dictionary with is_active = 0 and review_status
+// 'pending' is a candidate: the observational surface lists exactly that set and
+// joins each one's ruling to it. Leaving that set IS publication, so a save that
+// takes a row out of it is the moment the name stops being a candidate.
+//
+// Where the name carries a ruling, publication resolves it: the ruling records
+// that the name became canonical and which trick row it resolved to. The ruling
+// itself stays. It is the record of how the name was decided, and deleting it on
+// publication would destroy exactly the history the migration off the committed
+// ledger existed to keep.
+
+/** True when this save takes the row out of the held-out candidate set. */
+function publicationCrossed(
+  current: { is_active: number; review_status: string },
+  next: { isActive: number; reviewStatus: string },
+): boolean {
+  const wasCandidate = current.is_active === 0 && current.review_status === 'pending';
+  const isCandidate  = next.isActive === 0 && next.reviewStatus === 'pending';
+  return wasCandidate && !isCandidate;
+}
+
+/** The ledger's comparison key: alphanumerics of the name, lowercased. */
+function adjudicationNameKey(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+/**
+ * Resolve the published name's ruling, inside the caller's transaction.
+ *
+ * Three cases, and the quiet one is the common one:
+ *
+ *  - No ruling for this name. Most canonical tricks were never adjudicated, so
+ *    this is ordinary and silent. Warning here would train a curator to ignore
+ *    the warning that matters.
+ *  - A ruling bound to this trick, or bound to nothing and matching the name.
+ *    Resolved, and the link recorded where it was absent.
+ *  - A ruling for this name bound to a DIFFERENT trick row. Two records disagree
+ *    about which trick the name is, and publishing through that would write the
+ *    contradiction into the record where nobody is looking. Refused, the way
+ *    this service already refuses an alias that collides with a canonical slug.
+ *
+ * Returns the resolved ruling's id for the audit entry, or null when there was
+ * nothing to resolve.
+ */
+function resolveAdjudicationOnPublication(
+  slug: string,
+  canonicalName: string,
+  actorMemberId: string,
+): string | null {
+  const linked = freestyleEvAdjudications.getByTrickSlug.get(slug) as
+    FreestyleEvAdjudicationRow | undefined;
+  const byName = linked
+    ?? (freestyleEvAdjudications.getByNormalizedName.get(adjudicationNameKey(canonicalName)) as
+      FreestyleEvAdjudicationRow | undefined);
+  if (!byName) return null;
+
+  if (byName.published_trick_slug !== null && byName.published_trick_slug !== slug) {
+    throw new ValidationError(
+      `The ruling for "${byName.submitted_name}" is recorded against `
+      + `"${byName.published_trick_slug}", so publishing it as "${slug}" would make two `
+      + 'records disagree about which trick this name is. Resolve the ruling first.',
+      { fieldErrors: { isActive: 'This name is already ruled to be a different trick.' } },
+    );
+  }
+
+  freestyleEvAdjudications.resolveOnPublication.run(slug, slug, actorMemberId, byName.candidate_id);
+  return byName.candidate_id;
+}
+
 // Imported community tips carry more advice than a one-liner but are not essays;
 // cap edited text at the same length as the trick editorial-prose fields.
 const TIP_TEXT_MAX = PROSE_MAX;
@@ -880,6 +953,11 @@ export const freestyleCurationService = {
   // slug is the identity key and is not editable; attached aliases, sources, and
   // modifier links are untouched. Throws NotFoundError for an unknown slug and
   // ValidationError (with per-field messages) on bad input.
+  //
+  // A save that takes a trick out of the held-out pending state publishes it,
+  // and publication also resolves the name's adjudication where one exists; see
+  // resolveAdjudicationOnPublication below for what that means and why it
+  // commits inside this method's transaction rather than after it.
   updateTrickScalars(slug: string, input: FreestyleTrickScalarInput, actorMemberId: string): void {
     assertActorMayCurateFreestyle(actorMemberId);
     const current = freestyleTricks.getForCurationBySlug.get(slug) as CurationEditDbRow | undefined;
@@ -1013,6 +1091,13 @@ export const freestyleCurationService = {
       (field) => field === 'notation' || field === 'operational_notation' || field === 'adds',
     );
 
+    // The row leaving the held-out candidate set is publication, and the ruling
+    // for the name resolves with it. Both writes and the audit entry commit
+    // together: a published trick whose ruling still reads as an open candidate,
+    // or a resolved ruling whose trick never went live, are each a record that
+    // contradicts itself, and a second transaction is how that happens.
+    const publishing = publicationCrossed(current, { isActive, reviewStatus });
+
     transaction(() => {
       freestyleTricks.updateScalars.run(
         canonicalName, adds, movementNotation, executionNotation,
@@ -1023,6 +1108,9 @@ export const freestyleCurationService = {
       if (parseInputsChanged) {
         freestyleTricks.clearDerivedParse.run(slug);
       }
+      const resolvedAdjudication = publishing
+        ? resolveAdjudicationOnPublication(slug, canonicalName, actorMemberId)
+        : null;
       appendAuditEntry({
         actionType:    'freestyle.trick.updated',
         category:      'content',
@@ -1030,7 +1118,14 @@ export const freestyleCurationService = {
         actorMemberId,
         entityType:    'freestyle_trick',
         entityId:      slug,
-        metadata:      { changedFields, derivedParseCleared: parseInputsChanged },
+        metadata:      {
+          changedFields,
+          derivedParseCleared: parseInputsChanged,
+          published: publishing,
+          // Present only when a ruling was resolved, so the trail says which
+          // record moved rather than only that a publication happened.
+          ...(resolvedAdjudication ? { resolvedAdjudication } : {}),
+        },
       });
     });
   },

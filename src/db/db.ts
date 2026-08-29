@@ -2719,6 +2719,62 @@ export const freestyleTricks = {
   `); },
 };
 
+// The Emerging Vocabulary adjudication record: one durable ruling per
+// observational name. Publication is the one moment the application writes to
+// it, so these are the only statements over the table.
+export interface FreestyleEvAdjudicationRow {
+  candidate_id: string;
+  submitted_name: string;
+  normalized_name: string;
+  ev_state: string;
+  final_disposition: string;
+  matched_existing_object: string;
+  match_type: string;
+  published_trick_slug: string | null;
+}
+
+export const freestyleEvAdjudications = {
+  // The ruling already bound to this trick row. The link is the durable
+  // statement that the two are about the same name, so it is looked up first.
+  get getByTrickSlug() { return db.prepare(`
+    SELECT candidate_id, submitted_name, normalized_name, ev_state,
+           final_disposition, matched_existing_object, match_type,
+           published_trick_slug
+    FROM freestyle_ev_adjudications
+    WHERE published_trick_slug = ?
+  `); },
+
+  // The ruling for a name that carries no link yet: a name adjudicated before
+  // its trick row existed, or one entered after the ledger stopped being
+  // written. normalized_name is unique, so this returns at most one row.
+  get getByNormalizedName() { return db.prepare(`
+    SELECT candidate_id, submitted_name, normalized_name, ev_state,
+           final_disposition, matched_existing_object, match_type,
+           published_trick_slug
+    FROM freestyle_ev_adjudications
+    WHERE normalized_name = ?
+  `); },
+
+  // Publication, applied to the ruling. The name becomes canonical, the
+  // disposition transitions to resolved, and the trick row it resolved to is
+  // recorded on both the durable match field and the link. Nothing else on the
+  // row is touched: the note, source, confidence, blocker and owner are the
+  // history of how the name got here and outlive the resolution.
+  get resolveOnPublication() { return db.prepare(`
+    UPDATE freestyle_ev_adjudications
+    SET ev_state = 'canonical',
+        hold_kind = 'canonical',
+        match_type = 'promoted-canonical',
+        final_disposition = 'A',
+        matched_existing_object = ?,
+        published_trick_slug = ?,
+        updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now'),
+        updated_by = ?,
+        version = version + 1
+    WHERE candidate_id = ?
+  `); },
+};
+
 export interface FreestyleTrickSearchRow {
   slug: string;
   canonical_name: string;
