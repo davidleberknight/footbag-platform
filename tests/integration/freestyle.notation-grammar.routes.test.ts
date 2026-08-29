@@ -6,7 +6,8 @@
  * parser columns (jobs_notation_raw, structural_parse_json,
  * computed_add_formula, computed_adds, add_formula_status) loaded by
  * `freestyleTricks.getBySlug`. Asserted ADD remains editorial truth; the panel
- * surfaces parser output for diagnostic review only.
+ * surfaces parser output for diagnostic review only, which is why it renders
+ * for a maintainer and for nobody else.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -16,6 +17,8 @@ import {
   insertFreestyleTrick,
   insertFreestyleTrickModifier,
   insertFreestyleTrickModifierLink,
+  insertMember,
+  createTestSessionJwt,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3115');
@@ -23,8 +26,23 @@ const { dbPath } = setTestEnv('3115');
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
+const MAINTAINER_ID = 'aaaaaaaa-0000-0000-0000-000000000ngp';
+
+/** The panel is a maintainer surface, so every request here carries one. That it
+ *  reaches nobody else is held in freestyle.trick-detail-diagnostics.routes.test.ts. */
+function asMaintainer(app: Parameters<typeof request>[0]) {
+  const cookie = `__Host-footbag_session=${createTestSessionJwt({ memberId: MAINTAINER_ID, role: 'admin' })}`;
+  return {
+    get: (path: string) => request(app).get(path).set('Cookie', cookie),
+  };
+}
+
 beforeAll(async () => {
   const db = createTestDb(dbPath);
+  insertMember(db, {
+    id: MAINTAINER_ID, slug: 'ngp_maintainer', display_name: 'NGP Maintainer',
+    login_email: 'ngp-maintainer@example.com', is_admin: 1,
+  });
 
   // 1) No parser data — panel must be hidden, page renders as before.
   insertFreestyleTrick(db, {
@@ -358,20 +376,20 @@ afterAll(() => cleanupTestDb(dbPath));
 describe('GET /freestyle/tricks/:slug — notation-grammar panel hidden by default', () => {
   it('renders 200 for a trick with no parser data', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/trick-bare');
+    const res = await asMaintainer(app).get('/freestyle/tricks/trick-bare');
     expect(res.status).toBe(200);
   });
 
   it('omits the Structural decomposition section when no structural_parse_json', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/trick-bare');
+    const res = await asMaintainer(app).get('/freestyle/tricks/trick-bare');
     expect(res.text).not.toContain('Structural decomposition');
     expect(res.text).not.toContain('notation-grammar-panel');
   });
 
   it('omits the panel when structural_parse_json is unparseable', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/trick-bad-json');
+    const res = await asMaintainer(app).get('/freestyle/tricks/trick-bad-json');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('Structural decomposition');
   });
@@ -382,7 +400,7 @@ describe('GET /freestyle/tricks/:slug — notation-grammar panel hidden by defau
 describe('GET /freestyle/tricks/:slug — exact_self_atom (computed agrees with asserted)', () => {
   it('renders the Structural decomposition section', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/trick-self-atom');
+    const res = await asMaintainer(app).get('/freestyle/tricks/trick-self-atom');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Structural decomposition');
     expect(res.text).toContain('notation-grammar-panel');
@@ -390,7 +408,7 @@ describe('GET /freestyle/tricks/:slug — exact_self_atom (computed agrees with 
 
   it('shows the exact_self_atom status label and raw key (label distinguishes self-atom from structurally-derived)', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/trick-self-atom');
+    const res = await asMaintainer(app).get('/freestyle/tricks/trick-self-atom');
     expect(res.text).toContain('Exact: named trick / self-atom');
     // The raw parser status value is internal QC and never renders publicly.
     expect(res.text).not.toContain('(exact_self_atom)');
@@ -402,14 +420,14 @@ describe('GET /freestyle/tricks/:slug — exact_self_atom (computed agrees with 
 
   it('renders the agree phrase when computed equals asserted', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/trick-self-atom');
+    const res = await asMaintainer(app).get('/freestyle/tricks/trick-self-atom');
     expect(res.text).toContain('agrees with asserted');
     expect(res.text).not.toContain('disagrees with asserted');
   });
 
   it('renders the formula and jobs notation when provided', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/trick-self-atom');
+    const res = await asMaintainer(app).get('/freestyle/tricks/trick-self-atom');
     expect(res.text).toContain('symposium(5)');
     expect(res.text).toContain('CLIP &gt; OP IN [DEX]'); // HTML-escaped
     expect(res.text).toContain('Jobs notation');
@@ -418,7 +436,7 @@ describe('GET /freestyle/tricks/:slug — exact_self_atom (computed agrees with 
 
   it('renders both descriptive and ADD-contributing role layers with distinct contents', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/trick-self-atom');
+    const res = await asMaintainer(app).get('/freestyle/tricks/trick-self-atom');
     expect(res.text).toContain('Descriptive roles');
     expect(res.text).toContain('ADD-contributing roles');
     // descriptive layer carries rotation→spinning; contributing layer does not.
@@ -441,7 +459,7 @@ describe('GET /freestyle/tricks/:slug — exact_self_atom (computed agrees with 
 
   it('annotates atom_resolved tokens with the (atom) marker', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/trick-self-atom');
+    const res = await asMaintainer(app).get('/freestyle/tricks/trick-self-atom');
     // symposium is atom_resolved=true; spinning is not.
     expect(res.text).toMatch(/symposium<\/code>\s*<em>\(atom\)<\/em>/);
     expect(res.text).not.toMatch(/spinning<\/code>\s*<em>\(atom\)<\/em>/);
@@ -449,7 +467,7 @@ describe('GET /freestyle/tricks/:slug — exact_self_atom (computed agrees with 
 
   it('omits Policy tokens / Parse warnings / standalone Unresolved tokens sections when those lists are empty', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/trick-self-atom');
+    const res = await asMaintainer(app).get('/freestyle/tricks/trick-self-atom');
     expect(res.text).not.toContain('Policy tokens');
     expect(res.text).not.toContain('Parse warnings');
     // Standalone "Unresolved tokens" section is deduped — the descriptive
@@ -462,7 +480,7 @@ describe('GET /freestyle/tricks/:slug — exact_self_atom (computed agrees with 
 
   it('renders the editorial-context block when row.description is present', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/trick-self-atom');
+    const res = await asMaintainer(app).get('/freestyle/tricks/trick-self-atom');
     expect(res.text).toContain('Editorial context');
     expect(res.text).toContain('self-atom + agree path');
     expect(res.text).toContain('notation-grammar-editorial');
@@ -470,7 +488,7 @@ describe('GET /freestyle/tricks/:slug — exact_self_atom (computed agrees with 
 
   it('puts Jobs notation behind the Diagnostic details disclosure', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/trick-self-atom');
+    const res = await asMaintainer(app).get('/freestyle/tricks/trick-self-atom');
     expect(res.text).toContain('Diagnostic details');
     expect(res.text).toContain('Jobs notation');
     // jobs notation must appear *inside* the <details> wrapper, not as a
@@ -489,7 +507,7 @@ describe('GET /freestyle/tricks/:slug — exact_self_atom (computed agrees with 
 describe('GET /freestyle/tricks/:slug — approximate (computed disagrees with asserted)', () => {
   it('shows the disagree phrase when computed differs from asserted', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/trick-approx');
+    const res = await asMaintainer(app).get('/freestyle/tricks/trick-approx');
     expect(res.status).toBe(200);
     expect(res.text).toContain('disagrees with asserted; asserted value is editorial truth');
     // 'agrees with asserted' is a substring of 'disagrees with asserted', so
@@ -499,14 +517,14 @@ describe('GET /freestyle/tricks/:slug — approximate (computed disagrees with a
 
   it('shows the Approximate status label and raw key', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/trick-approx');
+    const res = await asMaintainer(app).get('/freestyle/tricks/trick-approx');
     expect(res.text).toContain('Approximate');
     expect(res.text).not.toContain('(approximate)');
   });
 
   it('never renders raw parse_warnings codes on the public page', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/trick-approx');
+    const res = await asMaintainer(app).get('/freestyle/tricks/trick-approx');
     // Raw parser warning codes are internal QC and do not render publicly.
     expect(res.text).not.toContain('Parse warnings');
     expect(res.text).not.toContain('ambiguous_modifier_attachment');
@@ -518,7 +536,7 @@ describe('GET /freestyle/tricks/:slug — approximate (computed disagrees with a
 describe('GET /freestyle/tricks/:slug — policy_dependent', () => {
   it('shows the Policy-dependent status label and raw key', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/trick-policy');
+    const res = await asMaintainer(app).get('/freestyle/tricks/trick-policy');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Policy-dependent');
     expect(res.text).not.toContain('(policy_dependent)');
@@ -526,21 +544,21 @@ describe('GET /freestyle/tricks/:slug — policy_dependent', () => {
 
   it('renders the Policy tokens section with each policy_tokens entry', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/trick-policy');
+    const res = await asMaintainer(app).get('/freestyle/tricks/trick-policy');
     expect(res.text).toContain('Policy tokens');
     expect(res.text).toMatch(/<code>quantum<\/code>/);
   });
 
   it('renders an em-dash for Computed ADD when computed_adds is null, and the disagree phrase fires', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/trick-policy');
+    const res = await asMaintainer(app).get('/freestyle/tricks/trick-policy');
     // assertedAdds=8, computedAdds=null → addsAgree=false → disagree phrase
     expect(res.text).toContain('disagrees with asserted; asserted value is editorial truth');
   });
 
   it('uses a generic policy-token narrative; does NOT leak the stale hardcoded token list (backside, shooting)', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/trick-policy');
+    const res = await asMaintainer(app).get('/freestyle/tricks/trick-policy');
     // The status sentence intentionally avoids enumerating example tokens.
     // An earlier narrative listed "(quantum, nuclear, backside, shooting,
     // down-family)" inline, which became stale once shooting and backside
@@ -558,7 +576,7 @@ describe('GET /freestyle/tricks/:slug — policy_dependent', () => {
 describe('GET /freestyle/tricks/:slug — unresolved', () => {
   it('shows the Unresolved status label, not the raw key', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/trick-unresolved');
+    const res = await asMaintainer(app).get('/freestyle/tricks/trick-unresolved');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Unresolved');
     expect(res.text).not.toContain('(unresolved)');
@@ -566,7 +584,7 @@ describe('GET /freestyle/tricks/:slug — unresolved', () => {
 
   it('renders unresolved tokens in the descriptive layer only, not as a duplicate standalone section', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/trick-unresolved');
+    const res = await asMaintainer(app).get('/freestyle/tricks/trick-unresolved');
     // Token + label still present, surfaced in the descriptive role layer.
     expect(res.text).toContain('Unresolved tokens');
     expect(res.text).toMatch(/<code>zzunknown<\/code>/);
@@ -585,7 +603,7 @@ describe('GET /freestyle/tricks/:slug — unresolved', () => {
 describe('GET /freestyle/tricks/:slug — unknown add_formula_status falls back gracefully', () => {
   it('falls back to a neutral hedge for an unknown status, never the raw value or a doc reference', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/trick-unknown-status');
+    const res = await asMaintainer(app).get('/freestyle/tricks/trick-unknown-status');
     expect(res.status).toBe(200);
     // The raw status value never renders; a neutral hedge stands in, with no
     // internal-document reference.
@@ -601,7 +619,7 @@ describe('GET /freestyle/tricks/:slug — unknown add_formula_status falls back 
 describe('GET /freestyle/tricks/:slug — exact_modifier_derived (label distinct from self-atom)', () => {
   it('shows the new exact_modifier_derived label "Exact: structurally derived"', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/trick-mod-derived');
+    const res = await asMaintainer(app).get('/freestyle/tricks/trick-mod-derived');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Exact: structurally derived');
     expect(res.text).not.toContain('(exact_modifier_derived)');
@@ -615,7 +633,7 @@ describe('GET /freestyle/tricks/:slug — exact_modifier_derived (label distinct
 
   it('suppresses the editorial-context block for a structural-placeholder description', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/trick-mod-derived');
+    const res = await asMaintainer(app).get('/freestyle/tricks/trick-mod-derived');
     // "Paradox-modified whirl." is an auto-generated structural-placeholder
     // backfill, so the editorial-context panel suppresses it exactly as the
     // About block does. Genuine prose still renders (see the self-atom row).
@@ -625,7 +643,7 @@ describe('GET /freestyle/tricks/:slug — exact_modifier_derived (label distinct
 
   it('renders the modifier-derived formula and both role layers', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/trick-mod-derived');
+    const res = await asMaintainer(app).get('/freestyle/tricks/trick-mod-derived');
     // Handlebars HTML-escapes `=` to `&#x3D;`; assert formula via fragments
     // so the test reads cleanly regardless of which characters need escaping.
     expect(res.text).toContain('paradox(+1)');
@@ -641,7 +659,7 @@ describe('GET /freestyle/tricks/:slug — exact_modifier_derived (label distinct
 describe('GET /freestyle/tricks/:slug — editorial context block visibility', () => {
   it('hides the editorial-context block when description is null', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/trick-no-description');
+    const res = await asMaintainer(app).get('/freestyle/tricks/trick-no-description');
     expect(res.status).toBe(200);
     // Panel renders (parse data present) but editorial section is suppressed.
     expect(res.text).toContain('Structural decomposition');
@@ -651,7 +669,7 @@ describe('GET /freestyle/tricks/:slug — editorial context block visibility', (
 
   it('renders editorial-context text via the dedicated CSS hook', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/trick-self-atom');
+    const res = await asMaintainer(app).get('/freestyle/tricks/trick-self-atom');
     expect(res.text).toContain('class="notation-grammar-editorial"');
     expect(res.text).toContain('class="notation-grammar-editorial-text"');
   });
@@ -662,7 +680,7 @@ describe('GET /freestyle/tricks/:slug — editorial context block visibility', (
 describe('GET /freestyle/tricks/:slug — Diagnostic details disclosure (warning noise reduction)', () => {
   it('never renders the inferred_self_canonical_atom warning code on the public page', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/trick-mechanical-warn');
+    const res = await asMaintainer(app).get('/freestyle/tricks/trick-mechanical-warn');
     expect(res.status).toBe(200);
     // Raw parser warning codes are internal QC and do not render publicly.
     expect(res.text).not.toContain('inferred_self_canonical_atom');
@@ -671,7 +689,7 @@ describe('GET /freestyle/tricks/:slug — Diagnostic details disclosure (warning
 
   it('omits the disclosure when there is nothing diagnostic to show', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/trick-mod-derived');
+    const res = await asMaintainer(app).get('/freestyle/tricks/trick-mod-derived');
     // trick-mod-derived has no parse_warnings and no jobs_notation_raw, so
     // hasDiagnosticDetails must be false and the <details> wrapper hidden.
     expect(res.text).not.toContain('Diagnostic details');
@@ -686,7 +704,7 @@ describe('GET /freestyle/tricks/:slug — Diagnostic details disclosure (warning
 describe('GET /freestyle/tricks/:slug — editorial decomposition (sumo-style: full editorial state)', () => {
   it('renders the Editorial decomposition block with base, modifiers, and composed math', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/trick-ed-sumo');
+    const res = await asMaintainer(app).get('/freestyle/tricks/trick-ed-sumo');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Editorial decomposition');
     // Block carries the explicit editorial-source attribution so the reader
@@ -707,7 +725,7 @@ describe('GET /freestyle/tricks/:slug — editorial decomposition (sumo-style: f
 
   it('flags editorial-vs-asserted divergence honestly without claiming editorial wins', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/trick-ed-sumo');
+    const res = await asMaintainer(app).get('/freestyle/tricks/trick-ed-sumo');
     // Composed: trick-ed-mod(+2) + trick-ed-base(2) = 4. Asserted=5. The
     // block must say "differs from asserted" with the editorial-truth caveat,
     // and never auto-update or hide the asserted value.
@@ -719,7 +737,7 @@ describe('GET /freestyle/tricks/:slug — editorial decomposition (sumo-style: f
 
   it('does NOT mutate the parser-derived status, formula, or computed_adds based on editorial state', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/trick-ed-sumo');
+    const res = await asMaintainer(app).get('/freestyle/tricks/trick-ed-sumo');
     // Parser produced exact_modifier_derived with formula trick-ed-sumo(5)=5,
     // computed=5. Editorial-derived disagreement (composed=4) must NOT push
     // the status to approximate or rewrite the formula.
@@ -739,7 +757,7 @@ describe('GET /freestyle/tricks/:slug — editorial decomposition (sumo-style: f
 describe('GET /freestyle/tricks/:slug — editorial decomposition (broken-upstream-link case)', () => {
   it('renders the Editorial decomposition block with broken_link state', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/trick-ed-broken');
+    const res = await asMaintainer(app).get('/freestyle/tricks/trick-ed-broken');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Editorial decomposition');
     // The base slug appears (so the reader can see what editorial state asserts)
@@ -751,13 +769,13 @@ describe('GET /freestyle/tricks/:slug — editorial decomposition (broken-upstre
 
   it('reports modifier coverage absent when the join table has no rows for the trick', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/trick-ed-broken');
+    const res = await asMaintainer(app).get('/freestyle/tricks/trick-ed-broken');
     expect(res.text).toContain('modifier coverage absent');
   });
 
   it('omits composed math when the base cannot be resolved', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/trick-ed-broken');
+    const res = await asMaintainer(app).get('/freestyle/tricks/trick-ed-broken');
     // No <dt>Composed</dt> entry should render — composedAdds is null when
     // baseAdds can't be resolved. The presence of "Composed" elsewhere in
     // unrelated copy isn't expected here; assert against the explicit dt.
@@ -772,7 +790,7 @@ describe('GET /freestyle/tricks/:slug — editorial decomposition (broken-upstre
 describe('GET /freestyle/tricks/:slug — editorial decomposition (no-editorial-metadata case)', () => {
   it('omits the Editorial decomposition block entirely when base_trick is self-reference', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/trick-ed-clean');
+    const res = await asMaintainer(app).get('/freestyle/tricks/trick-ed-clean');
     expect(res.status).toBe(200);
     // The parser-derived panel itself still renders.
     expect(res.text).toContain('Structural decomposition');
@@ -785,7 +803,7 @@ describe('GET /freestyle/tricks/:slug — editorial decomposition (no-editorial-
 
   it('still renders the Editorial context (description) block independently', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/trick-ed-clean');
+    const res = await asMaintainer(app).get('/freestyle/tricks/trick-ed-clean');
     // The editorial-context block (description prose) is a SEPARATE feature
     // from the editorial-decomposition block — description rendering is
     // unaffected by the no-decomposition path.

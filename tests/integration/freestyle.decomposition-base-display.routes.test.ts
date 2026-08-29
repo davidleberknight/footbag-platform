@@ -14,9 +14,25 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
-import { insertFreestyleTrick } from '../fixtures/factories';
+import {
+  insertFreestyleTrick,
+  insertMember,
+  createTestSessionJwt,
+} from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3767');
+
+const MAINTAINER_ID = 'aaaaaaaa-0000-0000-0000-00000000base';
+
+/** The composed derivation under test lives in the structural panel, which is a
+ *  maintainer surface. That the panel reaches nobody else is held in
+ *  freestyle.trick-detail-diagnostics.routes.test.ts. */
+function asMaintainer(app: Parameters<typeof request>[0]) {
+  const cookie = `__Host-footbag_session=${createTestSessionJwt({ memberId: MAINTAINER_ID, role: 'admin' })}`;
+  return {
+    get: (path: string) => request(app).get(path).set('Cookie', cookie),
+  };
+}
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
@@ -32,6 +48,10 @@ const COMPOUNDS: Array<[string, string, string]> = [
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
+  insertMember(db, {
+    id: MAINTAINER_ID, slug: 'base_maintainer', display_name: 'Base Maintainer',
+    login_email: 'base-maintainer@example.com', is_admin: 1,
+  });
   // Compound base rows: active with numeric ADD so they resolve; own families so
   // they are not parallels of the child tricks (which differ in ADD anyway).
   for (const [slug, name, adds] of COMPOUNDS) {
@@ -64,7 +84,7 @@ describe('GET /freestyle/tricks/:slug — decomposition renders canonical base n
   it('the composed derivation shows each compound base by canonical name, not the raw slug', async () => {
     for (let i = 0; i < COMPOUNDS.length; i++) {
       const [slug, name] = COMPOUNDS[i];
-      const res = await request(await createApp()).get(`/freestyle/tricks/child_${i}`);
+      const res = await asMaintainer(await createApp()).get(`/freestyle/tricks/child_${i}`);
       expect(res.status, `child_${i} status`).toBe(200);
       // The composed derivation reads "<base display name>(<adds>) = ...".
       expect(res.text, `${slug} derivation uses display name`).toContain(`${name}(`);

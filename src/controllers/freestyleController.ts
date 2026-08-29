@@ -77,7 +77,11 @@ export const freestyleController = {
         res.redirect(301, redirectTo);
         return;
       }
-      const vm = freestyleService.getTrickDetailPage(slug);
+      // The parser diagnostic on this page is curator material; an ordinary
+      // reader gets the settled editorial page without it.
+      const vm = freestyleService.getTrickDetailPage(slug, {
+        isMaintainer: req.user?.role === 'admin',
+      });
       res.render('freestyle/trick-shell', vm);
     } catch (err) {
       handleControllerError(err, res, next, 'freestyle controller');

@@ -1551,6 +1551,16 @@ export interface TrickTipViewModel {
   text: string;
 }
 
+/** Who is reading a trick-detail page.
+ *
+ *  The page is public and identical for every reader except the parser
+ *  diagnostic, which is curator material rather than teaching material. Shaping
+ *  it here rather than hiding it in the template keeps it out of the response a
+ *  reader receives, instead of merely out of what the browser paints. */
+export interface TrickDetailViewer {
+  isMaintainer: boolean;
+}
+
 export interface FreestyleTrickContent {
   trickName: string;
   sortName: string | null;
@@ -1679,8 +1689,14 @@ export interface FreestyleTrickContent {
   // for the new "What you can do with this trick" panel near the top of the
   // detail page. All anchor hrefs are pre-built so templates render only.
   pathways: TrickPathways;
-  // Notation grammar diagnostic panel (read-only surface). Null when
-  // the row has no structural_parse_json — page renders identically to before.
+  // Notation grammar diagnostic panel (read-only surface). Curator material,
+  // not teaching material: it reports the parser's status, its computed ADD
+  // beside the asserted one, per-token roles, unresolved tokens, and the
+  // editorial lineage, any of which can disagree with the published value while
+  // the row is correct. A reader has no way to tell a parser coverage gap from
+  // a miscount, so it is shaped only for a maintainer viewer. Null for every
+  // ordinary reader, and null for a maintainer when the row has no
+  // structural_parse_json.
   notationGrammar: NotationGrammarPanel | null;
   // Role-aware notation rendering. Pre-shaped tokens with role
   // classification + educational tooltip text. Null when notation is empty.
@@ -7352,6 +7368,7 @@ export const freestyleService = {
    */
   getTrickDetailPage(
     rawSlug: string,
+    viewer: TrickDetailViewer = { isMaintainer: false },
   ): PageViewModel<FreestyleTrickContent> {
     // An active canonical trick always renders at its own slug: the alias
     // override must not fire when the raw slug is itself an active trick, or an
@@ -7967,7 +7984,7 @@ export const freestyleService = {
           communityTipsCount: communityTips.length,
           hasCommunityTips: communityTips.length > 0,
           pathways,
-          notationGrammar: dictRow
+          notationGrammar: viewer.isMaintainer && dictRow
             ? shapeNotationGrammar(
                 dictRow,
                 new Map(allDictRows.map(r => [r.slug, r])),
