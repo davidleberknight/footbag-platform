@@ -1,7 +1,7 @@
 {
   "id": "gallery_passback_records",
   "name": "Passback World Records",
-  "description": "Passback is freestyle jargon for repeating a trick: passing the bag back and forth to do the same trick again and again.",
+  "description": "World-record footage for individual freestyle tricks, one clip per record: a passback run repeats a single trick, passing the bag back and forth, and the record is the count that run reached.",
   "sortOrder": "caption_asc",
   "criteriaTags": [
     "#curated",
