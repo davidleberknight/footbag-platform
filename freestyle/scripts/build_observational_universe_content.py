@@ -51,6 +51,13 @@ Output:
 
 Run:
   python3 freestyle/scripts/build_observational_universe_content.py
+
+Substituted authority (proving only, never production):
+  FREESTYLE_EV_AUTHORITY_DB=<sqlite path> reads the rulings from that database's
+  adjudication table instead of the ledger CSV, and FREESTYLE_OBSERVATIONAL_OUT
+  redirects the generated module. Together they let a harness require that the
+  seeded database produces byte-identical content, without writing into the tree
+  it is comparing against. Unset, this generator behaves exactly as before.
 """
 from __future__ import annotations
 
@@ -58,6 +65,7 @@ import csv
 import json
 import os
 import re
+import sqlite3
 import sys
 from collections import Counter
 from pathlib import Path
@@ -82,6 +90,17 @@ RED_ADD_CSV = FREESTYLE / "inputs/curated/tricks/red_additions_2026_04_20.csv"
 # (never legacy_data, never the network). Missing ledger = fatal: without it
 # the classification would silently regress to the frozen CSV snapshot.
 LEDGER_CSV = OBS / "EV_FORMULA_IDENTITY_ROWS.csv"
+# The rulings are moving into a writable database table, because the committed
+# CSV above stops being writable when the rebuild pipeline retires.
+#   Current: the CSV is the authority on every run. Naming a database in the
+#     environment variable below reads the rulings from that database's
+#     adjudication table instead, which only the harness proving the two produce
+#     identical content does.
+#   Target: the database is the authority and the CSV is history.
+# The output-path override belongs to the same harness, so proving equivalence
+# never writes into the working tree it is comparing against.
+LEDGER_DB_ENV = "FREESTYLE_EV_AUTHORITY_DB"
+OUT_PATH_ENV = "FREESTYLE_OBSERVATIONAL_OUT"
 # The named open doctrine questions. A row may only be doctrine-blocked by
 # referencing one of these; free-text doctrine labels are invalid.
 QUESTION_REGISTRY_CSV = FREESTYLE / "doctrine/QUESTION_REGISTRY.csv"
@@ -444,6 +463,87 @@ def read(p: Path) -> list[dict]:
         return list(csv.DictReader(f))
 
 
+# The ruling fields this generator classifies from. The database column names
+# are the ledger's own, so one reader serves both authorities.
+RULING_FIELDS = (
+    "submitted_name", "normalized_name", "proposed_formula", "matched_existing_object",
+    "match_type", "ev_state", "hold_kind", "failure_class", "final_disposition",
+    "blocker_subtype", "residual_home", "confidence", "source", "note",
+    "object_type", "evidence_state", "blocker_id", "owner",
+)
+
+
+def _display(p: Path) -> str:
+    """Repo-relative when the path is in the repo, absolute when a harness moved it."""
+    try:
+        return str(p.relative_to(REPO))
+    except ValueError:
+        return str(p)
+
+
+def out_path() -> Path:
+    """Where the generated module is written.
+
+    The committed module, except for a harness proving that a run against the
+    database authority reproduces it; that run must not write into the tree it is
+    comparing against.
+    """
+    override = os.environ.get(OUT_PATH_ENV, "").strip()
+    return Path(override) if override else OUT
+
+
+def read_rulings() -> tuple[list[dict], list[str]]:
+    """The adjudications in recorded order, and each one's trick slug or ''.
+
+    Two authorities, one shape. The committed ledger records a ruling's trick row
+    inside its note, because it has no column for one; the database records it as
+    a foreign key. Reading the link here rather than at the point of use is what
+    lets the rest of this generator stay identical under either authority, which
+    is the property the equivalence gate needs in order to mean anything.
+    """
+    db_path = os.environ.get(LEDGER_DB_ENV, "").strip()
+    if not db_path:
+        if not LEDGER_CSV.exists():
+            raise SystemExit(
+                f"ruling ledger missing: {LEDGER_CSV} — the adjudication authority is unavailable"
+            )
+        rows = read(LEDGER_CSV)
+        links = [
+            (m.group(1) if (m := re.search(r"external-db-row slug=([a-z0-9_]+)",
+                                           r.get("note", "") or "")) else "")
+            for r in rows
+        ]
+        return rows, links
+
+    if not Path(db_path).exists():
+        raise SystemExit(
+            f"ruling database missing: {db_path} — the substituted adjudication "
+            f"authority is unavailable"
+        )
+    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    try:
+        cur = conn.execute(
+            f"SELECT {', '.join(RULING_FIELDS)}, published_trick_slug "
+            f"FROM freestyle_ev_adjudications ORDER BY sequence_no"
+        )
+        fetched = cur.fetchall()
+    except sqlite3.OperationalError as exc:
+        raise SystemExit(
+            f"ruling database {db_path} cannot be read as the adjudication "
+            f"authority: {exc}. Seed it with freestyle/loaders/28_load_ev_adjudications.py."
+        ) from exc
+    finally:
+        conn.close()
+    if not fetched:
+        raise SystemExit(
+            f"ruling database {db_path} holds no adjudications — seed it with "
+            f"freestyle/loaders/28_load_ev_adjudications.py before using it as the authority"
+        )
+    rows = [dict(zip(RULING_FIELDS, row[:-1])) for row in fetched]
+    links = [row[-1] or "" for row in fetched]
+    return rows, links
+
+
 def badge(corpus: str) -> str:
     return SOURCE_BADGE.get((corpus or "").strip(), (corpus or "?").upper()[:5])
 
@@ -622,7 +722,10 @@ def main() -> None:
     rows = kept
 
     # Folded junk → internal reports CSV (lookup-only; never on the public surface).
-    REPORTS = FREESTYLE / "reports"
+    # It follows the module: a run that writes its module elsewhere is proving
+    # something about the output rather than producing it, and must leave the
+    # working tree alone.
+    REPORTS = out_path().parent if os.environ.get(OUT_PATH_ENV, "").strip() else FREESTYLE / "reports"
     REPORTS.mkdir(parents=True, exist_ok=True)
     junk_csv = REPORTS / "observational_junk_folded.csv"
     with junk_csv.open("w", encoding="utf-8", newline="") as jf:
@@ -660,12 +763,11 @@ def main() -> None:
     # registry is re-derived here every run under the precedence order in the
     # module docstring, so a published identity or a defined operator always
     # wins over a stale ledger label, loudly.
-    if not LEDGER_CSV.exists():
-        raise SystemExit(f"ruling ledger missing: {LEDGER_CSV} — the adjudication authority is unavailable")
     if not QUESTION_REGISTRY_CSV.exists():
         raise SystemExit(f"question registry missing: {QUESTION_REGISTRY_CSV} — doctrine blockers cannot be validated")
     questions = {(q.get("question_id") or "").strip(): q for q in read(QUESTION_REGISTRY_CSV)}
-    ledger = {(L.get("normalized_name") or "").strip(): L for L in read(LEDGER_CSV)}
+    ruling_rows, ruling_links = read_rulings()
+    ledger = {(L.get("normalized_name") or "").strip(): L for L in ruling_rows}
     alias_targets = _alias_name_targets()
     canonical_targets = _canonical_name_targets()
     operator_norms = _operator_object_norms()
@@ -980,19 +1082,18 @@ def main() -> None:
     owner_counts = Counter(r["owner"] for r in primaries)
     publication_counts = Counter(r["publicationState"] for r in primaries)
 
-    # external database-tracked adjudications (ledger rows carrying an
-    # external-db-row slug marker); the service joins these to the live
-    # is_active=0 pending rows at request time.
+    # Adjudications that name a trick row of their own; the service joins these
+    # to the live held-out rows at request time, so a name whose row has since
+    # gone live drops out there rather than being filtered here.
     external_adjudications: dict[str, dict] = {}
-    for L in ledger.values():
-        m = re.search(r"external-db-row slug=([a-z0-9_]+)", L.get("note", "") or "")
-        if not m:
+    for L, linked_slug in zip(ruling_rows, ruling_links):
+        if not linked_slug:
             continue
         b = (L.get("blocker_id") or "").strip()
         ext_section = ("ruling" if b in questions
                        else "evidence" if b == "source-recovery"
                        else "decide" if b in DECISION_GROUP_IDS else "archive")
-        external_adjudications[m.group(1)] = {
+        external_adjudications[linked_slug] = {
             "name": (L.get("submitted_name") or "").strip(),
             "objectType": (L.get("object_type") or "").strip(),
             "evidenceState": (L.get("evidence_state") or "").strip(),
@@ -1250,9 +1351,10 @@ def main() -> None:
     body.append("export const EXTERNAL_ADJUDICATIONS: Record<string, ExternalAdjudication> =")
     body.append("  " + json.dumps(external_adjudications, ensure_ascii=False, indent=2).replace("\n", "\n  ") + ";\n")
 
-    OUT.write_text(header + "\n".join(body) + "\n", encoding="utf-8")
-    print(f"Wrote {OUT.relative_to(REPO)} — {total} rows, {stats['identityCount']} identities")
-    print(f"  folded {len(junk)} junk rows out to {junk_csv.relative_to(REPO)} "
+    module = out_path()
+    module.write_text(header + "\n".join(body) + "\n", encoding="utf-8")
+    print(f"Wrote {_display(module)} — {total} rows, {stats['identityCount']} identities")
+    print(f"  folded {len(junk)} junk rows out to {_display(junk_csv)} "
           f"(public universe is now {total}, was {total + len(junk)} before folding)")
     print(f"  sections: {stats['publicSections']}")
     print(f"  owners:   {stats['ownerCounts']}")

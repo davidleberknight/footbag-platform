@@ -45,12 +45,13 @@ Run in this order by `run_freestyle.sh`. All mutations are `DELETE`+`INSERT`
 | 6 | `loaders/21_load_footbag_org_pending_tricks.py` | `inputs/footbag_org_moves_snapshot.csv` | pending `freestyle_tricks` (`is_active=0`), aliases, source links | Idempotent |
 | 7 | `loaders/21a_load_alias_additions.py` | `inputs/base_dictionary/alias_additions.csv` | `freestyle_trick_aliases` | Idempotent |
 | 8 | `loaders/21b_apply_alias_overrides.py` | `inputs/base_dictionary/alias_overrides.csv` | `freestyle_trick_aliases` (overrides) | Idempotent |
-| 9 | `loaders/27_load_trick_tips.py` | `inputs/footbag_org_member_tips.ndjson` | `freestyle_trick_tips` | Idempotent |
-| 10 | `scripts/parse_freestyle_notation.py --apply` | reads `freestyle_tricks` | updates `structural_parse_json`, `computed_adds`, `add_formula_status` | Idempotent |
-| 11 | `loaders/26_load_symbolic_grammar.py` | `symbolic_grammar/*.csv` | the six `symbolic_*` tables | Idempotent |
-| 12 | `loaders/22_qc_trick_dictionary.py` | reads the DB | QC report in `out/` | Read-only; **hard gate**, non-zero exit aborts the rebuild |
-| 13 | `loaders/24_qc_freestyle_media_coverage.py` | reads the DB | coverage report | Read-only; advisory |
-| 14 | `loaders/25_qc_media_tag_invariant.py` | reads the DB | tag-invariant report | Read-only; advisory |
+| 9 | `loaders/28_load_ev_adjudications.py` | `inputs/observational/EV_FORMULA_IDENTITY_ROWS.csv` | `freestyle_ev_adjudications` | Idempotent |
+| 10 | `loaders/27_load_trick_tips.py` | `inputs/footbag_org_member_tips.ndjson` | `freestyle_trick_tips` | Idempotent |
+| 11 | `scripts/parse_freestyle_notation.py --apply` | reads `freestyle_tricks` | updates `structural_parse_json`, `computed_adds`, `add_formula_status` | Idempotent |
+| 12 | `loaders/26_load_symbolic_grammar.py` | `symbolic_grammar/*.csv` | the six `symbolic_*` tables | Idempotent |
+| 13 | `loaders/22_qc_trick_dictionary.py` | reads the DB | QC report in `out/` | Read-only; **hard gate**, non-zero exit aborts the rebuild |
+| 14 | `loaders/24_qc_freestyle_media_coverage.py` | reads the DB | coverage report | Read-only; advisory |
+| 15 | `loaders/25_qc_media_tag_invariant.py` | reads the DB | tag-invariant report | Read-only; advisory |
 
 ## Artifacts: committed vs generated vs gitignored
 

@@ -54,6 +54,9 @@ EXPECTATIONS: list[Expectation] = [
     Expectation("freestyle_trick_aliases", 5, "from committed inputs/base_dictionary/trick_aliases.csv"),
     # Step 7: 19_load_red_additions.py
     Expectation("freestyle_trick_modifier_links", 1, "Red expert-review modifier links"),
+    # Step 7b: 28_load_ev_adjudications.py
+    Expectation("freestyle_ev_adjudications", 800,
+                "871 rulings from the committed ledger; the floor catches a partial seed"),
     # Step 12: load_name_variants_seed.py
     Expectation("name_variants", 50, "from committed inputs/name_variants.csv (HIGH-confidence)"),
     # Step 12b: load_given_name_variants_to_sqlite.py

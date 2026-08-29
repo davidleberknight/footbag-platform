@@ -1469,6 +1469,135 @@ def test_mvfp_loader_upsert_preserves_curated_team(tmp_path: Path) -> None:
     assert _fk_violations(db) == []
 
 
+EV_LEDGER_COLUMNS = [
+    "submitted_name", "normalized_name", "proposed_formula", "matched_existing_object",
+    "match_type", "ev_state", "hold_kind", "failure_class", "final_disposition",
+    "blocker_subtype", "residual_home", "confidence", "source", "note",
+    "object_type", "evidence_state", "blocker_id", "owner",
+]
+
+
+def _ev_ledger_row(name: str, normalized: str, **over) -> dict:
+    row = {c: "" for c in EV_LEDGER_COLUMNS}
+    row.update({
+        "submitted_name": name, "normalized_name": normalized,
+        "ev_state": "doctrine", "final_disposition": "C",
+        "evidence_state": "compositional-name-only", "object_type": "complete-trick",
+        "owner": "james+red", "confidence": "high", "source": "SG",
+    })
+    row.update(over)
+    return row
+
+
+def test_ev_adjudication_loader_idempotent_and_deterministic(tmp_path: Path) -> None:
+    """A reseed of the Emerging Vocabulary rulings reproduces the table exactly.
+
+    Row count alone is too weak for this loader: the equivalence gate compares a
+    rebuilt database against committed generated content, so the surrogate ids and
+    the recorded order have to come back the same as well, not merely the same
+    number of rows.
+    """
+    db = make_db(tmp_path)
+    ledger = write_csv(
+        tmp_path / "ev_ledger.csv",
+        EV_LEDGER_COLUMNS,
+        [_ev_ledger_row("Idem Blurry Whirl", "idemblurrywhirl"),
+         _ev_ledger_row("Idem Spinning Osis", "idemspinningosis")],
+    )
+    loader = [
+        "freestyle/loaders/28_load_ev_adjudications.py",
+        "--db", str(db),
+        "--ledger-csv", str(ledger),
+    ]
+
+    def snapshot() -> list:
+        conn = sqlite3.connect(db)
+        try:
+            return conn.execute(
+                "SELECT candidate_id, sequence_no, normalized_name, published_trick_slug "
+                "FROM freestyle_ev_adjudications ORDER BY sequence_no"
+            ).fetchall()
+        finally:
+            conn.close()
+
+    n = assert_idempotent(db, loader, "freestyle_ev_adjudications")
+    assert n == 2
+    first = snapshot()
+    assert run(loader).returncode == 0
+    assert snapshot() == first, "a reseed changed the ids or the recorded order"
+
+
+def test_ev_adjudication_loader_refuses_a_link_to_a_trick_that_does_not_exist(
+    tmp_path: Path,
+) -> None:
+    """A ruling naming a missing trick row aborts the seed instead of dropping the link.
+
+    Losing the link silently is the failure this refusal exists to prevent: it is
+    the durable statement that a ruling and a trick row are about the same name.
+    """
+    db = make_db(tmp_path)
+    ledger = write_csv(
+        tmp_path / "ev_ledger.csv",
+        EV_LEDGER_COLUMNS,
+        [_ev_ledger_row("Idem Linked Name", "idemlinkedname",
+                        note="external-db-row slug=no_such_trick_row")],
+    )
+    result = run([
+        "freestyle/loaders/28_load_ev_adjudications.py",
+        "--db", str(db),
+        "--ledger-csv", str(ledger),
+    ])
+    assert result.returncode != 0
+    assert "no_such_trick_row" in result.stderr
+    assert count(db, "freestyle_ev_adjudications") == 0
+
+
+def test_ev_adjudication_loader_refuses_a_ledger_it_cannot_seed_faithfully(
+    tmp_path: Path,
+) -> None:
+    """Two rulings for one name, a ruling missing a field it cannot be read
+    without, and a ledger missing a column are all refusals before any write.
+
+    Each would otherwise land a record that is quietly not the ledger: one ruling
+    silently winning over another, an unreadable adjudication, or a column of
+    empty strings where the curator's decisions were.
+    """
+    good = _ev_ledger_row("Idem Good Name", "idemgoodname")
+
+    duplicate = write_csv(
+        tmp_path / "duplicate.csv", EV_LEDGER_COLUMNS,
+        [good, _ev_ledger_row("Idem Good Name (again)", "idemgoodname")],
+    )
+    empty_field = write_csv(
+        tmp_path / "empty_field.csv", EV_LEDGER_COLUMNS,
+        [_ev_ledger_row("Idem Ownerless", "idemownerless", owner="")],
+    )
+    missing_column = write_csv(
+        tmp_path / "missing_column.csv",
+        [c for c in EV_LEDGER_COLUMNS if c != "residual_home"],
+        [{k: v for k, v in good.items() if k != "residual_home"}],
+    )
+
+    for ledger, expected in ((duplicate, "idemgoodname"),
+                             (empty_field, "owner"),
+                             (missing_column, "residual_home")):
+        db_dir = tmp_path / f"db-{ledger.stem}"
+        db_dir.mkdir()
+        db = make_db(db_dir)
+        result = run([
+            "freestyle/loaders/28_load_ev_adjudications.py",
+            "--db", str(db),
+            "--ledger-csv", str(ledger),
+        ])
+        assert result.returncode != 0, f"{ledger.name} was accepted"
+        assert expected in result.stderr, f"{ledger.name}: {result.stderr}"
+        # An operator has to be told what is wrong with the ledger, so the
+        # refusal is a message naming it rather than a stack trace.
+        assert result.stderr.startswith("ERROR:"), f"{ledger.name}: {result.stderr}"
+        assert "Traceback" not in result.stderr, f"{ledger.name}: {result.stderr}"
+        assert count(db, "freestyle_ev_adjudications") == 0
+
+
 def test_mvfp_loader_upsert_idempotent_with_references(tmp_path: Path) -> None:
     """Two reseeds against a fixture holding a net team and an app claim leave the
     canonical-person and reference counts identical, with a clean FK check."""

@@ -45,6 +45,12 @@ echo "→ Rebuilding freestyle tables into ${DB}"
 "${PY}" "${L}/21a_load_alias_additions.py"          --db "${DB}"
 "${PY}" "${L}/21b_apply_alias_overrides.py"         --db "${DB}"
 
+# Emerging Vocabulary rulings: the adjudication record for observational names,
+# seeded from the committed ruling ledger. Runs after every dictionary loader
+# because the rulings that name a trick row link to it by foreign key, and the
+# targets are rows 17, 19 and 21 create.
+"${PY}" "${L}/28_load_ev_adjudications.py"          --db "${DB}"
+
 # Legacy footbag.org Member Tips (community advice; display-only, never doctrine).
 # Runs after the dictionary loaders so every trick slug exists for mapping.
 "${PY}" "${L}/27_load_trick_tips.py"                --db "${DB}"
