@@ -21,10 +21,11 @@ Inputs:
   freestyle/inputs/observational/promotion_candidates_curator_confirm.csv
   freestyle/inputs/observational/promotion_candidates_deferred.csv
   freestyle/inputs/observational/CLASSIFIED_UNIVERSE.csv   (stats only)
-  freestyle/inputs/observational/EV_FORMULA_IDENTITY_ROWS.csv
-      (the ruling ledger — the adjudication AUTHORITY; see below)
   freestyle/doctrine/QUESTION_REGISTRY.csv
       (the named open doctrine questions — the only valid doctrine blockers)
+  database/footbag.db, table freestyle_ev_adjudications
+      (the adjudication AUTHORITY; see below. Override the database with
+      FREESTYLE_EV_AUTHORITY_DB.)
 
 Source precedence (highest first):
   1. The live canonical database decides publication (applied at REQUEST time
@@ -33,9 +34,9 @@ Source precedence (highest first):
      identity (full name, parenthetical folk names, normalized variants, and
      abbreviations are all tested).
   3. The operator registry (trick_modifiers.csv) decides whether an operator
-     is defined; a ledger blocker claiming an operator undefined while the
-     registry defines it is a reconciliation defect and the registry wins.
-  4. The ruling ledger decides adjudication: object type, identity target,
+     is defined; an adjudication blocker claiming an operator undefined while
+     the registry defines it is a reconciliation defect and the registry wins.
+  4. The adjudication table decides adjudication: object type, identity target,
      evidence state, blocker, owner.
   5. The question registry decides what each doctrine blocker means; a
      doctrine block must reference a known, open question.
@@ -52,12 +53,18 @@ Output:
 Run:
   python3 freestyle/scripts/build_observational_universe_content.py
 
-Substituted authority (proving only, never production):
-  FREESTYLE_EV_AUTHORITY_DB=<sqlite path> reads the rulings from that database's
-  adjudication table instead of the ledger CSV, and FREESTYLE_OBSERVATIONAL_OUT
-  redirects the generated module. Together they let a harness require that the
-  seeded database produces byte-identical content, without writing into the tree
-  it is comparing against. Unset, this generator behaves exactly as before.
+Environment overrides (a harness proving something about the output, not a
+production path):
+  FREESTYLE_EV_AUTHORITY_DB=<sqlite path> reads the adjudications from that
+  database rather than database/footbag.db, and FREESTYLE_OBSERVATIONAL_OUT
+  redirects the generated module. Together they let a gate require that a
+  database built from the committed inputs reproduces the committed content,
+  without writing into the tree it is comparing against.
+
+There is no CSV fallback. A missing, unseeded or incomplete adjudication table
+aborts with a message naming the seed loader; it never quietly regenerates from
+the committed ledger, because content silently produced from a stale ruling
+record is worse than content that fails to build.
 """
 from __future__ import annotations
 
@@ -83,23 +90,19 @@ OUT = REPO / "src/content/freestyleObservationalUniverse.ts"
 # next regen even when the upstream packet CSVs still list it.
 TRICKS_CSV = FREESTYLE / "inputs/base_dictionary/tricks.csv"
 RED_ADD_CSV = FREESTYLE / "inputs/curated/tricks/red_additions_2026_04_20.csv"
-# The ruling ledger: one row per adjudicated observational name, carrying the
-# current ev_state / final_disposition / blocker_subtype. It is the ONE
-# exception to the freestyle-inputs-only rule, because it is the committed
-# ruling record this generator must treat as the classification authority
-# (never legacy_data, never the network). Missing ledger = fatal: without it
-# the classification would silently regress to the frozen CSV snapshot.
-LEDGER_CSV = OBS / "EV_FORMULA_IDENTITY_ROWS.csv"
-# The rulings are moving into a writable database table, because the committed
-# CSV above stops being writable when the rebuild pipeline retires.
-#   Current: the CSV is the authority on every run. Naming a database in the
-#     environment variable below reads the rulings from that database's
-#     adjudication table instead, which only the harness proving the two produce
-#     identical content does.
-#   Target: the database is the authority and the CSV is history.
-# The output-path override belongs to the same harness, so proving equivalence
-# never writes into the working tree it is comparing against.
-LEDGER_DB_ENV = "FREESTYLE_EV_AUTHORITY_DB"
+# The adjudication authority: one row per adjudicated observational name in the
+# platform database, carrying the current ev_state / final_disposition /
+# blocker_subtype. It is the ONE exception to the freestyle-inputs-only rule,
+# because it is the writable ruling record this generator must treat as the
+# classification authority (never legacy_data, never the network). It is
+# writable, which the committed ledger it replaced was not, so a ruling made
+# after the rebuild pipeline retires still reaches this surface.
+#
+# The database is built by the freestyle rebuild, whose seed loader fills this
+# table from the committed ledger. A run against a database that does not carry
+# it aborts: see read_rulings.
+DEFAULT_AUTHORITY_DB = REPO / "database" / "footbag.db"
+AUTHORITY_DB_ENV = "FREESTYLE_EV_AUTHORITY_DB"
 OUT_PATH_ENV = "FREESTYLE_OBSERVATIONAL_OUT"
 # The named open doctrine questions. A row may only be doctrine-blocked by
 # referencing one of these; free-text doctrine labels are invalid.
@@ -463,8 +466,9 @@ def read(p: Path) -> list[dict]:
         return list(csv.DictReader(f))
 
 
-# The ruling fields this generator classifies from. The database column names
-# are the ledger's own, so one reader serves both authorities.
+# The ruling fields this generator classifies from. The column names are the
+# ones the committed ledger used, carried across unchanged by the migration, so
+# a reader of either record reads the other.
 RULING_FIELDS = (
     "submitted_name", "normalized_name", "proposed_formula", "matched_existing_object",
     "match_type", "ev_state", "hold_kind", "failure_class", "final_disposition",
@@ -492,33 +496,46 @@ def out_path() -> Path:
     return Path(override) if override else OUT
 
 
+def authority_db_path() -> Path:
+    """The database whose adjudication table rules this run.
+
+    The platform database, except for a gate pointing this generator at a
+    database it built itself from the committed inputs.
+    """
+    override = os.environ.get(AUTHORITY_DB_ENV, "").strip()
+    return Path(override) if override else DEFAULT_AUTHORITY_DB
+
+
+# What an adjudication cannot be read without: what the name is, what was
+# decided, what evidence backs it, and who owns the next step. A row missing any
+# of them would be classified from defaults, which is a silent downgrade of a
+# curator's ruling, so it aborts the run instead.
+REQUIRED_RULING_VALUES = (
+    "submitted_name", "normalized_name", "ev_state", "final_disposition",
+    "evidence_state", "object_type", "owner",
+)
+
+_SEED_HINT = ("Rebuild the freestyle tables (freestyle/run_freestyle.sh), whose seed "
+              "loader 28_load_ev_adjudications.py fills the table from the committed "
+              "ruling ledger.")
+
+
 def read_rulings() -> tuple[list[dict], list[str]]:
     """The adjudications in recorded order, and each one's trick slug or ''.
 
-    Two authorities, one shape. The committed ledger records a ruling's trick row
-    inside its note, because it has no column for one; the database records it as
-    a foreign key. Reading the link here rather than at the point of use is what
-    lets the rest of this generator stay identical under either authority, which
-    is the property the equivalence gate needs in order to mean anything.
-    """
-    db_path = os.environ.get(LEDGER_DB_ENV, "").strip()
-    if not db_path:
-        if not LEDGER_CSV.exists():
-            raise SystemExit(
-                f"ruling ledger missing: {LEDGER_CSV} — the adjudication authority is unavailable"
-            )
-        rows = read(LEDGER_CSV)
-        links = [
-            (m.group(1) if (m := re.search(r"external-db-row slug=([a-z0-9_]+)",
-                                           r.get("note", "") or "")) else "")
-            for r in rows
-        ]
-        return rows, links
+    Reading the trick link here rather than at the point of use keeps the rest of
+    this generator indifferent to where a ruling came from, which is what lets one
+    gate compare this output against content generated before the authority moved.
 
-    if not Path(db_path).exists():
+    Every refusal below is deliberate. There is no fallback to the committed
+    ledger the table was seeded from: regenerating public content from a record
+    that is no longer the one curators write to would produce a page that looks
+    correct and silently is not.
+    """
+    db_path = authority_db_path()
+    if not db_path.exists():
         raise SystemExit(
-            f"ruling database missing: {db_path} — the substituted adjudication "
-            f"authority is unavailable"
+            f"adjudication authority unavailable: no database at {db_path}. {_SEED_HINT}"
         )
     conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
     try:
@@ -529,18 +546,30 @@ def read_rulings() -> tuple[list[dict], list[str]]:
         fetched = cur.fetchall()
     except sqlite3.OperationalError as exc:
         raise SystemExit(
-            f"ruling database {db_path} cannot be read as the adjudication "
-            f"authority: {exc}. Seed it with freestyle/loaders/28_load_ev_adjudications.py."
+            f"adjudication authority unreadable in {db_path}: {exc}. {_SEED_HINT}"
         ) from exc
     finally:
         conn.close()
     if not fetched:
         raise SystemExit(
-            f"ruling database {db_path} holds no adjudications — seed it with "
-            f"freestyle/loaders/28_load_ev_adjudications.py before using it as the authority"
+            f"adjudication authority empty in {db_path}: the table holds no rulings. "
+            f"{_SEED_HINT}"
         )
+
     rows = [dict(zip(RULING_FIELDS, row[:-1])) for row in fetched]
     links = [row[-1] or "" for row in fetched]
+    incomplete = [
+        f"  {r.get('normalized_name') or '(unnamed)'}: {field} is empty"
+        for r in rows for field in REQUIRED_RULING_VALUES
+        if not (r.get(field) or "").strip()
+    ]
+    if incomplete:
+        raise SystemExit(
+            f"adjudication authority incomplete in {db_path}:\n"
+            + "\n".join(incomplete[:20])
+            + (f"\n  ... and {len(incomplete) - 20} more" if len(incomplete) > 20 else "")
+            + f"\n{_SEED_HINT}"
+        )
     return rows, links
 
 
@@ -757,12 +786,12 @@ def main() -> None:
     for r in rows:
         r["layer"] = "frontier" if r["intakeBucket"] in FRONTIER_BUCKETS else "archive"
 
-    # ── six-dimension lifecycle classification ── the ledger carries the
-    # adjudicated dimensions (object type, evidence state, blocker, owner);
+    # ── six-dimension lifecycle classification ── the adjudication table carries
+    # the adjudicated dimensions (object type, evidence state, blocker, owner);
     # identity resolution against the canonical/alias layer and the operator
     # registry is re-derived here every run under the precedence order in the
     # module docstring, so a published identity or a defined operator always
-    # wins over a stale ledger label, loudly.
+    # wins over a stale adjudication label, loudly.
     if not QUESTION_REGISTRY_CSV.exists():
         raise SystemExit(f"question registry missing: {QUESTION_REGISTRY_CSV} — doctrine blockers cannot be validated")
     questions = {(q.get("question_id") or "").strip(): q for q in read(QUESTION_REGISTRY_CSV)}

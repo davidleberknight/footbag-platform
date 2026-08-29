@@ -1,28 +1,38 @@
-"""The database holds the Emerging Vocabulary rulings without changing them or what they produce.
+"""The database rules the Emerging Vocabulary adjudications, and ruling them changed nothing.
 
-The rulings that decide what each observational freestyle name IS live in a
-committed ledger a generator reads. They are moving into a writable database
-table, because the committed file stops being writable when the rebuild pipeline
-retires. This gate is the permanent proof that the move costs nothing, and it
-proves two separate things that do not imply each other:
+The rulings that decide what each observational freestyle name IS are held in a
+writable database table, seeded from the committed ledger that used to be the
+authority. The generator reads the table. This gate is the permanent proof that
+the authority sits where it is supposed to and that moving it there changed
+nothing, and it proves things that do not imply each other:
 
   Adjudication equivalence — the table holds every ruling the ledger holds, with
-  the same values. This is a claim about 871 records.
+  the same values. This is a claim about 871 records, and it stays meaningful
+  while the ledger remains as migration history.
 
-  Projection equivalence — a generator run against the seeded table emits content
-  byte-identical to the committed module. This is a claim about 909 rows composed
-  from the corpus, most of which carry a ruling and some of which carry none.
+  Projection equivalence — a generator run emits content byte-identical to the
+  committed module, which was generated before the authority moved. This is a
+  claim about 909 rows composed from the corpus, most of which carry a ruling and
+  some of which carry none.
+
+  Authority — the generator reads the table and nothing else. Editing the ledger
+  no longer changes what it emits; editing an adjudication does. A database that
+  cannot supply the rulings aborts the run rather than quietly regenerating
+  public content from the record curators no longer write to.
 
 The two counts are both correct and are not the same measurement, which is why
 each is asserted on its own terms.
 
 The gate builds its own database from the committed inputs, so it depends on no
-prior local state and writes nothing outside its temporary directory.
+prior local state, and every mutation it makes is to a scratch copy: the
+committed ledger, the committed module and the checkout's database are never
+written.
 """
 import csv
 import json
 import os
 import re
+import shutil
 import sqlite3
 import subprocess
 import sys
@@ -356,3 +366,191 @@ def test_the_public_content_around_the_rows_is_unchanged(regenerated_from_db):
         assert (
             committed[committed.index(marker):] == regenerated_from_db[regenerated_from_db.index(marker):]
         ), f"{export} differs between the committed module and the database run"
+
+
+# ── Where the authority lives ───────────────────────────────────────────────
+
+def _load_generator_module():
+    """Import the generator for its path resolution, without running it."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("ev_universe_generator", GENERATOR)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _run_generator(authority_db, out_path, generator=GENERATOR, cwd=REPO_ROOT):
+    env = {
+        **os.environ,
+        "FREESTYLE_EV_AUTHORITY_DB": str(authority_db),
+        "FREESTYLE_OBSERVATIONAL_OUT": str(out_path),
+    }
+    return subprocess.run(
+        [sys.executable, str(generator)],
+        cwd=str(cwd), capture_output=True, text=True, env=env,
+    )
+
+
+def test_the_default_authority_is_the_checkouts_own_database(monkeypatch):
+    """With nothing set in the environment, the rulings come from the platform database.
+
+    The environment variable exists for a harness pointing the generator at a
+    database it built itself. What a developer or a deploy runs must resolve to
+    the checkout's own database, or the switch to it would only be true under
+    test conditions.
+    """
+    monkeypatch.delenv("FREESTYLE_EV_AUTHORITY_DB", raising=False)
+    generator = _load_generator_module()
+    assert generator.authority_db_path() == REPO_ROOT / "database" / "footbag.db"
+
+
+def test_the_generator_no_longer_reads_the_committed_ledger():
+    """No code path in the generator opens the ledger file.
+
+    The behavioural proofs below show that editing the ledger changes nothing.
+    This one closes the gap they cannot: a fallback that only fires when the
+    database is missing would pass every one of them.
+    """
+    source = GENERATOR.read_text(encoding="utf-8")
+    code = "\n".join(
+        line for line in source.splitlines() if not line.lstrip().startswith("#")
+    )
+    assert "EV_FORMULA_IDENTITY_ROWS" not in code, (
+        "the generator still names the ledger file outside a comment"
+    )
+
+
+def test_an_unusable_authority_aborts_instead_of_falling_back(tmp_path):
+    """Four ways the table can fail to supply the rulings, each a refusal.
+
+    The committed ledger is present in every one of these runs, which is the
+    point: a fallback to it would turn each refusal into content generated from
+    a record curators no longer write to, and nothing about the output would say
+    so.
+    """
+    out = tmp_path / "never-written.ts"
+
+    absent = tmp_path / "no-such.db"
+
+    no_table = tmp_path / "no-table.db"
+    conn = sqlite3.connect(no_table)
+    conn.execute("CREATE TABLE unrelated (id TEXT)")
+    conn.close()
+
+    empty = tmp_path / "empty.db"
+    conn = sqlite3.connect(empty)
+    conn.executescript(SCHEMA.read_text(encoding="utf-8"))
+    conn.close()
+
+    for db in (absent, no_table, empty):
+        result = _run_generator(db, out)
+        assert result.returncode != 0, f"{db.name} produced content anyway"
+        assert "adjudication authority" in result.stderr, f"{db.name}: {result.stderr}"
+        assert "28_load_ev_adjudications.py" in result.stderr, f"{db.name}: {result.stderr}"
+        assert "Traceback" not in result.stderr, f"{db.name}: {result.stderr}"
+        assert not out.exists(), f"{db.name} wrote a module before failing"
+
+
+def test_an_adjudication_missing_a_field_it_cannot_be_read_without_aborts(
+    seeded_db, tmp_path,
+):
+    """A blank owner would otherwise be classified from a default, silently."""
+    incomplete = tmp_path / "incomplete.db"
+    incomplete.write_bytes(seeded_db.read_bytes())
+    conn = sqlite3.connect(incomplete)
+    conn.execute(
+        "UPDATE freestyle_ev_adjudications SET owner = '' WHERE sequence_no = 1"
+    )
+    conn.commit()
+    conn.close()
+
+    out = tmp_path / "never-written.ts"
+    result = _run_generator(incomplete, out)
+    assert result.returncode != 0
+    assert "incomplete" in result.stderr
+    assert "owner is empty" in result.stderr
+    assert not out.exists()
+
+
+def test_editing_the_ledger_no_longer_changes_the_generated_content(
+    seeded_db, tmp_path,
+):
+    """A ledger edit is invisible to the generator now that the table rules.
+
+    The edit happens in a scratch copy of the inputs, never in the checkout. It
+    changes a blocker and an owner on a name the corpus carries, which under the
+    old authority would have moved that row's section and owner in the output.
+    """
+    scratch = tmp_path / "scratch-tree"
+    (scratch / "freestyle").mkdir(parents=True)
+    for part in ("inputs", "doctrine", "scripts"):
+        shutil.copytree(REPO_ROOT / "freestyle" / part, scratch / "freestyle" / part)
+
+    scratch_ledger = scratch / "freestyle" / "inputs" / "observational" / "EV_FORMULA_IDENTITY_ROWS.csv"
+    with scratch_ledger.open(newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        fields = reader.fieldnames
+        rows = [dict(r) for r in reader]
+    edited = 0
+    for row in rows:
+        if row["blocker_id"] == "Q02":
+            row["blocker_id"] = "Q01"
+            row["owner"] = "evidence"
+            edited += 1
+    assert edited > 0, "the scratch ledger carried no row to edit"
+    with scratch_ledger.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fields)
+        writer.writeheader()
+        writer.writerows(rows)
+
+    out = tmp_path / "from-edited-ledger.ts"
+    result = _run_generator(
+        seeded_db, out,
+        generator=scratch / "freestyle" / "scripts" / GENERATOR.name,
+        cwd=scratch,
+    )
+    assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
+    assert out.read_text(encoding="utf-8") == MODULE.read_text(encoding="utf-8"), (
+        f"editing {edited} ledger rows changed the generated content, so the "
+        f"ledger is still being read"
+    )
+
+
+def test_editing_an_adjudication_changes_the_generated_content(seeded_db, tmp_path):
+    """The converse: the table is what the output actually follows.
+
+    Without this, the test above would pass just as well against a generator that
+    read neither record and emitted a constant.
+    """
+    edited_db = tmp_path / "edited.db"
+    edited_db.write_bytes(seeded_db.read_bytes())
+    conn = sqlite3.connect(edited_db)
+    try:
+        target = conn.execute(
+            """
+            SELECT normalized_name, submitted_name FROM freestyle_ev_adjudications
+             WHERE evidence_state = 'compositional-name-only' AND blocker_id = 'Q02'
+             ORDER BY sequence_no LIMIT 1
+            """
+        ).fetchone()
+        assert target, "no adjudication to edit"
+        conn.execute(
+            "UPDATE freestyle_ev_adjudications SET evidence_state = 'verified-footage' "
+            "WHERE normalized_name = ?",
+            (target[0],),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    out = tmp_path / "from-edited-table.ts"
+    result = _run_generator(edited_db, out)
+    assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
+    emitted = out.read_text(encoding="utf-8")
+    assert emitted != MODULE.read_text(encoding="utf-8"), (
+        "editing an adjudication changed nothing, so the table is not the authority"
+    )
+
+    changed = [r for r in _module_rows(emitted) if r["evidenceState"] == "verified-footage"]
+    assert changed, "the edited ruling did not reach the generated rows"

@@ -1,10 +1,13 @@
 """The observational-universe generator reads only committed freestyle inputs.
 
-Its ruling ledger (EV_FORMULA_IDENTITY_ROWS.csv, the adjudication authority) was
-relocated out of the research scratch directory into freestyle/inputs/observational/,
-so the generator and the generated-content consistency gate that runs it no longer
-depend on that directory. This guards that regression: the research directory can be
-retired without breaking generation.
+Its corpus inputs were relocated out of the research scratch directory into
+freestyle/inputs/observational/, so neither the generator nor the consistency gate
+that runs it depends on that directory. This guards that regression: the research
+directory can be retired without breaking generation.
+
+The ruling ledger in that same directory is now the seed loader's input rather
+than the generator's: the adjudications live in the database, and the loader fills
+them from this file. It has to stay where the loader expects it.
 """
 from pathlib import Path
 
@@ -21,8 +24,9 @@ def test_generator_references_no_research_directory():
     )
 
 
-def test_ruling_ledger_lives_in_committed_inputs():
+def test_ruling_ledger_lives_where_the_seed_loader_reads_it():
     assert LEDGER.exists(), (
-        f"the ruling ledger must exist at {LEDGER}; it was relocated into the committed "
-        "freestyle inputs so the generator no longer depends on the research directory."
+        f"the ruling ledger must exist at {LEDGER}; the adjudication seed loader "
+        "reads it from the committed freestyle inputs to fill the database table "
+        "the generator classifies from."
     )

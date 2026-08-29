@@ -16,7 +16,7 @@ so the living freestyle pipeline stays self-contained and survives the
 | `CLASSIFIED_UNIVERSE.csv` | Full classified vocabulary universe (governance states, n_sources corroboration) |
 | `RECONCILIATION.csv` | Cross-source vocabulary reconciliation: one row per unique documented name, nine governance states. Hand-maintained via `sed` after promotion waves |
 | `SYMBOLIC_GRAMMAR_MASTER.csv` | FootbagMoves + PassBack symbolic-grammar master registry (verbatim `symbolic_notation_raw` per name) |
-| `EV_FORMULA_IDENTITY_ROWS.csv` | The Emerging Vocabulary formula-identity ruling ledger: the adjudication authority `build_observational_universe_content.py` reads for each name's state, disposition, blocker subtype, and residual home |
+| `EV_FORMULA_IDENTITY_ROWS.csv` | The Emerging Vocabulary formula-identity ruling ledger: the historical ruling record, and the input `28_load_ev_adjudications.py` seeds `freestyle_ev_adjudications` from. The generator classifies from that table, not from this file. |
 
 These files were relocated from their original exploration homes
 (`exploration/phase-e-promotion-packet-2026-05-28/`,
