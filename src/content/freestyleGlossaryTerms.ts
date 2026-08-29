@@ -174,7 +174,7 @@ export const GLOSSARY_TERMS: readonly GlossaryTerm[] = [
   {
     term: 'ADD',
     slug: 'add',
-    definition: 'Additional Degree of Difficulty, the freestyle difficulty score. It counts scoring components: dexterities, cross-body positions, stalls, and other scored elements.',
+    definition: 'Additional Degree of Difficulty, the traditional additive component accounting for a trick. It counts scoring components: dexterities, cross-body positions, stalls, and other scored elements. It is not a direct measure of execution difficulty.',
     aliases: ['ADDs', 'add count'],
     moreHref: `${CONCEPTS}#section-add-accounting`, moreLabel: 'ADD Accounting',
   },

@@ -47,7 +47,10 @@ describe('Freestyle Concepts — Notation section ADD concept card', () => {
     const html = await concepts();
     expect(html).toContain('id="concept-add"');
     const add = card(html, 'concept-add');
-    expect(add).toContain('difficulty score'); // the Line
+    // The Line. ADD is component accounting, the wording the Trick Dictionary
+    // has always used; calling it a difficulty score contradicted it.
+    expect(add).toContain('component accounting');
+    expect(add).not.toContain('difficulty score');
     expect(add).toContain('<summary>How it relates</summary>');
     expect(add).toContain('<summary>What it reveals</summary>');
     expect(add).toContain('checks itself'); // the checksum reveal

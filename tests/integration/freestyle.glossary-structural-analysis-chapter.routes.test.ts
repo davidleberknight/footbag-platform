@@ -91,8 +91,10 @@ describe('Freestyle Concepts — Structural Analysis and ADD Accounting chapters
     expect(html).toContain('ADD (Additional Degree of Difficulty)');
     // the accounting prose no longer restates the bracket-count checksum
     expect(html).not.toContain('contributes 1 ADD');
-    // the checksum lives in the card reveal
+    // the checksum lives in the card reveal, stated over scoring brackets: an
+    // action marker sits in brackets and carries no weight, so a plain bracket
+    // count is not the ADD
     const cardMatch = html.match(/id="concept-add"[\s\S]*?<\/div>/);
-    expect(cardMatch![0]).toContain('the bracket count is the ADD');
+    expect(cardMatch![0]).toContain('the scoring-bracket count is the ADD');
   });
 });

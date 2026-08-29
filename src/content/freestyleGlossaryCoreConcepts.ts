@@ -57,9 +57,9 @@ export const GLOSSARY_CORE_CONCEPTS: readonly GlossaryConceptCard[] = [
   },
   {
     key:     'add',
-    line:    "ADD (Additional Degree of Difficulty) is freestyle's difficulty score. It counts scoring components: dexterities, cross-body positions, stalls, and other scored elements, which the notation makes visible as bracketed parts.",
+    line:    "ADD (Additional Degree of Difficulty) is freestyle's traditional component accounting: it counts scoring components, dexterities, cross-body positions, stalls and other scored elements, which the notation makes visible as bracketed parts. It is an additive score of what a trick contains, not a direct measure of how hard it is to execute.",
     relates: "Because ADD is a count of parts, it follows straight from composition: read a trick's structure and you can read its score. This is why the encyclopedia can call torque quantum osis and know what it scores, the parts are the points.",
-    reveal:  "Once a trick is written down, the score checks itself: each scoring part sits in its own bracket, so the bracket count is the ADD, and a reader can confirm it without trusting anyone. A scoring system that audits its own arithmetic in front of you is the strongest possible answer to how you know a trick is worth what it scores.",
+    reveal:  "Once a trick is written down, the score checks itself: each scoring part sits in its own scoring bracket, so the scoring-bracket count is the ADD, and a reader can confirm it without trusting anyone. Not every bracket scores, which is what makes the count auditable rather than decorative: an action marker like [KICK] carries no weight. A scoring system that audits its own arithmetic in front of you is the strongest possible answer to how you know a trick is worth what it scores.",
   },
 ];
 
