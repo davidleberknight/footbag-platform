@@ -755,6 +755,13 @@ export interface FreestyleTrickOverrides {
   // operational_notation. Nullable; default NULL.
   operational_notation_source?: string | null;
   pronunciation?:               string | null;
+  // How the execution notation was arrived at, copied from the ruling a trick
+  // was published from. Null on every row that predates the funnel, which is the
+  // default here. Passed through unvalidated so a test can construct a
+  // combination the constraints must reject.
+  notation_evidence_basis?:     string | null;
+  notation_derivation_method?:  string | null;
+  notation_convention_id?:      string | null;
   // Curator-authored instructional prose (rendered in the Technique Notes
   // disclosure on trick-detail). All nullable; default NULL.
   short_description?:           string | null;
@@ -775,8 +782,10 @@ export function insertFreestyleTrick(
        jobs_notation_raw, jobs_notation_normalized, structural_parse_json,
        computed_add_formula, computed_adds, add_formula_status,
        operational_notation, operational_notation_source, pronunciation,
-       short_description, execution_summary, learning_notes, prerequisite_notes)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       short_description, execution_summary, learning_notes, prerequisite_notes,
+       notation_evidence_basis, notation_derivation_method, notation_convention_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+            ?, ?, ?)
   `).run(
     slug,
     o.canonical_name ?? slug.replace(/-/g, ' '),
@@ -805,6 +814,9 @@ export function insertFreestyleTrick(
     o.execution_summary         ?? null,
     o.learning_notes            ?? null,
     o.prerequisite_notes        ?? null,
+    o.notation_evidence_basis    ?? null,
+    o.notation_derivation_method ?? null,
+    o.notation_convention_id     ?? null,
   );
   return slug;
 }

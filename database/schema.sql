@@ -5093,7 +5093,45 @@ CREATE TABLE freestyle_tricks (
   -- Phonetic respelling for tricks with non-obvious pronunciation (e.g. guay =
   -- "gwhy"). Nullable; rendered as a compact fact chip when present. Recovered
   -- from the legacy footbag.org moves2 Pronunciation field, then curator-expanded.
-  pronunciation        TEXT
+  pronunciation        TEXT,
+
+  -- ── How this row's execution notation was arrived at ─────────────────────
+  -- Copied from the ruling the trick was published from, so the claim travels
+  -- with the artifact it describes and a published row can be audited without
+  -- reading the funnel behind it. Two orthogonal claims: what the notation rests
+  -- on, and what was done to produce it. The vocabularies live in a reversible
+  -- content module and are validated at the service boundary, the same pair the
+  -- adjudication record carries.
+  --
+  -- All three are NULL on every row that predates the funnel, which is most of
+  -- the dictionary: the notation of a trick loaded from a committed file records
+  -- no structured provenance, and inventing one would assert a claim nobody
+  -- made. operational_notation_source above stays the reader-facing citation
+  -- prose and is not replaced by these.
+  notation_evidence_basis    TEXT,
+  notation_derivation_method TEXT,
+  -- The named ratified convention a derivation was made under. It is what makes
+  -- the exemplar rule computable: a row derived under a convention is never
+  -- independent corroboration for that same convention, and remains ordinary
+  -- corroboration for every other. Independence is therefore a relationship
+  -- between a row and a convention, computed from these two columns, never
+  -- stored as a flag.
+  notation_convention_id     TEXT,
+
+  -- The two claims travel together or not at all: half a provenance says the
+  -- notation was accounted for when it was not.
+  CHECK ((notation_evidence_basis IS NULL AND notation_derivation_method IS NULL)
+         OR (notation_evidence_basis IS NOT NULL AND notation_derivation_method IS NOT NULL)),
+
+  -- The convention belongs to exactly one method and to no other, including a
+  -- legacy row that carries no provenance at all. The method is coalesced before
+  -- it is compared, because a comparison against NULL yields NULL and a CHECK
+  -- that evaluates to NULL passes: written the natural way the constraint would
+  -- have a hole exactly where the method is missing.
+  CHECK ((COALESCE(notation_derivation_method, '') = 'convention-derivation'
+          AND notation_convention_id IS NOT NULL)
+         OR (COALESCE(notation_derivation_method, '') <> 'convention-derivation'
+             AND notation_convention_id IS NULL))
 );
 
 CREATE INDEX idx_freestyle_tricks_category      ON freestyle_tricks(category);
