@@ -179,6 +179,143 @@ describe('unlinked rulings are untouched by trick-dictionary churn', () => {
   });
 });
 
+describe('notation authoring: what a draft may and may not look like', () => {
+  it('stores an authored notation with the two claims its provenance is made of', () => {
+    const id = insertFreestyleEvAdjudication(db, {
+      normalized_name: 'authoredtranscription',
+      authored_notation: 'CLIP > OP IN [DEX] > SAME CLIP [XBD] [DEL]',
+      notation_evidence_basis: 'source-notation',
+      notation_derivation_method: 'transcription',
+      notation_provenance_note: 'Copied from the source in its own register.',
+      notation_authored_at: '2026-08-29T00:00:00.000Z',
+      notation_authored_by: 'curator-1',
+    });
+
+    const row = db
+      .prepare(`SELECT authored_notation, notation_evidence_basis, notation_derivation_method,
+                       notation_convention_id, notation_provenance_note
+                  FROM freestyle_ev_adjudications WHERE candidate_id = ?`)
+      .get(id) as {
+        authored_notation: string; notation_evidence_basis: string;
+        notation_derivation_method: string; notation_convention_id: string | null;
+        notation_provenance_note: string | null;
+      };
+    expect(row.notation_evidence_basis).toBe('source-notation');
+    expect(row.notation_derivation_method).toBe('transcription');
+    expect(row.notation_convention_id).toBeNull();
+  });
+
+  it('stores a derivation together with the convention it was made under', () => {
+    const id = insertFreestyleEvAdjudication(db, {
+      normalized_name: 'authoredderivation',
+      authored_notation: 'CLIP > OP IN [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]',
+      notation_evidence_basis: 'platform-structure',
+      notation_derivation_method: 'convention-derivation',
+      notation_convention_id: 'swirl-chain-terminal-replacement',
+    });
+
+    const row = db
+      .prepare('SELECT notation_convention_id FROM freestyle_ev_adjudications WHERE candidate_id = ?')
+      .get(id) as { notation_convention_id: string };
+    expect(row.notation_convention_id).toBe('swirl-chain-terminal-replacement');
+  });
+
+  it('lets an authored notation stand without a prose note', () => {
+    const id = insertFreestyleEvAdjudication(db, {
+      normalized_name: 'authorednonote',
+      authored_notation: 'TOE > SAME OUT [DEX] > SAME TOE [DEL]',
+      notation_evidence_basis: 'footage',
+      notation_derivation_method: 'reconstruction',
+    });
+    expect(id).toBeTruthy();
+  });
+
+  it('refuses provenance on a ruling whose notation was never authored', () => {
+    expect(() =>
+      insertFreestyleEvAdjudication(db, {
+        normalized_name: 'provenancewithoutnotation',
+        notation_evidence_basis: 'source-notation',
+        notation_derivation_method: 'transcription',
+      }),
+    ).toThrow(/CHECK constraint failed/i);
+  });
+
+  it('refuses an authorship stamp on a ruling whose notation was never authored', () => {
+    expect(() =>
+      insertFreestyleEvAdjudication(db, {
+        normalized_name: 'stampwithoutnotation',
+        notation_authored_by: 'curator-1',
+      }),
+    ).toThrow(/CHECK constraint failed/i);
+  });
+
+  it('refuses an authored notation that does not say what it rests on', () => {
+    expect(() =>
+      insertFreestyleEvAdjudication(db, {
+        normalized_name: 'notationwithoutbasis',
+        authored_notation: 'TOE > SAME OUT [DEX] > SAME TOE [DEL]',
+        notation_derivation_method: 'transcription',
+      }),
+    ).toThrow(/CHECK constraint failed/i);
+  });
+
+  it('refuses an authored notation that does not say how it was produced', () => {
+    expect(() =>
+      insertFreestyleEvAdjudication(db, {
+        normalized_name: 'notationwithoutmethod',
+        authored_notation: 'TOE > SAME OUT [DEX] > SAME TOE [DEL]',
+        notation_evidence_basis: 'footage',
+      }),
+    ).toThrow(/CHECK constraint failed/i);
+  });
+
+  it('refuses a derivation that does not name its convention', () => {
+    // The convention is what makes the exemplar rule computable: without it the
+    // row cannot be excluded from corroborating the rule it came from.
+    expect(() =>
+      insertFreestyleEvAdjudication(db, {
+        normalized_name: 'derivationwithoutconvention',
+        authored_notation: 'CLIP > OP IN [DEX] > SAME CLIP [XBD] [DEL]',
+        notation_evidence_basis: 'platform-structure',
+        notation_derivation_method: 'convention-derivation',
+      }),
+    ).toThrow(/CHECK constraint failed/i);
+  });
+
+  it('refuses a convention on a method that is not a derivation', () => {
+    expect(() =>
+      insertFreestyleEvAdjudication(db, {
+        normalized_name: 'transcriptionwithconvention',
+        authored_notation: 'CLIP > OP IN [DEX] > SAME CLIP [XBD] [DEL]',
+        notation_evidence_basis: 'source-notation',
+        notation_derivation_method: 'transcription',
+        notation_convention_id: 'swirl-chain-terminal-replacement',
+      }),
+    ).toThrow(/CHECK constraint failed/i);
+  });
+
+  it('refuses a convention on a ruling with no notation at all', () => {
+    expect(() =>
+      insertFreestyleEvAdjudication(db, {
+        normalized_name: 'conventionwithoutnotation',
+        notation_convention_id: 'swirl-chain-terminal-replacement',
+      }),
+    ).toThrow(/CHECK constraint failed/i);
+  });
+
+  it('leaves every seeded ruling unauthored, which is the ordinary state', () => {
+    const id = insertFreestyleEvAdjudication(db, { normalized_name: 'unauthoredordinary' });
+    const row = db
+      .prepare(`SELECT authored_notation, notation_evidence_basis, notation_derivation_method,
+                       notation_convention_id, notation_authored_at, notation_authored_by
+                  FROM freestyle_ev_adjudications WHERE candidate_id = ?`)
+      .get(id) as Record<string, string | null>;
+    for (const [column, value] of Object.entries(row)) {
+      expect(value, `${column} on an unauthored ruling`).toBeNull();
+    }
+  });
+});
+
 describe('row metadata', () => {
   it('requires the audit stamps every mutable row carries and defaults the version', () => {
     const columns = db

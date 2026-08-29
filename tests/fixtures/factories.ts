@@ -841,6 +841,17 @@ export interface FreestyleEvAdjudicationOverrides {
   residual_home?:           string;
   // FK to freestyle_tricks(slug); null (the default) is the ordinary case.
   published_trick_slug?:    string | null;
+  // Notation authoring. All null by default: an unauthored ruling is the
+  // ordinary state, and the table refuses a half-filled draft. Passed through
+  // unvalidated so a test can construct a combination the constraints must
+  // reject; the service-boundary vocabulary check is a separate contract.
+  authored_notation?:          string | null;
+  notation_evidence_basis?:    string | null;
+  notation_derivation_method?: string | null;
+  notation_convention_id?:     string | null;
+  notation_provenance_note?:   string | null;
+  notation_authored_at?:       string | null;
+  notation_authored_by?:       string | null;
 }
 
 export function insertFreestyleEvAdjudication(
@@ -858,8 +869,12 @@ export function insertFreestyleEvAdjudication(
        submitted_name, normalized_name, ev_state, final_disposition, evidence_state,
        object_type, blocker_id, blocker_subtype, hold_kind, matched_existing_object,
        match_type, note, source, confidence, owner,
-       proposed_formula, failure_class, residual_home, published_trick_slug)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       proposed_formula, failure_class, residual_home, published_trick_slug,
+       authored_notation, notation_evidence_basis, notation_derivation_method,
+       notation_convention_id, notation_provenance_note,
+       notation_authored_at, notation_authored_by)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?, ?, ?)
   `).run(
     candidateId,
     o.sequence_no ?? nextSeq,
@@ -887,6 +902,13 @@ export function insertFreestyleEvAdjudication(
     o.failure_class           ?? '',
     o.residual_home           ?? '',
     o.published_trick_slug    ?? null,
+    o.authored_notation          ?? null,
+    o.notation_evidence_basis    ?? null,
+    o.notation_derivation_method ?? null,
+    o.notation_convention_id     ?? null,
+    o.notation_provenance_note   ?? null,
+    o.notation_authored_at       ?? null,
+    o.notation_authored_by       ?? null,
   );
   return candidateId;
 }

@@ -5316,7 +5316,84 @@ CREATE TABLE freestyle_ev_adjudications (
   -- meant to get one (aliases, folk names, duplicates). Deliberately not
   -- ON DELETE CASCADE and not ON DELETE SET NULL: an adjudication is durable
   -- lexical history, so a trick row cannot be deleted out from under it.
-  published_trick_slug    TEXT REFERENCES freestyle_tricks(slug)
+  published_trick_slug    TEXT REFERENCES freestyle_tricks(slug),
+
+  -- ── Notation authoring: the funnel's draft ───────────────────────────────
+  -- The movement notation a curator authors for a candidate, held here until
+  -- publication creates the canonical row from it. The adjudication is the
+  -- authorship record for every candidate however it entered: a corpus name
+  -- with no trick row and a held-out database-native row both author here, so
+  -- one provenance contract covers both rather than two that drift.
+  authored_notation          TEXT,
+
+  -- Provenance is two orthogonal claims, not one class. What the notation rests
+  -- on is independent of how it was produced: a notation can rest on a source's
+  -- own written notation and be transcribed, or rest on nothing beyond the
+  -- platform's structural model and be derived under a named convention.
+  -- Collapsing them loses the distinction an audit needs.
+  --
+  -- Basis, what it rests on: 'source-notation' (a source's own written
+  -- notation), 'source-prose' (a source's written description), 'footage'
+  -- (observed execution), 'testimony' (an account relayed by a curator, whose
+  -- own or another person's), 'platform-structure' (nothing beyond the
+  -- platform's model). Deliberately carries no confidence or authority claim;
+  -- how good the evidence is, is a different axis from what kind it is.
+  notation_evidence_basis    TEXT,
+  -- Method, how it was produced: 'transcription' (copied in the source's own
+  -- register), 'register-translation' (a source's register rendered into the
+  -- platform's vocabulary, the source wording preserved in the note),
+  -- 'reconstruction' (worked out from prose or footage), 'convention-derivation'
+  -- (derived under a named ratified convention).
+  --
+  -- Both vocabularies live in a reversible content module and are validated at
+  -- the service boundary. They are documented here and not constrained here, so
+  -- a ruling that renames a value is an edit to one module rather than a schema
+  -- change; the structural invariants below ARE constrained, because they are
+  -- what makes the record readable at all.
+  notation_derivation_method TEXT,
+
+  -- The named convention a derivation was made under. It is what makes the
+  -- exemplar rule computable: a row is independent corroboration for convention
+  -- X unless it was itself derived under X. Independence is therefore a
+  -- relationship between a row and a convention, never a property of the row,
+  -- which is why no independence flag is stored here: a row derived under one
+  -- convention is ordinary corroboration for every other.
+  notation_convention_id     TEXT,
+
+  -- Curator prose: the citation in the source's own words, the reasoning, the
+  -- preserved source register. Never the home of the structured claims above.
+  notation_provenance_note   TEXT,
+  notation_authored_at       TEXT,
+  notation_authored_by       TEXT,
+
+  -- An unauthored row carries no authorship at all, so a half-filled draft
+  -- cannot masquerade as provenance for a notation that was never written.
+  CHECK (authored_notation IS NOT NULL
+         OR (notation_evidence_basis    IS NULL
+         AND notation_derivation_method IS NULL
+         AND notation_convention_id     IS NULL
+         AND notation_provenance_note   IS NULL
+         AND notation_authored_at       IS NULL
+         AND notation_authored_by       IS NULL)),
+
+  -- An authored notation always says what it rests on and how it was produced.
+  -- The prose note stays optional: the structured pair is what the audit reads,
+  -- and a curator with nothing to add beyond it should not be made to invent a
+  -- sentence.
+  CHECK (authored_notation IS NULL
+         OR (notation_evidence_basis    IS NOT NULL
+         AND notation_derivation_method IS NOT NULL)),
+
+  -- The convention id belongs to exactly one method and to no other, including
+  -- an unauthored row whose method is absent. The method is coalesced before it
+  -- is compared, because a comparison against NULL yields NULL and a CHECK that
+  -- evaluates to NULL passes: written the natural way, this constraint would
+  -- have a hole exactly where the method is missing, which is the case it most
+  -- needs to catch.
+  CHECK ((COALESCE(notation_derivation_method, '') = 'convention-derivation'
+          AND notation_convention_id IS NOT NULL)
+         OR (COALESCE(notation_derivation_method, '') <> 'convention-derivation'
+             AND notation_convention_id IS NULL))
 );
 
 -- One ruling per name: the generator joins the corpus to this table on the
