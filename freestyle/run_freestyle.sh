@@ -39,8 +39,17 @@ echo "→ Rebuilding freestyle tables into ${DB}"
 # a curator holds or nobody has classified, and move a row between committed
 # producers where an input has handed it over.
 "${PY}" "${L}/16_preflight_trick_ownership.py"      --db "${DB}"
-"${PY}" "${L}/17_load_trick_dictionary.py"          --db "${DB}"
+"${PY}" "${L}/17_load_trick_dictionary.py"          --db "${DB}" --stage tricks
 "${PY}" "${L}/19_load_red_additions.py"             --db "${DB}"
+
+# The base dictionary's aliases sit here, between the overlay and the intake.
+# After the overlay, because several name tricks it creates and renames, and an
+# alias resolved against a half-built dictionary is silently skipped. Before the
+# intake, because the intake reads the alias table to decide which scraped names
+# are already curated; run it first and it creates pending rows for moves the
+# dictionary already holds.
+"${PY}" "${L}/17_load_trick_dictionary.py"          --db "${DB}" --stage aliases
+
 "${PY}" "${L}/20_link_footbag_org_sources.py"       --db "${DB}"
 "${PY}" "${L}/21_load_footbag_org_pending_tricks.py" --db "${DB}"
 

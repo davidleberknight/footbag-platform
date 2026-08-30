@@ -38,30 +38,34 @@ SPAWN_TIMEOUT = 180
 PREFLIGHT = "16_preflight_trick_ownership.py"
 RETIRE = "21c_retire_stale_tricks.py"
 
-# The refresh, in the order the rebuild runs it.
+# The refresh, in the order the rebuild runs it. The dictionary loader appears
+# twice: its tricks first, its aliases after the expert overlay has established
+# the rows and names they resolve against, and before the intake, which reads the
+# alias table to decide what to create.
 REFRESH = [
-    PREFLIGHT,
-    "17_load_trick_dictionary.py",
-    "19_load_red_additions.py",
-    "20_link_footbag_org_sources.py",
-    "21_load_footbag_org_pending_tricks.py",
-    "21a_load_alias_additions.py",
-    "21b_apply_alias_overrides.py",
-    RETIRE,
+    (PREFLIGHT, []),
+    ("17_load_trick_dictionary.py", ["--stage", "tricks"]),
+    ("19_load_red_additions.py", []),
+    ("17_load_trick_dictionary.py", ["--stage", "aliases"]),
+    ("20_link_footbag_org_sources.py", []),
+    ("21_load_footbag_org_pending_tricks.py", []),
+    ("21a_load_alias_additions.py", []),
+    ("21b_apply_alias_overrides.py", []),
+    (RETIRE, []),
 ]
 
 
-def run(loader: str, db: Path):
+def run(loader: str, db: Path, args: list[str] | None = None):
     return subprocess.run(
-        [sys.executable, str(LOADERS / loader), "--db", str(db)],
+        [sys.executable, str(LOADERS / loader), "--db", str(db), *(args or [])],
         cwd=REPO_ROOT, capture_output=True, text=True, timeout=SPAWN_TIMEOUT,
     )
 
 
 def refresh(db: Path):
     """Run the whole committed sequence, returning the first stage that failed."""
-    for loader in REFRESH:
-        result = run(loader, db)
+    for loader, args in REFRESH:
+        result = run(loader, db, args)
         if result.returncode != 0:
             return loader, result
     return None, None

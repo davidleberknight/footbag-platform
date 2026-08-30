@@ -106,8 +106,38 @@ def compute_trick_family(canonical_name: str, base_trick: str | None, category: 
     return trick_name_to_slug(base_trick)
 
 
-def load_tricks(conn: sqlite3.Connection, tricks_csv: Path, loaded_at: str) -> tuple[int, dict[str, list[str]]]:
-    """Load freestyle_tricks. Returns (row_count, aliases_by_slug) for downstream alias loading."""
+def resolve_alias_target(target_canonical: str,
+                         canonical_lower_to_slug: dict[str, str],
+                         valid_slugs: set[str]) -> str | None:
+    """The trick an alias row names, or None.
+
+    The alias file addresses its target by canonical name, which the expert
+    overlay may legitimately rewrite while the slug stays put: the reverse-whirl
+    row is named "reverse whirl" today and was "rev whirl" when several aliases
+    were written against it. Matching on the name alone therefore loses real
+    aliases the moment a display name is corrected.
+
+    So: the exact name first, and failing that the same name folded through the
+    slug rule and looked up as a slug. Both are exact identity lookups. There is
+    deliberately no fuzzy match, no alias-to-alias hop and no substring search: a
+    target that resolves to nothing stays unresolved and is reported, because a
+    guess here silently attaches an alias to the wrong trick.
+    """
+    by_name = canonical_lower_to_slug.get(target_canonical.lower())
+    if by_name is not None:
+        return by_name
+    folded = trick_name_to_slug(target_canonical)
+    return folded if folded in valid_slugs else None
+
+
+def load_tricks(conn: sqlite3.Connection, tricks_csv: Path, loaded_at: str,
+                write: bool = True) -> tuple[int, dict[str, list[str]]]:
+    """Load freestyle_tricks. Returns (row_count, aliases_by_slug) for downstream alias loading.
+
+    With write=False the input is parsed and no row is written, which is how the
+    alias stage reads the aliases this same file carries inline without touching a
+    trick on its later, separate pass.
+    """
     if not tricks_csv.exists():
         raise FileNotFoundError(f"Tricks CSV not found: {tricks_csv}")
 
@@ -165,6 +195,9 @@ def load_tricks(conn: sqlite3.Connection, tricks_csv: Path, loaded_at: str) -> t
                 "loaded_at": loaded_at,
                 "updated_at": loaded_at,
             })
+
+    if not write:
+        return len(rows), aliases_by_slug, modifier_link_rows
 
     # Upsert, never clear-and-repopulate. Clearing the table would take every row
     # this loader did not create with it: the rows the other committed producers
@@ -414,7 +447,8 @@ def load_aliases(
                 target_canonical = row.get("trick_canon", "").strip()
                 if not alias_text or not target_canonical:
                     continue
-                target_slug = canonical_lower_to_slug.get(target_canonical.lower())
+                target_slug = resolve_alias_target(
+                    target_canonical, canonical_lower_to_slug, valid_slugs)
                 if target_slug is None:
                     unresolved.append((alias_text, target_canonical))
                     continue
@@ -424,6 +458,16 @@ def load_aliases(
         "DELETE FROM freestyle_trick_aliases WHERE source_id = ?",
         (CURATED_V1_SOURCE_ID,),
     )
+    # Leave alone any slug another source already holds, which is the rule the
+    # expert overlay has always applied to this loader's rows. It matters now
+    # only because the two run in the other order: 28 slugs are carried by both
+    # inputs, identically in text and target, and whichever writes first keeps
+    # them. Without this the second writer collides on the primary key.
+    held_elsewhere = {row[0] for row in conn.execute(
+        "SELECT alias_slug FROM freestyle_trick_aliases")}
+    for alias_slug in list(merged):
+        if alias_slug in held_elsewhere:
+            del merged[alias_slug]
     conn.executemany(
         """
         INSERT INTO freestyle_trick_aliases
@@ -445,6 +489,54 @@ def load_aliases(
     )
 
     return len(merged), unresolved
+
+
+def load_alias_stage(db_path: Path, tricks_csv: Path, aliases_csv: Path) -> None:
+    """Attach this loader's aliases, between the overlay and the intake.
+
+    An alias can only attach to a trick that exists, and several of these name
+    tricks the expert overlay creates. Applied where this loader writes its own
+    tricks, they resolved against a half-built dictionary and were skipped, so one
+    refresh never reached the state the committed inputs describe.
+
+    It runs before the footbag.org intake rather than after every producer,
+    because that intake is itself a consumer of these aliases: it inserts only the
+    scraped names that resolve to nothing already curated, and it reads the alias
+    table to decide. Run it first and it stops recognising moves the dictionary
+    already holds, and starts creating pending rows for them.
+
+    Nothing about alias authority, scope, class, display or collision handling
+    changes; the same rows resolve against a complete dictionary instead of a
+    partial one. The tricks file is re-read for the aliases it carries inline, and
+    no trick row is written. The clear and the reload happen together, scoped to
+    the rows this loader owns, so curator aliases and every other producer's are
+    untouched.
+    """
+    loaded_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+    import os.path as _p
+    import sys as _s
+    _s.path.insert(0, _p.join(_p.dirname(_p.abspath(__file__)), "..", "..", "scripts"))
+    from _freestyle_db import open_freestyle_db
+    conn = open_freestyle_db(db_path)
+    conn.execute("PRAGMA foreign_keys = ON")
+    try:
+        with conn:
+            _n, inline_aliases, _links = load_tricks(conn, tricks_csv, loaded_at, write=False)
+            # load_aliases clears its own rows by source id, which is the right
+            # scope: an alias belongs to whoever wrote it, not to whoever owns the
+            # trick it points at. Scoping the clear by the trick's owner instead
+            # would delete another producer's alias whenever it happened to name a
+            # base-dictionary trick, and this loader has nothing to put back.
+            n_aliases, unresolved = load_aliases(conn, aliases_csv, inline_aliases, loaded_at)
+        print(f"Loaded {n_aliases} aliases into freestyle_trick_aliases.")
+        if unresolved:
+            print(f"WARNING: {len(unresolved)} alias rows reference canonical tricks "
+                  f"not in dictionary:")
+            for alias, target in unresolved:
+                print(f"  '{alias}' -> '{target}' (skipped)")
+    finally:
+        conn.close()
 
 
 def load(db_path: Path, tricks_csv: Path, modifiers_csv: Path, aliases_csv: Path) -> None:
@@ -486,17 +578,14 @@ def load(db_path: Path, tricks_csv: Path, modifiers_csv: Path, aliases_csv: Path
                 f"DELETE FROM freestyle_trick_source_links WHERE trick_slug IN ({owned})",
                 (BASE_DICTIONARY,),
             )
-            conn.execute(
-                f"DELETE FROM freestyle_trick_aliases WHERE trick_slug IN ({owned})",
-                (BASE_DICTIONARY,),
-            )
-
-            n_tricks, inline_aliases, base_modifier_links = load_tricks(conn, tricks_csv, loaded_at)
+            # Aliases are not touched here. The alias stage clears and reloads
+            # them together, after the expert overlay has established its trick
+            # rows and their canonical names.
+            n_tricks, _inline_aliases, base_modifier_links = load_tricks(conn, tricks_csv, loaded_at)
             n_modifiers = load_modifiers(conn, modifiers_csv, loaded_at)
             n_base_links = insert_base_modifier_links(conn, base_modifier_links)
             upsert_curated_v1_source(conn)
             n_source_links = load_curated_source_links(conn)
-            n_aliases, unresolved = load_aliases(conn, aliases_csv, inline_aliases, loaded_at)
 
         print(f"Loaded {n_tricks} tricks into freestyle_tricks (review_status='curated').")
         cur = conn.execute(
@@ -512,13 +601,6 @@ def load(db_path: Path, tricks_csv: Path, modifiers_csv: Path, aliases_csv: Path
         print(f"Loaded {n_modifiers} modifiers into freestyle_trick_modifiers.")
         print(f"Loaded {n_base_links} curated-base modifier links.")
         print(f"Loaded {n_source_links} source_links to '{CURATED_V1_SOURCE_ID}'.")
-        print(f"Loaded {n_aliases} aliases into freestyle_trick_aliases.")
-
-        if unresolved:
-            print()
-            print(f"WARNING: {len(unresolved)} alias rows reference canonical tricks not in dictionary:")
-            for alias, target in unresolved:
-                print(f"  '{alias}' -> '{target}' (skipped)")
 
         print()
         print("Trick families:")
@@ -558,9 +640,23 @@ def main() -> None:
         default=str(ALIASES_CSV),
         help="Path to trick_aliases.csv source",
     )
+    parser.add_argument(
+        "--stage",
+        choices=("all", "tricks", "aliases"),
+        default="all",
+        help="Which half to run. The rebuild runs 'tricks' first and 'aliases' "
+             "after the expert overlay but before the footbag.org intake, because "
+             "an alias can only attach to a trick that exists and the intake reads "
+             "the alias table to decide what to create. 'all' runs both in order "
+             "and is right for a direct run against a built dictionary.",
+    )
     args = parser.parse_args()
 
-    load(Path(args.db), Path(args.tricks_csv), Path(args.modifiers_csv), Path(args.aliases_csv))
+    if args.stage in ("all", "tricks"):
+        load(Path(args.db), Path(args.tricks_csv), Path(args.modifiers_csv),
+             Path(args.aliases_csv))
+    if args.stage in ("all", "aliases"):
+        load_alias_stage(Path(args.db), Path(args.tricks_csv), Path(args.aliases_csv))
 
 
 if __name__ == "__main__":

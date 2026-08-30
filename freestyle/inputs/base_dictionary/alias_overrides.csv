@@ -29,6 +29,11 @@ pixie_dso,retype,technical,0,abbreviation for pixie_double_switch_over
 plo,retype,technical,0,abbreviation for pixie_legover
 pogo_dlo,retype,technical,0,abbreviation for pogo_double_leg_over
 ps_whirl,retype,technical,0,abbreviation for paradox_symposium_whirl
+ps_mirage,retype,technical,0,abbreviation for paradox_symposium_mirage; the ruled P.S. expansion applied to this compound
+p_s_mirage,retype,technical,0,abbreviation for paradox_symposium_mirage; the ruled P.S. expansion applied to this compound
+ps_eggbeater,retype,technical,0,abbreviation for paradox_symposium_eggbeater; the ruled P.S. expansion applied to this compound
+ps_torque,retype,technical,0,abbreviation for paradox_symposium_torque; the ruled P.S. expansion applied to this compound
+gravedigger,retype,technical,0,spacing variant of grave_digger; the footbag.org nickname for the trick written without its space
 shooting_dlo,retype,technical,0,abbreviation for shooting_double_leg_over
 spyro_pickup,retype,suppressed,0,points to inactive trick pandora
 stepping_dlo,retype,technical,0,abbreviation for haze
@@ -256,7 +261,6 @@ reverse_atw,retype,technical,0,abbreviation of the canonical name
 reverse_atw_kick,retype,technical,0,abbreviation of the canonical name
 reverse_swirl,retype,structural,0,modifier-stack decomposition rather than a nickname
 reverse_swirling_dragon,retype,structural,0,modifier-stack decomposition rather than a nickname
-reverse_whirl,retype,structural,0,modifier-stack decomposition rather than a nickname
 revwhirl,retype,technical,0,spacing or spelling variant of the canonical name
 sail_down,retype,structural,0,modifier-stack decomposition
 sailing_dod,retype,technical,0,abbreviation of the canonical name

@@ -42,29 +42,35 @@ const PROVENANCE_NOTE = 'Read off a record video frame by frame.';
 
 // The dictionary sequence the freestyle rebuild runs, in its order. The
 // adjudication seed is last because its rows reference trick slugs.
-const DICTIONARY_LOADERS = [
-  '16_preflight_trick_ownership.py',
-  '17_load_trick_dictionary.py',
-  '19_load_red_additions.py',
-  '20_link_footbag_org_sources.py',
-  '21_load_footbag_org_pending_tricks.py',
-  '21a_load_alias_additions.py',
-  '21b_apply_alias_overrides.py',
-  '21c_retire_stale_tricks.py',
+// The dictionary loader appears twice: its tricks first, its aliases after the
+// expert overlay has established the rows and names they resolve against, and
+// before the footbag.org intake, which reads the alias table to decide what to
+// create.
+const DICTIONARY_LOADERS: readonly (readonly [string, string[]])[] = [
+  ['16_preflight_trick_ownership.py', []],
+  ['17_load_trick_dictionary.py', ['--stage', 'tricks']],
+  ['19_load_red_additions.py', []],
+  ['17_load_trick_dictionary.py', ['--stage', 'aliases']],
+  ['20_link_footbag_org_sources.py', []],
+  ['21_load_footbag_org_pending_tricks.py', []],
+  ['21a_load_alias_additions.py', []],
+  ['21b_apply_alias_overrides.py', []],
+  ['21c_retire_stale_tricks.py', []],
 ];
-const ADJUDICATION_LOADER = '28_load_ev_adjudications.py';
+const ADJUDICATION_LOADER: readonly [string, string[]] = ['28_load_ev_adjudications.py', []];
 
-function runLoader(name: string) {
-  return spawnSync('python3', [`freestyle/loaders/${name}`, '--db', dbPath], {
+function runLoader([name, args]: readonly [string, string[]]) {
+  return spawnSync('python3', [`freestyle/loaders/${name}`, '--db', dbPath, ...args], {
     encoding: 'utf8',
     ...SPAWN_GUARD,
   });
 }
 
-function runLoaderOrThrow(name: string): void {
-  const r = runLoader(name);
+function runLoaderOrThrow(stage: readonly [string, string[]]): void {
+  const r = runLoader(stage);
   if (r.status !== 0) {
-    throw new Error(`loader ${name} failed (${r.status}): ${r.stderr ?? ''}`);
+    throw new Error(`loader ${stage[0]} ${stage[1].join(' ')} failed (${r.status}): `
+      + `${r.stderr ?? ''}`);
   }
 }
 
@@ -241,7 +247,8 @@ beforeAll(async () => {
   //    The ruling seed is deliberately not part of it. Reseeding rulings is a
   //    separate unrepaired stage, and running it here would mix its losses into
   //    the measurement of the reconciliation this slice built.
-  refreshResults = DICTIONARY_LOADERS.map((name) => [name, runLoader(name)] as const);
+  refreshResults = DICTIONARY_LOADERS.map(
+    (stage) => [`${stage[0]} ${stage[1].join(' ')}`.trim(), runLoader(stage)] as const);
   afterRefresh = snapshot();
 
   // A third and fourth pass, to show the refresh is repeatable rather than
