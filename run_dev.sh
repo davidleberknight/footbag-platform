@@ -5,9 +5,13 @@
 #
 # Usage:
 #   ./run_dev.sh                  # code only — just run dev (no DB work; bootstraps if DB missing)
-#   ./run_dev.sh --reset          # fast reset from committed seeds
-#   ./run_dev.sh --from-csv       # full enrichment rebuild (no mirror, but needs the gitignored operator roster — not committed-data-only) + persona seed; --no-personas to opt out
-#   ./run_dev.sh --soup-to-nuts   # everything on: mirror rebuild + media + personas (--no-* to opt out)
+#   ./run_dev.sh --reset          # DESTRUCTIVE: deletes the DB, rebuilds from committed seeds
+#   ./run_dev.sh --from-csv       # DESTRUCTIVE: deletes the DB, full enrichment rebuild (no mirror, but needs the gitignored operator roster — not committed-data-only) + persona seed; --no-personas to opt out
+#   ./run_dev.sh --soup-to-nuts   # DESTRUCTIVE: deletes the DB, everything on: mirror rebuild + media + personas (--no-* to opt out)
+#
+# To refresh freestyle from committed inputs WITHOUT losing local curator work,
+# run freestyle/run_freestyle.sh instead. It reconciles in place and deletes
+# nothing.
 
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -86,18 +90,29 @@ Local dev launcher.
 Default (no flags): just run the dev stack — code only. No DB rebuild, no
 reseed. If database/footbag.db is missing, bootstrap with --reset first.
 
-DB rebuild modes (mutually exclusive; opt-in only):
-  --reset          Fast reset from committed seeds.
-                   Calls scripts/reset-local-db.sh.
-  --from-csv       Full enrichment rebuild (drops the DB file, reapplies
-                   schema, runs all enrichment phases). Needs no mirror, but
+Refreshing freestyle without losing local work:
+  Every mode below DESTROYS the local database. For the ordinary case — pulling
+  committed freestyle input changes into the database you already have — run
+  freestyle/run_freestyle.sh instead. It reconciles in place, keeps everything a
+  curator wrote, never deletes the database file, and is safe to re-run.
+
+DB rebuild modes (mutually exclusive; opt-in only). DESTRUCTIVE: each deletes
+database/footbag.db and rebuilds it, discarding local database-native curator
+work that no committed file can restore — authored adjudication drafts,
+publication and resolution state, curator-created canonical tricks, and the
+aliases, source links and modifier links attached to them:
+  --reset          DESTRUCTIVE. Deletes the database and rebuilds it from
+                   committed seeds. Quick, but it is a reset and not a refresh:
+                   local curator work is gone. Calls scripts/reset-local-db.sh.
+  --from-csv       DESTRUCTIVE. Full enrichment rebuild (drops the DB file,
+                   reapplies schema, runs all enrichment phases). Needs no mirror, but
                    requires the gitignored operator membership roster — it is
                    NOT a committed-data-only path; the committed-data /
                    hello-world path is --reset. Matches what deploy_to_aws.sh
                    ships locally. Also seeds the canonical persona catalog by
                    default so a fresh DB is usable; opt out with --no-personas.
                    Calls scripts/deploy-local-data.sh --from-csv.
-  --soup-to-nuts   "Everything on": full clean rebuild from the legacy mirror
+  --soup-to-nuts   DESTRUCTIVE. "Everything on": full clean rebuild from the legacy mirror
                    (drops the DB file, regenerates canonical_input CSVs, runs
                    all enrichment phases; wipes modern operator tables —
                    members, votes, ballots, news_items, audit_entries, ...),
@@ -105,7 +120,7 @@ DB rebuild modes (mutually exclusive; opt-in only):
                    per axis with --no-media / --no-personas. Requires
                    the footbag_legacy_mirror repo-root symlink wired.
                    Calls scripts/deploy-local-data.sh --soup-to-nuts.
-  --all-data       The --from-csv build PLUS the legacy member-data intake:
+  --all-data       DESTRUCTIVE. The --from-csv build PLUS the legacy member-data intake:
                    extract the footbag.org dump into the git-ignored intermediate
                    CSV, run the identity reconciliation, and APPLY the member
                    load to the local DB (real member rows and historical-person
