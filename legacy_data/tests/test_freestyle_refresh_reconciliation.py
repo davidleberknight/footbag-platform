@@ -126,6 +126,60 @@ def add_curator_trick(db: Path, slug: str) -> None:
     conn.close()
 
 
+class TestPreflightRefusesADatabaseWithoutTheOwnershipColumn:
+    """A database older than the ownership model is refused, not crashed into.
+
+    Every stage of the refresh reads trick_origin_producer, so one that predates
+    the column cannot be refreshed at all. That is a precondition the preflight
+    knows about, and an operator who hits it needs to be told which column is
+    missing and that a rebuild is what supplies it. Letting SQLite's own message
+    surface instead names the column but nothing else: not the stage that wanted
+    it, not that no migration path exists before go-live, and not what to run.
+    """
+
+    def _database_predating_the_column(self, tmp_path: Path) -> Path:
+        db = tmp_path / "footbag.db"
+        conn = sqlite3.connect(db)
+        conn.executescript(SCHEMA.read_text(encoding="utf-8"))
+        conn.execute(
+            "ALTER TABLE freestyle_tricks DROP COLUMN trick_origin_producer")
+        conn.commit()
+        conn.close()
+        return db
+
+    def test_it_refuses_rather_than_raising(self, tmp_path):
+        result = run(PREFLIGHT, self._database_predating_the_column(tmp_path))
+        assert result.returncode == 1, result.stderr
+        assert "Traceback" not in result.stderr
+        assert "OperationalError" not in result.stderr
+
+    def test_it_names_the_missing_column_and_the_database(self, tmp_path):
+        # The database too, not only the column: this loader takes a --db flag, so
+        # which database is too old is half the answer. SQLite's own message
+        # carries the column name and nothing else, which is why naming the column
+        # alone would be satisfied by the failure this guard exists to replace.
+        db = self._database_predating_the_column(tmp_path)
+        result = run(PREFLIGHT, db)
+        assert "trick_origin_producer" in result.stderr
+        assert str(db) in result.stderr
+
+    def test_it_claims_only_that_ownership_work_did_not_start(self, tmp_path):
+        # This stage runs after the records loaders, so a refusal here cannot say
+        # the refresh changed nothing: derived record rows may already have been
+        # rewritten. What it can say is that ownership reconciliation never began,
+        # which is the part this stage speaks for.
+        result = run(PREFLIGHT, self._database_predating_the_column(tmp_path))
+        assert "Ownership reconciliation was not started" in result.stderr
+        assert "Nothing was changed" not in result.stderr
+
+    def test_it_names_what_to_run(self, tmp_path):
+        # A rebuild, because before go-live that is how a schema change reaches a
+        # database, and then the refresh the operator was trying to run.
+        result = run(PREFLIGHT, self._database_predating_the_column(tmp_path))
+        assert "run_dev.sh --from-csv" in result.stderr
+        assert "run_freestyle.sh" in result.stderr
+
+
 class TestPreflightRefusesWhatItMayNotClaim:
     def test_a_curator_slug_aborts_the_refresh(self, db):
         conn = connect(db)

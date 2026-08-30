@@ -53,6 +53,29 @@ class DesiredMapError(RuntimeError):
     """The committed inputs cannot describe a coherent dictionary."""
 
 
+class OwnershipSchemaError(RuntimeError):
+    """The database has no ownership column, so no stage of a refresh can run."""
+
+
+def assert_ownership_model_present(conn) -> None:
+    """Refuse a database that cannot say who owns a trick row.
+
+    Every function below reads trick_origin_producer, and so does every loader in
+    the refresh. A database predating the column cannot be refreshed at all, and
+    the useful moment to say so is before the first query rather than inside the
+    fourth: SQLite reports which column is missing but not which stage wanted it
+    or what an operator should do next, and a caller that lets that surface raw
+    turns a known precondition into a stack trace.
+    """
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(freestyle_tricks)")}
+    if not columns:
+        raise OwnershipSchemaError(
+            "there is no freestyle_tricks table at all")
+    if "trick_origin_producer" not in columns:
+        raise OwnershipSchemaError(
+            "freestyle_tricks has no trick_origin_producer column")
+
+
 def trick_name_to_slug(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
 
