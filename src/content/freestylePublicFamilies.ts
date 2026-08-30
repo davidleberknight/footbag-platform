@@ -83,6 +83,10 @@ export const PUBLIC_DISPLAY_FAMILIES: readonly PublicDisplayFamily[] = [
   // whirl; inside-stall is the surface identity the guay lineage lands into); the others are derived
   // branches that inherit a root's terminal identity, recorded via the parent field.
   { slug: 'swirl',             label: 'Swirl' },
+  // Reverse Swirl is its own root by curator ruling: the swirl and reverse-swirl
+  // movements are distinct terminal identities and are not grouped under one
+  // umbrella. Placed beside Swirl the way Reverse Whirl sits beside Whirl.
+  { slug: 'rev_swirl',         label: 'Reverse Swirl' },
   { slug: 'inside_stall',      label: 'Inside Stall' },
   { slug: 'torque',            label: 'Torque',          parent: 'osis' },
   { slug: 'blender',           label: 'Blender',         parent: 'osis' },

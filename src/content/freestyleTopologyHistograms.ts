@@ -17,6 +17,30 @@
  * by the service; the bars carry no inline style.
  */
 
+/**
+ * Public browse families the measured snapshot has no row for yet.
+ *
+ * The counts here come from a topology audit that is run periodically, not from
+ * live membership, so a family admitted to the browse between audits has no
+ * measured number. It is named here rather than left out quietly: an omission
+ * anybody can account for is different from one nobody noticed, and the guard on
+ * this file accepts only the first.
+ *
+ * Nothing is drawn for a family in this set. The chart renders the rows it has,
+ * so an unmeasured family is simply absent from it; a zero would read as a
+ * measurement, and there has not been one.
+ *
+ * An entry leaves this set when the audit next runs and gives it a row. That
+ * refresh should re-measure every family at once: the snapshot is already behind
+ * live membership for several of them, and updating one family in isolation would
+ * make the chart less coherent rather than more.
+ */
+export const AWAITING_TOPOLOGY_AUDIT: ReadonlySet<string> = new Set([
+  // Admitted to the browse as a Minor Lineage after the reverse-swirl family
+  // ruling. No recursive-descendant count has been measured for it.
+  'rev_swirl',
+]);
+
 export type TopologyHistogramTier = 'surface' | 'family' | 'system';
 
 export interface TopologyHistogramRow {

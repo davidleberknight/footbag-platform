@@ -95,8 +95,11 @@ describe('FAMILY_DISPLAY_NAMES', () => {
     expect(resolveFamilyDisplayName('nonexistent')).toBeNull();
   });
 
-  it('display-names map remains minimal (only hyphenated slugs need entries)', () => {
-    expect(FAMILY_DISPLAY_NAMES.size).toBe(1);
+  it('display-names map remains minimal (only abbreviated slugs need entries)', () => {
+    // One per family whose slug abbreviates its name, so the default
+    // capitalisation would show the abbreviation to a reader: the two
+    // direction-reversed roots and nothing else.
+    expect([...FAMILY_DISPLAY_NAMES.keys()].sort()).toEqual(['rev_swirl', 'rev_whirl']);
   });
 });
 

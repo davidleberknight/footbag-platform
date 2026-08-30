@@ -224,6 +224,10 @@ export function resolveFamilyDualMemberships(slug: string): readonly string[] {
  */
 export const FAMILY_DISPLAY_NAMES: ReadonlyMap<string, string> = new Map([
   ['rev_whirl', 'Reverse Whirl'],
+  // Without this the family chip and the raw family filter capitalise the slug
+  // and read "Rev swirl". The abbreviation is how the row is keyed, not how the
+  // family is named.
+  ['rev_swirl', 'Reverse Swirl'],
 ]);
 
 /**
