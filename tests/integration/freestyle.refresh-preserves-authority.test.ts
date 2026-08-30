@@ -43,12 +43,14 @@ const PROVENANCE_NOTE = 'Read off a record video frame by frame.';
 // The dictionary sequence the freestyle rebuild runs, in its order. The
 // adjudication seed is last because its rows reference trick slugs.
 const DICTIONARY_LOADERS = [
+  '16_preflight_trick_ownership.py',
   '17_load_trick_dictionary.py',
   '19_load_red_additions.py',
   '20_link_footbag_org_sources.py',
   '21_load_footbag_org_pending_tricks.py',
   '21a_load_alias_additions.py',
   '21b_apply_alias_overrides.py',
+  '21c_retire_stale_tricks.py',
 ];
 const ADJUDICATION_LOADER = '28_load_ev_adjudications.py';
 
@@ -100,11 +102,10 @@ let draftCandidateId = '';
 let nativeSlug = '';
 
 let pre: Snapshot;
-let afterRefreshAttempt: Snapshot;
-let refreshAttempt: ReturnType<typeof runLoader>;
-let secondRefreshAttempt: ReturnType<typeof runLoader>;
+let refreshResults: readonly (readonly [string, ReturnType<typeof runLoader>])[];
+let afterRefresh: Snapshot;
+let afterRepeatedRefresh: Snapshot;
 let afterAdjudicationReseed: Snapshot;
-let afterUnobstructedDictionaryLoad: Snapshot;
 
 function open(): BetterSqlite3.Database {
   const conn = new BetterSqlite3(dbPath);
@@ -133,7 +134,8 @@ function snapshot(): Snapshot {
       nativeTrick: conn.prepare(
         `SELECT slug, canonical_name, adds, base_trick, trick_family, category,
                 operational_notation, operational_notation_source,
-                notation_evidence_basis, notation_derivation_method, review_status, is_active
+                notation_evidence_basis, notation_derivation_method, review_status, is_active,
+                trick_origin_producer
            FROM freestyle_tricks WHERE slug = ?`,
       ).get(nativeSlug) as Record<string, unknown> | undefined,
       nativeAliasCount: count(
@@ -234,34 +236,26 @@ beforeAll(async () => {
 
   pre = snapshot();
 
-  // 6. The ordinary refresh, against that same database.
-  refreshAttempt = runLoader(DICTIONARY_LOADERS[0]!);
-  afterRefreshAttempt = snapshot();
+  // 6. The ordinary refresh, against that same database: the whole committed
+  //    sequence, preflight through retirement, exactly as the rebuild runs it.
+  //    The ruling seed is deliberately not part of it. Reseeding rulings is a
+  //    separate unrepaired stage, and running it here would mix its losses into
+  //    the measurement of the reconciliation this slice built.
+  refreshResults = DICTIONARY_LOADERS.map((name) => [name, runLoader(name)] as const);
+  afterRefresh = snapshot();
 
-  // What the abort is hiding. The adjudication loader is unmodified and runs
-  // exactly as the rebuild runs it; it touches no trick row, so nothing here
-  // relaxes a constraint to let it through.
+  // A third and fourth pass, to show the refresh is repeatable rather than
+  // merely surviving once.
+  DICTIONARY_LOADERS.forEach(runLoaderOrThrow);
+  DICTIONARY_LOADERS.forEach(runLoaderOrThrow);
+  afterRepeatedRefresh = snapshot();
+
+  // The stage this slice deliberately left alone. The ruling seed still clears
+  // and reseeds from the committed ledger, so it still discards what a curator
+  // wrote. Measured last, and on its own, so the boundary between what is fixed
+  // and what is not stays legible.
   runLoaderOrThrow(ADJUDICATION_LOADER);
   afterAdjudicationReseed = snapshot();
-
-  // Reseeding does not clear the obstruction; it restores it. The ledger's own
-  // rows link to committed trick slugs, so the refresh aborts again on the very
-  // next attempt. Today the funnel's trick is therefore never actually deleted:
-  // the constraint stops the run before the delete lands, and that accident is
-  // the only thing protecting it.
-  secondRefreshAttempt = runLoader(DICTIONARY_LOADERS[0]!);
-
-  // Which is why the loss needs demonstrating deliberately. Emptying the ruling
-  // table models the first repair anyone reaches for, clearing the dependants so
-  // the reload can proceed. Nothing here disables a constraint: the delete is a
-  // plain write that foreign keys permit, and it is exactly what a naive repair
-  // would do. What follows is the cost of that choice.
-  const naive = open();
-  naive.prepare('DELETE FROM freestyle_ev_adjudications').run();
-  naive.close();
-
-  runLoaderOrThrow(DICTIONARY_LOADERS[0]!);
-  afterUnobstructedDictionaryLoad = snapshot();
 
   db = open();
 });
@@ -314,82 +308,94 @@ describe('the state a curator reaches through the funnel', () => {
   });
 });
 
-describe('what an ordinary refresh does today', () => {
-  it('aborts, and names the trick table it could not clear', () => {
-    expect(refreshAttempt.status).not.toBe(0);
-    // Pinned to the actual cause. An unrelated crash must not satisfy this.
-    expect(refreshAttempt.stderr).toContain('FOREIGN KEY constraint failed');
-    expect(refreshAttempt.stderr).toContain('DELETE FROM freestyle_tricks');
+describe('an ordinary refresh completes', () => {
+  it('runs every stage of the committed sequence without aborting', () => {
+    const failed = refreshResults
+      .filter(([, r]) => r.status !== 0)
+      .map(([name, r]) => `${name}: ${r.stderr?.trim() ?? ''}`);
+    expect(failed).toEqual([]);
   });
 
-  it('leaves every row where it was, because it never got past the delete', () => {
-    expect(afterRefreshAttempt.trickCount).toBe(pre.trickCount);
-    expect(afterRefreshAttempt.nativeTrick).toEqual(pre.nativeTrick);
-    expect(afterRefreshAttempt.published).toEqual(pre.published);
-    expect(afterRefreshAttempt.draft).toEqual(pre.draft);
+  it('never clears the trick table on the way through', () => {
+    // The specific failure this replaced. Its absence is the repair, so it is
+    // asserted rather than left to be inferred from the run succeeding.
+    const combined = refreshResults.map(([, r]) => `${r.stdout ?? ''}${r.stderr ?? ''}`).join('');
+    expect(combined).not.toContain('FOREIGN KEY constraint failed');
+    expect(combined).not.toContain('DELETE FROM freestyle_tricks');
+  });
+
+  it('keeps foreign keys enabled throughout', () => {
+    expect(afterRefresh.foreignKeysOn).toBe(true);
+    expect(afterRepeatedRefresh.foreignKeysOn).toBe(true);
+  });
+
+  it('is repeatable, not merely survivable once', () => {
+    expect(afterRepeatedRefresh.trickCount).toBe(afterRefresh.trickCount);
+    expect(afterRepeatedRefresh.nativeTrick).toEqual(afterRefresh.nativeTrick);
+    expect(afterRepeatedRefresh.published).toEqual(afterRefresh.published);
+    expect(afterRepeatedRefresh.draft).toEqual(afterRefresh.draft);
+  });
+
+  it('still reaches the committed dictionary content it should', () => {
+    expect(afterRefresh.trickCount).toBe(pre.trickCount);
+    expect(afterRefresh.adjudicationCount).toBe(pre.adjudicationCount);
   });
 });
 
-describe('what the abort is hiding', () => {
-  it('loses authored notation and its provenance when the rulings are reseeded', () => {
-    expect(afterAdjudicationReseed.draft).toBeDefined();
-    expect(afterAdjudicationReseed.draft!.authored_notation).toBeNull();
-    expect(afterAdjudicationReseed.draft!.notation_evidence_basis).toBeNull();
-    expect(afterAdjudicationReseed.draft!.notation_derivation_method).toBeNull();
-    expect(afterAdjudicationReseed.draft!.notation_provenance_note).toBeNull();
-    expect(afterAdjudicationReseed.draft!.notation_authored_by).toBeNull();
-    expect(afterAdjudicationReseed.draft!.notation_authored_at).toBeNull();
+describe('what the refresh no longer destroys', () => {
+  it('leaves an authored but unpublished ruling exactly as the curator left it', () => {
+    expect(afterRefresh.draft).toEqual(pre.draft);
+    expect(afterRefresh.draft!.authored_notation).toBe(NOTATION);
+    expect(afterRefresh.draft!.notation_evidence_basis).toBe('footage');
+    expect(afterRefresh.draft!.notation_derivation_method).toBe('reconstruction');
+    expect(afterRefresh.draft!.notation_provenance_note).toBe(PROVENANCE_NOTE);
+    expect(afterRefresh.draft!.notation_authored_by).toBe(ADMIN_ID);
+    expect(afterRefresh.draft!.notation_authored_at).toBe(pre.draft!.notation_authored_at);
   });
 
-  it('loses the publication link and the resolution it recorded', () => {
+  it('leaves a resolved ruling and the trick it points at', () => {
+    expect(afterRefresh.published).toEqual(pre.published);
+    expect(afterRefresh.published!.published_trick_slug).toBe(nativeSlug);
+    expect(afterRefresh.published!.ev_state).toBe('canonical');
+    expect(afterRefresh.published!.final_disposition).toBe('A');
+  });
+
+  it('leaves the curator-created trick, which no committed input carries', () => {
+    expect(afterRefresh.nativeTrick).toEqual(pre.nativeTrick);
+    expect(afterRefresh.nativeTrick!.trick_origin_producer).toBe('curator-publication');
+  });
+
+  it('leaves that trick its notation provenance', () => {
+    expect(afterRefresh.nativeTrick!.operational_notation).toBe(NOTATION);
+    expect(afterRefresh.nativeTrick!.notation_evidence_basis).toBe('footage');
+    expect(afterRefresh.nativeTrick!.notation_derivation_method).toBe('reconstruction');
+  });
+
+  it('leaves its aliases and modifier links attached', () => {
+    expect(afterRefresh.nativeAliasCount).toBe(pre.nativeAliasCount);
+    expect(afterRefresh.nativeModifierLinkCount).toBe(pre.nativeModifierLinkCount);
+  });
+});
+
+describe('the stage this slice deliberately did not repair', () => {
+  // The boundary, stated as a test so it cannot blur. Trick reconciliation is
+  // fixed; reseeding rulings from the committed ledger is not, and it still
+  // discards what a curator wrote. Nothing above runs it, so the repair measured
+  // there is the reconciliation's alone.
+  it('still discards authored notation when the rulings are reseeded', () => {
+    expect(afterAdjudicationReseed.draft!.authored_notation).toBeNull();
+    expect(afterAdjudicationReseed.draft!.notation_evidence_basis).toBeNull();
+    expect(afterAdjudicationReseed.draft!.notation_authored_by).toBeNull();
+  });
+
+  it('still discards the publication link the funnel recorded', () => {
     expect(afterAdjudicationReseed.published!.published_trick_slug).toBeNull();
-    expect(afterAdjudicationReseed.published!.ev_state).not.toBe('canonical');
-    expect(afterAdjudicationReseed.published!.final_disposition).toBe('C');
     expect(afterAdjudicationReseed.published!.version).toBe(1);
   });
 
-  it('still aborts on the next attempt, because the reseed restores the links', () => {
-    // The obstruction is not cleared by reseeding, it is recreated: the ledger's
-    // own rows point at committed trick slugs. So the refresh cannot be fixed by
-    // running it twice, and the funnel's trick is never actually deleted today.
-    expect(secondRefreshAttempt.status).not.toBe(0);
-    expect(secondRefreshAttempt.stderr).toContain('FOREIGN KEY constraint failed');
-  });
-
-  it('deletes the funnel-created trick once the rulings are cleared out of the way', () => {
-    // The hazard behind the crash. Clearing the dependants is the obvious way to
-    // make the reload proceed, and it takes the funnel's trick with it: the row
-    // is in no committed input, so the reload has nothing to recreate it from.
-    expect(afterUnobstructedDictionaryLoad.nativeTrick).toBeUndefined();
-    expect(afterUnobstructedDictionaryLoad.nativeAliasCount).toBe(0);
-    expect(afterUnobstructedDictionaryLoad.nativeModifierLinkCount).toBe(0);
-  });
-
-  it('keeps foreign keys enabled while losing all of it', () => {
-    // Nothing here relaxed a constraint. The losses come from loaders behaving
-    // exactly as written, which is why a constraint cannot be the whole defence.
-    expect(afterAdjudicationReseed.foreignKeysOn).toBe(true);
-    expect(afterUnobstructedDictionaryLoad.foreignKeysOn).toBe(true);
-  });
-});
-
-describe('what a repaired refresh will have to hold', () => {
-  // These are the acceptance conditions for the repair, stated once, here, so
-  // the slice that changes loader behaviour is measured against them rather
-  // than against its own new tests. They read the recorded snapshots, so they
-  // describe the contract without asserting today's broken outcome twice.
-  it('names the three losses a refresh must never cause', () => {
-    const losses = {
-      authoredNotation: afterAdjudicationReseed.draft!.authored_notation === null,
-      publicationLink:  afterAdjudicationReseed.published!.published_trick_slug === null,
-      nativeTrick:      afterUnobstructedDictionaryLoad.nativeTrick === undefined,
-    };
-    // Every one of these is true today. A repair flips all three to false, and
-    // this test is what fails if it flips only some of them.
-    expect(losses).toEqual({
-      authoredNotation: true,
-      publicationLink:  true,
-      nativeTrick:      true,
-    });
+  it('leaves the curator-created trick alone even so', () => {
+    // The ruling seed touches no trick row, so the trick outlives the loss of the
+    // ruling that pointed at it. What breaks is the link between them.
+    expect(afterAdjudicationReseed.nativeTrick).toEqual(pre.nativeTrick);
   });
 });

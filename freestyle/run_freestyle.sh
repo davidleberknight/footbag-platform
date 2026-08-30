@@ -35,6 +35,10 @@ echo "→ Rebuilding freestyle tables into ${DB}"
 "${PY}" "${L}/11_load_consecutive_records_to_sqlite.py" --db "${DB}"
 
 # Trick dictionary: curated-v1 base, then Red overlays, then footbag.org provenance + pending
+# Preflight before any trick row is written: settle who owns what, refuse a slug
+# a curator holds or nobody has classified, and move a row between committed
+# producers where an input has handed it over.
+"${PY}" "${L}/16_preflight_trick_ownership.py"      --db "${DB}"
 "${PY}" "${L}/17_load_trick_dictionary.py"          --db "${DB}"
 "${PY}" "${L}/19_load_red_additions.py"             --db "${DB}"
 "${PY}" "${L}/20_link_footbag_org_sources.py"       --db "${DB}"
@@ -44,6 +48,11 @@ echo "→ Rebuilding freestyle tables into ${DB}"
 # alias-type / display overrides, both after every alias source loader.
 "${PY}" "${L}/21a_load_alias_additions.py"          --db "${DB}"
 "${PY}" "${L}/21b_apply_alias_overrides.py"         --db "${DB}"
+
+# Retirement last: a trick is stale only when no committed input wants it, which
+# cannot be known until every producer has written. Curator tricks and
+# unclassified rows are never in reach.
+"${PY}" "${L}/21c_retire_stale_tricks.py"           --db "${DB}"
 
 # Emerging Vocabulary rulings: the adjudication record for observational names,
 # seeded from the committed ruling ledger. Runs after every dictionary loader

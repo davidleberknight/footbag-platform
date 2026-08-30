@@ -165,7 +165,15 @@ def load_tricks(conn: sqlite3.Connection, tricks_csv: Path, loaded_at: str) -> t
                 "updated_at": loaded_at,
             })
 
-    conn.execute("DELETE FROM freestyle_tricks")
+    # Upsert, never clear-and-repopulate. Clearing the table would take every row
+    # this loader did not create with it: the rows the other committed producers
+    # own, and the tricks curators create through the publication funnel, which no
+    # committed file carries and nothing could restore. Rows this input no longer
+    # asks for are retired later, by the step that can see what every producer
+    # wants; from here a row is only written, never removed.
+    #
+    # The conflict path deliberately omits trick_origin_producer: ownership is
+    # settled in preflight, and a content write never moves it.
     conn.executemany(
         """
         INSERT INTO freestyle_tricks
@@ -180,6 +188,22 @@ def load_tricks(conn: sqlite3.Connection, tricks_csv: Path, loaded_at: str) -> t
            :operational_notation_source,
            :review_status, :is_core, :is_active,
            :sort_order, :loaded_at, :updated_at, :trick_origin_producer)
+        ON CONFLICT(slug) DO UPDATE SET
+          canonical_name=excluded.canonical_name,
+          adds=excluded.adds,
+          base_trick=excluded.base_trick,
+          trick_family=excluded.trick_family,
+          category=excluded.category,
+          description=excluded.description,
+          aliases_json=excluded.aliases_json,
+          notation=excluded.notation,
+          operational_notation=excluded.operational_notation,
+          operational_notation_source=excluded.operational_notation_source,
+          review_status=excluded.review_status,
+          is_core=excluded.is_core,
+          is_active=excluded.is_active,
+          sort_order=excluded.sort_order,
+          updated_at=excluded.updated_at
         """,
         [{**r, "trick_origin_producer": BASE_DICTIONARY} for r in rows],
     )
@@ -226,16 +250,41 @@ def load_modifiers(conn: sqlite3.Connection, modifiers_csv: Path, loaded_at: str
                 "loaded_at": loaded_at,
             })
 
-    conn.execute("DELETE FROM freestyle_trick_modifiers")
+    # Upsert, then drop only what this input has stopped carrying and nothing
+    # links to. Clearing the registry outright worked while every modifier link
+    # in the database was deleted moments earlier; now that links belonging to
+    # other producers and to published tricks survive a refresh, emptying the
+    # table underneath them fails on the constraint, and it should: a modifier a
+    # trick still uses is not stale just because a file no longer lists it.
     conn.executemany(
         """
         INSERT INTO freestyle_trick_modifiers
           (slug, modifier_name, add_bonus, add_bonus_rotational, modifier_type, notes, loaded_at)
         VALUES
           (:slug, :modifier_name, :add_bonus, :add_bonus_rotational, :modifier_type, :notes, :loaded_at)
+        ON CONFLICT(slug) DO UPDATE SET
+          modifier_name=excluded.modifier_name,
+          add_bonus=excluded.add_bonus,
+          add_bonus_rotational=excluded.add_bonus_rotational,
+          modifier_type=excluded.modifier_type,
+          notes=excluded.notes,
+          loaded_at=excluded.loaded_at
         """,
         rows,
     )
+    keep = {r["slug"] for r in rows}
+    for (slug,) in conn.execute("SELECT slug FROM freestyle_trick_modifiers").fetchall():
+        if slug in keep:
+            continue
+        linked = conn.execute(
+            "SELECT COUNT(*) FROM freestyle_trick_modifier_links WHERE modifier_slug = ?",
+            (slug,),
+        ).fetchone()[0]
+        if linked:
+            print(f"  keeping modifier '{slug}': absent from the input but still used "
+                  f"by {linked} trick link(s)")
+            continue
+        conn.execute("DELETE FROM freestyle_trick_modifiers WHERE slug = ?", (slug,))
     return len(rows)
 
 
@@ -268,7 +317,15 @@ def load_curated_source_links(conn: sqlite3.Connection) -> int:
         "DELETE FROM freestyle_trick_source_links WHERE source_id = ?",
         (CURATED_V1_SOURCE_ID,),
     )
-    rows = list(conn.execute("SELECT slug FROM freestyle_tricks").fetchall())
+    # Scoped to the rows this loader owns. The query read every trick in the
+    # table, which was the same set while the table had just been emptied and
+    # refilled from this one input. It is not the same set any more: unscoped, a
+    # refresh would claim the whole dictionary as curated-v1 sourced, including
+    # rows from the other producers and tricks a curator published.
+    rows = list(conn.execute(
+        "SELECT slug FROM freestyle_tricks WHERE trick_origin_producer = ?",
+        (BASE_DICTIONARY,),
+    ).fetchall())
     conn.executemany(
         """
         INSERT INTO freestyle_trick_source_links
@@ -386,15 +443,37 @@ def load(db_path: Path, tricks_csv: Path, modifiers_csv: Path, aliases_csv: Path
     conn.execute("PRAGMA foreign_keys = ON")
     try:
         with conn:
-            # Children-first DELETE ordering. load_tricks() and load_modifiers()
-            # do wholesale DELETE FROM their parent tables; the FK-dependent
-            # tables below have no ON DELETE CASCADE, so they must be cleared
-            # before the parents to avoid IntegrityError on a populated DB.
-            # Pattern matches 21_load_footbag_org_pending_tricks.py:159–178.
-            conn.execute("DELETE FROM freestyle_trick_relations")
-            conn.execute("DELETE FROM freestyle_trick_modifier_links")
-            conn.execute("DELETE FROM freestyle_trick_source_links")
-            conn.execute("DELETE FROM freestyle_trick_aliases")
+            # Attachments on the rows this loader owns, cleared so it can rewrite
+            # them. These four clears were once wholesale, because load_tricks()
+            # emptied the parent table and a child row with no cascade would have
+            # blocked it. The parent is upserted now, so the reason is gone and
+            # the reach was never wanted: it took the aliases, sources, modifier
+            # links and relations belonging to the other committed producers and
+            # to every trick a curator published, none of which this loader can
+            # put back.
+            #
+            # Scoped by the ownership stamp rather than by source id, because a
+            # row's attachments are its own whoever recorded them; the two clears
+            # further down stay scoped by source id, which is the right scope for
+            # rows this loader does not own.
+            owned = "SELECT slug FROM freestyle_tricks WHERE trick_origin_producer = ?"
+            conn.execute(
+                f"DELETE FROM freestyle_trick_relations"
+                f" WHERE from_trick_slug IN ({owned}) OR to_trick_slug IN ({owned})",
+                (BASE_DICTIONARY, BASE_DICTIONARY),
+            )
+            conn.execute(
+                f"DELETE FROM freestyle_trick_modifier_links WHERE trick_slug IN ({owned})",
+                (BASE_DICTIONARY,),
+            )
+            conn.execute(
+                f"DELETE FROM freestyle_trick_source_links WHERE trick_slug IN ({owned})",
+                (BASE_DICTIONARY,),
+            )
+            conn.execute(
+                f"DELETE FROM freestyle_trick_aliases WHERE trick_slug IN ({owned})",
+                (BASE_DICTIONARY,),
+            )
 
             n_tricks, inline_aliases, base_modifier_links = load_tricks(conn, tricks_csv, loaded_at)
             n_modifiers = load_modifiers(conn, modifiers_csv, loaded_at)

@@ -108,15 +108,27 @@ def build_resolver(conn: sqlite3.Connection) -> dict[str, str]:
     """Map normalized name forms (lowercase + slug) to existing trick slugs."""
     resolver: dict[str, str] = {}
 
+    # This loader's own prior output is excluded. It inserts the names nothing
+    # already curated accounts for, so it must look at the dictionary as if it had
+    # not run: a row it created last time would otherwise resolve to itself and
+    # the name would drop out of the intake. Earlier this was achieved by deleting
+    # those rows first, which took their references with them; the ownership stamp
+    # gives the same view without removing anything.
     for slug, canonical_name in conn.execute(
         "SELECT slug, canonical_name FROM freestyle_tricks"
+        " WHERE trick_origin_producer IS NOT ? OR trick_origin_producer IS NULL",
+        (FOOTBAG_ORG_PENDING,),
     ):
         resolver.setdefault(canonical_name.strip().lower(), slug)
         resolver.setdefault(name_to_slug(canonical_name), slug)
         resolver.setdefault(slug, slug)
 
     for alias_slug, alias_text, trick_slug in conn.execute(
-        "SELECT alias_slug, alias_text, trick_slug FROM freestyle_trick_aliases"
+        "SELECT a.alias_slug, a.alias_text, a.trick_slug"
+        "  FROM freestyle_trick_aliases a"
+        "  JOIN freestyle_tricks t ON t.slug = a.trick_slug"
+        " WHERE t.trick_origin_producer IS NOT ? OR t.trick_origin_producer IS NULL",
+        (FOOTBAG_ORG_PENDING,),
     ):
         resolver.setdefault(alias_text.strip().lower(), trick_slug)
         resolver.setdefault(alias_slug, trick_slug)
@@ -144,17 +156,22 @@ def resolve_to_existing(row: dict, resolver: dict[str, str]) -> str | None:
 
 
 # ---------------------------------------------------------------------------
-# Idempotency: clear prior pending-from-footbag rows
+# Idempotency: refresh the attachments on this loader's own rows
 # ---------------------------------------------------------------------------
 
 def clear_prior_pending_from_footbag(conn: sqlite3.Connection) -> int:
-    """Delete pending rows that came from a previous run of this script.
+    """Clear the attachments on rows this loader owns, so it can rewrite them.
 
-    Identified via review_status='pending' AND sort_order >= PENDING_SORT_BASE.
-    PENDING_SORT_BASE (10_000) is reserved exclusively for this loader's
-    inserts; curated/red rows live at 0-99. This identifier is robust even if
-    a prior run failed before writing source_links (any pending row in the
-    reserved sort_order range is owned by this script).
+    The trick rows themselves stay. Deleting and re-inserting them took every
+    reference with them, which is how a second refresh came to fail outright once
+    rulings began pointing at these rows: the trick row is an identity other
+    records name, not a scratch buffer. Rows this loader owns and the intake no
+    longer produces are retired by the retirement step, which can see what every
+    producer wants; they are not removed from here.
+
+    Ownership is read from the stamp rather than from the reserved sort_order
+    range the earlier version keyed on. The range was a stand-in for exactly this
+    question and stopped being needed once the row could answer it directly.
 
     Existing pending rows from other sources (curated-v1, red-husted) live
     at lower sort_order values and are preserved.
@@ -162,12 +179,8 @@ def clear_prior_pending_from_footbag(conn: sqlite3.Connection) -> int:
     FK-safe order: aliases -> modifier_links -> relations -> source_links -> tricks.
     """
     rows = conn.execute(
-        """
-        SELECT slug
-        FROM freestyle_tricks
-        WHERE review_status = 'pending' AND sort_order >= ?
-        """,
-        (PENDING_SORT_BASE,),
+        "SELECT slug FROM freestyle_tricks WHERE trick_origin_producer = ?",
+        (FOOTBAG_ORG_PENDING,),
     ).fetchall()
     doomed = [r[0] for r in rows]
     if not doomed:
@@ -191,10 +204,6 @@ def clear_prior_pending_from_footbag(conn: sqlite3.Connection) -> int:
     )
     conn.execute(
         f"DELETE FROM freestyle_trick_source_links WHERE trick_slug IN ({qmarks})",
-        doomed,
-    )
-    conn.execute(
-        f"DELETE FROM freestyle_tricks WHERE slug IN ({qmarks})",
         doomed,
     )
     return len(doomed)
@@ -312,6 +321,22 @@ def insert_pending_tricks(conn: sqlite3.Connection, rows: list[dict]) -> int:
           (:slug, :canonical_name, :adds, :base_trick, :trick_family, :category,
            :description, :aliases_json, :notation, :review_status, :is_core, :is_active,
            :sort_order, :loaded_at, :updated_at, :trick_origin_producer)
+        -- Upsert, because its own rows are no longer cleared first. The conflict
+        -- path omits trick_origin_producer: ownership is settled in preflight and
+        -- a content write never moves it.
+        ON CONFLICT(slug) DO UPDATE SET
+          canonical_name=excluded.canonical_name,
+          adds=excluded.adds,
+          base_trick=excluded.base_trick,
+          trick_family=excluded.trick_family,
+          category=excluded.category,
+          description=excluded.description,
+          aliases_json=excluded.aliases_json,
+          notation=excluded.notation,
+          review_status=excluded.review_status,
+          is_active=excluded.is_active,
+          sort_order=excluded.sort_order,
+          updated_at=excluded.updated_at
         """,
         [{**r, "trick_origin_producer": FOOTBAG_ORG_PENDING} for r in rows],
     )
