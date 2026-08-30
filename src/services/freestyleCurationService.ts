@@ -1655,6 +1655,129 @@ export const freestyleCurationService = {
     return slug;
   },
 
+  // Record that a ruling became a trick that already exists.
+  //
+  // Ten names were promoted through the committed-file pipeline before the funnel
+  // existed. That route could not touch the ruling record, so each still reads as
+  // an open decision while the trick it produced has been live for weeks. Nothing
+  // is visibly wrong; the record is simply missing the link that says which trick
+  // each name became.
+  //
+  // This writes only the ruling's side of that relationship. It creates no trick,
+  // changes no trick, and moves no ownership: the ten belong to the committed
+  // inputs and stay there, which is why this cannot go through the publication
+  // path, and why routing it there would be wrong even if that path allowed it.
+  // Publication creates something; this records something that already happened.
+  //
+  // The caller supplies both the ruling and the slug. Nothing is inferred from a
+  // name here: a reconciliation that guessed which trick a ruling meant would be
+  // making the decision it is supposed to be recording.
+  //
+  // Returns 'reconciled' when it wrote, or 'already' when the ruling already says
+  // exactly this, which makes a second run a no-op rather than a second version
+  // bump and a second audit row.
+  reconcileHistoricalPublication(
+    candidateId: string,
+    slug: string,
+    actorMemberId: string,
+  ): 'reconciled' | 'already' {
+    assertActorMayCurateFreestyle(actorMemberId);
+
+    const ruling = freestyleEvAdjudications.getForAuthoring.get(candidateId) as
+      AuthoringDbRow | undefined;
+    if (!ruling) throw new NotFoundError(`No adjudication "${candidateId}"`);
+
+    const trick = freestyleTricks.getForCurationBySlug.get(slug) as
+      { slug: string; canonical_name: string } | undefined;
+    if (!trick) {
+      throw new ValidationError(
+        `"${slug}" is not a trick in the dictionary, so there is nothing to record `
+        + 'this ruling against.',
+        { fieldErrors: { slug: 'No such trick.' } },
+      );
+    }
+
+    // The ruling and the trick must be the same name. Comparing the ledger's own
+    // key against the trick's canonical name folded the same way is what makes
+    // this a record of an identity rather than an assertion of one.
+    if (adjudicationNameKey(trick.canonical_name) !== ruling.normalized_name) {
+      throw new ValidationError(
+        `"${candidateId}" is the ruling for "${ruling.submitted_name}", which is not `
+        + `the same name as "${trick.canonical_name}". Reconciliation records an `
+        + 'identity that already holds; it does not decide one.',
+        { fieldErrors: { slug: 'The ruling and the trick are different names.' } },
+      );
+    }
+
+    if (ruling.published_trick_slug !== null && ruling.published_trick_slug !== slug) {
+      throw new ValidationError(
+        `The ruling for "${ruling.submitted_name}" is already recorded against `
+        + `"${ruling.published_trick_slug}", so recording it against "${slug}" would `
+        + 'make two records disagree about which trick this name is.',
+        { fieldErrors: { slug: 'This ruling already names a different trick.' } },
+      );
+    }
+
+    // Already exactly what this would write. Not an error and not a second write:
+    // the point of the operation is the end state, and it is already there.
+    if (ruling.published_trick_slug === slug
+        && ruling.ev_state === 'canonical'
+        && ruling.final_disposition === 'A'
+        && ruling.match_type === 'promoted-canonical') {
+      return 'already';
+    }
+
+    // A ruling that is not still open cannot become canonical by this route. Its
+    // disposition has already been settled some other way, and overwriting that
+    // is a decision rather than a reconciliation.
+    if (ruling.final_disposition !== 'C') {
+      throw new ValidationError(
+        `The ruling for "${ruling.submitted_name}" reads disposition `
+        + `"${ruling.final_disposition}", not the open "C" this repair expects, so it `
+        + 'has already been resolved some other way.',
+        { fieldErrors: { candidateId: 'This ruling is no longer open.' } },
+      );
+    }
+
+    const before = {
+      evState:         ruling.ev_state,
+      finalDisposition: ruling.final_disposition,
+      matchType:       ruling.match_type,
+      publishedTrickSlug: ruling.published_trick_slug,
+    };
+
+    transaction(() => {
+      // The same statement a publication uses, so a reconciled ruling reads
+      // exactly like one resolved the ordinary way. It touches the ruling alone.
+      freestyleEvAdjudications.resolveOnPublication.run(slug, slug, actorMemberId, candidateId);
+
+      appendAuditEntry({
+        actionType:    'freestyle.adjudication.reconciled',
+        category:      'content',
+        actorType:     'admin',
+        actorMemberId,
+        entityType:    'freestyle_ev_adjudication',
+        entityId:      candidateId,
+        metadata:      {
+          candidateId,
+          submittedName: ruling.submitted_name,
+          canonicalSlug: slug,
+          // The trick was not created or changed here; it predates this record.
+          trickPreexisting: true,
+          before,
+          after: {
+            evState: 'canonical',
+            finalDisposition: 'A',
+            matchType: 'promoted-canonical',
+            publishedTrickSlug: slug,
+          },
+        },
+      });
+    });
+
+    return 'reconciled';
+  },
+
   // The authored drafts: a movement written, no canonical trick yet. The backlog
   // drops a ruling the moment its notation is saved, so without this view the
   // work would be invisible the next morning.

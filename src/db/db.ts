@@ -2632,6 +2632,13 @@ export const freestyleTricks = {
     ORDER BY sort_order ASC
   `); },
 
+  // Who owns one trick row, without the rest of the curation shape. A one-time
+  // repair reads it to confirm a target is still the committed-input row it was
+  // diagnosed against before writing anything anywhere.
+  get originProducerBySlug() { return db.prepare(`
+    SELECT trick_origin_producer FROM freestyle_tricks WHERE slug = ?
+  `); },
+
   // How many active tricks already carry a family name. A publication form uses
   // it to refuse a family override that names a family nothing belongs to, which
   // is how a typo would otherwise create a one-member family nobody meant.
