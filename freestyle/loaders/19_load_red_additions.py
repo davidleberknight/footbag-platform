@@ -49,6 +49,7 @@ REPO_ROOT = SCRIPT_DIR.parents[1]
 import sys as _sys  # noqa: E402
 _sys.path.insert(0, str(REPO_ROOT / "scripts"))
 from _freestyle_ownership import EXPERT_ADDITIONS  # noqa: E402
+from _freestyle_aliases import assert_no_duplicate_alias_slugs  # noqa: E402
 
 ADDITIONS_CSV = SCRIPT_DIR.parents[0] / "inputs" / "curated" / "tricks" / "red_additions_2026_04_20.csv"
 CORRECTIONS_CSV = SCRIPT_DIR.parents[0] / "inputs" / "curated" / "tricks" / "red_corrections_2026_04_20.csv"
@@ -231,6 +232,15 @@ def load_additions(conn: sqlite3.Connection, additions_csv: Path, loaded_at: str
     conn.execute(
         "DELETE FROM freestyle_trick_aliases WHERE source_id = ?",
         (RED_SOURCE_ID,),
+    )
+    # This input is checked before anything is written. The dedupe below drops a
+    # slug another source already holds, which also hid this file asking for the
+    # same slug twice: whichever spelling the other source happened to carry
+    # decided it, and neither was chosen. Two spellings that fold together are
+    # one row, and which one it is belongs to a curator.
+    assert_no_duplicate_alias_slugs(
+        [(r["alias_text"], r["trick_slug"]) for r in alias_rows],
+        "the expert additions' inline aliases",
     )
     # Dedupe: alias_slug is PK; if a curated alias already exists under that key,
     # we leave the curated row alone (Red's alias_text shouldn't conflict).

@@ -3,13 +3,11 @@ bw,blurry whirl
 blurry w,blurry whirl
 blury whirl,blurry whirl
 pdx torque,paradox torque
-p torque,paradox torque
 p. torque,paradox torque
 paradox t,paradox torque
 pdx blender,paradox blender
 p. blender,paradox blender
 pdx whirl,paradox whirl
-p-whirl,paradox whirl
 p. whirl,paradox whirl
 pdx drifter,paradox drifter
 p. drifter,paradox drifter
@@ -30,7 +28,6 @@ atom-smasher,atom smasher
 bar fly,barfly
 super fly,superfly
 dim walk,dimwalk
-park walk,parkwalk
 park-walk,parkwalk
 foot processor,food processor
 egg beater,eggbeater
@@ -50,7 +47,6 @@ ducking paradox whirl,tomahawk
 symposium barfly,superfly
 blurry blender,food processor
 catwalk,eclipse
-leg over,legover
 leg-over,legover
 leg beater,atomic butterfly
 legbeater,atomic butterfly
@@ -64,8 +60,6 @@ blur,blur
 drifter,drifter
 reverse whirl,rev whirl
 revwhirl,rev whirl
-bs whirl,blurry symposium whirl
-blurry symposium wirl,blurry symposium whirl
 whip,rev whirl
 frigidosis,osis
 gravedigger,grave digger

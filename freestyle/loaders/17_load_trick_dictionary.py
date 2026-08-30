@@ -60,6 +60,7 @@ TRICKS_CSV = SCRIPT_DIR.parents[0] / "inputs" / "base_dictionary" / "tricks.csv"
 import sys as _sys  # noqa: E402
 _sys.path.insert(0, str(REPO_ROOT / "scripts"))
 from _freestyle_ownership import BASE_DICTIONARY  # noqa: E402
+from _freestyle_aliases import assert_no_duplicate_alias_slugs  # noqa: E402
 MODIFIERS_CSV = SCRIPT_DIR.parents[0] / "inputs" / "base_dictionary" / "trick_modifiers.csv"
 ALIASES_CSV = SCRIPT_DIR.parents[0] / "inputs" / "base_dictionary" / "trick_aliases.csv"
 
@@ -383,6 +384,21 @@ def load_aliases(
         if alias_slug in merged and merged[alias_slug]["trick_slug"] != trick_slug:
             return  # ambiguous alias collision; first-write wins, skip silently
         merged[alias_slug] = {"alias_text": alias_text, "trick_slug": trick_slug}
+
+    # Each input is checked before it is merged. Two spellings that fold to one
+    # slug are one row, and the merge above resolves that silently by position;
+    # which spelling a reader then sees is an accident of file order rather than
+    # anyone's decision, so the input is refused instead.
+    assert_no_duplicate_alias_slugs(
+        [(text, slug) for slug, aliases in inline_aliases_by_slug.items() for text in aliases],
+        "the base dictionary's inline trick aliases",
+    )
+    if aliases_csv.exists():
+        with aliases_csv.open(newline="", encoding="utf-8") as f:
+            assert_no_duplicate_alias_slugs(
+                [(r.get("alias", ""), r.get("trick_canon", "")) for r in csv.DictReader(f)],
+                f"the base dictionary alias file ({aliases_csv.name})",
+            )
 
     # 1. inline aliases from tricks.csv
     for slug, aliases in inline_aliases_by_slug.items():
