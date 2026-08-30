@@ -18,11 +18,40 @@
 # one in-place update, so no interim window exists in which either name fails to
 # resolve -- in that direction or on the way back.
 #
-# The hosted zone must exist before apply (import it; Console edits are not
-# the canonical path).
+# Terraform owns the hosted zone itself, so there is nothing to create by hand
+# and nothing to import before the first apply. Every record below writes into
+# it directly.
 # =============================================================================
 
+# The zone is created empty and is inert until the registrar delegates to it, so
+# it can be stood up and filled long before anything switches. Creating it here
+# rather than by hand also means the four nameservers the registrar needs are an
+# output of this configuration instead of values read off a console screen and
+# dictated over a phone call, which is the step where a transcription error costs
+# the domain.
+#
+# prevent_destroy is a durability guarantee, not decoration. Route 53 assigns a
+# zone's nameservers when it is created, so a destroyed and recreated zone comes
+# back with four different ones. The registrar would still be pointing at the old
+# four, and the domain would stop resolving with nothing in the diff to explain
+# it.
+resource "aws_route53_zone" "primary" {
+  name    = var.domain_name
+  comment = "footbag.org production zone, moved from the legacy nameservers as go-live preparation"
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+output "route53_name_servers" {
+  description = "The four nameservers to enter at the registrar. Read them from here rather than from the console, and hand them to whoever makes the registrar change."
+  value       = aws_route53_zone.primary.name_servers
+}
+
 locals {
+  zone_id = aws_route53_zone.primary.zone_id
+
   # True once the apex and www point at the distribution; false through the
   # zone-move window, while they still answer with the legacy host's values.
   apex_alias_mode = var.enable_platform_custom_domain && var.enable_apex_alias_records
@@ -52,7 +81,7 @@ variable "legacy_apex_ipv4" {
 # beforehand means there is no separate TTL-drop step to forget.
 resource "aws_route53_record" "apex_a" {
   count   = local.apex_alias_mode || var.enable_legacy_mirror_records ? 1 : 0
-  zone_id = var.route53_zone_id
+  zone_id = local.zone_id
   name    = var.domain_name
   type    = "A"
 
@@ -89,8 +118,10 @@ resource "aws_route53_record" "apex_a" {
 # the same time -- and between them www does not exist.
 #
 # Two exposures, and the second is the serious one. A resolver asking in that gap
-# caches the no-such-name answer for the zone's SOA minimum, which on Route 53 is
-# 60 seconds by default: the same order as the record TTL, so bad but bounded.
+# caches the no-such-name answer for the shorter of the zone's SOA record TTL and
+# its minimum field, which on a Route 53 zone left at its defaults is 900 seconds:
+# fifteen minutes, an order of magnitude longer than the record TTL, so the gap
+# outlives the change that caused it.
 # The unbounded case is an apply that fails between the delete and the create,
 # which leaves the canonical hostname absent until someone notices and re-applies.
 # The rollback is the same change in reverse, so both exposures would land again
@@ -109,13 +140,13 @@ resource "aws_route53_record" "apex_a" {
 # distribution either way.
 resource "aws_route53_record" "www" {
   count   = local.apex_alias_mode || var.enable_legacy_mirror_records ? 1 : 0
-  zone_id = var.route53_zone_id
+  zone_id = local.zone_id
   name    = "www.${var.domain_name}"
   type    = "A"
 
   alias {
     name    = local.apex_alias_mode ? aws_cloudfront_distribution.main[0].domain_name : var.domain_name
-    zone_id = local.apex_alias_mode ? aws_cloudfront_distribution.main[0].hosted_zone_id : var.route53_zone_id
+    zone_id = local.apex_alias_mode ? aws_cloudfront_distribution.main[0].hosted_zone_id : local.zone_id
 
     # An in-zone alias inherits the target's TTL and answer, so the apex's 60s
     # carries to www without being restated.
@@ -146,25 +177,132 @@ variable "legacy_apex_cname_records" {
 # runbook requires and what nothing previously implemented: these names had no
 # Terraform resource, so no apply could remove them.
 #
-# The rest of the mirrored zone is not here. The transfer returns 51 names and
-# the capture that enumerates them is taken immediately before the move, so the
-# values are not knowable now; these five are, because the design names them
-# explicitly and their disposition is fixed by their shape.
+# These five are separated from the rest of the mirrored zone because their
+# disposition is fixed by their shape rather than by the cleanup schedule: they
+# ride the apex and www, so they leave with them. Every other legacy name is
+# carried by the general mirror below and retires in the later cleanup pass.
 resource "aws_route53_record" "legacy_apex_cnames" {
   for_each = var.enable_legacy_mirror_records && !local.apex_alias_mode ? var.legacy_apex_cname_records : {}
 
-  zone_id = var.route53_zone_id
+  zone_id = local.zone_id
   name    = "${each.key}.${var.domain_name}"
   type    = "CNAME"
   ttl     = 60
   records = [each.value]
 }
 
+# -----------------------------------------------------------------------------
+# The rest of the legacy zone.
+#
+# The design requires the zone move to mirror every existing record faithfully,
+# so that changing which servers answer changes nothing about what they answer.
+# The apex, www and the five names that ride them are declared above because each
+# has its own switch behaviour. Everything else in the zone is carried here, as
+# values read from the zone snapshot and set in the private values file.
+#
+# Two of these names are load-bearing rather than legacy debris, which is why
+# omitting them is not a cosmetic gap. The apex mail records name a host inside
+# this zone as their primary destination, so without that host's address record
+# the apex would advertise a mail destination that does not resolve. And the
+# Workspace's own domain is served from this zone rather than delegated, so
+# without its mail records the mailboxes and groups on it stop receiving the
+# moment delegation lands -- including the account needed to recover
+# administrative control of that Workspace.
+#
+# These names retire in the post-cutover cleanup pass rather than at the alias
+# flip, so they are gated on the mirror flag alone. The mail-carrying ones among
+# them are removed only after inbound mail has moved, never before, or an address
+# is left with no delivery path.
+#
+# One deliberate and harmless departure from "every record": the zone publishes
+# four records of the obsolete SPF resource type alongside identical TXT records
+# at the same names. Route 53 no longer offers that type, receivers ignore it, and
+# the TXT twin of each is carried here, so nothing is lost by dropping them.
+# -----------------------------------------------------------------------------
+
+variable "legacy_mirror_a_records" {
+  description = "Legacy names answering with an address record, as name => IPv4, read from the zone snapshot. Set in tfvars while enable_legacy_mirror_records is on. Anything left out of this map is not carried through the zone move and stops resolving the moment delegation lands, with no error anywhere."
+  type        = map(string)
+  default     = {}
+}
+
+variable "legacy_mirror_cname_records" {
+  description = "Legacy names that are aliases onto some other host, as name => target, read from the zone snapshot. Excludes www and the five names pointing at the apex or www, which are declared separately because they switch with the alias flip. Set in tfvars while enable_legacy_mirror_records is on."
+  type        = map(string)
+  default     = {}
+}
+
+variable "legacy_mirror_mx_records" {
+  description = "Legacy names carrying their own mail routing, as name => list of records, read from the zone snapshot. The apex set is declared with the mail records rather than here, because it flips to Google on email day. Set in tfvars while enable_legacy_mirror_records is on. Omitting a name here silently stops inbound mail for every address at it."
+  type        = map(list(string))
+  default     = {}
+}
+
+variable "legacy_mirror_txt_records" {
+  description = "Legacy names carrying their own TXT strings, as name => list of strings, read from the zone snapshot. Route 53 keeps one TXT set per name, so each list carries every string that name publishes, not only the sender policy. The apex set is declared with the mail records rather than here. Set in tfvars while enable_legacy_mirror_records is on."
+  type        = map(list(string))
+  default     = {}
+}
+
+resource "aws_route53_record" "legacy_mirror_a" {
+  for_each = var.enable_legacy_mirror_records ? var.legacy_mirror_a_records : {}
+
+  zone_id = local.zone_id
+  name    = "${each.key}.${var.domain_name}"
+  type    = "A"
+  ttl     = 60
+  records = [each.value]
+}
+
+resource "aws_route53_record" "legacy_mirror_cname" {
+  for_each = var.enable_legacy_mirror_records ? var.legacy_mirror_cname_records : {}
+
+  zone_id = local.zone_id
+  name    = "${each.key}.${var.domain_name}"
+  type    = "CNAME"
+  ttl     = 60
+  records = [each.value]
+}
+
+resource "aws_route53_record" "legacy_mirror_mx" {
+  for_each = var.enable_legacy_mirror_records ? var.legacy_mirror_mx_records : {}
+
+  zone_id = local.zone_id
+  name    = "${each.key}.${var.domain_name}"
+  type    = "MX"
+  ttl     = 60
+  records = each.value
+
+  lifecycle {
+    precondition {
+      condition     = length(each.value) > 0
+      error_message = "A mail-carrying legacy name was listed with no records. An empty set publishes no mail routing for that name, which stops inbound mail for every address at it the moment delegation lands, with no error anywhere. Take the values from the zone snapshot or remove the name from the map."
+    }
+  }
+}
+
+resource "aws_route53_record" "legacy_mirror_txt" {
+  for_each = var.enable_legacy_mirror_records ? var.legacy_mirror_txt_records : {}
+
+  zone_id = local.zone_id
+  name    = "${each.key}.${var.domain_name}"
+  type    = "TXT"
+  ttl     = 60
+  records = each.value
+
+  lifecycle {
+    precondition {
+      condition     = length(each.value) > 0
+      error_message = "A legacy name was listed with an empty TXT set. Route 53 keeps one TXT set per name, so an empty list withdraws every string that name publishes, including any domain-verification token a provider's account recovery rests on. Take the values from the zone snapshot or remove the name from the map."
+    }
+  }
+}
+
 # The legacy zone carries no AAAA at either name, so the v6 records exist only in
 # alias mode; there is nothing to mirror for them.
 resource "aws_route53_record" "apex_aaaa" {
   count   = local.apex_alias_mode ? 1 : 0
-  zone_id = var.route53_zone_id
+  zone_id = local.zone_id
   name    = var.domain_name
   type    = "AAAA"
 
@@ -177,7 +315,7 @@ resource "aws_route53_record" "apex_aaaa" {
 
 resource "aws_route53_record" "www_aaaa" {
   count   = local.apex_alias_mode ? 1 : 0
-  zone_id = var.route53_zone_id
+  zone_id = local.zone_id
   name    = "www.${var.domain_name}"
   type    = "AAAA"
 
@@ -202,7 +340,7 @@ variable "enable_preview_record" {
 
 resource "aws_route53_record" "preview_a" {
   count   = var.enable_platform_custom_domain && var.enable_preview_record ? 1 : 0
-  zone_id = var.route53_zone_id
+  zone_id = local.zone_id
   name    = "preview.${var.domain_name}"
   type    = "A"
 
@@ -215,7 +353,7 @@ resource "aws_route53_record" "preview_a" {
 
 resource "aws_route53_record" "preview_aaaa" {
   count   = var.enable_platform_custom_domain && var.enable_preview_record ? 1 : 0
-  zone_id = var.route53_zone_id
+  zone_id = local.zone_id
   name    = "preview.${var.domain_name}"
   type    = "AAAA"
 
@@ -233,7 +371,7 @@ resource "aws_route53_record" "preview_aaaa" {
 # has no CAA at all, which permits issuance rather than blocking it.
 resource "aws_route53_record" "caa" {
   count   = local.apex_alias_mode ? 1 : 0
-  zone_id = var.route53_zone_id
+  zone_id = local.zone_id
   name    = var.domain_name
   type    = "CAA"
   ttl     = 300

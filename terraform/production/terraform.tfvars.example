@@ -12,8 +12,11 @@ environment    = "production"
 aws_region     = "us-east-1"                  # SES sender identity and the CloudFront ACM cert are region-bound here; DR replicates to us-west-2
 aws_account_id = "TODO-12-digit-account-id"
 
-domain_name     = "footbag.org"               # TODO: Confirm apex domain
-route53_zone_id = "TODO-ZONE-ID"              # e.g. Z1PA6795UKMFR9
+domain_name = "footbag.org"                   # TODO: Confirm apex domain
+
+# There is no hosted zone id to set. Terraform creates the zone and every record
+# reads its id from there. The four nameservers to hand the registrar come from
+# the route53_name_servers output, not from the console.
 
 lightsail_bundle_id    = "medium_3_0"         # ~$24/mo dualstack, 2 vCPU / 4 GB RAM
 lightsail_blueprint_id = "amazon_linux_2023"
@@ -78,6 +81,38 @@ legacy_apex_cname_records = {
   # worldchampionships = "www.footbag.org"
 }
 
+# The rest of the legacy zone. The design requires the move to mirror every
+# existing record faithfully, so that changing which servers answer changes
+# nothing about what they answer. A name left out of these maps is not carried
+# through the move at all: it stops resolving the moment delegation lands, with
+# no error anywhere. Take every value from the zone capture and diff the maps
+# against a fresh transfer immediately before the delegation change.
+#
+# The mail and TXT maps are the dangerous ones. A name omitted from the mail map
+# silently stops inbound mail for every address at it, and an empty TXT list
+# withdraws every string that name publishes, including any domain-verification
+# token a provider's account recovery rests on. Both resources reject an empty
+# list rather than letting that reach an apply.
+legacy_mirror_a_records = {
+  # rimu3 = "203.0.113.10"   # the host the apex mail records name; omitting it
+  #                          # leaves the apex advertising an unresolvable
+  #                          # mail destination
+}
+
+legacy_mirror_cname_records = {
+  # www2 = "some.host.example."
+}
+
+legacy_mirror_mx_records = {
+  # my = ["10 ASPMX.L.GOOGLE.COM."]   # the Workspace's own domain, served from
+  #                                   # this zone rather than delegated; omitting
+  #                                   # it stops every mailbox and group on it
+}
+
+legacy_mirror_txt_records = {
+  # my = ["v=spf1 ... ~all"]
+}
+
 # Workspace DKIM public key for the google selector, generated in the Workspace
 # admin console. The key cannot be generated until Gmail has served the domain
 # for a day or more, so this stays empty when the MX first moves and is filled
@@ -100,8 +135,8 @@ lightsail_origin_dns = "TODO-origin.footbag.org"
 #
 # enable_cloudfront is the master gate for the distribution, its ACM certificate
 # and the certificate's DNS validation records. False for the first apply; true
-# on the second, once route53_zone_id names a zone Route 53 actually serves and
-# lightsail_origin_dns resolves.
+# on the second, once the registrar has delegated the domain to the zone this
+# configuration creates and lightsail_origin_dns resolves.
 #
 # enable_preview_record creates the preview.<domain> alias records for the
 # pre-cutover exercises. The name already rides the certificate from its first
@@ -127,9 +162,9 @@ enable_planned_maintenance    = false
 # Pass 1 (first apply): both false. Pass 2: enable_cwagent_alarms = true
 # AFTER scripts/install-cwagent-remote.sh has run and CWAgent is confirmed
 # emitting metrics. Pass 3: enable_backup_alarm = true AFTER the snapshot
-# job emits BackupAgeMinutes. ses_enable_domain_auth: keep false until
-# route53_zone_id names a zone Route 53 actually serves (the previous mail
-# host holds the authoritative zone until the zone move), else its records
+# job emits BackupAgeMinutes. ses_enable_domain_auth: keep false until the
+# registrar has delegated the domain to this zone (the previous mail
+# host answers for it until the zone move), else its records
 # will not resolve; flip to true at the zone move, ahead of live sending,
 # since it retires the single-address sender identity. ses_enable_mail_records
 # publishes the apex SPF, DMARC, and MAIL FROM records and belongs to the day
@@ -148,8 +183,8 @@ enable_cutover_login_alarm = false
 # cutover. enable_archive needs only the public key below and serves the archive
 # on the distribution's own cloudfront.net name; enable_archive_custom_domain
 # adds the certificate, the aliases and the DNS records, and additionally needs
-# route53_zone_id. Turn the second flag on once the zone is authoritative on
-# Route 53.
+# the domain delegated to this zone, since the certificate validates through a
+# record in it. Turn the second flag on once that delegation has landed.
 #
 # Generate the signing keypair in the ~/AWS/ operator folder (the project home
 # for durable operator workstation files), never in Terraform and never inside

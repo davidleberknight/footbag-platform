@@ -30,7 +30,7 @@ variable "enable_archive" {
 }
 
 variable "enable_archive_custom_domain" {
-  description = "Serve the archive at archive.<domain_name>: the ACM certificate, its validation records, the distribution aliases and the A/AAAA records. Off, the distribution answers only on its own cloudfront.net name under the default CloudFront certificate. Requires enable_archive, domain_name and route53_zone_id when true."
+  description = "Serve the archive at archive.<domain_name>: the ACM certificate, its validation records, the distribution aliases and the A/AAAA records. Off, the distribution answers only on its own cloudfront.net name under the default CloudFront certificate. Requires enable_archive and domain_name when true, and the domain delegated to the zone this configuration creates, since the certificate validates through a record in it."
   type        = bool
   default     = false
 
@@ -334,7 +334,7 @@ resource "aws_route53_record" "archive_cert_validation" {
     }
   } : {}
 
-  zone_id = var.route53_zone_id
+  zone_id = local.zone_id
   name    = each.value.name
   type    = each.value.type
   ttl     = 60
@@ -690,7 +690,7 @@ resource "aws_cloudfront_distribution" "archive" {
 
 resource "aws_route53_record" "archive_a" {
   count   = var.enable_archive_custom_domain ? 1 : 0
-  zone_id = var.route53_zone_id
+  zone_id = local.zone_id
   name    = local.archive_domain
   type    = "A"
 
@@ -703,7 +703,7 @@ resource "aws_route53_record" "archive_a" {
 
 resource "aws_route53_record" "archive_aaaa" {
   count   = var.enable_archive_custom_domain ? 1 : 0
-  zone_id = var.route53_zone_id
+  zone_id = local.zone_id
   name    = local.archive_domain
   type    = "AAAA"
 

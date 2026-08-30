@@ -41,30 +41,13 @@ variable "domain_name" {
   default     = "footbag.org" # TODO: Confirm apex domain
 }
 
-variable "route53_zone_id" {
-  description = "Route 53 hosted zone ID for domain_name. Required only when enable_platform_custom_domain is true."
-  type        = string
-  default     = ""
-
-  # The certificate validates via a Route53 DNS record, so an empty or wrong
-  # zone id makes that apply hang ~15 minutes on certificate validation before
-  # failing. Fail fast instead. A distribution without the custom domain needs
-  # no zone at all: it answers on its own cloudfront.net name.
-  validation {
-    condition     = !var.enable_platform_custom_domain || var.route53_zone_id != ""
-    error_message = "route53_zone_id is required when enable_platform_custom_domain is true: the referenced Route 53 hosted zone must exist so the ACM validation records can be written, or the apply hangs on certificate validation. Delegation is not required pre-cutover; the webmaster mirrors the validation CNAMEs into the authoritative zone."
-  }
-
-  # The archive's custom-domain half (archive.tf) carries its own certificate
-  # and its own alias records, and validates the same way, so it fails the same
-  # way on an empty zone id even with enable_cloudfront off. The rest of the
-  # archive stack serves on the distribution's own cloudfront.net name and needs
-  # no zone at all.
-  validation {
-    condition     = !var.enable_archive_custom_domain || var.route53_zone_id != ""
-    error_message = "route53_zone_id is required when enable_archive_custom_domain is true: the archive certificate validates through a Route 53 record and the archive alias records are written into the same zone, so an empty or wrong zone id hangs the apply on certificate validation before failing."
-  }
-}
+# The hosted zone is no longer an input. Terraform creates it (route53.tf) and
+# every record reads its id from there, so there is no value to supply, nothing
+# to import, and no way for the id to be empty or point at the wrong zone. The
+# two validations that used to guard those failures are gone with the variable:
+# the certificate can no longer hang on validation against a zone that does not
+# exist, because the zone is created in the same configuration that validates
+# against it.
 
 variable "lightsail_bundle_id" {
   description = "Lightsail instance bundle (size)"
@@ -137,13 +120,14 @@ variable "enable_platform_custom_domain" {
   description = <<-EOT
     Serves the platform at the apex, www and preview names: the ACM
     certificate and its validation records, the distribution's aliases, and
-    the apex/www/preview DNS records. Requires enable_cloudfront,
-    domain_name and route53_zone_id.
+    the apex/www/preview DNS records. Requires enable_cloudfront and
+    domain_name; the hosted zone is created by this configuration.
 
-    Turn it on only once the zone is authoritative on Route 53, which follows
-    the registrar handover. The certificate validates through a record in that
-    zone, so enabling it earlier hangs the apply on validation for about
-    fifteen minutes and then fails.
+    Turn it on only once the zone is authoritative for the domain, which
+    follows the registrar handover. The zone existing is not enough: the
+    certificate validates through a record in it, and a resolver only finds
+    that record once the registrar delegates to Route 53. Enabling it earlier
+    hangs the apply on validation for about fifteen minutes and then fails.
 
     Off, the distribution is reachable only at its unpublished cloudfront.net
     address. That is deliberate: it lets production exist and be exercised

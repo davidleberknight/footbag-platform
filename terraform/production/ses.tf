@@ -85,7 +85,9 @@ variable "ses_enable_domain_auth" {
     it on retires the single-address sender identity, so flip it before
     production sending goes live. Default FALSE: until the zone move
     completes, the records these resources create would not resolve; flip to
-    true only when var.route53_zone_id names a zone Route 53 actually serves.
+    true only once the registrar delegates the domain to the zone this
+    configuration creates, so that what Route 53 serves is what resolvers ask
+    it for.
   EOT
   type        = bool
   default     = false
@@ -168,7 +170,7 @@ resource "aws_ses_domain_identity" "main" {
 
 resource "aws_route53_record" "ses_domain_verification" {
   count   = var.ses_enable_domain_auth ? 1 : 0
-  zone_id = var.route53_zone_id
+  zone_id = local.zone_id
   name    = "_amazonses.${var.domain_name}"
   type    = "TXT"
   ttl     = 600
@@ -193,7 +195,7 @@ resource "aws_ses_domain_dkim" "main" {
 
 resource "aws_route53_record" "ses_dkim" {
   count   = var.ses_enable_domain_auth ? 3 : 0
-  zone_id = var.route53_zone_id
+  zone_id = local.zone_id
   name    = "${aws_ses_domain_dkim.main[0].dkim_tokens[count.index]}._domainkey.${var.domain_name}"
   type    = "CNAME"
   ttl     = 600
@@ -223,7 +225,7 @@ resource "aws_ses_domain_mail_from" "main" {
 
 resource "aws_route53_record" "ses_mail_from_mx" {
   count   = var.ses_enable_mail_records ? 1 : 0
-  zone_id = var.route53_zone_id
+  zone_id = local.zone_id
   name    = aws_ses_domain_mail_from.main[0].mail_from_domain
   type    = "MX"
   ttl     = 600
@@ -232,7 +234,7 @@ resource "aws_route53_record" "ses_mail_from_mx" {
 
 resource "aws_route53_record" "ses_mail_from_spf" {
   count   = var.ses_enable_mail_records ? 1 : 0
-  zone_id = var.route53_zone_id
+  zone_id = local.zone_id
   name    = aws_ses_domain_mail_from.main[0].mail_from_domain
   type    = "TXT"
   ttl     = 600
@@ -273,7 +275,7 @@ variable "legacy_apex_spf" {
 
 resource "aws_route53_record" "spf" {
   count   = var.ses_enable_mail_records || var.enable_legacy_mirror_records ? 1 : 0
-  zone_id = var.route53_zone_id
+  zone_id = local.zone_id
   name    = var.domain_name
   type    = "TXT"
   ttl     = 600
@@ -312,7 +314,7 @@ resource "aws_route53_record" "spf" {
 
 resource "aws_route53_record" "dmarc" {
   count   = var.ses_enable_mail_records ? 1 : 0
-  zone_id = var.route53_zone_id
+  zone_id = local.zone_id
   name    = "_dmarc.${var.domain_name}"
   type    = "TXT"
   ttl     = 600
@@ -350,7 +352,7 @@ variable "legacy_mx_records" {
 # allow_overwrite stays at its default.
 resource "aws_route53_record" "mx" {
   count   = var.ses_enable_mail_records || var.enable_legacy_mirror_records ? 1 : 0
-  zone_id = var.route53_zone_id
+  zone_id = local.zone_id
   name    = var.domain_name
   type    = "MX"
   ttl     = 3600
@@ -375,7 +377,7 @@ variable "google_dkim_txt" {
 # with no signature, and this record follows when the console can generate it.
 resource "aws_route53_record" "google_dkim" {
   count   = var.ses_enable_mail_records && var.google_dkim_txt != "" ? 1 : 0
-  zone_id = var.route53_zone_id
+  zone_id = local.zone_id
   name    = "google._domainkey.${var.domain_name}"
   type    = "TXT"
   ttl     = 3600
