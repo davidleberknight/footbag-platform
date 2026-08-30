@@ -9,16 +9,15 @@
  * publication funnel exists only in the database and in no committed file.
  *
  * This harness builds exactly that state through the real loaders and the real
- * services, then runs the refresh against it. It is a measurement, not a fix:
- * every assertion here describes what a repaired refresh must preserve, and the
- * ones describing today's behaviour are written to fail the moment that
- * behaviour changes, so the repair cannot land silently.
+ * services, then runs the whole refresh against it and requires everything a
+ * curator wrote to still be there afterwards. It began as a measurement of what
+ * the refresh destroyed; each stage that stopped destroying flipped its
+ * assertions, and the ruling seed was the last of them.
  *
- * The loaders run in the sequence the freestyle rebuild uses. A smaller
- * reproduction would not do: the failure is a property of that order, since the
- * adjudication loader runs last precisely because its rows point at trick rows
- * the dictionary loaders create, which is what leaves those rows alive when the
- * dictionary loader tries to clear the table beneath them.
+ * The loaders run in the sequence the freestyle rebuild uses, ruling seed
+ * included. A smaller reproduction would not do: every failure it caught was a
+ * property of that order, and the seed runs last precisely because its rows point
+ * at trick rows the dictionary loaders create.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
@@ -58,6 +57,10 @@ const DICTIONARY_LOADERS: readonly (readonly [string, string[]])[] = [
   ['21c_retire_stale_tricks.py', []],
 ];
 const ADJUDICATION_LOADER: readonly [string, string[]] = ['28_load_ev_adjudications.py', []];
+
+/** The whole thing, in the rebuild's order. Nothing is held back any more. */
+const FULL_REFRESH: readonly (readonly [string, string[]])[] =
+  [...DICTIONARY_LOADERS, ADJUDICATION_LOADER];
 
 function runLoader([name, args]: readonly [string, string[]]) {
   return spawnSync('python3', [`freestyle/loaders/${name}`, '--db', dbPath, ...args], {
@@ -111,7 +114,6 @@ let pre: Snapshot;
 let refreshResults: readonly (readonly [string, ReturnType<typeof runLoader>])[];
 let afterRefresh: Snapshot;
 let afterRepeatedRefresh: Snapshot;
-let afterAdjudicationReseed: Snapshot;
 
 function open(): BetterSqlite3.Database {
   const conn = new BetterSqlite3(dbPath);
@@ -243,26 +245,17 @@ beforeAll(async () => {
   pre = snapshot();
 
   // 6. The ordinary refresh, against that same database: the whole committed
-  //    sequence, preflight through retirement, exactly as the rebuild runs it.
-  //    The ruling seed is deliberately not part of it. Reseeding rulings is a
-  //    separate unrepaired stage, and running it here would mix its losses into
-  //    the measurement of the reconciliation this slice built.
-  refreshResults = DICTIONARY_LOADERS.map(
+  //    sequence, preflight through retirement AND the ruling seed, exactly as
+  //    the rebuild runs it. Nothing is held back now.
+  refreshResults = FULL_REFRESH.map(
     (stage) => [`${stage[0]} ${stage[1].join(' ')}`.trim(), runLoader(stage)] as const);
   afterRefresh = snapshot();
 
-  // A third and fourth pass, to show the refresh is repeatable rather than
-  // merely surviving once.
-  DICTIONARY_LOADERS.forEach(runLoaderOrThrow);
-  DICTIONARY_LOADERS.forEach(runLoaderOrThrow);
+  // Twice more, to show the refresh is repeatable rather than merely surviving
+  // once.
+  FULL_REFRESH.forEach(runLoaderOrThrow);
+  FULL_REFRESH.forEach(runLoaderOrThrow);
   afterRepeatedRefresh = snapshot();
-
-  // The stage this slice deliberately left alone. The ruling seed still clears
-  // and reseeds from the committed ledger, so it still discards what a curator
-  // wrote. Measured last, and on its own, so the boundary between what is fixed
-  // and what is not stays legible.
-  runLoaderOrThrow(ADJUDICATION_LOADER);
-  afterAdjudicationReseed = snapshot();
 
   db = open();
 });
@@ -384,25 +377,58 @@ describe('what the refresh no longer destroys', () => {
   });
 });
 
-describe('the stage this slice deliberately did not repair', () => {
-  // The boundary, stated as a test so it cannot blur. Trick reconciliation is
-  // fixed; reseeding rulings from the committed ledger is not, and it still
-  // discards what a curator wrote. Nothing above runs it, so the repair measured
-  // there is the reconciliation's alone.
-  it('still discards authored notation when the rulings are reseeded', () => {
-    expect(afterAdjudicationReseed.draft!.authored_notation).toBeNull();
-    expect(afterAdjudicationReseed.draft!.notation_evidence_basis).toBeNull();
-    expect(afterAdjudicationReseed.draft!.notation_authored_by).toBeNull();
+describe('the ruling seed tops up rather than rebuilding', () => {
+  // It was the last stage that treated this table as derived. It now inserts the
+  // historical rulings a database is missing and verifies the ones it has, so a
+  // curator's work outlives a refresh instead of being replaced by the ledger it
+  // was seeded from.
+  it('keeps every ruling the ledger carries', () => {
+    expect(afterRefresh.adjudicationCount).toBe(pre.adjudicationCount);
   });
 
-  it('still discards the publication link the funnel recorded', () => {
-    expect(afterAdjudicationReseed.published!.published_trick_slug).toBeNull();
-    expect(afterAdjudicationReseed.published!.version).toBe(1);
+  it('re-seeds a historical ruling that has gone missing, at its own place', () => {
+    const conn = open();
+    try {
+      const before = conn.prepare(
+        'SELECT candidate_id, sequence_no FROM freestyle_ev_adjudications'
+        + " WHERE published_trick_slug IS NULL AND version = 1 ORDER BY sequence_no LIMIT 1",
+      ).get() as { candidate_id: string; sequence_no: number };
+      conn.prepare('DELETE FROM freestyle_ev_adjudications WHERE candidate_id = ?')
+        .run(before.candidate_id);
+      runLoaderOrThrow(ADJUDICATION_LOADER);
+      const after = conn.prepare(
+        'SELECT sequence_no, version FROM freestyle_ev_adjudications WHERE candidate_id = ?',
+      ).get(before.candidate_id) as { sequence_no: number; version: number };
+      // Its own ordinal, not one past the end: the number is the ledger position.
+      expect(after.sequence_no).toBe(before.sequence_no);
+      expect(after.version).toBe(1);
+    } finally {
+      conn.close();
+    }
   });
 
-  it('leaves the curator-created trick alone even so', () => {
-    // The ruling seed touches no trick row, so the trick outlives the loss of the
-    // ruling that pointed at it. What breaks is the link between them.
-    expect(afterAdjudicationReseed.nativeTrick).toEqual(pre.nativeTrick);
+  it('refuses when a historical fact has changed underneath it', () => {
+    const conn = open();
+    try {
+      const victim = conn.prepare(
+        'SELECT candidate_id, owner FROM freestyle_ev_adjudications'
+        + ' WHERE version = 1 ORDER BY sequence_no LIMIT 1',
+      ).get() as { candidate_id: string; owner: string };
+      conn.prepare('UPDATE freestyle_ev_adjudications SET owner = ? WHERE candidate_id = ?')
+        .run('somebody-else', victim.candidate_id);
+
+      const refused = runLoader(ADJUDICATION_LOADER);
+      expect(refused.status).not.toBe(0);
+      expect(refused.stderr).toContain(victim.candidate_id);
+      expect(refused.stderr).toContain('owner');
+      expect(refused.stderr).toContain('somebody-else');
+      expect(refused.stderr).toContain('Nothing was written');
+
+      conn.prepare('UPDATE freestyle_ev_adjudications SET owner = ? WHERE candidate_id = ?')
+        .run(victim.owner, victim.candidate_id);
+      runLoaderOrThrow(ADJUDICATION_LOADER);
+    } finally {
+      conn.close();
+    }
   });
 });

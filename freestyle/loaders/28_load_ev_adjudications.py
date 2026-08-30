@@ -172,6 +172,99 @@ def resolve_trick_links(conn: sqlite3.Connection, rows: list[dict]) -> dict[int,
     return links
 
 
+# The historical facts an existing row must still agree with. A ruling's identity
+# and the evidence behind it do not change; if one of these has moved, the ledger
+# and the database disagree about what was decided, and that is for somebody to
+# look at rather than for a rebuild to overwrite.
+IMMUTABLE_FIELDS = (
+    "created_at", "created_by", "submitted_name", "normalized_name",
+    "evidence_state", "object_type", "blocker_id", "blocker_subtype", "note",
+    "source", "confidence", "owner", "proposed_formula", "failure_class",
+    "residual_home",
+)
+
+# Seeded from the ledger, then rewritten by the publication funnel: a published
+# ruling legitimately reads canonical, disposition A, promoted-canonical. They are
+# therefore only comparable while the row is untouched, which the version records.
+RULING_FIELDS = (
+    "ev_state", "hold_kind", "match_type", "final_disposition",
+    "matched_existing_object",
+)
+
+#: Column order of the row tuple read back for verification.
+_COLUMNS = (
+    "candidate_id", "sequence_no", "created_at", "created_by", "submitted_name",
+    "normalized_name", "evidence_state", "object_type", "blocker_id",
+    "blocker_subtype", "note", "source", "confidence", "owner", "proposed_formula",
+    "failure_class", "residual_home", "ev_state", "hold_kind", "match_type",
+    "final_disposition", "matched_existing_object", "published_trick_slug", "version",
+)
+
+
+def verify_existing(rows: list[dict], links: dict, existing: dict) -> list[tuple]:
+    """What an already-present row disagrees with the ledger about.
+
+    Verify only. A row that exists is authority: a curator may have written a
+    movement onto it, or published its trick, and the ledger is a retired seed
+    source with no standing to put any of that back. So nothing here writes, and
+    the checks are chosen to be exactly those a legitimate curator action cannot
+    trip.
+
+    Returns (candidate_id, submitted_name, field, db_value, seed_value) tuples.
+    """
+    conflicts = []
+    for i, r in enumerate(rows):
+        cid = candidate_id_for(r["normalized_name"])
+        row = existing.get(cid)
+        if row is None:
+            continue
+        current = dict(zip(_COLUMNS, row))
+
+        # Historical seed order. Position in the committed ledger, unique per row,
+        # and never renumbered: a row whose number has moved is a different row's
+        # place, which the unique index would otherwise hide until it collided.
+        if current["sequence_no"] != i + 1:
+            conflicts.append((cid, r["submitted_name"], "sequence_no",
+                              current["sequence_no"], i + 1))
+
+        for field in IMMUTABLE_FIELDS:
+            if current[field] != r.get(field, current[field]) and field in r:
+                conflicts.append((cid, r["submitted_name"], field,
+                                  current[field], r[field]))
+
+        # Pristine rows only. Past version 1 the funnel has written, and the
+        # retired ledger is not what these fields should agree with any more.
+        if current["version"] == 1:
+            for field in RULING_FIELDS:
+                if field in r and current[field] != r[field]:
+                    conflicts.append((cid, r["submitted_name"], field,
+                                      current[field], r[field]))
+
+        # A link the ledger named must still point where it named. A link the
+        # ledger did not name is the funnel's and is left alone; nothing here
+        # removes or rewrites one to restore the historical total.
+        expected = links.get(i)
+        if expected is not None and current["published_trick_slug"] != expected:
+            conflicts.append((cid, r["submitted_name"], "published_trick_slug",
+                              current["published_trick_slug"], expected))
+
+    return conflicts
+
+
+def format_conflicts(conflicts: list[tuple]) -> str:
+    lines = [f"ERROR: {len(conflicts)} ruling(s) disagree with the committed ledger. "
+             f"Nothing was written."]
+    for cid, name, field, db_value, seed_value in conflicts:
+        lines.append(f"  {cid} ({name})")
+        lines.append(f"    {field}: database has {db_value!r}, ledger has {seed_value!r}")
+    lines.append("")
+    lines.append("These are the facts a ruling does not change: its identity, the "
+                 "evidence behind it, and where a historical link pointed. A refresh "
+                 "does not repair them from the retired ledger, because the database "
+                 "is the authority now and the difference is somebody's to explain.")
+    return "\n".join(lines)
+
+
 def seed(db_path: Path, ledger_path: Path) -> dict:
     rows = read_ledger(ledger_path)
     stamped_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
@@ -185,7 +278,25 @@ def seed(db_path: Path, ledger_path: Path) -> dict:
         with conn:
             links = resolve_trick_links(conn, rows)
 
-            conn.execute("DELETE FROM freestyle_ev_adjudications")
+            existing = {
+                row[0]: row
+                for row in conn.execute(
+                    "SELECT candidate_id, sequence_no, created_at, created_by,"
+                    "       submitted_name, normalized_name, evidence_state, object_type,"
+                    "       blocker_id, blocker_subtype, note, source, confidence, owner,"
+                    "       proposed_formula, failure_class, residual_home,"
+                    "       ev_state, hold_kind, match_type, final_disposition,"
+                    "       matched_existing_object, published_trick_slug, version"
+                    "  FROM freestyle_ev_adjudications")
+            }
+            conflicts = verify_existing(rows, links, existing)
+            if conflicts:
+                raise SystemExit(format_conflicts(conflicts))
+
+            missing = [
+                (i, r) for i, r in enumerate(rows)
+                if candidate_id_for(r["normalized_name"]) not in existing
+            ]
             conn.executemany(
                 """
                 INSERT INTO freestyle_ev_adjudications
@@ -211,7 +322,7 @@ def seed(db_path: Path, ledger_path: Path) -> dict:
                         r["proposed_formula"], r["failure_class"], r["residual_home"],
                         links.get(i),
                     )
-                    for i, r in enumerate(rows)
+                    for i, r in missing
                 ],
             )
 
@@ -222,11 +333,31 @@ def seed(db_path: Path, ledger_path: Path) -> dict:
                 "SELECT COUNT(*) FROM freestyle_ev_adjudications "
                 "WHERE published_trick_slug IS NOT NULL"
             ).fetchone()[0]
-            if loaded != len(rows) or linked != len(links):
+
+            # Every historical ruling is present, and every link the ledger names
+            # is on its own row pointing where the ledger says.
+            #
+            # The count of links is deliberately not asserted. It was, and that
+            # check branded a curator's publication as corruption: the funnel
+            # creates a link the retired ledger cannot know about, so the total
+            # is expected to exceed the historical one and says nothing about
+            # whether the historical links are right.
+            absent = sorted(
+                candidate_id_for(rows[i]["normalized_name"])
+                for i in links
+                if candidate_id_for(rows[i]["normalized_name"]) not in {
+                    row[0] for row in conn.execute(
+                        "SELECT candidate_id FROM freestyle_ev_adjudications"
+                        " WHERE published_trick_slug IS NOT NULL")
+                }
+            )
+            if loaded < len(rows) or absent:
                 raise SystemExit(
-                    f"ERROR: the seed did not land whole: {loaded} of {len(rows)} "
-                    f"rulings and {linked} of {len(links)} trick links. Nothing was "
-                    f"written."
+                    f"ERROR: the seed did not land whole: {loaded} rulings present of "
+                    f"{len(rows)} in the ledger"
+                    + (f", and {len(absent)} historical link(s) missing: "
+                       f"{', '.join(absent)}" if absent else "")
+                    + ". Nothing was written."
                 )
 
             # Derived, never stored: a linked name that is live and reviewed is
