@@ -57,6 +57,13 @@ from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).parent
 REPO_ROOT  = SCRIPT_DIR.parents[1]
+
+# Who owns the rows this loader creates. It inserts only names that resolve to
+# nothing already in the dictionary, so every row it writes is its own.
+import sys as _sys  # noqa: E402
+_sys.path.insert(0, str(REPO_ROOT / "scripts"))
+from _freestyle_ownership import FOOTBAG_ORG_PENDING  # noqa: E402
+
 LEGACY_DIR = SCRIPT_DIR.parents[0]
 
 DEFAULT_DB     = REPO_ROOT / "database" / "footbag.db"
@@ -300,13 +307,13 @@ def insert_pending_tricks(conn: sqlite3.Connection, rows: list[dict]) -> int:
         INSERT INTO freestyle_tricks
           (slug, canonical_name, adds, base_trick, trick_family, category,
            description, aliases_json, notation, review_status, is_core, is_active,
-           sort_order, loaded_at, updated_at)
+           sort_order, loaded_at, updated_at, trick_origin_producer)
         VALUES
           (:slug, :canonical_name, :adds, :base_trick, :trick_family, :category,
            :description, :aliases_json, :notation, :review_status, :is_core, :is_active,
-           :sort_order, :loaded_at, :updated_at)
+           :sort_order, :loaded_at, :updated_at, :trick_origin_producer)
         """,
-        rows,
+        [{**r, "trick_origin_producer": FOOTBAG_ORG_PENDING} for r in rows],
     )
     return len(rows)
 

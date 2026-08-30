@@ -2720,14 +2720,18 @@ export const freestyleTricks = {
   // The derived parse columns are deliberately absent: a parse is produced by the
   // content pipeline, not by the application, and a newly authored trick simply
   // has none until one is derived.
+  //
+  // The row is stamped as the curator's. No committed producer may retire a row
+  // it does not own, so a rebuild reading committed files cannot decide that a
+  // trick created here has become stale and delete it.
   get insertPublished() { return db.prepare(`
     INSERT INTO freestyle_tricks
       (slug, canonical_name, adds, base_trick, trick_family, category, description,
        aliases_json, notation, operational_notation, operational_notation_source,
        notation_evidence_basis, notation_derivation_method, notation_convention_id,
-       review_status, is_active, is_core, sort_order, loaded_at)
+       review_status, is_active, is_core, sort_order, loaded_at, trick_origin_producer)
     VALUES (?, ?, ?, ?, ?, ?, ?, '[]', NULL, ?, ?, ?, ?, ?, 'curated', 1, 0, ?,
-            strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+            strftime('%Y-%m-%dT%H:%M:%fZ','now'), 'curator-publication')
   `); },
 
   // Where a newly published trick sorts. The loaders assign ascending order per

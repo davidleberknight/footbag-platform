@@ -43,6 +43,13 @@ from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).parent
 REPO_ROOT = SCRIPT_DIR.parents[1]
+
+# Who owns the rows this loader creates. Rows it merely rewrites keep the owner
+# they already had; the shared module is the single home for that rule.
+import sys as _sys  # noqa: E402
+_sys.path.insert(0, str(REPO_ROOT / "scripts"))
+from _freestyle_ownership import EXPERT_ADDITIONS  # noqa: E402
+
 ADDITIONS_CSV = SCRIPT_DIR.parents[0] / "inputs" / "curated" / "tricks" / "red_additions_2026_04_20.csv"
 CORRECTIONS_CSV = SCRIPT_DIR.parents[0] / "inputs" / "curated" / "tricks" / "red_corrections_2026_04_20.csv"
 
@@ -195,11 +202,15 @@ def load_additions(conn: sqlite3.Connection, additions_csv: Path, loaded_at: str
         INSERT INTO freestyle_tricks
           (slug, canonical_name, adds, base_trick, trick_family, category,
            description, aliases_json, notation, review_status, is_core, is_active,
-           sort_order, loaded_at, updated_at)
+           sort_order, loaded_at, updated_at, trick_origin_producer)
         VALUES
           (:slug, :canonical_name, :adds, :base_trick, :trick_family, :category,
            :description, :aliases_json, :notation, :review_status, :is_core, :is_active,
-           :sort_order, :loaded_at, :updated_at)
+           :sort_order, :loaded_at, :updated_at, :trick_origin_producer)
+        -- Enrichment, not acquisition. This overlay rewrites rows the base
+        -- dictionary created, and trick_origin_producer is deliberately absent
+        -- from the update list: whoever created the row keeps the right to
+        -- retire it, so a rewrite here can never quietly take that right away.
         ON CONFLICT(slug) DO UPDATE SET
           canonical_name=excluded.canonical_name,
           adds=excluded.adds,
@@ -213,7 +224,7 @@ def load_additions(conn: sqlite3.Connection, additions_csv: Path, loaded_at: str
           sort_order=excluded.sort_order,
           updated_at=excluded.updated_at
         """,
-        trick_rows,
+        [{**r, "trick_origin_producer": EXPERT_ADDITIONS} for r in trick_rows],
     )
 
     # Aliases: scoped DELETE + INSERT

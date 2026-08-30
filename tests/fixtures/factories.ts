@@ -759,6 +759,10 @@ export interface FreestyleTrickOverrides {
   // was published from. Null on every row that predates the funnel, which is the
   // default here. Passed through unvalidated so a test can construct a
   // combination the constraints must reject.
+  // The producer entitled to retire the row. Null is the protected default, the
+  // state every row predating the stamp is in, so a factory row is unowned unless
+  // a test says otherwise.
+  trick_origin_producer?:       string | null;
   notation_evidence_basis?:     string | null;
   notation_derivation_method?:  string | null;
   notation_convention_id?:      string | null;
@@ -783,9 +787,10 @@ export function insertFreestyleTrick(
        computed_add_formula, computed_adds, add_formula_status,
        operational_notation, operational_notation_source, pronunciation,
        short_description, execution_summary, learning_notes, prerequisite_notes,
-       notation_evidence_basis, notation_derivation_method, notation_convention_id)
+       notation_evidence_basis, notation_derivation_method, notation_convention_id,
+       trick_origin_producer)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-            ?, ?, ?)
+            ?, ?, ?, ?)
   `).run(
     slug,
     o.canonical_name ?? slug.replace(/-/g, ' '),
@@ -817,6 +822,7 @@ export function insertFreestyleTrick(
     o.notation_evidence_basis    ?? null,
     o.notation_derivation_method ?? null,
     o.notation_convention_id     ?? null,
+    o.trick_origin_producer      ?? null,
   );
   return slug;
 }

@@ -54,6 +54,12 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).parent
 REPO_ROOT = SCRIPT_DIR.parents[1]  # freestyle/loaders/ -> freestyle/ -> repo root
 TRICKS_CSV = SCRIPT_DIR.parents[0] / "inputs" / "base_dictionary" / "tricks.csv"
+
+# Who owns the rows this loader creates. The shared module is the single home for
+# the producer vocabulary and for what an owner is allowed to do with a row.
+import sys as _sys  # noqa: E402
+_sys.path.insert(0, str(REPO_ROOT / "scripts"))
+from _freestyle_ownership import BASE_DICTIONARY  # noqa: E402
 MODIFIERS_CSV = SCRIPT_DIR.parents[0] / "inputs" / "base_dictionary" / "trick_modifiers.csv"
 ALIASES_CSV = SCRIPT_DIR.parents[0] / "inputs" / "base_dictionary" / "trick_aliases.csv"
 
@@ -167,15 +173,15 @@ def load_tricks(conn: sqlite3.Connection, tricks_csv: Path, loaded_at: str) -> t
            description, aliases_json, notation, operational_notation,
            operational_notation_source,
            review_status, is_core, is_active,
-           sort_order, loaded_at, updated_at)
+           sort_order, loaded_at, updated_at, trick_origin_producer)
         VALUES
           (:slug, :canonical_name, :adds, :base_trick, :trick_family, :category,
            :description, :aliases_json, :notation, :operational_notation,
            :operational_notation_source,
            :review_status, :is_core, :is_active,
-           :sort_order, :loaded_at, :updated_at)
+           :sort_order, :loaded_at, :updated_at, :trick_origin_producer)
         """,
-        rows,
+        [{**r, "trick_origin_producer": BASE_DICTIONARY} for r in rows],
     )
     return len(rows), aliases_by_slug, modifier_link_rows
 

@@ -5118,6 +5118,29 @@ CREATE TABLE freestyle_tricks (
   -- stored as a flag.
   notation_convention_id     TEXT,
 
+  -- ── Who may retire this row ──────────────────────────────────────────────
+  -- The producer currently entitled to delete this row, which is not necessarily
+  -- whichever process first inserted it: ownership can be transferred between
+  -- committed producers when an input moves, and the column records where it
+  -- rests now. A producer retires only rows it owns, so no producer's reload can
+  -- reach another's rows, and none can reach a curator's.
+  --
+  -- Three committed producers create trick rows and each owns a different part of
+  -- the dictionary, which is why a single committed-or-curator flag cannot gate
+  -- retirement: the base dictionary owns a small minority of rows, and a flag
+  -- would let its reload delete everything the other two produced.
+  --
+  -- Enrichment never takes ownership. A producer that updates a row it did not
+  -- create leaves this column alone, so the rows the base dictionary creates and
+  -- the expert overlay rewrites stay the base dictionary's to retire.
+  --
+  -- NULL means unclassified, and is the protected default: no producer may retire
+  -- a row it cannot prove it owns. A row that cannot be classified with evidence
+  -- keeps NULL and simply persists.
+  trick_origin_producer TEXT
+    CHECK (trick_origin_producer IS NULL OR trick_origin_producer IN
+           ('base-dictionary', 'expert-additions', 'footbag-org-pending', 'curator-publication')),
+
   -- The two claims travel together or not at all: half a provenance says the
   -- notation was accounted for when it was not.
   CHECK ((notation_evidence_basis IS NULL AND notation_derivation_method IS NULL)
