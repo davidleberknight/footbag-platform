@@ -291,7 +291,9 @@ Expected result:
 - `database/footbag.db` is built
 - the app has the committed real event archive for local browsing
 
-Re-run `bash scripts/reset-local-db.sh` whenever you want a clean rebuild.
+Re-run `bash scripts/reset-local-db.sh` when you want a clean rebuild, and only then. It is a reset, not a refresh: it deletes `database/footbag.db` and rebuilds it from committed inputs, discarding database-native curator work that no committed file can restore — authored adjudication drafts, publication and resolution state, curator-created canonical tricks, and application-only aliases, source links and modifier links.
+
+To pull committed freestyle input changes into the database you already have, run `freestyle/run_freestyle.sh` instead. It reconciles in place, preserves database-native curator authority, never deletes the database file, and is safe to re-run: a second run straight after the first changes nothing.
 
 ### 1.8 Run the dev server
 
@@ -510,11 +512,13 @@ The hello-world clone runs on the committed real event data (`canonical_input`) 
 Request whichever you need from the maintainer, then load:
 
 ```bash
+# Both DESTROY the local database and discard curator work. For an ordinary
+# freestyle refresh, run freestyle/run_freestyle.sh instead.
 ./run_dev.sh --from-csv      # full enrichment rebuild + media + personas; no mirror, no dev-admin allowlist; needs the member roster
 ./run_dev.sh --soup-to-nuts  # everything --from-csv does, plus mirror rebuild + the dev-admin allowlist
 ```
 
-The **freestyle** tables are not part of this handoff: they build entirely from committed inputs via `freestyle/run_freestyle.sh` (which `reset-local-db.sh` runs automatically), so freestyle content is already complete on a fresh hello-world clone.
+The **freestyle** tables are not part of this handoff: `freestyle/run_freestyle.sh` builds them from committed inputs (and `reset-local-db.sh` runs it automatically), so freestyle content is already complete on a fresh hello-world clone. On a clone that has been used, that command is also the routine refresh: two kinds of data live in these tables, and it treats them differently. Everything built from `freestyle/inputs/` is reproducible and is reconciled from the files. What curators create through the application is in no committed file and is preserved rather than rebuilt.
 
 Beyond these local inputs, the full migration also draws on the **legacy footbag.org database export**, a raw MariaDB `mysqldump` of the live site supplied by the legacy-site webmaster. It is the source of the legacy member-account import that runs at migration cutover (the historical accounts members later reconnect to through the claim flow): the platform parses it into canonical loader input and drops the credential and session columns. Because it carries clear-text passwords and member PII, it is worked only in an operator-controlled environment and never committed or shared (see `docs/DATA_GOVERNANCE.md`).
 
