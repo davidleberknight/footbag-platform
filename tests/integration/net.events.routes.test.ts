@@ -114,6 +114,13 @@ function setupDb(db: BetterSqlite3.Database): void {
   insertNetDisciplineGroup(db, disc2012_conflict, {
     canonical_group: 'mixed_doubles', review_needed: 1, conflict_flag: 1,
   });
+  // A discipline carrying only the broader review flag: its raw name is too
+  // generic to classify rather than ambiguous between patterns. The badge must
+  // not fire for it, which is what makes "driven by the ambiguous-match flag"
+  // an assertion about a real difference rather than about an empty set.
+  insertNetDisciplineGroup(db, disc2008, {
+    canonical_group: 'open_doubles', review_needed: 1, conflict_flag: 0,
+  });
 
   // FK chain
   const member   = insertMember(db);
@@ -216,14 +223,50 @@ describe('GET /net/events', () => {
     const app = createApp();
     const res = await request(app).get('/net/events');
     // ev2012 carries the only conflict_flag discipline in this fixture.
-    expect(res.text).toContain('Discipline review');
+    expect(res.text).toContain('Grouping unconfirmed');
   });
 
   it('badges only that event, not every event in the list', async () => {
     const app = createApp();
     const res = await request(app).get('/net/events');
-    const badges = res.text.match(/Discipline review/g) ?? [];
+    const badges = res.text.match(/Grouping unconfirmed/g) ?? [];
     expect(badges).toHaveLength(1);
+  });
+
+  it('says the grouping is unconfirmed, never that somebody reviewed it', async () => {
+    // The flag behind this badge records that the classifier matched more than
+    // one naming pattern, so the stored grouping is a best guess. Nobody has
+    // looked at these events; a label saying otherwise told a visitor the
+    // opposite of the truth.
+    const app = createApp();
+    const res = await request(app).get('/net/events');
+    expect(res.text).not.toContain('Discipline review');
+  });
+
+  it('is driven by the ambiguous-match flag, not by the broader review column', async () => {
+    // The same table carries a column named review_needed, which is the wider
+    // set: the ambiguities plus names too generic to classify at all. Nothing
+    // reads it, and this badge deliberately does not: which population the badge
+    // represents is the decision, and it is this one.
+    const db = new BetterSqlite3(dbPath);
+    try {
+      const onlyReviewNeeded = db.prepare(
+        `SELECT COUNT(*) AS n FROM net_discipline_group
+          WHERE review_needed = 1 AND conflict_flag = 0`,
+      ).get() as { n: number };
+      const flagged = db.prepare(
+        'SELECT COUNT(*) AS n FROM net_discipline_group WHERE conflict_flag = 1',
+      ).get() as { n: number };
+      expect(flagged.n).toBe(1);
+      expect(onlyReviewNeeded.n).toBeGreaterThan(0);
+    } finally {
+      db.close();
+    }
+    const app = createApp();
+    const res = await request(app).get('/net/events');
+    // One badge, from the one ambiguous match: the rows carrying only the
+    // broader flag do not produce one.
+    expect((res.text.match(/Grouping unconfirmed/g) ?? [])).toHaveLength(1);
   });
 
   it('carries no badge whose meaning came from the review queue', async () => {

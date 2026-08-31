@@ -65,7 +65,7 @@ export const CORE_ATOM_EDUCATIONAL: readonly CoreAtomEducationalCard[] = [
     adds:        '1',
     line:        "Formula: a receiving surface, the bag held still on the flat top of the foot. It is the first surface every player learns and the place most tricks come home to.",
     relates:     "One of the two surfaces the whole vocabulary is built around; the other is the clipper. Nearly every dex begins from a toe stall and ends on one, and its close relatives are the other resting surfaces (clipper, inside, and the body stalls). When a toe stall starts a trick rather than finishes it, we call that a set.",
-    reveal:      "A toe stall is not really a trick, it is an anchor state: a stable place the bag rests, and much of the vocabulary is the trip out from one anchor and back. That is why a bare stall scores one point while the dex reaching it scores more; the difficulty is in the trip, not the landing. Not every trick is stall-to-stall (kicks and some body tricks are not), but the anchor idea still frames how most tricks are read.",
+    reveal:      "A toe stall is both a trick and an anchor state. It is a trick in its own right, catalogued and scored like any other; it is also the stable place the bag rests, and much of the vocabulary is the trip out from one anchor and back. That is why a bare stall scores one point while the dex reaching it scores more; the difficulty is in the trip, not the landing. Not every trick is stall-to-stall (kicks and some body tricks are not), but the anchor idea still frames how most tricks are read.",
   },
   {
     slug:        'clipper_stall',

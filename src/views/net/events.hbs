@@ -41,7 +41,12 @@
           <td class="col-num">{{teamCount}}</td>
           <td class="col-num">{{appearanceCount}}</td>
           <td class="badge-cell">
-            {{#if hasDisciplineReview}}<span class="badge badge-warn">Discipline review</span>{{/if}}
+            {{! Names the condition the flag behind it records: a discipline at this event
+    matched more than one naming pattern, so its stored grouping is the
+    classifier's best guess. It says nothing about anybody having reviewed the
+    event, because nobody has; the label a visitor reads must not imply
+    otherwise. }}
+{{#if hasDisciplineReview}}<span class="badge badge-warn">Grouping unconfirmed</span>{{/if}}
           </td>
         </tr>
         {{/each}}

@@ -122,10 +122,10 @@ describe('public net pages against a schema with no QC tables', () => {
     expect(res.text).toContain('Queue Open 2019');
   });
 
-  it('the discipline-review badge still shows, because it reads the grouping table', async () => {
+  it('the grouping badge still shows, because it reads the grouping table', async () => {
     const app = createApp();
     const res = await request(app).get('/net/events');
-    expect(res.text).toContain('Discipline review');
+    expect(res.text).toContain('Grouping unconfirmed');
   });
 
   it('no page reports a missing table', async () => {

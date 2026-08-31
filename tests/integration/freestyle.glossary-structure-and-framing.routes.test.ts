@@ -107,10 +107,38 @@ describe('GET /freestyle/concepts — Generative insight (notation chapter)', ()
     expect(res.text).toMatch(/Generative insight/);
   });
 
-  it('frames the compositional system as combinatorially generative', async () => {
+  it('frames the compositional system as generative', async () => {
     const res = await request(createApp()).get('/freestyle/concepts');
     expect(res.text).toMatch(/<strong>enumerable<\/strong>/);
     expect(res.text).toMatch(/curated subset/i);
+    expect(res.text).toMatch(/generative core/i);
+  });
+
+  it('claims a generative core, not a complete generator of every trick', async () => {
+    // The correction is about completeness, not generativity. The page's own
+    // neighbours already said the notation extends this grammar and that the
+    // dictionary is not its closure, so a claim to generate the entire trick
+    // space contradicted the text around it.
+    const res = await request(createApp()).get('/freestyle/concepts');
+    expect(res.text).not.toMatch(/generates the entire freestyle trick space/i);
+    expect(res.text).toMatch(/extended by further movement primitives, terminals and\s+modifiers/i);
+  });
+
+  it('does not imply every trick terminates on a surface', async () => {
+    // A kick is a terminal that scores nothing, so it is not a terminating
+    // surface; a trick can end in one, which a skeleton requiring a surface
+    // cannot produce.
+    const res = await request(createApp()).get('/freestyle/concepts');
+    expect(res.text).toMatch(/kicks can also\s+stand as tricks in their own right/i);
+    expect(res.text).not.toMatch(/canonical structural form of a footbag trick/i);
+  });
+
+  it('leaves the historical attribution and its enumeration alone', async () => {
+    // The correction belongs to the platform's restatement of the idea, never to
+    // what the source historically proposed.
+    const res = await request(createApp()).get('/freestyle/concepts');
+    expect(res.text).toMatch(/curated subset/i);
+    expect(res.text).toMatch(/not its full closure/i);
   });
 
   it('renders the canonical structural formula', async () => {

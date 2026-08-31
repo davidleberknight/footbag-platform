@@ -573,3 +573,31 @@ describe('an unresolved side relationship stays unresolved in the platform voice
     expect(offenders).toEqual([]);
   });
 });
+
+describe('a stall is a trick and an anchor state, not one instead of the other', () => {
+  const toeStall = CORE_ATOM_EDUCATIONAL_BY_SLUG.get('toe_stall');
+
+  it('says a toe stall is both', () => {
+    expect(toeStall, 'the toe stall card').toBeDefined();
+    expect(toeStall!.reveal).toMatch(/both a trick and an anchor state/i);
+  });
+
+  it('does not deny that it is a trick', () => {
+    // The dictionary catalogues Toe Stall as an entry scoring 1 ADD. Teaching
+    // copy saying it is not really a trick contradicted that, and a reader
+    // meeting both had no way to reconcile them.
+    for (const card of CORE_ATOM_EDUCATIONAL_BY_SLUG.values()) {
+      expect(card.reveal, `${card.slug} reveal`).not.toMatch(/not really a trick/i);
+      expect(card.line, `${card.slug} line`).not.toMatch(/not really a trick/i);
+      expect(card.relates, `${card.slug} relates`).not.toMatch(/not really a trick/i);
+    }
+  });
+
+  it('keeps the anchor framing that made the claim worth making', () => {
+    // The correction is to the denial, not to the teaching around it: the trip
+    // out and back is why a bare stall scores less than the dex reaching it.
+    expect(toeStall!.reveal).toMatch(/anchor/i);
+    expect(toeStall!.reveal).toMatch(/the difficulty is in the trip, not the landing/i);
+    expect(toeStall!.reveal).toMatch(/not every trick is stall-to-stall/i);
+  });
+});

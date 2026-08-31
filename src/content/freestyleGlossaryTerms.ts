@@ -987,7 +987,7 @@ export const GLOSSARY_TERMS: readonly GlossaryTerm[] = [
   {
     term: 'BSOS',
     slug: 'bsos',
-    definition: '"Both sides one string": a trick done on both sides of the body within a single string, jokingly said "bee sauce". BSOR, "both sides one run", means the same thing.',
+    definition: '"Both sides one string": a trick done on both sides of the body within a single string, jokingly said "bee sauce". Also written BSOR, "both sides one run"; string and run name the same continuous sequence here, so the two describe the same achievement.',
     aliases: ['BSOR', 'bee sauce'],
   },
   {
