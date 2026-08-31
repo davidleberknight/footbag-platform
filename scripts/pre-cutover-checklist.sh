@@ -17,6 +17,10 @@
 #   FOOTBAG_LEGACY_HOSTED_ZONE_ID    Route 53 zone (required if not --mock-aws)
 #   FOOTBAG_PRECUTOVER_MOCK_AWS=1    skip AWS calls (equivalent to --mock-aws)
 #   FOOTBAG_PRECUTOVER_SKIP_TESTS=1  skip npm run test:smoke / test:e2e
+#   FOOTBAG_PRECUTOVER_EMAIL_PROFILE     AWS profile for the live outbox smoke (step 8a)
+#   FOOTBAG_PRECUTOVER_EMAIL_HOST_ALIAS  deploy ssh alias for the outbox smoke
+#   FOOTBAG_PRECUTOVER_EMAIL_CREDFILE    operator credential file (sudo password line 1)
+#   FOOTBAG_PRECUTOVER_EMAIL_INBOX       optional real inbox for the outbox smoke
 #
 # Flags:
 #   --mock-aws     run the DNS TTL and QC gates in mock mode (no AWS calls, and
@@ -91,7 +95,8 @@ run_step "G11" bash scripts/validate-name-variants.sh
 # artifact. G9 + G10 are exercised by the smoke suite. All three are
 # skipped under --skip-tests for local dry runs and the orchestrator's own
 # hermetic test, which would otherwise recurse through the integration
-# suite.
+# suite. The smoke suite proves G10's enqueue-and-drain logic against the
+# stub adapter; the live half of G10 is step 8a below.
 if [[ "${SKIP_TESTS}" -eq 0 ]]; then
   run_step "CLAIM-SAFETY" npm run test:integration
   run_step "SMOKE" npm run test:smoke
@@ -116,6 +121,25 @@ run_step "SHOWCASE-PRESENCE" bash scripts/validate-showcase-presence.sh
 # 8. Live-payments boot readiness (env file names the live adapter and the
 #    webhook secret; the Stripe key itself lives in SSM)
 run_step "PAYMENTS-BOOT" bash scripts/validate-payments-boot.sh
+
+# 8a. Live outbox send-path smoke (gate G10): enqueue through the application
+#     path on the production host, worker drains to live SES, inbox confirms.
+#     Opt-in, because it sends real email and opens a privileged remote
+#     session: it runs only when the operator supplies the email env set below;
+#     otherwise it reports SKIP so a dry run stays hermetic. The inbox is
+#     optional (the smoke defaults to the SES success simulator).
+if [[ "${MOCK_AWS}" -eq 0 && -n "${FOOTBAG_PRECUTOVER_EMAIL_PROFILE:-}" \
+      && -n "${FOOTBAG_PRECUTOVER_EMAIL_HOST_ALIAS:-}" \
+      && -n "${FOOTBAG_PRECUTOVER_EMAIL_CREDFILE:-}" ]]; then
+  run_step "G10-OUTBOX" bash -c \
+    'bash scripts/verify-prod-email.sh --profile "$1" --confirm-production --host-alias "$2" ${3:+--inbox "$3"} < "$4"' _ \
+    "${FOOTBAG_PRECUTOVER_EMAIL_PROFILE}" \
+    "${FOOTBAG_PRECUTOVER_EMAIL_HOST_ALIAS}" \
+    "${FOOTBAG_PRECUTOVER_EMAIL_INBOX:-}" \
+    "${FOOTBAG_PRECUTOVER_EMAIL_CREDFILE}"
+else
+  results+=("GATE: G10-OUTBOX SKIP: set FOOTBAG_PRECUTOVER_EMAIL_PROFILE, FOOTBAG_PRECUTOVER_EMAIL_HOST_ALIAS and FOOTBAG_PRECUTOVER_EMAIL_CREDFILE (optionally FOOTBAG_PRECUTOVER_EMAIL_INBOX) to run the live outbox smoke")
+fi
 
 # 9. Internal QC subsystem must be absent from the production image
 if [[ "${MOCK_AWS}" -eq 1 ]]; then

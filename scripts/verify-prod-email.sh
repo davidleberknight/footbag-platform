@@ -6,6 +6,15 @@
 # real recipient) and, optionally, to one operator-supplied real inbox for an
 # end-to-end deliverability + DKIM confirmation.
 #
+# With --host-alias, additionally runs the outbox leg (validation gate G10):
+# the outbox send-path smoke executes inside the web container on the host,
+# enqueueing through the application path and watching the worker drain the
+# row to live SES, which the two direct `aws ses send-email` legs above cannot
+# prove. Needs the operator credential file on stdin, host sudo-password first
+# line, per the wire pattern in scripts/lib/host-env-remote.sh:
+#   < <operator credential file> bash scripts/verify-prod-email.sh \
+#       --profile <p> --confirm-production --host-alias <alias> --inbox <addr>
+#
 # This sends REAL email via the production SES identity. It refuses to run
 # without an explicit production profile and an explicit confirmation flag.
 set -euo pipefail
@@ -24,9 +33,11 @@ INBOX=""
 PROFILE=""
 CONFIRMED=0
 BOUNCE_PROBE=0
+HOST_ALIAS=""
+OUTBOX_TIMEOUT_SECONDS=""
 
 usage() {
-  echo "Usage: $0 --profile <aws-profile> --confirm-production [--sender <address>] [--inbox <address>] [--bounce-probe]" >&2
+  echo "Usage: $0 --profile <aws-profile> --confirm-production [--sender <address>] [--inbox <address>] [--bounce-probe] [--host-alias <ssh-alias> [--outbox-timeout-seconds <n>]]" >&2
 }
 
 while [[ $# -gt 0 ]]; do
@@ -36,6 +47,8 @@ while [[ $# -gt 0 ]]; do
     --inbox) INBOX="$2"; shift 2 ;;
     --confirm-production) CONFIRMED=1; shift ;;
     --bounce-probe) BOUNCE_PROBE=1; shift ;;
+    --host-alias) HOST_ALIAS="$2"; shift 2 ;;
+    --outbox-timeout-seconds) OUTBOX_TIMEOUT_SECONDS="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "unknown arg: $1" >&2; usage; exit 2 ;;
   esac
@@ -46,6 +59,15 @@ if [[ -z "$PROFILE" ]]; then
 fi
 if [[ "$CONFIRMED" -ne 1 ]]; then
   echo "ERROR: this sends real production email; pass --confirm-production to proceed" >&2; exit 2
+fi
+
+# The outbox leg opens a privileged remote session, so its credential is read
+# from stdin before anything else runs: a failure here should cost nothing.
+if [[ -n "$HOST_ALIAS" ]]; then
+  # shellcheck source=lib/host-env-remote.sh
+  source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/host-env-remote.sh"
+  require_operator_stdin "scripts/verify-prod-email.sh --profile <p> --confirm-production --host-alias <alias>" || exit 2
+  require_ssh_alias "$HOST_ALIAS" || exit 2
 fi
 
 # Confirm the profile resolves to a production identity before sending anything.
@@ -111,6 +133,29 @@ echo "  MessageId: $(send_one "$SIMULATOR")"
 if [[ -n "$INBOX" ]]; then
   echo "Sending to operator inbox ($INBOX)..."
   echo "  MessageId: $(send_one "$INBOX")"
+fi
+
+if [[ -n "$HOST_ALIAS" ]]; then
+  # Outbox leg (validation gate G10): enqueue through the application path on
+  # the host and watch the worker drain the row to live SES. The recipient is
+  # the operator inbox when one was supplied, else the success simulator,
+  # which proves the chain without an inbox to check.
+  OUTBOX_TO="${INBOX:-$SIMULATOR}"
+  OUTBOX_REMOTE_HALF="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/internal/outbox-smoke-remote.sh"
+  if [[ ! -r "$OUTBOX_REMOTE_HALF" ]]; then
+    echo "ERROR: missing remote half: $OUTBOX_REMOTE_HALF" >&2; exit 1
+  fi
+  require_host_ssh_opts || exit 1
+  echo "Running the outbox send-path smoke on ${HOST_ALIAS} (to ${OUTBOX_TO})..."
+  if ! {
+        printf '%s\n' "$SUDO_PASS"
+        printf 'SMOKE_TO=%q\n' "$OUTBOX_TO"
+        printf 'SMOKE_TIMEOUT_SECONDS=%q\n' "$OUTBOX_TIMEOUT_SECONDS"
+        cat "$OUTBOX_REMOTE_HALF"
+      } | ssh "${HOST_SSH_OPTS[@]}" "$HOST_ALIAS" 'sudo -k -S -p "" bash'; then
+    echo "ERROR: the outbox send-path smoke failed; its GATE: line above names where the row stopped." >&2
+    exit 1
+  fi
 fi
 
 if [[ "$BOUNCE_PROBE" -eq 1 ]]; then

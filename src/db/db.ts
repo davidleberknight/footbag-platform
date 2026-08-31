@@ -5741,6 +5741,13 @@ export const outbox = {
     SELECT id FROM outbox_emails WHERE idempotency_key = ?
   `); },
 
+  // Send-path smoke poll: one enqueued row watched to its terminal status,
+  // with the columns that say where it stopped if it never gets there.
+  get selectStatusById() { return db.prepare(`
+    SELECT status, retry_count, last_error, sent_at
+    FROM outbox_emails WHERE id = ?
+  `); },
+
   get markSending() { return db.prepare(`
     UPDATE outbox_emails
     SET status = 'sending',

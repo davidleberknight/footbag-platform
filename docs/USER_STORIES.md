@@ -382,12 +382,11 @@ events.
 **v3**, unordered: administrator authority split into named lanes of expertise rather than one
 flat role; the Big Add Posse nomination and voting flow; and native tournament-day operations.
 
-Two deadlines bind the v2 order. The first binding election on the new voting subsystem is the
-IFPA Board election of November 2026, and the bylaws put the ballot after a nomination period of
-at least thirty days, so both surfaces must be live and exercised well before then; the Hall of
-Fame proving run with disregardable votes has to complete before that election, because it is
-binding. Tournament operations carries a fixed Worlds 2027 deadline whatever position it takes
-in v3.
+Two deadlines bind the deferred work, and the ruled list is the single home for their dates
+and reasoning: the first binding election on the new voting subsystem, which fixes the v2
+order and its timing (the Hall of Fame proving run with disregardable votes completes before
+it, because it is binding), and the fixed Worlds 2027 deadline on tournament operations,
+whatever position it takes in v3.
 
 # 2. Visitor Stories
 
