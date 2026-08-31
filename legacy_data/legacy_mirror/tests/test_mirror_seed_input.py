@@ -117,10 +117,15 @@ def test_start_urls_stay_present_when_seeds_prefill_the_queue(state):
 # against a local fixture site.
 
 class _FakeResp:
-    def __init__(self, html):
+    # `url` carries the address the server answered at, after any redirect,
+    # exactly as a real response does. The crawler resolves each page's relative
+    # references against it, so a stub without it would not exercise the path
+    # the real one takes.
+    def __init__(self, html, url=''):
         self.text = html
         self.content = html.encode('utf-8')
         self.headers = {'Content-Type': 'text/html'}
+        self.url = url
 
 
 @pytest.fixture
@@ -135,7 +140,7 @@ def crawl_env(tmp_path, monkeypatch, state):
         html = site.get(url)
         if html is None:
             return None, url
-        return _FakeResp(html), url
+        return _FakeResp(html, url), url
 
     monkeypatch.setattr(mirror_script, 'fetch', fake_fetch)
     return site, fetched
@@ -176,3 +181,91 @@ def test_rerun_without_fresh_adds_new_urls_but_never_refetches(crawl_env, monkey
     assert 'original capture' in b_file.read_text(encoding='utf-8')
     assert 'new page' in Path(
         mirror_script.url_to_filepath(c)).read_text(encoding='utf-8')
+
+
+def test_a_directory_page_discovers_its_links_below_itself_not_at_the_site_root(
+        crawl_env, monkeypatch):
+    # The site answers a directory address by redirecting to its trailing-slash
+    # form, and normalization strips that slash back off for storage. The page is
+    # therefore stored under the slash-less address while the correct base for
+    # its relative references is the slash form. Resolving against the stored one
+    # asks for every reference a level too high, at the site root, so the whole
+    # of a directory's content goes undiscovered.
+    site, fetched = crawl_env
+    stored = BASE + '/worlds2000'
+    site[stored] = '<html><body><a href="events.html">events</a></body></html>'
+
+    def redirecting_fetch(url):
+        fetched.append(url)
+        html = site.get(url)
+        if html is None:
+            return None, url
+        # Served with the slash, stored without it: the shape the live site has.
+        return _FakeResp(html, url + '/'), url
+
+    monkeypatch.setattr(mirror_script, 'fetch', redirecting_fetch)
+    mirror_script.crawl([stored])
+
+    assert BASE + '/worlds2000/events.html' in fetched
+    assert BASE + '/events.html' not in fetched
+
+
+# Revisiting. A finished capture makes an ordinary re-run a no-op: every seed is
+# already visited, so the crawl skips all of them, extracts no links and stops.
+# Forgetting what has been seen is the only way to read a page again or to reach
+# anything published since.
+
+def test_a_page_edited_since_capture_is_reread_only_after_a_revisit(
+        crawl_env, monkeypatch):
+    site, fetched = crawl_env
+    page = BASE + '/members/profile/11985'
+    site[page] = '<html><body>as first captured</body></html>'
+    mirror_script.crawl([page])
+    on_disk = Path(mirror_script.url_to_filepath(page))
+    assert 'as first captured' in on_disk.read_text(encoding='utf-8')
+
+    # The live page changes.
+    site[page] = '<html><body>edited since the capture</body></html>'
+    fetched.clear()
+
+    # A plain re-run does not notice: the page has been seen.
+    mirror_script.crawl([page])
+    assert fetched == []
+    assert 'as first captured' in on_disk.read_text(encoding='utf-8')
+
+    # After forgetting it, the same run picks the edit up.
+    mirror_script.clear_for_revisit()
+    mirror_script.crawl([page])
+    assert fetched == [page]
+    assert 'edited since the capture' in on_disk.read_text(encoding='utf-8')
+
+
+def test_a_revisit_list_clears_only_the_pages_it_names(state):
+    kept = BASE + '/faq/show/1'
+    named = BASE + '/faq/show/2'
+    state.visited.update({kept, named})
+    state.failed_urls.add(named)
+
+    assert mirror_script.clear_for_revisit([named]) == 1
+    assert kept in state.visited
+    assert named not in state.visited
+    # A URL that failed months ago may answer now, and links neutralized on that
+    # evidence deserve reconsidering, so the failure record goes too.
+    assert named not in state.failed_urls
+
+
+def test_revisiting_keeps_the_capture_and_the_recorded_video_outcomes(state):
+    # Only the record of what has been seen is dropped. Throwing away the
+    # content hashes, the sitemap or the video manifest would mean re-fetching
+    # media already held and losing which videos are already downloaded.
+    state.visited.add(BASE + '/faq/show/1')
+    state.content_hashes['hash'] = '/captured/file'
+    state.skipped_videos['key'] = {'disposition': 'backfilled'}
+    state.sitemap.append('/captured/file')
+
+    mirror_script.clear_for_revisit()
+
+    assert state.visited == set()
+    assert state.content_hashes == {'hash': '/captured/file'}
+    assert state.skipped_videos == {'key': {'disposition': 'backfilled'}}
+    assert state.sitemap == ['/captured/file']

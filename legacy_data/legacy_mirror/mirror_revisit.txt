@@ -1,0 +1,30 @@
+# Pages a crawl must read again even though it has captured them before.
+#
+# Read only when named with --revisit-list. Each address here is dropped from
+# the crawl's record of what it has seen and queued for fetching, so the crawl
+# reads the page again and follows its links. Absolute URLs, one per line;
+# blank lines and '#' comments are ignored.
+#
+# This is for repairing named pages. To read the whole capture again, which is
+# what a cutover refresh wants, use --revisit-all instead of this file.
+
+# The pre-CMS World Championship microsites.
+#
+# Each was fetched at its directory address, which the site answers by
+# redirecting to the trailing-slash form. The crawler stored the page under the
+# slash-less address and, until the base was corrected, resolved the page's
+# relative references against that stored form: 'images/welcome.gif' on
+# /worlds2000/ was requested at the site root, where it does not exist. Every
+# reference 404'd and was then stripped as a dead link, leaving each of these as
+# a single page with its entire site missing. The content is live and fetchable.
+#
+# The trailing slashes below are documentation. Normalization removes them, so
+# both forms name the same page.
+http://www.footbag.org/worlds95/
+http://www.footbag.org/worlds96/
+http://www.footbag.org/worlds97/
+http://www.footbag.org/worlds98/
+http://www.footbag.org/worlds2000/
+http://www.footbag.org/worlds2004/
+http://www.footbag.org/worlds2005/
+http://www.footbag.org/worlds2009/

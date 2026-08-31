@@ -118,6 +118,51 @@ def test_magic_byte_mismatch_rejects(tmp_path):
     assert after == before + 1
 
 
+# QuickTime is a sequence of atoms and may lead with any of them. Camcorder-era
+# clips lead with something other than 'ftyp', and treating those as disguised
+# payloads deletes real footage, so every atom a real file opens with is
+# accepted while a genuine mismatch still fails.
+
+@pytest.mark.parametrize('atom', [b'ftyp', b'moov', b'wide', b'skip',
+                                  b'pnot', b'mdat', b'free'])
+def test_quicktime_is_accepted_whichever_atom_it_opens_with(tmp_path, atom):
+    clip = tmp_path / 'clip.mov'
+    clip.write_bytes(b'\x00\x00\x00\x14' + atom + b'\x00' * 8)
+    assert mirror_script.verify_magic_bytes(str(clip), '.mov') is True
+
+
+def test_a_web_page_under_a_movie_name_is_still_refused():
+    # The widened set must not become "accept anything": an HTML body served
+    # under a video extension is exactly what the check exists to catch.
+    import tempfile
+    with tempfile.NamedTemporaryFile(suffix='.mov', delete=False) as fh:
+        fh.write(b'<!DOCTYPE html><html><body>not a movie</body></html>')
+        name = fh.name
+    assert mirror_script.verify_magic_bytes(name, '.mov') is False
+
+
+def test_phone_and_windows_clips_are_recognized_as_convertible_video():
+    # Absent from the format table these were stored exactly as downloaded,
+    # bypassing the re-encode every other piece of media goes through.
+    for ext in ('.3gp', '.asf'):
+        assert ext in mirror_script.VIDEO_EXTENSIONS
+        assert ext in mirror_script.CONVERTIBLE_EXTENSIONS
+        assert ext in mirror_script._MAGIC_BYTES
+
+
+def test_a_semicolon_in_a_filename_keeps_the_name_and_the_extension():
+    # A semicolon is a legal filename character, but URL parsing treats what
+    # follows it in the last segment as a parameter. Losing that tail leaves a
+    # name with no extension, so the file is not seen as video and is written as
+    # a directory index, where the archive host would serve it as a page.
+    url = ('http://www.footbag.org/media/1093/'
+           'Christmas%20Calender;%20A%20Munstermann%20Special.wmv')
+    assert mirror_script.get_extension(url) == '.wmv'
+    assert mirror_script.is_video_file(url) is True
+    assert mirror_script.url_to_filepath(url).endswith(
+        'Christmas Calender; A Munstermann Special.wmv')
+
+
 def test_jpeg_reencode_is_forced(tmp_path):
     src = tmp_path / 'photo.jpg'
     _make_jpg(src)

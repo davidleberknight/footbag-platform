@@ -32,4 +32,4 @@ Designed-but-not-deployed, future, and documented-deferred are status facts. A n
 
 ## Every deployed path maps to a named story
 
-Every deployed surface traces upward to a descriptively-named user story in `docs/USER_STORIES.md`. A deployed feature that lands in "runtime feature without a story id" is therefore a coverage gap the review surfaces: write the missing story, or, if the surface is genuinely unintended, remove it. Legacy data-pipeline surfaces anchor on the `docs/MIGRATION_PLAN.md` validation gates instead of a user story.
+Every deployed surface traces upward to a descriptively-named user story in `docs/USER_STORIES.md`. A deployed feature that lands in "runtime feature without a story id" is therefore a coverage gap the review surfaces: write the missing story, or, if the surface is genuinely unintended, remove it. Legacy data-pipeline surfaces anchor on the pipeline validation gates in `docs/TESTING.md` (the migration and onboarding testing section) instead of a user story.

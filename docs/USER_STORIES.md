@@ -369,13 +369,15 @@ Implementation notes used by stories below:
 Everything in this document ships at launch (v1) except the items below. Deferral requires an
 explicit maintainer ruling; the ruled list, with its dates and rationale, is `V2_SCOPE.md`
 (private GitHub repo). Deferred work is built natively after launch, never left on the legacy
-site, which shuts down at cutover. Deferred stories are still written here in full, marked
-`<< V2 SCOPE >>` or `<< V3 SCOPE >>`, because the design is settled even where the build is not.
+site, which shuts down at cutover. Where a deferred item's stories exist, they are written here
+in full, marked `<< V2 SCOPE >>` or `<< V3 SCOPE >>`, because the design is settled even where
+the build is not; the remaining deferred items are defined by their rulings on that list.
 
-**v2**, built first after launch, in this order: voting and elections; the Hall of Fame
-nomination and voting flow, the first real consumer of that subsystem; IFPA rankings computed
-from sanctioned-event results. Independent of that order: the news feed with its authoring and
-moderation surfaces, the curated net topic gallery, and per-discipline routine music on events.
+**v2**, built first after launch, in this order: voting and elections; then the Hall of Fame
+nomination and voting flow, the first real consumer of that subsystem. Independent of that
+order: IFPA rankings computed from sanctioned-event results, the news feed with its authoring
+and moderation surfaces, the curated net topic gallery, and per-discipline routine music on
+events.
 
 **v3**, unordered: administrator authority split into named lanes of expertise rather than one
 flat role; the Big Add Posse nomination and voting flow; and native tournament-day operations.

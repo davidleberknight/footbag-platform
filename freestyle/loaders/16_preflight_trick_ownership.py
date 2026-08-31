@@ -76,9 +76,11 @@ def main() -> int:
             print(f"  {args.db}: {err}.", file=sys.stderr)
             print("\nEvery stage after this one reads that column, and before go-live "
                   "a database picks up a schema change by being rebuilt rather than "
-                  "migrated. Rebuild, then refresh:\n"
-                  "  ./run_dev.sh --from-csv\n"
-                  "  freestyle/run_freestyle.sh", file=sys.stderr)
+                  "migrated. Rebuild; a rebuild runs this refresh as one of its own "
+                  "stages, so there is no second command to run:\n"
+                  "  ./run_dev.sh --from-csv   # committed data only\n"
+                  "  ./run_dev.sh --all-data   # when this database carries the "
+                  "member load, which --from-csv would leave empty", file=sys.stderr)
             print("\nA rebuild discards curator work, but there is none here to lose: "
                   "a database without this column has no authored notation and no "
                   "published trick either, because those need columns it does not "

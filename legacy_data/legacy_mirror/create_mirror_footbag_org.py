@@ -124,7 +124,7 @@ import argparse
 import html
 import importlib.util
 import json
-from urllib.parse import urljoin, urlparse, urlunparse, unquote, parse_qs, unquote_plus, urlencode, quote
+from urllib.parse import urljoin, urlparse, urlsplit, urlunparse, unquote, parse_qs, unquote_plus, urlencode, quote
 from pathlib import Path
 import signal
 import sys
@@ -245,6 +245,12 @@ SEEDS_DIR = str(SCRIPT_DIR / 'mirror_seeds')
 # a private checkout that is absent on most machines.
 MEMBER_AREA_EXCLUSION_LIST = str(SCRIPT_DIR / 'member_area_exclusions.txt')
 
+# Pages a crawl must read again even though it has captured them before. Named
+# explicitly with --revisit-list, never loaded on its own: re-reading is always
+# a deliberate act, and a list applied automatically would quietly re-fetch on
+# every run. Hand-maintained, unlike the generated seed lists.
+MIRROR_REVISIT_LIST = str(SCRIPT_DIR / 'mirror_revisit.txt')
+
 DELAY_SECONDS = 0.25 # Polite delay between requests to live site.
 MAX_RETRIES = 1  # Retry only once after failure
 TRANSIENT_RETRY_CODES = {500, 502, 503, 504} # as opposed to permanent failures 
@@ -350,6 +356,34 @@ def parse_args():
         )
     )
     parser.add_argument(
+        "--revisit-all",
+        dest="revisit_all",
+        action="store_true",
+        help=(
+            "Read every already-captured page from the site again, over the "
+            "existing capture. A resumed crawl otherwise skips each page it has "
+            "seen before it reads it, so it discovers nothing and re-reads "
+            "nothing; this forgets the whole visited record so the crawl walks "
+            "the site again and picks up pages added or edited since. The "
+            "capture, the already re-encoded media, and the recorded video "
+            "outcomes are all kept, so unchanged media is not fetched twice."
+        )
+    )
+    parser.add_argument(
+        "--revisit-list",
+        dest="revisit_list",
+        metavar="PATH",
+        action="append",
+        default=None,
+        help=(
+            "Read only the pages listed in a file again, rather than the whole "
+            "site: absolute URLs one per line, blanks and '#' comments allowed. "
+            "For repairing specific pages without a site-wide pass. Repeatable; "
+            f"a starting list ships as {os.path.basename(MIRROR_REVISIT_LIST)} "
+            "beside this script."
+        )
+    )
+    parser.add_argument(
         "--video-backfill",
         dest="video_backfill",
         action="store_true",
@@ -357,7 +391,9 @@ def parse_args():
             "Instead of crawling, download and re-encode every video recorded "
             f"in {SKIPPED_VIDEO_MANIFEST} by earlier skip-mode crawls, then "
             "rewrite the referring pages to link the local mp4 files. Each "
-            "record's outcome is written back to the manifest."
+            "record's outcome is written back to the manifest. Referring pages "
+            "are repaired for videos an earlier pass already downloaded too, so "
+            "a refresh crawl that restored the original remote links is undone."
         )
     )
     parser.add_argument(
@@ -537,6 +573,12 @@ MEDIA_FORMATS = {
     '.m4v':  ('video/mp4', True),
     '.m2v':  ('video/mpeg', True),
     '.ogv':  ('video/ogg', True),
+    # Phone-camera and Windows-era clips the site carries. Absent from this
+    # table they were not recognized as video at all, so they were stored as
+    # downloaded: never re-encoded, and so never put through the strip every
+    # other piece of media goes through.
+    '.3gp':  ('video/3gpp', True),
+    '.asf':  ('video/x-ms-asf', True),
     '.jpg':  ('image/jpeg', True),
     '.jpeg': ('image/jpeg', True),
     '.png':  ('image/png', True),
@@ -674,12 +716,59 @@ class MirrorState:
             rec['referrers'].sort()
         return rec
 
+    def _carry_forward_backfill_outcomes(self, manifest_path):
+        """Keep what the backfill recorded when a crawl rewrites the manifest.
+
+        The backfill writes each video's outcome straight into the manifest on
+        disk. A crawl rebuilds that same file from its own in-memory records,
+        which a resumed run restored from a progress file that can predate the
+        backfill entirely. Without this pass, the first crawl to finish reports
+        every already-downloaded video as still skipped, and the local file each
+        one produced is no longer named anywhere: the videos survive on disk with
+        nothing tying them back to the URL they came from, and the list of which
+        ones still need fetching is gone.
+
+        Only records this run already carries are updated. One the crawl no
+        longer holds was dropped deliberately, since the exclusions sweep prunes
+        them, so it is never resurrected from disk.
+        """
+        try:
+            on_disk = json.loads(Path(manifest_path).read_text(encoding='utf-8'))
+        except (OSError, ValueError):
+            return
+        if not isinstance(on_disk, list):
+            return
+        carried = 0
+        for rec in on_disk:
+            if not isinstance(rec, dict):
+                continue
+            settled = rec.get('disposition')
+            if not settled or settled == 'skipped_video':
+                continue
+            key = rec.get('normalized_url') or normalize_url(rec.get('url') or '')
+            mine = self.skipped_videos.get(key)
+            if not isinstance(mine, dict):
+                continue
+            # A crawl only ever re-records a video as skipped, so anything the
+            # crawl has already settled itself is newer than the manifest and wins.
+            if mine.get('disposition') not in (None, 'skipped_video'):
+                continue
+            mine['disposition'] = settled
+            if rec.get('local_file'):
+                mine['local_file'] = rec['local_file']
+            carried += 1
+        if carried:
+            logging.info(
+                f"Carried {carried} recorded video outcome(s) forward from the "
+                f"existing manifest")
+
     def write_skipped_video_manifest(self):
         """Write the machine-readable manifest + human summary (atomic, sorted)."""
         if not SKIP_VIDEOS and not self.skipped_videos:
             return
         os.makedirs(MIRROR_DIR, exist_ok=True)
         manifest_path = os.path.join(MIRROR_DIR, SKIPPED_VIDEO_MANIFEST)
+        self._carry_forward_backfill_outcomes(manifest_path)
         records = [self.skipped_videos[k] for k in sorted(self.skipped_videos)]
         _atomic_write_text(manifest_path, json.dumps(records, indent=2, ensure_ascii=False))
 
@@ -1516,7 +1605,12 @@ def apply_exclusions_sweep(dry_run=False):
     return len(removed)
 
 def get_extension(url_or_path):
-    return Path(urlparse(url_or_path).path.lower()).suffix
+    # urlsplit, not urlparse: urlparse peels everything after the last ';' off
+    # the final path segment as a parameter, so a filename that legitimately
+    # contains a semicolon loses its tail and reports no extension at all. That
+    # is enough for a video to go unrecognized as one and skip the re-encode
+    # every other piece of media gets. urlsplit leaves the path whole.
+    return Path(urlsplit(url_or_path).path.lower()).suffix
 
 def is_page_critical_asset(url_or_path):
     # A stylesheet decides whether every page referencing it is readable or a
@@ -1555,11 +1649,19 @@ _MAGIC_BYTES = {
     '.webp': (0, [b'RIFF']),  # also has 'WEBP' at offset 8; loose check is acceptable
     '.mp4':  (4, [b'ftyp']),
     '.m4v':  (4, [b'ftyp']),
-    '.mov':  (4, [b'ftyp']),  # QuickTime shares ISO BMFF container shape
+    # QuickTime shares the ISO base-media shape, so 'ftyp' covers files written
+    # by anything modern. It does not cover the format's older self: a QuickTime
+    # file is a sequence of atoms and is free to lead with any of them, and the
+    # camcorder-era clips this archive is full of lead with 'moov', 'wide',
+    # 'skip', 'pnot' or 'mdat' instead. Accepting only 'ftyp' read those as
+    # payloads disguised under a video extension and destroyed them.
+    '.mov':  (4, [b'ftyp', b'moov', b'wide', b'skip', b'pnot', b'mdat', b'free']),
     '.webm': (0, [b'\x1aE\xdf\xa3']),  # EBML header
     '.mkv':  (0, [b'\x1aE\xdf\xa3']),
     '.avi':  (0, [b'RIFF']),  # also has 'AVI ' at offset 8; loose check is acceptable
     '.wmv':  (0, [b'\x30\x26\xb2\x75\x8e\x66\xcf\x11']),  # ASF header GUID prefix
+    '.asf':  (0, [b'\x30\x26\xb2\x75\x8e\x66\xcf\x11']),  # same container as .wmv
+    '.3gp':  (4, [b'ftyp']),
     '.mpg':  (0, [b'\x00\x00\x01\xba', b'\x00\x00\x01\xb3']),
     '.mpeg': (0, [b'\x00\x00\x01\xba', b'\x00\x00\x01\xb3']),
     '.flv':  (0, [b'FLV']),
@@ -2498,6 +2600,15 @@ def url_to_filepath(url):
     # path, so the page can never be stored twice under two names.
     url = canonicalize_cross_published(url)
     parsed = urlparse(url)
+    if parsed.params:
+        # A semicolon inside a filename is part of the name, not a parameter
+        # separator, but urlparse splits everything after the last ';' off the
+        # final path segment. That truncates a real name like
+        # 'Christmas Calender; A Munstermann Special.wmv' to 'Christmas
+        # Calender', which has no extension, so the file lands as 'index.html'
+        # inside a directory of that name and the archive host serves a video as
+        # a web page. Put the name back together before deriving any path.
+        parsed = parsed._replace(path=f"{parsed.path};{parsed.params}", params='')
     query_parts = {k.lower(): v for k, v in parse_qs(parsed.query).items()}
 
     # Non-www content host (the WordPress vhost): skip EVERY www-specific section
@@ -2749,7 +2860,7 @@ def resolve_canonical_gallery_url(url):
     mirror_state.duplicate_redirects[neg_url] = pos_url
     return pos_url
                    
-def remove_fallback_viewer_row(element, page_url, soup):
+def remove_fallback_viewer_row(element, resolve_base, soup):
     # Removes the adjacent <tr> row if it contains a link to any /gallery/show/* page.
     # Live site has redundant links.    
     outer_td = element.find_parent('td')
@@ -3221,8 +3332,23 @@ def neutralize_outbound_links(soup, page_url):
     return deleted, flattened, actions_stripped
 
 
-def rewrite_links(html, page_url):
+def rewrite_links(html, page_url, link_base=None):
     # Rewrites footbag.org links to relative local file paths, resolving redirects and broken links.
+    #
+    # Two addresses, and the difference matters. `page_url` is the normalized
+    # address this page is stored under: it names the output file and keys the
+    # crawl's own depth bookkeeping. `link_base` is the address the server
+    # actually served the page at, which is what a browser resolves the page's
+    # relative references against.
+    #
+    # They diverge whenever a directory address redirects to its trailing-slash
+    # form, because normalization strips that slash. Resolving 'images/x.gif' on
+    # a page served at '/worlds2000/' against the stored '/worlds2000' walks one
+    # level up and asks for it at the site root, where it does not exist; the
+    # reference then 404s and the dead-link pass strips it, which is how a whole
+    # microsite becomes one empty page. Only resolution uses `link_base`;
+    # everything that identifies or stores the page keeps `page_url`.
+    resolve_base = link_base or page_url
     try:
         if page_url.startswith("file://"):
             raise ValueError(f"BUG: page_url is a file:// path — must be HTTP! Got: {page_url}")
@@ -3262,7 +3388,7 @@ def rewrite_links(html, page_url):
         diagnostics = strip_server_diagnostics(soup)
         scripts = strip_javascript(soup)
         outbound_deleted, outbound_text, offsite_actions = neutralize_outbound_links(
-            soup, page_url)
+            soup, resolve_base)
         mirror_state.stats['dead_forms_removed'] = (
             mirror_state.stats.get('dead_forms_removed', 0) + forms)
         mirror_state.stats['admin_only_fields_removed'] += admin_fields
@@ -3303,7 +3429,7 @@ def rewrite_links(html, page_url):
             if not href_or_src:
                 continue
             try:
-                abs_url = urljoin(page_url, href_or_src)
+                abs_url = urljoin(resolve_base, href_or_src)
             except Exception:
                 continue
             skip_label = _skipped_media_label(get_extension(abs_url))
@@ -3319,7 +3445,7 @@ def rewrite_links(html, page_url):
         for tag in soup.find_all(['video', 'source']):
             src = tag.get('src')
             if src:
-                abs_url = urljoin(page_url, src)
+                abs_url = urljoin(resolve_base, src)
                 embedded_video_refs.add(normalize_url(abs_url))
 
                 if is_media_file(abs_url):
@@ -3342,7 +3468,7 @@ def rewrite_links(html, page_url):
                         # Strict fallback for failed VIDEO conversions in embedded players
                         if is_video_file(abs_url):
                             fallback_text = os.path.basename(urlparse(abs_url).path)
-                            remove_fallback_viewer_row(tag, page_url, soup)
+                            remove_fallback_viewer_row(tag, resolve_base, soup)
                             drop_broken_video_element(tag, fallback_text)
                             logging.info(f"Replaced broken embedded video with fallback on: {page_url}")
 
@@ -3350,7 +3476,7 @@ def rewrite_links(html, page_url):
         for a in soup.find_all('a'):
             href = a.get('href')
             if href and is_video_file(href):
-                abs_url = urljoin(page_url, href)
+                abs_url = urljoin(resolve_base, href)
                 embedded_video_refs.add(normalize_url(abs_url))
 
                 if is_media_file(abs_url):
@@ -3374,7 +3500,7 @@ def rewrite_links(html, page_url):
                     else:
                         # Strict fallback for failed VIDEO conversions in direct links
                         fallback_text = os.path.basename(urlparse(abs_url).path)
-                        remove_fallback_viewer_row(a, page_url, soup)
+                        remove_fallback_viewer_row(a, resolve_base, soup)
                         drop_broken_video_element(a, fallback_text)
                         logging.info(f"Replaced broken video link with fallback on: {page_url}")
 
@@ -3472,7 +3598,7 @@ def rewrite_links(html, page_url):
                     match = re.search(r"openVideoWindow\(['\"]([^'\"]+)['\"]\)", original_value)
                     if match:
                         popup_url = match.group(1)
-                        absolute_popup_url  = urljoin(page_url, popup_url)
+                        absolute_popup_url  = urljoin(resolve_base, popup_url)
                         canonical_popup_url = resolve_canonical_gallery_url(absolute_popup_url)
 
                         resolved_video_url = resolve_actual_video_url(canonical_popup_url)
@@ -3489,7 +3615,7 @@ def rewrite_links(html, page_url):
                                 element.insert_before(fallback_note)
                                 element.insert_after(NavigableString(fallback_string))
                                 # IMPORTANT: remove the adjacent viewer row BEFORE decompose()
-                                remove_fallback_viewer_row(element, page_url, soup)
+                                remove_fallback_viewer_row(element, resolve_base, soup)
                                 element.decompose()
                             continue
 
@@ -3504,7 +3630,7 @@ def rewrite_links(html, page_url):
                         if processed_filepath == SKIPPED_VIDEO:
                             element[attr_name] = resolved_video_url
                             element.insert_before(Comment("Mirror: JS popup rewritten to original video URL; binary not mirrored (skip-videos)"))
-                            remove_fallback_viewer_row(element, page_url, soup)
+                            remove_fallback_viewer_row(element, resolve_base, soup)
                             continue
 
                         # B) Resolved but conversion failed → fallback and remove legacy viewer row
@@ -3519,7 +3645,7 @@ def rewrite_links(html, page_url):
                                 element.insert_before(fallback_note)
                                 element.insert_after(NavigableString(fallback_string))
                                 # IMPORTANT: remove the adjacent viewer row BEFORE decompose()
-                                remove_fallback_viewer_row(element, page_url, soup)
+                                remove_fallback_viewer_row(element, resolve_base, soup)
                                 element.decompose()
                             continue
 
@@ -3532,7 +3658,7 @@ def rewrite_links(html, page_url):
                             element[attr_name] = rel_video_path
                             element.insert_before(Comment("Popup thumbnail rewritten to direct MP4 link"))
                             # IMPORTANT: also nuke the adjacent 'Click here...' viewer row
-                            remove_fallback_viewer_row(element, page_url, soup)
+                            remove_fallback_viewer_row(element, resolve_base, soup)
                             logging.info(f"Popup thumbnail link replaced with: {rel_video_path}")
 
                         # Plain <a>
@@ -3541,14 +3667,14 @@ def rewrite_links(html, page_url):
                             element.string = f"Direct Link to {filename}"
                             element.insert_before(Comment("JS popup replaced with direct MP4 link"))
                             # IMPORTANT: also nuke the adjacent 'Click here...' viewer row
-                            remove_fallback_viewer_row(element, page_url, soup)
+                            remove_fallback_viewer_row(element, resolve_base, soup)
                             logging.info(f"Popup text link replaced with: {rel_video_path}")
 
                         # Weird case: openVideoWindow on non-<a> — still rewrite and clean row
                         else:
                             element[attr_name] = rel_video_path
                             element.insert_before(Comment("JS popup attribute rewritten to direct MP4 link"))
-                            remove_fallback_viewer_row(element, page_url, soup)
+                            remove_fallback_viewer_row(element, resolve_base, soup)
                         continue
 
                     if '<%' in original_value or '%>' in original_value:
@@ -3563,7 +3689,7 @@ def rewrite_links(html, page_url):
                             match = re.search(r'url=([^;]+)', original_value, re.IGNORECASE)
                             if match:
                                 redirect_url = match.group(1).strip()
-                                full_url = urljoin(page_url, redirect_url)
+                                full_url = urljoin(resolve_base, redirect_url)
                                 full_url = mirror_state.duplicate_redirects.get(full_url, full_url)
                                 if is_footbag_domain(full_url):
                                     if full_url in mirror_state.failed_urls:
@@ -3585,7 +3711,7 @@ def rewrite_links(html, page_url):
                                 continue
                             url_part = parts[0]
                             descriptor = ' '.join(parts[1:]) if len(parts) > 1 else ''
-                            full_url = urljoin(page_url, url_part)
+                            full_url = urljoin(resolve_base, url_part)
                             full_url = mirror_state.duplicate_redirects.get(full_url, full_url)
 
                             if is_footbag_domain(full_url):
@@ -3644,7 +3770,7 @@ def rewrite_links(html, page_url):
                         continue
 
                     # Now handle all other internal URLs
-                    full_url = urljoin(page_url, original_value)
+                    full_url = urljoin(resolve_base, original_value)
                     parsed = urlparse(full_url)
 
                     # A footbag host the crawler never contacts (dead media box,
@@ -3700,7 +3826,7 @@ def rewrite_links(html, page_url):
                                 # Fallback for failed VIDEO conversion (general handler)
                                 if is_video_file(full_url):
                                     fallback_text = os.path.basename(urlparse(full_url).path)
-                                    remove_fallback_viewer_row(element, page_url, soup)
+                                    remove_fallback_viewer_row(element, resolve_base, soup)
                                     drop_broken_video_element(element, fallback_text)
                                     logging.info(f"Replaced broken video with fallback on: {page_url}")
                                     continue
@@ -5630,7 +5756,20 @@ def run_video_backfill(seed_from=None):
     by_referrer = {}
     for rec_norm, rec in manifest.items():
         if rec.get('disposition') == 'backfilled':
+            # Downloaded by an earlier pass, so nothing to fetch. Its referring
+            # pages still go through the repair step: a refresh crawl re-fetches
+            # every page from the live site, which restores the original remote
+            # address on each video element, and this is the only pass that puts
+            # the local link back. Skipping the repair here is what would leave a
+            # published archive pointing at footbag.org for videos it holds.
+            # The repair matches on the remote address, so a page already
+            # pointing at the local file matches nothing and is left untouched.
             outcomes['already_done'] += 1
+            done_file = rec.get('local_file')
+            if done_file and os.path.exists(done_file):
+                for referrer in rec.get('referrers') or []:
+                    by_referrer.setdefault(referrer, []).append(
+                        (rec_norm, rec, done_file))
             continue
         url = rec['url']
         if is_unsafe_url(url):
@@ -6010,6 +6149,52 @@ def extract_links(html, base_url):
         logging.error(f"Error extracting links from {base_url}: {e}")
         return set()
 
+def clear_for_revisit(urls=None):
+    """Drop the record of having seen pages, so a crawl reads them again.
+
+    A resumed crawl skips a URL it has already visited before it reads the page,
+    which is what makes an ordinary re-run over a finished capture a no-op: it
+    re-offers every seed, skips all of them, extracts no links, and stops. The
+    only way to re-read a page, or to notice anything published since the last
+    crawl, is to forget having seen it and let the link-following run again.
+
+    With no argument this forgets the whole capture, which is the site-wide
+    refresh. Given a list of URLs it forgets only those, for a targeted repair.
+
+    The capture on disk is untouched, and so is everything that keeps a re-read
+    cheap or safe: the content hashes, the learned redirects, the sitemap, and
+    the skipped-video manifest carrying the outcomes the backfill wrote there.
+    Failed URLs are dropped alongside the visited ones deliberately: an address
+    that failed months ago may answer now, and links the crawl turned to plain
+    text on that evidence deserve to be reconsidered.
+    """
+    if urls is None:
+        seen, failed = len(mirror_state.visited), len(mirror_state.failed_urls)
+        mirror_state.visited.clear()
+        mirror_state.failed_urls.clear()
+        mirror_state.url_depth.clear()
+        mirror_state.queue.clear()
+        logging.info(
+            f"Revisit: forgot the whole capture ({seen} visited URL(s), "
+            f"{failed} failed); every page will be read from the site again")
+        return seen
+
+    cleared = unseen = 0
+    for url in urls:
+        norm = canonicalize_cross_published(normalize_url(url))
+        if norm in mirror_state.visited:
+            mirror_state.visited.discard(norm)
+            cleared += 1
+        else:
+            unseen += 1
+        mirror_state.failed_urls.discard(norm)
+        mirror_state.url_depth.pop(norm, None)
+    logging.info(
+        f"Revisit: {cleared} of {len(urls)} listed URL(s) cleared for re-reading; "
+        f"{unseen} had not been captured and will be fetched as new")
+    return cleared
+
+
 def load_seed_urls(paths):
     # Read seed URLs from the given files, or from every .txt inside a given
     # directory. Lines are absolute URLs, one per line; blanks and '#' comment
@@ -6236,7 +6421,7 @@ def crawl(start_urls):
                 filepath = os.path.join(
                     MIRROR_DIR, 'www.footbag.org', 'news', f'list_{current_year}', 'index.html'
                 )
-                rewritten_html = rewrite_links(resp.text, final_url)
+                rewritten_html = rewrite_links(resp.text, final_url, link_base=resp.url)
                 os.makedirs(os.path.dirname(filepath), exist_ok=True)
                 _atomic_write_text(filepath, rewritten_html)
                 mirror_state.stats['bytes_downloaded'] += len(resp.content)  
@@ -6271,7 +6456,7 @@ def crawl(start_urls):
                         elif len(year) == 3:
                             year = f"200{year[-1]}"
                     filepath = os.path.join(MIRROR_DIR, 'www.footbag.org', 'news', f'list_{year}', 'index.html')
-                    rewritten_html = rewrite_links(resp.text, final_url)
+                    rewritten_html = rewrite_links(resp.text, final_url, link_base=resp.url)
                     os.makedirs(os.path.dirname(filepath), exist_ok=True)
                     _atomic_write_text(filepath, rewritten_html)
                     mirror_state.stats['bytes_downloaded'] += len(resp.content)  
@@ -6292,7 +6477,7 @@ def crawl(start_urls):
             try:
                 current_year = str(datetime.now().year)
                 filepath = os.path.join(MIRROR_DIR, 'www.footbag.org', 'events', f'past_year_{current_year}', 'index.html')
-                rewritten_html = rewrite_links(resp.text, final_url)
+                rewritten_html = rewrite_links(resp.text, final_url, link_base=resp.url)
                 os.makedirs(os.path.dirname(filepath), exist_ok=True)
                 _atomic_write_text(filepath, rewritten_html)
                 mirror_state.stats['bytes_downloaded'] += len(resp.content)  
@@ -6314,7 +6499,7 @@ def crawl(start_urls):
             try:
                 current_year = str(datetime.now().year)
                 filepath = os.path.join(MIRROR_DIR, 'www.footbag.org', 'events', f'results_year_{current_year}', 'index.html')
-                rewritten_html = rewrite_links(resp.text, final_url)
+                rewritten_html = rewrite_links(resp.text, final_url, link_base=resp.url)
                 os.makedirs(os.path.dirname(filepath), exist_ok=True)
                 _atomic_write_text(filepath, rewritten_html)
                 mirror_state.stats['bytes_downloaded'] += len(resp.content)  
@@ -6334,7 +6519,7 @@ def crawl(start_urls):
                     filepath = os.path.join(\
                         MIRROR_DIR, 'www.footbag.org', 'registration', 'register', tid, 'index.html'
                     )
-                    rewritten_html = rewrite_links(resp.text, final_url)
+                    rewritten_html = rewrite_links(resp.text, final_url, link_base=resp.url)
                     os.makedirs(os.path.dirname(filepath), exist_ok=True)
                     _atomic_write_text(filepath, rewritten_html)
                     mirror_state.stats['bytes_downloaded'] += len(resp.content)  
@@ -6354,7 +6539,7 @@ def crawl(start_urls):
                     filepath = os.path.join(
                         MIRROR_DIR, 'www.footbag.org', 'registration', 'regsummary', tid, 'index.html'
                     )
-                    rewritten_html = rewrite_links(resp.text, final_url)
+                    rewritten_html = rewrite_links(resp.text, final_url, link_base=resp.url)
                     os.makedirs(os.path.dirname(filepath), exist_ok=True)
                     _atomic_write_text(filepath, rewritten_html)
                     mirror_state.stats['bytes_downloaded'] += len(resp.content)  
@@ -6396,10 +6581,14 @@ def crawl(start_urls):
 
         if is_html:
             try:
-                rewritten_html = rewrite_links(resp.text, final_url)
+                rewritten_html = rewrite_links(resp.text, final_url, link_base=resp.url)
 
                 save_content(final_url, rewritten_html, is_html=True)
-                new_links = extract_links(resp.text, final_url) 
+                # The address the server served, not the normalized one: a
+                # directory page redirected to its trailing-slash form resolves
+                # its relative links one level up otherwise, and every one of
+                # them is enqueued against the wrong path.
+                new_links = extract_links(resp.text, resp.url) 
 
                 for link in new_links:
                     norm_link = normalize_url(mirror_state.duplicate_redirects.get(link, link))
@@ -6440,6 +6629,29 @@ def main():
 
     args = parse_args()
     LOG_TO_FILE = args.log_to_file   # if your parser uses dest="log", change this to: args.log
+
+    # Revisiting only means something to a crawl. The backfill consumes the
+    # video manifest and the tree-only modes never reach the network, so a
+    # revisit flag on any of them would be silently ignored, and an operator who
+    # believed a refresh had happened would publish a stale capture.
+    if args.revisit_all and args.revisit_list:
+        sys.exit(
+            "ERROR: choose one of --revisit-all or --revisit-list. The first "
+            "reads every captured page again; the second reads only the pages "
+            "a file names.")
+    if args.revisit_all or args.revisit_list:
+        conflicting = [
+            name for name, on in (
+                ('--video-backfill', args.video_backfill),
+                ('--apply-exclusions-only', args.apply_exclusions_only),
+                ('--rebuild-directory-only', args.rebuild_directory_only),
+                ('--wrap-plain-text-only', args.wrap_plain_text_only),
+            ) if on]
+        if conflicting:
+            sys.exit(
+                f"ERROR: {conflicting[0]} does not crawl, so it cannot revisit "
+                "pages. Run the revisit as its own crawl, then run "
+                f"{conflicting[0]} afterwards.")
 
     # Every mode, including the network-free sweep, needs the account address to
     # recognize the pages that render this account's own private data.
@@ -6604,6 +6816,18 @@ def main():
             print_stats()
             logging.info("Video backfill run complete")
             return
+
+        # Revisiting comes before the seeds are offered: enqueue_seed_urls skips
+        # anything already visited, so a URL has to leave that set first or the
+        # seed pass drops it again.
+        if args.revisit_all:
+            clear_for_revisit()
+        elif args.revisit_list:
+            # Enqueued explicitly: a listed URL is not necessarily in any seed
+            # file, and clearing it alone would leave nothing to fetch it.
+            revisit_urls = load_seed_urls(args.revisit_list)
+            clear_for_revisit(revisit_urls)
+            enqueue_seed_urls(revisit_urls)
 
         # Seed lists load by default (the archival crawl wants all content);
         # --seeds narrows to specific files for a targeted run.

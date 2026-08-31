@@ -174,10 +174,20 @@ class TestPreflightRefusesADatabaseWithoutTheOwnershipColumn:
 
     def test_it_names_what_to_run(self, tmp_path):
         # A rebuild, because before go-live that is how a schema change reaches a
-        # database, and then the refresh the operator was trying to run.
+        # database. Both rebuild paths are offered: the committed-data one, and
+        # the one that also reloads members, because the second is what a
+        # database carrying the member load needs and the first would leave those
+        # tables empty.
         result = run(PREFLIGHT, self._database_predating_the_column(tmp_path))
         assert "run_dev.sh --from-csv" in result.stderr
-        assert "run_freestyle.sh" in result.stderr
+        assert "run_dev.sh --all-data" in result.stderr
+
+    def test_it_does_not_ask_for_a_separate_refresh_after_the_rebuild(self, tmp_path):
+        # Every rebuild path runs the freestyle refresh as one of its own stages,
+        # so naming the refresh as a second command sends the operator to run a
+        # step that has already happened.
+        result = run(PREFLIGHT, self._database_predating_the_column(tmp_path))
+        assert "run_freestyle.sh" not in result.stderr
 
 
 class TestPreflightRefusesWhatItMayNotClaim:

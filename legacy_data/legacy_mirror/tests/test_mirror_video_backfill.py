@@ -156,3 +156,112 @@ def test_video_element_with_source_child_is_repaired(env, monkeypatch):
     assert '.mp4' in out
     assert out.count('poster="p.jpg"') == 1   # poster untouched
     assert 'video/mp4' in out                 # source type updated
+
+
+class TestAVideoAlreadyDownloadedStillGetsItsPageRepaired:
+    """A refresh crawl re-fetches every page from the live site, which restores
+    the original remote address on every video element. This pass is the only
+    thing that points them back at the local file, so it has to repair pages for
+    videos downloaded on an earlier run as well as the ones it fetches now.
+    Otherwise a published archive links footbag.org for videos it already holds.
+    """
+
+    @staticmethod
+    def _refuse_download(monkeypatch):
+        def boom(*a, **k):
+            raise AssertionError('a completed record must not be refetched')
+        monkeypatch.setattr(mirror_script, 'download_and_process_media', boom)
+
+    def test_the_referring_page_is_pointed_back_at_the_local_file(self, env, monkeypatch):
+        local = env / 'mirror' / 'clip.mp4'
+        local.write_bytes(b'mp4')
+        _write_manifest(env, [_record(disposition='backfilled',
+                                      local_file=str(local))])
+        page = _write_referrer_page(
+            f'<html><body><a href="{BASE}/media/Lisa&amp;Andy.mov">clip</a>'
+            '</body></html>')
+        self._refuse_download(monkeypatch)
+
+        outcomes = mirror_script.run_video_backfill()
+        out = page.read_text()
+        assert outcomes['already_done'] == 1
+        assert 'clip.mp4' in out
+        assert '/media/Lisa&Andy.mov' not in out
+
+    def test_a_page_already_pointing_locally_is_left_alone(self, env, monkeypatch):
+        # The repair matches on the remote address, so a page repaired by an
+        # earlier run has nothing left to match and must not be rewritten again.
+        local = env / 'mirror' / 'clip.mp4'
+        local.write_bytes(b'mp4')
+        _write_manifest(env, [_record(disposition='backfilled',
+                                      local_file=str(local))])
+        page = _write_referrer_page(
+            '<html><body><a href="../../clip.mp4">clip</a></body></html>')
+        before = page.read_text()
+        self._refuse_download(monkeypatch)
+
+        mirror_script.run_video_backfill()
+        assert page.read_text() == before
+
+    def test_a_record_whose_local_file_is_gone_offers_no_local_link(self, env, monkeypatch):
+        # Naming a file that is not there would publish a broken link, so the
+        # page keeps what it has rather than being pointed at nothing.
+        _write_manifest(env, [_record(disposition='backfilled',
+                                      local_file=str(env / 'mirror' / 'absent.mp4'))])
+        page = _write_referrer_page(
+            f'<html><body><a href="{BASE}/media/Lisa&amp;Andy.mov">clip</a>'
+            '</body></html>')
+        self._refuse_download(monkeypatch)
+
+        mirror_script.run_video_backfill()
+        assert 'absent.mp4' not in page.read_text()
+
+
+class TestACrawlKeepsWhatTheBackfillRecorded:
+    """A crawl rewriting the manifest must not erase the backfill's outcomes.
+
+    The backfill writes each video's outcome only into the manifest on disk. A
+    crawl rebuilds that same file from its own in-memory records, which a
+    resumed run restores from a progress file that can predate the backfill, so
+    it has to read the settled outcomes back. Otherwise the first crawl to
+    finish reports every downloaded video as still skipped and names the local
+    file for none of them.
+    """
+
+    def test_a_recorded_outcome_survives_a_crawl_rewriting_the_manifest(self, env):
+        path = _write_manifest(env, [_record(disposition='backfilled',
+                                             local_file='/mirror/x.mp4')])
+        # What a resumed crawl carries: the state as it was before the backfill.
+        mirror_script.mirror_state.skipped_videos = {
+            mirror_script.normalize_url(VIDEO_URL): _record()}
+        mirror_script.mirror_state.write_skipped_video_manifest()
+        written = json.loads(path.read_text())
+        assert [r['disposition'] for r in written] == ['backfilled']
+        assert written[0]['local_file'] == '/mirror/x.mp4'
+
+    def test_a_record_the_crawl_dropped_is_not_resurrected(self, env):
+        # The exclusions sweep prunes records deliberately, so a record only the
+        # manifest still carries must stay gone rather than come back from disk.
+        pruned = BASE + '/media/excluded.mov'
+        path = _write_manifest(env, [
+            _record(disposition='backfilled', local_file='/mirror/x.mp4'),
+            _record(url=pruned, disposition='backfilled',
+                    local_file='/mirror/pruned.mp4')])
+        mirror_script.mirror_state.skipped_videos = {
+            mirror_script.normalize_url(VIDEO_URL): _record()}
+        mirror_script.mirror_state.write_skipped_video_manifest()
+        written = json.loads(path.read_text())
+        assert [r['url'] for r in written] == [VIDEO_URL]
+
+    def test_an_outcome_this_run_settled_itself_wins_over_the_manifest(self, env):
+        # A crawl only ever re-records a video as skipped, so anything it has
+        # settled itself is newer than whatever the manifest holds.
+        path = _write_manifest(env, [_record(disposition='backfilled',
+                                             local_file='/mirror/stale.mp4')])
+        mirror_script.mirror_state.skipped_videos = {
+            mirror_script.normalize_url(VIDEO_URL): _record(
+                disposition='backfill_refused_excluded')}
+        mirror_script.mirror_state.write_skipped_video_manifest()
+        written = json.loads(path.read_text())
+        assert written[0]['disposition'] == 'backfill_refused_excluded'
+        assert 'local_file' not in written[0]

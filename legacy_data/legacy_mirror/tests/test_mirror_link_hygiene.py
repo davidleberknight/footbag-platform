@@ -62,6 +62,34 @@ def test_ordinary_relative_and_move_links_are_kept():
     assert any(u.endswith('/newmoves/show/5') for u in links)
 
 
+# Directory pages and the base their references resolve against. The live site
+# answers a directory address by redirecting to its trailing-slash form, and
+# normalization strips that slash again. The two forms are not interchangeable
+# here: only the served one puts a bare relative reference inside the directory.
+
+DIR_SERVED = f'{BASE}/worlds2000/'
+DIR_STORED = f'{BASE}/worlds2000'
+
+
+def test_a_relative_reference_resolves_inside_the_directory_it_was_served_from():
+    html = '<img src="images/welcome.gif"><a href="events.html">events</a>'
+    assert mirror_script.extract_links(html, DIR_SERVED) == {
+        f'{BASE}/worlds2000/images/welcome.gif',
+        f'{BASE}/worlds2000/events.html',
+    }
+
+
+def test_the_slashless_form_puts_the_same_reference_at_the_site_root():
+    # Correct resolution for the address it is given, and the reason a caller
+    # must hand over the served address: passing the stored one asks the live
+    # site for every reference one level too high, where it 404s and is then
+    # stripped as a dead link. That is what reduced eight microsites to a single
+    # empty page each, so the defect lives at the call site, not here.
+    html = '<img src="images/welcome.gif">'
+    assert mirror_script.extract_links(html, DIR_STORED) == {
+        f'{BASE}/images/welcome.gif'}
+
+
 # Outbound-link neutralization. A link to somebody else's website never stays
 # clickable: the archive is captured once and never refreshed, so a destination
 # verified today can be an abandoned domain re-registered by someone else years

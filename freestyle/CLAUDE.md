@@ -59,7 +59,9 @@ freestyle/run_freestyle.sh            # the routine refresh, against database/fo
 This is the command to reach for. It reconciles the committed inputs into the
 database that is already there, preserves everything a curator wrote, never
 deletes the database file, and is safe to run as often as you like: a second run
-straight after the first changes nothing.
+straight after the first changes nothing. Run it on its own only when you are
+keeping the database you have; every rebuild path runs it as one of its own
+stages, so a rebuild is never followed by a separate refresh.
 
 Resetting the database is a different operation and is not this. The reset paths
 (`./run_dev.sh --reset`, `--from-csv`, `--soup-to-nuts`, `--all-data`, and
