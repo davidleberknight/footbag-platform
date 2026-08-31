@@ -474,18 +474,32 @@ export function insertFreestyleTrickAlias(
   alias_slug: string,
   trick_slug: string,
   alias_text?: string,
-  opts?: { alias_type?: string; alias_display?: 0 | 1 },
+  opts?: {
+    alias_type?: string;
+    alias_display?: 0 | 1;
+    source_id?: string | null;
+    provenance_note?: string | null;
+    display_reason?: string | null;
+    /** Who owns the row. Defaults to a committed producer, because that is what
+     *  almost every alias is and what a curator edit must be shown to take over. */
+    alias_origin_producer?: string;
+  },
 ): void {
   db.prepare(`
     INSERT INTO freestyle_trick_aliases (
-      alias_slug, alias_text, trick_slug, alias_type, alias_display, source_id, notes, created_at
-    ) VALUES (?, ?, ?, ?, ?, NULL, NULL, ?)
+      alias_slug, alias_text, trick_slug, alias_type, alias_display, source_id,
+      provenance_note, display_reason, alias_origin_producer, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     alias_slug,
     alias_text ?? alias_slug.replace(/-/g, ' '),
     trick_slug,
     opts?.alias_type ?? 'common',
     opts?.alias_display ?? 1,
+    opts?.source_id ?? null,
+    opts?.provenance_note ?? null,
+    opts?.display_reason ?? null,
+    opts?.alias_origin_producer ?? 'base-dictionary',
     TS,
   );
 }

@@ -72,8 +72,8 @@ beforeAll(async () => {
   // inserts both aliases_json AND a freestyle_trick_aliases row).
   const insertAlias = db.prepare(`
     INSERT INTO freestyle_trick_aliases
-      (alias_slug, alias_text, trick_slug, alias_type, created_at)
-    VALUES (?, ?, ?, ?, ?)
+      (alias_slug, alias_text, trick_slug, alias_type, alias_origin_producer, created_at)
+    VALUES (?, ?, ?, ?, 'expert-additions', ?)
   `);
   insertAlias.run(
     'toe_blizzard',

@@ -114,9 +114,9 @@ def db_with_authority(built, tmp_path):
             " 99999, '2026-08-30T00:00:00.000Z', ?, 'curator-publication')", (NOTATION,))
         conn.execute(
             "INSERT INTO freestyle_trick_aliases (alias_slug, alias_text, trick_slug,"
-            " alias_type, alias_display, created_at)"
+            " alias_type, alias_display, alias_origin_producer, created_at)"
             " VALUES ('a_published_nickname', 'a published nickname', 'a_published_trick',"
-            " 'common', 1, '2026-08-30T00:00:00.000Z')")
+            " 'common', 1, 'curator-application', '2026-08-30T00:00:00.000Z')")
         conn.execute(
             "UPDATE freestyle_ev_adjudications"
             "   SET published_trick_slug = 'a_published_trick', ev_state = 'canonical',"

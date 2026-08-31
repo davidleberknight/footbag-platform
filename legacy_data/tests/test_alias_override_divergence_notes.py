@@ -76,7 +76,7 @@ def test_the_loader_refuses_to_replace_a_note_it_did_not_write():
     assert "already carries a note this override" in src
     # The guard has to compare before writing, not after.
     guard = src.index("already carries a note this override")
-    write = src.index("SET alias_type = ?, alias_display = ?, notes = ?")
+    write = src.index("SET alias_type = ?, alias_display = ?, display_reason = ?")
     assert guard < write, "the collision guard must run before the write it protects"
 
 
@@ -84,22 +84,28 @@ def test_only_diverging_rows_get_a_note_written():
     """The copy is deliberately narrow.
 
     Writing every override's note would put 368 rows of curator commentary into a
-    column the application also writes, and would collide with loader-written
-    provenance on rows that have it. Only an exception needs its reason in the
+    column the application also writes. Only an exception needs its reason in the
     table, because only an exception is otherwise unexplained.
+
+    The reason has its own column now, so it can no longer collide with the
+    provenance beside it; the ordinary branch clears the reason and leaves
+    provenance alone.
     """
     src = _LOADER.read_text(encoding="utf-8")
-    # The notes-writing branch sits under the divergence test, and the ordinary
-    # branch writes only the two fields.
+    # The reason-writing branch sits under the divergence test, and the ordinary
+    # branch clears the reason without naming provenance at all.
     assert re.search(r'if \(adisplay == 1\) != \(atype == "common"\):', src)
-    assert "SET alias_type = ?, alias_display = ? \"\n" in src or \
-           "SET alias_type = ?, alias_display = ? " in src
+    assert "SET alias_type = ?, alias_display = ?, display_reason = NULL" in src
+    ordinary = src[src.index("SET alias_type = ?, alias_display = ?, display_reason = NULL"):]
+    assert "provenance_note" not in ordinary[:400]
 
 
-@pytest.mark.skipif(not (_ROOT / "database" / "footbag.db").exists(),
-                    reason="the built dictionary is not present here")
 def test_the_rows_the_copy_targets_are_the_ruled_ones():
     """Which rows this touches, named rather than counted.
+
+    Reads the override file and nothing else, so it needs no database and is not
+    conditional on one existing. It carried a skip that named the built
+    dictionary, which meant this list went unchecked on any checkout without one.
 
     These are the adjudicated exceptions. If the set changes, the change is a
     curator decision and should be visible as one.
@@ -109,29 +115,8 @@ def test_the_rows_the_copy_targets_are_the_ruled_ones():
     assert {r["alias_slug"] for r in _diverging(_rows())} == ruled
 
 
-@pytest.mark.skipif(not (_ROOT / "database" / "footbag.db").exists(),
-                    reason="the built dictionary is not present here")
-def test_no_diverging_row_currently_collides_with_a_loader_note():
-    """Today the copy is safe. This says so, and notices when it stops being.
-
-    A collision is not a defect; it means a source loader started writing a note
-    on a row an override also explains. It needs reconciling by hand, and this is
-    where that is discovered rather than in a failed rebuild.
-    """
-    db = sqlite3.connect(
-        f"file:{_ROOT / 'database' / 'footbag.db'}?mode=ro", uri=True)
-    try:
-        collisions = []
-        for row in _diverging(_rows()):
-            got = db.execute(
-                "SELECT notes FROM freestyle_trick_aliases WHERE alias_slug = ?",
-                (row["alias_slug"],)).fetchone()
-            prior = ((got[0] if got else None) or "").strip()
-            if prior and prior != (row.get("note") or "").strip():
-                collisions.append(row["alias_slug"])
-    finally:
-        db.close()
-    assert not collisions, (
-        f"these rows carry a note the override would replace: {collisions}. "
-        "Reconcile by hand; the loader will refuse rather than overwrite."
-    )
+# The check that each divergent override's reason actually reaches its row now
+# runs against a database built from the committed inputs, in the alias-authority
+# suite. It read the checkout's own database here, which made it answer differently
+# depending on when that database was last built, and skip entirely on one built
+# before the reason and the provenance were separated.

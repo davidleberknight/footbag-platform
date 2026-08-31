@@ -297,9 +297,9 @@ class TestTheRefreshAsAWhole:
                 " 99999, '2026-08-30T00:00:00.000Z', 'curator-publication')")
             conn.execute(
                 "INSERT INTO freestyle_trick_aliases (alias_slug, alias_text, trick_slug,"
-                " alias_type, alias_display, created_at)"
+                " alias_type, alias_display, alias_origin_producer, created_at)"
                 " VALUES ('a_curator_alias', 'a curator alias', 'a_curator_trick',"
-                " 'common', 1, '2026-08-30T00:00:00.000Z')")
+                " 'common', 1, 'curator-application', '2026-08-30T00:00:00.000Z')")
         conn.close()
 
         failed, result = refresh(copy)

@@ -5233,7 +5233,37 @@ CREATE TABLE freestyle_trick_aliases (
   alias_type   TEXT NOT NULL,                      -- semantic class: 'common' | 'historical' | 'technical' | 'structural' | 'typo' | 'suppressed' | 'positional' | 'ambiguous' (no CHECK)
   alias_display INTEGER NOT NULL DEFAULT 1,        -- 1 = eligible for public "Also called" display; 0 = search/redirect only. Search and redirect ignore this gate; they resolve any alias to an active target.
   source_id    TEXT REFERENCES freestyle_trick_sources(id),
-  notes        TEXT,
+  -- Three independent axes, deliberately not one column.
+  --
+  -- source_id and provenance_note are PROVENANCE: where the evidence for this
+  -- alias came from, and what it says. alias_type and alias_display are
+  -- PUBLICATION JUDGEMENT, and display_reason explains a judgement set against
+  -- the class. alias_origin_producer is AUTHORITY: who owns the row and may
+  -- rewrite it. They vary independently. A curator-owned alias may cite the
+  -- expert review; a committed alias may cite no source at all. Provenance was
+  -- once used as the deletion boundary, which conflated the last two and made a
+  -- curator's edit deletable by whichever loader shared its source.
+  --
+  -- provenance_note and display_reason were one `notes` column carrying both
+  -- meanings, so an edit that cleared a stale display reason also erased the
+  -- provenance beside it.
+  provenance_note TEXT,                            -- descriptive: what the source says this alias is, e.g. 'DLO abbreviation of double leg over'
+  display_reason  TEXT,                            -- judgement: why alias_display is set against what alias_type implies
+  -- NOT NULL and no default: every writer states who owns the row. A default
+  -- would make an unstamped insert silently curator-owned, and curator ownership
+  -- is the one value that must never be inferred, because it is the value no
+  -- loader may overwrite.
+  alias_origin_producer TEXT NOT NULL
+    CHECK (alias_origin_producer IN (
+      'base-dictionary',      -- the committed base trick dictionary's own aliases
+      'expert-additions',     -- the committed expert-review overlay
+      'alias-additions',      -- the committed additional-alias input
+      'footbag-org-pending',  -- the committed footbag.org intake
+      -- Application authority rather than publication: an alias is written and
+      -- edited through the application on its own terms, with no publication
+      -- event behind it, which is why this is not the trick column's value.
+      'curator-application'   -- written through the application; in no committed file
+    )),
   created_at   TEXT NOT NULL
 );
 CREATE INDEX idx_freestyle_trick_aliases_trick ON freestyle_trick_aliases(trick_slug);

@@ -63,8 +63,8 @@ beforeAll(async () => {
 
   const insertAlias = db.prepare(`
     INSERT INTO freestyle_trick_aliases
-      (alias_slug, alias_text, trick_slug, alias_type, created_at)
-    VALUES (?, ?, ?, ?, ?)
+      (alias_slug, alias_text, trick_slug, alias_type, alias_origin_producer, created_at)
+    VALUES (?, ?, ?, ?, 'expert-additions', ?)
   `);
   insertAlias.run('toe-blur', 'toe blur', 'quantum-mirage', 'common', new Date().toISOString());
   insertAlias.run('toe-butterfly', 'toe butterfly', 'quantum', 'common', new Date().toISOString());

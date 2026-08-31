@@ -63,6 +63,10 @@ REPO_ROOT  = SCRIPT_DIR.parents[1]
 import sys as _sys  # noqa: E402
 _sys.path.insert(0, str(REPO_ROOT / "scripts"))
 from _freestyle_ownership import FOOTBAG_ORG_PENDING  # noqa: E402
+from _freestyle_alias_ownership import (  # noqa: E402
+    CURATOR_APPLICATION as ALIAS_CURATOR_APPLICATION,
+    FOOTBAG_ORG_PENDING as ALIAS_FOOTBAG_ORG_PENDING,
+)
 
 LEGACY_DIR = SCRIPT_DIR.parents[0]
 
@@ -187,9 +191,31 @@ def clear_prior_pending_from_footbag(conn: sqlite3.Connection) -> int:
         return 0
 
     qmarks = ",".join("?" * len(doomed))
+    # A curator's alias on a trick this loader is about to retire cannot simply be
+    # swept up with it: it exists in no committed file, and the trick row it
+    # points at is going away, so deleting it silently destroys the only copy and
+    # keeping it breaks the foreign key. Neither is this loader's decision.
+    _held = conn.execute(
+        f"SELECT alias_slug, trick_slug FROM freestyle_trick_aliases "
+        f" WHERE trick_slug IN ({qmarks}) AND alias_origin_producer = ?",
+        [*doomed, ALIAS_CURATOR_APPLICATION],
+    ).fetchall()
+    if _held:
+        sys.stderr.write(
+            "ERROR: the intake wants to retire tricks a curator has attached "
+            "aliases to. Nothing was changed.\n")
+        for _a, _t in _held:
+            sys.stderr.write(f"  {_a} on {_t}\n")
+        sys.stderr.write(
+            "\nRetiring the trick would delete an alias no committed file can "
+            "restore. Decide each one deliberately: retire the alias through the "
+            "application first, or keep the trick.\n")
+        raise SystemExit(1)
+
     conn.execute(
-        f"DELETE FROM freestyle_trick_aliases WHERE trick_slug IN ({qmarks})",
-        doomed,
+        f"DELETE FROM freestyle_trick_aliases WHERE trick_slug IN ({qmarks}) "
+        f"  AND alias_origin_producer = ?",
+        [*doomed, ALIAS_FOOTBAG_ORG_PENDING],
     )
     conn.execute(
         f"DELETE FROM freestyle_trick_modifier_links WHERE trick_slug IN ({qmarks})",
@@ -298,6 +324,7 @@ def build_pending_rows(scrape_rows: list[dict],
                     "alias_type":  "common",
                     "source_id":   FOOTBAG_ORG_SOURCE_ID,
                     "notes":       None,
+                    "alias_origin_producer": ALIAS_FOOTBAG_ORG_PENDING,
                     "created_at":  loaded_at,
                 })
 
@@ -351,9 +378,11 @@ def insert_aliases(conn: sqlite3.Connection, rows: list[dict]) -> int:
         cur = conn.execute(
             """
             INSERT OR IGNORE INTO freestyle_trick_aliases
-              (alias_slug, alias_text, trick_slug, alias_type, source_id, notes, created_at)
+              (alias_slug, alias_text, trick_slug, alias_type, source_id,
+               provenance_note, display_reason, alias_origin_producer, created_at)
             VALUES
-              (:alias_slug, :alias_text, :trick_slug, :alias_type, :source_id, :notes, :created_at)
+              (:alias_slug, :alias_text, :trick_slug, :alias_type, :source_id,
+               :notes, NULL, :alias_origin_producer, :created_at)
             """,
             r,
         )

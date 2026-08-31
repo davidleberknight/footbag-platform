@@ -47,8 +47,9 @@ def _trick(conn, slug, name, is_active=1, aliases_json=None):
 
 def _alias(conn, alias_slug, alias_text, trick_slug):
     conn.execute(
-        "INSERT INTO freestyle_trick_aliases (alias_slug, alias_text, trick_slug, alias_type, created_at) "
-        "VALUES (?, ?, ?, 'common', '2026-01-01T00:00:00Z')",
+        "INSERT INTO freestyle_trick_aliases (alias_slug, alias_text, trick_slug, alias_type,"
+        " alias_origin_producer, created_at) "
+        "VALUES (?, ?, ?, 'common', 'base-dictionary', '2026-01-01T00:00:00Z')",
         (alias_slug, alias_text, trick_slug),
     )
 

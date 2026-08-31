@@ -15,11 +15,15 @@ Columns: alias_text, target_canonical_slug, alias_type, alias_display, note
 Each addition carries its own alias_type and alias_display, so it never depends on
 the override step. Guards, validated before any write:
   - the target canonical slug must exist and be active (is_active = 1);
-  - the derived alias_slug must not collide with a source-loader alias or a
-    canonical trick slug.
-Any failure aborts the step with a loud report; nothing is inserted. Idempotent:
-the step clears its own prior additions (by alias_slug) and re-inserts, so a full
-rebuild or a standalone re-run converges to the same rows.
+  - the derived alias_slug must not collide with an alias another producer owns,
+    or with a canonical trick slug.
+Any failure aborts the step with a loud report; nothing is inserted.
+
+Scoped by ownership, not by slug. This step rewrites and retires only rows it
+owns: a curator's alias sharing a name with an addition stops the step rather
+than being replaced, because the curator's row exists in no committed file and
+this one does. Idempotent, so a full rebuild or a standalone re-run converges to
+the same rows.
 
 Usage:
     python freestyle/loaders/21a_load_alias_additions.py [--db <path>]
@@ -66,6 +70,7 @@ def load_additions(db_path: str) -> None:
     import sys as _s
     _s.path.insert(0, _p.join(_p.dirname(_p.abspath(__file__)), "..", "..", "scripts"))
     from _freestyle_db import open_freestyle_db
+    from _freestyle_alias_ownership import ALIAS_ADDITIONS, describe_refusal, may_rewrite
     conn = open_freestyle_db(db_path)
     try:
         cols = [c[1] for c in conn.execute("PRAGMA table_info(freestyle_trick_aliases)")]
@@ -76,8 +81,13 @@ def load_additions(db_path: str) -> None:
         active = {r[0] for r in conn.execute("SELECT slug FROM freestyle_tricks WHERE is_active = 1")}
         canonical = {r[0] for r in conn.execute("SELECT slug FROM freestyle_tricks")}
         my_slugs = {a["alias_slug"] for a in additions}
-        # Aliases from source loaders = everything except this step's own prior additions.
-        source_aliases = {r[0] for r in conn.execute("SELECT alias_slug FROM freestyle_trick_aliases")} - my_slugs
+        # Who owns each alias slug already. Ownership, not the provenance source:
+        # a row this step created is one it may rewrite, and every other row
+        # belongs to somebody else whatever source it cites.
+        owner_of = {
+            r[0]: r[1] for r in conn.execute(
+                "SELECT alias_slug, alias_origin_producer FROM freestyle_trick_aliases")
+        }
 
         errors = []
         for a in additions:
@@ -85,8 +95,13 @@ def load_additions(db_path: str) -> None:
                 errors.append(f"{a['alias_slug']}: target {a['target']} is not a canonical trick")
             elif a["target"] not in active:
                 errors.append(f"{a['alias_slug']}: target {a['target']} is inactive")
-            if a["alias_slug"] in source_aliases:
-                errors.append(f"{a['alias_slug']}: collides with a source-loader alias")
+            # Fail closed on a slug somebody else owns. This step used to delete by
+            # slug alone, so a curator's alias sharing a name with an addition was
+            # replaced without a word; the collision is the thing worth stopping
+            # for, because only one of the two rows exists in a committed file.
+            _owner = owner_of.get(a["alias_slug"])
+            if _owner is not None and not may_rewrite(_owner, ALIAS_ADDITIONS):
+                errors.append(describe_refusal(a["alias_slug"], _owner, ALIAS_ADDITIONS))
             if a["alias_slug"] in canonical:
                 errors.append(f"{a['alias_slug']}: collides with a canonical trick slug")
         if errors:
@@ -95,16 +110,35 @@ def load_additions(db_path: str) -> None:
                 sys.stderr.write(f"  {e}\n")
             sys.exit(1)
 
-        # Idempotent: clear this step's prior additions, then insert.
-        conn.executemany("DELETE FROM freestyle_trick_aliases WHERE alias_slug = ?",
-                         [(a["alias_slug"],) for a in additions])
+        # Reconcile this step's own rows, scoped by ownership rather than by slug.
+        # Retirement first: a row this step owns whose alias has left the input is
+        # stale, and nothing else can retire it. Rows other producers own are not
+        # in reach at all, which is the whole point of the scope.
+        _stale = [s for s, o in owner_of.items()
+                  if o == ALIAS_ADDITIONS and s not in my_slugs]
+        conn.executemany(
+            "DELETE FROM freestyle_trick_aliases "
+            "WHERE alias_slug = ? AND alias_origin_producer = ?",
+            [(s, ALIAS_ADDITIONS) for s in _stale])
+
         now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        # The file's note is provenance: what the source says this alias is. It is
+        # never a display reason, even on a row whose display is set against its
+        # class, because a later override step is what settles that judgement and
+        # carries its own reason for it.
         conn.executemany(
             "INSERT INTO freestyle_trick_aliases "
-            "(alias_slug, alias_text, trick_slug, alias_type, alias_display, source_id, notes, created_at) "
-            "VALUES (?, ?, ?, ?, ?, NULL, ?, ?)",
+            "(alias_slug, alias_text, trick_slug, alias_type, alias_display, source_id,"
+            " provenance_note, display_reason, alias_origin_producer, created_at) "
+            "VALUES (?, ?, ?, ?, ?, NULL, ?, NULL, ?, ?) "
+            "ON CONFLICT(alias_slug) DO UPDATE SET "
+            "  alias_text = excluded.alias_text, trick_slug = excluded.trick_slug,"
+            "  alias_type = excluded.alias_type, alias_display = excluded.alias_display,"
+            "  provenance_note = excluded.provenance_note "
+            "WHERE freestyle_trick_aliases.alias_origin_producer = ?",
             [(a["alias_slug"], a["alias_text"], a["target"], a["alias_type"],
-              a["alias_display"], a["note"], now) for a in additions])
+              a["alias_display"], a["note"], ALIAS_ADDITIONS, now, ALIAS_ADDITIONS)
+             for a in additions])
         conn.commit()
     finally:
         conn.close()

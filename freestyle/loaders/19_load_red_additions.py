@@ -49,6 +49,7 @@ REPO_ROOT = SCRIPT_DIR.parents[1]
 import sys as _sys  # noqa: E402
 _sys.path.insert(0, str(REPO_ROOT / "scripts"))
 from _freestyle_ownership import EXPERT_ADDITIONS  # noqa: E402
+from _freestyle_alias_ownership import EXPERT_ADDITIONS as ALIAS_EXPERT_ADDITIONS  # noqa: E402
 from _freestyle_aliases import assert_no_duplicate_alias_slugs  # noqa: E402
 
 ADDITIONS_CSV = SCRIPT_DIR.parents[0] / "inputs" / "curated" / "tricks" / "red_additions_2026_04_20.csv"
@@ -183,6 +184,7 @@ def load_additions(conn: sqlite3.Connection, additions_csv: Path, loaded_at: str
                     "trick_slug": slug,
                     "alias_type": "common",
                     "source_id": RED_SOURCE_ID,
+                    "alias_origin_producer": ALIAS_EXPERT_ADDITIONS,
                     "created_at": loaded_at,
                 })
 
@@ -230,8 +232,12 @@ def load_additions(conn: sqlite3.Connection, additions_csv: Path, loaded_at: str
 
     # Aliases: scoped DELETE + INSERT
     conn.execute(
-        "DELETE FROM freestyle_trick_aliases WHERE source_id = ?",
-        (RED_SOURCE_ID,),
+        # Scoped by ownership, not by the source it writes. Provenance says where
+        # the evidence came from and authority says who may rewrite the row; using
+        # the first as the second made a curator's edit deletable by whichever
+        # loader shared its source.
+        "DELETE FROM freestyle_trick_aliases WHERE alias_origin_producer = ?",
+        (ALIAS_EXPERT_ADDITIONS,),
     )
     # This input is checked before anything is written. The dedupe below drops a
     # slug another source already holds, which also hid this file asking for the
@@ -249,9 +255,11 @@ def load_additions(conn: sqlite3.Connection, additions_csv: Path, loaded_at: str
     conn.executemany(
         """
         INSERT INTO freestyle_trick_aliases
-          (alias_slug, alias_text, trick_slug, alias_type, source_id, notes, created_at)
+          (alias_slug, alias_text, trick_slug, alias_type, source_id,
+           provenance_note, display_reason, alias_origin_producer, created_at)
         VALUES
-          (:alias_slug, :alias_text, :trick_slug, :alias_type, :source_id, NULL, :created_at)
+          (:alias_slug, :alias_text, :trick_slug, :alias_type, :source_id,
+           NULL, NULL, :alias_origin_producer, :created_at)
         """,
         deduped_alias_rows,
     )

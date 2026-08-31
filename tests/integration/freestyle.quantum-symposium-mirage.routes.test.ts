@@ -39,8 +39,8 @@ beforeAll(async () => {
   // Mirror loader 19's alias-table side effect
   const insertAlias = db.prepare(`
     INSERT INTO freestyle_trick_aliases
-      (alias_slug, alias_text, trick_slug, alias_type, created_at)
-    VALUES (?, ?, ?, ?, ?)
+      (alias_slug, alias_text, trick_slug, alias_type, alias_origin_producer, created_at)
+    VALUES (?, ?, ?, ?, 'expert-additions', ?)
   `);
   insertAlias.run('backside_symposium_toe_blur', 'backside symposium toe blur', 'quantum_symposium_mirage', 'common', new Date().toISOString());
   db.close();

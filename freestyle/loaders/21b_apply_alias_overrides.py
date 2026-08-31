@@ -47,6 +47,7 @@ def apply_overrides(db_path: str) -> None:
     import sys as _s
     _s.path.insert(0, _p.join(_p.dirname(_p.abspath(__file__)), "..", "..", "scripts"))
     from _freestyle_db import open_freestyle_db
+    from _freestyle_alias_ownership import CURATOR_APPLICATION
     conn = open_freestyle_db(db_path)
     try:
         # Idempotent additive column-ensure: this step writes alias_display, and the
@@ -87,6 +88,29 @@ def apply_overrides(db_path: str) -> None:
 
         deleted = 0
         retyped_by_type: dict[str, int] = {}
+        # Who owns each alias this file touches. This step edits rows other
+        # producers created, so it is the one loader that cannot scope by its own
+        # ownership; what it can do is refuse a row no committed producer owns.
+        owner_of = {
+            r0: r1 for r0, r1 in conn.execute(
+                "SELECT alias_slug, alias_origin_producer FROM freestyle_trick_aliases")
+        }
+        curator_held = sorted(
+            r["alias_slug"].strip() for r in rows
+            if owner_of.get(r["alias_slug"].strip()) == CURATOR_APPLICATION
+        )
+        if curator_held:
+            sys.stderr.write(
+                f"ERROR: {len(curator_held)} override(s) target an alias a curator "
+                "owns. Nothing was changed.\n")
+            for slug in curator_held:
+                sys.stderr.write(f"  {slug}\n")
+            sys.stderr.write(
+                "\nA curator's alias exists in no committed file, so this file has "
+                "no copy to restore what it would overwrite. Decide each one "
+                "deliberately rather than letting a rebuild settle it.\n")
+            sys.exit(1)
+
         for r in rows:
             slug = r["alias_slug"].strip()
             action = r["action"].strip()
@@ -111,7 +135,7 @@ def apply_overrides(db_path: str) -> None:
                             f"ERROR: {slug!r} sets display={adisplay} against class "
                             f"{atype!r} with no note. A divergence must say why.")
                     existing = conn.execute(
-                        "SELECT notes FROM freestyle_trick_aliases WHERE alias_slug = ?",
+                        "SELECT display_reason FROM freestyle_trick_aliases WHERE alias_slug = ?",
                         (slug,)).fetchone()
                     prior = ((existing[0] if existing else None) or "").strip()
                     # Fail closed rather than replace. A note already on the row
@@ -122,14 +146,22 @@ def apply_overrides(db_path: str) -> None:
                             f"ERROR: {slug!r} already carries a note this override "
                             f"would replace. Reconcile them by hand rather than "
                             f"letting a rebuild overwrite provenance.")
+                    # The reason for the divergence, in its own column. The
+                    # provenance beside it is a different fact and is untouched.
                     conn.execute(
                         "UPDATE freestyle_trick_aliases "
-                        "SET alias_type = ?, alias_display = ?, notes = ? "
+                        "SET alias_type = ?, alias_display = ?, display_reason = ? "
                         "WHERE alias_slug = ?",
                         (atype, adisplay, note, slug))
                 else:
+                    # Agreeing with the class needs no defending, so any reason a
+                    # previous exception left is cleared with it. Same rule the
+                    # application applies, and it reaches only the reason: the
+                    # provenance beside it describes where the alias came from and
+                    # is unaffected by a judgement changing.
                     conn.execute(
-                        "UPDATE freestyle_trick_aliases SET alias_type = ?, alias_display = ? "
+                        "UPDATE freestyle_trick_aliases "
+                        "SET alias_type = ?, alias_display = ?, display_reason = NULL "
                         "WHERE alias_slug = ?",
                         (atype, adisplay, slug))
                 retyped_by_type[atype] = retyped_by_type.get(atype, 0) + 1

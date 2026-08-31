@@ -171,6 +171,27 @@ beforeAll(async () => {
   // (no links), and detach_host (pre-linked to src_b).
   insertFreestyleTrickSource(db, { id: 'src_a', source_label: 'Source A', source_type: 'curated' });
   insertFreestyleTrickSource(db, { id: 'src_b', source_label: 'Source B', source_type: 'expert' });
+
+  // A committed alias carrying provenance, for the tests that prove a judgement
+  // edit leaves its provenance alone and takes the row into curator ownership.
+  // After the registry rows, because the alias cites one of them.
+  insertFreestyleTrickAlias(db, 'provenanced', 'alias_host', 'Provenanced',
+    {
+      alias_type: 'common', alias_display: 1,
+      source_id: 'src_a',
+      provenance_note: 'PROV abbreviation of provenanced',
+      alias_origin_producer: 'expert-additions',
+    });
+  // Committed aliases the ownership tests consume, one each: taking a row over is
+  // exactly what those tests do, so they cannot share one.
+  insertFreestyleTrickAlias(db, 'takeover_me', 'alias_host', 'Takeover Me',
+    { alias_type: 'common', alias_display: 1, alias_origin_producer: 'expert-additions' });
+  insertFreestyleTrick(db, {
+    slug: 'owner_label_host', canonical_name: 'owner label host', adds: '2',
+    review_status: 'curated', is_active: 1,
+  });
+  insertFreestyleTrickAlias(db, 'label_me', 'owner_label_host', 'Label Me',
+    { alias_type: 'common', alias_display: 1, alias_origin_producer: 'base-dictionary' });
   for (const s of ['source_host', 'source_host2', 'detach_host']) {
     insertFreestyleTrick(db, {
       slug: s,
@@ -368,10 +389,14 @@ function auditByAction(entityId: string, actionType: string) {
 
 function aliasRow(aliasSlug: string) {
   return db.prepare(
-    'SELECT alias_slug, alias_text, alias_type, alias_display, trick_slug, notes FROM freestyle_trick_aliases WHERE alias_slug = ?',
+    'SELECT alias_slug, alias_text, alias_type, alias_display, trick_slug,'
+    + ' display_reason, provenance_note, source_id, alias_origin_producer'
+    + ' FROM freestyle_trick_aliases WHERE alias_slug = ?',
   ).get(aliasSlug) as {
     alias_slug: string; alias_text: string; alias_type: string;
-    alias_display: number; trick_slug: string; notes: string | null;
+    alias_display: number; trick_slug: string; display_reason: string | null;
+    provenance_note: string | null; source_id: string | null;
+    alias_origin_producer: string;
   } | undefined;
 }
 
@@ -1012,7 +1037,7 @@ describe('POST /admin/freestyle/tricks/:slug/aliases/:aliasSlug — reclassify',
     const row = aliasRow('hidden_structural')!;
     expect(row.alias_type).toBe('structural');
     expect(row.alias_display).toBe(1);
-    expect(row.notes).toBe(reason);
+    expect(row.display_reason).toBe(reason);
   });
 
   // An alias whose publication state follows its class needs no defending. One
@@ -1054,7 +1079,7 @@ describe('POST /admin/freestyle/tricks/:slug/aliases/:aliasSlug — reclassify',
     const res = await post('/admin/freestyle/tricks/alias_host/aliases/retype_me', admin(),
       { aliasType: 'technical' });
     expect(res.status).toBe(303);
-    expect(aliasRow('retype_me')!.notes).toBeNull();
+    expect(aliasRow('retype_me')!.display_reason).toBeNull();
   });
 
   it('surfaces a standing reason on the edit page so a curator sees it before changing it', async () => {
@@ -1075,7 +1100,7 @@ describe('POST /admin/freestyle/tricks/:slug/aliases/:aliasSlug — reclassify',
     const res = await post('/admin/freestyle/tricks/alias_host/aliases/hidden_structural', admin(),
       { aliasType: 'structural', aliasDisplay: 'on' });
     expect(res.status).toBe(303);
-    expect(aliasRow('hidden_structural')!.notes).toBe(reason);
+    expect(aliasRow('hidden_structural')!.display_reason).toBe(reason);
   });
 
   it('clears the reason when the exception it explained is withdrawn', async () => {
@@ -1085,7 +1110,7 @@ describe('POST /admin/freestyle/tricks/:slug/aliases/:aliasSlug — reclassify',
       { aliasType: 'structural', aliasDisplay: 'on', divergenceReason: 'published on purpose for now' });
     await post('/admin/freestyle/tricks/alias_host/aliases/hidden_structural', admin(),
       { aliasType: 'structural' });   // back to what the class implies
-    expect(aliasRow('hidden_structural')!.notes).toBeNull();
+    expect(aliasRow('hidden_structural')!.display_reason).toBeNull();
   });
 
   it('rejects an unrecognized class with 422 and writes nothing', async () => {
@@ -1163,12 +1188,125 @@ describe('POST /admin/freestyle/tricks/:slug/aliases/:aliasSlug/delete — remov
   });
 });
 
+describe('alias provenance, judgement and ownership are three separate facts', () => {
+  it('keeps provenance when only the publication judgement changes', async () => {
+    // The failure this replaces: the reason and the provenance shared one column,
+    // so agreeing with the class cleared the reason and took the provenance with
+    // it. After cutover no loader would have put it back.
+    const before = aliasRow('provenanced')!;
+    const res = await post('/admin/freestyle/tricks/alias_host/aliases/provenanced', admin(),
+      { aliasType: 'technical' });
+    expect(res.status).toBe(303);
+
+    const after = aliasRow('provenanced')!;
+    expect(after.alias_type).toBe('technical');
+    expect(after.source_id).toBe(before.source_id);
+    expect(after.provenance_note).toBe(before.provenance_note);
+  });
+
+  it('keeps provenance when a request does not carry the provenance fields', async () => {
+    // A form that never asked about provenance must not be read as clearing it.
+    await post('/admin/freestyle/tricks/alias_host/aliases/provenanced', admin(),
+      { aliasType: 'common', aliasDisplay: 'on' });
+    const row = aliasRow('provenanced')!;
+    expect(row.source_id).toBe('src_a');
+    expect(row.provenance_note).toBe('PROV abbreviation of provenanced');
+  });
+
+  it('stores the divergence reason apart from the provenance note', async () => {
+    const reason = 'this reading names the trick and readers look for it';
+    await post('/admin/freestyle/tricks/alias_host/aliases/provenanced', admin(),
+      { aliasType: 'structural', aliasDisplay: 'on', divergenceReason: reason });
+    const row = aliasRow('provenanced')!;
+    expect(row.display_reason).toBe(reason);
+    expect(row.provenance_note).toBe('PROV abbreviation of provenanced');
+  });
+
+  it('lets a curator edit provenance without touching the judgement', async () => {
+    await post('/admin/freestyle/tricks/alias_host/aliases/provenanced', admin(), {
+      aliasType: 'common', aliasDisplay: 'on',
+      sourceId: 'src_b', provenanceNote: 'restated from the other source',
+    });
+    const row = aliasRow('provenanced')!;
+    expect(row.source_id).toBe('src_b');
+    expect(row.provenance_note).toBe('restated from the other source');
+    expect(row.alias_type).toBe('common');
+    expect(row.alias_display).toBe(1);
+  });
+
+  it('records a curator asserting an alias on no external source', async () => {
+    // Not a gap waiting to be filled: the ordinary case of a curator's own
+    // assertion, which is a statement about evidence and not about who owns it.
+    await post('/admin/freestyle/tricks/alias_host/aliases/provenanced', admin(), {
+      aliasType: 'common', aliasDisplay: 'on', sourceId: '', provenanceNote: '',
+    });
+    const row = aliasRow('provenanced')!;
+    expect(row.source_id).toBeNull();
+    expect(row.provenance_note).toBeNull();
+    expect(row.alias_origin_producer).toBe('curator-application');
+  });
+
+  it('refuses a source that is not in the registry', async () => {
+    const res = await post('/admin/freestyle/tricks/alias_host/aliases/provenanced', admin(),
+      { aliasType: 'common', aliasDisplay: 'on', sourceId: 'not_a_source' });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Choose a source that exists, or none.');
+    expect(aliasRow('provenanced')!.source_id).not.toBe('not_a_source');
+  });
+});
+
+describe('who owns an alias row', () => {
+  it('takes a committed alias into curator ownership when a curator edits it', async () => {
+    // The load-bearing rule. Leaving the row committed-owned would leave an
+    // editor that looks authoritative while the next refresh may legally
+    // overwrite what it saved.
+    //
+    // Its own fixture: the shared aliases have been taken over by earlier tests
+    // in this file, and a test that needs a committed row must bring one.
+    expect(aliasRow('takeover_me')!.alias_origin_producer).toBe('expert-additions');
+    await post('/admin/freestyle/tricks/alias_host/aliases/takeover_me', admin(),
+      { aliasType: 'technical' });
+    expect(aliasRow('takeover_me')!.alias_origin_producer).toBe('curator-application');
+  });
+
+  it('owns an alias created here, whatever source it cites', async () => {
+    await post('/admin/freestyle/tricks/alias_host/aliases', admin(),
+      { aliasText: 'Cited Newcomer', aliasType: 'common', sourceId: 'src_a' });
+    const row = aliasRow('cited_newcomer')!;
+    expect(row.alias_origin_producer).toBe('curator-application');
+    expect(row.source_id).toBe('src_a');
+  });
+
+  it('owns an alias created here with no source at all', async () => {
+    await post('/admin/freestyle/tricks/alias_host/aliases', admin(),
+      { aliasText: 'Unsourced Newcomer', aliasType: 'common' });
+    const row = aliasRow('unsourced_newcomer')!;
+    expect(row.alias_origin_producer).toBe('curator-application');
+    expect(row.source_id).toBeNull();
+  });
+
+  it('says on the edit page that saving a committed alias takes it over', async () => {
+    // On its own trick, so an earlier test taking a shared alias over cannot
+    // remove the only committed row the page would say this about.
+    const html = (await get('/admin/freestyle/tricks/owner_label_host/edit', admin())).text;
+    expect(html).toContain('editing takes ownership');
+  });
+});
+
 describe('POST /admin/freestyle/tricks/:slug/sources — attach', () => {
   it('offers only registry sources not already linked to the trick', async () => {
     // source_host is linked to src_a, so the attach select offers src_b but not src_a.
+    //
+    // Scoped to the attach form rather than the whole page. An alias cites a
+    // source of its own, and which sources a trick already links to says nothing
+    // about which an alias may name, so the alias controls list the full registry
+    // and a page-wide assertion here would forbid that for no reason.
     const res = await get('/admin/freestyle/tricks/source_host/edit', admin());
-    expect(res.text).toContain('value="src_b"');
-    expect(res.text).not.toContain('<option value="src_a"');
+    const start = res.text.indexOf('/admin/freestyle/tricks/source_host/sources"');
+    expect(start).toBeGreaterThan(-1);
+    const attachForm = res.text.slice(start, res.text.indexOf('</form>', start));
+    expect(attachForm).toContain('value="src_b"');
+    expect(attachForm).not.toContain('<option value="src_a"');
   });
 
   it('attaches a registry source with its optional fields, writes one audit row, and redirects', async () => {

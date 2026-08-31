@@ -3012,7 +3012,8 @@ export const freestyleTrickAliases = {
   // type, and public-display state, for listing, per-row editing and per-row
   // deletion.
   get listForCuration() { return db.prepare(`
-    SELECT alias_slug, alias_text, alias_type, alias_display, notes
+    SELECT alias_slug, alias_text, alias_type, alias_display,
+           source_id, provenance_note, display_reason, alias_origin_producer
     FROM freestyle_trick_aliases
     WHERE trick_slug = ?
     ORDER BY alias_text COLLATE NOCASE
@@ -3022,32 +3023,49 @@ export const freestyleTrickAliases = {
   // service to detect a slug collision before an insert and to capture the row's
   // text, type and display state for the audit entry before a change is applied.
   get getByAliasSlug() { return db.prepare(`
-    SELECT alias_slug, alias_text, alias_type, alias_display, trick_slug, notes
+    SELECT alias_slug, alias_text, alias_type, alias_display, trick_slug,
+           source_id, provenance_note, display_reason, alias_origin_producer
     FROM freestyle_trick_aliases
     WHERE alias_slug = ?
   `); },
 
   // Admin curation: add one alias row for a trick. alias_display is written
   // explicitly rather than taking the column default, so the class a curator picks
-  // decides whether the alias reaches a reader. source_id and notes stay NULL in
-  // this surface (the minimal alias row); alias_slug is the global primary key, so
-  // the service checks for collisions before inserting. Stamps created_at.
+  // decides whether the alias reaches a reader. alias_slug is the global primary
+  // key, so the service checks for collisions before inserting. Stamps created_at.
+  //
+  // Owned by the curator on creation, and stated rather than defaulted: the column
+  // has no default precisely so that no writer can create a row whose owner nobody
+  // decided. Provenance is supplied separately and may be a real source or none;
+  // the source a curator cites has no bearing on who owns the row.
   get insert() { return db.prepare(`
     INSERT INTO freestyle_trick_aliases
-      (alias_slug, alias_text, trick_slug, alias_type, alias_display, source_id, notes, created_at)
-    VALUES (?, ?, ?, ?, ?, NULL, NULL, strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+      (alias_slug, alias_text, trick_slug, alias_type, alias_display, source_id,
+       provenance_note, display_reason, alias_origin_producer, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, NULL, 'curator-application',
+            strftime('%Y-%m-%dT%H:%M:%fZ','now'))
   `); },
 
   // Admin curation: set an existing alias's semantic class, its public-display
-  // state, and the reason for any divergence between them. Scoped to the trick so
-  // an edit page can never retype another trick's alias by slug alone.
+  // state, the reason for any divergence between them, and its provenance. Scoped
+  // to the trick so an edit page can never retype another trick's alias by slug
+  // alone.
   //
   // The reason travels in the same statement as the two fields it explains, so a
   // published exception and the note saying why it exists can never be written
-  // apart or half-applied.
+  // apart or half-applied. Provenance travels with them rather than in a second
+  // statement for the same reason, and because the service passes the row's
+  // existing values through untouched when the curator did not edit them: a
+  // judgement change must not be able to clear where an alias came from.
+  //
+  // Ownership moves to the curator on every successful edit. An editor that left
+  // the row committed-owned would be an editor whose work the next refresh may
+  // legally discard, which is the two-writer state this column exists to end.
   get updateClassForTrick() { return db.prepare(`
     UPDATE freestyle_trick_aliases
-    SET alias_type = ?, alias_display = ?, notes = ?
+    SET alias_type = ?, alias_display = ?, display_reason = ?,
+        source_id = ?, provenance_note = ?,
+        alias_origin_producer = 'curator-application'
     WHERE alias_slug = ? AND trick_slug = ?
   `); },
 

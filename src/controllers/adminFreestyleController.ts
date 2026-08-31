@@ -238,6 +238,8 @@ export const adminFreestyleController = {
     const input: FreestyleAliasInput = {
       aliasText: str(req.body.aliasText),
       aliasType: str(req.body.aliasType),
+      sourceId: str(req.body.sourceId),
+      provenanceNote: str(req.body.provenanceNote),
     };
 
     try {
@@ -270,10 +272,18 @@ export const adminFreestyleController = {
   updateAlias(req: Request, res: Response, next: NextFunction): void {
     const slug = String(req.params.slug);
     const aliasSlug = String(req.params.aliasSlug);
+    // Provenance fields are passed only when the request actually carries them.
+    // A missing field and an emptied one mean different things here: emptied is a
+    // curator clearing provenance on purpose, missing is a form that never asked,
+    // and the service must not read the second as the first.
     const input: FreestyleAliasClassInput = {
       aliasType: str(req.body.aliasType),
       aliasDisplay: str(req.body.aliasDisplay),
       divergenceReason: str(req.body.divergenceReason),
+      ...(optStr(req.body.sourceId) !== undefined
+        ? { sourceId: optStr(req.body.sourceId) } : {}),
+      ...(optStr(req.body.provenanceNote) !== undefined
+        ? { provenanceNote: optStr(req.body.provenanceNote) } : {}),
     };
 
     try {
@@ -787,4 +797,14 @@ function consecutiveInputFromBody(body: Record<string, unknown>): ConsecutiveSca
 
 function str(value: unknown): string {
   return typeof value === 'string' ? value : '';
+}
+
+/** The submitted string, or undefined when the request did not carry the field.
+ *
+ *  Distinct from `str` because an absent field and an empty one mean different
+ *  things on a form that edits several independent facts at once: absent is "this
+ *  form did not ask", empty is "the person cleared it".
+ */
+function optStr(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined;
 }

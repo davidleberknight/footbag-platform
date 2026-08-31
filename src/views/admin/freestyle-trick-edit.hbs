@@ -70,6 +70,20 @@
             {{#if this.divergesFromClass}}Why this differs from the class (required){{else}}Why, if you set this against the class{{/if}}
             <textarea name="divergenceReason" rows="2" maxlength="500">{{this.divergenceReason}}</textarea>
           </label>
+          {{! Provenance is a separate fact from the publication judgement above:
+              where the alias came from, not whether a reader should see it. The
+              two shared one field until an edit to either erased the other. }}
+          <label class="freestyle-edit-reason">
+            Where this alias comes from
+            <select name="sourceId">
+              {{#each this.sourceOptions}}<option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>{{/each}}
+            </select>
+          </label>
+          <label class="freestyle-edit-reason">
+            What that source says it is
+            <textarea name="provenanceNote" rows="2" maxlength="500">{{this.provenanceNote}}</textarea>
+          </label>
+          {{#unless this.isCuratorOwned}}<p class="text-muted">{{this.ownerLabel}}</p>{{/unless}}
           <button type="submit" class="btn btn-outline btn-sm">Save Alias</button>
         </form>
         <form method="POST" action="{{this.deleteHref}}" class="inline-form">
@@ -87,6 +101,16 @@
           <select name="aliasType">
             {{#each content.aliasTypeOptions}}<option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>{{/each}}
           </select>
+        </p>
+        {{! A new alias is maintained here whatever source it cites, so the source
+            is asked for on its own terms rather than standing in for ownership. }}
+        <p><label>Where it comes from</label><br>
+          <select name="sourceId">
+            {{#each content.aliasSourceOptions}}<option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>{{/each}}
+          </select>
+        </p>
+        <p><label>What that source says it is</label><br>
+          <textarea name="provenanceNote" rows="2" maxlength="500"></textarea>
         </p>
       </fieldset>
       <p><button type="submit" class="btn btn-primary btn-sm">Add Alias</button></p>

@@ -234,6 +234,16 @@ export interface FreestyleTrickEditAlias {
   /** The standing reason for that divergence, shown so a curator sees why the
    *  exception exists before changing it. */
   divergenceReason: string;
+  /** What the alias's source says it is. Provenance, not a publication judgement:
+   *  it survives a change to the class or the display state. */
+  provenanceNote: string;
+  /** Sources this alias may cite, with its own selected, so the form round-trips
+   *  provenance rather than offering only to clear it. */
+  sourceOptions: FilterOption[];
+  /** True when the application already owns the row. */
+  isCuratorOwned: boolean;
+  /** Said plainly on a committed row, because saving takes it over. */
+  ownerLabel: string;
   updateHref: string;
   deleteHref: string;
 }
@@ -297,6 +307,8 @@ export interface FreestyleTrickEditContent {
   hasErrors: boolean;
   addAliasHref: string;
   aliasTypeOptions: FilterOption[];
+  /** Sources a new alias may cite, headed by the no-source curator assertion. */
+  aliasSourceOptions: FilterOption[];
   aliasFormText: string;
   aliasError: string;
   hasAliasError: boolean;
@@ -318,6 +330,10 @@ export interface FreestyleTrickEditContent {
 export interface FreestyleAliasInput {
   aliasText?: string;
   aliasType?: string;
+  /** The source this alias's evidence comes from; empty means a curator assertion. */
+  sourceId?: string;
+  /** What that source says the alias is. */
+  provenanceNote?: string;
 }
 
 /** The fields the per-alias edit form submits. */
@@ -327,6 +343,11 @@ export interface FreestyleAliasClassInput {
   /** Why this alias is published against what its class implies, or held back
    *  against it. Required only when the two disagree. */
   divergenceReason?: string;
+  /** The source this alias's evidence comes from. Absent leaves it as it was;
+   *  the empty string is the deliberate choice of "a curator's own assertion". */
+  sourceId?: string;
+  /** What the source says the alias is. Absent leaves it as it was. */
+  provenanceNote?: string;
 }
 
 /** The source-link fields the attach-source form submits. */
@@ -406,8 +427,14 @@ interface AliasDbRow {
   alias_text: string;
   alias_type: string;
   alias_display: number;
+  /** Where the evidence for this alias came from, or null for a curator's own assertion. */
+  source_id: string | null;
+  /** What that source says the alias is. Provenance, never a publication judgement. */
+  provenance_note: string | null;
   /** Why the display state diverges from the class, when it does. */
-  notes: string | null;
+  display_reason: string | null;
+  /** Who owns the row and may rewrite it. Independent of where its evidence came from. */
+  alias_origin_producer: string;
 }
 interface FullAliasDbRow extends AliasDbRow { trick_slug: string; }
 interface SourceLinkDbRow {
@@ -489,6 +516,8 @@ const displayDefaultForAliasType = (aliasType: string): number =>
 /** Shortest reason that can carry a judgement rather than a keystroke. */
 const ALIAS_REASON_MIN = 12;
 const ALIAS_REASON_MAX = 500;
+/** Room for what a source says an alias is, without room for an essay. */
+const ALIAS_PROVENANCE_NOTE_MAX = 500;
 
 /**
  * Why this display name may not be stored under this slug, or null when it may.
@@ -1611,7 +1640,11 @@ export const freestyleCurationService = {
         // Class and display follow the alias contract's default: a community
         // nickname is displayed, and a divergence needs a reason, which is the
         // alias editor's business and not this form's.
-        freestyleTrickAliases.insert.run(alias.slug, alias.text, slug, 'common', 1);
+        // No source and no provenance note: these aliases are the curator's own,
+        // given on the publication form alongside the trick, and the row records
+        // that rather than implying evidence nobody cited. Editing one later can
+        // attach a source without any of this changing who owns it.
+        freestyleTrickAliases.insert.run(alias.slug, alias.text, slug, 'common', 1, null, null);
       }
       if (sourceId) {
         freestyleTrickSourceLinks.insertForPublication.run(
@@ -1847,7 +1880,20 @@ export const freestyleCurationService = {
         isDisplayed: a.alias_display === 1,
         displayLabel: a.alias_display === 1 ? 'Shown beside the trick name' : 'Search only',
         divergesFromClass: a.alias_display !== displayDefaultForAliasType(a.alias_type),
-        divergenceReason: (a.notes ?? '').trim(),
+        divergenceReason: (a.display_reason ?? '').trim(),
+        provenanceNote: (a.provenance_note ?? '').trim(),
+        // The source options carry the row's own selection, so the form round-trips
+        // provenance instead of silently offering to clear it.
+        sourceOptions: [
+          { value: '', label: 'No source (curator assertion)', selected: !a.source_id },
+          ...(freestyleTrickSources.listAll.all() as { id: string; source_label: string }[])
+            .map((s) => ({ value: s.id, label: s.source_label, selected: s.id === a.source_id })),
+        ],
+        // Shown so a curator can see that editing this row will take it over.
+        isCuratorOwned: a.alias_origin_producer === 'curator-application',
+        ownerLabel: a.alias_origin_producer === 'curator-application'
+          ? 'Maintained here'
+          : 'From committed input; editing takes ownership',
         updateHref: `/admin/freestyle/tricks/${slug}/aliases/${encodeURIComponent(a.alias_slug)}`,
         deleteHref: `/admin/freestyle/tricks/${slug}/aliases/${encodeURIComponent(a.alias_slug)}/delete`,
       }));
@@ -1861,6 +1907,14 @@ export const freestyleCurationService = {
       label: ALIAS_TYPE_LABELS[t] ?? t,
       selected: t === selectedAliasType,
     }));
+    // The registry's real sources, plus the ordinary case of none. "No source" is
+    // a curator asserting the alias themselves, not a placeholder for provenance
+    // somebody should supply later, and it says nothing about who owns the row.
+    const aliasSourceOptions: FilterOption[] = [
+      { value: '', label: 'No source (curator assertion)', selected: true },
+      ...(freestyleTrickSources.listAll.all() as { id: string; source_label: string }[])
+        .map((s) => ({ value: s.id, label: s.source_label, selected: false })),
+    ];
     const aliasError = opts.aliasError ?? '';
     const sourceLinks = freestyleTrickSourceLinks.listForCuration.all(slug) as SourceLinkDbRow[];
     const sources: FreestyleTrickEditSource[] = sourceLinks.map((s) => ({
@@ -1962,6 +2016,7 @@ export const freestyleCurationService = {
         hasErrors:        errorList.length > 0,
         addAliasHref:     `/admin/freestyle/tricks/${row.slug}/aliases`,
         aliasTypeOptions,
+        aliasSourceOptions,
         aliasFormText,
         aliasError,
         hasAliasError:    aliasError !== '',
@@ -2213,9 +2268,25 @@ export const freestyleCurationService = {
 
     const aliasDisplay = displayDefaultForAliasType(aliasType);
 
+    // A new alias may cite a real source or none. None is not a gap to be filled
+    // later: it is the ordinary case of a curator asserting an alias on their own
+    // authority, and it says nothing about who owns the row, which is always the
+    // curator here.
+    const sourceId = (input.sourceId ?? '').trim() || null;
+    if (sourceId !== null && !freestyleTrickSources.getById.get(sourceId)) {
+      throw new ValidationError('Choose a source that exists, or none.');
+    }
+    const provenanceNote = (input.provenanceNote ?? '').trim() || null;
+    if ((provenanceNote ?? '').length > ALIAS_PROVENANCE_NOTE_MAX) {
+      throw new ValidationError(
+        `The provenance note must be ${ALIAS_PROVENANCE_NOTE_MAX} characters or fewer.`);
+    }
+
     try {
       transaction(() => {
-        freestyleTrickAliases.insert.run(aliasSlug, aliasText, trickSlug, aliasType, aliasDisplay);
+        freestyleTrickAliases.insert.run(
+          aliasSlug, aliasText, trickSlug, aliasType, aliasDisplay,
+          sourceId, provenanceNote);
         appendAuditEntry({
           actionType:    'freestyle.trick_alias.created',
           category:      'content',
@@ -2271,7 +2342,7 @@ export const freestyleCurationService = {
     const submittedReason = (input.divergenceReason ?? '').trim();
     // An existing reason still standing is the row's own explanation, so leaving
     // the field untouched on an unrelated edit is not an unexplained exception.
-    const reason = submittedReason || (diverges ? (existing.notes ?? '').trim() : '');
+    const reason = submittedReason || (diverges ? (existing.display_reason ?? '').trim() : '');
     if (diverges && reason.length < ALIAS_REASON_MIN) {
       throw new ValidationError(
         aliasDisplay === 1
@@ -2283,11 +2354,34 @@ export const freestyleCurationService = {
       throw new ValidationError(`The reason must be ${ALIAS_REASON_MAX} characters or fewer.`);
     }
     // Agreeing with the class clears any reason a previous exception left, so a
-    // stale explanation cannot outlive the exception it explained.
-    const notes = diverges ? reason : null;
+    // stale explanation cannot outlive the exception it explained. It reaches the
+    // reason only: provenance is a different fact, and clearing it here is what
+    // used to erase where an alias came from every time somebody adjusted its
+    // class.
+    const displayReason = diverges ? reason : null;
+
+    // Provenance changes only when the curator edits it. A field the form did not
+    // submit is absent rather than empty, and absent means "leave it as it was";
+    // the empty string is a deliberate choice, and on the source it means the
+    // curator is asserting the alias on nobody else's authority.
+    const sourceId = input.sourceId === undefined
+      ? existing.source_id
+      : (input.sourceId.trim() || null);
+    if (sourceId !== null && !freestyleTrickSources.getById.get(sourceId)) {
+      throw new ValidationError('Choose a source that exists, or none.');
+    }
+    const provenanceNote = input.provenanceNote === undefined
+      ? existing.provenance_note
+      : (input.provenanceNote.trim() || null);
+    if ((provenanceNote ?? '').length > ALIAS_PROVENANCE_NOTE_MAX) {
+      throw new ValidationError(
+        `The provenance note must be ${ALIAS_PROVENANCE_NOTE_MAX} characters or fewer.`);
+    }
 
     transaction(() => {
-      freestyleTrickAliases.updateClassForTrick.run(aliasType, aliasDisplay, notes, aliasSlug, trickSlug);
+      freestyleTrickAliases.updateClassForTrick.run(
+        aliasType, aliasDisplay, displayReason, sourceId, provenanceNote,
+        aliasSlug, trickSlug);
       appendAuditEntry({
         actionType:    'freestyle.trick_alias.updated',
         category:      'content',
@@ -2306,7 +2400,16 @@ export const freestyleCurationService = {
           // Recorded on the entry as well as the row: the row keeps only the
           // standing reason, while the log keeps the one given at the time.
           divergesFromClass:    diverges,
-          divergenceReason:     notes,
+          divergenceReason:     displayReason,
+          // Provenance and ownership travel on the entry too, because this edit
+          // is what moves the row out of committed authority and the trail should
+          // say so rather than leaving it to be inferred from a later refresh.
+          sourceId,
+          provenanceNote,
+          previousSourceId:       existing.source_id,
+          previousProvenanceNote: existing.provenance_note,
+          previousOwner:          existing.alias_origin_producer,
+          owner:                  'curator-application',
         },
       });
     });

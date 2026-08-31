@@ -60,6 +60,7 @@ TRICKS_CSV = SCRIPT_DIR.parents[0] / "inputs" / "base_dictionary" / "tricks.csv"
 import sys as _sys  # noqa: E402
 _sys.path.insert(0, str(REPO_ROOT / "scripts"))
 from _freestyle_ownership import BASE_DICTIONARY  # noqa: E402
+from _freestyle_alias_ownership import BASE_DICTIONARY as ALIAS_BASE_DICTIONARY  # noqa: E402
 from _freestyle_aliases import assert_no_duplicate_alias_slugs  # noqa: E402
 MODIFIERS_CSV = SCRIPT_DIR.parents[0] / "inputs" / "base_dictionary" / "trick_modifiers.csv"
 ALIASES_CSV = SCRIPT_DIR.parents[0] / "inputs" / "base_dictionary" / "trick_aliases.csv"
@@ -454,15 +455,21 @@ def load_aliases(
                     continue
                 add_alias(alias_text, target_slug)
 
+    # Scoped by ownership rather than by the provenance source it happens to
+    # write. The two used to coincide, which made a curator's edit deletable by
+    # whichever loader shared its source; they are separate facts and only one of
+    # them says who may rewrite the row.
     conn.execute(
-        "DELETE FROM freestyle_trick_aliases WHERE source_id = ?",
-        (CURATED_V1_SOURCE_ID,),
+        "DELETE FROM freestyle_trick_aliases WHERE alias_origin_producer = ?",
+        (BASE_DICTIONARY,),
     )
-    # Leave alone any slug another source already holds, which is the rule the
+    # Leave alone any slug another producer already holds, which is the rule the
     # expert overlay has always applied to this loader's rows. It matters now
     # only because the two run in the other order: 28 slugs are carried by both
     # inputs, identically in text and target, and whichever writes first keeps
-    # them. Without this the second writer collides on the primary key.
+    # them. Without this the second writer collides on the primary key. A
+    # curator's alias is held elsewhere in exactly this sense, so it survives
+    # here for the same reason another input's does.
     held_elsewhere = {row[0] for row in conn.execute(
         "SELECT alias_slug FROM freestyle_trick_aliases")}
     for alias_slug in list(merged):
@@ -471,9 +478,11 @@ def load_aliases(
     conn.executemany(
         """
         INSERT INTO freestyle_trick_aliases
-          (alias_slug, alias_text, trick_slug, alias_type, source_id, notes, created_at)
+          (alias_slug, alias_text, trick_slug, alias_type, source_id,
+           provenance_note, display_reason, alias_origin_producer, created_at)
         VALUES
-          (:alias_slug, :alias_text, :trick_slug, :alias_type, :source_id, NULL, :created_at)
+          (:alias_slug, :alias_text, :trick_slug, :alias_type, :source_id,
+           NULL, NULL, :alias_origin_producer, :created_at)
         """,
         [
             {
@@ -482,6 +491,9 @@ def load_aliases(
                 "trick_slug": v["trick_slug"],
                 "alias_type": "common",
                 "source_id": CURATED_V1_SOURCE_ID,
+                # Provenance and authority, written separately: the source says
+                # where the alias came from, the producer says who may rewrite it.
+                "alias_origin_producer": ALIAS_BASE_DICTIONARY,
                 "created_at": loaded_at,
             }
             for alias_slug, v in merged.items()
