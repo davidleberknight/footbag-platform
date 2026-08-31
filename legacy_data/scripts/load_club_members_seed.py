@@ -165,8 +165,7 @@ def main() -> None:
             # resolution_status intentionally OMITTED — schema DEFAULT 'pending'
             # applies. Inferred mirror rows arrive as 'pending' and transition
             # to 'confirmed_current' only when the member confirms current
-            # affiliation via the onboarding wizard (MIGRATION_PLAN §10.3,
-            # DATA_MODEL §4.25).
+            # affiliation via the onboarding wizard (DATA_MODEL §4.25).
             if person_id:
                 cur = con.execute(
                     """

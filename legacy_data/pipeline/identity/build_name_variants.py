@@ -8,7 +8,7 @@ pairs. It is consumed downstream by:
   - scripts/load_name_variants_seed.py   (draft loader → DB `name_variants`)
   - pipeline/qc/check_name_variants.py   (structural QC; not yet wired)
 
-See `docs/MIGRATION_PLAN.md §7` (registration-time auto-link) and
+Registration-time auto-link is the consumer; see
 `database/schema.sql name_variants` for the consuming contract.
 
 ## Sources (priority order)

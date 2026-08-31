@@ -46,7 +46,7 @@ A design bug exists when at least one is true:
 9. A privacy or data-governance rule is missing for PII, legacy data, exports, logs,
    notifications, audit trails, public pages, search, or admin views.
 10. A service JSDoc or view-layer contract omits behavior required by the stories.
-11. A design assumes data quality that the migration plan does not prove.
+11. A design assumes data quality that the validation gates do not prove.
 12. A migration rule has no validation gate.
 13. A go-live rule has no rollback or freeze rule.
 14. A dev/staging/prod difference could create production-only behavior.
@@ -93,8 +93,8 @@ which sweeps are skipped and why.
 Create an inventory of the design surface from repo evidence, never from memory. At
 minimum: user story sections and roles; major feature domains; design decision sections;
 service-contract JSDoc entries; page contracts in service JSDoc and the view-layer rule;
-data model areas; data governance rules; test/verification standards; migration plan
-sections; DevOps/deployment/runtime artifacts; environment adapter boundaries; retained
+data model areas; data governance rules; test/verification standards;
+DevOps/deployment/runtime artifacts; environment adapter boundaries; retained
 legacy services; post-go-live data source boundaries.
 
 ## Traceability matrix
@@ -228,10 +228,12 @@ to admins without audit rationale.
 ## Migration and go-live design sweep
 
 Migration design is in scope; Python migration code is not (unless the kickoff prompt
-includes it). Review `docs/MIGRATION_PLAN.md`, the maintainers' private tracker (open
-issues plus the Launch v1 milestone), governance docs,
-onboarding/claim and club-bootstrap stories, email/DNS/cutover material, final-export and
-freeze requirements, archive/legacy-retention requirements.
+includes it). Review `docs/TESTING.md` for the pipeline validation gates, GO_LIVE_PLAN.md
+(private GitHub repo; skip when the private checkout is not wired) for the rollback
+posture, the operational-readiness detail and the email, DNS and cutover material, the
+maintainers' private tracker (open issues plus the Launch v1 milestone), governance docs,
+onboarding/claim and club-bootstrap stories, final-export and freeze requirements,
+archive/legacy-retention requirements.
 
 Find bugs in: source-of-truth selection; final export timing; write-freeze assumptions;
 repeated-import idempotency; validation gate coverage; rollback plan; question ownership
@@ -245,7 +247,7 @@ production database becoming the source of truth.
 
 **Gate-index accuracy and completeness (mandatory).** The go-live gate index in
 GO_LIVE_PLAN.md (private GitHub repo; skip its rows when the private checkout is not
-wired) and the validation-gate table in `docs/MIGRATION_PLAN.md` are themselves audited
+wired) and the pipeline validation-gate table in `docs/TESTING.md` are themselves audited
 surfaces:
 
 - Accuracy: every artifact a gate references — script, route, table, column, count,
@@ -346,8 +348,7 @@ Required scenarios:
 
 Search for contradictions across: user stories vs design decisions, data model, service
 contracts (JSDoc), page contracts (service JSDoc / view-layer rule), and testing
-standards; migration plan vs data governance and design decisions; service contracts vs
-the view-layer rule; data model vs schema; DEVOPS_GUIDE.md (private GitHub repo) vs
+standards; service contracts vs the view-layer rule; data model vs schema; DEVOPS_GUIDE.md (private GitHub repo) vs
 Terraform/Docker/scripts; testing docs vs CI/package scripts; open private-tracker issue
 claims vs canonical docs. Report contradictions only when they affect implementation,
 testing, migration, privacy, security, operations, or go-live decisions. When two

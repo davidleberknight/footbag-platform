@@ -6,7 +6,7 @@ Verifies that Phase H's `06_cutover_pre_populated_clubs.py` is the SOLE
 creator of live `clubs` rows in production, and that it only promotes
 the `pre_populate`-class candidates (i.e. those with bootstrap_eligible=1).
 
-This pins the contract MIGRATION_PLAN §10.1 prescribes:
+This pins the club classifier's promotion contract:
 
   • pre_populate candidates → live `clubs` at cutover
   • onboarding_visible / dormant / junk candidates → remain in

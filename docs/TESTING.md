@@ -1,6 +1,6 @@
 # Footbag Website Modernization Project -- Testing Strategy
 
-**Authority:** This document is the canonical reference for testing strategy on the Footbag platform. It is strategic and additive. Operational testing rules live in `.claude/rules/testing.md` and `tests/CLAUDE.md`; security and privacy policy lives in `docs/DATA_GOVERNANCE.md`; migration testing rules live in `docs/MIGRATION_PLAN.md`. This document covers a risk classification rubric, test design principles, OWASP ASVS calibration, coverage and selective heavier tooling, a penetration testing strategy, an execution efficiency model with token-efficient tiered execution, AI-assisted testing governance, accessibility as a first-class layer, and explicit deferrals. Where this document and `.claude/rules/testing.md` overlap, the rules file is operational truth and this document is strategic context; the two must not contradict.
+**Authority:** This document is the canonical reference for testing strategy on the Footbag platform. It is strategic and additive. Operational testing rules live in `.claude/rules/testing.md` and `tests/CLAUDE.md`; security and privacy policy lives in `docs/DATA_GOVERNANCE.md`; legacy-migration testing rules are owned here, in the migration and onboarding testing section, as is schema-migration testing, by the source-of-truth cutover testing section and the schema-parity suite. This document covers a risk classification rubric, test design principles, OWASP ASVS calibration, coverage and selective heavier tooling, a penetration testing strategy, an execution efficiency model with token-efficient tiered execution, AI-assisted testing governance, accessibility as a first-class layer, and explicit deferrals. Where this document and `.claude/rules/testing.md` overlap, the rules file is operational truth and this document is strategic context; the two must not contradict.
 
 **Scope:** This policy applies to all contributors, maintainers, and AI agents who write, review, derive, or execute tests against the platform.
 
@@ -12,7 +12,7 @@ This file does not duplicate:
 
 - the edge-case lists, anti-pattern lists, adversarial input list, factories pattern, adapter parity test contracts, or the coverage floor that live in `.claude/rules/testing.md` and `tests/CLAUDE.md`,
 - the security and privacy policy in `docs/DATA_GOVERNANCE.md` (member-data visibility taxonomy, anti-enumeration rules, logging hygiene, legacy archive handling, contributor obligations),
-- the validation gates and operational-readiness rules for migration in `docs/MIGRATION_PLAN.md` (its "Validation gates" and "Operational readiness for go-live" sections).
+- the pipeline validation gates in §8.9 of this document. The operational-readiness rules moved to GO_LIVE_PLAN.md (private GitHub repo); they govern cutover readiness rather than tests, so no test anchors on them.
 
 ---
 
@@ -27,7 +27,7 @@ Every test, every helper, every staging script, every Playwright artifact treats
 - Passwords, remote-login secrets, password-reset tokens, email-verification tokens, signing keys, session secrets, AWS credentials, KMS material, SES credentials, S3 credentials, internal event secrets, and signed URLs are sensitive material.
 - These values are supplied to scripts and test helpers via standard input or an approved secret manager. They are never passed as command-line arguments, never echoed to stdout, never logged, never serialized into snapshots, screenshots, traces, videos, Playwright HTML reports, storage state files, or any committed artifact.
 - The existing `scripts/install-cwagent-staging.sh` stdin pattern is the reference model. Any new staging or test helper that needs a password must follow it.
-- Real member PII does not appear in committed test fixtures, factories, seed data, snapshots, screenshots, traces, or any other committed artifact. Synthetic data only. Where operator-controlled access to real legacy data is genuinely required for migration validation (per `docs/MIGRATION_PLAN.md`), the data is minimized, gitignored, access-controlled, and redacted in output.
+- Real member PII does not appear in committed test fixtures, factories, seed data, snapshots, screenshots, traces, or any other committed artifact. Synthetic data only. Where operator-controlled access to real legacy data is genuinely required for migration validation (per the pipeline validation gates in §8.9), the data is minimized, gitignored, access-controlled, and redacted in output.
 - `docs/DATA_GOVERNANCE.md` §9 (Logging and observability hygiene) governs what may and may not appear in application logs; the same prohibition extends to test output, CI logs, and artifact uploads. Test output is treated as potentially public.
 
 ### 2.2 logger.error is the operator-alert signal
@@ -120,7 +120,7 @@ Every test for a new or changed surface is grounded in these principles. They ar
 
 Every test traces upward to a user story in `docs/USER_STORIES.md` (identified by its story header, e.g. `M_Login`, `V_Browse_Clubs`, `A_Create_Vote`) and downward to the route or service method it exercises. If a surface has no corresponding user story, the surface is unintended scope: write the missing story first, or remove the surface.
 
-Surfaces in the legacy data pipeline anchor on `docs/MIGRATION_PLAN.md` validation gates instead.
+Surfaces in the legacy data pipeline anchor on the pipeline validation gates in §8.9 instead.
 
 The trace lives in the test's name (descriptive `it(...)` strings naming user-visible behavior) and the PR description (link to the user story being addressed). No file-header traceability artifact is required.
 
@@ -243,7 +243,7 @@ Belongs:
 
 - Schema-load smoke
 - Loader pipeline row-count and shape assertions
-- Migration regression cases tied to the `docs/MIGRATION_PLAN.md` validation gates
+- Migration regression cases tied to the pipeline validation gates (§8.9)
 
 Does not belong:
 
@@ -421,7 +421,7 @@ The staging-smoke leg applies to adapters that reach an external service over th
 
 ### 7.3 Staging-AWS adapter smoke entry point
 
-`scripts/test-smoke.sh` is the canonical entry. It reads terraform output for environment-specific values (KMS key ARN, SES sender identity, S3 bucket name), exports the staging AWS profile and region, fetches operator-supplied SSM secrets via the assumed-role chain, and execs `vitest run tests/smoke/`. The operator runs it locally or from the staging host after any change to staging AWS runtime identity, KMS keys, SES identities, or IAM policies the app depends on. The entry point targets staging by default; `SMOKE_TARGET_ENV=production` points every environment-specific read (terraform dir, AWS profile, SSM path) at the production account for its one sanctioned use, the pre-cutover production-AWS wiring check the migration plan's production checklist requires. The persona-catalog smoke is staging-only (personas are never seeded in production) and gates itself off under a production target.
+`scripts/test-smoke.sh` is the canonical entry. It reads terraform output for environment-specific values (KMS key ARN, SES sender identity, S3 bucket name), exports the staging AWS profile and region, fetches operator-supplied SSM secrets via the assumed-role chain, and execs `vitest run tests/smoke/`. The operator runs it locally or from the staging host after any change to staging AWS runtime identity, KMS keys, SES identities, or IAM policies the app depends on. The entry point targets staging by default; `SMOKE_TARGET_ENV=production` points every environment-specific read (terraform dir, AWS profile, SSM path) at the production account for its one sanctioned use, the pre-cutover production-AWS wiring check the go-live plan's production prerequisites require (GO_LIVE_PLAN.md, private GitHub repo). The persona-catalog smoke is staging-only (personas are never seeded in production) and gates itself off under a production target.
 
 The script does not accept passwords or secrets as command-line arguments. Secrets that the smoke suite needs are read from SSM via the assumed-role chain or piped via stdin from approved secret-manager flows.
 
@@ -540,11 +540,11 @@ Dev and continuous integration keep the unit, route and service integration, the
 
 ## 8. Migration and onboarding testing
 
-The validation gates and the operational readiness rules in `docs/MIGRATION_PLAN.md` are canonical for migration and onboarding. This section adds the playbook framing for deriving migration tests and the constraints that bind to the canonical content there.
+The pipeline validation gates in §8.9 below are canonical for migration and onboarding tests. This section adds the playbook framing for deriving migration tests and the constraints that bind to them. The operational-readiness rules that used to sit beside them moved to GO_LIVE_PLAN.md (private GitHub repo) and are cutover-readiness gates, not test anchors.
 
 ### 8.1 The migration anchor
 
-For surfaces in the legacy data pipeline that have no direct user story success criterion, anchor on the relevant `docs/MIGRATION_PLAN.md` validation gate instead of a `docs/USER_STORIES.md` entry. The same trace-to-intent principle applies; the gate text identifies what the test must prove.
+For surfaces in the legacy data pipeline that have no direct user story success criterion, anchor on the relevant pipeline validation gate in §8.9 instead of a `docs/USER_STORIES.md` entry. The same trace-to-intent principle applies; the gate text identifies what the test must prove.
 
 ### 8.2 Identity claim and confidence levels
 
@@ -558,7 +558,7 @@ Legacy-member identity claim has three confidence outcomes (high, medium, low) p
 
 ### 8.3 Club affiliation and cleanup
 
-Club affiliation tests cover the cases enumerated in `docs/MIGRATION_PLAN.md` (legacy affiliations that point to known clubs, legacy affiliations that point to ambiguous clubs, members who appear in multiple clubs, members who appear in no clubs after import). Club cleanup is a state-machine surface; tests are scenario-based per §4.4 with property tests for invariants ("a member is always a member of zero or more confirmed clubs at any point in the cleanup state machine").
+Club affiliation tests cover four cases: legacy affiliations that point to known clubs, legacy affiliations that point to ambiguous clubs, members who appear in multiple clubs, and members who appear in no clubs after import. Club cleanup is a state-machine surface; tests are scenario-based per §4.4 with property tests for invariants ("a member is always a member of zero or more confirmed clubs at any point in the cleanup state machine").
 
 ### 8.4 Loader pipeline regression
 
@@ -572,9 +572,9 @@ Migration tests in dev and continuous integration use synthetic legacy records t
 
 Two data tiers run the suite. The committed synthetic fixtures cover the great majority of it: `npm test`, the `db-load-smoke` loader gate, and routine route, service, and e2e tests run on them with no real data. A small subset needs real, maintainer-only member data — the gitignored membership roster (`legacy_data/membership/inputs/membership_input_normalized.csv`, names and membership status only, no contact data) and, for the legacy-import validation class, the legacy-site member dump, which does carry contact data. Two opt-in gates are such tests: the real-claim crawl (`--with-persona-crawl` / `npm run test:persona-crawl`) builds a claimed account for a real record and crawls its surfaces, and the read-only invariant gate (`--with-realdata-invariants`) runs whole-population reconciliation and referential-integrity checks over the loaded data, emitting counts and pass/fail only — never names or emails. Both run from the full operator load (or, re-pointed by env var, against staging) and skip on a fixture-only clone. A tester who must run a real-data test obtains access to the maintainer-owned handoff it needs from the maintainer who holds the legacy-data distribution; the data stays minimized and access-controlled, and never lands in a committed fixture, snapshot, trace, or CI artifact.
 
-### 8.6 Migration tests verify the migration plan, not the loader
+### 8.6 Migration tests verify the intent, not the loader
 
-A loader-pipeline test that asserts only what the loader implementation happens to do is insufficient if the migration plan says the loader should do something different. The migration plan is the intent; the loader is the implementation. Tests verify intent. If loader behavior diverges from the migration plan, the test fails and the loader is fixed, or the migration plan is escalated to the maintainer for review and possible update.
+A loader-pipeline test that asserts only what the loader implementation happens to do is insufficient if the design intent says the loader should do something different. The gates in §8.9, the Legacy Data Migration decision in `docs/DESIGN_DECISIONS.md` and the claim and onboarding user stories are the intent; the loader is the implementation. Tests verify intent. If loader behavior diverges from that intent, the test fails and the loader is fixed, or the intent is escalated to the maintainer for review and possible update.
 
 ### 8.7 Edge-case verification against the real import
 
@@ -623,11 +623,75 @@ Every domain on this lifecycle carries the same five test legs:
 - **Admin authoring** (integration): the post-go-live authoring surface is audited
   and validated, and an edit is used by the very next read or send with no reseed.
 - **Durability through a data-preserving deploy**: domain rows survive
-  `scripts/deploy-migrate.sh` with no seeder run. This leg is exercised against the
-  migrating deploy directly and is the durability evidence the go-live curator and
-  email-template gates ask for. The other four legs do not wait for it.
+  `scripts/deploy-migrate.sh` with no seeder run. The migrating deploy applies a migration
+  file, so this leg authors a throwaway additive migration for the test and hands it to the
+  deploy by path, leaving `database/migrations/` to the post-go-live chain it belongs to.
+  This leg is exercised against the migrating deploy directly and is the durability evidence
+  the go-live curator and email-template gates ask for. The other four legs do not wait for
+  it.
 
 ---
+
+### 8.9 The pipeline validation gates
+
+The gates below are the engineering acceptance criteria for the legacy-data pipeline and the
+claim and onboarding surfaces that read its output. They are the anchor §8.1 names: a pipeline
+surface with no direct user story success criterion traces to one of these instead. Four
+validation scripts under `scripts/` and the pre-cutover orchestrator cite them by gate id, and
+they are confirmed against the test load.
+
+The go-live plan (GO_LIVE_PLAN.md, private GitHub repo) carries the same gates and is the
+authority for go-live planning; it also carries which cutover state transition each gate blocks,
+which is sequencing rather than an acceptance criterion and so is not repeated here. Where the
+two copies disagree, that document wins and this one is corrected.
+
+| Gate | Criterion | Failure handling |
+|---|---|---|
+| G1 | No email value, taken across `legacy_email` / `legacy_email2` / `legacy_email3`, appears on more than one row (cross-column uniqueness); collisions surface a priori for curation | Replace provisional unique index with non-unique lookup + ambiguity handling |
+| G2 | `legacy_user_id` is unique where non-NULL | Same as G1 |
+| G3 | Every `legacy_members` row carries a populated `import_source` value; a row missing it is routed to admin review rather than silently trusted | Rows failing the provenance check route through admin review per the claim-ineligibility rules in the `M_Claim_Legacy_Account` user story |
+| G4 | Shape and null quality of profile/contact fields | Adjust import logic and field mapping |
+| G5 | Legacy member ID quality: every `legacy_member_id` integer-format-validated and comprehensively (100%) overlap-reconciled against the mirror profile-URL ids and `historical_persons.legacy_member_id`, not a 10% sample | Resolve before final export |
+| G6 | Tier-state inputs validated at test load: each of the three `legacy_*` tier-state fields (DATA_MODEL §4.14b) is spot-checked against reference cases. **PASS**: validated fields are populated and the claim-time mapping reads them; any field that fails validation is left unpopulated, so its basis does not fire (if the paid fields all fail, claims grant on honors alone). Held-back fields are recorded with the tier-state derivation note in GO_LIVE_PLAN.md (private GitHub repo), which is where the gate is walked and where its outcome is the record | Unvalidated fields left unpopulated; honors basis always applies |
+| G7 | Mirror-derived club normalization quality. **Requires G12 PASS** so the classifier's `listed_contact` and `member_active` signals, which the club classifier evaluates first in its required order, run against the fully-populated `historical_persons` set including club-only members; running G7 against a partial `historical_persons` set silently under-classifies clubs whose people never competed | Block until G12 PASSes; increase manual review threshold for any remaining quality gaps after both gates clear |
+| G8 | Sufficient high-confidence club-leader bootstrap candidates | Adjust bootstrap threshold or expand manual review scope |
+| G9 | Bootstrapped clubs produce valid, non-broken club pages | Fix UI before go-live |
+| G10 | Outbox → SES → recipient inbox path works end-to-end on the pre-cutover release (enqueue test row, worker drains within 60 seconds, SES returns MessageId, message arrives in recipient inbox) | Debug before cutover; common causes are IAM Resource scope, SES sandbox state, worker container env vars, worker event-loop bugs |
+| G11 | `name_variants` seeded with the high-confidence mined pairs (the seed files track the exact split of loaded and deferred; the `name_variants` contract is DATA_MODEL Name-matching utilities, §4.28) | Auto-link medium-confidence coverage drops; low-confidence admin queue expands; document shortfall at the pipeline review |
+| G12 | The club-only person cohort extracted into `historical_persons`, per the historical-persons expansion for club members in the legacy data pipeline. Checked as a population floor rather than an exact count, since the count is the pipeline's own output and moves with the data | Classification signals (active-players, contact-competed) run with reduced coverage; onboarding-visible list may shrink |
+| G13 | `club_bootstrap_leaders` populated for pre-populated clubs meeting the bootstrap rule in the `M_Complete_Onboarding_Wizard` user story | Leadership activation defers to path 2 (first affiliated member volunteers for leadership) for affected clubs |
+| G14 | Canonical `persons.csv` row count reconciled against `historical_persons` population; any accepted discrepancy documented and signed off | Block at test load until reconciled; unexplained delta risks missing or duplicated historical identities |
+| G15 | World records export produced in platform format and loads into the records schema cleanly | Records page launches empty or incomplete; fix export before go-live or hide the records entry point |
+| G16 | `run_pipeline.sh full` produces events, results, persons, clubs (classified), bootstrap leaders, club-only persons, and variants in one run | Document the multi-step manual sequence required and capture sign-off at the pipeline review; single-command regeneration is the long-term target |
+| G17 | Claim flow anti-enumeration invariant holds per the non-revealing messaging rule in the `M_Claim_Legacy_Account` user story: identical UX across matched-none, matched-multiple, matched-ineligible, and matched-eligible, across that story's case list | Collapse divergent response shapes before go-live; side-channel enumeration otherwise possible |
+| G18 | Rate limiting active on identifier lookup, declared-anchor changes, claim confirmations, optional mailbox-link-click round-trip, registration, and password-reset per the `M_Claim_Legacy_Account` user story (token mechanics per DESIGN_DECISIONS §3.8; numeric defaults owned by `docs/USER_STORIES.md`) | Block go-live until limiters engage; declared-anchor enumeration and mailbox abuse otherwise unmitigated |
+| G19 | Wizard claim task universally surfaces staged candidates and the declared-anchor prompt to every registrant, per the auto-link matching design in the Legacy Data Migration decision (DESIGN_DECISIONS §6.5) and the `M_Complete_Onboarding_Wizard` user story; all evidence tiers (`declared_anchor_only`, `currently_controls_modern_email_matching_legacy`, `mailbox_control_via_link_click`) exercised at test load. The `mailbox_control_via_link_click` tier is exercised via the G22 round-trip | Members without a stage-1 anchor match never get prompted to declare; legitimate claims are missed |
+| G21 | `legacy_user_id` and `legacy_email` populated on canonical `persons.csv` where mirror provides them | Claim-lookup falls back to `legacy_member_id` only; auto-link candidate coverage drops because the email anchor is missing |
+| G22 | Optional mailbox-control round-trip verified end-to-end at test load: declared old email → confirmation link issued → click consumes token and upgrades the audit evidence tier to `mailbox_control_via_link_click`; rate-limited per requesting member, per target row, per session/IP, per the `M_Claim_Legacy_Account` user story | Members cannot upgrade declared-anchor claims to hard-evidence; admin help requests carry more weight by default |
+| G23 | Multi-anchor candidate matching covers verified modern email, declared old emails, declared former surname, and current real-name surname, per the auto-link matching design in the Legacy Data Migration decision (DESIGN_DECISIONS §6.5); seeded `name_variants` table drives first-name variant resolution | Candidate coverage drops to email-anchor-only and admin-help-request volume rises |
+| G24 | `OperationsPlatformService` batch auto-link SYS job ready to run once at cutover; the job stages candidates (no live-table mutation, no notification emails); one `system_job_runs` row recorded per run; audit-emission coverage verified at test load (one `audit_entries` row per `legacy.auto_link_candidate_staged` event). Idempotent: rerun produces no duplicate candidates | If audit-emission coverage is incomplete, fix the audit emission path before declaring G24 PASS; without the staging job, candidate matching runs only at member sign-in and pre-cutover live members get no proactive surfacing |
+| G25 | `/history/:personId/claim` confirm page renders the first-name-variant warning inline; surname-mismatch messaging is user-readable; audit metadata captures the evidence tier (the four evidence-strength tiers are in the Legacy Data Migration decision in DESIGN_DECISIONS, §6.5) and any first-name variant used for direct historical-person claims, per the `M_Claim_Legacy_Account` user story | Direct historical-person claim usable but klunky; surname-block failures surface as raw `ValidationError` text rather than the spec'd confirm-page warning |
+| G26 | Member-initiated admin help request wired, per the admin review flow in the `M_Claim_Legacy_Account` user story, with structured evidence intake, admin review surface, and audit emission carrying `admin_vetted_evidence` on approval | Members stuck without an auto-surfaced candidate have no path forward; admin-recovery is informal |
+| G27 | Multi-record candidate ambiguity count from the seeded `name_variants` table against the test-load `legacy_members` set measured and reviewed jointly by the primary maintainer and the historical-pipeline maintainer; if the count exceeds the member-confirmation throughput the platform can comfortably handle, the `name_variants` seed is pruned before batch candidate staging runs at cutover | If unmeasured, members are presented with too many candidates per card and confirmation fatigue produces wrong-account confirmations |
+
+There is no G20; the numbering skips it.
+
+**Tuning authority for G8:** Bootstrap threshold adjustments at test load are a joint decision between the primary maintainer and the historical-pipeline maintainer. Raising the threshold (more conservative) is routine and requires no additional sign-off. Lowering the threshold below a minimum acceptable value (to be set during the pipeline review if lowering is needed) requires IFPA board sign-off, because lowering materially expands who gains bootstrap leadership and the live club-management permissions that follow at first claim.
+
+### 8.10 The retired internal QC subsystem, and what guards the retirement
+
+The internal QC subsystem was operator tooling for reviewing imported net results, mounted only in dev and staging. It is gone: the `/internal` router and its mount, the controllers, services and views under `src/internal-qc/` and `src/views/internal-qc/`, the prepared-statement groups in `src/db/db.ts`, six schema tables, the pipeline scripts that filled and drained them, and their tests.
+
+**What the public site kept.** Two of the three data-quality badges on the net events page were derived only from the retired review queue and went with it: Multi-stage and {n} unlinked. The third, Discipline review, also had an independent source: `net_discipline_group.conflict_flag`, a canonical grouping annotation for an ambiguous match rather than QC review state. It survives on that source alone.
+
+**Where the loader findings go.** The net team builder still runs its seven checks, including a priority-one identity conflict that exists in no other output. They are written to `legacy_data/out/net_team_qc_issues.jsonl`, beside the QC artifacts the canonicalization stage already writes there. Every field is derived from the data rather than the run, so a rerun over unchanged data reproduces the file byte for byte and a diff means the data moved.
+
+**Automated enforcement**: two layers, paired so a typo or rename cannot silently slip through.
+
+1. **Positive-assertion test.** `tests/unit/qc-subsystem-retired.test.ts` names every retired directory, file and table and requires each to be absent. Absence is the success signal. It also refuses to pass if its own lists are emptied, and checks that each path sits under a real top-level directory, because a path with a typo would be absent for the wrong reason and would pass forever while checking nothing. This catches a deleted file being restored.
+2. **Pattern scan** (defense in depth). The convention gate scans for QC entry points and retired table names. Its scope is the surfaces that ship or that build the database — application source, the schema, and the pipeline — because a QC page cannot return without code in one and a table in the other. Tests are deliberately outside that scope: the tests proving the subsystem is gone have to name it, and no pattern can tell those apart from a test exercising a restored one. This catches QC code returning under a name the first layer cannot know.
+
+Both run in continuous integration through jobs that already exist, the unit-test job and the convention gate, rather than through workflow steps of their own. Keeping both present and green is what holds the retirement.
 
 ## 9. Security and penetration testing
 
@@ -1187,7 +1251,7 @@ A periodic audit of test completeness walks this checklist top to bottom. Each l
 5. **Production safety (§7.1, §9.5).** No test targets or mutates production, by design. Production safety is the build-time strip of `src/testkit/` and `src/dev-bootstrap/`, the `FOOTBAG_DEV_*` fail-fast guards in `src/config/env.ts`, and the zero-residue gate `scripts/audit-dev-shortcuts.sh` returning zero against the production database, with the post-deploy smoke gate gating promotion. Pass: the residue gate exists and passes; no test writes to production.
 6. **Security regression floor (§9.1).** The `@security` baseline exists across layers: anti-enumeration response equivalence, login timing, SQL injection, XSS, transaction atomicity, no-stack-trace-in-5xx, public-contact-field leakage, security headers, CSRF Origin-pin, and rate-limit boundaries. Pass: each baseline class has a test.
 7. **Penetration tiers (§9).** Regression-grade automated (CI), static taint analysis pre-merge (§9.1), lightweight staging-safe probes (§9.2), the operator-invoked heavyweight pass `npm run test:pentest:heavy` (§9.3), and third-party periodic engagement (§9.4). Pass: each tier is wired, or its absence is a tracked deviation in the maintainers' private tracker. The audit records which tiers are wired.
-8. **Legacy migration (§8).** The `db-load-smoke` CI gate asserts loader row counts and shape; the claim confidence outcomes (high, medium, low, no-match), auto-link classification, club-affiliation cases, and alias and name-change edges each have tests. Pass: every `MIGRATION_PLAN.md` validation gate has a test.
+8. **Legacy migration (§8).** The `db-load-smoke` CI gate asserts loader row counts and shape; the claim confidence outcomes (high, medium, low, no-match), auto-link classification, club-affiliation cases, and alias and name-change edges each have tests. Pass: every pipeline validation gate in §8.9 has a test.
 9. **Admin operational surfaces.** Work-queue resolution, club cleanup, leadership reassignment, curator media, audit-log view, and system-config each have allow and deny authorization cells (the matrix, §4.6) and audit-emission assertions. Pass: no admin state-changing route lacks a deny cell or an audit assertion.
 10. **UI and design conformance (§14).** The no-nested-forms convention gate (`scripts/ci/assert_conventions.sh`) plus the e2e primary-form-submission check; the card-uniformity contract across browse views; and accessibility axe `@a11y` checks on business-critical surfaces against WCAG 2.1 AA. Automated visual-diff regression is deferred (§14.3). Pass: the convention gate is green, the card contract holds, and `@a11y` runs in CI on every push and in the full local suite.
 11. **Cross-cutting generative sweeps.** CSRF Origin-pin over the live route table, the route-by-persona authorization matrix (allow, deny, and adjacent-owner), ledger-immutability triggers, anti-enumeration equivalence, and session and token temporal contracts. Pass: each sweep enumerates from the live route table or schema, so a newly added surface is covered by construction rather than by memory.

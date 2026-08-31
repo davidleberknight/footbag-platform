@@ -343,7 +343,7 @@ The `legacy_data/` pipeline is normally out of scope, but migrated legacy data a
 - Verify migrated IDs are not trusted as authenticated member IDs.
 - Verify high/medium/low confidence identity matches drive the intended onboarding/claim behavior.
 - Verify "archive-only" media is not accidentally treated as user-owned mutable media.
-- Verify any redirect/DNS/archive assumptions in code match the migration plan and do not introduce open redirects or lost content.
+- Verify any redirect/DNS/archive assumptions in code match the documented cutover and archive design and do not introduce open redirects or lost content.
 
 #### 4.4.38 Deterministic automated-verification gaps
 

@@ -7,8 +7,10 @@ This document captures technical decisions and rationale so that volunteers can 
 Scoping note: Numeric values in this document may represent fixed technical constants, deployment/infrastructure resource allocations and thresholds, or implementation notes. For Administrator-configurable operational, security, reminder, pricing, and retention values, normative defaults are defined in the User Stories document and loaded via configuration seeds. DD may describe parameterization, ranges, and ownership, but if a value is Administrator-configurable, DD does not define the normative default. Any numeric value in this document that conflicts with the User Stories normative defaults section is an error; User Stories wins.
 
 Version markers: a section headed `<< V2 SCOPE >>` or `<< V3 SCOPE >>` is design intent for a
-post-launch build and is not part of the v1 launch; a section with no marker is v1. The allocation
-is decided in the Migration Plan's feature-scope-by-version section, which this document follows.
+post-launch build and is not part of the v1 launch; a section with no marker is v1. Everything
+ships at launch except the items on the deferral list, which is decided and recorded in
+`V2_SCOPE.md` (private GitHub repo); `docs/USER_STORIES.md` §1.3 summarizes it. This document
+follows the allocation rather than setting it.
 
 Current implementation status and accepted temporary deviations are tracked in the maintainers' private tracker. This document is the long-term architecture reference only.
 
@@ -1025,7 +1027,7 @@ Rules:
 
    - `historical_persons.legacy_member_id` → `legacy_members(legacy_member_id)`. Non-NULL = the mirror/dump named this historical person with that legacy account id (archival provenance). Partial UNIQUE index enforces 1:1.
 
-4. Claimed historical persons redirect to member profile. When `members.historical_person_id` is non-NULL for a given historical person, the canonical URL is the member's `/members/{slug}`. `GET /history/{personId}` for a claimed historical person redirects (301) to `/members/{slug}`.
+4. Claimed historical persons redirect to member profile. When `members.historical_person_id` is non-NULL for a given historical person, the canonical URL is the member's `/members/{slug}`. `GET /history/{personId}` for a claimed historical person redirects (301) to `/members/{slug}`. Where the linked historical person's name differs from the member's display name, the historical name is shown on the member profile, so the competition record stays attributable to the name it was won under.
 
 5. Reversion on account deletion. When a member's PII is purged (after the grace period per §2.3 Soft Deletes), the application, in one transaction: (a) sets `members.historical_person_id = NULL` and `members.legacy_member_id = NULL` on the anonymized row; (b) clears the claim pointer on the corresponding `legacy_members` row by setting `claimed_by_member_id = NULL` and `claimed_at = NULL`, returning that legacy account to the claimable pool. Subsequent `personHref()` resolution reverts from `/members/{slug}` to `/history/{personId}`.
 
@@ -1730,7 +1732,7 @@ Impact:
 
 ## 3.7 Ballot Encryption with AWS KMS
 
-<< V2 SCOPE >> Ballot encryption ships with the voting subsystem in version two. This section is
+<< V2 SCOPE >> Ballot encryption ships with the voting subsystem in v2. This section is
 design intent for that build and is not part of the v1 launch.
 
 Decision:
@@ -3424,6 +3426,9 @@ Requirements:
 - Every CloudFront distribution pins viewer minimum TLS protocol to `TLSv1.2_2021` (or higher). The protocol version is set in Terraform; CloudFront viewer settings are not modified via the AWS Console.
 - Edge abuse prevention follows §8.3: AWS Shield Standard for volumetric DDoS, Turnstile at the form boundary, in-process rate limiting, and a CloudWatch origin-spike alarm. A WAFv2 web ACL with the AWS managed common rule set and a rate-based rule is a deferred lever, attached if observed abuse later warrants it.
 - CloudFront access logs and S3 server access logs (for OAC-fronted buckets) are enabled and shipped to a dedicated log bucket whose lifecycle matches the retention windows in §1.2.
+- The distribution carries `footbag.org` and `www.footbag.org` as alternate domain names with a matching ACM certificate in `us-east-1`. Adding an alternate domain name requires only the certificate, not a DNS repoint.
+- No intermediary ever fronts the distribution. Anything terminating TLS for these names would have to present SNI and Host matching the alternate domain names, or CloudFront rejects the request with HTTP 421, so a reverse proxy in front of it is not a supported arrangement.
+- A plain CNAME at the apex is illegal per RFC 1034, so the apex is served as an ALIAS record to the distribution. This is why the zone is authoritative on Route 53 and why no separate apex redirect server is built.
 
 Trade-offs:
 
@@ -3557,7 +3562,7 @@ Decision:
 
 The platform absorbs legacy data from two sources before or at production go-live:
 
-**Historical pipeline.** Persons, events, results, honors (Hall of Fame, BAP), clubs, club affiliations, and club leadership. Curated data outranks both the legacy dump and the legacy mirror where they disagree about a row's value: the dump and the mirror record what the old system happened to store, damage included, while a curated file is a human decision about what is true. The dump stays authoritative for whether a row exists at all, because deletion on the legacy site was soft and only the dump carries it. Person truth therefore comes from human-curated CSV files, and club data from mirror extraction scripts integrated into the same pipeline, with the dump supplying the approved club-key universe. The pipeline also creates historical person records for ~1,600 club-only members who never competed in events. A historical person may exist without a claimed modern account; historical data is published regardless. Bootstrap-eligible clubs are created at go-live with leaders in `club_bootstrap_leaders`. Leaders can manage the club once they register. If a leader has not registered, the first affiliated member who registers can accept leadership during onboarding (tier-exempt, no admin confirmation).
+**Historical pipeline.** Persons, events, results, honors (Hall of Fame, BAP), clubs, club affiliations, and club leadership. Curated data outranks both the legacy dump and the legacy mirror where they disagree about a row's value: the dump and the mirror record what the old system happened to store, damage included, while a curated file is a human decision about what is true. The dump stays authoritative for whether a row exists at all, because deletion on the legacy site was soft and only the dump carries it. Person truth therefore comes from human-curated CSV files, and club data from mirror extraction scripts integrated into the same pipeline, with the dump supplying the approved club-key universe. The pipeline also creates historical person records for club-only members who never competed in events. A historical person may exist without a claimed modern account; historical data is published regardless. Bootstrap-eligible clubs are created at go-live with leaders in `club_bootstrap_leaders`. Leaders can manage the club once they register. If a leader has not registered, the first affiliated member who registers can accept leadership during onboarding (tier-exempt, no admin confirmation).
 
 **Legacy member import.** All legacy registered member accounts are imported as rows in the `legacy_members` table. These rows hold the legacy-account identity and import-era profile snapshot as a permanent archival record; they cannot log in (there is no credential material in `legacy_members` at all) and do not appear in any current-member surface. The source is a one-time export from the legacy site webmaster, used first as a test load for validation, then as the final production import after write freeze. Legacy passwords are never imported or used.
 
@@ -3567,7 +3572,7 @@ The two sources share the same identity key (`legacy_member_id`) and converge vi
 
 **Tier handling.** At claim, a member receives one membership-tier grant for the standing their legacy account held, written as a single `member_tier_grants` ledger row (`reason_code = 'legacy.claim_tier_grant'`) under the IFPA-approved blanket policy that maps each legacy standing (honors, paid history) to its 2026 equivalent, annual to lifetime. The per-standing mapping is the success criteria of `M_Claim_Legacy_Account`; a record showing only honors is granted on that basis as one outcome of that mapping, not a separate mode. Unclaimed `legacy_members` rows have no ledger row. No tier cache columns exist on `members`; membership-tier reads go through `MembershipTieringService.getTierStatus(memberId)`; Active Player reads go through `ActivePlayerService.getStatus(memberId)`.
 
-**Operational sequencing.** The legacy site enters write freeze; the records switch to the platform, which serves the migration page from that moment; the final export is imported; schema changes are applied to production; clubs are bootstrapped; the migration page is withdrawn and the platform goes live. Rollback lever before the records switch: abort and retry. Rollback lever afterwards: fix-forward, or a platform restore from the pre-flip snapshot, with any DNS change operator-made on the low-TTL zone. No automated rollback is provided once the records have moved.
+**Operational sequencing.** The legacy site enters write freeze; the records switch to the platform, which serves the migration page from that moment; the production database is built from the committed schema; the final export is imported; clubs are bootstrapped; the migration page is withdrawn and the platform goes live. Rollback lever before the records switch: abort and retry. Rollback lever afterwards: fix-forward, or a platform restore from the pre-flip snapshot, with any DNS change operator-made on the low-TTL zone. No automated rollback is provided once the records have moved.
 
 **Auto-link cutover surface.** At cutover, the batch auto-link pass stages candidate matches (writes a staged-candidate row per matched live member) without mutating live tables. No notification emails are sent. Nothing applies until the member confirms a card, per the umbrella claim flow. Trustworthiness rests on the identity-link matching rule, on a-priori validation of the imported honor flags against the authoritative public rosters before go-live, and on the admin dispute-revert path for any wrong claim. Members who cannot resolve their identity through the platform's self-serve surfaces use the member-initiated admin help request affordance (`A_Review_Member_Link_Help_Requests`); admin reviews, communicates as needed, and approves or rejects.
 
@@ -4060,7 +4065,7 @@ Impact:
 - `terraform/production/route53.tf` gains the hosted zone and the mirrored records; `enable_apex_alias_records` flips at the write-freeze, paired with `enable_planned_maintenance` in `terraform/production/cloudfront.tf`; `ses_enable_domain_auth` flips at the zone move; no apex-redirector Terraform exists.
 - The DNS cutover runbook in DEVOPS_GUIDE.md (private GitHub repo) scripts an operator-executed Route 53 change; the zone move follows that guide's "External DNS/mail upstream coordination runbook".
 - `TRUST_PROXY` is 2 in staging and production from go-live, with no topology change at any later milestone.
-- MIGRATION_PLAN sequences the cutover (§29.12) and the mail disposition (§29.12a) against this decision; the zone-move coordination lives in GO_LIVE_PLAN.md (private GitHub repo).
+- GO_LIVE_PLAN.md (private GitHub repo) sequences the cutover (its §29.12) and the mail disposition (its §29.12a) against this decision, and carries the zone-move coordination.
 
 ## 6.12 Legacy Independence at Go-Live
 
@@ -4088,7 +4093,7 @@ Trade-offs:
 
 Impact:
 
-- MIGRATION_PLAN carries this as its governing principle and gates go-live on it; the maintainers' private tracker tracks the workstreams that satisfy it (the webmaster's handover and shutdown, the secretary's discovery, the zone move, the shutdown checklist).
+- The go-live plan (GO_LIVE_PLAN.md, private GitHub repo) gates go-live on this principle; the maintainers' private tracker tracks the workstreams that satisfy it (the webmaster's handover and shutdown, the secretary's discovery, the zone move, the shutdown checklist).
 - The DNS Cutover decision (§6.11), the Legacy Archive decision (§6.4), the Sealed Legacy Email Archive decision (§6.5a), and the canonical email architecture (§5.5) implement it.
 
 # 7. DevOps

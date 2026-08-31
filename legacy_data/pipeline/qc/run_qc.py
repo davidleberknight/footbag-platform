@@ -75,8 +75,8 @@ OPTIONAL_CHECKS = [
     # (scripts/load_name_variants_seed.py) and the verify-time classifier
     # consume the resulting DB table, so broken input is a pipeline
     # regression rather than just a visibility signal. Severity=warn.
-    # Promote to hard once registration-time auto-link (MIGRATION_PLAN §7)
-    # wires in and stable production use is established.
+    # Promote to hard once registration-time auto-link wires in and
+    # stable production use is established.
     {
         "name": "name_variants",
         "path": "pipeline/qc/check_name_variants.py",

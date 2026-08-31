@@ -104,10 +104,10 @@ style rule is itself violated.
 
 Compare every doc cluster where concepts overlap: USER_STORIES vs DESIGN_DECISIONS /
 DATA_MODEL / DATA_GOVERNANCE / TESTING; DESIGN_DECISIONS vs DATA_MODEL / `.claude/rules` /
-DEVOPS_GUIDE.md (private GitHub repo) / MIGRATION_PLAN; `.claude/rules` + service
+DEVOPS_GUIDE.md (private GitHub repo); `.claude/rules` + service
 JSDoc vs actual services and routes; TESTING vs scripts/CI; the maintainers' private
 operations guide vs Terraform/Docker/deploy scripts;
-MIGRATION_PLAN vs onboarding/claim/club/email/DNS material; the project summaries and
+GO_LIVE_PLAN.md (private GitHub repo) vs email/DNS/rollback material; the project summaries and
 README vs current state; DIAGRAMS and GLOSSARY vs the decision doc, service JSDoc, and
 infra. Look for: same term different meaning; same rule different default; same route
 different path; same service different owner; same page different visibility; same status
@@ -161,7 +161,7 @@ complete and safe"); here the question is narrower: "do the documents and the ar
 still agree."
 
 - **Data:** DATA_MODEL / DATA_GOVERNANCE vs `database/schema.sql`, `src/db/**`, sensitive
-  read/write services, public profile/search/admin/claim routes, and the migration plan:
+  read/write services, public profile/search/admin/claim routes:
   member vs historical-person vs legacy-member, public vs private fields, old emails and
   former surnames, audit-log immutability, exports, deletion/retention, tier/payment
   status, announcement opt-in/out semantics.
@@ -174,7 +174,7 @@ still agree."
   DevOps sections vs Dockerfiles, compose and committed env files, `terraform/**`,
   workflows, `.githooks/`, deploy scripts, `ops/**` (timer cadence vs documented
   recovery objectives), config modules, and adapter factories.
-- **Migration/go-live:** MIGRATION_PLAN, `legacy_data/CLAUDE.md`,
+- **Migration/go-live:** GO_LIVE_PLAN.md (private GitHub repo), `legacy_data/CLAUDE.md`,
   governance, claim/onboarding/club stories vs each other and the repo: pre- vs
   post-go-live source-of-truth assumptions, final export, write freeze, validation gates,
   rollback, legacy-credential exclusion, identity mapping, email/DNS transition, retained

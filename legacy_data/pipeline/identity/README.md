@@ -47,13 +47,13 @@ DB load is wired: `run_pipeline.sh` loads it in PHASE V (and
   in registration-time auto-linking.
 
 The DB load runs in the pipeline today; the platform-side consumer that
-reads the table — the registration / email-verify auto-link path
-(MIGRATION_PLAN §7) — is still deferred.
+reads the table — the registration / email-verify auto-link path — is
+still deferred.
 
 ## Integration hook — where name_variants plugs into the identity flow
 
-`name_variants` is a **platform-side** table (`database/schema.sql`,
-`docs/MIGRATION_PLAN.md §7`). Its primary consumer is the registration /
+`name_variants` is a **platform-side** table (`database/schema.sql`).
+Its primary consumer is the registration /
 email-verify flow, not the legacy-data pipeline. The hook locations below
 are the places where a future consumer should consult the table.
 
@@ -83,7 +83,7 @@ extraction) or `identityAccessService.ts::verifyEmailByToken`
    `variant_normalized`. Only HIGH rows are present (enforced at load).
 4. Join the matched canonical form to `historical_persons` by
    `normalize(person_name)` to produce auto-link candidates.
-5. Present candidates in the claim UI per `docs/MIGRATION_PLAN.md §7`.
+5. Present candidates in the claim UI, per the `M_Claim_Legacy_Account` user story.
 
 MEDIUM rows are not consulted. Treat them as a curator review queue
 backed by `out/name_variants_deferred.csv`.

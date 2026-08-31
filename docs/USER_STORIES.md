@@ -4,17 +4,18 @@
 
 This document is the Source of Truth for Functional Requirements, defining all User Stories and their user-facing implications for the Footbag Website Modernization Project. It covers all user roles: Visitor, Member (includes Event Organizer and Club Leader), Administrator, and system background processes, plus special flags for the IFPA Board, Hall of Fame (HoF) and Big Add Posse (BAP). Together these User Stories define the complete scope, describing what functionality must exist for users, and success criteria (system side effects).
 
-Version markers: a story, section, or individual success criterion headed `<< V2 SCOPE >>` or
-`<< V3 SCOPE >>` is design intent for a post-launch build and is not part of the v1 launch; text
-with no marker is v1. The
-allocation is decided in the Migration Plan's feature-scope-by-version section, which this
-document follows.
+Version notation, used consistently throughout: releases are written `v1`, `v2`, `v3` in prose,
+never spelled out. A story, section, or individual success criterion headed `<< V2 SCOPE >>` or
+`<< V3 SCOPE >>` is design intent for that release and is not part of v1; the marker is
+uppercase because it is a structural label rather than prose. Text with no marker is v1. What
+each release contains is §1.3.
 
 ## Table of Contents
 
 - [1. Global Behaviors](#1-global-behaviors)
   - [1.1 Hashtags](#11-hashtags)
   - [1.2 IFPA Membership Rules Reference and Terminology](#12-ifpa-membership-rules-reference-and-terminology)
+  - [1.3 Release Scope](#13-release-scope)
 - [2. Visitor Stories](#2-visitor-stories)
   - [2.1 Content Discovery](#21-content-discovery)
     - [V_Browse_Static_Content](#v_browse_static_content)
@@ -362,6 +363,29 @@ Implementation notes used by stories below:
 - Site Administrators (the platform admin role) must hold Tier 2 or Tier 3 status.
 - Feature access is controlled by membership tier, Active Player status where applicable, and contextual roles or flags (Event Organizer, Club Leader, Administrator, HoF, BAP). These values are fetched from the database on any authenticated request to check authorization rules; JWT tier or flag claims are cached for routing performance but are never authoritative for access control decisions.
 - Member counts displayed to the public, where any exist, must clearly indicate whether they represent "all registered accounts" (including Tier 0 without Active Player status) or the "Official IFPA Roster."
+
+## 1.3 Release Scope
+
+Everything in this document ships at launch (v1) except the items below. Deferral requires an
+explicit maintainer ruling; the ruled list, with its dates and rationale, is `V2_SCOPE.md`
+(private GitHub repo). Deferred work is built natively after launch, never left on the legacy
+site, which shuts down at cutover. Deferred stories are still written here in full, marked
+`<< V2 SCOPE >>` or `<< V3 SCOPE >>`, because the design is settled even where the build is not.
+
+**v2**, built first after launch, in this order: voting and elections; the Hall of Fame
+nomination and voting flow, the first real consumer of that subsystem; IFPA rankings computed
+from sanctioned-event results. Independent of that order: the news feed with its authoring and
+moderation surfaces, the curated net topic gallery, and per-discipline routine music on events.
+
+**v3**, unordered: administrator authority split into named lanes of expertise rather than one
+flat role; the Big Add Posse nomination and voting flow; and native tournament-day operations.
+
+Two deadlines bind the v2 order. The first binding election on the new voting subsystem is the
+IFPA Board election of November 2026, and the bylaws put the ballot after a nomination period of
+at least thirty days, so both surfaces must be live and exercised well before then; the Hall of
+Fame proving run with disregardable votes has to complete before that election, because it is
+binding. Tournament operations carries a fixed Worlds 2027 deadline whatever position it takes
+in v3.
 
 # 2. Visitor Stories
 
@@ -1237,7 +1261,7 @@ Success Criteria:
 - Event registration payments affect registration status only and do not directly change membership tier.
 - A registration reaches `confirmed` once payment is webhook-confirmed (paid events); until then it is `pending`. A member can withdraw their own registration up to the registration deadline, and an organizer or admin can cancel a registration with a reason; a canceled registration is excluded from participant counts, exports, check-in, and event email. When a checkout session expires, the pending registration it belongs to is canceled with it.
 
-<< V2 SCOPE >> The five criteria below ship with routine music in version two. They are design
+<< V2 SCOPE >> The five criteria below ship with routine music in v2. They are design
 intent for that build and are not part of the v1 launch.
 
 - A registration in a discipline that requires routine music additionally reaches `confirmed` once the required upload is attached.
@@ -1292,7 +1316,7 @@ Success Criteria:
 
 ### M_Manage_Routine_Music_Library
 
-<< V2 SCOPE >> Ships with routine music in version two; not part of the v1 launch.
+<< V2 SCOPE >> Ships with routine music in v2; not part of the v1 launch.
 
 Access: Any member can view, play back, upload, label, and delete their own routine-music library files at any time.
 
@@ -1517,7 +1541,7 @@ Success Criteria:
 
 ### M_Nominate_HoF_Candidate
 
-<< V2 SCOPE >> Ships with the Hall of Fame nomination and voting flow in version two, the first
+<< V2 SCOPE >> Ships with the Hall of Fame nomination and voting flow in v2, the first
 consumer of the voting subsystem; not part of the v1 launch. The administrator honor grant that
 sets the Hall of Fame badge stays v1.
 
@@ -1536,7 +1560,7 @@ Success Criteria:
 
 ### M_Submit_HoF_Affidavit
 
-<< V2 SCOPE >> Ships with the Hall of Fame nomination and voting flow in version two; not part of
+<< V2 SCOPE >> Ships with the Hall of Fame nomination and voting flow in v2; not part of
 the v1 launch.
 
 Access: A member who has been nominated to the Footbag Hall of Fame, and approved by an Admin as eligible, can submit an affidavit during the admin-configured nomination timeframe.
@@ -1890,7 +1914,7 @@ Social kicking, also called free-flow or cooperative kicking, and circle kicking
 - Organizer sees clear error messages for validation failures with hints about what to fix.
 - Member gains Event Organizer status for this event (only).
 - An Event Organizer may organize more than one event at a time.
-- For free events, event status changes to `reg_open`, Email sent to all event organizers to confirm. Event will appear in Upcoming Events list. For sanctioned events, which includes every event that charges a fee, these actions wait for Admin approval. The news item this emits ships with the news feed in version two.
+- For free events, event status changes to `reg_open`, Email sent to all event organizers to confirm. Event will appear in Upcoming Events list. For sanctioned events, which includes every event that charges a fee, these actions wait for Admin approval. The news item this emits ships with the news feed in v2.
 
 ### EO_Request_Sanction
 
@@ -1926,7 +1950,7 @@ Success Criteria:
 - Organizers see a clear success message when event is updated.
 - Organizer sees clear error messages for validation failures.
 - Organizers can add, rename, or remove disciplines on an existing event before the first registration in that discipline is confirmed. After the first confirmed registration, destructive changes to that specific discipline require admin override.
-- << V2 SCOPE >> Ships with routine music in version two: organizers can mark any discipline on the event as `requires_routine_music=true` (default `false`). The flag is freely editable until the first registration in that discipline is confirmed; after the first confirmed registration, changes to this flag for that discipline require admin override with a documented reason.
+- << V2 SCOPE >> Ships with routine music in v2: organizers can mark any discipline on the event as `requires_routine_music=true` (default `false`). The flag is freely editable until the first registration in that discipline is confirmed; after the first confirmed registration, changes to this flag for that discipline require admin override with a documented reason.
 - Organizers can enable or disable the event's online registration acceptance via a toggle that stops new registrations without changing event status. This is the granular alternative to `EO_Close_Registration`, which closes the entire registration window irreversibly.
 
 ### EO_Delete_Event
@@ -2059,7 +2083,7 @@ Success Criteria:
 - Dashboard is scoped to a single event and accessible only to that event's organizer(s) and Admins.
 - Dashboard displays: total registered count, breakdown by registration type (Competitor / Attendee-Supporter), per-discipline registration counts, payment status summary (paid / pending / failed counts and amounts in the event's currency), registration timeline (count per day from registration open to current time).
 - Dashboard displays t-shirt size summary if the event collects t-shirt sizes.
-- << V2 SCOPE >> Ships with routine music in version two: for disciplines with `requires_routine_music=true`, dashboard displays a routine-music status summary, counting registrations with a file uploaded against those still missing one.
+- << V2 SCOPE >> Ships with routine music in v2: for disciplines with `requires_routine_music=true`, dashboard displays a routine-music status summary, counting registrations with a file uploaded against those still missing one.
 - Counts update via SQL query on demand; no caching beyond standard request scope.
 - Dashboard view is audit-logged with organizer ID, event ID, timestamp.
 
@@ -2117,7 +2141,7 @@ Success Criteria:
 - Results visible on event detail page after commit.
 - Results displayed as sortable table.
 - Results also added to participant profiles (if participant linked to member account).
-- Results publication emits a news feed item, which ships with the news feed in version two; in version one results publish on the event page directly.
+- Results publication emits a news feed item, which ships with the news feed in v2; in v1 results publish on the event page directly.
 - Only organizers can upload results.
 - Results upload audit-logged, including the committed upload's row count and the count accepted without a registration match.
 - Results can be uploaded for any event (sanctioned status does not affect results posting).
@@ -2669,7 +2693,7 @@ Success Criteria:
 
 - Review event details, the organizer's sanctioning attestation, and any fee structure in the approval queue.
 - Approve or reject with reason.
-- On approval: event status changes to `reg_open`, payment configuration enabled where the organizer configured fees, Email sent to all event organizers to confirm. Event will appear in Upcoming Events list. The news item this emits ships with the news feed in version two.
+- On approval: event status changes to `reg_open`, payment configuration enabled where the organizer configured fees, Email sent to all event organizers to confirm. Event will appear in Upcoming Events list. The news item this emits ships with the news feed in v2.
 - On rejection: event status returns to `draft`, Outbox sends organizer notification with reason, and the organizer can revise and resubmit.
 - Payment approval is event-specific configuration, not persistent eventOrganizer permission (which is separate).
 - All approval actions logged.
@@ -3254,7 +3278,7 @@ Audit:
 
 ### A_Create_News_Item
 
-<< V2 SCOPE >> Ships with the news feed in version two; not part of the v1 launch.
+<< V2 SCOPE >> Ships with the news feed in v2; not part of the v1 launch.
 
 Access: Only admins can manually create a news item.
 
@@ -3269,7 +3293,7 @@ Success Criteria:
 
 ### A_Moderate_News_Item
 
-<< V2 SCOPE >> Ships with the news feed in version two; not part of the v1 launch.
+<< V2 SCOPE >> Ships with the news feed in v2; not part of the v1 launch.
 
 Access: Only admins can edit, or remove news feed items.
 
@@ -3892,7 +3916,7 @@ Success Criteria:
 
 ### SYS_Open_Vote
 
-<< V2 SCOPE >> Ships with the voting subsystem in version two; not part of the v1 launch.
+<< V2 SCOPE >> Ships with the voting subsystem in v2; not part of the v1 launch.
 
 Access: This scheduled process runs under the system role.
 
@@ -3908,7 +3932,7 @@ Success Criteria:
 
 ### SYS_Close_Vote
 
-<< V2 SCOPE >> Ships with the voting subsystem in version two; not part of the v1 launch.
+<< V2 SCOPE >> Ships with the voting subsystem in v2; not part of the v1 launch.
 
 Access: This scheduled daily process runs under the system role.
 

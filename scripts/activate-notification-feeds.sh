@@ -368,10 +368,12 @@ if (( FROM_STEP <= 2 )); then
   #
   # The plan file is mode 600 and shredded on every exit path. A saved plan is
   # an opaque archive that can carry live values, so it never lands anywhere
-  # durable and never anywhere a credential scan cannot see into.
-  TF_PLAN="$(mktemp "${TMPDIR:-/tmp}/footbag-feeds-plan.XXXXXX")"
+  # durable and never anywhere a credential scan cannot see into. The directory
+  # is literal rather than TMPDIR-relative, so the caller's environment cannot
+  # redirect the archive into a checkout.
+  TF_PLAN="$(mktemp /tmp/footbag-feeds-plan.XXXXXX)"
   chmod 600 "$TF_PLAN"
-  trap 'rm -f "${TF_PLAN:-}" "${TFVARS_TMP:-}"' EXIT INT TERM
+  trap 'if [ -n "${TF_PLAN:-}" ] && [ -e "${TF_PLAN}" ]; then shred -u "${TF_PLAN}"; fi; rm -f "${TF_PLAN:-}" "${TFVARS_TMP:-}"' EXIT INT TERM
 
   if ! terraform -chdir="$TF_DIR" plan -out="$TF_PLAN"; then
     echo "ERROR: terraform plan failed. Nothing was applied." >&2

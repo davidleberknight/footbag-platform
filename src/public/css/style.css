@@ -2107,7 +2107,6 @@ section.home-media { padding-top: 0; }
   line-height: 1;
   margin-bottom: 8px;
 }
-.error-page h2 { margin-bottom: 12px; }
 .error-page p  { color: var(--text-muted); margin-bottom: 24px; }
 .error-actions {
   display: flex;

@@ -161,9 +161,11 @@ Load only the relevant source:
   user stories for the member and admin flows.
 - Schema, the `name_variants` contract, and the migration staging and bootstrap tables:
   DATA_MODEL and `database/schema.sql`.
-- The legacy-site export contract and its credential exclusion: the required schema changes and
-  validation gates sections of MIGRATION_PLAN.
-- Persons count baseline: the persons data-quality section of MIGRATION_PLAN.
+- The legacy-site export contract and its credential exclusion: the webmaster-coordination gate
+  rows in GO_LIVE_PLAN.md (private GitHub repo). The pipeline validation gates that check the
+  loaded result are in `docs/TESTING.md`.
+- Persons count baseline: the pipeline QC reports are authoritative; the recorded baseline moved
+  to GO_LIVE_PLAN.md (private GitHub repo), beside the pipeline validation gates.
 
 ## Archives
 

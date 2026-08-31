@@ -191,7 +191,7 @@ No contact field (email, phone, social handle) is visible on any public page or 
 
 **Private operations repository.** The working member roster, non-regenerable operator seeds, and other private or archival project datasets live in the maintainers' private operations repository, indexed by DATA_INVENTORY.md (private GitHub repo) — the single record of what each private dataset is and where its canonical copy lives. The public repository never holds member personal data.
 
-**Invalid legacy rows.** Legacy member rows the source marks invalid (`MemberValid = 0`) and other mechanically-obvious garbage are excluded from `legacy_members` by default, so their PII never enters the platform. The only exception is a row pulled back by linkage to a published result, an honor, or a documented admin-recovery need (MIGRATION_PLAN legacy-member import). Exclusions are counted and validated, never silent.
+**Invalid legacy rows.** Legacy member rows the source marks invalid (`MemberValid = 0`) and other mechanically-obvious garbage are excluded from `legacy_members` by default, so their PII never enters the platform. The only exception is a row pulled back by linkage to a published result, an honor, or a documented admin-recovery need. The filter and its counted-exclusions report live with the loader in `legacy_data/member_data_scripts/`. Exclusions are counted and validated, never silent.
 
 **Sealed legacy email archive.** The legacy IFPA group-message corpus (private and public discussion intermixed, including privately cast committee votes) is sealed, encrypted, and retained privately under IFPA custody; it is never imported, processed, or exposed, and privately cast votes are permanently non-publishable. Custody, key handling, and release are governed by DESIGN_DECISIONS §6.5a.
 
@@ -200,6 +200,29 @@ No contact field (email, phone, social handle) is visible on any public page or 
 **Addresses used as content names.** Members named photo-gallery sets with their own e-mail address, and with their club's web address, and the legacy site built the set's URL and its displayed title out of whatever was typed. Neither is published: the capture is stored under a stand-in name derived from the original, and the address is replaced in the page text, so the set keeps its photographs while the address appears in neither the path nor the page. Both kinds are treated alike. An e-mail address is the member's own contact detail and the page already names whose gallery it is, so the address identifies nothing a reader needs; a club's web address is not private, but a lapsed domain can be re-registered by anyone, and the archive does not carry a path or a link that points at whatever now answers there.
 
 **IFPA governance authority over IFPA-owned legacy records.** IFPA-owned legacy records (group messages, committee votes, elections, and the official rulebook) are IFPA governance data. Their disposition, release, redaction, or destruction is an IFPA governance decision, never operator or maintainer discretion. The legacy-site webmaster may be operational custodian and is the authoritative source of facts about these records, but holding the files does not confer authority to release or destroy them.
+
+**Legacy consent and visibility flags are metadata, never active consent.** The legacy member record carries a mailing opt-in pair (`MemberAnnounceOptIn` and `MemberEmailOptIn`) and five per-field visibility flags (`MemberPublish`, `MemberPublishEmail`, `MemberPublishAddress`, `MemberPublishCity`, `MemberPublishPhone`). None of them is imported as active consent, and no `members` column is added for any of them. They are recorded as legacy metadata only. Members set their subscription preferences fresh after claiming, and this platform's privacy defaults and member-set visibility govern what is shown; an unclaimed legacy record is never an active mail recipient.
+
+The consequence is worth stating plainly, because it decides how the membership learns the site has moved. Once the legacy system is frozen, IFPA has no channel to an unclaimed legacy member at all: this platform may not mail them and the old system can no longer send. The announcements sent from the legacy platform before the freeze are the only notice those members receive. Nothing is lost by missing one, because the claim path carries no deadline and the domain does not change, so a member returning to footbag.org at any later date finds the new site and can still link their record.
+
+### 9.1 Disposition of the legacy data domains
+
+The delivered legacy dump carries domains beyond what this platform imports. Each has a recorded disposition, and none is built without a scope decision. This table is the source of record for those dispositions.
+
+| Domain | Dump rows | Disposition |
+|---|---|---|
+| Gallery / media | 16,768 images, 1,955 sets | Out of scope: served from `archive.footbag.org` (archive readiness in GO_LIVE_PLAN.md, private GitHub repo); not migrated |
+| Freestyle tricks (`moves`) | 303 moves, 431 hints, 97 journals, plus `move_tip_votes` (footbag, incl. net moves) | The trick metadata is not imported: the new platform's freestyle dictionary is already more complete and is the authoritative source, so the legacy `moves` rows are abandoned. The member hints are the exception and were recovered, loading as trick tips (`moves_journal` is per-member private if ever reconsidered) |
+| IFPA governance | elections 187, issues 332, votes 10,497, payments 209 | IFPA governance decision (the IFPA secretary rules, not the operator): the election, issue, and privately-cast vote tables hold privately cast votes and carry their own recorded retention disposition, held privately; the payments table is not read for tier derivation; the committee and board tables are delivered as a separate module dump, and the migration reads neither, because board standing is set by an administrator after cutover |
+| Rankings | 12,672, plus 14 sets | No rankings surface scoped; decide whether it is a future feature |
+| News | 17,682 | Archive-only: the rendered pages are preserved in the mirror, 17,779 of them against 17,682 rows, and the rows are not imported. The platform's own news feed is separate work rather than a migration of these rows |
+| Rules (`rulebook3`) | 1,619 | IFPA rules already live in the IFPA governing documents; likely archive-only |
+| Polls | 11, plus 4,899 answers | Likely drop |
+| Localization | ~561 across four tables | Legacy i18n; likely drop |
+| FAQ (`faq`/`faqsections`) | 38 entries, 7 sections | Archive-or-drop; check first for any sanctioning or membership-tier policy references |
+| Event calendar (`calendar`) | 1,723 rows, 1,434 approved and not deleted, 1985-2026 | Not imported: the curated event history is more complete and is the authoritative source, so the legacy calendar is abandoned. The table carries a password column that is stripped wherever the data is handled |
+| Group documents (`ifpa_group_files`) | 351 file records | File metadata only, no file contents; the private-group and committee-scoped subsets are excluded from the member-visible archive and held in private IFPA custody |
+| Signup / address-validation queue (`actions`) | 1,323 rows (1,233 join requests, 90 address validations) | Not imported: a transient work queue carrying no date column and an empty data column. Its only content found nowhere else is up to 21 older or alternate email addresses, and every named person it references already has an address recorded against their legacy account. A former address becomes a claim anchor only once the member declares it and proves mailbox control, so loading these would bypass that proof for people who never asked and gain nothing |
 
 ---
 

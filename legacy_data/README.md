@@ -473,6 +473,36 @@ The mirror-driven `--soup-to-nuts` path regenerates committed
 
 ---
 
+## Findings of record from the delivered dump
+
+Two conclusions from validating the delivered legacy data that nothing else records.
+
+**The authoritative club universe.** The delivered dump carries it: the `clubs` table's 597
+`Approved=1` rows, of 602 total, with location lat/lon and `ClubPlaysNet` / `ClubPlaysFreestyle`.
+The overlay reconciles `legacy_data/seed/clubs.csv` to exactly those 597 approved keys: the 312
+mirror-enriched rows already present are preserved verbatim, the 285 approved dump-only clubs are
+added, and any key the dump does not mark `Approved=1` is dropped. Deletion on the legacy site was
+soft, the `clubs.Approved` flag set false and never a row delete, so dormant and deleted clubs
+persist in the table as unapproved rows and the seed holds only the 597 approved keys. A dump-only
+approved club carries no authoritative contact field, so it resolves its contact through the
+classifier's substitute-contact predicate. The `clubcontacts` table (1,400 member-to-club links
+carrying `ContactPriority`, joining `ClubContactID` to `members.MemberID` and `ContactClubID` to
+`ClubID`) is corroboration only. That authority is over existence, not over values: the approval
+flag is the deletion signal the mirror structurally cannot carry, since a deleted club has no page
+left to crawl, while every field on an already-seeded row stays as curated. Cross-validating
+`ContactPriority` against the confidence-scored leadership inference in
+`legacy_data/seed/club_members.csv` (~2,400 associations) remains a separate future quality pass.
+
+**No ban state exists to carry over.** The delivered data carries no ban field: no banned, blocked,
+suspended, or inactive column anywhere in the dump, re-confirmed against the final export at load.
+So there is nothing to carry over and no legacy ban gates a claim. If a check of the final export
+ever surfaces meaningful legacy bans, the three options are that a ban carries over silently with
+the new account starting restricted, that banned legacy accounts are unclaimable self-serve and the
+member contacts an administrator, or that the claim is held until board review. Pending that,
+member discipline is handled by the platform's own tools.
+
+---
+
 ## Cross-references (outside legacy_data)
 
 - `scripts/deploy-local-data.sh`, local DB prep orchestrator

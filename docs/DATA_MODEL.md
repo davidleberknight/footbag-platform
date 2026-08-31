@@ -841,7 +841,7 @@ Two erasure shapes set `personal_data_purged_at` (the credential CHECK requires 
 
 Permanent archival table: one row per imported legacy account from the old footbag.org mirror and, going forward, the legacy data dump. Identified by `legacy_member_id` (PK); the old-site's user-account id, which is the external-namespace pointer also carried by `members.legacy_member_id` and `historical_persons.legacy_member_id`. See DD §2.4 for the three-entity identity model.
 
-**Import population (source-validity filter).** Rows are loaded only for source-valid legacy accounts (`MemberValid > 0` in the source) plus exceptions pulled back by linkage (an otherwise-excluded row referenced by a published result, an honor, or a documented admin-recovery need); mechanically-obvious garbage and invalid rows, together with their PII, never enter this table. Pulled-back exceptions are recorded in import audit metadata. The filter and its counted/validated gate live in the MIGRATION_PLAN legacy-member import section.
+**Import population (source-validity filter).** Rows are loaded only for source-valid legacy accounts (`MemberValid > 0` in the source) plus exceptions pulled back by linkage (an otherwise-excluded row referenced by a published result, an honor, or a documented admin-recovery need); mechanically-obvious garbage and invalid rows, together with their PII, never enter this table. Pulled-back exceptions are recorded in import audit metadata. The filter and its counted/validated gate live with the loader in `legacy_data/member_data_scripts/`.
 
 #### Immutability and claim semantics
 
@@ -1321,12 +1321,12 @@ Three tables are introduced by the legacy data migration in addition to `member_
 
 #### `legacy_club_candidates` — migration-only staging
 
-Mirror-derived normalized club identities. Populated by the mirror-analysis pipeline before cutover per `MIGRATION_PLAN.md` §10.1. Each row represents one distinct club identity (possibly merged from multiple source legacy entries) with a `legacy_club_key`, location, classification, and the classification evidence.
+Mirror-derived normalized club identities. Populated by the mirror-analysis pipeline before cutover, per the club classifier in `legacy_data/clubs/scripts/`. Each row represents one distinct club identity (possibly merged from multiple source legacy entries) with a `legacy_club_key`, location, classification, and the classification evidence.
 
 Columns of design interest:
 
-- `legacy_club_key`: the canonical mirror key for this candidate. When the curator confirms a duplicate pair (per MIGRATION_PLAN §10.1), the pipeline merges the pair into the keep-key candidate before load; merged-from keys are recorded in the pipeline's override file and outputs, not in a DB column.
-- `display_name`, `city`, `region`, `country`: best-of fields from the (possibly merged) candidate per the MIGRATION_PLAN §10.1 field-merge rules.
+- `legacy_club_key`: the canonical mirror key for this candidate. When the curator confirms a duplicate pair, the pipeline merges the pair into the keep-key candidate before load; merged-from keys are recorded in the pipeline's override file and outputs, not in a DB column.
+- `display_name`, `city`, `region`, `country`: best-of fields from the (possibly merged) candidate, per the field-merge rules the club classifier applies.
 - `classification`: enum (`pre_populate`, `onboarding_visible`, `dormant`, `junk`) assigned by the pre-cutover classifier; admin cleanup actions per `A_Periodic_Club_Cleanup` can demote an onboarding-visible candidate to dormant or return a junk candidate to dormant.
 - Classification evidence: one 0/1 flag column per named rule (`r1`–`r10`) records exactly which rules fired, alongside `contact_signal_substitute_applied` and the raw rule-input columns (`last_hosted_year`, `last_updated_year`, `contact_member_last_year`, `max_affiliated_member_last_year`, `created_year`, `unique_member_names`, `linkable_member_count`, `ever_hosted`). Persisted so admin can audit the classification rationale without re-running the classifier; there is no `rules_fired`/`evidence_snapshot` JSON column.
 - Force-keep / force-junk overrides live as curator-owned CSVs in `legacy_data/overrides/` consumed by the classifier, not as DB columns; admin force-keep / force-junk requests are ruled in `A_Periodic_Club_Cleanup`.
@@ -1389,7 +1389,7 @@ This table is NOT prefixed `legacy_*`. The `legacy_*` prefix in this schema is r
 
 **Table:** `member_onboarding_tasks`
 
-Permanent operational state for the per-member onboarding wizard (`MemberOnboardingService`; `MIGRATION_PLAN.md` §10). Carries one row per (`member_id`, `task_type`) tracking outstanding wizard tasks. The registration flow reads and writes through the service, and the same rows are the membership authorization state: an account is pending until all three are `completed`.
+Permanent operational state for the per-member onboarding wizard (`MemberOnboardingService`; the `M_Complete_Onboarding_Wizard` user story). Carries one row per (`member_id`, `task_type`) tracking outstanding wizard tasks. The registration flow reads and writes through the service, and the same rows are the membership authorization state: an account is pending until all three are `completed`.
 
 - **Columns**: `id` PK; `member_id` FK to `members(id)`; `task_type` TEXT with CHECK in (`personal_details`, `legacy_claim`, `club_affiliations`); `state` TEXT with CHECK in (`pending`, `completed`); `created_at`, `updated_at` TEXT timestamps; `completed_at` TEXT nullable. `first_competition_year` and `show_competitive_results` are not valid task types; year input is bundled into `personal_details`.
 - **Two states**: a task is `pending` until the member answers it, then `completed`. Every exit from a wizard task is an explicit answer, so there is nothing to skip, dismiss, or park mid-flow, and the tasks are universal, so none is ever inapplicable.

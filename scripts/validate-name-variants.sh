@@ -2,7 +2,8 @@
 # scripts/validate-name-variants.sh -- pre-cutover gate G11.
 #
 # Confirms the name_variants table is seeded with at least the documented
-# baseline (~290 mined pairs per MIGRATION_PLAN §6 + §14.15). Probes a small
+# baseline (pipeline validation gate G11; the seed files under legacy_data/out/
+# track the exact counts, currently 389 production pairs). Probes a small
 # bidirectional sample so the table is queryable in both directions, and
 # emits a category-source breakdown for operator visibility.
 #

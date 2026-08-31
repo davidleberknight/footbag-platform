@@ -5,7 +5,7 @@
 # GATE: G<N> PASS|FAIL: <reason> line per gate to stdout; non-zero exit
 # if any gate fails. Consumed by scripts/pre-cutover-checklist.sh.
 #
-# Gates (per MIGRATION_PLAN.md §24):
+# Gates (the pipeline validation gate definitions in docs/TESTING.md):
 #   G1: no email value is shared across accounts, taken across the three
 #       legacy email columns (legacy_email/legacy_email2/legacy_email3)
 #   G2: legacy_user_id unique where non-NULL

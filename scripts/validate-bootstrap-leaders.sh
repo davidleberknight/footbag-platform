@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # scripts/validate-bootstrap-leaders.sh -- pre-cutover gate G8.
 #
-# Counts club_bootstrap_leaders rows. Per MIGRATION_PLAN §24 G8, a sufficient
+# Counts club_bootstrap_leaders rows. Per pipeline validation gate G8, a sufficient
 # count of high-confidence candidates is required so leadership activation
 # can use path 1 (bootstrap-confirmed) rather than path 2 (first affiliated
 # member accepts). The current minimum threshold is 1 row (any candidate

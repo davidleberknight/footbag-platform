@@ -624,8 +624,7 @@ def main() -> None:
             # resolution_status intentionally OMITTED — schema DEFAULT 'pending'
             # applies. Inferred enrichment rows arrive as 'pending' and
             # transition to 'confirmed_current' only when the member confirms
-            # current affiliation via the onboarding wizard (MIGRATION_PLAN
-            # §9.3, DATA_MODEL §4.25).
+            # current affiliation via the onboarding wizard (DATA_MODEL §4.25).
             try:
                 cur = conn.execute(
                     """

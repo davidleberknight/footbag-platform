@@ -53,11 +53,16 @@ schema assertion to catch it; `tests/integration/schemaMigrations.parity.test.ts
 A migration adds. It does not drop and it does not rename. Add a column in one release, read it in
 the next, remove it in a third once nothing reads it.
 
-This is not tidiness. The migrating deploy promotes the new code and images BEFORE it runs the
-migration, and restoring the pre-migration database on failure does not put the old code back, so a
-failed migration leaves the host running the new release against the old schema. An additive
-migration makes that state serviceable rather than broken. The same property is what lets a restore
-to a snapshot taken before the migration still serve traffic.
+This is not tidiness. Additivity is what lets a restore to a snapshot taken before the migration
+still serve traffic: the older schema carries everything the older code asks of it.
+
+The reverse direction needs its own guarantee, and additivity does not supply it. The migrating
+deploy promotes the new code and images BEFORE it runs the migration, and restoring the
+pre-migration database on failure does not put the old code back, so a failed migration leaves the
+host running the new release against the old schema. Every migration's paired code must therefore
+run correctly against the pre-migration schema, checked per migration: read the new column behind a
+guard, or keep the feature that needs it dark until the migration has landed. Code that reads the
+new column unconditionally turns a working restore into a broken site.
 
 `scripts/ci/check_migrations_additive.sh` refuses a drop or a rename. A genuine contraction, once
 that third release arrives, declares itself with a `-- CONTRACTION:` header line saying why nothing

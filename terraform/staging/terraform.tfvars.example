@@ -11,7 +11,7 @@ aws_account_id = "TODO-123456789012"
 
 # Domain
 # DEFERRED: leave empty for the initial CloudFront-only test deployment.
-# The *.cloudfront.net URL works without a custom domain (see §29.5).
+# The *.cloudfront.net URL works without a custom domain.
 # Set to real values and follow the activation checklist in acm.tf when
 # attaching a custom domain (NS-3).
 domain_name     = ""
