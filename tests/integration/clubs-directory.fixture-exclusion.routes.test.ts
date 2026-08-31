@@ -72,21 +72,28 @@ describe('public club directory excludes test fixtures', () => {
     expect(res.text).not.toContain('Testville');
   });
 
-  it('the country-page total equals its visible rows: the three fixtures never inflate it', async () => {
-    // Five USA clubs are seeded; three are fixtures. The country heading total
-    // must count only the two visible clubs, from the same filtered universe as
-    // the rows, so no fixture leaks into the displayed count even by one.
+  it('the country page lists exactly its two real clubs: no fixture reaches a row', async () => {
+    // Five USA clubs are seeded and three are fixtures. Counted from the rendered
+    // rows rather than from a displayed tally, because the pages no longer show
+    // one: a club total counts every recorded row whether or not anyone has
+    // confirmed the club exists, so it read as the size of the active scene.
+    // What a fixture must not reach is the listing itself.
     const res = await request(createApp()).get('/clubs/usa');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('2 clubs');
+    expect(res.text.match(/class="club-entry"/g) ?? []).toHaveLength(2);
   });
 
-  it('the club index total counts only real clubs, ignoring every fixture marker', async () => {
+  it('the club index reaches only real clubs, ignoring every fixture marker', async () => {
     // Portland + Genuine Public are the only real clubs; the default-fixture,
-    // reserved-tag-only, and persona-leak clubs must not reach the total.
+    // reserved-tag-only, and persona-leak clubs must not reach the page at all.
     const res = await request(createApp()).get('/clubs');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('2 clubs'); // Portland + Genuine Public
     expect(res.text).not.toContain('#club_test_');
+    expect(res.text).not.toContain('Default Fixture Club');
+    expect(res.text).not.toContain('Testville');
+    // One country carries them, so the country count is one and no club tally
+    // appears beside it.
+    expect(res.text).toMatch(/1 countries|1 country/);
+    expect(res.text).not.toMatch(/\d+ clubs/);
   });
 });

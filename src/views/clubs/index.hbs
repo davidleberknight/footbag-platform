@@ -2,9 +2,12 @@
   <div>
     <h1>{{page.title}}</h1>
     {{#if page.intro}}<p>{{page.intro}}</p>{{/if}}
-    {{#if content.totalClubs}}
+    {{! Countries only. A club total counts every recorded row, including legacy
+        entries nobody has confirmed still exist, so as a headline it reads as the
+        size of the active club network and the platform cannot know that. The
+        country count is a claim about its own coverage, which it can. }}
+    {{#if content.totalCountries}}
     <div class="hero-stats">
-      <span>{{content.totalClubs}} clubs</span>
       <span>{{content.totalCountries}} countries</span>
     </div>
     {{/if}}

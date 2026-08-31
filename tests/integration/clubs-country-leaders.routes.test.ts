@@ -361,13 +361,15 @@ describe('GET /clubs/usa — vitality metadata row', () => {
     expect(cardSlice).not.toContain('Needs update');
   });
 
-  it('active club with no leaders but members → "No known leaders yet · N members"', async () => {
+  it('active club with no leaders but members → the member count alone', async () => {
     const app = createApp();
     const res = await request(app).get('/clubs/usa').set('Cookie', authCookie());
     const cardSlice = sliceCard(res.text, 'club_country_members_only');
     expect(cardSlice).toContain('class="club-meta-row club-meta-row--member-activity"');
-    expect(cardSlice).toContain('No known leaders yet');
     expect(cardSlice).toContain('4 members');
+    // What the platform knows, not what it has failed to learn. Saying no
+    // leaders are known describes this platform's records rather than the club.
+    expect(cardSlice).not.toContain('No known leaders yet');
     expect(cardSlice).not.toContain('Member activity');  // suppressed when implicit
     expect(cardSlice).not.toContain('Needs update');
   });
@@ -379,13 +381,17 @@ describe('GET /clubs/usa — vitality metadata row', () => {
     expect(res.text).not.toContain('#club_country_historical');
   });
 
-  it('sparse club (no leaders, no members) → "No known leaders yet · Needs update"', async () => {
+  it('a club the platform knows nothing about carries no chips at all', async () => {
+    // A legacy row nobody has claimed has no leaders and no members recorded,
+    // which is a fact about this platform rather than about the club. No chip is
+    // the honest neutral reading; a label there was read as "this club's
+    // information is stale", which is not what the absence of a record means.
     const app = createApp();
     const res = await request(app).get('/clubs/usa').set('Cookie', authCookie());
     const cardSlice = sliceCard(res.text, 'club_country_zero');
-    expect(cardSlice).toContain('class="club-meta-row club-meta-row--needs-update"');
-    expect(cardSlice).toContain('No known leaders yet');
-    expect(cardSlice).toContain('Needs update');
+    expect(cardSlice).not.toContain('Needs update');
+    expect(cardSlice).not.toContain('No known leaders yet');
+    expect(cardSlice).not.toContain('club-meta-chip');
   });
 
   it('singular vs plural leader chip: "1 leader" vs "2 leaders"', async () => {
@@ -416,7 +422,9 @@ describe('GET /clubs/usa — anonymous viewers see no leader names', () => {
     const res = await request(app).get('/clubs/usa');
     expect(sliceCard(res.text, 'club_country_two')).toContain('2 leaders');
     expect(sliceCard(res.text, 'club_country_two')).toContain('5 members');
-    expect(sliceCard(res.text, 'club_country_zero')).toContain('No known leaders yet');
+    // And the no-signal club stays chipless for an anonymous viewer too: the
+    // chips say what the platform knows, which does not depend on who is asking.
+    expect(sliceCard(res.text, 'club_country_zero')).not.toContain('club-meta-chip');
   });
 });
 

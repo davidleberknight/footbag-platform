@@ -294,11 +294,15 @@ describe('public directory excludes inactive clubs', () => {
     const countries = clubSvc.getPublicClubsIndexPage().content.countries;
     const canada = countries.find((c) => c.country === 'Canada');
     expect(canada).toBeDefined();
+    // The per-country figure the world map reads, which still counts the active
+    // clubs a visitor would find. The pages themselves print no club tally.
     expect(canada!.total).toBe(1);
     expect(countries.find((c) => c.country === 'Brazil')).toBeUndefined();
 
+    // The country page lists the active club and not the inactive one.
     const page = clubSvc.getPublicCountryPage(canada!.countrySlug, false);
-    expect(page.content.total).toBe(1);
+    const listed = page.content.regions.flatMap((r) => r.clubs).map((c) => c.name);
+    expect(listed).toEqual(['Active In Canada']);
   });
 
   it('an inactive club is still reachable by direct link and shows the inactive warning', async () => {

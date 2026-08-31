@@ -777,11 +777,14 @@ describe('GET /clubs', () => {
     expect(res.text).toContain('Finland');
   });
 
-  it('shows total club and country counts in hero', async () => {
+  it('shows the country count in the hero, and no club total', async () => {
+    // A club total counts every recorded row whether or not anyone has confirmed
+    // the club still exists, so as a headline it claimed the size of the active
+    // club network. The country count is a claim about coverage, which holds.
     const app = createApp();
     const res = await request(app).get('/clubs');
-    expect(res.text).toContain('3 clubs');
     expect(res.text).toContain('2 countries');
+    expect(res.text).not.toMatch(/\d+ clubs/);
   });
 
   it('links to country pages', async () => {

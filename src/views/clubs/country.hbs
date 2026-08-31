@@ -7,10 +7,10 @@
       {{/each}}
     </nav>
     {{/if}}
+    {{! No club tally. It counts every recorded row, confirmed or not, so it
+        reads as the size of this country's active club scene and the platform
+        cannot know that. The listing itself is the honest answer. }}
     <h1>{{page.title}}</h1>
-    <div class="hero-stats">
-      <span>{{content.total}} clubs</span>
-    </div>
   </div>
 </div>
 
@@ -26,7 +26,6 @@
       <li>
         <a href="#region-{{regionSlug}}">
           {{region}}
-          <span class="club-country-count">{{clubs.length}}</span>
         </a>
       </li>
       {{/if}}
@@ -47,7 +46,6 @@
     {{#if region}}
     <div class="section-heading">
       <h2>{{region}}</h2>
-      <span class="section-count">{{clubs.length}}</span>
     </div>
     {{/if}}
     <ul class="club-list">

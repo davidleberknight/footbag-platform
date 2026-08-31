@@ -58,7 +58,7 @@ describe('club country classification', () => {
     expect(res.text).toContain('Buenos Aires Footbag Club');
     expect(res.text).not.toContain('Greece Footbag Community');
     expect(res.text).not.toContain('Kutaisi Footbag Club');
-    expect(res.text).toContain('2 clubs');
+    expect(res.text.match(/class="club-entry"/g) ?? []).toHaveLength(2);
   });
 
   it('the Athens club resolves to Greece', async () => {
@@ -103,19 +103,27 @@ describe('club country classification', () => {
     }
   });
 
-  it('the sum of every country-page total equals the directory total', async () => {
-    const index = await request(createApp()).get('/clubs');
-    expect(index.status).toBe(200);
-    // 7 seeded public clubs; the default fixture is excluded.
-    expect(index.text).toContain('7 clubs');
-
+  it('every public club is listed on exactly one country page', async () => {
+    // The partition invariant, counted from the rendered rows. The pages no
+    // longer print a club tally, because a total counts every recorded row
+    // whether or not anyone has confirmed the club still exists; what still has
+    // to hold is that each club appears once and nowhere else.
     let sum = 0;
     for (const [slug, expected] of Object.entries(COUNTRY_SLUGS)) {
       const res = await request(createApp()).get(`/clubs/${slug}`);
       expect(res.status).toBe(200);
-      expect(res.text, `${slug} country page total`).toContain(`${expected} clubs`);
+      const rows = res.text.match(/class="club-entry"/g) ?? [];
+      expect(rows, `${slug} listed clubs`).toHaveLength(expected);
       sum += expected;
     }
+    // 7 seeded public clubs; the default fixture is excluded.
     expect(sum).toBe(7);
+  });
+
+  it('states its country coverage and claims no club total', async () => {
+    const index = await request(createApp()).get('/clubs');
+    expect(index.status).toBe(200);
+    expect(index.text).toMatch(/\d+ countries/);
+    expect(index.text).not.toMatch(/\d+ clubs/);
   });
 });

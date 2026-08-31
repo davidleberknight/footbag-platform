@@ -397,10 +397,14 @@ export interface ClubVitalitySignals {
   memberCountText: string;         // '12' or 'Unknown'
 
   // Country-page metadata-row chips, in display order. Composition rules:
-  // - always include a leaders chip ("X leaders" or "No known leaders yet")
+  // - include a leaders chip only when knownLeadersCount > 0
   // - include a members chip only when memberCount > 0
-  // - append the statusLabel chip only when it adds info beyond the counts
-  //   (i.e. only for 'Historical club' and 'Needs update')
+  // - append the statusLabel chip only for 'Historical club', a curated decision
+  //   the counts cannot imply
+  //
+  // A club the platform knows nothing about therefore shows no chips. The list is
+  // what the platform can say, never what it has failed to learn: 'Needs update'
+  // named the second, and a visitor read it as a claim about the club.
   metaChips: string[];
 }
 
@@ -559,18 +563,21 @@ function computeVitality(
   const memberCountText =
     memberCount > 0 ? String(memberCount) : 'Unknown';
 
+  // A chip is a statement the platform can stand behind. A legacy club nobody
+  // has claimed has no leaders and no members recorded, which says what this
+  // platform knows about it and nothing about the club itself, so it carries no
+  // chips at all: no chip is the honest neutral reading, and a reader is not
+  // asked to decode an internal signal model to get there.
   const chips: string[] = [];
-  chips.push(
-    knownLeadersCount > 0
-      ? `${knownLeadersCount} leader${knownLeadersCount === 1 ? '' : 's'}`
-      : 'No known leaders yet',
-  );
+  if (knownLeadersCount > 0) {
+    chips.push(`${knownLeadersCount} leader${knownLeadersCount === 1 ? '' : 's'}`);
+  }
   if (memberCount > 0) {
     chips.push(`${memberCount} member${memberCount === 1 ? '' : 's'}`);
   }
-  // Append statusLabel only when it adds info beyond the count chips.
-  // 'Known leaders' / 'Member activity' are already implicit in the counts.
-  if (statusLabel === 'Historical club' || statusLabel === 'Needs update') {
+  // A club deactivated on purpose is different: somebody decided that, so it is
+  // worth saying. The counts already imply the two positive labels.
+  if (statusLabel === 'Historical club') {
     chips.push(statusLabel);
   }
 
@@ -934,7 +941,11 @@ export function memberCountBin(n: number): 0 | 1 | 2 | 3 | 4 | 5 | 6 {
 
 export interface ClubsIndexContent {
   countries: CountrySummary[];
-  totalClubs: number;
+  // Countries whose clubs the directory lists, and no club total. A club total
+  // counts every recorded row whether or not anyone has confirmed the club still
+  // exists, so as a headline it claims the size of the active club network,
+  // which this platform cannot know. It is absent rather than merely unrendered,
+  // so putting it back on a page is a deliberate act.
   totalCountries: number;
   mapDataJson: string;
 }
@@ -950,7 +961,6 @@ export interface RegionGroup {
 export interface CountryPageContent {
   country: string;
   countrySlug: string;
-  total: number;
   hasMultipleRegions: boolean;
   regions: RegionGroup[];
 }
@@ -1164,7 +1174,6 @@ export class ClubService {
         },
         content: {
           countries,
-          totalClubs: rows.length,
           totalCountries: countries.length,
           mapDataJson: toJsonIsland(
             countries.map(({ countryCode: code, countrySlug: slug, country: name, total, memberCount, memberBin }) =>
@@ -1317,7 +1326,6 @@ export class ClubService {
         content: {
           country,
           countrySlug,
-          total: matchedRows.length,
           hasMultipleRegions: useRegions,
           regions,
         },
