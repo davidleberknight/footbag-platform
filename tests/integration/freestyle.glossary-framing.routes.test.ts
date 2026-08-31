@@ -459,10 +459,15 @@ describe('Freestyle Concepts §families — Phase D2 step 3 (parent/child/descen
     // The two grandparent surfaces lead, marked as a distinct tier with a full bar.
     expect(html).toMatch(/gloss-histogram-row--surface[\s\S]{0,200}Clipper Stall[\s\S]{0,200}gloss-bar-count">328/);
     expect(html).toContain('gloss-bar-fill--w100');
-    // Every first-class family appears, including the ones a reader would scan for.
-    for (const [label, count] of [['Swirl', '29'], ['Torque', '22'], ['Flurry', '3']] as const) {
-      expect(html, `family ${label}`).toContain(`<dt>${label}</dt>`);
-      expect(html, `count ${count}`).toContain(`gloss-bar-count">${count}`);
+    // Every family reaches the page carrying the count the chart data holds.
+    // Read from that data rather than written out here: the values are measured
+    // from the dictionary, and a number repeated in this file would only pin how
+    // large a family happened to be on the day somebody typed it.
+    const { FAMILY_HISTOGRAM } = await import('../../src/content/freestyleTopologyHistograms');
+    for (const row of FAMILY_HISTOGRAM.filter(r => r.tier === 'family')) {
+      expect(html, `family ${row.label}`).toContain(`<dt>${row.label}</dt>`);
+      expect(html, `count for ${row.label}`)
+        .toMatch(new RegExp(`<dt>${row.label}</dt>[\\s\\S]{0,200}gloss-bar-count">${row.count}<`));
     }
     // The paragraph reframes the roster as measured rather than curator-picked.
     expect(html).toMatch(/too broad to be families/);

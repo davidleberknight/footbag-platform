@@ -1011,8 +1011,8 @@
       roster and the dictionary roster always match:
     </p>
 
-    {{! Family histogram: measured terminal frequency }}
-    <dl class="gloss-histogram" aria-label="Terminal surfaces and family lineages by recursive descendant count">
+    {{! Family histogram: terminal surfaces, then families by measured membership }}
+    <dl class="gloss-histogram" aria-label="Terminal surfaces and family lineages by measured family membership">
       {{#each content.familyHistogram}}
       <div class="gloss-histogram-row gloss-histogram-row--{{tier}}">
         <dt>{{label}}</dt>
@@ -1026,9 +1026,12 @@
       families below are the largest distinct lineages that resolve onto those
       two surfaces, which are themselves too broad to be families (that is why
       they are not family cards). This roster is not curator-picked; it is what
-      the documented vocabulary measures. Sub-families such as Torque and
-      Blender are nested under a root family, so their tricks are counted within
-      the parent&rsquo;s bar as well.
+      the documented vocabulary measures. Family size is measured from the
+      current public family-membership topology the
+      <a href="/freestyle/tricks?view=family">By family</a> browse uses,
+      including curated branch folding and the public family mappings, so
+      sub-families such as Torque and Blender are nested under a root family and
+      their tricks are counted within the parent&rsquo;s bar as well.
     </p>
     <p class="detail-muted glossary-family-roster">
       {{#each content.firstClassFamilyRoster}}{{#unless @first}} &middot; {{/unless}}<a href="/freestyle/tricks?family={{slug}}">{{label}}</a>{{#if branches.length}} ({{#each branches}}{{#unless @first}}, {{/unless}}<a href="/freestyle/tricks?family={{slug}}">{{label}}</a>{{/each}}){{/if}}{{/each}}

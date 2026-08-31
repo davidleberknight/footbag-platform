@@ -47,19 +47,24 @@ describe('Topology histogram snapshots', () => {
     }
   });
 
-  it('leaves every measured count exactly as the last audit left it', () => {
-    // Admitting a family to the browse measures nothing. These are the audit's
-    // numbers, and this slice does not touch one of them.
-    const measured = Object.fromEntries(
-      FAMILY_HISTOGRAM.filter(r => r.tier === 'family').map(r => [r.label, r.count]));
-    expect(measured).toMatchObject({
-      Osis: 84, Whirl: 74, Legover: 71, Mirage: 69, Butterfly: 48,
-      'Reverse Whirl': 10, Eclipse: 9, Flail: 9, Dyno: 5, 'Dada-Curve': 4,
-    });
-    // One row short of the browse registry, and the shortfall is Reverse Swirl.
-    expect(FAMILY_HISTOGRAM.filter(r => r.tier === 'family')).toHaveLength(27);
-    expect(PUBLIC_DISPLAY_FAMILIES).toHaveLength(28);
-    expect([...AWAITING_TOPOLOGY_AUDIT]).toEqual(['rev_swirl']);
+  it('charts the whole browse registry, with nothing left unmeasured', () => {
+    // The values themselves are not pinned here. They are generated from the
+    // browse's family membership and checked against a dictionary built from the
+    // committed inputs, so a number asserted in this file would be a second,
+    // weaker copy of that check and would need editing every time the dictionary
+    // grew. What belongs here is the shape: every public family has a row.
+    expect(FAMILY_HISTOGRAM.filter(r => r.tier === 'family'))
+      .toHaveLength(PUBLIC_DISPLAY_FAMILIES.length);
+    expect([...AWAITING_TOPOLOGY_AUDIT]).toEqual([]);
+  });
+
+  it('gives Reverse Swirl the row it was admitted to the browse without', () => {
+    // It was charted nowhere while it waited for a measurement, which is the
+    // omission this whole refresh existed to close.
+    const revSwirl = FAMILY_HISTOGRAM.find(r => r.label === 'Reverse Swirl');
+    expect(revSwirl).toBeDefined();
+    expect(revSwirl!.tier).toBe('family');
+    expect(revSwirl!.count).toBeGreaterThan(0);
   });
 
   it('leads with the two terminal surface roots', () => {
@@ -75,10 +80,12 @@ describe('Topology histogram snapshots', () => {
     }
   });
 
-  it('Swirl uses recursive descendants (29), keeping it above Pickup (27)', () => {
+  it('counts a family by folded membership, keeping Swirl above Pickup', () => {
+    // The relationship the chart's explanatory copy leans on, and the reason the
+    // count is not a plain family-column tally: a family carries its branches'
+    // tricks as well as its own.
     const swirl  = FAMILY_HISTOGRAM.find(r => r.label === 'Swirl')!.count;
     const pickup = FAMILY_HISTOGRAM.find(r => r.label === 'Pickup')!.count;
-    expect(swirl).toBe(29);
     expect(swirl).toBeGreaterThan(pickup);
   });
 });

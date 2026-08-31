@@ -2,92 +2,75 @@
  * freestyleTopologyHistograms.ts
  * ==============================
  *
- * Snapshot data for the two glossary histograms (family and entry), measured by
- * the read-only topology audits. Counts are NOT derived from `trick_family`:
- *   - the two grandparent surfaces are landing counts (terminal catch) and set
- *     counts (entry, formula position-0);
- *   - each family's count is its recursive descendant count (its subtree,
- *     branches folded in), which is why Swirl (29) sits above Pickup (27);
- *   - each entry system's count is curated modifier membership.
+ * Data for the two glossary histograms (family and entry).
  *
- * Hard-coded snapshot rather than render-time derivation: it keeps a public page
- * decoupled from the audit's fold/parse logic, and it is reversible TypeScript
- * content. A unit test cross-checks the family head against the live direct
- * counts so trick-data drift fails CI loudly. The render-time width is bucketed
- * by the service; the bars carry no inline style.
+ * The two charts are measured differently, and only one of them is measured by a
+ * program. The family bars come from the dictionary browse's own family
+ * membership, generated into a sibling module by a script and checked against a
+ * fresh measurement by a database-backed guard, so a change to trick data that
+ * nobody carries through fails a build rather than sitting on a public page. The
+ * grandparent surface bars that head that chart, and the whole entry chart, are
+ * hand-authored: landing counts, set counts and curated modifier membership are
+ * separate questions with no live equivalent, and they carry the numbers a
+ * curator measured for them.
+ *
+ * The family numbers descend from an earlier read-only topology study, which is
+ * where the chart came from, but they are not that study's figures and no attempt
+ * is made to reproduce them. Its corpus and its procedure were not kept, so what
+ * it computed cannot be recomputed. It contributed the question; the measurement
+ * is now the browse's answer to it, which is also why the chart and the browse
+ * can no longer disagree about how large a family is.
+ *
+ * The render-time bar width is bucketed by the service; the bars carry no inline
+ * style.
  */
+import {
+  FAMILY_HISTOGRAM_ROWS,
+  FAMILIES_WITHOUT_A_MEASURED_ROW,
+} from './freestyleFamilyHistogram';
 
 /**
- * Public browse families the measured snapshot has no row for yet.
+ * Public browse families with no measured row, as the measurement reported them.
  *
- * The counts here come from a topology audit that is run periodically, not from
- * live membership, so a family admitted to the browse between audits has no
- * measured number. It is named here rather than left out quietly: an omission
- * anybody can account for is different from one nobody noticed, and the guard on
- * this file accepts only the first.
+ * Derived rather than declared. A family renders on the browse only once it has
+ * more than two members, so one below that floor has nothing to measure; it is
+ * named so an omission anybody can account for is distinguishable from one nobody
+ * noticed. Nothing is drawn for it, because a zero would read as a measurement.
  *
- * Nothing is drawn for a family in this set. The chart renders the rows it has,
- * so an unmeasured family is simply absent from it; a zero would read as a
- * measurement, and there has not been one.
- *
- * An entry leaves this set when the audit next runs and gives it a row. That
- * refresh should re-measure every family at once: the snapshot is already behind
- * live membership for several of them, and updating one family in isolation would
- * make the chart less coherent rather than more.
+ * Reading this from the generated module is what keeps it honest: an entry cannot
+ * outlive the gap it describes, because the same run that measures a family is the
+ * run that stops listing it here.
  */
-export const AWAITING_TOPOLOGY_AUDIT: ReadonlySet<string> = new Set([
-  // Admitted to the browse as a Minor Lineage after the reverse-swirl family
-  // ruling. No recursive-descendant count has been measured for it.
-  'rev_swirl',
-]);
+export const AWAITING_TOPOLOGY_AUDIT: ReadonlySet<string> =
+  new Set(FAMILIES_WITHOUT_A_MEASURED_ROW);
 
 export type TopologyHistogramTier = 'surface' | 'family' | 'system';
 
 export interface TopologyHistogramRow {
   /** Display label (matches the family roster / set-system name). */
   label: string;
-  /** Measured count (recursive descendants for families; landings for surfaces; membership for systems). */
+  /** Measured count (family membership for families; landings for surfaces; membership for systems). */
   count: number;
   /** Visual tier: the two grandparent surfaces read as a distinct band. */
   tier:  TopologyHistogramTier;
 }
 
-/** How tricks END: the two terminal surface roots, then the 26 first-class families by recursive descendants. */
-export const FAMILY_HISTOGRAM: readonly TopologyHistogramRow[] = [
+/**
+ * The two terminal surfaces that head the family chart.
+ *
+ * Landing counts: how many tricks resolve onto each surface. A different
+ * question from family membership and measured separately, which is why they are
+ * hand-authored here rather than generated with the bars below them.
+ */
+const TERMINAL_SURFACES: readonly TopologyHistogramRow[] = [
   { label: 'Clipper Stall',    count: 328, tier: 'surface' },
   { label: 'Toe Stall',        count: 252, tier: 'surface' },
-  { label: 'Osis',             count: 84,  tier: 'family' },
-  { label: 'Whirl',            count: 74,  tier: 'family' },
-  { label: 'Legover',          count: 71,  tier: 'family' },
-  { label: 'Mirage',           count: 69,  tier: 'family' },
-  { label: 'Butterfly',        count: 48,  tier: 'family' },
-  // The Down umbrella aggregates its four variant branches plus the dod
-  // sub-label per the expert ruling (one family, a single structural
-  // decomposition with set/foot variants).
-  { label: 'Down',             count: 45,  tier: 'family' },
-  { label: 'Illusion',         count: 34,  tier: 'family' },
-  { label: 'Swirl',            count: 29,  tier: 'family' },
-  { label: 'Pickup',           count: 27,  tier: 'family' },
-  { label: 'Blender',          count: 22,  tier: 'family' },
-  { label: 'Torque',           count: 22,  tier: 'family' },
-  { label: 'Double Legover',   count: 16,  tier: 'family' },
-  { label: 'Drifter',          count: 14,  tier: 'family' },
-  { label: 'Barfly',           count: 13,  tier: 'family' },
-  { label: 'Eggbeater',        count: 13,  tier: 'family' },
-  { label: 'Double-Over-Down', count: 12,  tier: 'family' },
-  { label: 'Inside Stall',     count: 11,  tier: 'family' },
-  // Reverse Whirl is its own family by curator ruling (a distinct terminal
-  // identity, never folded under whirl); ten documented descendants.
-  { label: 'Reverse Whirl',    count: 10,  tier: 'family' },
-  { label: 'Eclipse',          count: 9,   tier: 'family' },
-  { label: 'Flail',            count: 9,   tier: 'family' },
-  { label: 'Barrage',          count: 8,   tier: 'family' },
-  { label: 'Paradon',          count: 6,   tier: 'family' },
-  { label: 'Butterfly-Swirl',  count: 5,   tier: 'family' },
-  { label: 'Dyno',             count: 5,   tier: 'family' },
-  { label: 'Down-Double-Down', count: 5,   tier: 'family' },
-  { label: 'Dada-Curve',       count: 4,   tier: 'family' },
-  { label: 'Flurry',           count: 3,   tier: 'family' },
+];
+
+/** How tricks END: the two terminal surface roots, then every public browse family by membership. */
+export const FAMILY_HISTOGRAM: readonly TopologyHistogramRow[] = [
+  ...TERMINAL_SURFACES,
+  ...FAMILY_HISTOGRAM_ROWS.map(r => ({ ...r, tier: 'family' as const })),
 ];
 
 /**
