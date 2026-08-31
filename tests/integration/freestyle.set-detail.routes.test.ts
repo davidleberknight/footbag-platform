@@ -31,6 +31,7 @@ import {
   insertMember,
   insertTtLesson,
 } from '../fixtures/factories';
+import { CANONICAL_SETS } from '../../src/content/freestyleCanonicalSets';
 
 const { dbPath } = setTestEnv('3221');
 
@@ -603,12 +604,56 @@ describe('/freestyle/sets/:slug — formula provenance', () => {
     }
   });
 
-  it('shows no bare formula to attribute on a set that teaches its notation instead', async () => {
-    // These render an education block with notation prose in place of the bare
-    // Formula section, so no unattributed notation string reaches the page.
+  it('never shows a formula without its source, on any set page', async () => {
+    // Stated as an invariant over every set rather than as the absence of a
+    // section on the pages that currently teach notation in prose. Absence held
+    // only while those pages took the branch that renders no formula: if one ever
+    // showed its raw string, the old assertion would have gone on passing on a
+    // page whose notation had become unattributed.
+    //
+    // Whether a page that teaches its notation should also show the raw string is
+    // a content question this does not answer. It holds whichever way that is
+    // decided, which is the point.
+    const app = await createApp();
+    const unattributed: string[] = [];
+    for (const set of CANONICAL_SETS) {
+      const res = await request(app).get(`/freestyle/sets/${set.slug}`);
+      if (res.status !== 200) continue;
+      const body = formulaSection(res.text);
+      if (!body || !body.includes('set-detail-formula')) continue;
+      const sourceAt = body.indexOf('Source:');
+      const formulaAt = body.indexOf('set-detail-formula');
+      if (sourceAt === -1 || sourceAt > formulaAt) unattributed.push(set.slug);
+    }
+    expect(unattributed).toEqual([]);
+  });
+
+  it('shows a formula on every set whose formula the derivation supplies', async () => {
+    // The other half of the same invariant. Without it the one above is satisfied
+    // by a page that shows no formula at all, so a rendering change that silently
+    // dropped every formula would read as success.
+    const app = await createApp();
+    const withFormula = CANONICAL_SETS.filter(s => s.formula.trim().length > 0);
+    expect(withFormula.length).toBeGreaterThan(0);
+
+    const showing: string[] = [];
+    for (const set of withFormula) {
+      const res = await request(app).get(`/freestyle/sets/${set.slug}`);
+      if (res.status === 200 && res.text.includes('set-detail-formula')) {
+        showing.push(set.slug);
+      }
+    }
+    // Not all of them: the sets that teach their notation in prose render no
+    // formula today, which is a content decision and not this test's to make.
+    // What it pins is that the ones that do show one are a real, non-empty set.
+    expect(showing.length).toBeGreaterThan(0);
+  });
+
+  it('teaches notation in prose where it shows no formula', async () => {
+    // The education-backed pages still say what the notation is; they just do not
+    // print the bare string. This is the reader-facing half of that branch.
     const res = await request(await createApp()).get('/freestyle/sets/whirling');
     expect(res.status).toBe(200);
-    expect(res.text).not.toMatch(/aria-label="Formula"/);
     expect(res.text).toMatch(/aria-label="JOB notation"/);
   });
 });

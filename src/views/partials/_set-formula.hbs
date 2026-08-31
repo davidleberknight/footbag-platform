@@ -1,0 +1,33 @@
+{{! The set's formula, and whose notation it is.
+
+    One partial rather than markup in each branch that wants a formula, because
+    the two lines are one statement: most set formulas are quoted from an outside
+    compilation rather than authored here, and a reader who meets the string first
+    has already read it as the platform's. Rendering the notation without the
+    credit is the failure worth making impossible, so the credit is not a sibling
+    element a later edit can drop but the thing this partial leads with.
+
+    Where a set has no formula, the section says so rather than showing an empty
+    code block: the launch mechanics can be settled while the bracket-grammar form
+    is not yet authored, and those are different states.
+
+    Whether a page that teaches its notation in prose should also show the raw
+    string is a content question this partial does not answer. It answers only
+    what happens once a page decides to show one. }}
+<section class="set-detail-section" aria-label="Formula">
+  <h2>Formula</h2>
+  {{#if content.formula}}
+    {{#if content.formulaSource}}
+    <p class="set-detail-component-note">Source: {{content.formulaSource}}</p>
+    <code class="set-detail-formula">{{content.formula}}</code>
+    {{else}}
+    {{! Unreachable while the derivation refuses a formula whose citation names no
+        source. Kept as the safe branch anyway: an unattributed formula is the one
+        outcome this page must never produce, so the missing credit is reported
+        rather than the notation shown bare. }}
+    <p class="set-detail-component-note">This set&rsquo;s formula is withheld: its source is not recorded, and the notation is not the platform&rsquo;s to present unattributed.</p>
+    {{/if}}
+  {{else}}
+  <p class="set-detail-component-note">Canonical JOB notation is pending: the launch mechanics are defined, but the bracket-grammar form is not yet authored.</p>
+  {{/if}}
+</section>
