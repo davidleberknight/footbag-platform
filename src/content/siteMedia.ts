@@ -43,9 +43,28 @@ export const SITE_MEDIA_SLOTS = {
 
 export type SiteMediaSlotKey = keyof typeof SITE_MEDIA_SLOTS;
 
-// The 12 foundational mosaic clips share one tag stack; each clip's identity is
-// its per-atom filename (`mosaic-<slug>.mp4`).
-export const MOSAIC_SLOT_EXPECTED_TAGS: readonly string[] = ['#curated', '#freestyle', '#demo_mosaic'];
+// What every foundational mosaic clip carries, whichever move it shows.
+// `#foundations` names the collection; it replaced a tag naming this page's
+// layout slot, which described where a clip was placed rather than what it shows
+// and reached visitors as a hashtag saying so.
+export const MOSAIC_SLOT_SHARED_TAGS: readonly string[] = ['#curated', '#freestyle', '#foundations'];
+
+/**
+ * What one mosaic clip must carry: the shared collection tags, plus the trick it
+ * demonstrates.
+ *
+ * The trick tag is the clip's semantic identity, and every media item needs one:
+ * a collection tag says which set a clip belongs to, never what it is. It is also
+ * what makes the clip reachable from the move it demonstrates, so the twelve are
+ * reference media on their own trick pages rather than only on a gallery.
+ *
+ * Per-slot rather than one shared list, so a clip that lost its trick tag fails
+ * here instead of passing on the strength of the tags it shares with eleven
+ * others.
+ */
+export function mosaicSlotExpectedTags(atomSlug: string): readonly string[] {
+  return [...MOSAIC_SLOT_SHARED_TAGS, `#${atomSlug}`];
+}
 
 /**
  * Every site-content slot the integrity check must verify: the named slots plus
@@ -57,7 +76,7 @@ export function allSiteMediaSlots(): SiteMediaSlot[] {
   const mosaic: SiteMediaSlot[] = TRICKS_MOSAIC.map((atom) => ({
     sourceFilename: mosaicClipFilename(atom.slug),
     kind: 'video',
-    expectedTags: MOSAIC_SLOT_EXPECTED_TAGS,
+    expectedTags: mosaicSlotExpectedTags(atom.slug),
   }));
   return [...named, ...mosaic];
 }

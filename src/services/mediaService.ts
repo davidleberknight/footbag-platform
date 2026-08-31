@@ -1860,10 +1860,12 @@ export const FILTER_SUGGESTION_LIMIT = 12;
 // axis, so it is surfaced as a dedicated always-on Source control rather than a
 // raw suggestion chip.
 const CURATED_TAG = '#curated';
-// Galleries built from the demo-mosaic source clips, whose posters carry a
-// burnt-in lower-left caption. Tiles in such a gallery mask that corner with a
-// clean trick-name label overlay instead of exposing the burnt-in text.
-const MOSAIC_CAPTION_TAG = '#demo_mosaic';
+// The foundational mosaic clips, whose posters carry a burnt-in lower-left
+// caption. Tiles carrying this tag mask that corner with a clean trick-name label
+// overlay instead of exposing the burnt-in text. Keyed on the collection tag
+// rather than on each clip's trick tag: the burnt-in caption is a property of how
+// these twelve clips were produced, not of the moves they show.
+const MOSAIC_CAPTION_TAG = '#foundations';
 
 // Human-readable labels for known hashtags, so the filter reads as a product
 // surface rather than developer jargon. Unknown tags fall back to a title-cased
@@ -1889,7 +1891,7 @@ const TAG_LABELS: Record<string, string> = {
   '#anz_trikz': 'AnzTrikz',
   '#footbag_finland': 'Footbag Finland',
   '#footbag_org': 'footbag.org',
-  '#demo_mosaic': 'Demos',
+  '#foundations': 'Foundations',
 };
 
 function friendlyTagLabel(display: string): string {

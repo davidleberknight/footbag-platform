@@ -45,6 +45,12 @@ UTILITY_EXACT: frozenset[str] = frozenset({
     # named-gallery collection tag, both on the individual-shred clips; parallel to
     # the source-collection tags above.
     "bap", "individual_shred_videos",
+    # The twelve foundational moves shown on the freestyle landing mosaic. A
+    # collection tag like the two above: it says which set a clip belongs to, and
+    # each clip carries the trick it demonstrates for its semantic identity. It
+    # replaced a tag naming the landing page's layout slot, which described where
+    # a clip sat rather than what it showed.
+    "foundations",
     # Induction-era buckets for the individual-shred collection's era browse,
     # mirroring the Big Add Posse roster's own year organization.
     "bap_originators", "bap_golden_age", "bap_expansion", "bap_modern", "bap_current",

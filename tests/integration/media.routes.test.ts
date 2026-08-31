@@ -366,24 +366,24 @@ describe('GET /freestyle/media (consolidated Freestyle Media section)', () => {
     attachTag(db, vid, pbtTagId, '#passback_tutorials');
 
     // Seed the Foundations gallery with one item so its folder card links.
-    const demoTagId = 'tag-test-demo-mosaic';
+    const foundationsTagId = 'tag-test-foundations';
     db.prepare(`
       INSERT INTO tags (id, tag_normalized, tag_display, is_standard, standard_type, created_at, created_by, updated_at, updated_by, version)
-      VALUES (?, '#demo_mosaic', '#demo_mosaic', 0, NULL, ?, 'admin-act-as', ?, 'admin-act-as', 1)
-    `).run(demoTagId, TS, TS);
+      VALUES (?, '#foundations', '#foundations', 0, NULL, ?, 'admin-act-as', ?, 'admin-act-as', 1)
+    `).run(foundationsTagId, TS, TS);
     insertNamedGallery(db, {
       id: 'gallery_foundations_of_freestyle',
       ownerId: SYSTEM_ID,
       name: 'Foundations of Freestyle',
       description: 'The twelve foundational freestyle moves.',
     });
-    insertGalleryCriteria(db, 'gallery_foundations_of_freestyle', [CURATED_TAG_ID, demoTagId]);
+    insertGalleryCriteria(db, 'gallery_foundations_of_freestyle', [CURATED_TAG_ID, foundationsTagId]);
     const fvid = insertVideo(db, { id: 'media_video_found01', platform: 'youtube', caption: 'Toe Delay' });
     attachTag(db, fvid, CURATED_TAG_ID, '#curated');
-    attachTag(db, fvid, demoTagId, '#demo_mosaic');
+    attachTag(db, fvid, foundationsTagId, '#foundations');
     const fvid2 = insertVideo(db, { id: 'media_video_found02', platform: 'youtube', caption: 'Clipper Stall' });
     attachTag(db, fvid2, CURATED_TAG_ID, '#curated');
-    attachTag(db, fvid2, demoTagId, '#demo_mosaic');
+    attachTag(db, fvid2, foundationsTagId, '#foundations');
     db.close();
   });
 
