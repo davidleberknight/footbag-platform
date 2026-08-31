@@ -531,6 +531,18 @@ Each is separable and answered on its own.
 
 ## Scoring and structure questions
 
+- **Backside's structural axis.** What movement axis does backside belong to, and how
+  should it be taught? Not whether it exists: it is ruled a body modifier, contributes
+  +1 ADD, is distinct from directional naming like "inside", and carries three linked
+  compounds across three families (backside symposium smear, backside magellan,
+  backside paste). The registry records that the named compound Backside Blur
+  decomposes structurally as Stepping Paradox Symposium Mirage while backside itself
+  still contributes its own +1, so the expansion does not replace it. What is missing
+  is the axis: it is neither a body rotation like spinning nor a head-or-body passage
+  like ducking, and naming it either on the strength of the word "backside" would be
+  inventing the classification rather than recording one. Until it is ruled, backside
+  stays out of the ratified operator axes and its browse entry stays unlinked, the
+  same treatment splicing gets for its own open question.
 - **Count-quantifier disposition (registry Q03).** How does a bare double or triple
   count prefix score, and are the count-quantifier names (double-dex X, triple-dex X,
   Double Guay and kin) dictionary rows at all? The drafted disposition routes them to

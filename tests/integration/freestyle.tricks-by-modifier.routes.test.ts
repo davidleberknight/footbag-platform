@@ -317,6 +317,16 @@ describe('/freestyle/tricks?view=modifier — findability of representative ecos
     expect(band![0]).not.toMatch(/<a[^>]*>backside<\/a>/);
   });
 
+  it('leaves a modifier whose axis is an open question unlinked', async () => {
+    // Backside is a settled body modifier carrying +1, and its structural axis is
+    // a held question. Linking it to a reference page would answer that question
+    // on a browse surface, so it renders as a plain name until somebody rules it.
+    const res = await request(await createApp()).get('/freestyle/tricks?view=modifier');
+    const band = res.text.match(/id="modifier-other-groups"[\s\S]*?<\/section>/);
+    expect(band![0]).not.toMatch(/href="\/freestyle\/modifier\/backside"/);
+    expect(band![0]).not.toMatch(/href="\/freestyle\/sets\/backside"/);
+  });
+
   it('renders the collapsed "Why these modifier groups?" disclosure linking the Operators & Modifiers reference', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks?view=modifier');
     const details = res.text.match(/<details class="browse-view-why">[\s\S]*?<\/details>/);
