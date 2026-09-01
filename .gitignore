@@ -220,6 +220,13 @@ legacy_data/membership/inputs/membership_input_normalized.csv
 # here again.
 /exploration
 
+# Freestyle research working tree: relocated to the maintainers' private
+# repository. Dated analysis and reports, never a build input and read by no
+# script. On a wired machine this path is a symlink into the private archive; the
+# anchored pattern covers the symlink itself, and ignoring the path keeps future
+# research output from becoming committable here again.
+/freestyle/research
+
 # Person-attributed freestyle adjudications worklist: relocated to the
 # maintainers' private repository. On a wired machine this path is a symlink to
 # the private copy so the pipeline scripts keep reading their default path.

@@ -146,10 +146,15 @@ provenance: a sealed archive artifact (immutable, recorded in the legacy-archive
 seal manifest) and a future source for upgrading trick descriptions. No loader
 consumes it, so the rebuild never reads it.
 
-## exploration/ fence
+## Research fences
 
-The build never reads the repository-root `exploration/` tree. That tree is
-research and dated working history only, and is never a required build input.
+The build never reads the repository-root `exploration/` tree, nor
+`freestyle/research/`. Both are research and dated working history only, never a
+required build input, and no loader or script consumes either.
+
+Both live in the maintainers' private repository. On a machine wired to that
+checkout each path is a symlink into it, so the material stays readable where it
+always was; on a clone without it, neither path exists and nothing misses them.
 
 ## Layout
 
