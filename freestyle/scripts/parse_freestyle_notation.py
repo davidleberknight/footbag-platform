@@ -1,46 +1,56 @@
 """
-Phase 1 parser MVP — narrow target families, dry-run only.
+Structural parser for freestyle trick names: a tokenizer and role mapper that
+decomposes a canonical name into its base, its operators, and an arithmetic
+check of the ADD value the dictionary asserts for it.
 
-Builds a tiny tokenizer + role mapper that decomposes
-freestyle trick names into the structural-parse JSON shape proposed in
-exploration/freestyle-notation-grammar/PROPOSAL.md §2. Restricted to
-six target families and excludes policy-dependent tokens so we can
-evaluate parser behavior on stable ground before committing to a full
-grammar engine.
+Coverage: every active non-modifier row in the dictionary. There is no family
+restriction; `--families` narrows a run for debugging and is empty by default.
+Policy-bearing tokens are parsed rather than filtered out, and the row says so
+through its status.
 
-Targets:
-  whirl, butterfly, mirage, illusion, legover, osis
+What it does NOT cover is per-token rather than per-family. An operator scores
+only where the dictionary registry carries a weight for it or a ruling defines
+its contribution; anything else scores nothing and says so on the row, through
+either an unresolved-token entry or a parse warning naming the token. Reading a
+row's warnings is therefore the way to tell a genuine disagreement from a gap in
+what has been ruled. A trailing core-family token is the case worth knowing about
+(see TERMINAL_REPLACEMENT_ADDS).
 
-Excludes from this MVP (handled in later phases):
-  nuclear, quantum, down-family
+Contract, and the reason this stays a report rather than a source of truth:
+  - the asserted `adds` on freestyle_tricks is AUTHORITATIVE.
+  - computed_adds is DIAGNOSTIC ONLY and never overrides editorial truth.
+  - the status field describes the relationship between the two; it never
+    promotes the computed value to canonical.
+  - a weight is never inferred backwards from a row's asserted value. Any
+    single row's total would yield one, which is precisely what makes it
+    worthless as evidence.
 
-Outputs (read-only by default; no DB writes):
-  freestyle/reports/parser_mvp_dry_run.json   — per-row parse JSON
-  freestyle/reports/parser_mvp_coverage.md    — QC coverage report
+Every parsed row lands in exactly one status:
+  exact_modifier_derived — decomposed into base plus operators; computed agrees
+                           with asserted, which is a structural confirmation
+  exact_self_atom        — the name resolved to a single canonical whose own
+                           asserted value was used; agreement is tautological
+  approximate            — parse complete, computed disagrees with asserted
+  unresolved             — a token did not classify, or the base carries no
+                           asserted value, so no total was computed
+  policy_dependent       — parse complete but carries a policy-bearing token
 
-Failure classification — every row lands in exactly one bucket:
-  exact            — parse complete; computed_adds == asserted_adds
-  approximate      — parse complete; computed_adds != asserted_adds
-  unresolved       — at least one token didn't classify, OR base.adds missing
-  policy_dependent — policy-token detected (shouldn't occur in MVP corpus
-                     because we filter; flagged defensively)
-
-Important contract (locked-in 2026-05-09):
-  - asserted `adds` from freestyle_tricks remains AUTHORITATIVE.
-  - computed_adds is DIAGNOSTIC ONLY. Never overrides editorial truth.
-  - status field documents the relationship; it does not promote the
-    computed value to canonical.
+Outputs, written to --out-dir (default freestyle/reports/):
+  parser_phase2_parses.json          per-row parse JSON, every row
+  parser_add_conflict_report.md      rows whose computed value disagrees
+  parser_coverage_report.md          status distribution and unresolved tokens
+  parser_policy_dependent_queue.md   rows held on a policy token
 
 Usage:
-  python3 scripts/parse_freestyle_notation.py
-  python3 scripts/parse_freestyle_notation.py --include-policy-dependent
-  python3 scripts/parse_freestyle_notation.py --families whirl,butterfly
-  python3 scripts/parse_freestyle_notation.py --apply   # writes to DB columns
+  python3 freestyle/scripts/parse_freestyle_notation.py
+  python3 freestyle/scripts/parse_freestyle_notation.py --families whirl,butterfly
+  python3 freestyle/scripts/parse_freestyle_notation.py --apply
 
-`--apply` is intentionally lazy: it only writes to the new Phase-0 columns
-(jobs_notation_raw, structural_parse_json, computed_add_formula,
-computed_adds, add_formula_status) — never to `adds` or `notation`.
-Default mode emits reports only.
+Default mode writes reports only. `--apply` additionally writes the five derived
+columns (jobs_notation_raw, structural_parse_json, computed_add_formula,
+computed_adds, add_formula_status) and never `adds` or `notation`. The rebuild
+runs it with --apply as one of its stages, so these columns are refreshed from
+the committed dictionary rather than hand-maintained.
 """
 import argparse
 import json
@@ -61,6 +71,27 @@ DEFAULT_TARGET_FAMILIES: set[str] = set()  # empty → no family filter (full co
 # Currently inert for ADD: every registered modifier has add_bonus == add_bonus_rotational,
 # so this set produces no weight differential. Kept only as a structural hook.
 ROTATIONAL_BASES = {"whirl", "mirage", "torque", "swirl"}
+
+# Terminal-replacement operators, and what each contributes.
+#
+# A name can carry a second core-family token after a complete base trick. That
+# trailing token is not a second base; it is an operator acting on the base's
+# terminal, and it scores only where doctrine has ruled what it does. Swirl is
+# the one ruling so far: appending Swirl to a trick that ends in a clipper delay
+# replaces that terminal clip with one additional dex into a cross-body clipper
+# delay, and scores one more than the base. Reverse Swirl is the same rule with
+# the appended dex directed inward, and tokenizes to the same `swirl`.
+#
+# A trailing token that is absent here contributes nothing, which is a statement
+# about it rather than an oversight. A trailing `dragon` names the set the trick
+# is entered from, an entry surface rather than an appended terminal, so it adds
+# no dex; `swirl dragon` scores as swirl does. Anything else trailing is an
+# operator whose contribution nobody has defined, and an undefined operator must
+# stay undefined: the weight it would need is inferable from the asserted total
+# of any single row, which is exactly why inferring it would be worthless. Those
+# rows record a warning naming the token instead, so the gap is visible on the
+# row rather than being absorbed silently into a number that looks computed.
+TERMINAL_REPLACEMENT_ADDS = {"swirl": 1}
 
 # Role registries. Hard-coded for now; the registered modifiers in
 # freestyle_trick_modifiers are cross-checked at startup so any modifier
@@ -191,20 +222,20 @@ def parse_trick(
     canonicals_by_slug: dict[str, dict],
     core_families: set[str],
 ) -> dict:
-    """Run the role mapper on `name`. Returns the structural-parse dict
-    described in PROPOSAL.md §2 + Phase-2.5 layer split.
+    """Run the role mapper on `name` and return the structural-parse dict.
 
-    Phase-2.5 shape: role buckets live in TWO parallel layers.
-      descriptive_roles      — pre-D1; what the parser saw per-token. Used
-                               for visualization, semantic filtering,
-                               cross-family lenses. Survives D1 collapse.
-      add_contributing_roles — post-D1; what compute_formula uses. Self-atom
-                               rows have core_family populated and other
-                               buckets empty.
-    For modifier-decomposed rows (D1 doesn't fire) the two layers are
-    identical. For self-atom rows the descriptive layer preserves
-    per-token classifications while the contributing layer reflects the
-    atom collapse.
+    Role buckets live in two parallel layers, because what the parser saw
+    and what it is willing to do arithmetic on are different questions.
+      descriptive_roles      — what the parser classified per token. Drives
+                               visualization, semantic filtering and
+                               cross-family lenses, and survives the atom
+                               collapse below intact.
+      add_contributing_roles — what compute_formula reads. On a row that
+                               collapsed to a self-canonical atom this holds
+                               the atom alone and the other buckets are empty.
+    Where no collapse happened the two layers are identical. Where one did,
+    the descriptive layer still shows the per-token reading, so a row that
+    was subsumed can still be inspected for what it was made of.
     """
     descriptive = _empty_descriptive_layer()
     parse: dict = {
@@ -265,7 +296,9 @@ def parse_trick(
 
     parse["resolved_token_count"] = resolved
 
-    # D1: Self-canonical atom recognition. See §2.5a in PHASE_2_5_REFINEMENTS.md.
+    # Self-canonical atom recognition: the row's own slug is a registered
+    # canonical, so the name is treated as one unit carrying that canonical's
+    # asserted value rather than being decomposed into parts.
     # Triggers:
     #   (a) No token classified as core_family (pure self-atom).
     #   (b) Per-token classification produced unresolved_tokens AND the
@@ -326,17 +359,21 @@ def compute_formula(
     modifier_weights: dict[str, dict],
     op_notation: str = "",
 ) -> tuple[int | None, str | None, list[str]]:
-    """Returns (computed_adds, formula_string, escalation_warnings).
+    """Returns (computed_adds, formula_string, warnings).
     Returns (None, None, []) when the formula cannot be computed.
 
-    Phase-2.5: reads from `add_contributing_roles` (post-D1). Returns
-    a list of escalation-warning strings so the caller can append to
-    parse_warnings — emitted whenever a modifier's `add_bonus_rotational`
-    differs from its `add_bonus` AND the rotational reading is selected.
-    Architectural separation: `rotational_family` is a property of the
-    base trick; `rotational_modifier_bonus_policy` is a property of the
-    modifier. The warning surfaces uncertainty about that policy until
-    Red ratifies (see PHASE_2_5_REFINEMENTS.md §3).
+    Reads the post-collapse `add_contributing_roles` layer. The returned
+    warning strings are for the caller to append to parse_warnings, and
+    carry one thing today: a name whose trailing core-family token no
+    ruling gives a contribution. See TERMINAL_REPLACEMENT_ADDS for what
+    that means and why such a token scores nothing rather than a weight
+    inferred from the row it sits on.
+
+    A rotational base selects each modifier's rotational bonus over its
+    flat one, and the formula string labels the swap. No warning follows,
+    because every registered modifier currently carries the same value in
+    both columns, so the selection changes no arithmetic and there is
+    nothing yet to warn about.
 
     Caller is responsible for status determination.
     """
@@ -358,7 +395,7 @@ def compute_formula(
 
     bonus = 0
     contributions: list[str] = []
-    escalation_warnings: list[str] = []
+    warnings: list[str] = []
 
     def add_contribution(tok: str) -> None:
         nonlocal bonus
@@ -399,9 +436,24 @@ def compute_formula(
                     f"notation-scored, includes the miraging downtime inward dex = {brackets}",
                     [])
 
+    # Every core-family token after the first is an operator on the base's
+    # terminal, not a second base. Scoring only the first is what left a name
+    # like `montage swirl` computing its base alone and reading one under the
+    # asserted value, on a row whose trailing token the parser had in fact
+    # recognized. Score each trailing token by what doctrine gives it, and say
+    # so on the row when doctrine gives it nothing.
+    for extra in cf_list[1:]:
+        tok = extra["token"]
+        if tok in TERMINAL_REPLACEMENT_ADDS:
+            weight = TERMINAL_REPLACEMENT_ADDS[tok]
+            bonus += weight
+            contributions.append(f"{tok}(+{weight} terminal)")
+        else:
+            warnings.append(f"terminal_token_without_defined_contribution:{tok}")
+
     formula_parts = contributions + [f"{base_slug}({base_adds})"]
     formula = " + ".join(formula_parts) + f" = {base_adds + bonus}"
-    return (base_adds + bonus, formula, escalation_warnings)
+    return (base_adds + bonus, formula, warnings)
 
 
 # ─── DB I/O ────────────────────────────────────────────────────────────────
@@ -626,13 +678,12 @@ def main() -> int:
     rows: list[dict] = []
     for slug, info in corpus:
         parse = parse_trick(info["name"], slug, canonicals, family_canonical_tokens)
-        computed, formula, escalation_warnings = compute_formula(
+        computed, formula, formula_warnings = compute_formula(
             parse, canonicals, modifier_weights, info.get("operational_notation", "")
         )
         asserted = info["adds"]
 
-        # Append rotational-escalation warnings (Phase-2.5 §3) to parse_warnings.
-        parse["parse_warnings"].extend(escalation_warnings)
+        parse["parse_warnings"].extend(formula_warnings)
 
         # Status determination — Phase-2.5 vocabulary:
         #   1. unresolved          — no usable parse (supersedes everything)
