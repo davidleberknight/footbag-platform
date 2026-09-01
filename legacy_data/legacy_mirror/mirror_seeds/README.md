@@ -74,12 +74,23 @@ in the builder as the record of how the permalink set is derived, so preserving
 a chosen subset later means calling it and trimming rather than reconstructing
 it, but it is not in the emitted set.
 
-### polls.txt (11 URLs)
+### polls (not seeded)
 
 Every `/newpoll/show/<PollID>`. The live poll path is `newpoll`, not `poll`. The
 show page looks a poll up by id with no visibility filter, so every poll is
 directly servable, but the poll index links only a few, so the crawl missed most
 of them.
+
+Ruled: not archive content. Every poll page but one was already reduced to
+near-nothing by a broken live include, and the one exception carries a question,
+its answers and its vote tallies that the private legacy-export poll tables hold
+in full for all thirty-three recorded polls, not just the eleven ever captured.
+The whole `newpoll` path is excluded by
+`legacy_data/legacy_mirror/superseded_feature_exclusions.txt`, which the crawler
+loads on every run, so a poll page is refused whether a seed names it or an
+in-content link points at it. `build_polls()` remains in the builder as the
+record of how the set is derived, the same as `build_news()` above, but it is
+not in the emitted set.
 
 ### rules.txt (16 URLs)
 
@@ -89,17 +100,44 @@ missed. The count is the distinct section bases in the rulebook, which is broade
 than the handful of top-level chapters a reader sees; the extra bases are cheap
 and harmless, and the crawler's dedup settles it.
 
-### ranking.txt (14 URLs)
+### ranking (not seeded)
 
 One `/ranking/showranks?set=<id>&method=<id>` report per ranking set and method.
 Ranking is an unofficial draft feature linked from no public index, which is why
-the crawl never reached it; capture here is archival only, and the platform-side
-rankings migration remains a deferred decision. The report reads its set and
-method as request parameters, so the URL carries them as a query string.
-Per-event ranking detail pages are keyed by registration-event ids from another
-app and are left to that deferred migration.
+the crawl never reached it. The report reads its set and method as request
+parameters, so the URL carries them as a query string. Per-event ranking detail
+pages are keyed by registration-event ids from another app.
+
+Ruled: not archive content. The whole feature was a single abandoned "Chess
+Method" experiment, one method and one owner, every rank set named "Test Set" or
+bounded to end in 2013, and every page headed "DRAFT IFPA Ranking Report
+(UNOFFICIAL - DO NOT USE)". Every page renders its template correctly with zero
+data rows, so there is nothing here that is content by any reading. The whole
+`ranking` path is excluded by
+`legacy_data/legacy_mirror/superseded_feature_exclusions.txt`, which the crawler
+loads on every run. `build_ranking()` remains in the builder as the derivation
+record only. The platform-side rankings migration remains a separate deferred
+decision and is unaffected.
 
 ## Investigations without a seed file
+
+### Move hints (reached by the crawler, no seed needed)
+
+The freestyle moves pages offer each member-written hint through a scripted
+popup, `javascript:openHintWindow('/newmoves/showhint/<id>')`, and link it no
+other way. Link extraction skips a `javascript:` reference, correctly, so the
+crawl never reached any of them: the archive held only the thirty-odd-character
+teaser each list prints, ending in "more", over a control that does nothing once
+the scripts are gone. Four hundred and thirty-one hints were live-site-only.
+
+Fixed in the crawler rather than with a seed file, because the ids are not in a
+dump this builder reads and the popups already name every one of them. The
+rewrite that turns a `javascript:popupprofile(<id>)` link into a local profile
+page has a sibling for these: it maps the popup's path to the page's own
+address, rewrites the anchor to it, and enqueues the target, so the hints arrive
+by ordinary link-following on any crawl. Each hint then has a real, bookmarkable
+URL of its own instead of living behind a script. Their companion "update" links
+are editor surfaces and are refused like every other one.
 
 ### Hall-of-Fame and historical-player photos (no dump-seedable class)
 

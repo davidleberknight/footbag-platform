@@ -5,8 +5,10 @@
 # passed, so it can gate a publish.
 #
 # The verification has to be given the same inputs the crawl ran with, or it
-# quietly checks less than it appears to. Both exclusion lists come from the
-# same two places create_mirror.sh takes them from, and the personal details
+# quietly checks less than it appears to. The three ancestor-walk exclusion
+# lists come from the same places create_mirror.sh takes them from (the
+# verifier auto-loads the fourth, exact-match one itself, the same as a real
+# crawl does), and the personal details
 # come out of create_mirror.sh itself, which is the single home for them and
 # is not committed. Anything missing is reported and skipped rather than
 # silently passing.
@@ -24,6 +26,7 @@ CRAWL_WRAPPER="$SCRIPT_DIR/create_mirror.sh"
 
 GROUP_EXCLUSIONS="$REPO_ROOT/footbag_private_repo/private-custody/ifpa-group-files/CRAWL_EXCLUSIONS.txt"
 MEMBER_EXCLUSIONS="$SCRIPT_DIR/member_area_exclusions.txt"
+SUPERSEDED_EXCLUSIONS="$SCRIPT_DIR/superseded_feature_exclusions.txt"
 
 if [[ ! -x "$VENV_PYTHON" ]]; then
     echo "Error: venv python not found at $VENV_PYTHON" >&2
@@ -31,7 +34,7 @@ if [[ ! -x "$VENV_PYTHON" ]]; then
 fi
 
 ARGS=()
-for list in "$GROUP_EXCLUSIONS" "$MEMBER_EXCLUSIONS"; do
+for list in "$GROUP_EXCLUSIONS" "$MEMBER_EXCLUSIONS" "$SUPERSEDED_EXCLUSIONS"; do
     if [[ -f "$list" ]]; then
         ARGS+=(--exclusion-list "$list")
     else

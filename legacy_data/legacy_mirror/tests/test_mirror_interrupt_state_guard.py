@@ -105,9 +105,11 @@ def test_interrupt_after_state_is_loaded_saves(tmp_path, monkeypatch):
 
 
 def test_main_marks_state_authoritative_at_the_resume_decision(tmp_path, monkeypatch):
-    # The guard must lift exactly once main() has made its resume decision, so a
-    # crawl interrupted mid-run still saves. main() is stopped at login(), the
-    # first step after that decision and before any network call.
+    # The guard must lift exactly once main() has made its resume decision, so
+    # a crawl interrupted mid-run still saves. Login now runs FIRST (before the
+    # -fresh wipe, so bad credentials cannot destroy a capture) and is stubbed
+    # out; main() is stopped at the seed load, the first step after the resume
+    # decision.
     _seed_capture(tmp_path)
     monkeypatch.setenv('FOOTBAG_MIRROR_PASSWORD', 'unused-fixture')  # skip getpass
     m = _load('mirror_interrupt_main', tmp_path, monkeypatch)
@@ -116,10 +118,12 @@ def test_main_marks_state_authoritative_at_the_resume_decision(tmp_path, monkeyp
     class _Stop(RuntimeError):
         pass
 
-    def _boom():
-        raise _Stop('stop before network')
+    def _boom(*args, **kwargs):
+        raise _Stop('stop after the resume decision')
 
-    monkeypatch.setattr(m, 'login', _boom)
+    monkeypatch.setattr(m, 'login', lambda: None)
+    monkeypatch.setattr(m, 'verify_authenticated_session', lambda: True)
+    monkeypatch.setattr(m, 'load_seed_urls', _boom)
     exclusions = tmp_path / 'exclusions.txt'   # network modes require the list
     exclusions.write_text('groups/showfile/208\n')
     monkeypatch.setattr(sys, 'argv', ['create_mirror_footbag_org.py', 'someuser',

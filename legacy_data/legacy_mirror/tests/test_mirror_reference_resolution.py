@@ -47,6 +47,23 @@ def test_markup_inside_a_comment_is_not_a_reference(www):
     assert mirror_script._dangling_refs(page, www) == []
 
 
+def test_markup_a_page_displays_as_words_is_not_a_reference(www):
+    # A page showing its own template source has the angle brackets escaped, so
+    # nothing is a tag and a browser requests nothing, but the attribute inside
+    # still sits in plain quotes.
+    page = _page(www, 'gallery/showset/1749/index.html',
+                 '&lt;IMG SRC="/img/gallery/buttons/b-search.gif" WIDTH="110"&gt;')
+    assert mirror_script._dangling_refs(page, www) == []
+
+
+def test_escaped_markup_does_not_hide_a_real_reference_beside_it(www):
+    page = _page(www, 'gallery/showset/1749/index.html',
+                 '&lt;IMG SRC="/img/gallery/buttons/b-search.gif"&gt;'
+                 '<img src="/img/gallery/buttons/b-clubs.gif">')
+    refs = [ref for ref, _fix in mirror_script._dangling_refs(page, www)]
+    assert refs == ['/img/gallery/buttons/b-clubs.gif']
+
+
 def test_a_comment_does_not_make_a_page_look_reachable(www):
     # Reachability read from commented markup would hide a page that in truth
     # nothing links, which is exactly what the listing exists to surface.
@@ -130,6 +147,142 @@ def test_a_dead_sprite_reference_is_cleared(monkeypatch, www):
     assert 'icons.svg' not in out
 
 
+class TestReferencesStillNamingTheRetiredHost:
+    """An absolute address on the crawled hosts is a reference the capture did
+    not bring home. It worked while the legacy site answered; once that name
+    belongs to the new site every one of them is a not-found page, so they are
+    settled before publication rather than left for a reader to find.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _state(self, monkeypatch, www):
+        monkeypatch.setattr(mirror_script, 'MIRROR_DIR', str(www.parent))
+        state = mirror_script.MirrorState()
+        monkeypatch.setattr(mirror_script, 'mirror_state', state)
+        return state
+
+    def test_a_reference_whose_file_is_on_disk_is_pointed_at_it(self, www):
+        (www / 'media').mkdir()
+        (www / 'media' / 'clip.mp4').write_text('x', encoding='utf-8')
+        page = _page(www, 'gallery/show/1/index.html',
+                     '<img src="http://www.footbag.org/media/clip.mp4"/>')
+        mirror_script.neutralize_retired_host_links()
+        out = page.read_text(encoding='utf-8')
+        assert 'http://www.footbag.org' not in out
+        assert 'clip.mp4' in out
+
+    def test_a_link_to_nothing_keeps_its_words_and_loses_the_anchor(self, www):
+        page = _page(www, 'news/list_2006/index.html',
+                     '<a href="http://www.footbag.org/worlds2006/">Worlds 2006</a>')
+        mirror_script.neutralize_retired_host_links()
+        out = page.read_text(encoding='utf-8')
+        assert 'worlds2006' not in out
+        assert 'Worlds 2006' in out
+
+    def test_the_banner_link_to_the_live_site_survives(self, www):
+        page = _page(www, 'index.html',
+                     '<a href="https://www.footbag.org">Live site: www.footbag.org</a>')
+        mirror_script.neutralize_retired_host_links()
+        assert 'https://www.footbag.org' in page.read_text(encoding='utf-8')
+
+    def test_a_video_still_waiting_for_the_backfill_is_left_alone(self, www, _state):
+        url = 'http://www.footbag.org/media/pending.mov'
+        _state.skipped_videos = {
+            mirror_script.normalize_url(url): {'url': url, 'disposition': 'skipped_video'}}
+        page = _page(www, 'gallery/show/2/index.html', f'<a href="{url}">watch</a>')
+        mirror_script.neutralize_retired_host_links()
+        assert url in page.read_text(encoding='utf-8')
+
+    def test_a_video_the_backfill_failed_is_left_for_the_backfill_to_settle(self, www, _state):
+        # The backfill retries a failure below the attempt cap, and even past
+        # the cap its gave-up branch still repairs the referring pages itself
+        # (the not-available wording). The original address is the only handle
+        # that repair has for finding the element, so neutralizing it here
+        # would ship a later-recovered video with no page linking it.
+        url = 'http://www.footbag.org/media/gone.mov'
+        _state.skipped_videos = {
+            mirror_script.normalize_url(url): {'url': url, 'disposition': 'backfill_failed'}}
+        page = _page(www, 'gallery/showset/1/index.html', f'<img src="{url}"/>')
+        mirror_script.neutralize_retired_host_links()
+        assert 'footbag.org/media/gone.mov' in page.read_text(encoding='utf-8')
+
+    def test_a_video_the_backfill_refused_is_not_left_standing(self, www, _state):
+        # A refused record is the one disposition the backfill never repairs
+        # referrers for, so its address has no repair waiting on it and keeping
+        # it publishes a link to a host that is going away.
+        url = 'http://www.footbag.org/media/withheld.mov'
+        _state.skipped_videos = {
+            mirror_script.normalize_url(url): {
+                'url': url, 'disposition': 'backfill_refused_excluded'}}
+        page = _page(www, 'gallery/showset/3/index.html', f'<img src="{url}"/>')
+        mirror_script.neutralize_retired_host_links()
+        assert 'footbag.org/media/withheld.mov' not in page.read_text(encoding='utf-8')
+
+    def test_a_non_standard_attribute_is_dropped_and_the_real_one_kept(self, www):
+        (www / 'media').mkdir()
+        (www / 'media' / 'logo.jpg').write_text('x', encoding='utf-8')
+        page = _page(www, 'news/list_2012/index.html',
+                     '<img altsrc="http://www.footbag.org/media/absent.png"'
+                     ' src="../media/logo.jpg"/>')
+        mirror_script.neutralize_retired_host_links()
+        out = page.read_text(encoding='utf-8')
+        assert 'altsrc' not in out
+        assert 'media/logo.jpg' in out
+
+
+class TestRedirectStubsThatLeadNowhere:
+    """A stub stands in for an address the live site answered with a redirect.
+
+    Where the page it points at was refused or never captured, the refresh still
+    fires and the reader lands on nothing. The stub is the artifact a reader
+    reaches, so it has to say what happened rather than send them onward.
+    """
+
+    @staticmethod
+    def _stub(www, relative, target, reversed_attributes=False):
+        meta = (f'<meta content="0; url={target}" http-equiv="refresh"/>'
+                if reversed_attributes else
+                f'<meta http-equiv="refresh" content="0; url={target}">')
+        path = www / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            f'<html><head>{meta}<title>Redirecting</title></head>'
+            f'<body><p>Redirecting to <a href="{target}">{target}</a></p></body></html>',
+            encoding='utf-8')
+        return path
+
+    def test_a_stub_whose_target_is_captured_is_left_alone(self, monkeypatch, www):
+        monkeypatch.setattr(mirror_script, 'MIRROR_DIR', str(www.parent))
+        _page(www, 'clubs/show/alpha/index.html', 'Alpha Footbag Club')
+        stub = self._stub(www, 'clublist/alpha/index.html',
+                          '../../clubs/show/alpha/index.html')
+        mirror_script.convert_dead_redirect_stubs()
+        assert 'clubs/show/alpha' in stub.read_text(encoding='utf-8')
+
+    def test_a_stub_whose_target_is_missing_says_so(self, monkeypatch, www):
+        monkeypatch.setattr(mirror_script, 'MIRROR_DIR', str(www.parent))
+        stub = self._stub(www, 'clublist/aufo/index.html',
+                          '../../clubs/show/aufo/index.html')
+        mirror_script.convert_dead_redirect_stubs()
+        out = stub.read_text(encoding='utf-8')
+        assert 'refresh' not in out
+        assert 'not part of the footbag.org archive' in out
+
+    def test_the_attribute_order_a_reparse_produces_is_recognised(self, monkeypatch, www):
+        monkeypatch.setattr(mirror_script, 'MIRROR_DIR', str(www.parent))
+        stub = self._stub(www, 'clublist/bafl/index.html',
+                          '../../clubs/show/bafl/index.html',
+                          reversed_attributes=True)
+        mirror_script.convert_dead_redirect_stubs()
+        assert 'not part of the footbag.org archive' in stub.read_text(encoding='utf-8')
+
+    def test_a_stub_built_from_an_off_site_address_is_converted(self, monkeypatch, www):
+        monkeypatch.setattr(mirror_script, 'MIRROR_DIR', str(www.parent))
+        stub = self._stub(www, 'wfa/index.html', 'https://worldfootbag.com')
+        mirror_script.convert_dead_redirect_stubs()
+        assert 'not part of the footbag.org archive' in stub.read_text(encoding='utf-8')
+
+
 def test_a_live_reference_survives_the_pass(monkeypatch, www):
     monkeypatch.setattr(mirror_script, 'MIRROR_DIR', str(www.parent))
     (www / 'css').mkdir()
@@ -138,3 +291,55 @@ def test_a_live_reference_survives_the_pass(monkeypatch, www):
     mirror_script.neutralize_dead_internal_links()
     out = (www / 'index.html').read_text(encoding='utf-8')
     assert 'css/site.css' in out
+
+
+# ---- Both quote styles, without letting a match leave its own attribute ----
+#
+# The legacy site single-quotes a minority of attributes, so a pattern reading
+# only double quotes leaves those invisible to the dead-link pass. Widening it
+# with a lazy dot instead of a negated class is the trap: on this site's
+# unclosed and malformed markup the dot walks through the closing quote and
+# the newline into the next tag, and the whole run of garbage is reported as
+# one dangling reference. Measured on the real capture, that shape turned ~700
+# perfectly good links into candidates the dead-link pass would have replaced
+# with plain text.
+
+def test_a_single_quoted_reference_is_seen(www):
+    (www / 'a.html').write_text('x', encoding='utf-8')
+    refs = list(mirror_script._page_local_refs(b"<a href='a.html'>go</a>"))
+    assert refs == ['a.html']
+
+
+def test_a_double_quoted_reference_is_still_seen(www):
+    refs = list(mirror_script._page_local_refs(b'<a href="a.html">go</a>'))
+    assert refs == ['a.html']
+
+
+def test_an_apostrophe_inside_a_double_quoted_name_survives(www):
+    refs = list(mirror_script._page_local_refs(b'<img src="O\'Brien.jpg">'))
+    assert refs == ["O'Brien.jpg"]
+
+
+# The real bytes from gallery/show/1/index.html. An EMPTY href is what breaks
+# a pattern whose value part requires at least one character: it cannot match
+# the empty value, so it consumes the closing quote as content and runs on to
+# the next quote anywhere later in the page, swallowing the markup between.
+# 700 pages of the capture carry this shape.
+_EMPTY_HREF_BLOB = (b'<td align="center"><a href=""></a></center><br/>\n'
+                    b'<tr>\n<td align="right"><a href="real.html">go</a>')
+
+
+def test_an_empty_href_does_not_swallow_the_markup_after_it(www):
+    refs = list(mirror_script._page_local_refs(_EMPTY_HREF_BLOB))
+    assert refs == ['real.html']
+    assert not any('<' in ref or '\n' in ref for ref in refs)
+
+
+def test_a_page_full_of_empty_hrefs_reports_no_phantom_dangling_reference(www):
+    # The consequence if it did: neutralize_dead_internal_links consumes
+    # _dangling_refs, so every phantom becomes a good link turned to plain
+    # text. On the real capture that was ~700 of them.
+    (www / 'real.html').write_text('x', encoding='utf-8')
+    (www / 'index.html').write_bytes(_EMPTY_HREF_BLOB)
+    dangling = list(mirror_script._dangling_refs(www / 'index.html', www))
+    assert dangling == []

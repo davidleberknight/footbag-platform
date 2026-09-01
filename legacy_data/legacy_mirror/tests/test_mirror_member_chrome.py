@@ -387,6 +387,34 @@ def test_charset_is_added_even_to_a_meta_the_rewriter_already_mangled():
     assert 'charset="utf-8"' in str(soup)
 
 
+def test_a_declaration_buried_in_an_embedded_document_is_moved_to_the_top():
+    # The real shape from worlds2002/resultsNet.html: a spreadsheet export that
+    # embeds a SECOND whole document, header and all, inside the first. The
+    # first <head> in the markup is thousands of bytes in, so a declaration
+    # placed there is one the browser never reaches while sniffing the
+    # encoding, and every accented name renders as mojibake.
+    soup = _soup(
+        '<meta content="RevealTrans(Duration=.50)" http-equiv="Page-Exit"/>'
+        '<body bgcolor="#ffffff"><table><tr><td>' + ('results ' * 200) +
+        '</td></tr></table>'
+        '<html xmlns:x="urn:schemas-microsoft-com:office:excel">'
+        '<head><meta charset="utf-8"/></head><body>sheet</body></html>'
+        '</body>')
+    assert mirror_script.ensure_charset_declaration(soup) is True
+    after = str(soup)
+    assert after.lower().index('charset') < 64
+    # Exactly one, so the page cannot carry two that disagree.
+    assert after.count('charset="utf-8"') == 1
+
+
+def test_a_page_that_already_declares_early_is_left_alone():
+    # The common case on a re-read. It must return False, or every one of the
+    # fifty-thousand captures would be rewritten on each pass.
+    soup = _soup('<html><head><meta charset="utf-8"/><title>t</title></head>'
+                 '<body>x</body></html>')
+    assert mirror_script.ensure_charset_declaration(soup) is False
+
+
 def test_a_page_without_a_head_still_declares_its_encoding():
     # Some legacy pages are bare fragments. They render in a browser and so
     # need the declaration too, otherwise they are the one page class that can

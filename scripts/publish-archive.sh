@@ -269,12 +269,21 @@ fi
 # The set is what the archive is made of: pages, the two image formats and the
 # one video format the crawler converts to, stylesheets and their fonts,
 # published documents, calendar exports and favicons.
+#
+# Plain text and PostScript are here because the legacy site published content
+# in them and nothing else holds it. The text files are competition results,
+# among them the full 1995 World Championships fields, which the results
+# database records only down to third place. The PostScript files are the
+# footbag panel patterns, printable at any size, which their own page tells the
+# reader to prefer over the pictures beside them. Neither format can carry a
+# macro or an embedded object, which is the reason word-processor and
+# spreadsheet documents are withheld instead.
 KNOWN_LIST="${WORK_DIR}/unknown_types.txt"
 find "$WWW_ROOT" -type f \
   ! -iname '*.html' ! -iname '*.htm' ! -iname '*.jpg' ! -iname '*.gif' \
   ! -iname '*.mp4' ! -iname '*.css' ! -iname '*.pdf' ! -iname '*.ics' \
   ! -iname '*.ttf' ! -iname '*.eot' ! -iname '*.woff' ! -iname '*.woff2' \
-  ! -iname '*.ico' ! -iname '*.sanitized' \
+  ! -iname '*.ico' ! -iname '*.sanitized' ! -iname '*.txt' ! -iname '*.ps' \
   > "${KNOWN_LIST}.all" || true
 # A path the exclusion list keeps out of the bucket is not a file anyone has to
 # accept: it is not being published. Dropping them here is what stops the

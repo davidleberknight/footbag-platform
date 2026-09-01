@@ -74,6 +74,11 @@ def test_main_creates_relocated_state_dir_before_opening_log(tmp_path, monkeypat
     def _boom():
         raise _Stop('stop before network')
 
+    # Login runs first in main() now (before the -fresh wipe) and would reach
+    # the real network from a unit test; stub it and stop at load_progress,
+    # which still sits right after the state-dir + log setup under test.
+    monkeypatch.setattr(m, 'login', lambda: None)
+    monkeypatch.setattr(m, 'verify_authenticated_session', lambda: True)
     monkeypatch.setattr(m.mirror_state, 'load_progress', _boom)
     exclusions = tmp_path / 'exclusions.txt'   # network modes require the list
     exclusions.write_text('groups/showfile/208\n')

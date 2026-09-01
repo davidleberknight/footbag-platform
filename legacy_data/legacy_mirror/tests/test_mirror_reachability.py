@@ -178,6 +178,37 @@ def test_what_the_archive_is_is_stated_by_the_banner_not_a_second_card(env):
     assert text.count(mirror_script.ARCHIVE_BANNER_MARKER) == 1
 
 
+def test_a_worlds_year_captured_as_a_redirect_stub_lists_the_real_page(env):
+    # A year fetched at its bare directory address, which the site answers
+    # by redirecting to a page underneath it, was captured as a stub whose
+    # title is the word 'Redirecting'. Found in production: worlds99 listed
+    # this way sends a reader through an extra hop for a page that just says
+    # "Redirecting" instead of the real page underneath it.
+    real = _capture(BASE + '/worlds99/docs/inpage/', 'Worlds 99')
+    stub = Path(mirror_script.url_to_filepath(BASE + '/worlds99/'))
+    _redirect_stub(stub, 'docs/inpage/index.html')
+
+    mirror_script.generate_archive_directory({})
+    page = (_www(env) / 'archive-directory.html').read_text()
+
+    assert 'worlds99/docs/inpage/index.html' in page
+    assert 'href="worlds99/index.html"' not in page
+    assert real.exists()
+
+
+def test_a_worlds_year_on_the_vhost_tree_captured_as_a_stub_also_resolves(env):
+    real = _capture('http://sites.footbag.org/worlds2018/docs/inpage/', 'Worlds 2018')
+    stub = Path(mirror_script.url_to_filepath('http://sites.footbag.org/worlds2018/'))
+    _redirect_stub(stub, 'docs/inpage/index.html')
+
+    mirror_script.generate_archive_directory({})
+    page = (_www(env) / 'archive-directory.html').read_text()
+
+    assert 'sites/worlds2018/docs/inpage/index.html' in page
+    assert 'href="sites/worlds2018/index.html"' not in page
+    assert real.exists()
+
+
 def test_directory_dedups_a_year_captured_in_both_trees(env):
     # A cross-published championship stored in BOTH trees (www copy + vhost
     # copy) must appear as a single World Championships row, the www one.
@@ -342,45 +373,46 @@ def test_a_page_that_is_nothing_but_a_server_error_is_not_listed(env):
 
 
 def test_a_page_keeps_its_row_when_a_server_error_sits_beside_real_content(env):
-    _seed(env, 'rules.txt', [BASE + '/rules/chapter/1000/'])
-    page_path = Path(mirror_script.url_to_filepath(BASE + '/rules/chapter/1000/'))
+    _seed(env, 'faq.txt', [BASE + '/faq/show/1000/'])
+    page_path = Path(mirror_script.url_to_filepath(BASE + '/faq/show/1000/'))
     page_path.parent.mkdir(parents=True, exist_ok=True)
     page_path.write_text(
-        '<html><head><title>Official Rules</title></head><body>'
+        '<html><head><title>F.A.Q.</title></head><body>'
         "<!-- <span style='color: #ff0000'><br /><b>Warning</b>: Invalid "
-        'argument in <b>/home/site/docs/rules/chapter</b><br /></span> -->'
-        '<p>Chapter 1000 text that a reader came for.</p>'
+        'argument in <b>/home/site/docs/faq/show</b><br /></span> -->'
+        '<p>Article 1000 text that a reader came for.</p>'
         '</body></html>', encoding='utf-8')
 
     mirror_script.generate_archive_directory()
     page = (_www(env) / 'archive-directory.html').read_text()
 
-    assert 'rules/chapter/1000/index.html' in page
+    assert 'faq/show/1000/index.html' in page
 
 
 def test_rows_sharing_one_title_are_told_apart(env):
     # Whole classes of legacy page carry one title across every member, so a
     # list of identical links tells a reader nothing about which to open.
-    _seed(env, 'rules.txt', [BASE + '/rules/chapter/30', BASE + '/rules/chapter/800'])
-    _capture(BASE + '/rules/chapter/30', 'Official Rules of Footbag Sports')
-    _capture(BASE + '/rules/chapter/800', 'Official Rules of Footbag Sports')
+    _seed(env, 'faq.txt', [BASE + '/faq/show/30', BASE + '/faq/show/800'])
+    _capture(BASE + '/faq/show/30', 'Frequently Asked Questions')
+    _capture(BASE + '/faq/show/800', 'Frequently Asked Questions')
 
     mirror_script.generate_archive_directory()
     page = (_www(env) / 'archive-directory.html').read_text()
 
-    assert 'Official Rules of Footbag Sports (30)' in page
-    assert 'Official Rules of Footbag Sports (800)' in page
+    assert 'Frequently Asked Questions (30)' in page
+    assert 'Frequently Asked Questions (800)' in page
 
 
-def test_two_seeds_reaching_one_page_make_one_row(env):
-    _seed(env, 'ranking.txt', [BASE + '/ranking/showranks?set=1&method=1',
-                               BASE + '/ranking/showranks?set=2&method=1'])
-    _capture(BASE + '/ranking/showranks?set=1&method=1', 'DRAFT IFPA Ranking Report')
+def test_two_seeds_reaching_one_page_make_one_row(env, monkeypatch):
+    _calendar_lists(monkeypatch, '1')
+    _seed(env, 'events.txt', [BASE + '/events/show/1?a=1',
+                              BASE + '/events/show/1?a=2'])
+    _capture(BASE + '/events/show/1?a=1', 'Volley Sock Championships')
 
     mirror_script.generate_archive_directory()
     page = (_www(env) / 'archive-directory.html').read_text()
 
-    assert page.count('DRAFT IFPA Ranking Report') == 1
+    assert page.count('Volley Sock Championships') == 1
 
 
 def test_a_title_carrying_markup_reads_as_the_name_someone_typed(env, monkeypatch):
@@ -518,10 +550,27 @@ def test_a_bare_fragment_is_not_banded_twice(env):
 
 def test_a_reference_site_is_listed_once_not_as_a_microsite_as_well(env):
     _capture('http://sites.footbag.org/reference/', 'Reference site')
-    _capture('http://sites.footbag.org/usage-information/', 'Usage')
+    _capture('http://sites.footbag.org/some-other-site/', 'Some Other Site')
 
     mirror_script.generate_archive_directory({})
     page = (_www(env) / 'archive-directory.html').read_text()
 
     assert page.count('sites/reference/index.html') == 1
-    assert 'sites/usage-information/index.html' in page
+    assert 'sites/some-other-site/index.html' in page
+
+
+def test_a_page_worthless_despite_capture_is_never_listed_even_when_recaptured(env):
+    # worlds2009 (a dead Flash shell with an empty content div) and
+    # usage-information (WordPress site-builder boilerplate) were both
+    # found and manually removed from a real capture as junk. A future crawl
+    # naturally re-reaches both by ordinary link-following, so the exclusion
+    # has to survive a recapture rather than rely on the file staying absent.
+    _capture(BASE + '/worlds2009/', 'World Championships 2009')
+    _capture('http://sites.footbag.org/usage-information/', 'Usage Information')
+
+    mirror_script.generate_archive_directory({})
+    page = (_www(env) / 'archive-directory.html').read_text()
+
+    assert 'worlds2009/index.html' not in page
+    assert 'World Championships 2009' not in page
+    assert 'sites/usage-information/index.html' not in page

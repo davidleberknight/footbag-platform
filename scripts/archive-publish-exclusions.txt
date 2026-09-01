@@ -51,6 +51,15 @@
 *.ppt
 *.xls
 
+# Rich text and design-tool source files, same reasoning as the Office
+# documents above: nothing in the capture or the publish looks inside one, and
+# no browser renders it. Covers recovered committee finance and application
+# paperwork, and vector logo source files, none of which are the archive's own
+# artwork under a servable extension.
+*.rtf
+*.eps
+*.ai
+
 # Macro-enabled Office files. Everything else the archive serves is inert once
 # it reaches a reader; a macro-enabled template is code that offers to run on
 # the machine of whoever opens it, and nothing in the capture or the publish
@@ -85,14 +94,17 @@ gallery/*/*.tk
 gallery/*/*.04
 gallery/*/*.05
 
-# Captures that are not pages, kept out until the crawler stops producing them.
-# One is a photograph the site served under a path ending in .html, so it missed
-# the re-encode every other image goes through and would reach a reader as image
-# bytes labelled as a web page. The other three are a page the site returned
-# empty and two it returned as nothing at all. None of them declares a character
-# set, which is the only reason the publish noticed: a file with no text in it
-# has nowhere to declare one.
+# A capture that is not a page: a photograph the site served under a path
+# ending in .html, so it missed the re-encode every other image goes through
+# and would reach a reader as image bytes labelled as a web page. It declares
+# no character set, which is the only reason the publish noticed: a file with
+# no text in it has nowhere to declare one. Nothing links it (the gallery pages
+# use its ';s.jpg' twin), so withholding it costs no route.
+#
+# Three gallery pages that sat here (gallery/show/15626, 15631, 15676) were
+# removed on review: the note called them empty or contentless, but the crawl
+# recaptured them afterwards and all three are now real photo pages, with a
+# character set and the media/1760/worlds_freestyle_*.jpg images, linked from
+# gallery/showset/Day1 and gallery/showset/1760. Withholding them published
+# those links as three not-found pages.
 media/1458/*/index.html
-gallery/show/15626/index.html
-gallery/show/15631/index.html
-gallery/show/15676/index.html

@@ -1,0 +1,33 @@
+# Mirror-crawler content exclusions: individual pages judged not to be real
+# published content. One site-root-relative URL path per line,
+# percent-decoded. Matched EXACTLY, unlike member_area_exclusions.txt and
+# superseded_feature_exclusions.txt: an entry here excludes only that one
+# page, never anything beneath it, because a withheld page can sit above
+# real, independently-linked content of its own (a finished child page
+# nested under an unfinished parent's own URL). Auto-loaded by
+# create_mirror_footbag_org.py on every run, no flag needed, so no future
+# crawl (fresh or incremental) can silently re-capture what is listed here.
+#
+# Kept separate from the other two built-in lists on purpose: neither a
+# member-account privacy surface nor a whole broken/obsolete feature, this is
+# for a specific page a human reviewed and judged was never really published
+# content in the first place.
+#
+# reference2/ifpa/media-kit   An internal planning outline for a sponsor
+#     media kit, never finished: every real section ("Welcome", "Footbag &
+#     IFPA", "Footbag in the Media") is a first-person note describing what
+#     should go there ("This is where we can link to several examples...",
+#     "examples of bad press?? lol"), followed by unedited Lorem ipsum
+#     filler text, plus a raw unrendered HTML comment left visible on the
+#     page. Captured twice, at both the www URL and its sites.footbag.org
+#     vhost twin, hence the two entries below.
+#
+#     Its own photo gallery, on the same page, is real - but so is a whole
+#     separate, finished, independently-linked child page one level below it
+#     (media-kit/branding-guidelines: real IFPA logo assets and editorial
+#     text, linked from most of the wiki, not from this page alone), which
+#     is exactly why this list matches exactly and not as a subtree: an
+#     ancestor-walk exclusion here would have taken that real page down too.
+#
+reference2/ifpa/media-kit
+reference/ifpa/media-kit

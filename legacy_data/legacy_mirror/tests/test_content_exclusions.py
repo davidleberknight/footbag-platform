@@ -335,6 +335,33 @@ def test_an_ordinary_page_does_not_match(account):
         b'<p>Results from the 1998 championships</p>')
 
 
+def test_the_sites_own_email_obfuscation_does_not_hide_the_address(account):
+    # The legacy templates print an address split at '@' and each '.' by an
+    # EMPTY inline-tag pair - invisible in a browser, previously fatal to the
+    # byte matcher: the crawling account's own profile shipped its address
+    # this way while every check passed. Real shape from members/profile.
+    assert mirror_script.page_carries_account_identity(
+        b'E-mail: <tt>mirror-operator<i></i>@<i></i>example<i></i>.'
+        b'<i></i>org</tt>')
+
+
+def test_redaction_removes_the_obfuscated_address_and_its_empty_tags(account):
+    page = ('<p>Contact mirror-operator<i></i>@<i></i>example<i></i>.'
+            '<i></i>org for entries.</p>')
+    out = mirror_script.redact_account_identity(page)
+    assert 'mirror-operator' not in out
+    assert '<i></i>' not in out
+    assert '[address removed from the archive]' in out
+    assert out.startswith('<p>Contact ') and out.endswith(' for entries.</p>')
+
+
+def test_the_matcher_never_spans_a_tag_with_real_content(account):
+    # Only a pair that renders NOTHING may be bridged; markup carrying its own
+    # text stays out of the pattern, per the no-arbitrary-markup rule.
+    assert not mirror_script.page_carries_account_identity(
+        b'mirror-operator<i>not the address</i>@example.org')
+
+
 def test_matching_is_inert_when_no_address_was_supplied(monkeypatch):
     monkeypatch.setattr(mirror_script, 'ACCOUNT_EMAIL', None)
     assert not mirror_script.page_carries_account_identity(
@@ -603,6 +630,144 @@ def test_naming_the_member_account_list_as_well_changes_nothing(
         '--exclusion-list', str(MEMBER_AREA_LIST),
     ])
     assert once == twice
+
+
+# The rulebook, polls and rankings are each a broken or superseded legacy
+# feature ruled out of the archive on a fresh look at the capture, not a
+# privacy surface, so they live in their own committed list rather than
+# member_area_exclusions.txt. Rules in particular sits in the site-wide nav
+# menu, so without this list applying to every run, a plain link-following
+# crawl (fresh or incremental) would re-reach and re-save it regardless of
+# any seed list or committed exclusion the operator remembers to name.
+
+SUPERSEDED_FEATURE_LIST = (
+    Path(__file__).resolve().parent.parent / 'superseded_feature_exclusions.txt'
+)
+
+
+def test_superseded_feature_list_loads_and_is_not_empty():
+    entries = mirror_script.load_content_exclusions(str(SUPERSEDED_FEATURE_LIST))
+    assert entries
+
+
+def test_superseded_feature_list_names_polls_and_ranking():
+    # rules was initially in this list too, but that verdict was wrong - the
+    # live rulebook is genuine content once checked via the URL form the
+    # crawler actually requests - so it was removed again.
+    entries = mirror_script.load_content_exclusions(str(SUPERSEDED_FEATURE_LIST))
+    assert entries == {'newpoll', 'ranking'}
+
+
+def test_superseded_feature_list_excludes_the_whole_features(monkeypatch):
+    entries = mirror_script.load_content_exclusions(str(SUPERSEDED_FEATURE_LIST))
+    monkeypatch.setattr(mirror_script, 'CONTENT_EXCLUSIONS', entries)
+    assert mirror_script.is_excluded_url(
+        'http://www.footbag.org/newpoll/show/948263383')
+    assert mirror_script.is_excluded_url(
+        'http://www.footbag.org/ranking/showranks?set=1&method=1')
+    assert not mirror_script.is_excluded_url('http://www.footbag.org/rules/')
+    # A sibling whose name merely starts with an excluded entry's name is not
+    # caught: the match walks a URL's own path segments, never a text prefix.
+    assert not mirror_script.is_excluded_url(
+        'http://www.footbag.org/rankingsystem/index.html')
+
+
+def test_superseded_feature_exclusions_apply_without_being_named(
+        monkeypatch, tmp_path, tree):
+    other = tmp_path / 'committee.txt'
+    other.write_text('groups/showfile/208\n')
+    entries = _run_main_and_capture_exclusions(monkeypatch, [
+        'create_mirror_footbag_org.py', 'operator@example.org',
+        '--exclusion-list', str(other),
+    ])
+    assert 'groups/showfile/208' in entries
+    assert 'newpoll' in entries
+    assert 'ranking' in entries
+    assert 'rules' not in entries
+
+
+# A single page a human reviewed and judged was never real published content
+# (an internal draft, an unfinished planning note) is neither a member-account
+# privacy surface nor a whole broken feature, so it lives in its own third
+# committed list. The reference wiki's own sidebar links every page in it from
+# a persistent "Pages" widget, so without this list applying to every run, a
+# plain link-following crawl would re-reach and re-save it just like rules did.
+#
+# Unlike the other two built-in lists, this one is matched EXACTLY, never as a
+# subtree prefix: the withheld media-kit page turned out to sit directly above
+# a whole separate, finished, independently-linked child page
+# (media-kit/branding-guidelines, real IFPA logo assets, linked from most of
+# the wiki), which the ancestor-walk matching CONTENT_EXCLUSIONS uses would
+# have taken down too. It is therefore loaded into its own WITHHELD_EXACT_URLS
+# variable, never merged into CONTENT_EXCLUSIONS, and applied unconditionally
+# (main() loads it before even parsing --exclusion-list), not merely prepended
+# the way the other two are.
+
+WITHHELD_CONTENT_LIST = (
+    Path(__file__).resolve().parent.parent / 'withheld_content_exclusions.txt'
+)
+
+
+def test_withheld_content_list_loads_and_is_not_empty():
+    entries = mirror_script.load_content_exclusions(str(WITHHELD_CONTENT_LIST))
+    assert entries
+
+
+def test_withheld_content_list_names_the_media_kit_draft_on_both_hosts():
+    entries = mirror_script.load_content_exclusions(str(WITHHELD_CONTENT_LIST))
+    assert entries == {'reference2/ifpa/media-kit', 'reference/ifpa/media-kit'}
+
+
+def test_withheld_content_list_excludes_both_captured_copies_exactly(monkeypatch):
+    entries = mirror_script.load_content_exclusions(str(WITHHELD_CONTENT_LIST))
+    monkeypatch.setattr(mirror_script, 'WITHHELD_EXACT_URLS', entries)
+    assert mirror_script.is_excluded_url(
+        'http://www.footbag.org/reference2/ifpa/media-kit/')
+    assert mirror_script.is_excluded_url(
+        'http://sites.footbag.org/reference/ifpa/media-kit/')
+    # The real, separately-linked child page one level below must survive:
+    # this is the exact scenario the exact-match (not ancestor-walk) matching
+    # exists for.
+    assert not mirror_script.is_excluded_url(
+        'http://www.footbag.org/reference2/ifpa/media-kit/branding-guidelines/')
+    # The rest of the reference wiki, and the unrelated legacy reference/ifpa
+    # area on www, must stay reachable too.
+    assert not mirror_script.is_excluded_url(
+        'http://www.footbag.org/reference2/ifpa/board-of-directors/')
+    assert not mirror_script.is_excluded_url(
+        'http://www.footbag.org/reference/ifpa/board-of-directors/')
+
+
+def test_withheld_content_exclusions_apply_unconditionally(monkeypatch, tmp_path, tree):
+    # Loaded before --exclusion-list is even parsed, so it applies to every
+    # mode, named or not - unlike the two ancestor-walk lists, which only
+    # prepend themselves once at least one --exclusion-list is given.
+    loaded = {}
+    real_crawl = mirror_script.crawl
+
+    def stop_after_setup(_start_urls):
+        loaded['withheld'] = mirror_script.WITHHELD_EXACT_URLS
+        raise SystemExit('captured')
+
+    monkeypatch.setattr(sys, 'argv', [
+        'create_mirror_footbag_org.py', 'operator@example.org',
+        '--exclusion-list', str(tmp_path / 'committee.txt'),
+    ])
+    (tmp_path / 'committee.txt').write_text('groups/showfile/208\n')
+    monkeypatch.setattr(mirror_script, 'resolve_password', lambda _p: 'x')
+    monkeypatch.setattr(mirror_script, 'login', lambda: None)
+    monkeypatch.setattr(mirror_script, 'verify_authenticated_session', lambda: True)
+    monkeypatch.setattr(mirror_script, 'load_seed_urls', lambda _p: [])
+    monkeypatch.setattr(mirror_script, 'enqueue_seed_urls', lambda _u: 0)
+    monkeypatch.setattr(mirror_script, 'crawl', stop_after_setup)
+    try:
+        with pytest.raises(SystemExit):
+            mirror_script.main()
+    finally:
+        monkeypatch.setattr(mirror_script, 'crawl', real_crawl)
+
+    assert 'reference2/ifpa/media-kit' in loaded['withheld']
+    assert 'reference/ifpa/media-kit' in loaded['withheld']
 
 
 # The legacy registration pages open with the signed-in member's own contact

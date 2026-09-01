@@ -124,13 +124,14 @@ import argparse
 import html
 import importlib.util
 import json
+from collections import Counter
 from urllib.parse import urljoin, urlparse, urlsplit, urlunparse, unquote, parse_qs, unquote_plus, urlencode, quote
 from pathlib import Path
 import signal
 import sys
 from datetime import datetime, timedelta
 import re
-from bs4 import BeautifulSoup, Comment, NavigableString
+from bs4 import BeautifulSoup, Comment, NavigableString, Tag
 import subprocess
 import shutil
 
@@ -209,6 +210,18 @@ WWW_ALIAS_HOSTS = frozenset({
 # it twice.
 CROSS_PUBLISHED_SITES = frozenset()
 
+# Pinned once, in main(), at the moment a real crawl begins; every "current
+# year" fallback in this module reads it through _current_year() rather than
+# calling datetime.now().year at its own moment. A session can run for hours
+# (multi-day resume is a supported case), and nine call sites each reading
+# the wall clock independently would let one page resolve against one year
+# and another, processed after a real year rollover, resolve against the
+# next - a link to a directory the crawl never created. Left None outside a
+# real crawl (every network-free mode, and every existing test that calls
+# these functions directly), _current_year() falls back to the true current
+# year exactly as before.
+CRAWL_SESSION_YEAR = None
+
 # Video handling: by default the crawl EXCLUDES video binaries while still
 # capturing every page, poster, thumbnail, caption, and link that surrounds
 # them; pass --process-videos to download and re-encode them instead. Set from
@@ -219,6 +232,10 @@ SKIP_VIDEOS = True
 # the original reference (it is neither a local filepath nor a failure).
 SKIPPED_VIDEO = '__SKIPPED_VIDEO__'
 SKIPPED_VIDEO_MANIFEST = 'skipped_videos.json'
+# How many times the backfill downloads a video that keeps failing before it
+# leaves that record alone. Two, because the second attempt is what distinguishes
+# a transient failure from a source that is gone or a file that will not convert.
+_MAX_BACKFILL_ATTEMPTS = 2
 SKIPPED_VIDEO_SUMMARY = 'skipped_videos_summary.txt'
 
 START_URLS = [
@@ -244,6 +261,24 @@ SEEDS_DIR = str(SCRIPT_DIR / 'mirror_seeds')
 # them. The committee-scoped list stays an explicit argument because it lives in
 # a private checkout that is absent on most machines.
 MEMBER_AREA_EXCLUSION_LIST = str(SCRIPT_DIR / 'member_area_exclusions.txt')
+
+# A second, always-loaded list for a different reason to exclude content: a
+# whole feature ruled broken, obsolete or superseded (not a privacy surface).
+# Kept separate so each file's own header states one coherent reason.
+SUPERSEDED_FEATURE_EXCLUSION_LIST = str(SCRIPT_DIR / 'superseded_feature_exclusions.txt')
+
+# A third, always-loaded list for a third reason to exclude content: an
+# individual page a human judged was never real published content (an
+# internal draft, an unfinished planning note) rather than a whole broken
+# feature or a privacy surface. Matched EXACTLY, never as a subtree prefix
+# (see WITHHELD_EXACT_URLS below): unlike the other two lists, a withheld page
+# here can sit above real, independently-linked content of its own (a
+# finished child page nested under an unfinished parent's URL), and the
+# ancestor-walk semantics CONTENT_EXCLUSIONS uses would take that real
+# content down with it. Loaded into its own variable, never merged into
+# CONTENT_EXCLUSIONS.
+WITHHELD_CONTENT_EXCLUSION_LIST = str(SCRIPT_DIR / 'withheld_content_exclusions.txt')
+WITHHELD_EXACT_URLS = frozenset()
 
 # Pages a crawl must read again even though it has captured them before. Named
 # explicitly with --revisit-list, never loaded on its own: re-reading is always
@@ -397,6 +432,20 @@ def parse_args():
         )
     )
     parser.add_argument(
+        "--retry-failed-videos",
+        dest="retry_failed_videos",
+        action="store_true",
+        help=(
+            "With --video-backfill: attempt every recorded video again, "
+            "including ones already tried twice without success. The backfill "
+            "otherwise leaves those alone, because re-downloading a file that "
+            "has failed the same way twice costs the whole pass for a certain "
+            "failure. Use this after a fix that could change the outcome; a "
+            "conversion bug that wrongly rejected real video is exactly that "
+            "case. Their referring pages are repaired either way."
+        )
+    )
+    parser.add_argument(
         "--seed-videos-from",
         dest="seed_videos_from",
         metavar="DIR",
@@ -458,6 +507,20 @@ def parse_args():
         ),
     )
     parser.add_argument(
+        "--settle-for-publication-only",
+        dest="settle_for_publication_only",
+        action="store_true",
+        help=(
+            "No crawl, no network, no credentials: run the passes that settle "
+            "what the archive cannot deliver over the capture already on disk, "
+            "then exit. Redirect stubs standing in for a page that was never "
+            "captured, references still naming the host being switched off, and "
+            "supplementary-site pages carrying nothing but a title. A crawl runs "
+            "all of these at its end; this is how a correction to any of them "
+            "reaches a finished capture without re-reading the site. Idempotent."
+        ),
+    )
+    parser.add_argument(
         "--wrap-plain-text-only",
         dest="wrap_plain_text_only",
         action="store_true",
@@ -466,6 +529,18 @@ def parse_args():
             "capture in the tree a minimal page around it, carrying a character "
             "set and preserving the original column layout, then exit. "
             "Idempotent. Combine with --dry-run to list what would change."
+        ),
+    )
+    parser.add_argument(
+        "--relink-nav-items-only",
+        dest="relink_nav_items_only",
+        action="store_true",
+        help=(
+            "No crawl, no network, no credentials: restore a main-navigation "
+            "link the dead-link pass wrongly neutralized because its target "
+            "was excluded at the time, for every page whose target a later "
+            "ruling restored, then exit. Idempotent; how a restored nav target "
+            "reaches every page carrying the menu without re-crawling the site."
         ),
     )
     parser.add_argument(
@@ -625,6 +700,12 @@ class MirrorState:
         # A distinct state from downloaded / failed / blocked / unvisited; never
         # counted as a failure and never re-requested on resume.
         self.skipped_videos = {}
+        # Record keys whose disposition THIS process settled (the backfill's
+        # own outcomes). In-run only, never serialized: a disposition restored
+        # from a progress file is exactly the stale case the manifest
+        # carry-forward must override, and persisting this set would let a
+        # snapshot masquerade as fresh work the way the attempts field once did.
+        self.settled_this_run = set()
         self.sitemap = []
         # Pages the crawl fetched and deliberately did not store, as
         # (url, reason) pairs. A count alone cannot answer the question that
@@ -633,6 +714,14 @@ class MirrorState:
         # no trace in the tree, because the evidence is precisely what is
         # absent, so the list is kept here or it cannot be reviewed at all.
         self.refused_pages = []
+        # URLs whose fetch exhausted its retries on a TRANSIENT failure (503,
+        # timeout, DNS). Deliberately not failed_urls: the dead-link pass must
+        # not neutralize links over a hiccup. But a URL marked visited before
+        # a fetch that never succeeded is otherwise invisible - the pass ends
+        # looking complete while pages were silently never (re-)read - so the
+        # residue is recorded, persisted, and written out at the end of every
+        # crawl. A later successful fetch of the same URL clears its entry.
+        self.transient_failures = set()
         self.queue = []
         self.url_depth = {}
         self.content_hashes = {}
@@ -749,13 +838,25 @@ class MirrorState:
             mine = self.skipped_videos.get(key)
             if not isinstance(mine, dict):
                 continue
-            # A crawl only ever re-records a video as skipped, so anything the
-            # crawl has already settled itself is newer than the manifest and wins.
-            if mine.get('disposition') not in (None, 'skipped_video'):
+            # A crawl only ever re-records a video as skipped through its own
+            # fetch loop, so a settled disposition already in memory arrived
+            # one of two ways: this process's own backfill pass just produced
+            # it, or a resumed run restored it from a progress file that can
+            # predate the on-disk manifest's last write entirely. Only the
+            # first is actually newer than the manifest, and only the process
+            # itself can know which it was, so the backfill marks every
+            # outcome it settles in settled_this_run (in-memory only, never
+            # serialized). Anything not so marked is snapshot state, however
+            # complete it looks - an attempts count proves nothing, since a
+            # snapshot taken after an earlier carry-forward carries one too -
+            # and the manifest's later word wins over it.
+            if key in self.settled_this_run:
                 continue
             mine['disposition'] = settled
             if rec.get('local_file'):
                 mine['local_file'] = rec['local_file']
+            if rec.get('attempts') is not None:
+                mine['attempts'] = rec['attempts']
             carried += 1
         if carried:
             logging.info(
@@ -823,6 +924,7 @@ class MirrorState:
             'content_hashes': self.content_hashes,
             'stats': self.stats,
             'refused_pages': self.refused_pages,
+            'transient_failures': sorted(self.transient_failures),
             'regsummary_map': self.regsummary_map,
             'timestamp': datetime.now().isoformat()
         }
@@ -864,6 +966,7 @@ class MirrorState:
             # Pairs on disk, tuples in memory: a resumed run must not turn one
             # run's refusals into a different shape from the next run's.
             self.refused_pages = [tuple(r) for r in data.get('refused_pages', [])]
+            self.transient_failures = set(data.get('transient_failures', []))
             self.regsummary_map = data.get('regsummary_map', {})
             # Ensure all stats keys exist (for backwards compatibility with old progress files)
             self.stats.setdefault('media_input_bytes', 0)
@@ -1292,6 +1395,8 @@ EDITOR_ADMIN_ROUTES = frozenset({
     'members/join3', 'members/bulkbademail', 'members/requesthelp2', 'members/activate',
     'moves/edit', 'moves/edit2', 'moves/edithint', 'moves/new', 'moves/addhint',
     'moves2/edit', 'moves2/edit2', 'moves2/edithint', 'moves2/new', 'moves2/addhint',
+    'newmoves/edit', 'newmoves/edit2', 'newmoves/edithint', 'newmoves/new',
+    'newmoves/addhint', 'newmoves/addhint2',
     'moves2/journal', 'moves2/journalcheck', 'moves2/localize', 'moves2/localize2',
     'news/edit', 'news/edit2', 'news/new', 'news/translate', 'news/translate2',
     'poll/conduct', 'poll/edit', 'poll/new', 'poll/showvotes',
@@ -1412,15 +1517,23 @@ def is_excluded_url(url):
     # True when the URL's percent-decoded path equals an exclusion entry or
     # sits beneath one. Ancestor-walk keeps 'groups/showfile/208' from ever
     # matching 'groups/showfile/2081' the way a naive prefix test would.
+    #
+    # WITHHELD_EXACT_URLS is checked first and separately, on the exact path
+    # only, no ancestor-walk: a withheld page there can sit above real,
+    # independently-linked content, which the ancestor-walk below would
+    # wrongly exclude along with it.
+    path = unquote(urlparse(url).path).strip('/')
+    if path in WITHHELD_EXACT_URLS:
+        return True
     if not CONTENT_EXCLUSIONS:
         return False
-    path = unquote(urlparse(url).path).strip('/')
-    while path:
-        if path in CONTENT_EXCLUSIONS:
+    walk = path
+    while walk:
+        if walk in CONTENT_EXCLUSIONS:
             return True
-        if '/' not in path:
+        if '/' not in walk:
             return False
-        path = path.rsplit('/', 1)[0]
+        walk = walk.rsplit('/', 1)[0]
     return False
 
 def parse_redaction_values(raw):
@@ -1446,14 +1559,33 @@ def _identity_patterns():
     # mid-line still matches. Deliberately NOT any tag: a matcher that spanned
     # arbitrary markup would delete the tags between the halves of a value when
     # it redacts, and hand back broken HTML to remove one address.
+    #
+    # E-mail addresses get one extra bridge, because the legacy templates
+    # print them obfuscated: an EMPTY inline-tag pair splitting the value at
+    # '@' and each '.' (davidleberknight<i></i>@<i></i>gmail<i></i>.<i></i>com),
+    # invisible in a browser and fatal to a byte matcher. An empty pair
+    # renders nothing, so spanning it - and deleting it on redaction - cannot
+    # break the page, which is what keeps this inside the no-arbitrary-markup
+    # rule rather than an exception to it.
     global _IDENTITY_CACHE
     needles = tuple(n for n in [ACCOUNT_EMAIL, *ACCOUNT_REDACTIONS] if n)
     if _IDENTITY_CACHE[0] != needles:
         gap = r'(?:\s|&nbsp;|<br\s*/?>)+'
-        _IDENTITY_CACHE = (needles, [
-            re.compile(gap.join(re.escape(part) for part in needle.split()),
-                       re.IGNORECASE)
-            for needle in needles])
+        empty_pair = r'(?:\s|&nbsp;|<[a-zA-Z]{1,10}\s*>\s*</[a-zA-Z]{1,10}\s*>)*'
+
+        def compile_needle(needle):
+            if '@' in needle and ' ' not in needle:
+                parts = [p for p in re.split(r'([@.])', needle) if p]
+                return re.compile(
+                    ''.join(empty_pair + re.escape(p) + empty_pair
+                            if p in '@.' else re.escape(p)
+                            for p in parts),
+                    re.IGNORECASE)
+            return re.compile(
+                gap.join(re.escape(part) for part in needle.split()),
+                re.IGNORECASE)
+
+        _IDENTITY_CACHE = (needles, [compile_needle(n) for n in needles])
     return _IDENTITY_CACHE[1]
 
 
@@ -1526,6 +1658,23 @@ def apply_exclusions_sweep(dry_run=False):
                 removed.append(cand)
                 if not dry_run:
                     cand.unlink()
+    # WITHHELD_EXACT_URLS gets its own, narrower pass: only the entry's own
+    # file, never a whole directory, because an entry here can sit above
+    # real, independently-linked content of its own.
+    for entry in sorted(WITHHELD_EXACT_URLS):
+        try:
+            target = Path(url_to_filepath(f'{BASE_URL}/{entry}/'))
+        except ValueError:
+            continue
+        try:
+            target.resolve().relative_to(root)
+        except ValueError:
+            logging.warning(f"Withheld-exact entry escapes the www tree, refused: {entry}")
+            continue
+        if target.is_file():
+            removed.append(target)
+            if not dry_run:
+                target.unlink()
     # Account-owned pages are found by content, not by path, so a surface the
     # committed list never named still cannot keep the crawling account's own
     # contact details. This is also the backstop for the several page-writing
@@ -1702,6 +1851,37 @@ def verify_magic_bytes(filepath, ext):
     )
     mirror_state.stats['magic_byte_failures'] += 1
     return False
+
+# Only the formats whose signatures cannot occur at the start of text: a JPEG,
+# PNG or GIF header contains bytes no HTML or plain-text page can open with.
+# The weaker two-byte signatures in _MAGIC_BYTES ('BM', 'RIFF') stay out, so a
+# page can never be mistaken for a picture; the cost is that a mislabeled .bmp
+# or .webp is not rescued, and neither format has been seen mislabeled here.
+_IMAGE_SNIFF_EXTS = ('.jpg', '.png', '.gif')
+
+def sniff_image_ext(head):
+    """The image extension the leading bytes prove, or None.
+
+    The legacy server answers a handful of extensionless /media/ URLs with
+    image bytes labelled text/html. Trusting that header decoded the bytes as
+    text and destroyed the picture permanently, so wherever the URL's
+    extension has nothing to say, the body's own magic bytes outrank the
+    Content-Type.
+    """
+    for ext in _IMAGE_SNIFF_EXTS:
+        offset, candidates = _MAGIC_BYTES[ext]
+        for sig in candidates:
+            if head[offset:offset + len(sig)] == sig:
+                return ext
+    return None
+
+def sniff_image_file(path):
+    """The image extension a file already on disk proves, or None."""
+    try:
+        with open(path, 'rb') as handle:
+            return sniff_image_ext(handle.read(16))
+    except OSError:
+        return None
 
 def get_media_mime_type(filepath):
     ext = Path(filepath).suffix.lower()
@@ -1912,9 +2092,13 @@ def canonicalize_cross_published(url):
     return url
 
 
+def _current_year():
+    return CRAWL_SESSION_YEAR or str(datetime.now().year)
+
+
 def create_news_list_redirector():
     # Create /news/list/index.html → list_<current>/index.html
-    current_year = str(datetime.now().year)
+    current_year = _current_year()
     from_path = os.path.join(
         MIRROR_DIR, 'www.footbag.org', 'news', 'list', 'index.html')
     to_path = os.path.join(
@@ -1939,7 +2123,7 @@ def create_news_list_redirector():
 
 def create_events_results_redirector():
     # Create /events/results/index.html → results_year_<current>/index.html
-    current_year = str(datetime.now().year)
+    current_year = _current_year()
     from_path = os.path.join(
         MIRROR_DIR, 'www.footbag.org', 'events', 'results', 'index.html')
     to_path = os.path.join(
@@ -1964,7 +2148,7 @@ def create_events_results_redirector():
 
 def create_events_past_redirector():
     # Create /events/past/index.html → past_year_<current>/index.html 
-    current_year = str(datetime.now().year)
+    current_year = _current_year()
     from_path = os.path.join(
         MIRROR_DIR, 'www.footbag.org', 'events', 'past', 'index.html')
     to_path = os.path.join(
@@ -2307,7 +2491,8 @@ def convert_and_cleanup(filepath, ext):
         mirror_state.stats['media_output_bytes'] += orig_size
         return filepath
 
-def download_and_process_media(url, session, referrer=None, thumbnail_or_poster=False):
+def download_and_process_media(url, session, referrer=None, thumbnail_or_poster=False,
+                               known_image_ext=None):
     # Download media file and convert formats (video/audio/image) as needed.
     # Returns the final usable filepath (converted or original), None if
     # unavailable, or SKIPPED_VIDEO when --skip-videos deliberately excluded a
@@ -2341,6 +2526,15 @@ def download_and_process_media(url, session, referrer=None, thumbnail_or_poster=
         filepath = url_to_filepath(clean_url)
         ext = get_extension(url)
 
+        # The caller has already read the response and proved the bytes are an
+        # image (a /media/ URL the server answers as text/html). That outranks
+        # both the URL's silent extension and whatever an earlier crawl stored
+        # at this path, which is the case the on-disk sniff below cannot
+        # decide for itself: a destroyed capture no longer LOOKS like an
+        # image, so consulting it would refuse the very repair being asked for.
+        if known_image_ext:
+            ext = known_image_ext
+
         # --skip-videos: a recognized video extension is excluded before any
         # request is made (zero network cost, no retries, no hashing). The
         # record keeps every referring page; a re-sighting from another page
@@ -2359,6 +2553,39 @@ def download_and_process_media(url, session, referrer=None, thumbnail_or_poster=
             return None
 
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
+
+        # An extensionless URL still names a picture when its bytes say so:
+        # the legacy server labels a handful of /media/ URLs text/html, and
+        # the only truthful signal is the payload itself. Scoped to URLs whose
+        # extension says NOTHING - a real extension (.pdf, .ics) keeps its
+        # historic raw-download contract. A file already on disk is sniffed
+        # here; a fresh download is sniffed after the bytes land (below). A
+        # sniffed hit joins the ordinary convertible path under its proven
+        # extension, so the re-encode, the .sanitized sidecar and the .jpg
+        # output happen exactly as if the URL had carried the extension all
+        # along.
+        if known_image_ext and os.path.exists(filepath) and not sniff_image_file(filepath):
+            # A stale capture of this same URL stored as text: the
+            # destroyed-image shape this sniff exists to end. It is not a copy
+            # of the picture, so it must neither stand in for one nor fail the
+            # magic-byte check below into a permanent failed-conversion record
+            # that would make every later attempt skip the picture for good.
+            logging.warning(
+                f"Replacing a capture of this image stored as a page: {filepath}")
+            try:
+                os.remove(filepath)
+            except OSError:
+                pass
+        elif not ext and os.path.exists(filepath):
+            sniffed = sniff_image_file(filepath)
+            if sniffed:
+                ext = sniffed
+                is_convertible = ext in CONVERTIBLE_EXTENSIONS
+            else:
+                # Whatever sits at this path is not a picture - most likely a
+                # real captured page reached through an img src. It belongs to
+                # the page pipeline; nothing here may touch it.
+                return None
 
         # Cheap skip if the sanitized output for this URL already exists.
         # Gated on the `.sanitized` sidecar so a pre-fix run's bare output
@@ -2448,6 +2675,36 @@ def download_and_process_media(url, session, referrer=None, thumbnail_or_poster=
 
         os.rename(temp_filepath, filepath)
         logging.info(f"Downloaded: {filepath}")
+
+        # The download-side half of the sniff above: a URL whose extension
+        # says nothing is judged by the bytes it delivered. A picture joins
+        # the convertible path under its proven extension; anything else is
+        # dropped here and left to the page pipeline, because storing it as
+        # media would bypass every page-side protection (redaction, error
+        # refusal, link rewriting).
+        if not ext:
+            try:
+                with open(filepath, 'rb') as f:
+                    sniffed = sniff_image_ext(f.read(16))
+            except OSError:
+                sniffed = None
+            if sniffed:
+                logging.warning(
+                    f"Image bytes under a non-image URL, re-encoding as "
+                    f"{sniffed}: {url}")
+                mirror_state.stats['images_sniffed_under_html'] = (
+                    mirror_state.stats.get('images_sniffed_under_html', 0) + 1)
+                ext = sniffed
+                is_convertible = ext in CONVERTIBLE_EXTENSIONS
+            else:
+                try:
+                    os.remove(filepath)
+                except OSError:
+                    pass
+                logging.info(
+                    f"Media fetch returned non-image bytes, left to the page "
+                    f"pipeline: {url}")
+                return None
 
         try:
             size = os.path.getsize(filepath)
@@ -2649,7 +2906,7 @@ def url_to_filepath(url):
             else:
                 raise ValueError
         except Exception:
-            current_year = str(datetime.now().year)
+            current_year = _current_year()
             path = f'events/past_year_{current_year}/index.html'
 
     elif parsed.path == '/events/results':
@@ -2660,7 +2917,7 @@ def url_to_filepath(url):
             else:
                 raise ValueError
         except Exception:
-            current_year = str(datetime.now().year)
+            current_year = _current_year()
             path = f'events/results_year_{current_year}/index.html'
 
     elif (_SLUG_TAILED_GALLERY_ROUTE_RE.match(parsed.path)
@@ -2754,7 +3011,7 @@ def url_to_filepath(url):
             else:
                 raise ValueError
         except Exception:
-            current_year = str(datetime.now().year)
+            current_year = _current_year()
             path = f'news/list_{current_year}/index.html'
     
     elif parsed.path in ('/faq', '/faq/'):
@@ -2799,6 +3056,27 @@ def calculate_relative_path(from_file, to_file):
     rel_path = os.path.relpath(to_file, from_dir)
     rel_path = rel_path.replace(os.sep, '/')
     return rel_path
+
+def existing_local_video(url):
+    """The captured copy of a video already on disk, or None.
+
+    Skip mode does not fetch video binaries, so on a first crawl a page's video
+    link has to keep pointing at the live site. Over a capture whose videos have
+    already been downloaded and re-encoded, that same link would abandon a
+    playable local file sitting beside the page and send the reader to a host
+    that is being switched off. The converted output carries the .mp4 suffix and
+    is preferred; the original suffix is accepted for a copy that was captured
+    without conversion.
+    """
+    local_target = url_to_filepath(strip_query(url))
+    if not local_target:
+        return None
+    converted = str(Path(local_target).with_suffix('.mp4'))
+    if os.path.exists(converted):
+        return converted
+    if os.path.exists(local_target):
+        return local_target
+    return None
 
 def get_site_root_relative_path(current_page_url):
     parsed = urlparse(current_page_url)
@@ -2870,7 +3148,7 @@ def remove_fallback_viewer_row(element, resolve_base, soup):
     if next_tr:
         a_tags = next_tr.find_all('a', href=True)
         for a_tag in a_tags:
-            abs_href = urljoin(page_url, a_tag['href'])
+            abs_href = urljoin(resolve_base, a_tag['href'])
             if urlparse(abs_href).path.startswith('/gallery/show/'):
                 new_tr = soup.new_tag('tr')
                 new_td = soup.new_tag('td')
@@ -3071,15 +3349,35 @@ def ensure_charset_declaration(soup):
         if meta.get('http-equiv', '').lower() == 'content-type':
             meta.decompose()
 
-    for meta in soup.find_all('meta'):
-        if not _already_removed(meta) and meta.has_attr('charset'):
-            return False
+    # Where the declaration lands decides whether it works at all: the encoding
+    # is sniffed from the start of the file, so one the browser reaches only
+    # thousands of bytes in is no declaration. A handful of legacy pages are
+    # spreadsheet exports that embed a SECOND whole document, header and all,
+    # inside the first, so the first <head> in the markup is nowhere near the
+    # top. Whether the document actually opens with its own header is what
+    # decides where this goes, and it is read from the first real tag rather
+    # than by serialising the page, which would cost a pass over every capture.
+    opening = next((child for child in soup.children
+                    if isinstance(child, Tag)), None)
+    opens_with_header = (opening is not None
+                         and opening.name in ('html', 'head'))
+
+    existing = [meta for meta in soup.find_all('meta')
+                if not _already_removed(meta) and meta.has_attr('charset')]
+    if existing and opens_with_header:
+        return False
+
+    # Either there is none, or the only one is buried in an embedded document.
+    # A buried declaration is replaced rather than left beside a new one, so a
+    # page never carries two that could disagree.
+    for meta in existing:
+        meta.decompose()
 
     declaration = soup.new_tag('meta')
     declaration['charset'] = 'utf-8'
-    # A page with no head is a fragment the legacy site served bare. It still
-    # needs the declaration, so it goes at the top of the document instead.
-    head = soup.find('head')
+    # A page with no head, or one whose head belongs to a document nested
+    # inside it, gets the declaration at the very top instead.
+    head = soup.find('head') if opens_with_header else None
     if head is not None:
         head.insert(0, declaration)
     else:
@@ -3454,10 +3752,17 @@ def rewrite_links(html, page_url, link_base=None):
                     processed_path = download_and_process_media(clean_url, session, referrer=page_url,
                                                                 thumbnail_or_poster=has_poster)
                     if processed_path == SKIPPED_VIDEO:
-                        # Deliberate skip: keep the element and its poster, point
-                        # src at the ORIGINAL absolute URL, never a local path.
-                        tag['src'] = abs_url
-                        tag.insert_before(Comment("Mirror: video binary not mirrored (skip-videos); original URL retained"))
+                        # Deliberate skip: keep the element and its poster. A copy
+                        # already captured is linked locally; with none on disk the
+                        # ORIGINAL absolute URL is all the archive can offer.
+                        local_video = existing_local_video(clean_url)
+                        if local_video:
+                            tag['src'] = calculate_relative_path(current_filepath, local_video)
+                            if tag.name == 'source':
+                                tag['type'] = get_media_mime_type(local_video)
+                        else:
+                            tag['src'] = abs_url
+                            tag.insert_before(Comment("Mirror: video binary not mirrored (skip-videos); original URL retained"))
                     elif processed_path:
                         rel_path = calculate_relative_path(current_filepath, processed_path)
                         tag['src'] = rel_path
@@ -3484,10 +3789,15 @@ def rewrite_links(html, page_url, link_base=None):
                     processed_path = download_and_process_media(clean_url, session, referrer=page_url,
                                                                 thumbnail_or_poster=bool(a.find('img')))
                     if processed_path == SKIPPED_VIDEO:
-                        # Deliberate skip: keep the link and its text/thumbnail,
-                        # pointing at the ORIGINAL absolute URL.
-                        a['href'] = abs_url
-                        a.insert_before(Comment("Mirror: video binary not mirrored (skip-videos); original URL retained"))
+                        # Deliberate skip: keep the link and its text or thumbnail.
+                        # A copy already captured is linked locally; with none on
+                        # disk the ORIGINAL absolute URL is retained.
+                        local_video = existing_local_video(clean_url)
+                        if local_video:
+                            a['href'] = calculate_relative_path(current_filepath, local_video)
+                        else:
+                            a['href'] = abs_url
+                            a.insert_before(Comment("Mirror: video binary not mirrored (skip-videos); original URL retained"))
                     elif processed_path:
                         rel_path = calculate_relative_path(current_filepath, processed_path)
                         a['href'] = rel_path  # Rewrite to local .mp4 path
@@ -3526,6 +3836,34 @@ def rewrite_links(html, page_url, link_base=None):
                         logging.info(f"Enqueued profile: {normalized_profile_url}")
 
                 logging.info(f"Rewrote popupprofile({member_id}) → {rel_path}")
+
+        # Handle javascript:openHintWindow('/newmoves/showhint/N') links: the
+        # same treatment as popupprofile above. The popup target is a complete,
+        # standalone, script-free HTML page carrying the full member-written
+        # hint text - the listing shows only a teaser ending in "more" - so it
+        # captures like any other page, the anchor keeps its teaser text and
+        # gains a real address, and no JavaScript survives into the archive.
+        # The href is written in its ABSOLUTE site form and relativized by the
+        # generic attribute loop below like any other internal link: a
+        # page-relative path written here would be resolved a second time by
+        # that loop against the served URL, whose app-route form carries no
+        # trailing slash, and land one directory too high.
+        for a in soup.find_all('a', href=True):
+            match = re.match(
+                r"javascript:openHintWindow\(['\"]?(/newmoves/showhint/\d+)['\"]?\)",
+                a['href'])
+            if match:
+                hint_url = normalize_url(urljoin(BASE_URL, match.group(1)))
+                a['href'] = hint_url
+
+                # Enqueue for mirroring; extract_links never follows a
+                # javascript: href, so this is the only discovery the hint
+                # pages get.
+                if is_in_scope(hint_url):
+                    if hint_url not in mirror_state.visited and hint_url not in mirror_state.queue:
+                        mirror_state.queue.append(hint_url)
+                        mirror_state.url_depth[hint_url] = mirror_state.url_depth.get(page_url, 0) + 1
+                        logging.info(f"Enqueued move hint: {hint_url}")
 
         url_attributes = {
             'a': ['href'],
@@ -3628,8 +3966,12 @@ def rewrite_links(html, page_url, link_base=None):
                         # keep the thumbnail; remove the redundant viewer row
                         # exactly as the success path does.
                         if processed_filepath == SKIPPED_VIDEO:
-                            element[attr_name] = resolved_video_url
-                            element.insert_before(Comment("Mirror: JS popup rewritten to original video URL; binary not mirrored (skip-videos)"))
+                            local_video = existing_local_video(resolved_video_url)
+                            if local_video:
+                                element[attr_name] = calculate_relative_path(current_filepath, local_video)
+                            else:
+                                element[attr_name] = resolved_video_url
+                                element.insert_before(Comment("Mirror: JS popup rewritten to original video URL; binary not mirrored (skip-videos)"))
                             remove_fallback_viewer_row(element, resolve_base, soup)
                             continue
 
@@ -3786,16 +4128,32 @@ def rewrite_links(html, page_url, link_base=None):
                                 element, attr_name, full_url, current_filepath, soup)
                             continue
 
-                    if is_footbag_domain(full_url) and is_media_file(full_url):
+                    # An extensionless img src is a picture to a browser
+                    # whatever the server labels it; treating it as a page is
+                    # what let a mislabeled image be captured as text and
+                    # destroyed. The media path sniffs the bytes: a real page
+                    # behind such a src comes back None and falls through to
+                    # the ordinary page rewrite in the media-failure branch.
+                    extensionless_img_src = (
+                        tag_name == 'img' and attr_name == 'src'
+                        and not get_extension(full_url))
+                    if is_footbag_domain(full_url) and (is_media_file(full_url)
+                                                        or extensionless_img_src):
                         clean_url = strip_query(full_url)
                         try:
                             processed_filepath = download_and_process_media(
                                 clean_url, session, referrer=page_url,
                                 thumbnail_or_poster=bool(attr_name == 'poster' or (tag_name == 'a' and element.find('img'))))
                             if processed_filepath == SKIPPED_VIDEO:
-                                # Deliberate skip: retain the original absolute URL
-                                # (idempotent when an earlier pass already set it).
-                                if element.get(attr_name) != full_url:
+                                # Deliberate skip: a copy already captured is linked
+                                # locally, otherwise the original absolute URL is
+                                # retained (idempotent when an earlier pass set it).
+                                local_video = existing_local_video(clean_url)
+                                if local_video:
+                                    element[attr_name] = calculate_relative_path(current_filepath, local_video)
+                                    if tag_name == 'source' and element.get('type'):
+                                        element['type'] = get_media_mime_type(local_video)
+                                elif element.get(attr_name) != full_url:
                                     element[attr_name] = full_url
                                     element.insert_before(Comment("Mirror: video binary not mirrored (skip-videos); original URL retained"))
                                 continue
@@ -4185,6 +4543,62 @@ def rewrite_css_asset_urls(css_text, css_filepath, css_url):
     return rewritten, localized, dropped, queued
 
 
+def _apply_content_redaction_backstops(url, content):
+    """Last-resort redaction nets applied to every saved HTML page's bytes.
+
+    Structural scrubbing (contact-block removal and the rest of rewrite_links)
+    runs earlier; these are backstops for a shape it does not yet cover. Not
+    just save_content's own concern: a handful of routes write their own file
+    directly instead of going through it (their own filepath rules do not fit
+    its general one), and a page that bypasses the general save path must
+    still never bypass these, or a member address or a stray SQL error line
+    reaches the archive through the one path nobody thought to net.
+    """
+    # Backstop for the crawling account's own e-mail address surviving the
+    # contact-block scrub in some shape nobody has seen. The address is
+    # redacted from the bytes rather than the page being refused: an
+    # entrant list or an event page is ordinary archive content, and losing
+    # the page to remove one address is the wrong trade. A page that trips
+    # this is a shape the structural scrub does not yet know, so it says so
+    # loudly enough to be worth following up.
+    if page_carries_account_identity(content):
+        content = redact_account_identity(content)
+        mirror_state.stats['account_addresses_redacted'] = (
+            mirror_state.stats.get('account_addresses_redacted', 0) + 1)
+        logging.warning(
+            f"Redacted the crawling account's address from a page the contact-block "
+            f"scrub did not cover: {url}")
+
+    # Same trade as the address above, for the query the site could not run.
+    # A page whose whole body is the failure never reaches here, because it
+    # is refused as an error capture; what is left is a real page whose event
+    # body failed to render, and losing the page to remove the error line
+    # would be the wrong way round. The line names the database engine and
+    # quotes the content that broke the query, so it does not travel.
+    if _SQL_ERROR_RE.search(content):
+        content = _SQL_ERROR_RE.sub('', content)
+        mirror_state.stats['sql_errors_redacted'] = (
+            mirror_state.stats.get('sql_errors_redacted', 0) + 1)
+        logging.warning(
+            f"Redacted a database error the site printed into a page: {url}")
+
+    # The set name reaches the page as well as the path: the site prints it
+    # in the title beside the member's own name, so filing the capture under
+    # a stand-in without replacing the text here would leave the address on
+    # screen while only the URL looked clean.
+    set_name = _gallery_set_name_from_url(url)
+    if set_name and _address_shaped(set_name):
+        replaced = content.replace(set_name, ADDRESS_REPLACEMENT_LABEL)
+        if replaced != content:
+            content = replaced
+            mirror_state.stats['gallery_addresses_replaced'] = (
+                mirror_state.stats.get('gallery_addresses_replaced', 0) + 1)
+            logging.warning(
+                "Replaced an address used as a gallery set name; the set "
+                f"keeps its photos under a stand-in name: {url}")
+    return content
+
+
 def save_content(url, content, is_html):
     try:
         if re.match(r'^.*/gallery/show/-\d+/?$', url):
@@ -4197,49 +4611,25 @@ def save_content(url, content, is_html):
             logging.info(f"Skipping save of offsite content: {url}")
             return
 
-        # Backstop for the crawling account's own e-mail address surviving the
-        # contact-block scrub in some shape nobody has seen. The address is
-        # redacted from the bytes rather than the page being refused: an
-        # entrant list or an event page is ordinary archive content, and losing
-        # the page to remove one address is the wrong trade. A page that trips
-        # this is a shape the structural scrub does not yet know, so it says so
-        # loudly enough to be worth following up.
-        if is_html and page_carries_account_identity(content):
-            content = redact_account_identity(content)
-            mirror_state.stats['account_addresses_redacted'] = (
-                mirror_state.stats.get('account_addresses_redacted', 0) + 1)
-            logging.warning(
-                f"Redacted the crawling account's address from a page the contact-block "
-                f"scrub did not cover: {url}")
-
-        # Same trade as the address above, for the query the site could not run.
-        # A page whose whole body is the failure never reaches here, because it
-        # is refused as an error capture; what is left is a real page whose event
-        # body failed to render, and losing the page to remove the error line
-        # would be the wrong way round. The line names the database engine and
-        # quotes the content that broke the query, so it does not travel.
-        if is_html and _SQL_ERROR_RE.search(content):
-            content = _SQL_ERROR_RE.sub('', content)
-            mirror_state.stats['sql_errors_redacted'] = (
-                mirror_state.stats.get('sql_errors_redacted', 0) + 1)
-            logging.warning(
-                f"Redacted a database error the site printed into a page: {url}")
-
-        # The set name reaches the page as well as the path: the site prints it
-        # in the title beside the member's own name, so filing the capture under
-        # a stand-in without replacing the text here would leave the address on
-        # screen while only the URL looked clean.
         if is_html:
-            set_name = _gallery_set_name_from_url(url)
-            if set_name and _address_shaped(set_name):
-                replaced = content.replace(set_name, ADDRESS_REPLACEMENT_LABEL)
-                if replaced != content:
-                    content = replaced
-                    mirror_state.stats['gallery_addresses_replaced'] = (
-                        mirror_state.stats.get('gallery_addresses_replaced', 0) + 1)
-                    logging.warning(
-                        "Replaced an address used as a gallery set name; the set "
-                        f"keeps its photos under a stand-in name: {url}")
+            content = _apply_content_redaction_backstops(url, content)
+
+            # Save-time stripping (scripts, dead forms, server diagnostics)
+            # can leave nothing: a page whose whole body WAS the failure. The
+            # husk passes every later check precisely because the evidence
+            # was removed before is_error_body could see the stored bytes, so
+            # it is refused here, at the last moment the emptiness is visible.
+            # A page whose only content is renderable elements (an image-only
+            # gallery page has no text at all) is real and passes.
+            text = str(content)
+            if not re.sub(r'<[^>]*>', '', text).strip() and not re.search(
+                    r'<(?:img|a|video|embed|object|iframe|frame)\b',
+                    text, re.IGNORECASE):
+                logging.warning(f"Not saved, nothing left after stripping: {url}")
+                mirror_state.stats['stripped_to_empty_refused'] = (
+                    mirror_state.stats.get('stripped_to_empty_refused', 0) + 1)
+                mirror_state.refused_pages.append((url, 'stripped-to-empty'))
+                return
 
         url = normalize_url(url)
         filepath = url_to_filepath(url)
@@ -4491,6 +4881,7 @@ def save_redirect_map():
     logging.info(f"Saved redirect map to {redirect_path}")
 
 REFUSED_PAGES_MANIFEST = 'refused_pages.txt'
+TRANSIENT_FAILURES_MANIFEST = 'transient_failures.txt'
 
 
 def save_refused_pages():
@@ -4518,6 +4909,39 @@ def save_refused_pages():
     _atomic_write_text(manifest_path, '\n'.join(lines) + '\n')
     logging.info(f"Refused-pages manifest written: {manifest_path} "
                  f"({len(mirror_state.refused_pages)} record(s))")
+    return manifest_path
+
+
+def save_transient_failures():
+    """Every URL still owed a successful read after retries ran out.
+
+    The counterpart to the refused-pages manifest, for the other invisible
+    outcome: a URL is marked visited before its fetch, and a fetch exhausted
+    on a TRANSIENT failure records no failed_urls entry (deliberately, so the
+    dead-link pass never acts on a hiccup), so a run that silently never read
+    N pages ends looking identical to one that read everything. Written even
+    when empty: the final freeze-window revisit is declarable complete only
+    when this file says nothing is owed.
+    """
+    manifest_path = os.path.join(MIRROR_DIR, TRANSIENT_FAILURES_MANIFEST)
+    owed = sorted(mirror_state.transient_failures)
+    lines = [
+        "# URLs whose last fetch attempt exhausted its retries on a transient failure",
+        "# (503, timeout, DNS). Each is marked visited, so nothing will re-read it",
+        "# until a revisit pass; an empty list is the completeness proof for a crawl.",
+        f"# Generated: {datetime.now().isoformat()}",
+        f"# Total: {len(owed)}",
+        "",
+        *owed,
+    ]
+    _atomic_write_text(manifest_path, '\n'.join(lines) + '\n')
+    if owed:
+        logging.warning(
+            f"{len(owed)} URL(s) were never successfully read after retries; "
+            f"see {manifest_path}. A revisit pass is required before this "
+            f"capture can be called complete.")
+    else:
+        logging.info(f"Transient-failures manifest written (empty): {manifest_path}")
     return manifest_path
 
 
@@ -4596,8 +5020,6 @@ ARCHIVE_AREAS = [
     ('events', 'Events', 'events.txt', False),
     ('faq', 'FAQ', 'faq.txt', True),
     ('rules', 'Rulebook chapters', 'rules.txt', False),
-    ('polls', 'Polls', 'polls.txt', False),
-    ('ranking', 'Rankings', 'ranking.txt', False),
 ]
 
 _TITLE_RE = re.compile(rb'<title[^>]*>(.*?)</title>', re.IGNORECASE | re.DOTALL)
@@ -4660,8 +5082,13 @@ def _page_label(filepath, fallback):
     return title or fallback
 
 
+# Attribute order is not fixed: a stub the crawl wrote directly and one a later
+# pass re-serialised through the parser carry the same two attributes the other
+# way round, and matching only the first order leaves every re-serialised stub
+# unrecognised by the listing and by the dead-stub pass.
 _REDIRECT_STUB_RE = re.compile(
-    rb'<meta\s+http-equiv="refresh"\s+content="0;\s*url=([^"]+)"', re.IGNORECASE)
+    rb'<meta(?=[^>]*http-equiv="refresh")[^>]*content="0;\s*url=([^"]+)"',
+    re.IGNORECASE)
 _MAX_STUB_HOPS = 4
 
 # Bodies the legacy application returned WITH a 200 when it had nothing to serve.
@@ -4682,22 +5109,41 @@ _ERROR_CAPTURE_MARKERS = (
     # a link a reader could follow too, and stored the site failing rather than
     # an entry anyone can read.
     'Unknown F.A.Q. Entry',
+    # Rulebook chapters the site's own authors never filled in. These render
+    # successfully (no PHP diagnostic, nothing for is_error_body's other checks
+    # to catch) but carry only the template's own placeholder text, never
+    # replaced with real content.
+    '(ed#) Edition',
+    'Copyright &copy; (pubyear)',
+    '(insert history text here)',
+    '(insert Internet info here)',
 )
 # A query the site could not run, printed where the page should have been. It
 # names the database engine, which nothing served to a reader should, and the
 # text it quotes back is the fragment of content that broke the query. Kept
 # apart from the diagnostic pattern above because that one matches inside
-# comments and this is visible text in the body.
+# comments and this is visible text in the body. When a query embedded deep
+# in page rendering fails, the site wraps this whole message in its own
+# isolated <html><head><body>...</body></head></html> fragment; the wrapper
+# tags are optional in this pattern (present on a live query failure, absent
+# in a bare SQL-error capture) so consuming them here, when present, is what
+# stops a page from being left with an empty, contentless nested document
+# where the error used to be once the message itself is gone.
 _SQL_ERROR_RE = re.compile(
+    r'(?:<html>\s*<head>\s*<body[^>]*>\s*)?'
     r'<font[^>]*>\s*Error\s*</font>\s*<br\s*/?>\s*'
-    r'<p>\s*You have an error in your SQL syntax.*?</p>',
+    r'<p>\s*You have an error in your SQL syntax.*?</p>'
+    r'(?:\s*</body>\s*</head>\s*</html>)?',
     re.IGNORECASE | re.DOTALL)
 # The site wrapped each PHP diagnostic in a comment and showed a small badge in
 # its place. A page whose only content is that pairing rendered nothing at all.
 _PHP_DIAGNOSTIC_RE = re.compile(
     r'<!--\s*<span[^>]*color:\s*#ff0000[^>]*>.*?</span>\s*-->', re.IGNORECASE | re.DOTALL)
+# The site is not consistent about attribute quoting (the same inconsistency
+# already handled in _REDIRECT_STUB_RE), so the badge's title attribute must
+# match both quote styles or a single-quoted badge survives every strip.
 _ERROR_BADGE_RE = re.compile(
-    r'<div><span[^>]*title="View source for details[^"]*"[^>]*>.*?</span></div>',
+    r'''<div><span[^>]*title=["']View source for details[^"']*["'][^>]*>.*?</span></div>''',
     re.IGNORECASE | re.DOTALL)
 # Asked for a record it does not hold, the site echoes the identifier back and
 # refuses it in one sentence. Matching that whole sentence is what makes the
@@ -4711,6 +5157,47 @@ _RECORD_NOT_FOUND_RE = re.compile(
     r'the\s+(?:member|club)\s+you\s+requested\s*\([^)]*\)\s*'
     r'(?:was\s+not\s+found|is\s+not\s+valid)\b',
     re.IGNORECASE)
+# Some content query fails partway through rendering, and in its place the
+# site emits a second, complete, self-contained, empty HTML document nested
+# inside the real page's own body: real chrome and a real heading survive
+# ahead of it, then this, then the page closes early with no MainWrapper
+# marker to scope against. No genuine page ever legitimately nests a second
+# whole <html> document inside its body, so its presence alone is the signal,
+# independent of the MainBody-scoping the checks below rely on.
+_EMPTY_NESTED_DOCUMENT_RE = re.compile(
+    r'<html>\s*<head>.{0,300}?<body[^>]*>\s*</body>\s*</head>\s*</html>',
+    re.IGNORECASE | re.DOTALL)
+# _SQL_ERROR_RE requires its own closing </p> to bound the match safely, but a
+# fetch can be cut off mid-render before the site ever writes one: the
+# connection dies with the error message the last thing sent. That is not the
+# bounded case _SQL_ERROR_RE strips and test_an_event_page_carrying_a_database
+# _error_is_still_content covers (a complete document with a fully-closed
+# error block sitting beside otherwise-complete real content); nothing
+# reliably follows an unclosed one, so there is nothing safe to keep.
+_SQL_ERROR_OPEN_MARKER = 'You have an error in your SQL syntax'
+# Every page template wraps its actual content in this div; the header, nav
+# menu, language switcher and footer that surround it are furniture present on
+# nearly every real page, and defeat the whole-body emptiness check below on a
+# broken response that still carries a full page around it. Scoping the same
+# strip to just this region is what catches that case.
+_MAIN_BODY_RE = re.compile(
+    r'<div id="MainBody">(.*?)</div>\s*<!-- MainWrapper -->',
+    re.IGNORECASE | re.DOTALL)
+# Apache's server-side-include failure, printed verbatim where the included
+# content should have been. The pre-2000 static pages are the ones that carry
+# it. A marker check alone would refuse real pages that mix a failed include
+# with genuine content (faq/records.html carries three of these amid full
+# chapters of text), so it joins the strip-then-empty checks instead: only a
+# page with nothing left once the failure text is gone is a failure.
+_SSI_ERROR_MARKER = '[an error occurred while processing this directive]'
+
+
+def _strip_failure_artifacts(text):
+    # Every diagnostic shape the site prints into a page, removed in one
+    # place so the whole-body and MainBody-scoped emptiness checks below
+    # cannot drift apart.
+    return _SQL_ERROR_RE.sub('', _ERROR_BADGE_RE.sub(
+        '', _PHP_DIAGNOSTIC_RE.sub('', text))).replace(_SSI_ERROR_MARKER, '')
 
 
 def _resolve_redirect_stub(filepath):
@@ -4768,13 +5255,30 @@ def is_error_body(body):
         return True
     if _RECORD_NOT_FOUND_RE.search(body):
         return True
-    stripped = _SQL_ERROR_RE.sub(
-        '', _ERROR_BADGE_RE.sub('', _PHP_DIAGNOSTIC_RE.sub('', body)))
-    if stripped == body:
+    if _EMPTY_NESTED_DOCUMENT_RE.search(body):
+        return True
+    if _SQL_ERROR_OPEN_MARKER in body and not _SQL_ERROR_RE.search(body):
+        return True
+    stripped = _strip_failure_artifacts(body)
+    if stripped != body:
+        # Whatever the diagnostics left behind: a page with real content keeps
+        # it, a page that was nothing but the failure keeps only its charset
+        # line.
+        if not re.sub(r'<[^>]*>', '', stripped).strip():
+            return True
+    # A broken response wrapped in the site's ordinary page chrome (nav menu,
+    # breadcrumb, language switcher, footer) never trips the whole-body check
+    # above: that chrome is real, non-empty text present on nearly every page,
+    # captured or not. Scoped to just the content region, the same diagnostics
+    # leave nothing behind on a genuinely broken page.
+    m = _MAIN_BODY_RE.search(body)
+    if m is None:
         return False
-    # Whatever the diagnostics left behind: a page with real content keeps it,
-    # a page that was nothing but the failure keeps only its charset line.
-    return not re.sub(r'<[^>]*>', '', stripped).strip()
+    region = m.group(1)
+    region_stripped = _strip_failure_artifacts(region)
+    if region_stripped == region:
+        return False
+    return not re.sub(r'<[^>]*>', '', region_stripped).strip()
 
 
 _ARCHIVE_PAGE_STYLE = (
@@ -5096,13 +5600,31 @@ def generate_archive_directory(seeds_dir=None):
                 for target, label in entries]
         sections.append(_listing_section(heading_text, rows))
 
+    # A captured page that survived every other quality check yet turned out
+    # to be worthless on manual inspection: withheld here regardless of
+    # whether a later crawl recaptures it, so a one-time finding stays fixed
+    # without needing to be rediscovered.
+    #   worlds2009  its whole page loaded through a dead Flash object into an
+    #               empty content div; nothing was ever really captured
+    #   usage-information  WordPress site-builder boilerplate carrying literal
+    #               "Lorem ipsum" placeholder text, not footbag content
+    _WORTHLESS_DESPITE_CAPTURE = {'worlds2009/index.html', 'sites/usage-information/index.html'}
+
     # Rank 0 = www tree, 1 = vhost tree: a year captured in both trees (a
     # cross-published championship stored twice) gets ONE row, the www copy.
     worlds = []
     for entry in sorted(os.listdir(www)) if os.path.isdir(www) else []:
         year = _worlds_year(entry)
         if year and os.path.exists(os.path.join(www, entry, 'index.html')):
-            worlds.append((year, 0, f'{entry}/index.html', f'World Championships {year}'))
+            if f'{entry}/index.html' in _WORTHLESS_DESPITE_CAPTURE:
+                continue
+            # A year fetched at its directory address, which the site answers
+            # by redirecting, was stored as a stub; listing the stub sends a
+            # reader through an extra hop for a label that just says
+            # "Redirecting" instead of the page they actually want.
+            resolved = _resolve_redirect_stub(os.path.join(www, entry, 'index.html'))
+            href = os.path.relpath(resolved, www).replace(os.sep, '/')
+            worlds.append((year, 0, href, f'World Championships {year}'))
     # The reference sites get their own named section below, so the generic
     # microsite sweep must not also list them: one site under two headings reads
     # as two captures.
@@ -5121,10 +5643,14 @@ def generate_archive_directory(seeds_dir=None):
                 continue
             if f'sites/{entry}/index.html' in named_elsewhere:
                 continue
+            if f'sites/{entry}/index.html' in _WORTHLESS_DESPITE_CAPTURE:
+                continue
             year = _worlds_year(entry)
             if year:
-                worlds.append((year, 1, f'sites/{entry}/index.html',
-                               f'World Championships {year}'))
+                resolved = _resolve_redirect_stub(
+                    os.path.join(sites_root, entry, 'index.html'))
+                href = os.path.relpath(resolved, www).replace(os.sep, '/')
+                worlds.append((year, 1, href, f'World Championships {year}'))
             else:
                 microsites.append(f'<li><a href="sites/{entry}/index.html">{entry}</a></li>')
     if worlds:
@@ -5326,12 +5852,32 @@ def replace_member_area_with_notice():
     return replaced
 
 
-_LOCAL_REF_RE = re.compile(rb'(?:href|src|xlink:href)="([^"]{1,400})"', re.IGNORECASE)
+# Both quote styles: the legacy site single-quotes a minority of attributes,
+# and a reference pattern that reads only double quotes leaves every one of
+# those invisible to the dead-link pass and the listing.
+#
+# Each alternative uses the negated class for ITS OWN quote, never a lazy dot.
+# A dot, even lazy, walks straight through a quote and a newline, so on the
+# legacy site's unclosed and malformed markup it matches from one attribute
+# across the rest of the tag into the next - reporting hundreds of perfectly
+# good links as dangling, which the dead-link pass would then turn to text.
+# The negated class cannot leave its own attribute, and an apostrophe stays
+# legal inside a double-quoted value (O'Brien.jpg) because that alternative
+# only stops at a double quote.
+_LOCAL_REF_RE = re.compile(
+    rb'(?:href|src|xlink:href)=(?:"([^"]{1,400})"|\'([^\']{1,400})\')',
+    re.IGNORECASE)
 # Markup the legacy site commented out and left in place. No browser requests it,
 # so counting it as a reference reports links that do not exist: one commented
 # search block in the site-wide template accounts for the overwhelming majority
 # of every dangling reference the tree appears to hold.
 _MARKUP_COMMENT_RE = re.compile(rb'<!--.*?-->', re.DOTALL)
+# Markup the legacy site escaped so the page displays it as words. The angle
+# brackets are entities, so nothing is a tag and nothing is requested, but the
+# attribute inside still sits in plain quotes and matches the reference pattern.
+# A gallery page showing its own template source this way is what reports a
+# button image as a dangling reference on a page that never asks for one.
+_ESCAPED_MARKUP_RE = re.compile(rb'&lt;[^&]{0,400}?&gt;', re.IGNORECASE)
 _OFFSITE_REF_PREFIXES = ('#', 'http:', 'https:', 'mailto:', 'javascript:', 'data:')
 
 
@@ -5344,7 +5890,10 @@ def _page_local_refs(blob):
     link, and worse, stops the dead-link pass from ever matching a genuinely
     dead one against the parsed tree.
     """
-    for raw in _LOCAL_REF_RE.findall(_MARKUP_COMMENT_RE.sub(b'', blob)):
+    inert = _ESCAPED_MARKUP_RE.sub(b'', _MARKUP_COMMENT_RE.sub(b'', blob))
+    for m in _LOCAL_REF_RE.finditer(inert):
+        # Whichever quote style matched; the other group is None.
+        raw = m.group(1) if m.group(1) is not None else m.group(2)
         ref = html.unescape(raw.decode('utf-8', errors='replace'))
         if not ref.startswith(_OFFSITE_REF_PREFIXES):
             yield ref
@@ -5503,6 +6052,162 @@ def insert_archive_banner():
     return added
 
 
+# Nav-menu items whose target was once excluded from the archive and a later
+# ruling restored: (visible label, title attribute, target relative to the www
+# root). The dead-link pass below replaces a neutralized <a> with plain text
+# and a marker comment, and that replacement is destructive: the original href
+# is gone, not merely hidden, so restoring the target file alone does not
+# restore the link. This table is the one place that link's original shape has
+# to be written down again, keyed by exactly what the marker-plus-label pair
+# looks like on disk today. Every page shares one menu template, so one entry
+# covers every page that carried the item.
+_RESTORABLE_NAV_ITEMS = {
+    'RULES': ('Official Rules of Footbag Sports', 'rules/index.html'),
+}
+
+
+def relink_restored_nav_items():
+    """Restore a MainMenu link the dead-link pass wrongly neutralized.
+
+    Scoped to id="MainMenu" so it can never touch a neutralized reference
+    elsewhere on a page: an unrelated feature that is genuinely still gone
+    keeps reading as gone. Scoped further to a li whose only marker is the
+    dead-link comment and whose full visible text is exactly one of the known
+    restorable labels, so a nav item that merely happens to share a comment
+    or a word is never mistaken for the item being restored. Idempotent: a
+    page with nothing to restore, or already restored (no comment left to
+    find), is left untouched.
+    """
+    www_root = Path(_www_root()).resolve()
+    pages = [p for p in www_root.rglob('*') if p.suffix.lower() in ('.html', '.htm')]
+    relinked = touched = 0
+
+    for page in pages:
+        try:
+            soup = BeautifulSoup(page.read_text(encoding='utf-8', errors='replace'),
+                                 'html.parser')
+        except Exception as e:
+            logging.warning(f"Nav-relink pass could not parse {page}: {e}")
+            continue
+        menu = soup.find(id='MainMenu')
+        if menu is None:
+            continue
+
+        changed = False
+        for li in menu.find_all('li'):
+            # The site never closes its <li> tags, so html.parser nests each
+            # one inside the last (closed only when </ul> closes them all at
+            # once) rather than treating them as siblings the way a browser
+            # would. li.get_text() would therefore pull in every later item's
+            # text too; only the DIRECT children belong to this one item.
+            comment = next(
+                (c for c in li.children if isinstance(c, Comment)
+                 and 'link to a page not in the archive' in str(c)), None)
+            if comment is None:
+                continue
+            direct_text = ''.join(
+                str(c) for c in li.children
+                if isinstance(c, NavigableString) and not isinstance(c, Comment))
+            label = direct_text.strip()
+            if label not in _RESTORABLE_NAV_ITEMS:
+                continue
+            title, target_rel = _RESTORABLE_NAV_ITEMS[label]
+            target = www_root / target_rel
+            if not target.is_file():
+                continue
+            href = calculate_relative_path(str(page), str(target))
+            anchor = soup.new_tag('a', href=href, title=title)
+            nobr = soup.new_tag('nobr')
+            nobr.string = label
+            anchor.append(nobr)
+            comment.replace_with(anchor)
+            # Only the direct text nodes are this item's own label; a nested
+            # <li> holding the next menu item is a real, separate item and
+            # must be left exactly as it was.
+            for child in list(li.children):
+                if isinstance(child, NavigableString) and not isinstance(child, Comment):
+                    child.extract()
+            relinked += 1
+            changed = True
+
+        if changed:
+            _atomic_write_text(str(page), str(soup))
+            touched += 1
+
+    logging.info(
+        f"Nav-relink pass: {relinked} link(s) restored across {touched} page(s)")
+    return relinked
+
+
+def neutralize_dead_script_controls():
+    """Controls whose only action was JavaScript the archive does not carry.
+
+    The archive serves no scripts, so a 'javascript:' reference is a control
+    that cannot act: a click does nothing, or the browser navigates to a URL
+    the site never had. Two survive the save-time rewrites by construction.
+    A profile popup carrying the id the legacy list printed when it had no
+    member to point at ('-1') is not a profile link, so the rewrite that turns
+    a real popupprofile(id) into a local page correctly declines it. And the
+    embedded map's own buttons are 'void(0)' placeholders whose behaviour lived
+    entirely in the script that is gone.
+
+    Both keep their words and lose the control, which is what the archive
+    already does with a link it cannot honour. Idempotent: once neutralized
+    there is no 'javascript:' left to find.
+    """
+    www_root = Path(_www_root()).resolve()
+    neutralized = dropped = touched = 0
+
+    for page in www_root.rglob('*'):
+        if page.suffix.lower() not in ('.html', '.htm'):
+            continue
+        try:
+            blob = page.read_bytes()
+        except OSError:
+            continue
+        if b'javascript:' not in blob:
+            continue
+        try:
+            soup = BeautifulSoup(blob.decode('utf-8', errors='replace'), 'html.parser')
+        except Exception as e:
+            logging.warning(f"Script-control pass could not parse {page}: {e}")
+            continue
+        changed = False
+        for element in list(soup.find_all(True)):
+            if _already_removed(element):
+                continue
+            for attr in list(element.attrs):
+                value = element.get(attr)
+                if not isinstance(value, str):
+                    continue
+                if not value.strip().lower().startswith('javascript:'):
+                    continue
+                if element.name == 'a' and attr == 'href':
+                    text = element.get_text(strip=True)
+                    element.insert_before(
+                        Comment("Mirror: control removed; it ran a script the archive does not carry"))
+                    if text:
+                        element.insert_before(NavigableString(text))
+                    element.decompose()
+                    neutralized += 1
+                else:
+                    # Not a link: an attribute whose value is a script does
+                    # nothing here, and leaving it invites a reader to click
+                    # something inert.
+                    del element[attr]
+                    dropped += 1
+                changed = True
+                break
+        if changed:
+            _atomic_write_text(str(page), str(soup))
+            touched += 1
+
+    logging.info(
+        f"Script-control pass: {touched} page(s) rewritten, {neutralized} "
+        f"control(s) turned to text, {dropped} script attribute(s) dropped")
+    return neutralized + dropped
+
+
 def neutralize_dead_internal_links():
     # Links inside the archive whose target is not there. Some are pages an
     # exclusion ruling removed, some are pages the crawl never reached, some the
@@ -5583,11 +6288,497 @@ def neutralize_dead_internal_links():
     return touched
 
 
+_DEAD_STUB_PAGE = """<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<title>Page not in the archive</title>
+</head>
+<body>
+<p>This page is not part of the footbag.org archive. The legacy site no longer
+had it when the archive was captured.</p>
+</body>
+</html>
+"""
+
+
+def convert_dead_redirect_stubs():
+    """A stub standing in for a page the capture never held says so instead.
+
+    An address the live site answered with a redirect was stored as a small page
+    carrying a refresh to wherever it pointed. Where that destination was refused
+    or never captured, the refresh still fires and the reader lands on nothing at
+    all, which is worse than a plain answer. The stub is the artifact a reader
+    actually reaches, so it is the thing that has to explain itself.
+    """
+    root = Path(MIRROR_DIR) / WWW_HOST
+    converted = 0
+    for page in root.rglob('*.html'):
+        try:
+            blob = page.read_bytes()
+        except OSError:
+            continue
+        match = _REDIRECT_STUB_RE.search(blob)
+        if not match:
+            continue
+        target = unquote(match.group(1).decode('utf-8', errors='replace'))
+        # A stub built from an absolute address points outside the capture by
+        # construction, so it can never resolve and is converted like any other.
+        if not target.startswith(('http://', 'https://', '//')):
+            candidate = os.path.normpath(os.path.join(str(page.parent), target))
+            if os.path.isfile(candidate):
+                continue
+        _atomic_write_text(str(page), _DEAD_STUB_PAGE)
+        converted += 1
+    logging.info(
+        f"Redirect stubs: {converted} standing in for a page not in the archive "
+        "rewritten to say so")
+    return converted
+
+
+# A page carrying less than this much of its own content, once the furniture
+# every page repeats is discounted, is a heading and nothing else. Measured
+# against the capture: the pages under it are titles alone, and the count rises
+# steeply just above it, so the line sits where the tail actually ends.
+_PLACEHOLDER_CONTENT_CHARS = 120
+_TAG_RE = re.compile(rb'<[^>]+>')
+
+
+# The furniture is learned from a sample, never from the whole capture: holding
+# every page's text at once costs about a gigabyte on this tree, and the counter
+# of distinct lines costs more, which is a poor way to end an eight-hour crawl.
+# A line has to appear on a fifth of the pages to be furniture, so a few hundred
+# pages identify it as reliably as fifty thousand would.
+_CHROME_SAMPLE_PAGES = 400
+# Furniture is short: menu entries, a footer, a banner sentence. Long prose is
+# the page's own by construction, and skipping it keeps the counter small.
+_CHROME_LINE_MAX = 200
+
+
+def _page_text_lines(page):
+    try:
+        blob = _MARKUP_COMMENT_RE.sub(b'', page.read_bytes())
+    except OSError:
+        return []
+    text = _TAG_RE.sub(b'\n', blob).decode('utf-8', errors='replace')
+    return [' '.join(line.split()) for line in text.split('\n') if line.strip()]
+
+
+def _learn_page_chrome(pages):
+    """The lines every page repeats, learned from the capture rather than listed.
+
+    Naming the navigation and footer here would rot, and they differ between the
+    main site and the vhost, so the rule is structural: a line printed on a fifth
+    of the pages is furniture and belongs to no page in particular.
+    """
+    pages = list(pages)
+    if not pages:
+        return set()
+    step = max(1, len(pages) // _CHROME_SAMPLE_PAGES)
+    sample = pages[::step][:_CHROME_SAMPLE_PAGES]
+    counts = Counter()
+    for page in sample:
+        counts.update({line for line in _page_text_lines(page)
+                       if len(line) <= _CHROME_LINE_MAX})
+    threshold = max(2, len(sample) // 5)
+    return {line for line, seen in counts.items() if seen >= threshold}
+
+
+def _own_content_length(page, chrome):
+    return sum(len(line) + 1 for line in _page_text_lines(page)
+               if line not in chrome)
+
+
+
+
+_PLACEHOLDER_KEPT_NOTE = ('Mirror: page carries no content; the links to it were '
+                          'turned to text and the page was kept')
+_PLACEHOLDER_KEPT_MARKER = b'Mirror: page carries no content; the links to it were'
+
+
+def _read_bytes_or_empty(page):
+    try:
+        return page.read_bytes()
+    except OSError:
+        return b''
+
+
+_PATTERN_PDF_NOTE = 'Mirror: PDF rendered from the PostScript pattern beside it'
+_PATTERN_PDF_MARKER = b'Mirror: PDF rendered from the PostScript pattern'
+_GHOSTSCRIPT_TIMEOUT_SECONDS = 60
+
+
+def render_postscript_patterns():
+    """Give every PostScript pattern a PDF beside it, and a link to reach it.
+
+    The legacy site published its footbag panel patterns as PostScript and told
+    the reader to prefer them over the pictures on the same page, because only
+    the PostScript carries the real geometry and can be printed at any size.
+    Almost nothing opens PostScript today, so each one is rendered to a PDF that
+    every browser shows, filed beside the original and linked from the same row.
+    The PostScript is kept: the PDF is a way in, not a replacement.
+
+    Rendering is skipped rather than fatal where Ghostscript is absent. The
+    archive is complete without the PDFs; they make it usable.
+    """
+    root = Path(_www_root()).resolve()
+    sources = sorted(p for p in root.rglob('*') if p.suffix.lower() == '.ps')
+    if not sources:
+        return 0
+    if not shutil.which('gs'):
+        logging.warning(
+            f"PostScript patterns: Ghostscript is not installed, so {len(sources)} "
+            "pattern(s) keep only their PostScript form")
+        return 0
+
+    rendered = 0
+    for source in sources:
+        target = source.parent.parent / 'pdf' / (source.stem + '.pdf')
+        if target.is_file() and target.stat().st_mtime >= source.stat().st_mtime:
+            continue
+        target.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            subprocess.run([
+                'gs', '-dNOPAUSE', '-dBATCH', '-dQUIET', '-dSAFER',
+                '-sDEVICE=pdfwrite', f'-sOutputFile={target}', str(source),
+            ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                timeout=_GHOSTSCRIPT_TIMEOUT_SECONDS)
+            rendered += 1
+        except (subprocess.SubprocessError, OSError) as exc:
+            logging.warning(f"PostScript patterns: could not render {source.name}: {exc}")
+
+    linked = _link_postscript_pattern_pdfs(root)
+    logging.info(
+        f"PostScript patterns: {rendered} rendered to PDF, {linked} link(s) added "
+        f"({len(sources)} pattern(s) in the capture)")
+    return rendered
+
+
+def _link_postscript_pattern_pdfs(root):
+    # The link goes in the row the page already gives the pattern, beside the
+    # PostScript button, in the same shape as the picture link next to it.
+    added = 0
+    for page in root.rglob('*'):
+        if page.suffix.lower() not in ('.html', '.htm'):
+            continue
+        try:
+            blob = page.read_bytes()
+        except OSError:
+            continue
+        if b'.ps"' not in blob:
+            continue
+        soup = BeautifulSoup(blob.decode('utf-8', errors='replace'), 'html.parser')
+        changed = False
+        for anchor in list(soup.find_all('a', href=True)):
+            href = anchor['href']
+            if not href.lower().endswith('.ps'):
+                continue
+            pdf_href = re.sub(r'(^|/)ps/([^/]+)\.ps$', r'\1pdf/\2.pdf', href)
+            if pdf_href == href:
+                continue
+            if not (page.parent / unquote(pdf_href)).is_file():
+                continue
+            following = anchor.find_next_sibling('a')
+            if following is not None and following.get('href') == pdf_href:
+                continue
+            link = soup.new_tag('a', href=pdf_href)
+            link.string = Path(pdf_href).name
+            anchor.insert_after(link)
+            anchor.insert_after(NavigableString(' '))
+            anchor.insert_before(Comment(_PATTERN_PDF_NOTE))
+            added += 1
+            changed = True
+        if changed:
+            _atomic_write_text(str(page), str(soup))
+    return added
+
+
+def _sites_with_failed_fetches():
+    # Which supplementary sites the crawl did not read completely. A failure is
+    # recorded against the address, so the site is the first path segment of a
+    # vhost URL, and www failures say nothing about the vhost.
+    incomplete = set()
+    for url in (mirror_state.failed_urls or set()):
+        parsed = urlparse(url)
+        prefix = HOST_TREE_PREFIX.get(parsed.netloc.lower())
+        if not prefix:
+            continue
+        segments = [s for s in unquote(parsed.path).split('/') if s]
+        if segments:
+            incomplete.add(segments[0])
+    return incomplete
+
+
+def _is_section_front_door(page):
+    # The index of a directory that holds other captured pages. Thin or not, it
+    # is the way into everything filed beneath it.
+    if page.name.lower() not in ('index.html', 'index.htm'):
+        return False
+    return any(other.suffix.lower() in ('.html', '.htm') and other != page
+               for other in page.parent.rglob('*'))
+
+
+def settle_vhost_placeholder_pages():
+    """Supplementary-site pages that were never written, and the links to them.
+
+    The WordPress sites carry pages their owners created and left empty: a
+    heading, the site furniture, nothing else. They are faithful captures, since
+    the live site serves exactly the same, but an archive that offers a link and
+    delivers a bare title is offering nothing. A link landing on one keeps its
+    words and loses the anchor, the treatment a dead link already gets, and a
+    page nothing links to is dropped, because no route reaches it.
+    """
+    www_root = Path(_www_root()).resolve()
+    vhost_roots = [www_root / prefix for prefix in sorted(RESERVED_HOST_PREFIXES)]
+    vhost_pages = [p for root in vhost_roots if root.is_dir()
+                   for p in root.rglob('*') if p.suffix.lower() in ('.html', '.htm')]
+    if not vhost_pages:
+        return 0
+    # Furniture is learned per site, not across the vhost: each WordPress site
+    # has its own menu, sidebar and footer, and a site with a dozen pages would
+    # never reach a share of the whole vhost, so its own furniture would count as
+    # content and every empty page on it would read as written.
+    by_site = {}
+    for page in vhost_pages:
+        parts = page.relative_to(www_root).parts
+        by_site.setdefault(parts[1] if len(parts) > 2 else '', []).append(page)
+    placeholders = set()
+    for pages_on_site in by_site.values():
+        chrome = _learn_page_chrome(pages_on_site)
+        placeholders |= {p.resolve() for p in pages_on_site
+                         if _own_content_length(p, chrome) <= _PLACEHOLDER_CONTENT_CHARS}
+    if not placeholders:
+        logging.info("Supplementary sites: no page carries a title and nothing else")
+        return 0
+
+    vhost_set = {p.resolve() for p in vhost_pages}
+    linked, unlinked, touched = set(), 0, 0
+    for page in www_root.rglob('*'):
+        if page.suffix.lower() not in ('.html', '.htm'):
+            continue
+        resolved = page.resolve()
+        try:
+            blob = page.read_bytes()
+        except OSError:
+            continue
+        # Inside the vhost the links are relative and name no prefix; from the
+        # rest of the capture they have to spell the reserved directory out.
+        if resolved not in vhost_set and b'sites/' not in blob:
+            continue
+        soup = BeautifulSoup(blob.decode('utf-8', errors='replace'), 'html.parser')
+        changed = False
+        for anchor in list(soup.find_all('a', href=True)):
+            target = _resolve_local_ref(anchor['href'], page.parent, www_root)
+            if not target:
+                continue
+            candidate = Path(target)
+            if candidate.is_dir():
+                candidate = candidate / 'index.html'
+            try:
+                candidate = candidate.resolve()
+            except OSError:
+                continue
+            if candidate not in placeholders:
+                continue
+            linked.add(candidate)
+            text = anchor.get_text(strip=True)
+            anchor.insert_before(Comment("Mirror: page carries no content"))
+            if text:
+                anchor.insert_before(NavigableString(text))
+            anchor.decompose()
+            unlinked += 1
+            changed = True
+        if changed:
+            _atomic_write_text(str(page), str(soup))
+            touched += 1
+
+    # A page this pass has already unlinked reads as linked from nowhere the next
+    # time it runs, so a second run would delete exactly the pages the first run
+    # decided to keep. The decision is therefore recorded on the page itself, and
+    # a page carrying that record is never reconsidered as an orphan.
+    for page in sorted(linked):
+        try:
+            blob = page.read_bytes()
+        except OSError:
+            continue
+        if _PLACEHOLDER_KEPT_MARKER in blob:
+            continue
+        soup = BeautifulSoup(blob.decode('utf-8', errors='replace'), 'html.parser')
+        (soup.body or soup).insert(0, Comment(_PLACEHOLDER_KEPT_NOTE))
+        _atomic_write_text(str(page), str(soup))
+
+    kept = {page for page in placeholders
+            if _PLACEHOLDER_KEPT_MARKER in _read_bytes_or_empty(page)}
+    # Dropping a page is the one irreversible thing this pass does, and it rests
+    # on nothing linking to it. That reading is only trustworthy where the crawl
+    # actually read the site: if a page on the same supplementary site failed to
+    # fetch, the page that linked this one may be the one that failed, and its
+    # absence would look exactly like an orphan. Judgement is deferred to a run
+    # that read that site completely.
+    incomplete = _sites_with_failed_fetches()
+    dropped = 0
+    for page in sorted(placeholders - linked - kept):
+        if _is_section_front_door(page):
+            # A thin front door still holds a section together: dropping it
+            # strands everything filed beneath it behind no page at all.
+            continue
+        site = page.relative_to(www_root).parts[1:2]
+        if site and site[0] in incomplete:
+            logging.info(
+                f"Supplementary sites: keeping {page.relative_to(www_root)}; the "
+                f"crawl did not read all of {site[0]}, so nothing linking to it "
+                "is not yet evidence")
+            continue
+        try:
+            page.unlink()
+            dropped += 1
+        except OSError as exc:
+            logging.warning(f"Supplementary sites: could not drop {page}: {exc}")
+    logging.info(
+        f"Supplementary sites: {len(placeholders)} page(s) carry a title and "
+        f"nothing else; {unlinked} link(s) to them turned to text across "
+        f"{touched} page(s); {dropped} page(s) nothing linked were dropped")
+    return unlinked + dropped
+
+
+_RETIRED_HOST_ATTRS = ('href', 'src', 'poster', 'altsrc')
+
+
+def _pending_backfill_urls():
+    # A video the backfill will still act on keeps its original address, which
+    # is the only handle the referrer repair has for finding the element again.
+    # That means a record awaiting its first attempt AND one that has failed:
+    # the backfill retries a failure below the attempt cap, and even past the
+    # cap its gave-up branch still settles the referring pages itself (a
+    # success links the local file, a certain failure gets the not-available
+    # wording), so neutralizing either here would strip the very elements that
+    # repair needs and ship a recovered video with no page linking it. A
+    # refused record is the opposite case, the backfill never repairs its
+    # referrers, and a 'backfilled' one needs no exemption, the pass below
+    # points it at the local file directly; both are settled here.
+    return {norm for norm, rec in (mirror_state.skipped_videos or {}).items()
+            if rec.get('disposition') in (None, 'skipped_video', 'backfill_failed')}
+
+
+def neutralize_retired_host_links():
+    """References still addressing the legacy host once it is switched off.
+
+    Everything inside the archive resolves locally, so an absolute address on
+    the crawled hosts is a reference the capture failed to bring home. While the
+    legacy site answered, such a link worked and looked harmless. After cutover
+    the name belongs to the new site and every one of them is a not-found page,
+    so they are settled here rather than left for a reader to discover.
+
+    Three outcomes, matching how the archive already treats a reference it
+    cannot honour: one whose file is on disk after all is pointed at it, a video
+    still waiting for the backfill is left alone because that pass needs the
+    address, and anything else keeps its words and loses the link.
+    """
+    www_root = Path(_www_root()).resolve()
+    hosts = tuple(f'//{host}'.encode() for host in CRAWL_HOSTS)
+    exempt = _pending_backfill_urls()
+    repaired = neutralized = dropped = touched = 0
+
+    for page in www_root.rglob('*'):
+        if page.suffix.lower() not in ('.html', '.htm'):
+            continue
+        try:
+            blob = page.read_bytes()
+        except OSError:
+            continue
+        if not any(host in blob for host in hosts):
+            continue
+        try:
+            soup = BeautifulSoup(blob.decode('utf-8', errors='replace'), 'html.parser')
+        except Exception as e:
+            logging.warning(f"Retired-host pass could not parse {page}: {e}")
+            continue
+        changed = False
+        for element in list(soup.find_all(True)):
+            for attr in _RETIRED_HOST_ATTRS:
+                value = element.get(attr)
+                if not isinstance(value, str) or not value.startswith(('http://', 'https://')):
+                    continue
+                parsed = urlparse(value)
+                if parsed.netloc.lower() not in CRAWL_HOSTS:
+                    continue
+                # The archive banner names the live site deliberately, which is
+                # the one address here that is meant to leave the archive.
+                if parsed.path in ('', '/'):
+                    continue
+                if normalize_url(value) in exempt:
+                    continue
+                local = url_to_filepath(strip_query(value))
+                if not (local and os.path.exists(local)):
+                    # A video is stored re-encoded, so the address the page holds
+                    # names a file that was never written under that suffix while
+                    # the playable copy sits beside it.
+                    local = existing_local_video(value)
+                if local and os.path.exists(local):
+                    element[attr] = calculate_relative_path(str(page), local)
+                    repaired += 1
+                    changed = True
+                    continue
+                if attr != 'href' or element.name != 'a':
+                    # A non-standard attribute carries no meaning a browser acts
+                    # on, and an image or media reference the archive does not
+                    # hold shows a broken box; both simply go.
+                    del element[attr]
+                    dropped += 1
+                    changed = True
+                    continue
+                text = element.get_text(strip=True)
+                element.insert_before(Comment("Mirror: link to the retired legacy host removed"))
+                if text:
+                    element.insert_before(NavigableString(text))
+                element.decompose()
+                neutralized += 1
+                changed = True
+                break
+        if changed:
+            _atomic_write_text(str(page), str(soup))
+            touched += 1
+
+    logging.info(
+        f"Retired-host pass: {touched} page(s) rewritten, {repaired} reference(s) "
+        f"pointed at the local file, {neutralized} link(s) turned to text, "
+        f"{dropped} reference(s) dropped")
+    return touched
+
+
 def generate_reachability_pages(seeds_dir=None):
-    # Dead links are settled first: the generated pages below are written from
-    # what is on disk and must not themselves be rewritten afterwards, and the
-    # pass has to see the tree as the crawl left it.
+    # A stub whose destination is missing is settled before anything reads the
+    # tree: the listing follows stubs to label their rows, and the dead-link pass
+    # would otherwise leave the refresh in place while neutralizing only the
+    # visible link beside it.
+    convert_dead_redirect_stubs()
+    # The PostScript patterns get their modern rendering before anything reads
+    # the tree for links, so the link this adds is settled by the passes below
+    # rather than left for the next crawl.
+    render_postscript_patterns()
+    # Pages on the supplementary sites that were never written: an archive that
+    # offers a link and delivers a bare title is offering nothing. This runs
+    # BEFORE the dead-link pass because it can delete a page, and a reference to
+    # a deleted page has to be settled by a pass that runs afterwards. It scans
+    # anchors only, so anything else pointing at a dropped page would otherwise
+    # dangle until the next crawl, and on the last crawl there is no next one.
+    settle_vhost_placeholder_pages()
+    # A nav item a ruling restored gets its real link back before the dead-link
+    # pass runs again, or that pass has nothing left to see: the marker comment
+    # this reads is exactly what neutralize_dead_internal_links leaves behind,
+    # and once restored to a real <a> there is nothing there for it to match.
+    relink_restored_nav_items()
+    # Controls that ran a script go before the dead-link pass, so a page is
+    # rewritten once rather than twice, and so the generated pages below never
+    # see a control the archive cannot honour.
+    neutralize_dead_script_controls()
+    # Dead links next: the generated pages below are written from what is on disk
+    # and must not themselves be rewritten afterwards, and the pass has to see
+    # the tree as everything above it left it.
     neutralize_dead_internal_links()
+    # Then the references that still name the host being switched off, which the
+    # pass above never sees because they are absolute rather than local.
+    neutralize_retired_host_links()
     generate_archive_directory(seeds_dir)
     scrub_homepage_member_chrome()
     replace_member_area_with_notice()
@@ -5667,7 +6858,9 @@ def _rewrite_referrer_page(referrer_url, page_records):
     soup = BeautifulSoup(html, 'html.parser')
     repaired = 0
     for rec_norm, rec, processed_path in page_records:
-        for tag in soup.find_all(['a', 'video', 'source', 'embed']):
+        # The legacy gallery points img elements at video files, so an image tag
+        # is a referring element like any other and is repaired the same way.
+        for tag in soup.find_all(['a', 'video', 'source', 'embed', 'img']):
             for attr in ('href', 'src'):
                 if not _element_matches_video(tag, attr, referrer_url, rec_norm):
                     continue
@@ -5739,7 +6932,7 @@ def seed_videos_from_capture(seed_root):
     return counts
 
 
-def run_video_backfill(seed_from=None):
+def run_video_backfill(seed_from=None, retry_failed=False):
     # The whole point of this pass is downloading videos, so the module-level
     # skip flag must be off (main() clears it for --video-backfill). Guard the
     # seam: with it on, download_and_process_media would re-skip every record
@@ -5752,7 +6945,8 @@ def run_video_backfill(seed_from=None):
     mirror_state.skipped_videos = manifest
     logging.info(f"Video backfill: {len(manifest)} recorded videos")
 
-    outcomes = {'backfilled': 0, 'already_done': 0, 'failed': 0, 'refused': 0}
+    outcomes = {'backfilled': 0, 'already_done': 0, 'failed': 0, 'refused': 0,
+                'gave_up': 0}
     by_referrer = {}
     for rec_norm, rec in manifest.items():
         if rec.get('disposition') == 'backfilled':
@@ -5771,16 +6965,39 @@ def run_video_backfill(seed_from=None):
                     by_referrer.setdefault(referrer, []).append(
                         (rec_norm, rec, done_file))
             continue
+        attempts = int(rec.get('attempts') or 0)
+        if (not retry_failed and attempts >= _MAX_BACKFILL_ATTEMPTS
+                and rec.get('disposition') == 'backfill_failed'):
+            # The same outcome twice is the source being gone or the file being
+            # unconvertible, not bad luck, and re-downloading it spends the pass
+            # on a certain failure. The referring pages still go through the
+            # repair below: a refresh crawl restores the original address on
+            # them, and this is what puts the not-available wording back.
+            outcomes['gave_up'] += 1
+            for referrer in rec.get('referrers') or []:
+                by_referrer.setdefault(referrer, []).append((rec_norm, rec, None))
+            continue
         url = rec['url']
         if is_unsafe_url(url):
             rec['disposition'] = 'backfill_refused_unsafe'
+            # Every branch that settles a disposition this run marks the record
+            # in settled_this_run, refusal included: that in-memory mark is
+            # what tells a genuinely fresh outcome apart from one merely
+            # inherited from a resumed run's stale progress snapshot (see
+            # _carry_forward_backfill_outcomes).
+            rec['attempts'] = attempts + 1
+            mirror_state.settled_this_run.add(rec_norm)
             outcomes['refused'] += 1
             continue
         if is_excluded_url(url):
             rec['disposition'] = 'backfill_refused_excluded'
+            rec['attempts'] = attempts + 1
+            mirror_state.settled_this_run.add(rec_norm)
             outcomes['refused'] += 1
             continue
         processed = download_and_process_media(url, session, referrer=None)
+        rec['attempts'] = attempts + 1
+        mirror_state.settled_this_run.add(rec_norm)
         if processed and processed != SKIPPED_VIDEO:
             rec['disposition'] = 'backfilled'
             rec['local_file'] = processed
@@ -5800,6 +7017,7 @@ def run_video_backfill(seed_from=None):
     logging.info(
         f"Video backfill complete: {outcomes['backfilled']} backfilled, "
         f"{outcomes['already_done']} already done, {outcomes['failed']} failed, "
+        f"{outcomes['gave_up']} not retried after two failures, "
         f"{outcomes['refused']} refused; {repaired_pages} referrer pages repaired")
     return outcomes
 
@@ -5997,6 +7215,9 @@ def fetch(url):
                 mirror_state.session_start = time.time()
                 continue
 
+            # A fetch that answered clears any transient-failure residue an
+            # earlier run recorded for this address.
+            mirror_state.transient_failures.discard(normalize_url(url))
             time.sleep(DELAY_SECONDS)
             return resp, final_url
 
@@ -6024,7 +7245,13 @@ def fetch(url):
         mirror_state.stats['failed_downloads'] += 1
         logging.info(f"Failed to fetch {url} (permanent HTTP {last_status})")
     else:
-        # retryable_http or retryable_transport → don't mark failed_downloads
+        # retryable_http or retryable_transport → don't mark failed_downloads,
+        # the dead-link pass must not act on a hiccup - but the crawl loop has
+        # already marked this URL visited, so without a record of its own the
+        # page it names is silently never read and the run still ends looking
+        # complete. The record is what lets an operator prove the final
+        # freeze-window revisit actually re-read everything.
+        mirror_state.transient_failures.add(normalize_url(url))
         logging.info(f"Giving up on {url} after retries (retryable failure: {last_failure_kind or 'unknown'})")
     return None, None
 
@@ -6172,6 +7399,7 @@ def clear_for_revisit(urls=None):
         seen, failed = len(mirror_state.visited), len(mirror_state.failed_urls)
         mirror_state.visited.clear()
         mirror_state.failed_urls.clear()
+        mirror_state.transient_failures.clear()
         mirror_state.url_depth.clear()
         mirror_state.queue.clear()
         logging.info(
@@ -6188,6 +7416,7 @@ def clear_for_revisit(urls=None):
         else:
             unseen += 1
         mirror_state.failed_urls.discard(norm)
+        mirror_state.transient_failures.discard(norm)
         mirror_state.url_depth.pop(norm, None)
     logging.info(
         f"Revisit: {cleared} of {len(urls)} listed URL(s) cleared for re-reading; "
@@ -6373,6 +7602,36 @@ def crawl(start_urls):
             '.' not in filename  # No extension — default page like index
         )
 
+        # The inverse of the refusal below: image bytes the server labels
+        # text/html (an extensionless /media/ URL answered with a mislabeled
+        # picture). Decoding them as text destroys the image permanently, so
+        # the body's own magic bytes outrank the Content-Type and the bytes
+        # take the media pipeline: re-encoded, sanitized, stored under the
+        # extension they really carry, never under a page name.
+        # Judged on the bytes, not on is_html, because the same picture arrives
+        # mislabelled two different ways. The server calls it text/html, which
+        # is the is_html case. Or the URL's own filename carries a dot that is
+        # not an extension ("U.S. Open 2006 - ...final"), so the content type
+        # is believed, the extension check finds nothing it recognizes, and the
+        # bytes are written raw under a page name - unconverted, unsanitized,
+        # and unservable. A URL the media path already claims is left to it,
+        # since that path does its own magic-byte verification.
+        sniffed_image = (None if is_media_file(final_url)
+                         else sniff_image_ext(resp.content[:16]))
+        if sniffed_image:
+            processed = download_and_process_media(final_url, session,
+                                                   referrer=original_url,
+                                                   known_image_ext=sniffed_image)
+            if processed and processed != SKIPPED_VIDEO:
+                logging.warning(
+                    f"Image served as text/html routed to the media pipeline: "
+                    f"{final_url}")
+            else:
+                logging.error(
+                    f"Image served as text/html could not be processed: "
+                    f"{final_url}")
+            continue
+
         # An HTML body offered under a media extension is the app answering a
         # lookup, not a picture: a mis-authored '<img src="wolnystylul.jpg">' on
         # an event page becomes an event-id query, and the reply gets filed as
@@ -6410,11 +7669,11 @@ def crawl(start_urls):
             'Year=' not in original_url
         ):
             try:
-                current_year = str(datetime.now().year)
+                current_year = _current_year()
                 show_all_url = f"{BASE_URL}/news/list?f=10&from=0&Year={current_year}"
                 if final_url != show_all_url:
                     show_all_resp, show_all_final_url = fetch(show_all_url)
-                    if show_all_resp:
+                    if show_all_resp and not is_error_body(show_all_resp.text):
                         resp = show_all_resp
                         final_url = show_all_final_url
 
@@ -6422,6 +7681,7 @@ def crawl(start_urls):
                     MIRROR_DIR, 'www.footbag.org', 'news', f'list_{current_year}', 'index.html'
                 )
                 rewritten_html = rewrite_links(resp.text, final_url, link_base=resp.url)
+                rewritten_html = _apply_content_redaction_backstops(final_url, rewritten_html)
                 os.makedirs(os.path.dirname(filepath), exist_ok=True)
                 _atomic_write_text(filepath, rewritten_html)
                 mirror_state.stats['bytes_downloaded'] += len(resp.content)  
@@ -6445,7 +7705,7 @@ def crawl(start_urls):
                     show_all_url = f"{BASE_URL}/news/list?f=10&from=0&Year={year}"
                     if final_url != show_all_url:
                         show_all_resp, show_all_final_url = fetch(show_all_url)
-                        if show_all_resp:
+                        if show_all_resp and not is_error_body(show_all_resp.text):
                             resp = show_all_resp
                             final_url = show_all_final_url
                     if year.isdigit():
@@ -6457,6 +7717,7 @@ def crawl(start_urls):
                             year = f"200{year[-1]}"
                     filepath = os.path.join(MIRROR_DIR, 'www.footbag.org', 'news', f'list_{year}', 'index.html')
                     rewritten_html = rewrite_links(resp.text, final_url, link_base=resp.url)
+                    rewritten_html = _apply_content_redaction_backstops(final_url, rewritten_html)
                     os.makedirs(os.path.dirname(filepath), exist_ok=True)
                     _atomic_write_text(filepath, rewritten_html)
                     mirror_state.stats['bytes_downloaded'] += len(resp.content)  
@@ -6475,9 +7736,10 @@ def crawl(start_urls):
             'year=' not in original_url
         ):
             try:
-                current_year = str(datetime.now().year)
+                current_year = _current_year()
                 filepath = os.path.join(MIRROR_DIR, 'www.footbag.org', 'events', f'past_year_{current_year}', 'index.html')
                 rewritten_html = rewrite_links(resp.text, final_url, link_base=resp.url)
+                rewritten_html = _apply_content_redaction_backstops(final_url, rewritten_html)
                 os.makedirs(os.path.dirname(filepath), exist_ok=True)
                 _atomic_write_text(filepath, rewritten_html)
                 mirror_state.stats['bytes_downloaded'] += len(resp.content)  
@@ -6497,9 +7759,10 @@ def crawl(start_urls):
             'year=' not in original_url
         ):
             try:
-                current_year = str(datetime.now().year)
+                current_year = _current_year()
                 filepath = os.path.join(MIRROR_DIR, 'www.footbag.org', 'events', f'results_year_{current_year}', 'index.html')
                 rewritten_html = rewrite_links(resp.text, final_url, link_base=resp.url)
+                rewritten_html = _apply_content_redaction_backstops(final_url, rewritten_html)
                 os.makedirs(os.path.dirname(filepath), exist_ok=True)
                 _atomic_write_text(filepath, rewritten_html)
                 mirror_state.stats['bytes_downloaded'] += len(resp.content)  
@@ -6520,6 +7783,7 @@ def crawl(start_urls):
                         MIRROR_DIR, 'www.footbag.org', 'registration', 'register', tid, 'index.html'
                     )
                     rewritten_html = rewrite_links(resp.text, final_url, link_base=resp.url)
+                    rewritten_html = _apply_content_redaction_backstops(final_url, rewritten_html)
                     os.makedirs(os.path.dirname(filepath), exist_ok=True)
                     _atomic_write_text(filepath, rewritten_html)
                     mirror_state.stats['bytes_downloaded'] += len(resp.content)  
@@ -6540,6 +7804,7 @@ def crawl(start_urls):
                         MIRROR_DIR, 'www.footbag.org', 'registration', 'regsummary', tid, 'index.html'
                     )
                     rewritten_html = rewrite_links(resp.text, final_url, link_base=resp.url)
+                    rewritten_html = _apply_content_redaction_backstops(final_url, rewritten_html)
                     os.makedirs(os.path.dirname(filepath), exist_ok=True)
                     _atomic_write_text(filepath, rewritten_html)
                     mirror_state.stats['bytes_downloaded'] += len(resp.content)  
@@ -6625,10 +7890,18 @@ def crawl(start_urls):
 
 def main():
     global USERNAME, PASSWORD, LOG_TO_FILE, SKIP_VIDEOS, CONTENT_EXCLUSIONS
-    global ACCOUNT_EMAIL, ACCOUNT_REDACTIONS
+    global ACCOUNT_EMAIL, ACCOUNT_REDACTIONS, CRAWL_SESSION_YEAR, WITHHELD_EXACT_URLS
 
     args = parse_args()
     LOG_TO_FILE = args.log_to_file   # if your parser uses dest="log", change this to: args.log
+
+    # Loaded unconditionally, every mode, no flag needed: matched exactly
+    # (never as a subtree prefix) by is_excluded_url, so it is safe even for
+    # the network-free tree-only modes that never touch CONTENT_EXCLUSIONS.
+    try:
+        WITHHELD_EXACT_URLS = load_content_exclusions(WITHHELD_CONTENT_EXCLUSION_LIST)
+    except (OSError, ValueError) as e:
+        sys.exit(f"ERROR: cannot load withheld-content list: {e}")
 
     # Revisiting only means something to a crawl. The backfill consumes the
     # video manifest and the tree-only modes never reach the network, so a
@@ -6646,6 +7919,8 @@ def main():
                 ('--apply-exclusions-only', args.apply_exclusions_only),
                 ('--rebuild-directory-only', args.rebuild_directory_only),
                 ('--wrap-plain-text-only', args.wrap_plain_text_only),
+                ('--settle-for-publication-only', args.settle_for_publication_only),
+                ('--relink-nav-items-only', args.relink_nav_items_only),
             ) if on]
         if conflicting:
             sys.exit(
@@ -6678,12 +7953,16 @@ def main():
     # archive must never serve, so a listless crawl silently re-captures what
     # the ruling removed - hence a hard preflight failure, not a warning.
     if args.exclusion_list:
-        # The member-account list is prepended, not merely accepted: a command
-        # that names only the committee-scoped list must still exclude the
-        # account surfaces. Duplicate naming is harmless, the entries are a set.
-        paths = [MEMBER_AREA_EXCLUSION_LIST] + [
+        # The two built-in lists are prepended, not merely accepted: a
+        # command that names only the committee-scoped list must still
+        # exclude the account and superseded-feature surfaces (loaded above,
+        # unconditionally, and matched separately: WITHHELD_EXACT_URLS).
+        # Duplicate naming is harmless, the entries are a set.
+        built_in = [MEMBER_AREA_EXCLUSION_LIST, SUPERSEDED_FEATURE_EXCLUSION_LIST]
+        built_in_abs = {os.path.abspath(p) for p in built_in}
+        paths = built_in + [
             p for p in args.exclusion_list
-            if os.path.abspath(p) != os.path.abspath(MEMBER_AREA_EXCLUSION_LIST)]
+            if os.path.abspath(p) not in built_in_abs]
         merged = set()
         for list_path in paths:
             try:
@@ -6694,7 +7973,8 @@ def main():
         logging.info(f"Content exclusions loaded: {len(CONTENT_EXCLUSIONS)} "
                      f"entries from {len(paths)} file(s): {', '.join(paths)}")
     elif not (args.apply_exclusions_only or args.rebuild_directory_only
-              or args.wrap_plain_text_only):
+              or args.wrap_plain_text_only or args.settle_for_publication_only
+              or args.relink_nav_items_only):
         sys.exit(
             "ERROR: --exclusion-list is required for any crawl or backfill:\n"
             "  --exclusion-list footbag_private_repo/private-custody/"
@@ -6719,6 +7999,34 @@ def main():
         # markup-free text, so the correction belongs on the tree, not on a
         # re-fetch.
         wrap_plain_text_captures(dry_run=args.dry_run)
+        return
+
+    if args.settle_for_publication_only:
+        # Settling only: no login, no credentials, no network. Every pass here
+        # reads the tree and rewrites it, and the live site would tell them
+        # nothing they do not already know, so a correction to any of them
+        # belongs on the capture rather than on another eight-hour re-read.
+        # Manifest state is loaded first: the pass that clears references to the
+        # retired host leaves a video still awaiting the backfill alone, and
+        # without the manifest it cannot tell which those are.
+        try:
+            mirror_state.skipped_videos = _load_skipped_video_manifest()
+        except SystemExit:
+            logging.info("No skipped-video manifest; nothing is awaiting backfill")
+        convert_dead_redirect_stubs()
+        render_postscript_patterns()
+        settle_vhost_placeholder_pages()
+        relink_restored_nav_items()
+        neutralize_dead_script_controls()
+        neutralize_dead_internal_links()
+        neutralize_retired_host_links()
+        return
+
+    if args.relink_nav_items_only:
+        # Relinking only: no login, no credentials, no network. The tree
+        # already holds the restored target; this is how the correction
+        # reaches every page carrying the menu without a re-crawl.
+        relink_restored_nav_items()
         return
 
     if args.rebuild_directory_only:
@@ -6753,6 +8061,18 @@ def main():
                      "re-encoded through ffmpeg like all other media.")
 
     try:
+        # Login FIRST, before any destructive state change: '-fresh' deletes a
+        # capture that took days to build, and a run started with a bad
+        # password (or a dead site) must fail with everything still on disk.
+        # Both calls are network-only and touch nothing under the state
+        # directory, and their log lines go to the console alone, since the
+        # -log file handler cannot attach until after the wipe would have
+        # deleted its file anyway.
+        login()
+
+        if not verify_authenticated_session():
+            raise RuntimeError("Login appeared successful, but authenticated session failed.")
+
         if args.fresh:
             logging.info("'-fresh' requested — wiping previous mirror state")
             wipe_previous_mirror_state()
@@ -6801,17 +8121,14 @@ def main():
         # none. Only now may an interrupt write it over the files on disk.
         mark_crawl_state_authoritative()
 
-        # BUG FIX: Always login (fresh or resumed) to ensure session is valid.
-        # Set session_start AFTER login, not before, to have correct baseline.
-        login()
+        # Login already happened (top of this block, before the wipe); the
+        # session baseline starts once state is loaded and authoritative.
         mirror_state.session_start = time.time()
-
-        if not verify_authenticated_session():
-            raise RuntimeError("Login appeared successful, but authenticated session failed.")
 
         if args.video_backfill:
             # Consume the manifest and repair referrers; no crawl in this mode.
-            run_video_backfill(seed_from=args.seed_videos_from)
+            run_video_backfill(seed_from=args.seed_videos_from,
+                               retry_failed=args.retry_failed_videos)
             robot_checker.save_cache()
             print_stats()
             logging.info("Video backfill run complete")
@@ -6834,6 +8151,10 @@ def main():
         seed_paths = args.seeds if args.seeds else [SEEDS_DIR]
         enqueue_seed_urls(load_seed_urls(seed_paths))
 
+        # Pinned once, here, so every "current year" fallback this crawl hits
+        # agrees for the whole run regardless of how long it takes or whether
+        # it happens to cross a real year boundary partway through.
+        CRAWL_SESSION_YEAR = str(datetime.now().year)
         crawl(START_URLS)
         # Enforce the exclusions on the finished tree before anything reads it.
         # Fetch-time refusal only governs what THIS run captured; a tree carried
@@ -6861,6 +8182,7 @@ def main():
         # correct value.
         mirror_state.write_skipped_video_manifest()
         save_refused_pages()
+        save_transient_failures()
         save_sitemap()
         save_redirect_map()
         mirror_state.save_progress()

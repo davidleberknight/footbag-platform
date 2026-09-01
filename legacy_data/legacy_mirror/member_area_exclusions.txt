@@ -50,8 +50,14 @@
 # hold for a surface nobody thought to list here.
 #
 # The crawling account's own profile page is a different matter and is NOT
-# removed: it carries the account's alias only, the same public fields every
-# other member profile carries, and no contact details.
+# removed: it carries the account's alias and the same public fields every
+# other member profile carries, so excluding it would cost real archive content
+# for one address. It DOES render that address, which this list cannot reach and
+# the runtime scrub does: the legacy templates print an e-mail split by empty
+# inline tags, invisible to a reader and, until the matcher learned to span
+# them, invisible to the scrub as well. The profile is served under both the
+# numeric member id and the alias, so the same page arrives more than once and
+# the scrub, not a path list, is what covers every form of it.
 
 feedback/problem
 ifpa/join

@@ -209,12 +209,18 @@ def build_news() -> list[str]:
 
 
 def build_polls() -> list[str]:
-    """Seed URLs for every poll.
+    """Seed URLs for every poll. NOT emitted by default; see below.
 
     The poll show page is served under the live ``newpoll`` path (not ``poll``)
     and looks a poll up by ``PollID`` with no visibility filter, so every poll is
     directly servable. The poll index links only a subset, so the crawl missed
     most of them; seeding all of them lets dedup keep whatever it already has.
+
+    Ruled: nearly every capture is the live app's own broken-feature response,
+    not content, and the poll data that IS real (questions, answer options,
+    aggregate vote tallies) already lives in full in the private legacy-export
+    poll tables, which hold more polls than were ever captured here. Kept as
+    the derivation record only, the same as build_news() below.
     """
     dump = _dump_path("poll")
     # polls columns: 0 Approved, 1 PollID.
@@ -244,7 +250,7 @@ def build_rules() -> list[str]:
 
 
 def build_ranking() -> list[str]:
-    """Seed URLs for every ranking report (archive capture only).
+    """Seed URLs for every ranking report. NOT emitted by default; see below.
 
     The ranking report is an unofficial draft feature linked from no public index,
     which is why the crawl never reached it. Its show page reads the ranking set
@@ -252,6 +258,12 @@ def build_ranking() -> list[str]:
     string: one report per (ranking set, ranking method). Per-event ranking detail
     pages are keyed by registration-event ids from another app and are left to the
     deferred rankings-migration decision.
+
+    Ruled: every captured report renders zero data rows (the underlying
+    computation is dead), and the feature itself was a single abandoned
+    "Chess Method" experiment marked DRAFT/UNOFFICIAL on every page, bounded
+    to 2013. Kept as the derivation record only, the same as build_news()
+    below.
     """
     dump = _dump_path("ranking")
     # rank_sets column 0 is the set id; rank_methods column 0 is the method id.
@@ -388,12 +400,14 @@ def build_members() -> list[str]:
 # news.txt is deliberately absent: its permalinks duplicate article text the
 # year-list pages already carry, at nearly eighteen thousand extra live requests.
 # build_news() is retained as the derivation record if a subset is ever wanted.
+# polls.txt and ranking.txt are deliberately absent: each is a broken or
+# superseded legacy feature ruled out of the archive (see each builder's own
+# docstring for why). Both builders are retained as the derivation record
+# only, the same as build_news() above.
 BUILDERS = {
     "clubs.txt": build_clubs,
     "gallery.txt": build_gallery,
-    "polls.txt": build_polls,
     "rules.txt": build_rules,
-    "ranking.txt": build_ranking,
     "moves.txt": build_moves,
     "faq.txt": build_faq,
     "events.txt": build_events,

@@ -26,6 +26,13 @@ mod = importlib.util.module_from_spec(spec)
 sys.modules["archive_seed_builder"] = mod
 spec.loader.exec_module(mod)
 
+CRAWLER_SCRIPT_PATH = Path(__file__).resolve().parent.parent / "create_mirror_footbag_org.py"
+crawler_spec = importlib.util.spec_from_file_location(
+    "mirror_script_seedcheck", str(CRAWLER_SCRIPT_PATH))
+crawler = importlib.util.module_from_spec(crawler_spec)
+sys.modules["mirror_script_seedcheck"] = crawler
+crawler_spec.loader.exec_module(crawler)
+
 BASE = mod.BASE_URL
 
 
@@ -248,9 +255,7 @@ def test_builder_registry_emits_every_seeded_class(repo):
     assert set(mod.BUILDERS) == {
         "clubs.txt",
         "gallery.txt",
-        "polls.txt",
         "rules.txt",
-        "ranking.txt",
         "moves.txt",
         "faq.txt",
         "events.txt",
@@ -266,3 +271,31 @@ def test_news_permalinks_are_not_seeded(repo):
     # emitted into the crawl by default.
     assert "news.txt" not in mod.BUILDERS
     assert callable(mod.build_news)
+
+
+def test_broken_or_superseded_features_are_not_seeded(repo):
+    # polls and ranking are each a broken or superseded legacy feature ruled
+    # out of the archive on a fresh look at the capture (see each builder's
+    # own docstring; rules was initially ruled out too on this same reasoning,
+    # but that verdict was wrong - the live rulebook is genuine content once
+    # checked via the URL form the crawler actually requests, so build_rules
+    # is seeded again like any other class). Both remaining builders stay as
+    # the derivation record; what must not come back is either being emitted
+    # into the crawl by default, on a fresh seed-list build or otherwise.
+    assert "polls.txt" not in mod.BUILDERS
+    assert "ranking.txt" not in mod.BUILDERS
+    assert callable(mod.build_polls)
+    assert callable(mod.build_ranking)
+
+
+def test_every_archive_area_seeded_by_the_builder_names_a_real_builder_key():
+    # ARCHIVE_AREAS (create_mirror_footbag_org.py) hardcodes the seed
+    # filenames this builder is responsible for; a rename on either side with
+    # no matching change on the other degrades the finding-aid silently
+    # (_unlinked_seed_entries just logs "no seed file, skipped" and moves on)
+    # rather than failing anything loud. This pins the two in agreement so a
+    # future mismatch fails the suite instead.
+    for _slug, _heading, seed_name, _sort in crawler.ARCHIVE_AREAS:
+        assert seed_name in mod.BUILDERS, (
+            f"ARCHIVE_AREAS names '{seed_name}' but build_archive_seed_lists.py's "
+            f"BUILDERS no longer produces it")

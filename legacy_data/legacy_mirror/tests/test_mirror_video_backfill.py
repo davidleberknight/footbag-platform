@@ -98,7 +98,8 @@ def test_backfill_repairs_referrer_and_records_outcome(env, monkeypatch):
         '</body></html>')
     _stub_download(monkeypatch)
     outcomes = mirror_script.run_video_backfill()
-    assert outcomes == {'backfilled': 1, 'already_done': 0, 'failed': 0, 'refused': 0}
+    assert outcomes == {'backfilled': 1, 'already_done': 0, 'failed': 0,
+                        'refused': 0, 'gave_up': 0}
     out = page.read_text()
     # Element repaired to the relative local mp4; normalized matching bridged
     # the &amp; escape; the stale skip marker is gone.
@@ -156,6 +157,77 @@ def test_video_element_with_source_child_is_repaired(env, monkeypatch):
     assert '.mp4' in out
     assert out.count('poster="p.jpg"') == 1   # poster untouched
     assert 'video/mp4' in out                 # source type updated
+
+
+def test_an_image_element_pointing_at_a_video_is_repaired(env, monkeypatch):
+    # The legacy gallery points img elements at video files, so an image tag is a
+    # referring element like any other. Skipping them leaves the page addressing
+    # the live host for a video the archive holds.
+    _write_manifest(env, [_record()])
+    page = _write_referrer_page(
+        '<html><body><img src="'
+        f'{BASE}/media/Lisa&amp;Andy.mov?cacheBuster=1788149461"></body></html>')
+    _stub_download(monkeypatch)
+    mirror_script.run_video_backfill()
+    out = page.read_text()
+    assert 'footbag.org/media' not in out
+    assert '.mp4' in out
+
+
+class TestAVideoThatKeepsFailingIsLeftAlone:
+    """Re-downloading a file that has failed the same way twice spends the whole
+    pass on a certain failure: the source is gone, or ffmpeg cannot make an mp4
+    of it. The record is left alone after the second attempt, but its referring
+    pages still go through the repair, because a refresh crawl restores the
+    original address on them and this pass is what replaces it with the wording
+    that says the video is not available.
+    """
+
+    @staticmethod
+    def _refuse_download(monkeypatch):
+        def boom(*a, **k):
+            raise AssertionError('a record already tried twice must not be refetched')
+        monkeypatch.setattr(mirror_script, 'download_and_process_media', boom)
+
+    def test_a_twice_failed_record_is_not_downloaded_again(self, env, monkeypatch):
+        _write_manifest(env, [_record(disposition='backfill_failed', attempts=2)])
+        self._refuse_download(monkeypatch)
+        outcomes = mirror_script.run_video_backfill()
+        assert outcomes['gave_up'] == 1
+        assert outcomes['failed'] == 0
+
+    def test_its_page_still_gets_the_not_available_wording(self, env, monkeypatch):
+        _write_manifest(env, [_record(disposition='backfill_failed', attempts=2)])
+        page = _write_referrer_page(
+            '<html><body>'
+            f'<a href="{BASE}/media/Lisa&amp;Andy.mov">watch</a>'
+            '</body></html>')
+        self._refuse_download(monkeypatch)
+        mirror_script.run_video_backfill()
+        assert 'not available' in page.read_text()
+
+    def test_one_failure_is_still_worth_another_attempt(self, env, monkeypatch):
+        _write_manifest(env, [_record(disposition='backfill_failed', attempts=1)])
+        _stub_download(monkeypatch)
+        outcomes = mirror_script.run_video_backfill()
+        assert outcomes['backfilled'] == 1
+        assert outcomes['gave_up'] == 0
+
+    def test_a_fix_can_be_proved_by_asking_for_every_record_again(self, env, monkeypatch):
+        # After a change that could alter the outcome, the operator asks for the
+        # retry explicitly rather than the pass guessing that something changed.
+        _write_manifest(env, [_record(disposition='backfill_failed', attempts=5)])
+        _stub_download(monkeypatch)
+        outcomes = mirror_script.run_video_backfill(retry_failed=True)
+        assert outcomes['backfilled'] == 1
+        assert outcomes['gave_up'] == 0
+
+    def test_an_attempt_is_counted_so_the_second_one_is_the_last(self, env, monkeypatch):
+        path = _write_manifest(env, [_record(disposition='backfill_failed', attempts=1)])
+        monkeypatch.setattr(mirror_script, 'download_and_process_media',
+                            lambda *a, **k: None)
+        mirror_script.run_video_backfill()
+        assert json.loads(path.read_text())[0]['attempts'] == 2
 
 
 class TestAVideoAlreadyDownloadedStillGetsItsPageRepaired:
@@ -254,14 +326,52 @@ class TestACrawlKeepsWhatTheBackfillRecorded:
         assert [r['url'] for r in written] == [VIDEO_URL]
 
     def test_an_outcome_this_run_settled_itself_wins_over_the_manifest(self, env):
-        # A crawl only ever re-records a video as skipped, so anything it has
-        # settled itself is newer than whatever the manifest holds.
+        # A genuinely fresh outcome this run's own backfill pass produced -
+        # marked as such in settled_this_run, exactly as run_video_backfill
+        # itself marks every disposition it sets - is newer than whatever the
+        # manifest holds and must not be overwritten by it. An attempts count
+        # alone proves nothing: a stale progress snapshot can carry one too.
         path = _write_manifest(env, [_record(disposition='backfilled',
                                              local_file='/mirror/stale.mp4')])
+        norm = mirror_script.normalize_url(VIDEO_URL)
         mirror_script.mirror_state.skipped_videos = {
-            mirror_script.normalize_url(VIDEO_URL): _record(
-                disposition='backfill_refused_excluded')}
+            norm: _record(disposition='backfill_refused_excluded', attempts=1)}
+        mirror_script.mirror_state.settled_this_run = {norm}
         mirror_script.mirror_state.write_skipped_video_manifest()
         written = json.loads(path.read_text())
         assert written[0]['disposition'] == 'backfill_refused_excluded'
         assert 'local_file' not in written[0]
+
+
+class TestRedundantViewerRowRemoval:
+    """The duplicate viewer row beside a video with no local copy.
+
+    The legacy site pairs a video with a second table row linking to the
+    JavaScript popup for the same clip. Where the video did not survive, that
+    row is replaced with a note instead of being left pointing at a popup the
+    archive cannot open. Finding it means resolving the row's relative href
+    against the address the page was served at, so that base has to reach the
+    body of the helper: without it the helper raises, the caller swallows the
+    error, and the whole page is written back carrying its live-site links.
+    """
+
+    def _page(self, sibling_href):
+        html = (
+            '<table>'
+            '<tr><td><a id="clip" href="/media/clip.mov">clip</a></td></tr>'
+            f'<tr><td><a href="{sibling_href}">watch</a></td></tr>'
+            '</table>')
+        soup = mirror_script.BeautifulSoup(html, 'html.parser')
+        return soup, soup.find(id='clip')
+
+    def test_a_gallery_viewer_row_is_replaced_with_a_note(self):
+        soup, element = self._page('/gallery/show/77')
+        mirror_script.remove_fallback_viewer_row(element, PAGE_URL, soup)
+        assert '/gallery/show/77' not in str(soup)
+        assert 'removed JavaScript popup window' in str(soup)
+
+    def test_a_row_that_is_not_a_viewer_link_is_left_alone(self):
+        soup, element = self._page('/events/show/77')
+        mirror_script.remove_fallback_viewer_row(element, PAGE_URL, soup)
+        assert soup.find('a', href='/events/show/77') is not None
+        assert 'removed JavaScript popup window' not in str(soup)

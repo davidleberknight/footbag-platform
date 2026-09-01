@@ -219,3 +219,216 @@ def test_a_database_error_loses_the_engine_name_and_the_quoted_content():
     assert 'SQL syntax' not in out
     assert 'sleeping bags' not in out
     assert 'California State Footbag Championships' in out
+
+
+# The site is not consistent about quoting the diagnostic badge's title
+# attribute: every fixture above uses double quotes, but the live site
+# currently emits it single-quoted. The double-quote-only _ERROR_BADGE_RE
+# never matched a single-quoted badge, so its own visible text
+# ("ERROR 42109") survived every strip and read as real content, even with
+# nothing else on the page.
+SINGLE_QUOTED_DIAGNOSTIC_ONLY = (
+    "<meta charset=\"utf-8\"/><div><span style='padding: 2px' "
+    "title='View source for details...'>ERROR&nbsp;42109</span></div>"
+    "<!-- <span style='color: #ff0000'><br />"
+    "<b>Warning</b>: include(html/poll-failed.html): failed to open stream "
+    "in <b>/home/site/docs/newpoll/show</b> on line <b>13</b><br />"
+    "</span> -->")
+
+
+def test_a_single_quoted_diagnostic_badge_is_not_content():
+    assert mirror_script.is_error_body(SINGLE_QUOTED_DIAGNOSTIC_ONLY)
+
+
+# The failure this session actually found: a broken response wrapped in the
+# site's ordinary page chrome (nav menu, breadcrumb, language switcher,
+# analytics snippet, footer) defeats the whole-body emptiness check no matter
+# how the badge is quoted, because that chrome is real, non-empty text
+# present on nearly every page. Modeled on today's live rules/chapter/10
+# response, trimmed to the parts that matter.
+BROKEN_PAGE_WITH_FULL_CHROME = (
+    '<html><head><title>Official Rules of Footbag Sports</title></head>'
+    '<body>'
+    '<div id="MainHeader"><script>_uacct = "UA-1"; urchinTracker();</script>'
+    '</div>'
+    '<div id="MainHeaderTitle">'
+    '<div id="MainBreadcrumb"><a href="/">FOOTBAG WORLDWIDE</a> : '
+    '<a href="/ifpa/">IFPA</a> : '
+    '<a href="/rules/">Official Rules of Footbag Sports</a></div>'
+    '<h1>Official Rules of Footbag Sports</h1>'
+    '</div>'
+    '<div id="MainWrapper">'
+    '<div id="MainMenu"><ul><li><a href="/news/list">WHAT\'S NEW</a>'
+    '<li><a href="/faq/">F.A.Q.</a></ul></div>'
+    '<div id="MainBody">'
+    '<div id="RulesBody">'
+    "<div><span style='padding: 2px' title='View source for details...'>"
+    'ERROR&nbsp;42109</span></div>'
+    "<!-- <span style='color: #ff0000'><br /><b>Warning</b>: Invalid "
+    'argument supplied for foreach() in '
+    '<b>/home/footbag/public_html/docs/rules/chapter</b> on line '
+    '<b>31</b><br /></span> -->'
+    '</div>'
+    '</div>'
+    '</div> <!-- MainWrapper -->'
+    '<div id="MainFooter">Copyright 2026, IFPA.</div>'
+    '</body></html>')
+
+
+def test_a_broken_response_wrapped_in_full_page_chrome_is_not_content():
+    assert mirror_script.is_error_body(BROKEN_PAGE_WITH_FULL_CHROME)
+
+
+def test_a_genuinely_short_real_page_with_full_chrome_is_still_content():
+    # Same chrome, but MainBody holds real (if short) content and no
+    # diagnostic markup at all: nothing is found to strip, so the scoped
+    # check must not fire. Guards against the fix over-triggering on any
+    # short page rather than specifically a stripped-down broken one.
+    page = BROKEN_PAGE_WITH_FULL_CHROME.replace(
+        "<div id=\"RulesBody\">"
+        "<div><span style='padding: 2px' title='View source for details...'>"
+        'ERROR&nbsp;42109</span></div>'
+        "<!-- <span style='color: #ff0000'><br /><b>Warning</b>: Invalid "
+        'argument supplied for foreach() in '
+        '<b>/home/footbag/public_html/docs/rules/chapter</b> on line '
+        '<b>31</b><br /></span> -->'
+        '</div>',
+        '<div id="RulesBody"><p>Chapter 20: Statement of Purpose.</p></div>')
+    assert not mirror_script.is_error_body(page)
+
+
+# A different failure shape found in 20 already-captured event and member
+# pages: the query behind the actual content fails partway through, and in
+# its place the site emits a second, complete, self-contained, empty HTML
+# document nested inside the real page's own body. The response then closes
+# early with no MainWrapper marker at all, so neither the whole-body check
+# above nor the MainBody-scoped one (nothing here is a diagnostic comment or
+# badge for either to find-and-strip) ever catches it on their own. Modeled
+# on the real captured bytes of events/show/1007585014.
+EVENT_PAGE_WITH_EMPTY_NESTED_DOCUMENT = (
+    '<div id="MainBody">\n'
+    '<div id="EventsNavigation">\n'
+    '<a href="../../past_year_2026/index.html" title="x"><nobr>PREVIOUS</nobr></a>\n'
+    '</div> <!-- EventsNavigation -->\n'
+    '<div class="eventsHeaderWrapper">\n'
+    '<div class="eventsSHeader"><h1 class="eventsHeader">'
+    'California State Footbag Championships</h1>\n'
+    '</div>\n'
+    '<html><head><body bgcolor="#ffffff"></body></head></html>'
+    '</div></div></div></body></html>')
+
+
+def test_an_empty_nested_document_in_place_of_real_content_is_not_content():
+    assert mirror_script.is_error_body(EVENT_PAGE_WITH_EMPTY_NESTED_DOCUMENT)
+
+
+def test_the_variant_with_a_charset_meta_tag_is_also_caught():
+    # A second real capture carried an extra <meta charset> inside the empty
+    # nested document's <head>; the detector must not be overfit to the exact
+    # bytes of one instance.
+    page = EVENT_PAGE_WITH_EMPTY_NESTED_DOCUMENT.replace(
+        '<html><head><body',
+        '<html><head><meta charset="utf-8"/><body')
+    assert mirror_script.is_error_body(page)
+
+
+def test_a_real_event_page_with_no_nested_document_is_still_content():
+    page = EVENT_PAGE_WITH_EMPTY_NESTED_DOCUMENT.replace(
+        '<html><head><body bgcolor="#ffffff"></body></head></html>',
+        '<p>Saturday, June 12th, at the fairgrounds. Registration at 9am.</p>')
+    assert not mirror_script.is_error_body(page)
+
+
+# A live fetch of that same event, taken directly from the running site, shows
+# what actually produced the empty nested document above: the query behind
+# the description died mid-render with a SQL error, wrapped in the same
+# isolated <html><head><body> fragment, and the connection was cut before the
+# response ever reached its own closing </p> — nothing usable follows an
+# error that never closes. Modeled on the real raw bytes fetched live.
+TRUNCATED_LIVE_SQL_ERROR = (
+    '<div class="eventsHeaderWrapper">\n'
+    '<div class="eventsSHeader"><h1 class="eventsHeader">'
+    'California State Footbag Championships</h1>\n'
+    '</div>\n'
+    '<html><head><body bgcolor=#ffffff><font face=sans-serif size=+2>Error'
+    '</font><br><p>You have an error in your SQL syntax; check the manual '
+    "that corresponds to your MariaDB server version for the right syntax "
+    "to use near 't forget \nyour sleeping bags '' at line 1")
+
+
+def test_a_sql_error_the_connection_cut_off_before_closing_is_not_content():
+    assert mirror_script.is_error_body(TRUNCATED_LIVE_SQL_ERROR)
+
+
+def test_a_closed_sql_error_beside_real_content_is_unaffected_by_the_new_check():
+    # The bounded, complete-document case stays exactly as before: kept, with
+    # only the error text removed.
+    page = ('<html><body><h1 class="eventsHeader">California State Footbag '
+            'Championships</h1>' + SQL_ERROR_BLOCK + '</body></html>')
+    assert not mirror_script.is_error_body(page)
+
+
+def test_the_widened_sql_error_pattern_also_consumes_a_wrapper_when_closed():
+    # When the isolated fragment DOES reach its own closing tags (unlike the
+    # truncated live case above), stripping must remove the wrapper too, or a
+    # contentless <html><head><body></body></head></html> husk is left behind
+    # in its place once the message itself is gone.
+    page = ('<html><body><h1>California State Footbag Championships</h1>'
+            '<html><head><body bgcolor="#ffffff">' + SQL_ERROR_BLOCK
+            + '</body></head></html></body></html>')
+    out = mirror_script._SQL_ERROR_RE.sub('', page)
+    assert '<html><head><body' not in out
+    assert 'California State Footbag Championships' in out
+
+
+# ---- Apache SSI failures: pre-2000 static pages whose includes are dead ----
+# The live server serves results.html and news.html as essentially nothing but
+# this line, while faq/records.html carries the same line amid chapters of
+# real content. A marker test alone would refuse the real page, so the SSI
+# text joins the strip-then-empty checks instead.
+
+SSI_LINE = '[an error occurred while processing this directive]'
+
+
+def test_a_page_that_is_only_a_failed_include_is_not_content():
+    # The results.html shape: the SSI failure where the whole page should be.
+    assert mirror_script.is_error_body(
+        f'<html><body>\n{SSI_LINE}\n</body></html>')
+
+
+def test_a_real_page_carrying_failed_includes_is_still_content():
+    # The faq/records.html shape: real chapters with SSI lines mixed in.
+    page = ('<html><body><h1>Footbag Records</h1>'
+            f'<p>{SSI_LINE}</p>'
+            '<p>Most consecutive kicks: 63,326 by Ted Martin (1997).</p>'
+            f'<p>{SSI_LINE}</p></body></html>')
+    assert not mirror_script.is_error_body(page)
+
+
+# ---- Unfilled rulebook-chapter templates ----
+# Chapters 0, 800, 920 and 1000 render successfully but carry only the
+# template's own placeholder text; the markers below are the live bytes of
+# chapter 0, verified against the site. A real chapter that mentions editions
+# or copyrights in its own words trips nothing.
+
+def test_an_unfilled_rulebook_chapter_is_not_content():
+    page = ('<html><body><b>The Offical Rules of Footbag Sports</b>&nbsp;'
+            '<br>(ed#) Edition<br>&nbsp;<br>'
+            'Copyright &copy; (pubyear), International Footbag Advisory Board'
+            '</body></html>')
+    assert mirror_script.is_error_body(page)
+
+
+def test_each_placeholder_marker_refuses_on_its_own():
+    for marker in ('(ed#) Edition', 'Copyright &copy; (pubyear)',
+                   '(insert history text here)', '(insert Internet info here)'):
+        assert mirror_script.is_error_body(
+            f'<html><body>{marker}</body></html>'), marker
+
+
+def test_a_real_chapter_speaking_of_editions_is_still_content():
+    page = ('<html><body><b>The Offical Rules of Footbag Sports</b>'
+            '<p>This 2008 Edition supersedes every earlier edition. '
+            'Copyright &copy; 2008, International Footbag Advisory Board.</p>'
+            '</body></html>')
+    assert not mirror_script.is_error_body(page)

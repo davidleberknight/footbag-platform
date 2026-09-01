@@ -1,0 +1,31 @@
+# Mirror-crawler content exclusions: legacy features ruled out of the archive.
+# One site-root-relative URL path per line, percent-decoded; an entry matches
+# itself and everything beneath it. Auto-loaded by create_mirror_footbag_org.py
+# on every crawl, the same as member_area_exclusions.txt, so no flag is needed
+# and no future crawl (fresh or incremental) can silently re-capture what is
+# listed here.
+#
+# Kept separate from member_area_exclusions.txt on purpose: that file's own
+# header scopes it to member-account privacy surfaces, and these are a
+# different kind of exclusion (a feature ruled out for being broken, obsolete
+# or superseded, not for carrying anyone's personal data).
+#
+# newpoll    Every poll page but one was already reduced to near-nothing by a
+#            broken live include(); the one exception (950727318) has real
+#            content, but the same real question, answers and aggregate vote
+#            tallies already live in full, for all 33 recorded polls (not
+#            just the 11 ever captured here), in the private legacy-export
+#            poll tables. Excluding the whole newpoll path is simpler and
+#            more durable than trying to keep one page out of many, and it
+#            covers the poll pages some in-content pages (not just seeds)
+#            link to directly.
+#
+# ranking    The whole feature was a single abandoned "Chess Method"
+#            experiment, one method and one owner, every rank set literally
+#            named "Test Set" or bounded to end at 2013-12-31, and every page
+#            headed "DRAFT IFPA Ranking Report (UNOFFICIAL - DO NOT USE)".
+#            Every ranking page renders its template correctly with zero data
+#            rows, so nothing here is content by any reading.
+
+newpoll
+ranking

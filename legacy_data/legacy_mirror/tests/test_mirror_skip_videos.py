@@ -341,3 +341,58 @@ def test_login_form_body_is_detected_and_ordinary_pages_are_not():
                    b'on the account page.</p></html>')
     assert mirror_script._looks_like_login_page_bytes(login_body) is True
     assert mirror_script._looks_like_login_page_bytes(member_page) is False
+
+
+# ── Where a skipped video's link points ──────────────────────────────────────
+
+class TestSkippedVideoLinksTheCapturedCopy:
+    """What a skipped video's link addresses when the capture already holds it.
+
+    Skip mode never fetches a video binary, so on a first pass there is nothing
+    local to address and the page has to keep the live-site URL. Over a capture
+    whose videos a later pass downloaded and re-encoded, that same link has to
+    reach the local file instead: the live host is being switched off, and a
+    link to it abandons a playable file sitting beside the page.
+    """
+
+    def _capture(self, url, suffix):
+        target = Path(mirror_script.url_to_filepath(mirror_script.strip_query(url)))
+        local = target.with_suffix(suffix)
+        local.parent.mkdir(parents=True, exist_ok=True)
+        local.write_bytes(b'not really a video')
+        return local
+
+    def _skip_every_download(self, monkeypatch):
+        monkeypatch.setattr(mirror_script, 'download_and_process_media',
+                            lambda *args, **kwargs: mirror_script.SKIPPED_VIDEO)
+
+    def test_a_re_encoded_copy_is_found(self, skip_mode):
+        url = BASE + '/video/eniac/moves/flurry.mov'
+        local = self._capture(url, '.mp4')
+        assert mirror_script.existing_local_video(url) == str(local)
+
+    def test_a_copy_kept_under_its_original_suffix_is_found(self, skip_mode):
+        url = BASE + '/video/eniac/moves/drifter.mov'
+        local = self._capture(url, '.mov')
+        assert mirror_script.existing_local_video(url) == str(local)
+
+    def test_an_uncaptured_video_resolves_to_nothing(self, skip_mode):
+        url = BASE + '/video/eniac/moves/absent.mov'
+        assert mirror_script.existing_local_video(url) is None
+
+    def test_a_link_reaches_the_captured_copy(self, skip_mode, monkeypatch):
+        url = BASE + '/video/eniac/moves/flurry.mov'
+        self._capture(url, '.mp4')
+        self._skip_every_download(monkeypatch)
+        out = mirror_script.rewrite_links(f'<a href="{url}">watch</a>',
+                                          BASE + '/newmoves/show/1')
+        assert url not in out
+        assert 'flurry.mp4' in out
+
+    def test_a_link_keeps_the_live_address_when_nothing_was_captured(self, skip_mode, monkeypatch):
+        url = BASE + '/video/eniac/moves/absent.mov'
+        self._skip_every_download(monkeypatch)
+        out = mirror_script.rewrite_links(f'<a href="{url}">watch</a>',
+                                          BASE + '/newmoves/show/1')
+        assert url in out
+        assert 'binary not mirrored' in out
