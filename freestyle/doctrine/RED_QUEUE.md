@@ -543,6 +543,20 @@ Each is separable and answered on its own.
   inventing the classification rather than recording one. Until it is ruled, backside
   stays out of the ratified operator axes and its browse entry stays unlinked, the
   same treatment splicing gets for its own open question.
+- **Blurry reading on three compounds.** Blurry normally means stepping and
+  contributes one ADD. On Blur, Blurry Whirl, Blurry Torque and Food Processor, the
+  settled per-trick composition uses the full stepping-plus-paradox structure and
+  contributes two. Three named tricks are covered by neither ruling: Blurry Drifter,
+  Blurry Symposium Whirl and Blurry Whirling Swirl. Each is notated with the same
+  opening structure seen in the two-ADD reading, an inward dex followed by a paradox
+  dex, and each would reach its currently published difficulty under that reading. Do
+  these three use the two-ADD Blurry composition, or the ordinary one-ADD-flat
+  reading? The published totals are consistent with the two-ADD reading, but a total
+  that fits is arithmetic rather than evidence, and it is the notation rather than the
+  total that puts the question worth asking: their opening matches the ruled group and
+  does not match Blurriest, the row that anchors the flat reading and carries no
+  expanded notation at all. Until it is ruled the three keep the flat reading, so the
+  parser reports them as disagreeing rather than quietly resolving them either way.
 - **Count-quantifier disposition (registry Q03).** How does a bare double or triple
   count prefix score, and are the count-quantifier names (double-dex X, triple-dex X,
   Double Guay and kin) dictionary rows at all? The drafted disposition routes them to

@@ -65,6 +65,11 @@ REPO        = Path(__file__).resolve().parents[2]
 DEFAULT_DB  = REPO / "database" / "footbag.db"
 DEFAULT_OUT_DIR = REPO / "freestyle" / "reports"
 
+# Per-trick modifier compositions are shared with the reconciliation workbook,
+# so the named list lives once in scripts/ and is imported rather than restated.
+sys.path.insert(0, str(REPO / "scripts"))
+from _trick_modifier_compositions import composition_atoms  # noqa: E402
+
 PARSER_VERSION = "2.5"  # Phase 2.5: descriptive vs add_contributing role split, status vocabulary refinement, rotational-escalation policy warning
 
 DEFAULT_TARGET_FAMILIES: set[str] = set()  # empty → no family filter (full corpus)
@@ -293,7 +298,23 @@ def parse_trick(
     for t in tokens:
         role, val = classify_token(t["token"], core_families)
         record = {"token": val, "span_start": t["span_start"], "span_end": t["span_end"]}
-        if role == "virtual":
+        # A modifier that is folk shorthand can mean a different structure on a
+        # named trick than it does anywhere else, so the trick decides before
+        # the token's ordinary role does. The atoms score from the registry the
+        # same as any operator, and the row records which ruling was applied, so
+        # a reader is not left to infer that the modifier carries one weight.
+        composition = composition_atoms(val, canonical_slug)
+        if composition:
+            for atom in composition:
+                atom_role, atom_val = classify_token(atom, core_families)
+                descriptive[atom_role].append({
+                    **record, "token": atom_val, "expanded_from": val,
+                })
+            parse["additive_flags"].append("per_trick_composition_expanded")
+            parse["parse_warnings"].append(
+                f"per_trick_composition:{val}={'+'.join(composition)}")
+            resolved += 1
+        elif role == "virtual":
             parse["additive_flags"].append("virtual_modifier_expanded")
             for expanded_role, expanded_tok in VIRTUAL_EXPANSIONS[val]:
                 descriptive[expanded_role].append({

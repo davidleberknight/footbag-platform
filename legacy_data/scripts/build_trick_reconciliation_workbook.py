@@ -38,6 +38,7 @@ from __future__ import annotations
 import csv
 import re
 import sqlite3
+import sys
 from collections import defaultdict
 from pathlib import Path
 from typing import Optional
@@ -947,39 +948,18 @@ ROTATIONAL_BASE_SLUGS = frozenset({
     "illusion",  # mirage's reverse atom; rotational by symmetry
 })
 
-# Composite-modifier decompositions: folk-name shorthand modifier labels
-# whose ADD math should derive from a multi-atom stack rather than the
-# single DB row's add_bonus, scoped to a trick-slug allowlist.
-#
-# Red-explicit only. Red pt8 ratified 'blurry = stepping paradox' for the
-# four enumerated compounds (Blurry Whirl = Stepping Paradox Whirl = 5;
-# Blurry Torque = Stepping Paradox Torque = 6; Food Processor =
-# Stepping Paradox Blender = 6; Blur = Stepping Paradox Mirage = 4). The
-# DB modifier table preserves 'blurry' as a +1 row because chain readings,
-# glossary entries, and other curator-facing surfaces still reference it
-# as a single label; the decomposition runs only inside derive_add_math
-# and only for the targeted trick slugs.
-#
-# Trick-slug allowlist is load-bearing: blurriest (= blurry barfly per DB)
-# uses 'blurry' as a single +1 dex-prefix on a 2-dex barfly base, NOT as
-# the two-atom stepping+paradox stack. Universal application to all
-# blurry-X compounds would mis-derive blurriest.
-#
-# Restraint: nemesis (furious = barraging + paradox = +2) is Red-IMPLICIT
-# via parallel structure and awaits explicit Red confirmation; sumo
-# (nuclear composition) is the genuine open Wave 3 Q7 candidate. Neither
-# lives here until curator/Red resolves them.
-MODIFIER_COMPOSITIONS: dict[str, dict] = {
-    "blurry": {
-        "atoms": ["stepping", "paradox"],
-        "targets": frozenset({
-            "blur",
-            "blurry-whirl",
-            "blurry-torque",
-            "food-processor",
-        }),
-    },
-}
+# Composite-modifier decompositions: folk-name shorthand modifier labels whose
+# ADD math derives from a multi-atom stack rather than the single registry row's
+# add_bonus, scoped to a trick allowlist. The list and the reasoning behind it
+# live in the shared helper, which the freestyle notation parser reads too, so
+# the two cannot answer the same question differently. Membership is asked for
+# through composition_atoms rather than by testing the frozenset directly: it
+# normalizes the slug, and this workbook's slugs come from the trick tables in
+# underscore form.
+_SHARED_SCRIPTS = str(REPO_ROOT / "scripts")
+if _SHARED_SCRIPTS not in sys.path:
+    sys.path.insert(0, _SHARED_SCRIPTS)
+from _trick_modifier_compositions import composition_atoms  # noqa: E402
 
 
 def derive_chain_reading(
@@ -1014,8 +994,8 @@ def derive_add_math(
 
     Returns (derivation_string, total_add) or (None, None) when derivation
     isn't possible. Uses rotational bonus when base is in ROTATIONAL_BASE_SLUGS.
-    Expands a modifier into its atomic decomposition when the
-    (modifier, trick) pair appears in MODIFIER_COMPOSITIONS.
+    Expands a modifier into its atomic decomposition when a per-trick ruling
+    covers that (modifier, trick) pair; otherwise the modifier scores as itself.
     """
     if not base_trick or not modifier_slugs:
         return None, None
@@ -1034,11 +1014,7 @@ def derive_add_math(
     parts: list[str] = []
     total = base_add
     for mod_slug in modifier_slugs:
-        composition = MODIFIER_COMPOSITIONS.get(mod_slug)
-        if composition and trick_slug in composition["targets"]:
-            atom_slugs = composition["atoms"]
-        else:
-            atom_slugs = [mod_slug]
+        atom_slugs = composition_atoms(mod_slug, trick_slug) or [mod_slug]
         for atom_slug in atom_slugs:
             mod = modifier_table.get(atom_slug)
             if not mod:
