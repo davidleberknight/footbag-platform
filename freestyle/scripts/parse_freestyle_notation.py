@@ -98,7 +98,11 @@ TERMINAL_REPLACEMENT_ADDS = {"swirl": 1}
 # that's in the DB but not classified here surfaces as a warning rather
 # than a silent skip.
 SET_TOKENS = {
-    "atomic", "pixie", "fairy", "pogo", "rooted", "furious", "barraging",
+    # Barraging is deliberately absent: it is a historical name for Furious and
+    # expands to it, the way surging does, rather than routing as a set of its own.
+    # Barraging is deliberately absent: it is a historical name for Furious and
+    # expands to it, the way surging does, rather than routing as a set of its own.
+    "atomic", "pixie", "fairy", "pogo", "rooted", "furious",
     # Registered set operators from the freestyle_trick_modifiers registry
     # (modifier_type='set'); weights come from the registry, this set only
     # routes the token to the set role bucket.
@@ -134,9 +138,24 @@ UNUSUAL_SURFACE_TOKENS = {
 POLICY_TOKENS = {
     "nuclear", "quantum", "down",
 }
-# Virtual modifier expansions per skill §2 (surging = spinning + stepping).
+# Tokens that are not operators in their own right, and what each stands for.
+#
+# The expansion carries the token's real components, and each expanded component
+# scores from the registry as it always does, so nothing here introduces a weight
+# of its own. The descriptive layer keeps both halves: the component it expanded
+# to, and `expanded_from` naming the token actually written in the name.
+#
+# Surging is a composite: it names a spin and a step together, so it decomposes
+# to both rather than being registered as a third thing.
+#
+# Barraging is a historical name for the Furious set rather than a set of its
+# own, and it is retired as an independently scored operator. It expands to
+# Furious so it draws Furious's registered two-dex contribution. Registering a
+# weight against the historical spelling instead would give the same numbers and
+# assert something the doctrine denies: that barraging is an operator.
 VIRTUAL_EXPANSIONS = {
-    "surging": [("rotation", "spinning"), ("modifier", "stepping")],
+    "surging":   [("rotation", "spinning"), ("modifier", "stepping")],
+    "barraging": [("set", "furious")],
 }
 
 
