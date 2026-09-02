@@ -29,6 +29,7 @@ from club_curation import (  # noqa: E402
     SEED_FIELDNAMES,
     apply_club_text_corrections,
     blank_location_placeholder,
+    clean_club_text,
     repair_doubled_url_scheme,
     load_club_text_corrections,
 )
@@ -132,10 +133,19 @@ def extract_club(html_path, legacy_club_key):
     with open(html_path, encoding="utf-8", errors="replace") as f:
         soup = BeautifulSoup(f, "html.parser")
 
+    # Every free-text field is cleaned as it leaves the page, which is what the
+    # shared cleaner exists for: it decodes numeric escapes, settles line endings,
+    # and restores CP1252 punctuation that the legacy pages carry as a C1 control.
+    # A control is not a real character, and a field holding one reaches the seed
+    # looking like text while rendering as nothing. Cleaning here rather than in
+    # each consumer is also what keeps the two seed producers agreeing: the dump
+    # side already cleans the same fields, so a value cleaned on only one side
+    # would depend on which producer ran last. The location fields are cleaned by
+    # the placeholder blanker below, which calls the same cleaner.
     name_tag = soup.select_one("h1.clubsShowName")
     if not name_tag:
         return None
-    name = name_tag.get_text(strip=True)
+    name = clean_club_text(name_tag.get_text(strip=True))
     if not name:
         return None
 
@@ -144,6 +154,7 @@ def extract_club(html_path, legacy_club_key):
     city, region, country = parse_location(location_text) if location_text else ("", "", "")
     city = blank_location_placeholder(city)
     region = blank_location_placeholder(region)
+    country = clean_club_text(country)
 
     if not country:
         return None
@@ -184,13 +195,19 @@ def extract_club(html_path, legacy_club_key):
         href = url_link.get("href", "").strip()
         # Skip relative/internal links
         if href.startswith("http://") or href.startswith("https://"):
-            external_url = repair_doubled_url_scheme(href)
+            external_url = repair_doubled_url_scheme(clean_club_text(href))
 
-    # Description
+    # Description. Cleaned on the way in, before the contact scrub, matching the
+    # order the dump-side producer uses so the two cannot disagree about a value.
+    # The ordering does no work on this path in particular: the HTML parser has
+    # already turned numeric escapes into characters by the time get_text returns,
+    # so the decode the cleaner would do is spent. It is the CP1252 repair that
+    # earns its place here.
     description = ""
     welcome_div = soup.select_one("div#ClubsWelcome")
     if welcome_div:
-        description = _scrub_description_pii(welcome_div.get_text(separator=" ", strip=True))
+        description = _scrub_description_pii(
+            clean_club_text(welcome_div.get_text(separator=" ", strip=True)))
 
     # CMS timestamps from div#MainModified
     # Format: "Created Sun Jan 15 10:16:52 2012; last update Sun Jan 15 10:16:52 2012."
