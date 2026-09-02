@@ -15,9 +15,19 @@
 # 2. Domain identity + DKIM (var.ses_enable_domain_auth) go in first. They
 #    are invisible to whoever currently holds the domain's mail: nothing at
 #    the apex changes, so SES domain verification and the production-access
-#    request can complete well ahead of any mail move. Flip this while the
-#    application still runs the stub mail adapter, so swapping the address
-#    identity for the domain identity cannot interrupt live sending.
+#    request can complete well ahead of any mail move.
+#
+#    This once said to flip the flag while the application still ran the
+#    stub adapter, so the identity swap could not interrupt live sending.
+#    That window closed when email was armed early on the interim sender.
+#    Flipping this now sets aws_ses_email_identity.sender to count = 0,
+#    destroying the verified interim identity, while the domain identity it
+#    creates does not authorise that interim address -- and the verification
+#    resource below can hold the apply for up to 45 minutes. So the flip and
+#    the sender cutover are ONE window, not two steps: confirm the outbox is
+#    empty, then apply and move the sender in the same sitting. The identity
+#    destroy is one-way; recreating the interim address later needs a fresh
+#    click-link verification sent to an address the design keeps unmonitored.
 #
 # 3. Apex SPF, DMARC, and the custom MAIL FROM records
 #    (var.ses_enable_mail_records) go in on the day inbound mail moves. They
@@ -327,7 +337,7 @@ resource "aws_route53_record" "dmarc" {
   lifecycle {
     precondition {
       condition     = var.ses_dmarc_rua_email != ""
-      error_message = "ses_dmarc_rua_email must be set to a real mailbox before enabling SES domain auth, so DMARC aggregate reports have a destination."
+      error_message = "ses_dmarc_rua_email must be set to a real mailbox before enabling ses_enable_mail_records, which is the flag that publishes this DMARC record, so aggregate reports have a destination."
     }
   }
 }
@@ -367,7 +377,7 @@ resource "aws_route53_record" "mx" {
 }
 
 variable "google_dkim_txt" {
-  description = "Workspace DKIM public key for the google selector, generated in the Workspace admin console. The key cannot be generated until Gmail has served the domain for 24 to 72 hours, so this stays empty when the MX first moves and is filled in afterwards. A 2048-bit key exceeds the 255-character limit on one TXT string, so supply it pre-split in quoted segments (\"v=DKIM1; k=rsa; p=first\" \"rest\")."
+  description = "Workspace DKIM public key for the google selector, generated in the Workspace admin console. Google will not issue the key until Gmail has served the domain for 24 to 72 hours, and that clock starts when the domain is ADDED to the Workspace and Gmail is enabled on it -- not when the MX repoints. So adding the domain three days before mail day lets the MX and this record publish together, which is what the go-live plan sequences. Leaving it empty until after the repoint instead produces days of unsigned Workspace outbound at the worst possible moment. A 2048-bit key exceeds the 255-character limit on one TXT string, so supply it pre-split in quoted segments (\"v=DKIM1; k=rsa; p=first\" \"rest\")."
   type        = string
   default     = ""
 }
