@@ -145,6 +145,86 @@ def test_malformed_outbound_link_is_deleted_outright():
     assert 'junk' not in soup.get_text()
 
 
+# ── the scheme the legacy form prepended ─────────────────────────────────────
+#
+# The club and event forms put "http://" in front of whatever was typed. Anyone
+# who typed a full web address got a second scheme in front of it, and anyone
+# who typed one with the colon missing got the same treatment a character
+# short. Both name a host of "https" and are dead links, but the address the
+# person meant survives inside the value, so the archive keeps it rather than
+# dropping the only copy it holds. What was never an address stays deleted.
+
+@pytest.mark.parametrize('stored, meant', [
+    ('http://https://sites.google.com/example/club/home',
+     'https://sites.google.com/example/club/home'),
+    ('http://https://www.facebook.com/groups/216661849514732/',
+     'https://www.facebook.com/groups/216661849514732/'),
+    ('http://http://www.example.org/forum',
+     'http://www.example.org/forum'),
+    ('http://https//www.youtube.com/watch?v=Y5rTAwH3C-Y',
+     'https://www.youtube.com/watch?v=Y5rTAwH3C-Y'),
+    ('HTTP://HTTPS://www.example.org/x',
+     'HTTPS://www.example.org/x'),
+])
+def test_a_prepended_scheme_is_stripped_and_the_typed_address_kept(stored, meant):
+    assert mirror_script.repair_legacy_prepended_scheme(stored) == meant
+
+
+@pytest.mark.parametrize('url', [
+    'http://www.example.org/x',
+    'https://www.example.org/x',
+    # "http" further along is part of the address, not a second scheme.
+    'https://web.archive.org/web/2020/http://www.example.org/',
+    'https://www.example.org/redirect?to=http://elsewhere.example/',
+    # A scheme word with a single slash never had a second scheme to strip.
+    'http://https/x',
+    '',
+])
+def test_an_address_with_one_scheme_is_returned_untouched(url):
+    assert mirror_script.repair_legacy_prepended_scheme(url) == url
+
+
+@pytest.mark.parametrize('href, address', [
+    ('http://https://sites.google.com/example/club/home',
+     'https://sites.google.com/example/club/home'),
+    ('http://https//www.youtube.com/watch?v=Y5rTAwH3C-Y',
+     'https://www.youtube.com/watch?v=Y5rTAwH3C-Y'),
+])
+def test_a_prepended_scheme_link_is_kept_as_text_rather_than_deleted(href, address):
+    soup, (deleted, flattened, _actions) = _neutralized(
+        f'<p><a href="{href}">Click here</a></p>')
+    assert (deleted, flattened) == (0, 1)
+    assert soup.find('a') is None
+    text = soup.get_text()
+    assert f'Click here ({address})' in text
+
+
+@pytest.mark.parametrize('junk', [
+    'http://e-mail:',
+    'http://Bienvenidos',
+    'http://Coming',
+    'http://-',
+])
+def test_a_value_that_was_never_an_address_is_still_deleted(junk):
+    # Text somebody typed into a URL field. The repair cannot reach these:
+    # there is no second scheme to strip, and nothing here invents a host.
+    soup, (deleted, flattened, _actions) = _neutralized(
+        f'<p><a href="{junk}">home page</a></p>')
+    assert (deleted, flattened) == (1, 0)
+    assert soup.find('a') is None
+    assert 'home page' not in soup.get_text()
+
+
+def test_a_repaired_address_inside_the_archive_stays_clickable():
+    # Repairing before the destination is read means a prepended scheme decides
+    # neither where a link points nor whether it survives. Without the repair
+    # this link names a host of "http", counts as outbound, and is deleted.
+    soup, (deleted, flattened, _actions) = _neutralized(
+        f'<p><a href="http://{BASE}/events/list">Events</a></p>')
+    assert (deleted, flattened) == (0, 0)
+    assert soup.find('a') is not None
+
+
 def test_links_inside_the_archive_stay_clickable():
     soup, (deleted, flattened, _actions) = _neutralized(
         f'<p><a href="{BASE}/events/list">Events</a></p>')

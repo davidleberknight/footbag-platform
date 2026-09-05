@@ -3541,6 +3541,34 @@ def strip_javascript(soup):
 _MAX_ARCHIVE_URL_LENGTH = 2048
 _REPEATED_SCHEME = re.compile(r'^https?://https?://', re.IGNORECASE)
 
+# The legacy club and event forms prepend "http://" to whatever was typed, so a
+# contact who entered a full web address got it stored, and served, with a
+# second scheme in front: 'http://https://example.org'. Some typed the address
+# with the colon missing, which prepends the same way and lands as
+# 'http://https//example.org'. Both name a host of "https" and are dead links
+# wherever they are published, but the address the person meant is intact and
+# sitting right there, so the archive can keep it instead of dropping the only
+# copy it has. The repair is deliberately outside outbound_url_is_malformed:
+# that predicate mirrors the platform's own URL-shape rule and has to keep
+# answering the same question the platform answers, while this is a repair of a
+# known legacy-form artifact applied before anything is judged.
+_LEGACY_PREPENDED_SCHEME = re.compile(r'^\s*https?://(?=https?:?//)',
+                                      re.IGNORECASE)
+_SCHEME_MISSING_COLON = re.compile(r'^(https?)//', re.IGNORECASE)
+
+
+def repair_legacy_prepended_scheme(url):
+    # Only a scheme immediately followed by another scheme is touched, and the
+    # inner one is kept, because it is what the person actually typed. An
+    # address carrying one scheme, or the word "http" anywhere else in it, is
+    # returned unchanged. Nothing here invents a host: a value that was never an
+    # address stays exactly as malformed as it was and is still deleted below.
+    candidate = (url or '').strip()
+    inner = _LEGACY_PREPENDED_SCHEME.sub('', candidate, count=1)
+    if inner == candidate:
+        return candidate
+    return _SCHEME_MISSING_COLON.sub(r'\1://', inner, count=1)
+
 
 def outbound_url_is_malformed(url):
     candidate = (url or '').strip()
@@ -3588,6 +3616,11 @@ def neutralize_outbound_links(soup, page_url):
             continue
         if not abs_url.lower().startswith(('http://', 'https://')):
             continue
+        # Repair before anything is judged, so the doubled scheme decides
+        # neither where the link points nor whether it survives. A repaired
+        # address that turns out to be inside the archive is an archive link
+        # like any other and stays clickable.
+        abs_url = repair_legacy_prepended_scheme(abs_url)
         if is_footbag_domain(abs_url):
             continue
         if outbound_url_is_malformed(abs_url):
