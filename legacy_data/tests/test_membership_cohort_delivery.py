@@ -28,14 +28,21 @@ REQUIRE_ENV = "FOOTBAG_REQUIRE_DUMP"
 
 # The audited partition for the delivery in hand.
 #
-# Four membership names that once entered this cohort no longer reach it: they
-# were the same humans as canonical people under a different spelling, and the
-# curated consolidation now resolves them upstream, so the provisional builder
-# never emits a stub for them. They needed a disposition only for as long as they
+# Membership names that once entered this cohort no longer reach it: they were
+# the same humans as canonical people, and the builder never emits a stub for a
+# person already resolved. They needed a disposition only for as long as they
 # existed as separate identities. Every person still awaiting one holds no site
 # account, which is why the duplicate bucket below is empty rather than small.
-COHORT = 268
-STAGE_B_PROPOSALS = 152
+#
+# Four left by curated consolidation, under a different spelling. A fifth left
+# by competing: a membership-only person whose site account carried no results
+# now holds a placement at a newly captured World Championships, so the
+# reconciler resolves them as a canonical competitor and the provisional builder
+# stops emitting a stub. Both counts below move by that one person. This is the
+# audited partition moving with the delivery, which is what the header describes,
+# not the cohort rule weakening.
+COHORT = 267
+STAGE_B_PROPOSALS = 151
 STAGE_B_REVIEW_ROWS = 0
 EXPLICIT_DISPOSITIONS = 116
 

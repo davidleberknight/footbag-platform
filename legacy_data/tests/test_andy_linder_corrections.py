@@ -174,16 +174,27 @@ def test_the_ambiguous_entry_is_not_acted_on():
 
 @pytest.mark.skipif(not (_CANON / "event_result_participants.csv").exists(),
                     reason="the canonical competitor data is not present here")
-def test_each_declared_target_exists_exactly_once_in_the_delivered_data():
-    """What makes these corrections outstanding rather than already done: both
-    rows are still there, once each, so the guards will neither refuse nor find
-    an ambiguity on the next rebuild."""
+def test_no_declared_target_survives_into_the_delivered_data():
+    """The corrections are applied during generation, so the delivered data
+    carries neither row.
+
+    The competitor did not take these placements; the source recorded them in
+    error, and the curated file rules them out. The parser re-creates them from
+    the source on every rebuild and the remediation stage removes them again, so
+    absence here is the whole point of the correction rather than evidence the
+    source changed. The guards that decide whether a removal may fire are
+    exercised against controlled input elsewhere in this file, where a missing
+    or duplicated target can be posed deliberately.
+    """
     parts = _participants()
     for tag, ev, dk, pl in sorted(_declared()):
         hits = [p for p in parts
                 if p["event_key"] == ev and p["discipline_key"] == dk
                 and p["placement"] == pl and p["person_id"] == ANDY]
-        assert len(hits) == 1, f"{tag}: {ev}/{dk}/p{pl} matched {len(hits)}"
+        assert not hits, (
+            f"{tag}: {ev}/{dk}/p{pl} is still recorded against this competitor "
+            f"({len(hits)} row(s)); the declared removal did not fire"
+        )
 
 
 @pytest.mark.skipif(not (_CANON / "event_result_participants.csv").exists(),

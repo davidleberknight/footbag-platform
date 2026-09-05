@@ -410,7 +410,6 @@ event_key,legacy_event_id,year,event_name,event_slug,start_date,end_date,city,re
 2009_footbagjam_warsaw,1251990500,2009,6th Annual Wilanow Footbag Open 2009,6th_annual_wilanow_footbag_open_2009,2009-10-10,2009-10-11,Warsaw,Masovian,Poland,WSF Warsaw Footbag Association,freestyle,completed,,mirror
 2009_austrian,1245432804,2009,Austrian Footbag Championships 2009,austrian_footbag_championships_2009,2009-08-07,2009-08-09,Wiener Neustadt,Lower Austria,Austria,AUTsiders,mixed,completed,,mirror
 2009_end_winter,1239721441,2009,End of Winter Jam,end_of_winter_jam,2009-04-18,2009-04-19,Wrocław,Lower Silesian,Poland,PSF Polish Footbag Association,freestyle,completed,,mirror
-2009_ffo_bembelcup2009_fundraising,1244709676,2009,FFO_BembelCup2009_Fundraising Party,ffo_bembelcup2009_fundraising_party,2009-06-20,2009-06-20,Frankfurt,,Germany,SG Frankfurt Footbag e.V.,net,completed,,mirror
 2009_finnish,1254829577,2009,Finnish Footbag Championships,finnish_footbag_championships,2009-12-11,2009-12-13,Naantali,Southwest Finland,Finland,Footcraft,mixed,completed,,mirror
 2009_footbagjam_stara_zagora,1260517364,2009,Footbag Open Meeting,footbag_open_meeting,2009-12-12,2009-12-13,Stara Zagora,,Bulgaria,Urban Komba,mixed,completed,,mirror
 2009_footbagjam_frankfurt,1225370942,2009,Frankfurt Footbag Open - *Bembel Cup 2009*,frankfurt_footbag_open_bembel_cup_2009,2009-07-11,2009-07-12,Frankfurt,Hesse,Germany,SG Frankfurt Footbag e.V.,net,completed,,mirror
@@ -634,8 +633,7 @@ event_key,legacy_event_id,year,event_name,event_slug,start_date,end_date,city,re
 2015_turku,1431288258,2015,Turku Open,turku_open,2015-07-18,2015-07-18,Turku,Southwest Finland,Finland,Footcraft,net,completed,,mirror
 2015_usopen_west_linn,1425372477,2015,U.S. Open Footbag Championships 2015,u_s_open_footbag_championships_2015,2015-06-27,2015-06-28,West Linn,Oregon,United States,Sole Purpose,mixed,completed,,mirror
 2015_xv_polish,1439332196,2015,XV IFPA Polish Footbag Championships,xv_ifpa_polish_footbag_championships,2015-09-12,2015-09-13,Katowice,Silesian,Poland,PSF Polish Footbag Association,mixed,completed,,mirror
-2016_polish_jaworzno,1456767767,2016,16th Annual Polish Footbag Championships,16th_annual_polish_footbag_championships,2016-09-10,2016-09-11,Jaworzno,,Poland,Jaworzno Footbag Club,freestyle,completed,,mirror
-2016_polish_katowice,1467142686,2016,16th Annual Polish Footbag Championships,16th_annual_polish_footbag_championships,2016-09-10,2016-09-11,Katowice,Silesian,Poland,Jaworzno Footbag Club,mixed,completed,,mirror
+2016_polish,1467142686,2016,16th Annual Polish Footbag Championships,16th_annual_polish_footbag_championships,2016-09-10,2016-09-11,Katowice,Silesian,Poland,Jaworzno Footbag Club,mixed,completed,,mirror
 2016_footbagjam_bremen,1466942562,2016,18th Annual German Footbag Open,18th_annual_german_footbag_open,2016-10-14,2016-10-16,Bremen,,Germany,Freestyle Fanatics,mixed,completed,,mirror
 2016_eurochamp_frankfurt,1460640850,2016,18th Annual IFPA European Footbag Championships 2016,18th_annual_ifpa_european_footbag_championships_2016,2016-06-17,2016-06-19,Frankfurt,Hesse,Germany,SG Frankfurt Footbag e.V.,mixed,completed,,mirror
 2016_mud_island_belt,1454371285,2016,2016 Mud Island Belt presented by Memphis Footworks,2016_mud_island_belt_presented_by_memphis_footworks,2016-05-28,2016-05-29,Memphis,Tennessee,United States,Memphis Footworks,net,completed,,mirror
@@ -669,7 +667,7 @@ event_key,legacy_event_id,year,event_name,event_slug,start_date,end_date,city,re
 2017_finnish_turku,1509295388,2017,Finnish Footbag Net Championships,finnish_footbag_net_championships,2017-11-11,2017-11-12,Turku,Southwest Finland,Finland,Suomen Footbag Liitto ry. (Finnish Footbag Association),net,completed,,mirror
 2017_finnish_helsinki,1509295589,2017,Finnish Freestyle Footbag Championships,finnish_freestyle_footbag_championships,2017-12-02,2017-12-02,Helsinki,Uusimaa,Finland,Suomen Footbag Liitto ry. (Finnish Footbag Association),freestyle,completed,,mirror
 2017_lakeerie,1489248474,2017,Lake Erie Footbag Tournament,lake_erie_footbag_tournament,2017-06-10,2017-06-11,Erie,Pennsylvania,United States,FOOTBAG ERIE,net,completed,,mirror
-2017_rnh_contest,1486654923,2017,RNH Contest,rnh_contest,2017-04-01,2017-04-02,Paris,Île-de-France,France,Rien N'est Hacky - RNH Footbag,net,completed,,mirror
+2017_rnh_contest,1486654923,2017,RNH Contest 2017,rnh_contest_2017,2017-04-01,2017-04-02,Paris,Île-de-France,France,Rien N'est Hacky - RNH Footbag,net,completed,,mirror
 2017_footbagjam_stara_zagora,1487800738,2017,Stara Zagora Footbag Jam 2017,stara_zagora_footbag_jam_2017,2017-04-29,2017-04-30,Stara Zagora,,Bulgaria,Urban Komba,net,completed,,mirror
 2017_footbagjam_lausanne,1488957997,2017,Swiss Footbag Open 2017,swiss_footbag_open_2017,2017-10-20,2017-10-22,Lausanne,Vaud,Switzerland,Les Pieds à Gilles,mixed,completed,,mirror
 2017_tenth_windy_city,1492354286,2017,Tenth Annual Windy City Cup Footbag Net Championships,tenth_annual_windy_city_cup_footbag_net_championships,2017-06-24,2017-06-25,Chicago,Illinois,United States,Chicago Lake Coast Kickers,net,completed,,mirror
@@ -712,7 +710,7 @@ event_key,legacy_event_id,year,event_name,event_slug,start_date,end_date,city,re
 2019_mud_belt_memphis,1557331196,2019,Mud Belt Presented by Memphis Footworks,mud_belt_presented_by_memphis_footworks,2019-06-22,2019-06-23,Memphis,Tennessee,United States,Memphis Footworks,net,completed,,mirror
 2019_de_france,1547720079,2019,Open de France 2019,open_de_france_2019,2019-05-25,2019-05-26,Nantes,Pays de la Loire,France,Carnabal Footbag,net,completed,,mirror
 2019_rnh_contest,1551207285,2019,RNH Contest 2019,rnh_contest_2019,2019-03-24,2019-03-24,Paris,Île-de-France,France,Rien N'est Hacky - RNH Footbag,net,completed,,mirror
-2019_rnh_anniversary,1568961264,2019,RNH Footbag 20th Anniversary,rnh_footbag_20th_anniversary,2019-11-16,2019-11-17,Paris,Île-de-France,France,Rien N'est Hacky - RNH Footbag,net,completed,,mirror
+2019_rnh_anniversary_rnh,1568961264,2019,RNH Footbag 20th Anniversary - RNH Contest 2019,rnh_footbag_20th_anniversary_rnh_contest_2019,2019-11-16,2019-11-17,Paris,Île-de-France,France,Rien N'est Hacky - RNH Footbag,net,completed,,mirror
 2019_usopen_boston,1555631351,2019,US Open Footbag Championships 2019,us_open_footbag_championships_2019,2019-08-16,2019-08-18,Boston,Massachusetts,United States,Boston Shred Crew,mixed,completed,,mirror
 2019_xix_polish_krakow,1567551985,2019,XIX Polish Footbag Championships - Krakow 2019,xix_polish_footbag_championships_krakow_2019,2019-11-23,2019-11-24,Kraków,Lesser Poland,Poland,Maniac Footbag Team,mixed,completed,,mirror
 2020_eastregion,1596587110,2020,38th Annual East Coast Footbag Championships,38th_annual_east_coast_footbag_championships,2020-09-12,2020-09-13,Doylesburg,Pennsylvania,United States,New York Footbag Association,mixed,completed,,mirror
@@ -781,9 +779,8 @@ event_key,legacy_event_id,year,event_name,event_slug,start_date,end_date,city,re
 2024_rnh_contest,1721038326,2024,RNH Contest 2024,rnh_contest_2024,2024-09-28,2024-09-29,Paris,Île-de-France,France,Rien N'est Hacky - RNH Footbag,net,completed,,mirror
 2024_segunda_copa_perpetual,1733755410,2024,Segunda 'Copa Perpetual Flame',segunda_copa_perpetual_flame,2024-12-15,2024-12-15,Caracas,Capital District,Venezuela,Footbag Net Caracas,net,completed,,mirror
 2024_footbagjam_lausanne,1709070838,2024,Swiss Footbag Open 2024,swiss_footbag_open_2024,2024-10-26,2024-10-27,Lausanne,Vaud,Switzerland,Les Pieds à Gilles,net,completed,,mirror
-2024_basque_bilbao_3,1721923932,2024,V.Basque Tournament of Footbag Net (Doubles),v_basque_tournament_of_footbag_net_doubles,2024-07-25,2024-07-25,Bilbao,Bizkaia,Spain,Bilbao Footbag Club,net,completed,,mirror
-2024_basque_bilbao,1704983851,2024,VI . Basque Tournament of Footbag Net (Individual),vi_basque_tournament_of_footbag_net_individual,2024-01-11,2024-01-11,Bilbao,Bizkaia,Spain,Bilbao Footbag Club,net,completed,,mirror
-2024_basque_bilbao_2,1721817655,2024,VI. Basque Tournament of Footbag Net (Individual),vi_basque_tournament_of_footbag_net_individual,2024-01-11,2024-01-11,Bilbao,Bizkaia,Spain,Bilbao Footbag Club,net,completed,,mirror
+2024_basque_bilbao_2,1721923932,2024,V.Basque Tournament of Footbag Net (Doubles),v_basque_tournament_of_footbag_net_doubles,2024-07-25,2024-07-25,Bilbao,Bizkaia,Spain,Bilbao Footbag Club,net,completed,,mirror
+2024_basque_bilbao,1721817655,2024,VI. Basque Tournament of Footbag Net (Individual),vi_basque_tournament_of_footbag_net_individual,2024-01-11,2024-01-11,Bilbao,Bizkaia,Spain,Bilbao Footbag Club,net,completed,,mirror
 2025_eurochamp_frankfurt,1740391168,2025,25th IFPA European Footbag Championships 2025,25th_ifpa_european_footbag_championships_2025,2025-06-06,2025-06-08,Frankfurt,Hesse,Germany,SG Frankfurt Footbag e.V.,freestyle,completed,,mirror
 2025_polish_jaworzno,1751568193,2025,25th Polish Footbag Championships - Jaworzno 2025,25th_polish_footbag_championships_jaworzno_2025,2025-09-13,2025-09-14,Jaworzno,Silesian,Poland,Jaworzno Footbag Club,mixed,completed,,mirror
 2025_eastregion,1750356087,2025,43rd Annual East Coast Footbag Championships,43rd_annual_east_coast_footbag_championships,2025-08-23,2025-08-24,Brooklyn,New York,United States,New York Footbag Association,mixed,completed,,mirror
@@ -807,10 +804,12 @@ event_key,legacy_event_id,year,event_name,event_slug,start_date,end_date,city,re
 2026_usopen_willamette_park,1770842711,2026,2026 US Open Footbag Championships,2026_us_open_footbag_championships,2026-06-13,2026-06-14,Willamette Park,West Linn Portland,USA,Sole Purpose,mixed,completed,,mirror
 2026_eurochamp_parque_casino_de_la_reina_embajadores_madrid,1776258399,2026,26th IFPA European Footbag Championships 2026,26th_ifpa_european_footbag_championships_2026,2026-06-26,2026-06-28,Parque Casino de la Reina (Embajadores) Madrid,,Spain,Madrid Footbag Club,net,completed,,mirror
 2026_eastregion,1774365796,2026,44th Annual East Coast Footbag Championships,44th_annual_east_coast_footbag_championships,2026-07-04,2026-07-05,McCarren Park Brooklyn,New York,USA,New York Footbag Association,mixed,completed,,mirror
+2026_worlds_ibaraki,1768955907,2026,45th Annual World Footbag Championships,45th_annual_ifpa_world_footbag_championships_2026,2026-08-10,2026-08-15,Ibaraki,Ibaraki Prefecture,Japan,team Twist,worlds,completed,,mirror
 2026_akisphere,1772813663,2026,Akisphere 2026,akisphere_2026,2026-07-10,2026-07-12,Lalancette Park Montreal,Quebec,Canada,Aki Québec,net,completed,,mirror
 2026_czech_champioships,1778153135,2026,Czech Footbag Champioships 2026,czech_footbag_champioships_2026,2026-06-20,2026-06-20,Smr¾ov 157,,Czech Republic,Hradec Králové Footbag Club,net,completed,,mirror
 2026_eugene_spring_golf,1773844106,2026,"Eugene Spring Footbag Net and Golf Tournament, with freestyle circles",eugene_spring_footbag_net_and_golf_tournament_with_freestyle_circles,2026-04-11,2026-04-12,Eugene,Oregon,United States,,net,completed,,mirror
 2026_footbagjam,1766004796,2026,German Footbag Open,german_footbag_open,2026-02-07,2026-02-08,Berlin,Berlin,Germany,FC Footstar Berlin e.V.,mixed,completed,,mirror
+2026_bilbao_individual,1784632756,2026,III.Bilbao Tournament of Footbag (Individual),iii_bilbao_tournament_of_footbag_individual,2026-07-21,2026-07-21,Basket court in Elorrieta in front of the petanca field Bilbao,Bizkaia,Spain,Bilbao Footbag Club,net,completed,,mirror
 2026_de_france_de,1771170491,2026,Open de France de Footbag 2026,open_de_france_de_footbag_2026,2026-04-18,2026-04-19,Nantes,44,France,Carnabal Footbag,net,completed,,mirror
 2026_basque_bilbao_2,1781344062,2026,VII. Basque Tournament of Footbag Net (Doubles),vii_basque_tournament_of_footbag_net_doubles,2026-06-13,2026-06-13,Bilbao,Bizkaia,Spain,Bilbao Footbag Club,net,completed,,mirror
 2026_basque_bilbao,1770923654,2026,VIII.Basque Tournament of Footbag Net (Individual),viii_basque_tournament_of_footbag_net_individual,2026-02-13,2026-02-13,Bilbao,Bizkaia,Spain,Bilbao Footbag Club,net,completed,,mirror

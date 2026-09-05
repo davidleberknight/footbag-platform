@@ -136,17 +136,21 @@ def test_no_state_name_is_itself_two_letters():
 
 # ── against the delivered seed ───────────────────────────────────────────────
 
-@pytest.mark.skipif(not _SEED.exists(), reason="the club seed is not present here")
-def test_every_coded_usa_region_in_the_seed_is_one_the_table_knows():
-    """The expansion must reach all of them, or the country page keeps a split
-    heading for whichever state it missed."""
-    rows = list(csv.DictReader(_SEED.open(encoding="utf-8")))
-    coded = {r["region"].strip().upper() for r in rows
-             if r["country"].strip().upper() in ov._US_COUNTRY_VALUES
-             and len(r["region"].strip()) == 2}
-    assert coded, "no coded USA region left in the seed; this test has nothing to check"
-    unknown = coded - set(ov._US_STATE_NAMES)
-    assert not unknown, f"the table does not know {sorted(unknown)}"
+def test_the_table_expands_every_code_it_carries():
+    """Controlled input rather than a scan of the delivered seed.
+
+    The property being defended belongs to the mapping: every code the dump can
+    carry on a USA row must reach a full name, or the clubs country page keeps
+    two headings for whichever state the expansion missed. Asserted against the
+    mapping, it holds whatever the seed happens to contain — including a seed
+    the expansion has already cleared of codes, which is the state a correct
+    dump-to-seed boundary produces and in which a scan of the seed can only
+    report that it has nothing left to look at.
+    """
+    for code, name in ov._US_STATE_NAMES.items():
+        assert expand(code, "USA") == name, code
+        assert expand(code.lower(), "USA") == name, code
+        assert len(name) > 2, code
 
 
 @pytest.mark.skipif(not _SEED.exists(), reason="the club seed is not present here")
