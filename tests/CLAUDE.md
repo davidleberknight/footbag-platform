@@ -59,6 +59,9 @@ tests/
   fixtures/
     factories.ts         ← test data factories (use these)
     testDb.ts            ← shared DB setup/teardown helper
+    spawnGuard.ts        ← bound every synchronous spawn must carry
+    awsIsolation.ts      ← credential isolation the shared setup applies, so no
+                           test (or script it spawns) can reach live AWS
   unit/
     *.test.ts            ← pure-function tests (no DB, no HTTP)
   integration/

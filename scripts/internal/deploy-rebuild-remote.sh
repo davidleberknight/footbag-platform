@@ -40,6 +40,21 @@ readonly APP_UID=1000
 readonly AWSCREDS_GROUP=awscreds
 readonly AWSCREDS_GID=1500
 
+# Every rewrite of the host env file below stages a full copy through a temp
+# file in the same directory and then renames it into place. The rename removes
+# the source name, so the happy path leaves nothing behind — but there are
+# dozens of these across a run that takes many minutes, and an interruption
+# between the copy and the rename (a dropped connection, a signal, a full disk)
+# leaves a complete copy of /srv/footbag/env sitting on the host. That file
+# holds the session signing key, the worker channel secret and the origin-verify
+# secret. Mode 600 limits who can read it; nothing limits how long it stays, and
+# nothing looks for it. The sweep is unconditional on exit for that reason: it
+# costs nothing on a clean run and is the only thing that cleans up a dirty one.
+cleanup_env_tempfiles() {
+  rm -f /srv/footbag/.env.tmp.* /srv/footbag/.deployed-from.tmp.* 2>/dev/null || true
+}
+trap cleanup_env_tempfiles EXIT
+
 require_path() {
   local label="$1"
   local path="$2"
@@ -60,28 +75,44 @@ require_env() {
   printf '%s' "$value"
 }
 
-# Seed the committed per-environment container sizing config (memory limits,
-# image concurrency, video tuning) into /srv/footbag/env so production sizing
-# is governed by version control instead of an operator remembering to set it.
+# Reconcile the committed per-environment host config into /srv/footbag/env, so
+# it is governed by version control instead of an operator remembering to set
+# it. Two kinds of value: container sizing (memory limits, image concurrency,
+# video tuning), and the adapter selectors that are a constant of a deployed
+# environment rather than an operational choice. A selector an operator could
+# legitimately want the other way without a code change is an arming switch,
+# owned by Terraform and synced from Parameter Store further down, not a line
+# in this file.
+#
 # The committed file docker/env/<FOOTBAG_ENV>.env is the source of truth: keys
 # it lists are set, keys it omits are cleared (so production's omitted video
-# knobs fall back to the canonical encoder defaults). Only an allowlist of
-# sizing keys is honored and every value is format-checked, so a tampered
-# config file cannot inject a secret or a malformed line into the runtime env.
+# knobs fall back to the canonical encoder defaults). Only an allowlist of keys
+# is honored and every value is checked, so a tampered config file cannot inject
+# a secret or a malformed line into the runtime env. Because this runs on every
+# deploy rather than only when a line is absent, a hand edit on the host does
+# not survive.
 # All input reads are file-redirected (never fd 0), preserving the stdin /
 # sudo-password discipline of the cat-pipe remote-exec pattern.
 # Must run after the release tree is promoted into $LIVE_DIR.
-seed_container_sizing() {
-  local cfg="$LIVE_DIR/docker/env/${FOOTBAG_ENV}.env"
+# Pass "validate" to parse and check the committed file without writing
+# anything. This half calls it that way before it stops the service, so a typo in
+# a committed value fails while the stack is still up rather than after the
+# service is down and the database has been replaced.
+seed_committed_host_config() {
+  local mode="${1:-apply}"
+  # Second argument is the tree to read the committed file from. Validation runs
+  # before the release is promoted, so it reads the incoming file rather than the
+  # one currently live; applying runs after, where the two are the same file.
+  local cfg="${2:-$LIVE_DIR}/docker/env/${FOOTBAG_ENV}.env"
   # Identical to the code deploy's allowlist, and pinned equal by a test. They
   # had drifted: this half accepted eight keys while the code deploy accepted
   # eleven, so a host stood up by a rebuild never received VIDEO_MAX_HEIGHT and
   # encoded at full source height on an instance sized for 720p, while the
   # verifier checked only the same eight and could not see it.
-  local key_re='^(NGINX|WEB|WORKER|IMAGE)_MEMORY_LIMIT$|^IMAGE_MAX_CONCURRENT$|^VIDEO_X264_(PRESET|THREADS|RC_LOOKAHEAD)$|^VIDEO_MAX_HEIGHT$|^FFMPEG_TIMEOUT_SECONDS$|^VIDEO_TRANSCODE_TIMEOUT_MS$|^VIDEO_MIN_HOST_AVAILABLE_MB$'
-  local line_re='^(NGINX|WEB|WORKER|IMAGE)_MEMORY_LIMIT=|^IMAGE_MAX_CONCURRENT=|^VIDEO_X264_(PRESET|THREADS|RC_LOOKAHEAD)=|^VIDEO_MAX_HEIGHT=|^FFMPEG_TIMEOUT_SECONDS=|^VIDEO_TRANSCODE_TIMEOUT_MS=|^VIDEO_MIN_HOST_AVAILABLE_MB='
+  local key_re='^(NGINX|WEB|WORKER|IMAGE)_MEMORY_LIMIT$|^IMAGE_MAX_CONCURRENT$|^VIDEO_X264_(PRESET|THREADS|RC_LOOKAHEAD)$|^VIDEO_MAX_HEIGHT$|^FFMPEG_TIMEOUT_SECONDS$|^VIDEO_TRANSCODE_TIMEOUT_MS$|^VIDEO_MIN_HOST_AVAILABLE_MB$|^MEDIA_STORAGE_ADAPTER$|^SECRETS_ADAPTER$|^JWT_SIGNER$|^CAPTCHA_ADAPTER$|^TURNSTILE_SITE_KEY$'
+  local line_re='^(NGINX|WEB|WORKER|IMAGE)_MEMORY_LIMIT=|^IMAGE_MAX_CONCURRENT=|^VIDEO_X264_(PRESET|THREADS|RC_LOOKAHEAD)=|^VIDEO_MAX_HEIGHT=|^FFMPEG_TIMEOUT_SECONDS=|^VIDEO_TRANSCODE_TIMEOUT_MS=|^VIDEO_MIN_HOST_AVAILABLE_MB=|^MEDIA_STORAGE_ADAPTER=|^SECRETS_ADAPTER=|^JWT_SIGNER=|^CAPTCHA_ADAPTER=|^TURNSTILE_SITE_KEY='
   if [[ ! -f "$cfg" ]]; then
-    echo "ERROR: sizing config $cfg is missing; refusing to deploy with unmanaged container sizing." >&2
+    echo "ERROR: host config $cfg is missing; refusing to deploy with unmanaged container sizing and adapter selectors." >&2
     exit 1
   fi
   local adds key val line
@@ -98,13 +129,37 @@ seed_container_sizing() {
     case "$key" in
       *_MEMORY_LIMIT)
         [[ "$val" =~ ^[0-9]+[MG]$ ]] || { echo "ERROR: $cfg: $key='$val' is not a valid memory limit (e.g. 512M)." >&2; rm -f "$adds"; exit 1; } ;;
-      IMAGE_MAX_CONCURRENT|VIDEO_X264_THREADS|VIDEO_X264_RC_LOOKAHEAD)
+      IMAGE_MAX_CONCURRENT|VIDEO_X264_THREADS|VIDEO_X264_RC_LOOKAHEAD|VIDEO_MAX_HEIGHT|FFMPEG_TIMEOUT_SECONDS|VIDEO_TRANSCODE_TIMEOUT_MS|VIDEO_MIN_HOST_AVAILABLE_MB)
         [[ "$val" =~ ^[0-9]+$ ]] || { echo "ERROR: $cfg: $key='$val' is not a non-negative integer." >&2; rm -f "$adds"; exit 1; } ;;
       VIDEO_X264_PRESET)
         [[ "$val" =~ ^[a-z]+$ ]] || { echo "ERROR: $cfg: $key='$val' is not a valid x264 preset." >&2; rm -f "$adds"; exit 1; } ;;
+      # The three selectors below have exactly one correct value on any
+      # deployed host, so the check pins the value rather than the shape: the
+      # other value in each pair is a development affordance, and a typo here
+      # would otherwise reach a container and fail at boot or, worse, resolve
+      # to a working but wrong backend.
+      MEDIA_STORAGE_ADAPTER)
+        [[ "$val" == "s3" ]] || { echo "ERROR: $cfg: $key='$val'; a deployed host stores media in object storage ('s3')." >&2; rm -f "$adds"; exit 1; } ;;
+      SECRETS_ADAPTER)
+        [[ "$val" == "live" ]] || { echo "ERROR: $cfg: $key='$val'; a deployed host reads secrets from Parameter Store ('live')." >&2; rm -f "$adds"; exit 1; } ;;
+      JWT_SIGNER)
+        [[ "$val" == "kms" ]] || { echo "ERROR: $cfg: $key='$val'; a deployed host signs sessions with KMS ('kms')." >&2; rm -f "$adds"; exit 1; } ;;
+      CAPTCHA_ADAPTER)
+        [[ "$val" =~ ^(live|stub)$ ]] || { echo "ERROR: $cfg: $key='$val' is not 'live' or 'stub'." >&2; rm -f "$adds"; exit 1; } ;;
+      # Shape, not value: the site key is issued by Cloudflare and differs per
+      # widget, so nothing here can know the right one. What is checkable is
+      # that it looks like a Turnstile site key rather than the secret half of
+      # the pair, which starts with the same prefix and must never land here.
+      TURNSTILE_SITE_KEY)
+        [[ "$val" =~ ^0x[A-Za-z0-9_-]{10,}$ ]] || { echo "ERROR: $cfg: $key='$val' is not a Turnstile site key (expected 0x followed by the key body)." >&2; rm -f "$adds"; exit 1; } ;;
     esac
     printf '%s=%s\n' "$key" "$val" >> "$adds"
   done < "$cfg"
+  if [[ "$mode" == "validate" ]]; then
+    rm -f "$adds"
+    echo "    Validated committed host config for '$FOOTBAG_ENV' from $cfg"
+    return 0
+  fi
   local tmp
   tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
   chmod 600 "$tmp"; chown root:root "$tmp"
@@ -112,7 +167,7 @@ seed_container_sizing() {
   cat "$adds" >> "$tmp"
   rm -f "$adds"
   mv "$tmp" "$ENV_PATH"
-  echo "    Seeded container sizing for '$FOOTBAG_ENV' from $cfg"
+  echo "    Reconciled committed host config for '$FOOTBAG_ENV' from $cfg"
 }
 
 compose_cmd() {
@@ -253,18 +308,11 @@ if grep -q '^FOOTBAG_DB_PATH=/srv/footbag/footbag.db$' "$ENV_PATH"; then
   rm -f /srv/footbag/footbag.db /srv/footbag/footbag.db-wal /srv/footbag/footbag.db-shm
 fi
 
-# One-shot migration: MEDIA_STORAGE_ADAPTER seed. Both staging and production
-# read/write member uploads through the S3 media bucket via the runtime
-# adapter; without this, docker-compose.prod.yml's fail-fast on the var
-# stops the stack from starting (and prior to that gate, runtime member
-# uploads silently landed on the container's local filesystem instead of S3,
-# producing 403s through CloudFront/OAC). Operator can override by setting
-# MEDIA_STORAGE_ADAPTER=local in $ENV_PATH before deploy if they want to
-# exercise the dev-parity local adapter on a staging host.
-if ! grep -q '^MEDIA_STORAGE_ADAPTER=' "$ENV_PATH"; then
-  echo "    Seeding MEDIA_STORAGE_ADAPTER=s3 into env file (staging/prod default)..."
-  echo 'MEDIA_STORAGE_ADAPTER=s3' >> "$ENV_PATH"
-fi
+# MEDIA_STORAGE_ADAPTER, SECRETS_ADAPTER, JWT_SIGNER and CAPTCHA_ADAPTER are
+# not seeded here. They are constants of a deployed environment, declared in the
+# committed docker/env/<FOOTBAG_ENV>.env and reconciled by
+# seed_committed_host_config on every deploy, so the committed file is their
+# source rather than whoever last edited the host.
 
 # One-shot migration: INTERNAL_EVENT_SECRET seed. Authenticates the docker-
 # internal channel between web and worker for the async curator video upload
@@ -275,36 +323,13 @@ if ! grep -q '^INTERNAL_EVENT_SECRET=' "$ENV_PATH"; then
   printf 'INTERNAL_EVENT_SECRET=%s\n' "$(openssl rand -hex 32)" >> "$ENV_PATH"
 fi
 
-# One-shot migration: HTTP_REACHABILITY_ADAPTER seed. Controls the post-
-# Safe-Browsing reachability HEAD probe in the external-URL validator.
-# Required in prod-mode env.ts; without a seed, web + worker crash-loop on
-# first deploy of any branch carrying this adapter. Default 'live' matches
-# the intended runtime behavior; an operator who wants to disable outbound
-# HEAD probes on a specific host edits this line.
-if ! grep -q '^HTTP_REACHABILITY_ADAPTER=' "$ENV_PATH"; then
-  echo "    Seeding HTTP_REACHABILITY_ADAPTER=live into env file..."
-  echo 'HTTP_REACHABILITY_ADAPTER=live' >> "$ENV_PATH"
-fi
-
-# One-shot migration: SECRETS_ADAPTER seed. Selects the live/stub/local impl
-# used by Node consumers to read SSM-stored third-party secrets (Safe
-# Browsing API key, future Stripe keys, admin bootstrap tokens). Required in
-# prod-mode env.ts; without a seed, web + worker crash-loop. 'live' calls
-# SSM GetParameter via the assumed-role chain.
-if ! grep -q '^SECRETS_ADAPTER=' "$ENV_PATH"; then
-  echo "    Seeding SECRETS_ADAPTER=live into env file..."
-  echo 'SECRETS_ADAPTER=live' >> "$ENV_PATH"
-fi
-
-# One-shot migration: SAFE_BROWSING_ADAPTER seed. Default 'stub' on first
-# deploy: until the operator has both put-parameter'd the real Safe Browsing
-# API key into SSM AND flipped this to 'live', the validator runs without
-# outbound calls to Google. Two-step opt-in is intentional: a key landing
-# in SSM without the adapter flip stays in standby, not silently in-use.
-if ! grep -q '^SAFE_BROWSING_ADAPTER=' "$ENV_PATH"; then
-  echo "    Seeding SAFE_BROWSING_ADAPTER=stub into env file (operator flips to live after put-parameter)..."
-  echo 'SAFE_BROWSING_ADAPTER=stub' >> "$ENV_PATH"
-fi
+# SAFE_BROWSING_ADAPTER and HTTP_REACHABILITY_ADAPTER are not seeded here
+# either. They are derived from their arming switches further down, in every
+# deployed environment rather than on production alone, so the declared switch
+# and the running selector cannot disagree. The two-step opt-in that the old
+# seed provided still holds and now lives in Terraform: URL screening is seeded
+# dark on production, so a key landing in Parameter Store without the switch
+# being flipped stays in standby rather than silently in use.
 
 # Reconcile SES_ADAPTER for non-production hosts. src/config/env.ts forces the
 # stub adapter on staging and development (so no real mail leaves a
@@ -316,19 +341,11 @@ fi
 # from the declared flag (armed -> live, dark -> stub).
 FOOTBAG_ENV_VAL=$(require_env FOOTBAG_ENV)
 
-# The media bucket name is seeded alongside the adapter above, and needs the
-# environment name, so it lands here rather than beside it. Seeding the adapter
-# without the bucket guarantees a boot failure: the application refuses to start
-# with the S3 adapter selected and no bucket named, so an operator who has not
-# hand-written this line gets a crash-looping stack on a host that is otherwise
-# correctly configured. The name is derived rather than looked up, because every
-# environment's media bucket is footbag-<environment>-media by construction; an
-# operator pointing at a different bucket writes the line themselves and this
-# leaves it alone.
-if ! grep -q '^MEDIA_STORAGE_S3_BUCKET=' "$ENV_PATH"; then
-  echo "    Seeding MEDIA_STORAGE_S3_BUCKET=footbag-${FOOTBAG_ENV_VAL}-media into env file..."
-  printf 'MEDIA_STORAGE_S3_BUCKET=footbag-%s-media\n' "$FOOTBAG_ENV_VAL" >> "$ENV_PATH"
-fi
+# The media bucket name is no longer composed here. It is an identifier
+# Terraform creates, published as an app parameter read from the bucket resource
+# and synced onto the host further down, so a bucket rename travels with the
+# resource instead of relying on every environment's bucket being named by
+# construction.
 if [[ "$FOOTBAG_ENV_VAL" == "staging" || "$FOOTBAG_ENV_VAL" == "development" ]]; then
   echo "    Reconciling SES_ADAPTER=stub into env file (FOOTBAG_ENV=$FOOTBAG_ENV_VAL; non-production must not send real mail)..."
   env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
@@ -364,22 +381,35 @@ if [[ "$FOOTBAG_ENV_VAL" != "production" ]]; then
   fi
 fi
 
-NODE_ENV_VAL=$(require_env NODE_ENV)
+# Required for its presence, not its value: this script never reads NODE_ENV
+# back. The compose file interpolates it, so a host missing the line produces a
+# stack that cannot start, and finding that out here is better than finding it
+# out after the database has been replaced. Discarding the value rather than
+# capturing it says so, instead of leaving a variable that looks live.
+require_env NODE_ENV >/dev/null
 # LOG_LEVEL is intentionally NOT pulled from /srv/footbag/env here. Terraform
 # owns the canonical value (aws_ssm_parameter.app_log_level in
 # terraform/{env}/ssm.tf); the SSM-sync block below fetches it and writes it
 # into /srv/footbag/env. First-deploy bootstrap: the host's env file does not
 # need a manual LOG_LEVEL= line ahead of time.
 DB_PATH=$(require_env FOOTBAG_DB_PATH)
-PUBLIC_BASE_URL_VAL=$(require_env PUBLIC_BASE_URL)
+# Presence check only, same as NODE_ENV above: the application reads this at
+# boot to decide its canonical host, and nothing in this script needs the value.
+require_env PUBLIC_BASE_URL >/dev/null
 # SESSION_SECRET is intentionally NOT pulled from /srv/footbag/env here.
 # Terraform owns the canonical value (random_id.session_secret in
 # terraform/{env}/ssm.tf); the SSM-sync block below fetches that value,
 # writes it into /srv/footbag/env, and sets SESSION_SECRET_VAL. First-
 # deploy bootstrap: the host's /srv/footbag/env does not need a manual
 # SESSION_SECRET= line ahead of time.
-JWT_SIGNER_VAL=$(require_env JWT_SIGNER)
-JWT_KMS_KEY_ID_VAL=$(require_env JWT_KMS_KEY_ID)
+# JWT_SIGNER and JWT_KMS_KEY_ID are deliberately NOT required here, for the same
+# reason SES_ADAPTER is not: this script now writes both. The signer is a
+# constant of the environment, reconciled from the committed host config after
+# the release tree is promoted; the key identifier is published by Terraform and
+# synced from Parameter Store further down, which needs the AWS profile resolved
+# first. Requiring them at this point would ask a first-ever deploy for values it
+# is itself about to write. The end state is asserted after both writers have
+# run.
 # SES_ADAPTER is deliberately NOT required here. No environment hand-owns it:
 # staging and development have it written a few lines above, and production
 # derives it from the arming switches further down, which needs the AWS profile
@@ -389,7 +419,11 @@ JWT_KMS_KEY_ID_VAL=$(require_env JWT_KMS_KEY_ID)
 # line yet, and the deploy refuses before reaching the code that would add it.
 # The end state is asserted after the derivation instead, which is the thing
 # actually worth guaranteeing.
-SES_FROM_IDENTITY_VAL=$(require_env SES_FROM_IDENTITY)
+# Presence check only. Nothing here reads it, but the live SES adapter requires
+# it at boot and the compose file interpolates it with no default, so a host
+# missing the line crash-loops the moment email is armed. Catching that before
+# the rebuild is the whole value of the check.
+require_env SES_FROM_IDENTITY >/dev/null
 AWS_REGION_VAL=$(require_env AWS_REGION)
 AWS_PROFILE_VAL=$(require_env AWS_PROFILE)
 
@@ -404,6 +438,14 @@ if [[ "$FOOTBAG_ENV_VAL" != "staging" && "$KEEP_MEDIA" != "yes" ]]; then
   echo "       Wiping non-staging media is out-of-band; see DEVOPS_GUIDE.md (private GitHub repo)." >&2
   exit 1
 fi
+
+# This half carries no separate parameter preflight, and that is deliberate
+# rather than a divergence from the code half. Every required fetch below runs
+# before anything irreversible: before the service is stopped, before the
+# database is replaced, and before the release tree is promoted. A missing
+# parameter therefore aborts with the host exactly as it was. The code half
+# promotes early, so it preflights the same set before its rsync to avoid
+# installing a compose file whose values it has not yet written.
 
 # Sync X_ORIGIN_VERIFY_SECRET from SSM to /srv/footbag/env. Both the value
 # CloudFront injects (via data.aws_ssm_parameter.origin_verify_secret) and the
@@ -592,6 +634,165 @@ printf 'EMAIL_SEND_ARMED=%s\n' "$EMAIL_SEND_ARMED_VAL" >> "$env_tmp"
 mv "$env_tmp" "$ENV_PATH"
 chmod 600 "$ENV_PATH"
 chown root:root "$ENV_PATH"
+
+# Sync the two link-protection switches on the same required-parameter contract.
+# The difference from the pair above is what they do below production: money and
+# mail are stubbed in a lower environment whatever their switch says, while
+# screening and probing a submitted link have no real-world side effect to
+# withhold, so these decide in every deployed environment and their selectors
+# are derived here for staging exactly as for production.
+ssm_url_screening_armed_param="/footbag/${FOOTBAG_ENV_VAL}/app/url_screening_armed"
+echo "    Syncing URL_SCREENING_ARMED from $ssm_url_screening_armed_param ..."
+URL_SCREENING_ARMED_VAL=$(
+  AWS_PROFILE="$AWS_PROFILE_VAL" aws ssm get-parameter \
+    --region "$AWS_REGION_VAL" \
+    --name "$ssm_url_screening_armed_param" \
+    --query 'Parameter.Value' \
+    --output text
+) || {
+  echo "ERROR: aws ssm get-parameter failed for $ssm_url_screening_armed_param" >&2
+  echo "       If the parameter does not exist yet, from the workstation run:" >&2
+  echo "         cd terraform/${FOOTBAG_ENV_VAL} && terraform init -upgrade && terraform apply" >&2
+  exit 1
+}
+if [[ ! "$URL_SCREENING_ARMED_VAL" =~ ^(armed|dark)$ ]]; then
+  echo "ERROR: SSM $ssm_url_screening_armed_param is '$URL_SCREENING_ARMED_VAL'; expected 'armed' or 'dark'." >&2
+  exit 1
+fi
+env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
+chmod 600 "$env_tmp"
+chown root:root "$env_tmp"
+grep -v '^URL_SCREENING_ARMED=' "$ENV_PATH" > "$env_tmp" || true
+printf 'URL_SCREENING_ARMED=%s\n' "$URL_SCREENING_ARMED_VAL" >> "$env_tmp"
+mv "$env_tmp" "$ENV_PATH"
+chmod 600 "$ENV_PATH"
+chown root:root "$ENV_PATH"
+
+ssm_reachability_armed_param="/footbag/${FOOTBAG_ENV_VAL}/app/reachability_armed"
+echo "    Syncing REACHABILITY_ARMED from $ssm_reachability_armed_param ..."
+REACHABILITY_ARMED_VAL=$(
+  AWS_PROFILE="$AWS_PROFILE_VAL" aws ssm get-parameter \
+    --region "$AWS_REGION_VAL" \
+    --name "$ssm_reachability_armed_param" \
+    --query 'Parameter.Value' \
+    --output text
+) || {
+  echo "ERROR: aws ssm get-parameter failed for $ssm_reachability_armed_param" >&2
+  echo "       If the parameter does not exist yet, from the workstation run:" >&2
+  echo "         cd terraform/${FOOTBAG_ENV_VAL} && terraform init -upgrade && terraform apply" >&2
+  exit 1
+}
+if [[ ! "$REACHABILITY_ARMED_VAL" =~ ^(armed|dark)$ ]]; then
+  echo "ERROR: SSM $ssm_reachability_armed_param is '$REACHABILITY_ARMED_VAL'; expected 'armed' or 'dark'." >&2
+  exit 1
+fi
+env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
+chmod 600 "$env_tmp"
+chown root:root "$env_tmp"
+grep -v '^REACHABILITY_ARMED=' "$ENV_PATH" > "$env_tmp" || true
+printf 'REACHABILITY_ARMED=%s\n' "$REACHABILITY_ARMED_VAL" >> "$env_tmp"
+mv "$env_tmp" "$ENV_PATH"
+chmod 600 "$ENV_PATH"
+chown root:root "$ENV_PATH"
+
+# Derive the two link-protection selectors from the switches just synced, in
+# every deployed environment. The runtime refuses a boot where a switch and its
+# selector disagree; deriving here is what makes that refusal unreachable in
+# normal operation rather than a routine failure mode.
+SAFE_BROWSING_ADAPTER_DERIVED='stub'
+[[ "$URL_SCREENING_ARMED_VAL" == "armed" ]] && SAFE_BROWSING_ADAPTER_DERIVED='live'
+HTTP_REACHABILITY_ADAPTER_DERIVED='disabled'
+[[ "$REACHABILITY_ARMED_VAL" == "armed" ]] && HTTP_REACHABILITY_ADAPTER_DERIVED='live'
+echo "    Deriving link-protection adapters from arming switches: SAFE_BROWSING_ADAPTER=$SAFE_BROWSING_ADAPTER_DERIVED HTTP_REACHABILITY_ADAPTER=$HTTP_REACHABILITY_ADAPTER_DERIVED ..."
+env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
+chmod 600 "$env_tmp"
+chown root:root "$env_tmp"
+grep -v -e '^SAFE_BROWSING_ADAPTER=' -e '^HTTP_REACHABILITY_ADAPTER=' "$ENV_PATH" > "$env_tmp" || true
+printf 'SAFE_BROWSING_ADAPTER=%s\n' "$SAFE_BROWSING_ADAPTER_DERIVED" >> "$env_tmp"
+printf 'HTTP_REACHABILITY_ADAPTER=%s\n' "$HTTP_REACHABILITY_ADAPTER_DERIVED" >> "$env_tmp"
+mv "$env_tmp" "$ENV_PATH"
+chmod 600 "$ENV_PATH"
+chown root:root "$ENV_PATH"
+
+# Sync the two SES configuration-set names. Outbound mail runs as two streams
+# with separate sending reputations, and naming a set on the send is what keeps
+# a complaint spike on bulk mail off the reputation that carries password
+# resets. Terraform owns both names (the parameter reads the configuration-set
+# resource, so a rename moves with it); this fetch puts them on the host so the
+# application can name them. A missing parameter is fatal with the same
+# instruction as the arming switches above: the alternative is a host that
+# silently sends on the account default while the operator believes the streams
+# are separated.
+for ses_set_stream in transactional bulk; do
+  ses_set_param="/footbag/${FOOTBAG_ENV_VAL}/app/ses_configuration_set_${ses_set_stream}"
+  echo "    Syncing SES_CONFIGURATION_SET_${ses_set_stream^^} from $ses_set_param ..."
+  ses_set_value=$(
+    AWS_PROFILE="$AWS_PROFILE_VAL" aws ssm get-parameter \
+      --region "$AWS_REGION_VAL" \
+      --name "$ses_set_param" \
+      --query 'Parameter.Value' \
+      --output text
+  ) || {
+    echo "ERROR: aws ssm get-parameter failed for $ses_set_param" >&2
+    echo "       If the parameter does not exist yet, from the workstation run:" >&2
+    echo "         cd terraform/${FOOTBAG_ENV_VAL} && terraform init -upgrade && terraform apply" >&2
+    exit 1
+  }
+  if [[ -z "$ses_set_value" ]]; then
+    echo "ERROR: SSM $ses_set_param resolved empty; expected the configuration-set name terraform published." >&2
+    exit 1
+  fi
+  env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
+  chmod 600 "$env_tmp"
+  chown root:root "$env_tmp"
+  grep -v "^SES_CONFIGURATION_SET_${ses_set_stream^^}=" "$ENV_PATH" > "$env_tmp" || true
+  printf 'SES_CONFIGURATION_SET_%s=%s\n' "${ses_set_stream^^}" "$ses_set_value" >> "$env_tmp"
+  mv "$env_tmp" "$ENV_PATH"
+  chmod 600 "$ENV_PATH"
+  chown root:root "$ENV_PATH"
+done
+unset ses_set_stream ses_set_param ses_set_value
+
+# Sync the two identifiers Terraform creates and the host needs. Same shape as
+# the configuration-set names above and the same reason: the parameter reads the
+# resource, so a rename travels with it and no literal is composed here.
+#
+# The signing-key identifier is the one that bites. The signing adapter stamps
+# this exact string into every session token's key-id header and refuses a token
+# whose header does not match, so a host holding the key's ARN rather than its
+# alias publishes the AWS account id to every client with a session, and
+# correcting it later invalidates every live session. Syncing it on every deploy
+# is what stops that form taking hold in the first place.
+for host_ident in media_bucket:MEDIA_STORAGE_S3_BUCKET jwt_kms_key_id:JWT_KMS_KEY_ID; do
+  ident_param="/footbag/${FOOTBAG_ENV_VAL}/app/${host_ident%%:*}"
+  ident_var="${host_ident##*:}"
+  echo "    Syncing ${ident_var} from $ident_param ..."
+  ident_value=$(
+    AWS_PROFILE="$AWS_PROFILE_VAL" aws ssm get-parameter \
+      --region "$AWS_REGION_VAL" \
+      --name "$ident_param" \
+      --query 'Parameter.Value' \
+      --output text
+  ) || {
+    echo "ERROR: aws ssm get-parameter failed for $ident_param" >&2
+    echo "       If the parameter does not exist yet, from the workstation run:" >&2
+    echo "         cd terraform/${FOOTBAG_ENV_VAL} && terraform init -upgrade && terraform apply" >&2
+    exit 1
+  }
+  if [[ -z "$ident_value" ]]; then
+    echo "ERROR: SSM $ident_param resolved empty; expected the value terraform published." >&2
+    exit 1
+  fi
+  env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
+  chmod 600 "$env_tmp"
+  chown root:root "$env_tmp"
+  grep -v "^${ident_var}=" "$ENV_PATH" > "$env_tmp" || true
+  printf '%s=%s\n' "$ident_var" "$ident_value" >> "$env_tmp"
+  mv "$env_tmp" "$ENV_PATH"
+  chmod 600 "$ENV_PATH"
+  chown root:root "$ENV_PATH"
+done
+unset host_ident ident_param ident_var ident_value
 
 # On production the adapters are derived from the arming switches, never
 # hand-edited: armed -> live, dark -> stub. This is what makes an arming flip
@@ -801,21 +1002,6 @@ if [[ "$FOOTBAG_ENV" == "development" || "$FOOTBAG_ENV" == "staging" ]]; then
   chown root:root "$ENV_PATH"
 fi
 
-if [[ "$SESSION_SECRET_VAL" == *'#'* ]]; then
-  echo "SESSION_SECRET contains '#' which breaks systemd EnvironmentFile parsing" >&2
-  exit 1
-fi
-
-if [[ "${SESSION_SECRET_VAL,,}" == *changeme* ]]; then
-  echo "SESSION_SECRET appears to be the .env.example placeholder ('changeme...'). Generate a fresh value with: openssl rand -hex 32" >&2
-  exit 1
-fi
-
-if (( ${#SESSION_SECRET_VAL} < 32 )); then
-  echo "SESSION_SECRET must be at least 32 characters. Generate with: openssl rand -hex 32" >&2
-  exit 1
-fi
-
 # The secret is on disk in /srv/footbag/env now; nothing below needs it, so
 # drop it from the shell environment rather than letting it linger for the
 # rest of the run.
@@ -828,6 +1014,13 @@ fi
 
 echo "    Runtime DB path from env: $DB_PATH"
 echo "    WARNING: replacing host DB at $DB_PATH"
+
+# Validate the incoming committed host config while the stack is still up and
+# the database is still the old one. The apply pass runs after promotion, well
+# past the point of no return: a rejected value there would exit with the service
+# stopped, the database already replaced and no restart attempted. Reading from
+# the release tree rather than the live one, because promotion has not happened.
+seed_committed_host_config validate "$RELEASE_DIR"
 
 echo "    Stopping service..."
 systemctl stop footbag || true
@@ -927,9 +1120,92 @@ if [[ -d /root/.aws ]]; then
   done
 fi
 
-# Apply the committed per-environment container sizing now that the release
-# tree (and docker/env/<env>.env) is in place, before the service restart.
-seed_container_sizing
+# Apply the committed per-environment host config now that the release tree
+# (and docker/env/<env>.env) is in place, before the service restart.
+seed_committed_host_config
+
+# Host survivability, duplicated from the code-only half rather than shared: the
+# two remote bodies arrive on the target shell's stdin and cannot source a
+# library, which is why every block they have in common is duplicated and pinned
+# by a parity test instead. These lived only in the code half, so a host whose
+# first deploy was a rebuild had no disk swap and no zram suppression, and the
+# committed staging sizing explicitly relies on the swapfile as its residual.
+#
+# Real disk swap on the host. The instances ship with zram swap only, which
+# compresses pages in RAM and is close to useless for the incompressible bytes
+# video work moves, so without a disk-backed file a memory spike starves the
+# host to death (unreachable SSH, hypervisor reboot) instead of degrading.
+# Ordered before the service restart so the containers budgeted by the sizing
+# seed just applied never run without the valve. Idempotent: an active
+# /swapfile is left alone (resizing means swapoff and rm first, deliberately
+# manual); the fstab line and sysctl drop-in are written only when absent.
+# Swappiness 10: the file is a survival valve, not a performance tier; zram
+# keeps its higher priority and still takes compressible pages first.
+ensure_swapfile() {
+  local size size_mb
+  case "$FOOTBAG_ENV" in
+    production) size="2G"; size_mb=2048 ;;
+    *)          size="1G"; size_mb=1024 ;;
+  esac
+  if swapon --show=NAME --noheadings | grep -qx /swapfile; then
+    echo "==> Swapfile already active"
+  else
+    echo "==> Provisioning ${size} disk swapfile..."
+    fallocate -l "$size" /swapfile || dd if=/dev/zero of=/swapfile bs=1M count="$size_mb"
+    chmod 600 /swapfile
+    mkswap /swapfile
+    swapon /swapfile
+  fi
+  grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+  echo 'vm.swappiness=10' > /etc/sysctl.d/99-footbag-swap.conf
+  sysctl -q -p /etc/sysctl.d/99-footbag-swap.conf
+}
+ensure_swapfile
+
+# The instances ship with a compressed in-RAM swap device, and the vendor
+# generator gives it priority 100 against the disk swapfile's -2. Every page
+# therefore goes to the compressed device first and the disk valve provisioned
+# above never sees one. On a small host that is the wrong shape twice over: the
+# compressed store occupies RAM in proportion to what it holds, so under
+# pressure it grows into the memory it is meant to be relieving, and the bytes
+# video work moves do not compress, so what it holds is close to what it costs.
+# Production has room to spare and never reaches that point, so this is scoped
+# to everything else, leaving production on the vendor default.
+#
+# Disabling is what the vendor generator itself documents: an empty override
+# file suppresses the device. Deliberately NOT swapoff, which is why this only
+# takes effect at the next boot: the device holds live anonymous pages, and
+# paging them back into a host with less free memory than they occupy is the
+# exact starvation this exists to prevent.
+ensure_zram_disabled() {
+  if [[ "$FOOTBAG_ENV" == "production" ]]; then
+    return 0
+  fi
+  if [[ -f /etc/systemd/zram-generator.conf && ! -s /etc/systemd/zram-generator.conf ]]; then
+    echo "==> Compressed in-RAM swap already suppressed for the next boot"
+    return 0
+  fi
+  echo "==> Suppressing the compressed in-RAM swap device (takes effect at next boot)..."
+  : > /etc/systemd/zram-generator.conf
+  chmod 644 /etc/systemd/zram-generator.conf
+}
+ensure_zram_disabled
+
+# Assert the end state now that both writers have run: the committed host config
+# supplies the JWT signer, and the Terraform-published parameter supplies its key
+# identifier. Neither is hand-owned any more, and the application refuses to boot
+# without either, so failing here names the cause instead of leaving the stack
+# crash-looping on the host.
+for jwt_var in JWT_SIGNER JWT_KMS_KEY_ID; do
+  if ! grep -q "^${jwt_var}=" "$ENV_PATH"; then
+    echo "ERROR: ${jwt_var} is absent from $ENV_PATH after every writer has run." >&2
+    echo "       The committed docker/env/<env>.env supplies JWT_SIGNER and the" >&2
+    echo "       app/jwt_kms_key_id parameter supplies JWT_KMS_KEY_ID; if one is" >&2
+    echo "       missing, that write did not happen." >&2
+    exit 1
+  fi
+done
+unset jwt_var
 
 if ! test -f "$DB_PATH"; then
   echo "Expected SQLite file at $DB_PATH, but it is not a regular file" >&2
@@ -944,7 +1220,28 @@ sqlite3 "$DB_PATH" 'PRAGMA integrity_check;' | grep -qx 'ok' || {
 
 echo "    Reinstalling service unit..."
 cp "$LIVE_DIR/ops/systemd/footbag.service" /etc/systemd/system/
+# The backup unit and its timer ship in the same release tree and carry their
+# own sandboxing, so they are reinstalled here too. Copying only the main unit
+# left a changed backup unit sitting unapplied on the host until someone
+# remembered to copy it by hand.
+if [[ -f "$LIVE_DIR/ops/systemd/footbag-backup.service" ]]; then
+  cp "$LIVE_DIR/ops/systemd/footbag-backup.service" /etc/systemd/system/
+fi
+if [[ -f "$LIVE_DIR/ops/systemd/footbag-backup.timer" ]]; then
+  cp "$LIVE_DIR/ops/systemd/footbag-backup.timer" /etc/systemd/system/
+fi
 systemctl daemon-reload
+# Enable for boot, not merely start. This half used to install and start the
+# unit without enabling it, so a host whose first deploy was a rebuild ran
+# correctly until its first reboot and then came back with nothing running.
+# Leaving it disabled asserts the incoherent "run now, but not after a reboot".
+systemctl is-enabled --quiet footbag || systemctl enable footbag
+# Only restart the timer if it was already enabled: installing the backup timer
+# for the first time is a deliberate operator step with its own procedure
+# (scripts/install-backup-timer.sh), not something a deploy should switch on.
+if systemctl is-enabled --quiet footbag-backup.timer 2>/dev/null; then
+  systemctl restart footbag-backup.timer
+fi
 
 # No host-side image build: the workstation builds + ships images via
 # docker save | docker load before this remote-half runs.

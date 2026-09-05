@@ -1,18 +1,32 @@
 #!/usr/bin/env bash
 # arming.sh
 #
-# Arms or disarms one of the environment's two arming switches, payments or
-# email, end to end and in the one order that is safe.
+# Arms or disarms one of the environment's four arming switches, end to end and
+# in the one order that is safe: payments, email, url_screening, reachability.
 #
 # Arming is three separate actions that must all happen and must happen in
 # order: the tfvars flag, `terraform apply` to publish it as the SSM arming
 # parameter, and a deploy, which is what derives the adapter on the host
 # (armed -> live, dark -> stub). Typed from memory under pressure the sequence
 # loses a step, and a half-applied arming state is invisible: the tfvars says
-# one thing and the running host does another.
+# one thing and the running host does another. That hazard is what this script
+# exists for, and it is identical for all four switches, which is why none of
+# them is armed by hand.
 #
-# Each switch carries its own precondition that has nothing to do with this
-# repository, and each must be settled FIRST.
+# The four fall into two groups that differ in what a wrong move costs and in
+# what can be checked from here.
+#
+#   payments and email withhold a REAL-WORLD SIDE EFFECT when dark. Arming one
+#     moves money or delivers mail, so each carries a provider-side precondition
+#     this script cannot verify, and the operator attests to it.
+#
+#   url_screening and reachability withhold a PROTECTION when dark, which is the
+#     opposite polarity: dark is the exposed state, not the safe one. They are
+#     also not inert below production, unlike the pair above: staging derives its
+#     adapters from them too, so this script's messaging is target-aware for
+#     these and a staging run is a real change rather than a rehearsal.
+#
+# Each switch carries its own precondition, and each must be settled FIRST.
 #
 #   payments, going dark: disable the Stripe webhook endpoint. Once the host is
 #     dark it verifies signatures against the stub secret, so every live
@@ -40,6 +54,27 @@
 #     nowhere. This script cannot check any of that from here, so it states
 #     each one and requires the operator to confirm it.
 #
+#   url_screening, going armed: the Safe Browsing key must already be a real
+#     value in this environment's Parameter Store. This is the one precondition
+#     the script can settle itself rather than asking, so it does: it classifies
+#     the parameter and REFUSES on a placeholder, an empty value or an
+#     unreadable one. Arming without a usable key is not a partial success, it
+#     is an outage — every URL-bearing form on the site fails closed, because a
+#     screening lookup that cannot run is treated as a link that cannot be
+#     cleared. A check that cannot be defeated by a distracted 'yes' is worth
+#     more than a typed confirmation, so this switch gets the stronger gate.
+#
+#   url_screening, going dark: nothing breaks, which is exactly the hazard. The
+#     site keeps working and silently stops screening member-submitted links
+#     against Google's malware and phishing corpus. There is no alarm for it and
+#     no page that looks different, so the only record is the parameter history
+#     and this script's own confirmation.
+#
+#   reachability, either direction: no precondition. The probe needs no
+#     credential and calls no third party's API. Dark means no outbound probe
+#     and every submitted link reported reachable, so a link to a host that no
+#     longer answers is accepted and published.
+#
 # This script is the FULL stop, not the first one to reach for. The fast stop is
 # scripts/payments-pause.sh, which sets the platform's payments_paused runtime
 # switch in seconds: new purchases and donations are refused immediately, while
@@ -63,6 +98,8 @@
 #   scripts/arming.sh --target production --state dark
 #   scripts/arming.sh --target production --state armed
 #   scripts/arming.sh --target production --switch email --state armed
+#   scripts/arming.sh --target production --switch url_screening --state armed
+#   scripts/arming.sh --target staging    --switch reachability  --state dark
 #   scripts/arming.sh --target production --state dark --dry-run
 #   scripts/arming.sh --target production --state armed --from-step 3
 #
@@ -162,8 +199,19 @@ case "$SWITCH" in
     SSM_SUFFIX="email_send_armed"
     ADAPTER_LABEL="SES_ADAPTER"
     ;;
+  url_screening)
+    TFVAR_NAME="url_screening_armed"
+    SSM_SUFFIX="url_screening_armed"
+    ADAPTER_LABEL="SAFE_BROWSING_ADAPTER"
+    ;;
+  reachability)
+    TFVAR_NAME="reachability_armed"
+    SSM_SUFFIX="reachability_armed"
+    ADAPTER_LABEL="HTTP_REACHABILITY_ADAPTER"
+    ;;
   *)
-    echo "ERROR: --switch must be 'payments' or 'email' (got '$SWITCH')" >&2
+    echo "ERROR: --switch must be one of 'payments', 'email', 'url_screening'," >&2
+    echo "       'reachability' (got '$SWITCH')" >&2
     exit 2
     ;;
 esac
@@ -266,7 +314,15 @@ elif [[ "$SWITCH" == "email" && "$STATE" == "armed" ]]; then
   PRECONDITION="ses-readiness"
 elif [[ "$SWITCH" == "email" && "$STATE" == "dark" ]]; then
   PRECONDITION="outbox-drained"
+elif [[ "$SWITCH" == "url_screening" && "$STATE" == "armed" ]]; then
+  # The only precondition in this list the script settles rather than asks.
+  PRECONDITION="screening-key"
+elif [[ "$SWITCH" == "url_screening" && "$STATE" == "dark" ]]; then
+  PRECONDITION="screening-exposure"
 fi
+# reachability has no precondition in either direction: no credential, no third
+# party, and nothing that has to be settled elsewhere first. Its consequence is
+# still stated at step 5, because "no probe" is not the same as "no change".
 
 # Reads a secret parameter's value only to classify it: present and real, still
 # the bootstrap placeholder, or unreadable. The value itself is never printed.
@@ -317,6 +373,18 @@ if (( DRY_RUN )); then
       echo "     so queued mail waits, undelivered, until email is armed again."
       echo "     To stop mail and then continue, the reversible lever is"
       echo "     scripts/outbound-mail-pause.sh, which needs no deploy."
+      ;;
+    screening-key)
+      echo "  1. Classify /footbag/$TARGET/secrets/safe_browsing_api_key and REFUSE"
+      echo "     unless it holds a real value. Arming with a placeholder or an"
+      echo "     unreadable key fails every URL-bearing form on $TARGET, because a"
+      echo "     screening lookup that cannot run is treated as a link that cannot"
+      echo "     be cleared. This one is checked, not attested."
+      ;;
+    screening-exposure)
+      echo "  1. Confirm the exposure. Going dark breaks nothing and shows nothing:"
+      echo "     $TARGET keeps working and silently stops screening member-submitted"
+      echo "     links against Google's malware and phishing corpus."
       ;;
     *)
       echo "  1. (no provider-side precondition for $SWITCH going $STATE)"
@@ -458,6 +526,49 @@ if (( FROM_STEP <= 1 )) && [[ "$PRECONDITION" == "payments-readiness" ]]; then
       exit 1
     fi
     echo "  Both parameters hold real values."
+  fi
+  echo ""
+fi
+
+if (( FROM_STEP <= 1 )) && [[ "$PRECONDITION" == "screening-key" ]]; then
+  echo "-- step 1: URL screening key --"
+  echo ""
+  echo "Arming screening makes the deploy derive SAFE_BROWSING_ADAPTER=live, and the"
+  echo "live adapter needs a real key from Parameter Store. Without one it cannot"
+  echo "clear a link, and a link it cannot clear is refused: every URL-bearing form"
+  echo "on $TARGET starts rejecting valid input. That is an outage, not a partial"
+  echo "arming, so this is checked here rather than attested."
+  echo ""
+  KEY_STATE="$(classify_secret_param safe_browsing_api_key)"
+  echo "  Safe Browsing key parameter: $KEY_STATE"
+  echo ""
+  if [[ "$KEY_STATE" != "set" ]]; then
+    echo "Aborted: nothing has been changed. Arming now would break every URL-bearing" >&2
+    echo "form on $TARGET." >&2
+    echo "Store the key first:" >&2
+    echo "  scripts/provision-url-screening-key.sh --env $TARGET store" >&2
+    echo "then re-run this. If the parameter reads unreadable, fix the profile's KMS" >&2
+    echo "access rather than arming past it: this check is the only thing standing" >&2
+    echo "between a missing key and a site that refuses every link." >&2
+    exit 1
+  fi
+  echo "  The key holds a real value."
+  echo ""
+fi
+
+if (( FROM_STEP <= 1 )) && [[ "$PRECONDITION" == "screening-exposure" ]]; then
+  echo "-- step 1: screening exposure --"
+  echo ""
+  echo "Disarming screening is silent. $TARGET keeps working, every page looks the"
+  echo "same, and member-submitted links stop being checked against Google's malware"
+  echo "and phishing corpus. Nothing alarms on it; the parameter history and this"
+  echo "confirmation are the only record that it was deliberate."
+  echo ""
+  printf "Type 'STOP SCREENING' to confirm that is what you mean: "
+  read -r TYPED
+  if [[ "$TYPED" != "STOP SCREENING" ]]; then
+    echo "Aborted: nothing has been changed. Screening stays armed." >&2
+    exit 1
   fi
   echo ""
 fi
@@ -654,7 +765,11 @@ else
   echo ""
   echo "The host-side rows were not read: this step needs the operator credential file."
   echo "For the full picture, re-run:"
-  echo "  < <operator credential file> bash scripts/bringup-status.sh --target $TARGET${AWS_PROFILE_ARG:+ --profile $AWS_PROFILE_ARG}"
+  if [[ "$TARGET" == "production" ]]; then
+    echo "  < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/bringup-status.sh --target $TARGET${AWS_PROFILE_ARG:+ --profile $AWS_PROFILE_ARG}"
+  else
+    echo "  < ~/AWS/AWS_OPERATOR.txt bash scripts/bringup-status.sh --target $TARGET${AWS_PROFILE_ARG:+ --profile $AWS_PROFILE_ARG}"
+  fi
 fi
 echo ""
 echo "Confirm above that the host reads $SWITCH $STATE and that $ADAPTER_LABEL is"
@@ -674,6 +789,29 @@ if [[ "$SWITCH" == "email" && "$STATE" == "dark" ]]; then
   echo "is sent. Watch the backlog while it stays dark, and expect anyone who"
   echo "registered in the meantime to be waiting on a verification email that"
   echo "arrives when email is armed again."
+fi
+
+if [[ "$SWITCH" == "url_screening" && "$STATE" == "armed" ]]; then
+  echo ""
+  echo "Screening is live on $TARGET now, so prove it rather than assuming it:"
+  echo "submit a known-bad URL through any external-link form and confirm it is"
+  echo "refused with \"This URL is not allowed.\", then submit an ordinary link and"
+  echo "confirm it still saves. A key that is present but rejected by Google looks"
+  echo "exactly like this step never running."
+fi
+
+if [[ "$SWITCH" == "url_screening" && "$STATE" == "dark" ]]; then
+  echo ""
+  echo "$TARGET no longer screens member-submitted links. Nothing on the site says"
+  echo "so and no alarm fires, so treat this as a state someone has to remember to"
+  echo "leave: re-arm it as soon as whatever forced this is resolved."
+fi
+
+if [[ "$SWITCH" == "reachability" && "$STATE" == "dark" ]]; then
+  echo ""
+  echo "$TARGET no longer probes submitted links, so every one is reported reachable."
+  echo "A link to a host that has gone away is now accepted and published, and the"
+  echo "first person to notice is a member following a dead link."
 fi
 
 if [[ "$SWITCH" == "payments" && "$STATE" == "dark" ]]; then

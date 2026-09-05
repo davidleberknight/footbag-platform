@@ -211,7 +211,7 @@ describe('activate-payments.sh — credential shape refusals', () => {
 
 describe('activate-payments.sh — env-file rewrite contract', () => {
   it('fails when SECRETS_ADAPTER=live is absent (the live adapter cannot resolve the key)', () => {
-    const envFile = writeEnvFile(['SECRETS_ADAPTER=local', 'PAYMENT_ADAPTER=stub']);
+    const envFile = writeEnvFile(['SECRETS_ADAPTER=stub', 'PAYMENT_ADAPTER=stub']);
     const result = runScript(['--target', 'staging', '--env-file', envFile], SECRETS);
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toMatch(/SECRETS_ADAPTER=live is not set/);

@@ -74,9 +74,9 @@ the CloudFront Function a distribution references. A parameter whose flip is
 out-of-band and one-way carries `ignore_changes = [value]`, so a later apply
 cannot silently revert a production that has gone live and re-arm the destructive
 deploy paths. A parameter Terraform is the sole writer of, including the arming
-switches and generated secrets, deliberately omits `ignore_changes`, so
-out-of-band drift reverts on the next apply and tfvars, SSM, and the host stay in
-one line of custody. Removing any of these is a durability change, not a cleanup.
+switches, the identifiers published from the resources they name, and generated
+secrets, deliberately omits `ignore_changes`, so out-of-band drift reverts on the
+next apply and tfvars, SSM, and the host stay in one line of custody. Removing any of these is a durability change, not a cleanup.
 
 ## Environment-scoped naming
 

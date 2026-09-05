@@ -25,8 +25,8 @@
 #              bootstrap-token presence, BackupAgeMinutes datapoint recency
 #
 # Usage (the remote probe reads the sudo password from stdin, line 1):
-#   < <operator credential file> bash scripts/bringup-status.sh --target staging
-#   < <operator credential file> bash scripts/bringup-status.sh --target production --profile <prod-profile>
+#   < ~/AWS/AWS_OPERATOR.txt bash scripts/bringup-status.sh --target staging
+#   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/bringup-status.sh --target production --profile <prod-profile>
 #   scripts/bringup-status.sh --target production --skip-terraform --skip-remote
 #
 # Synthetic mode (CI tests only; operators never use this):
@@ -50,6 +50,17 @@ SKIP_REMOTE=0
 SKIP_AWS=0
 SKIP_TF=0
 HOST_ENV_PATH="/srv/footbag/env"
+
+# The operator credential file is per-environment, so a suggested command naming
+# a placeholder would not be pasteable. Resolved at call time from the target
+# this run reports on; the paths match the defaults deploy_to_aws.sh resolves.
+operator_cred_file() {
+  if [[ "$TARGET" == "production" ]]; then
+    echo "~/AWS/AWS_OPERATOR_PRODUCTION.txt"
+  else
+    echo "~/AWS/AWS_OPERATOR.txt"
+  fi
+}
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -145,7 +156,7 @@ else
   # rows read UNKNOWN, which is what they already mean for an unreachable host.
   if (( ! SKIP_REMOTE )) && [[ -t 0 ]]; then
     echo "Skipping the remote probe: it needs the host sudo password on stdin."
-    echo "  Re-run as: < <operator credential file> bash scripts/bringup-status.sh --target $TARGET"
+    echo "  Re-run as: < $(operator_cred_file) bash scripts/bringup-status.sh --target $TARGET"
     echo "  Or pass --skip-remote to stop this notice."
     echo ""
     SKIP_REMOTE=1
@@ -299,7 +310,7 @@ echo ""
 # 1. Host env file
 if [[ "${P[ENV_FETCHED]}" != "yes" ]]; then
   row 1 "Host env file" UNKNOWN "could not read $HOST_ENV_PATH"
-  next_cmd "< <operator credential file> bash scripts/verify-host-env.sh --target $TARGET"
+  next_cmd "< $(operator_cred_file) bash scripts/verify-host-env.sh --target $TARGET"
 else
   EXPECTED_HOPS="$(expected_trust_proxy_note "$TARGET")"
   MISSING=""
@@ -350,9 +361,9 @@ elif [[ "${P[ENV_PAYMENTS_ARMED]}" == "dark" && "${P[ENV_PAYMENT_ADAPTER]}" != "
   DARK_DETAIL="payments dark (stub adapter; fake checkout, no real money). SSM key: ${P[SSM_STRIPE_KEY]}, production-live marker: ${P[SSM_PRODUCTION_LIVE]}${ABANDONED_DEACTIVATION}"
   row 3 "Payments" N-A "$DARK_DETAIL"
   if [[ -n "$ABANDONED_DEACTIVATION" ]]; then
-    next_cmd "< <operator credential file> bash scripts/activate-payments.sh --target $TARGET --profile <profile> --deactivate   (finish the deactivation the host is stuck part-way through)"
+    next_cmd "< $(operator_cred_file) bash scripts/activate-payments.sh --target $TARGET --profile <profile> --deactivate   (finish the deactivation the host is stuck part-way through)"
   else
-    next_cmd "arm payments when ready: payments_armed = \"armed\" in tfvars + terraform apply + deploy"
+    next_cmd "scripts/arming.sh --target $TARGET --switch payments --state armed   (arm payments when ready; the script owns the tfvars, apply and deploy in order)"
   fi
 elif [[ "${P[SSM_STRIPE_KEY]}" == "live" && "${P[ENV_PAYMENT_ADAPTER]}" == "live" && "${P[ENV_WEBHOOK_SECRET]}" == "set" ]]; then
   row 3 "Payments" DONE "armed: SSM key live, PAYMENT_ADAPTER=live, webhook secret set; production-live marker: ${P[SSM_PRODUCTION_LIVE]}${ROTATION_NOTE}"

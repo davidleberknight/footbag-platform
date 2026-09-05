@@ -1008,6 +1008,180 @@ describe('schema-drift guards can actually fire, and gate only what they should'
   });
 });
 
+describe('the local image build satisfies every hard-required compose variable', () => {
+  // `docker compose build` interpolates the whole file before it builds, so a
+  // variable the base compose declares with ${VAR:?} aborts the build when
+  // unset, even though none of these is ever baked into an image. Both deploy
+  // halves build with the base compose only and must therefore supply every one
+  // of them as a throwaway.
+  //
+  // This is not hypothetical: the halves supplied one of the two and missed the
+  // other, so a deploy from a shell without that value in its environment failed
+  // at the build step with a message about a runtime secret, which reads as a
+  // misconfigured workstation rather than a missing placeholder.
+  const read = (p: string) => fs.readFileSync(path.join(REPO_ROOT, p), 'utf-8');
+
+  const required = [
+    ...new Set(
+      [...read('docker/docker-compose.yml').matchAll(/\$\{([A-Z_]+):\?/g)].map((m) => m[1]),
+    ),
+  ].sort();
+
+  it('finds the hard-required set in the base compose', () => {
+    expect(required.length, 'no ${VAR:?} found; the extractor has drifted').toBeGreaterThan(0);
+  });
+
+  it.each([
+    'scripts/deploy-code.sh',
+    'scripts/deploy-rebuild.sh',
+  ])('%s supplies every one of them to the build', (file) => {
+    const source = read(file);
+    const buildAt = source.indexOf('docker compose \\');
+    expect(buildAt, `${file} has no compose build invocation`).toBeGreaterThan(-1);
+    // The assignments sit immediately before the command on the same statement.
+    const preamble = source.slice(Math.max(0, buildAt - 600), buildAt);
+    required.forEach((name) => {
+      expect(preamble, `${file} does not set ${name} for the local build`).toContain(`${name}=`);
+    });
+  });
+});
+
+describe('both deploy halves sync the same Parameter Store set', () => {
+  // The two halves are edited independently and had already drifted more than
+  // once: the captcha reconcile existed only in the code half, the media bucket
+  // only in the rebuild half, and the mail configuration-set sync only in the
+  // code half. Nothing failed in any of those cases — a host simply came up
+  // missing a value depending on which deploy stood it up. This pins the set of
+  // parameters each half reads so the next divergence is a red test rather than
+  // a host that behaves differently from its twin.
+  const read = (p: string) => fs.readFileSync(path.join(REPO_ROOT, p), 'utf-8');
+
+  function syncedParameters(file: string): string[] {
+    const matches = read(file).matchAll(/\/footbag\/\$\{FOOTBAG_ENV_VAL\}\/([^"']+)/g);
+    return [...new Set([...matches].map((m) => m[1]))].sort();
+  }
+
+  it('reads an identical list of parameter paths', () => {
+    const code = syncedParameters('scripts/internal/deploy-code-remote.sh');
+    const rebuild = syncedParameters('scripts/internal/deploy-rebuild-remote.sh');
+    expect(code.length, 'the code half syncs no parameters at all').toBeGreaterThan(0);
+    expect(rebuild).toEqual(code);
+  });
+
+  it('covers both link-protection switches', () => {
+    const code = syncedParameters('scripts/internal/deploy-code-remote.sh');
+    expect(code).toContain('app/url_screening_armed');
+    expect(code).toContain('app/reachability_armed');
+  });
+
+  // The two identifiers are synced by a loop whose parameter name comes from a
+  // shell variable, so the path extractor above sees one template string in both
+  // halves and would stay green if one half lost an identifier or wrote it to a
+  // different variable. Parse the loop's word list instead of its interpolated
+  // path, or this pair is unprotected while appearing covered.
+  function identifierPairs(file: string): string[] {
+    const line = read(file)
+      .split('\n')
+      .find((l) => l.includes('for host_ident in '));
+    expect(line, `${file} has no identifier sync loop`).toBeDefined();
+    return (line as string)
+      .replace(/^.*for host_ident in /, '')
+      .replace(/;.*$/, '')
+      .trim()
+      .split(/\s+/)
+      .sort();
+  }
+
+  it('syncs the same identifier list, parsed from the loop rather than its template', () => {
+    const code = identifierPairs('scripts/internal/deploy-code-remote.sh');
+    const rebuild = identifierPairs('scripts/internal/deploy-rebuild-remote.sh');
+    expect(code).toEqual(rebuild);
+    expect(code).toContain('media_bucket:MEDIA_STORAGE_S3_BUCKET');
+    expect(code).toContain('jwt_kms_key_id:JWT_KMS_KEY_ID');
+  });
+});
+
+describe('both deploy paths start from an empty upload directory', () => {
+  // Both paths rsync into the same directory on the host, and an rsync is
+  // incremental: it compares against whatever is already there. A path that
+  // uploaded into a directory the previous deploy left behind would ship a tree
+  // that is part this release and part the last one, and the mismatch surfaces
+  // far downstream as a host preflight refusing for a file it believes it sent.
+  // Both currently clear first. This pins that, and pins the ordering, because
+  // a clear placed after the upload is worse than none at all.
+  const read = (p: string) => fs.readFileSync(path.join(REPO_ROOT, p), 'utf-8');
+
+  it.each(['scripts/deploy-code.sh', 'scripts/deploy-rebuild.sh'])(
+    '%s clears the upload directory before its rsync',
+    (file) => {
+      const source = read(file);
+      // The two spell the destination differently (a literal path, and the
+      // REMOTE_RELEASE_DIR variable holding the same path), so match the clear
+      // itself rather than either spelling.
+      const wipeAt = source.search(/rm -rf (~\/footbag-release|"?\$REMOTE_RELEASE_DIR)/);
+      const rsyncAt = source.indexOf('rsync -av --delete');
+      expect(wipeAt, `${file} never clears the upload directory`).toBeGreaterThan(-1);
+      expect(rsyncAt, `${file} has no upload rsync`).toBeGreaterThan(-1);
+      expect(wipeAt, `${file} clears the directory after uploading into it`).toBeLessThan(rsyncAt);
+    },
+  );
+});
+
+describe('the removed one-shot seeds stay removed', () => {
+  // Each of these was a seed that fired only when its line was absent, which
+  // made the value owned by whoever last edited the host from then on. They were
+  // replaced by two real owners: the committed per-environment host config for
+  // the constants, and derivation from an arming switch for the two protective
+  // selectors. Re-adding one would restore dual ownership silently — the seed
+  // and the new owner would both write, in an order nobody declared, and nothing
+  // would fail. Only this test would.
+  const read = (p: string) => fs.readFileSync(path.join(REPO_ROOT, p), 'utf-8');
+  const HALVES = ['scripts/internal/deploy-code-remote.sh', 'scripts/internal/deploy-rebuild-remote.sh'];
+  const RETIRED = [
+    'MEDIA_STORAGE_ADAPTER',
+    'MEDIA_STORAGE_S3_BUCKET',
+    'SECRETS_ADAPTER',
+    'SAFE_BROWSING_ADAPTER',
+    'HTTP_REACHABILITY_ADAPTER',
+    'CAPTCHA_ADAPTER',
+  ];
+
+  it.each(HALVES)('%s seeds none of them on absence', (file) => {
+    const source = read(file);
+    RETIRED.forEach((name) => {
+      // The seed shape is an absence test guarding a write. Deriving a value and
+      // writing it unconditionally is fine and is what replaced these.
+      const seedShape = new RegExp(`if ! grep -q ['"]\\^${name}=`);
+      expect(source, `${file} re-introduced a one-shot seed for ${name}`).not.toMatch(seedShape);
+    });
+  });
+
+  it.each(HALVES)('%s still writes the two derived selectors unconditionally', (file) => {
+    const source = read(file);
+    expect(source).toMatch(/printf 'SAFE_BROWSING_ADAPTER=%s\\n' "\$SAFE_BROWSING_ADAPTER_DERIVED"/);
+    expect(source).toMatch(
+      /printf 'HTTP_REACHABILITY_ADAPTER=%s\\n' "\$HTTP_REACHABILITY_ADAPTER_DERIVED"/,
+    );
+  });
+
+  it.each(HALVES)('%s derives them outside any production-only gate', (file) => {
+    // Payments and mail derive on production alone, because below it the stub
+    // mandates apply whatever the switch says. These two decide in every
+    // deployed environment, so a production gate around them would leave staging
+    // holding whatever it happened to hold.
+    const source = read(file);
+    const deriveAt = source.indexOf('SAFE_BROWSING_ADAPTER_DERIVED=');
+    expect(deriveAt).toBeGreaterThan(-1);
+    const before = source.slice(0, deriveAt);
+    const lastProdGate = before.lastIndexOf('FOOTBAG_ENV_VAL" == "production"');
+    if (lastProdGate > -1) {
+      // A production gate exists earlier in the file; it must have closed before
+      // the derivation, otherwise the derivation sits inside it.
+      expect(before.slice(lastProdGate)).toMatch(/^fi$/m);
+    }
+  });
+});
+
 describe('container-sizing allowlists agree across both deploys and the verifier', () => {
   // Three lists decide which committed sizing values reach a host, and they had
   // drifted: the rebuild deploy accepted eight keys where the code deploy
@@ -1030,6 +1204,11 @@ describe('container-sizing allowlists agree across both deploys and the verifier
     'FFMPEG_TIMEOUT_SECONDS',
     'VIDEO_TRANSCODE_TIMEOUT_MS',
     'VIDEO_MIN_HOST_AVAILABLE_MB',
+    'MEDIA_STORAGE_ADAPTER',
+    'SECRETS_ADAPTER',
+    'JWT_SIGNER',
+    'CAPTCHA_ADAPTER',
+    'TURNSTILE_SITE_KEY',
   ];
 
   function allowlistRegex(file: string): string {
@@ -1057,12 +1236,37 @@ describe('container-sizing allowlists agree across both deploys and the verifier
     });
   });
 
-  it('the verifier checks every key the deploys can seed', () => {
+  // The committed file carries two kinds of value, checked by the verifier in
+  // two different ways: sizing keys go through its sizing array, while the
+  // adapter selectors get their own assertions because each has one correct
+  // value rather than a shape.
+  const SELECTOR_KEYS = [
+    'MEDIA_STORAGE_ADAPTER',
+    'SECRETS_ADAPTER',
+    'JWT_SIGNER',
+    'CAPTCHA_ADAPTER',
+    // The public captcha site key is not a selector, but it is checked the same
+    // way and for the same reason: one correct value per environment rather
+    // than a shape, and a production host that lacks it does not boot.
+    'TURNSTILE_SITE_KEY',
+  ];
+  const SIZING_ONLY = EXPECTED.filter((k) => !SELECTOR_KEYS.includes(k));
+
+  it('the verifier checks every sizing key the deploys can seed', () => {
     const source = readFile('scripts/verify-host-env.sh');
     const block = source.slice(source.indexOf('SIZING_KEYS=('));
     const list = block.slice(0, block.indexOf(')'));
-    EXPECTED.forEach((key) => {
+    SIZING_ONLY.forEach((key) => {
       expect(list, `${key} missing from the verifier's sizing checks`).toContain(key);
+    });
+  });
+
+  it('the verifier checks every adapter selector the deploys reconcile', () => {
+    const source = readFile('scripts/verify-host-env.sh');
+    SELECTOR_KEYS.forEach((key) => {
+      expect(source, `${key} is reconciled onto hosts but the verifier never reads it`).toContain(
+        `"${key}"`,
+      );
     });
   });
 
@@ -1082,5 +1286,98 @@ describe('container-sizing allowlists agree across both deploys and the verifier
         .replace(/^VIDEO_X264_(.+)$/, '$1');
       expect(re, `${k} is set in docker/env/staging.env but a rebuild deploy drops it`).toContain(needle);
     });
+  });
+});
+
+describe('both deploy halves leave a host able to survive on its own', () => {
+  // These steps are what turn a bare instance into a host that keeps running:
+  // a disk swap valve, the compressed-swap suppression that makes the valve
+  // reachable, a unit enabled for boot, the backup units, and the log-shipping
+  // driver the alarms read. Each lived in exactly one half, so which of the two
+  // an operator happened to run first silently decided whether the host got
+  // them. A rebuild-first host had no swap and came back empty from its first
+  // reboot; a code-first host shipped no container logs at all.
+  //
+  // Pinned per half rather than as one shared block because the two remote
+  // bodies arrive on the target shell's stdin and cannot source a library, so
+  // duplication is the only mechanism available and a test is the only thing
+  // that keeps the copies honest.
+  const HALVES = [
+    'scripts/internal/deploy-code-remote.sh',
+    'scripts/internal/deploy-rebuild-remote.sh',
+  ];
+  const read = (p: string) => fs.readFileSync(path.join(REPO_ROOT, p), 'utf-8');
+
+  it.each(HALVES)('%s provisions the disk swapfile', (file) => {
+    const source = read(file);
+    expect(source).toContain('mkswap /swapfile');
+    expect(source).toContain('swapon /swapfile');
+    expect(source).toContain('/swapfile none swap sw 0 0');
+    expect(source).toContain('vm.swappiness=10');
+  });
+
+  it.each(HALVES)('%s suppresses the compressed in-RAM swap below production', (file) => {
+    const source = read(file);
+    expect(source).toContain('/etc/systemd/zram-generator.conf');
+    // Suppression must stay scoped: production has the memory to spare and
+    // keeps the vendor default, so an unguarded version would change a host
+    // this was never measured against.
+    expect(source).toMatch(/ensure_zram_disabled\(\)\s*\{\s*\n\s*if \[\[ "\$FOOTBAG_ENV" == "production" \]\]/);
+  });
+
+  it.each(HALVES)('%s enables the service for boot, not merely starts it', (file) => {
+    expect(read(file)).toContain('systemctl is-enabled --quiet footbag || systemctl enable footbag');
+  });
+
+  it.each(HALVES)('%s reinstalls the backup units without enabling the timer', (file) => {
+    const source = read(file);
+    expect(source).toContain('ops/systemd/footbag-backup.service');
+    expect(source).toContain('ops/systemd/footbag-backup.timer');
+    // First-time enablement is a separate deliberate operator procedure. A
+    // deploy that switched backups on would make the timer's existence depend
+    // on when someone last deployed.
+    expect(source).toContain('systemctl is-enabled --quiet footbag-backup.timer');
+    expect(source).not.toMatch(/systemctl enable footbag-backup\.timer/);
+  });
+
+  it.each(HALVES)('%s installs the container log-shipping driver', (file) => {
+    const source = read(file);
+    expect(source).toContain('/etc/systemd/system/docker.service.d/awslogs.conf');
+    expect(source).toContain('-logs-publisher');
+    expect(source).toContain('AWS_SDK_LOAD_CONFIG=1');
+  });
+
+  it.each(HALVES)('%s does all of it before restarting the service', (file) => {
+    const source = read(file);
+    const restartAt = source.search(/systemctl (restart|start) footbag\b(?!-)/);
+    expect(restartAt, `${file} never restarts the service`).toBeGreaterThan(-1);
+    // Ordering is the half of this that a presence check cannot see. Containers
+    // are budgeted against the sizing seed on the assumption the swap valve is
+    // already there, and the log driver can only attach to a container at
+    // creation, so a step that lands after the restart is a step that does not
+    // take effect until the next deploy.
+    const mustPrecede = [
+      'mkswap /swapfile',
+      '/etc/systemd/zram-generator.conf',
+      'systemctl is-enabled --quiet footbag || systemctl enable footbag',
+      '/etc/systemd/system/docker.service.d/awslogs.conf',
+    ];
+    mustPrecede.forEach((needle) => {
+      const at = source.indexOf(needle);
+      expect(at, `${file} is missing: ${needle}`).toBeGreaterThan(-1);
+      expect(at, `${file} does "${needle}" after the service restart`).toBeLessThan(restartAt);
+    });
+  });
+
+  it.each(HALVES)('%s sweeps its env-file temp copies on every exit path', (file) => {
+    const source = read(file);
+    // Each half stages dozens of full copies of the host env file through a
+    // temp file and relies on the following rename to remove it. An
+    // interruption between the two leaves a complete copy of the session
+    // signing key, the worker channel secret and the origin-verify secret on
+    // the host, which nothing else looks for or cleans up.
+    expect(source).toContain('trap cleanup_env_tempfiles EXIT');
+    expect(source).toContain('/srv/footbag/.env.tmp.*');
+    expect(source).toContain('/srv/footbag/.deployed-from.tmp.*');
   });
 });

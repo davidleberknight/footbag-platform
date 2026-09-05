@@ -132,7 +132,7 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:?must be set in /srv/footbag/env (the deploy syncs it from the SSM app/log_level parameter)}
       FOOTBAG_DB_PATH: /app/db/footbag.db
       IMAGE_PROCESSOR_URL: ${IMAGE_PROCESSOR_URL:-http://image:4000}
-      MEDIA_STORAGE_ADAPTER: ${MEDIA_STORAGE_ADAPTER:?must be set in /srv/footbag/env (deploy scripts seed s3)}
+      MEDIA_STORAGE_ADAPTER: ${MEDIA_STORAGE_ADAPTER:?must be set in /srv/footbag/env (the deploy reconciles it from the committed docker/env/<environment>.env on every run)}
       MEDIA_STORAGE_S3_BUCKET: ${MEDIA_STORAGE_S3_BUCKET:-}
       # Curator video limits. Forwarded so an operator override in
       # /srv/footbag/env reaches the process rather than being silently ignored,
@@ -147,6 +147,8 @@ services:
       # and, on production, derives SES_ADAPTER/PAYMENT_ADAPTER from them.
       PAYMENTS_ARMED: ${PAYMENTS_ARMED:?must be set in /srv/footbag/env (the deploy syncs it from the SSM app/payments_armed parameter)}
       EMAIL_SEND_ARMED: ${EMAIL_SEND_ARMED:?must be set in /srv/footbag/env (the deploy syncs it from the SSM app/email_send_armed parameter)}
+      URL_SCREENING_ARMED: ${URL_SCREENING_ARMED:?must be set in /srv/footbag/env (the deploy syncs it from the SSM app/url_screening_armed parameter)}
+      REACHABILITY_ARMED: ${REACHABILITY_ARMED:?must be set in /srv/footbag/env (the deploy syncs it from the SSM app/reachability_armed parameter)}
       # Optional passthrough: env.ts requires it only when PAYMENT_ADAPTER=live
       # (production); staging runs stub and leaves it unset. Production sources
       # the value from SSM into /srv/footbag/env.
@@ -295,7 +297,7 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:?must be set in /srv/footbag/env (the deploy syncs it from the SSM app/log_level parameter)}
       FOOTBAG_DB_PATH: /app/db/footbag.db
       IMAGE_PROCESSOR_URL: ${IMAGE_PROCESSOR_URL:-http://image:4000}
-      MEDIA_STORAGE_ADAPTER: ${MEDIA_STORAGE_ADAPTER:?must be set in /srv/footbag/env (deploy scripts seed s3)}
+      MEDIA_STORAGE_ADAPTER: ${MEDIA_STORAGE_ADAPTER:?must be set in /srv/footbag/env (the deploy reconciles it from the committed docker/env/<environment>.env on every run)}
       MEDIA_STORAGE_S3_BUCKET: ${MEDIA_STORAGE_S3_BUCKET:-}
       # Curator video limits. Forwarded so an operator override in
       # /srv/footbag/env reaches the process rather than being silently ignored,
@@ -310,6 +312,8 @@ services:
       # and, on production, derives SES_ADAPTER/PAYMENT_ADAPTER from them.
       PAYMENTS_ARMED: ${PAYMENTS_ARMED:?must be set in /srv/footbag/env (the deploy syncs it from the SSM app/payments_armed parameter)}
       EMAIL_SEND_ARMED: ${EMAIL_SEND_ARMED:?must be set in /srv/footbag/env (the deploy syncs it from the SSM app/email_send_armed parameter)}
+      URL_SCREENING_ARMED: ${URL_SCREENING_ARMED:?must be set in /srv/footbag/env (the deploy syncs it from the SSM app/url_screening_armed parameter)}
+      REACHABILITY_ARMED: ${REACHABILITY_ARMED:?must be set in /srv/footbag/env (the deploy syncs it from the SSM app/reachability_armed parameter)}
       # Optional passthrough: env.ts requires it only when PAYMENT_ADAPTER=live
       # (production); staging runs stub and leaves it unset. Production sources
       # the value from SSM into /srv/footbag/env.

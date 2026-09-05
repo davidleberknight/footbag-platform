@@ -50,6 +50,24 @@ const NAV_SECTIONS: ReadonlyArray<{ href: string; section: string; label: string
 export function createApp(): express.Application {
   const app = express();
 
+  // Parse query strings with Node's own querystring rather than Express's
+  // default 'extended' parser, which hands every request to the `qs` library.
+  // Nothing here needs what `qs` adds: every query parameter this application
+  // reads is a flat scalar (q, page, sort, family, view, division, discipline,
+  // category), each guarded on typeof === 'string', and no route, view or link
+  // uses the bracket notation its nested parsing exists for. Repeated keys
+  // still arrive as an array, which is the only multi-value shape in use.
+  //
+  // Set here rather than left to the default because 'extended' is not merely
+  // unused, it is a liability we would be carrying for nothing. Express calls
+  // qs.parse with allowPrototypes: true, which is what makes attacker-supplied
+  // keys reach constructor and prototype names at all, and it is the stated
+  // precondition of more than one advisory against that library. Request
+  // bodies already made this choice: express.urlencoded below sets
+  // extended: false for the same reason, and the query path was the one place
+  // still taking the wider parser by default.
+  app.set('query parser', 'simple');
+
   // Trust XFF only when the immediate peer is a private/loopback IP. Inside
   // the docker bridge the only inbound path is nginx, which is itself behind
   // CloudFront's X-Origin-Verify shared secret (terraform/.../cloudfront.tf

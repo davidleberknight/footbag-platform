@@ -219,7 +219,11 @@ describe('bringup-status.sh — pending steps name their next command', () => {
     ]);
     const result = runScript(['--target', 'production', '--probe-file', probe]);
     expect(result.stdout).toMatch(/3\. Payments\s+N-A\s+payments dark \(stub adapter/);
-    expect(result.stdout).toMatch(/payments_armed = "armed"/);
+    // The next step must name the script that performs the arming, not the
+    // values-file assignment it happens to write. Arming is three actions that
+    // have to happen in order, and a status view that prints one of them invites
+    // exactly the half-applied state the script exists to prevent.
+    expect(result.stdout).toMatch(/arming\.sh --target production --switch payments --state armed/);
   });
 
   it('production missing payments pieces points at activate-payments.sh', () => {

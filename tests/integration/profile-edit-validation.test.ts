@@ -436,28 +436,40 @@ describe('mass-assignment / overposting guard', () => {
 
 describe('profile update writes an audit row', () => {
   it('POST /members/:slug/edit appends member.profile_updated with field names (no PII values)', async () => {
+    // Pin the ledger position before the save and read only what follows it,
+    // the same way the single-field case below does. Ordering by timestamp and
+    // taking the newest row is not enough: the block above this one saves the
+    // same member three times, and under a loaded parallel run this assertion
+    // has read one of those rows instead of its own and failed on a field list
+    // belonging to a different save. A position is exact where an ordering is
+    // only usually right.
+    const before = new BetterSqlite3(dbPath, { readonly: true });
+    const priorMax = (before.prepare(
+      `SELECT COALESCE(MAX(rowid), 0) AS m FROM audit_entries
+        WHERE action_type = 'member.profile_updated' AND entity_id = ?`,
+    ).get(MEMBER_ID) as { m: number }).m;
+    before.close();
+
     const res = await postEdit({ bio: 'Audited bio', city: 'Auditville', phone: '555-0000' });
     expect(res.status).toBe(303);
 
     const db = new BetterSqlite3(dbPath, { readonly: true });
-    const row = db.prepare(
-      // Earlier cases in this file save the same member, and audit timestamps
-      // carry millisecond resolution, so two saves can tie. created_at alone
-      // then orders non-deterministically and can return a prior save's row.
-      // rowid rises with insertion, so it breaks the tie exactly; the audit id
-      // is a random UUID and carries no ordering.
+    const rows = db.prepare(
       `SELECT action_type, category, actor_type, actor_member_id, entity_type, entity_id, metadata_json
          FROM audit_entries
-        WHERE action_type = 'member.profile_updated' AND entity_id = ?
-        ORDER BY created_at DESC, rowid DESC LIMIT 1`,
-    ).get(MEMBER_ID) as
-      | {
-          action_type: string; category: string; actor_type: string;
-          actor_member_id: string; entity_type: string; entity_id: string;
-          metadata_json: string;
-        }
-      | undefined;
+        WHERE action_type = 'member.profile_updated' AND entity_id = ? AND rowid > ?
+        ORDER BY rowid`,
+    ).all(MEMBER_ID, priorMax) as Array<{
+      action_type: string; category: string; actor_type: string;
+      actor_member_id: string; entity_type: string; entity_id: string;
+      metadata_json: string;
+    }>;
     db.close();
+
+    // Exactly one row, so a save that wrote none or several is named as such
+    // rather than surfacing later as a confusing field-list mismatch.
+    expect(rows).toHaveLength(1);
+    const row = rows[0];
 
     expect(row).toBeDefined();
     expect(row!.category).toBe('profile_change');

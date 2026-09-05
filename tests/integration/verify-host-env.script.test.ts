@@ -57,6 +57,11 @@ const CLEAN_STAGING_ENV = [
   'STRIPE_WEBHOOK_SECRET_STUB=whsec_stub_staging_generated_value',
   'PAYMENTS_ARMED=armed',
   'EMAIL_SEND_ARMED=armed',
+  // Both link-protection switches armed, matching the live screening and
+  // reachability selectors above. These are not inert below production, so the
+  // switch and its selector must agree on staging too.
+  'URL_SCREENING_ARMED=armed',
+  'REACHABILITY_ARMED=armed',
 ].join('\n');
 
 interface RunResult {
@@ -475,5 +480,93 @@ describe('verify-host-env.sh — CLI / fixture errors', () => {
     const result = runScript({ envFilePath: writeEnvFile(env) });
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toMatch(/PASS +env discriminator: FOOTBAG_ENV=staging/);
+  });
+});
+
+describe('verify-host-env.sh — the link-protection switches and their derived selectors', () => {
+  // This script is the drift detector for exactly this pair, and until these
+  // cases existed every fixture in the file happened to encode an agreeing
+  // pair, so the branches that catch a disagreement had never run. A detector
+  // whose detecting branch is never exercised is a detector nobody has tested.
+
+  it('fails when screening is armed but the host runs the stub', () => {
+    const env = mutate(/SAFE_BROWSING_ADAPTER=live/, 'SAFE_BROWSING_ADAPTER=stub');
+    const result = runScript({ envFilePath: writeEnvFile(env) });
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toMatch(
+      /FAIL +safe-browsing adapter \(screening armed\): SAFE_BROWSING_ADAPTER=stub \(expected 'live'\)/,
+    );
+  });
+
+  it('fails when screening is dark but the host reaches the live API', () => {
+    const env = mutate(/URL_SCREENING_ARMED=armed/, 'URL_SCREENING_ARMED=dark');
+    const result = runScript({ envFilePath: writeEnvFile(env) });
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toMatch(/FAIL +safe-browsing adapter \(screening dark/);
+    // The message says what the state means, not just that two strings differ:
+    // a dark host is not screening anything a member submits.
+    expect(result.stdout).toMatch(/every submitted link goes unscreened/);
+  });
+
+  it('fails when reachability is armed but the host makes no probe', () => {
+    const env = mutate(/HTTP_REACHABILITY_ADAPTER=live/, 'HTTP_REACHABILITY_ADAPTER=disabled');
+    const result = runScript({ envFilePath: writeEnvFile(env) });
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toMatch(
+      /FAIL +HTTP reachability adapter \(reachability armed\): HTTP_REACHABILITY_ADAPTER=disabled/,
+    );
+  });
+
+  it('passes when reachability is dark and the host is disabled', () => {
+    const env = mutate(/REACHABILITY_ARMED=armed/, 'REACHABILITY_ARMED=dark').replace(
+      'HTTP_REACHABILITY_ADAPTER=live',
+      'HTTP_REACHABILITY_ADAPTER=disabled',
+    );
+    const result = runScript({ envFilePath: writeEnvFile(env) });
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toMatch(/PASS +HTTP reachability adapter \(reachability dark/);
+  });
+
+  it('skips the derived check when a switch is missing, and counts it as neither pass nor failure', () => {
+    // The switch check already reports the fault. Reporting it twice under a
+    // different name sends the reader looking for two problems, and inventing an
+    // expectation for a selector with nothing to derive from is worse: before
+    // this branch existed the script demanded 'live' from a host whose switch it
+    // could not read, which is a failure it made up.
+    const env = CLEAN_STAGING_ENV.replace(/URL_SCREENING_ARMED=armed\n/, '');
+    const result = runScript({ envFilePath: writeEnvFile(env) });
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toMatch(/FAIL +URL screening arming switch/);
+    expect(result.stdout).toMatch(
+      /SKIP +safe-browsing adapter: not checkable while URL_SCREENING_ARMED is unset/,
+    );
+    // The skip names the remedy, and it is not "edit the host env file".
+    expect(result.stdout).toMatch(/terraform apply publishes the switch, the next deploy syncs it/);
+    // Exactly one failure: the missing switch. The skip added none.
+    expect(result.stdout).toMatch(/Fails: +1/);
+  });
+
+  it('refuses a switch value that is neither armed nor dark', () => {
+    const env = mutate(/URL_SCREENING_ARMED=armed/, 'URL_SCREENING_ARMED=on');
+    const result = runScript({ envFilePath: writeEnvFile(env) });
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toMatch(/FAIL +URL screening arming switch/);
+  });
+
+  it('names the owner of each class rather than telling the operator to edit the host', () => {
+    // The old footer said to fix /srv/footbag/env, which for a Terraform-owned
+    // value is advice that the next deploy undoes. Its replacement then named
+    // the three actions of an arming change, which is the same mistake one
+    // level up: an operator following a list of steps by hand is exactly how a
+    // switch and its derived selector end up disagreeing. Name the script.
+    const env = mutate(/URL_SCREENING_ARMED=armed/, 'URL_SCREENING_ARMED=on');
+    const result = runScript({ envFilePath: writeEnvFile(env) });
+    expect(result.stderr).toMatch(/Fix each at its owner before deploying/);
+    expect(result.stderr).toMatch(/scripts\/arming\.sh --target <environment> --switch <name>/);
+    // A derived selector is not editable at the host or in the committed file,
+    // so its remedy is its switch or a redeploy. The old footer sent an operator
+    // to a file that cannot change the value.
+    expect(result.stderr).toMatch(/not editable here: fix its switch above, or redeploy/);
+    expect(result.stderr).not.toMatch(/Fix \/srv\/footbag\/env on/);
   });
 });

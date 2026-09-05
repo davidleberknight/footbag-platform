@@ -339,10 +339,16 @@ describe('arming.sh — the email switch', () => {
     'email_send_armed = "dark"',
   ];
 
-  it('rejects a switch that is neither payments nor email', () => {
+  it('rejects a switch that is none of the four, naming all of them', () => {
     const res = run(ARMING, ['--target', 'production', '--switch', 'sms', '--state', 'dark']);
     expect(res.exitCode).toBe(2);
-    expect(res.stderr).toMatch(/--switch must be 'payments' or 'email'/);
+    // Naming every accepted value matters more than the refusal: an operator who
+    // guessed the name wrong needs the list, and a switch added without being
+    // named here is one nobody discovers.
+    expect(res.stderr).toMatch(/'payments'/);
+    expect(res.stderr).toMatch(/'email'/);
+    expect(res.stderr).toMatch(/'url_screening'/);
+    expect(res.stderr).toMatch(/'reachability'/);
   });
 
   it('names the missing feedback queue as the reason arming email is gated', () => {
@@ -446,6 +452,100 @@ describe('arming.sh — the email switch', () => {
     // wrong provider entirely.
     expect(res.stdout).not.toMatch(/DISABLED in the dashboard/);
     expect(res.stdout).not.toMatch(/Stripe/);
+  });
+});
+
+describe('arming.sh — the two protection switches', () => {
+  // These withhold a protection rather than a real-world side effect, so dark is
+  // the exposed state. They also bite on staging, unlike payments and email.
+  const PROTECTION_TFVARS = [
+    'environment         = "production"',
+    'payments_armed      = "dark"',
+    'email_send_armed    = "dark"',
+    'url_screening_armed = "dark"',
+    'reachability_armed  = "armed"',
+  ];
+
+  it('rewrites only its own flag, leaving the other three untouched', () => {
+    const tfvars = writeTfvars(PROTECTION_TFVARS);
+    const res = run(
+      ARMING,
+      ['--target', 'production', '--switch', 'reachability', '--state', 'dark', '--tfvars', tfvars],
+      'yes\n',
+    );
+    expect(res.exitCode).toBe(0);
+    const after = readFileSync(tfvars, 'utf-8');
+    expect(after).toMatch(/^reachability_armed\s+= "dark"$/m);
+    // The blast radius is the point: a rewrite that caught a neighbouring
+    // assignment would arm or disarm something nobody asked about, and the
+    // values file is the only place that would show it.
+    expect(after).toMatch(/^payments_armed\s+= "dark"$/m);
+    expect(after).toMatch(/^email_send_armed\s+= "dark"$/m);
+    expect(after).toMatch(/^url_screening_armed\s+= "dark"$/m);
+  });
+
+  it('refuses to arm screening when the key parameter cannot be read', () => {
+    // The suite runs with AWS credentials deliberately neutralised, so the
+    // parameter classifies as unreadable — which is exactly one of the three
+    // states that must abort. Arming on an unreadable key is the outage this
+    // gate exists for: every URL-bearing form starts rejecting valid input,
+    // because a screening lookup that cannot run is treated as a link that
+    // cannot be cleared.
+    const tfvars = writeTfvars(PROTECTION_TFVARS);
+    const res = run(
+      ARMING,
+      ['--target', 'production', '--switch', 'url_screening', '--state', 'armed', '--tfvars', tfvars],
+      'yes\n',
+    );
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toMatch(/URL-bearing\s+form/);
+    expect(res.stderr).toMatch(/provision-url-screening-key\.sh/);
+    expect(res.stdout).not.toMatch(/step 2: tfvars/);
+    expect(readFileSync(tfvars, 'utf-8')).toMatch(/url_screening_armed\s+= "dark"/);
+  });
+
+  it('gates disarming screening behind a typed phrase, because nothing else shows it', () => {
+    const tfvars = writeTfvars([
+      'environment         = "production"',
+      'url_screening_armed = "armed"',
+    ]);
+    const res = run(
+      ARMING,
+      ['--target', 'production', '--switch', 'url_screening', '--state', 'dark', '--tfvars', tfvars],
+      'yes\n',
+    );
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toMatch(/Screening stays armed/);
+    expect(readFileSync(tfvars, 'utf-8')).toMatch(/url_screening_armed\s+= "armed"/);
+  });
+
+  it('states the exposure when screening goes dark, rather than reporting no precondition', () => {
+    const res = dryRun(
+      ['--target', 'production', '--switch', 'url_screening', '--state', 'dark'],
+      PROTECTION_TFVARS,
+    );
+    expect(res.exitCode).toBe(0);
+    expect(res.stdout).not.toMatch(/no provider-side precondition/);
+    expect(res.stdout).toMatch(/silently stops screening/);
+  });
+
+  it('names the environment under test rather than assuming production', () => {
+    // Unlike payments and email, these two are live on staging, so a staging run
+    // is a real change. Messaging that said "production" regardless would tell
+    // an operator the opposite of what they are about to do.
+    const res = dryRun(
+      ['--target', 'staging', '--switch', 'url_screening', '--state', 'dark'],
+      PROTECTION_TFVARS,
+    );
+    expect(res.stdout).toMatch(/staging keeps working/);
+  });
+
+  it('reports no precondition for reachability, which genuinely has none', () => {
+    const res = dryRun(
+      ['--target', 'production', '--switch', 'reachability', '--state', 'dark'],
+      PROTECTION_TFVARS,
+    );
+    expect(res.stdout).toMatch(/no provider-side precondition for reachability/);
   });
 });
 

@@ -312,6 +312,34 @@ fi
 # ordinary failure. This check is file-level: it catches a file that never
 # adopted the bound, which is the case that reached the main branch, not a file
 # that imports it and then omits it on one call site among several.
+# Rule: the shared test setup breaks AWS credential resolution for every worker
+# and everything it spawns, except the opt-in staging smoke run.
+# Reason: tests spawn real operator scripts, and several of those write to live
+# AWS. On CI that is inert, because there are no credentials to find. On a
+# maintainer's workstation the ambient profile is a real operator identity with
+# write access to both environments, so a case that reaches the write succeeds
+# against real infrastructure. A test proving a file-mode check passes did
+# exactly that: it overwrote a live Safe Browsing key in staging's Parameter
+# Store with its fixture value, and the suite reported a clean pass. The
+# isolation is default-deny in one place rather than per file, because per file
+# is a rule the next file can forget.
+echo "[conventions] check: the test setup isolates AWS credentials"
+if ! grep -q 'NO_AWS_CREDENTIALS' tests/setup-env.ts; then
+  echo "  FAIL: tests/setup-env.ts must apply NO_AWS_CREDENTIALS from tests/fixtures/awsIsolation.ts" >&2
+  violations=$((violations + 1))
+fi
+if ! grep -q "RUN_STAGING_SMOKE !== '1'" tests/setup-env.ts; then
+  echo "  FAIL: the AWS isolation in tests/setup-env.ts must be conditional on the smoke opt-in only" >&2
+  violations=$((violations + 1))
+fi
+for _aws_var in AWS_PROFILE AWS_CONFIG_FILE AWS_SHARED_CREDENTIALS_FILE AWS_EC2_METADATA_DISABLED; do
+  if ! grep -q "$_aws_var" tests/fixtures/awsIsolation.ts; then
+    echo "  FAIL: tests/fixtures/awsIsolation.ts no longer neutralises $_aws_var" >&2
+    violations=$((violations + 1))
+  fi
+done
+unset _aws_var
+
 echo "[conventions] check: synchronous spawns in tests carry the shared bound"
 spawn_files=$(grep -rlE --include='*.ts' '(spawnSync|execFileSync|execSync)\(' tests/ \
   | grep -v '^tests/fixtures/spawnGuard\.ts$' \

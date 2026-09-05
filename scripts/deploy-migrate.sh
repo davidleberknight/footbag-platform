@@ -52,7 +52,8 @@
 # Reads the sudo password from stdin (line 1), like every other operator script
 # here, so nothing secret reaches an argument list on either machine:
 #   DEPLOY_TARGET=footbag-production \
-#     < <operator credential file> bash scripts/deploy-migrate.sh --migration change.sql
+#     < ~/AWS/AWS_OPERATOR.txt bash scripts/deploy-migrate.sh --migration change.sql
+#     (production: ~/AWS/AWS_OPERATOR_PRODUCTION.txt, selected by DEPLOY_TARGET)
 #
 # DEPLOY_TARGET is required and has no default: see the refusal below for why.
 # ============================================================================
@@ -62,7 +63,8 @@ set -euo pipefail
 usage() {
   cat <<'USAGE'
 Usage: DEPLOY_TARGET=<footbag-staging|footbag-production> \
-         < <operator credential file> bash scripts/deploy-migrate.sh --migration <file.sql> [options]
+         < ~/AWS/AWS_OPERATOR.txt bash scripts/deploy-migrate.sh --migration <file.sql> [options]
+         (production: ~/AWS/AWS_OPERATOR_PRODUCTION.txt)
 
   DEPLOY_TARGET       Required, no default. Which host to migrate. Unset is
                       refused rather than sent to staging, where a migration is

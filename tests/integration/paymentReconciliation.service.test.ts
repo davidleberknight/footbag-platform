@@ -42,14 +42,26 @@ function openDb(): BetterSqlite3.Database {
 // this report whether or not they hold any platform account.
 const TREASURER_ADDRESS = 'ifpa-treasurer@footbag.org';
 
-function latestDigestBody(): string {
+// The key the service enqueues one day's digest under. Each case sends for its
+// own day, so the key names the copy that case just asked for.
+function digestKeyFor(day: Date): string {
+  return `reconciliation-digest:${day.toISOString().slice(0, 10)}`;
+}
+
+// The digest for one named day, found by that key rather than by taking the
+// newest treasurer row. Outbox created_at is a millisecond stamp, so two copies
+// enqueued inside the same millisecond tie, and a tie under `ORDER BY
+// created_at DESC LIMIT 1` falls back to insertion order: the case is handed
+// the FIRST digest the file queued instead of its own, and asserts against an
+// earlier case's text. That is a coin toss on how fast the file happens to run,
+// which is why it failed only in the full suite.
+function digestBodyFor(day: Date): string {
   const db = openDb();
   try {
     const row = db.prepare(
-      `SELECT body_text FROM outbox_emails WHERE recipient_email = ?
-        ORDER BY created_at DESC LIMIT 1`,
-    ).get(TREASURER_ADDRESS) as { body_text: string } | undefined;
-    expect(row, 'a digest row addressed to the treasurer').toBeDefined();
+      'SELECT body_text FROM outbox_emails WHERE recipient_email = ? AND idempotency_key = ?',
+    ).get(TREASURER_ADDRESS, digestKeyFor(day)) as { body_text: string } | undefined;
+    expect(row, `a digest row addressed to the treasurer for ${digestKeyFor(day)}`).toBeDefined();
     return row!.body_text;
   } finally {
     db.close();
@@ -1345,7 +1357,7 @@ describe('the reconciliation digest', () => {
     expect(result.sent).toBe(1);
     expect(result.recipient).toBe(TREASURER_ADDRESS);
 
-    const body = latestDigestBody();
+    const body = digestBodyFor(NOW);
     // It says plainly that the check ran and found nothing, rather than
     // leaving an empty section for the reader to interpret.
     expect(body).toContain('Everything matched');
@@ -1358,8 +1370,8 @@ describe('the reconciliation digest', () => {
     const db = openDb();
     try {
       const row = db.prepare(
-        'SELECT recipient_member_id FROM outbox_emails WHERE recipient_email = ? ORDER BY created_at DESC LIMIT 1',
-      ).get(TREASURER_ADDRESS) as { recipient_member_id: string | null };
+        'SELECT recipient_member_id FROM outbox_emails WHERE recipient_email = ? AND idempotency_key = ?',
+      ).get(TREASURER_ADDRESS, digestKeyFor(NOW)) as { recipient_member_id: string | null };
       expect(row.recipient_member_id).toBeNull();
     } finally {
       db.close();
@@ -1401,8 +1413,9 @@ describe('the reconciliation digest', () => {
     await operationsPlatformService.runPaymentReconciliation(new Date(NOW.getTime() + 1));
     // Its own day, so this copy is a fresh outbox row rather than the
     // duplicate of one an earlier case already queued for today.
-    (await svc()).sendReconciliationDigest({ now: new Date(NOW.getTime() + 3 * 86_400_000) });
-    const body = latestDigestBody();
+    const day = new Date(NOW.getTime() + 3 * 86_400_000);
+    (await svc()).sendReconciliationDigest({ now: day });
+    const body = digestBodyFor(day);
     expect(body).toContain('compared live-mode records');
     expect(body).toContain('1 row was set aside as the other mode');
   });
@@ -1425,7 +1438,7 @@ describe('the reconciliation digest', () => {
     const result = service.sendReconciliationDigest({ now: later });
     expect(result.sent).toBe(1);
 
-    const body = latestDigestBody();
+    const body = digestBodyFor(later);
     // A plain description, not the stored issue-type code.
     expect(body).toContain('Local payment with no provider record');
     expect(body).not.toContain('payment_missing_at_provider');

@@ -47,8 +47,8 @@
 #
 # Usage (the sudo password is read from stdin, line 1; --to-local needs none):
 #   bash scripts/restore-db.sh --source production --to-local /tmp/drill.db
-#   < <operator credential file> bash scripts/restore-db.sh --target staging
-#   < <operator credential file> bash scripts/restore-db.sh --target production --snapshot routine/2026/08/21/footbag-20260821T055900Z.db.gz
+#   < ~/AWS/AWS_OPERATOR.txt bash scripts/restore-db.sh --target staging
+#   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/restore-db.sh --target production --snapshot routine/2026/08/21/footbag-20260821T055900Z.db.gz
 #   bash scripts/restore-db.sh --source staging --to-local /tmp/drill.db --dry-run
 set -euo pipefail
 

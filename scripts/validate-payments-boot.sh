@@ -6,7 +6,7 @@
 # or silently drops webhooks. This gate checks the env file's declared
 # intent, arming-flag aware:
 #   - PAYMENTS_ARMED=dark + stub adapter: PASS with a notice. Dark is the
-#     stub's required state; arming is the separate Terraform step.
+#     stub's required state; arming is scripts/arming.sh.
 #   - PAYMENTS_ARMED=dark + live adapter: FAIL. The app refuses this
 #     combination at boot (dark production must not hold the live SDK).
 #   - armed (or no flag) + live adapter: STRIPE_WEBHOOK_SECRET must be
@@ -40,7 +40,7 @@ if [[ "${PAYMENTS_ARMED_VAL}" == "dark" ]]; then
     echo "GATE: PAYMENTS-BOOT FAIL: PAYMENTS_ARMED=dark but PAYMENT_ADAPTER=live; a dark production refuses the live payment SDK at boot. Redeploy so the adapter follows the flag, or arm payments via the Terraform step." >&2
     exit 1
   fi
-  echo "GATE: PAYMENTS-BOOT PASS: PAYMENTS_ARMED=dark with the stub adapter, the required dark state. Arming is the Terraform step (payments_armed = \"armed\" + apply + deploy)."
+  echo "GATE: PAYMENTS-BOOT PASS: PAYMENTS_ARMED=dark with the stub adapter, the required dark state. Arming is scripts/arming.sh --switch payments --state armed, which owns the values file, the apply and the deploy in order."
   exit 0
 fi
 

@@ -13,12 +13,3 @@ variable "state_bucket_suffix" {
   type        = string
   default     = "TODO-set-unique-suffix"
 }
-
-variable "aws_account_id" {
-  description = <<-EOT
-    AWS account ID.
-    # TODO: Set to your 12-digit AWS account ID.
-  EOT
-  type        = string
-  default     = "TODO-123456789012"
-}

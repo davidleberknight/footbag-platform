@@ -49,7 +49,8 @@ KEEP_KEYS="no"
 
 usage() {
   cat <<'EOF'
-Usage: < <operator credential file> bash scripts/install-host-credentials.sh --target <env> <keys-file>
+Usage: < ~/AWS/AWS_OPERATOR.txt bash scripts/install-host-credentials.sh --target staging <keys-file>
+   or: < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/install-host-credentials.sh --target production <keys-file>
 
   --target <staging|production>   deployed environment to install onto
   --ssh-alias <name>              override the default footbag-<target> alias
@@ -100,7 +101,11 @@ esac
 
 if [[ -t 0 ]]; then
   echo "ERROR: must receive the host sudo password on stdin." >&2
-  echo "       Run via: < <operator credential file> bash scripts/install-host-credentials.sh --target $TARGET <keys-file>" >&2
+  if [[ "$TARGET" == "production" ]]; then
+    echo "       Run via: < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/install-host-credentials.sh --target $TARGET <keys-file>" >&2
+  else
+    echo "       Run via: < ~/AWS/AWS_OPERATOR.txt bash scripts/install-host-credentials.sh --target $TARGET <keys-file>" >&2
+  fi
   echo "" >&2
   usage >&2
   exit 1

@@ -46,13 +46,13 @@
 #   5  verify the host and the live subscriptions
 #
 # Usage (the sudo password is read from stdin, line 1):
-#   < <operator credential file> bash scripts/activate-notification-feeds.sh --target staging --status
-#   < <operator credential file> bash scripts/activate-notification-feeds.sh --target staging --state on
-#   < <operator credential file> bash scripts/activate-notification-feeds.sh --target production --state on
-#   < <operator credential file> bash scripts/activate-notification-feeds.sh --target staging --state off
+#   < ~/AWS/AWS_OPERATOR.txt bash scripts/activate-notification-feeds.sh --target staging --status
+#   < ~/AWS/AWS_OPERATOR.txt bash scripts/activate-notification-feeds.sh --target staging --state on
+#   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/activate-notification-feeds.sh --target production --state on
+#   < ~/AWS/AWS_OPERATOR.txt bash scripts/activate-notification-feeds.sh --target staging --state off
 #   scripts/activate-notification-feeds.sh --target production --state on --dry-run
 #   ... --yes   accept every confirmation, where no terminal is attached
-#   < <operator credential file> bash scripts/activate-notification-feeds.sh --target staging --state on --from-step 3
+#   < ~/AWS/AWS_OPERATOR.txt bash scripts/activate-notification-feeds.sh --target staging --state on --from-step 3
 #
 # --status and --dry-run open no ssh session and need no credential file.
 #

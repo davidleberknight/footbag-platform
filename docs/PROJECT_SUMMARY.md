@@ -375,7 +375,7 @@ Provides abstractions for External Services making them look identical whether r
 - JwtSigningAdapter: `createKmsJwtAdapter` signs JWTs via AWS KMS in production; `createLocalJwtAdapter` signs with a file-based RSA keypair in dev/test. Both use RS256.
 - SesAdapter: `LiveSesAdapter` sends via AWS SES in production; `StubSesAdapter` captures messages in memory for dev, test, and staging.
 - MediaStorageAdapter: `S3MediaStorageAdapter` for staging/production; `LocalMediaStorageAdapter` for dev. Content-agnostic; handles photos, system-account video bytes, and posters identically.
-- SecretsAdapter: `LiveSecretsAdapter` reads SSM SecureString in staging/production with KMS decryption and lazy in-process cache; `LocalSecretsAdapter` reads a gitignored `.local/secrets.json` in dev; `StubSecretsAdapter` for tests. Distinct from env-var secrets (`SESSION_SECRET`, host runtime config) which load via dotenv.
+- SecretsAdapter: `LiveSecretsAdapter` reads SSM SecureString in staging/production with KMS decryption and lazy in-process cache; `StubSecretsAdapter` is an in-memory map used by tests and by local development, where every consuming adapter runs its own stub and asks it for nothing. Distinct from env-var secrets (`SESSION_SECRET`, host runtime config) which load via dotenv.
 - SafeBrowsingAdapter: `LiveSafeBrowsingAdapter` calls the Google Safe Browsing v4 threatMatches:find endpoint in production; `StubSafeBrowsingAdapter` consults an in-memory deny list in dev/test.
 - HttpReachabilityAdapter: `LiveHttpReachabilityAdapter` performs outbound HEAD probes with redirect-follow and per-hop SSRF re-check in production; `StubHttpReachabilityAdapter` in dev/test; `DisabledHttpReachabilityAdapter` opts out of all outbound HTTP from the validation path.
 - ImageProcessingAdapter: `HttpImageAdapter` calls the in-cluster image worker container in all environments; tests inject test doubles.
@@ -586,7 +586,7 @@ External Service Stubs implement identical interfaces for dev or production serv
 
 - AWS SES: Writes to in-memory queue instead of sending; tests inspect queued emails.
 - Stripe: Returns mock successful payments; can simulate webhooks with fixture files.
-- Parameter Store: Reads from local JSON file instead of AWS API.
+- Parameter Store: An in-memory map instead of the AWS API; unseeded it answers nothing, which is what development wants because every consumer runs its own stub.
 - Logging and metrics: Development writes to local files instead of AWS CloudWatch.
 - URL validation: Deterministic stub validates syntax and patterns without external network requests.
 - AWS KMS (signing): Uses a local stub signer in default dev mode (same JWT algorithm and claims shape). Optional hybrid mode uses real KMS for end-to-end integration testing.

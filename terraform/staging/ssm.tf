@@ -36,6 +36,26 @@ resource "aws_ssm_parameter" "app_email_send_armed" {
   value = var.email_send_armed
 }
 
+# The two protective checks on member-submitted links. Same custody as the pair
+# above and one difference that matters here: these are NOT inert on staging.
+# Screening a link and probing whether its host answers have no real-world side
+# effect to withhold from a lower environment, and staging is where the live
+# path is exercised before members reach it, so the deploy derives
+# SAFE_BROWSING_ADAPTER and HTTP_REACHABILITY_ADAPTER from these here as well as
+# on production. No ignore_changes, so an out-of-band put-parameter reverts on
+# the next apply.
+resource "aws_ssm_parameter" "app_url_screening_armed" {
+  name  = "${local.ssm_prefix}/app/url_screening_armed"
+  type  = "String"
+  value = var.url_screening_armed
+}
+
+resource "aws_ssm_parameter" "app_reachability_armed" {
+  name  = "${local.ssm_prefix}/app/reachability_armed"
+  type  = "String"
+  value = var.reachability_armed
+}
+
 # The two SES configuration sets the runtime names on a send, one per sending
 # stream. Transactional and bulk mail keep separate reputations so a complaint
 # spike on a broadcast cannot degrade delivery of a password reset, and the
@@ -54,6 +74,26 @@ resource "aws_ssm_parameter" "app_ses_configuration_set_bulk" {
   name  = "${local.ssm_prefix}/app/ses_configuration_set_bulk"
   type  = "String"
   value = aws_ses_configuration_set.bulk.name
+}
+
+# Two more identifiers the host needs and Terraform creates, published for the
+# same reason as the configuration-set names above: read from the resource, so a
+# rename travels with it and a host cannot end up naming something that no
+# longer exists. The JWT alias matters beyond tidiness. The signing adapter
+# stamps this exact string into every session token's key-id header and refuses
+# a token whose header does not match it, so the host must hold the alias; the
+# key ARN names the same key while publishing the AWS account id to every client
+# holding a session.
+resource "aws_ssm_parameter" "app_media_bucket" {
+  name  = "${local.ssm_prefix}/app/media_bucket"
+  type  = "String"
+  value = aws_s3_bucket.media.id
+}
+
+resource "aws_ssm_parameter" "app_jwt_kms_key_id" {
+  name  = "${local.ssm_prefix}/app/jwt_kms_key_id"
+  type  = "String"
+  value = aws_kms_alias.jwt_signing.name
 }
 
 # The site's own public address is deliberately not a parameter here either, for
@@ -133,12 +173,13 @@ data "aws_ssm_parameter" "app_session_secret" {
 # SecureString + KMS-encrypted. Terraform owns the resource shell with a TODO
 # placeholder; the real value is operator-supplied, under operator credentials —
 # the app runtime role is deliberately read-only on SSM and cannot PutParameter:
-#   aws ssm put-parameter \
-#     --name "/footbag/staging/secrets/safe_browsing_api_key" \
-#     --value "file:///tmp/sb-key" --type SecureString \
-#     --key-id alias/footbag-staging --overwrite
-# (file:// hygiene keeps the literal value out of shell history and process
-# listings.)
+#   scripts/provision-url-screening-key.sh --env both store
+# That script owns every write of this value. It is not a convenience wrapper
+# around put-parameter: one key serves both environments, so a write that
+# reaches only one leaves the other screening with a key it no longer shares,
+# and nothing detects the split. The script checks both destinations before it
+# writes either, keeps the value off the command line and out of shell history,
+# and shreds its own copy afterwards.
 # `lifecycle { ignore_changes = [value] }` because Terraform never owns the
 # real value, only the resource existence + KMS reference. The runtime live
 # SecretsAdapter reads it lazily on first SafeBrowsing lookup. The TODO

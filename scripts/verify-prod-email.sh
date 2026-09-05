@@ -12,7 +12,7 @@
 # row to live SES, which the two direct `aws ses send-email` legs above cannot
 # prove. Needs the operator credential file on stdin, host sudo-password first
 # line, per the wire pattern in scripts/lib/host-env-remote.sh:
-#   < <operator credential file> bash scripts/verify-prod-email.sh \
+#   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/verify-prod-email.sh \
 #       --profile <p> --confirm-production --host-alias <alias> --inbox <addr>
 #
 # This sends REAL email via the production SES identity. It refuses to run

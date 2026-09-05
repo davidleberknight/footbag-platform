@@ -120,6 +120,32 @@ describe('env config: dev defaults apply when NODE_ENV is not production', () =>
     expect(config.sesAdapter).toBe('stub');
   });
 
+  it('loads with no port, base URL or database path set, so a checkout with no environment file runs', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    delete process.env.PORT;
+    delete process.env.PUBLIC_BASE_URL;
+    delete process.env.FOOTBAG_DB_PATH;
+    const { config } = await import('../../src/config/env');
+    expect(config.port).toBe(3000);
+    expect(config.publicBaseUrl).toBe('http://localhost:3000');
+    expect(config.dbPath).toBe('./database/footbag.db');
+  });
+
+  it('lets an explicit port, base URL and database path win over the development defaults', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.PORT = '3456';
+    process.env.PUBLIC_BASE_URL = 'http://localhost:3456';
+    process.env.FOOTBAG_DB_PATH = '/tmp/footbag-test-explicit.db';
+    const { config } = await import('../../src/config/env');
+    expect(config.port).toBe(3456);
+    expect(config.publicBaseUrl).toBe('http://localhost:3456');
+    expect(config.dbPath).toBe('/tmp/footbag-test-explicit.db');
+  });
+
   it('accepts SESSION_SECRET=changeme-short outside production', async () => {
     baselineRequired();
     clearAwsWiring();
@@ -236,6 +262,35 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
       /JWT_SIGNER must be set explicitly in production/,
     );
   });
+
+  it.each(['PORT', 'PUBLIC_BASE_URL', 'FOOTBAG_DB_PATH'])(
+    'throws when %s is unset, so the development default cannot mask a host the deploy failed to configure',
+    async (name) => {
+      baselineRequired();
+      clearAwsWiring();
+      process.env.NODE_ENV = 'production';
+      // A prod-mode boot demands every adapter selector be explicit, and each is
+      // read before the three values under test, so the whole shape is set here
+      // to let the boot reach the assertion.
+      process.env.JWT_SIGNER = 'kms';
+      process.env.JWT_KMS_KEY_ID = 'arn:aws:kms:us-east-1:000000000000:key/abcd-efgh';
+      process.env.AWS_REGION = 'us-east-1';
+      process.env.SES_ADAPTER = 'stub';
+      process.env.SAFE_BROWSING_ADAPTER = 'stub';
+      process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
+      process.env.SECRETS_ADAPTER = 'stub';
+      process.env.FOOTBAG_ENV = 'staging';
+      process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
+      process.env.MEDIA_STORAGE_ADAPTER = 'local';
+      process.env.CAPTCHA_ADAPTER = 'stub';
+      process.env.PAYMENT_ADAPTER = 'stub';
+      process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_staging_generated_value';
+      delete process.env[name];
+      await expect(import('../../src/config/env')).rejects.toThrow(
+        new RegExp(`Missing required environment variable: ${name}`),
+      );
+    },
+  );
 
   it('throws when JWT_SIGNER has an invalid value', async () => {
     baselineRequired();
@@ -540,16 +595,16 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.NODE_ENV = 'development';
     process.env.SECRETS_ADAPTER = 'aws-secrets-manager';
     await expect(import('../../src/config/env')).rejects.toThrow(
-      /SECRETS_ADAPTER must be 'live', 'stub', or 'local'/,
+      /SECRETS_ADAPTER must be 'live' or 'stub'/,
     );
   });
 
-  it("defaults SECRETS_ADAPTER to 'local' outside production", async () => {
+  it("defaults SECRETS_ADAPTER to 'stub' outside production", async () => {
     baselineRequired();
     clearAwsWiring();
     process.env.NODE_ENV = 'development';
     const { config } = await import('../../src/config/env');
-    expect(config.secretsAdapter).toBe('local');
+    expect(config.secretsAdapter).toBe('stub');
   });
 
   it('throws when SECRETS_ADAPTER=live but FOOTBAG_ENV is unset', async () => {
@@ -1285,14 +1340,13 @@ describe('env config: MEDIA_STORAGE_*', () => {
     );
   });
 
-  it('throws in dev when INTERNAL_EVENT_SECRET is unset: the /ipc router is always mounted, so no mode boots on an implicit fallback token', async () => {
+  it('falls back to a fixed literal in dev when INTERNAL_EVENT_SECRET is unset, so the three local processes agree without setup', async () => {
     baselineRequired();
     clearAwsWiring();
     delete process.env.INTERNAL_EVENT_SECRET;
     process.env.NODE_ENV = 'development';
-    await expect(import('../../src/config/env')).rejects.toThrow(
-      /INTERNAL_EVENT_SECRET is required/,
-    );
+    const { config } = await import('../../src/config/env');
+    expect(config.internalEventSecret).toBe('dev-internal-event-secret-not-for-prod');
   });
 
   it('uses the operator-supplied INTERNAL_EVENT_SECRET', async () => {
@@ -2548,6 +2602,186 @@ describe('env config: prod-mode deployment-env declaration and hardening mandate
     delete process.env.CAPTCHA_ADAPTER;
     await expect(import('../../src/config/env')).rejects.toThrow(
       /CAPTCHA_ADAPTER must be set explicitly in production \(no default\)/,
+    );
+  });
+});
+
+describe('env config: link-protection switches (URL_SCREENING_ARMED / REACHABILITY_ARMED)', () => {
+  let snap: EnvSnapshot;
+  beforeEach(() => {
+    snap = snapshotEnv();
+    vi.resetModules();
+  });
+  afterEach(() => restoreEnv(snap));
+
+  // A deployed-environment boot minus the two switches and the two selectors,
+  // which each case sets itself. FOOTBAG_ENV is what turns the guards on: they
+  // are deliberately inert below a deployed environment, because a development
+  // boot holds the stub selectors while the switches keep their non-production
+  // defaults, and that pairing is correct rather than a mismatch.
+  function deployedShape(env: 'staging' | 'production'): void {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'production';
+    process.env.FOOTBAG_ENV = env;
+    process.env.JWT_SIGNER = 'kms';
+    process.env.JWT_KMS_KEY_ID = 'arn:aws:kms:us-east-1:000000000000:key/abcd-efgh';
+    process.env.AWS_REGION = 'us-east-1';
+    process.env.SES_ADAPTER = 'stub';
+    process.env.SECRETS_ADAPTER = 'live';
+    process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
+    process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    process.env.CAPTCHA_ADAPTER = env === 'production' ? 'live' : 'stub';
+    if (env === 'production') process.env.TURNSTILE_SITE_KEY = 'turnstile-site-key';
+    process.env.PAYMENT_ADAPTER = 'stub';
+    process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_generated_value';
+    process.env.EMAIL_SEND_ARMED = 'dark';
+    process.env.PAYMENTS_ARMED = 'dark';
+  }
+
+  describe('the switch values themselves', () => {
+    it.each(['URL_SCREENING_ARMED', 'REACHABILITY_ARMED'])(
+      'throws when %s is unset in a production-hardened boot, so no default can mask a host the deploy failed to sync',
+      async (name) => {
+        deployedShape('staging');
+        process.env.URL_SCREENING_ARMED = 'dark';
+        process.env.REACHABILITY_ARMED = 'dark';
+        process.env.SAFE_BROWSING_ADAPTER = 'stub';
+        process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
+        delete process.env[name];
+        await expect(import('../../src/config/env')).rejects.toThrow(
+          new RegExp(`${name} must be set explicitly in production \\(no default\\)`),
+        );
+      },
+    );
+
+    it.each(['URL_SCREENING_ARMED', 'REACHABILITY_ARMED'])(
+      'throws when %s holds a value that is neither armed nor dark',
+      async (name) => {
+        deployedShape('staging');
+        process.env.URL_SCREENING_ARMED = 'dark';
+        process.env.REACHABILITY_ARMED = 'dark';
+        process.env.SAFE_BROWSING_ADAPTER = 'stub';
+        process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
+        process.env[name] = 'on';
+        await expect(import('../../src/config/env')).rejects.toThrow(
+          new RegExp(`${name} must be 'armed' or 'dark', got: on`),
+        );
+      },
+    );
+
+    it('defaults both to armed below a production-hardened boot, so a checkout runs with no environment file', async () => {
+      baselineRequired();
+      clearAwsWiring();
+      process.env.NODE_ENV = 'development';
+      delete process.env.URL_SCREENING_ARMED;
+      delete process.env.REACHABILITY_ARMED;
+      const { config } = await import('../../src/config/env');
+      expect(config.urlScreeningArmed).toBe('armed');
+      expect(config.reachabilityArmed).toBe('armed');
+    });
+  });
+
+  describe('switch and selector must agree in a deployed environment', () => {
+    // Each case is the failure the deploy is supposed to make unreachable: it
+    // derives the selector from the switch on every run, so a disagreement means
+    // the host was hand-edited or a deploy half did not run. Refusing beats
+    // picking one of two answers, because the wrong pick is silent — a selector
+    // on its non-protective value boots exactly as cleanly as one on its
+    // protective value.
+    it.each(['staging', 'production'] as const)(
+      'refuses armed screening running on the stub deny list (%s)',
+      async (env) => {
+        deployedShape(env);
+        process.env.URL_SCREENING_ARMED = 'armed';
+        process.env.SAFE_BROWSING_ADAPTER = 'stub';
+        process.env.REACHABILITY_ARMED = 'dark';
+        process.env.HTTP_REACHABILITY_ADAPTER = 'disabled';
+        await expect(import('../../src/config/env')).rejects.toThrow(
+          /SAFE_BROWSING_ADAPTER must be 'live' when FOOTBAG_ENV=.* and URL_SCREENING_ARMED=armed/,
+        );
+      },
+    );
+
+    it('refuses dark screening reaching the live API', async () => {
+      deployedShape('staging');
+      process.env.URL_SCREENING_ARMED = 'dark';
+      process.env.SAFE_BROWSING_ADAPTER = 'live';
+      process.env.REACHABILITY_ARMED = 'dark';
+      process.env.HTTP_REACHABILITY_ADAPTER = 'disabled';
+      await expect(import('../../src/config/env')).rejects.toThrow(
+        /SAFE_BROWSING_ADAPTER must be 'stub' when FOOTBAG_ENV=.* and URL_SCREENING_ARMED=dark/,
+      );
+    });
+
+    it('refuses armed reachability that does not actually probe', async () => {
+      deployedShape('staging');
+      process.env.URL_SCREENING_ARMED = 'dark';
+      process.env.SAFE_BROWSING_ADAPTER = 'stub';
+      process.env.REACHABILITY_ARMED = 'armed';
+      process.env.HTTP_REACHABILITY_ADAPTER = 'disabled';
+      await expect(import('../../src/config/env')).rejects.toThrow(
+        /HTTP_REACHABILITY_ADAPTER must be 'live' when FOOTBAG_ENV=.* and REACHABILITY_ARMED=armed/,
+      );
+    });
+
+    it('refuses dark reachability that probes anyway', async () => {
+      deployedShape('staging');
+      process.env.URL_SCREENING_ARMED = 'dark';
+      process.env.SAFE_BROWSING_ADAPTER = 'stub';
+      process.env.REACHABILITY_ARMED = 'dark';
+      process.env.HTTP_REACHABILITY_ADAPTER = 'live';
+      await expect(import('../../src/config/env')).rejects.toThrow(
+        /HTTP_REACHABILITY_ADAPTER must not be 'live' when FOOTBAG_ENV=.* and REACHABILITY_ARMED=dark/,
+      );
+    });
+
+    it("accepts dark reachability on the stub, because 'stub' makes no outbound probe either", async () => {
+      // The guard reads the behaviour rather than the literal. The deploy writes
+      // 'disabled' for dark, but a host holding 'stub' is not probing either, and
+      // refusing it would fail a boot that is behaving correctly.
+      deployedShape('staging');
+      process.env.URL_SCREENING_ARMED = 'dark';
+      process.env.SAFE_BROWSING_ADAPTER = 'stub';
+      process.env.REACHABILITY_ARMED = 'dark';
+      process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
+      const { config } = await import('../../src/config/env');
+      expect(config.httpReachabilityAdapter).toBe('stub');
+      expect(config.reachabilityArmed).toBe('dark');
+    });
+
+    it('accepts the agreeing armed pair', async () => {
+      deployedShape('staging');
+      process.env.URL_SCREENING_ARMED = 'armed';
+      process.env.SAFE_BROWSING_ADAPTER = 'live';
+      process.env.REACHABILITY_ARMED = 'armed';
+      process.env.HTTP_REACHABILITY_ADAPTER = 'live';
+      const { config } = await import('../../src/config/env');
+      expect(config.safeBrowsingAdapter).toBe('live');
+      expect(config.httpReachabilityAdapter).toBe('live');
+    });
+  });
+
+  describe('the guards are inert below a deployed environment', () => {
+    // Without this, a local run breaks: the stub selectors are the development
+    // defaults while the switches default armed, which is a mismatch on paper
+    // and correct in fact. Nothing else in the suite proves the gate exists.
+    it.each([undefined, 'development'] as const)(
+      'allows a mismatched pair when FOOTBAG_ENV is %s',
+      async (env) => {
+        baselineRequired();
+        clearAwsWiring();
+        process.env.NODE_ENV = 'development';
+        if (env === undefined) delete process.env.FOOTBAG_ENV;
+        else process.env.FOOTBAG_ENV = env;
+        process.env.URL_SCREENING_ARMED = 'armed';
+        process.env.SAFE_BROWSING_ADAPTER = 'stub';
+        process.env.REACHABILITY_ARMED = 'armed';
+        process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
+        const { config } = await import('../../src/config/env');
+        expect(config.safeBrowsingAdapter).toBe('stub');
+        expect(config.urlScreeningArmed).toBe('armed');
+      },
     );
   });
 });

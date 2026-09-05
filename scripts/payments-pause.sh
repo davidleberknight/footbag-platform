@@ -45,9 +45,9 @@
 # actually in force.
 #
 # Usage:
-#   < <operator credential file> bash scripts/payments-pause.sh --target production --status
-#   < <operator credential file> bash scripts/payments-pause.sh --target production --pause  --reason "duplicate charges reported"
-#   < <operator credential file> bash scripts/payments-pause.sh --target production --resume --reason "fixed in 1a2b3c4"
+#   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/payments-pause.sh --target production --status
+#   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/payments-pause.sh --target production --pause  --reason "duplicate charges reported"
+#   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/payments-pause.sh --target production --resume --reason "fixed in 1a2b3c4"
 #   ... --pause --yes        skip the confirmation prompt (for a scripted incident response)
 #   ... --actor <member-id>  record who flipped it, so the platform's own
 #                            configuration history answers that question rather

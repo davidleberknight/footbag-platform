@@ -24,16 +24,16 @@ cd "$(dirname "$0")"
 # /srv/footbag/env on the host; the dev workstation has no host env file, so
 # the launcher exports here. `dotenv` does not override existing env vars, so a
 # stray .env entry won't clobber this.
-export FOOTBAG_ENV=development
+#
+# Defaulted rather than pinned, so an operator can export a different label for
+# the run. That is what the live-screening opt-in in DEV_ONBOARDING needs: the
+# secrets adapter derives its Parameter Store prefix from this value, so a hard
+# pin sent every lookup to /footbag/development/... and the parameter the
+# operator had written under a real environment was unreachable. It has to be
+# exported in the shell rather than set in .env, because dotenv loads after this
+# and does not override an existing variable either way.
+export FOOTBAG_ENV="${FOOTBAG_ENV:-development}"
 
-# The app refuses to boot without an explicit INTERNAL_EVENT_SECRET (the /ipc
-# router is always mounted and a known fallback literal would be guessable).
-# Web and image worker launch from this shell, so one generated per-run value
-# gives both processes the same token; an operator-exported value wins.
-if [[ -z "${INTERNAL_EVENT_SECRET:-}" ]]; then
-  INTERNAL_EVENT_SECRET=$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')
-fi
-export INTERNAL_EVENT_SECRET
 
 # Free any port already held by a leaked prior dev process.
 kill_port() {

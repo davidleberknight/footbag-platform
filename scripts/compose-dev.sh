@@ -31,24 +31,32 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 cd "$REPO_ROOT"
 
-if [[ ! -f .env ]]; then
-  echo "ERROR: project-root .env is missing." >&2
-  echo "       Copy .env.example -> .env and fill in SESSION_SECRET (32+ chars," >&2
-  echo "       no 'changeme') before running this script." >&2
-  exit 1
+# A project-root .env is optional. Compose refuses a named --env-file that does
+# not exist, so the flag is added only when there is one to add.
+COMPOSE_ARGS=(-f docker/docker-compose.yml)
+if [[ -f .env ]]; then
+  COMPOSE_ARGS=(--env-file .env "${COMPOSE_ARGS[@]}")
 fi
 
-# The compose file requires an explicit INTERNAL_EVENT_SECRET (no fallback
-# literal; a known value would let anything that reaches /ipc/* publish
-# forged job events). Precedence: an exported shell value wins, then a
-# .env entry; otherwise generate a per-run value here so all containers in
-# this stack share one token with zero operator setup.
-if [[ -z "${INTERNAL_EVENT_SECRET:-}" ]] && ! grep -qE '^INTERNAL_EVENT_SECRET=.+' .env; then
+# This stack runs NODE_ENV=production for parity with the deployed one, which
+# means the config loader takes its production branch and the development
+# fallbacks it carries do NOT apply here. Both shared secrets are therefore
+# required, exactly as on a host, and both are generated per run when nothing
+# supplies them so a checkout with no .env still comes up. Precedence: an
+# exported shell value wins, then a .env entry, then the generated value.
+env_file_sets() {
+  [[ -f .env ]] && grep -qE "^$1=.+" .env
+}
+
+if [[ -z "${INTERNAL_EVENT_SECRET:-}" ]] && ! env_file_sets INTERNAL_EVENT_SECRET; then
   INTERNAL_EVENT_SECRET=$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')
   export INTERNAL_EVENT_SECRET
 fi
 
-COMPOSE_ARGS=(--env-file .env -f docker/docker-compose.yml)
+if [[ -z "${SESSION_SECRET:-}" ]] && ! env_file_sets SESSION_SECRET; then
+  SESSION_SECRET=$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')
+  export SESSION_SECRET
+fi
 COMPOSE_PID=""
 
 forward_signal() {

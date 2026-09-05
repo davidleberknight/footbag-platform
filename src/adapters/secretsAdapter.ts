@@ -10,9 +10,14 @@
  *     Lazy fetch + in-memory cache for the life of the process. AWS-auth or
  *     KMS-decrypt failures throw; missing parameter (ParameterNotFound) returns
  *     undefined so callers distinguish "not configured yet" from "AWS broken".
- *   - createStubSecretsAdapter: in-memory map for tests. setSecret/clear/failNext.
- *   - createLocalSecretsAdapter: reads JSON file at repo root for dev parity.
- *     File-missing is not an error; all keys return undefined.
+ *   - createStubSecretsAdapter: in-memory map for tests and for local
+ *     development. setSecret/clear/failNext. Unseeded, every key returns
+ *     undefined and a required read throws, which is what local development
+ *     wants: each consuming adapter runs its own stub there and asks for
+ *     nothing. There is deliberately no file-backed implementation, because a
+ *     credential file on a workstation sits outside every rotation this
+ *     project runs; a developer who needs a real value points the adapter at
+ *     Parameter Store.
  *
  * Caller pattern: services and adapters call `secrets.get(key)` or
  * `secrets.getRequired(key)` lazily on first need. The adapter caches per-key
@@ -24,8 +29,6 @@
  * The live impl accepts an injected SSM client so the parity test can stand
  * in a fake SSMClient without mocking the @aws-sdk package itself.
  */
-import * as fs from 'node:fs';
-import * as path from 'node:path';
 import {
   SSMClient,
   GetParameterCommand,
@@ -180,57 +183,6 @@ export function createStubSecretsAdapter(): StubSecretsAdapter {
   };
 }
 
-export function createLocalSecretsAdapter(opts: {
-  filePath?: string;
-}): SecretsAdapter {
-  const filePath =
-    opts.filePath ?? path.join(process.cwd(), '.local', 'secrets.json');
-  let cache: Record<string, string> | null = null;
-  function load(): Record<string, string> {
-    if (cache) return cache;
-    if (!fs.existsSync(filePath)) {
-      cache = {};
-      return cache;
-    }
-    const raw = fs.readFileSync(filePath, 'utf8');
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object') {
-      throw new Error(
-        `Local secrets file at ${filePath} must be a JSON object of string→string`,
-      );
-    }
-    cache = parsed as Record<string, string>;
-    return cache;
-  }
-  return {
-    async get(key) {
-      const data = load();
-      const value = data[key];
-      return typeof value === 'string' ? value : undefined;
-    },
-    async getRequired(key) {
-      const data = load();
-      const value = data[key];
-      if (typeof value !== 'string') throw new SecretNotConfiguredError(key);
-      return value;
-    },
-    async getAbsolute(name) {
-      const data = load();
-      const value = data[name];
-      return typeof value === 'string' ? value : undefined;
-    },
-    async deleteAbsolute(name) {
-      const data = load();
-      delete data[name];
-    },
-    invalidate(_key) {
-      // The file is read once and held whole, so the only way back to the
-      // store is to drop all of it and re-read on the next access.
-      cache = null;
-    },
-  };
-}
-
 let singleton: SecretsAdapter | null = null;
 let stubSingleton: StubSecretsAdapter | null = null;
 
@@ -243,11 +195,9 @@ export function getSecretsAdapter(): SecretsAdapter {
       );
     }
     singleton = createLiveSecretsAdapter({ ssmPrefix: config.ssmPrefix });
-  } else if (config.secretsAdapter === 'stub') {
+  } else {
     stubSingleton = createStubSecretsAdapter();
     singleton = stubSingleton;
-  } else {
-    singleton = createLocalSecretsAdapter({});
   }
   return singleton;
 }

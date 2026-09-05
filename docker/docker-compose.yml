@@ -104,7 +104,7 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-info}
       FOOTBAG_DB_PATH: /app/db/footbag.db
       PUBLIC_BASE_URL: http://localhost
-      SESSION_SECRET: ${SESSION_SECRET}
+      SESSION_SECRET: ${SESSION_SECRET:?this stack runs NODE_ENV=production, so it needs a real value; launch via npm run compose:dev, which generates one}
       IMAGE_PROCESSOR_URL: http://image:4000
       JWT_SIGNER: ${JWT_SIGNER:-local}
       # The local signer writes its keypair on first boot when the file is
@@ -124,11 +124,12 @@ services:
       # web with nginx only, so the local default is 1. Staging/production
       # hosts set their real chain length in /srv/footbag/env.
       TRUST_PROXY: ${TRUST_PROXY:-1}
-      # SecretsAdapter selector. Local-default reads .local/secrets.json for
-      # dev parity; staging/prod override to 'live' via /srv/footbag/env.
+      # SecretsAdapter selector. The dev default is the in-memory stub, which
+      # nothing asks for a value because every consuming adapter runs its own
+      # stub locally; staging/prod override to 'live' via /srv/footbag/env.
       # FOOTBAG_ENV is required when SECRETS_ADAPTER=live; it derives the
       # SSM parameter prefix (/footbag/{env}/secrets/...).
-      SECRETS_ADAPTER: ${SECRETS_ADAPTER:-local}
+      SECRETS_ADAPTER: ${SECRETS_ADAPTER:-stub}
       FOOTBAG_ENV: ${FOOTBAG_ENV:-development}
       AWS_REGION: ${AWS_REGION:-}
       MEDIA_STORAGE_ADAPTER: ${MEDIA_STORAGE_ADAPTER:-local}
@@ -138,6 +139,8 @@ services:
       # 'armed' is the inert default that keeps non-production boots unchanged.
       PAYMENTS_ARMED: ${PAYMENTS_ARMED:-armed}
       EMAIL_SEND_ARMED: ${EMAIL_SEND_ARMED:-armed}
+      URL_SCREENING_ARMED: ${URL_SCREENING_ARMED:-armed}
+      REACHABILITY_ARMED: ${REACHABILITY_ARMED:-armed}
       # Unused in stub mode (stub adapter uses its own whsec_stub secret);
       # required by env.ts boot only when PAYMENT_ADAPTER=live.
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
@@ -158,7 +161,7 @@ services:
       # No default literal: a known fallback would let anything that reaches
       # /ipc/* publish forged job events. scripts/compose-dev.sh generates a
       # per-run value when neither the shell nor .env supplies one.
-      INTERNAL_EVENT_SECRET: ${INTERNAL_EVENT_SECRET:?set in .env or launch via npm run compose:dev (worker<->web auth)}
+      INTERNAL_EVENT_SECRET: ${INTERNAL_EVENT_SECRET:?this stack runs NODE_ENV=production, so it needs a real value; launch via npm run compose:dev, which generates one}
       # Dedicated SNS feedback-webhook key: separate from INTERNAL_EVENT_SECRET
       # because the subscription URL carries it in the query string, where
       # access logs capture it.
@@ -214,7 +217,7 @@ services:
       IMAGE_PORT: "4000"
       IMAGE_MAX_CONCURRENT: "2"
       LOG_LEVEL: ${LOG_LEVEL:-info}
-      INTERNAL_EVENT_SECRET: ${INTERNAL_EVENT_SECRET:?set in .env or launch via npm run compose:dev (worker<->web auth)}
+      INTERNAL_EVENT_SECRET: ${INTERNAL_EVENT_SECRET:?this stack runs NODE_ENV=production, so it needs a real value; launch via npm run compose:dev, which generates one}
     security_opt:
       - no-new-privileges:true
     # This container decodes untrusted media through ffmpeg and sharp, so it is
@@ -250,7 +253,7 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-info}
       FOOTBAG_DB_PATH: /app/db/footbag.db
       PUBLIC_BASE_URL: http://localhost
-      SESSION_SECRET: ${SESSION_SECRET}
+      SESSION_SECRET: ${SESSION_SECRET:?this stack runs NODE_ENV=production, so it needs a real value; launch via npm run compose:dev, which generates one}
       IMAGE_PROCESSOR_URL: http://image:4000
       JWT_SIGNER: ${JWT_SIGNER:-local}
       # The local signer writes its keypair on first boot when the file is
@@ -266,11 +269,12 @@ services:
       SES_CONFIGURATION_SET_BULK: ${SES_CONFIGURATION_SET_BULK:-}
       SAFE_BROWSING_ADAPTER: ${SAFE_BROWSING_ADAPTER:-stub}
       HTTP_REACHABILITY_ADAPTER: ${HTTP_REACHABILITY_ADAPTER:-stub}
-      # SecretsAdapter selector. Local-default reads .local/secrets.json for
-      # dev parity; staging/prod override to 'live' via /srv/footbag/env.
+      # SecretsAdapter selector. The dev default is the in-memory stub, which
+      # nothing asks for a value because every consuming adapter runs its own
+      # stub locally; staging/prod override to 'live' via /srv/footbag/env.
       # FOOTBAG_ENV is required when SECRETS_ADAPTER=live; it derives the
       # SSM parameter prefix (/footbag/{env}/secrets/...).
-      SECRETS_ADAPTER: ${SECRETS_ADAPTER:-local}
+      SECRETS_ADAPTER: ${SECRETS_ADAPTER:-stub}
       FOOTBAG_ENV: ${FOOTBAG_ENV:-development}
       AWS_REGION: ${AWS_REGION:-}
       MEDIA_STORAGE_ADAPTER: ${MEDIA_STORAGE_ADAPTER:-local}
@@ -280,6 +284,8 @@ services:
       # 'armed' is the inert default that keeps non-production boots unchanged.
       PAYMENTS_ARMED: ${PAYMENTS_ARMED:-armed}
       EMAIL_SEND_ARMED: ${EMAIL_SEND_ARMED:-armed}
+      URL_SCREENING_ARMED: ${URL_SCREENING_ARMED:-armed}
+      REACHABILITY_ARMED: ${REACHABILITY_ARMED:-armed}
       # Unused in stub mode (stub adapter uses its own whsec_stub secret);
       # required by env.ts boot only when PAYMENT_ADAPTER=live.
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
@@ -293,7 +299,7 @@ services:
       # worker sees the operator's CAPTCHA_ADAPTER=live.
       CAPTCHA_ADAPTER: ${CAPTCHA_ADAPTER:-stub}
       TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-}
-      INTERNAL_EVENT_SECRET: ${INTERNAL_EVENT_SECRET:?set in .env or launch via npm run compose:dev (worker<->web auth)}
+      INTERNAL_EVENT_SECRET: ${INTERNAL_EVENT_SECRET:?this stack runs NODE_ENV=production, so it needs a real value; launch via npm run compose:dev, which generates one}
       # Dedicated platform-alarm webhook key, separate for the same reason.
       # Expected publishing topic per SNS feed; both feeds refuse every delivery
       # when unset. There is no SNS in development, so they stay empty here and

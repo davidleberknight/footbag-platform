@@ -224,6 +224,35 @@ variable "email_send_armed" {
   }
 }
 
+# ── Arming switches that are NOT inert on staging ─────────────────────────────
+# The pair above is inert here because money and mail must not leave a lower
+# environment whatever the switch says. These two are different: URL screening
+# and reachability run for real on staging, which is the only place the live
+# path is exercised before members see it, so the switch is the only thing that
+# decides and the deploy derives the adapter here as well as on production.
+
+variable "url_screening_armed" {
+  description = "URL screening arming switch, published as SSM app/url_screening_armed. Live on staging by design: arming here is what keeps the Google Safe Browsing path exercised somewhere other than the public site, and the data-authoring URL verifier reads this environment's key."
+  type        = string
+  default     = "armed"
+
+  validation {
+    condition     = contains(["armed", "dark"], var.url_screening_armed)
+    error_message = "url_screening_armed must be exactly 'armed' or 'dark'."
+  }
+}
+
+variable "reachability_armed" {
+  description = "Outbound URL-reachability arming switch, published as SSM app/reachability_armed. Armed on staging: the probe is what catches a link whose host no longer resolves before it renders dead on a page."
+  type        = string
+  default     = "armed"
+
+  validation {
+    condition     = contains(["armed", "dark"], var.reachability_armed)
+    error_message = "reachability_armed must be exactly 'armed' or 'dark'."
+  }
+}
+
 variable "enable_feed_queues" {
   description = <<-EOT
     Create the SQS queues the worker polls for the SES bounce/complaint feed and

@@ -28,7 +28,8 @@ set -euo pipefail
 
 usage() {
   cat <<'USAGE'
-Usage: < <operator credential file> bash scripts/deploy-rebuild.sh
+Usage: < ~/AWS/AWS_OPERATOR.txt bash scripts/deploy-rebuild.sh
+       (production: ~/AWS/AWS_OPERATOR_PRODUCTION.txt, selected by DEPLOY_TARGET)
 
 Internal leaf script. End users should run `bash deploy_to_aws.sh` — the
 orchestrator threads the resolved choices to this script via env vars.
@@ -170,13 +171,13 @@ ssh "${SSH_OPTS[@]}" "$REMOTE" "echo '    SSH OK'" </dev/null
 # SKIP_SMOKE=yes remains the operator's deliberate override. Mirrors
 # deploy-code.sh.
 if [[ "$FOOTBAG_ENV" == "production" && "${SKIP_SMOKE:-no}" != "yes" ]]; then
+  staging_domain=$(terraform -chdir="$REPO_ROOT/terraform/staging" \
+    output -raw cloudfront_domain 2>/dev/null || true)
   STAGING_BASE_URL=""
-  if [[ -f "$REPO_ROOT/.env" ]]; then
-    STAGING_BASE_URL=$(awk -F= -v k="PUBLIC_BASE_URL_STAGING" '$1==k {sub(/^[^=]*=/,""); print}' "$REPO_ROOT/.env" | tail -1)
-  fi
+  [[ -n "$staging_domain" ]] && STAGING_BASE_URL="https://$staging_domain"
   if [[ -z "$STAGING_BASE_URL" ]]; then
-    echo "ERROR: a production deploy first verifies the smoke gate against staging, but PUBLIC_BASE_URL_STAGING is not set in .env (see .env.example)." >&2
-    echo "       Add it, or SKIP_SMOKE=yes to skip deliberately." >&2
+    echo "ERROR: a production deploy first verifies the smoke gate against staging, but the staging address could not be read from 'terraform -chdir=terraform/staging output -raw cloudfront_domain'." >&2
+    echo "       Check that tree is initialised and your AWS profile is configured, or SKIP_SMOKE=yes to skip deliberately." >&2
     exit 1
   fi
   echo "==> Verifying staging smoke gate before production deploy ($STAGING_BASE_URL) ..."
@@ -331,13 +332,19 @@ echo "==> Building Docker images locally (workstation)..."
 if [[ "$FOOTBAG_ENV" == "production" ]]; then
   export INCLUDE_DEV_SHORTCUTS=0
 fi
-# INTERNAL_EVENT_SECRET is a runtime-only value (worker<->web/image auth) that
-# the base compose hard-requires via ${VAR:?}. `docker compose build`
-# interpolates the whole file before building, so an unset value aborts the
-# build even though the secret is never baked into the image. Pass a throwaway
-# value scoped to this build only; the real secret lives in /srv/footbag/env on
-# the host and is injected at container start.
-( cd "$REPO_ROOT" && INTERNAL_EVENT_SECRET=build-time-placeholder-unused docker compose \
+# Every value the base compose hard-requires via ${VAR:?} has to be present for
+# `docker compose build`, because compose interpolates the whole file before
+# building, even though none of these is ever baked into an image. Both are
+# runtime-only: the worker-to-web channel secret and the cookie signing key both
+# live in /srv/footbag/env on the host and are injected at container start.
+# The placeholders are deliberately short and obviously fake, so that if one ever
+# did reach a real boot the application's own guards refuse it rather than
+# accepting a weak value. Keep this list equal to the ${VAR:?} set in
+# docker/docker-compose.yml; a test pins that.
+( cd "$REPO_ROOT" \
+    && INTERNAL_EVENT_SECRET=build-time-placeholder-unused \
+       SESSION_SECRET=build-time-placeholder-unused \
+       docker compose \
     -f docker/docker-compose.yml \
     build )
 
@@ -478,20 +485,20 @@ echo "==> Running remote-as-root rebuild deploy via cat-pipe..."
   cat "$CUTOVER_GUARD" "$PROD_LIVE_GUARD" "$REMOTE_HALF"
 } | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash'
 
-# Smoke runs against the public CloudFront URL. No environment URL is
-# committed to the repo (the staging address is deliberately unpublished):
-# the URLs live in the operator's gitignored .env as PUBLIC_BASE_URL_STAGING
-# / PUBLIC_BASE_URL_PRODUCTION (documented in .env.example). SMOKE_BASE_URL
-# remains the per-run override. Mirrors deploy-code.sh.
-if [[ -z "${SMOKE_BASE_URL:-}" && -f "$REPO_ROOT/.env" ]]; then
+# Smoke runs against the public CloudFront URL. No environment URL is committed
+# to the repo: the staging address is deliberately unpublished, and that is what
+# shields the real-data staging environment. It is read from the environment's
+# own Terraform output instead of from a file, so it cannot go stale and no
+# operator has to keep a copy. SMOKE_BASE_URL remains the per-run override.
+# Mirrors deploy-code.sh.
+if [[ -z "${SMOKE_BASE_URL:-}" ]]; then
   case "$FOOTBAG_ENV" in
-    staging)    smoke_url_key="PUBLIC_BASE_URL_STAGING" ;;
-    production) smoke_url_key="PUBLIC_BASE_URL_PRODUCTION" ;;
-    *)          smoke_url_key="" ;;
+    staging | production)
+      smoke_domain=$(terraform -chdir="$REPO_ROOT/terraform/$FOOTBAG_ENV" \
+        output -raw cloudfront_domain 2>/dev/null || true)
+      [[ -n "$smoke_domain" ]] && SMOKE_BASE_URL="https://$smoke_domain"
+      ;;
   esac
-  if [[ -n "$smoke_url_key" ]]; then
-    SMOKE_BASE_URL=$(awk -F= -v k="$smoke_url_key" '$1==k {sub(/^[^=]*=/,""); print}' "$REPO_ROOT/.env" | tail -1)
-  fi
 fi
 SMOKE_BASE_URL="${SMOKE_BASE_URL:-}"
 
@@ -502,7 +509,7 @@ elif [[ -z "$SMOKE_BASE_URL" ]]; then
   # skipped; the explicit SKIP_SMOKE=yes override remains. Mirrors
   # deploy-code.sh.
   if [[ "$FOOTBAG_ENV" == "production" || "$FOOTBAG_ENV" == "staging" ]]; then
-    echo "ERROR: no public base URL for $FOOTBAG_ENV. Add PUBLIC_BASE_URL_STAGING= / PUBLIC_BASE_URL_PRODUCTION= to the gitignored .env (see .env.example), or export SMOKE_BASE_URL, or SKIP_SMOKE=yes to skip deliberately." >&2
+    echo "ERROR: no public base URL for $FOOTBAG_ENV. The address is read from 'terraform -chdir=terraform/$FOOTBAG_ENV output -raw cloudfront_domain', so check that tree is initialised and your AWS profile is configured, or export SMOKE_BASE_URL, or SKIP_SMOKE=yes to skip deliberately." >&2
     exit 1
   fi
   echo "==> Skipping post-deploy smoke check (no SMOKE_BASE_URL configured for FOOTBAG_ENV=$FOOTBAG_ENV)"

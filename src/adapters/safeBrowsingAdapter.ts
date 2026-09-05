@@ -8,8 +8,11 @@
  * The live API key is resolved via `SecretsAdapter` (SSM SecureString) at
  * first call, not threaded as an env var. The placeholder value
  * `TODO-set-via-cli-after-apply` is treated as "not configured" so an
- * operator who has applied Terraform but not yet `aws ssm put-parameter`'d
- * the real key sees a clear error, not a 400 from Google.
+ * operator who has applied Terraform but not yet stored the real key sees a
+ * clear error, not a 400 from Google. Storing it is
+ * `scripts/provision-url-screening-key.sh`, which owns every write of this
+ * value: one key serves both environments, so a hand-written parameter puts
+ * the two out of step with nothing to detect it.
  *
  * The live impl accepts an injected `fetchClient` so the parity test can
  * stand in a fake fetch implementation without mocking globalThis.fetch.
@@ -88,7 +91,7 @@ export function createLiveSafeBrowsingAdapter(opts: {
         throw new Error(
           `Safe Browsing API key not configured. ` +
             `SSM parameter ".../secrets/${secretKey}" is missing. ` +
-            `Operator: aws ssm put-parameter --name <full-name> --value file://path-to-key --type SecureString --overwrite`,
+            `Operator: scripts/provision-url-screening-key.sh --env <staging|production|both> store`,
         );
       }
       throw err;
@@ -96,7 +99,7 @@ export function createLiveSafeBrowsingAdapter(opts: {
     if (value.startsWith(TODO_PLACEHOLDER_PREFIX)) {
       throw new Error(
         `Safe Browsing API key SSM parameter still has the bootstrap placeholder ('${value}'). ` +
-          `Operator: aws ssm put-parameter --name <full-name> --value file://path-to-key --type SecureString --overwrite`,
+          `Operator: scripts/provision-url-screening-key.sh --env <staging|production|both> store`,
       );
     }
     resolvedKey = value;
@@ -138,8 +141,19 @@ export function createLiveSafeBrowsingAdapter(opts: {
         clearTimeout(deadline);
       }
       if (!res.ok) {
+        // Google answers a rejected request with a JSON body naming the reason:
+        // an invalid or restricted key, the API not enabled on the project, an
+        // exhausted quota. The status alone cannot tell those apart, and an
+        // operator holding only "HTTP 400" has to reconstruct which by guessing.
+        // The body carries no key material; the key travels in the query string.
+        let detail = '';
+        try {
+          detail = (await res.text()).slice(0, 500).replace(/\s+/g, ' ').trim();
+        } catch {
+          detail = '';
+        }
         throw new Error(
-          `Safe Browsing API returned HTTP ${res.status}`,
+          `Safe Browsing API returned HTTP ${res.status}${detail ? `: ${detail}` : ''}`,
         );
       }
       const json = (await res.json()) as SafeBrowsingApiResponse;

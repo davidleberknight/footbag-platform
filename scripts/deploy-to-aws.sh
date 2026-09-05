@@ -27,7 +27,8 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 usage() {
   cat <<'USAGE'
 Usage: bash deploy_to_aws.sh [flags]                       (recommended)
-   or: < <operator credential file> bash scripts/deploy-to-aws.sh [flags]
+   or: < ~/AWS/AWS_OPERATOR.txt bash scripts/deploy-to-aws.sh [flags]
+       (production: ~/AWS/AWS_OPERATOR_PRODUCTION.txt)
 
 Default (no flags): code-only — ship code + images, run the post-deploy smoke
 check (not `npm test`, which is the local pre-PR gate — see ALWAYS-ON); the

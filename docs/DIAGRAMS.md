@@ -447,7 +447,7 @@ Visual aids for understanding the system design. Six diagrams cover production i
 │  SesAdapter              LiveSesAdapter             StubSesAdapter  │
 │  MediaStorageAdapter     S3 (staging/prod impl)     LocalFS impl    │
 │  PaymentAdapter          Stripe live/test SDK       Configurable mock│
-│  SecretsAdapter          LiveSecretsAdapter (SSM)   LocalSecretsAdapter│
+│  SecretsAdapter          LiveSecretsAdapter (SSM)   StubSecretsAdapter│
 │  JwtSigningAdapter       createKmsJwtAdapter (KMS RS256) createLocalJwtAdapter (RS256)│
 │  BallotEncryptionAdapter KMS envelope encryption     local-keyed (dev/test)│
 │  SafeBrowsingAdapter     LiveSafeBrowsingAdapter    StubSafeBrowsingAdapter│

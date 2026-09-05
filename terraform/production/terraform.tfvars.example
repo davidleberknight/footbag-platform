@@ -218,3 +218,13 @@ enable_archive_custom_domain = false
 # before real members arrive, per the go-live runbook.
 # payments_armed   = "armed"
 # email_send_armed = "armed"
+#
+# The two protective checks on member-submitted links are switches too, and they
+# behave differently from the pair above: they are not inert below production,
+# so the value here is what each environment actually does. Reachability defaults
+# armed, which is its protective direction and needs no credential. URL screening
+# defaults dark because arming it without a real Safe Browsing key in Parameter
+# Store fails every URL-bearing form: put the key first, then set this to "armed",
+# apply, and deploy.
+# url_screening_armed = "armed"
+# reachability_armed  = "armed"

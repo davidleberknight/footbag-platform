@@ -10,12 +10,16 @@
 #
 # An optional suite name runs one file instead of the directory:
 #   npm run test:smoke -- captcha
-# This matters against a production target, where the full directory includes
-# the media-storage suite: that one puts and deletes objects in the configured
-# bucket, which is the real media bucket under a production target. Naming a
-# suite keeps a narrow pre-cutover wiring check from touching object storage.
-# Filters always resolve under tests/smoke/, so a filter can never widen the
-# run to a suite outside this directory.
+# This matters most against a production target, where every suite in the
+# directory reaches the live environment and a narrow wiring check has no
+# reason to exercise the rest. Filters always resolve under tests/smoke/, so a
+# filter can never widen the run to a suite outside this directory.
+#
+# No suite here writes to object storage: the media-storage suite that once did
+# is gone, and MEDIA_STORAGE_S3_BUCKET is exported below for a reader that no
+# longer exists. Keep it that way. A suite that mutates a bucket is not safe to
+# point at production by naming the directory, which is the whole reason the
+# removed one needed a warning here.
 
 set -euo pipefail
 
@@ -87,9 +91,9 @@ export RUN_STAGING_SMOKE=1
 
 # Fetch operator-supplied SSM secrets via the assumed-role chain. The
 # safe-browsing smoke test asserts the value is non-placeholder shape, so a
-# fresh staging environment that has run `terraform apply` but not yet
-# `aws ssm put-parameter` returns the TODO sentinel and the smoke fails with
-# a clear "operator: put-parameter" message. The 2>/dev/null||true tolerates
+# fresh staging environment that has run `terraform apply` but not yet stored
+# the key returns the TODO sentinel and the smoke fails with a message naming
+# provision-url-screening-key.sh. The 2>/dev/null||true tolerates
 # a missing parameter (returns empty string) so smoke runs from a workstation
 # that hasn't applied Terraform yet still report the fail with a clear
 # "param does not exist" first-test failure rather than dying on aws-cli exit 1.
@@ -113,4 +117,12 @@ TURNSTILE_SECRET_KEY="$(
 )"
 export TURNSTILE_SECRET_KEY
 
-exec node_modules/.bin/vitest run "${SUITES[@]}"
+# One file at a time. Every assertion here is a real network round-trip against
+# one environment, so running files concurrently buys little wall-clock and
+# costs correctness: the suites contend for the same egress and the same AWS
+# throttles, and a per-test timeout that is generous when a file runs alone
+# becomes a coin toss when six files share the link. That is not a slow test to
+# be given a bigger number, it is a suite whose timings are only meaningful
+# unshared. The KMS sign round-trip is the one that surfaced it, finishing well
+# inside its budget alone and timing out beside the others.
+exec node_modules/.bin/vitest run --no-file-parallelism "${SUITES[@]}"

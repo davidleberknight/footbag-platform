@@ -29,7 +29,8 @@
 #      value and deploying. PAYMENT_ADAPTER is never
 #      written here: the deploy derives it from the SSM payments arming flag
 #      (armed -> live, dark -> stub), so activation provisions credentials and
-#      arming is the separate Terraform step (tfvars flip + apply + deploy).
+#      arming is scripts/arming.sh, which owns the values-file change, the
+#      apply and the deploy as one gated sequence.
 #   5. Run the PAYMENTS-BOOT gate (validate-payments-boot.sh) against the
 #      updated file, then print the arming and verification steps.
 #
@@ -76,11 +77,11 @@
 #
 # Usage (every mode that touches the host reads the sudo password from stdin,
 # line 1; --dry-run opens no connection and needs no credential file):
-#   < <operator credential file> bash scripts/activate-payments.sh --target production --profile <prod-profile>
+#   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/activate-payments.sh --target production --profile <prod-profile>
 #   scripts/activate-payments.sh --target production --dry-run
-#   < <operator credential file> bash scripts/activate-payments.sh --target production --profile <p> --rotate-webhook-secret
-#   < <operator credential file> bash scripts/activate-payments.sh --target production --profile <p> --complete-webhook-rotation
-#   < <operator credential file> bash scripts/activate-payments.sh --target production --profile <p> --deactivate
+#   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/activate-payments.sh --target production --profile <p> --rotate-webhook-secret
+#   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/activate-payments.sh --target production --profile <p> --complete-webhook-rotation
+#   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/activate-payments.sh --target production --profile <p> --deactivate
 #
 #   --create-endpoint creates the webhook endpoint through the Stripe API rather
 #   than pausing for the Dashboard, deriving the URL from the environment's
@@ -905,11 +906,14 @@ case "$MODE" in
   activate)
     echo "== payment credentials provisioned for $TARGET =="
     echo ""
-    echo "Activation provisions; arming is the separate Terraform step. Next steps:"
-    echo "  1. Arm payments when ready: set payments_armed = \"armed\" in the $TARGET"
-    echo "     tfvars, terraform apply (SSM app/payments_armed), then deploy"
-    echo "     (./deploy_to_aws.sh) - the deploy derives PAYMENT_ADAPTER=live from"
-    echo "     the flag. Until then the host stays dark on the stub adapter."
+    echo "Activation provisions; arming is separate and is never a hand edit. Next:"
+    echo "  1. Arm payments when ready:"
+    echo "       scripts/arming.sh --target $TARGET --switch payments --state armed"
+    echo "     That one script owns all three actions in order (the values file, the"
+    echo "     apply that publishes SSM app/payments_armed, and the deploy that"
+    echo "     derives PAYMENT_ADAPTER=live). Doing them by hand is how a half-armed"
+    echo "     state happens, and a half-armed state is invisible. Until then the"
+    echo "     host stays dark on the stub adapter."
     echo "  2. Verify per the two-stage doctrine: test-mode end-to-end while the"
     echo "     production-live marker reads pre-live; then, with the live key, one"
     echo "     real checkout (smallest tier), payment row 'succeeded' plus the tier"

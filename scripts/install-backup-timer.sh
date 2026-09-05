@@ -20,9 +20,9 @@
 # staging directory and there is nothing to clean up after a failure.
 #
 # Usage (the sudo password is read from stdin, line 1; --dry-run needs none):
-#   < <operator credential file> bash scripts/install-backup-timer.sh --target staging
-#   < <operator credential file> bash scripts/install-backup-timer.sh --target production
-#   < <operator credential file> bash scripts/install-backup-timer.sh --target staging --ssh-alias my-host
+#   < ~/AWS/AWS_OPERATOR.txt bash scripts/install-backup-timer.sh --target staging
+#   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/install-backup-timer.sh --target production
+#   < ~/AWS/AWS_OPERATOR.txt bash scripts/install-backup-timer.sh --target staging --ssh-alias my-host
 #   scripts/install-backup-timer.sh --target staging --dry-run
 #
 # After the first two scheduled runs emit the BackupAgeMinutes metric, set

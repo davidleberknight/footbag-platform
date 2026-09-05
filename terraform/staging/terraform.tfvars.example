@@ -84,3 +84,23 @@ archive_platform_url         = ""
 #   TODO-paste-archive-signing-key.pub
 #   -----END PUBLIC KEY-----
 # EOT
+
+# ── Arming switches ───────────────────────────────────────────────────────────
+# All four default to "armed" here and none needs setting, but they divide into
+# two kinds and only one kind does anything on staging.
+#
+# Payments and email are inert below production: the stub adapters run whatever
+# these say, because money and mail must not leave a lower environment. They
+# exist so both trees publish the same parameter set and the deploy sync reads
+# one uniform contract.
+#
+# URL screening and reachability are not inert. Staging is where the live path
+# is exercised before members reach it, so these decide what staging actually
+# does and the deploy derives the adapters here as well as on production. Set
+# either to "dark" only deliberately: dark screening means every submitted link
+# goes unscreened, and dark reachability means a link whose host no longer
+# resolves passes verification.
+# payments_armed      = "armed"
+# email_send_armed    = "armed"
+# url_screening_armed = "armed"
+# reachability_armed  = "armed"

@@ -49,7 +49,6 @@ import Stripe from 'stripe';
 import {
   createStubSecretsAdapter,
   createLiveSecretsAdapter,
-  createLocalSecretsAdapter,
   SecretNotConfiguredError,
 } from '../../src/adapters/secretsAdapter';
 import {
@@ -471,7 +470,7 @@ describe('adapter-parity: SesAdapter (Stub vs. Live interface)', () => {
   });
 });
 
-describe('adapter-parity: SecretsAdapter (Stub vs. Live vs. Local interface)', () => {
+describe('adapter-parity: SecretsAdapter (Stub vs. Live interface)', () => {
   // Fake SSM client driven by an in-memory map. Stands in for the AWS SDK
   // call path without mocking the @aws-sdk package itself.
   function makeFakeSsm(seed: Record<string, string>) {
@@ -630,9 +629,14 @@ describe('adapter-parity: SecretsAdapter (Stub vs. Live vs. Local interface)', (
     stub.invalidate('k');
     expect(await stub.get('k')).toBe('v');
 
-    const local = createLocalSecretsAdapter({ filePath: '/nonexistent/secrets.json' });
-    local.invalidate('k');
-    expect(await local.get('k')).toBeUndefined();
+    const fakeSsm = makeFakeSsm({ '/footbag/staging/secrets/k': 'v' });
+    const live = createLiveSecretsAdapter({
+      ssmClient: fakeSsm,
+      ssmPrefix: '/footbag/staging',
+    });
+    expect(await live.get('k')).toBe('v');
+    live.invalidate('k');
+    expect(await live.get('k')).toBe('v');
   });
 
   it('stub failNext throws on the next get and clears after one use', async () => {

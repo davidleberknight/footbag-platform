@@ -73,15 +73,21 @@ SUDO_PASS=""
 # to type, and names the exact form to re-run with.
 require_operator_stdin() {
   local invocation="$1"
+  # The credential file is per-environment, and a message naming a placeholder
+  # is not pasteable, which is the whole point of printing one here. The caller
+  # passes its own invocation, which names the target where there is one, so the
+  # right file is read straight off it.
+  local cred="~/AWS/AWS_OPERATOR.txt"
+  [[ "$invocation" == *production* ]] && cred="~/AWS/AWS_OPERATOR_PRODUCTION.txt"
   if [[ -t 0 ]]; then
     echo "ERROR: must receive the host sudo password on stdin." >&2
-    echo "       Run via: < <operator credential file> bash ${invocation}" >&2
+    echo "       Run via: < ${cred} bash ${invocation}" >&2
     return 1
   fi
   IFS= read -r SUDO_PASS || true
   if [[ -z "$SUDO_PASS" ]]; then
     echo "ERROR: the first line of stdin was empty; expected the host sudo password." >&2
-    echo "       Run via: < <operator credential file> bash ${invocation}" >&2
+    echo "       Run via: < ${cred} bash ${invocation}" >&2
     return 1
   fi
   return 0

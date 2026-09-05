@@ -10,14 +10,17 @@
  * Run with: npm run test:smoke (gated behind RUN_STAGING_SMOKE=1).
  * Requires SAFE_BROWSING_API_KEY in the environment, sourced by
  * scripts/test-smoke.sh from the SSM SecureString
- * /footbag/staging/secrets/safe_browsing_api_key.
+ * /footbag/<target>/secrets/safe_browsing_api_key. The runner resolves the
+ * target from SMOKE_TARGET_ENV, so this suite runs against production as well:
+ * SMOKE_TARGET_ENV=production npm run test:smoke -- safe-browsing exercises the
+ * production key rather than staging's.
  *
  * Failure modes:
  *   - apiKey empty: SSM parameter does not exist. Operator: terraform apply
- *     (creates the SecureString shell), then aws ssm put-parameter.
+ *     (creates the SecureString shell), then
+ *     scripts/provision-url-screening-key.sh --env both store.
  *   - apiKey starts with "TODO-": SSM parameter still has the bootstrap
- *     placeholder. Operator: aws ssm put-parameter --value file://path-to-key
- *     --overwrite.
+ *     placeholder. Operator: the same store command.
  *   - HTTP 400 PERMISSION_DENIED: API key is invalid or revoked.
  *   - HTTP 403: Safe Browsing API not enabled on the GCP project, or quota
  *     exceeded.
@@ -48,16 +51,15 @@ describe.skipIf(!RUN)('Safe Browsing live API: threatMatches:find', () => {
     expect(
       present,
       'SAFE_BROWSING_API_KEY is empty in the test runner. Operator runbook: ' +
-        '(1) cd terraform/staging && terraform apply — creates the SSM SecureString shell. ' +
-        '(2) printf %s "<key>" > /tmp/sb-key && chmod 600 /tmp/sb-key. ' +
-        '(3) AWS_PROFILE=footbag-staging-runtime aws ssm put-parameter --name /footbag/staging/secrets/safe_browsing_api_key --value file:///tmp/sb-key --type SecureString --key-id alias/footbag-staging --overwrite. ' +
-        '(4) shred -u /tmp/sb-key. ' +
-        '(5) re-run npm run test:smoke.',
+        '(1) terraform -chdir=terraform/staging apply — creates the SSM SecureString shell. ' +
+        '(2) scripts/provision-url-screening-key.sh --env both store — prompts for the key, ' +
+        'writes it to both environments, and shreds its own temporary copy. ' +
+        '(3) re-run npm run test:smoke.',
     ).toBe(true);
     const isPlaceholder = !!apiKey && apiKey.startsWith('TODO-');
     expect(
       isPlaceholder,
-      `SAFE_BROWSING_API_KEY still has the bootstrap placeholder ("${apiKey}"). Operator: aws ssm put-parameter --value file://path-to-key --overwrite`,
+      `SAFE_BROWSING_API_KEY still has the bootstrap placeholder ("${apiKey}"). Operator: scripts/provision-url-screening-key.sh --env both store`,
     ).toBe(false);
   });
 

@@ -50,8 +50,8 @@
 # outputs rather than typed, so they cannot drift from what actually exists.
 #
 # Usage (the sudo password is read from stdin, line 1):
-#   < <operator credential file> bash scripts/set-host-env.sh --target production --profile <prod-profile>
-#   < <operator credential file> bash scripts/set-host-env.sh --target staging --yes
+#   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/set-host-env.sh --target production --profile <prod-profile>
+#   < ~/AWS/AWS_OPERATOR.txt bash scripts/set-host-env.sh --target staging --yes
 #   scripts/set-host-env.sh --target staging --dry-run
 #
 # --dry-run resolves every value and prints the command plan without touching
@@ -354,4 +354,8 @@ host_env_install "$SSH_ALIAS" "$NEW_LOCAL" "$HOST_ENV_PATH" || exit 1
 echo ""
 echo "Done. ${HOST_ENV_PATH} now carries every operator-owned value."
 echo "The running containers keep their current environment until the next deploy."
-echo "Confirm with: < <operator credential file> bash scripts/bringup-status.sh --target ${TARGET}${AWS_PROFILE_ARG:+ --profile $AWS_PROFILE_ARG}"
+if [[ "$TARGET" == "production" ]]; then
+  echo "Confirm with: < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/bringup-status.sh --target ${TARGET}${AWS_PROFILE_ARG:+ --profile $AWS_PROFILE_ARG}"
+else
+  echo "Confirm with: < ~/AWS/AWS_OPERATOR.txt bash scripts/bringup-status.sh --target ${TARGET}${AWS_PROFILE_ARG:+ --profile $AWS_PROFILE_ARG}"
+fi

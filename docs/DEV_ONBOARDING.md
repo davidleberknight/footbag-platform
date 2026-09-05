@@ -237,15 +237,21 @@ If `npm install` fails while compiling `better-sqlite3`:
 
 ### 1.6 Local env file
 
-Create the local environment file from the example:
+You do not need one to reach hello world. Every value the app requires carries a development default in the config loader: the port, the public base URL, the database path, and the two secrets that have no default on a deployed host, the session signing key and the web-to-worker key. Those two fall back to fixed literals, which is safe because neither authenticates anything beyond your own machine, and the host verifier refuses both by name so they cannot reach a server. A clean checkout runs.
+
+The docker stack is the one exception. It sets `NODE_ENV=production` deliberately, for parity with the deployed system, so the development fallbacks do not apply to it and both secrets are required exactly as they are on a host. `npm run compose:dev` generates a pair per run, so it too needs no file.
+
+Create a `.env` when you want a setting to differ from a default, or to persist between runs:
 
 ```bash
 cp .env.example .env
 ```
 
-`cp .env.example .env` already provides every required value with safe development placeholders, so you do not need to hand-edit it to reach hello world.
+Anything the file sets wins over a default, because the loader only falls back when a variable is unset.
 
-The required local `.env` shape is:
+Nothing requires the file, deploying included. The post-deploy smoke check resolves the address it probes from terraform output, and a production deploy verifies the staging smoke gate the same way before it proceeds, so the unpublished staging address needs no copy on the workstation.
+
+A local `.env` looks like:
 
 ```
 COMPOSE_FILE=docker/docker-compose.yml
@@ -254,17 +260,17 @@ NODE_ENV=development
 LOG_LEVEL=info
 FOOTBAG_DB_PATH=./database/footbag.db
 PUBLIC_BASE_URL=http://localhost:3000
-SESSION_SECRET=changeme-use-a-long-random-string-in-production
-INTERNAL_EVENT_SECRET=changeme-internal-event-secret-not-for-production
 ```
 
-The app fails fast at boot if `SESSION_SECRET` or `INTERNAL_EVENT_SECRET` is missing. For local development, keep `.env` intentionally small.
+Every line there restates a default, so a file holding exactly this changes nothing. Keep it small: put in it only what you want different.
 
 Use local `.env` for:
 
 - local-only development values
 - non-secret defaults
-- temporary local secrets needed only for development
+- a credential you issued to yourself in a vendor's sandbox, such as the signing secret the payment provider's local listener prints
+
+Never put a project credential in it. The project's own keys for AWS, payments, the URL-reachability check and the form widget live in AWS Systems Manager Parameter Store, are read at runtime by an authenticated identity, and a copy on a workstation sits outside every rotation the project runs.
 
 Do not commit `.env` (make sure it is in your .gitignore)
 
@@ -562,13 +568,28 @@ To exercise the live Google Safe Browsing v4 API end-to-end locally:
    a project, enable the "Safe Browsing API" under APIs & Services → Library,
    then APIs & Services → Credentials → Create Credentials → API key. Free
    tier: 10,000 lookups/day.
-2. Create `.local/secrets.json` (gitignored; the `.local/` directory holds all per-operator local files): write `{"safe_browsing_api_key": "<your-key>"}` as the file content.
+2. Write the key into AWS Systems Manager Parameter Store as a SecureString at `/footbag/<environment>/secrets/safe_browsing_api_key`, with `scripts/provision-url-screening-key.sh --env <environment> store`, which prompts for the value so it never reaches a process argument list or your shell history. There is deliberately no workstation file for this: a credential on a laptop sits outside every rotation the project runs, so the key lives in one store and the adapter reads it from there.
 3. In your local `.env`: `SAFE_BROWSING_ADAPTER=live` (uncomment the line
-   that ships in `.env.example`).
-4. `./run_dev.sh`. The validator now calls Google for every external URL
-   submitted through the admin/curator/member gallery edit flows.
+   that ships in `.env.example`), plus `SECRETS_ADAPTER=live`. This step needs
+   a configured AWS profile; without one, leave the default stub in place.
+4. Export `FOOTBAG_ENV` in the shell, matching the environment you wrote the
+   parameter into — the adapter derives its Parameter Store prefix from it, so
+   this is what decides which key it reads:
 
-To run the staging-pinned `safe-browsing.smoke.test.ts` against a personal
+   ```
+   FOOTBAG_ENV=staging ./run_dev.sh
+   ```
+
+   It has to be exported rather than set in `.env`. The launcher establishes
+   the label before Node starts, and `dotenv` never overrides a variable that
+   is already set, so an `.env` entry is read after the decision has been made
+   and changes nothing. The launcher defaults to `development` when you do not
+   export one, which sends every lookup to `/footbag/development/...`, where
+   no parameter exists.
+5. The validator now calls Google for every external URL submitted through the
+   admin, curator and member gallery edit flows.
+
+To run `safe-browsing.smoke.test.ts` against a personal
 key (bypasses the staging-AWS runner):
 
 ```

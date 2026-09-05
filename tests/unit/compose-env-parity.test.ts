@@ -212,6 +212,11 @@ const STAGING_FIXTURE: Record<string, string> = {
   // from SSM); inert below production.
   PAYMENTS_ARMED: 'armed',
   EMAIL_SEND_ARMED: 'armed',
+  // The link-protection switches are not inert below production, so each must
+  // agree with the selector above: live screening is armed, and a reachability
+  // adapter making no outbound probe is dark.
+  URL_SCREENING_ARMED: 'armed',
+  REACHABILITY_ARMED: 'dark',
   INTERNAL_EVENT_SECRET: 'a'.repeat(48),
   // Deployed hosts get this from Parameter Store via the deploy, and the prod
   // overlay requires it rather than defaulting, so the fixture supplies it.
@@ -275,6 +280,11 @@ const PRODUCTION_FIXTURE: Record<string, string> = {
   // (armed requires the live adapter; dark would require the stub).
   PAYMENTS_ARMED: 'armed',
   EMAIL_SEND_ARMED: 'armed',
+  // The link-protection switches each agree with their selector above: live
+  // screening is armed, and a reachability adapter making no outbound probe
+  // is dark.
+  URL_SCREENING_ARMED: 'armed',
+  REACHABILITY_ARMED: 'dark',
   // Production requires the real CAPTCHA (env.ts fails fast on the stub
   // under FOOTBAG_ENV=production); the compose file passes both values
   // through from the host env file.

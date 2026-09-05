@@ -40,8 +40,8 @@
 # a deliberate change, which --status shows you before --apply writes anything.
 #
 # Usage (the sudo password is read from stdin, line 1):
-#   < <operator credential file> bash scripts/reconcile-host-config.sh --target production --status
-#   < <operator credential file> bash scripts/reconcile-host-config.sh --target production --apply --reason "<why>"
+#   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/reconcile-host-config.sh --target production --status
+#   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/reconcile-host-config.sh --target production --apply --reason "<why>"
 #   ... --key <name>   reconcile one named key instead of the default set
 #   ... --actor <id>   record who did it on the row
 #   ... --yes          accept the confirmation in advance, where no terminal is attached

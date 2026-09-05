@@ -47,9 +47,9 @@
 # actually in force.
 #
 # Usage:
-#   < <operator credential file> bash scripts/bulk-send-pause.sh --target production --status
-#   < <operator credential file> bash scripts/bulk-send-pause.sh --target production --pause  --reason "wrong list selected"
-#   < <operator credential file> bash scripts/bulk-send-pause.sh --target production --resume --reason "list corrected"
+#   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/bulk-send-pause.sh --target production --status
+#   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/bulk-send-pause.sh --target production --pause  --reason "wrong list selected"
+#   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/bulk-send-pause.sh --target production --resume --reason "list corrected"
 #   ... --pause --yes        skip the confirmation prompt (for a scripted incident response)
 #   ... --actor <member-id>  record who flipped it, so the platform's own
 #                            configuration history answers that question rather

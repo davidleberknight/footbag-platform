@@ -99,6 +99,14 @@ export interface AppConfig {
   // set explicitly in production-hardened boots; the deploy syncs it from
   // the SSM app/email_send_armed parameter and derives sesAdapter from it.
   emailSendArmed: 'armed' | 'dark';
+  // URL screening arming switch. Unlike the email and payments switches this
+  // is NOT inert below production: screening a member-submitted link has no
+  // real-world side effect to withhold from a lower environment, and staging
+  // is where the live path is exercised before members reach it. Mandatory to
+  // set explicitly in production-hardened boots; the deploy syncs it from the
+  // SSM app/url_screening_armed parameter and derives safeBrowsingAdapter
+  // from it in every deployed environment.
+  urlScreeningArmed: 'armed' | 'dark';
   safeBrowsingAdapter: 'live' | 'stub';
   // CaptchaAdapter: server-side Cloudflare Turnstile verification on
   // claim-initiation surfaces. 'live' calls Turnstile siteverify (secret via
@@ -109,10 +117,11 @@ export interface AppConfig {
   turnstileSiteKey: string | null;
   // SecretsAdapter: Node consumers read SSM-stored third-party secrets
   // through this adapter. 'live' calls SSM GetParameter; 'stub' is an
-  // in-memory map for tests; 'local' reads .local/secrets.json (gitignored
-  // operator-local file co-located with .local/initial-admins.txt and the
-  // .local/*-admin-seed.json files). Required to be explicit in production.
-  secretsAdapter: 'live' | 'stub' | 'local';
+  // in-memory map, used by tests and by local development, where every
+  // consuming adapter runs its own stub and asks for nothing. Required to be
+  // explicit in production. There is no file-backed variant: a credential
+  // file on a workstation sits outside every rotation this project runs.
+  secretsAdapter: 'live' | 'stub';
   // Environment label used to derive SSM parameter prefixes for the live
   // SecretsAdapter (e.g. 'staging' → '/footbag/staging/secrets/...').
   // Required when secretsAdapter === 'live'. Must match the deploy-side
@@ -127,6 +136,17 @@ export interface AppConfig {
   // is a no-op for deployments that want zero outbound HTTP from the
   // validation path. Required to be explicit in production.
   httpReachabilityAdapter: 'live' | 'stub' | 'disabled';
+  // Reachability arming switch, the companion of urlScreeningArmed and
+  // likewise not inert below production. A deployed host has only two real
+  // behaviours here, probing or not probing, so the switch is two-valued and
+  // the deploy writes 'live' for armed and 'disabled' for dark. Dark refuses
+  // only 'live', because a three-valued selector has two non-probing values and
+  // the guard reads the behaviour rather than the literal. Demanding 'disabled'
+  // exactly would be the stricter reading and would catch a hand edit to the
+  // development stub, which the deploy never writes; it is not done because
+  // production-shaped fixtures across the suite use the stub as scaffolding and
+  // the two values are behaviourally identical on a host.
+  reachabilityArmed: 'armed' | 'dark';
   // Curator gallery sidecar writes target /curated/galleries/<slug>.json
   // which is the seed source-of-truth in git. Permitted in dev only;
   // staging/prod admin edits mutate the DB but skip the file write
@@ -310,14 +330,26 @@ function trimmedEnv(name: string): string | undefined {
 }
 
 function loadConfig(): AppConfig {
-  const rawPort = requireEnv('PORT');
+  // Read first because it decides which of the values below carry a development
+  // default and which are required outright. Defaulting to development is what
+  // lets a checkout run with nothing configured, and it cannot weaken a
+  // deployed host: the deploy always writes FOOTBAG_ENV into the host's own
+  // environment file, and the cross-invariant further down refuses a staging or
+  // production value paired with anything but NODE_ENV=production. A host that
+  // omitted this would fail there rather than boot unhardened.
+  const nodeEnv = (process.env.NODE_ENV || 'development').trim();
+  const isProd = nodeEnv === 'production';
+
+  // Port, public base URL and database path are required on a deployed host,
+  // where the deploy writes all three into the host env file, and carry
+  // development defaults so that a fresh clone runs with no environment file at
+  // all. Anything already set wins, so a developer who keeps a file still
+  // controls them.
+  const rawPort = isProd ? requireEnv('PORT') : process.env.PORT || '3000';
   const port = parseInt(rawPort, 10);
   if (isNaN(port) || port < 1 || port > 65535) {
     throw new Error(`PORT must be a valid integer between 1 and 65535, got: ${rawPort}`);
   }
-
-  const nodeEnv = requireEnv('NODE_ENV').trim();
-  const isProd = nodeEnv === 'production';
 
   const rawJwtSigner = trimmedEnv('JWT_SIGNER');
   let jwtSigner: 'kms' | 'local';
@@ -401,21 +433,17 @@ function loadConfig(): AppConfig {
   }
 
   const rawSecretsAdapter = trimmedEnv('SECRETS_ADAPTER');
-  let secretsAdapter: 'live' | 'stub' | 'local';
-  if (
-    rawSecretsAdapter === 'live' ||
-    rawSecretsAdapter === 'stub' ||
-    rawSecretsAdapter === 'local'
-  ) {
+  let secretsAdapter: 'live' | 'stub';
+  if (rawSecretsAdapter === 'live' || rawSecretsAdapter === 'stub') {
     secretsAdapter = rawSecretsAdapter;
   } else if (rawSecretsAdapter) {
     throw new Error(
-      `SECRETS_ADAPTER must be 'live', 'stub', or 'local', got: ${rawSecretsAdapter}`,
+      `SECRETS_ADAPTER must be 'live' or 'stub', got: ${rawSecretsAdapter}`,
     );
   } else if (isProd) {
     throw new Error('SECRETS_ADAPTER must be set explicitly in production (no default)');
   } else {
-    secretsAdapter = 'local';
+    secretsAdapter = 'stub';
   }
 
   const rawFootbagEnv = trimmedEnv('FOOTBAG_ENV');
@@ -507,6 +535,34 @@ function loadConfig(): AppConfig {
     throw new Error('PAYMENTS_ARMED must be set explicitly in production (no default)');
   } else {
     paymentsArmed = 'armed';
+  }
+
+  // The two protective checks on member-submitted links. Same armed/dark shape
+  // as the pair above and one behavioural difference: these are not inert below
+  // production, so the mismatch guards further down apply in every deployed
+  // environment rather than on production alone.
+  const rawUrlScreeningArmed = trimmedEnv('URL_SCREENING_ARMED');
+  let urlScreeningArmed: 'armed' | 'dark';
+  if (rawUrlScreeningArmed === 'armed' || rawUrlScreeningArmed === 'dark') {
+    urlScreeningArmed = rawUrlScreeningArmed;
+  } else if (rawUrlScreeningArmed) {
+    throw new Error(`URL_SCREENING_ARMED must be 'armed' or 'dark', got: ${rawUrlScreeningArmed}`);
+  } else if (isProd) {
+    throw new Error('URL_SCREENING_ARMED must be set explicitly in production (no default)');
+  } else {
+    urlScreeningArmed = 'armed';
+  }
+
+  const rawReachabilityArmed = trimmedEnv('REACHABILITY_ARMED');
+  let reachabilityArmed: 'armed' | 'dark';
+  if (rawReachabilityArmed === 'armed' || rawReachabilityArmed === 'dark') {
+    reachabilityArmed = rawReachabilityArmed;
+  } else if (rawReachabilityArmed) {
+    throw new Error(`REACHABILITY_ARMED must be 'armed' or 'dark', got: ${rawReachabilityArmed}`);
+  } else if (isProd) {
+    throw new Error('REACHABILITY_ARMED must be set explicitly in production (no default)');
+  } else {
+    reachabilityArmed = 'armed';
   }
 
   // SES adapter must match the deployment environment and the arming switch:
@@ -602,6 +658,37 @@ function loadConfig(): AppConfig {
     );
   } else {
     httpReachabilityAdapter = 'stub';
+  }
+
+  // Switch/selector agreement for the two protective checks, the fail-fast
+  // backstop rather than the mechanism: a deployed host derives each selector
+  // from its switch on every deploy, so a disagreement means the host was
+  // hand-edited or one deploy half did not run. Refusing beats picking one of
+  // two answers, because the wrong pick is silent — a selector on its
+  // non-protective value boots exactly as cleanly as one on its protective
+  // value. Gated on a deployed environment: a development boot holds the
+  // stub selectors with the switches on their non-production defaults, and
+  // that pairing is correct rather than a mismatch.
+  const isDeployedEnv = footbagEnv === 'staging' || footbagEnv === 'production';
+  if (isDeployedEnv && urlScreeningArmed === 'armed' && safeBrowsingAdapter !== 'live') {
+    throw new Error(
+      `SAFE_BROWSING_ADAPTER must be 'live' when FOOTBAG_ENV=${footbagEnv} and URL_SCREENING_ARMED=armed (got '${safeBrowsingAdapter}'); armed screening cannot run on the stub's one-entry deny list`,
+    );
+  }
+  if (isDeployedEnv && urlScreeningArmed === 'dark' && safeBrowsingAdapter !== 'stub') {
+    throw new Error(
+      `SAFE_BROWSING_ADAPTER must be 'stub' when FOOTBAG_ENV=${footbagEnv} and URL_SCREENING_ARMED=dark (got '${safeBrowsingAdapter}'); dark screening must not reach the live API`,
+    );
+  }
+  if (isDeployedEnv && reachabilityArmed === 'armed' && httpReachabilityAdapter !== 'live') {
+    throw new Error(
+      `HTTP_REACHABILITY_ADAPTER must be 'live' when FOOTBAG_ENV=${footbagEnv} and REACHABILITY_ARMED=armed (got '${httpReachabilityAdapter}'); armed reachability must actually probe`,
+    );
+  }
+  if (isDeployedEnv && reachabilityArmed === 'dark' && httpReachabilityAdapter === 'live') {
+    throw new Error(
+      `HTTP_REACHABILITY_ADAPTER must not be 'live' when FOOTBAG_ENV=${footbagEnv} and REACHABILITY_ARMED=dark; dark reachability makes no outbound probe`,
+    );
   }
 
   const rawAllowCuratedSidecar = trimmedEnv('ALLOW_CURATED_SIDECAR_WRITES');
@@ -828,7 +915,18 @@ function loadConfig(): AppConfig {
   // misconfigured host publish forged job events. `./run_dev.sh` and the
   // compose files supply the value for local stacks; web and image worker
   // launched from the same shell inherit the same token.
-  const internalEventSecret = process.env.INTERNAL_EVENT_SECRET || undefined;
+  // Authenticates the web, queue and image processes to each other on the /ipc
+  // and /process routes, so all three have to hold the same value. In
+  // development they hold it by falling back to the same literal, which is what
+  // lets a checkout run with nothing configured. Forging an event there means
+  // already running code on the developer's own machine, and buys a wrong
+  // thumbnail in a local database. A deployed host is refused the fallback:
+  // every host carries FOOTBAG_ENV, and a staging or production value requires
+  // NODE_ENV=production, so isProd is true wherever the routes are reachable by
+  // anyone else. The host verifier also refuses this literal by name.
+  const internalEventSecret = isProd
+    ? process.env.INTERNAL_EVENT_SECRET || undefined
+    : process.env.INTERNAL_EVENT_SECRET || 'dev-internal-event-secret-not-for-prod';
   if (!internalEventSecret) {
     throw new Error(
       'INTERNAL_EVENT_SECRET is required (worker<->web event channel; the /ipc router is always mounted)',
@@ -938,16 +1036,22 @@ function loadConfig(): AppConfig {
     );
   }
 
-  const sessionSecret = requireEnv('SESSION_SECRET');
+  // Signs the session cookie. Development falls back to a literal because the
+  // only thing it protects there is a cookie your own browser sent to a server
+  // on your own machine. A deployed host must set a real one, and the two
+  // checks below enforce that.
+  const sessionSecret = isProd
+    ? requireEnv('SESSION_SECRET')
+    : process.env.SESSION_SECRET || 'dev-session-secret-not-for-prod';
   if (isProd) {
     if (sessionSecret.length < 32) {
       throw new Error(
-        'SESSION_SECRET must be at least 32 characters in production. Generate with: openssl rand -hex 32',
+        'SESSION_SECRET must be at least 32 characters in production. A deployed host takes this value from Parameter Store, where Terraform owns it: regenerate with `terraform apply -replace=random_id.session_secret`, then redeploy.',
       );
     }
     if (sessionSecret.toLowerCase().includes('changeme')) {
       throw new Error(
-        'SESSION_SECRET appears to contain the .env.example placeholder ("changeme"). Generate a fresh value with: openssl rand -hex 32',
+        'SESSION_SECRET appears to contain the .env.example placeholder ("changeme"). A deployed host takes this value from Parameter Store, where Terraform owns it: regenerate with `terraform apply -replace=random_id.session_secret`, then redeploy.',
       );
     }
   }
@@ -960,7 +1064,7 @@ function loadConfig(): AppConfig {
   // yet stays on the stub by design.
   if (footbagEnv === 'production' && captchaAdapter !== 'live') {
     throw new Error(
-      `CAPTCHA_ADAPTER must be 'live' when FOOTBAG_ENV=production (got '${captchaAdapter}'); set CAPTCHA_ADAPTER=live and TURNSTILE_SITE_KEY in the production host env`,
+      `CAPTCHA_ADAPTER must be 'live' when FOOTBAG_ENV=production (got '${captchaAdapter}'); set CAPTCHA_ADAPTER=live and TURNSTILE_SITE_KEY in docker/env/production.env, which every deploy reconciles onto the host`,
     );
   }
 
@@ -1021,7 +1125,9 @@ function loadConfig(): AppConfig {
   // deployment is configured to speak for can. Requiring the canonical host
   // rather than excluding known temporary ones keeps an unexpected hostname out
   // of the index instead of into it.
-  const publicBaseUrl = requireEnv('PUBLIC_BASE_URL');
+  const publicBaseUrl = isProd
+    ? requireEnv('PUBLIC_BASE_URL')
+    : process.env.PUBLIC_BASE_URL || 'http://localhost:3000';
   const searchIndexable =
     footbagEnv === 'production' && new URL(publicBaseUrl).hostname.startsWith('www.');
 
@@ -1036,7 +1142,9 @@ function loadConfig(): AppConfig {
     // deploy syncs the level from its parameter store (staging runs info,
     // production runs warn).
     logLevel: process.env.LOG_LEVEL ?? 'info',
-    dbPath: requireEnv('FOOTBAG_DB_PATH'),
+    dbPath: isProd
+      ? requireEnv('FOOTBAG_DB_PATH')
+      : process.env.FOOTBAG_DB_PATH || './database/footbag.db',
     publicBaseUrl,
     searchIndexable,
     archiveUrl: process.env.ARCHIVE_URL || null,
@@ -1058,6 +1166,8 @@ function loadConfig(): AppConfig {
     sesConfigurationSetTransactional,
     sesConfigurationSetBulk,
     emailSendArmed,
+    urlScreeningArmed,
+    reachabilityArmed,
     safeBrowsingAdapter,
     captchaAdapter,
     turnstileSiteKey,

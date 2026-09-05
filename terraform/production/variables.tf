@@ -209,6 +209,35 @@ variable "email_send_armed" {
   }
 }
 
+# The two switches below differ from the pair above in one way worth stating:
+# they bite in EVERY deployed environment, not on production alone. Payments and
+# email are stubbed below production regardless of their switch, because money
+# and mail must not leave a lower environment. URL screening and reachability
+# have no such side effect and run for real on staging, so their switch is the
+# only thing that decides, and the deploy derives their adapters on every host.
+
+variable "url_screening_armed" {
+  description = "URL screening arming switch. 'armed' = live Google Safe Browsing lookups on member-submitted links; 'dark' = the stub, whose deny list holds only Google's canonical test address, so every other link is unscreened. Defaults dark on production because arming without a real key in Parameter Store fails every URL-bearing form: set the key first, then flip this."
+  type        = string
+  default     = "dark"
+
+  validation {
+    condition     = contains(["armed", "dark"], var.url_screening_armed)
+    error_message = "url_screening_armed must be exactly 'armed' or 'dark'."
+  }
+}
+
+variable "reachability_armed" {
+  description = "Outbound URL-reachability arming switch. 'armed' = the validation path probes each submitted link and rejects one whose host does not answer; 'dark' = no outbound probe, every link reported reachable. Defaults armed because that is the protective direction and it needs no credential."
+  type        = string
+  default     = "armed"
+
+  validation {
+    condition     = contains(["armed", "dark"], var.reachability_armed)
+    error_message = "reachability_armed must be exactly 'armed' or 'dark'."
+  }
+}
+
 variable "enable_feed_queues" {
   description = <<-EOT
     Create the SQS queues the worker polls for the SES bounce/complaint feed and

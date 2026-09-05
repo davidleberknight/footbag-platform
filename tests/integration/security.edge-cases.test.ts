@@ -230,3 +230,44 @@ describe('Race conditions', () => {
     expect(successes).toBe(1);
   });
 });
+
+describe('Query string parsing', () => {
+  // Express defaults its query parser to 'extended', which routes every request
+  // through the `qs` library with allowPrototypes: true. Nothing here needs what
+  // that adds: every query parameter the application reads is a flat scalar, and
+  // no route, view or link uses bracket notation. The app sets 'simple' instead,
+  // which is Node's own parser and the same choice request bodies already make
+  // with express.urlencoded({ extended: false }).
+  //
+  // Asserted against the parser Express actually compiled and will run, rather
+  // than against a response status. No route exposes the shape of req.query, so
+  // a request-level check would pass under either parser and prove nothing.
+  // 'query parser fn' is the compiled function the query middleware calls.
+  const queryParser = (): ((s: string) => Record<string, unknown>) =>
+    createApp().get('query parser fn');
+
+  it('does not expand bracket notation into nested objects', () => {
+    // Under 'extended' this yields { a: { b: 'c' } }. Under 'simple' the
+    // bracketed name stays a literal key, which is what proves qs is not on the
+    // request path.
+    const parsed = queryParser()('a[b]=c');
+    expect(parsed).toEqual({ 'a[b]': 'c' });
+    expect(parsed['a']).toBeUndefined();
+  });
+
+  it('does not let a query key reach constructor or prototype names', () => {
+    // allowPrototypes: true is what lets attacker-supplied keys reach these
+    // names, and it is the stated precondition of more than one advisory
+    // against qs. Node's parser has no such option, so the shape stays inert:
+    // one literal key, and no traversal into the prototype chain.
+    const parsed = queryParser()('x[constructor][isBuffer]=y');
+    expect(parsed).toEqual({ 'x[constructor][isBuffer]': 'y' });
+    expect(Object.keys(parsed)).toHaveLength(1);
+  });
+
+  it('still gives repeated keys as an array, the one multi-value shape in use', () => {
+    // The behaviour that must survive the switch. Had it not, a filter that
+    // accepts a repeated parameter would silently collapse to a single value.
+    expect(queryParser()('q=a&q=b')).toEqual({ q: ['a', 'b'] });
+  });
+});

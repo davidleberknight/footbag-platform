@@ -137,7 +137,10 @@ describe('install-backup-timer.sh — credential handling', () => {
     const result = runScript(['--target', 'staging']);
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toMatch(/expected the host sudo password/);
-    expect(result.stderr).toMatch(/operator credential file/);
+    // The remedy names the actual per-target credential file rather than a
+    // placeholder, so the line can be pasted. A placeholder here is what sent
+    // an operator to the source to find out where the file lives.
+    expect(result.stderr).toMatch(/~\/AWS\/AWS_OPERATOR\.txt/);
     expect(result.stderr).toMatch(/install-backup-timer\.sh --target staging/);
   });
 });

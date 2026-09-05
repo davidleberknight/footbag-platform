@@ -46,7 +46,7 @@
 #
 #   3. Run this script. Reads sudo password from stdin (line 1); the keys
 #      file is the only positional arg:
-#      < <operator credential file> bash scripts/install-cwagent-staging.sh /tmp/cwagent-keys.json
+#      < ~/AWS/AWS_OPERATOR.txt bash scripts/install-cwagent-staging.sh /tmp/cwagent-keys.json
 #
 #   4. shred -u /tmp/cwagent-keys.json
 #
@@ -57,7 +57,7 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: < <operator credential file> bash scripts/install-cwagent-staging.sh <keys-file>
+Usage: < ~/AWS/AWS_OPERATOR.txt bash scripts/install-cwagent-staging.sh <keys-file>
 
 Reads sudo password from stdin (line 1).
 
@@ -71,7 +71,7 @@ EOF
 
 if [[ -t 0 ]]; then
   echo "ERROR: must receive sudo password on stdin." >&2
-  echo "       Run via: < <operator credential file> bash scripts/install-cwagent-staging.sh <keys-file>" >&2
+  echo "       Run via: < ~/AWS/AWS_OPERATOR.txt bash scripts/install-cwagent-staging.sh <keys-file>" >&2
   echo "" >&2
   usage >&2
   exit 1

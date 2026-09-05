@@ -14,6 +14,8 @@ import * as path from 'node:path';
 import { threadId } from 'node:worker_threads';
 import { vi, beforeEach, afterEach } from 'vitest';
 
+import { NO_AWS_CREDENTIALS } from './fixtures/awsIsolation';
+
 // Worker threads share a process.pid, so use threadId to keep each vitest
 // worker's keypair file distinct. Falls back to pid when threadId is 0
 // (single-process runs).
@@ -22,6 +24,23 @@ const workerTag = `${process.pid}-${threadId}`;
 process.env.PORT                    ??= '3000';
 process.env.NODE_ENV                ??= 'test';
 process.env.LOG_LEVEL               ??= 'error';
+// Break AWS credential resolution for this worker and everything it spawns,
+// unless this is the opt-in staging smoke run, which exists to reach real AWS
+// and sets its own profile. A spawned child inherits this environment, so every
+// operator script a test runs is unauthenticated by default.
+//
+// Default-deny rather than per-file, because per-file is what failed: a case
+// proving a file-mode check passes had to get past every local refusal to be
+// meaningful, so it reached the AWS call, and on a maintainer's workstation the
+// ambient profile is a real operator identity. It overwrote a live Safe Browsing
+// key in staging's Parameter Store with its own fixture value, and the suite
+// reported a clean pass. Any single file remembering to isolate itself is a rule
+// the next file can forget; this cannot be forgotten, only deliberately opted
+// out of by the one suite that means it.
+if (process.env.RUN_STAGING_SMOKE !== '1') {
+  Object.assign(process.env, NO_AWS_CREDENTIALS);
+}
+
 process.env.FOOTBAG_DB_PATH         ??= ':memory:';
 process.env.PUBLIC_BASE_URL         ??= 'http://localhost';
 process.env.SESSION_SECRET          ??= 'test-default-secret';
@@ -36,6 +55,12 @@ process.env.SES_ADAPTER             ??= 'stub';
 // production-shaped boot files. Cases proving the unset behavior delete them.
 process.env.PAYMENTS_ARMED          ??= 'armed';
 process.env.EMAIL_SEND_ARMED        ??= 'armed';
+// The two link-protection switches take the opposite default for the same
+// reason: they are NOT inert below production, and the production-shaped boot
+// files run the stub screening and reachability adapters, so 'dark' is the
+// value that agrees with them. Cases proving the armed pairing set both sides.
+process.env.URL_SCREENING_ARMED     ??= 'dark';
+process.env.REACHABILITY_ARMED      ??= 'dark';
 process.env.AWS_REGION              ??= 'us-east-1';
 // Tests use the stub SecretsAdapter by default. Tests that exercise the live
 // path inject a fake SSM client via createLiveSecretsAdapter({ ssmClient: fake }).

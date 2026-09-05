@@ -14,10 +14,12 @@
 # stream, so nothing secret reaches any argument list and no terminal is
 # involved. The host keeps no staged copy, so there is nothing to clean up.
 #
-# Usage (the sudo password is read from stdin, line 1):
-#   < <operator credential file> bash scripts/verify-host-env.sh
-#   < <operator credential file> bash scripts/verify-host-env.sh --target production
-#   < <operator credential file> bash scripts/verify-host-env.sh --target staging --ssh-alias my-staging-host
+# Usage (the sudo password is read from stdin, line 1). The credential file is
+# per-environment, matching the defaults deploy_to_aws.sh resolves; the path is
+# not sensitive, the contents are, so these are pasteable as written:
+#   < ~/AWS/AWS_OPERATOR.txt bash scripts/verify-host-env.sh
+#   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/verify-host-env.sh --target production
+#   < ~/AWS/AWS_OPERATOR.txt bash scripts/verify-host-env.sh --target staging --ssh-alias my-staging-host
 #
 # Why it exists: the operator-managed /srv/footbag/env file has no automatic
 # terraform reconciliation, so most deployed-host configuration drift reduces
@@ -225,6 +227,13 @@ check_warn() {
   WARNS=$((WARNS + 1))
 }
 
+# A check that cannot run because something it depends on already failed.
+# Counts nothing: the dependency reported the fault, and reporting it twice
+# under a different name sends the reader looking for two problems.
+check_skip() {
+  printf "  SKIP  %s\n" "$1"
+}
+
 # Assert host env value equals an expected literal.
 check_equals() {
   local key="$1" expected="$2" label="$3"
@@ -257,6 +266,23 @@ check_set() {
   local actual="${HOST_ENV[$key]:-}"
   if [[ -n "$actual" ]]; then
     check_pass "$label: $key is set"
+  else
+    check_fail "$label: $key is unset"
+  fi
+}
+
+# Assert host env value is non-empty AND print what it is. Only for the
+# non-secret adapter selectors: check_set above also covers real secrets
+# (INTERNAL_EVENT_SECRET, STRIPE_WEBHOOK_SECRET_STUB), whose values must never
+# reach a terminal. Selectors need the value shown because their non-protective
+# settings boot cleanly: a host on SAFE_BROWSING_ADAPTER=stub or
+# HTTP_REACHABILITY_ADAPTER=disabled ships without the protection and passes a
+# presence-only check, which is the exact drift this script exists to surface.
+check_set_value() {
+  local key="$1" label="$2"
+  local actual="${HOST_ENV[$key]:-}"
+  if [[ -n "$actual" ]]; then
+    check_pass "$label: $key=$actual"
   else
     check_fail "$label: $key is unset"
   fi
@@ -358,16 +384,20 @@ echo "Critical invariants:"
 check_equals "FOOTBAG_ENV" "$TARGET" "env discriminator"
 check_equals "NODE_ENV" "production" "NODE_ENV cross-invariant"
 
-# Session secret hardening.
+# Session secret hardening. Checked by name against the development fallback and
+# again by negative properties, so lengthening the literal one day still fails
+# this gate on a host rather than sliding under the length check.
 SESSION_SECRET_ACTUAL="${HOST_ENV[SESSION_SECRET]:-}"
 if [[ -z "$SESSION_SECRET_ACTUAL" ]]; then
   check_fail "session secret: SESSION_SECRET is unset"
+elif [[ "$SESSION_SECRET_ACTUAL" == "dev-session-secret-not-for-prod" ]]; then
+  check_fail "session secret: SESSION_SECRET is the dev-default literal (must be a fresh value on $TARGET)"
 elif [[ ${#SESSION_SECRET_ACTUAL} -lt 32 ]]; then
   check_fail "session secret: SESSION_SECRET is ${#SESSION_SECRET_ACTUAL} chars (need >= 32)"
 elif [[ "${SESSION_SECRET_ACTUAL,,}" == *changeme* ]]; then
   check_fail "session secret: SESSION_SECRET contains 'changeme' placeholder"
 else
-  check_pass "session secret: SESSION_SECRET present, >= 32 chars, no 'changeme'"
+  check_pass "session secret: SESSION_SECRET present, not the dev default, >= 32 chars, no 'changeme'"
 fi
 
 # JWT signing.
@@ -400,6 +430,14 @@ if [[ "$TARGET" == "staging" ]]; then
   check_equals "EMAIL_SEND_ARMED" "armed" "email arming switch (staging seeds 'armed'; inert below production)"
 fi
 
+# The two link-protection switches, deploy-synced the same way. Unlike the pair
+# above they are not inert below production: screening and probing a submitted
+# link have no real-world side effect to withhold from a lower environment, so
+# these decide what this host actually does and both environments are checked
+# the same way.
+check_matches "URL_SCREENING_ARMED" '^(armed|dark)$' "URL screening arming switch (deploy-synced from SSM app/url_screening_armed)"
+check_matches "REACHABILITY_ARMED" '^(armed|dark)$' "reachability arming switch (deploy-synced from SSM app/reachability_armed)"
+
 # SES. Staging runs the stub adapter: email-gated flows use the in-page
 # simulated-email card, and live SES delivery is possible in production only.
 # On production the deploy derives the adapter from the email arming flag
@@ -419,14 +457,20 @@ fi
 #
 # Staging is pinned, because a live captcha there is not a preference but a
 # broken environment: a tester has no way to solve a challenge staging is not
-# wired to serve. Production is only required to be set, matching how the
-# safe-browsing and URL-reachability adapters are treated, because all three are
-# activated together as tracked operator work and a host that has not reached
-# that step yet is early rather than misconfigured.
+# wired to serve. Production is only required to be set: activating the live
+# captcha is its own operator step, and a host that has not reached it yet is
+# early rather than misconfigured. The runtime refuses to boot a production
+# process on the stub, which is the harder guarantee.
 if [[ "$TARGET" == "staging" ]]; then
   check_equals "CAPTCHA_ADAPTER" "stub" "captcha adapter (staging never challenges: no live captcha is wired there)"
+  check_skip "captcha site key: not required (staging runs the stub adapter, which challenges nobody)"
 else
-  check_set "CAPTCHA_ADAPTER" "captcha adapter (expected 'live' once production captcha is activated)"
+  check_set_value "CAPTCHA_ADAPTER" "captcha adapter (expected 'live' once production captcha is activated)"
+  # The public half of the widget pair. The live adapter requires it at boot, so
+  # a production host without it does not start; it is committed in
+  # docker/env/production.env and reconciled every deploy, which is what this
+  # confirms. It is not a secret: every visitor receives it in the page markup.
+  check_set_value "TURNSTILE_SITE_KEY" "captcha site key (public; required whenever the live captcha adapter runs)"
 fi
 
 # Media storage.
@@ -435,9 +479,29 @@ check_equals "MEDIA_STORAGE_S3_BUCKET" "$TF_MEDIA_BUCKET" "media bucket matches 
 
 # AWS region + other live-adapter dependencies.
 check_set "AWS_REGION" "AWS region"
-check_set "SAFE_BROWSING_ADAPTER" "safe-browsing adapter"
-check_set "SECRETS_ADAPTER" "secrets adapter (expected: 'live' on $TARGET)"
-check_set "HTTP_REACHABILITY_ADAPTER" "HTTP reachability adapter"
+check_set_value "SECRETS_ADAPTER" "secrets adapter (expected: 'live' on $TARGET)"
+
+# The two protective selectors are derived from their switches on every deploy,
+# so the expectation follows the switch rather than merely requiring a value.
+# Presence alone would pass a host shipping without the protection, because a
+# selector on its non-protective value boots exactly as cleanly as one on its
+# protective value.
+case "${HOST_ENV[URL_SCREENING_ARMED]:-}" in
+  dark)
+    check_equals "SAFE_BROWSING_ADAPTER" "stub" "safe-browsing adapter (screening dark: the stub is the required state, and every submitted link goes unscreened)" ;;
+  armed)
+    check_equals "SAFE_BROWSING_ADAPTER" "live" "safe-browsing adapter (screening armed)" ;;
+  *)
+    check_skip "safe-browsing adapter: not checkable while URL_SCREENING_ARMED is ${HOST_ENV[URL_SCREENING_ARMED]:+invalid }${HOST_ENV[URL_SCREENING_ARMED]:-unset} (SAFE_BROWSING_ADAPTER=${HOST_ENV[SAFE_BROWSING_ADAPTER]:-<unset>}); terraform apply publishes the switch, the next deploy syncs it" ;;
+esac
+case "${HOST_ENV[REACHABILITY_ARMED]:-}" in
+  dark)
+    check_equals "HTTP_REACHABILITY_ADAPTER" "disabled" "HTTP reachability adapter (reachability dark: no outbound probe from the validation path)" ;;
+  armed)
+    check_equals "HTTP_REACHABILITY_ADAPTER" "live" "HTTP reachability adapter (reachability armed)" ;;
+  *)
+    check_skip "HTTP reachability adapter: not checkable while REACHABILITY_ARMED is ${HOST_ENV[REACHABILITY_ARMED]:+invalid }${HOST_ENV[REACHABILITY_ARMED]:-unset} (HTTP_REACHABILITY_ADAPTER=${HOST_ENV[HTTP_REACHABILITY_ADAPTER]:-<unset>}); terraform apply publishes the switch, the next deploy syncs it" ;;
+esac
 check_set "PAYMENT_ADAPTER" "payment adapter (expected: 'stub' on staging always; on production the deploy derives it from the payments arming flag)"
 if [[ "$TARGET" != "staging" && "${HOST_ENV[PAYMENTS_ARMED]:-}" == "dark" ]]; then
   check_equals "PAYMENT_ADAPTER" "stub" "payment adapter (payments dark: the stub is the required state)"
@@ -450,9 +514,9 @@ if [[ "${HOST_ENV[PAYMENT_ADAPTER]:-}" == "stub" ]]; then
   check_set "STRIPE_WEBHOOK_SECRET_STUB" "stub webhook signing secret (required whenever the stub adapter serves a reachable endpoint)"
 fi
 
-# Internal-event secret. Must not be the dev default literal (the literal
-# lives in src/config/env.ts:516; do not put it in this script). Check by
-# negative property: long enough that the dev default cannot match.
+# Internal-event secret. Must not be the development fallback literal. Checked
+# by name below and again by a negative property, length, so a future change to
+# the literal still fails this gate on a host.
 INTERNAL_SECRET_ACTUAL="${HOST_ENV[INTERNAL_EVENT_SECRET]:-}"
 if [[ -z "$INTERNAL_SECRET_ACTUAL" ]]; then
   check_fail "internal event secret: INTERNAL_EVENT_SECRET is unset"
@@ -665,7 +729,24 @@ printf "  Warns:    %d\n" "$WARNS"
 
 if (( FAILS > 0 )); then
   echo ""
-  echo "$FAILS critical invariant(s) failed. Fix /srv/footbag/env on $SSH_ALIAS before deploying." >&2
+  # Deliberately not "edit the host env file": most values on that host have a
+  # declared owner, and hand-editing one is undone by the next deploy. Each
+  # failure above names what owns the value it is about.
+  echo "$FAILS critical invariant(s) failed on $SSH_ALIAS. Fix each at its owner before deploying:" >&2
+  echo "  an arming switch (payments, email, URL screening, reachability)" >&2
+  echo "      -> scripts/arming.sh --target <environment> --switch <name> --state armed|dark" >&2
+  echo "         That script owns the values file, the apply and the deploy, in order." >&2
+  echo "         Doing them by hand is how a switch and its selector end up disagreeing." >&2
+  echo "  a derived selector (safe-browsing, reachability, SES, payment)" >&2
+  echo "      -> not editable here: fix its switch above, or redeploy if the switch is right" >&2
+  echo "  a committed constant (media storage, secrets, JWT signer, captcha and its site key, sizing)" >&2
+  echo "      -> docker/env/<environment>.env, then deploy" >&2
+  echo "  a deploy-synced value (session secret, origin verify, JWT key id, media bucket)" >&2
+  echo "      -> owned by Terraform and written by the deploy: redeploy" >&2
+  echo "  an operator-run value (proxy hops, backup bucket, topics, queues, sender)" >&2
+  echo "      -> scripts/set-host-env.sh" >&2
+  echo "  anything else (public base URL, env label, DB path, AWS profile/region," >&2
+  echo "  captcha site key) is still hand-set on the host; edit it there." >&2
   exit 1
 fi
 

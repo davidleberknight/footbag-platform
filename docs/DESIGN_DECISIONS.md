@@ -33,6 +33,7 @@ Current implementation status and accepted temporary deviations are tracked in t
   - [1.14 Test-data Harness](#114-test-data-harness)
   - [1.15 Convention and Invariant Gates](#115-convention-and-invariant-gates)
   - [1.16 Multi-repository Structure and Companion-checkout Convention](#116-multi-repository-structure-and-companion-checkout-convention)
+  - [1.17 Deploy-time Host Value Ownership](#117-deploy-time-host-value-ownership)
 - [2. Data Model](#2-data-model)
   - [2.1 Schema and Versioning](#21-schema-and-versioning)
   - [2.2 Data Access Pattern](#22-data-access-pattern)
@@ -85,7 +86,7 @@ Current implementation status and accepted temporary deviations are tracked in t
   - [5.5 Canonical Email Addresses](#55-canonical-email-addresses)
   - [5.6 Dev and Staging Email Preview](#56-dev-and-staging-email-preview)
   - [5.7 Adapter contract parity for security-sensitive paths](#57-adapter-contract-parity-for-security-sensitive-paths)
-  - [5.8 Production Arming Switches](#58-production-arming-switches)
+  - [5.8 Arming Switches](#58-arming-switches)
   - [5.9 Member Action Sources](#59-member-action-sources)
   - [5.10 Admin Work-Queue Task Types](#510-admin-work-queue-task-types)
 - [6. External Services and Integrations](#6-external-services-and-integrations)
@@ -580,6 +581,7 @@ Impact:
 - Services and controllers import from `config` (env.ts) or call `readIntConfig(...)` (runtime config). Never `process.env`.
 - Secrets-handling rules (§3.6) apply to env-var secrets; system_config is not a secret store.
 - SESSION_SECRET is the canonical example of an env-var secret that lives in the host's `/srv/footbag/env` outside Git. See §3.6.
+- This section governs how the application reads a deploy-time value; who owns that value on the host it is read from, and how it gets there, is the Deploy-time Host Value Ownership decision (§1.17).
 
 ## 1.12 Internal-only Subtrees
 
@@ -827,6 +829,58 @@ Trade-offs:
 
 - Private planning is deliberately undiscoverable from the public repository; contributors are routed to the maintainer contact.
 - Each maintainer machine wires two local items (the symlink and the environment variable) once, at onboarding.
+
+## 1.17 Deploy-time Host Value Ownership
+
+Decision:
+
+Every deploy-time value in a deployed environment's host env file has exactly one declared owner. There are two, and the dividing question is whether an operator could legitimately want the other value on a running host without a code change.
+
+Terraform publishes a value as a Parameter Store parameter, and every deploy syncs it onto the host. It takes two forms. An arming switch reads `armed` or `dark`, and the deploy derives the matching adapter selector from it. An identifier is read from the resource it names and written onto the host unchanged, so a rename travels with the resource and no literal is repeated anywhere. Parameter history is the audit trail, and a value written out of band reverts on the next apply.
+
+The committed per-environment container environment file declares values that are never an operational choice. The deploy applies that file whole, setting what it lists and clearing what it omits, so the file is the value's source and a host edit does not survive a deploy.
+
+No deploy-time host value is established by a seed that runs only when its line is absent, and none is left to a hand edit at bootstrap. A value whose only writer fires on absence belongs to whoever last edited the host, which is the condition this decision exists to remove.
+
+One class is deliberately not held anywhere but the host: a secret generated on the host for a channel that never leaves it, such as the worker-to-web authentication key. Its owner is the deploy, which regenerates it when absent, and that regeneration is what makes its loss recoverable without a store. The credential vault holds no copy for the same reason.
+
+Rules:
+
+- Terraform owns a value when an operator could legitimately want the other value without a code change, or when the value names a resource Terraform creates. The committed per-environment file owns it otherwise.
+
+- A value established by a seed that fires only on absence is owned by whoever last edited the host. That is not an owner, and no value is delivered that way. A host-generated secret regenerated on absence is not this case: the deploy owns it, and regeneration is its recovery path.
+
+- Where a switch derives an adapter selector, a boot whose switch and selector disagree fails at startup rather than resolving to a preference.
+
+- Both halves of the deploy carry the same set of syncs and reconciliations, pinned by a test rather than by review.
+
+- A value with no owner is a defect, tracked as one rather than recorded here.
+
+Rationale:
+
+- A value nothing reconciles drifts silently and permanently, and the drift is least visible exactly where it matters most: an adapter selector set to its non-protective value boots as cleanly as one set to its protective value, so an environment shipping without a protection reports healthy.
+
+- Splitting ownership by whether an operator could want the other value puts an audit trail where operational choices are made, and keeps constants of the code beside the code, reviewed with it.
+
+- Deriving a selector from a switch keeps exactly one value authoritative. Two independently settable values that are required to agree is a state machine whose wrong state is reachable by hand.
+
+Trade-offs:
+
+- Two owners rather than one. A single owner would force either a Terraform apply to change a constant of the code, or a code change and a deploy to flip an operational choice that should carry an audit trail.
+
+- Flipping a switch costs a values-file change, an apply and a deploy, which is slower than editing a host. That cost is the point: the slow path is the one that leaves a record.
+
+Impact:
+
+- Switch-owned: payments, outbound email, URL screening, and outbound URL reachability. The first two are stubbed below production whatever their switch says, because money and mail must not leave a lower environment; the second two run for real in every deployed environment, so their switch is the only thing that decides and the deploy derives their selectors everywhere.
+
+- File-owned: the media storage selector, the secrets resolver, the JWT signer, and the captcha selector.
+
+- Terraform-published identifiers: the media bucket name, the JWT signing key alias, and the two mail configuration-set names. Terraform also publishes values that are neither a switch nor an identifier and the deploy syncs them the same way: the log level, and the archive address and its login-redirect flag.
+
+- The archive signing values follow the same test as everything else once the legacy archive is built: the cookie signer selector and the cookie domain are constants of each environment and are file-owned; the key-pair identifier names a CloudFront resource and is a Terraform-published identifier.
+
+- The Configuration Model decision governs how the application reads a deploy-time value; this one governs how the value reaches the host it is read from.
 
 # 2. Data Model
 
@@ -1692,9 +1746,9 @@ Mitigations against the in-container threat:
 
 Implementation: Parameter paths are organized by environment (`/footbag/production/`, `/footbag/staging/`, `/footbag/development/`).
 
-In development, the secret-source split mirrors production. Env-var secrets (`SESSION_SECRET`, host runtime config) load from a gitignored `.env` file at the repo root via `dotenv`; a committed `.env.example` template enumerates expected keys with placeholder values (the literal substring `changeme` is reserved for placeholder text and is rejected by production startup guards on `SESSION_SECRET`). Parameter-Store-class secrets (Stripe keys, Safe Browsing API key, admin bootstrap tokens) load through `SecretsAdapter` in local mode, which reads a gitignored `.local/secrets.json` co-located with other operator-local files. Per-host operational secrets like `SESSION_SECRET` live in `/srv/footbag/env` on the production host (root:root 0600).
+In development, the secret-source split mirrors production. Env-var secrets and host runtime config carry development defaults in the config loader, each refused on a deployed host, so a checkout runs with no environment file at all; a gitignored `.env` at the repo root remains an optional override, and a committed `.env.example` documents what can be overridden (the literal substring `changeme` is reserved for placeholder text and is rejected by production startup guards on `SESSION_SECRET`). Parameter-Store-class secrets (Stripe keys, Safe Browsing API key, admin bootstrap tokens) load through `SecretsAdapter`, which resolves to the in-memory stub in development and test: every consumer of those secrets runs its own stub locally and asks for nothing, so no credential file exists on a developer workstation. A developer who needs a real value points the adapter at Parameter Store. Per-host operational secrets like `SESSION_SECRET` live in `/srv/footbag/env` on the production host (root:root 0600).
 
-Secrets are fetched once at container startup via SecretsAdapter (SSM GetParameter in production, local JSON file in development). SecretsAdapter is a Node module; only Node consumers (web, worker, image worker, tests) read through it. Non-Node consumers (nginx config rendering, CloudFront origin-request injection) read SSM-stored values via a deploy-time env-file mirror written by the deploy remote-half rather than at runtime via the adapter. `X_ORIGIN_VERIFY_SECRET` is the canonical example of the mirror path: CloudFront reads it via the Terraform `data.aws_ssm_parameter` lookup at apply time, nginx reads it from `/srv/footbag/env` via the docker entrypoint shim at container startup, and no Node code path consumes it.
+Secrets are fetched once at container startup via SecretsAdapter (SSM GetParameter in production, an in-memory stub in development and test). SecretsAdapter is a Node module; only Node consumers (web, worker, image worker, tests) read through it. Non-Node consumers (nginx config rendering, CloudFront origin-request injection) read SSM-stored values via a deploy-time env-file mirror written by the deploy remote-half rather than at runtime via the adapter. `X_ORIGIN_VERIFY_SECRET` is the canonical example of the mirror path: CloudFront reads it via the Terraform `data.aws_ssm_parameter` lookup at apply time, nginx reads it from `/srv/footbag/env` via the docker entrypoint shim at container startup, and no Node code path consumes it.
 
 Parameter Store contains:
 
@@ -1702,7 +1756,7 @@ Parameter Store contains:
 - Stripe webhook secret (HMAC verification).
 - Email delivery configuration (if any), admin bootstrap tokens, and other exportable credentials and configuration that must not be committed to source control.
 
-Per-host application secrets that are environment-unique and rotation-on-restart-acceptable may live directly in the host env file `/srv/footbag/env` (root:root 0600) rather than in Parameter Store. `SESSION_SECRET` is the canonical example: it is generated fresh per environment, never reused across staging and production, and rotated by editing the host env file and restarting the service. The application and the deploy script both reject any value containing the literal placeholder substring `changeme` or shorter than 32 characters. Rotation runbook: DEVOPS_GUIDE.md (private GitHub repo), "SESSION_SECRET rotation runbook".
+`SESSION_SECRET` is generated by a Terraform random resource, held in Parameter Store as a SecureString, and mirrored into the host env file `/srv/footbag/env` (root:root 0600) on every deploy. Parameter Store is the durable store and Terraform is the only writer, so rotation is `terraform apply -replace` on that resource followed by a deploy, which invalidates every active session; a hand edit on the host is reverted by the next deploy. The value is generated fresh per environment and never reused across staging and production. The application and the deploy script both reject any value containing the literal placeholder substring `changeme` or shorter than 32 characters. Because recovery from a lost value is a redeploy rather than a restore, no copy is held in the credential vault. Rotation runbook: DEVOPS_GUIDE.md (private GitHub repo), "SESSION_SECRET rotation runbook".
 
 KMS is used for:
 
@@ -1723,7 +1777,7 @@ Trade-offs:
 
 Impact:
 
-- SecretsAdapter abstracts Parameter Store in production and local JSON file in development.
+- SecretsAdapter abstracts Parameter Store in production and an in-memory stub in development.
 - Cryptographic signing/encryption paths depend on KMS-backed adapters (`JwtSigningAdapter` for sessions today; `BallotEncryptionAdapter` for envelope encryption when ballots land), not Parameter Store.
 - CloudTrail/CloudWatch monitoring should watch for unusual Parameter Store access patterns and KMS error rates.
 - Parameter Store secrets rotate through new parameter version + controlled container restart / redeploy.
@@ -2213,7 +2267,7 @@ Requirements:
 - The validator distinguishes platform URLs (YouTube, Vimeo) from generic external URLs and routes platform URLs to the §6.8 oEmbed check.
 - The redirect-follow guard is implemented as a re-resolution at each hop, not a one-time check on the original host.
 - A template helper renders external links with the safe attribute set. Direct `<a href="{{url}}">` markup that bypasses the helper is rejected at code review.
-- Safe Browsing integration uses the deterministic dev stub in non-production environments and the live API in production; the adapter contract follows §5.3.
+- Safe Browsing integration uses the deterministic dev stub in development and test, and the live API in every deployed environment whose URL screening switch is armed, staging included; the adapter contract follows §5.3 and the switch is §5.8.
 
 Trade-offs:
 
@@ -3240,11 +3294,19 @@ Impact:
 
 # 6. External Services and Integrations
 
-## 5.8 Production Arming Switches
+## 5.8 Arming Switches
 
 Decision:
 
-Production carries one arming switch per real-world side effect: EMAIL_SEND_ARMED for outbound email and PAYMENTS_ARMED for payments, each 'armed' or 'dark'. A dark side runs its stub adapter, exactly like staging: registration, verification links, password reset, purchases, and donations all work end to end, with mail captured in the in-page simulated-email card and checkout completing against the in-process Stripe simulation, and nothing leaves the platform. An armed side requires the live adapter with every strict configuration check. Terraform owns each switch as an SSM parameter (app/email_send_armed, app/payments_armed), seeded dark in production; the deploy syncs the values into the host environment and derives SES_ADAPTER and PAYMENT_ADAPTER from them (armed selects live, dark selects stub), never hand-edited. Arming a side is a tfvars change, a terraform apply, and a deploy, sequenced before real members arrive; SSM parameter history is the audit trail.
+Four arming switches exist, each reading 'armed' or 'dark', each owned by Terraform as an SSM parameter under the environment's app prefix, and each derived by the deploy into the adapter selector it governs (armed selects live, dark selects stub), never hand-edited. They fall into two groups that behave differently below production.
+
+Two govern a real-world side effect: EMAIL_SEND_ARMED for outbound email and PAYMENTS_ARMED for payments. A dark side runs its stub adapter, exactly like staging: registration, verification links, password reset, purchases, and donations all work end to end, with mail captured in the in-page simulated-email card and checkout completing against the in-process Stripe simulation, and nothing leaves the platform. An armed side requires the live adapter with every strict configuration check. Both are seeded dark in production and are inert below it, where the non-production stub mandates apply whatever the switch says, because money and mail must not leave a lower environment.
+
+Two govern a protective check on member-submitted links: URL_SCREENING_ARMED for Safe Browsing lookups and REACHABILITY_ARMED for outbound reachability probes. Screening or probing a submitted link has no real-world side effect to withhold from a lower environment, and staging is where the live path is exercised before members reach it, so these bite in every deployed environment and the deploy derives their selectors on every host rather than on production alone. Screening is seeded dark in production until its API key is in Parameter Store, because an armed environment with no key fails every URL-bearing form; reachability is seeded armed, which is its protective direction and needs no credential.
+
+Arming any switch is a tfvars change, a terraform apply, and a deploy, sequenced before real members arrive; SSM parameter history is the audit trail. All three actions belong to one interactive script rather than to an operator's memory, for every switch and in both directions: the failure this guards is a sequence that loses a step under pressure, leaving a values file that says one thing and a running host that does another, and that half-applied state is invisible from either end. Nothing about it is specific to which switch was being moved, so no switch is exempt.
+
+What differs per switch is the precondition, and the two groups differ in kind rather than in degree. A side-effect switch depends on a provider-side fact the workstation cannot see — whether a webhook endpoint is disabled, whether a sender identity is verified and out of the sandbox — so its gate is a typed confirmation that the operator has settled it. A protection switch going armed depends on something the script can read for itself, so it reads it: arming screening classifies the API key parameter and refuses on a placeholder, an empty value or an unreadable one, because arming without a usable key is not a partial success but an outage in which every URL-bearing form rejects valid input. A check that cannot be defeated by a distracted confirmation is the stronger gate, which puts the protection switches above the side-effect ones rather than below them. Disarming a protection switch is gated too, for the opposite reason: it breaks nothing and shows nothing, so the confirmation and the parameter history are the only evidence it was meant.
 
 Rationale:
 
@@ -3254,9 +3316,11 @@ Rationale:
 
 - Whatever "sent" or "purchased" while dark is a stub-consumed test artifact, never delivered later; the final pre-launch data load wipes stub-era records. Arming needs no outbox pause and no service gate.
 
+- The two protective checks are switches rather than declared constants because falling back to the stub is a legitimate operational choice: an upstream service failing every lookup breaks link submission outright, since a failed check refuses rather than allowing. A constant would make that fallback a code change during an incident.
+
 Requirements:
 
-- Both switches are mandatory-explicit in production-hardened boots and inert below production, where the non-production stub mandates apply regardless of the switch values.
+- All four switches are mandatory-explicit in production-hardened boots. The two side-effect switches are inert below production, where the non-production stub mandates apply regardless of the switch values; the two protective switches decide in every deployed environment.
 
 - A dark payment side carries its own generated stub webhook signing secret, as staging does, so the committed stub constant never signs a reachable endpoint.
 
@@ -3268,7 +3332,7 @@ Trade-offs:
 
 Impact:
 
-- Both deploy paths sync the switches on every deploy and refuse to proceed when the parameters are missing.
+- Both deploy paths sync all four switches on every deploy and refuse to proceed when a parameter is missing.
 
 - The pre-cutover Stripe test-mode exercise runs on a production whose payment side holds a test-mode key while the production-live marker reads pre-live; the key-match guard refuses a test key permanently once the marker flips at go-live.
 
@@ -4262,6 +4326,8 @@ Requirements:
 - The `main` branch is protected with required reviews, required CI checks, and a force-push prohibition. Secret scanning and push protection are enabled at the repo level.
 - Project MCP server entries (`.mcp.json`) pin server packages to a specific version, not `@latest`. A version bump is a reviewed PR, not a transparent upstream change.
 - Security-critical npm dependencies (`argon2`, `helmet`, `marked`, `better-sqlite3`, `express`) are pinned exactly in `package.json` (no `^` or `~`). The lockfile is the canonical source for transitive versions.
+- A transitive dependency carrying an advisory is patched through an `overrides` entry rather than by upgrading the package that pulls it in. The alternative that tooling proposes is usually a major upgrade of the direct dependency, which is a body of work with its own risk, offered as if it were a version bump. An override states the intent exactly: this one transitive package, at this one version, for a stated reason.
+- The application does not use `qs`, and its query parser is set to `simple` so that Express does not either. Express defaults `query parser` to `extended`, which routes every request through `qs` with `allowPrototypes: true` — the option that lets an attacker-supplied key name reach `constructor` and prototype names, and the stated precondition of more than one advisory against that library. Nothing here needs what it provides: every query parameter the application reads is a flat scalar, and no route, view or link uses bracket notation. Request bodies already made the same choice with `express.urlencoded({ extended: false })`. Repeated keys still arrive as an array, which is the only multi-value shape in use.
 - Test-only packages (e.g. `@playwright/test`) live under `devDependencies`, never `dependencies`. Production images do not install dev dependencies.
 - Repo git hooks live under `.githooks/` and are activated by `git config core.hooksPath .githooks`. The pre-commit hook runs `gitleaks --staged` so a secret cannot be committed without the operator explicitly overriding the hook.
 
@@ -4332,7 +4398,7 @@ Trade-offs:
 
 Impact:
 
-- CI/CD strategy: CI pipeline uses local stubs for speed (test suite completes in \<2 minutes). Staging deployments use real AWS services for integration validation. Production never uses stubs.
+- CI/CD strategy: CI pipeline uses local stubs for speed (test suite completes in \<2 minutes). Staging deployments use real AWS services for integration validation. Production runs the live backend for every capability whose arming switch is armed; a dark side runs its stub deliberately, which is what makes a pre-launch production clickable without a real-world side effect (§5.8).
 
 - Stub implementations must match real AWS service behavior.
 
