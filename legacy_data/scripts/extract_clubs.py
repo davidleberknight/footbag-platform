@@ -59,6 +59,18 @@ _PHONE_RUN_RE = re.compile(r"\+?\d[\d ().\-]*\d")
 # A year range such as "2002 - 2008" is not a phone number.
 _YEAR_RANGE_RE = re.compile(r"(?:19|20)\d\d\s*[-–]\s*(?:19|20)\d\d")
 _URL_RE = re.compile(r"https?://\S+")
+# A neutralized outbound link, as the crawler leaves it in the club's home-page
+# block. When the link's display text and its address differ, the address is
+# preserved after it in parentheses; when they are the same, the address stands
+# alone. The parenthesised form therefore wins, because a display text is
+# frequently an abbreviation of the address it points at and would otherwise be
+# stored as though it were the address. Parentheses and angle brackets are
+# excluded from the address itself so the closing bracket is not absorbed into
+# it; a legacy club home page carrying a literal parenthesis is not a shape the
+# legacy site produced. Kept separate from _URL_RE, whose broader match is what
+# the description scrubber needs to recognise digits sitting inside a URL.
+_CLUB_URL_PARENTHESISED_RE = re.compile(r"\((https?://[^\s()<>]+)\)")
+_CLUB_URL_BARE_RE = re.compile(r"https?://[^\s()<>]+")
 
 
 def _scrub_description_pii(text):
@@ -188,11 +200,33 @@ def extract_club(html_path, legacy_club_key):
             if m:
                 contact_member_id = m.group(1)
 
-    # External URL
+    # External URL, in either of the two shapes a captured page can carry. A
+    # capture taken while outbound links were still anchors holds one here; a
+    # capture taken after they are neutralized holds the same address as plain
+    # text in the same block. Reading both is what keeps the field independent
+    # of which crawl produced the tree.
+    #
+    # The scan stays inside div.clubsURL deliberately. The same page repeats the
+    # address in a sentence inside div#ClubsURL, an id rather than this class,
+    # and a club's own description can mention unrelated addresses; neither is
+    # this field, and either would make the value depend on which copy the
+    # parser reached first. The match keys on the block plus a required scheme
+    # rather than on the marker the crawler writes beside the text, so a change
+    # to that marker's wording cannot silently empty the column.
     external_url = ""
-    url_link = soup.select_one("div.clubsURL a[href]")
-    if url_link:
-        href = url_link.get("href", "").strip()
+    url_block = soup.select_one("div.clubsURL")
+    if url_block:
+        anchor = url_block.select_one("a[href]")
+        if anchor:
+            href = anchor.get("href", "").strip()
+        else:
+            block_text = url_block.get_text(separator=" ", strip=True)
+            parenthesised = _CLUB_URL_PARENTHESISED_RE.search(block_text)
+            if parenthesised:
+                href = parenthesised.group(1)
+            else:
+                bare = _CLUB_URL_BARE_RE.search(block_text)
+                href = bare.group(0) if bare else ""
         # Skip relative/internal links
         if href.startswith("http://") or href.startswith("https://"):
             external_url = repair_doubled_url_scheme(clean_club_text(href))
