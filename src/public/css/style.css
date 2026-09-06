@@ -6272,9 +6272,17 @@ a.hashtag--media:hover {
 /* A sub-heading is not a section heading. Carrying the section-heading class
    on an h3 inherits a top-level section's gap, which on a long page is the
    single largest source of dead vertical space. */
-.section-compact h3.section-heading,
-.page-freestyle  h3.section-heading {
+.section-compact h3.section-heading {
   font-size: 0.9rem;
+  margin-bottom: 6px;
+}
+/* The gap is what this rule is for; the size is not. Shrinking the heading put
+   it below the 1rem prose beneath it, so the page read as body text
+   interrupted by smaller labels. Closing the gap while leaving the heading at
+   its own step keeps the compaction and restores the ordering, which the type
+   gate cannot see: it checks that a size is on the scale, not what the size
+   lands on relative to its own body text. */
+.page-freestyle h3.section-heading {
   margin-bottom: 6px;
 }
 
@@ -11408,13 +11416,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 .sets-encyclopedia-head {
   margin-bottom: 18px;
 }
-.sets-encyclopedia-intro {
-  font-size: 1rem;
-  line-height: 1.5;
-  color: var(--text-primary);
-  max-width: 760px;
-  margin: 6px 0 4px;
-}
 .sets-encyclopedia-total {
   font-size: 0.9rem;
   margin: 0;
@@ -11610,27 +11611,10 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 .modifier-stub-examples { font-size: 0.9rem; color: var(--text-secondary); margin: 0; }
 
 /* ── Set detail page ────────────────────────── */
+/* The width and gutters come from the shared page frame, as they do on every
+   other public page; only the space under the hero belongs to this page. */
 .set-detail {
-  max-width: 760px;
   margin: 16px auto 40px;
-  padding: 0 16px;
-}
-.set-detail-head {
-  border-bottom: 1px solid var(--border-subtle);
-  padding-bottom: 12px;
-  margin-bottom: 18px;
-}
-.set-detail-eyebrow {
-  font-size: 0.9rem;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  margin: 0 0 4px;
-}
-.set-detail-name {
-  margin: 0 0 6px;
-  font-size: 2rem;
-  line-height: 1.15;
 }
 .set-detail-section {
   margin: 18px 0;

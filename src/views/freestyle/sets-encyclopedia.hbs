@@ -13,12 +13,20 @@
 
   Visual goal: compositional vocabulary board, not glossary essay.
 --}}
+{{! The shared page hero, the same one the family detail page and the net
+    landing use. The eyebrow's colour is written for this panel's dark
+    background; on the page background it renders white on white. }}
+<div class="hero hero-sm">
+  <div>
+    <p class="hero-eyebrow">{{page.eyebrow}}</p>
+    <h1>{{page.title}}</h1>
+    <p class="hero-subtitle">{{content.intro}}</p>
+  </div>
+</div>
+
 <div class="wrapper sets-encyclopedia">
 
   <header class="sets-encyclopedia-head">
-    <p class="hero-eyebrow">Compositional vocabulary</p>
-    <h1>Set Encyclopedia</h1>
-    <p class="sets-encyclopedia-intro">{{content.intro}}</p>
     <p class="detail-muted">
       Why an encyclopedia instead of a dictionary? The trick dictionary defines
       individual tricks. The Set Encyclopedia explores the movement systems that

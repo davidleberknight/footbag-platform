@@ -8,13 +8,28 @@
   provenance last. Equivalent names (alternate set names) and the structural
   equivalence readings are separate sections and are never merged.
 --}}
-<article class="set-detail" data-set-slug="{{content.slug}}">
+{{! The shared page hero and page frame, arranged as the trick detail page
+    arranges them, since this page mirrors that one's information order. It
+    previously opened straight into a hand-rolled 760px frame with no hero and
+    no breadcrumb, so arriving here from the encyclopedia dropped the reader
+    onto a narrower page with no way back up. The breadcrumbs were already in
+    the view model; only the template never rendered them. }}
+<div class="hero hero-sm">
+  <div>
+    {{#if navigation.breadcrumbs}}
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      {{#each navigation.breadcrumbs}}
+        {{#if href}}<a href="{{href}}">{{label}}</a> <span class="breadcrumb-sep">/</span> {{else}}<span>{{label}}</span>{{/if}}
+      {{/each}}
+    </nav>
+    {{/if}}
+    <p class="hero-eyebrow">{{content.subtypeLabel}}</p>
+    <h1>{{content.displayName}}</h1>
+    <p class="hero-hashtag" aria-label="Tag identity">{{content.hashtag}}</p>
+  </div>
+</div>
 
-  <header class="set-detail-head">
-    <p class="set-detail-eyebrow">{{content.subtypeLabel}}</p>
-    <h1 class="set-detail-name">{{content.displayName}}</h1>
-    <span class="hashtag" aria-label="Tag identity">{{content.hashtag}}</span>
-  </header>
+<article class="wrapper set-detail" data-set-slug="{{content.slug}}">
 
   {{#if content.education}}
   {{!-- Concept-first teaching layer (migrated sets only). Reads in lockstep
