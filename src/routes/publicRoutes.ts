@@ -184,11 +184,11 @@ publicRouter.get('/events',              eventController.landing);
 publicRouter.get('/events/year/:year',   eventController.year);
 publicRouter.get('/events/:eventKey',    eventController.event);
 
-// HP-only self-serve claim (scenarios D and E). The legacy account-claim and
-// auto-link flows live in the onboarding wizard at /register/wizard/legacy_claim
-// (see memberOnboardingController). /history/:personId/claim remains the
-// documented destination for HP-card deep-links from inside the wizard's
-// legacy_claim view.
+// HP-only self-serve claim (scenarios D and E). Every claim flow, this one
+// included, belongs to the onboarding wizard at /register/wizard/legacy_claim:
+// the wizard's HP-card deep-link is the only way in here, no browse page offers
+// a claim control, and both handlers send anyone who has finished onboarding to
+// the admin link request instead.
 publicRouter.get('/history/:personId/claim',         requireAuth, claimController.getClaimHp);
 publicRouter.post('/history/:personId/claim/confirm', requireAuth, claimController.postClaimHpConfirm);
 publicRouter.get('/history/:personId',   historyController.detail);

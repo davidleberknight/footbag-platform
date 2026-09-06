@@ -103,6 +103,19 @@ describe('GET /members/:slug/edit renders the date as three parts', () => {
     expect(res.text).toContain('<option value="3" selected>March</option>');
   });
 
+  // Matching against the old site runs during sign-up and never again, so the
+  // edit form states only what is true here: the date is private. Promising a
+  // member that correcting it re-matches their old records would describe an
+  // effect that cannot happen once onboarding is done.
+  it('says the date is private and promises no re-matching of old records', async () => {
+    const res = await request(createApp())
+      .get(`/members/${MEMBER_SLUG}/edit`)
+      .set('Cookie', ownCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('only you and IFPA administrators can see it');
+    expect(res.text).not.toContain('matches you to your old footbag.org account');
+  });
+
   it('offers all twelve months by name', async () => {
     const res = await request(createApp())
       .get(`/members/${MEMBER_SLUG}/edit`)

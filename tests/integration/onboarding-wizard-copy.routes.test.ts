@@ -195,6 +195,17 @@ describe('completion page and check-email recovery copy', () => {
     expect(tpl).not.toContain('display name is permanent');
   });
 
+  // Finishing the wizard is the moment self-serve linking closes for good, so
+  // the page that announces it also names the only route left: an administrator,
+  // asked from the profile. Without this a registrant who could not find their
+  // old account is told nothing at the one point they would act on it.
+  it('the completion page names the administrator route for anyone who finished without a link', async () => {
+    const fs = await import('fs');
+    const tpl = fs.readFileSync('src/views/register/wizard/complete.hbs', 'utf8');
+    expect(tpl).toContain('an IFPA administrator can link it for you now');
+    expect(tpl).toContain('Identity and History');
+  });
+
   it('the check-email page offers a dead-mailbox recovery path', async () => {
     const res = await request(createApp()).get('/register/check-email');
     expect(res.status).toBe(200);

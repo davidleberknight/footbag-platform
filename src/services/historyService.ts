@@ -21,9 +21,12 @@
  *   - A historical person is a public historical identity, not a current-member account. The page
  *     renders name, country, official honors, and official result/event links only; it carries no
  *     contact fields and must not imply current-member capabilities or contactability.
+ *   - The page offers no claim control. Linking a record to an account is done in the onboarding
+ *     wizard's claim task and nowhere else, so this service reads public data only and takes no
+ *     viewer identity beyond whether the request is authenticated.
  */
 import { PublicPlayerResultRow, FreestyleRecordRow, PlayerCareerStatRow, PlayerPartnerRow,
-         publicPlayers, freestyleRecords, legacyClaim } from '../db/db';
+         publicPlayers, freestyleRecords } from '../db/db';
 import { NotFoundError } from './serviceErrors';
 import { personHref } from './personLink';
 import { runSqliteRead } from './sqliteRetry';
@@ -32,8 +35,6 @@ import { groupPlayerResults } from './playerShaping';
 import type { PlayerEventGroup, PlayerHeroData } from '../types/playerProfile';
 import { FreestyleRecordViewModel, shapeFreestyleRecord } from './freestyleRecordShaping';
 import { buildActiveTrickSlugResolver } from './freestyleResolvableSlugs';
-import { identityAccessService } from './identityAccessService';
-import { memberOnboardingService } from './memberOnboardingService';
 
 interface HistoricalPlayer {
   personId: string;
@@ -82,8 +83,6 @@ export interface HistoryDetailContent {
   freestyleRecords: FreestyleRecordViewModel[];
   partnerships: PartnershipViewModel[];
   hasPartnerships: boolean;
-  canClaim: boolean;
-  claimHref: string | null;
 }
 
 export type HistoryDetailResult =
@@ -95,7 +94,6 @@ export const historyService = {
   getHistoricalPlayerPage(
     personId: string,
     isAuthenticated: boolean,
-    viewerMemberId?: string,
   ): HistoryDetailResult {
     const row = runSqliteRead('getHistoricalPlayerById', () =>
       publicPlayers.getById.get(personId),
@@ -202,33 +200,6 @@ export const historyService = {
       };
     });
 
-    // Claim eligibility for the authenticated viewer (scenarios D and E).
-    // Self-serve claiming is wizard-bounded: the CTA appears only while the
-    // viewer is still completing onboarding, so this page routes an onboarding
-    // member into the claim flow rather than offering a second, standing claim
-    // path. Once onboarding is complete there is no self-serve claim CTA; a
-    // member links a further identity through the admin help request. The other
-    // conditions: viewer is signed in, viewer has no HP linked yet, HP is
-    // unclaimed (the `linkedRow` above already redirected claimed HPs), and the
-    // viewer's current OR declared-former surname matches the HP's person_name
-    // surname (same predicate the claim execution gate uses). A record marked
-    // deceased is not self-claimable, so the CTA is suppressed regardless.
-    const hpIsDeceased = Boolean(p['is_deceased']);
-    let canClaim = false;
-    let claimHref: string | null = null;
-    if (viewerMemberId && !hpIsDeceased && !memberOnboardingService.isOnboardingComplete(viewerMemberId)) {
-      const viewerRow = runSqliteRead('findClaimingMemberForHpCta', () =>
-        legacyClaim.findClaimingMember.get(viewerMemberId),
-      ) as { id: string; real_name: string; historical_person_id: string | null } | undefined;
-      if (viewerRow
-        && !viewerRow.historical_person_id
-        && identityAccessService.surnameMatchesWithAnchors(viewerMemberId, viewerRow.real_name, player.personName)
-      ) {
-        canClaim = true;
-        claimHref = `/history/${encodeURIComponent(player.personId)}/claim`;
-      }
-    }
-
     const resolveActiveSlug = buildActiveTrickSlugResolver();
     return {
       action: 'render',
@@ -257,8 +228,6 @@ export const historyService = {
           freestyleRecords:      freestyleRows.map(r => shapeFreestyleRecord(r, resolveActiveSlug)),
           partnerships,
           hasPartnerships:       partnerships.length > 0,
-          canClaim,
-          claimHref,
         },
       },
     };

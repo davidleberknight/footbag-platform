@@ -55,9 +55,9 @@ function redirectToAdminLinkRequest(req: Request, res: Response): void {
 export const claimController = {
   /**
    * GET /history/:personId/claim, render the HP-claim confirmation page
-   * (scenarios D and E). Reachable as a deep-link from the onboarding wizard's
-   * legacy_claim view (hp_review_page card action) and from the historical-
-   * record detail page's "Claim this identity" CTA.
+   * (scenarios D and E). Its only entry point is the onboarding wizard's
+   * legacy_claim view (hp_review_page card action): linking happens inside the
+   * wizard, and no browse page offers a claim control.
    */
   getClaimHp(req: Request, res: Response, next: NextFunction): void {
     const personId = req.params.personId ?? '';

@@ -111,7 +111,7 @@ export const CONTACT_CATEGORY_LABELS: Record<ContactCategory, string> = {
   display_name_correction: 'Display name correction',
   profile_url_correction:  'Profile URL correction',
   tier_status_question:    'Tier-status question',
-  identity_link_issue:     'Identity-link issue',
+  identity_link_issue:     'Old account or competition-record link',
   other:                   'Other',
 };
 

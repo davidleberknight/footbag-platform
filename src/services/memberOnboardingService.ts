@@ -1522,7 +1522,7 @@ function processLegacyClaimAutoLinkConfirm(
     return {
       kind: 'validation_error',
       formState: null,
-      message: 'We matched this record to an old email address you have not confirmed yet. Open the verification link we sent to that address, then come back to confirm this match. If you can no longer reach that mailbox, use a different match or ask an IFPA administrator to link it for you.',
+      message: 'We matched this record to an old email address you have not confirmed yet. Open the verification link we sent to that address, then come back to confirm this match. If you can no longer reach that mailbox, use a different match, or finish signing up and then ask an IFPA administrator to link it for you.',
     };
   }
   try {

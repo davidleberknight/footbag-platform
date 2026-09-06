@@ -12,11 +12,9 @@ export const historyController = {
   /** GET /history/:personId -- service decides: redirect, require auth, or render. */
   detail(req: Request, res: Response, next: NextFunction): void {
     try {
-      const viewerMemberId = req.isAuthenticated ? req.user?.userId : undefined;
       const result = historyService.getHistoricalPlayerPage(
         req.params.personId,
         req.isAuthenticated,
-        viewerMemberId,
       );
       switch (result.action) {
         case 'redirect':

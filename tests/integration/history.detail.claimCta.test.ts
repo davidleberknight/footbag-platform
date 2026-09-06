@@ -1,14 +1,16 @@
 /**
- * Integration tests for the conditional Claim CTA on /history/:personId.
+ * Integration tests for /history/:personId, the public historical-record page.
  *
- * The CTA is rendered only when:
- *   - viewer is authenticated;
- *   - viewer has no historical_person_id linked yet;
- *   - viewer's real_name surname matches the HP's person_name surname; and
- *   - the HP is not already claimed by another member (already-claimed HPs
- *     redirect to that member's profile, so the detail page never renders).
+ * The page carries no claim control, for any viewer. Linking a record to an
+ * account happens inside the onboarding wizard's claim task and nowhere else,
+ * so a signed-out visitor, a registrant part-way through signing up whose
+ * surname matches the record, and a member who has finished all see the same
+ * page with no claim button and no link to the claim page. A member who still
+ * needs a link asks an administrator.
  *
- * Anonymous visitors hitting a public-honor HP see the page without the CTA.
+ * Also covered here: the bare /history path is unwired and answers 404 rather
+ * than redirecting, and a claimed record redirects to the claimant's profile
+ * only when that profile is publicly viewable.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -32,11 +34,8 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 
 const HP_HONOR     = 'hp-honor-cta-001';
 const HP_NON_HONOR = 'hp-nonhonor-cta-001';
-const HP_DECEASED  = 'hp-deceased-cta-001';
 
-const VIEWER_MATCH      = 'mem-viewer-match';
-const VIEWER_MISMATCH   = 'mem-viewer-mismatch';
-const VIEWER_ALREADY_HP = 'mem-viewer-with-hp';
+const VIEWER_MATCH = 'mem-viewer-match';
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -54,14 +53,6 @@ beforeAll(async () => {
     bap_member: 0,
     country: 'US',
   });
-  insertHistoricalPerson(db, {
-    person_id: HP_DECEASED,
-    person_name: 'Pat Smith',
-    hof_member: 1,
-    country: 'US',
-    is_deceased: 1,
-  });
-
   insertMember(db, { onboarding: 'none',
     id: VIEWER_MATCH,
     slug: 'viewer_match',
@@ -69,24 +60,6 @@ beforeAll(async () => {
     display_name: 'Chris Smith',
     login_email: 'match@example.com',
   });
-  insertMember(db, { onboarding: 'none',
-    id: VIEWER_MISMATCH,
-    slug: 'viewer_mismatch',
-    real_name: 'Chris Jones',
-    display_name: 'Chris Jones',
-    login_email: 'mismatch@example.com',
-  });
-  insertMember(db, { onboarding: 'none',
-    id: VIEWER_ALREADY_HP,
-    slug: 'viewer_with_hp',
-    real_name: 'Chris Smith',
-    display_name: 'Chris Smith',
-    login_email: 'with-hp@example.com',
-  });
-  // Pre-link this viewer to a different HP so historical_person_id is set.
-  const OTHER_HP = insertHistoricalPerson(db, { person_name: 'Other Person' });
-  db.prepare('UPDATE members SET historical_person_id = ? WHERE id = ?')
-    .run(OTHER_HP, VIEWER_ALREADY_HP);
 
   db.close();
   createApp = await importApp();
@@ -113,58 +86,40 @@ describe('GET /history (no id) — unwired, 404 by design', () => {
   });
 });
 
-describe('GET /history/:personId — conditional Claim CTA', () => {
-  it('anonymous viewer on a HoF HP: page renders without the CTA', async () => {
+describe('GET /history/:personId — no claim control', () => {
+  it('a signed-out visitor sees the record and no claim control', async () => {
     const res = await request(createApp()).get(`/history/${HP_HONOR}`);
     expect(res.status).toBe(200);
     expect(res.text).toContain('Pat Smith');
-    expect(res.text).not.toContain('Claim this identity');
+    expect(res.text).not.toContain('Claim This Identity');
+    expect(res.text).not.toContain(`/history/${HP_HONOR}/claim`);
   });
 
-  it('authenticated viewer with surname match + no HP link: CTA visible with correct href', async () => {
+  it('a registrant part-way through signing up whose surname matches sees no claim control', async () => {
+    // This is the viewer every condition of the old browse-page offer was
+    // written for. Claiming belongs to the wizard, so even this viewer is given
+    // no button here and no link to the claim page.
     const res = await request(createApp())
       .get(`/history/${HP_HONOR}`)
       .set('Cookie', cookieFor(VIEWER_MATCH));
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Claim This Identity');
-    expect(res.text).toContain(`href="/history/${HP_HONOR}/claim"`);
+    expect(res.text).toContain('Pat Smith');
+    expect(res.text).not.toContain('Claim This Identity');
+    expect(res.text).not.toContain(`/history/${HP_HONOR}/claim`);
   });
 
-  it('authenticated viewer with surname mismatch: no CTA', async () => {
+  it('the same registrant sees no claim control on a record carrying no honor', async () => {
     const res = await request(createApp())
-      .get(`/history/${HP_HONOR}`)
-      .set('Cookie', cookieFor(VIEWER_MISMATCH));
+      .get(`/history/${HP_NON_HONOR}`)
+      .set('Cookie', cookieFor(VIEWER_MATCH));
     expect(res.status).toBe(200);
-    expect(res.text).not.toContain('Claim this identity');
+    expect(res.text).not.toContain('Claim This Identity');
+    expect(res.text).not.toContain(`/history/${HP_NON_HONOR}/claim`);
   });
 
-  it('authenticated viewer whose declared former surname matches (real name does not): CTA visible', async () => {
-    const db = new BetterSqlite3(dbPath);
-    insertMember(db, { onboarding: 'none',
-      id: 'mem-viewer-former',
-      slug: 'viewer_former',
-      real_name: 'Chris Jones',
-      display_name: 'Chris Jones',
-      login_email: 'former@example.com',
-    });
-    db.prepare(`
-      INSERT INTO member_declared_anchors
-        (id, created_at, created_by, updated_at, updated_by, member_id, anchor_type, anchor_value)
-      VALUES (?, '2026-01-01T00:00:00.000Z', ?, '2026-01-01T00:00:00.000Z', ?, ?, 'former_surname', 'Smith')
-    `).run('anch-former-cta', 'mem-viewer-former', 'mem-viewer-former', 'mem-viewer-former');
-    db.close();
-
-    const res = await request(createApp())
-      .get(`/history/${HP_HONOR}`)
-      .set('Cookie', cookieFor('mem-viewer-former'));
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('Claim This Identity');
-  });
-
-  it('surname match but onboarding complete: no CTA (self-serve claiming is wizard-bounded)', async () => {
-    // The claim CTA is part of finishing onboarding. A completed member links a
-    // further identity through the admin help request, not this page, so the CTA
-    // is suppressed even though the surname matches.
+  it('a member who has finished signing up and whose surname matches sees no claim control', async () => {
+    // After onboarding there is no self-serve linking at all: this member asks
+    // an administrator through the identity-link category of the contact form.
     const db = new BetterSqlite3(dbPath);
     const id = 'mem-viewer-complete';
     insertMember(db, { onboarding: 'none',
@@ -183,37 +138,15 @@ describe('GET /history/:personId — conditional Claim CTA', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('Pat Smith');
     expect(res.text).not.toContain('Claim This Identity');
+    expect(res.text).not.toContain(`/history/${HP_HONOR}/claim`);
   });
+});
 
-  it('authenticated viewer who already has historical_person_id set: no CTA', async () => {
-    const res = await request(createApp())
-      .get(`/history/${HP_HONOR}`)
-      .set('Cookie', cookieFor(VIEWER_ALREADY_HP));
-    expect(res.status).toBe(200);
-    expect(res.text).not.toContain('Claim this identity');
-  });
-
-  it('non-honor HP requires auth (302 to login when anonymous)', async () => {
+describe('GET /history/:personId — auth gate', () => {
+  it('a record carrying no honor requires a signed-in viewer (302 to login when anonymous)', async () => {
     const res = await request(createApp()).get(`/history/${HP_NON_HONOR}`);
     expect(res.status).toBe(302);
     expect(res.headers.location).toContain('/login');
-  });
-
-  it('authenticated viewer with surname match on a non-honor HP: CTA visible', async () => {
-    const res = await request(createApp())
-      .get(`/history/${HP_NON_HONOR}`)
-      .set('Cookie', cookieFor(VIEWER_MATCH));
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('Claim This Identity');
-  });
-
-  it('authenticated viewer with surname match on a deceased HP: no CTA (deceased records are not self-claimable)', async () => {
-    const res = await request(createApp())
-      .get(`/history/${HP_DECEASED}`)
-      .set('Cookie', cookieFor(VIEWER_MATCH));
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('Pat Smith');
-    expect(res.text).not.toContain('Claim this identity');
   });
 });
 

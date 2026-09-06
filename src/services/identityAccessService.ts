@@ -2204,6 +2204,14 @@ const SURNAME_MISMATCH_MESSAGE =
   + 'or a different email address on the old footbag.org, add either one in the claim step '
   + 'and we will look again.';
 
+// Appended to the refusals a registrant cannot act on themselves: a record held
+// by someone else, or one tied to a legacy account that is not theirs. There is
+// no self-serve remedy for either, so the only honest next step is the
+// administrator, and it is stated in the future tense because the contact form
+// is a member-only surface a registrant cannot reach until signing up is done.
+const ASK_ADMIN_AFTER_SIGNUP =
+  ' Finish signing up and then ask an IFPA administrator, who can sort this out for you.';
+
 /**
  * The member's date of birth against the date reachable for a historical
  * record. A historical person carries no date of its own; the only date the
@@ -3551,13 +3559,15 @@ function lookupHistoricalPersonForClaim(
   if (hp.legacy_member_id) {
     if (member.legacy_member_id && member.legacy_member_id !== hp.legacy_member_id) {
       throw new ValidationError(
-        'This historical record is tied to a different legacy account than the one already linked to your profile.',
+        'This historical record is tied to a different legacy account than the one already linked to your profile.'
+        + ASK_ADMIN_AFTER_SIGNUP,
       );
     }
     const lm = legacyMembers.findByLegacyMemberId.get(hp.legacy_member_id) as LegacyMemberRow | undefined;
     if (lm && lm.claimed_by_member_id && lm.claimed_by_member_id !== requestingMemberId) {
       throw new ValidationError(
-        'The legacy account tied to this historical record has already been claimed by another member.',
+        'The legacy account tied to this historical record has already been claimed by another member.'
+        + ASK_ADMIN_AFTER_SIGNUP,
       );
     }
   }
@@ -3602,7 +3612,8 @@ function claimHistoricalPersonInTx(
     claimHistoricalPersonInTxInner(requestingMemberId, personId, evidenceStrength);
   } catch (err) {
     if (isUniqueConstraintError(err)) {
-      throw new ConflictError('This historical record has already been claimed by another member.');
+      throw new ConflictError('This historical record has already been claimed by another member.'
+        + ASK_ADMIN_AFTER_SIGNUP);
     }
     throw err;
   }
@@ -3635,7 +3646,8 @@ function claimHistoricalPersonInTxInner(
 
   const existing = legacyClaim.findMemberClaimingHp.get(personId) as { id: string; slug: string } | undefined;
   if (existing) {
-    throw new ValidationError('This historical record has already been claimed by another member.');
+    throw new ValidationError('This historical record has already been claimed by another member.'
+      + ASK_ADMIN_AFTER_SIGNUP);
   }
 
   // A deceased member who held this record keeps the link through the contact
@@ -3644,7 +3656,8 @@ function claimHistoricalPersonInTxInner(
   // a deceased holder explicitly and gate the execution path the same way.
   const deceasedHolder = legacyClaim.findDeceasedMemberHoldingHp.get(personId) as { id: string } | undefined;
   if (deceasedHolder) {
-    throw new ValidationError('This historical record has already been claimed by another member.');
+    throw new ValidationError('This historical record has already been claimed by another member.'
+      + ASK_ADMIN_AFTER_SIGNUP);
   }
 
   // The surname gate constrains self-serve claiming. Admin-vetted evidence
@@ -3691,7 +3704,8 @@ function claimHistoricalPersonInTxInner(
   if (hp.legacy_member_id) {
     if (member.legacy_member_id && member.legacy_member_id !== hp.legacy_member_id) {
       throw new ValidationError(
-        'This historical record is tied to a different legacy account than the one already linked to your profile.',
+        'This historical record is tied to a different legacy account than the one already linked to your profile.'
+        + ASK_ADMIN_AFTER_SIGNUP,
       );
     }
     const lm = legacyMembers.findByLegacyMemberId.get(hp.legacy_member_id) as LegacyMemberRow | undefined;
@@ -3711,7 +3725,8 @@ function claimHistoricalPersonInTxInner(
       const marked = legacyMembers.markClaimed.run(requestingMemberId, now, hp.legacy_member_id);
       if (marked.changes === 0) {
         throw new ValidationError(
-          'The legacy account tied to this historical record has already been claimed by another member.',
+          'The legacy account tied to this historical record has already been claimed by another member.'
+        + ASK_ADMIN_AFTER_SIGNUP,
         );
       }
       if (!member.legacy_member_id) {
@@ -3719,7 +3734,8 @@ function claimHistoricalPersonInTxInner(
       }
     } else if (lm && lm.claimed_by_member_id && lm.claimed_by_member_id !== requestingMemberId) {
       throw new ValidationError(
-        'The legacy account tied to this historical record has already been claimed by another member.',
+        'The legacy account tied to this historical record has already been claimed by another member.'
+        + ASK_ADMIN_AFTER_SIGNUP,
       );
     }
   }

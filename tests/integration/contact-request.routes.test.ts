@@ -77,7 +77,7 @@ describe('GET /members/:slug/contact-admin', () => {
     expect(res.text).toContain('Display name correction');
     expect(res.text).toContain('Profile URL correction');
     expect(res.text).toContain('Tier-status question');
-    expect(res.text).toContain('Identity-link issue');
+    expect(res.text).toContain('Old account or competition-record link');
     expect(res.text).toContain('Other');
   });
 
