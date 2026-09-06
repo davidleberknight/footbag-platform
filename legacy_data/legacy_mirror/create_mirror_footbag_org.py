@@ -3272,6 +3272,65 @@ def scrub_account_contact_block(soup):
     return removed
 
 
+# The nameplate template renders a member's location as a label followed by up
+# to three values: the address line, emitted only when the member record carries
+# one, then the city with the region appended where it differs from the country,
+# then the country. The trailing two are always emitted, so a block of three is
+# exactly a block carrying an address, and that count is the whole rule.
+#
+# The label is deliberately not read. The template localizes it and the site
+# serves sixteen languages, so a crawl in another locale would walk straight
+# past a label match while still archiving the address.
+#
+# Nor is the value read. How a line reads decides nothing in either direction: a
+# two-value block provably holds no address, so its first value is a city and
+# stays however street-like it looks, and a three-value block holds one, so its
+# first value goes however much it looks like a place name.
+#
+# Scope is the two containers the template puts the block in, never the outer
+# nameplate: the membership-status field sits there and renders several values
+# of its own, which a rule counting values would take instead.
+#
+# The invariant this rests on holds across the whole capture: inside these two
+# containers, a label followed by exactly three values is the location block and
+# nothing else. Any other count is left alone, so a template change that broke
+# the invariant would surface as an unscrubbed block rather than as content
+# silently deleted somewhere else.
+_NAMEPLATE_ADDRESS_CONTAINERS = ('membersNameplateEnd', 'membersMiniNameplate')
+_NAMEPLATE_ADDRESS_VALUE_COUNT = 3
+
+
+def scrub_nameplate_address_line(soup):
+    removed = 0
+    for container in _NAMEPLATE_ADDRESS_CONTAINERS:
+        for box in list(soup.find_all('div', class_=container)):
+            if _already_removed(box):
+                continue
+            for term in list(box.find_all('dt')):
+                if _already_removed(term):
+                    continue
+                values = []
+                for sibling in term.next_siblings:
+                    # Whitespace between the elements is not a value; anything
+                    # that is not a value ends the run.
+                    if getattr(sibling, 'name', None) is None:
+                        continue
+                    if sibling.name != 'dd':
+                        break
+                    values.append(sibling)
+                if len(values) != _NAMEPLATE_ADDRESS_VALUE_COUNT:
+                    continue
+                # Counted, not filtered: an empty value is still the slot the
+                # template emitted, and dropping blanks first would read a
+                # member with no city as a two-value block and leave the
+                # address in place.
+                values[0].insert_before(
+                    Comment("Mirror: member address line removed"))
+                values[0].decompose()
+                removed += 1
+    return removed
+
+
 def scrub_elevated_entitlement_content(soup):
     # Everything a signed-in, elevated crawl session can see that an ordinary
     # member reading the archive must not. Three distinct leaks, one pass:
@@ -3707,6 +3766,7 @@ def rewrite_links(html, page_url, link_base=None):
         # a crawl sees what is being removed rather than having to trust it.
         # Silent on a page that needed nothing, which is most of them.
         contact_blocks = scrub_account_contact_block(soup)
+        address_lines = scrub_nameplate_address_line(soup)
         admin_fields = scrub_elevated_entitlement_content(soup)
         charset_added = ensure_charset_declaration(soup)
         # Forms go before outbound neutralization, not after. A form's contents
@@ -3725,6 +3785,8 @@ def rewrite_links(html, page_url, link_base=None):
         mirror_state.stats['admin_only_fields_removed'] += admin_fields
         mirror_state.stats['account_contact_blocks_removed'] = (
             mirror_state.stats.get('account_contact_blocks_removed', 0) + contact_blocks)
+        mirror_state.stats['nameplate_address_lines_removed'] = (
+            mirror_state.stats.get('nameplate_address_lines_removed', 0) + address_lines)
         mirror_state.stats['scripts_and_handlers_removed'] += scripts
         mirror_state.stats['server_diagnostics_removed'] = (
             mirror_state.stats.get('server_diagnostics_removed', 0) + diagnostics)
@@ -4892,6 +4954,7 @@ def print_stats():
     print("-- static-archive sanitization --")
     print(f"Admin-only fields removed: {s.get('admin_only_fields_removed', 0):,}")
     print(f"Account contact blocks removed: {s.get('account_contact_blocks_removed', 0):,}")
+    print(f"Member address lines removed: {s.get('nameplate_address_lines_removed', 0):,}")
     print(f"Account addresses redacted: {s.get('account_addresses_redacted', 0):,}")
     print(f"Dead forms removed: {s.get('dead_forms_removed', 0):,}")
     print(f"Scripts and handlers removed: {s.get('scripts_and_handlers_removed', 0):,}")
