@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# Production email send-path validation. Operator-run after SES production-access
-# activation (AWS_OPERATIONS.md, private GitHub repo). Sends through live SES to
+# Production email send-path validation. Operator-run only once the SES account
+# has left the sandbox: inside the sandbox a send reaches pre-verified addresses
+# only, so this check would report success while proving nothing about the real
+# send path. Sends through live SES to
 # the AWS mailbox simulator
 # (reputation-safe: the success simulator address never bounces and is not a
 # real recipient) and, optionally, to one operator-supplied real inbox for an

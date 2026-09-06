@@ -564,11 +564,11 @@ describe('docker-compose.prod.yml structural invariants', () => {
 
   it('memory limits are env-var-driven with nano_3_0 defaults', () => {
     // Memory limits are env-driven so the same overlay sizes correctly for
-    // staging (nano_3_0, 512M host) and production (medium_3_0, 4GB host).
-    // Defaults match the staging sizing so staging keeps working without
-    // overrides; the deploy seeds the per-environment values from the committed
-    // docker/env/<environment>.env into /srv/footbag/env. If a default changes,
-    // keep docker/env/*.env and the operator deployment docs in sync.
+    // staging (nano_3_0, 512M host) and production (medium_3_0, 4GB host). The
+    // defaults are small-host sizing, so a host that seeds nothing still boots;
+    // the deploy seeds the per-environment values from the committed
+    // docker/env/<environment>.env into /srv/footbag/env, and staging clamps
+    // tighter than a default where its own tuning found it could.
     const overlay = loadCompose('docker/docker-compose.prod.yml');
     expect(overlay.services.nginx.deploy?.resources?.limits?.memory).toBe('${NGINX_MEMORY_LIMIT:-64M}');
     expect(overlay.services.web.deploy?.resources?.limits?.memory).toBe('${WEB_MEMORY_LIMIT:-192M}');
@@ -626,5 +626,110 @@ describe('FOOTBAG_DEV_* placement (dev/staging admin allowlist scope)', () => {
     expect(webEnv).toHaveProperty('FOOTBAG_DEV_INITIAL_ADMIN_EMAILS');
     expect(workerEnv).not.toHaveProperty('FOOTBAG_DEV_INITIAL_ADMIN_EMAILS');
     expect(imageEnv).not.toHaveProperty('FOOTBAG_DEV_INITIAL_ADMIN_EMAILS');
+  });
+});
+
+/**
+ * Committed per-environment sizing files against the overlay's fallbacks.
+ *
+ * Long-term contract: the ceiling a deployed container actually runs under comes
+ * from the committed `docker/env/<environment>.env`, which the deploy seeds into
+ * the host's runtime env, and the overlay's `${VAR:-default}` expressions are the
+ * staging sizing used only where that file omits a key. The two halves are
+ * restated by hand wherever the deployment is described, and nothing compares
+ * them, so a retune that moves one and not the other ships unnoticed.
+ */
+
+/** Parse a committed `KEY=value` env file. Blank lines and comments are skipped. */
+function loadEnvFile(relPath: string): Record<string, string> {
+  const absPath = path.resolve(__dirname, '../..', relPath);
+  const out: Record<string, string> = {};
+  for (const rawLine of readFileSync(absPath, 'utf8').split('\n')) {
+    const line = rawLine.trim();
+    if (line === '' || line.startsWith('#')) continue;
+    const eq = line.indexOf('=');
+    if (eq === -1) continue;
+    out[line.slice(0, eq).trim()] = line.slice(eq + 1).trim();
+  }
+  return out;
+}
+
+/** A docker memory size (`512M`, `2G`) as a number of megabytes. */
+function megabytes(size: string): number {
+  const match = /^(\d+)([MG])?$/.exec(size.trim());
+  if (!match) throw new Error(`unparseable memory size: ${size}`);
+  return Number(match[1]) * (match[2] === 'G' ? 1024 : 1);
+}
+
+/** The literal a `${VAR:-default}` compose expression falls back to. */
+function composeDefault(expr: string | undefined): string | undefined {
+  const match = /^\$\{[A-Z_][A-Z0-9_]*:-([^}]*)\}$/.exec(expr ?? '');
+  return match ? match[1] : undefined;
+}
+
+// The allocation the 4GB production host is designed around: 1,920M of ceilings
+// against 4GB of RAM, so every limit can be held at once with the host's own
+// headroom intact. Pinned as literals because the same four numbers are restated
+// by hand wherever the deployment is described, and this is the only check that
+// they still match what ships. A failure means one of exactly two things: the
+// deployment was retuned, and every statement of the allocation has to move with
+// it, or the committed file drifted and the file is the wrong half.
+const PRODUCTION_MEMORY_LIMITS: Record<string, string> = {
+  NGINX_MEMORY_LIMIT: '128M',
+  WEB_MEMORY_LIMIT: '512M',
+  WORKER_MEMORY_LIMIT: '384M',
+  IMAGE_MEMORY_LIMIT: '896M',
+};
+
+const MEMORY_LIMIT_BY_SERVICE: Record<string, string> = {
+  nginx: 'NGINX_MEMORY_LIMIT',
+  web: 'WEB_MEMORY_LIMIT',
+  worker: 'WORKER_MEMORY_LIMIT',
+  image: 'IMAGE_MEMORY_LIMIT',
+};
+
+describe('committed per-environment sizing files', () => {
+  it('production carries the four memory ceilings the 4GB host is sized for', () => {
+    const prod = loadEnvFile('docker/env/production.env');
+    for (const [key, expected] of Object.entries(PRODUCTION_MEMORY_LIMITS)) {
+      expect(prod[key], `production ${key}`).toBe(expected);
+    }
+  });
+
+  it('no overlay fallback is tighter than the value staging runs', () => {
+    // The fallbacks exist so the small host boots with no overrides at all, and
+    // staging is free to clamp tighter than one, which it does. What it must
+    // never do is need more: a staging value above its fallback means any host
+    // that omits the key runs a ceiling smaller than the one staging proved it
+    // needs, and the container dies on a size nobody chose.
+    const overlay = loadCompose('docker/docker-compose.prod.yml');
+    const staging = loadEnvFile('docker/env/staging.env');
+    for (const [service, key] of Object.entries(MEMORY_LIMIT_BY_SERVICE)) {
+      const fallback = composeDefault(
+        overlay.services[service].deploy?.resources?.limits?.memory,
+      );
+      expect(fallback, `${service} limit declares a fallback`).toBeDefined();
+      if (staging[key] === undefined) continue;
+      expect(
+        megabytes(staging[key]),
+        `staging ${key} (${staging[key]}) within its fallback (${fallback})`,
+      ).toBeLessThanOrEqual(megabytes(fallback as string));
+    }
+  });
+
+  it('production overrides the encoder preset only; staging clamps all three', () => {
+    // Both hosts have two vCPUs, so production overrides the preset: at x264's
+    // own default the encoder cannot finish a file at the accepted size limit
+    // inside its time budget. It overrides nothing else, because thread count
+    // and lookahead depth are memory-and-parallelism clamps the 4GB host does
+    // not need, while the 512M staging host needs all three.
+    const prod = loadEnvFile('docker/env/production.env');
+    const staging = loadEnvFile('docker/env/staging.env');
+    expect(prod.VIDEO_X264_PRESET, 'production preset override').toBeTruthy();
+    expect(prod.VIDEO_X264_THREADS, 'production thread override').toBeUndefined();
+    expect(prod.VIDEO_X264_RC_LOOKAHEAD, 'production lookahead override').toBeUndefined();
+    expect(staging.VIDEO_X264_PRESET, 'staging preset clamp').toBeTruthy();
+    expect(staging.VIDEO_X264_THREADS, 'staging thread clamp').toBeTruthy();
+    expect(staging.VIDEO_X264_RC_LOOKAHEAD, 'staging lookahead clamp').toBeTruthy();
   });
 });

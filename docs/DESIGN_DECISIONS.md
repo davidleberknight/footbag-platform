@@ -372,9 +372,9 @@ Impact:
 
 Decision:
 
-Container memory limits: Docker memory limits are explicitly set for each container preventing unbounded memory consumption. Authoritative allocation values are defined and implemented in docker-compose.yml. The following are deployment sizing estimates subject to tuning based on observed production usage. The host survives any container workload: a container that exceeds its budget dies by its own cgroup limit while the host stays responsive. On a host too small to hold every limit simultaneously, the sum of limits may exceed host RAM only where the sole memory-spiking workload is admission-gated on host available memory before it starts and the host carries a disk-backed swapfile; the staging host runs with that explicit residual, and production's limits fit within its RAM.
+Container memory limits: Docker memory limits are explicitly set for each container preventing unbounded memory consumption. Authoritative allocation values for each environment are the committed `docker/env/<environment>.env`, which the deploy seeds into the host env; `docker-compose.prod.yml` reads them and falls back to its own defaults for any key that file omits. The following are deployment sizing estimates subject to tuning based on observed production usage. The host survives any container workload: a container that exceeds its budget dies by its own cgroup limit while the host stays responsive. On a host too small to hold every limit simultaneously, the sum of limits may exceed host RAM only where the sole memory-spiking workload is admission-gated on host available memory before it starts and the host carries a disk-backed swapfile; the staging host runs with that explicit residual, and production's limits fit within its RAM.
 
-Initial Allocations (Subject to Adjustment):
+Initial Production Allocations (Subject to Adjustment):
 
 - nginx: 128MB - Reverse proxy, minimal footprint
 
@@ -386,7 +386,7 @@ Initial Allocations (Subject to Adjustment):
 
 - Total: 1,920MB (47 percent of 4GB instance)
 
-These numeric allocations are deployment-time container resource sizing values for the AWS/Lightsail runtime and are implemented in runtime configuration (for example docker-compose.yml). They are not Administrator-configurable application parameters. The numbers provided in this document are all deployment sizing estimates and may be tuned in runtime configuration based on observed usage.
+These numeric allocations are deployment-time container resource sizing values for the AWS/Lightsail runtime and are implemented in runtime configuration (the committed per-environment env file the deploy seeds onto the host, read by `docker-compose.prod.yml`). They are not Administrator-configurable application parameters. The numbers provided in this document are all deployment sizing estimates and may be tuned in runtime configuration based on observed usage.
 
 Rationale:
 
@@ -396,7 +396,7 @@ Rationale:
 
 - **worker** is smaller due to asynchronous processing: Background jobs process sequentially or with limited concurrency. Email sending, nightly backups, do not require high memory. 384MB sufficient for runtime and job processing. 
 
-- **image** is largest due to Sharp library: Image processing library loads entire image into memory, performs transformations, and outputs new format. Sharp decodes the entire source image into an uncompressed raster before resizing. Uploads are capped at 25MB and PNG is accepted (PNG has no shrink-on-load, so a large PNG decodes in full), and each upload generates its thumbnail and display variants as two parallel Sharp pipelines, so one upload holds two simultaneous decodes. The production host runs two uploads concurrently, so up to four decodes can be in flight; 896MB provides the safety margin, and smaller hosts scale the memory limit and the concurrency cap down together. The video transcode path holds no source or output buffers in the container: bytes stream between storage and disk, so its memory cost is the encoder child's working set, bounded by the output height ceiling and the x264 tuning. 
+- **image** is largest because the ceiling must hold a bounded image decode and a co-resident transcode at once. Sharp's cost is pixels times bytes per pixel rather than file size, so the decode is bounded by an input cap of 4096 by 4096 rather than by the 25MB upload cap: at two concurrent uploads, each decoding its thumbnail and display variants in parallel, the worst case is four decodes at four bytes per pixel, about 268MB. That pixel cap is derived from the container ceiling rather than the ceiling from it, and the remainder of the 896MB is the Node runtime, in-flight upload buffers, and the encoder child's working set, which is the one workload here that spikes: no video bytes are held whole, since the source streams to a disk temp file and ffmpeg runs file to file, so peak memory is the encoder's working set as set by the output height ceiling and the x264 tuning. Encodes are admitted one at a time and refused while host memory is below a floor. A host that cannot hold the combination scales the memory limit, the upload concurrency cap, and the encoder tuning down together, which is what the small host does. 
 
 Trade-offs:
 
@@ -412,7 +412,7 @@ Trade-offs:
 
 Impact:
 
-- docker-compose.yml specifies memory limits for each container using the `deploy.resources.limits.memory` directive, with per-environment values supplied through the host env.
+- docker-compose.prod.yml specifies memory limits for each container using the `deploy.resources.limits.memory` directive, with per-environment values supplied through the host env the deploy seeds from `docker/env/<environment>.env`.
 
 - Container will be killed (OOM) if exceeds allocated memory. Health checks and restart policies ensure container restarts automatically, and the host survives the episode: no single container's ceiling can exhaust what the host and its swap can supply.
 

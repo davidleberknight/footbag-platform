@@ -444,7 +444,8 @@ AWS_PROFILE_VAL=$(require_env AWS_PROFILE)
 if [[ "$FOOTBAG_ENV_VAL" != "staging" && "$KEEP_MEDIA" != "yes" ]]; then
   echo "ERROR: refusing to auto-wipe S3 media on FOOTBAG_ENV=$FOOTBAG_ENV_VAL." >&2
   echo "       Pass --keep-media to rebuild the DB without touching S3." >&2
-  echo "       Wiping non-staging media is out-of-band; see DEVOPS_GUIDE.md (private GitHub repo)." >&2
+  echo "       Wiping non-staging media is a deliberate out-of-band operation, run by hand" >&2
+  echo "       against the named bucket, never as a side effect of a rebuild." >&2
   exit 1
 fi
 

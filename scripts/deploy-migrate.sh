@@ -25,8 +25,11 @@
 #      migration ran, and nothing reverts them. A failed migration therefore
 #      leaves the host running the NEW release against the RESTORED
 #      pre-migration database. Recovery is a redeploy of the previous commit or
-#      a fix-forward migration, and the expand-and-contract rule in
-#      src/db/CLAUDE.md is what keeps that state serviceable rather than broken.
+#      a fix-forward migration. That state is serviceable rather than broken
+#      only because migrations are additive and every migration's paired code is
+#      required to run correctly against the pre-migration schema: it reads a
+#      new column behind a guard, or keeps the feature that needs it dark until
+#      the migration has landed.
 #   6. Restarts and smokes exactly as an ordinary deploy does.
 #
 # Each migration is applied at most once. The host records the filename and a

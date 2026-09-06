@@ -46,8 +46,9 @@ services:
         limits:
           # Memory limit is env-driven so the same compose overlay works for
           # staging (nano_3_0, 512M host) and production (medium_3_0, 4GB host)
-          # without manual edits. Default 64M fits staging; the deploy seeds
-          # NGINX_MEMORY_LIMIT=128M for production from docker/env/production.env,
+          # without manual edits. The 64M default is small-host sizing a host
+          # that seeds nothing can boot on; staging seeds 48M, and the deploy
+          # seeds NGINX_MEMORY_LIMIT=128M for production from docker/env/production.env,
           # giving headroom for the origin TLS, proxy-buffer, and gzip working
           # set at 2048 max connections.
           memory: ${NGINX_MEMORY_LIMIT:-64M}
@@ -431,8 +432,9 @@ services:
     deploy:
       resources:
         limits:
-          # Memory limit is env-driven (see web service). Default 256M fits
-          # staging (nano_3_0); production /srv/footbag/env sets
+          # Memory limit is env-driven (see web service). The 256M default is
+          # small-host sizing and staging seeds 192M under it; production
+          # /srv/footbag/env sets
           # IMAGE_MEMORY_LIMIT=896M plus IMAGE_MAX_CONCURRENT=2 to take full
           # advantage of the production 4GB host.
           memory: ${IMAGE_MEMORY_LIMIT:-256M}

@@ -1627,15 +1627,19 @@ write_csv(
 )
 
 # Validation: report population counts for the legacy identity columns.
-# legacy_email must remain blank pending the legacy-site dump; assert this
-# invariant to fail fast if a future change accidentally infers values.
+# legacy_email stays blank permanently, not pending anything. This file is
+# committed to the public repository, which holds no member personal data, and
+# nothing downstream reads the column: the platform export carries it nowhere,
+# and the claim and auto-link surfaces take their email anchor from the
+# legacy_members table, filled from the delivered member export. Assert the
+# invariant to fail fast if a future change infers values into it.
 _pop_member_id      = sum(1 for _r in persons_out if _r.get("member_id", "").strip())
 _pop_legacy_user_id = sum(1 for _r in persons_out if _r.get("legacy_user_id", "").strip())
 _pop_legacy_email   = sum(1 for _r in persons_out if _r.get("legacy_email", "").strip())
 print(f"\nLegacy identity coverage on persons.csv:")
 print(f"  member_id populated      : {_pop_member_id:,} / {len(persons_out):,}")
 print(f"  legacy_user_id populated : {_pop_legacy_user_id:,} / {len(persons_out):,}")
-print(f"  legacy_email populated   : {_pop_legacy_email:,} / {len(persons_out):,}  (must stay 0 pending legacy-site dump)")
+print(f"  legacy_email populated   : {_pop_legacy_email:,} / {len(persons_out):,}  (must stay 0: public file, no consumer)")
 assert _pop_legacy_email == 0, "legacy_email must remain blank; nothing should infer it"
 
 # ── Referential closure: backfill persons missing from persons.csv ─────────────
