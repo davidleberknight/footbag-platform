@@ -269,15 +269,45 @@ resource "aws_s3_bucket_lifecycle_configuration" "snapshots" {
     filter {}
     noncurrent_version_expiration { noncurrent_days = 90 }
   }
-  # The routine backup producer (scripts/backup-db.sh, every 5 minutes)
-  # accumulates ~288 objects/day under routine/; expire them after 30 days.
-  # The pre-cutover snapshot lands in the DR bucket under pre-flip/, never
-  # under routine/, so this rule cannot age it out.
+  # Three retention tiers, written by the backup producer. Every run lands in
+  # routine/; the first run of each hour is also copied to hourly/ and the first
+  # of each day to daily/, so the history thins as it ages instead of holding
+  # every full copy at full grain and then stopping dead.
+  #
+  # Measured inputs: a snapshot is ~13.7 MB and the timer yields ~240 a day, so
+  # an undifferentiated 30-day routine window is ~7,200 objects and ~98 GB, and
+  # nothing at all survives day 31. These windows hold ~1,600 objects and ~22 GB
+  # while adding a year of daily restore points that did not exist before.
+  #
+  # What this costs in recovery terms: a corruption found within two days still
+  # restores to within six minutes of it, one found inside a month to within an
+  # hour, and one found inside a year to within a day. Only the fine grain ages
+  # out, never the most recent snapshot, so the recovery point objective for an
+  # ordinary failure is unchanged.
+  #
+  # The pre-cutover snapshot lands in the DR bucket under pre-flip/, never under
+  # any of these prefixes, so none of these rules can age it out.
   rule {
     id     = "expire-routine-stream"
     status = "Enabled"
     filter { prefix = "routine/" }
+    expiration { days = 2 }
+  }
+
+  rule {
+    id     = "expire-hourly-tier"
+    status = "Enabled"
+    filter { prefix = "hourly/" }
     expiration { days = 30 }
+  }
+
+  # Just over a year, so a restore point exists for the same month last year
+  # when an annual reconciliation turns something up.
+  rule {
+    id     = "expire-daily-tier"
+    status = "Enabled"
+    filter { prefix = "daily/" }
+    expiration { days = 400 }
   }
 }
 
@@ -339,10 +369,11 @@ resource "aws_s3_bucket_public_access_block" "dr" {
   restrict_public_buckets = true
 }
 
-# Replication copies every routine snapshot here, and without this rule they
-# accumulate with no end: the 5-minute producer writes ~288 objects a day, so
-# this bucket would grow by roughly 2.7 GB every day forever while the primary
-# stays capped at its own 30-day rule.
+# Replication carries the promoted hourly and daily tiers here, not the routine
+# stream, so this bucket holds roughly one point an hour rather than one every
+# six minutes. Without expiry rules those still accumulate with no end, and the
+# routine rule below remains because copies replicated under the earlier
+# every-object scope have to age out; nothing new arrives under that prefix.
 #
 # 90 days, matching the Object Lock window above, so a copy expires at the
 # moment it first becomes deletable. A shorter window would not delete anything
@@ -361,13 +392,63 @@ resource "aws_s3_bucket_lifecycle_configuration" "dr" {
     filter { prefix = "routine/" }
     expiration { days = 90 }
   }
+
+  # The hourly tier is the off-region recovery grain. 90 days rather than the
+  # primary's 30, because Object Lock refuses a delete before the lock lapses
+  # and a shorter window would only put the rule and the lock into disagreement.
+  rule {
+    id     = "expire-dr-hourly-tier"
+    status = "Enabled"
+    filter { prefix = "hourly/" }
+    expiration { days = 90 }
+  }
+
+  # Matches the primary's daily window, which is already well past the lock.
+  rule {
+    id     = "expire-dr-daily-tier"
+    status = "Enabled"
+    filter { prefix = "daily/" }
+    expiration { days = 400 }
+  }
+
+  # The rule above only writes a delete marker, because this bucket is versioned.
+  # Without this second rule the superseded versions sit behind those markers
+  # forever, so "expires after 90 days" was true of visibility and false of
+  # storage, and the bucket grew without bound at roughly 3.5 GB a day. The
+  # primary snapshots bucket has carried the equivalent rule all along; this one
+  # did not, which is why the two diverged silently.
+  #
+  # 90 days matches the Object Lock retention on this bucket: a version cannot be
+  # removed before the lock lapses anyway, so a shorter window here would only
+  # put the rule and the lock into disagreement.
+  rule {
+    id     = "expire-dr-noncurrent-versions"
+    status = "Enabled"
+    filter {}
+    noncurrent_version_expiration { noncurrent_days = 90 }
+  }
 }
 
 # ── Snapshots cross-region replication ───────────────────────────────────────
-# Mirrors the staging/s3.tf media replication pattern: replicate every object
-# (including delete markers) from snapshots (us-east-1) to dr (us-west-2) using
-# the s3_replication IAM role declared in iam.tf. ONEZONE_IA storage class on
-# the destination for cost savings.
+# Replicates the promoted retention tiers (including delete markers) from
+# snapshots (us-east-1) to dr (us-west-2) using the s3_replication IAM role
+# declared in iam.tf, at ONEZONE_IA on the destination.
+#
+# Deliberately not every object. Replicating the six-minute routine stream moved
+# roughly 98 GB a month between regions to build an off-region copy that cannot
+# be thinned, because Object Lock refuses to delete anything for 90 days: the
+# transfer and the destination storage were together the largest line in the
+# backup bill, and the copy they bought was 90 days of near-identical snapshots.
+# Carrying the hourly and daily tiers instead costs about a tenth of that.
+#
+# The trade is stated plainly: losing the whole region costs up to an hour of
+# writes rather than up to six minutes. That is the rarest failure on the list
+# and the one where an hour of member edits is the smallest part of the problem.
+# Every other failure mode restores from the primary bucket and is unaffected.
+#
+# Two rules because a replication filter takes a single prefix. The priorities
+# are distinct as S3 requires; the prefixes cannot overlap, so their order
+# carries no meaning.
 
 resource "aws_s3_bucket_replication_configuration" "snapshots" {
   depends_on = [
@@ -379,9 +460,10 @@ resource "aws_s3_bucket_replication_configuration" "snapshots" {
   bucket = aws_s3_bucket.snapshots.id
 
   rule {
-    id     = "replicate-snapshots-to-dr"
-    status = "Enabled"
-    filter {}
+    id       = "replicate-hourly-tier-to-dr"
+    status   = "Enabled"
+    priority = 10
+    filter { prefix = "hourly/" }
     delete_marker_replication { status = "Enabled" }
 
     destination {
@@ -391,6 +473,26 @@ resource "aws_s3_bucket_replication_configuration" "snapshots" {
       # S3 publishes the replication metrics the alarms read only when the rule
       # asks for them, so the metrics and the alarms share one flag: arming the
       # alarms without the metrics would watch a stream that does not exist.
+      dynamic "metrics" {
+        for_each = var.enable_replication_alarm ? [1] : []
+        content {
+          status = "Enabled"
+        }
+      }
+    }
+  }
+
+  rule {
+    id       = "replicate-daily-tier-to-dr"
+    status   = "Enabled"
+    priority = 20
+    filter { prefix = "daily/" }
+    delete_marker_replication { status = "Enabled" }
+
+    destination {
+      bucket        = aws_s3_bucket.dr.arn
+      storage_class = "ONEZONE_IA"
+
       dynamic "metrics" {
         for_each = var.enable_replication_alarm ? [1] : []
         content {

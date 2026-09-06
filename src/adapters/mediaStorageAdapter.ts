@@ -1,10 +1,10 @@
 /**
  * MediaStorageAdapter: interface + implementations + singleton getter for the
- * adapters layer. Abstracts media storage between environments. Production
- * uses S3 (`createS3MediaStorageAdapter`); development and pre-cutover
- * staging use the local filesystem (`createLocalMediaStorageAdapter`) with
- * identical key structure. Both implementations return relative
- * `/media-store/{key}` URLs from `constructURL`. The CloudFront
+ * adapters layer. Abstracts media storage between environments. Staging and
+ * production use S3 (`createS3MediaStorageAdapter`); development uses the
+ * local filesystem (`createLocalMediaStorageAdapter`) with identical key
+ * structure. Both implementations return relative `/media-store/{key}` URLs
+ * from `constructURL`. The CloudFront
  * `/media-store/*` cache behavior routes to the S3 bucket via OAC (with a
  * viewer-request function stripping the prefix so S3 sees the bare key).
  * Services call the interface; the getter returns the configured

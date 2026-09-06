@@ -46,9 +46,52 @@ resource "aws_sns_topic_policy" "alarms" {
             "AWS:SourceAccount" = var.aws_account_id
           }
         }
+      },
+      {
+        # EventBridge, for AWS Health events. Nothing else tells the operator
+        # when AWS itself is having the incident: the account is on Basic
+        # support, so the Health API is unavailable and no support case can be
+        # opened at any severity. What Basic does include is EventBridge
+        # delivery of Health events at no cost, which is the whole opportunity
+        # here -- the detection is free, and the absence of a support path makes
+        # early warning worth more rather than less, since watching and
+        # stabilising is the only available response.
+        Sid       = "AllowEventBridgePublish"
+        Effect    = "Allow"
+        Principal = { Service = "events.amazonaws.com" }
+        Action    = "SNS:Publish"
+        Resource  = aws_sns_topic.alarms.arn
+        Condition = {
+          StringEquals = {
+            "AWS:SourceAccount" = var.aws_account_id
+          }
+        }
       }
     ]
   })
+}
+
+# ── AWS Health events ────────────────────────────────────────────────────────
+# Health events for global services publish to us-east-1, which is this
+# account's primary region, so one rule covers them. A second rule in us-west-2
+# is deliberately NOT wired: the only resources there are the disaster-recovery
+# replica buckets, whose failure surfaces through the replication alarms rather
+# than through a Health event nobody would act on differently. Recorded as a
+# decision rather than left as an omission.
+
+resource "aws_cloudwatch_event_rule" "aws_health" {
+  name        = "${local.prefix}-aws-health"
+  description = "AWS Health events for this account, delivered to the alarm topic"
+
+  event_pattern = jsonencode({
+    source = ["aws.health"]
+  })
+}
+
+resource "aws_cloudwatch_event_target" "aws_health_to_alarms" {
+  rule      = aws_cloudwatch_event_rule.aws_health.name
+  target_id = "alarms-topic"
+  arn       = aws_sns_topic.alarms.arn
 }
 
 resource "aws_sns_topic_subscription" "alarm_email" {

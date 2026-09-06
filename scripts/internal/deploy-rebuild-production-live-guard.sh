@@ -15,10 +15,32 @@
 #      beyond the pre-launch operator allowance, whatever the marker says.
 #      THRESHOLD: more than 3 members rows with a password hash and a
 #      non-persona id. The allowance covers the maintainer and admin-bootstrap
-#      registrations made while proving pre-cutover production; real members
-#      arrive only with the final data load, after which this deploy path is
-#      dead. If the threshold is wrong the guard silently fails to protect,
-#      so it lives here in the header, stated with its reasoning.
+#      registrations made while proving pre-cutover production. If the threshold
+#      is wrong the guard silently fails to protect, so it lives here in the
+#      header, stated with its reasoning.
+#
+#      WHAT IT DOES NOT COVER, corrected 2026-09-05. The sentence here used to
+#      read "real members arrive only with the final data load, after which this
+#      deploy path is dead". That is not what the load does. The final load
+#      populates `legacy_members` -- roughly 25,000 rows of real member data --
+#      and those rows carry NO password hash, because a legacy account has none
+#      until its member claims it. So this tripwire counts the handful of
+#      operator accounts, passes, and a rebuild would destroy the load while
+#      printing nothing.
+#
+#      This is deliberate and was ruled 2026-09-05 rather than patched. Counting
+#      `legacy_members` instead would refuse every pre-live test load too, since
+#      a test load is itself a database-replacing deploy filling the same table
+#      with the same volume: the two are indistinguishable by row count. The
+#      production-live marker is the discriminator; this tripwire is not one and
+#      cannot be made into one.
+#
+#      The residual exposure is one window: between the final load and the
+#      marker flip, during the freeze. Nothing in code closes it. The go-live
+#      plan orders the marker flip immediately after the pre-flip snapshot
+#      verifies, to keep that window as short as it can be, and the operator
+#      knows when they are switching production over. Accepted risk, recorded
+#      here so it is inherited knowingly rather than discovered.
 #      A missing database file or a database without a members table is a
 #      fresh host and passes; a present-but-unreadable database, or missing
 #      sqlite3 tooling, refuses.
@@ -121,7 +143,14 @@ if [[ "${FOOTBAG_ENV:-}" == "production" ]]; then
         echo "       (fail closed). Install sqlite3 on the host and retry." >&2
         exit 1
       fi
-      if ! sqlite3 "file:${PROD_LIVE_GUARD_DB_CANDIDATE}?mode=ro" 'SELECT 1;' >/dev/null 2>&1; then
+      # The probe reads the schema rather than selecting a constant. SQLite opens
+      # a file lazily, so `SELECT 1` returns successfully against a file that is
+      # not a database at all, never having touched the header; the corrupt file
+      # would then reach the table check below, answer nothing, and read as a
+      # fresh host with no members. Fail-closed only holds if the probe actually
+      # opens the database.
+      if ! sqlite3 "file:${PROD_LIVE_GUARD_DB_CANDIDATE}?mode=ro" \
+        'SELECT count(*) FROM sqlite_master;' >/dev/null 2>&1; then
         echo "ERROR: refusing the database-replacing deploy: $PROD_LIVE_GUARD_DB_CANDIDATE" >&2
         echo "       exists but could not be read, so the real-member tripwire cannot" >&2
         echo "       rule out live member data (fail closed)." >&2

@@ -26,8 +26,24 @@ RELEASE_DIR=/home/footbag/footbag-release
 # secret. Mode 600 limits who can read it; nothing limits how long it stays, and
 # nothing looks for it. The sweep is unconditional on exit for that reason: it
 # costs nothing on a clean run and is the only thing that cleans up a dirty one.
+backup_timer_paused=0
 cleanup_env_tempfiles() {
-  rm -f /srv/footbag/.env.tmp.* /srv/footbag/.deployed-from.tmp.* 2>/dev/null || true
+  # Overwritten rather than unlinked: what a stranded temp file holds is the
+  # host's entire secret set, and an unlink leaves the blocks readable to anyone
+  # who later reaches the disk or an image of it. shred is best-effort on a
+  # journalling filesystem and is still strictly better than removing the name
+  # alone; the plain removal stays as the fallback so the sweep cannot itself
+  # leave the file behind on a host without the tool.
+  shred -u /srv/footbag/.env.tmp.* /srv/footbag/.deployed-from.tmp.* 2>/dev/null || \
+    rm -f /srv/footbag/.env.tmp.* /srv/footbag/.deployed-from.tmp.* 2>/dev/null || true
+  # Restart the backup timer on EVERY exit path, success or failure, including an
+  # interrupt part-way through a migration. A timer left stopped silently loses
+  # the five-minute recovery point and nothing surfaces it until the stale-backup
+  # alarm breaches fifteen minutes later.
+  if [[ "$backup_timer_paused" == "1" ]]; then
+    systemctl start footbag-backup.timer || \
+      echo "WARNING: could not restart footbag-backup.timer. Backups are STOPPED; start it by hand." >&2
+  fi
 }
 trap cleanup_env_tempfiles EXIT
 
@@ -196,6 +212,23 @@ elif [[ "$EXISTING_FOOTBAG_ENV" != "$FOOTBAG_ENV" ]]; then
   exit 1
 fi
 
+# The deployed compose overlay interpolates PUBLIC_BASE_URL with a fail marker
+# and no default, so a host whose env file has no such line cannot start the
+# stack at all. Every other value that overlay hard-requires is written by this
+# script before the stack comes up: the worker channel secret is seeded, the
+# origin-verify secret and the log level come from Parameter Store, the adapter
+# selectors are reconciled from the committed host config, and the environment
+# label is settled just above. This one is nobody's but the operator's, which is
+# why it is the only value worth refusing on. Checked here rather than at the
+# restart because a compose interpolation failure names the variable and nothing
+# else: no hint that the fix is a missing line in the host env file.
+if ! grep -qE '^PUBLIC_BASE_URL=.+' "$ENV_PATH"; then
+  echo "ERROR: $ENV_PATH carries no PUBLIC_BASE_URL." >&2
+  echo "       The deployed compose overlay requires it and nothing here writes it." >&2
+  echo "       Add PUBLIC_BASE_URL=<the site's canonical origin> and re-run." >&2
+  exit 1
+fi
+
 # MEDIA_STORAGE_ADAPTER, SECRETS_ADAPTER, JWT_SIGNER and CAPTCHA_ADAPTER are
 # not seeded here. They are constants of a deployed environment, declared in the
 # committed docker/env/<FOOTBAG_ENV>.env and reconciled by
@@ -347,8 +380,14 @@ done
 unset _pf_env _pf_profile _pf_region _pf_name
 
 echo "==> Promoting release (preserving env, DB, media)..."
+# deployed-from is excluded for a different reason than the three beside it.
+# Those are host state the release must not overwrite; this one is the record of
+# which release is running, and it is rewritten at the end of a successful run.
+# Without the exclusion the delete pass removes it here and a run that fails
+# anywhere between leaves the host with no record at all, which is precisely
+# when someone needs to know what is on it.
 rsync -a --delete \
-  --exclude=/env --exclude=/db --exclude=/media \
+  --exclude=/env --exclude=/db --exclude=/media --exclude=/deployed-from \
   "$RELEASE_DIR/" "$LIVE_DIR/"
 chown -R root:root "$LIVE_DIR"
 
@@ -1245,6 +1284,21 @@ fi
 # Re-tested because the already-applied check above can clear it, in which case
 # this deploy carries on as an ordinary code deploy.
 if [[ -n "${MIGRATION_SQL:-}" ]]; then
+  # The backup timer fires every five minutes independently of this deploy and
+  # opens the same database. A run landing inside the migration either ships a
+  # backup of a half-migrated database or holds the file open and makes the
+  # checkpoint below report busy. Restarted by the EXIT trap on every path.
+  if systemctl is-active --quiet footbag-backup.timer 2>/dev/null; then
+    backup_timer_paused=1
+    systemctl stop footbag-backup.timer || {
+      echo "ERROR: could not stop footbag-backup.timer. Refusing to migrate while a" >&2
+      echo "       backup may fire into the middle of it; nothing was migrated." >&2
+      backup_timer_paused=0
+      exit 1
+    }
+    echo "    backup timer paused for the duration"
+  fi
+
   # Stopped first: the application holds the database open, and SQLite writes
   # from two directions is how a half-applied migration becomes a corrupt file.
   systemctl stop footbag
@@ -1257,16 +1311,45 @@ if [[ -n "${MIGRATION_SQL:-}" ]]; then
   # transactions the copy would not carry, and the restore below deletes the WAL
   # on its way to putting the copy back, so those transactions would be lost by
   # the very step meant to preserve them. The copy has to stand on its own.
-  sqlite3 "$DB_PATH" 'PRAGMA busy_timeout=5000; PRAGMA wal_checkpoint(TRUNCATE);' >/dev/null || {
-    echo "ERROR: could not checkpoint the write-ahead log before copying the database." >&2
+  # Read the checkpoint's own result, not just sqlite3's exit status.
+  # wal_checkpoint returns "busy|log|checkpointed" and sets busy=1 when it could
+  # NOT complete -- while still exiting 0. Discarding that row reported success
+  # for exactly the failure this guard exists to catch.
+  # tail -1 because `PRAGMA busy_timeout` returns a row of its own, so the output
+  # is two lines and the checkpoint result is the second.
+  checkpoint_row="$(sqlite3 "$DB_PATH" 'PRAGMA busy_timeout=5000; PRAGMA wal_checkpoint(TRUNCATE);' 2>/dev/null | tail -1)" || checkpoint_row=""
+  if [[ -z "$checkpoint_row" || "${checkpoint_row%%|*}" != "0" ]]; then
+    echo "ERROR: could not checkpoint the write-ahead log before copying the database" >&2
+    echo "       (wal_checkpoint returned '${checkpoint_row:-no result}'; a leading 1" >&2
+    echo "       means it was busy and did not complete)." >&2
     echo "       Refusing to migrate: a copy taken now could not be restored intact." >&2
     echo "       Nothing was migrated; restarting the service." >&2
     systemctl start footbag || true
     exit 1
-  }
+  fi
+
+  # Free space for a second copy, checked before the migration touches anything.
+  # A cp that runs out of disk leaves a truncated backup, and this copy is the
+  # only way back from a bad migration.
+  db_kb="$(du -k "$DB_PATH" | cut -f1)"
+  avail_kb="$(df -Pk "$(dirname "$DB_PATH")" | tail -1 | tr -s ' ' | cut -d' ' -f4)"
+  if (( avail_kb < db_kb * 2 )); then
+    echo "ERROR: not enough free space for the pre-migration copy." >&2
+    echo "       database ${db_kb} KB, free ${avail_kb} KB, need at least $(( db_kb * 2 )) KB." >&2
+    echo "       Nothing was migrated; restarting the service." >&2
+    systemctl start footbag || true
+    exit 1
+  fi
 
   migration_backup="${DB_PATH}.pre-migration.$(date -u +%Y%m%dT%H%M%SZ)"
-  cp -a "$DB_PATH" "$migration_backup"
+  # Guarded, like every other risky step here. An unguarded failure would leave
+  # the migration below running with no copy to restore from.
+  if ! cp -a "$DB_PATH" "$migration_backup"; then
+    echo "ERROR: could not take the pre-migration copy; nothing was migrated." >&2
+    echo "       Restarting the service." >&2
+    systemctl start footbag || true
+    exit 1
+  fi
   echo "    pre-migration copy at ${migration_backup}"
 
   # Restores the database only. The release and its images were promoted earlier
@@ -1279,7 +1362,12 @@ if [[ -n "${MIGRATION_SQL:-}" ]]; then
     echo "ERROR: $1" >&2
     echo "       Restoring the pre-migration database and restarting." >&2
     rm -f "$DB_PATH" "${DB_PATH}-wal" "${DB_PATH}-shm"
-    cp -a "$migration_backup" "$DB_PATH"
+    if ! cp -a "$migration_backup" "$DB_PATH"; then
+      echo "ERROR: restoring the pre-migration database ALSO failed. It is intact at" >&2
+      echo "       ${migration_backup} and must be restored by hand. NOT starting the" >&2
+      echo "       service: it would come up against a database that is not there." >&2
+      exit 1
+    fi
     systemctl start footbag || true
     echo "" >&2
     echo "       STATE OF THIS HOST: the database is back as it was, but the code" >&2
@@ -1314,7 +1402,13 @@ if [[ -n "${MIGRATION_SQL:-}" ]]; then
       VALUES ('${MIGRATION_NAME}', '${MIGRATION_CHECKSUM:-}', strftime('%Y-%m-%dT%H:%M:%fZ','now'));"
   fi
 
-  if ! printf 'BEGIN;\n%s\n%s\nCOMMIT;\n' "$MIGRATION_SQL" "$migration_ledger_sql" | sqlite3 "$DB_PATH"; then
+  # `.bail on` makes this an actual transaction. Without it the sqlite3 CLI keeps
+  # reading after a failed statement and reaches the COMMIT, so a migration that
+  # errors part-way through COMMITS what came before it -- the exact opposite of
+  # what the surrounding code promises, and the CLI still exits non-zero, so the
+  # restore path ran and masked it. A test that only asserts the restore happened
+  # passes either way, which is why this survived.
+  if ! printf '.bail on\nBEGIN;\n%s\n%s\nCOMMIT;\n' "$MIGRATION_SQL" "$migration_ledger_sql" | sqlite3 "$DB_PATH"; then
     restore_and_fail "the migration SQL failed"
   fi
 

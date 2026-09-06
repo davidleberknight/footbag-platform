@@ -46,6 +46,25 @@ resource "aws_lightsail_instance" "web" {
   bundle_id         = var.lightsail_bundle_id
   key_pair_name     = aws_lightsail_key_pair.operator.name
 
+  # Host-level recovery. The database ships to S3 every few minutes, but nothing
+  # else on this host does: Docker, the systemd units, /srv/footbag/env, the AWS
+  # credential files and the pinned host key are all hand-bootstrapped and
+  # declared nowhere. Without this, losing the instance means rebuilding it by
+  # hand before a restore can even begin. Daily, seven retained, incremental,
+  # billed on space actually used.
+  #
+  # `add_on` is an in-place update on this resource, unlike `key_pair_name` and
+  # `name`, which are ForceNew. A plan that proposes REPLACING this instance is
+  # not this block and must be refused: the member database is on local disk.
+  #
+  # 15:00 UTC is roughly 03:00 in the operator's timezone, chosen to sit away
+  # from deploys so a snapshot never captures a half-migrated database.
+  add_on {
+    type          = "AutoSnapshot"
+    snapshot_time = "15:00"
+    status        = "Enabled"
+  }
+
   tags = {
     Role = "web"
   }

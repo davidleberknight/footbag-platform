@@ -33,8 +33,11 @@ Usage: bash deploy_to_aws.sh [flags]                       (recommended)
 Default (no flags): code-only — ship code + images, run the post-deploy smoke
 check (not `npm test`, which is the local pre-PR gate — see ALWAYS-ON); the
 staging DB and S3 media are left untouched. A DB rebuild + staging replace is
-opt-in via --from-csv or --soup-to-nuts. Media sync is opt-in via -m /
---sync-media (default off). Prompts before the media clean-sync step.
+opt-in via --from-csv or --soup-to-nuts, and the media sync rides with it: a
+rebuild reseeds curated media and mints new storage keys, so the bytes ship too
+or the rows point at objects that are not there. On a code-only deploy the media
+sync stays opt-in via -m / --sync-media. Opt out of the coupled sync with
+--no-media. Prompts before the media clean-sync step.
 
 MODES (mutually exclusive)
 ─────────────────────────────────────────────────────────────────────
@@ -339,16 +342,15 @@ if [[ "${DEPLOY_TARGET:-footbag-staging}" != "footbag-staging" ]]; then
   refresh_off "is allowlisted to DEPLOY_TARGET=footbag-staging only."
 fi
 # The --no-* opt-outs only make sense in the mode that turns the axis on by
-# default. --no-media rides --soup-to-nuts; --no-personas rides
-# --from-csv and --soup-to-nuts (both seed personas by default on staging). A
-# stray --no-* anywhere else is almost certainly an operator mistake: fail loud.
+# default. --no-media rides any database rebuild, since the media sync follows
+# the rebuild that reseeds curated media; --no-personas rides --from-csv and
+# --soup-to-nuts (both seed personas by default on staging). A stray --no-*
+# anywhere else is almost certainly an operator mistake: fail loud.
 if [[ "$SOUP_TO_NUTS" != "yes" ]]; then
-  for _f in "--no-media:$NO_MEDIA_FLAG"; do
-    if [[ "${_f#*:}" == "yes" ]]; then
-      echo "ERROR: ${_f%%:*} is only meaningful with --soup-to-nuts (these axes are off by default otherwise)." >&2
-      exit 1
-    fi
-  done
+  if [[ "$NO_MEDIA_FLAG" == "yes" && "$FROM_CSV" != "yes" && "$ALL_DATA" != "yes" ]]; then
+    echo "ERROR: --no-media is only meaningful with --from-csv, --all-data, or --soup-to-nuts (the media sync is off by default otherwise)." >&2
+    exit 1
+  fi
   if [[ "$NO_PERSONAS_FLAG" == "yes" && "$FROM_CSV" != "yes" && "$ALL_DATA" != "yes" ]]; then
     echo "ERROR: --no-personas is only meaningful with --from-csv, --all-data, or --soup-to-nuts (personas are off by default otherwise)." >&2
     exit 1
@@ -435,6 +437,18 @@ case "$MODE" in
     fi
     ;;
 esac
+
+# The media sync follows the database rebuild, because they are two halves of one
+# artifact. The rebuild runs the curator seeder, which mints content-addressed
+# storage keys from the source bytes and writes rows referencing them; shipping
+# that database without shipping the bytes installs rows pointing at objects that
+# were never uploaded, and every affected image, poster and video 404s from the
+# moment the deploy finishes. Nothing downstream notices, which is why this is
+# coupled here rather than left to the operator to remember. --no-media still
+# opts out, for the case where the bytes are known to be already in place.
+if [[ "$REBUILD_LOCAL" == "yes" && "$REPLACE_STAGING" == "yes" && "$NO_MEDIA_FLAG" != "yes" ]]; then
+  SYNC_MEDIA_FLAG="yes"
+fi
 
 # Clean-sync defaults: Y if a DB rebuild is happening (removes S3 objects that
 # have no local counterpart). N otherwise (additive sync only).

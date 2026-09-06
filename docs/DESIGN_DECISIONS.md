@@ -68,7 +68,7 @@ Current implementation status and accepted temporary deviations are tracked in t
   - [3.17 External URL Validation](#317-external-url-validation)
 - [4. Front-End / UI Technology](#4-front-end--ui-technology)
   - [4.1 Server-rendered HTML with Handlebars Templates](#41-server-rendered-html-with-handlebars-templates)
-  - [4.2 JavaScript Required for Interactivity](#42-javascript-required-for-interactivity)
+  - [4.2 JavaScript as Progressive Enhancement](#42-javascript-as-progressive-enhancement)
   - [4.3 Explicit UI Restrictions](#43-explicit-ui-restrictions)
   - [4.4 Accessible, Responsive HTML-first Design](#44-accessible-responsive-html-first-design)
   - [4.5 Front-end TypeScript for Interactivity](#45-front-end-typescript-for-interactivity)
@@ -218,7 +218,7 @@ PostgreSQL on RDS: Rejected for monthly cost, connection management complexity, 
 
 ## 1.2 Backup Strategy
 
-A host systemd timer runs the backup script every five minutes: (1) PRAGMA wal_checkpoint(TRUNCATE) commits WAL to the main file, (2) the SQLite backup API creates a consistent snapshot, (3) upload to S3 with retry (3 attempts, exponential backoff), (4) refresh the health timestamp and emit the backup-age and consecutive-failure metrics that drive the staleness and repeated-failure alarms. S3 versioning provides 30-day point-in-time recovery. The backup runs as a host-side script rather than inside the application process so it operates on a quiescent file and is decoupled from container lifecycle.
+A host systemd timer runs the backup script every five minutes: (1) PRAGMA wal_checkpoint(TRUNCATE) commits WAL to the main file, (2) the SQLite backup API creates a consistent snapshot, (3) upload to S3 with retry (3 attempts, exponential backoff), (4) refresh the health timestamp and emit the backup-age and consecutive-failure metrics that drive the staleness and repeated-failure alarms. Each snapshot is written under its own timestamped key, and the recovery window comes from those objects and the lifecycle rules that thin them by age (§9.4), not from object versioning. The backup runs as a host-side script rather than inside the application process so it operates on a quiescent file and is decoupled from container lifecycle.
 
 Transaction timeout: All transactions must complete within 30 seconds, enforced by application code. Code in db.ts wraps transaction execution and throws an error if the timeout is exceeded (defaults to 30000 ms). When timeout occurs, the wrapper executes ROLLBACK explicitly before throwing, ensuring the transaction releases locks immediately. This prevents indefinite database locks and ensures graceful failure for long-running operations.
 
@@ -616,7 +616,7 @@ Curator content has two source-of-truth phases tied to the platform lifecycle.
 
 Before go-live, curator content is sourced from `/curated/`, a directory tree in the application repository, with one JSON sidecar per item. The seeder (`scripts/seed_fh_curator.py`) is the only path from `/curated/` to the platform DB and S3. The DB and S3 are derived materializations: either can be wiped and rebuilt from `/curated/` by re-running the seeder. This is what lets curator content be authored, reviewed in git, and seeded before any persistent DB exists. The `/curated/` sidecars are themselves produced by an upstream pre-go-live data-prep layer (curator staging, discovery, and promotion inputs); that layer and the sidecars it emits are authoring inputs only.
 
-After go-live, the persistent production DB is the source of truth. The admin UI writes curator content directly to the DB (and S3 for binaries), the same pathway member uploads use; the seeder is not run against the production DB, because its reconcile and orphan-cleanup model would treat admin- and member-created rows that have no sidecar as deletable. Durability after go-live is the standard DB backup and restore path, not `/curated/` replay. The entire pre-go-live input layer, the upstream data-prep CSVs and the `/curated/` sidecars alike, is no longer consumed once the DB is persistent; `/curated/` remains the dev and pre-go-live authoring surface and ships as a build artifact, not a runtime-mutable tree. This source-of-truth pattern, committed authoring inputs seeded into a derived database before go-live and the persistent database as the source of truth after, is reused beyond curator media: the email templates and the freestyle dictionary follow the same pre-go-live-curate-then-cut-over-to-the-database model.
+After go-live, the persistent production DB is the source of truth. The admin UI writes curator content directly to the DB (and S3 for binaries), the same pathway member uploads use; the seeder is not run against the production DB, because its reconcile and orphan-cleanup model would treat admin- and member-created rows that have no sidecar as deletable. Durability after go-live is the standard DB backup and restore path, not `/curated/` replay. The entire pre-go-live input layer, the upstream data-prep CSVs and the `/curated/` sidecars alike, is no longer consumed once the DB is persistent; `/curated/` is a development-only authoring surface: committed to git and read by the seeder on the workstation that builds the database. What reaches a host is that database and the media bytes the seeder produced. This source-of-truth pattern, committed authoring inputs seeded into a derived database before go-live and the persistent database as the source of truth after, is reused beyond curator media: the email templates and the freestyle dictionary follow the same pre-go-live-curate-then-cut-over-to-the-database model.
 
 The DB schema carries no filesystem coupling in either phase; admin edit and delete locate the sidecar that produced a given `media_items` row at runtime by matching the row's `(video_platform, video_url)` against sidecars on disk.
 
@@ -628,7 +628,7 @@ Rationale:
 
 - Before go-live, treating `/curated/` as the source of truth means curator changes are versioned, diffable, and reviewable in git: a bad edit is recoverable by `git revert`, and a lost DB is recoverable by replay. After go-live, curator content is durable through the same DB backup and restore path as all other persistent data.
 
-- Admin UI write paths (upload, edit, delete) are self-sufficient against the current phase's source of truth. Before go-live they write the `/curated/` sidecar and the seeder reconstitutes the DB row. After go-live the DB write is the contract: the admin UI writes the `media_items` row directly, with no dependency on a subsequent seeder run.
+- Admin UI write paths (upload, edit, delete) are self-sufficient against the current phase's source of truth. Before go-live, on a developer machine, they write the `/curated/` sidecar and the seeder reconstitutes the DB row; on a deployed host the database write is the whole operation, since the authoring tree is a developer-machine surface. After go-live the DB write is the contract: the admin UI writes the `media_items` row directly, with no dependency on a subsequent seeder run.
 
 - Before go-live, where `/curated/` is the committed working tree (dev), curated writes are restricted to real maintainer accounts: the curator service refuses curated and FH-owned-gallery writes from the seeded test personas (the switchable dev-harness identities), so a test persona cannot mutate the versioned source-of-truth sidecars. Staging and production write curated content to the DB and object store rather than the working tree, so the restriction does not apply there and any admin may curate.
 
@@ -1304,7 +1304,7 @@ Requirements:
 
 - Dev and staging bootstrap is an email allowlist matched at registration time. Source: the workstation file `.local/initial-admins.txt` (gitignored), parsed by the deploy pipeline into the `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` env var written to `/srv/footbag/env` on the target host. The env-config layer fails fast at boot if the var is set on a production host, and the deploy pipeline refuses to write the value to a production host. The runtime mechanism lives in `src/dev-bootstrap/runtime.ts`.
 
-- Production bootstrap is a single-shot SSM-stored claim token. Source: `/footbag/production/app/bootstrap/admin_token` as a SecureString parameter, generated and stored by a System Administrator during initial provisioning. A logged-in member submits the token at `/admin/bootstrap-claim`; the endpoint reads the SSM value via `SecretsAdapter`, performs constant-time comparison, writes the `is_admin=1` plus Tier 2 grant plus audit row atomically, then deletes the SSM parameter. The parameter's absence closes the bootstrap; a second claim attempt returns the same response shape regardless of token validity.
+- Production bootstrap is a single-shot SSM-stored claim token. Source: `/footbag/production/app/bootstrap/admin_token` as a SecureString parameter, generated and stored by a System Administrator during initial provisioning. A logged-in member submits the token at `/admin/bootstrap-claim`; the endpoint reads the SSM value via `SecretsAdapter`, performs constant-time comparison, writes the `is_admin=1` plus Tier 2 grant plus audit row atomically, then deletes the SSM parameter as cleanup. The in-database invariant closes the bootstrap, not the deletion: the grant fires only while no admin exists, so a later claim changes no rows, grants nothing and leaves the token in place for the operator. A second claim attempt returns the same response shape regardless of token validity.
 
 - Revocation is steady-state only via `A_Manage_Admin_Role`. There is no bootstrap revocation path.
 
@@ -1736,7 +1736,7 @@ Threat Model Clarification: Parameter Store does not protect against an attacker
 
 Mitigations against the in-container threat:
 
-- IAM least privilege: the runtime assumed role holds `ssm:GetParameter` (read-only) on `${ssm_prefix}/*`; no `ssm:PutParameter`, `ssm:DeleteParameter`, or cross-environment scope. A compromised runtime can read but cannot tamper with stored values, and cannot reach another environment's namespace.
+- IAM least privilege: the runtime assumed role holds `ssm:GetParameter` (read-only) on `${ssm_prefix}/*`, plus `ssm:DeleteParameter` on the first-admin bootstrap token alone so the application can consume it; no `ssm:PutParameter` and no cross-environment scope. A compromised runtime can read but cannot tamper with stored values beyond deleting that one token, and cannot reach another environment's namespace.
 - IAM separation by capability: the ballot tally path runs under a distinct role with `kms:Decrypt` on the ballot CMK; the normal web runtime role does not. A compromised web runtime cannot decrypt cast ballots even with full SSM access.
 - KMS at rest: every SecureString parameter is KMS-encrypted at rest under the environment's CMK. The runtime needs `kms:Decrypt` on that CMK to use the parameter; revoking the role's KMS access is sufficient to instantly invalidate stored-secret reads platform-wide.
 - CloudTrail audit: SSM `GetParameter` calls on `${ssm_prefix}/secrets/*` are recorded in CloudTrail. Unusual access patterns (volume spikes, off-hours reads, non-runtime principals) are alarmable per the monitoring policy.
@@ -2322,7 +2322,7 @@ Impact:
 
 - Any proposal to introduce React/Vue/Angular or a SPA architecture is a major change requiring a new decision.
 
-## 4.2 JavaScript Required for Interactivity
+## 4.2 JavaScript as Progressive Enhancement
 
 Decision:
 
@@ -2362,17 +2362,11 @@ Implementation:
 
 - Controllers handle POST, validate server-side, and either redirect (success) or re-render form with errors (validation failure).
 
-- The \<noscript\> tag displays: "This site requires JavaScript for interactive features. Please enable JavaScript in your browser settings."
-
 - Forms work like this. User fills form. User clicks submit. JavaScript validates (required fields, format checks, etc.). If invalid: highlight errors, prevent submission. If valid: allow native browser POST. Server validates again (authoritative). Server returns redirect (success) or re-rendered form (errors). This is simple, maintainable, and aligns with volunteer contributor skill expectations.
 
 Browser Support:
 
-Chrome/Edge 90+, Firefox 88+, Safari 14+, iOS Safari 14+, Chrome Android 90+. JavaScript must be enabled. This baseline provides 95%+ market coverage.
-
-Alternative Considered:
-
-Progressive Enhancement rejected because: Doubles development effort and testing surface. Many modern sites require JavaScript; handling the exceptional case is not worth the ongoing complexity for this project.
+Chrome/Edge 90+, Firefox 88+, Safari 14+, iOS Safari 14+, Chrome Android 90+. This baseline provides 95%+ market coverage. Within it, JavaScript adds the usability enhancements described above; where it is unavailable, pages render and forms submit as normal, since the server-side validation is the authoritative one.
 
 ## 4.3 Explicit UI Restrictions
 
@@ -4763,43 +4757,55 @@ Impact:
 
 Decision:
 
-Two backup operations provide data protection with minimal cost. This approach balances cost (estimated \$3/month total) with comprehensive protection.
+Three backup operations provide data protection with minimal cost. Two protect the data; the third protects the machine it runs on. This approach balances cost (roughly \$3/month total at steady state: about \$1 for the database backup stream and about \$1 per host for the instance snapshots) with comprehensive protection.
 
 Continuous Database Backup (every 5 minutes):
 
 Purpose: Fast recovery from common issues (corruption, bugs, accidental deletion).
 
-Process: Background worker executes: (1) PRAGMA wal_checkpoint(TRUNCATE) commits WAL to main database file, (2) SQLite backup API (better-sqlite3 .backup() ) creates consistent snapshot, (3) Upload to primary S3 bucket with retry (3 attempts, exponential backoff), (4) Update health timestamp.  
+Process: A host systemd timer executes: (1) PRAGMA wal_checkpoint(TRUNCATE) commits WAL to main database file, (2) the SQLite backup API creates a consistent snapshot, (3) upload to the primary S3 bucket with retry (3 attempts, exponential backoff), (4) update the health timestamp and emit the backup-age and consecutive-failure metrics.
 
-Cost: estimated \$1/month for S3 storage with a default 30-day primary snapshot version-history window (versioning lifecycle setting; configurable).
+Retention thins with age rather than keeping every snapshot for one flat window. Each upload lands in the fine-grained stream; the first of each hour and the first of each day are additionally copied into an hourly and a daily tier, server-side. Lifecycle rules keep the fine-grained stream for two days, the hourly tier for a month, and the daily tier for just over a year. Each object is a complete database, so any one of them restores on its own with no chain to replay.
 
-Recovery: RPO 5 to 10 minutes, restore any snapshot within the configured primary snapshot version-history window (default: 30 days).
+Cost: about \$1/month, storage and cross-region transfer together. The tiers are what make that figure reachable: holding every snapshot at full grain for a month is roughly a hundred gigabytes of near-identical copies, and it still leaves nothing at all to restore from once the window passes.
 
-Cross-Region Disaster Recovery Sync (nightly):
+Recovery: RPO 5 to 10 minutes for the most recent point, which the tiers never affect. Reaching further back, the granularity available is what the tier for that age retains: within two days, the fine-grained stream; within a month, the nearest hour; within a year, the nearest day.
+
+Cross-Region Disaster Recovery Replication (continuous):
 
 Purpose: Protection against catastrophic regional failures.
 
-Process: Nightly job syncs primary S3 bucket to cross-region backup bucket with S3 Object Lock (WORM) and lifecycle rules.
+Process: S3 replication copies objects from the primary snapshots bucket to a bucket in the backup region as they are written, with Object Lock in governance mode and its own lifecycle rules. Replication is scoped to the hourly and daily tiers rather than the fine-grained stream: the off-region copy is a disaster hedge, and Object Lock holds every object it receives for the full retention window, so replicating a snapshot every few minutes buys ninety days of near-identical copies and the cross-region transfer to match.
 
-Cost: Marginal (replication + storage in backup region).
+Cost: Marginal, and dominated by the transfer rather than the storage.
 
-Recovery: RPO 24 hours for cross-region disaster recovery sync; frequent snapshot backups provide RPO 5–10 minutes for primary-region recovery.
+Recovery: losing the whole region costs up to an hour, the interval between promoted points, plus replication lag. Every other failure restores from the primary bucket at the 5-to-10-minute figure above. The trade is deliberate: a region loss is the rarest failure the design plans for and the one where an hour of member edits is the smallest part of the problem.
 
-S3 bucket configuration: Versioning enabled on the primary backup bucket (default 30-day version-history window for database snapshot point-in-time recovery). The cross-region backup bucket uses Object Lock (WORM - Write Once Read Many) and lifecycle rules for retained backup objects. Cross-region protection is provided via the nightly disaster recovery sync job.
+Host Snapshots (daily):
+
+Purpose: Host-level recovery. The two operations above protect the database and nothing else. Everything on the instance that is not the database is hand-bootstrapped and declared nowhere: Docker, the systemd units, the runtime environment file, the AWS credential files, the pinned host key. Without a host snapshot, losing the instance means rebuilding it by hand before any database restore can begin, which makes the "rapid recovery" that §9.7 accepts single-instance architecture in exchange for unavailable in the one scenario that most needs it.
+
+Process: Lightsail automatic snapshots, enabled as an `add_on` on the instance in Terraform. Daily, seven retained, incremental across successive snapshots. Scheduled away from the deploy window so a snapshot never captures a half-migrated database.
+
+Cost: billed on space actually used at \$0.05/GB-month; approximately \$1/month per host.
+
+Recovery: restore the instance from a snapshot and reattach the static IP, then restore the database from its own backup stream to close the gap since the snapshot. RPO for the host is 24 hours, which is appropriate because host state changes only on deploys and bootstrap actions, not continuously.
+
+S3 bucket configuration: point-in-time recovery comes from the snapshots themselves, each written under its own timestamped key and aged out by the lifecycle rules for its tier. Versioning is enabled on the primary backup bucket as a safety net against an overwrite or a stray delete, with its own expiry for superseded versions; it is not the mechanism that provides the recovery window. The cross-region backup bucket uses Object Lock (WORM - Write Once Read Many) in governance mode, so a compromised production credential cannot remove a copy, and carries lifecycle rules matched to that lock. Cross-region protection is provided by continuous replication of the promoted tiers.
 
 Container shutdown (SIGTERM): On shutdown signal, the application performs graceful shutdown to prevent data loss: (1) Stop accepting new requests. (2) Wait for in-flight transactions to complete (30-second timeout). (3) Execute PRAGMA wal_checkpoint(TRUNCATE) to commit final transactions. (4) Close database connection cleanly. (5) Perform final S3 backup upload. (6) Exit. This ensures no data loss during planned restarts or deployments.
 
-Backup failure handling: Retry with exponential backoff (3 attempts: 1s, 2s, 4s delays). Alert CRITICAL after 3 consecutive failures. Health endpoint exposes last successful backup timestamp. CloudWatch alarm if backup age exceeds 15 minutes. This ensures operators are immediately aware of backup issues.
+Backup failure handling: Retry with exponential backoff (3 attempts: 1s, 2s, 4s delays). Alert CRITICAL after 3 consecutive failures. CloudWatch alarm if backup age exceeds 15 minutes. This ensures operators are immediately aware of backup issues.
 
 Recovery procedure: Download latest S3 backup version, run PRAGMA integrity_check to validate database integrity, replace local database file, restart application containers, verify health endpoints return OK. Target RTO (Recovery Time Objective): ~5 minutes from failure detection to service restoration.
 
-Automated daily verification: A daily job verifies backup integrity by comparing primary and backup S3 buckets: compares object counts and total size (allowing 1% variance for in-flight operations), randomly samples 10 objects and verifies MD5 checksums match between primary and backup, checks S3 replication lag metrics. If discrepancies exceed thresholds, alerts CRITICAL priority.
+Continuous replication verification: CloudWatch alarms watch the S3 replication metrics on every rule that carries a snapshot or media object to its off-region copy, and each failed replication also lands on a dedicated queue as an event naming the object key and the reason. S3 does not retry a failed replication, so recovery is re-uploading the object or running a batch replication job to clear the backlog.
 
 Quarterly restoration drills: Download backup, verify integrity, restore to test environment, run smoke tests, document results and update procedures. These drills validate that recovery procedures work correctly and identify gaps in runbooks.
 
 Rationale: Five minute backup interval provides acceptable RPO (Recovery Point Objective), which is acceptable for community site operations. SQLite backup API guarantees consistency by handling WAL files correctly during snapshot creation. Single file upload is simple and reliable compared to multi-file or incremental approaches. S3 versioning provides point-in-time recovery capability. Graceful shutdown with final WAL checkpoint prevents data loss during deployments and restarts.
 
-The selected approach using S3 Intelligent-Tiering costs approximately $1/month, providing acceptable RPO (5-10 minutes) and a configurable point-in-time recovery window (default: 30 days) at minimal cost appropriate for a volunteer-maintained platform.
+The selected approach keeps snapshots in S3 Standard and thins them by age, which costs approximately $1/month while providing acceptable RPO (5-10 minutes) and recovery points reaching back just over a year, at a cost appropriate for a volunteer-maintained platform. Storage-class automation is not used: the fine-grained stream is deleted at two days, well inside the thirty days any automatic tiering waits before moving an object, so it would transition nothing while adding a per-object monitoring charge, and the off-region copy already sits in a cheaper class than tiering would select.
 
 Daily automated verification provides continuous confidence that backups are actually working without waiting for a disaster to discover issues. Quarterly restoration drills validate end-to-end recovery procedures and uncover gaps in runbooks before they matter. This balanced approach provides assurance without excessive operational burden.
 
@@ -4815,17 +4821,17 @@ Trade-offs:
 
 Impact:
 
-A host-side systemd timer runs the backup script every five minutes. CloudWatch monitors backup success rate, backup age. Alerts trigger on backup failures (3 consecutive) or stale backups (\>15 minutes old). Health endpoint exposes last successful backup timestamp for external monitoring.
+A host-side systemd timer runs the backup script every five minutes. CloudWatch monitors backup success rate, backup age. Alerts trigger on backup failures (3 consecutive) or stale backups (\>15 minutes old).
 
 DEVOPS_GUIDE.md (private GitHub repo) documents step-by-step recovery procedures with validation checklists. Quarterly drills validate recovery process works as documented and identify needed updates to procedures.
 
-Integration tests validate S3 upload contract (retry logic, error handling, health timestamp updates). Daily verification job provides ongoing assurance that backups are complete and consistent.
+Integration tests validate the S3 upload contract (retry logic, error handling, promotion into the hourly and daily tiers). The replication alarms provide ongoing assurance that the off-region copies keep pace.
 
 Backup retention windows support data deletion policy. The normative defaults for backup retention are defined in User Stories 6.7: `primary_snapshot_version_days` (default: 30 days) governs the primary bucket version-history window; `cross_region_backup_retention_days` (default: 90 days) governs the Object Lock retention on the cross-region disaster-recovery bucket. The normative default for audit log retention is adefined in (`audit_retention_days`, default 7 years / 2555 days).
 
-WAL checkpoint failure handling: If a long-running transaction holds locks, the WAL checkpoint cannot complete. The backup worker attempts wal_checkpoint(TRUNCATE) with busy_timeout=10000 (10 seconds). If checkpoint fails, the worker logs a warning, skips that backup cycle, and retries in the next five-minute interval. After three consecutive checkpoint failures, an administrator alert is sent indicating potential database contention issues. Backups only proceed after successful WAL checkpoint to ensure consistency. The health check endpoint reports time_since_last_successful_backup enabling monitoring systems to detect extended backup failures.
+WAL checkpoint failure handling: If a long-running transaction holds locks, the WAL checkpoint cannot complete. The backup worker attempts wal_checkpoint(TRUNCATE) with busy_timeout=10000 (10 seconds). If checkpoint fails, the worker logs a warning, skips that backup cycle, and retries in the next five-minute interval. After three consecutive checkpoint failures, an administrator alert is sent indicating potential database contention issues. Backups only proceed after successful WAL checkpoint to ensure consistency.
 
-Alternative considered: The AWS free tier does not provide viable continuous database backup at required RPO. Free tier S3 includes 5GB storage and 20,000 GET requests monthly, insufficient for 5-minute backup uploads (8,640 uploads monthly) and a default 30-day primary snapshot version-history window (requires approximately 50GB storage at scale). Trade-off analysis: Free tier would require 60+ minute backup intervals (unacceptable RPO) or complex custom backup rotation logic (operational complexity). Paid minimal-cost solution ($1/month) is appropriate given budget constraints and simplicity goals.
+Alternative considered: The AWS free tier does not provide viable continuous database backup at required RPO. Free tier S3 includes 5GB storage and 20,000 GET requests monthly, which a several-minute backup cadence exceeds on both counts within days: each snapshot is a complete database, so the stream is measured in gigabytes a day rather than megabytes. Trade-off analysis: Free tier would require hour-scale backup intervals (unacceptable RPO). The paid solution is appropriate given budget constraints, and the tiered retention is what holds it at roughly a dollar a month rather than the cost of keeping every snapshot at full grain.
 
 Photo Backup (S3 replication):
 
@@ -4947,6 +4953,8 @@ Rationale:
 
 - Additional cost (financial and volunteer time) of redundant infrastructure outweighs benefit of avoiding approximately 52 minutes of downtime per year.
 
+- The recovery this trades redundancy for is bounded, not merely asserted: the recovery-time objective for host or application failure in-region is four hours, and for a cross-region disaster two to four hours, both recorded with the per-scenario recovery objectives in DEVOPS_GUIDE.md (private GitHub repo). Four hours reflects what a volunteer-run community site can tolerate while a maintenance page is served, rather than the fastest achievable restore; setting it to the achievable figure would force recovery work more elaborate than the workload warrants. Host-level recovery is what makes the objective reachable at all — restore the instance from its automatic snapshot and reattach the static IP, then restore the database from its own continuous stream — which is why host snapshots are one of the three backup operations rather than an optional extra.
+
 - Design prioritizes rapid recovery over failure prevention through comprehensive monitoring, automated alerting, and documented recovery procedures.
 
 - Transparent failure modes: users see either fully functional site or clear maintenance page, no ambiguous partial failure states.
@@ -4965,7 +4973,7 @@ Impact:
 
 - CloudWatch Monitoring: Key metrics tracked: OriginAvailability, Origin5xxErrorRate, ApplicationErrorRate, CPUUtilization, S3OperationFailures, StripeAPIErrors.
 
-- Critical alarms: Origin availability / 5xx rate \>5% for 2 minutes, CPU \>80% for 10 minutes.
+- Critical alarms: Origin availability / 5xx rate \>5% for 2 minutes, host CPU / memory / disk \>85% for 3 minutes.
 
 - Complete recovery procedures documented in DEVOPS_GUIDE.md (private GitHub repo) with diagnostic commands, rollback procedures, and validation checklists.
 
@@ -4991,7 +4999,7 @@ Alert Severities: Warning-level: Email to operations team, 1-hour response expec
 
 degraded but functional state. Examples: CPU \>80% for 10 minutes, P95 latency \>2 seconds for 5 minutes, background job missed 1 execution.
 
-Critical-level: Email and SMS to on-call, 15-minute response expectation, indicates service disruption or imminent failure. Examples: CPU \>90% for 5 minutes, 5xx rate \>5% for 1 minute, any background job missed 3+ consecutive executions, container restart loop (3+ restarts in 10 minutes). Database: backup age \>15 minutes, 3 consecutive backup failures, WAL file \>1GB (checkpoint issues), SQLITE_BUSY rate \>5% of operations, checkpoint latency \>5 seconds, database file approaching disk capacity (80%/90% thresholds).
+Critical-level: Email and SMS to on-call, 15-minute response expectation, indicates service disruption or imminent failure. Examples: host CPU, memory or disk \>85% for 3 minutes, 5xx rate \>5% for 1 minute, any background job missed 3+ consecutive executions, container restart loop (3+ restarts in 10 minutes). Database: backup age \>15 minutes, 3 consecutive backup failures, WAL file \>1GB (checkpoint issues), SQLITE_BUSY rate \>5% of operations, checkpoint latency \>5 seconds, database file approaching disk capacity (80%/90% thresholds).
 
 Dashboards:
 

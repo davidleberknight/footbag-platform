@@ -320,9 +320,9 @@ The code follows a four-layer structure separating concerns:
 
 **Presentation Layer (Frontend):**
 
-JavaScript is required for interactive features. Core pages are server-rendered HTML. JavaScript validates form fields before allowing submission via traditional browser POST (not fetch). Server-side validation remains authoritative (defense-in-depth). Users with JavaScript disabled see a noscript message requesting enablement. This is simple for volunteer maintainability, with traditional multi-page navigation. It is SEO-friendly, fast initial load, and simple to understand.
+JavaScript enhances interactive features. Core pages are server-rendered HTML. JavaScript validates form fields before allowing submission via traditional browser POST (not fetch). Server-side validation remains authoritative (defense-in-depth). Pages render and forms submit where JavaScript is unavailable. This is simple for volunteer maintainability, with traditional multi-page navigation. It is SEO-friendly, fast initial load, and simple to understand.
 
-The platform targets modern browsers and requires JavaScript for interactive features (including pre-submit form validation, optional enhancements such as hashtag autocomplete/progressive image loading, and Stripe's hosted checkout page). Exact browser support baseline versions are defined in the Design Decisions document.
+The platform targets modern browsers and uses JavaScript for interactive features (including pre-submit form validation and optional enhancements such as hashtag autocomplete and progressive image loading). Stripe's hosted checkout page is the one feature that requires it. Exact browser support baseline versions are defined in the Design Decisions document.
 
 **How Page Loads Work:**
 
@@ -330,7 +330,7 @@ Every primary view (home page, event listings, club directory, member dashboard,
 
 **TypeScript Enhancement:**
 
-Browser-side TypeScript/JavaScript attaches to specific pages for usability enhancements such as inline validation, autocomplete, dynamic filters for lists, file previews, and drag-and-drop for media uploads (if implemented). Templates remain server-rendered by Handlebars. Forms submit via native browser POST; JavaScript acts as a client-side validation gate to catch errors before submission, improving UX but not blocking functionality, as server-side validation is authoritative. The site functions without JavaScript; users with JavaScript disabled see a noscript message recommending enablement and can still submit forms and navigate the site. The one functional exception is Stripe's hosted checkout page, which requires JavaScript as a third-party dependency.
+Browser-side TypeScript/JavaScript attaches to specific pages for usability enhancements such as inline validation, autocomplete, dynamic filters for lists, file previews, and drag-and-drop for media uploads (if implemented). Templates remain server-rendered by Handlebars. Forms submit via native browser POST; JavaScript acts as a client-side validation gate to catch errors before submission, improving UX but not blocking functionality, as server-side validation is authoritative. The site functions without JavaScript: forms still submit and navigation still works. The one functional exception is Stripe's hosted checkout page, which requires JavaScript as a third-party dependency.
 
 **Page Navigation:**
 

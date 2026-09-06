@@ -36,6 +36,27 @@
 #     only way that matters, because the mail has already gone.
 #   - A target the operator did not name. There is no default host.
 #
+# Which snapshot it looks for, which is never a guess between the two classes:
+#
+#   default             The routine stream and its thinned tiers: routine/ for
+#                       the last two days, hourly/ for a month, daily/ for just
+#                       over a year. The newest point across the three wins.
+#
+#   --pre-flip          The cutover rollback artifact, under pre-flip/. Asked for
+#                       by name because both classes replicate to the DR bucket,
+#                       where ~1,200 routine objects sit beside one pre-flip
+#                       artifact: a search across both picks the newest routine
+#                       snapshot every time, which is a silent restore of the
+#                       wrong point in time at the moment nothing can be undone.
+#
+#   --bucket <name>     The bucket to read from. Defaults to the environment's
+#                       own snapshot bucket. The pre-cutover rollback artifact is
+#                       written to the cross-region DR bucket, so a rollback
+#                       needs this flag AND --pre-flip. The value is carried to
+#                       the host, not just used locally.
+#
+#   --snapshot <key>    An exact key, skipping the search entirely.
+#
 # What it reports rather than judges: the row counts of the snapshot and of the
 # database it would replace, side by side. A script that decided a count was
 # "too low" would be guessing at which snapshot was meant; an operator reading
@@ -50,6 +71,9 @@
 #   < ~/AWS/AWS_OPERATOR.txt bash scripts/restore-db.sh --target staging
 #   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/restore-db.sh --target production --snapshot routine/2026/08/21/footbag-20260821T055900Z.db.gz
 #   bash scripts/restore-db.sh --source staging --to-local /tmp/drill.db --dry-run
+#   # the cutover rollback, both flags, onto the live host:
+#   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/restore-db.sh --target production \
+#       --pre-flip --bucket footbag-production-db-snapshots-dr
 set -euo pipefail
 
 TARGET=""
@@ -60,6 +84,7 @@ BUCKET=""
 SSH_ALIAS=""
 AWS_PROFILE_ARG=""
 DRY_RUN=0
+PRE_FLIP=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -70,6 +95,7 @@ while [[ $# -gt 0 ]]; do
     --bucket)    BUCKET="${2:-}";     shift 2 || { echo "ERROR: --bucket requires an argument" >&2; exit 2; } ;;
     --ssh-alias) SSH_ALIAS="${2:-}";  shift 2 || { echo "ERROR: --ssh-alias requires an argument" >&2; exit 2; } ;;
     --profile)   AWS_PROFILE_ARG="${2:-}"; shift 2 || { echo "ERROR: --profile requires an argument" >&2; exit 2; } ;;
+    --pre-flip)  PRE_FLIP=1; shift ;;
     --dry-run)   DRY_RUN=1; shift ;;
     --help|-h)
       # Bounded by the first `set -eu` rather than a line number, so editing the
@@ -138,8 +164,29 @@ REMOTE_HALF="${SCRIPT_DIR}/internal/restore-db-remote.sh"
 AWS_ARGS=()
 [[ -n "$AWS_PROFILE_ARG" ]] && AWS_ARGS=(--profile "$AWS_PROFILE_ARG")
 
+# The two artifact classes are never mixed in a search. The cutover rollback
+# lives under pre-flip/; the five-minute stream lives under routine/. Both are
+# replicated to the DR bucket, so a search across both there is a search over
+# ~1,200 routine objects and one pre-flip artifact, and "most recent" picks a
+# routine snapshot every time -- a silent restore of the wrong point in time at
+# the one moment there is nothing to fall back on. Restoring the rollback is a
+# deliberate act, so it is asked for by name. Resolved before the dry run, so a
+# rehearsal shows which class it would reach.
+if [[ "$PRE_FLIP" -eq 1 ]]; then
+  SEARCH_PREFIX="pre-flip/"
+else
+  # All three retention tiers, newest wins. The producer keeps the six-minute
+  # stream under routine/ for two days only, promoting the first run of each
+  # hour and each day into hourly/ and daily/, so searching routine/ alone would
+  # find nothing older than two days and nothing at all in the disaster-recovery
+  # bucket, which carries the promoted tiers and not the raw stream. Every tier
+  # names its object footbag-<UTC timestamp>, so the tiers interleave correctly
+  # when compared on that name.
+  SEARCH_PREFIX="routine/ hourly/ daily/"
+fi
+
 if (( DRY_RUN )); then
-  echo "== dry run: restore from ${SOURCE_ENV} snapshots (bucket ${BUCKET}) =="
+  echo "== dry run: restore from ${SOURCE_ENV} snapshots (bucket ${BUCKET}, prefix ${SEARCH_PREFIX}) =="
   echo ""
   if [[ -n "$TO_LOCAL" ]]; then
     echo "Would download the snapshot, verify it, and write it to ${TO_LOCAL}."
@@ -162,11 +209,32 @@ command -v aws >/dev/null 2>&1 || die "aws CLI not installed"
 
 # Latest unless the operator named one. Named explicitly is the normal case for
 # a real recovery, where the whole question is which point in time to return to.
+newest_under() {
+  # Objects sort chronologically within a tier because the key carries the UTC
+  # date path followed by the timestamped name.
+  aws "${AWS_ARGS[@]+"${AWS_ARGS[@]}"}" s3 ls "s3://${BUCKET}/$1" --recursive 2>/dev/null \
+    | grep -v '\.manifest\.json$' | sort | tail -1 | tr -s ' ' | cut -d' ' -f4
+}
+
 if [[ -z "$SNAPSHOT_KEY" ]]; then
-  echo "==> Finding the most recent snapshot in s3://${BUCKET}/routine/"
-  SNAPSHOT_KEY="$(aws "${AWS_ARGS[@]+"${AWS_ARGS[@]}"}" s3 ls "s3://${BUCKET}/routine/" --recursive \
-    | sort | tail -1 | tr -s ' ' | cut -d' ' -f4)"
-  [[ -n "$SNAPSHOT_KEY" ]] || die "no snapshots found in s3://${BUCKET}/routine/ (has the backup timer ever run?)"
+  echo "==> Finding the most recent snapshot in s3://${BUCKET}/ (${SEARCH_PREFIX})"
+  if [[ "$PRE_FLIP" -eq 1 ]]; then
+    SNAPSHOT_KEY="$(newest_under "pre-flip/")"
+  else
+    # Compare the three tiers on the object name (field 5 of tier/YYYY/MM/DD/name),
+    # so the newest point wins wherever it happens to live.
+    SNAPSHOT_KEY="$(printf '%s\n' \
+        "$(newest_under 'routine/')" \
+        "$(newest_under 'hourly/')" \
+        "$(newest_under 'daily/')" \
+      | sed '/^$/d' | sort -t/ -k5 | tail -1)"
+  fi
+  if [[ -z "$SNAPSHOT_KEY" ]]; then
+    if [[ "$PRE_FLIP" -eq 1 ]]; then
+      die "no pre-cutover snapshot under pre-flip/ in s3://${BUCKET}. That artifact is written to the DR bucket, so pass --bucket if you have not."
+    fi
+    die "no snapshots under routine/, hourly/ or daily/ in s3://${BUCKET} (has the backup timer ever run?). For the cutover rollback artifact, pass --pre-flip."
+  fi
 fi
 echo "    snapshot: s3://${BUCKET}/${SNAPSHOT_KEY}"
 
@@ -177,9 +245,17 @@ if [[ -n "$TO_LOCAL" ]]; then
   trap 'rm -rf "$work"' EXIT INT TERM
 
   echo "==> Downloading"
-  aws "${AWS_ARGS[@]+"${AWS_ARGS[@]}"}" s3 cp "s3://${BUCKET}/${SNAPSHOT_KEY}" "${work}/snapshot.db.gz" >/dev/null \
+  aws "${AWS_ARGS[@]+"${AWS_ARGS[@]}"}" s3 cp "s3://${BUCKET}/${SNAPSHOT_KEY}" "${work}/snapshot.fetched" >/dev/null \
     || die "could not download the snapshot"
-  gunzip -c "${work}/snapshot.db.gz" > "${work}/snapshot.db" || die "the snapshot did not decompress"
+  # Detect compression rather than assume it. Every artifact this project writes
+  # is now gzipped, but assuming it is what made an uncompressed pre-flip
+  # artifact unreadable, and the assumption failed at the one moment it could
+  # not be recovered from. Two bytes of check costs nothing.
+  if [[ "$(head -c2 "${work}/snapshot.fetched" | od -An -tx1 | tr -d ' \n')" == "1f8b" ]]; then
+    gunzip -c "${work}/snapshot.fetched" > "${work}/snapshot.db" || die "the snapshot did not decompress"
+  else
+    mv "${work}/snapshot.fetched" "${work}/snapshot.db"
+  fi
 
   integrity="$(sqlite3 "${work}/snapshot.db" 'PRAGMA integrity_check;' 2>/dev/null || echo 'unreadable')"
   [[ "$integrity" == "ok" ]] || die "the snapshot failed its integrity check (${integrity})"
@@ -206,6 +282,14 @@ if [[ -n "$TO_LOCAL" ]]; then
 fi
 
 # ── Host destination: in place, behind the adapter check and a typed word ────
+# This script has no --yes flag, and must not acquire one by inheritance. The
+# library initialises ASSUME_YES from the environment (`${ASSUME_YES:-no}`) so
+# that callers which DO offer --yes can set it; every such caller sets it
+# locally first. Without this line an exported ASSUME_YES=yes in the operator's
+# shell satisfies confirm_from_tty, and the typed "RESTORE PRODUCTION" phrase
+# guarding a live member-database replacement silently stops being asked for.
+# Set before the source, so the library's :- default keeps it.
+ASSUME_YES=no
 # shellcheck source=lib/host-env-remote.sh
 source "${SCRIPT_DIR}/lib/host-env-remote.sh"
 
@@ -254,6 +338,12 @@ confirm_from_tty "Type '${CONFIRM_WORD}' to continue: " "$CONFIRM_WORD" \
 if ! {
       printf '%s\n' "$SUDO_PASS"
       printf 'SNAPSHOT_KEY=%q\n' "$SNAPSHOT_KEY"
+      # BUCKET must cross the wire. Without it the remote half falls back to the
+      # host's own BACKUP_S3_BUCKET, which is the primary bucket -- so --bucket
+      # selected the snapshot and printed the banner above, then the host fetched
+      # from somewhere else. The cutover rollback lives in the DR bucket, so that
+      # silently restored the wrong database while displaying the right URI.
+      printf 'BUCKET=%q\n' "$BUCKET"
       cat "$REMOTE_HALF"
     } | ssh "${HOST_SSH_OPTS[@]}" "$SSH_ALIAS" 'sudo -k -S -p "" bash'; then
   echo "" >&2

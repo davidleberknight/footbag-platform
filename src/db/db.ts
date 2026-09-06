@@ -5514,7 +5514,7 @@ export function queryAuditLog(filters: AuditLogFilters, limit: number, offset: n
     LEFT JOIN members_active am ON am.id = a.actor_member_id
     LEFT JOIN members_active em ON em.id = a.entity_id AND a.entity_type = 'member'
     ${sql}
-    ORDER BY a.occurred_at DESC
+    ORDER BY a.occurred_at DESC, a.id DESC
     LIMIT ? OFFSET ?
   `).all(...params, limit, offset) as AuditLogQueryRow[];
 }
@@ -5602,7 +5602,7 @@ export function queryOutboxLog(filters: OutboxLogFilters, limit: number, offset:
     -- than a /members/<slug> link that 404s for a deleted account.
     LEFT JOIN members_active rm ON rm.id = o.recipient_member_id
     ${sql}
-    ORDER BY o.created_at DESC
+    ORDER BY o.created_at DESC, o.id DESC
     LIMIT ? OFFSET ?
   `).all(...params, limit, offset) as OutboxLogQueryRow[];
 }
@@ -5744,7 +5744,7 @@ export const outbox = {
     WHERE status = 'pending'
       AND stream = ?
       AND (scheduled_for IS NULL OR scheduled_for <= ?)
-    ORDER BY created_at ASC
+    ORDER BY created_at ASC, id ASC
     LIMIT ?
   `); },
 
@@ -6123,7 +6123,8 @@ export const media = {
     SELECT mi.id, mi.uploader_member_id, mi.media_type, mi.caption,
            mi.s3_key_thumb, mi.s3_key_display,
            mi.video_platform, mi.video_id, mi.video_url, mi.thumbnail_url,
-           mi.source_filename, mi.external_url
+           mi.source_filename, mi.external_url,
+           mi.source_id, mi.start_seconds, mi.end_seconds
     FROM media_items mi
     JOIN members m ON m.id = mi.uploader_member_id
     WHERE mi.id = ?
@@ -6131,11 +6132,46 @@ export const media = {
       AND mi.moderation_status = 'active'
   `); },
 
+  // Existence probe for a provenance id the curator typed. media_items.source_id
+  // is a real foreign key, so an unknown value fails the insert or update at the
+  // engine with a constraint error the caller cannot turn into a field message.
+  // Checking first lets the service reject it as user-fixable input instead.
+  get mediaSourceExists() { return db.prepare(`
+    SELECT 1 AS found FROM media_sources WHERE source_id = ?
+  `); },
+
   // Caption-only update for curator media. Tags are rewritten via the
   // media_tags helpers (delete + reinsert in a transaction).
   get updateCuratorMediaCaption() { return db.prepare(`
     UPDATE media_items
     SET caption = ?, updated_at = ?, updated_by = 'admin-act-as', version = version + 1
+    WHERE id = ?
+  `); },
+
+  // Provenance attribution for a curated item. Separate from the clip range
+  // below because a curator can correct which source a clip came from without
+  // touching where it starts and stops.
+  get updateCuratorMediaSourceId() { return db.prepare(`
+    UPDATE media_items
+    SET source_id = ?, updated_at = ?, updated_by = 'admin-act-as', version = version + 1
+    WHERE id = ?
+  `); },
+
+  // Both clip bounds move together: the row-level CHECK requires start to
+  // precede end, so writing one bound against the other's stored value can
+  // fail on a row that was valid before the edit.
+  get updateCuratorMediaClipRange() { return db.prepare(`
+    UPDATE media_items
+    SET start_seconds = ?, end_seconds = ?, updated_at = ?,
+        updated_by = 'admin-act-as', version = version + 1
+    WHERE id = ?
+  `); },
+
+  // Poster override for an external-platform clip, where the platform's own
+  // thumbnail is missing or wrong.
+  get updateCuratorMediaThumbnailUrl() { return db.prepare(`
+    UPDATE media_items
+    SET thumbnail_url = ?, updated_at = ?, updated_by = 'admin-act-as', version = version + 1
     WHERE id = ?
   `); },
 
@@ -9216,7 +9252,7 @@ export const workQueue = {
     FROM work_queue_items AS wq
     LEFT JOIN members_all AS m ON m.id = wq.entity_id
     WHERE wq.task_type = ? AND wq.entity_type = 'member' AND wq.entity_id = ?
-    ORDER BY wq.opened_at DESC
+    ORDER BY wq.opened_at DESC, wq.id DESC
     LIMIT 1
   `); },
 
@@ -9421,7 +9457,7 @@ export const memberMessages = {
     SELECT id, subject, body_text, expected_answer_kind, sent_at
     FROM member_messages
     WHERE recipient_member_id = ? AND status = 'sent'
-    ORDER BY sent_at DESC, id
+    ORDER BY sent_at DESC, id DESC
   `); },
 
   get countUnansweredForMember() { return db.prepare(`
@@ -9649,7 +9685,7 @@ export const systemJobRuns = {
            SUM(CASE WHEN r.started_at >= ? AND r.status IN ('failed','aborted') THEN 1 ELSE 0 END) AS failures_in_window,
            (SELECT s.status FROM system_job_runs AS s
              WHERE s.job_name = r.job_name
-             ORDER BY s.started_at DESC LIMIT 1) AS last_status
+             ORDER BY s.started_at DESC, s.id DESC LIMIT 1) AS last_status
     FROM system_job_runs AS r
     GROUP BY r.job_name
     ORDER BY r.job_name
@@ -9660,7 +9696,7 @@ export const systemJobRuns = {
   get listRecentRuns() { return db.prepare(`
     SELECT id, job_name, started_at, finished_at, status, last_error
     FROM system_job_runs
-    ORDER BY started_at DESC
+    ORDER BY started_at DESC, id DESC
     LIMIT ?
   `); },
 
@@ -9671,7 +9707,7 @@ export const systemJobRuns = {
     SELECT id, job_name, started_at, finished_at, status, details_json, last_error
     FROM system_job_runs
     WHERE job_name = ?
-    ORDER BY started_at DESC
+    ORDER BY started_at DESC, id DESC
     LIMIT ? OFFSET ?
   `); },
 
@@ -9691,7 +9727,7 @@ export const systemJobRuns = {
     SELECT id, started_at, finished_at, details_json
     FROM system_job_runs
     WHERE job_name = ? AND status = 'succeeded'
-    ORDER BY finished_at DESC
+    ORDER BY finished_at DESC, id DESC
     LIMIT 1
   `); },
 };
@@ -9726,7 +9762,7 @@ export const systemAlarms = {
     SELECT id, alarm_type, severity, raised_at, status
     FROM system_alarm_events
     WHERE alarm_type = ? AND cleared_at IS NULL
-    ORDER BY created_at DESC
+    ORDER BY created_at DESC, id DESC
     LIMIT 1
   `); },
 
@@ -9787,7 +9823,7 @@ export const systemAlarms = {
            m.slug         AS acknowledged_by_slug
     FROM system_alarm_events AS a
     LEFT JOIN members_all AS m ON m.id = a.acknowledged_by_member_id
-    ORDER BY a.created_at DESC
+    ORDER BY a.created_at DESC, a.id DESC
     LIMIT ? OFFSET ?
   `); },
 
@@ -10574,34 +10610,34 @@ const ADMIN_PAYMENT_EVENT_JOIN = `
  * string, and ORDER BY cannot be parameterised, so an unknown key falls back to
  * the default instead of reaching the statement.
  *
- * Every ordering ends in `p.rowid` so the sequence is total. Without it, rows
+ * Every ordering ends in `p.id` so the sequence is total. Without it, rows
  * tying on the chosen column order arbitrarily between calls, and a tie
  * spanning a page boundary can show the same payment on two pages while another
  * never appears at all.
  */
 const ADMIN_PAYMENT_SORTS: Record<string, string> = {
-  date_desc: 'p.created_at DESC, p.rowid DESC',
-  date_asc: 'p.created_at ASC, p.rowid ASC',
-  type_desc: 'p.payment_type DESC, p.created_at DESC, p.rowid DESC',
-  type_asc: 'p.payment_type ASC, p.created_at DESC, p.rowid DESC',
-  amount_desc: 'p.amount_cents DESC, p.created_at DESC, p.rowid DESC',
-  amount_asc: 'p.amount_cents ASC, p.created_at DESC, p.rowid DESC',
-  status_desc: 'p.status DESC, p.created_at DESC, p.rowid DESC',
-  status_asc: 'p.status ASC, p.created_at DESC, p.rowid DESC',
+  date_desc: 'p.created_at DESC, p.id DESC',
+  date_asc: 'p.created_at ASC, p.id ASC',
+  type_desc: 'p.payment_type DESC, p.created_at DESC, p.id DESC',
+  type_asc: 'p.payment_type ASC, p.created_at DESC, p.id DESC',
+  amount_desc: 'p.amount_cents DESC, p.created_at DESC, p.id DESC',
+  amount_asc: 'p.amount_cents ASC, p.created_at DESC, p.id DESC',
+  status_desc: 'p.status DESC, p.created_at DESC, p.id DESC',
+  status_asc: 'p.status ASC, p.created_at DESC, p.id DESC',
   // A payment with no member sorts last either way rather than leading the
   // ascending page with a block of nulls an administrator has to scroll past.
-  member_desc: 'm.slug IS NULL, m.slug DESC, p.created_at DESC, p.rowid DESC',
-  member_asc: 'm.slug IS NULL, m.slug ASC, p.created_at DESC, p.rowid DESC',
-  event_desc: 'ev.title IS NULL, ev.title DESC, p.created_at DESC, p.rowid DESC',
-  event_asc: 'ev.title IS NULL, ev.title ASC, p.created_at DESC, p.rowid DESC',
+  member_desc: 'm.slug IS NULL, m.slug DESC, p.created_at DESC, p.id DESC',
+  member_asc: 'm.slug IS NULL, m.slug ASC, p.created_at DESC, p.id DESC',
+  event_desc: 'ev.title IS NULL, ev.title DESC, p.created_at DESC, p.id DESC',
+  event_asc: 'ev.title IS NULL, ev.title ASC, p.created_at DESC, p.id DESC',
   // Ordered on the same value the column displays, which falls back through the
   // provider identifiers to the payment's own id. Sorting on the raw intent
   // alone would scatter every renewal and every unstarted checkout, the two
   // cases that have no intent, into one indistinguishable block.
   reference_desc:
-    'COALESCE(p.stripe_payment_intent_id, p.stripe_subscription_id, p.id) DESC, p.rowid DESC',
+    'COALESCE(p.stripe_payment_intent_id, p.stripe_subscription_id, p.id) DESC, p.id DESC',
   reference_asc:
-    'COALESCE(p.stripe_payment_intent_id, p.stripe_subscription_id, p.id) ASC, p.rowid ASC',
+    'COALESCE(p.stripe_payment_intent_id, p.stripe_subscription_id, p.id) ASC, p.id ASC',
 };
 
 export const ADMIN_PAYMENT_DEFAULT_SORT = 'date_desc';
@@ -10718,8 +10754,8 @@ export function queryReconciliationIssues(
   const where = status ? 'WHERE r.status = ?' : '';
   const params = status ? [status] : [];
   const order = oldestFirst
-    ? 'ORDER BY r.created_at ASC, r.rowid ASC'
-    : 'ORDER BY r.created_at DESC, r.rowid DESC';
+    ? 'ORDER BY r.created_at ASC, r.id ASC'
+    : 'ORDER BY r.created_at DESC, r.id DESC';
   return db.prepare(`
     SELECT r.*, m.slug AS resolved_by_slug
     FROM reconciliation_issues r
@@ -10785,7 +10821,7 @@ export const memberPaymentObligations = {
       AND payment_type = 'membership'
       AND status = 'failed'
       AND purchased_tier_status IS NOT NULL
-    ORDER BY created_at DESC
+    ORDER BY created_at DESC, id DESC
     LIMIT 1
   `); },
 
@@ -10797,7 +10833,7 @@ export const memberPaymentObligations = {
     SELECT id, amount_cents, currency, failure_count
     FROM recurring_donation_subscriptions
     WHERE member_id = ? AND status = 'past_due'
-    ORDER BY status_updated_at DESC
+    ORDER BY status_updated_at DESC, id DESC
     LIMIT 1
   `); },
 };
@@ -11003,7 +11039,10 @@ export const stripeWebhookFailures = {
              WHERE g.reason = f.reason
                AND g.bucket_start >= ?
                AND g.last_event_id IS NOT NULL
-             ORDER BY g.last_seen_at DESC
+             -- No id column here: the primary key is (bucket_start, reason) and
+             -- reason is already fixed by the clause above, so bucket_start is
+             -- what makes this order total.
+             ORDER BY g.last_seen_at DESC, g.bucket_start DESC
              LIMIT 1)          AS last_event_id
     FROM stripe_webhook_failures f
     WHERE f.bucket_start >= ?

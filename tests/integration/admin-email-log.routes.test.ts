@@ -161,4 +161,28 @@ describe('GET /admin/email-log', () => {
     expect(res.text).not.toContain('<script>alert(1)</script>');
     expect(res.text).toContain('&lt;script&gt;');
   });
+
+  // A fan-out writes one row per recipient inside the same millisecond, so a
+  // block of rows sharing a timestamp is the normal case rather than a rarity.
+  // The listing must still have one defined order, because an order the
+  // database is free to choose can repeat a row on one page and drop another
+  // from every page. Identifiers descend alongside the timestamp, so the three
+  // rows below come back in the reverse of the order they were written.
+  it('orders a block of emails sharing one timestamp by identifier, newest first', async () => {
+    withDb((db) => {
+      insertOutboxEmail(db, { id: 'el_tie_a', created_at: '2026-04-01T00:00:00.000Z', subject: 'Fanout alpha', status: 'sent' });
+      insertOutboxEmail(db, { id: 'el_tie_b', created_at: '2026-04-01T00:00:00.000Z', subject: 'Fanout bravo', status: 'sent' });
+      insertOutboxEmail(db, { id: 'el_tie_c', created_at: '2026-04-01T00:00:00.000Z', subject: 'Fanout charlie', status: 'sent' });
+    });
+    const app = createApp();
+    const res = await request(app).get('/admin/email-log').set('Cookie', adminCookie());
+    expect(res.status).toBe(200);
+
+    const charlie = res.text.indexOf('Fanout charlie');
+    const bravo   = res.text.indexOf('Fanout bravo');
+    const alpha   = res.text.indexOf('Fanout alpha');
+    expect(charlie).toBeGreaterThan(-1);
+    expect(charlie).toBeLessThan(bravo);
+    expect(bravo).toBeLessThan(alpha);
+  });
 });

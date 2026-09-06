@@ -7,10 +7,31 @@
 # BackupAgeMinutes (the db-backup-stale alarm watches it; threshold 15 minutes,
 # treat_missing_data=breaching) and BackupConsecutiveFailures (raised once a run
 # fails three times in a row so a persistently failing backup surfaces even
-# while older snapshots keep the age metric healthy). Cross-region DR copies of
-# the routine stream ride the bucket's S3 replication; the pre-cutover snapshot
-# script uploads its own artifact to a distinct DR path so routine retention
-# never ages it out.
+# while older snapshots keep the age metric healthy).
+#
+# Retention tiers. Every run writes routine/, which the bucket lifecycle keeps
+# for two days. The first run of each hour is additionally copied to hourly/ and
+# the first run of each day to daily/, so the history thins with age: fine grain
+# for the last two days, hourly for a month, daily for just over a year. The
+# copies are server-side, so a promotion moves no bytes out of S3. Without the
+# tiers the stream is roughly a hundred gigabytes of near-identical full copies
+# at any moment and still falls off a cliff at the routine window, which is the
+# wrong shape both ways: nobody needs six-minute precision three weeks back, and
+# a corruption found after the window has nothing to restore from at all.
+#
+# "First of the window" is decided by asking S3 whether that window already
+# holds a point, so a missed or failed promotion simply happens on the next run
+# instead of losing the tier. A promotion that fails raises
+# BackupPromotionFailures but never fails the run: the snapshot itself is
+# already safe, and failing here would raise the consecutive-failure alarm for
+# something the alarm does not mean.
+#
+# Cross-region DR copies ride the bucket's S3 replication, which is scoped to
+# the promoted tiers: the off-region copy carries hourly and daily points, not
+# the six-minute stream. Losing the region therefore costs up to an hour rather
+# than up to six minutes, which is the accepted trade for the transfer cost of
+# replicating every snapshot. The pre-cutover snapshot script uploads its own
+# artifact to a distinct DR path so routine retention never ages it out.
 #
 # Invoked by ops/systemd/footbag-backup.timer every 5 minutes. Requires the
 # sqlite3 CLI on the host (apt-get install -y sqlite3) and the aws CLI with
@@ -72,7 +93,11 @@ WORK_DIR=$(mktemp -d /tmp/footbag-backup.XXXXXX)
 trap 'rm -rf "${WORK_DIR}"' EXIT
 
 TS=$(date -u +%Y%m%dT%H%M%SZ)
-DAY_PREFIX=$(date -u +%Y/%m/%d)
+# Derived from TS rather than read from a second clock call, so the key and the
+# day prefix cannot disagree. Two calls straddling UTC midnight would file a
+# 23:59 snapshot under the next day and promote it as that day's point, after
+# which the real first run of the day finds the prefix occupied and skips.
+DAY_PREFIX="${TS:0:4}/${TS:4:2}/${TS:6:2}"
 SNAP="${WORK_DIR}/footbag-${TS}.db"
 
 # 1. Fold the WAL back into the main DB file. busy_timeout makes the checkpoint
@@ -117,5 +142,53 @@ if [[ -f "${STATE_FILE}" ]]; then
 fi
 echo "${NOW_EPOCH}" > "${STATE_FILE}"
 put_metric BackupAgeMinutes "${AGE_MINUTES}"
+
+# 5. Retention tiers. Copy this snapshot into hourly/ and daily/ when it is the
+#    first of its window. The probe asks S3 rather than keeping local state, so
+#    a host rebuild, a clock step, or a skipped run cannot leave a window
+#    permanently unfilled: the next run in that window promotes instead.
+promotion_failed=0
+
+maybe_promote() {
+  local probe_prefix="$1" dest_key="$2" tier="$3" found
+  found=$(aws s3api list-objects-v2 --bucket "${BACKUP_S3_BUCKET}" \
+            --prefix "${probe_prefix}" --max-keys 1 \
+            --query 'length(Contents || `[]`)' --output text 2>/dev/null)
+  if [[ -z "${found}" ]]; then
+    echo "backup-db: ${tier} retention probe failed; run left unpromoted" >&2
+    promotion_failed=1
+    return
+  fi
+  # A point already exists for this window; nothing to do.
+  [[ "${found}" != "0" ]] && return
+  # Server-side copy: the object never leaves S3, so this costs one request.
+  #
+  # `aws s3api copy-object` rather than the friendlier `aws s3 cp`. Above the
+  # CLI's multipart threshold, which a snapshot of this size crosses, `cp`
+  # reassembles the object part by part and copies its tags across itself, so it
+  # calls s3:GetObjectTagging and s3:PutObjectTagging, neither of which this
+  # role grants: it is scoped to reading and writing snapshot objects and
+  # nothing else. Below that threshold the same command needs neither, so the
+  # failure would arrive the day the database grew rather than the day the code
+  # changed. CopyObject carries tags server-side without the caller touching
+  # them, so it does the same job inside the permissions the backup already
+  # holds, at any size, instead of widening the role to suit a wrapper.
+  if aws s3api copy-object --bucket "${BACKUP_S3_BUCKET}" \
+       --copy-source "${BACKUP_S3_BUCKET}/${KEY}" \
+       --key "${dest_key}" --output text >/dev/null; then
+    echo "backup-db: promoted to ${dest_key}"
+  else
+    echo "backup-db: ${tier} promotion failed for ${dest_key}" >&2
+    promotion_failed=1
+  fi
+}
+
+# TS is YYYYMMDDTHHMMSSZ, so the first 11 characters pin the hour window.
+maybe_promote "hourly/${DAY_PREFIX}/footbag-${TS:0:11}" \
+              "hourly/${DAY_PREFIX}/footbag-${TS}.db.gz" hourly
+maybe_promote "daily/${DAY_PREFIX}/" \
+              "daily/${DAY_PREFIX}/footbag-${TS}.db.gz" daily
+
+put_metric BackupPromotionFailures "${promotion_failed}"
 
 echo "backup-db: uploaded s3://${BACKUP_S3_BUCKET}/${KEY} (age since previous: ${AGE_MINUTES}m)"

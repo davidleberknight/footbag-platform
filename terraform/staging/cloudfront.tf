@@ -310,3 +310,77 @@ resource "aws_cloudfront_distribution" "main" {
     geo_restriction { restriction_type = "none" }
   }
 }
+
+# ── Access logs ──────────────────────────────────────────────────────────────
+# Mirrors production so the two environments do not diverge, and so a delivery
+# failure is seen here first. Ninety days, matching the archive log bucket in
+# this tree and the CloudTrail floor.
+
+resource "aws_s3_bucket" "platform_logs" {
+  count  = var.enable_cloudfront ? 1 : 0
+  bucket = "${local.prefix}-platform-logs"
+}
+
+resource "aws_s3_bucket_public_access_block" "platform_logs" {
+  count                   = var.enable_cloudfront ? 1 : 0
+  bucket                  = aws_s3_bucket.platform_logs[0].id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "platform_logs" {
+  count  = var.enable_cloudfront ? 1 : 0
+  bucket = aws_s3_bucket.platform_logs[0].id
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "platform_logs" {
+  count  = var.enable_cloudfront ? 1 : 0
+  bucket = aws_s3_bucket.platform_logs[0].id
+
+  rule {
+    id     = "expire-platform-access-logs"
+    status = "Enabled"
+    filter {}
+    expiration {
+      days = 90
+    }
+  }
+}
+
+# The log-delivery service rather than the in-distribution `logging_config`
+# block, which would require re-enabling S3 ACLs on the log bucket; every bucket
+# in this tree keeps ACLs disabled. CloudFront log delivery is configured out of
+# us-east-1.
+
+resource "aws_cloudwatch_log_delivery_source" "platform_access_logs" {
+  count        = var.enable_cloudfront ? 1 : 0
+  provider     = aws.us_east_1
+  name         = "${local.prefix}-platform-access-logs"
+  log_type     = "ACCESS_LOGS"
+  resource_arn = aws_cloudfront_distribution.main[0].arn
+}
+
+resource "aws_cloudwatch_log_delivery_destination" "platform_access_logs" {
+  count         = var.enable_cloudfront ? 1 : 0
+  provider      = aws.us_east_1
+  name          = "${local.prefix}-platform-access-logs"
+  output_format = "w3c"
+
+  delivery_destination_configuration {
+    destination_resource_arn = aws_s3_bucket.platform_logs[0].arn
+  }
+}
+
+resource "aws_cloudwatch_log_delivery" "platform_access_logs" {
+  count                    = var.enable_cloudfront ? 1 : 0
+  provider                 = aws.us_east_1
+  delivery_source_name     = aws_cloudwatch_log_delivery_source.platform_access_logs[0].name
+  delivery_destination_arn = aws_cloudwatch_log_delivery_destination.platform_access_logs[0].arn
+}

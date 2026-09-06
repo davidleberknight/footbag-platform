@@ -51,6 +51,19 @@ resource "aws_lightsail_instance" "web" {
   # systemd service install) is performed manually via SSH after first apply.
   # See AWS_OPERATIONS.md (private GitHub repo), "Host bootstrap".
 
+  # Host-level recovery, matching production. The bootstrap above is exactly why
+  # this matters: none of it is declared, so without a snapshot a lost instance
+  # is a hand rebuild. Staging carries it too so the two environments do not
+  # diverge and so the restore path is exercised somewhere safe first.
+  #
+  # `add_on` is an in-place update, unlike `key_pair_name` and `name`, which are
+  # ForceNew. A plan proposing to REPLACE this instance is not this block.
+  add_on {
+    type          = "AutoSnapshot"
+    snapshot_time = "14:00"
+    status        = "Enabled"
+  }
+
   tags = {
     Role = "web"
   }

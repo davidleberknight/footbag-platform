@@ -531,6 +531,41 @@ else
   fi
 fi
 
+# Media integrity gate. The rebuild reseeded curated media and minted
+# content-addressed storage keys, then synced the bytes to the bucket. Those are
+# two operations against two systems, and nothing else compares them: a row whose
+# object never arrived renders as a 404 on the live site with no error anywhere in
+# this deploy. The checker resolves every stored-bytes reference through the same
+# storage adapter the app uses, so it answers the only question that matters here,
+# which is whether the site can actually serve what the database now claims.
+#
+# The database it reads is the local one this deploy just built and shipped, which
+# is byte-identical to the one now installed on the host, so this is a true check
+# of the deployed state without needing tooling on the host.
+if [[ "${SYNC_MEDIA:-no}" == "yes" ]]; then
+  echo "==> Verifying media integrity against the $FOOTBAG_ENV bucket ..."
+  MEDIA_BUCKET="$(terraform -chdir="terraform/$FOOTBAG_ENV" output -raw media_bucket_name 2>/dev/null || true)"
+  if [[ -z "$MEDIA_BUCKET" ]]; then
+    echo "ERROR: could not read media_bucket_name from terraform/$FOOTBAG_ENV." >&2
+    echo "       The media sync ran, so the rows now reference objects this deploy" >&2
+    echo "       cannot verify. Run 'terraform -chdir=terraform/$FOOTBAG_ENV init' or" >&2
+    echo "       check the workstation's AWS profile, then re-run the check:" >&2
+    echo "         MEDIA_STORAGE_ADAPTER=s3 MEDIA_STORAGE_S3_BUCKET=<bucket> \\" >&2
+    echo "           bash scripts/check-media-integrity.sh" >&2
+    exit 1
+  fi
+  if ! FOOTBAG_DB_PATH="database/footbag.db" \
+       MEDIA_STORAGE_ADAPTER="s3" \
+       MEDIA_STORAGE_S3_BUCKET="$MEDIA_BUCKET" \
+       bash scripts/check-media-integrity.sh; then
+    echo "ERROR: media integrity check failed against s3://$MEDIA_BUCKET." >&2
+    echo "       The live database references objects that are not in the bucket, so" >&2
+    echo "       those images, posters or videos will 404. Re-run the deploy with the" >&2
+    echo "       media sync (it rides a rebuild by default; --no-media turns it off)." >&2
+    exit 1
+  fi
+fi
+
 echo
 echo "Deploy complete. Origin: http://$HOST_IP"
 echo "WARNING: live DB was replaced from scratch."

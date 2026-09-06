@@ -112,6 +112,38 @@ describe('deploy_to_aws.sh wrapper', () => {
     expect(combined).toMatch(/deploy-local-data\.sh --from-csv/);
   });
 
+  // A rebuild reseeds curated media and mints content-addressed storage keys, so
+  // the bytes have to ship with the database that references them. Left
+  // independent, an ordinary rebuild installs rows pointing at objects that were
+  // never uploaded and the media 404s with nothing in the pipeline noticing.
+  it('a database rebuild carries the media sync with it', () => {
+    const r = run('bash', ['scripts/deploy-to-aws.sh', '--from-csv', '-ny'], {
+      input: 'fake-pw\n',
+    });
+    expect(r.status).toBe(0);
+    const combined = (r.stderr ?? '') + (r.stdout ?? '');
+    expect(combined).toMatch(/rebuild local DB:\s+yes/);
+    expect(combined).toMatch(/sync media:\s+yes/);
+  });
+
+  it('a code-only deploy leaves the media sync opt-in', () => {
+    const r = run('bash', ['scripts/deploy-to-aws.sh', '-ny'], { input: 'fake-pw\n' });
+    expect(r.status).toBe(0);
+    const combined = (r.stderr ?? '') + (r.stdout ?? '');
+    expect(combined).toMatch(/rebuild local DB:\s+no/);
+    expect(combined).toMatch(/sync media:\s+no/);
+  });
+
+  it('--no-media opts out of the sync a rebuild would otherwise carry', () => {
+    const r = run('bash', ['scripts/deploy-to-aws.sh', '--from-csv', '--no-media', '-ny'], {
+      input: 'fake-pw\n',
+    });
+    expect(r.status).toBe(0);
+    const combined = (r.stderr ?? '') + (r.stdout ?? '');
+    expect(combined).toMatch(/rebuild local DB:\s+yes/);
+    expect(combined).toMatch(/sync media:\s+no/);
+  });
+
   it('-rny (reuse-local-db) skips the rebuild and threads SKIP_DB_REBUILD=yes', () => {
     const r = run('bash', ['scripts/deploy-to-aws.sh', '-rny'], {
       input: 'fake-pw\n',
@@ -1379,5 +1411,85 @@ describe('both deploy halves leave a host able to survive on its own', () => {
     expect(source).toContain('trap cleanup_env_tempfiles EXIT');
     expect(source).toContain('/srv/footbag/.env.tmp.*');
     expect(source).toContain('/srv/footbag/.deployed-from.tmp.*');
+  });
+
+  it.each(HALVES)('%s overwrites those copies rather than unlinking them', (file) => {
+    const source = read(file);
+    // What a stranded copy holds is the host's entire secret set, and removing
+    // the name alone leaves the blocks readable to anyone who later reaches the
+    // disk or an image of it. The plain removal stays as the fallback so the
+    // sweep still runs on a host without the tool.
+    expect(source).toMatch(/shred -u \/srv\/footbag\//);
+    expect(source).toMatch(/rm -f \/srv\/footbag\//);
+  });
+});
+
+// ── what the host env file must already carry, and what it must not ──────────
+//
+// Permanent contract: a deploy refuses on a value the running stack cannot start
+// without and that no deploy step writes, and refuses on nothing else. Both
+// halves rewrite most of the env file themselves, so a preflight demanding a
+// value the same run is about to write refuses a first-ever deploy for no
+// reason at all. The remote halves need a reachable host, so what is checked
+// here is the shape of the checks rather than their behaviour.
+
+describe('deploy remote-half env preflights ask for the right values (static-text)', () => {
+  const read = (p: string) => fs.readFileSync(path.join(REPO_ROOT, p), 'utf-8');
+  const CODE = 'scripts/internal/deploy-code-remote.sh';
+  const REBUILD = 'scripts/internal/deploy-rebuild-remote.sh';
+
+  it('the code half refuses a host env file carrying no canonical origin', () => {
+    const source = read(CODE);
+    expect(source).toMatch(/grep -qE '\^PUBLIC_BASE_URL=\.\+'/);
+    expect(source).toMatch(/carries no PUBLIC_BASE_URL/);
+  });
+
+  it('the rebuild half still refuses a host env file carrying no canonical origin', () => {
+    expect(read(REBUILD)).toMatch(/require_env PUBLIC_BASE_URL/);
+  });
+
+  it('neither half demands the runtime mode, which compose sets literally', () => {
+    // Every compose service writes that value as a literal rather than
+    // interpolating it, so no line in the host env file feeds it and a host
+    // without one starts perfectly well.
+    expect(read(CODE)).not.toMatch(/require_env NODE_ENV/);
+    expect(read(REBUILD)).not.toMatch(/require_env NODE_ENV/);
+  });
+
+  it('the rebuild half asks for the mail sender only once the adapter is live', () => {
+    const source = read(REBUILD);
+    // Asking unconditionally is wrong: compose defaults the sender to empty and
+    // only the live adapter reads it, so demanding it up front refuses a
+    // first-ever deploy of any environment running the stub, which is every
+    // environment below production and production itself while mail is dark.
+    expect(source).not.toMatch(/require_env SES_FROM_IDENTITY/);
+    expect(source).toMatch(
+      /\[\[\s*"\$SES_ADAPTER_DERIVED"\s*==\s*"live"\s*\]\]\s*&&\s*!\s*grep -qE '\^SES_FROM_IDENTITY=\.\+'/,
+    );
+  });
+});
+
+// ── the record of what is running survives a failed deploy ───────────────────
+//
+// Permanent contract: the host always carries a record of which release is on
+// it. The promote step deletes anything in the live directory the release tree
+// does not contain, and the new record is written at the end of a successful
+// run, so without an exclusion a run that fails in between leaves the host with
+// no record at all, which is exactly when someone needs to read one.
+
+describe('deploy promote preserves the provenance record (static-text)', () => {
+  const read = (p: string) => fs.readFileSync(path.join(REPO_ROOT, p), 'utf-8');
+  const HALVES = ['scripts/internal/deploy-code-remote.sh', 'scripts/internal/deploy-rebuild-remote.sh'];
+
+  it.each(HALVES)('%s excludes it from the promote delete pass', (file) => {
+    expect(read(file)).toMatch(/--exclude=\/deployed-from/);
+  });
+
+  it.each(HALVES)('%s still writes the new record after that promote', (file) => {
+    const source = read(file);
+    const promote = source.indexOf('--exclude=/deployed-from');
+    const write = source.indexOf('mv "$provenance_tmp" /srv/footbag/deployed-from');
+    expect(promote).toBeGreaterThan(-1);
+    expect(write).toBeGreaterThan(promote);
   });
 });

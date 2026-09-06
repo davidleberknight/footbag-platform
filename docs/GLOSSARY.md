@@ -116,7 +116,7 @@
 
 **ISO 8601**: International standard for date/time representation (YYYY-MM-DDTHH:MM:SSZ). Footbag.org stores all timestamps in ISO 8601 UTC format for timezone-independent sorting and filtering. Example: 2025-01-15T14:30:00Z represents January 15, 2025 at 2:30 PM UTC.
 
-**JavaScript**: Programming language running in web browsers enabling interactive features. Footbag.org requires JavaScript for interactive features including client-side form validation; users with JavaScript disabled see a noscript message requesting enablement. TypeScript (which compiles to JavaScript) is used for all client-side code.
+**JavaScript**: Programming language running in web browsers enabling interactive features. On footbag.org it enhances server-rendered pages with client-side form validation, autocomplete and media previews; pages render and forms submit without it, since server-side validation is authoritative. TypeScript (which compiles to JavaScript) is used for all client-side code.
 
 **JSON (JavaScript Object Notation)**: Lightweight text format for structured data using keys and values. Footbag.org uses JSON as the data interchange format for API responses, webhook payloads, and local development configuration files.
 
@@ -152,7 +152,7 @@
 
 **Prepared Statement**: SQL query compiled into executable bytecode once at application startup and reused for every subsequent execution, with parameters bound at call time. Footbag.org prepares all statements in db.ts at startup (50-100 total, grouped by domain), calling them with positional parameters (?) via better-sqlite3 methods; this eliminates repeated SQL compilation overhead and provides complete SQL injection protection.
 
-**Progressive Enhancement**: Web development approach where core functionality works with plain HTML and full page reloads, with JavaScript used only to enhance the experience. Footbag.org does not adopt this methodology; it builds server-rendered pages with native-POST forms, so core navigation and form submission function without JavaScript, while JavaScript is required for interactive enhancements (autocomplete, media previews) and for Stripe's hosted checkout. Users with JavaScript disabled see a noscript message recommending enablement and can still navigate and submit forms. See also: JavaScript.
+**Progressive Enhancement**: Web development approach where core functionality works with plain HTML and full page reloads, with JavaScript used only to enhance the experience. This is footbag.org's model: server-rendered pages with native-POST forms, so core navigation and form submission function without JavaScript, while JavaScript adds interactive enhancements such as autocomplete and media previews. Stripe's hosted checkout is the one functional exception, as a third-party dependency. See also: JavaScript.
 
 **Receipt Token**: UUID returned to voter after casting ballot, enabling verification that vote was recorded without revealing vote contents or linking voter identity to specific ballot. Voter can check that their receipt token appears in public election results.
 

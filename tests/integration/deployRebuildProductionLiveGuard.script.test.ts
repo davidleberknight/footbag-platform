@@ -174,6 +174,18 @@ describe('production-live guard: real-member tripwire', () => {
     expect(res.stderr).toContain('could not be read');
   });
 
+  // A readable file that is not a database is the harder case than a permission
+  // denial: SQLite opens lazily, so a probe that selects a constant succeeds
+  // against it without touching the header, and the corrupt file then answers
+  // nothing to the table check and reads as a fresh host with no members. The
+  // deploy this guard exists to refuse would proceed.
+  it('refuses a readable file that is not a database (fail closed)', () => {
+    fs.writeFileSync(dbPath, 'not a database, just bytes', 'utf-8');
+    const res = runGuard({ FAKE_SSM_VALUE: 'false' });
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain('could not be read');
+  });
+
   it('resolves the tripwire database from the host env file when no explicit path is given', () => {
     // The remote half deploys against FOOTBAG_DB_PATH from the host env
     // file, so the tripwire must inspect the same file; a hardcoded-only

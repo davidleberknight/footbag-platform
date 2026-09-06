@@ -1102,7 +1102,32 @@ export interface CuratorUrlReferenceOverrides {
   creator?: string | null;
   sourceId?: string | null;
   tier?: string | null;
+  startSeconds?: number | null;
+  endSeconds?: number | null;
   tags?: string[];
+}
+
+/**
+ * Registers a provenance source. `media_items.source_id` is a foreign key into
+ * this table, so any row or edit attributing media to a source needs the source
+ * to exist first.
+ */
+export function insertMediaSource(
+  db: BetterSqlite3.Database,
+  sourceId: string,
+  o: { sourceName?: string; sourceType?: string; url?: string | null; creator?: string | null } = {},
+): string {
+  db.prepare(`
+    INSERT OR IGNORE INTO media_sources (source_id, source_name, source_type, url, creator)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(
+    sourceId,
+    o.sourceName ?? sourceId,
+    o.sourceType ?? 'youtube',
+    o.url ?? null,
+    o.creator ?? null,
+  );
+  return sourceId;
 }
 
 export function insertCuratorUrlReference(
@@ -1138,13 +1163,24 @@ export function insertCuratorUrlReference(
   sidecarBody.tags = userTags;
   fs.writeFileSync(sidecarPath, JSON.stringify(sidecarBody, null, 2) + '\n', 'utf-8');
 
+  // The production write path persists provenance and clip bounds on the row,
+  // so the fixture does too: a row without them is a shape the application
+  // never creates, and reading it back would exercise a case that cannot occur.
+  if (o.sourceId != null) {
+    db.prepare(`
+      INSERT OR IGNORE INTO media_sources (source_id, source_name, source_type, url, creator)
+      VALUES (?, ?, 'youtube', NULL, NULL)
+    `).run(o.sourceId, o.sourceId);
+  }
+
   db.prepare(`
     INSERT INTO media_items (
       id, created_at, created_by, updated_at, updated_by, version,
       uploader_member_id, media_type, is_avatar, caption, uploaded_at,
       video_platform, video_id, video_url, thumbnail_url,
+      source_id, start_seconds, end_seconds,
       moderation_status
-    ) VALUES (?, ?, 'seed', ?, 'seed', 1, ?, 'video', 0, ?, ?, ?, ?, ?, ?, 'active')
+    ) VALUES (?, ?, 'seed', ?, 'seed', 1, ?, 'video', 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')
   `).run(
     mediaId, TS, TS,
     o.uploaderMemberId,
@@ -1154,6 +1190,9 @@ export function insertCuratorUrlReference(
     o.videoId,
     o.videoUrl,
     o.videoPlatform === 'youtube' ? null : (o.thumbnailUrl ?? null),
+    o.sourceId ?? null,
+    o.startSeconds ?? null,
+    o.endSeconds ?? null,
   );
 
   // Tags including #curated (seeder auto-prepends).

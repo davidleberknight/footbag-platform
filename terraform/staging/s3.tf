@@ -116,15 +116,36 @@ resource "aws_s3_bucket_lifecycle_configuration" "snapshots" {
     }
   }
 
-  # The routine backup producer runs on this host too, every five minutes, and
-  # writes a fresh timestamped key each time. Every object is therefore a
-  # current version, which the noncurrent rule above can never reach, so
-  # without this rule the stream accumulates forever. Thirty days matches
-  # production and is far longer than any staging restore reaches back.
+  # The routine backup producer runs on this host too and writes a fresh
+  # timestamped key each time. Every object is therefore a current version,
+  # which the noncurrent rule above can never reach, so without these rules the
+  # stream accumulates forever.
+  #
+  # The producer promotes the first run of each hour and each day into hourly/
+  # and daily/, so all three prefixes need a window here even though staging is
+  # reset-tolerant: an unswept prefix grows without bound whatever the data is
+  # worth. The windows are deliberately shorter than production's. Staging's
+  # database can be rebuilt from a seed at any time, so the long tail production
+  # keeps for a late-discovered corruption buys nothing here; what staging needs
+  # is enough history to rehearse a restore.
   rule {
     id     = "expire-routine-stream"
     status = "Enabled"
     filter { prefix = "routine/" }
+    expiration { days = 2 }
+  }
+
+  rule {
+    id     = "expire-hourly-tier"
+    status = "Enabled"
+    filter { prefix = "hourly/" }
+    expiration { days = 14 }
+  }
+
+  rule {
+    id     = "expire-daily-tier"
+    status = "Enabled"
+    filter { prefix = "daily/" }
     expiration { days = 30 }
   }
 }

@@ -52,8 +52,10 @@ resource "aws_iam_role_policy" "app_ssm_read" {
       },
       {
         # The first-admin bootstrap token is single-use: the app deletes it the
-        # moment the claim is consumed, so the claim endpoint cannot be reused.
-        # Without delete permission the token survives and the endpoint stays open.
+        # moment the claim is consumed. What keeps the endpoint from granting
+        # twice is the in-database invariant, not this deletion; without delete
+        # permission the token survives a successful claim and the operator has
+        # to remove it by hand, which the app raises an operational error for.
         Sid      = "DeleteBootstrapAdminToken"
         Effect   = "Allow"
         Action   = ["ssm:DeleteParameter"]
@@ -81,20 +83,41 @@ resource "aws_iam_role_policy" "app_s3_snapshots" {
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Sid    = "WriteSnapshots"
-      Effect = "Allow"
-      Action = [
-        "s3:PutObject",
-        "s3:GetObject",
-        "s3:ListBucket",
-        "s3:DeleteObject"
-      ]
-      Resource = [
-        aws_s3_bucket.snapshots.arn,
-        "${aws_s3_bucket.snapshots.arn}/*"
-      ]
-    }]
+    Statement = [
+      {
+        Sid    = "WriteSnapshots"
+        Effect = "Allow"
+        Action = [
+          "s3:PutObject",
+          "s3:GetObject",
+          "s3:ListBucket",
+          "s3:DeleteObject"
+        ]
+        Resource = [
+          aws_s3_bucket.snapshots.arn,
+          "${aws_s3_bucket.snapshots.arn}/*"
+        ]
+      },
+      {
+        # Read-only, and read-only on purpose. The host performs the restore
+        # itself, pulling the object with this role, so a cutover rollback from
+        # the DR bucket fails with AccessDenied without this statement -- after
+        # the operator has typed the production confirmation, and with no second
+        # attempt available. Write and delete stay absent: replication is the
+        # only writer here, and the bucket's Object Lock exists so nothing on a
+        # host can remove a copy.
+        Sid    = "ReadDisasterRecoverySnapshots"
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:ListBucket"
+        ]
+        Resource = [
+          aws_s3_bucket.dr.arn,
+          "${aws_s3_bucket.dr.arn}/*"
+        ]
+      }
+    ]
   })
 }
 

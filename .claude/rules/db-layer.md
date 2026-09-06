@@ -27,6 +27,7 @@ subsystem) ----` so it is removed when that subsystem retires.
 - Positional parameters with `?`; never named `:param`.
 - Catch named SQLite error codes explicitly (`SQLITE_CONSTRAINT_UNIQUE`, `SQLITE_BUSY`, etc.); never silent-ignore.
 - Timestamps use `strftime('%Y-%m-%dT%H:%M:%fZ','now')`, not `datetime('now')`. The space-separated form from `datetime('now')` breaks lexical ordering in views, triggers, and timestamp string comparisons.
+- Every ordering bounded by a `LIMIT` ends in the row's own `id`, in the same direction as the column before it. Without it, rows tying on the ordered column come back in whatever order the engine picks, and a tie spanning a page boundary can show one row on two pages while another appears on none. Use `id`, never `rowid`: a table with a text primary key has an implicit row number that a compaction may reassign. Where a table has no `id`, pin whatever column completes its primary key and say so beside the statement. An unpaginated read returns its whole result set either way and needs no tiebreaker.
 
 ## Views over bare tables
 

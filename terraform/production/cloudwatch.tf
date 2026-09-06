@@ -182,11 +182,23 @@ resource "aws_cloudwatch_metric_alarm" "db_backup_failures" {
 # or running S3 Batch Replication to clear the backlog.
 
 locals {
+  # One entry per replication rule, not per bucket pair: the metrics are
+  # dimensioned on RuleId, so a rule with no entry here is unwatched and a
+  # stale id names a rule that does not exist. Either way the alarm sits green
+  # on missing data, because `treat_missing_data` is `notBreaching` and no
+  # operations arriving is indistinguishable from none failing. The snapshots
+  # bucket replicates through two rules, one per promoted retention tier, so it
+  # takes two entries.
   replicated_buckets = var.enable_replication_alarm ? {
-    snapshots = {
+    "snapshots-hourly" = {
       source      = aws_s3_bucket.snapshots.id
       destination = aws_s3_bucket.dr.id
-      rule        = "replicate-snapshots-to-dr"
+      rule        = "replicate-hourly-tier-to-dr"
+    }
+    "snapshots-daily" = {
+      source      = aws_s3_bucket.snapshots.id
+      destination = aws_s3_bucket.dr.id
+      rule        = "replicate-daily-tier-to-dr"
     }
     media = {
       source      = aws_s3_bucket.media.id

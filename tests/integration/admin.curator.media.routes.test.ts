@@ -33,6 +33,12 @@ process.env.NODE_ENV          = 'test';
 process.env.LOG_LEVEL         = 'error';
 process.env.PUBLIC_BASE_URL   = 'http://localhost:3098';
 process.env.SESSION_SECRET    = 'admin-curator-media-routes-test-secret';
+// This suite covers the shape a developer machine runs: the authoring tree is
+// writable, so a curator edit rewrites the sidecar next to updating the row.
+// The database-only shape every deployed host runs is pinned separately, in
+// admin.curator.media.sidecars-off.routes.test.ts, because the flag is read
+// once per process.
+process.env.ALLOW_CURATED_SIDECAR_WRITES = '1';
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 let createApp: typeof import('../../src/app').createApp;
@@ -43,7 +49,7 @@ import BetterSqlite3 from 'better-sqlite3';
 import { createTestDb } from '../fixtures/testDb';
 import sharp from 'sharp';
 
-import { insertMember, createTestSessionJwt, insertCuratorUrlReference } from '../fixtures/factories';
+import { insertMember, createTestSessionJwt, insertCuratorUrlReference, insertMediaSource } from '../fixtures/factories';
 
 let resetImageProcessingAdapterForTests: () => void;
 
@@ -497,6 +503,12 @@ describe('admin curator media routes — sidecar-backed (URL reference)', () => 
 
     const newCaption = `Edited title ${slug}`;
     const newCreator = 'Edited Creator';
+    // The edit re-attributes the clip to a different source, which has to be a
+    // registered one: the column is a foreign key and the service rejects an
+    // unknown id as fixable input rather than letting it reach the engine.
+    const sourceDb = new BetterSqlite3(TEST_DB_PATH);
+    insertMediaSource(sourceDb, 'src_route_edited');
+    sourceDb.close();
     const app = createApp();
     const res = await request(app)
       .post(`/admin/curator/media/${mediaId}/edit`)

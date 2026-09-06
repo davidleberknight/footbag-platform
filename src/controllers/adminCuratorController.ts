@@ -370,16 +370,23 @@ export const adminCuratorController = {
           renderForm(res.status(422), { errorMessage: 'Provide a primary slug for the sidecar filename.', formValues, existingCategories });
           return;
         }
-        const categoryResult = resolveCategoryFromForm(fields);
-        if ('errorMessage' in categoryResult) {
-          renderForm(res.status(422), { errorMessage: categoryResult.errorMessage, formValues, existingCategories });
-          return;
+        // The category picks a directory in the authoring tree, so the form only
+        // asks for one where that tree is written. Everywhere else the database
+        // row is the whole write and there is nowhere for a category to go.
+        let resolvedCategory = '';
+        if (config.allowCuratedSidecarWrites) {
+          const categoryResult = resolveCategoryFromForm(fields);
+          if ('errorMessage' in categoryResult) {
+            renderForm(res.status(422), { errorMessage: categoryResult.errorMessage, formValues, existingCategories });
+            return;
+          }
+          resolvedCategory = categoryResult.category;
         }
 
         try {
           await svc.uploadUrlReference({
             adminMemberId,
-            category: categoryResult.category,
+            category: resolvedCategory,
             videoUrl,
             videoPlatform: videoPlatformRaw,
             primarySlug,

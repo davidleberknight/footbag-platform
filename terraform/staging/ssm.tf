@@ -172,7 +172,8 @@ data "aws_ssm_parameter" "app_session_secret" {
 # ── Safe Browsing v4 API key (operator-supplied) ─────────────────────────────
 # SecureString + KMS-encrypted. Terraform owns the resource shell with a TODO
 # placeholder; the real value is operator-supplied, under operator credentials —
-# the app runtime role is deliberately read-only on SSM and cannot PutParameter:
+# the app runtime role is read-only on SSM apart from deleting the first-admin
+# bootstrap token, and cannot PutParameter:
 #   scripts/provision-url-screening-key.sh --env both store
 # That script owns every write of this value. It is not a convenience wrapper
 # around put-parameter: one key serves both environments, so a write that

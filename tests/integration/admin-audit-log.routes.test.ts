@@ -119,6 +119,32 @@ describe('GET /admin/audit-log', () => {
     expect(row!.category).toBe('audit');
   });
 
+  // A batch write stamps several entries inside the same millisecond, so rows
+  // sharing a timestamp are ordinary here. The listing is paged, and a page
+  // boundary falling inside a block the database orders however it likes can
+  // show one entry twice while another is never reachable at all. Identifiers
+  // descend alongside the timestamp. The identifiers below are written in
+  // descending order deliberately, so the required result differs from the one
+  // the database reaches on its own: with no tiebreaker this listing returns
+  // the block in the reverse of the order asserted here.
+  it('orders entries sharing one timestamp by identifier, newest first', async () => {
+    withDb((db) => {
+      insertAuditEntry(db, { id: 'al_tie_c', occurred_at: '2026-04-01T00:00:00.000Z', actor_type: 'member', actor_member_id: MEMBER_ID, action_type: 'auth.login', entity_type: 'member', entity_id: MEMBER_ID, category: 'auth' });
+      insertAuditEntry(db, { id: 'al_tie_b', occurred_at: '2026-04-01T00:00:00.000Z', actor_type: 'member', actor_member_id: MEMBER_ID, action_type: 'tier.purchase_grant', entity_type: 'member', entity_id: MEMBER_ID, category: 'tier_change' });
+      insertAuditEntry(db, { id: 'al_tie_a', occurred_at: '2026-04-01T00:00:00.000Z', actor_type: 'admin', actor_member_id: ADMIN_ID, action_type: 'tier.admin_override', entity_type: 'member', entity_id: MEMBER_ID, category: 'tier_change' });
+    });
+    const app = createApp();
+    const res = await request(app).get('/admin/audit-log').set('Cookie', adminCookie());
+    expect(res.status).toBe(200);
+
+    const idC = res.text.indexOf('auth.login');
+    const idB = res.text.indexOf('tier.purchase_grant');
+    const idA = res.text.indexOf('tier.admin_override');
+    expect(idC).toBeGreaterThan(-1);
+    expect(idC).toBeLessThan(idB);
+    expect(idB).toBeLessThan(idA);
+  });
+
   it('excludes its own audit.viewed rows from the default browse, includes them on request', async () => {
     const app = createApp();
     // First view writes one audit.viewed row.

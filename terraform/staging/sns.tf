@@ -43,9 +43,46 @@ resource "aws_sns_topic_policy" "alarms" {
             "AWS:SourceAccount" = var.aws_account_id
           }
         }
+      },
+      {
+        # EventBridge, for AWS Health events. See the production twin for why
+        # this is worth wiring on a Basic-support account: the Health API is
+        # unavailable and no support case can be opened, but EventBridge
+        # delivery of Health events is included at no cost.
+        Sid       = "AllowEventBridgePublish"
+        Effect    = "Allow"
+        Principal = { Service = "events.amazonaws.com" }
+        Action    = "SNS:Publish"
+        Resource  = aws_sns_topic.alarms.arn
+        Condition = {
+          StringEquals = {
+            "AWS:SourceAccount" = var.aws_account_id
+          }
+        }
       }
     ]
   })
+}
+
+# ── AWS Health events ────────────────────────────────────────────────────────
+# Mirrors production. Health events for global services publish to us-east-1,
+# this account's primary region, so one rule covers them; us-west-2 is
+# deliberately not wired, since the only resources there are replica buckets
+# whose failure surfaces through the replication alarms instead.
+
+resource "aws_cloudwatch_event_rule" "aws_health" {
+  name        = "${local.prefix}-aws-health"
+  description = "AWS Health events for this account, delivered to the alarm topic"
+
+  event_pattern = jsonencode({
+    source = ["aws.health"]
+  })
+}
+
+resource "aws_cloudwatch_event_target" "aws_health_to_alarms" {
+  rule      = aws_cloudwatch_event_rule.aws_health.name
+  target_id = "alarms-topic"
+  arn       = aws_sns_topic.alarms.arn
 }
 
 resource "aws_sns_topic_subscription" "alarm_email" {

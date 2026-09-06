@@ -51,7 +51,14 @@ readonly AWSCREDS_GID=1500
 # nothing looks for it. The sweep is unconditional on exit for that reason: it
 # costs nothing on a clean run and is the only thing that cleans up a dirty one.
 cleanup_env_tempfiles() {
-  rm -f /srv/footbag/.env.tmp.* /srv/footbag/.deployed-from.tmp.* 2>/dev/null || true
+  # Overwritten rather than unlinked: what a stranded temp file holds is the
+  # host's entire secret set, and an unlink leaves the blocks readable to anyone
+  # who later reaches the disk or an image of it. shred is best-effort on a
+  # journalling filesystem and is still strictly better than removing the name
+  # alone; the plain removal stays as the fallback so the sweep cannot itself
+  # leave the file behind on a host without the tool.
+  shred -u /srv/footbag/.env.tmp.* /srv/footbag/.deployed-from.tmp.* 2>/dev/null || \
+    rm -f /srv/footbag/.env.tmp.* /srv/footbag/.deployed-from.tmp.* 2>/dev/null || true
 }
 trap cleanup_env_tempfiles EXIT
 
@@ -381,20 +388,20 @@ if [[ "$FOOTBAG_ENV_VAL" != "production" ]]; then
   fi
 fi
 
-# Required for its presence, not its value: this script never reads NODE_ENV
-# back. The compose file interpolates it, so a host missing the line produces a
-# stack that cannot start, and finding that out here is better than finding it
-# out after the database has been replaced. Discarding the value rather than
-# capturing it says so, instead of leaving a variable that looks live.
-require_env NODE_ENV >/dev/null
+# NODE_ENV is deliberately NOT required here. Every compose service sets it
+# literally rather than interpolating it, so no host env line feeds it and a
+# host without one starts perfectly well. The check that used to sit here
+# refused a first-ever rebuild for a value the stack never reads.
 # LOG_LEVEL is intentionally NOT pulled from /srv/footbag/env here. Terraform
 # owns the canonical value (aws_ssm_parameter.app_log_level in
 # terraform/{env}/ssm.tf); the SSM-sync block below fetches it and writes it
 # into /srv/footbag/env. First-deploy bootstrap: the host's env file does not
 # need a manual LOG_LEVEL= line ahead of time.
 DB_PATH=$(require_env FOOTBAG_DB_PATH)
-# Presence check only, same as NODE_ENV above: the application reads this at
-# boot to decide its canonical host, and nothing in this script needs the value.
+# Presence check only: nothing in this script reads the value, but the deployed
+# compose overlay interpolates it with a fail marker and no default, so a host
+# missing the line cannot start the stack. Finding that out here is better than
+# finding it out after the database has been replaced.
 require_env PUBLIC_BASE_URL >/dev/null
 # SESSION_SECRET is intentionally NOT pulled from /srv/footbag/env here.
 # Terraform owns the canonical value (random_id.session_secret in
@@ -419,11 +426,13 @@ require_env PUBLIC_BASE_URL >/dev/null
 # line yet, and the deploy refuses before reaching the code that would add it.
 # The end state is asserted after the derivation instead, which is the thing
 # actually worth guaranteeing.
-# Presence check only. Nothing here reads it, but the live SES adapter requires
-# it at boot and the compose file interpolates it with no default, so a host
-# missing the line crash-loops the moment email is armed. Catching that before
-# the rebuild is the whole value of the check.
-require_env SES_FROM_IDENTITY >/dev/null
+# SES_FROM_IDENTITY is deliberately NOT required here. Only the live mail
+# adapter needs it; compose gives it an empty default, so a host without the
+# line starts cleanly on every environment whose adapter is the stub, which is
+# all of them below production and production itself while mail is dark.
+# Requiring it at this point refused a first-ever staging rebuild for a value
+# staging never reads. It is checked after the arming-switch derivation instead,
+# where the adapter is known, which is the only point the answer is meaningful.
 AWS_REGION_VAL=$(require_env AWS_REGION)
 AWS_PROFILE_VAL=$(require_env AWS_PROFILE)
 
@@ -827,6 +836,15 @@ if [[ "$FOOTBAG_ENV_VAL" == "production" ]]; then
     echo "       that write did not happen and the application will refuse to boot." >&2
     exit 1
   fi
+  # The sender identity is required by the live mail adapter and by nothing
+  # else, so this is the first point the question has an answer. Asking earlier
+  # refuses a dark production, and a stub environment, for a value neither one
+  # reads.
+  if [[ "$SES_ADAPTER_DERIVED" == "live" ]] && ! grep -qE '^SES_FROM_IDENTITY=.+' "$ENV_PATH"; then
+    echo "ERROR: email is armed but $ENV_PATH carries no SES_FROM_IDENTITY." >&2
+    echo "       The live mail adapter refuses to boot without it." >&2
+    exit 1
+  fi
 
   if [[ "$PAYMENT_ADAPTER_DERIVED" == "stub" ]] && ! grep -q '^STRIPE_WEBHOOK_SECRET_STUB=' "$ENV_PATH"; then
     echo "    Seeding a generated STRIPE_WEBHOOK_SECRET_STUB into env file (dark payments; preserved if already set)..."
@@ -1063,7 +1081,13 @@ else
 fi
 
 echo "    Promoting release into $LIVE_DIR ..."
-rsync -a --delete --exclude=/env --exclude=/db --exclude=/media --exclude=/data --exclude=/.curated-build "$RELEASE_DIR/" "$LIVE_DIR/"
+# deployed-from is excluded for a different reason than the others. Those are
+# host state the release must not overwrite; this one is the record of which
+# release is running, rewritten at the end of a successful run. Without the
+# exclusion the delete pass removes it here, and a run that fails anywhere
+# between leaves the host with no record at all, which is precisely when someone
+# needs to know what is on it.
+rsync -a --delete --exclude=/env --exclude=/db --exclude=/media --exclude=/data --exclude=/.curated-build --exclude=/deployed-from "$RELEASE_DIR/" "$LIVE_DIR/"
 
 echo "    Replacing live DB..."
 mkdir -p "$(dirname "$DB_PATH")"

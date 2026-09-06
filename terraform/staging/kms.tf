@@ -56,7 +56,12 @@ resource "aws_kms_key" "main" {
         Principal = {
           Service = [
             "ses.amazonaws.com",
-            "cloudwatch.amazonaws.com"
+            "cloudwatch.amazonaws.com",
+            # EventBridge, delivering AWS Health events to the alarm topic. The
+            # topic is KMS-encrypted, so without this grant the rule matches,
+            # the publish fails, and nothing appears on the topic or in any
+            # error the operator would see.
+            "events.amazonaws.com"
           ]
         }
         Action = [

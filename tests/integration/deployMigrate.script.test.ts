@@ -126,6 +126,39 @@ describe('applying a schema migration to a live database', () => {
     expect(Number(copies)).toBe(1);
   });
 
+  it('rolls the transaction back itself, rather than relying on the restore to undo it', () => {
+    // Why this exists as a separate case: the test below asserts the database is
+    // untouched after a part-way failure, and it passed even while the
+    // transaction was broken — because the restore ran and put the copy back.
+    // Restore and rollback are indistinguishable through that path, so the
+    // promise in the code ("a statement that fails part-way leaves nothing
+    // applied") was never actually tested.
+    //
+    // This runs the same pipeline shape the deploy uses, against a scratch
+    // database, with NO restore anywhere. Without `.bail on` the sqlite3 CLI
+    // keeps reading after the failing statement, reaches the COMMIT, and commits
+    // the first ALTER. With it, nothing lands.
+    const scratch = join(workDir, 'txn.db');
+    const db = new BetterSqlite3(scratch);
+    db.exec('CREATE TABLE payments (id INTEGER PRIMARY KEY);');
+    db.close();
+
+    const sql = 'ALTER TABLE payments ADD COLUMN one TEXT;\nALTER TABLE nonexistent ADD COLUMN two TEXT;';
+    const res = spawnSync(
+      'bash',
+      ['-c', `printf '.bail on\\nBEGIN;\\n%s\\nCOMMIT;\\n' ${JSON.stringify(sql)} | sqlite3 ${JSON.stringify(scratch)}`],
+      { encoding: 'utf8', ...SPAWN_GUARD },
+    );
+
+    expect(res.status).not.toBe(0);
+
+    const after = new BetterSqlite3(scratch, { readonly: true });
+    const columns = (after.prepare('PRAGMA table_info(payments)').all() as { name: string }[])
+      .map((c) => c.name);
+    after.close();
+    expect(columns).not.toContain('one');
+  });
+
   it('restores the database untouched when the migration fails part-way', () => {
     // The first statement is valid and the second is not. Without the
     // transaction and the restore, the first would land and the database would
@@ -409,5 +442,120 @@ describe('the operator-facing script', () => {
     const res = runOperator(['--migration', nested]);
     expect(res.status).toBe(1);
     expect(res.stderr).toContain('must not manage its own transaction');
+  });
+});
+
+/**
+ * Curated content after the cutover exists in one place only. The authoring
+ * tree that could rebuild it is a developer-machine surface that no deployed
+ * host carries, and the seeder that reads that tree is never run against the
+ * live database, because its orphan cleanup would delete every admin-created
+ * row that has no authoring file behind it. So a data-preserving deploy is the
+ * only deploy curated content can survive, and that survival is the whole
+ * post-cutover authoring model rather than a convenience.
+ */
+describe('curated content across a data-preserving deploy', () => {
+  /**
+   * The shape the admin interface writes on a deployed host: a media row, its
+   * tags, and a gallery whose criteria select it. Deliberately not the full
+   * schema; these are the tables the model depends on surviving.
+   */
+  function seedCuratedContent(): void {
+    const db = new BetterSqlite3(dbPath);
+    db.exec(`
+      CREATE TABLE media_items (
+        id TEXT PRIMARY KEY,
+        uploader_member_id TEXT NOT NULL REFERENCES members(id),
+        caption TEXT,
+        video_platform TEXT,
+        video_url TEXT,
+        source_id TEXT,
+        start_seconds INTEGER,
+        end_seconds INTEGER
+      );
+      CREATE TABLE tags (id TEXT PRIMARY KEY, tag_normalized TEXT NOT NULL);
+      CREATE TABLE media_tags (
+        media_id TEXT NOT NULL REFERENCES media_items(id),
+        tag_id TEXT NOT NULL REFERENCES tags(id)
+      );
+      CREATE TABLE member_galleries (
+        id TEXT PRIMARY KEY,
+        owner_member_id TEXT NOT NULL REFERENCES members(id),
+        name TEXT NOT NULL
+      );
+      CREATE TABLE member_gallery_tags (
+        gallery_id TEXT NOT NULL REFERENCES member_galleries(id),
+        tag_id TEXT NOT NULL REFERENCES tags(id)
+      );
+      INSERT INTO media_items (id, uploader_member_id, caption, video_platform, video_url,
+                               source_id, start_seconds, end_seconds)
+      VALUES ('media_curated_1', 'm1', 'Blender', 'youtube',
+              'https://www.youtube.com/watch?v=CURATED', 'passback_records', 66, 90);
+      INSERT INTO tags (id, tag_normalized) VALUES ('tag_curated', '#curated');
+      INSERT INTO media_tags (media_id, tag_id) VALUES ('media_curated_1', 'tag_curated');
+      INSERT INTO member_galleries (id, owner_member_id, name)
+      VALUES ('gallery_records', 'm1', 'Passback World Records');
+      INSERT INTO member_gallery_tags (gallery_id, tag_id) VALUES ('gallery_records', 'tag_curated');
+    `);
+    db.close();
+  }
+
+  it('keeps curated media, its tags and its galleries, with no seeder run', () => {
+    seedCuratedContent();
+
+    const res = applyMigration('ALTER TABLE media_items ADD COLUMN mime_type TEXT;');
+    expect(res.status, res.stderr).toBe(0);
+
+    const media = readDb((db) =>
+      db.prepare('SELECT * FROM media_items WHERE id = ?').get('media_curated_1'),
+    ) as { caption: string; source_id: string; start_seconds: number; end_seconds: number;
+           mime_type: string | null };
+    // Every field the admin edit surface can write is still what it was, which
+    // is what "the database is the source of truth" has to mean in practice.
+    expect(media.caption).toBe('Blender');
+    expect(media.source_id).toBe('passback_records');
+    expect(media.start_seconds).toBe(66);
+    expect(media.end_seconds).toBe(90);
+    expect(media.mime_type).toBeNull();
+
+    expect(readDb((db) =>
+      (db.prepare('SELECT COUNT(*) AS c FROM media_tags').get() as { c: number }).c,
+    )).toBe(1);
+    expect(readDb((db) =>
+      (db.prepare('SELECT name FROM member_galleries WHERE id = ?').get('gallery_records') as
+        { name: string }).name,
+    )).toBe('Passback World Records');
+    expect(readDb((db) =>
+      (db.prepare('SELECT COUNT(*) AS c FROM member_gallery_tags').get() as { c: number }).c,
+    )).toBe(1);
+  });
+
+  it('keeps them when the migration fails and the database is rolled back', () => {
+    seedCuratedContent();
+
+    // A migration that adds a column and then violates a constraint: the whole
+    // file is one transaction, so nothing it did survives.
+    const res = applyMigration(
+      'ALTER TABLE media_items ADD COLUMN note TEXT;\n' +
+      "INSERT INTO media_tags (media_id, tag_id) VALUES ('media_missing', 'tag_curated');\n",
+    );
+    expect(res.status).not.toBe(0);
+
+    const media = readDb((db) =>
+      db.prepare('SELECT caption, source_id FROM media_items WHERE id = ?').get('media_curated_1'),
+    ) as { caption: string; source_id: string };
+    expect(media.caption).toBe('Blender');
+    expect(media.source_id).toBe('passback_records');
+    expect(readDb((db) =>
+      (db.prepare('SELECT COUNT(*) AS c FROM media_tags').get() as { c: number }).c,
+    )).toBe(1);
+
+    // The column the failed migration added is gone too. Without that, the
+    // rows surviving would only mean the failure happened to come last, not
+    // that the deploy is atomic.
+    const columns = readDb((db) =>
+      db.prepare('PRAGMA table_info(media_items)').all() as { name: string }[],
+    ).map((c) => c.name);
+    expect(columns).not.toContain('note');
   });
 });

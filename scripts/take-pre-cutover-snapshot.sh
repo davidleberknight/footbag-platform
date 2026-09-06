@@ -2,10 +2,15 @@
 # scripts/take-pre-cutover-snapshot.sh -- captures the pre-cutover DB snapshot.
 #
 # Copies the SQLite file to a timestamped path under database/snapshots/,
-# computes SHA-256, runs PRAGMA integrity_check, and emits a manifest JSON
-# capturing the snapshot id, byte size, hash, and row counts for the
-# cutover-critical tables enumerated below. The manifest goes to stdout
+# computes SHA-256, runs PRAGMA integrity_check, gzips the result, and emits a
+# manifest JSON capturing the snapshot id, byte size, hash, and row counts for
+# the cutover-critical tables enumerated below. The manifest goes to stdout
 # AND a sibling .manifest.json file.
+#
+# The artifact is gzipped so it matches the routine backup stream's format,
+# which is what scripts/restore-db.sh reads. An uncompressed artifact here was
+# one the rollback tooling could not read, discovered only at the moment the
+# member database had already been replaced.
 #
 # Reads FOOTBAG_DB_PATH (default: ./database/footbag.db).
 # Output dir overridable via FOOTBAG_SNAPSHOT_DIR (default: ./database/snapshots).
@@ -72,19 +77,36 @@ count_hp=$(q      "SELECT COUNT(*) FROM historical_persons;")
 count_nv=$(q      "SELECT COUNT(*) FROM name_variants;")
 count_cbl=$(q     "SELECT COUNT(*) FROM club_bootstrap_leaders;")
 
+# Compress before upload, matching the routine stream's format. Both halves of
+# scripts/restore-db.sh gunzip unconditionally, so an uncompressed artifact here
+# is one the rollback tooling cannot read -- which is what made this snapshot,
+# the only way back after the member load, unrestorable. gzip replaces the file
+# in place, so this runs after every sqlite read above.
+#
+# byte_size and sha256 stay the UNCOMPRESSED values: they describe the database
+# a restore reconstructs, and are what you verify against after restoring.
+# archive_* describe the uploaded object, so it can be checked without
+# decompressing it.
+gzip -9 "${SNAPSHOT_PATH}"
+SNAPSHOT_ARCHIVE="${SNAPSHOT_PATH}.gz"
+archive_byte_size=$(stat -c%s "${SNAPSHOT_ARCHIVE}" 2>/dev/null || stat -f%z "${SNAPSHOT_ARCHIVE}")
+archive_sha256=$(sha256sum "${SNAPSHOT_ARCHIVE}" | awk '{print $1}')
+
 dr_uri_json="null"
 if [[ "${LOCAL_ONLY}" != "1" ]]; then
-  DR_URI="s3://${FOOTBAG_DR_BUCKET}/pre-flip/${SNAPSHOT_ID}/${SNAPSHOT_ID}.db"
-  aws s3 cp --only-show-errors "${SNAPSHOT_PATH}" "${DR_URI}"
+  DR_URI="s3://${FOOTBAG_DR_BUCKET}/pre-flip/${SNAPSHOT_ID}/${SNAPSHOT_ID}.db.gz"
+  aws s3 cp --only-show-errors "${SNAPSHOT_ARCHIVE}" "${DR_URI}"
   dr_uri_json="\"${DR_URI}\""
 fi
 
 cat > "${MANIFEST_PATH}" <<EOF
 {
   "snapshot_id": "${SNAPSHOT_ID}",
-  "snapshot_path": "${SNAPSHOT_PATH}",
+  "snapshot_path": "${SNAPSHOT_ARCHIVE}",
   "byte_size": ${byte_size},
   "sha256": "${sha256}",
+  "archive_byte_size": ${archive_byte_size},
+  "archive_sha256": "${archive_sha256}",
   "integrity_check": "ok",
   "dr_s3_uri": ${dr_uri_json},
   "row_counts": {

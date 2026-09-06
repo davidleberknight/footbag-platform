@@ -52,8 +52,10 @@ resource "aws_iam_role_policy" "app_ssm_read" {
       },
       {
         # The first-admin bootstrap token is single-use: the app deletes it the
-        # moment the claim is consumed, so the claim endpoint cannot be reused.
-        # Without delete permission the token survives and the endpoint stays open.
+        # moment the claim is consumed. What keeps the endpoint from granting
+        # twice is the in-database invariant, not this deletion; without delete
+        # permission the token survives a successful claim and the operator has
+        # to remove it by hand, which the app raises an operational error for.
         Sid      = "DeleteBootstrapAdminToken"
         Effect   = "Allow"
         Action   = ["ssm:DeleteParameter"]

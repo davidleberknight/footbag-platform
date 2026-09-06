@@ -50,9 +50,13 @@
  *     opens; if any put fails, the transaction never runs.
  *   - Async interactive admin video upload uses the `media_jobs` flow via
  *     MediaJobService; `finalizeTranscodeForJob` is the worker-side finalize.
- *   - Sidecar-backed rows (`video_platform IN ('youtube','vimeo')`): edits and
- *     deletes resolve the sidecar at runtime from `(video_platform, video_url)`,
- *     rewrite or unlink atomically, then update the DB row.
+ *   - URL-reference rows (`video_platform IN ('youtube','vimeo')`): where the
+ *     authoring tree is writable, edits and deletes resolve the sidecar from
+ *     `(video_platform, video_url)`, rewrite or unlink atomically, then update
+ *     the DB row. Where it is not, no filesystem path is touched and the DB
+ *     write is the whole operation: every field the edit surface offers has a
+ *     column, so an edit is lossless without the tree. Provenance and clip
+ *     bounds are read back from the row, never from a file.
  *   - Named-gallery mutating calls require admin OR owner of the affected gallery;
  *     enforced on every call.
  *   - FH-owned gallery creation requires admin actor and explicit `suggestedId`
@@ -76,7 +80,15 @@
  *   - `createGallery` and `updateGallery` accept `externalLinks`; each URL passes
  *     `validateExternalUrl` (DD §3.17) inside the same transaction. Per-gallery cap
  *     `config.galleryMaxExternalLinks`.
- *   - FH-owned sidecar writes gated on `config.allowCuratedSidecarWrites` (dev only).
+ *   - Every write that touches the authoring tree is gated on
+ *     `config.allowCuratedSidecarWrites` (dev only), decided in this service
+ *     rather than by any caller: URL-reference, photo and video uploads, edits,
+ *     and FH-owned gallery writes. A category supplied where the tree is not
+ *     writable is accepted and unused, since it names a directory that does not
+ *     exist there.
+ *   - Provenance ids are checked against `media_sources` before any write, so an
+ *     unregistered id is a field-level validation error rather than a
+ *     foreign-key failure surfacing as a server error.
  *   - Pre-go-live guardrail: where curated sidecar writes are on (dev, and the
  *     integration-test fixture, which set `config.allowCuratedSidecarWrites`), a
  *     curated/system write (curator photo/video/url-ref upload, edit, delete, and
@@ -606,6 +618,21 @@ async function normalizeExternalUrlOrThrow(input: string | null | undefined): Pr
   return result.normalizedUrl;
 }
 
+// Provenance ids are typed by hand on the curator forms and land in a column
+// carrying a foreign key into media_sources. An unregistered id would surface
+// as an engine-level constraint failure, which reaches the operator as a server
+// error rather than as the fixable typo it is, so it is checked here first.
+// A null clears the attribution and needs no lookup.
+function assertKnownSourceId(sourceId: string | null | undefined): void {
+  if (sourceId === undefined || sourceId === null) return;
+  const found = media.mediaSourceExists.get(sourceId) as { found: number } | undefined;
+  if (!found) {
+    throw new ValidationError(
+      `Unknown source id: "${sourceId}". Register the source before attributing media to it.`,
+    );
+  }
+}
+
 // Gallery-editing tag pattern: leading '#' then alphanumeric + underscores
 // only, max 100 chars. Unlike validateTags
 // this DOES allow `#curated` (the existing curated-freestyle-tricks gallery
@@ -1084,6 +1111,12 @@ interface MediaItemRow {
   thumbnail_url: string | null;
   source_filename: string | null;
   external_url: string | null;
+  // Provenance and clip bounds for URL-reference items. Read from the row so
+  // the edit form shows what is stored rather than depending on an authoring
+  // file that exists only on a developer machine.
+  source_id?: string | null;
+  start_seconds?: number | null;
+  end_seconds?: number | null;
   // Present on the owner-scoped read; the curator-side statement omits it.
   is_avatar?: number;
 }
@@ -1275,12 +1308,15 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       // <curatedRootDir>/<category>/ so the upload survives a DB or media-
       // store wipe and the seeder can rebuild from it. Identity column for
       // reconcile is media_items.source_filename, set to the same on-disk
-      // name. Without a category, the /curated/ write is skipped (the
-      // storage.put + media_items insert above are then the only writes,
-      // matching the staging+prod direct authoring flow). Done before the
-      // DB transaction so the sidecar identity matches the inserted row.
+      // name. Without a writable tree or without a category, the write is
+      // skipped and the storage.put + media_items insert above are the only
+      // writes. The tree gate belongs here rather than at the caller: this is
+      // the code that touches the disk, and a caller that supplies a category
+      // where no tree exists would otherwise create one inside the container
+      // that no deploy preserves. Done before the DB transaction so the
+      // sidecar identity matches the inserted row.
       let recordedSourceFilename = input.sourceFilename;
-      if (input.category) {
+      if (config.allowCuratedSidecarWrites && input.category) {
         if (!isValidCategoryName(input.category)) {
           throw new ValidationError(
             'Category name must be lowercase letters, digits, or underscores.',
@@ -1396,9 +1432,10 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       // poster by its `<slug>.poster.<ext>` name. The seeder's enumerator
       // skips files matching the `*.poster.*` pattern as not-a-primary-
       // binary, so the poster is attached to its parent video via the
-      // sidecar's `poster:` field.
+      // sidecar's `poster:` field. Gated on a writable tree for the same reason
+      // uploadPhoto is: the disk write is decided where the disk is touched.
       let recordedSourceFilename = input.sourceFilename;
-      if (input.category) {
+      if (config.allowCuratedSidecarWrites && input.category) {
         if (!isValidCategoryName(input.category)) {
           throw new ValidationError(
             'Category name must be lowercase letters, digits, or underscores.',
@@ -1639,14 +1676,22 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       validateCaption(input.title);
       validateTags(input.tags);
       const normalizedExternalUrl = await normalizeExternalUrlOrThrow(input.externalUrl);
+      assertKnownSourceId(input.sourceId);
 
       if (input.videoPlatform !== 'youtube' && input.videoPlatform !== 'vimeo') {
         throw new ValidationError('Choose YouTube or Vimeo for the video platform.');
       }
-      if (!isValidCategoryName(input.category)) {
-        throw new ValidationError(
-          `Category name must be lowercase letters, digits, or underscores: got ${JSON.stringify(input.category)}.`,
-        );
+      // The category names a subdirectory of the authoring tree, so it is only
+      // meaningful where that tree is written. Where it is not, the database row
+      // is the whole write and a category has nowhere to go: an absent one is
+      // accepted, and a supplied one still has to be well formed rather than
+      // silently ignored in a shape that would break a later authoring run.
+      if (config.allowCuratedSidecarWrites || input.category) {
+        if (!isValidCategoryName(input.category)) {
+          throw new ValidationError(
+            `Category name must be lowercase letters, digits, or underscores: got ${JSON.stringify(input.category)}.`,
+          );
+        }
       }
       if (!input.videoUrl || !/^https?:\/\//.test(input.videoUrl)) {
         throw new ValidationError('Video URL must start with http:// or https://.');
@@ -1814,6 +1859,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       if (input.externalUrl !== undefined) {
         normalizedExternalUrlEdit = await normalizeExternalUrlOrThrow(input.externalUrl);
       }
+      assertKnownSourceId(input.sourceId);
 
       const row = runSqliteRead('getCuratorMediaItemById', () =>
         media.getCuratorMediaItemById.get(input.mediaId),
@@ -1823,18 +1869,25 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       }
 
       const now = new Date().toISOString();
-      const isSidecarBacked = row.video_platform === 'youtube' || row.video_platform === 'vimeo';
+      const isUrlReference = row.video_platform === 'youtube' || row.video_platform === 'vimeo';
 
-      // Sidecar-backed branch: rewrite the JSON under /curated/ first, then
-      // update the DB inline so the list view reflects the change without
-      // waiting for the next seeder run. /curated/ is the source of truth;
-      // the DB write is a UX optimization that produces the same state the
-      // seeder would on its next run.
+      // Where the authoring tree is writable, it is the source of truth: rewrite
+      // the JSON first, then update the DB inline so the list view reflects the
+      // change without waiting for the next seeder run. Where it is not writable
+      // the tree does not exist at all and the DB write below is the whole edit,
+      // which is the same gate every other write path in this service applies.
+      const editsAuthoringTree = isUrlReference && config.allowCuratedSidecarWrites;
+
       let auditEntityId = input.mediaId;
-      let auditActionType: 'media.curated_edited' | 'media.curated_url_reference_edited' = 'media.curated_edited';
-      if (isSidecarBacked) {
+      let auditEntityType: 'curated_sidecar' | 'media_item' = 'media_item';
+      const auditActionType: 'media.curated_edited' | 'media.curated_url_reference_edited' =
+        isUrlReference ? 'media.curated_url_reference_edited' : 'media.curated_edited';
+      if (editsAuthoringTree) {
         const sidecarFilePath = await resolveSidecarForRow(getCuratedRootDir(), row);
         if (!sidecarFilePath) {
+          // Writes are on, so this row was authored from a file that should still
+          // be on disk next to its siblings. Its absence is a corrupted working
+          // tree, not a state the running application is meant to handle.
           throw new Error(
             `editMedia: sidecar file not found for media ${input.mediaId} ` +
             `(video_platform=${row.video_platform}, video_url=${row.video_url}). ` +
@@ -1885,7 +1938,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         const sidecarFilename = path.basename(sidecarFilePath);
         await writeUrlSidecarFile(sidecarDir, sidecarFilename, formatUrlSidecarJson(updated));
 
-        auditActionType = 'media.curated_url_reference_edited';
+        auditEntityType = 'curated_sidecar';
         auditEntityId = sidecarFilename;
       }
 
@@ -1910,18 +1963,37 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         if (normalizedExternalUrlEdit !== undefined) {
           media.setMediaItemExternalUrl.run(normalizedExternalUrlEdit, now, input.mediaId, row.uploader_member_id);
         }
+        if (input.sourceId !== undefined) {
+          media.updateCuratorMediaSourceId.run(input.sourceId, now, input.mediaId);
+        }
+        // Both bounds are written whenever either one is edited, so the pair the
+        // row ends up with is the pair that was checked against the ordering
+        // constraint. An untouched bound is re-supplied from the loaded row.
+        if (input.startSeconds !== undefined || input.endSeconds !== undefined) {
+          const nextStart = input.startSeconds !== undefined
+            ? input.startSeconds : (row.start_seconds ?? null);
+          const nextEnd = input.endSeconds !== undefined
+            ? input.endSeconds : (row.end_seconds ?? null);
+          media.updateCuratorMediaClipRange.run(nextStart, nextEnd, now, input.mediaId);
+        }
+        if (input.thumbnailUrl !== undefined) {
+          media.updateCuratorMediaThumbnailUrl.run(input.thumbnailUrl, now, input.mediaId);
+        }
         appendAuditEntry({
           actionType: auditActionType,
           category: 'media',
           actorType: 'admin',
           actorMemberId: input.adminMemberId,
-          entityType: isSidecarBacked ? 'curated_sidecar' : 'media_item',
+          entityType: auditEntityType,
           entityId: auditEntityId,
           metadata: {
             mediaId: input.mediaId,
             captionChanged: input.caption !== undefined,
             tagsChanged: input.tags !== undefined,
             externalUrlChanged: input.externalUrl !== undefined,
+            sourceIdChanged: input.sourceId !== undefined,
+            clipRangeChanged: input.startSeconds !== undefined || input.endSeconds !== undefined,
+            thumbnailUrlChanged: input.thumbnailUrl !== undefined,
             ...(input.tags !== undefined && { tags: input.tags }),
           },
         });
@@ -1987,8 +2059,11 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           category: 'media',
           actorType: 'admin',
           actorMemberId: input.adminMemberId,
-          entityType: isSidecarBacked ? 'curated_sidecar' : 'media_item',
-          entityId: isSidecarBacked && sidecarFilename ? sidecarFilename : input.mediaId,
+          // The entity is the authoring file only when one was actually found and
+          // unlinked. Naming a file the delete never touched puts a claim in the
+          // immutable ledger that nothing on disk supports.
+          entityType: sidecarFilename ? 'curated_sidecar' : 'media_item',
+          entityId: sidecarFilename ?? input.mediaId,
           metadata: {
             mediaId: input.mediaId,
             mediaType: row.media_type,
@@ -2038,26 +2113,25 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       if (!row) return null;
       const tagPairs = queryCuratorMediaTags([mediaId]);
 
-      // For sidecar-backed rows, read the sidecar file to surface the
-      // URL-ref-only fields (creator/sourceId/tier/clip range) for the
-      // edit form. Best-effort: a missing or malformed sidecar leaves the
-      // fields null — the controller can still render the form with
-      // caption + tags, and the operator can re-upload to repair.
+      // Provenance and clip bounds come from the row, which holds them in every
+      // environment and is the only source on a deployed host, where no
+      // authoring tree exists. Reading them from a file instead would show the
+      // form blank fields over stored values and let a save discard them.
       let creator: string | null = null;
-      let sourceId: string | null = null;
+      let sourceId: string | null = row.source_id ?? null;
       let tier: string | null = null;
-      let startSeconds: number | null = null;
-      let endSeconds: number | null = null;
+      let startSeconds: number | null = row.start_seconds ?? null;
+      let endSeconds: number | null = row.end_seconds ?? null;
+      // The remaining authoring-only fields have no column, so they can be
+      // surfaced only where the tree exists. Best-effort: a missing or malformed
+      // file leaves them null and the form still renders everything else.
       if (row.video_platform === 'youtube' || row.video_platform === 'vimeo') {
         const sidecarFilePath = await resolveSidecarForRow(getCuratedRootDir(), row);
         if (sidecarFilePath) {
           try {
             const sidecar = await readUrlSidecarFile(sidecarFilePath);
             creator = sidecar.creator ?? null;
-            sourceId = sidecar.sourceId ?? null;
             tier = sidecar.tier ?? null;
-            startSeconds = sidecar.startSeconds ?? null;
-            endSeconds = sidecar.endSeconds ?? null;
           } catch {
             // Malformed sidecar; leave fields null.
           }
