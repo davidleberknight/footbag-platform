@@ -18,7 +18,7 @@
  */
 import { deceasedMarking } from '../db/db';
 import { deceasedMarkingService } from './deceasedMarkingService';
-import { NotFoundError, ValidationError } from './serviceErrors';
+import { NotFoundError } from './serviceErrors';
 import type { PageViewModel } from '../types/page';
 
 const LOOKUP_LIMIT = 25;
@@ -62,7 +62,6 @@ export interface AdminHistoricalRecordConfirmContent {
   personId: string;
   personName: string;
   summary: string;
-  reason: string;
   confirmAction: string;
   confirmLabel: string;
   cancelHref: string;
@@ -92,12 +91,6 @@ function shapeRow(row: HistoricalRecordRow): RecordResultView {
     markAction:   `/admin/historical-records/${row.person_id}/deceased`,
     revertAction: `/admin/historical-records/${row.person_id}/deceased/revert`,
   };
-}
-
-function requireReason(raw: string): string {
-  const reason = raw.trim();
-  if (!reason) throw new ValidationError('Enter the reason for this change.');
-  return reason;
 }
 
 function readRecord(personId: string): { person_id: string; person_name: string; is_deceased: number } {
@@ -160,10 +153,8 @@ export const adminHistoricalRecordService = {
   previewDeceasedChange(
     personId: string,
     marking: boolean,
-    rawReason: string,
   ): PageViewModel<AdminHistoricalRecordConfirmContent> {
     const row = readRecord(personId);
-    const reason = requireReason(rawReason);
     const title = marking
       ? 'Confirm: Record This Person as Deceased'
       : 'Confirm: Remove the Deceased Record';
@@ -180,7 +171,6 @@ export const adminHistoricalRecordService = {
             + 'name stay published exactly as they are.'
           : 'This removes the marking, so the record can be claimed directly again. Nothing else '
             + 'about the record changes.',
-        reason,
         confirmAction: marking
           ? `/admin/historical-records/${row.person_id}/deceased/confirm`
           : `/admin/historical-records/${row.person_id}/deceased/revert/confirm`,
@@ -195,11 +185,9 @@ export const adminHistoricalRecordService = {
     actorId: string,
     personId: string,
     marking: boolean,
-    rawReason: string,
   ): string {
-    const reason = requireReason(rawReason);
     const result = deceasedMarkingService.setHistoricalPersonDeceased(
-      actorId, personId, marking, reason,
+      actorId, personId, marking,
     );
     if (result.status === 'unchanged') {
       return marking

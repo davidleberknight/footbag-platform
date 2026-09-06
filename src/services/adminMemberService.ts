@@ -249,7 +249,13 @@ export interface AdminMemberConfirmContent {
   changes: ChangeRow[];
   hasChanges: boolean;
   noChangeMessage: string | null;
-  reason: string;
+  /**
+   * Null on the actions that collect no reason. A tier change and an expiry
+   * correction each have several possible motives, so the administrator's own
+   * words are what makes the ledger row reviewable; the deceased marking has
+   * one motive and collects nothing to show here.
+   */
+  reason: string | null;
   hiddenFields: HiddenField[];
   confirmAction: string;
   confirmLabel: string;
@@ -805,10 +811,8 @@ export const adminMemberService = {
   previewDeceasedChange(
     memberId: string,
     reverting: boolean,
-    rawReason: string,
   ): PageViewModel<AdminMemberConfirmContent> {
     const row = readMember(memberId);
-    const reason = requireReason(rawReason);
     const alreadyMarked = row.is_deceased === 1;
 
     if (reverting && !alreadyMarked) {
@@ -843,8 +847,8 @@ export const adminMemberService = {
         changes,
         hasChanges:      true,
         noChangeMessage: null,
-        reason,
-        hiddenFields: [{ name: 'reason', value: reason }],
+        reason:          null,
+        hiddenFields:    [],
         confirmAction: reverting
           ? `/admin/members/${row.id}/deceased/revert/confirm`
           : `/admin/members/${row.id}/deceased/confirm`,
@@ -859,14 +863,12 @@ export const adminMemberService = {
     actorId: string,
     memberId: string,
     reverting: boolean,
-    rawReason: string,
   ): CorrectionOutcome {
-    const reason = requireReason(rawReason);
     if (!reverting) {
-      deceasedMarkingService.markDeceased(actorId, memberId, reason);
+      deceasedMarkingService.markDeceased(actorId, memberId);
       return 'deceased_marked';
     }
-    const result = deceasedMarkingService.revertDeceased(actorId, memberId, reason);
+    const result = deceasedMarkingService.revertDeceased(actorId, memberId);
     return result.status === 'reverted' ? 'deceased_reverted' : 'deceased_grace_elapsed';
   },
 

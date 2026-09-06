@@ -3,7 +3,7 @@
  * marking made in error.
  *
  * Owns:
- *   - The `members.is_deceased` write and its timestamp and note
+ *   - The `members.is_deceased` write and its timestamp
  *   - The cascade to a linked `historical_persons` row
  *   - Withdrawal from events that have not yet happened
  *   - The same flag on an unlinked historical record, set or unset
@@ -23,6 +23,15 @@
  *     transaction, so a record can never be half-marked.
  *   - Both writes are guarded on the flag's current value, which makes a repeat
  *     a no-op rather than a second audit row.
+ *   - No free text is collected on any of these actions, and none reaches the
+ *     audit row. Each has a single motive the action type already states, so a
+ *     note would carry no fact the row does not, while a required box invites
+ *     an administrator to type a cause of death or the name of whoever
+ *     reported it. That is personal data about a named person, and the audit
+ *     ledger is append-only and beyond the reach of both erasure paths, so it
+ *     would outlive every erasure the platform can perform. The row records
+ *     the actor, the subject, the moment, and the structured consequences,
+ *     which is the whole of what makes the action reviewable.
  *   - Reversal is bounded by `deceased_cleanup_grace_days`, the same window the
  *     contact scrub waits out, because after the scrub there is nothing left to
  *     restore.
@@ -38,10 +47,9 @@
 import { account, deceasedMarking, transaction } from '../db/db';
 import { appendAuditEntry } from './auditService';
 import { readIntConfig } from './configReader';
-import { ConflictError, NotFoundError, ValidationError } from './serviceErrors';
+import { ConflictError, NotFoundError } from './serviceErrors';
 
 const DECEASED_GRACE_DAYS_DEFAULT = 30;
-const MAX_REASON = 500;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 export type MarkDeceasedResult = {
@@ -73,15 +81,6 @@ function readMember(memberId: string): MemberRow {
   return row;
 }
 
-function requireReason(raw: string): string {
-  const reason = raw.trim();
-  if (!reason) throw new ValidationError('Enter the reason for this marking.');
-  if (reason.length > MAX_REASON) {
-    throw new ValidationError(`The reason must be ${MAX_REASON} characters or fewer.`);
-  }
-  return reason;
-}
-
 function graceDays(): number {
   return readIntConfig('deceased_cleanup_grace_days', DECEASED_GRACE_DAYS_DEFAULT);
 }
@@ -96,15 +95,14 @@ export const deceasedMarkingService = {
    * existing exclusion predicate covers. Everything else the member leaves
    * behind stays exactly as it is.
    */
-  markDeceased(actorId: string, memberId: string, rawReason: string): MarkDeceasedResult {
+  markDeceased(actorId: string, memberId: string): MarkDeceasedResult {
     const row = readMember(memberId);
-    const reason = requireReason(rawReason);
     if (row.is_deceased === 1) {
       throw new ConflictError('This member is already marked deceased.');
     }
-    // An erased account is an anonymized stub. Marking it deceased would record
-    // something about a person the record no longer identifies, and the audit
-    // row would carry the administrator's reason about them permanently.
+    // An erased account is an anonymized stub. Marking it deceased would assert
+    // something about a person the record no longer identifies, and would leave
+    // a permanent audit row pointing at them.
     if (row.personal_data_purged_at) {
       throw new ConflictError(
         "This account's personal data has been erased, so it cannot be marked.",
@@ -115,7 +113,7 @@ export const deceasedMarkingService = {
     const today = now.slice(0, 10);
 
     return transaction(() => {
-      deceasedMarking.markMember.run(now, reason, now, actorId, memberId);
+      deceasedMarking.markMember.run(now, now, actorId, memberId);
 
       const cascaded = Boolean(row.historical_person_id);
       if (row.historical_person_id) {
@@ -133,7 +131,7 @@ export const deceasedMarkingService = {
         actorMemberId: actorId,
         entityType:    'member',
         entityId:      memberId,
-        reasonText:    reason,
+        reasonText:    null,
         metadata: {
           cascaded_to_historical_person: cascaded,
           historical_person_id:          row.historical_person_id,
@@ -158,9 +156,8 @@ export const deceasedMarkingService = {
    * withdrawn event registrations are not reinstated: an organizer's roster is
    * theirs, and a member returning to an event registers again.
    */
-  revertDeceased(actorId: string, memberId: string, rawReason: string): RevertDeceasedResult {
+  revertDeceased(actorId: string, memberId: string): RevertDeceasedResult {
     const row = readMember(memberId);
-    const reason = requireReason(rawReason);
     if (row.is_deceased !== 1) {
       throw new ConflictError('This member is not marked deceased.');
     }
@@ -190,7 +187,7 @@ export const deceasedMarkingService = {
         actorMemberId: actorId,
         entityType:    'member',
         entityId:      memberId,
-        reasonText:    reason,
+        reasonText:    null,
         metadata: {
           cascaded_to_historical_person: cascaded,
           historical_person_id:          row.historical_person_id,
@@ -214,7 +211,6 @@ export const deceasedMarkingService = {
     actorId: string,
     personId: string,
     isDeceased: boolean,
-    rawReason: string,
   ): HistoricalPersonDeceasedResult {
     const person = deceasedMarking.findHistoricalPerson.get(personId) as
       | {
@@ -237,7 +233,6 @@ export const deceasedMarkingService = {
         + 'on their member record rather than here.',
       );
     }
-    const reason = requireReason(rawReason);
 
     const target = isDeceased ? 1 : 0;
     if (person.is_deceased === target) {
@@ -257,7 +252,7 @@ export const deceasedMarkingService = {
         actorMemberId: actorId,
         entityType:    'historical_person',
         entityId:      personId,
-        reasonText:    reason,
+        reasonText:    null,
         metadata:      { unlinked_historical_record: true },
       });
       return {

@@ -75,7 +75,7 @@
 
   <section>
     <div class="section-heading"><h2>Corrections</h2></div>
-    <p class="text-muted fs-sm">Every correction is shown for review before anything is written, takes a reason, and is recorded in this member's audit history.</p>
+    <p class="text-muted fs-sm">Every correction is shown for review before anything is written and is recorded in this member's audit history. Those with more than one possible motive also take a reason.</p>
 
     <details class="admin-action-disclosure">
       <summary>Correct the Name</summary>
@@ -158,10 +158,6 @@
         <summary>Remove the Deceased Marking</summary>
         <p class="text-muted fs-sm">{{content.deceasedGraceNote}}</p>
         <form method="POST" action="{{content.deceasedRevertAction}}" class="form-block">
-          <div class="form-field">
-            <label for="deceased_revert_reason">Reason (required)</label>
-            <input type="text" id="deceased_revert_reason" name="reason" maxlength="500" required />
-          </div>
           <button type="submit" class="btn btn-outline">Review Removing the Marking</button>
         </form>
       </details>
@@ -169,11 +165,8 @@
       <details class="admin-action-disclosure">
         <summary>Mark the Member Deceased</summary>
         <p class="text-muted fs-sm">Honours, uploaded media, competition results and club history are all preserved. A linked historical record is marked to match, the member is withdrawn from events that have not happened yet, and the platform sends them nothing.</p>
+        <p class="text-muted fs-sm">The next screen names the member and asks you to confirm.</p>
         <form method="POST" action="{{content.deceasedMarkAction}}" class="form-block">
-          <div class="form-field">
-            <label for="deceased_reason">Reason (required)</label>
-            <input type="text" id="deceased_reason" name="reason" maxlength="500" required />
-          </div>
           <button type="submit" class="btn btn-outline">Review Marking as Deceased</button>
         </form>
       </details>

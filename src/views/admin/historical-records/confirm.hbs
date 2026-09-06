@@ -8,13 +8,11 @@
   <section>
     <div class="card mb-6">
       <p class="m-0 fw-500">{{content.personName}} &middot; {{content.personId}}</p>
-      <p class="m-0 mt-1 text-muted">Reason: {{content.reason}}</p>
     </div>
 
     <p>{{content.summary}}</p>
 
     <form method="POST" action="{{content.confirmAction}}">
-      <input type="hidden" name="reason" value="{{content.reason}}" />
       <button type="submit" class="btn btn-primary">{{content.confirmLabel}}</button>
     </form>
 

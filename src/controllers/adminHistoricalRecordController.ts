@@ -56,7 +56,6 @@ export const adminHistoricalRecordController = {
         res.render('admin/historical-records/confirm', adminHistoricalRecordService.previewDeceasedChange(
           req.params['personId'] ?? '',
           marking,
-          String(req.body?.reason ?? ''),
         ));
       } catch (err) {
         if (isHandled(err)) { renderError(res, err, next); return; }
@@ -73,7 +72,6 @@ export const adminHistoricalRecordController = {
           req.user!.userId,
           req.params['personId'] ?? '',
           marking,
-          String(req.body?.reason ?? ''),
         );
         res.redirect(303, '/admin/historical-records');
       } catch (err) {

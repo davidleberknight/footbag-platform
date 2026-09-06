@@ -176,7 +176,7 @@ export const adminMemberController = {
       const memberId = req.params['memberId'] ?? '';
       try {
         res.render('admin/members/confirm', adminMemberService.previewDeceasedChange(
-          memberId, reverting, bodyValue(req, 'reason'),
+          memberId, reverting,
         ));
       } catch (err) {
         if (isHandled(err)) { renderRecordError(res, memberId, err, next); return; }
@@ -191,7 +191,7 @@ export const adminMemberController = {
     const memberId = req.params['memberId'] ?? '';
     try {
       const outcome = adminMemberService.applyDeceasedChange(
-        req.user!.userId, memberId, reverting, bodyValue(req, 'reason'),
+        req.user!.userId, memberId, reverting,
       );
       writeFlash(res, req, FLASH_KIND.MEMBER_RECORD_CORRECTED, outcome);
       res.redirect(303, `/admin/members/${memberId}`);

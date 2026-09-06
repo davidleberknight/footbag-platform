@@ -9511,13 +9511,15 @@ export const memberMessages = {
 
 // Marking a member deceased, and the records that have to follow it. The flag
 // itself is affirmative-only: its presence records a person recognized as
-// deceased, its absence asserts nothing.
+// deceased, its absence asserts nothing. No free text about the death is
+// stored: the marking has one motive, so a note would add no fact the flag and
+// its audit row do not already carry, and it would sit on the member row where
+// neither erasure path reaches it.
 export const deceasedMarking = {
   get markMember() { return db.prepare(`
     UPDATE members
     SET is_deceased   = 1,
         deceased_at   = ?,
-        deceased_note = ?,
         updated_at    = ?,
         updated_by    = ?,
         version       = version + 1
@@ -9531,7 +9533,6 @@ export const deceasedMarking = {
     UPDATE members
     SET is_deceased   = 0,
         deceased_at   = NULL,
-        deceased_note = NULL,
         updated_at    = ?,
         updated_by    = ?,
         version       = version + 1

@@ -2237,8 +2237,11 @@ CREATE TABLE members (
   -- no linked historical record, which is every member inducted from now on.
   bap_inducted_year       INTEGER,
   is_deceased INTEGER NOT NULL DEFAULT 0 CHECK (is_deceased IN (0,1)),
+  -- When the marking was made. No companion note column: the administrator's
+  -- reasoning would be free text about a named dead person, sitting where
+  -- neither erasure path reaches it and read back by nothing, so the marking
+  -- collects none and its audit row carries the structured consequences.
   deceased_at   TEXT,
-  deceased_note TEXT,
 
   stripe_customer_id TEXT,
 

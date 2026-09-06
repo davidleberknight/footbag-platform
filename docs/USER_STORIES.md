@@ -2902,12 +2902,11 @@ Success Criteria:
 - Member's historical event results, club affiliations, and other community contributions remain visible in archives and historical records.
 - Login is disabled for deceased member accounts (cannot authenticate).
 - Email address and other private contact information are permanently removed after a admin-configurable grace period (in case of error).
-- Admin action requires mandatory reason field (typically: "Member deceased" or similar).
-- Confirmation dialog required.
-- All marking actions audit-logged with admin ID, member ID, reason, timestamp.
+- Admin action requires a confirmation step: a dedicated page naming the member, showing the flag's before-and-after, and stating the consequences and the grace window before the action commits. No free-text reason is collected. The action has one motive, and a required note about a named person's death would be stored where no erasure path can reach it and read back nowhere.
+- All marking actions audit-logged with admin ID, member ID, timestamp, and the structured consequences (cascade to a historical record, registrations withdrawn).
 - Admin sees a clear success message when action completes.
 - If marking was done in error, admin can remove the deceased flag within a configurable grace period with audit logging; after grace period, only full account deletion is available.
-- A parallel admin affordance can set or unset `historical_persons.is_deceased` on an unlinked historical record (a historical person with no member account), audit-logged with a reason and reversible. The `historical_persons.is_deceased` flag is affirmative-only (its presence marks a person recognized as deceased; its absence asserts nothing) and is consumed only to suppress the direct historical-record claim CTA (see M_Claim_Legacy_Account). No public memorial display is driven by this flag; an "In Memoriam" presentation on historical and HoF/BAP surfaces is deferred to its own future story.
+- A parallel admin affordance can set or unset `historical_persons.is_deceased` on an unlinked historical record (a historical person with no member account), audit-logged and reversible, behind the same confirmation step. The `historical_persons.is_deceased` flag is affirmative-only (its presence marks a person recognized as deceased; its absence asserts nothing) and is consumed only to suppress the direct historical-record claim CTA (see M_Claim_Legacy_Account). No public memorial display is driven by this flag; an "In Memoriam" presentation on historical and HoF/BAP surfaces is deferred to its own future story.
 
 ### A_Review_Member_Link_Help_Requests
 

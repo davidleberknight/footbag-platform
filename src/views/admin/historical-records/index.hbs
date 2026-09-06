@@ -36,18 +36,10 @@
           <p class="m-0 mt-1"><a href="{{claimedHref}}">Open that member record</a></p>
         {{else if isDeceased}}
           <form method="POST" action="{{revertAction}}" class="form-block">
-            <div class="form-field">
-              <label for="revert_reason_{{personId}}">Reason (required)</label>
-              <input type="text" id="revert_reason_{{personId}}" name="reason" maxlength="500" required />
-            </div>
             <button type="submit" class="btn btn-outline btn-sm">Review Removing the Record</button>
           </form>
         {{else}}
           <form method="POST" action="{{markAction}}" class="form-block">
-            <div class="form-field">
-              <label for="mark_reason_{{personId}}">Reason (required)</label>
-              <input type="text" id="mark_reason_{{personId}}" name="reason" maxlength="500" required />
-            </div>
             <button type="submit" class="btn btn-outline btn-sm">Review Recording as Deceased</button>
           </form>
         {{/if}}

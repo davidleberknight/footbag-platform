@@ -6,6 +6,12 @@
  * event that must survive it, the reversal inside the grace period and its
  * refusal outside one, and the contributions the marking is required to leave
  * untouched: honours, uploaded media attribution, and competition history.
+ *
+ * Also covers what the marking must NOT collect. No surface asks for free text
+ * about the death, and a request carrying some anyway stores none: the audit
+ * ledger is append-only and beyond the reach of both erasure paths, so text
+ * about a named person landing there would outlive every erasure the platform
+ * can perform.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
@@ -24,6 +30,7 @@ const LINKED_ID = 'dm_linked';
 const HONOURED_ID = 'dm_honoured';
 const REVERT_ID = 'dm_revert';
 const STALE_ID = 'dm_stale';
+const PROBE_ID = 'dm_probe';
 
 const PERSON_ID = 'dm_person_1';
 const UNLINKED_PERSON_ID = 'dm_person_2';
@@ -43,21 +50,21 @@ function db<T>(fn: (conn: BetterSqlite3.Database) => T): T {
   }
 }
 
-async function mark(memberId: string, reason = 'member deceased'): Promise<number> {
+async function mark(memberId: string): Promise<number> {
   const res = await request(createApp())
     .post(`/admin/members/${memberId}/deceased/confirm`)
     .set('Cookie', adminCookie())
     .type('form')
-    .send({ reason });
+    .send({});
   return res.status;
 }
 
-async function revert(memberId: string, reason = 'marked in error'): Promise<number> {
+async function revert(memberId: string): Promise<number> {
   const res = await request(createApp())
     .post(`/admin/members/${memberId}/deceased/revert/confirm`)
     .set('Cookie', adminCookie())
     .type('form')
-    .send({ reason });
+    .send({});
   return res.status;
 }
 
@@ -73,6 +80,14 @@ function auditCount(actionType: string, entityId: string): number {
   ).get(actionType, entityId)) as { c: number }).c;
 }
 
+function auditRows(entityId: string): { reason_text: string | null; metadata_json: string | null }[] {
+  return db((conn) => conn.prepare(
+    `SELECT reason_text, metadata_json FROM audit_entries
+     WHERE entity_id = ? AND action_type IN ('member.deceased_marked', 'member.deceased_reverted')
+     ORDER BY id`,
+  ).all(entityId)) as { reason_text: string | null; metadata_json: string | null }[];
+}
+
 beforeAll(async () => {
   const conn = createTestDb(dbPath);
   insertMember(conn, {
@@ -81,6 +96,7 @@ beforeAll(async () => {
   });
   for (const [id, name] of [
     [PLAIN_ID, 'Pat Plain'], [REVERT_ID, 'Rex Revert'], [STALE_ID, 'Stan Stale'],
+    [PROBE_ID, 'Percy Probe'],
   ] as const) {
     insertMember(conn, {
       id, slug: id, display_name: name, real_name: name, login_email: `${id}@example.com`,
@@ -146,14 +162,49 @@ describe('marking a member deceased', () => {
     expect(auditCount('member.deceased_marked', PLAIN_ID)).toBe(1);
   });
 
-  it('refuses a marking with no reason', async () => {
+  it('records the consequences and no free text on the audit row', async () => {
+    const rows = auditRows(PLAIN_ID);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.reason_text).toBeNull();
+
+    // What makes the action reviewable is what it did, not a sentence about
+    // why: the cascade and the registrations it withdrew.
+    const metadata = JSON.parse(rows[0]!.metadata_json ?? '{}') as Record<string, unknown>;
+    expect(metadata['registrations_withdrawn']).toBe(1);
+    expect(metadata['cascaded_to_historical_person']).toBe(false);
+  });
+
+  it('asks the administrator to confirm on a page naming the member, with no reason to type', async () => {
     const res = await request(createApp())
-      .post(`/admin/members/${REVERT_ID}/deceased/confirm`)
+      .post(`/admin/members/${PROBE_ID}/deceased`)
       .set('Cookie', adminCookie())
       .type('form')
-      .send({ reason: '   ' });
-    expect(res.status).toBe(422);
-    expect(memberRow(REVERT_ID).is_deceased).toBe(0);
+      .send({});
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Percy Probe');
+    expect(res.text).toContain(PROBE_ID);
+    expect(res.text).toContain('Yes, Mark as Deceased');
+    expect(res.text).not.toContain('name="reason"');
+    expect(res.text).not.toContain('Reason:');
+    // Reviewing the change must not be what performs it.
+    expect(memberRow(PROBE_ID).is_deceased).toBe(0);
+  });
+
+  it('stores nothing from a request that supplies free text anyway', async () => {
+    const res = await request(createApp())
+      .post(`/admin/members/${PROBE_ID}/deceased/confirm`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ reason: 'family said it was cancer' });
+    expect(res.status).toBe(303);
+    expect(memberRow(PROBE_ID).is_deceased).toBe(1);
+
+    expect(auditRows(PROBE_ID).every((r) => r.reason_text === null)).toBe(true);
+    const hits = db((conn) => conn.prepare(
+      `SELECT COUNT(*) AS c FROM audit_entries
+       WHERE COALESCE(reason_text, '') || COALESCE(metadata_json, '') LIKE '%cancer%'`,
+    ).get()) as { c: number };
+    expect(hits.c).toBe(0);
   });
 
   it('marks a linked historical record to match, so the two surfaces agree', async () => {
@@ -184,15 +235,16 @@ describe('the same flag on a record nobody has claimed', () => {
       .post(`/admin/historical-records/${UNLINKED_PERSON_ID}/deceased/confirm`)
       .set('Cookie', adminCookie())
       .type('form')
-      .send({ reason: 'obituary confirmed' });
+      .send({});
     expect(setRes.status).toBe(303);
     expect(auditCount('member.deceased_marked', UNLINKED_PERSON_ID)).toBe(1);
+    expect(auditRows(UNLINKED_PERSON_ID).every((r) => r.reason_text === null)).toBe(true);
 
     const unsetRes = await request(createApp())
       .post(`/admin/historical-records/${UNLINKED_PERSON_ID}/deceased/revert/confirm`)
       .set('Cookie', adminCookie())
       .type('form')
-      .send({ reason: 'wrong person' });
+      .send({});
     expect(unsetRes.status).toBe(303);
     const person = db((conn) => conn.prepare(
       `SELECT is_deceased FROM historical_persons WHERE person_id = ?`,
@@ -208,7 +260,7 @@ describe('the same flag on a record nobody has claimed', () => {
       .post(`/admin/historical-records/${PERSON_ID}/deceased/confirm`)
       .set('Cookie', adminCookie())
       .type('form')
-      .send({ reason: 'obituary confirmed' });
+      .send({});
     expect(res.status).toBe(422);
     expect(res.text).toContain('member record');
 
