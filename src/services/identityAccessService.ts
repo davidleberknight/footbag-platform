@@ -3520,17 +3520,12 @@ function lookupHistoricalPersonForClaim(
   // not enumerable.
   if (hp.is_deceased) return null;
 
+  // A holder whose record still stands owns this historical record, and that
+  // includes the two permanent holders: a deceased member keeps the link through
+  // the contact scrub, and an honoree keeps it through account erasure. Neither
+  // is open for another member to take over.
   const existing = legacyClaim.findMemberClaimingHp.get(personId) as { id: string; slug: string } | undefined;
   if (existing) {
-    return { status: 'conflict' };
-  }
-
-  // A deceased member who held this record keeps the link through the contact
-  // scrub, so the record stays theirs; it is not open for another member to
-  // take over (the scrub's purge marker otherwise hides them from the check
-  // above). Treat it as taken, same as a live claimant.
-  const deceasedHolder = legacyClaim.findDeceasedMemberHoldingHp.get(personId) as { id: string } | undefined;
-  if (deceasedHolder) {
     return { status: 'conflict' };
   }
 
@@ -3644,18 +3639,13 @@ function claimHistoricalPersonInTxInner(
     throw new ValidationError('The historical record is no longer available for claim.');
   }
 
+  // A holder whose record still stands owns this historical record, the two
+  // permanent holders included: a deceased member keeps the link through the
+  // contact scrub, and an honoree keeps it through account erasure. Gating the
+  // execution path on the same read is what stops a direct post taking a record
+  // the surfaces already refuse to offer.
   const existing = legacyClaim.findMemberClaimingHp.get(personId) as { id: string; slug: string } | undefined;
   if (existing) {
-    throw new ValidationError('This historical record has already been claimed by another member.'
-      + ASK_ADMIN_AFTER_SIGNUP);
-  }
-
-  // A deceased member who held this record keeps the link through the contact
-  // scrub, so the record stays theirs and is not claimable by another member.
-  // The scrub's purge marker hides them from findMemberClaimingHp, so check for
-  // a deceased holder explicitly and gate the execution path the same way.
-  const deceasedHolder = legacyClaim.findDeceasedMemberHoldingHp.get(personId) as { id: string } | undefined;
-  if (deceasedHolder) {
     throw new ValidationError('This historical record has already been claimed by another member.'
       + ASK_ADMIN_AFTER_SIGNUP);
   }
@@ -5622,11 +5612,10 @@ function previewLinkHelpApproval(
     | { person_id: string; person_name: string; country: string | null; first_year: number | null }
     | undefined;
   if (!person) throw new ValidationError('No competition record with that id.');
-  // A deceased holder keeps the link through the contact scrub, so both lookups
-  // are asked: treating the record as free because the live-holder query filters
-  // that member out is exactly how it would be handed to somebody else.
-  const holder = legacyClaim.findMemberClaimingHp.get(personId) as { id: string } | undefined
-    ?? legacyClaim.findDeceasedMemberHoldingHp.get(personId) as { id: string } | undefined;
+  // Any holder whose record still stands, which includes a deceased member and
+  // an honoree: both keep the link through their erasure, and treating either
+  // record as free is exactly how it would be handed to somebody else.
+  const holder = legacyClaim.findMemberClaimingHp.get(personId) as { id: string } | undefined;
   if (holder) {
     throw new ValidationError(
       'Another member already holds that competition record, so it cannot be linked here.',

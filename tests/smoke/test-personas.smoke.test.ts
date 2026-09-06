@@ -3,8 +3,9 @@
  *
  * Asserts that the canonical persona catalog (src/testkit/canonicalPersonas.ts)
  * actually reached the staging DB via ./deploy_to_aws.sh --seed-test-personas,
- * that every seeded persona member carries a fresh argon2id password hash
- * (never the plaintext literal), and that re-running --seed-test-personas
+ * that every persona member holding credentials carries a fresh argon2id
+ * password hash (never the plaintext literal), and that re-running
+ * --seed-test-personas
  * produces no duplicate audit rows (the skip-existing-slug idempotency contract
  * in src/testkit/personaSeedRunner.ts).
  *
@@ -26,11 +27,14 @@
  *     transport (scripts/deploy-rebuild.sh / scripts/deploy-code.sh and their
  *     remote halves) broke the hand-off, or the operator ran ./deploy_to_aws.sh
  *     without --seed-test-personas.
- *   - passwordHashesArgon2 !== personasSeeded: a seeded row has a non-argon2
- *     password_hash. (A string starting with '$argon2id$' cannot also equal the
- *     plaintext literal, so this positive check subsumes a plaintext-leak
- *     assertion; the single-source secret invariant forbids duplicating the
- *     literal here in any case.)
+ *   - passwordHashesArgon2 !== personasExpectingCredentials: a persona that
+ *     holds credentials has a non-argon2 password_hash. (A string starting with
+ *     '$argon2id$' cannot also equal the plaintext literal, so this positive
+ *     check subsumes a plaintext-leak assertion; the single-source secret
+ *     invariant forbids duplicating the literal here in any case.) The
+ *     denominator excludes the rows the members credential constraint leaves
+ *     without a password: the purged persona, the system member, and the
+ *     deceased persona whose scrub cleared its credentials.
  *   - auditRowsSeeded !== personasSeeded: idempotency broken. A re-run inserted
  *     duplicate audit rows; the existsBySlug skip in personaSeedRunner.ts was
  *     bypassed.
@@ -61,6 +65,7 @@ const expectedTierGrants = BACKED_PERSONAS.filter((p) => p.tier !== 'tier0').len
 
 interface VerifyResult {
   personasSeeded: number;
+  personasExpectingCredentials: number;
   auditRowsSeeded: number;
   tierGrantsSeeded: number;
   passwordHashesArgon2: number;
@@ -98,7 +103,14 @@ describe.skipIf(!RUN)(
       expect(result.personasSeeded).toBeGreaterThanOrEqual(expectedPersonaCount);
     });
 
-    it('every seeded persona has a fresh argon2id password_hash (never the plaintext literal)', () => {
+    it('every persona that holds credentials has a fresh argon2id password_hash (never the plaintext literal)', () => {
+      // Measured against the personas that are supposed to hold a password, not
+      // against the whole catalog: a purged persona and the system row carry no
+      // credentials by database constraint, and the deceased persona reaches
+      // that same shape because the deceased scrub cleared them. Comparing to
+      // the full count marks those as failures for doing exactly what they are
+      // designed to do, and no redeploy can move the number.
+      //
       // On mismatch, name the offending personas and their hash scheme so the
       // failure is diagnosable without a second round trip. A stale row is
       // healed by the seed runner's in-place re-hash on the next deploy that
@@ -109,7 +121,7 @@ describe.skipIf(!RUN)(
         stale.length
           ? `stale-hash personas: ${stale.map((s) => `${s.slug}(${s.hashPrefix})`).join(', ')}`
           : undefined,
-      ).toBe(result.personasSeeded);
+      ).toBe(result.personasExpectingCredentials);
     });
 
     it('re-running the seed is idempotent (one audit row per seeded persona)', () => {

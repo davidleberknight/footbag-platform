@@ -7,14 +7,15 @@
  *     name, country and honor badge, never the biography, locality or links
  *   - PII not leaked on public profiles
  *   - show_competitive_results flag
- *   - Purged members excluded from all queries
+ *   - Purged members excluded from all queries, and the honoree exception to
+ *     that: an erased honoree's record stands and goes on publishing
  *   - Deceased members cannot log in
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import { hashTestPassword } from '../fixtures/hashTestPassword';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-import { insertMember, insertMemberLink, insertHistoricalPerson, insertTag, insertEvent, insertDiscipline, insertResultsUpload, insertResultEntry, insertResultParticipant, createTestSessionJwt } from '../fixtures/factories';
+import { insertMember, insertMemberLink, insertErasureLog, insertHistoricalPerson, insertTag, insertEvent, insertDiscipline, insertResultsUpload, insertResultEntry, insertResultParticipant, createTestSessionJwt } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3060');
 
@@ -25,6 +26,7 @@ const HOF_SLUG     = 'hof_player';
 const BAP_SLUG     = 'bap_player';
 const REGULAR_SLUG = 'regular_player';
 const PURGED_SLUG  = 'purged_player';
+const PURGED_HOF_SLUG = 'purged_hof_player';
 const DECEASED_SLUG = 'deceased_player';
 const HOF_NORESULTS_SLUG = 'hof_noresults';
 const VIEWER_ID    = 'viewer-001';
@@ -99,12 +101,25 @@ beforeAll(async () => {
     event_count: 1, placement_count: 1, hof_member: 1,
   });
 
-  // Purged member (personal_data_purged_at set, credentials NULL)
+  // An erased account: deleted, credentials gone, and a ledger row recording the
+  // full purge. No honor, so the record does not stand and the profile is gone.
   insertMember(db, {
-    id: 'purged-001', slug: PURGED_SLUG, display_name: 'Purged Player',
+    id: 'purged-001', slug: PURGED_SLUG, display_name: 'Deleted Member',
+    deleted_at: '2025-05-01T00:00:00.000Z',
     personal_data_purged_at: '2025-06-01T00:00:00.000Z',
-    is_hof: 1,  // even HoF purged members should not be accessible
   });
+  insertErasureLog(db, 'purged-001');
+
+  // The same erasure applied to an honoree. A Hall of Fame honor is for life, so
+  // the record stands and keeps publishing whatever became of the account.
+  insertMember(db, {
+    id: 'purged-hof-001', slug: PURGED_HOF_SLUG, display_name: 'Purged HoF Player',
+    deleted_at: '2025-05-01T00:00:00.000Z',
+    personal_data_purged_at: '2025-06-01T00:00:00.000Z',
+    country: HOF_COUNTRY, bio: HOF_BIO,
+    is_hof: 1,
+  });
+  insertErasureLog(db, 'purged-hof-001');
 
   // Deceased member with valid credentials
   const deceasedHash = await hashTestPassword(DECEASED_PASSWORD);
@@ -247,6 +262,33 @@ describe('purged member', () => {
       .get(`/members/${PURGED_SLUG}`)
       .set('Cookie', viewerCookie());
     expect(res.status).toBe(404);
+  });
+});
+
+// ── Purged honoree ────────────────────────────────────────────────────────────
+//
+// A Hall of Fame or Big Add Posse honor is for life: erasure takes the personal
+// data and never takes the honoree off the site, so the record goes on
+// publishing at its own address whatever became of the account.
+
+describe('purged honoree', () => {
+  it('publishes the honor record to a visitor', async () => {
+    const app = createApp();
+    const res = await request(app).get(`/members/${PURGED_HOF_SLUG}`);
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Purged HoF Player');
+    expect(res.text).toContain(HOF_COUNTRY);
+    // The biography stays member-only on an honoree's page as on any other.
+    expect(res.text).not.toContain(HOF_BIO);
+  });
+
+  it('publishes the biography to a member', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .get(`/members/${PURGED_HOF_SLUG}`)
+      .set('Cookie', viewerCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain(HOF_BIO);
   });
 });
 

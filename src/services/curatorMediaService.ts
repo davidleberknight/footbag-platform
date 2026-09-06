@@ -1961,7 +1961,10 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           newTagIds = applyTagsForCurator(input.mediaId, dedupedTags, now);
         }
         if (normalizedExternalUrlEdit !== undefined) {
-          media.setMediaItemExternalUrl.run(normalizedExternalUrlEdit, now, input.mediaId, row.uploader_member_id);
+          media.updateMediaItemExternalUrl.run(
+            normalizedExternalUrlEdit, now, now, 'admin-act-as',
+            input.mediaId, row.uploader_member_id,
+          );
         }
         if (input.sourceId !== undefined) {
           media.updateCuratorMediaSourceId.run(input.sourceId, now, input.mediaId);
@@ -2908,7 +2911,10 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           newTagIds = applyTagsForMember(input.mediaId, input.slug, dedupedTags, now);
         }
         if (normalizedExternalUrlEdit !== undefined) {
-          media.setMediaItemExternalUrl.run(normalizedExternalUrlEdit, now, input.mediaId, input.memberId);
+          media.updateMediaItemExternalUrl.run(
+            normalizedExternalUrlEdit, now, now, 'member-self',
+            input.mediaId, input.memberId,
+          );
         }
         appendAuditEntry({
           actionType: 'media.member_edited',

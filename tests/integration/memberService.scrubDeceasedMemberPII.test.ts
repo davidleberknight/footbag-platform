@@ -14,6 +14,7 @@ import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
 import {
   insertMember, insertLegacyMember, insertHistoricalPerson,
   insertOutboxEmail, insertMediaItem,
+  insertPayment, insertRecurringDonationSubscription,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3201');
@@ -228,5 +229,76 @@ describe('memberService.scrubDeceasedMemberPII', () => {
     // hard-delete rule is written about a member deleting their account, which
     // a death is not.
     expect(media?.id).toBe(photo);
+  });
+
+  // The line this draws is the one the whole scrub is built on: the record goes
+  // on honoring what they did, and stops holding what they wrote. A gift is
+  // part of the record; the sentence they typed alongside it is theirs.
+  it('clears their donation comments while the gifts themselves stay on the record', () => {
+    seedDeceasedClaimedMember('scrub-donation');
+    const d = db();
+    const subId = insertRecurringDonationSubscription(d, {
+      id: 'rds-scrub', member_id: 'scrub-donation',
+      donation_comment: 'Happy to support the next generation of players.',
+    });
+    insertPayment(d, {
+      id: 'pay-scrub-oneoff', member_id: 'scrub-donation', payment_type: 'donation',
+      amount_cents: 10000, status: 'succeeded',
+      descriptor: 'Donation: Happy to support the next generation of players.',
+      donation_note: 'Happy to support the next generation of players.',
+    });
+    insertPayment(d, {
+      id: 'pay-scrub-recurring', member_id: 'scrub-donation', payment_type: 'donation',
+      amount_cents: 2500, status: 'succeeded', recurring_subscription_id: subId,
+      descriptor: 'Recurring Annual Donation: Happy to support the next generation of players.',
+      donation_note: 'Happy to support the next generation of players.',
+    });
+    d.close();
+
+    expect(memberService.scrubDeceasedMemberPII('scrub-donation').status).toBe('scrubbed');
+
+    const r = db();
+    const oneOff    = r.prepare('SELECT * FROM payments WHERE id = ?').get('pay-scrub-oneoff') as Record<string, unknown>;
+    const recurring = r.prepare('SELECT * FROM payments WHERE id = ?').get('pay-scrub-recurring') as Record<string, unknown>;
+    const sub       = r.prepare('SELECT * FROM recurring_donation_subscriptions WHERE id = ?').get('rds-scrub') as Record<string, unknown>;
+    const audit = r.prepare(`
+      SELECT metadata_json FROM audit_entries
+       WHERE action_type = 'member.deceased_pii_scrubbed' AND entity_id = ?
+    `).get('scrub-donation') as { metadata_json: string };
+    r.close();
+
+    expect(oneOff.donation_note).toBeNull();
+    expect(oneOff.descriptor).toBe('Donation');
+    expect(recurring.donation_note).toBeNull();
+    expect(recurring.descriptor).toBe('Recurring Annual Donation');
+    expect(sub.donation_comment).toBeNull();
+
+    // The gifts stand, undisturbed, and still attributed to them: this scrub
+    // preserves the record, and their giving is part of it.
+    expect(oneOff.amount_cents).toBe(10000);
+    expect(oneOff.status).toBe('succeeded');
+    expect(oneOff.member_id).toBe('scrub-donation');
+    expect(sub.amount_cents).toBe(2500);
+    expect(sub.member_id).toBe('scrub-donation');
+
+    const meta = JSON.parse(audit.metadata_json) as Record<string, unknown>;
+    expect(meta.donation_payments_cleared).toBe(2);
+    expect(meta.donation_subscriptions_cleared).toBe(1);
+  });
+
+  it('leaves the record standing, which is what the preserved fields are for', () => {
+    seedDeceasedClaimedMember('scrub-standing');
+    expect(memberService.scrubDeceasedMemberPII('scrub-standing').status).toBe('scrubbed');
+
+    const d = new BetterSqlite3(dbPath, { readonly: true });
+    const standing = d.prepare('SELECT bio, slug FROM members_of_record WHERE id = ?')
+      .get('scrub-standing') as { bio: string; slug: string } | undefined;
+    d.close();
+    // The scrub marks the personal data gone, which is not the same as the
+    // record being gone: preserving identity and honors would publish nowhere
+    // if the marker also withdrew the record.
+    expect(standing).toBeDefined();
+    expect(standing?.bio).toBe('a bio');
+    expect(standing?.slug).toBe('slug_scrub_standing');
   });
 });

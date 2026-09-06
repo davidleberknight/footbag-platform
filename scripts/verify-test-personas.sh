@@ -79,7 +79,7 @@ json="$(docker compose --env-file /srv/footbag/env \
   exec -T web node <<'JS'
 const db = require('better-sqlite3')('/app/db/footbag.db', { readonly: true });
 const members = db.prepare(
-  "SELECT id, slug, password_hash FROM members WHERE id LIKE 'member_persona_%'"
+  "SELECT id, slug, password_hash, is_system, personal_data_purged_at FROM members WHERE id LIKE 'member_persona_%'"
 ).all();
 const ae = db.prepare(
   "SELECT COUNT(*) c FROM audit_entries WHERE action_type='testkit.persona_seed'"
@@ -88,8 +88,19 @@ const tg = db.prepare(
   "SELECT COUNT(*) c FROM member_tier_grants WHERE reason_code='dev_persona_seed.tier_grant'"
 ).get().c;
 let a2 = 0;
+let credentialless = 0;
 const stale = [];
 for (const r of members) {
+  // The members credential CHECK admits three row shapes and only the live one
+  // holds a password: a purged row and the system row carry none, by
+  // constraint. The deceased persona reaches the purged shape because the
+  // deceased scrub clears its credentials, which is the scrub working rather
+  // than a seed that failed. So an absent hash on those rows is the correct
+  // state, and counting it as stale asserts the opposite of the design and can
+  // never pass. Reading absent as stale is the same mistake that once made a
+  // seed run abort partway through the catalog.
+  const expectsCredentials = r.is_system === 0 && r.personal_data_purged_at === null;
+  if (!expectsCredentials) { credentialless++; continue; }
   const h = r.password_hash || '';
   if (h.startsWith('$argon2id$')) { a2++; }
   // Slugs are synthetic test-data identifiers, safe to report; the hash prefix
@@ -98,6 +109,7 @@ for (const r of members) {
 }
 console.log(JSON.stringify({
   personasSeeded: members.length,
+  personasExpectingCredentials: members.length - credentialless,
   auditRowsSeeded: ae,
   tierGrantsSeeded: tg,
   passwordHashesArgon2: a2,

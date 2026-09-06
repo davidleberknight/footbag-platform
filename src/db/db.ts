@@ -4617,6 +4617,12 @@ export interface IdentityLinksRow {
 }
 
 export const account = {
+  // Every profile read resolves through here, so it reads the rows whose record
+  // still stands: live accounts, a deceased member whose contact scrub kept the
+  // record honoring them, and an honoree, whose record is permanent and outlives
+  // any erasure. A deleted or fully erased account has no credentials and so can
+  // hold no session, which is what keeps the owner-profile and edit callers safe
+  // on the same read.
   get findMemberBySlug() { return db.prepare(`
     SELECT
       m.id,
@@ -4651,13 +4657,12 @@ export const account = {
       hp.bap_nickname AS historical_bap_nickname,
       hp.bap_induction_year AS historical_bap_induction_year,
       hp.hof_induction_year AS historical_hof_induction_year
-    FROM members_active AS m
+    FROM members_of_record AS m
     LEFT JOIN media_items AS mi
       ON mi.id = m.avatar_media_id
     LEFT JOIN historical_persons AS hp
       ON hp.person_id = m.historical_person_id
     WHERE m.slug = ?
-      AND m.personal_data_purged_at IS NULL
   `); },
 
   get findMemberById() { return db.prepare(`
@@ -6315,13 +6320,31 @@ export const media = {
     return stmt;
   },
 
-  // Sets external_url and stamps validated_at. Service callers run this
-  // inside the same transaction as the row INSERT for atomicity. URL must
-  // already be validated + normalized by externalUrlValidator at the
-  // service boundary; this statement does no validation of its own.
+  // Sets external_url and stamps validated_at on a row the same transaction
+  // just inserted, which is the only place it belongs: the INSERT has already
+  // written the row's metadata stamp, so re-stamping here would count a second
+  // change to a row one moment old. An edit of an existing row uses
+  // updateMediaItemExternalUrl below. URL must already be validated +
+  // normalized by externalUrlValidator at the service boundary; this statement
+  // does no validation of its own.
   get setMediaItemExternalUrl() { return db.prepare(`
     UPDATE media_items
        SET external_url = ?, external_url_validated_at = ?
+     WHERE id = ? AND uploader_member_id = ?
+  `); },
+
+  // Edits an existing row's external URL and carries the metadata stamp, so
+  // the row reports this change rather than whoever last changed something
+  // else about it. An edit touching the URL alone runs no other statement over
+  // the row, so this is the only stamp it gets. The actor token is a parameter
+  // because the two edit surfaces record different ones, matching the caption
+  // and source statements above: 'admin-act-as' for a curator edit and
+  // 'member-self' for the uploader's own. Same validation contract as the
+  // statement above.
+  get updateMediaItemExternalUrl() { return db.prepare(`
+    UPDATE media_items
+       SET external_url = ?, external_url_validated_at = ?,
+           updated_at = ?, updated_by = ?, version = version + 1
      WHERE id = ? AND uploader_member_id = ?
   `); },
 
@@ -7088,11 +7111,17 @@ export const mediaTags = {
     SELECT id FROM media_tags WHERE media_id = ? AND tag_id = ?
   `); },
 
+  // Renames a club's hashtag identity. Carries the metadata stamp so the tag
+  // row names the leader who renamed it; the timestamp is passed in rather
+  // than taken from the database clock, so every row a rename transaction
+  // touches carries the same instant.
   get updateTagDisplay() { return db.prepare(`
     UPDATE tags
        SET tag_normalized = ?,
            tag_display    = ?,
-           updated_at     = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+           updated_at     = ?,
+           updated_by     = ?,
+           version        = version + 1
      WHERE id = ?
   `); },
 };
@@ -7746,25 +7775,17 @@ export const legacyClaim = {
     LIMIT 1
   `); },
 
+  // Who holds this historical record, for the claim surfaces that must treat a
+  // held record as taken. Reading the rows whose record still stands is what
+  // makes the two permanent holders visible here on their own: a deceased member
+  // keeps the link through the contact scrub, and an honoree keeps it through
+  // account erasure, so neither record is ever offered for re-claim by someone
+  // else. A record whose holder was deleted or fully erased is claimable again,
+  // which is why the view and not the bare table is the right read.
   get findMemberClaimingHp() { return db.prepare(`
     SELECT id, slug
-    FROM members
+    FROM members_of_record
     WHERE historical_person_id = ?
-      AND deleted_at IS NULL
-      AND personal_data_purged_at IS NULL
-    LIMIT 1
-  `); },
-
-  // A deceased member keeps their historical-person link through the contact
-  // scrub (the record goes on honoring their contributions), but the scrub sets
-  // personal_data_purged_at, which findMemberClaimingHp filters out. This
-  // companion lookup spots a deceased holder so the claim surfaces treat the
-  // record as taken rather than offering it for re-claim by someone else.
-  get findDeceasedMemberHoldingHp() { return db.prepare(`
-    SELECT id
-    FROM members
-    WHERE historical_person_id = ?
-      AND is_deceased = 1
     LIMIT 1
   `); },
 
@@ -8261,9 +8282,17 @@ export const declaredAnchors = {
 // period elapsed. Clears credentials and contact fields to NULL (satisfying
 // the purged branch of the members credential CHECK), severs the legacy and
 // historical-person links, anonymizes the identity placeholders, and stamps
-// personal_data_purged_at. HoF/BAP rows keep display_name and bio (the honor
-// record outlives the personal data); every other identity field clears the
-// same way. The IS NULL guard makes a re-run a no-op.
+// personal_data_purged_at.
+//
+// An honoree is the exception, and it is not a partial one: a Hall of Fame or
+// Big Add Posse honor is for life, so erasure takes the personal data and never
+// takes the honoree off the site. Their row keeps everything their public record
+// is made of -- slug, display name, bio, country, and both archival links, which
+// carry their historical competing name and their competition results -- while
+// credentials, contact channels, address, demographics, city and region, and the
+// legal name behind the placeholder all clear exactly as for anyone else.
+// Keeping the links is also what stops their old-site identity returning to the
+// pool, where another person could claim the identity of an honoree.
 export const memberPurge = {
   // The two erasure-state flags come from erasure_log, not from
   // personal_data_purged_at: both erasure shapes set that column (the
@@ -8287,6 +8316,13 @@ export const memberPurge = {
     WHERE id = ?
   `); },
 
+  // Params, in order: keepHonoree for country, legacy_member_id,
+  // historical_person_id and bio; placeholderName; keepHonoree and
+  // placeholderName for display_name; keepHonoree and the normalized placeholder
+  // for display_name_normalized; keepHonoree and placeholderSlug for slug; then
+  // purgedAt, updatedAt, updatedBy, memberId. keepHonoree is 1 when the member
+  // holds an honor, and repeats because each preserved column decides for
+  // itself; the service passes the one flag to all of them.
   get purgeRow() { return db.prepare(`
     UPDATE members
     SET
@@ -8307,18 +8343,26 @@ export const memberPurge = {
       postal_code             = NULL,
       city                    = NULL,
       region                  = NULL,
-      country                 = NULL,
+      -- The public honor record shows a country and no finer locality, so an
+      -- honoree keeps the country and loses the city and region like anyone.
+      country                 = CASE WHEN ? = 1 THEN country ELSE NULL END,
       legacy_user_id          = NULL,
       legacy_email            = NULL,
       ifpa_join_date          = NULL,
-      legacy_member_id        = NULL,
-      historical_person_id    = NULL,
+      -- The archival links stay for an honoree: they carry the historical
+      -- competing name and the competition results their record publishes, and
+      -- severing them would hand an honoree's old-site identity back to the
+      -- claimable pool.
+      legacy_member_id        = CASE WHEN ? = 1 THEN legacy_member_id ELSE NULL END,
+      historical_person_id    = CASE WHEN ? = 1 THEN historical_person_id ELSE NULL END,
       stripe_customer_id      = NULL,
       bio                     = CASE WHEN ? = 1 THEN bio ELSE '' END,
       real_name               = ?,
       display_name            = CASE WHEN ? = 1 THEN display_name ELSE ? END,
       display_name_normalized = CASE WHEN ? = 1 THEN display_name_normalized ELSE ? END,
-      slug                    = ?,
+      -- An honoree's page keeps its address: rewriting the slug would break
+      -- every link that points at a record meant to be permanent.
+      slug                    = CASE WHEN ? = 1 THEN slug ELSE ? END,
       personal_data_purged_at = ?,
       updated_at              = ?,
       updated_by              = ?,
@@ -8793,9 +8837,9 @@ export const activePlayerExpiry = {
   // SQLITE_CONSTRAINT_UNIQUE, which the service treats as "already sent."
   get insertReminderSent() { return db.prepare(`
     INSERT INTO active_player_reminder_sent (
-      id, created_at, created_by, updated_at, updated_by, version,
+      id, created_at, created_by,
       member_id, expires_at, offset_label, sent_at
-    ) VALUES (?, ?, 'system', ?, 'system', 1,
+    ) VALUES (?, ?, 'system',
               ?, ?, ?, ?)
   `); },
 };
@@ -10267,6 +10311,26 @@ export const payments = {
     WHERE id = ?
   `); },
 
+  // Account erasure and the deceased contact scrub: the member's own words on a
+  // donation and nothing else. The financial record -- amount, currency,
+  // status, provider references, and the tier or event the payment settles --
+  // is retained through erasure by design and anonymized separately once the
+  // compliance window expires. The descriptor holds a second copy of those
+  // words, because a donation's descriptor is composed as a base label plus the
+  // member's note, so it is reset to that base label; the recurring form is
+  // kept, since the subscription link survives erasure and whether a gift was
+  // recurring is not personal data. Scoped to donation rows so no membership or
+  // event descriptor is touched.
+  get clearDonationTextForMember() { return db.prepare(`
+    UPDATE payments
+    SET donation_note = NULL,
+        descriptor = CASE WHEN recurring_subscription_id IS NOT NULL
+                          THEN 'Recurring Annual Donation'
+                          ELSE 'Donation' END,
+        updated_at = ?, updated_by = 'operations_purge', version = version + 1
+    WHERE member_id = ? AND payment_type = 'donation'
+  `); },
+
   get listByMember() { return db.prepare(`
     SELECT id, created_at, payment_type, amount_cents, currency,
            status, descriptor, purchased_tier_status,
@@ -10412,6 +10476,20 @@ export const recurringDonationSubscriptions = {
     SELECT * FROM recurring_donation_subscriptions
     WHERE status = 'incomplete' AND created_at < ?
     ORDER BY created_at
+  `); },
+
+  // Account erasure and the deceased contact scrub, matching the payments-side
+  // clear: the comment the member wrote to accompany the gift is removed and the
+  // subscription itself is left standing, because it is a live billing
+  // relationship with the provider and an ongoing financial fact. Every status
+  // is included, an abandoned 'incomplete' checkout among them: the member typed
+  // the comment before the redirect, so a row they walked away from still holds
+  // their words.
+  get clearDonationCommentForMember() { return db.prepare(`
+    UPDATE recurring_donation_subscriptions
+    SET donation_comment = NULL,
+        updated_at = ?, updated_by = 'operations_purge', version = version + 1
+    WHERE member_id = ? AND donation_comment IS NOT NULL
   `); },
 
   // Member-facing history lists canceled subscriptions too, so this reads the

@@ -126,7 +126,7 @@ This schema is intentionally minimal for a volunteer-maintained SQLite project.
 
 ### Standard columns
 
-Every mutable table (tables that support UPDATE, except append-only tables) carries:
+Every mutable domain table, meaning a table whose rows record activity on this platform, carries:
 
 | Column | Type | Purpose |
 |--------|------|---------|
@@ -135,9 +135,9 @@ Every mutable table (tables that support UPDATE, except append-only tables) carr
 | `created_by` | `TEXT NOT NULL` | Actor ID (member ID or system identifier) |
 | `updated_at` | `TEXT NOT NULL` | ISO-8601 UTC last-update timestamp |
 | `updated_by` | `TEXT NOT NULL` | Actor ID of last updater |
-| `version` | `INTEGER NOT NULL DEFAULT 1` | Optimistic concurrency counter; increment on every UPDATE |
+| `version` | `INTEGER NOT NULL DEFAULT 1` | Count of updates the row has received; increment on every UPDATE. Tells a repeated event on a reused row apart from the original, which is what keys the club membership notification, per the Transaction Model decision in DESIGN_DECISIONS |
 
-Append-only tables (audit log, ballots, transition ledgers, tier grants, system_config) omit `updated_at`, `updated_by`, and `version` because they are never updated.
+Append-only tables omit `updated_at`, `updated_by`, and `version` because they are never updated. A trigger pair blocking UPDATE and DELETE is what makes a table one of them, and the immutability-trigger inventory in the triggers section is the list. Tables whose rows arrive from an import, an external service, or a derived computation carry the metadata columns their writer sets, which is fewer, and record provenance in their own source columns; the intentional-exceptions section names those families.
 
 ### Soft-delete columns
 
@@ -723,7 +723,7 @@ Combined authorization and read model. Single source of truth for the two applic
 
 Other output columns: `member_id`, `tier_status`, `underlying_tier_status`, `is_active_player`, `active_player_expires_at`.
 
-This view is the canonical join target for any feature gate or roster check. Do not reimplement the predicate inline at the call site.
+This view is the canonical join target for any feature gate or roster check. Do not reimplement the predicate inline at the call site. It is an attribute projection: it carries one row for every row in `members`, soft-deleted and erased accounts included. The caller picks the row set by joining from the members surface its own purpose names, `members_active` for an operational list, `members_of_record` for a published identity, `members_searchable` for search. Each consumer means a different one of those, so the row set is the caller's to choose.
 
 ### 4.13d Official IFPA Roster Current View
 
@@ -754,7 +754,7 @@ Append-only ledger recording that an Active Player expiry notice was sent to a m
 ### 4.14 Members & Authentication
 
 **Table:** `members`  
-**Views:** `members_active` (non-deleted), `members_all` (all including deleted), `members_searchable`
+**Views:** `members_active` (non-deleted), `members_all` (all including deleted), `members_searchable`, `members_of_record`
 
 #### Gender field
 
@@ -821,7 +821,7 @@ Imported legacy accounts live in `legacy_members` (§4.14b), not as placeholder 
 
 `login_email`, `login_email_normalized`, `password_hash`, and `password_changed_at` are nullable to support GDPR account purge.
 
-**Anonymized-stub requirement (app-enforced):** When setting `personal_data_purged_at`, the application must produce a complete anonymized retained stub in the same transaction: clear all nullable contact fields (`phone`, `whatsapp`, `legacy_email`, `legacy_user_id`, `street_address`, `postal_code`, `birth_date`); clear both identity-linkage FK pointers (`legacy_member_id`, `historical_person_id`) so person-link dispatchers revert to archival URLs per DD §2.4 rule 5; and overwrite required non-null identity/location fields with anonymized placeholder values as needed to satisfy schema constraints. In the same transaction, clear the claim pointer on the member's `legacy_members` row (set `claimed_by_member_id` and `claimed_at` to NULL) so the legacy account becomes claimable again. Exception: for members with `is_hof = 1` or `is_bap = 1`, preserve `display_name` and `bio` per User Stories deletion policy; other required retained identity/location fields remain anonymized as needed. Schema nullability does not enforce the full anonymized-stub shape; this is application-enforced (see APP-022).
+**Anonymized-stub requirement (app-enforced):** When setting `personal_data_purged_at`, the application must produce a complete anonymized retained stub in the same transaction: clear all nullable contact fields (`phone`, `whatsapp`, `legacy_email`, `legacy_user_id`, `street_address`, `postal_code`, `birth_date`); clear both identity-linkage FK pointers (`legacy_member_id`, `historical_person_id`) so person-link dispatchers revert to archival URLs per DD §2.4 rule 5; and overwrite required non-null identity/location fields with anonymized placeholder values as needed to satisfy schema constraints. In the same transaction, clear the claim pointer on the member's `legacy_members` row (set `claimed_by_member_id` and `claimed_at` to NULL) so the legacy account becomes claimable again. Exception: for members with `is_hof = 1` or `is_bap = 1`, preserve `slug`, `display_name`, `display_name_normalized`, `bio`, `country`, `legacy_member_id` and `historical_person_id`, and leave the claim pointer on their `legacy_members` row in place; other required retained identity/location fields remain anonymized as needed. A Hall of Fame or Big Add Posse honor is for life, so erasure takes the personal data and never withdraws the honoree's record: those columns are what that record publishes, and the archival links are what carry their historical competing name and their competition results. Schema nullability does not enforce the full anonymized-stub shape; this is application-enforced (see APP-022).
 
 `ifpa_join_date` and `legacy_is_admin` may be retained post-purge as non-identifying administrative metadata.
 
@@ -1484,6 +1484,7 @@ These apply a meaningful `WHERE` clause; always understand the filter before usi
 | View | Filter | Use case |
 |------|--------|----------|
 | `members_active` | `deleted_at IS NULL` | General member lookups (non-deleted accounts) |
+| `members_of_record` | `is_hof = 1 OR is_bap = 1 OR (deleted_at IS NULL AND no account_pii_purge row in erasure_log)` | **Every surface that publishes or defends a member's record.** A record stands unless the account was deleted or fully erased, and an honoree's record always stands. The test is the erasure ledger, not `personal_data_purged_at`, which both erasure shapes set and which means the personal data is gone, never that the record is. |
 | `clubs_open` | `status IN ('active','inactive')` | Render club lists and lookups (excludes archived clubs) |
 | `clubs_active` | `status = 'active'` | Public club directory listings (index + country pages); inactive clubs stay reachable by direct link |
 | `email_templates_enabled` | `is_enabled = 1` | Templates active for automated email flows |
@@ -1687,7 +1688,7 @@ SELECT config_key, value_json FROM system_config_current ORDER BY config_key;
 
 1. Clear all nullable contact fields: set `phone = NULL`, `whatsapp = NULL`.
 2. For non-HoF/BAP members, overwrite retained non-null identity and location fields with anonymized placeholders as needed (`real_name`, `display_name`, `display_name_normalized`, `city`, `country`) so they do not retain identifiable values.
-3. For members where `is_hof = 1` or `is_bap = 1`, preserve `display_name` and `bio` per User Stories deletion policy; continue anonymizing other required retained identity/location fields as needed.
+3. For members where `is_hof = 1` or `is_bap = 1`, preserve `slug`, `display_name`, `display_name_normalized`, `bio`, `country` and both archival links, and do not release their `legacy_members` claim; continue anonymizing other required retained identity/location fields as needed.
 4. Set `login_email = NULL`, `login_email_normalized = NULL`, `password_hash = NULL`, `password_changed_at = NULL` (allowed by schema once `personal_data_purged_at` is set).
 
 This ensures the retained stub row meets data retention and anonymization requirements. The DB CHECK enforces that credential fields are NULL when purged, but the stub shape for non-nullable profile fields is entirely application-enforced.
@@ -1884,8 +1885,10 @@ The schema contains a few patterns that may look inconsistent at first glance bu
 
 - **`stripe_webhook_failures`**; Rejected-webhook counters, keyed on a composite `(bucket_start, reason)` primary key rather than a surrogate UUID, and carrying no `id`, `version` or mutable metadata. Deliberately counts rather than records: one row per five-minute bucket per reason, incremented in place. The webhook endpoint is public and unauthenticated by design, so a row per delivery would let anything on the internet inflate the database that holds the money records; buckets size by the clock instead, at most 288 a day per reason whatever the traffic. Stores no payload, signature or header, and names an event only where the payload parsed far enough to state one.
 
-- **`mailing_lists`**; Uses `slug TEXT PRIMARY KEY` (the natural key), not a UUID. Intentionally has no `id` column; slug is the stable semantic reference used by all foreign keys into this table.
+- **`mailing_lists`**; Uses `slug TEXT PRIMARY KEY` (the natural key), not a UUID. Intentionally has no `id` column; slug is the stable semantic reference used by all foreign keys into this table. Of the metadata columns it carries `updated_at` alone: the seven core lists are seeded at initialization, a group-backed list is created by its group's own mail setting, and the audit ledger carries the administrative edits.
 
-- **Append-only ledger/history tables**; Some tables intentionally omit mutable metadata columns (`updated_at`, `updated_by`, `version`) because they are designed to be immutable after insert. This includes `audit_entries`, `erasure_log`, `ballots`, `member_tier_grants`, `payment_status_transitions`, `recurring_donation_subscription_transitions`, `vote_eligibility_snapshot`, and `system_config`.
+- **Append-only ledger/history tables**; Some tables intentionally omit mutable metadata columns (`updated_at`, `updated_by`, `version`) because they are designed to be immutable after insert. The immutability-trigger inventory in the triggers section is the authoritative list: a table belongs to this family when its trigger pair blocks UPDATE and DELETE, and that pair is the test. `system_config` also omits `created_by`, carrying the typed `changed_by_member_id` FK instead, because an administrator or the seed authors every config row.
+
+- **Imported, reference, ingestion, derived, and junction tables**; These carry the metadata columns their writer sets, because their rows record something other than a member or an administrator acting on this platform. The legacy import and the curation scripts populate `legacy_members`, `historical_persons`, `media_sources`, the name-variant tables, the record tables, the net discipline and team tables, the freestyle trick catalogue with its modifier, source, alias, relation and tip tables, and the symbolic grouping tables; those rows carry provenance in their own source columns (`source`, `source_scope`, `import_source`, `imported_at`, `provenance_note`, `evidence_class`, `notation_evidence_basis`) and are keyed on natural identifiers. `stripe_events`, `ses_events`, `sns_alarm_events`, and `stripe_webhook_failures` claim an external identifier and are written once by a webhook handler. `tag_stats` is recomputed by a background job. `member_gallery_tags` and `member_gallery_exclude_tags` are link rows the application inserts and deletes. The club cleanup queue's `club_viability_signals`, `club_insight_notes`, `club_cleanup_resolutions`, `candidate_cleanup_resolutions`, and `club_cleanup_claims` hold latest state rather than history: the resolution upserts overwrite `created_at` and `created_by`, so those columns name who resolved the item and when, which is the semantics their own sections describe. `schema_migrations` records the applied migration filenames. The convention gate holds this list mechanically, so a new table either carries the full set or declares itself here and there with its reason.
 
 When evaluating schema consistency, these exceptions should be treated as design choices tied to domain semantics, compatibility, or operational needs rather than as accidental inconsistencies.

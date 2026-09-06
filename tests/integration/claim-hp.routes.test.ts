@@ -20,6 +20,7 @@ import {
   insertLegacyMember,
   insertHistoricalPerson,
   insertOnboardingTask,
+  insertErasureLog,
   createTestSessionJwt,
   completeOnboarding,
 } from '../fixtures/factories';
@@ -605,10 +606,9 @@ describe('POST /history/:personId/claim/confirm — adversarial', () => {
 });
 
 // A deceased member keeps their historical-person link through the contact
-// scrub, which also sets personal_data_purged_at. That purge marker hides the
-// holder from findMemberClaimingHp, so without the dedicated deceased-holder
-// check the record would read as unclaimed and a same-surname living member
-// could take it over (inheriting its honors and tier). Both surfaces must treat
+// scrub, which also marks their personal data gone. A record whose holder is
+// still a record must not read as unclaimed, or a same-surname living member
+// could take it over and inherit its honors and tier. Both surfaces must treat
 // the record as taken.
 describe('claim of a record held by a deceased contact-scrubbed member', () => {
   function seedDeceasedHeldHp(hpId: string, holderSlug: string, hof: 0 | 1): void {
@@ -658,6 +658,121 @@ describe('claim of a record held by a deceased contact-scrubbed member', () => {
     const row = testDb.prepare('SELECT historical_person_id FROM members WHERE id = ?')
       .get(claimantId) as { historical_person_id: string | null };
     expect(row.historical_person_id).toBeNull();
+  });
+});
+
+// An honoree keeps their archival link through account erasure, because the
+// honor is for life and the link carries the competing name and results their
+// record publishes. Handing that record to another member would hand over an
+// honoree's identity along with the honors and tier that come with it.
+describe('claim of a record held by an erased honoree', () => {
+  function seedHonoreeHeldHp(hpId: string, holderSlug: string): void {
+    insertHistoricalPerson(testDb, {
+      person_id: hpId, person_name: 'Robin Mockingbird', hof_member: 1, bap_member: 0,
+    });
+    const holderId = insertMember(testDb, {
+      slug: holderSlug, real_name: 'Deleted Member', display_name: 'Robin Mockingbird',
+      is_hof: 1,
+      deleted_at: '2020-01-01T00:00:00.000Z',
+      personal_data_purged_at: '2020-02-01T00:00:00.000Z',
+    });
+    insertErasureLog(testDb, holderId);
+    testDb.prepare('UPDATE members SET historical_person_id = ? WHERE id = ?').run(hpId, holderId);
+  }
+
+  it('GET suppresses the claim CTA (uniform unavailable response)', async () => {
+    const heldHp = 'hp-honoree-holder-get';
+    seedHonoreeHeldHp(heldHp, 'hpc_hon_holder_get');
+    const claimantId = insertMember(testDb, {
+      slug: 'hpc_hon_claimant_get', real_name: 'Casey Mockingbird', display_name: 'Casey Mockingbird',
+      login_email: 'hpc-hon-get@example.com', onboarding: 'none',
+    });
+    const cookie = `__Host-footbag_session=${createTestSessionJwt({ memberId: claimantId })}`;
+    const app = createApp();
+    const res = await request(app).get(`/history/${heldHp}/claim`).set('Cookie', cookie);
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Claim Unavailable');
+    expect(res.text).not.toContain('link the record');
+  });
+
+  it('POST rejects the claim (422) and leaves the claimant unlinked', async () => {
+    const heldHp = 'hp-honoree-holder-post';
+    seedHonoreeHeldHp(heldHp, 'hpc_hon_holder_post');
+    const claimantId = insertMember(testDb, {
+      slug: 'hpc_hon_claimant_post', real_name: 'Casey Mockingbird', display_name: 'Casey Mockingbird',
+      login_email: 'hpc-hon-post@example.com',
+      birth_date: '1980-01-01', onboarding: 'none',
+    });
+    insertOnboardingTask(testDb, claimantId, 'personal_details', 'completed');
+    const cookie = `__Host-footbag_session=${createTestSessionJwt({ memberId: claimantId })}`;
+    const app = createApp();
+    const res = await request(app)
+      .post(`/history/${heldHp}/claim/confirm`)
+      .set('Cookie', cookie).type('form').send({});
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('already been claimed');
+
+    const row = testDb.prepare('SELECT historical_person_id FROM members WHERE id = ?')
+      .get(claimantId) as { historical_person_id: string | null };
+    expect(row.historical_person_id).toBeNull();
+  });
+});
+
+// The audit row a completed claim writes is what a disputed link is
+// reconstructed from later, so it has to carry the two things an administrator
+// cannot recover afterwards: how strong the evidence behind the claim was, and
+// whether the member's first name differed from the name on the record. A
+// direct claim that passes only the surname rule stands on the weakest tier.
+describe('POST /history/:personId/claim/confirm — claim audit metadata', () => {
+  function claimAuditMetadata(memberId: string): Record<string, unknown> {
+    const row = testDb.prepare(
+      `SELECT metadata_json FROM audit_entries
+        WHERE action_type = 'claim.historical_person' AND actor_member_id = ?`,
+    ).get(memberId) as { metadata_json: string } | undefined;
+    return JSON.parse(row!.metadata_json) as Record<string, unknown>;
+  }
+
+  function seedClaimant(hpPersonId: string, hpName: string, memberName: string, slug: string): string {
+    insertHistoricalPerson(testDb, {
+      person_id: hpPersonId, person_name: hpName, hof_member: 0, bap_member: 0,
+    });
+    const memberId = insertMember(testDb, {
+      slug, real_name: memberName, display_name: memberName,
+      login_email: `${slug}@example.com`,
+      birth_date: '1980-01-01', onboarding: 'none',
+    });
+    insertOnboardingTask(testDb, memberId, 'personal_details', 'completed');
+    return memberId;
+  }
+
+  it('records the weakest evidence tier and no name difference when the names match exactly', async () => {
+    const hp = 'hp-audit-exact-name';
+    const memberId = seedClaimant(hp, 'Fiona Mockingbird', 'Fiona Mockingbird', 'hpc_audit_exact');
+    const res = await request(createApp())
+      .post(`/history/${hp}/claim/confirm`)
+      .set('Cookie', `__Host-footbag_session=${createTestSessionJwt({ memberId })}`)
+      .type('form').send({});
+    expect(res.status).toBe(303);
+
+    const meta = claimAuditMetadata(memberId);
+    expect(meta.person_id).toBe(hp);
+    expect(meta.evidence_strength).toBe('declared_anchor_only');
+    expect(meta.first_name_variant).toBe(false);
+  });
+
+  it('records the name difference when the claimant confirms under another form of the first name', async () => {
+    const hp = 'hp-audit-variant-name';
+    const memberId = seedClaimant(hp, 'Frederick Mockingbird', 'Fred Mockingbird', 'hpc_audit_variant');
+    const res = await request(createApp())
+      .post(`/history/${hp}/claim/confirm`)
+      .set('Cookie', `__Host-footbag_session=${createTestSessionJwt({ memberId })}`)
+      .type('form').send({});
+    expect(res.status).toBe(303);
+
+    const meta = claimAuditMetadata(memberId);
+    expect(meta.person_id).toBe(hp);
+    expect(meta.first_name_variant).toBe(true);
+    expect(meta.evidence_strength).toBe('declared_anchor_only');
   });
 });
 

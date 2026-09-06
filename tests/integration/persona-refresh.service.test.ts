@@ -264,9 +264,9 @@ describe('refreshAllPersonas', () => {
     // The expiry worker's reminder ledger (append-only, both guards).
     db.prepare(
       `INSERT INTO active_player_reminder_sent
-         (id, created_at, created_by, updated_at, updated_by, version, member_id, expires_at, offset_label, sent_at)
-       VALUES ('aprs-persona-1', ?, 'system', ?, 'system', 1, ?, ?, 'days_1', ?)`,
-    ).run(TS, TS, T1, TS, TS);
+         (id, created_at, created_by, member_id, expires_at, offset_label, sent_at)
+       VALUES ('aprs-persona-1', ?, 'system', ?, ?, 'days_1', ?)`,
+    ).run(TS, T1, TS, TS);
 
     // Harness-origin switch audit row: NULL actor, persona entity. Piles up
     // one per /dev/switch unless the refresh cleans it.

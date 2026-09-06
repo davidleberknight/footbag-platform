@@ -42,6 +42,11 @@
  *     ledger, not personal_data_purged_at, decides which erasure shapes a row
  *     has received (both shapes must set that column to satisfy the members
  *     credential CHECK), so a contact-scrubbed row can still be fully purged.
+ *   - Profile reads resolve through the `members_of_record` view, which is the
+ *     single home of the rule that a member's record stands unless the account
+ *     was deleted or fully erased, and that an honoree's record always stands.
+ *     Never test personal_data_purged_at at a call site to decide whether a
+ *     record exists: it says the personal data is gone, never that the record is.
  *   - Own-profile routes are owner-only. Anonymous non-owner viewing is limited
  *     to the explicit HoF/BAP exception; full members may view any member
  *     profile read-only. That exception publishes the honor record rather than
@@ -92,6 +97,10 @@
  *   audit_entries,
  *   work_queue_items (every queue row about the member has its free text redacted on PII purge and deceased scrub, whatever the task type),
  *   member_messages (every question addressed to the member has its subject, body and note redacted on PII purge and deceased scrub),
+ *   club_insight_notes (note text cleared on PII purge and deceased scrub; the row stays so the club evidence trail keeps its shape),
+ *   outbox (recipient address, subject and rendered body scrubbed on PII purge and deceased scrub),
+ *   payments (donation note and the donation descriptor that repeats it cleared on PII purge and deceased scrub; every financial column is untouched, and member-linking columns are stripped separately by the compliance anonymisation OperationsPlatformService runs),
+ *   recurring_donation_subscriptions (donation comment cleared on PII purge and deceased scrub; the subscription itself is a live billing relationship and stays),
  *   historical_persons (read-only; surfaced in member search via the public-player
  *   name index, so search spans both live members and imported historical identities).
  *
@@ -103,7 +112,7 @@
  * The profile Media section is delegated to `mediaService.getMemberProfileMedia`.
  */
 import { randomUUID, createHash } from 'crypto';
-import { account, publicPlayers, memberClubAffiliations, memberLinks, clubLeaders, clubs as clubsDb, clubInsightNotes, declaredAnchors, erasureLog, legacyMembers, memberPurge, memberMessages, outbox, workQueue, transaction, MemberProfileRow, MemberResultRow, MemberSearchRow, HistoricalPersonSearchRow, IdentityLinksRow } from '../db/db';
+import { account, publicPlayers, memberClubAffiliations, memberLinks, clubLeaders, clubs as clubsDb, clubInsightNotes, declaredAnchors, erasureLog, legacyMembers, memberPurge, memberMessages, outbox, payments as paymentsDb, recurringDonationSubscriptions as recurringSubscriptionsDb, workQueue, transaction, MemberProfileRow, MemberResultRow, MemberSearchRow, HistoricalPersonSearchRow, IdentityLinksRow } from '../db/db';
 import { validateExternalUrl } from '../lib/externalUrlValidator';
 import {
   assembleBirthDate,
@@ -808,11 +817,20 @@ const ERASED_SUBJECT_PLACEHOLDER = '(subject removed on erasure)';
  *
  *   - credentials and contact fields to NULL (purged branch of the members
  *     credential CHECK); location, birth date, and legacy metadata to NULL
- *   - identity placeholders anonymized; HoF/BAP rows keep display_name and
- *     bio because the honor record outlives the personal data
+ *   - identity placeholders anonymized, except for an honoree: a HoF/BAP honor
+ *     is for life, so the row keeps everything the honoree's permanent public
+ *     record is made of, which is slug, display_name, bio and country, and the
+ *     honoree stays visible on the site whatever became of their account
  *   - legacy and historical-person links severed on the member row, and the
- *     claimed legacy_members row returns to the claimable pool
+ *     claimed legacy_members row returns to the claimable pool. An honoree keeps
+ *     both links and their claim: the links carry their historical competing
+ *     name and their competition results, and releasing the claim would offer an
+ *     honoree's old-site identity to somebody else
  *   - every declared identity anchor deleted
+ *   - the member's donation free text: the note on every donation payment, the
+ *     donation descriptor that repeats it, and the comment on every recurring
+ *     donation subscription. The financial columns are left alone; the payment
+ *     row survives erasure by design.
  *   - one member.pii_purged audit row recording what was cleared
  *   - member-authored free text redacted wherever it lives outside the audit
  *     ledger: contact-request text, and the club insight notes left in the
@@ -838,22 +856,26 @@ function purgeAccountPII(memberId: string): PurgeAccountPIIResult {
   const now = new Date().toISOString();
   const placeholderName = 'Deleted Member';
   // Slug derives from the member id so the placeholder is unique and the
-  // member's chosen slug returns to the available pool.
+  // member's chosen slug returns to the available pool. An honoree keeps their
+  // own slug instead, so the placeholder goes unused for them.
   const placeholderSlug = `removed_${memberId.replace(/[^a-zA-Z0-9]/g, '').slice(-16).toLowerCase()}`;
 
   return transaction(() => {
     const res = memberPurge.purgeRow.run(
-      preserveFlag,
+      preserveFlag, preserveFlag, preserveFlag, preserveFlag,
       placeholderName,
       preserveFlag, placeholderName,
       preserveFlag, 'deleted member',
-      placeholderSlug,
+      preserveFlag, placeholderSlug,
       now, now, 'operations_purge',
       memberId,
     );
     if (res.changes === 0) return { status: 'already_purged' as const };
 
-    if (row.legacy_member_id) {
+    // An honoree keeps their claim on the legacy account: the honor is for life,
+    // so their old-site identity is never returned to the pool where another
+    // person could claim it.
+    if (row.legacy_member_id && !honorsPreserved) {
       legacyMembers.clearClaim.run(row.legacy_member_id);
     }
     const anchors = declaredAnchors.deleteAllForMember.run(memberId);
@@ -868,6 +890,13 @@ function purgeAccountPII(memberId: string): PurgeAccountPIIResult {
     // member-authored free text too. The text clears; the row stays, so the
     // club evidence trail keeps its shape without keeping their words.
     const insightNotes = clubInsightNotes.clearNotesForMember.run(memberId);
+    // The words the member wrote to accompany a gift, on the payment and on the
+    // recurring subscription behind it. The money stays: a payment row is a
+    // financial record that outlives the person leaving it, and it is
+    // anonymized on its own compliance schedule, which is years away and no
+    // answer to an erasure request made today.
+    const donationPayments = paymentsDb.clearDonationTextForMember.run(now, memberId);
+    const donationSubs = recurringSubscriptionsDb.clearDonationCommentForMember.run(now, memberId);
     // Every message the platform addressed to them: the address, the rendered
     // body, and the subject, which several templates fill with their name.
     const outboxRows = outbox.scrubForMember.run(
@@ -885,10 +914,14 @@ function purgeAccountPII(memberId: string): PurgeAccountPIIResult {
       reasonText:    null,
       metadata: {
         honors_preserved:             honorsPreserved,
-        cleared_legacy_member_id:     row.legacy_member_id,
-        cleared_historical_person_id: row.historical_person_id,
+        // An honoree keeps both archival links, so the ledger records nothing
+        // cleared rather than naming links that are still on the row.
+        cleared_legacy_member_id:     honorsPreserved ? null : row.legacy_member_id,
+        cleared_historical_person_id: honorsPreserved ? null : row.historical_person_id,
         anchors_deleted:              anchors.changes,
         club_insight_notes_cleared:   insightNotes.changes,
+        donation_payments_cleared:    donationPayments.changes,
+        donation_subscriptions_cleared: donationSubs.changes,
         outbox_rows_scrubbed:         outboxRows.changes,
       },
     });
@@ -896,7 +929,7 @@ function purgeAccountPII(memberId: string): PurgeAccountPIIResult {
     return {
       status:                'purged' as const,
       honorsPreserved,
-      clearedLegacyMemberId: row.legacy_member_id,
+      clearedLegacyMemberId: honorsPreserved ? null : row.legacy_member_id,
       anchorsDeleted:        anchors.changes,
     };
   });
@@ -917,6 +950,8 @@ function purgeAccountPII(memberId: string): PurgeAccountPIIResult {
  *   - outbound mail addressed to them scrubbed on the same terms as the full
  *     purge: contact data is exactly what this scrub exists to clear, and
  *     nothing about preserving identity requires keeping their mailbox
+ *   - the member's donation free text cleared on the same terms as the full
+ *     purge: their own words are not part of the record this scrub preserves
  *   - one member.deceased_pii_scrubbed audit row
  *   - one erasure_log row (deceased_contact_scrub) so backup restores
  *     re-apply the erasure
@@ -946,6 +981,12 @@ function scrubDeceasedMemberPII(memberId: string): ScrubDeceasedMemberPIIResult 
     // Same treatment for the wizard's club insight notes: the words go, the
     // evidence row stays.
     const insightNotes = clubInsightNotes.clearNotesForMember.run(memberId);
+    // A donation comment is the person's own writing, not part of the record
+    // this scrub preserves. Honors, identity and the gift itself all stay; the
+    // sentence they wrote alongside it does not, on the same terms as the full
+    // purge.
+    const donationPayments = paymentsDb.clearDonationTextForMember.run(now, memberId);
+    const donationSubs = recurringSubscriptionsDb.clearDonationCommentForMember.run(now, memberId);
     // Outbound mail is contact data: the address it was sent to and the body
     // that was rendered for them. This scrub keeps identity, but nothing about
     // identity requires keeping their mailbox or the messages sent to it.
@@ -965,6 +1006,8 @@ function scrubDeceasedMemberPII(memberId: string): ScrubDeceasedMemberPIIResult 
       metadata: {
         anchors_deleted:            anchors.changes,
         club_insight_notes_cleared: insightNotes.changes,
+        donation_payments_cleared:  donationPayments.changes,
+        donation_subscriptions_cleared: donationSubs.changes,
         outbox_rows_scrubbed:       outboxRows.changes,
       },
     });

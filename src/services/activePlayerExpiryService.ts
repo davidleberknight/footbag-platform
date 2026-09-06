@@ -156,7 +156,6 @@ function tryRecordReminderSent(
     activePlayerExpiry.insertReminderSent.run(
       `apr_${randomUUID().replace(/-/g, '').slice(0, 24)}`,
       nowIso,
-      nowIso,
       memberId,
       expiresAtIso,
       offsetLabel,

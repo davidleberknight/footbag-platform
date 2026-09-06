@@ -1,9 +1,12 @@
 /**
  * Row-level PII purge contract: credentials, contact fields, location,
  * birth date, and legacy metadata clear to NULL; identity placeholders
- * anonymize (HoF/BAP rows keep display_name and bio); the legacy and
+ * anonymize; the legacy and
  * historical-person links sever and the claimed legacy_members row returns
- * to the claimable pool while its snapshot survives; every declared anchor
+ * to the claimable pool while its snapshot survives; an honoree is the
+ * exception, keeping slug, display name, bio, country and both archival links
+ * along with their claim, because the honor is for life and the record goes on
+ * publishing whatever became of the account; every declared anchor
  * deletes; the purged row satisfies the members credential CHECK; the
  * freed login_email becomes reusable; one audit row records the clearing;
  * a re-run is an 'already_purged' no-op.
@@ -13,6 +16,7 @@ import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
 import {
   insertMember, insertLegacyMember, insertHistoricalPerson, insertOutboxEmail,
+  insertPayment, insertRecurringDonationSubscription,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3092');
@@ -133,22 +137,67 @@ describe('memberService.purgeAccountPII', () => {
     expect(meta.anchors_deleted).toBe(2);
   });
 
-  it('HoF rows keep display_name and bio; credentials still clear', () => {
-    seedClaimedMember('purge-hof', { isHof: 1 });
+  it('keeps everything an honoree record publishes, and clears their personal data anyway', () => {
+    const { legacyId } = seedClaimedMember('purge-hof', { isHof: 1 });
 
     const result = memberService.purgeAccountPII('purge-hof');
     expect(result.status).toBe('purged');
     if (result.status !== 'purged') return;
     expect(result.honorsPreserved).toBe(true);
+    // Nothing was released, so nothing is reported released.
+    expect(result.clearedLegacyMemberId).toBeNull();
 
     const m = memberRow('purge-hof');
+    // What the honoree's permanent record is made of.
+    expect(m.slug).toBe('slug_purge_hof');
     expect(m.display_name).toBe('Legacy purge-hof');
     expect(m.bio).toBe('a bio');
+    expect(m.country).toBe('US');
     expect(m.is_hof).toBe(1);
+    // The archival links carry their competing name and their results.
+    expect(m.legacy_member_id).toBe(legacyId);
+    expect(m.historical_person_id).toBe('HP-purge-hof');
+
+    // The personal data goes all the same.
     expect(m.login_email).toBeNull();
     expect(m.password_hash).toBeNull();
     expect(m.real_name).toBe('Deleted Member');
     expect(m.street_address).toBeNull();
+    expect(m.postal_code).toBeNull();
+    expect(m.birth_date).toBeNull();
+    // Country is the honor record's only locality; the finer locality is not.
+    expect(m.city).toBeNull();
+    expect(m.region).toBeNull();
+
+    const d = db();
+    // Their old-site identity is not handed back to the claimable pool.
+    const lm = d.prepare('SELECT * FROM legacy_members WHERE legacy_member_id = ?')
+      .get(legacyId) as Record<string, unknown>;
+    const audits = d.prepare(`
+      SELECT metadata_json FROM audit_entries
+      WHERE entity_id = 'purge-hof' AND action_type = 'member.pii_purged'
+    `).all() as Array<{ metadata_json: string }>;
+    d.close();
+    expect(lm.claimed_by_member_id).toBe('purge-hof');
+    const meta = JSON.parse(audits[0].metadata_json) as Record<string, unknown>;
+    expect(meta.honors_preserved).toBe(true);
+    expect(meta.cleared_legacy_member_id).toBeNull();
+    expect(meta.cleared_historical_person_id).toBeNull();
+  });
+
+  it('leaves an erased honoree standing as a record, and an erased member not', () => {
+    seedClaimedMember('purge-standing-hof', { isHof: 1 });
+    seedClaimedMember('purge-standing-plain');
+    expect(memberService.purgeAccountPII('purge-standing-hof').status).toBe('purged');
+    expect(memberService.purgeAccountPII('purge-standing-plain').status).toBe('purged');
+
+    const d = new BetterSqlite3(dbPath, { readonly: true });
+    const standing = d.prepare('SELECT id FROM members_of_record WHERE id = ?');
+    const honoree = standing.get('purge-standing-hof');
+    const plain = standing.get('purge-standing-plain');
+    d.close();
+    expect(honoree).toBeDefined();
+    expect(plain).toBeUndefined();
   });
 
   it('frees the login_email for reuse by a new account', () => {
@@ -309,6 +358,120 @@ describe('memberService.purgeAccountPII', () => {
     expect(pending.last_error).toBe('recipient erased before delivery');
     // A message that already went out keeps its history; only its content goes.
     expect(sent.status).toBe('sent');
+  });
+
+  // The words a member wrote alongside a gift are their own writing, and the
+  // governance rule makes them purgeable. The money is not: a payment row is a
+  // financial record kept past the person leaving it and anonymized on its own
+  // compliance schedule, which is years away and no answer to an erasure
+  // request made today. So this asserts both halves, because clearing too much
+  // is as wrong as clearing too little.
+  it('clears the donation note, the descriptor that repeats it, and the subscription comment, leaving the money intact', () => {
+    seedClaimedMember('purge-donation');
+    const other = 'purge-donation-bystander';
+    const d = db();
+    insertMember(d, { id: other, slug: 'purge_donation_other', login_email: `${other}@example.com` });
+
+    const subId = insertRecurringDonationSubscription(d, {
+      id: 'rds-erased', member_id: 'purge-donation',
+      donation_comment: 'For the Hall of Fame fund, in memory of my coach.',
+    });
+    // The one-off gift, and the recurring charge that carries the subscription
+    // link: the two descriptor forms differ, and only the recurring one has a
+    // label to preserve.
+    insertPayment(d, {
+      id: 'pay-oneoff', member_id: 'purge-donation', payment_type: 'donation',
+      amount_cents: 5000, currency: 'USD', status: 'succeeded',
+      descriptor: 'Donation: For the Hall of Fame fund, in memory of my coach.',
+      donation_note: 'For the Hall of Fame fund, in memory of my coach.',
+    });
+    insertPayment(d, {
+      id: 'pay-recurring', member_id: 'purge-donation', payment_type: 'donation',
+      amount_cents: 2500, status: 'succeeded', recurring_subscription_id: subId,
+      descriptor: 'Recurring Annual Donation: For the Hall of Fame fund, in memory of my coach.',
+      donation_note: 'For the Hall of Fame fund, in memory of my coach.',
+    });
+    // A membership payment carries no member-authored text, so its descriptor
+    // must survive: the clear is scoped to donations.
+    insertPayment(d, {
+      id: 'pay-membership', member_id: 'purge-donation', payment_type: 'membership',
+      descriptor: 'IFPA Tier 1 Membership',
+    });
+    // Another member's donation, to prove the clear is scoped to one member.
+    insertPayment(d, {
+      id: 'pay-bystander', member_id: other, payment_type: 'donation',
+      descriptor: 'Donation: keep up the good work',
+      donation_note: 'keep up the good work',
+    });
+    insertRecurringDonationSubscription(d, {
+      id: 'rds-bystander', member_id: other, donation_comment: 'keep up the good work',
+    });
+    d.close();
+
+    expect(memberService.purgeAccountPII('purge-donation').status).toBe('purged');
+
+    const r = db();
+    const oneOff     = r.prepare('SELECT * FROM payments WHERE id = ?').get('pay-oneoff') as Record<string, unknown>;
+    const recurring  = r.prepare('SELECT * FROM payments WHERE id = ?').get('pay-recurring') as Record<string, unknown>;
+    const membership = r.prepare('SELECT * FROM payments WHERE id = ?').get('pay-membership') as Record<string, unknown>;
+    const bystander  = r.prepare('SELECT * FROM payments WHERE id = ?').get('pay-bystander') as Record<string, unknown>;
+    const sub        = r.prepare('SELECT * FROM recurring_donation_subscriptions WHERE id = ?').get('rds-erased') as Record<string, unknown>;
+    const subOther   = r.prepare('SELECT * FROM recurring_donation_subscriptions WHERE id = ?').get('rds-bystander') as Record<string, unknown>;
+    r.close();
+
+    expect(oneOff.donation_note).toBeNull();
+    expect(oneOff.descriptor).toBe('Donation');
+    expect(recurring.donation_note).toBeNull();
+    // The recurring label is not personal data, and the subscription link that
+    // distinguishes it survives erasure, so the distinction is kept.
+    expect(recurring.descriptor).toBe('Recurring Annual Donation');
+    expect(sub.donation_comment).toBeNull();
+
+    // The financial record the governance rule keeps: nothing about the money
+    // moved, and the payment still points at the member whose it was. The
+    // member link is stripped later by the compliance anonymization, on its own
+    // schedule, not by erasure.
+    expect(oneOff.amount_cents).toBe(5000);
+    expect(oneOff.currency).toBe('USD');
+    expect(oneOff.status).toBe('succeeded');
+    expect(oneOff.member_id).toBe('purge-donation');
+    expect(recurring.recurring_subscription_id).toBe(subId);
+    expect(sub.amount_cents).toBe(2500);
+    expect(sub.status).toBe('active');
+
+    // Scope: a non-donation descriptor and another member's words are untouched.
+    expect(membership.descriptor).toBe('IFPA Tier 1 Membership');
+    expect(bystander.donation_note).toBe('keep up the good work');
+    expect(bystander.descriptor).toBe('Donation: keep up the good work');
+    expect(subOther.donation_comment).toBe('keep up the good work');
+  });
+
+  // What was cleared has to be legible from the ledger afterwards, because the
+  // rows themselves no longer say.
+  it('counts the cleared donation rows in the purge audit row', () => {
+    seedClaimedMember('purge-donation-audit');
+    const d = db();
+    insertPayment(d, {
+      id: 'pay-audit', member_id: 'purge-donation-audit', payment_type: 'donation',
+      descriptor: 'Donation: thanks', donation_note: 'thanks',
+    });
+    insertRecurringDonationSubscription(d, {
+      id: 'rds-audit', member_id: 'purge-donation-audit', donation_comment: 'thanks',
+    });
+    d.close();
+
+    expect(memberService.purgeAccountPII('purge-donation-audit').status).toBe('purged');
+
+    const r = db();
+    const row = r.prepare(`
+      SELECT metadata_json FROM audit_entries
+       WHERE action_type = 'member.pii_purged' AND entity_id = ?
+    `).get('purge-donation-audit') as { metadata_json: string };
+    r.close();
+
+    const meta = JSON.parse(row.metadata_json) as Record<string, unknown>;
+    expect(meta.donation_payments_cleared).toBe(1);
+    expect(meta.donation_subscriptions_cleared).toBe(1);
   });
 
 });

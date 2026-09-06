@@ -12,6 +12,24 @@
 -- Views and triggers that compare timestamps use strftime('%Y-%m-%dT%H:%M:%fZ','now')
 -- so that lexical ordering matches chronological ordering. Writers MUST use this
 -- same format; mixing space-separated datetime() output breaks sort correctness.
+--
+-- Standard metadata columns. A mutable domain table, one whose rows record
+-- activity on this platform, carries id, created_at, created_by, updated_at,
+-- updated_by, version, and deleted_at where the entity soft-deletes. The stamp
+-- answers from the row itself when it was created and last changed and by whom;
+-- audit_entries holds the account of what each change was, and the two are read
+-- together. version counts the updates a row has received, which is what tells a
+-- repeated event on a reused row apart from the original: the club membership
+-- notification key is built from the affiliation row's id and its version.
+--
+-- Tables that carry fewer, and why: an append-only ledger keeps created_at and
+-- created_by, because its trigger pair blocks UPDATE and DELETE and there is no
+-- later change to attribute; an imported or reference catalogue records
+-- provenance in its own source columns, which is what says where the material
+-- came from; an external-event ingestion store is written once by a webhook
+-- handler; a derived cache is recomputed by a background job; a junction table
+-- is inserted and deleted rather than edited. scripts/ci/assert_conventions.sh
+-- holds that list and fails a table that is neither complete nor declared.
 
 PRAGMA foreign_keys = ON;
 
@@ -1906,9 +1924,6 @@ CREATE TABLE active_player_reminder_sent (
   id         TEXT PRIMARY KEY,
   created_at TEXT NOT NULL,
   created_by TEXT NOT NULL,
-  updated_at TEXT NOT NULL,
-  updated_by TEXT NOT NULL,
-  version    INTEGER NOT NULL DEFAULT 1,
 
   member_id    TEXT NOT NULL REFERENCES members(id) ON DELETE NO ACTION,
   expires_at   TEXT NOT NULL,
@@ -2072,6 +2087,12 @@ LEFT JOIN latest_ap l        ON l.member_id  = m.id;
 -- concepts ("Tier 1 benefits" is the feature-gate label; "Official IFPA Roster"
 -- is the governance/reporting label) and they may diverge under a future rule.
 -- Do NOT collapse them into one column.
+--
+-- Row set: an attribute projection over every row in members, soft-deleted and
+-- erased accounts included. Each consumer means a different member set: an
+-- operational list reads members_active, a published identity reads
+-- members_of_record, search reads members_searchable. The caller joins from the
+-- surface its own purpose names, which is where the row set is chosen.
 
 CREATE VIEW member_membership_status_current AS
 SELECT
@@ -2361,6 +2382,28 @@ CREATE VIEW members_active AS
 -- members_all: all rows including soft-deleted; use for admin queries
 CREATE VIEW members_all AS
   SELECT * FROM members;
+
+-- members_of_record: the rows whose record still stands, which is what every
+-- surface that publishes or defends a member's identity should read. A record
+-- stands unless the account was deleted or fully erased; a Hall of Fame or Big
+-- Add Posse member's record always stands, because the honor is for life and
+-- the honoree goes on being visible as a historical person no matter what
+-- happens to their account.
+--
+-- The test is the erasure ledger, not personal_data_purged_at. Both erasure
+-- shapes set that column, because the members credential CHECK requires it
+-- whenever credentials are NULL, so it says "the personal data is gone" and
+-- never "this record is gone". Reading it as the latter is what used to hide a
+-- deceased member's preserved record and an erased honoree's permanent one.
+CREATE VIEW members_of_record AS
+  SELECT * FROM members
+   WHERE is_hof = 1
+      OR is_bap = 1
+      OR (deleted_at IS NULL
+          AND NOT EXISTS (SELECT 1 FROM erasure_log el
+                           WHERE el.entity_type = 'member'
+                             AND el.entity_id = members.id
+                             AND el.erasure_kind = 'account_pii_purge'));
 
 -- members_searchable: the ONLY view that should be queried by the member search
 -- endpoint. Filters five conditions that must exclude a member from search:
@@ -3096,8 +3139,8 @@ CREATE INDEX        idx_media_tags_tag   ON media_tags(tag_id);
 -- distinct_member_count drives the "community tag" threshold (≥2 distinct members).
 -- computed_at records the last recomputation. Fully recomputable from source tables;
 -- a background job upserts rows. The application owns recomputation cadence.
--- No id or version column: always fully recomputed by background job upsert;
--- no optimistic concurrency needed.
+-- No id or version column: the row is recomputed wholesale by a background job
+-- upsert, so it carries no sequence of individual changes to count.
 CREATE TABLE tag_stats (
   tag_id TEXT PRIMARY KEY REFERENCES tags(id),
 

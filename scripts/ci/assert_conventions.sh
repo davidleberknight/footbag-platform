@@ -1121,6 +1121,147 @@ if [ -n "$qc_hits" ]; then
   violations=$((violations + 1))
 fi
 
+# Rule: a table carries the standard metadata columns, or declares why it does not.
+# Reason: the stamp answers, from the row itself, when a row was created and last
+# changed and by whom; audit_entries holds the account of what each change was, and
+# an admin screen, a migration and a debugging session all read the two together.
+# That only works if it is uniform, and uniformity kept by hand does not stay kept:
+# the rule was written as absolute while forty tables quietly carried fewer, because
+# nothing checked. A table whose rows are not activity on this platform has no answer
+# to give, so it is declared here beside the family that explains it, and a new table
+# must either carry the full set or say which family it joins.
+#
+# Append-only ledgers are recognised by their `_no_update` immutability trigger rather
+# than by a list of their own, so the declarations below never have to track them: they
+# keep created_at and created_by and carry none of the mutable trio, because the trigger
+# means there is no later change to attribute. A ledger whose trigger is named some other
+# way reads here as an ordinary table and is asked for the full set, which is the right
+# prompt: either follow the naming the rest of the schema uses, or declare the table.
+echo "[conventions] check: standard metadata columns on tables in database/schema.sql"
+schema_meta_hits=$(python3 - <<'PYEOF'
+import re, pathlib
+
+META = ['created_at', 'created_by', 'updated_at', 'updated_by', 'version']
+MUTABLE = ['updated_at', 'updated_by', 'version']
+
+# Tables whose rows record something other than a member or an administrator acting
+# on this platform. Grouped by the reason, which is the part that has to stay true.
+DECLARED = {
+    # Imported archival and reference catalogues: the rows record what a source
+    # supplied and carry that provenance in their own source columns.
+    'legacy_members', 'historical_persons', 'media_sources',
+    'name_variants', 'given_name_variants',
+    'freestyle_records', 'consecutive_kicks_records',
+    'net_stat_policy', 'net_discipline_group', 'net_team', 'net_team_member',
+    'net_team_appearance',
+    'freestyle_tricks', 'freestyle_trick_modifiers', 'freestyle_trick_sources',
+    'freestyle_trick_source_links', 'freestyle_trick_aliases',
+    'freestyle_trick_modifier_links', 'freestyle_trick_relations',
+    'freestyle_trick_tips',
+    'symbolic_equivalence_clusters', 'symbolic_group_membership',
+    'symbolic_movement_archetypes', 'symbolic_topology_groups',
+    'symbolic_modifier_groups', 'symbolic_glossary_crosslinks',
+    # External-event ingestion: each row claims a provider's identifier and is
+    # written once by a webhook handler.
+    'stripe_events', 'ses_events', 'sns_alarm_events', 'stripe_webhook_failures',
+    # Derived cache, recomputed by a background job.
+    'tag_stats',
+    # Junction rows the application inserts and deletes rather than edits.
+    'member_gallery_tags', 'member_gallery_exclude_tags',
+    # Admin cleanup queue: latest state rather than history. The resolution upserts
+    # overwrite created_at and created_by, so those name who resolved it and when.
+    'club_viability_signals', 'club_insight_notes', 'club_cleanup_resolutions',
+    'candidate_cleanup_resolutions', 'club_cleanup_claims',
+    # Seeded operational configuration; the audit ledger carries the edits.
+    'mailing_lists',
+    # Schema bookkeeping: the applied migration filenames.
+    'schema_migrations',
+}
+
+# An append-only table whose author is a typed FK instead of the free-form actor
+# column: only an administrator or the seed writes a config row.
+LEDGER_TYPED_AUTHOR = {'system_config'}
+
+schema = pathlib.Path('database/schema.sql').read_text()
+guarded = set(re.findall(r'CREATE TRIGGER \w+_no_update\s+BEFORE UPDATE ON (\w+)', schema))
+tables = set()
+
+for m in re.finditer(r'CREATE TABLE (?:IF NOT EXISTS )?(\w+)\s*\((.*?)\n\);', schema, re.S):
+    name, body = m.group(1), m.group(2)
+    tables.add(name)
+    line = schema.count('\n', 0, m.start()) + 1
+    have = {c for c in META if re.search(r'^\s*' + c + r'\s', body, re.M)}
+    if name in guarded:
+        want = ['created_at'] + ([] if name in LEDGER_TYPED_AUTHOR else ['created_by'])
+        missing = [c for c in want if c not in have]
+        carried = [c for c in MUTABLE if c in have]
+        if missing:
+            print(f"database/schema.sql:{line}: append-only {name} omits {', '.join(missing)}")
+        if carried:
+            print(f"database/schema.sql:{line}: append-only {name} carries {', '.join(carried)}, "
+                  f"which its immutability trigger makes unwritable")
+    elif name not in DECLARED:
+        missing = [c for c in META if c not in have]
+        if missing:
+            print(f"database/schema.sql:{line}: {name} omits {', '.join(missing)}")
+
+for name in sorted(DECLARED - tables):
+    print(f"database/schema.sql: declared exception {name} names no table in the schema")
+PYEOF
+)
+if [ -n "$schema_meta_hits" ]; then
+  echo "$schema_meta_hits" >&2
+  echo "  FAIL: add the standard metadata columns, or declare the table in this rule's list beside the family that explains it" >&2
+  violations=$((violations + 1))
+fi
+
+# Rule: an UPDATE stamps every metadata column its table carries.
+# Reason: a row whose updated_by still names a previous actor is worse than one
+# carrying no actor at all, because it reads as an answer. Two statements had drifted
+# this way, each beside a sibling that stamped correctly, and neither was visible to
+# any test: the row was right in every column the page renders.
+#
+# Allowlisted exceptions, both companions that run in the same transaction as a
+# statement stamping the same row:
+#   - clearDerivedParse           runs with updateScalars, which stamps the trick row
+#   - setMediaItemExternalUrl     runs with the INSERT that created the media row
+echo "[conventions] check: UPDATE statements stamp the metadata columns their table carries"
+stamp_hits=$(python3 - <<'PYEOF'
+import re, pathlib
+
+MUTABLE = ('updated_at', 'updated_by', 'version')
+ALLOWED = {'clearDerivedParse', 'setMediaItemExternalUrl'}
+
+schema = pathlib.Path('database/schema.sql').read_text()
+carried = {}
+for m in re.finditer(r'CREATE TABLE (?:IF NOT EXISTS )?(\w+)\s*\((.*?)\n\);', schema, re.S):
+    carried[m.group(1)] = {c for c in MUTABLE
+                           if re.search(r'^\s*' + c + r'\s', m.group(2), re.M)}
+
+src = pathlib.Path('src/db/db.ts').read_text()
+# Bounded at the closing backtick rather than at WHERE: a subquery carries a WHERE of
+# its own, and stopping there truncates the scan and invents a missing stamp.
+for m in re.finditer(r'UPDATE\s+(\w+)\s+SET([\s\S]*?)`', src):
+    table, body = m.group(1), m.group(2)
+    missing = [c for c in MUTABLE
+               if c in carried.get(table, set()) and not re.search(r'\b' + c + r'\s*=', body)]
+    if not missing:
+        continue
+    names = re.findall(r'get\s+(\w+)\s*\(', src[:m.start()])
+    statement = names[-1] if names else '(unnamed statement)'
+    if statement in ALLOWED:
+        continue
+    line = src.count('\n', 0, m.start()) + 1
+    print(f"src/db/db.ts:{line}: {statement} updates {table} without stamping "
+          f"{', '.join(missing)}")
+PYEOF
+)
+if [ -n "$stamp_hits" ]; then
+  echo "$stamp_hits" >&2
+  echo "  FAIL: an UPDATE sets updated_at, updated_by and version = version + 1 for every one its table carries" >&2
+  violations=$((violations + 1))
+fi
+
 if [ "$violations" -gt 0 ]; then
   echo "[conventions] $violations rule(s) violated" >&2
   exit 1

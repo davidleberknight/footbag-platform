@@ -56,4 +56,6 @@ Statements return flat rows; service code shapes them. No business rules in `db.
 
 ## Schema metadata
 
-Every mutable domain table carries `id`, `created_at`, `created_by`, `updated_at`, `updated_by`, `version`, and (where applicable) `deleted_at`. Services stamp these on every write.
+Every mutable domain table, meaning a table whose rows record activity on this platform, carries `id`, `created_at`, `created_by`, `updated_at`, `updated_by`, `version`, and (where applicable) `deleted_at`. Services stamp these on every write: an `UPDATE` sets `updated_at`, `updated_by`, and `version = version + 1` in the same statement, taking the timestamp and the actor as parameters rather than computing either in SQL, so every row one transaction touches carries the same instant.
+
+Append-only ledgers (the ones with an immutability trigger pair), imported and reference catalogues, external-event ingestion stores, derived caches, and insert-and-delete junction tables carry what their writer sets instead. `scripts/ci/assert_conventions.sh` holds that list and fails a table that is neither complete nor declared, and an `UPDATE` that skips a stamp column its table carries.

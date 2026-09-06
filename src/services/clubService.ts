@@ -3134,8 +3134,12 @@ export class ClubService {
       return { branch: 'tag_conflict' };
     }
 
+    const now = new Date().toISOString();
+
     transaction(() => {
-      mediaTags.updateTagDisplay.run(tagNormalized, tagDisplay, club.hashtag_tag_id);
+      mediaTags.updateTagDisplay.run(
+        tagNormalized, tagDisplay, now, actorMemberId, club.hashtag_tag_id,
+      );
 
       appendAuditEntry({
         actionType: 'club.hashtag_updated',

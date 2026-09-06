@@ -712,6 +712,38 @@ export function insertMemberLink(
   return id;
 }
 
+// ── Erasure log ───────────────────────────────────────────────────────────────
+//
+// `erasure_log` row factory. The ledger, not the purge marker on the member row,
+// is what says which erasure a record received, so a fixture standing in for an
+// erased account needs its ledger row or the record still reads as standing.
+
+export interface ErasureLogOverrides {
+  id?: string;
+  created_at?: string;
+  created_by?: string;
+  erasure_kind?: 'account_pii_purge' | 'deceased_contact_scrub';
+}
+
+export function insertErasureLog(
+  db: BetterSqlite3.Database,
+  memberId: string,
+  o: ErasureLogOverrides = {},
+): string {
+  const id = o.id ?? `erasure-test-${uid()}`;
+  db.prepare(`
+    INSERT INTO erasure_log (id, created_at, created_by, entity_type, entity_id, erasure_kind)
+    VALUES (?, ?, ?, 'member', ?, ?)
+  `).run(
+    id,
+    o.created_at ?? TS,
+    o.created_by ?? SYS,
+    memberId,
+    o.erasure_kind ?? 'account_pii_purge',
+  );
+  return id;
+}
+
 // ── Payment ───────────────────────────────────────────────────────────────────
 //
 // `payments` row factory. Covers the FK-target use (e.g.

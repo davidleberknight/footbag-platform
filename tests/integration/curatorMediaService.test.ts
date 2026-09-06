@@ -532,6 +532,35 @@ describe('curatorMediaService.editMedia', () => {
     db.close();
   });
 
+  it('stamps the row when the external URL is the only field edited', async () => {
+    const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
+    const jpeg = await makeJpegBuffer();
+    const r = await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, caption: null, tags: ['#stamp_probe'] });
+
+    const db = openDb();
+    const read = () => db.prepare(
+      `SELECT external_url, updated_at, updated_by, version FROM media_items WHERE id = ?`,
+    ).get(r.mediaId) as { external_url: string | null; updated_at: string; updated_by: string; version: number };
+    const before = read();
+
+    // An edit naming no other field runs no other statement over the row, so
+    // this write is the row's only chance to record that it changed. Left
+    // unstamped it keeps reporting the upload as its last change, which reads
+    // as an answer rather than as a gap.
+    await svc.editMedia({
+      adminMemberId: ADMIN_ID,
+      mediaId: r.mediaId,
+      externalUrl: 'https://example.com/stamp-probe',
+    });
+
+    const after = read();
+    expect(after.external_url).toBe('https://example.com/stamp-probe');
+    expect(after.version).toBe(before.version + 1);
+    expect(after.updated_by).toBe('admin-act-as');
+    expect(after.updated_at > before.updated_at).toBe(true);
+    db.close();
+  });
+
   it('rewrites tags atomically when tags-only edit is supplied', async () => {
     const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
     const jpeg = await makeJpegBuffer();
