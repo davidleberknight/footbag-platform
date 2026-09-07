@@ -4088,7 +4088,7 @@ Success Criteria:
 ### SYS_Cross_Region_Replication
 Access: This is infrastructure, not an application process. No platform code runs it.
 
-Story: Every backup snapshot and every media object is copied to a second region as it is written, so that losing the primary region does not lose the platform's data.
+Story: Every media object, and every database snapshot the retention tiers promote, is copied to a second region as it is written, so that losing the primary region does not lose the platform's data.
 
 Success Criteria:
 
@@ -4098,7 +4098,7 @@ Success Criteria:
 - The cutover snapshot is written under a prefix the routine retention rule does not cover, so the one copy whose purpose is to outlive everything else is not aged out by routine retention.
 - Replication failure and sustained replication backlog each raise an alarm, and the staleness of the disaster-recovery copy is itself watched, because that figure is the recovery point actually on offer during an incident. The object store does not retry a failed replication, so every such alarm names work an operator must do.
 - Alarms reach an administrator under A_Acknowledge_Alarm rather than as a card on A_View_System_Health, which is built only from what the platform records itself and excludes infrastructure by design.
-- Recovery objectives: the cross-region recovery point is replication lag, typically minutes; the cross-region recovery time is operator-paced against a rebuilt host. Primary recovery uses the frequent snapshot mechanism (see SYS_Continuous_Database_Backup).
+- Recovery objectives: the cross-region recovery point is up to an hour, being the interval between promoted snapshots rather than replication lag, and it is accepted deliberately as the price of not replicating the fine-grained stream; the cross-region recovery time is operator-paced against a rebuilt host. Primary recovery uses the frequent snapshot mechanism (see SYS_Continuous_Database_Backup).
 - Replication proves copies were made and nothing more. That the copies restore is established by periodically restoring from them, including at least once from the disaster-recovery bucket rather than the primary. That the set of copies is complete is established by comparing the two buckets, because a replication rule never covers objects written before it existed and no alarm fires for an object replication was never asked to copy.
 
 ### SYS_Continuous_Database_Backup

@@ -71,9 +71,18 @@ sha256=$(sha256sum "${SNAPSHOT_PATH}" | awk '{print $1}')
 
 q() { sqlite3 "${SNAPSHOT_PATH}" "$1"; }
 
+# The first six are the set scripts/restore-db.sh prints back after a restore.
+# They match deliberately: a manifest recording counts a restore never reports
+# cannot be reconciled against it, and the reconciliation is the whole reason
+# this manifest travels with the artifact. The last two are extra evidence about
+# the seeded tables, carried because they are cheap and this snapshot is the
+# only way back after the member load.
 count_members=$(q "SELECT COUNT(*) FROM members;")
 count_legacy=$(q  "SELECT COUNT(*) FROM legacy_members;")
 count_hp=$(q      "SELECT COUNT(*) FROM historical_persons;")
+count_clubs=$(q   "SELECT COUNT(*) FROM clubs;")
+count_audit=$(q   "SELECT COUNT(*) FROM audit_entries;")
+count_alsc=$(q    "SELECT COUNT(*) FROM auto_link_staged_candidates;")
 count_nv=$(q      "SELECT COUNT(*) FROM name_variants;")
 count_cbl=$(q     "SELECT COUNT(*) FROM club_bootstrap_leaders;")
 
@@ -113,6 +122,9 @@ cat > "${MANIFEST_PATH}" <<EOF
     "members": ${count_members},
     "legacy_members": ${count_legacy},
     "historical_persons": ${count_hp},
+    "clubs": ${count_clubs},
+    "audit_entries": ${count_audit},
+    "auto_link_staged_candidates": ${count_alsc},
     "name_variants": ${count_nv},
     "club_bootstrap_leaders": ${count_cbl}
   },

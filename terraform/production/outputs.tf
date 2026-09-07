@@ -62,6 +62,11 @@ output "archive_domain" {
   value       = var.enable_archive ? (var.enable_archive_custom_domain ? local.archive_domain : aws_cloudfront_distribution.archive[0].domain_name) : null
 }
 
+output "platform_url" {
+  description = "Canonical origin the site is served at, which the host holds as PUBLIC_BASE_URL: the apex once the custom-domain flag is on, otherwise the distribution's own cloudfront.net name. Declared here rather than derived by an operator because the value changes at the DNS cutover, and the flag that moves it lives beside this output; a host left on the old value builds every absolute link, redirect and mail link against a hostname the site no longer answers on."
+  value       = var.enable_cloudfront ? "https://${var.enable_platform_custom_domain ? var.domain_name : aws_cloudfront_distribution.main[0].domain_name}" : null
+}
+
 output "archive_key_pair_id" {
   description = "CloudFront public key ID the application names as CloudFront-Key-Pair-Id when it signs archive cookies. Only Terraform knows this value."
   value       = var.enable_archive ? aws_cloudfront_public_key.archive[0].id : null

@@ -110,6 +110,10 @@ if [[ -n "$ENV_FILE_OVERRIDE" ]]; then
   TF_JWT_KMS_KEY_ARN="${TF_JWT_KMS_KEY_ARN:-}"
   TF_SES_SENDER="${TF_SES_SENDER:-}"
   TF_MEDIA_BUCKET="${TF_MEDIA_BUCKET:-}"
+  # Optional here, unlike the three above: a fixture written before this value
+  # was owned carries no expectation for it, and the check below degrades to
+  # presence rather than failing a synthetic run over a value it was not given.
+  TF_PLATFORM_URL="${TF_PLATFORM_URL:-}"
   if [[ -z "$TF_JWT_KMS_KEY_ARN" || -z "$TF_SES_SENDER" || -z "$TF_MEDIA_BUCKET" ]]; then
     echo "ERROR: --env-file mode requires TF_JWT_KMS_KEY_ARN, TF_SES_SENDER, and TF_MEDIA_BUCKET in the environment." >&2
     exit 2
@@ -121,6 +125,7 @@ else
   TF_JWT_KMS_KEY_ARN="$(terraform -chdir="$TF_DIR" output -raw jwt_signing_key_arn 2>/dev/null || true)"
   TF_SES_SENDER="$(terraform -chdir="$TF_DIR" output -raw ses_sender_identity 2>/dev/null || true)"
   TF_MEDIA_BUCKET="$(terraform -chdir="$TF_DIR" output -raw media_bucket_name 2>/dev/null || true)"
+  TF_PLATFORM_URL="$(terraform -chdir="$TF_DIR" output -raw platform_url 2>/dev/null || true)"
   if [[ -z "$TF_JWT_KMS_KEY_ARN" || -z "$TF_SES_SENDER" || -z "$TF_MEDIA_BUCKET" ]]; then
     echo "ERROR: required terraform outputs are empty. Has 'terraform apply' run for $TARGET?" >&2
     echo "  jwt_signing_key_arn = '$TF_JWT_KMS_KEY_ARN'" >&2
@@ -588,7 +593,22 @@ else
 fi
 
 # Public-facing required vars.
-check_set "PUBLIC_BASE_URL" "public base URL"
+#
+# Compared against the tree's own platform_url rather than merely checked for
+# presence, because the failure this guards is a host left on the previous value
+# after DNS moves. That host answers, passes every health check, and builds every
+# absolute link, redirect and mail link against a hostname the site no longer
+# serves. Presence cannot see it; only the comparison can.
+PUBLIC_URL_ACTUAL="${HOST_ENV[PUBLIC_BASE_URL]:-}"
+if [[ -z "$TF_PLATFORM_URL" ]]; then
+  check_set "PUBLIC_BASE_URL" "public base URL"
+elif [[ "$PUBLIC_URL_ACTUAL" == "$TF_PLATFORM_URL" ]]; then
+  check_pass "public base URL: PUBLIC_BASE_URL=$TF_PLATFORM_URL"
+elif [[ -z "$PUBLIC_URL_ACTUAL" ]]; then
+  check_fail "public base URL: PUBLIC_BASE_URL is unset (expected '$TF_PLATFORM_URL'); scripts/set-host-env.sh writes it"
+else
+  check_fail "public base URL: PUBLIC_BASE_URL=$PUBLIC_URL_ACTUAL, but this tree serves '$TF_PLATFORM_URL'; every absolute link and mail link is being built against the wrong host. Re-run scripts/set-host-env.sh --target $TARGET"
+fi
 check_set "FOOTBAG_DB_PATH" "database path"
 
 # PORT is hardcoded in docker/docker-compose.yml (web + worker services) and

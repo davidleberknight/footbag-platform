@@ -403,12 +403,19 @@ resource "aws_s3_bucket_lifecycle_configuration" "dr" {
     expiration { days = 90 }
   }
 
-  # Matches the primary's daily window, which is already well past the lock.
+  # 90 days, matching the Object Lock, not the primary's 400-day daily window.
+  # The design fixes one cross-region retention for this bucket and requires the
+  # lifecycle rules to match the lock, so a copy stays immutable for as long as
+  # it is kept. Matching the primary instead would leave a daily copy sitting
+  # for 310 days after its lock lapsed, protected by access control alone in the
+  # account whose credentials the lock exists to defend against. The long daily
+  # history stays in the primary region; the off-region copy is a disaster hedge
+  # for continuity, not an archive.
   rule {
     id     = "expire-dr-daily-tier"
     status = "Enabled"
     filter { prefix = "daily/" }
-    expiration { days = 400 }
+    expiration { days = 90 }
   }
 
   # The rule above only writes a delete marker, because this bucket is versioned.

@@ -120,6 +120,46 @@ describe('set-host-env.sh rewrite contract', () => {
     });
   });
 
+  it('writes the canonical origin, which nothing owned before and the deploy refuses without', () => {
+    withEnvFile('NODE_ENV=production\nOTHER=keep\n', (path) => {
+      const r = run(['--target', 'production', '--env-file', path], {
+        BACKUP_S3_BUCKET_VALUE: 'b',
+        ALARM_TOPIC_ARN_VALUE: 'arn:aws:sns:us-east-1:1:alarms',
+        SES_FEEDBACK_TOPIC_ARN_VALUE: 'arn:aws:sns:us-east-1:1:ses',
+        PUBLIC_BASE_URL_VALUE: 'https://example.invalid',
+      });
+      expect(r.exitCode).toBe(0);
+      expect(readFileSync(path, 'utf-8')).toContain('PUBLIC_BASE_URL=https://example.invalid');
+    });
+  });
+
+  it('replaces the canonical origin rather than leaving the pre-cutover value in place', () => {
+    withEnvFile('PUBLIC_BASE_URL=https://old.invalid\nA=1\n', (path) => {
+      const r = run(['--target', 'production', '--env-file', path], {
+        BACKUP_S3_BUCKET_VALUE: 'b',
+        ALARM_TOPIC_ARN_VALUE: 'arn:aws:sns:us-east-1:1:alarms',
+        SES_FEEDBACK_TOPIC_ARN_VALUE: 'arn:aws:sns:us-east-1:1:ses',
+        PUBLIC_BASE_URL_VALUE: 'https://new.invalid',
+      });
+      expect(r.exitCode).toBe(0);
+      const out = readFileSync(path, 'utf-8');
+      expect(out).toContain('PUBLIC_BASE_URL=https://new.invalid');
+      expect(out, 'the superseded origin is gone, not merely shadowed').not.toContain('old.invalid');
+    });
+  });
+
+  it('leaves an existing origin alone when this mode supplies none, rather than blanking it', () => {
+    withEnvFile('PUBLIC_BASE_URL=https://keep.invalid\nA=1\n', (path) => {
+      const r = run(['--target', 'production', '--env-file', path], {
+        BACKUP_S3_BUCKET_VALUE: 'b',
+        ALARM_TOPIC_ARN_VALUE: 'arn:aws:sns:us-east-1:1:alarms',
+        SES_FEEDBACK_TOPIC_ARN_VALUE: 'arn:aws:sns:us-east-1:1:ses',
+      });
+      expect(r.exitCode).toBe(0);
+      expect(readFileSync(path, 'utf-8')).toContain('PUBLIC_BASE_URL=https://keep.invalid');
+    });
+  });
+
   it('collapses duplicate assignments, so last-wins parsing matches the diff shown', () => {
     withEnvFile('TRUST_PROXY=9\nA=1\nTRUST_PROXY=7\nBACKUP_S3_BUCKET=old\nBACKUP_S3_BUCKET=older\n', (path) => {
       const r = run(['--target', 'staging', '--env-file', path], {

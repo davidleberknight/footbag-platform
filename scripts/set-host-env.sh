@@ -2,8 +2,8 @@
 # set-host-env.sh
 #
 # Writes the operator-owned, non-secret values in /srv/footbag/env: the proxy
-# hop count, the database-snapshot bucket name, and the two SNS topic ARNs the
-# webhook feeds authenticate against. Every other value in that file already
+# hop count, the site's canonical origin, the database-snapshot bucket name, and
+# the two SNS topic ARNs the webhook feeds authenticate against. Every other value in that file already
 # arrives through a script -- the payments activation writes the Stripe signing
 # secret, the SES activation writes the feedback key, and the deploy's remote
 # halves seed the one-shot values and sync the ones Terraform declares. These
@@ -16,6 +16,16 @@
 #                     rate limiting coarsens to per-edge buckets. The expected
 #                     value, and why it is the same in both environments and at
 #                     every milestone, lives in lib/host-env-expectations.sh.
+#   PUBLIC_BASE_URL   the canonical origin the site is served at, which every
+#                     absolute link, redirect and mail link is built against.
+#                     The deploy refuses to start without it and tells the
+#                     operator to add it by hand, which is how it came to be
+#                     edited in place with sed at each cutover step. Its value
+#                     changes when DNS moves, so it is read from the tree's
+#                     platform_url output, where the flag that moves it lives,
+#                     rather than typed: a host left on the previous value keeps
+#                     answering while building every link against a hostname the
+#                     site no longer serves, which no health check catches.
 #   BACKUP_S3_BUCKET  read by the footbag-backup systemd timer rather than at
 #                     application boot, so its absence does not show up as a
 #                     failure anywhere: backup-db.sh refuses to run, the
@@ -148,6 +158,7 @@ if [[ -n "$ENV_FILE_OVERRIDE" ]]; then
   # Optional in this mode alone, so a fixture that predates this value still
   # exercises the rewrite. The real path below requires it.
   SES_SENDER_VALUE="${SES_FROM_IDENTITY_VALUE:-}"
+  PUBLIC_URL_VALUE="${PUBLIC_BASE_URL_VALUE:-}"
 else
   # The bucket name is whatever Terraform actually built. Reading it rather than
   # accepting one typed in is the difference between a timer that uploads and
@@ -199,12 +210,29 @@ else
     echo "ERROR: the ses_sender_identity output resolved empty for ${TARGET}." >&2
     exit 1
   fi
+  # Required for the same reason as the sender: the deploy refuses to start
+  # without it, so writing a blank here only moves the failure later. It answers
+  # null until CloudFront is enabled on the environment, which is a real state
+  # and not an error, so that case is named rather than reported as a failure.
+  PUBLIC_URL_VALUE="$("${TF_ENV[@]}" terraform -chdir="${REPO_ROOT}/terraform/${TARGET}" output -raw platform_url 2>/dev/null || true)"
+  if [[ -z "$PUBLIC_URL_VALUE" || "$PUBLIC_URL_VALUE" == "null" ]]; then
+    echo "ERROR: platform_url resolved empty for ${TARGET}. Two causes, and the fix" >&2
+    echo "       is the same for both: apply the tree, then re-run." >&2
+    echo "         - The output is declared but not yet in state. Outputs are read from" >&2
+    echo "           state, so one added since the last apply reads empty however" >&2
+    echo "           correct the declaration is." >&2
+    echo "         - enable_cloudfront is off. The site has no canonical origin before" >&2
+    echo "           there is a distribution to serve it, and the output is null by" >&2
+    echo "           design until there is." >&2
+    exit 1
+  fi
 fi
 
 echo "== set-host-env: ${TARGET} =="
 echo ""
 echo "Resolved values:"
 echo "  TRUST_PROXY=${TRUST_PROXY_VALUE}    expected for ${TARGET}: $(expected_trust_proxy_note "$TARGET")"
+echo "  PUBLIC_BASE_URL=${PUBLIC_URL_VALUE:-<none: not supplied in this mode>}"
 echo "  BACKUP_S3_BUCKET=${BUCKET_VALUE}"
 echo "  ALARM_TOPIC_ARN=${ALARM_TOPIC_VALUE}"
 echo "  SES_FEEDBACK_TOPIC_ARN=${SES_TOPIC_VALUE}"
@@ -263,8 +291,19 @@ fi
 TP_VALUE="$TRUST_PROXY_VALUE" BK_VALUE="$BUCKET_VALUE" \
 AT_VALUE="$ALARM_TOPIC_VALUE" ST_VALUE="$SES_TOPIC_VALUE" \
 AQ_VALUE="${ALARM_QUEUE_VALUE:-}" SQ_VALUE="${SES_QUEUE_VALUE:-}" \
-SI_VALUE="${SES_SENDER_VALUE:-}" awk '
-  BEGIN { seen_tp = 0; seen_bk = 0; seen_at = 0; seen_st = 0; seen_aq = 0; seen_sq = 0; seen_si = 0 }
+SI_VALUE="${SES_SENDER_VALUE:-}" PU_VALUE="${PUBLIC_URL_VALUE:-}" awk '
+  BEGIN { seen_tp = 0; seen_bk = 0; seen_at = 0; seen_st = 0; seen_aq = 0; seen_sq = 0; seen_si = 0; seen_pu = 0 }
+  /^PUBLIC_BASE_URL=/ {
+    # Left alone when this mode supplied no value, matching the sender identity:
+    # a fixture that predates this value keeps whatever it carried rather than
+    # having it blanked, and a blank is the one thing the deploy refuses on.
+    if (!seen_pu) {
+      if (ENVIRON["PU_VALUE"] != "") { print "PUBLIC_BASE_URL=" ENVIRON["PU_VALUE"] }
+      else { print }
+      seen_pu = 1
+    }
+    next
+  }
   /^TRUST_PROXY=/ {
     if (!seen_tp) { print "TRUST_PROXY=" ENVIRON["TP_VALUE"]; seen_tp = 1 }
     next
@@ -315,6 +354,7 @@ SI_VALUE="${SES_SENDER_VALUE:-}" awk '
     if (!seen_aq && ENVIRON["AQ_VALUE"] != "") print "ALARM_QUEUE_URL=" ENVIRON["AQ_VALUE"]
     if (!seen_sq && ENVIRON["SQ_VALUE"] != "") print "SES_FEEDBACK_QUEUE_URL=" ENVIRON["SQ_VALUE"]
     if (!seen_si && ENVIRON["SI_VALUE"] != "") print "SES_FROM_IDENTITY=" ENVIRON["SI_VALUE"]
+    if (!seen_pu && ENVIRON["PU_VALUE"] != "") print "PUBLIC_BASE_URL=" ENVIRON["PU_VALUE"]
   }
 ' "$OLD_LOCAL" > "$NEW_LOCAL"
 

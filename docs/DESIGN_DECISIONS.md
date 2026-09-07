@@ -227,7 +227,7 @@ Container shutdown (SIGTERM): Stop accepting new requests, wait up to 30 seconds
 Requirements:
 
 - A host systemd backup timer writes the SQLite snapshot to the primary backup bucket on the documented cadence (default five minutes, per the backup-script description above). A dead timer or a failing upload stops the backup-age metric from refreshing, so the staleness alarm breaches and a silent backup gap cannot accrue.
-- The off-account DR replica bucket has S3 Object Lock enabled in GOVERNANCE mode for the configured retention window, so a compromised production credential cannot delete or overwrite snapshots in the disaster-recovery target.
+- The DR replica bucket has S3 Object Lock enabled in GOVERNANCE mode for the configured retention window, so a compromised production credential cannot delete or overwrite snapshots in the disaster-recovery target. The runtime role holds read-only access there and cannot lift retention in any mode, which is the threat this control is aimed at. The replica sits in the same account as the primary rather than a separate one: a second account would defend additionally against a compromised operator credential, which holds administrator access and can therefore lift a governance-mode lock, but it costs an organisation member account, cross-account replication with destination ownership, IAM on both sides, and permanent operator access separation. That is ongoing complexity a volunteer-run association pays forever, against a threat already bounded by the operator access posture, so the single-account arrangement is an accepted trade-off rather than an omission.
 - Retention windows are documented per artifact class (hot snapshot, DR replica, log archive). Each class has a single source of truth in DEVOPS_GUIDE.md (private GitHub repo) and matching S3 lifecycle rules; the lifecycle rules and the documented retention table cannot drift.
 - The interaction between erasure (GDPR Article 17) and backup is documented: an erased record's identifier is recorded in an erasure log, and any restore from backup re-applies the erasure log before the restored data is reachable, so erasure cannot be silently undone by routine recovery.
 
@@ -4776,6 +4776,8 @@ Cross-Region Disaster Recovery Replication (continuous):
 Purpose: Protection against catastrophic regional failures.
 
 Process: S3 replication copies objects from the primary snapshots bucket to a bucket in the backup region as they are written, with Object Lock in governance mode and its own lifecycle rules. Replication is scoped to the hourly and daily tiers rather than the fine-grained stream: the off-region copy is a disaster hedge, and Object Lock holds every object it receives for the full retention window, so replicating a snapshot every few minutes buys ninety days of near-identical copies and the cross-region transfer to match.
+
+No backup job, scheduled sync or cron process copies snapshots between regions, exactly as none copies media. The object store's own replication does it, so no platform code participates, there is no run to record and no job status to show. A scheduled job would duplicate a native mechanism and add a failure mode the native one does not have. What is watched instead is the replication itself: failure and sustained backlog each raise an alarm, because the object store never retries a failed replication.
 
 Cost: Marginal, and dominated by the transfer rather than the storage.
 

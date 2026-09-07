@@ -433,6 +433,37 @@ describe('verify-host-env.sh — CLI / fixture errors', () => {
     expect(result.status).toBe(2);
   });
 
+  it('a host left on the pre-cutover origin fails, where presence alone would pass', () => {
+    // The failure this guards: after DNS moves, a host holding the previous
+    // origin still answers and still passes every health check, while building
+    // every absolute link, redirect and mail link against a hostname the site
+    // no longer serves. A non-empty check cannot see it.
+    const envFilePath = writeEnvFile(CLEAN_STAGING_ENV);
+    const result = runScript({
+      envFilePath,
+      extraEnv: { TF_PLATFORM_URL: 'https://footbag.org' },
+    });
+    expect(result.exitCode).not.toBe(0);
+    expect(`${result.stdout}${result.stderr}`).toMatch(/wrong host/);
+  });
+
+  it('the matching origin passes', () => {
+    const envFilePath = writeEnvFile(CLEAN_STAGING_ENV);
+    const result = runScript({
+      envFilePath,
+      extraEnv: { TF_PLATFORM_URL: 'https://staging.footbag.org' },
+    });
+    expect(`${result.stdout}${result.stderr}`).toMatch(/PUBLIC_BASE_URL=https:\/\/staging\.footbag\.org/);
+  });
+
+  it('falls back to a presence check when the tree supplies no expectation', () => {
+    // A fixture predating this value carries no expectation, and a synthetic run
+    // must not fail over one it was never given.
+    const envFilePath = writeEnvFile(CLEAN_STAGING_ENV);
+    const result = runScript({ envFilePath });
+    expect(`${result.stdout}${result.stderr}`).not.toMatch(/wrong host/);
+  });
+
   it('--env-file path does not exist → exit 2', () => {
     const result = spawnSync(
       'bash',

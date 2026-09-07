@@ -92,11 +92,13 @@ run_step "G11" bash scripts/validate-name-variants.sh
 # claim and auto-link, mailbox-control round-trip, admin help-request)
 # against the shipped working tree, since a deploy ships the working tree,
 # not a committed SHA, so a green CI run on a commit does not certify this
-# artifact. G9 + G10 are exercised by the smoke suite. All three are
-# skipped under --skip-tests for local dry runs and the orchestrator's own
-# hermetic test, which would otherwise recurse through the integration
-# suite. The smoke suite proves G10's enqueue-and-drain logic against the
-# stub adapter; the live half of G10 is step 8a below.
+# artifact. The smoke suite adds G10's enqueue-and-drain logic against the
+# stub adapter, and nothing of G9: it sends through the SES adapter to the
+# simulator and renders no club page, so whether bootstrapped clubs produce
+# valid pages is proved elsewhere and never here. The live half of G10 is
+# step 8a below. All three are skipped under --skip-tests for local dry runs
+# and the orchestrator's own hermetic test, which would otherwise recurse
+# through the integration suite.
 if [[ "${SKIP_TESTS}" -eq 0 ]]; then
   run_step "CLAIM-SAFETY" npm run test:integration
   run_step "SMOKE" npm run test:smoke

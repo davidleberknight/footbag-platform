@@ -1042,7 +1042,7 @@ finding="UX-C$(( 1 + 2 ))"
 # Blocked: a question carrying internal shorthand the reader was not given.
 expect_q 'Should I apply the fix from the section marked §4.2 now?' block
 expect_q 'Do we cut over at State 4 or wait?' block
-expect_q 'Should I read docs/MIGRATION_PLAN.md before deciding?' block
+expect_q 'Should I read docs/SOME_PLAN.md before deciding?' block
 expect_q "**${gate}** -- run this gate now or defer?" block
 expect_q "- ${finding}: is this the real blocker?" block
 # Deferred: a self-contained question, or a code merely mentioned inline (not a label).

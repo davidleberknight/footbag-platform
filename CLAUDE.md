@@ -36,6 +36,7 @@ Consider reading the following if required for task:
 7. **Pre-writing-code gate.** The skills and path-scoped rules that match the task MUST always be loaded before you write or edit code. In order: (a) invoke the matching skill as the first action; (b) enumerate every path the change will touch; (c) Read each path's `.claude/rules/*.md` and per-subtree `CLAUDE.md` yourself; (d) only then write. Do not rely on rule auto-attach. If you have only grepped a path, its rule is not loaded, so read the required rules explicitly.
 8. Long-term docs describe design intent, not implementation status. See doc-sync skill for governance details.
 9. In plan mode, ask and resolve all clarifying questions, one at a time, and exhaust all material doubt before finalizing the plan and calling ExitPlanMode.
+10. **Never apply to AWS except via an approved, tested script** in `scripts/`, consistent with long-term design intent. Cleanup, preconditions, confirmation and verification belong in the script, on a trap, not in an operator's head. No hand-typed applies. Writing the script IS the change. Reads exempt.
 
 
 

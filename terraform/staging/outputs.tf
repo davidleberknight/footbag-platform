@@ -12,6 +12,15 @@ output "cloudfront_domain" {
   value       = var.enable_cloudfront ? aws_cloudfront_distribution.main[0].domain_name : null
 }
 
+# Deliberately simpler than production's, which chooses between the apex and the
+# distribution name on the custom-domain flag. Staging serves on its default
+# CloudFront name and attaches no custom domain by design, so there is no second
+# state for this value to take here.
+output "platform_url" {
+  description = "Canonical origin the site is served at, which the host holds as PUBLIC_BASE_URL. Declared here rather than derived by an operator, so the host is never left building absolute links, redirects and mail links against a hostname the site does not answer on."
+  value       = var.enable_cloudfront ? "https://${aws_cloudfront_distribution.main[0].domain_name}" : null
+}
+
 output "cloudfront_distribution_id" {
   description = "CloudFront distribution ID (used for cache invalidations)"
   value       = var.enable_cloudfront ? aws_cloudfront_distribution.main[0].id : null
