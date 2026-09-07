@@ -3331,6 +3331,101 @@ def scrub_nameplate_address_line(soup):
     return removed
 
 
+# Every way the nameplate offers of contacting a member. Three shapes, none of
+# them the sibling value element the address line uses, which is why the rule
+# above does not reach them:
+#
+#   a phone number inside a no-break element that also carries its own label;
+#   an e-mail address, and the site's own forwarding alias, both through one
+#   shared helper that wraps them in a teletype element;
+#   a social profile as an anchor carrying a profile target attribute.
+#
+# The markup is what this reads. Not the label, because the template localizes
+# it and the site serves sixteen languages, so a word match would walk past the
+# value on a crawl in any of the other fifteen. And not the value: the helper
+# emits a forwarding alias exactly as it emits a personal address, so telling
+# them apart would mean inspecting the domain, and an address that reaches the
+# member is a way of contacting them whoever issued it. Whether those mailboxes
+# keep existing is a separate question, and not a licence to publish them here.
+#
+# The label stays, so the page still reads as a nameplate, and so does the
+# status a record carries when its address is marked invalid: the template
+# prints a word there in place of an address, so there is nothing to remove.
+#
+# This runs before outbound links are neutralized, which is what makes the
+# social anchor still an anchor when it gets here.
+# Every nameplate container, not only the one the address line lives in. The
+# template opens an outer nameplate whose class varies with the form it is
+# drawing, and nests an "end" block inside it for some fields; the contact
+# fields are split across both. The address and social fields print into the
+# outer one and the phone into the end block, so a rule scoped to the end block
+# alone reaches a fraction of them. Scoping to all five is safe for these
+# shapes in a way it is not for the address line: a no-break element, the
+# teletype the address helper emits, and a profile target attribute are each
+# specific to a contact value, where counting sibling values is not.
+_NAMEPLATE_CONTACT_CONTAINERS = (
+    'membersNameplate',
+    'membersProfileNameplate',
+    'membersMiniNameplate',
+    'membersMultiNameplate',
+    'membersNameplateEnd',
+)
+_SOCIAL_PROFILE_TARGET_PREFIX = '_fbProfile_'
+_CONTACT_VALUE_REMOVED = "Mirror: member contact value removed"
+
+
+def _inside_a_nameplate(element):
+    for parent in element.parents:
+        classes = parent.get('class') or []
+        if any(name in _NAMEPLATE_CONTACT_CONTAINERS for name in classes):
+            return True
+    return False
+
+
+def scrub_nameplate_contact_values(soup):
+    removed = 0
+    # One pass over the labels, asking each whether it sits inside a nameplate,
+    # rather than a pass per container. The end block nests inside the outer
+    # nameplate, so a per-container walk reaches those labels twice and needs
+    # to remember which it has already handled; remembering them by identity is
+    # a trap, because the interpreter reuses an address once the elements this
+    # pass replaces are freed, and a later label can arrive wearing the address
+    # of an earlier one and be skipped. Visiting each label once removes the
+    # question.
+    for term in list(soup.find_all('dt')):
+        if _already_removed(term) or not _inside_a_nameplate(term):
+            continue
+
+        # The address sits alone inside the wrapper, so the wrapper goes and
+        # the label outside it is untouched.
+        for wrapper in list(term.find_all('tt')):
+            wrapper.replace_with(Comment(_CONTACT_VALUE_REMOVED))
+            removed += 1
+
+        # The number shares its element with its own label, so the value is
+        # taken out from around the label rather than the element dropped. The
+        # separator is the template's, printed beside the localized word rather
+        # than part of it, so this splits on punctuation the template controls
+        # and not on anything language-dependent.
+        for holder in list(term.find_all('nobr')):
+            label, separator, value = holder.get_text().partition(':')
+            if not separator or not value.strip():
+                continue
+            holder.clear()
+            holder.append(NavigableString(label + separator))
+            holder.append(Comment(_CONTACT_VALUE_REMOVED))
+            removed += 1
+
+        # The destination, and the name the template prints as its link text,
+        # both go with the anchor.
+        for anchor in list(term.find_all('a')):
+            target = anchor.get('target') or ''
+            if target.startswith(_SOCIAL_PROFILE_TARGET_PREFIX):
+                anchor.replace_with(Comment(_CONTACT_VALUE_REMOVED))
+                removed += 1
+    return removed
+
+
 def scrub_elevated_entitlement_content(soup):
     # Everything a signed-in, elevated crawl session can see that an ordinary
     # member reading the archive must not. Three distinct leaks, one pass:
@@ -3767,6 +3862,7 @@ def rewrite_links(html, page_url, link_base=None):
         # Silent on a page that needed nothing, which is most of them.
         contact_blocks = scrub_account_contact_block(soup)
         address_lines = scrub_nameplate_address_line(soup)
+        contact_values = scrub_nameplate_contact_values(soup)
         admin_fields = scrub_elevated_entitlement_content(soup)
         charset_added = ensure_charset_declaration(soup)
         # Forms go before outbound neutralization, not after. A form's contents
@@ -3787,6 +3883,8 @@ def rewrite_links(html, page_url, link_base=None):
             mirror_state.stats.get('account_contact_blocks_removed', 0) + contact_blocks)
         mirror_state.stats['nameplate_address_lines_removed'] = (
             mirror_state.stats.get('nameplate_address_lines_removed', 0) + address_lines)
+        mirror_state.stats['nameplate_contact_values_removed'] = (
+            mirror_state.stats.get('nameplate_contact_values_removed', 0) + contact_values)
         mirror_state.stats['scripts_and_handlers_removed'] += scripts
         mirror_state.stats['server_diagnostics_removed'] = (
             mirror_state.stats.get('server_diagnostics_removed', 0) + diagnostics)
@@ -4955,6 +5053,7 @@ def print_stats():
     print(f"Admin-only fields removed: {s.get('admin_only_fields_removed', 0):,}")
     print(f"Account contact blocks removed: {s.get('account_contact_blocks_removed', 0):,}")
     print(f"Member address lines removed: {s.get('nameplate_address_lines_removed', 0):,}")
+    print(f"Member contact values removed: {s.get('nameplate_contact_values_removed', 0):,}")
     print(f"Account addresses redacted: {s.get('account_addresses_redacted', 0):,}")
     print(f"Dead forms removed: {s.get('dead_forms_removed', 0):,}")
     print(f"Scripts and handlers removed: {s.get('scripts_and_handlers_removed', 0):,}")
