@@ -13,119 +13,139 @@
 # Reads sudo password from stdin (line 1) and pipes it through ssh stdin to
 # remote sudo -S. The remote body lives in scripts/internal/install-cwagent-remote.sh
 # and is cat'd into the same pipe (no scp; no host-side temp files; no copy
-# of this script lives on the host). The production instance and profile
-# names are emitted into the same pipe so the shared remote-half binds them
-# instead of its staging defaults.
+# of this script lives on the host). The production instance, profile and
+# metric namespace are emitted into the same pipe so the shared remote-half
+# binds them instead of its staging defaults.
+#
+# The agent's IAM access key is minted, shown for vaulting and disposed of by
+# this run rather than by the operator: see scripts/lib/cwagent-key.sh for why
+# the whole lifecycle sits on a trap. There is nothing to create beforehand and
+# nothing to shred afterwards.
 #
 # Prerequisites:
 #   - ~/.ssh/config alias "footbag-production" configured with User footbag
-#   - terraform/production applied (cloudwatch_publisher IAM user must exist)
-#   - jq installed locally
+#   - terraform/production applied. The publisher IAM user is declared there,
+#     and so is the namespace condition on its write grant, so an install ahead
+#     of that apply publishes into a namespace the grant does not allow and
+#     every put is refused.
 #
-# Usage:
-#   1. Generate keys for the cwagent_publisher IAM user. The umask is scoped to
-#      the subshell so the restriction covers this one redirect and cannot
-#      outlive it; left set in the operator's shell it makes every later write
-#      owner-only, including writes into a repository, where git records only
-#      the executable bit and cannot show that to anyone downstream:
-#      (umask 077 && aws iam create-access-key \
-#        --user-name footbag-production-cwagent-publisher > /tmp/cwagent-keys.json)
+# Usage. Reads the sudo password from stdin, line 1, and shows the new key on
+# the terminal, so it needs a real terminal as well as the redirect:
+#   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/install-cwagent-production.sh
 #
-#   2. Save AccessKeyId + SecretAccessKey from /tmp/cwagent-keys.json to
-#      vault entry 'aws-footbag-production-cwagent-publisher' (KeePassXC).
-#
-#   3. Run this script. Reads sudo password from stdin (line 1); the keys
-#      file is the only positional arg:
-#      < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/install-cwagent-production.sh /tmp/cwagent-keys.json
-#
-#   4. shred -u /tmp/cwagent-keys.json
+# Flags:
+#   --rotate         Mint a second key alongside the existing one and install
+#                    it. The old key stays active so metrics never stop;
+#                    deactivate and delete it once the verification script
+#                    passes.
+#   --profile <p>    AWS profile for the IAM calls; else ambient AWS_PROFILE.
 #
 # Override the SSH alias:
 #   DEPLOY_TARGET=footbag-production ...
 
 set -euo pipefail
 
+PUBLISHER_USER="footbag-production-cwagent-publisher"
+VAULT_ENTRY="aws-footbag-production-cwagent-publisher"
+INSTANCE_NAME="footbag-production-web"
+CWAGENT_PROFILE_NAME="footbag-production-cwagent"
+
+# This host publishes to its own namespace. The agent emits no instance
+# dimension, so the namespace is the only thing separating these numbers from
+# staging's, and without it both environments' alarms would average two hosts.
+# The same string is the publisher user's PutMetricData condition in
+# terraform/production/iam.tf and the namespace the three host alarms read.
+NAMESPACE="CWAgent/production"
+
+ROTATE=0
+AWS_PROFILE_ARG=""
+
 usage() {
   cat <<'EOF'
-Usage: < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/install-cwagent-production.sh <keys-file>
+Usage: < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/install-cwagent-production.sh [--rotate] [--profile <p>]
 
-Reads sudo password from stdin (line 1).
+Reads the sudo password from stdin (line 1) and shows the new access key on the
+terminal, so it needs both the redirect and an interactive shell.
 
-  <keys-file>   path to JSON output from `aws iam create-access-key`
-                for IAM user footbag-production-cwagent-publisher
+  --rotate       mint a second key alongside the existing one and install it
+  --profile <p>  AWS profile for the IAM calls; else ambient AWS_PROFILE
 
 Override the SSH target:
   DEPLOY_TARGET=footbag-production ...
 EOF
 }
 
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --rotate) ROTATE=1; shift ;;
+    --profile)
+      AWS_PROFILE_ARG="${2:-}"
+      shift 2 || { echo "ERROR: --profile requires an argument" >&2; exit 2; }
+      ;;
+    --help|-h) usage; exit 2 ;;
+    *) echo "ERROR: unknown argument '$1'" >&2; usage >&2; exit 2 ;;
+  esac
+done
+
 if [[ -t 0 ]]; then
   echo "ERROR: must receive sudo password on stdin." >&2
-  echo "       Run via: < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/install-cwagent-production.sh <keys-file>" >&2
+  echo "       Run via: < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/install-cwagent-production.sh" >&2
   echo "" >&2
   usage >&2
   exit 1
 fi
 
-if [[ $# -ne 1 ]]; then
-  usage >&2
-  exit 1
-fi
-
-KEYS_FILE="$1"
-REMOTE="${DEPLOY_TARGET:-footbag-production}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REMOTE="${DEPLOY_TARGET:-footbag-production}"
 REMOTE_HALF="${SCRIPT_DIR}/internal/install-cwagent-remote.sh"
 
 # shellcheck source=lib/ssh-known-hosts.sh
 source "${SCRIPT_DIR}/lib/ssh-known-hosts.sh"
+# shellcheck source=lib/cwagent-key.sh
+source "${SCRIPT_DIR}/lib/cwagent-key.sh"
+
+[[ -r "$REMOTE_HALF" ]] || { echo "ERROR: missing remote-half: $REMOTE_HALF" >&2; exit 1; }
+
+[[ -n "$AWS_PROFILE_ARG" ]] && CWAGENT_KEY_AWS_ARGS=(--profile "$AWS_PROFILE_ARG")
 
 # SSH options: parallel to scripts/deploy-code.sh.
 require_pinned_known_hosts || exit 1
 SSH_OPTS=("${FOOTBAG_SSH_PIN_OPTS[@]}" -o "ConnectTimeout=10" -o "ServerAliveInterval=30")
 
-[[ -r "$KEYS_FILE" ]]   || { echo "ERROR: cannot read keys file: $KEYS_FILE" >&2; exit 1; }
-[[ -r "$REMOTE_HALF" ]] || { echo "ERROR: missing remote-half: $REMOTE_HALF" >&2; exit 1; }
-command -v jq >/dev/null || { echo "ERROR: jq is required locally" >&2; exit 1; }
-
-# Reject a world-readable keys file. The operator instructions above scope
-# `umask 077` to the `aws iam create-access-key` subshell; this assertion catches
-# the case where it was missed and the file was written 0644 (the default).
-# Window between create-access-key and the operator's `shred -u` is when
-# co-tenants on a shared workstation could read the SAK.
-KEYS_PERMS=$(stat -c '%a' "$KEYS_FILE")
-if [[ "$KEYS_PERMS" != "600" && "$KEYS_PERMS" != "400" ]]; then
-  echo "ERROR: $KEYS_FILE has mode $KEYS_PERMS; expected 600 (or 400)." >&2
-  echo "       Re-create with:  (umask 077 && aws iam create-access-key ... > $KEYS_FILE)" >&2
-  echo "       (and shred the current file: shred -u $KEYS_FILE)" >&2
-  exit 1
-fi
-
-CWAGENT_AKID=$(jq -r '.AccessKey.AccessKeyId // empty' "$KEYS_FILE")
-CWAGENT_SAK=$(jq -r '.AccessKey.SecretAccessKey // empty' "$KEYS_FILE")
-if [[ -z "$CWAGENT_AKID" || -z "$CWAGENT_SAK" ]]; then
-  echo "ERROR: $KEYS_FILE does not contain .AccessKey.AccessKeyId / .SecretAccessKey" >&2
-  exit 1
-fi
-
+# Reachability is proved before a credential exists, so an unreachable host
+# costs nothing more than a wasted trip.
 echo "==> Deploy target: $REMOTE"
 ssh "${SSH_OPTS[@]}" "$REMOTE" "echo '    SSH OK'" </dev/null
+
+trap cwagent_key_cleanup EXIT INT TERM
+cwagent_key_provision "$PUBLISHER_USER" "$VAULT_ENTRY" "$ROTATE" || exit 1
 
 echo "==> Running remote-as-root cwagent install via cat-pipe..."
 # cat reads our stdin (password line, supplied by the wrapper or operator).
 # printf lines emit shell-quoted variable assignments so the remote bash binds
-# the credentials and the production instance/profile names before running the
-# body. cat <body> appends the remote-half. Combined stream -> ssh stdin ->
-# remote sudo -S consumes the password line -> bash inherits the rest, runs
-# the assignments, then the body. Argv stays clean of secrets on every hop.
+# the credentials and the production instance, profile and namespace before
+# running the body. cat <body> appends the remote-half. Combined stream -> ssh
+# stdin -> remote sudo -S consumes the password line -> bash inherits the rest,
+# runs the assignments, then the body. Argv stays clean of secrets on every hop.
 {
   cat
   printf 'CWAGENT_AKID=%q\n' "$CWAGENT_AKID"
   printf 'CWAGENT_SAK=%q\n' "$CWAGENT_SAK"
-  printf 'INSTANCE_NAME=%q\n' "footbag-production-web"
-  printf 'CWAGENT_PROFILE=%q\n' "footbag-production-cwagent"
+  printf 'INSTANCE_NAME=%q\n' "$INSTANCE_NAME"
+  printf 'CWAGENT_PROFILE=%q\n' "$CWAGENT_PROFILE_NAME"
+  printf 'CWAGENT_NAMESPACE=%q\n' "$NAMESPACE"
   cat "$REMOTE_HALF"
 } | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash'
 
+cwagent_key_commit
+
 echo
 echo "CloudWatch Agent install complete on $REMOTE."
+echo
+echo "Next, and before arming anything, prove the metrics bind to the alarms:"
+echo "  scripts/verify-cwagent-metrics.sh --target production"
+if (( ROTATE == 1 )); then
+  echo
+  echo "This was a rotation. The previous key is still active, deliberately, so"
+  echo "metrics never stopped. Deactivate and delete it once that check passes."
+fi

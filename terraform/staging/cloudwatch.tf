@@ -66,26 +66,42 @@ resource "aws_cloudwatch_metric_alarm" "app_errors" {
 # default monitoring substrate: logs, metrics, dashboards, alarms, and SNS
 # notification fan-out all live here rather than in an external tool.
 
-# Alarm dimensions match what amazon-cloudwatch-agent's telegraf inputs
-# actually emit on this host. The JSON config's append_dimensions block is
-# dropped by fetch-config's translator on this version; until that is fixed,
-# alarms scope by the natural input dims (cpu, path, fstype) rather than a
-# synthesized InstanceId. When a second environment publishes to namespace
-# CWAgent, disambiguate via per-environment namespace, not via dim.
+# Alarm dimensions match what amazon-cloudwatch-agent's telegraf inputs emit on
+# this host: cpu=cpu-total, path plus fstype for disk, and no dimension at all
+# for mem. The agent publishes no instance dimension, so a datapoint cannot be
+# attributed to a host from the metric alone and environments are told apart by
+# namespace. Production publishes to CWAgent/production. Staging keeps the bare
+# CWAgent namespace it has used since install, because it is the only host
+# publishing there and moving it means re-installing the agent on a working
+# environment; it moves at the next re-install.
+#
+# Missing data is reportable here, not good news. All three metrics arrive every
+# 60 seconds from a service that should always be running, so their absence means
+# the host is unmonitored rather than healthy. Not-breaching held these alarms at
+# OK for as long as the agent stayed down; breaching would announce "disk above
+# 85%" when the disk is merely unmeasured. Absence therefore raises
+# INSUFFICIENT_DATA, and insufficient_data_actions carries that state to the same
+# topic as everything else, where the application records it as a warning an
+# administrator acknowledges and the return to OK clears.
+#
+# scripts/verify-cwagent-metrics.sh proves the emitted dimensions before these
+# alarms are armed: one bound to a combination the host never publishes can never
+# leave INSUFFICIENT_DATA.
 resource "aws_cloudwatch_metric_alarm" "high_cpu" {
-  count               = var.enable_cwagent_alarms ? 1 : 0
-  alarm_name          = "${local.prefix}-high-cpu"
-  comparison_operator = "GreaterThanThreshold"
-  evaluation_periods  = 3
-  metric_name         = "cpu_usage_active"
-  namespace           = "CWAgent"
-  period              = 60
-  statistic           = "Average"
-  threshold           = 85
-  treat_missing_data  = "notBreaching"
-  alarm_description   = "CPU utilization above 85% for 3 consecutive minutes"
-  alarm_actions       = [aws_sns_topic.alarms.arn]
-  ok_actions          = [aws_sns_topic.alarms.arn]
+  count                     = var.enable_cwagent_alarms ? 1 : 0
+  alarm_name                = "${local.prefix}-high-cpu"
+  comparison_operator       = "GreaterThanThreshold"
+  evaluation_periods        = 3
+  metric_name               = "cpu_usage_active"
+  namespace                 = "CWAgent"
+  period                    = 60
+  statistic                 = "Average"
+  threshold                 = 85
+  treat_missing_data        = "missing"
+  alarm_description         = "CPU utilization above 85% for 3 consecutive minutes"
+  alarm_actions             = [aws_sns_topic.alarms.arn]
+  ok_actions                = [aws_sns_topic.alarms.arn]
+  insufficient_data_actions = [aws_sns_topic.alarms.arn]
 
   dimensions = {
     cpu = "cpu-total"
@@ -93,38 +109,41 @@ resource "aws_cloudwatch_metric_alarm" "high_cpu" {
 }
 
 resource "aws_cloudwatch_metric_alarm" "high_memory" {
-  count               = var.enable_cwagent_alarms ? 1 : 0
-  alarm_name          = "${local.prefix}-high-memory"
-  comparison_operator = "GreaterThanThreshold"
-  evaluation_periods  = 3
-  metric_name         = "mem_used_percent"
-  namespace           = "CWAgent"
-  period              = 60
-  statistic           = "Average"
-  threshold           = 85
-  treat_missing_data  = "notBreaching"
-  alarm_description   = "Memory utilization above 85% for 3 consecutive minutes"
-  alarm_actions       = [aws_sns_topic.alarms.arn]
-  ok_actions          = [aws_sns_topic.alarms.arn]
+  count                     = var.enable_cwagent_alarms ? 1 : 0
+  alarm_name                = "${local.prefix}-high-memory"
+  comparison_operator       = "GreaterThanThreshold"
+  evaluation_periods        = 3
+  metric_name               = "mem_used_percent"
+  namespace                 = "CWAgent"
+  period                    = 60
+  statistic                 = "Average"
+  threshold                 = 85
+  treat_missing_data        = "missing"
+  alarm_description         = "Memory utilization above 85% for 3 consecutive minutes"
+  alarm_actions             = [aws_sns_topic.alarms.arn]
+  ok_actions                = [aws_sns_topic.alarms.arn]
+  insufficient_data_actions = [aws_sns_topic.alarms.arn]
 }
 
 # Disk used % on root filesystem. CWAgent config sets drop_device:true so the
 # device dim does not appear; fstype is pinned to xfs (AL2023 default). A
-# future filesystem change here is loud (alarm flips to INSUFFICIENT_DATA).
+# future filesystem change here is loud: the alarm flips to INSUFFICIENT_DATA
+# and, with the action below, says so on the operator's topic.
 resource "aws_cloudwatch_metric_alarm" "high_disk" {
-  count               = var.enable_cwagent_alarms ? 1 : 0
-  alarm_name          = "${local.prefix}-high-disk"
-  comparison_operator = "GreaterThanThreshold"
-  evaluation_periods  = 3
-  metric_name         = "disk_used_percent"
-  namespace           = "CWAgent"
-  period              = 60
-  statistic           = "Average"
-  threshold           = 85
-  treat_missing_data  = "notBreaching"
-  alarm_description   = "Root filesystem usage above 85% for 3 consecutive minutes"
-  alarm_actions       = [aws_sns_topic.alarms.arn]
-  ok_actions          = [aws_sns_topic.alarms.arn]
+  count                     = var.enable_cwagent_alarms ? 1 : 0
+  alarm_name                = "${local.prefix}-high-disk"
+  comparison_operator       = "GreaterThanThreshold"
+  evaluation_periods        = 3
+  metric_name               = "disk_used_percent"
+  namespace                 = "CWAgent"
+  period                    = 60
+  statistic                 = "Average"
+  threshold                 = 85
+  treat_missing_data        = "missing"
+  alarm_description         = "Root filesystem usage above 85% for 3 consecutive minutes"
+  alarm_actions             = [aws_sns_topic.alarms.arn]
+  ok_actions                = [aws_sns_topic.alarms.arn]
+  insufficient_data_actions = [aws_sns_topic.alarms.arn]
 
   dimensions = {
     path   = "/"

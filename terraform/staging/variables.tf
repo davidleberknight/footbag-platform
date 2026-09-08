@@ -158,11 +158,13 @@ variable "enable_cloudfront" {
 
 variable "enable_cwagent_alarms" {
   description = <<-EOT
-    Set to true only after the CloudWatch agent is installed and running on
-    the Lightsail host and is confirmed to be emitting CPUUtilization and
-    mem_used_percent metrics to the CWAgent namespace.
-    Enabling before the agent exists creates alarms that immediately enter
-    INSUFFICIENT_DATA and train operators to ignore monitoring.
+    Set to true only after scripts/verify-cwagent-metrics.sh --target staging
+    passes. It proves the host is publishing cpu_usage_active, mem_used_percent
+    and disk_used_percent on the exact dimensions these alarms bind to, which
+    "the agent is running" does not: an alarm bound to a combination the host
+    never publishes can never leave INSUFFICIENT_DATA. Enabling earlier raises an
+    insufficient-data warning on the administrators' dashboard for an alarm that
+    was never watching anything, which trains operators to ignore monitoring.
   EOT
   type        = bool
   default     = false

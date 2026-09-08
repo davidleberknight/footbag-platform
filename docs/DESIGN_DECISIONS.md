@@ -4727,7 +4727,7 @@ Impact:
 
 - Future growth may require architectural changes if costs exceed ceiling.
 
-- Must configure an AWS CloudWatch alarm for cost threshhold.
+- Spend is watched by two controls against one ceiling: an AWS Budget that mails the operator on actual and forecast spend, and a CloudWatch alarm on estimated charges that raises in the application so an administrator acknowledges it on record. The budget warns on a forecast, before the money is spent; the alarm carries a state, so it reaches an administrator, records the acknowledgment, and clears when charges reset at the month boundary.
 
 ## 9.3 Scalability
 
@@ -4917,6 +4917,8 @@ Constraints driving the split:
 - Terraform provisioners couple state to SSH reachability, fail opaquely on partial success, and resist safe re-running. HashiCorp recommends them as last resort.
 
 Canonical pattern: idempotent scripts in `scripts/` are reviewable, version-controlled, and re-runnable; host-state changes share the same git history as the AWS-side declarations. Examples include `scripts/install-cwagent-staging.sh` for the CloudWatch Agent and `scripts/deploy-code.sh` for application code.
+
+A script of this kind owns the whole operation rather than the mutating step in the middle of it: the preconditions that must hold before it runs, the confirmation that a person is choosing to proceed, the verification that the intended outcome actually happened, and the removal of anything it created if it does not finish. None of that is left for an operator to carry, because a procedure held in someone's head is not reviewable, not version-controlled and not re-runnable, which is the premise this pattern rests on. A step that genuinely cannot be scripted, such as a console-only account setting or a credential a person must file by hand, is a step the script stops at and names, not one it omits. The authoring conventions this implies live in `.claude/rules/operator-scripts.md`.
 
 Variable-value custody:
 

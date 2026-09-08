@@ -141,10 +141,13 @@ variable "enable_platform_custom_domain" {
 
 variable "enable_cwagent_alarms" {
   description = <<-EOT
-    Set to true only after the CloudWatch agent is installed on the
-    Lightsail host and is confirmed to be emitting cpu_usage_active and
-    mem_used_percent metrics under the CWAgent namespace. Enabling earlier
-    creates alarms that immediately enter INSUFFICIENT_DATA.
+    Set to true only after scripts/verify-cwagent-metrics.sh --target production
+    passes. It proves the host is publishing cpu_usage_active, mem_used_percent
+    and disk_used_percent on the exact dimensions these alarms bind to, which
+    "the agent is running" does not: an alarm bound to a combination the host
+    never publishes can never leave INSUFFICIENT_DATA. Enabling earlier raises an
+    insufficient-data warning on the administrators' dashboard for an alarm that
+    was never watching anything, which trains operators to ignore monitoring.
   EOT
   type        = bool
   default     = false
@@ -236,6 +239,19 @@ variable "reachability_armed" {
     condition     = contains(["armed", "dark"], var.reachability_armed)
     error_message = "reachability_armed must be exactly 'armed' or 'dark'."
   }
+}
+
+variable "enable_billing_alarm" {
+  description = <<-EOT
+    Create the CloudWatch alarm on estimated charges. Set to true only after
+    the "Receive CloudWatch Billing Alerts" preference is enabled in the
+    Billing console, which is a console action Terraform cannot perform and
+    which cannot be undone once taken. Until it is set the AWS/Billing
+    namespace publishes nothing, so the alarm would sit in INSUFFICIENT_DATA
+    watching a metric that does not exist.
+  EOT
+  type        = bool
+  default     = false
 }
 
 variable "enable_feed_queues" {

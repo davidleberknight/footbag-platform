@@ -393,7 +393,7 @@ resource "aws_iam_user_policy" "cwagent_publisher_putmetric" {
       Resource = "*"
       Condition = {
         StringEquals = {
-          "cloudwatch:namespace" = "CWAgent"
+          "cloudwatch:namespace" = local.cwagent_namespace
         }
       }
     }]

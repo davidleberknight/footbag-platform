@@ -75,6 +75,27 @@ else
 fi
 
 echo
+# aggregation_dimensions states the dimension sets this host publishes on,
+# rather than leaving them to be whatever tags the installed agent build happens
+# to attach. Newer builds add a telegraf `host` tag that older ones did not, and
+# an alarm binds to one exact dimension set, so an agent upgrade would otherwise
+# unbind every host alarm silently. The three sets listed are exactly what the
+# alarms in each environment's cloudwatch.tf match on: cpu-total for processor,
+# path plus filesystem type for disk, and the empty set for memory. The
+# host-tagged originals are still published alongside them.
+#
+# Only the three measurements the alarms and the dashboard read are collected.
+# The others were published and read by nothing, and every custom metric is
+# billed, so collecting them bought diagnostic breadth nobody consumed.
+#
+# There is deliberately no append_dimensions block. fetch-config's translator
+# drops it, so the InstanceId it used to declare never reached CloudWatch, and
+# three documents went on describing an instance dimension that has never
+# existed. Keeping it was worse than useless: an agent version that honoured it
+# would add a dimension to every metric at once and unbind all three alarms,
+# which treat missing data as missing and would then report insufficient data
+# for a host that is publishing normally. Hosts are told apart by namespace,
+# which is what the alarms scope by.
 echo "=== Step 2: write agent JSON config ==="
 install -d -m 0755 -o root -g root /opt/aws/amazon-cloudwatch-agent/etc
 install_via_tmp /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json 0644 <<JSON
@@ -86,16 +107,14 @@ install_via_tmp /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.jso
   },
   "metrics": {
     "namespace": "$NAMESPACE",
-    "append_dimensions": {
-      "InstanceId": "$INSTANCE_NAME"
-    },
+    "aggregation_dimensions": [["cpu"], ["path", "fstype"], []],
     "metrics_collected": {
       "cpu": {
-        "measurement": ["usage_active", "usage_idle", "usage_iowait", "usage_user", "usage_system"],
+        "measurement": ["usage_active"],
         "totalcpu": true
       },
       "mem": {
-        "measurement": ["mem_used_percent", "mem_available_percent"]
+        "measurement": ["mem_used_percent"]
       },
       "disk": {
         "measurement": ["used_percent"],
@@ -142,11 +161,33 @@ logrotate --debug /etc/logrotate.d/amazon-cloudwatch-agent >/dev/null 2>&1 \
 
 echo
 echo "=== Step 4: fetch-config and start agent (onPremise mode) ==="
+# fetch-config is the documented way to load a config, and on this stack it
+# exits nonzero even when the config is good: the agent's own control script
+# fails its validation step and reports a credentials or region complaint. That
+# is a known property of this build here rather than a signal about the config,
+# and treating its exit status as the install's verdict is what used to abort
+# the run after the config and credentials were already written, leaving a
+# half-installed agent and a withdrawn key. Its failure is therefore tolerated
+# and systemd is what actually starts the agent.
 /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
   -a fetch-config \
   -m onPremise \
   -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json \
-  -s
+  -s \
+  || echo "  fetch-config exited nonzero, which is expected on this host; systemd starts the agent below."
+
+# enable as well as start, so the agent comes back after a reboot. Without it a
+# restarted host publishes nothing, and the alarms would report insufficient
+# data for a machine that is otherwise perfectly healthy.
+systemctl enable amazon-cloudwatch-agent
+systemctl restart amazon-cloudwatch-agent
+
+if ! systemctl is-active --quiet amazon-cloudwatch-agent; then
+  echo "ERROR: the CloudWatch agent is not running after the restart." >&2
+  systemctl status amazon-cloudwatch-agent --no-pager >&2 || true
+  tail -n 50 /opt/aws/amazon-cloudwatch-agent/logs/amazon-cloudwatch-agent.log >&2 || true
+  exit 1
+fi
 systemctl status amazon-cloudwatch-agent --no-pager || true
 
 echo
@@ -156,9 +197,15 @@ tail -n 50 /opt/aws/amazon-cloudwatch-agent/logs/amazon-cloudwatch-agent.log || 
 
 echo
 echo "=== Capture for your local operator AWS specifics ==="
+echo "  Host:              ${INSTANCE_NAME}"
+echo "  Metric namespace:  ${NAMESPACE}"
 echo "  Root fstype:       ${fstype}"
 echo "  IMDS instance-id:  ${imds_id}"
 echo
-echo "Verify metrics from operator workstation:"
-echo "  aws cloudwatch list-metrics --namespace $NAMESPACE \\"
-echo "    --dimensions Name=InstanceId,Value=$INSTANCE_NAME"
+echo "Verify from the operator workstation. This is the check that gates arming,"
+echo "and the alarms stay disarmed until it passes:"
+echo "  scripts/verify-cwagent-metrics.sh --target <env>"
+echo
+echo "It asks for recent datapoints on the exact dimensions the alarms bind to."
+echo "These metrics carry no instance dimension, so a listing filtered on one"
+echo "returns nothing even from a healthy host."
