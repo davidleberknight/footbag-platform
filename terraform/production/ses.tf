@@ -24,10 +24,14 @@
 #    destroying the verified interim identity, while the domain identity it
 #    creates does not authorise that interim address -- and the verification
 #    resource below can hold the apply for up to 45 minutes. So the flip and
-#    the sender cutover are ONE window, not two steps: confirm the outbox is
-#    empty, then apply and move the sender in the same sitting. The identity
-#    destroy is one-way; recreating the interim address later needs a fresh
-#    click-link verification sent to an address the design keeps unmonitored.
+#    the sender cutover are ONE window, not two steps: PAUSE the outbox and
+#    confirm it is empty, then apply and move the sender in the same sitting.
+#    Pausing matters as much as the count: the reconciliation digest enqueues
+#    on a schedule, so a row landing inside a hold that can run 45 minutes can
+#    exhaust its retries and dead-letter. Counting an empty outbox proves only
+#    that nothing has enqueued yet. The identity destroy is one-way; recreating
+#    the interim address later needs a fresh click-link verification sent to an
+#    address the design keeps unmonitored.
 #
 # 3. Apex SPF, DMARC, and the custom MAIL FROM records
 #    (var.ses_enable_mail_records) go in on the day inbound mail moves. They
@@ -176,6 +180,23 @@ resource "aws_ses_email_identity" "sender" {
 resource "aws_ses_domain_identity" "main" {
   count  = var.ses_enable_domain_auth ? 1 : 0
   domain = var.domain_name
+
+  # The header above requires the flag flip and the sender cutover to be one
+  # window rather than two steps, because flipping alone destroys the interim
+  # single-address identity one-way while the domain identity it creates does
+  # not authorise that interim address. Until now that requirement lived only
+  # in prose, so an apply that moved the flag and left the sender behind
+  # succeeded, and every send then failed at the outbox drain as an
+  # authorisation error naming a recipient resource rather than a sender.
+  #
+  # The precondition only evaluates when this resource exists, so it is inert
+  # while domain auth is off and binds exactly at the flip.
+  lifecycle {
+    precondition {
+      condition     = endswith(var.ses_sender_identity, "@${var.domain_name}")
+      error_message = "ses_enable_domain_auth is on, so ses_sender_identity must be an address at ${var.domain_name}: the domain identity does not authorise the interim sender, and this apply destroys that interim identity one-way. Move the sender in the same change that sets the flag."
+    }
+  }
 }
 
 resource "aws_route53_record" "ses_domain_verification" {

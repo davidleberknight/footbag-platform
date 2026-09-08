@@ -104,6 +104,16 @@ resource "aws_route53_record" "apex_a" {
       condition     = local.apex_alias_mode || var.legacy_apex_ipv4 != ""
       error_message = "legacy_apex_ipv4 must be set from the fresh zone snapshot while the apex still answers with the legacy host, or the apex answer is lost the moment delegation moves to Route 53."
     }
+
+    # apex_alias_mode needs BOTH flags, so setting the flip alone leaves this
+    # record quietly in mirror mode: the apply succeeds, reports no relevant
+    # change, and the apex still answers with the legacy host. That is the most
+    # expensive step in the sequence to have silently not happen, and it happens
+    # inside the write-freeze, so it fails loudly here instead.
+    precondition {
+      condition     = !var.enable_apex_alias_records || var.enable_platform_custom_domain
+      error_message = "enable_apex_alias_records is on but enable_platform_custom_domain is off, so the apex and www would stay on the mirrored legacy values and the flip would do nothing. Turn on enable_platform_custom_domain in the same change, or leave both off."
+    }
   }
 }
 
@@ -330,10 +340,14 @@ resource "aws_route53_record" "www_aaaa" {
 # the operator at the real distribution for the pre-cutover exercises while
 # the apex and www still serve the legacy site. Verified against the live
 # zone before creation (the name must have no record of any type there) and
-# removed at cutover. Gated separately from the apex flip so it can exist
-# through the whole pre-cutover window.
+# retired in a separate later apply, NOT at cutover. Gated separately from the
+# apex flip so it can exist through the whole pre-cutover window and past it:
+# once the apex and www serve the migration notice, this name is the only route
+# an operator has to the platform, so it is what a reversal depends on. Removing
+# it in the launch apply would delete the reversal path at the moment the watch
+# window begins. It retires once the launch is settled and the watch has run.
 variable "enable_preview_record" {
-  description = "Create the preview.<domain> alias records to CloudFront for the pre-cutover exercises. On after the zone move once the name is re-verified absent from the zone snapshot; removed at cutover."
+  description = "Create the preview.<domain> alias records to CloudFront for the pre-cutover exercises. On after the zone move once the name is re-verified absent from the zone snapshot. It stays on past the cutover: while the public names serve the migration notice this is the only hostname reaching the platform, so it is the reversal path. Retired in a separate later apply once the launch is settled and the watch window has run, never in the launch apply itself."
   type        = bool
   default     = false
 }
@@ -364,11 +378,65 @@ resource "aws_route53_record" "preview_aaaa" {
   }
 }
 
+# The origin name and the certificate-authority record scoped to it.
+#
+# CloudFront rejects a raw IP, so the custom origin needs a resolvable name, and
+# a certificate cannot be issued for a name that does not exist. Both are
+# declared here rather than applied by hand: a hand-made record collides the
+# moment Terraform declares it, because allow_overwrite is left at its default.
+#
+# The two are deliberately on ONE flag. The apex certificate-authority record
+# below authorises Amazon only and is inherited by every subdomain, so an origin
+# certificate from any other authority is refused unless this name carries its
+# own record. A certificate-authority lookup uses the closest ancestor that has
+# one, so the record below stops the apex's from applying here. Splitting them
+# across two flags would allow a state where the name resolves and issuance is
+# silently refused, and the refusal surfaces at renewal rather than at issuance,
+# roughly sixty days after anyone last looked.
+#
+# The origin hop is http-only today, so nothing depends on this yet. It is
+# declared now so that the ordering cannot be got wrong later, which is what the
+# go-live gate requires: the address record and the scoped authority record both
+# exist in Terraform, created together, so no ordering can separate them.
+variable "enable_origin_record" {
+  description = "Create origin.<domain> and the certificate-authority record scoped to it. On once the zone is authoritative on Route 53; independent of the viewer-facing cutover. Both records ride this one flag so no ordering can separate the name from the authority that may issue for it."
+  type        = bool
+  default     = false
+}
+
+resource "aws_route53_record" "origin_a" {
+  count   = var.enable_origin_record ? 1 : 0
+  zone_id = local.zone_id
+  name    = "origin.${var.domain_name}"
+  type    = "A"
+  ttl     = 300
+  records = [aws_lightsail_static_ip.web.ip_address]
+}
+
+resource "aws_route53_record" "origin_caa" {
+  count   = var.enable_origin_record ? 1 : 0
+  zone_id = local.zone_id
+  name    = "origin.${var.domain_name}"
+  type    = "CAA"
+  ttl     = 300
+
+  # Let's Encrypt only, and deliberately no issuewild: this name takes a
+  # single-name certificate by DNS-01, so a wildcard grant would widen what may
+  # be issued for it without widening what is used.
+  records = ["0 issue \"letsencrypt.org\""]
+}
+
 # CAA constrains TLS certificate issuance to Amazon's certificate authority (the
 # one ACM uses), so no other CA can issue a certificate for footbag.org or its
-# subdomains. A CAA at the apex is inherited by www and archive. It lands with
-# the alias flip rather than at the zone move, so the window in which ACM issues
-# has no CAA at all, which permits issuance rather than blocking it.
+# subdomains. A CAA at the apex is inherited by www and archive, and by any
+# subdomain that does not carry its own; origin carries its own, above.
+#
+# It lands with the alias flip rather than at the zone move. Note what that
+# ordering is NOT for: an "amazon.com" record would never have blocked ACM,
+# since ACM issues from that authority, so deferring it was never protecting
+# issuance. What the deferral avoids is publishing an Amazon-only policy across
+# the whole zone during the window in which the origin certificate is first
+# obtained from a different authority, before that name carries its own record.
 resource "aws_route53_record" "caa" {
   count   = local.apex_alias_mode ? 1 : 0
   zone_id = local.zone_id
