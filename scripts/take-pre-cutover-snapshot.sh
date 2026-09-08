@@ -71,12 +71,13 @@ sha256=$(sha256sum "${SNAPSHOT_PATH}" | awk '{print $1}')
 
 q() { sqlite3 "${SNAPSHOT_PATH}" "$1"; }
 
-# The first six are the set scripts/restore-db.sh prints back after a restore.
-# They match deliberately: a manifest recording counts a restore never reports
-# cannot be reconciled against it, and the reconciliation is the whole reason
-# this manifest travels with the artifact. The last two are extra evidence about
-# the seeded tables, carried because they are cheap and this snapshot is the
-# only way back after the member load.
+# Eleven counts, which is the set the cutover preflight checklist requires of
+# this manifest. The first six are also the set scripts/restore-db.sh prints back
+# after a restore, and they match deliberately: a manifest recording counts a
+# restore never reports cannot be reconciled against it, and that reconciliation
+# is the whole reason the manifest travels with the artifact. The remaining five
+# cover the seeded and freestyle tables, carried because they are cheap and this
+# snapshot is the only way back after the member load.
 count_members=$(q "SELECT COUNT(*) FROM members;")
 count_legacy=$(q  "SELECT COUNT(*) FROM legacy_members;")
 count_hp=$(q      "SELECT COUNT(*) FROM historical_persons;")
@@ -85,6 +86,18 @@ count_audit=$(q   "SELECT COUNT(*) FROM audit_entries;")
 count_alsc=$(q    "SELECT COUNT(*) FROM auto_link_staged_candidates;")
 count_nv=$(q      "SELECT COUNT(*) FROM name_variants;")
 count_cbl=$(q     "SELECT COUNT(*) FROM club_bootstrap_leaders;")
+count_ft=$(q      "SELECT COUNT(*) FROM freestyle_tricks;")
+count_fr=$(q      "SELECT COUNT(*) FROM freestyle_records;")
+count_ckr=$(q     "SELECT COUNT(*) FROM consecutive_kicks_records;")
+
+# Provenance. Without it the restore side can identify the artifact but not what
+# it was taken from, and the pre-flip prefix holds exactly one object, so a
+# search cannot pick a different one to compare against. Recording the host and
+# the source path is what lets a restore say whether this snapshot came from
+# production at all, rather than from whatever database the operator's own
+# machine happened to be holding.
+source_host=$(hostname -f 2>/dev/null || hostname)
+source_db=$(readlink -f "${DB_FILE}" 2>/dev/null || printf '%s' "${DB_FILE}")
 
 # Compress before upload, matching the routine stream's format. Both halves of
 # scripts/restore-db.sh gunzip unconditionally, so an uncompressed artifact here
@@ -118,6 +131,8 @@ cat > "${MANIFEST_PATH}" <<EOF
   "archive_sha256": "${archive_sha256}",
   "integrity_check": "ok",
   "dr_s3_uri": ${dr_uri_json},
+  "source_host": "${source_host}",
+  "source_db_path": "${source_db}",
   "row_counts": {
     "members": ${count_members},
     "legacy_members": ${count_legacy},
@@ -126,7 +141,10 @@ cat > "${MANIFEST_PATH}" <<EOF
     "audit_entries": ${count_audit},
     "auto_link_staged_candidates": ${count_alsc},
     "name_variants": ${count_nv},
-    "club_bootstrap_leaders": ${count_cbl}
+    "club_bootstrap_leaders": ${count_cbl},
+    "freestyle_tricks": ${count_ft},
+    "freestyle_records": ${count_fr},
+    "consecutive_kicks_records": ${count_ckr}
   },
   "created_at": "${TS}"
 }

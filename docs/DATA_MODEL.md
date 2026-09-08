@@ -582,6 +582,9 @@ Append-only ledger of lifetime membership tier changes only. UPDATE and DELETE a
 | `honor.bap_tier2_grant` | Big Add Posse induction grants Tier 2 |
 | `governance.tier3_set` | Tier 3 governance assigned |
 | `governance.tier3_removed` | Tier 3 governance removed (reverts to underlying tier) |
+| `admin.role_grant_tier2` | Admin role granted; the role's Tier 2 invariant applied |
+| `prod.admin_bootstrap_tier2` | First administrator claimed the bootstrap token; same invariant |
+| `dev_admin_register_allowlist.admin_tier2` | Development and staging allowlist bootstrap; same invariant |
 | `admin.override` | Admin manual change (correction or exceptional remediation) |
 | `admin.correction` | Admin correction of a prior data error |
 | `legacy.claim_tier_grant` | Legacy migration claim resolved to a tier assignment |
@@ -842,6 +845,8 @@ Two erasure shapes set `personal_data_purged_at` (the credential CHECK requires 
 Permanent archival table: one row per imported legacy account from the old footbag.org mirror and, going forward, the legacy data dump. Identified by `legacy_member_id` (PK); the old-site's user-account id, which is the external-namespace pointer also carried by `members.legacy_member_id` and `historical_persons.legacy_member_id`. See DD §2.4 for the three-entity identity model.
 
 **Import population (source-validity filter).** Rows are loaded only for source-valid legacy accounts (`MemberValid > 0` in the source) plus exceptions pulled back by linkage (an otherwise-excluded row referenced by a published result, an honor, or a documented admin-recovery need); mechanically-obvious garbage and invalid rows, together with their PII, never enter this table. Pulled-back exceptions are recorded in import audit metadata. The filter and its counted/validated gate live with the loader in `legacy_data/member_data_scripts/`.
+
+The extract additionally carries two pipeline-internal board-at-cutover columns (the flag and the paid tier underneath the seat), populated from a curated roster because the dump records no board information. Neither column reaches this table or any platform table — the loader reports and ignores them — so the flag can never grant Tier 3 by itself; it exists so the duplicate-account merge cannot drop a board grant, and Tier 3 arrives only through the governance path after cutover.
 
 #### Immutability and claim semantics
 
@@ -1416,7 +1421,7 @@ Former surnames and old email addresses declared by members to broaden the ident
 
 **Table:** `auto_link_staged_candidates`
 
-The stage-and-confirm surface for auto-link (per `M_Claim_Legacy_Account`): batch and post-claim passes stage candidate matches here; nothing mutates live tables and no mail is sent until the member confirms a wizard card. Migration-scope; droppable once all staged candidates resolve.
+The stage-and-confirm surface for auto-link (per `M_Claim_Legacy_Account`): on a live platform the post-claim cross-source pass stages candidate matches here, and on a seeded test load the batch pass does the same; nothing mutates live tables and no mail is sent until the member confirms a wizard card. Migration-scope; droppable once all staged candidates resolve.
 
 - **Columns**: `id` PK; standard metadata columns; `member_id` FK to `members(id)`; nullable targets `legacy_member_id` (FK `legacy_members`) and `historical_person_id` (FK `historical_persons`); `confidence` CHECK in (`high`, `medium`); `matched_anchors_json`; `proposed_evidence_strength` CHECK over the four evidence-strength tiers (the Legacy Data Migration decision in DESIGN_DECISIONS, §6.5); `source_pass` CHECK in (`batch`, `sign_in`, `registration`, `cross_source`); `status` CHECK in (`staged`, `confirmed`, `declined`, `expired`); `expires_at`; `resolved_at`.
 - **CHECKs**: at least one target column is non-NULL; `(status = 'staged') = (resolved_at IS NULL)`.

@@ -20,9 +20,10 @@
 #   ~/staging_diagnostics.sh worker-logs 60
 #   ~/staging_diagnostics.sh force-tick -y
 #
-# Alternatively, the next `./deploy_to_aws.sh` also places a copy at
-#   /home/footbag/footbag-release/scripts/staging_diagnostics.sh
-# which you can invoke directly without re-uploading.
+# Upload it each time rather than reaching for a copy already on the host. The
+# deploy carries only the scripts the host itself invokes, so whatever is under
+# /home/footbag/footbag-release/scripts/ is not this file, and any copy in the
+# home directory is as old as the last hand upload.
 #
 # Requires: sudo docker, node inside the web container (already present),
 # and outbound AWS credentials for the aws-* subcommands (already present via

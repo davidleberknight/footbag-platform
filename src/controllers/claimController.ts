@@ -40,10 +40,11 @@ function renderHpClaimUnavailable(res: Response, personId: string): void {
 }
 
 // Direct historical-record claims are wizard-window-bounded: once onboarding
-// is complete this route redirects to the admin request form. The wizard's
-// claim task remains the member's self-serve surface afterward for declaring
-// anchors and confirming platform-offered candidate cards; what closes here
-// is only the browse-a-record-and-claim-it path.
+// is complete this route redirects to the admin request form. Self-serve
+// claiming ends with onboarding as a whole, and the wizard closes to a member
+// who has finished, so a link they still need afterwards is asked for through
+// the identity-link category of the contact form and applied by an
+// administrator.
 function claimingIsClosed(req: Request): boolean {
   return memberOnboardingService.isOnboardingComplete(req.user!.userId);
 }

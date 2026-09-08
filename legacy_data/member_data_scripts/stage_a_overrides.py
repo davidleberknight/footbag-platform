@@ -99,6 +99,27 @@ def account_set_fingerprint(entries: Iterable[tuple[str, str, str, str]]) -> str
     return hashlib.sha256("\x1f".join(parts).encode("utf-8")).hexdigest()
 
 
+def board_roster_fingerprint(entries: Iterable[tuple[str, str, str, str]]) -> str:
+    """One-way fingerprint of the board roster's decision-relevant account facts.
+
+    `entries` is (legacy_member_id, real_name, raw_birth_date, country) per listed
+    account, taken verbatim from the extract the roster was adjudicated against.
+    A roster carried forward to a dump where a listed account was renamed, lost a
+    birth date, moved country, or disappeared no longer matches, so it fails
+    closed rather than granting board standing on facts nobody re-checked.
+
+    Tagged separately from the two above so the three fingerprint spaces cannot
+    collide. Unlike them this one binds the raw name rather than a normalized
+    match key, because the extractor holds the raw values and has no reason to
+    carry the matcher's normalizer.
+    """
+    parts = [FINGERPRINT_VERSION, "BOARD_AT_CUTOVER"]
+    for mid, name, dob, country in sorted(entries):
+        parts.append("|".join((mid, (name or "").strip(), (dob or "").strip(),
+                               (country or "").strip().lower())))
+    return hashlib.sha256("\x1f".join(parts).encode("utf-8")).hexdigest()
+
+
 def validate_merge_account_overrides(
     overrides: list[Override], *,
     present_ids: set[str],

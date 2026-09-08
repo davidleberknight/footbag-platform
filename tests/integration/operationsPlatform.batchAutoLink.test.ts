@@ -1,6 +1,6 @@
 /**
  * Integration tests for OperationsPlatformService.runBatchAutoLink — the
- * one-shot cutover job that scans Tier 0 unlinked members and STAGES
+ * seeded-environment job that scans Tier 0 unlinked members and STAGES
  * candidates for high/medium classifier outcomes (stage-and-confirm), with
  * low-confidence cases routing to the admin work queue.
  *
@@ -208,7 +208,7 @@ describe('runBatchAutoLink — stage-and-confirm', () => {
     expect(meta.matched_variant_normalized).toBeTruthy();
   });
 
-  it('low-confidence: routes to work_queue_items with admin-alerts fan-out; nothing staged', async () => {
+  it('low-confidence: routes to the admin work queue, silently; nothing staged and nobody mailed', async () => {
     const SUBSCRIBER_ID = nextId('admin-sub');
     const db = new BetterSqlite3(dbPath);
     insertMember(db, {
@@ -245,6 +245,14 @@ describe('runBatchAutoLink — stage-and-confirm', () => {
     ).get(t.memberId) as { reason_text: string };
     conn.close();
     expect(JSON.parse(row.reason_text)).toEqual({ reason: 'no_name_candidate' });
+
+    // The subscriber above exists to prove a negative that the task type
+    // declares: this queue category carries no urgent fan-out, so a
+    // low-confidence match reaches an administrator on the queue and by no
+    // other route. Asserting it here stops the absence being mistaken for an
+    // untested gap, and stops a future fan-out being added without a decision.
+    expect(outboxCount(SUBSCRIBER_ID)).toBe(0);
+    expect(outboxCount(t.memberId)).toBe(0);
   });
 
   it('already-linked candidates are filtered at the candidate query (nothing staged)', async () => {

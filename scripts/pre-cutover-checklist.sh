@@ -26,9 +26,23 @@
 #   --mock-aws     run the DNS TTL and QC gates in mock mode (no AWS calls, and
 #                  the DNS gate then proves nothing about the zone)
 #   --skip-tests   skip the smoke + e2e suites
+#   --target <env> certify a deployed environment rather than this workstation.
+#                  Without it every data gate reads ./database/footbag.db, which
+#                  is the operator's own build -- fine for a rehearsal, and the
+#                  wrong thing entirely for a run whose output is read as
+#                  "production is ready". With it, the snapshot is taken on the
+#                  host against the live database and pulled back, and every
+#                  later data gate reads that artifact. The gates then attest to
+#                  exactly the object the rollback would restore.
+#
+#                  Needs the operator credential file on stdin, the same way
+#                  every other script that opens a privileged session does:
+#                    < ~/AWS/AWS_OPERATOR_PRODUCTION.txt \
+#                        bash scripts/pre-cutover-checklist.sh --target production
 #
 # Exit codes:
-#   0  all gates PASS
+#   0  no gate failed. The final line distinguishes the two ways that happens:
+#      every gate passed, or some gate skipped its work and did not look.
 #   1  one or more gates FAIL
 #   2  invalid invocation
 
@@ -37,18 +51,55 @@ cd "$(dirname "$0")/.."
 
 MOCK_AWS=0
 SKIP_TESTS=0
+TARGET=""
 [[ "${FOOTBAG_PRECUTOVER_MOCK_AWS:-0}" == "1" ]] && MOCK_AWS=1
 [[ "${FOOTBAG_PRECUTOVER_SKIP_TESTS:-0}" == "1" ]] && SKIP_TESTS=1
-for arg in "$@"; do
-  case "${arg}" in
+while [[ $# -gt 0 ]]; do
+  case "${1}" in
     --mock-aws)   MOCK_AWS=1 ;;
     --skip-tests) SKIP_TESTS=1 ;;
-    *) echo "unknown arg: ${arg}" >&2; exit 2 ;;
+    --target)     shift; TARGET="${1:-}" ;;
+    *) echo "unknown arg: ${1}" >&2; exit 2 ;;
   esac
+  shift
 done
+
+case "${TARGET}" in
+  "" ) ;;
+  staging|production) ;;
+  *) echo "--target must be 'staging' or 'production' (got '${TARGET}')" >&2; exit 2 ;;
+esac
+
+# --target and --mock-aws are contradictory in the one way that matters: the
+# point of naming a target is that the run attests to something real, and mock
+# mode is how a run attests to nothing. Allowing both would produce a report
+# headed "production" whose gates never looked at production.
+if [[ -n "${TARGET}" && "${MOCK_AWS}" -eq 1 ]]; then
+  echo "--target ${TARGET} and --mock-aws are mutually exclusive: a mocked run" >&2
+  echo "  certifies nothing, and labelling it with an environment name is how a" >&2
+  echo "  rehearsal gets read as a readiness result." >&2
+  exit 2
+fi
 
 results=()
 fail=0
+
+# ── Where the data gates read from ───────────────────────────────────────────
+# Set for the whole run, before any gate. Without --target this is the
+# workstation build and the summary says so; with it, this becomes the snapshot
+# pulled back from the host, so every gate reads the deployed data.
+GATE_DB="${FOOTBAG_DB_PATH:-./database/footbag.db}"
+SNAPSHOT_URI=""
+PULLED_DB=""
+
+cleanup_pulled_db() {
+  # The pulled artifact is a copy of the production member database. It exists
+  # only for the length of this run and is removed on every exit path, including
+  # a failed gate, rather than left in a temp directory for whatever comes next.
+  [[ -n "${PULLED_DB}" && -d "${PULLED_DB}" ]] && rm -rf "${PULLED_DB}"
+  return 0
+}
+trap cleanup_pulled_db EXIT
 
 run_step() {
   local label="$1"; shift
@@ -72,8 +123,52 @@ run_step() {
   return 0
 }
 
-# 1. Snapshot
-run_step "SNAPSHOT" bash scripts/take-pre-cutover-snapshot.sh
+# 1. Snapshot. Without a target this is the workstation build; with one it runs
+#    on the host against the live database, and the artifact it produces becomes
+#    what every later data gate reads.
+if [[ -z "${TARGET}" ]]; then
+  run_step "SNAPSHOT" bash scripts/take-pre-cutover-snapshot.sh
+else
+  SSH_ALIAS="footbag-${TARGET}"
+  REMOTE_HALF="scripts/internal/take-pre-cutover-snapshot-remote.sh"
+  # shellcheck source=scripts/lib/host-env-remote.sh
+  source scripts/lib/host-env-remote.sh
+  require_operator_stdin "scripts/pre-cutover-checklist.sh --target ${TARGET}" || exit 1
+  require_ssh_alias "${SSH_ALIAS}" || exit 1
+  require_host_ssh_opts || exit 1
+  [[ -r "${REMOTE_HALF}" ]] || { echo "missing remote half: ${REMOTE_HALF}" >&2; exit 1; }
+
+  DR_BUCKET="${FOOTBAG_DR_BUCKET:-footbag-${TARGET}-db-snapshots-dr}"
+  remote_snapshot() {
+    {
+      printf '%s\n' "${SUDO_PASS}"
+      printf 'DR_BUCKET=%q\n' "${DR_BUCKET}"
+      cat "${REMOTE_HALF}"
+    } | ssh "${HOST_SSH_OPTS[@]}" "${SSH_ALIAS}" 'sudo -k -S -p "" bash'
+  }
+  SNAPSHOT_OUT="$(remote_snapshot 2>&1)" && SNAPSHOT_RC=0 || SNAPSHOT_RC=$?
+  printf -- '--- SNAPSHOT (host %s, exit %d) ---\n%s\n' "${SSH_ALIAS}" "${SNAPSHOT_RC}" "${SNAPSHOT_OUT}"
+
+  SNAPSHOT_URI="$(printf '%s' "${SNAPSHOT_OUT}" | sed -n 's/^PRECUTOVER_SNAPSHOT_URI=//p' | tail -1)"
+  if [[ "${SNAPSHOT_RC}" -ne 0 || -z "${SNAPSHOT_URI}" ]]; then
+    results+=("GATE: SNAPSHOT FAIL: the host snapshot did not complete; nothing was pulled back")
+    fail=$((fail + 1))
+  else
+    # Pull the exact object the host just uploaded, by key. Not "the newest
+    # thing under the prefix": that is a search, and a search can select an
+    # artifact from a different run while reporting success.
+    PULLED_DB="$(mktemp -d)"
+    if aws s3 cp --only-show-errors "${SNAPSHOT_URI}" "${PULLED_DB}/snapshot.db.gz" \
+       && gunzip -f "${PULLED_DB}/snapshot.db.gz"; then
+      GATE_DB="${PULLED_DB}/snapshot.db"
+      export FOOTBAG_DB_PATH="${GATE_DB}"
+      results+=("GATE: SNAPSHOT PASS: ${TARGET} snapshot taken on the host and pulled back (${SNAPSHOT_URI})")
+    else
+      results+=("GATE: SNAPSHOT FAIL: ${SNAPSHOT_URI} could not be pulled back or did not decompress")
+      fail=$((fail + 1))
+    fi
+  fi
+fi
 
 # 2. G1-G6: legacy import gates
 run_step "G1-G6" bash scripts/validate-legacy-import-gates.sh
@@ -166,13 +261,38 @@ fi
 
 echo
 echo "=== pre-cutover summary ==="
+# Name the subject before listing the verdicts. Every data gate below reads one
+# database, and which one it was is the difference between a readiness result
+# and a rehearsal. Stating it here means a report pasted into a cutover log
+# carries its own scope, rather than depending on the reader knowing which flags
+# the run was given.
+if [[ -n "${TARGET}" ]]; then
+  echo "subject: ${TARGET}, via the snapshot taken on the host and pulled back"
+  echo "         ${SNAPSHOT_URI:-(no artifact; the snapshot step failed)}"
+else
+  echo "subject: this workstation's own build at ${GATE_DB}"
+  echo "         NOT a deployed environment. Re-run with --target production to"
+  echo "         certify production."
+fi
 for line in "${results[@]}"; do
   echo "${line}"
 done
 echo "==========================="
 
-if [[ "${fail}" -eq 0 ]]; then
+# A gate that skipped its work is not a gate that passed, and the summary must
+# not read as though it were. The mock DNS lookup is the live case: it performs
+# no query at all, so a run that reports every gate green while one of them never
+# looked is exactly the reassurance this checklist exists to withhold.
+skipped=0
+for line in "${results[@]}"; do
+  case "${line}" in *" SKIPPED:"*|*" SKIP:"*) skipped=$((skipped + 1)) ;; esac
+done
+
+if [[ "${fail}" -eq 0 && "${skipped}" -eq 0 ]]; then
   echo "READY: all gates PASS"
+  exit 0
+elif [[ "${fail}" -eq 0 ]]; then
+  echo "READY WITH GAPS: gates PASS, but ${skipped} did no work (see SKIP lines above)"
   exit 0
 else
   echo "BLOCKED: ${fail} gate(s) FAIL" >&2

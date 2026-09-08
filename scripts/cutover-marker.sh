@@ -42,6 +42,11 @@ set -euo pipefail
 MARKER_ENV_PATH="${ENV_PATH:-/srv/footbag/env}"
 ACTION=""
 DRY_RUN="no"
+# One phrase per direction, deliberately different from each other and from the
+# production-live marker's pair, so no phrase an operator has typed before
+# carries them through a direction they did not mean.
+CONFIRM_COMPLETE="RECORD CUTOVER COMPLETE"
+CONFIRM_REVERSED="REVERSE CUTOVER MARKER"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -143,7 +148,56 @@ if [[ "$DRY_RUN" == "yes" ]]; then
   echo "    (dry run: nothing is written)"
   echo "    env file:  $([[ "$TARGET" == "complete" ]] && echo "append FOOTBAG_CUTOVER_COMPLETE=1" || echo "remove the FOOTBAG_CUTOVER_COMPLETE line")"
   echo "    database:  append a post_cutover row with value '$DB_VALUE'"
+  echo "    a real run asks for the typed phrase: $([[ "$TARGET" == "complete" ]] && echo "$CONFIRM_COMPLETE" || echo "$CONFIRM_REVERSED")"
   exit 0
+fi
+
+# A typed phrase per direction. This script ships to the host with the deploy,
+# both directions change what the destructive rebuild is allowed to do, and the
+# reversal in particular removes that protection outright, so neither direction
+# should be one keystroke away. A different phrase each way, so muscle memory
+# from one cannot carry an operator through the other. --status and --dry-run
+# never reach here.
+#
+# The prompt refuses a non-TTY stdin, matching the production-live marker it is
+# paired with. The reasoning is not about how this script is invoked today but
+# about the class of hazard: any caller that redirects a file into a script whose
+# prompt reads stdin has the file's first line silently consumed as the answer,
+# and an operator credential file is exactly the kind of thing that gets
+# redirected into scripts around here. Refusing costs nothing, because moving a
+# marker is a deliberate interactive act and is not scriptable in any case.
+if ! { [[ -t 0 ]] && [[ -t 1 ]] && [[ -t 2 ]]; }; then
+  echo "" >&2
+  echo "ERROR: moving the cutover marker requires an interactive terminal for its" >&2
+  echo "       typed confirmation, but stdin/stdout/stderr are not all TTYs." >&2
+  echo "       Re-run from an interactive shell. Do NOT redirect a credential file" >&2
+  echo "       into this script: its prompt reads stdin. Neither marker was moved." >&2
+  exit 1
+fi
+
+echo ""
+if [[ "$TARGET" == "complete" ]]; then
+  CONFIRM_PHRASE="$CONFIRM_COMPLETE"
+  echo "This records the cutover as complete, on this host and inside the database."
+  echo ""
+  echo "From this point the database-replacing rebuild deploy refuses this host and any"
+  echo "copy of this database, with no bypass flag, and every destructive seeder and"
+  echo "loader refuses alongside it. The reversal exists and is this same script."
+else
+  CONFIRM_PHRASE="$CONFIRM_REVERSED"
+  echo "This REVERSES the cutover marker, re-arming the destructive rebuild deploy."
+  echo ""
+  echo "It removes the protection that stops a full-refresh deploy destroying the live"
+  echo "database. Do this only for a deliberate disaster rebuild, and only while you"
+  echo "accept that the loaded member data is no longer protected by this marker."
+fi
+
+echo ""
+printf "Type '%s' to continue: " "$CONFIRM_PHRASE"
+read -r TYPED
+if [[ "$TYPED" != "$CONFIRM_PHRASE" ]]; then
+  echo "Aborted: confirmation phrase not entered. Neither marker was moved." >&2
+  exit 1
 fi
 
 # The database first. If it fails the env file is untouched and the two still

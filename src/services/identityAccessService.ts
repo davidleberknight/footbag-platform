@@ -1602,6 +1602,22 @@ function candidateClubsAndEvents(personId: string | null): {
   };
 }
 
+/**
+ * Every target this member has declined, by whichever side the declined row
+ * named. A decline is a standing decision about the record, not about the card
+ * that carried it, so every card path filters on this set: the classifier card,
+ * the email-anchored card, the name-match card, and the declared-anchor cards
+ * the wizard wrapper appends. One home, because a path that forgets it re-offers
+ * a record the member has already rejected.
+ */
+function declinedTargetIds(memberId: string): Set<string> {
+  return new Set(
+    (autoLinkStagedCandidates.listResolvedByMember.all(memberId) as AutoLinkStagedCandidateRow[])
+      .filter((r) => r.status === 'declined')
+      .flatMap((r) => [r.historical_person_id, r.legacy_member_id].filter((v): v is string => v != null)),
+  );
+}
+
 function getLinkHistoryView(
   memberId: string,
   opts: {
@@ -1687,11 +1703,7 @@ function getLinkHistoryView(
   // as classifier cards.
   const declinedTargets = legacyLinked || hpLinked
     ? new Set<string>()
-    : new Set(
-        (autoLinkStagedCandidates.listResolvedByMember.all(memberId) as AutoLinkStagedCandidateRow[])
-          .filter((r) => r.status === 'declined')
-          .flatMap((r) => [r.historical_person_id, r.legacy_member_id].filter((v): v is string => v != null)),
-      );
+    : declinedTargetIds(memberId);
 
   // 1b. Verify-time classifier output: newly-found candidates not already
   // covered by a staged card and not previously declined. Only when neither
@@ -1786,6 +1798,11 @@ function getLinkHistoryView(
     for (const c of candidates) if (c.personId) seenPersonIds.add(c.personId);
     for (const c of findAutoLinkCandidates(member.real_name)) {
       if (seenPersonIds.has(c.personId)) continue;
+      // A decline is a standing decision about the person, not about the card
+      // that carried it. Without this the name-match card re-offers a record the
+      // member has already said is not them, with a live claim control, on the
+      // very next render.
+      if (declinedTargets.has(c.personId)) continue;
       const hp = legacyClaim.findHistoricalPersonById.get(c.personId) as HistoricalPersonClaimRow | undefined;
       candidates.push({
         claimMode: 'hp_review_page',
@@ -2741,13 +2758,14 @@ function claimLegacyAccount(
 
 // ── Auto-link candidate staging (stage-and-confirm) ─────────────────────────
 //
-// The batch cutover pass (and future registration-time passes) never mutates
-// live tables: a high- or medium-confidence classifier outcome for an
-// unlinked member becomes a row in auto_link_staged_candidates plus a
-// legacy.auto_link_candidate_staged audit entry, and nothing else. No email
-// is sent. The member sees the staged candidate as a wizard card at next
-// sign-in and confirms (ordinary claim transaction) or declines; staged rows
-// that age past their expiry window are swept to 'expired'.
+// Staging never mutates live tables: a high- or medium-confidence classifier
+// outcome for an unlinked member becomes a row in auto_link_staged_candidates
+// plus a legacy.auto_link_candidate_staged audit entry, and nothing else. No
+// email is sent. The member sees the staged candidate as a wizard card the
+// next time the claim task renders and confirms (ordinary claim transaction)
+// or declines; staged rows that age past their expiry window are swept to
+// 'expired'. The cross-source offer stages this way on a live platform, and
+// the batch pass does the same across a seeded environment.
 //
 // Non-throwing discriminated return so the caller (runBatchAutoLink) can
 // tally outcomes without try/catch.

@@ -7892,8 +7892,8 @@ export const legacyMembers = {
   // (the loader lowercases them at write) and the service lowercases the lookup
   // value, so the plain email indexes are used with an equality seek. A
   // COLLATE NOCASE predicate here would defeat those BINARY indexes and force a
-  // full table scan per lookup, which is O(members x rows) at the cutover batch
-  // auto-link.
+  // full table scan per lookup, which is O(members x rows) across a batch
+  // auto-link pass.
   get findAllByIdentifier() { return db.prepare(`
     SELECT
       legacy_member_id,
@@ -9636,7 +9636,7 @@ export const deceasedMarking = {
 };
 
 export const batchAutoLink = {
-  // Tier 0 candidate set for the cutover batch auto-link pass. Excludes
+  // Tier 0 candidate set for the seeded-environment batch auto-link pass. Excludes
   // already-linked members (either anchor present) and members without a
   // verifiable email (the classifier's anchor).
   get listCandidates() { return db.prepare(`

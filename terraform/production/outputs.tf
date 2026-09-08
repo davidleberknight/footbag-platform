@@ -63,8 +63,18 @@ output "archive_domain" {
 }
 
 output "platform_url" {
-  description = "Canonical origin the site is served at, which the host holds as PUBLIC_BASE_URL: the apex once the custom-domain flag is on, otherwise the distribution's own cloudfront.net name. Declared here rather than derived by an operator because the value changes at the DNS cutover, and the flag that moves it lives beside this output; a host left on the old value builds every absolute link, redirect and mail link against a hostname the site no longer answers on."
-  value       = var.enable_cloudfront ? "https://${var.enable_platform_custom_domain ? var.domain_name : aws_cloudfront_distribution.main[0].domain_name}" : null
+  description = "Canonical origin the site is served at, which the host holds as PUBLIC_BASE_URL: the www host once the custom-domain flag is on (www, never the bare apex — the apex only 301s to www, so browsers send the www Origin on every mutation and the CSRF origin pin compares against this value; the apex form also fails the www-prefix indexability rule, deindexing the site, and mis-pins nginx's upstream Host), otherwise the distribution's own cloudfront.net name. Declared here rather than derived by an operator because the value changes at the DNS cutover, and the flag that moves it lives beside this output; a host left on the old value builds every absolute link, redirect and mail link against a hostname the site no longer answers on. During the notice window the host holds preview_url instead; verify-host-env.sh knows the exception."
+  value       = var.enable_cloudfront ? "https://${var.enable_platform_custom_domain ? "www.${var.domain_name}" : aws_cloudfront_distribution.main[0].domain_name}" : null
+}
+
+output "preview_url" {
+  description = "The temporary preview hostname, while its record exists: the base address the host holds through the cutover window, when www serves the migration notice and preview is the only public name reaching the platform. Null outside the window's preconditions, so a script that consumes it fails loudly rather than writing an address nothing serves."
+  value       = var.enable_cloudfront && var.enable_platform_custom_domain && var.enable_preview_record ? "https://preview.${var.domain_name}" : null
+}
+
+output "cutover_notice_enabled" {
+  description = "Whether the migration notice is compiled into the edge function right now. Read by verify-host-env.sh to decide which base address is correct: platform_url in steady state, preview_url while the notice is up."
+  value       = var.enable_cutover_notice
 }
 
 output "archive_key_pair_id" {

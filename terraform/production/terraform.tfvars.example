@@ -139,23 +139,35 @@ lightsail_origin_dns = "TODO-origin.footbag.org"
 # configuration creates and lightsail_origin_dns resolves.
 #
 # enable_preview_record creates the preview.<domain> alias records for the
-# pre-cutover exercises. The name already rides the certificate from its first
-# issuance and already sits in the distribution's alias list, so this flag alone
-# decides whether it resolves. On any time after the zone move, once the name is
-# re-verified absent from the zone snapshot; removed at cutover.
+# pre-cutover exercises and for the cutover window itself, when preview is the
+# only public name reaching the platform. The name already rides the certificate
+# from its first issuance and already sits in the distribution's alias list, so
+# this flag alone decides whether it resolves. On any time after the zone move,
+# once the name is re-verified absent from the zone snapshot. NOT removed at
+# cutover: it is the read-only reversal hostname, retired in a later apply.
 #
 # enable_apex_alias_records moves the apex and www off the mirrored legacy values
 # and onto the distribution. Stays false through the zone move, so those names
 # keep answering with the legacy host's values, and flips at the write-freeze.
 #
-# enable_planned_maintenance serves the maintenance page for every request. It
-# flips true paired with the apex alias flip, so the distribution serves the
-# migration page from that moment; going live is this one turning false again,
-# not a DNS change.
+# enable_cutover_notice serves the migration notice from the edge function on
+# www, while preview and the distribution's own name pass through to the real
+# platform. Flips true in the SAME apply as enable_apex_alias_records, so the
+# public names serve the notice from the moment they point here; going live is
+# this one turning false again, not a DNS change. Two preconditions before it
+# goes on: the legacy site frozen, and the archive top-up plus mirror freeze
+# complete, because nothing after the record switch reaches the legacy site by
+# name. It also conditions both cutover-window alarms off while it is up.
+#
+# enable_planned_maintenance serves the maintenance page for every request, on
+# every hostname. It is NOT the cutover lever — that is enable_cutover_notice
+# above — because blanking every hostname would blank preview too. Keep it for
+# the 5xx origin-failure fallback and for genuine post-launch windows.
 enable_cloudfront             = false
 enable_platform_custom_domain = false
 enable_preview_record         = false
 enable_apex_alias_records     = false
+enable_cutover_notice         = false
 enable_planned_maintenance    = false
 
 # ── Phased-apply feature gates ────────────────────────────────────────────────

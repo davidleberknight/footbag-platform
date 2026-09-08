@@ -4,9 +4,9 @@
  * A failed "This Is Me" confirmation shows the real reason (surname
  * mismatch with its contact-an-administrator guidance, or a record claimed
  * by another member in the meantime); only genuine classifier drift shows
- * the generic pick-another-candidate banner. The claim task stays reachable
- * after onboarding from the profile's legacy-claim link while a linkage is
- * missing. A classifier-produced suggestion card carries a decline control
+ * the generic pick-another-candidate banner. The task belongs to signing up:
+ * its writes are refused once onboarding completes, on every verb, not only
+ * on the page render. A classifier-produced suggestion card carries a decline control
  * even before any staging pass has run, and declining it is durable: the
  * card never re-renders and the pair is never re-staged without new signal.
  */
@@ -220,7 +220,11 @@ describe('declining a classifier-only suggestion card', () => {
       .get('/register/wizard/legacy_claim')
       .set('Cookie', cookieFor(f.memberId));
     expect(after.status).toBe(200);
+    // The auto-link card's own control going away is not durability: the same
+    // record can come back under the name-match card, which carries a different
+    // control. Assert the record itself is gone from the page.
     expect(after.text).not.toContain('This Is Me, Link My History');
+    expect(after.text).not.toContain(`/history/${f.personId}/claim`);
 
     const row = db.prepare(
       "SELECT status, source_pass FROM auto_link_staged_candidates WHERE member_id = ? AND historical_person_id = ?",
@@ -274,5 +278,73 @@ describe('the simulated-email card on the mailbox-control declared state', () =>
     expect(page.text).toMatch(
       /\/register\/wizard\/legacy_claim\/anchors\/verify\/[A-Za-z0-9_-]+">CLICK THIS LINK</,
     );
+  });
+});
+
+describe('the wizard closes to a member who has finished signing up', () => {
+  it('an open staged card is not authorization to claim once onboarding is complete', async () => {
+    const f = matchFixture({ memberName: 'Finished Claimant', personName: 'Finished Claimant' });
+    const staged = svc.stageAutoLinkCandidate(
+      f.memberId,
+      { confidence: 'high', personId: f.personId, personName: 'Finished Claimant' },
+      'batch',
+    );
+    expect(staged.status).toBe('staged');
+    completeOnboarding(db, f.memberId);
+
+    const res = await request(createApp())
+      .post('/register/wizard/legacy_claim/auto-link/confirm')
+      .set('Cookie', cookieFor(f.memberId))
+      .type('form')
+      .send({ personId: f.personId });
+
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toContain('contact-admin?category=identity_link_issue');
+    const row = db.prepare('SELECT historical_person_id FROM members WHERE id = ?')
+      .get(f.memberId) as { historical_person_id: string | null };
+    expect(row.historical_person_id).toBeNull();
+  });
+
+  it('the other claim-resolving writes are refused on the same terms', async () => {
+    const f = matchFixture({ memberName: 'Also Finished', personName: 'Also Finished' });
+    completeOnboarding(db, f.memberId);
+    const cookie = cookieFor(f.memberId);
+
+    const targets: Array<[string, Record<string, string>]> = [
+      ['/register/wizard/legacy_claim/cross-source/confirm', { candidateId: 'anything' }],
+      ['/register/wizard/legacy_claim/continue-without-linking', { no_link_answer: 'never_had_one' }],
+      ['/register/wizard/legacy_claim/anchors/add', { anchorType: 'old_email', anchorValue: 'x@old.example.com' }],
+      ['/register/wizard/legacy_claim/find', { query: 'anything' }],
+    ];
+    for (const [path, body] of targets) {
+      const res = await request(createApp())
+        .post(path).set('Cookie', cookie).type('form').send(body);
+      expect(res.status, path).toBe(303);
+      expect(res.headers.location, path).toContain('contact-admin?category=identity_link_issue');
+    }
+    // Nothing was declared along the way: the refusal is before the write.
+    expect(svc.listDeclaredAnchors(f.memberId)).toHaveLength(0);
+  });
+});
+
+describe('a declined record stays declined on every card path', () => {
+  it('does not come back as a claimable record card on the next render', async () => {
+    const f = matchFixture({ memberName: 'Decline Tester', personName: 'Decline Tester' });
+
+    const declined = await request(createApp())
+      .post('/register/wizard/legacy_claim/auto-link/decline')
+      .set('Cookie', cookieFor(f.memberId))
+      .type('form')
+      .send({ personId: f.personId });
+    expect(declined.status).toBe(303);
+
+    const page = await request(createApp())
+      .get('/register/wizard/legacy_claim')
+      .set('Cookie', cookieFor(f.memberId));
+    expect(page.status).toBe(200);
+    // The name-match card renders its own claim link, so the record returning
+    // under a different card shape is what this catches.
+    expect(page.text).not.toContain(`/history/${f.personId}/claim`);
+    expect(page.text).not.toContain('This Is Me, Link My History');
   });
 });

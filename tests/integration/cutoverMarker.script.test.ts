@@ -39,6 +39,37 @@ function run(args: string[]) {
   });
 }
 
+/**
+ * Drive a real marker move through a pseudo-terminal, answering the direction's
+ * typed phrase.
+ *
+ * The prompt refuses a non-TTY stdin by design, and the repository enforces that
+ * for every operator prompt (`scripts/ci/check_script_credentials.sh`): a caller
+ * who redirects a credential file into a script whose prompt reads stdin has the
+ * password silently consumed as the answer. So the write path genuinely requires
+ * a terminal, and `script` supplies one. Testing through the same gate an
+ * operator passes is the point — a test-only escape hatch would be a hole in it.
+ */
+function runTyped(args: string[], phrase: string) {
+  const inner = [
+    `ENV_PATH=${JSON.stringify(envPath)}`,
+    `DB_PATH=${JSON.stringify(dbPath)}`,
+    'bash',
+    SCRIPT,
+    ...args.map((a) => JSON.stringify(a)),
+  ].join(' ');
+  return spawnSync('script', ['-qec', inner, '/dev/null'], {
+    cwd: REPO_ROOT,
+    env: { ...process.env },
+    input: `${phrase}\n`,
+    encoding: 'utf-8',
+    ...SPAWN_GUARD,
+  });
+}
+
+const PHRASE_COMPLETE = 'RECORD CUTOVER COMPLETE';
+const PHRASE_REVERSED = 'REVERSE CUTOVER MARKER';
+
 /** The real config table and its current-value view, so the fixture answers the
  *  same question the live database would. */
 function makeDb(markerValue: string | null) {
@@ -106,7 +137,7 @@ describe('cutover marker writer', () => {
 
   it('sets both markers together', () => {
     makeDb(null);
-    const r = run(['--set', 'complete']);
+    const r = runTyped(['--set', 'complete'], PHRASE_COMPLETE);
     expect(r.status).toBe(0);
     expect(envHasMarker()).toBe(true);
 
@@ -120,7 +151,7 @@ describe('cutover marker writer', () => {
     fs.appendFileSync(envPath, 'FOOTBAG_CUTOVER_COMPLETE=1\n', 'utf-8');
     expect(configRowCount()).toBe(1);
 
-    const r = run(['--set', 'reversed']);
+    const r = runTyped(['--set', 'reversed'], PHRASE_REVERSED);
     expect(r.status).toBe(0);
     expect(envHasMarker()).toBe(false);
     // The original row survives; the reversal is a new one on top of it.
@@ -160,5 +191,52 @@ describe('cutover marker writer', () => {
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/present but unreadable/);
     expect(envHasMarker()).toBe(false);
+  });
+
+  // Neither direction is one keystroke away. The reversal matters most: it
+  // removes the protection that stops a full-refresh deploy destroying the live
+  // database, and a mistyped direction should cost an abort rather than that.
+
+  // A pseudo-terminal merges stderr into stdout, so these read the combined
+  // stream rather than either half — the script's own split between them is
+  // pinned by the non-TTY cases above, which run without one.
+  it('aborts and writes nothing when the phrase is not entered', () => {
+    makeDb(null);
+    const r = runTyped(['--set', 'complete'], 'yes');
+    expect(r.status).toBe(1);
+    expect(`${r.stdout}${r.stderr}`).toMatch(/confirmation phrase not entered/);
+    expect(envHasMarker()).toBe(false);
+    expect(configRowCount()).toBe(0);
+  });
+
+  it('will not accept the other direction\'s phrase', () => {
+    makeDb('1');
+    fs.appendFileSync(envPath, 'FOOTBAG_CUTOVER_COMPLETE=1\n', 'utf-8');
+    const r = runTyped(['--set', 'reversed'], PHRASE_COMPLETE);
+    expect(r.status).toBe(1);
+    expect(`${r.stdout}${r.stderr}`).toMatch(/confirmation phrase not entered/);
+    // Still protected: the reversal did not happen.
+    expect(envHasMarker()).toBe(true);
+    expect(configRowCount()).toBe(1);
+  });
+
+  it('refuses to move a marker with no terminal for its confirmation', () => {
+    // The guard the repository requires of every operator prompt: a caller who
+    // redirects a credential file into a script whose prompt reads stdin has the
+    // password silently consumed as the answer. Refusing costs nothing here,
+    // because moving a marker is a deliberate interactive act.
+    makeDb(null);
+    const r = run(['--set', 'complete']);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/requires an interactive terminal/);
+    expect(envHasMarker()).toBe(false);
+    expect(configRowCount()).toBe(0);
+  });
+
+  it('names the phrase a real run will ask for, in the dry run', () => {
+    makeDb(null);
+    const r = run(['--set', 'reversed', '--dry-run']);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain(PHRASE_REVERSED);
   });
 });

@@ -136,13 +136,36 @@ resource "aws_cloudfront_function" "strip_media_store_prefix" {
 # function decides it at the edge, before the cache is consulted.
 # =============================================================================
 
+# The cutover migration notice rides this same function, behind a compile-time
+# flag: the freeze apply turns it on together with the alias records, and going
+# live is this flag lifting. It cannot ride enable_planned_maintenance, whose
+# origin swap blanks every hostname including preview, while the window requires
+# preview to serve the real site throughout — only a viewer-request function
+# decides per hostname. The flag is compiled in by a literal-string substitution
+# on the function source, so with it off the deployed code is byte-identical to
+# the committed file; the unit suite exercises the source both ways by making
+# the same substitution.
+variable "enable_cutover_notice" {
+  description = "Serve the migration notice on www from the edge function while preview passes through to the platform. Flips on at the write-freeze, in the same apply as enable_apex_alias_records; before that moment the legacy site must be frozen and the archive top-up complete, because nothing after the record switch reaches the legacy site by name. Off is go-live."
+  type        = bool
+  default     = false
+}
+
 resource "aws_cloudfront_function" "apex_redirect" {
   count   = var.enable_cloudfront ? 1 : 0
   name    = "${local.prefix}-apex-redirect"
   runtime = "cloudfront-js-2.0"
   publish = true
-  comment = "Redirects the bare apex to the canonical www host with path and query intact"
-  code    = file("${path.module}/cloudfront-functions/apex-redirect.js")
+  comment = "Apex-to-www redirect, plus the cutover migration notice behind its compile-time flag"
+  code = (
+    var.enable_cutover_notice
+    ? replace(
+      file("${path.module}/cloudfront-functions/apex-redirect.js"),
+      "var CUTOVER_NOTICE = false",
+      "var CUTOVER_NOTICE = true",
+    )
+    : file("${path.module}/cloudfront-functions/apex-redirect.js")
+  )
 
   lifecycle {
     # Same reason as the function above: a distribution that references it
@@ -157,6 +180,16 @@ resource "aws_cloudfront_function" "apex_redirect" {
       condition     = var.domain_name == "footbag.org"
       error_message = "cloudfront-functions/apex-redirect.js hardcodes footbag.org and www.footbag.org; update it to match domain_name before changing that variable."
     }
+
+    # The notice flag is a literal substitution on the sentinel line, so the
+    # sentinel must exist exactly once or the flip silently deploys the notice
+    # dark (zero matches) or twice-defined (more than one). Checked here so the
+    # failure is a loud apply-time error rather than a freeze act that raises
+    # no notice.
+    precondition {
+      condition     = length(regexall("var CUTOVER_NOTICE = false", file("${path.module}/cloudfront-functions/apex-redirect.js"))) == 1
+      error_message = "cloudfront-functions/apex-redirect.js must carry the sentinel 'var CUTOVER_NOTICE = false' exactly once; enable_cutover_notice flips it by literal substitution."
+    }
   }
 }
 
@@ -164,9 +197,19 @@ resource "aws_cloudfront_function" "apex_redirect" {
 # Planned maintenance
 # Two independent ways the maintenance page reaches a visitor. The automatic one
 # is the 5xx fallback below: the origin breaks, CloudFront substitutes the page.
-# This flag is the deliberate one, for a window where the origin is deliberately
-# up and must not be shown — the cutover, when the platform is importing and
-# validating behind a site that has to read as "migrating, come back soon".
+# This flag is the deliberate one, for a planned window where the origin is up
+# and must not be shown.
+#
+# Current: this flag is also the only deliberate-notice mechanism, so it is what
+# a cutover would have to use. Target: it is not the cutover lever. The origin
+# swap below replaces the DEFAULT behaviour's origin, and that behaviour serves
+# every hostname on the distribution — preview included — while the cutover
+# window requires preview to serve the real site throughout. The cutover
+# migration notice therefore moves into the viewer-request function on the
+# default behaviour, behind its own compile-time flag, served per-hostname with
+# the payment-webhook path exempt; this flag keeps the 5xx fallback and genuine
+# post-launch windows, where blanking every hostname is the intent. The ruling
+# is the DNS Cutover decision in the design record.
 #
 # On, every page path serves the page: the default behaviour swaps to the S3
 # origin, and 403/404 route back to the page because an OAC-read bucket with no
@@ -175,7 +218,10 @@ resource "aws_cloudfront_function" "apex_redirect" {
 # health path keep their normal routing (monitoring stays live through the
 # window), and the page object itself answers 200 at its own URL. Off, the
 # blocks below are absent entirely, so the app's own 403s and 404s reach the
-# viewer untouched.
+# viewer untouched. Note the seam this leaves: the default behaviour still
+# allows POST while swapped to S3, which answers 405 to a POST, outside every
+# custom-error mapping — a webhook delivery during a window gets raw S3 XML.
+# The function-level exemption in the target design is what closes that.
 #
 # The page is returned as 503, which is what a planned window means and what
 # keeps search engines coming back instead of deindexing the site.

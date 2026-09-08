@@ -88,6 +88,9 @@ beforeAll(async () => {
     display_name: 'Atomic Member',
     password_hash: await hashTestPassword(MEMBER_PASSWORD),
     birth_date: '1980-01-01',
+    // The claim surface belongs to signing up, so its subjects are registrants
+    // still in the wizard with personal details already on file.
+    onboarding: 'none',
   });
   insertLegacyMember(db, {
     legacy_member_id: LEGACY_ID,
@@ -180,6 +183,7 @@ describe('claimLegacyAccount — two-actor race', () => {
       login_email: 'atomic-b@example.com',
       display_name: 'Atomic Member B',
       birth_date: '1980-01-01',
+      onboarding: 'none',
     });
     insertOnboardingTask(db, MEMBER_B_ID, 'personal_details', 'completed');
     db.close();
@@ -397,6 +401,7 @@ describe('claimHistoricalPersonInTx / consumeAndClaimLegacyInTx — outer-rollba
       display_name: 'Atomic Fresh',
       login_email: 'atomic-fresh@example.com',
       birth_date: '1980-01-01',
+      onboarding: 'none',
     });
     insertOnboardingTask(db, FRESH_MEMBER_ID, 'personal_details', 'completed');
     insertHistoricalPerson(db, {
@@ -490,8 +495,8 @@ describe('consumeAndClaimLegacy — wrong-account guard', () => {
   beforeAll(async () => {
     svc = (await import('../../src/services/identityAccessService')).identityAccessService;
     const db = new BetterSqlite3(dbPath);
-    insertMember(db, { id: A_MEMBER, slug: 'wa_a', login_email: 'wa-a@example.com', display_name: 'WA Member A', birth_date: '1980-01-01' });
-    insertMember(db, { id: B_MEMBER, slug: 'wa_b', login_email: 'wa-b@example.com', display_name: 'WA Member B' });
+    insertMember(db, { id: A_MEMBER, slug: 'wa_a', login_email: 'wa-a@example.com', display_name: 'WA Member A', birth_date: '1980-01-01', onboarding: 'none' });
+    insertMember(db, { id: B_MEMBER, slug: 'wa_b', login_email: 'wa-b@example.com', display_name: 'WA Member B', onboarding: 'none' });
     insertOnboardingTask(db, A_MEMBER, 'personal_details', 'completed');
     insertLegacyMember(db, {
       legacy_member_id: WA_LEGACY,

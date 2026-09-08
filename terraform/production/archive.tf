@@ -77,8 +77,13 @@ variable "archive_signing_public_key" {
 }
 
 locals {
-  archive_domain       = "archive.${var.domain_name}"
-  archive_platform_url = var.archive_platform_url != "" ? var.archive_platform_url : "https://${var.domain_name}"
+  archive_domain = "archive.${var.domain_name}"
+  # The www form, matching platform_url's correction: the bare apex only 301s,
+  # and these URLs are baked into the S3-hosted gate pages, which re-render only
+  # on apply — a second, independent home of the bare-apex mistake if this line
+  # regresses. A GET link survives the extra 301 hop, so the cost was a hop and
+  # an inconsistency, not a breakage; fixed for the same reason all the same.
+  archive_platform_url = var.archive_platform_url != "" ? var.archive_platform_url : "https://www.${var.domain_name}"
   archive_login_url    = "${local.archive_platform_url}/login"
   archive_site_url     = "${local.archive_platform_url}/"
 

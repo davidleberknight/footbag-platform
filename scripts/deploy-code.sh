@@ -158,8 +158,11 @@ echo "==> Rsyncing source to host (code only, no database)..."
 # by the relative path scripts/backup-db.sh against WorkingDirectory=/srv/footbag:
 # the scheduled backup timer's service, and the main unit's post-stop hook that
 # takes a snapshot before a destructive stop. Without it both resolve to nothing
-# and exit 127, the post-stop one silently because a leading dash ignores it. The
-# rest of scripts/ is operator tooling that has no business on a host, so the
+# and exit 127, the post-stop one silently because a leading dash ignores it.
+# cutover-marker.sh is the other one: it writes the host env file and the live
+# database, so it runs on the host as root by design, and the cutover runbook
+# now invokes it there instead of handing an operator the two writes to type.
+# The rest of scripts/ is operator tooling that has no business on a host, so the
 # directory is included only far enough for rsync to descend into it.
 rsync -av --delete -e "ssh ${SSH_OPTS[*]}" \
   --include='/.dockerignore' \
@@ -169,6 +172,7 @@ rsync -av --delete -e "ssh ${SSH_OPTS[*]}" \
   --include='/ops/***' \
   --include='/scripts/' \
   --include='/scripts/backup-db.sh' \
+  --include='/scripts/cutover-marker.sh' \
   --include='/package.json' \
   --include='/package-lock.json' \
   --include='/tsconfig.json' \

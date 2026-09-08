@@ -199,7 +199,14 @@ fi
 # Resolve the deploy target's SSH alias. The leaves derive FOOTBAG_ENV from
 # the alias name; an unconfigured alias makes the deploy fail mid-flight with
 # 'Could not resolve hostname'. Catch it here.
-DEPLOY_TARGET="${DEPLOY_TARGET:-footbag-staging}"
+# Exported, not merely assigned. The legacy member load two scripts down reads
+# DEPLOY_TARGET to decide whether the recorded account rulings and the board
+# roster are mandatory, and it reaches that decision only if the value is in the
+# environment. It is today, because an operator has to set it for the SSH alias
+# to resolve at all -- but that is inheritance from the invocation rather than
+# anything this script guarantees, and the failure mode if it ever stops holding
+# is a development-shaped member load onto production that raises no error.
+export DEPLOY_TARGET="${DEPLOY_TARGET:-footbag-staging}"
 # Avoid `awk ... exit` here: when awk exits before consuming all of ssh -G's
 # output, the upstream `ssh -G` receives SIGPIPE and `set -o pipefail` then
 # kills the wrapper with exit 141 before our own error message can print.

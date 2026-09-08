@@ -10,7 +10,10 @@
 # Env:
 #   FOOTBAG_PROD_IMAGE   Image tag to inspect (default: footbag-web:latest)
 # Flags:
-#   --mock               Skip docker entirely; emit PASS for tests
+#   --mock               Skip docker entirely, so the aggregator can be exercised
+#                        without an image. Reports SKIPPED, never PASS: the run
+#                        inspects nothing, and a checklist that reads green while
+#                        a gate never looked is worse than no checklist.
 set -euo pipefail
 
 IMAGE="${FOOTBAG_PROD_IMAGE:-footbag-web:latest}"
@@ -20,7 +23,7 @@ IMAGE="${FOOTBAG_PROD_IMAGE:-footbag-web:latest}"
 RETIRED_TABLES='net_review_queue|net_candidate_match|net_curated_match|net_raw_fragment|net_recovery_alias_candidate|net_team_correction_candidate'
 
 if [[ "${1:-}" == "--mock" ]]; then
-  echo "GATE: QC-ABSENCE PASS: mock mode (no docker inspection)"
+  echo "GATE: QC-ABSENCE SKIPPED: mock mode (no docker inspection; proves nothing about the image)"
   exit 0
 fi
 

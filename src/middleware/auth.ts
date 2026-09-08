@@ -195,6 +195,34 @@ export function requireMember(req: Request, res: Response, next: NextFunction): 
 }
 
 /**
+ * Wizard write guard, the mirror of requireMember. The wizard belongs to
+ * signing up: a member who has finished has no task there and no control that
+ * would act, so its writes are closed to them rather than left answerable by
+ * direct POST. Without this the task page redirects while the actions behind it
+ * still run, and an open staged candidate stays usable as authorization to
+ * claim an identity long after self-serve claiming ended.
+ *
+ * A link they still need is asked for through the identity-link category of the
+ * contact form, which an administrator answers by applying the link, so that is
+ * where a refusal sends them rather than to a dead end.
+ */
+export function requireWizardOpen(req: Request, res: Response, next: NextFunction): void {
+  if (!req.isAuthenticated) {
+    res.redirect(`/login?returnTo=${encodeURIComponent(req.originalUrl)}`);
+    return;
+  }
+  if (req.isMember) {
+    const memberSlug = req.user!.slug ?? req.user!.userId;
+    res.redirect(
+      303,
+      `/members/${encodeURIComponent(memberSlug)}/contact-admin?category=identity_link_issue`,
+    );
+    return;
+  }
+  next();
+}
+
+/**
  * The pending registrant's next stop. With nothing outstanding, route to the
  * wizard complete page, which re-checks and redirects onward if a task is in
  * fact still pending; falling back to a specific task here would loop if that

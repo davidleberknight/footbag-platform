@@ -33,6 +33,9 @@ beforeAll(async () => {
   insertMember(db, {
     id: MEMBER_ID, slug: 'mlrl_member', login_email: 'mlrl@example.com',
     real_name: 'Mlrl Tester', display_name: 'Mlrl Tester',
+    // Declaring an anchor and proving the mailbox belong to the wizard's claim
+    // step, so the subject is a registrant still inside signing up.
+    onboarding: 'none',
   });
   db.close();
   createApp = await importApp();

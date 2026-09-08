@@ -260,10 +260,15 @@ describe('dns-ttl-preflight: preconditions', () => {
     expect(res.stderr).toContain('whole number of seconds');
   });
 
-  it('mock mode says plainly that it proved nothing about the zone', () => {
+  it('mock mode reports a skip, not a pass, because it performed no lookup', () => {
     const res = run(['--phase', 'handover', '--mock']);
     expect(res.status).toBe(0);
-    expect(res.stdout).toContain('GATE: DNS-TTL PASS');
     expect(res.stdout).toContain('proves nothing about the zone');
+    // The sentence disclaiming the result is not enough on its own: the
+    // aggregator harvests the gate line for its summary, so a mock run reporting
+    // PASS puts a pass into a checklist where nothing was observed, with the
+    // disclaimer buried in the same line.
+    expect(res.stdout).toContain('GATE: DNS-TTL SKIPPED');
+    expect(res.stdout).not.toContain('GATE: DNS-TTL PASS');
   });
 });

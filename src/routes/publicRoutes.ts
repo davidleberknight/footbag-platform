@@ -29,7 +29,7 @@ import { ifpaController } from '../controllers/ifpaController';
 import { officialRosterController } from '../controllers/officialRosterController';
 import { legalController } from '../controllers/legalController';
 import { tagSuggestController } from '../controllers/tagSuggestController';
-import { requireAuth, requireMember } from '../middleware/auth';
+import { requireAuth, requireMember, requireWizardOpen } from '../middleware/auth';
 import { requireTier1Benefits, requireMayCreateClub, requireTier2Plus } from '../middleware/requireTier';
 
 export const publicRouter = Router();
@@ -281,24 +281,30 @@ publicRouter.post('/verify/resend',         authController.postVerifyResend);
 // submit) are not captured as :taskType. Order matters: Express matches
 // in registration order. Every task exit is an explicit answer: there is no
 // skip, dismiss, or detour route.
+// The claim routes carry the guard; the personal-details and club steps do not.
+// Answering a club card can complete the club task and with it onboarding, so a
+// member part-way through a set of cards would be locked out of the rest.
 publicRouter.post('/register/wizard/personal_details/submit',           requireAuth, memberOnboardingController.postPersonalDetailsSubmit);
-publicRouter.post('/register/wizard/legacy_claim/find',                 requireAuth, memberOnboardingController.postLegacyClaimFind);
-publicRouter.post('/register/wizard/legacy_claim/auto-link/confirm',    requireAuth, memberOnboardingController.postLegacyClaimAutoLinkConfirm);
-publicRouter.post('/register/wizard/legacy_claim/auto-link/decline',    requireAuth, memberOnboardingController.postLegacyClaimAutoLinkDecline);
-publicRouter.post('/register/wizard/legacy_claim/cross-source/confirm', requireAuth, memberOnboardingController.postCrossSourceLegacyConfirm);
-publicRouter.post('/register/wizard/legacy_claim/anchors/send-verification', requireAuth, memberOnboardingController.postAnchorSendVerification);
+publicRouter.post('/register/wizard/legacy_claim/find',                 requireAuth, requireWizardOpen, memberOnboardingController.postLegacyClaimFind);
+publicRouter.post('/register/wizard/legacy_claim/auto-link/confirm',    requireAuth, requireWizardOpen, memberOnboardingController.postLegacyClaimAutoLinkConfirm);
+publicRouter.post('/register/wizard/legacy_claim/auto-link/decline',    requireAuth, requireWizardOpen, memberOnboardingController.postLegacyClaimAutoLinkDecline);
+publicRouter.post('/register/wizard/legacy_claim/cross-source/confirm', requireAuth, requireWizardOpen, memberOnboardingController.postCrossSourceLegacyConfirm);
+publicRouter.post('/register/wizard/legacy_claim/anchors/send-verification', requireAuth, requireWizardOpen, memberOnboardingController.postAnchorSendVerification);
+// The two emailed links stay open to a member who has finished: the round trip
+// they complete was begun inside the wizard, and mail is read on its own
+// schedule. Closing them would strand a proof the member was asked to give.
 publicRouter.get('/register/wizard/legacy_claim/anchors/verify/:token',      requireAuth, memberOnboardingController.getAnchorVerify);
 publicRouter.get('/register/wizard/legacy_claim/claim/confirm/:token',  requireAuth, memberOnboardingController.getLegacyClaimTokenConfirm);
-publicRouter.post('/register/wizard/legacy_claim/claim/confirm',        requireAuth, memberOnboardingController.postLegacyClaimTokenConfirm);
+publicRouter.post('/register/wizard/legacy_claim/claim/confirm',        requireAuth, requireWizardOpen, memberOnboardingController.postLegacyClaimTokenConfirm);
 // The last attempt at the match offers the date on file for correction: the
 // matcher runs on it, and a registrant who mistyped it had no way to put it
 // right once the details step closed behind them.
-publicRouter.post('/register/wizard/legacy_claim/birth-date',           requireAuth, memberOnboardingController.postLegacyClaimBirthDate);
-publicRouter.post('/register/wizard/legacy_claim/anchors/add',          requireAuth, memberOnboardingController.postAddAnchor);
-publicRouter.post('/register/wizard/legacy_claim/anchors/remove',       requireAuth, memberOnboardingController.postRemoveAnchor);
+publicRouter.post('/register/wizard/legacy_claim/birth-date',           requireAuth, requireWizardOpen, memberOnboardingController.postLegacyClaimBirthDate);
+publicRouter.post('/register/wizard/legacy_claim/anchors/add',          requireAuth, requireWizardOpen, memberOnboardingController.postAddAnchor);
+publicRouter.post('/register/wizard/legacy_claim/anchors/remove',       requireAuth, requireWizardOpen, memberOnboardingController.postRemoveAnchor);
 publicRouter.post('/register/wizard/club_affiliations/submit',          requireAuth, memberOnboardingController.postClubAffiliationsSubmit);
 publicRouter.post('/register/wizard/club_affiliations/none',            requireAuth, memberOnboardingController.postNoClubs);
-publicRouter.post('/register/wizard/legacy_claim/continue-without-linking', requireAuth, memberOnboardingController.postContinueWithoutLinking);
+publicRouter.post('/register/wizard/legacy_claim/continue-without-linking', requireAuth, requireWizardOpen, memberOnboardingController.postContinueWithoutLinking);
 publicRouter.get('/register/wizard/complete',                           requireAuth, memberOnboardingController.getComplete);
 publicRouter.get('/register/wizard/:taskType',                          requireAuth, memberOnboardingController.getTask);
 publicRouter.get('/password/forgot',        authController.getPasswordForgot);

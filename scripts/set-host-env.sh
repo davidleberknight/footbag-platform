@@ -71,6 +71,13 @@
 # the deploy wrapper's -y does, so this can run where there is no terminal to
 # type into. The diff is still printed.
 #
+# --preview writes the cutover-window base address: PUBLIC_BASE_URL from the
+# tree's preview_url output instead of platform_url, for the window when www
+# serves the migration notice and preview is the only public name reaching the
+# platform. Refuses when preview_url is null (the window's preconditions are
+# not applied). At launch, re-run without it to move the address to the www
+# form. Not combinable with --env-file, whose values come from the environment.
+#
 # Synthetic mode (CI tests only; operators never use this):
 #   --env-file <path> treats the local file as the host env, skips ssh and
 #   terraform entirely, and takes the values from BACKUP_S3_BUCKET_VALUE,
@@ -84,6 +91,7 @@ source "${REPO_ROOT}/scripts/lib/host-env-expectations.sh"
 source "${REPO_ROOT}/scripts/lib/host-env-remote.sh"
 
 TARGET="staging"
+PREVIEW_MODE=0
 AWS_PROFILE_ARG=""
 ENV_FILE_OVERRIDE=""
 DRY_RUN=0
@@ -102,6 +110,18 @@ while [[ $# -gt 0 ]]; do
     --env-file)
       ENV_FILE_OVERRIDE="${2:-}"
       shift 2 || { echo "ERROR: --env-file requires an argument" >&2; exit 2; }
+      ;;
+    --preview)
+      # The cutover-window base address. While the migration notice is up, www
+      # serves the notice and preview is the only public name reaching the
+      # platform, so the host's canonical origin is the preview form for the
+      # length of the window. This flag reads the tree's preview_url output
+      # instead of platform_url — scripted, like every other move of this value,
+      # because the window's hand edits are how the value went wrong before. At
+      # launch the operator re-runs WITHOUT this flag, which moves the address
+      # to the www form platform_url now carries.
+      PREVIEW_MODE=1
+      shift
       ;;
     --yes)
       ASSUME_YES="yes"
@@ -126,6 +146,13 @@ done
 
 if [[ "$TARGET" != "staging" && "$TARGET" != "production" ]]; then
   echo "ERROR: --target must be 'staging' or 'production'" >&2
+  exit 2
+fi
+
+if [[ "$PREVIEW_MODE" -eq 1 && -n "$ENV_FILE_OVERRIDE" ]]; then
+  echo "ERROR: --preview and --env-file are mutually exclusive. Synthetic mode takes" >&2
+  echo "       its values from the environment and reads no terraform output, so a" >&2
+  echo "       preview flag there would be silently meaningless." >&2
   exit 2
 fi
 
@@ -214,17 +241,29 @@ else
   # without it, so writing a blank here only moves the failure later. It answers
   # null until CloudFront is enabled on the environment, which is a real state
   # and not an error, so that case is named rather than reported as a failure.
-  PUBLIC_URL_VALUE="$("${TF_ENV[@]}" terraform -chdir="${REPO_ROOT}/terraform/${TARGET}" output -raw platform_url 2>/dev/null || true)"
-  if [[ -z "$PUBLIC_URL_VALUE" || "$PUBLIC_URL_VALUE" == "null" ]]; then
-    echo "ERROR: platform_url resolved empty for ${TARGET}. Two causes, and the fix" >&2
-    echo "       is the same for both: apply the tree, then re-run." >&2
-    echo "         - The output is declared but not yet in state. Outputs are read from" >&2
-    echo "           state, so one added since the last apply reads empty however" >&2
-    echo "           correct the declaration is." >&2
-    echo "         - enable_cloudfront is off. The site has no canonical origin before" >&2
-    echo "           there is a distribution to serve it, and the output is null by" >&2
-    echo "           design until there is." >&2
-    exit 1
+  if [[ "$PREVIEW_MODE" -eq 1 ]]; then
+    PUBLIC_URL_VALUE="$("${TF_ENV[@]}" terraform -chdir="${REPO_ROOT}/terraform/${TARGET}" output -raw preview_url 2>/dev/null || true)"
+    if [[ -z "$PUBLIC_URL_VALUE" || "$PUBLIC_URL_VALUE" == "null" ]]; then
+      echo "ERROR: preview_url resolved empty for ${TARGET}, and --preview refuses to" >&2
+      echo "       write an address nothing serves. The output is non-null only once" >&2
+      echo "       enable_platform_custom_domain and enable_preview_record are both on" >&2
+      echo "       and applied — the window's preconditions. Outside them the host's" >&2
+      echo "       base address is platform_url: re-run without --preview." >&2
+      exit 1
+    fi
+  else
+    PUBLIC_URL_VALUE="$("${TF_ENV[@]}" terraform -chdir="${REPO_ROOT}/terraform/${TARGET}" output -raw platform_url 2>/dev/null || true)"
+    if [[ -z "$PUBLIC_URL_VALUE" || "$PUBLIC_URL_VALUE" == "null" ]]; then
+      echo "ERROR: platform_url resolved empty for ${TARGET}. Two causes, and the fix" >&2
+      echo "       is the same for both: apply the tree, then re-run." >&2
+      echo "         - The output is declared but not yet in state. Outputs are read from" >&2
+      echo "           state, so one added since the last apply reads empty however" >&2
+      echo "           correct the declaration is." >&2
+      echo "         - enable_cloudfront is off. The site has no canonical origin before" >&2
+      echo "           there is a distribution to serve it, and the output is null by" >&2
+      echo "           design until there is." >&2
+      exit 1
+    fi
   fi
 fi
 

@@ -114,6 +114,11 @@ if [[ -n "$ENV_FILE_OVERRIDE" ]]; then
   # was owned carries no expectation for it, and the check below degrades to
   # presence rather than failing a synthetic run over a value it was not given.
   TF_PLATFORM_URL="${TF_PLATFORM_URL:-}"
+  # Same optionality for the two window outputs, and for the same reason: a
+  # fixture that predates them carries neither, and their absence reads as
+  # "no cutover window", which is the correct default everywhere but the window.
+  TF_PREVIEW_URL="${TF_PREVIEW_URL:-}"
+  TF_NOTICE_ENABLED="${TF_NOTICE_ENABLED:-}"
   if [[ -z "$TF_JWT_KMS_KEY_ARN" || -z "$TF_SES_SENDER" || -z "$TF_MEDIA_BUCKET" ]]; then
     echo "ERROR: --env-file mode requires TF_JWT_KMS_KEY_ARN, TF_SES_SENDER, and TF_MEDIA_BUCKET in the environment." >&2
     exit 2
@@ -126,6 +131,11 @@ else
   TF_SES_SENDER="$(terraform -chdir="$TF_DIR" output -raw ses_sender_identity 2>/dev/null || true)"
   TF_MEDIA_BUCKET="$(terraform -chdir="$TF_DIR" output -raw media_bucket_name 2>/dev/null || true)"
   TF_PLATFORM_URL="$(terraform -chdir="$TF_DIR" output -raw platform_url 2>/dev/null || true)"
+  # The two window outputs. Both legitimately read empty on a tree without
+  # them applied or on staging, which declares neither; the base-address check
+  # below treats empty as "no window", which is the safe reading.
+  TF_PREVIEW_URL="$(terraform -chdir="$TF_DIR" output -raw preview_url 2>/dev/null || true)"
+  TF_NOTICE_ENABLED="$(terraform -chdir="$TF_DIR" output -raw cutover_notice_enabled 2>/dev/null || true)"
   if [[ -z "$TF_JWT_KMS_KEY_ARN" || -z "$TF_SES_SENDER" || -z "$TF_MEDIA_BUCKET" ]]; then
     echo "ERROR: required terraform outputs are empty. Has 'terraform apply' run for $TARGET?" >&2
     echo "  jwt_signing_key_arn = '$TF_JWT_KMS_KEY_ARN'" >&2
@@ -604,8 +614,18 @@ if [[ -z "$TF_PLATFORM_URL" ]]; then
   check_set "PUBLIC_BASE_URL" "public base URL"
 elif [[ "$PUBLIC_URL_ACTUAL" == "$TF_PLATFORM_URL" ]]; then
   check_pass "public base URL: PUBLIC_BASE_URL=$TF_PLATFORM_URL"
+elif [[ "$TF_NOTICE_ENABLED" == "true" && -n "$TF_PREVIEW_URL" && "$PUBLIC_URL_ACTUAL" == "$TF_PREVIEW_URL" ]]; then
+  # The cutover window is the one state where the canonical value is wrong on
+  # purpose: www serves the migration notice, preview is the only public name
+  # reaching the platform, and the host's base address is the preview form,
+  # written by set-host-env.sh --preview. Accepted only while the notice flag
+  # is compiled in — the moment it lifts, this same line becomes the failure
+  # below, which is what marches the operator through the launch move.
+  check_pass "public base URL: PUBLIC_BASE_URL=$TF_PREVIEW_URL (cutover window: the notice is up and preview is the platform's public name; at launch re-run scripts/set-host-env.sh --target $TARGET without --preview)"
 elif [[ -z "$PUBLIC_URL_ACTUAL" ]]; then
   check_fail "public base URL: PUBLIC_BASE_URL is unset (expected '$TF_PLATFORM_URL'); scripts/set-host-env.sh writes it"
+elif [[ -n "$TF_PREVIEW_URL" && "$PUBLIC_URL_ACTUAL" == "$TF_PREVIEW_URL" ]]; then
+  check_fail "public base URL: PUBLIC_BASE_URL=$TF_PREVIEW_URL is the window form, but the notice flag is off — the window is over and the host is still building every link against preview. Re-run scripts/set-host-env.sh --target $TARGET (no --preview) and restart"
 else
   check_fail "public base URL: PUBLIC_BASE_URL=$PUBLIC_URL_ACTUAL, but this tree serves '$TF_PLATFORM_URL'; every absolute link and mail link is being built against the wrong host. Re-run scripts/set-host-env.sh --target $TARGET"
 fi

@@ -53,9 +53,12 @@ function extractToken(body: string): string {
 let _n = 0;
 function seedMemberWithAnchor(): { memberId: string; anchorId: string } {
   _n += 1;
+  // Declaring an anchor and proving the mailbox belong to the wizard's claim
+  // step, so the subject is a registrant still inside signing up.
   const memberId = insertMember(db, {
     id: `mv-${_n}`, slug: `mv_${_n}`, login_email: `mv-${_n}@example.com`,
     real_name: `Mv Tester${_n}`, display_name: `Mv Tester${_n}`,
+    onboarding: 'none',
   });
   identity.identityAccessService.declareAnchor(memberId, 'old_email', `mv-${_n}-old@old.example.com`);
   const anchor = identity.identityAccessService.listDeclaredAnchors(memberId)[0];
@@ -208,6 +211,7 @@ describe('verified anchor upgrades staged evidence', () => {
     const memberId = insertMember(db, {
       id: 'mv-upgrade', slug: 'mv_upgrade', login_email: 'upgrade-new@example.com',
       real_name: 'Upgrade Tester', display_name: 'Upgrade Tester',
+      onboarding: 'none',
     });
     identity.identityAccessService.declareAnchor(memberId, 'old_email', 'upgrade-old@old.example.com');
     const anchorId = identity.identityAccessService.listDeclaredAnchors(memberId)[0].id;

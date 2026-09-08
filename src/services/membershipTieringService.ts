@@ -454,7 +454,8 @@ export function applyAdminTier2InvariantGrantInTx(
   memberId: string,
   reasonCode: string,
   auditMetadata: Record<string, unknown>,
-): { applied: boolean } {
+  opts: { emitAudit?: boolean } = {},
+): { applied: boolean; fromTier: string } {
   const now = new Date().toISOString();
   // Provisioning an admin subscribes them to admin-alerts, so the work-queue
   // fan-out reaches every admin. Runs regardless of the tier-invariant branch
@@ -464,7 +465,7 @@ export function applyAdminTier2InvariantGrantInTx(
 
   const current = getCurrent(memberId);
   if (current.tier_status === 'tier2' || current.tier_status === 'tier3') {
-    return { applied: false };
+    return { applied: false, fromTier: current.tier_status };
   }
   if (current.tier_status === 'tier0') {
     endOnTierUpgrade(memberId, now);
@@ -486,43 +487,57 @@ export function applyAdminTier2InvariantGrantInTx(
   // The dev/staging registration-allowlist bootstrap keeps a distinctive
   // action_type so an audit search partitions it from the production bootstrap;
   // every other reason_code (the production SSM-token bootstrap) falls through to
-  // the canonical admin.bootstrap_grant.
-  let actionType: string;
-  let category: 'admin' | 'tier_change';
-  if (reasonCode === 'dev_admin_register_allowlist.admin_tier2') {
-    actionType = 'admin.dev_register_allowlist_grant';
-    category = 'admin';
-  } else {
-    actionType = 'admin.bootstrap_grant';
-    category = 'admin';
+  // the canonical admin.bootstrap_grant. A caller that already writes its own
+  // audit row for the same event suppresses this one instead, so one event
+  // produces one row: the steady-state grant records the tier movement on its
+  // own admin.role_granted row rather than claiming to be a bootstrap.
+  if (opts.emitAudit !== false) {
+    let actionType: string;
+    let category: 'admin' | 'tier_change';
+    if (reasonCode === 'dev_admin_register_allowlist.admin_tier2') {
+      actionType = 'admin.dev_register_allowlist_grant';
+      category = 'admin';
+    } else {
+      actionType = 'admin.bootstrap_grant';
+      category = 'admin';
+    }
+    audit({
+      actionType,
+      category,
+      actorType: 'system',
+      actorId: null,
+      memberId,
+      reasonText,
+      metadata: { from: current.tier_status, to: 'tier2', ...auditMetadata },
+    });
   }
-  audit({
-    actionType,
-    category,
-    actorType: 'system',
-    actorId: null,
-    memberId,
-    reasonText,
-    metadata: { from: current.tier_status, to: 'tier2', ...auditMetadata },
-  });
-  return { applied: true };
+  return { applied: true, fromTier: current.tier_status };
 }
 
 /**
  * Grant the platform admin role to a member (story A_Manage_Admin_Role). The
- * target must currently hold Tier 2 or Tier 3 (checked here at request time) and
- * not already be an admin. In one transaction this sets `is_admin=1`, appends an
- * admin-actor audit row carrying the mandatory reason, and subscribes the member
- * to admin-alerts. No `member_tier_grants` row is written: the target already
- * satisfies the admin Tier 2 prerequisite and tier predicates short-circuit on
- * `is_admin`. The affected-member email enqueues after commit.
+ * target must not already be an admin. In one transaction this sets
+ * `is_admin=1`, applies the role's Tier 2 invariant through the same helper the
+ * bootstrap paths use, appends an admin-actor audit row carrying the mandatory
+ * reason, and subscribes the member to admin-alerts. The affected-member email
+ * enqueues after commit.
+ *
+ * Tier 2 is an invariant the grant establishes, not a precondition the target
+ * must arrive with: a `member_tier_grants` row is written when they hold less,
+ * and the audit row records the movement. A target already at Tier 2 or Tier 3
+ * keeps the tier they hold.
  */
 /**
  * Validate an admin-role grant without writing, throwing the same errors
- * grantAdminRole does: a reason is required, the target must exist and hold
- * Tier 2 or Tier 3, and must not already be an admin. Returns the trimmed reason
- * and the target's current tier so a confirmation step can name the change
- * before it commits. grantAdminRole calls this, so the grant rules have one home.
+ * grantAdminRole does: a reason is required, the target must exist, and must not
+ * already be an admin. Returns the trimmed reason and the target's current tier
+ * so a confirmation step can name the change before it commits. grantAdminRole
+ * calls this, so the grant rules have one home.
+ *
+ * Tier 2 is an invariant of the role rather than a precondition on the person:
+ * the grant applies it, exactly as the bootstrap paths do, so the one rule has
+ * one implementation and an administrator is never turned away from a grant they
+ * would then have to enable by hand through a tier override.
  */
 export function assertGrantAdminRoleAllowed(
   targetMemberId: string,
@@ -530,11 +545,6 @@ export function assertGrantAdminRoleAllowed(
 ): { trimmedReason: string; tierStatus: string } {
   const trimmedReason = requireAdminRoleReason(reason);
   const current = getCurrent(targetMemberId); // NotFoundError when no such member
-  if (current.tier_status !== 'tier2' && current.tier_status !== 'tier3') {
-    throw new ValidationError(
-      'The member must hold Tier 2 or Tier 3 status before being granted the admin role.',
-    );
-  }
   const roleRow = adminRole.getIsAdmin.get(targetMemberId) as { is_admin: number } | undefined;
   if (!roleRow) {
     throw new NotFoundError(`member ${targetMemberId} not found`);
@@ -556,7 +566,15 @@ export function grantAdminRole(
   const eventId = `evt_${uuidv7Hex()}`;
   transaction(() => {
     adminRole.setAdminFlag.run(1, now, 'admin_role_grant', targetMemberId);
-    subscribeAdminAlertsInTx(targetMemberId, now, 'admin_role_grant');
+    // Carries the role's Tier 2 invariant and the admin-alerts subscription, the
+    // same helper the bootstrap paths use. Its own audit row is suppressed here:
+    // this is one event, and the row below is the one that names the actor.
+    const tier = applyAdminTier2InvariantGrantInTx(
+      targetMemberId,
+      'admin.role_grant_tier2',
+      {},
+      { emitAudit: false },
+    );
     audit({
       actionType: 'admin.role_granted',
       category: 'admin',
@@ -564,7 +582,9 @@ export function grantAdminRole(
       actorId: adminMemberId,
       memberId: targetMemberId,
       reasonText: trimmedReason,
-      metadata: { event_id: eventId },
+      metadata: tier.applied
+        ? { event_id: eventId, tier_from: tier.fromTier, tier_to: 'tier2' }
+        : { event_id: eventId, tier_from: tier.fromTier, tier_to: tier.fromTier },
     });
   });
 

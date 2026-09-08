@@ -127,7 +127,11 @@ function buildFixtureDb(dbPath: string, opts: { withNameVariants?: boolean } = {
   db.close();
 }
 
-function runChecklist(dbPath: string, snapshotDir: string): { status: number; stdout: string; stderr: string } {
+function runChecklist(
+  dbPath: string,
+  snapshotDir: string,
+  args: string[] = [],
+): { status: number; stdout: string; stderr: string } {
   // The payments-boot gate reads a deploy env file; a live-mode fixture
   // beside the test DB satisfies it.
   const envFile = path.join(path.dirname(dbPath), 'deploy-env');
@@ -149,7 +153,7 @@ function runChecklist(dbPath: string, snapshotDir: string): { status: number; st
 
     FOOTBAG_BOOTSTRAP_LEADER_MIN:     '1',
   };
-  const result = spawnSync('bash', ['scripts/pre-cutover-checklist.sh'], {
+  const result = spawnSync('bash', ['scripts/pre-cutover-checklist.sh', ...args], {
     cwd: REPO_ROOT,
     env,
     encoding: 'utf8',
@@ -185,14 +189,23 @@ describe('pre-cutover checklist orchestrator', () => {
     buildFixtureDb(dbPath);
     const r = runChecklist(dbPath, snapshotDir);
     expect(r.status, `stdout:\n${r.stdout}\nstderr:\n${r.stderr}`).toBe(0);
-    expect(r.stdout).toMatch(/READY: all gates PASS/);
-    for (const label of ['SNAPSHOT', 'G1', 'G7', 'G8', 'G11', 'DEV-ADMIN-AUDIT', 'SHOWCASE-PRESENCE', 'PAYMENTS-BOOT', 'QC-ABSENCE', 'DNS-TTL']) {
+    for (const label of ['SNAPSHOT', 'G1', 'G7', 'G8', 'G11', 'DEV-ADMIN-AUDIT', 'SHOWCASE-PRESENCE', 'PAYMENTS-BOOT']) {
       expect(r.stdout).toMatch(new RegExp(`GATE: ${label}[^\\n]*PASS`));
     }
-    // The DNS gate is the one the cutover runbook calls for and the aggregator
-    // previously disclaimed. Under mock it makes no lookup, and it says so
-    // rather than reading as a verified zone.
-    expect(r.stdout).toMatch(/GATE: DNS-TTL PASS: mock mode/);
+    // A gate that inspected nothing must not report the word a gate that looked
+    // reports. Both mock gates are in that position: the DNS gate makes no query
+    // and the QC gate opens no image. Saying PASS and disclaiming it in the same
+    // line puts the disclaimer where nobody reads it twice.
+    expect(r.stdout).toMatch(/GATE: DNS-TTL SKIPPED: mock mode/);
+    expect(r.stdout).toMatch(/GATE: QC-ABSENCE SKIPPED: mock mode/);
+    expect(r.stdout).not.toMatch(/GATE: DNS-TTL[^\n]*PASS/);
+    expect(r.stdout).not.toMatch(/GATE: QC-ABSENCE[^\n]*PASS/);
+    // And the summary has to carry that up, or the distinction dies one line
+    // before the operator reads it. This run also skips the smoke, e2e and
+    // outbox steps, so the count is of every gate that did no work, not only
+    // the two mocked ones.
+    expect(r.stdout).not.toMatch(/READY: all gates PASS/);
+    expect(r.stdout).toMatch(/READY WITH GAPS: gates PASS, but \d+ did no work/);
     // The integration / smoke / e2e suites report SKIP under --skip-tests,
     // keeping this orchestrator test hermetic; assert the claim-safety step
     // is wired and properly skip-gated.
@@ -232,5 +245,101 @@ describe('pre-cutover checklist orchestrator', () => {
     expect(r.status).not.toBe(0);
     expect(r.stdout).toMatch(/GATE: G1 FAIL/);
     expect(r.stderr).toMatch(/BLOCKED: \d+ gate\(s\) FAIL/);
+  });
+
+  // Every data gate reads one database, and which one decides whether the report
+  // is a readiness result or a rehearsal. The runbook said these gates certified
+  // production while every one of them read the operator's own build, and
+  // nothing in the output contradicted that reading.
+
+  it('names the workstation as the subject when no target is given', { timeout: 60_000 }, () => {
+    buildFixtureDb(dbPath);
+    const r = runChecklist(dbPath, snapshotDir);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toMatch(/subject: this workstation's own build/);
+    expect(r.stdout).toMatch(/NOT a deployed environment/);
+    expect(r.stdout).toContain(dbPath);
+  });
+
+  it('refuses a target it does not know', () => {
+    const r = runChecklist(dbPath, snapshotDir, ['--target', 'prod']);
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/--target must be 'staging' or 'production'/);
+  });
+
+  it('refuses to label a mocked run with an environment name', () => {
+    // The hazard is a rehearsal being pasted into a cutover log under a heading
+    // that says production. Mock mode is how a run attests to nothing, so the
+    // two must not combine.
+    const r = runChecklist(dbPath, snapshotDir, ['--target', 'production']);
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/mutually exclusive/);
+  });
+});
+
+describe('gate scripts that had no red path of their own', () => {
+  // A gate nothing has ever shown red proves only that it prints PASS. Each
+  // case here puts the exact defect the gate exists to catch into a fixture
+  // and requires the gate to catch it.
+  let workDir: string;
+  let dbPath: string;
+
+  beforeEach(() => {
+    workDir = tempDir();
+    dbPath = path.join(workDir, 'fixture.db');
+    buildFixtureDb(dbPath);
+  });
+
+  afterEach(() => {
+    fs.rmSync(workDir, { recursive: true, force: true });
+  });
+
+  function runGate(script: string, extraEnv: Record<string, string> = {}) {
+    return spawnSync('bash', [script], {
+      cwd: REPO_ROOT,
+      encoding: 'utf8',
+      env: { ...process.env, FOOTBAG_DB_PATH: dbPath, ...extraEnv },
+      ...SPAWN_GUARD,
+    });
+  }
+
+  it('the club-candidates gate fails an empty candidate table', () => {
+    const db = new BetterSqlite3(dbPath);
+    db.prepare('DELETE FROM legacy_club_candidates').run();
+    db.close();
+    const r = runGate('scripts/validate-club-candidates.sh', {
+      FOOTBAG_CLUB_ONLY_PERSONS_MIN: '0',
+    });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout).toMatch(/GATE: G7 FAIL: zero legacy_club_candidates rows/);
+  });
+
+  it('the bootstrap-leaders gate fails when no leader candidates exist', () => {
+    const db = new BetterSqlite3(dbPath);
+    db.prepare('DELETE FROM club_bootstrap_leaders').run();
+    db.close();
+    const r = runGate('scripts/validate-bootstrap-leaders.sh', {
+      FOOTBAG_BOOTSTRAP_LEADER_MIN: '1',
+    });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout).toMatch(/GATE: G8 FAIL: 0 club_bootstrap_leaders rows/);
+  });
+
+  it('the dev-shortcut audit fails a database carrying a persona-harness row', () => {
+    // A clean fixture passes first, so the red assertion below is about the
+    // planted row and not about the fixture's shape.
+    const clean = runGate('scripts/audit-dev-shortcuts.sh');
+    expect(clean.status, clean.stdout + clean.stderr).toBe(0);
+    expect(clean.stdout).toContain('OK: zero dev-shortcut rows present.');
+
+    const db = new BetterSqlite3(dbPath);
+    db.prepare(
+      `INSERT INTO audit_entries (id, created_at, created_by, occurred_at, actor_type, action_type, entity_type, entity_id)
+       VALUES ('audit-leak-1', '2026-01-01T00:00:00.000Z', 'test', '2026-01-01T00:00:00.000Z', 'system', 'testkit.persona_seed', 'member', 'member-x')`,
+    ).run();
+    db.close();
+    const r = runGate('scripts/audit-dev-shortcuts.sh');
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toMatch(/FAIL: 1 dev-shortcut row\(s\) detected/);
   });
 });

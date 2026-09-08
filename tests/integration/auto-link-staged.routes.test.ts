@@ -147,7 +147,13 @@ describe('wizard staged-candidate card', () => {
     const after = await request(createApp())
       .get('/register/wizard/legacy_claim')
       .set('Cookie', cookieFor(t.memberId));
+    // Assert the RECORD is gone, not merely the staged row's id. A resolved row
+    // can never carry its id back onto the page, so checking for that alone
+    // proves nothing: the record returning under a different card shape is
+    // exactly the defect this has to catch.
     expect(after.text).not.toContain(t.candidateId);
+    expect(after.text).not.toContain(`/history/${t.personId}/claim`);
+    expect(after.text).not.toContain(t.personId);
   });
 
   it('continuing without linking resolves every open candidate, so the completed task offers none', async () => {
@@ -185,7 +191,13 @@ describe('wizard staged-candidate card', () => {
     const after = await request(createApp())
       .get('/register/wizard/legacy_claim')
       .set('Cookie', cookieFor(t.memberId));
+    // Assert the RECORD is gone, not merely the staged row's id. A resolved row
+    // can never carry its id back onto the page, so checking for that alone
+    // proves nothing: the record returning under a different card shape is
+    // exactly the defect this has to catch.
     expect(after.text).not.toContain(t.candidateId);
+    expect(after.text).not.toContain(`/history/${t.personId}/claim`);
+    expect(after.text).not.toContain(t.personId);
   });
 
   it('continuing without the attestation resolves nothing and leaves the card open', async () => {

@@ -324,7 +324,17 @@ resource "aws_cloudwatch_metric_alarm" "replication_backlog" {
 }
 
 resource "aws_cloudwatch_metric_alarm" "cloudfront_5xx" {
-  count               = var.enable_cloudfront ? 1 : 0
+  # Conditioned off the migration-notice flag, by ruling. The 5xxErrorRate
+  # metric counts every viewer response with a 5xx status, including responses
+  # CloudFront generates itself, so the notice's own deliberate 503s hold this
+  # alarm in ALARM for the length of an open-ended window and teach the operator
+  # to ignore the channel. The freeze apply that raises the notice removes the
+  # alarm and the launch apply restores it — no declared date (mute rules need
+  # one and the cutover date is deliberately never declared) and no new
+  # resources (a composite-plus-suppressor would add two per alarm). Accepted
+  # trade-off, recorded with the ruling: during the window the alarm is absent
+  # rather than muted, and the operator is watching the origin directly.
+  count               = var.enable_cloudfront && !var.enable_cutover_notice ? 1 : 0
   alarm_name          = "${local.prefix}-cloudfront-5xx"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 2
@@ -607,7 +617,14 @@ resource "aws_cloudwatch_log_metric_filter" "login_success" {
 }
 
 resource "aws_cloudwatch_metric_alarm" "cutover_zero_logins" {
-  count               = var.enable_cutover_login_alarm ? 1 : 0
+  # Also conditioned off the notice flag, same ruling as the 5xx alarm above:
+  # while the notice is up nobody can sign in, so two hours of zero logins is
+  # the expected state, not a page. The launch apply that lifts the notice is
+  # what arms this watch at exactly the moment it becomes meaningful — the
+  # moment sign-in opens — instead of leaving it a switch somebody remembers.
+  # The arming flag still bounds the watch window itself: it goes on for the
+  # cutover and off when the watch ends.
+  count               = var.enable_cutover_login_alarm && !var.enable_cutover_notice ? 1 : 0
   alarm_name          = "${local.prefix}-cutover-zero-logins"
   comparison_operator = "LessThanOrEqualToThreshold"
   evaluation_periods  = 2

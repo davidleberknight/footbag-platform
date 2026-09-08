@@ -232,11 +232,11 @@ includes it). Review `docs/TESTING.md` for the pipeline validation gates, GO_LIV
 (private GitHub repo; skip when the private checkout is not wired) for the rollback
 posture, the operational-readiness detail and the email, DNS and cutover material, the
 maintainers' private tracker (open issues plus the Launch v1 milestone), governance docs,
-onboarding/claim and club-bootstrap stories, final-export and freeze requirements,
+onboarding/claim and club-bootstrap stories, the member-load input contract,
 archive/legacy-retention requirements.
 
-Find bugs in: source-of-truth selection; final export timing; write-freeze assumptions;
-repeated-import idempotency; validation gate coverage; rollback plan; question ownership
+Find bugs in: source-of-truth selection; whether an input that changes the loaded result
+is visible when it is missing; repeated-import idempotency; validation gate coverage; rollback plan; question ownership
 (legacy-site webmaster vs IFPA board vs maintainer); legacy account claim safety; legacy
 credential exclusion; legacy admin role migration; member tier derivation; board/committee
 derivation; old email handling; club affiliation derivation; dormant/junk club cleanup;

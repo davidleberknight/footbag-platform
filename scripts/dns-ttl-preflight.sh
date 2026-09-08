@@ -57,7 +57,11 @@ case "${PHASE}" in
 esac
 
 if [[ "${MOCK}" -eq 1 ]]; then
-  printf 'GATE: DNS-TTL PASS: mock mode (no lookup performed; proves nothing about the zone)\n'
+  # Deliberately not the word PASS. The aggregator harvests the last GATE: line
+  # for its summary, so a mock run reporting PASS puts a pass in a checklist that
+  # performed no lookup -- and the sentence disclaiming it is inside the same line
+  # nobody reads twice. SKIPPED cannot be mistaken for evidence.
+  printf 'GATE: DNS-TTL SKIPPED: mock mode (no lookup performed; proves nothing about the zone)\n'
   exit 0
 fi
 

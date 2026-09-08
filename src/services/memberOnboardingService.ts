@@ -549,9 +549,11 @@ function ensureLegacyClaimReflectsState(memberId: string): boolean {
 
 /**
  * Whether the member still lacks a legacy-account or historical-person link.
- * The claim task remains renderable after completion while either linkage is
- * missing: it is the sole claim and anchor surface, reached from the
- * profile's legacy-claim link after onboarding.
+ * A completed claim task keeps rendering while either linkage is missing, so a
+ * registrant who answered "continue without linking" can come back to it before
+ * signing up is finished. That window closes with the wizard: once onboarding
+ * completes the task is refused on every verb, and a link still wanted is asked
+ * for through the identity-link category of the contact form.
  */
 function legacyClaimLinkageIncomplete(memberId: string): boolean {
   const links = account.findLegacyAndHpIdsById.get(memberId) as

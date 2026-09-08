@@ -172,3 +172,77 @@ describe('apex redirect: what the redirect carries', () => {
     );
   });
 });
+
+// ── The cutover migration notice, compiled in ────────────────────────────────
+//
+// Terraform flips the sentinel by a literal-string substitution for the freeze
+// window; the same substitution is made here, so the artifact exercised with the
+// flag on is character-for-character what CloudFront would run. The notice lives
+// in this function and not in the planned-maintenance origin swap because only a
+// viewer-request function can decide per hostname, and the window requires
+// preview to serve the real site while www serves the notice.
+
+const SENTINEL = 'var CUTOVER_NOTICE = false';
+const SOURCE = readFileSync(FUNCTION_PATH, 'utf8');
+
+const noticeHandler = new Function(
+  `${SOURCE.replace(SENTINEL, 'var CUTOVER_NOTICE = true')}\nreturn handler;`,
+)() as typeof handler;
+
+type NoticeResponse = CloudFrontResponse & { body?: string };
+
+describe('cutover notice: the sentinel contract Terraform substitutes on', () => {
+  it('carries the sentinel exactly once, so the flip can neither miss nor double-define', () => {
+    expect(SOURCE.split(SENTINEL).length - 1).toBe(1);
+  });
+});
+
+describe('cutover notice: with the flag on', () => {
+  it('answers a page path on www with 503, the notice body, and the four headers', () => {
+    const result = noticeHandler(viewerRequest('www.footbag.org', '/events')) as NoticeResponse;
+    expect(isRedirect(result)).toBe(true);
+    expect(result.statusCode).toBe(503);
+    expect(result.body).toContain('migrating to new technology');
+    // Never cached, never indexed, honest about coming back: the notice must
+    // vanish the instant the flag lifts, and 503-with-Retry-After is what keeps
+    // search engines returning instead of deindexing the site.
+    expect(result.headers['retry-after'].value).toBe('86400');
+    expect(result.headers['cache-control'].value).toBe('no-store');
+    expect(result.headers['x-robots-tag'].value).toBe('noindex');
+    expect(result.headers['content-type'].value).toContain('text/html');
+  });
+
+  it('matches www whatever casing the viewer typed', () => {
+    const result = noticeHandler(viewerRequest('WWW.Footbag.ORG', '/x')) as NoticeResponse;
+    expect(result.statusCode).toBe(503);
+  });
+
+  it('exempts the Stripe webhook path, whose deliveries belong in the database that goes live', () => {
+    const event = viewerRequest('www.footbag.org', '/payments/webhook');
+    expect(noticeHandler(event)).toBe(event.request);
+  });
+
+  it('passes preview through to the platform, which is the reason the notice lives in this function', () => {
+    const event = viewerRequest('preview.footbag.org', '/members');
+    expect(noticeHandler(event)).toBe(event.request);
+  });
+
+  it("passes the distribution's own generated name through", () => {
+    const event = viewerRequest('d1234abcdef8.cloudfront.net', '/');
+    expect(noticeHandler(event)).toBe(event.request);
+  });
+
+  it('keeps the apex redirect, so a visitor typing the bare name meets the notice on www', () => {
+    const result = noticeHandler(viewerRequest('footbag.org', '/events', { year: { value: '2026' } }));
+    expect(isRedirect(result)).toBe(true);
+    expect((result as CloudFrontResponse).statusCode).toBe(301);
+    expect(locationOf(result)).toBe('https://www.footbag.org/events?year=2026');
+  });
+});
+
+describe('cutover notice: with the flag off, the shipped default', () => {
+  it('www serves the platform — the notice branch is dark, not merely unstyled', () => {
+    const event = viewerRequest('www.footbag.org', '/events');
+    expect(handler(event)).toBe(event.request);
+  });
+});

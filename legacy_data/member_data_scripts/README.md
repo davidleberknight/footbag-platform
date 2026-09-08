@@ -45,6 +45,20 @@ maintainers hold, as a cutover-migration step. It is not run against the
 production database after go-live. Local and CI builds run against the inert
 default columns and seeded fixtures.
 
+There is one load path, no modes, entered through `run_legacy_members.sh`; what
+a run does is decided by what is on the machine, and every run prints what it
+found. A production build (`DEPLOY_TARGET=footbag-production`) makes two private
+inputs mandatory: the recorded account rulings
+(`FOOTBAG_MEMBER_ADJUDICATIONS_DIR`, a directory in the maintainers' private
+checkout) and, at extract, the board roster (`FOOTBAG_BOARD_ROSTER`, the curated
+CSV of directors sitting at cutover with the paid tier under each seat). A
+machine without them loads anyway and says so. `FOOTBAG_CUTOVER_DATE` is
+optional and defaults to the day the run happens. The retired `--final-export`
+flag is refused by name in both the runner and the extractor rather than
+silently ignored, and nothing gates on how old the dump is — the extract prints
+the dump's date and age and the operator decides. The runner's `--help` is
+authoritative for all of it.
+
 ## Intermediate outputs
 
 The extract scripts write credential-free but PII-bearing intermediate CSVs
@@ -56,16 +70,29 @@ committed.
 
 The Goldberg member-account data family lives here:
 
+- `run_legacy_members.sh` is the entry point: it resolves the private inputs,
+  reports them, applies the refusals above, and sequences everything below.
 - `extract_legacy_members.py` / `extract_legacy_admins.py` parse the `members`
-  and admins dumps into credential-free loader-input CSVs.
+  and admins dumps into credential-free loader-input CSVs. The member extractor
+  takes `--board-roster` (passed by the runner, no environment fallback) and
+  writes the two board-at-cutover columns; a supplied roster is validated
+  against the dump — every listed account present, the underlying tier in the
+  closed set, and the roster's fingerprint matching the account facts it was
+  adjudicated on — and a failure removes the CSV rather than handing on output
+  nobody re-checked.
 - `validate_legacy_export.py` gates the export before load.
 - `reconcile_legacy_members.py` groups duplicate accounts and proposes
   account-to-person links into git-ignored review CSVs for human adjudication;
-  it never merges accounts and never writes the database.
+  it never merges accounts and never writes the database. When the recorded
+  rulings are present, its final merge consumes them (fingerprinted, failing
+  closed on drift) and refuses to build artifacts while no row carries the
+  board flag or an active Tier 1 annual, so an OR-merge cannot drop a grant.
 - `snapshot_legacy_members.py` captures the pre-load state of every row the
   member load could touch, as an audit CSV plus rollback SQL, so an applied
   load can be fully reverted.
-- `load_legacy_export.py` loads the export CSV into `legacy_members`.
+- `load_legacy_export.py` loads the export CSV into `legacy_members`, applying
+  the merge map when the rulings produced one; it reports and ignores the
+  board-at-cutover columns, which never reach the platform database.
 - `apply_reconciled_links.py` applies the reconciliation's cleared
   account-to-person links to `historical_persons.legacy_member_id` (dry-run
   by default, writing its own audit CSV and rollback SQL).
@@ -79,7 +106,8 @@ The Goldberg member-account data family lives here:
   `--all-data` build, writing their worklists under the gitignored
   `legacy_data/reports/`.
 
-The build-wrapper step that runs these as a dump-gated, warn-and-skip phase, and
-the full load design (composed birth date, email-column population, de-duplication
-against `historical_persons`, the production-DB guard), are tracked in the
+The build wrapper is `run_legacy_members.sh` above, reached from a data build
+via `scripts/deploy-local-data.sh --all-data`; the extract phase is dump-gated
+(no dump means the existing intermediate CSV is used, or the load is skipped
+with a plain message). Remaining open load-design questions live in the
 maintainers' private tracker.

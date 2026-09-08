@@ -39,6 +39,9 @@ beforeAll(async () => {
     insertMember(db, {
       id, slug: id.replace(/-/g, '_'), login_email: `${id}@example.com`,
       real_name: 'Race Token', display_name: 'Race Token',
+      // Claiming belongs to signing up: the racers are registrants still in the
+      // wizard, with personal details already on file.
+      onboarding: 'none',
     });
     insertOnboardingTask(db, id, 'personal_details', 'completed');
   }
@@ -54,6 +57,7 @@ beforeAll(async () => {
   insertMember(db, {
     id: 'race-dbl', slug: 'race_dbl', login_email: 'race-dbl@legacy.example.com',
     real_name: 'Race Double', display_name: 'Race Double',
+    onboarding: 'none',
   });
   insertOnboardingTask(db, 'race-dbl', 'personal_details', 'completed');
 

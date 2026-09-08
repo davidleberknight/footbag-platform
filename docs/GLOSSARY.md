@@ -132,6 +132,8 @@
 
 **Magic Byte Verification**: Security check that reads the first bytes of an uploaded file and confirms they match the known binary signature (magic bytes) for the declared file type (e.g., JPEG starts with FF D8 FF). Footbag.org rejects uploads whose magic bytes don't match their declared MIME type, preventing disguised executables from being processed by the Sharp image library.
 
+**Migration notice**: The small page the public footbag.org names serve during the one-time cutover window, returned as a 503 directly from the CloudFront edge function so the legacy host is untouched and the platform origin is not exposed. Distinct from the maintenance page (an S3 object served on origin failure and in deliberate post-launch windows): the notice is per-hostname, so the preview subdomain serves the real site through the same window. Go-live is the notice lifting.
+
 **Middleware**: Express function executing during request/response cycle before reaching route handlers. Footbag.org uses middleware for authentication (JWT validation), logging (request/response tracking), error handling (consistent error responses), and request parsing (JSON body parsing).
 
 **Nginx**: High-performance web server and reverse proxy. Footbag.org uses nginx container for TLS termination, static asset serving, and routing requests to Express application containers.

@@ -1157,6 +1157,18 @@ describe('both deploy paths start from an empty upload directory', () => {
       expect(wipeAt, `${file} clears the directory after uploading into it`).toBeLessThan(rsyncAt);
     },
   );
+
+  // The upload deliberately carries almost none of scripts/, because operator
+  // tooling has no business on a host. Two scripts are exceptions, and both are
+  // invoked there by name: the deploy's own snapshot hook, and the cutover
+  // marker, which the cutover runbook tells the operator to run on the host as
+  // root instead of typing the two writes it makes. A marker script that never
+  // ships turns that step into an instruction naming a path that is not there.
+  it('ships the two scripts that run on the host', () => {
+    const source = read('scripts/deploy-code.sh');
+    expect(source).toContain("--include='/scripts/backup-db.sh'");
+    expect(source).toContain("--include='/scripts/cutover-marker.sh'");
+  });
 });
 
 describe('the removed one-shot seeds stay removed', () => {

@@ -64,6 +64,9 @@ beforeAll(async () => {
   insertMember(db, {
     id: MEMBER_B, slug: 'reclaim_b', login_email: LEGACY_EMAIL,
     real_name: 'Reclaim Tester', display_name: 'Reclaim Tester',
+    // Claiming belongs to signing up, so the claimant is a registrant still in
+    // the wizard with personal details already on file.
+    onboarding: 'none',
   });
   insertOnboardingTask(db, MEMBER_B, 'personal_details', 'completed');
 
@@ -83,6 +86,7 @@ beforeAll(async () => {
   insertMember(db, {
     id: MEMBER_C, slug: 'reclaim_c', login_email: HONOREE_LEGACY_EMAIL,
     real_name: 'Honoree Tester', display_name: 'Honoree Tester',
+    onboarding: 'none',
   });
   insertOnboardingTask(db, MEMBER_C, 'personal_details', 'completed');
   db.close();

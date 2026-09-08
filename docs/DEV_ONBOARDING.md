@@ -289,7 +289,7 @@ Two real-data inputs power the full dataset, and a hello-world clone needs neith
 - the footbag.org **mirror**, reached through the gitignored `footbag_legacy_mirror` repo-root symlink (wire it with `ln -s legacy_data/legacy_mirror/mirror_footbag_org footbag_legacy_mirror` from the repo root when the crawl lives in this checkout), used to regenerate canonical event data from source (the `--soup-to-nuts` / `run_pipeline.sh full` path);
 - the **IFPA member roster** (`legacy_data/membership/inputs/membership_input_normalized.csv`), gitignored because it is a maintainer handoff no committed source can regenerate, used for the full member load. It holds member names, membership status, expiration and tier, and no email addresses or other contact data.
 
-Both are separate maintainer handoffs; request them only when you need the full data load. The committed real event data and seed CSVs are enough to run and browse the site locally.
+Both are separate maintainer handoffs; request them only when you need the full data load. The committed real event data and seed CSVs are enough to run and browse the site locally. (The legacy member load is a third, maintainer-only track with inputs of its own — the legacy database dump plus, for a production build, recorded human rulings held in the maintainers' private checkout; a machine without them loads anyway and says so. `legacy_data/member_data_scripts/README.md` covers it.)
 
 Expected result:
 

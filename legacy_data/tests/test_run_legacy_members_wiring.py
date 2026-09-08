@@ -125,25 +125,116 @@ def test_dry_run_short_circuits_before_the_honors_rerun() -> None:
 def test_final_merge_applies_the_recorded_account_rulings() -> None:
     merge_call = TEXT[TEXT.index('reconcile_legacy_members.py" --final-merge'):]
     merge_call = merge_call[:merge_call.index("LOAD_CSV=")]
-    assert "--overrides" in merge_call
-    assert "--entitlement-dispositions" in merge_call
-    assert merge_call.count("FOOTBAG_MEMBER_ADJUDICATIONS_DIR") == 2
+    assert '--overrides "${ADJ_STAGE_A}"' in merge_call
+    assert '--entitlement-dispositions "${ADJ_ENTITLEMENTS}"' in merge_call
+    # Both paths are built once, where the readiness check reads them, so the
+    # check and the call cannot disagree about which files a run actually applied.
+    assert 'ADJ_DIR="${FOOTBAG_MEMBER_ADJUDICATIONS_DIR:-}"' in TEXT
+    assert 'ADJ_STAGE_A="${ADJ_DIR}/stage_a_adjudication.csv"' in TEXT
+    assert 'ADJ_ENTITLEMENTS="${ADJ_DIR}/entitlement_dispositions.csv"' in TEXT
 
 
-def test_production_load_refuses_when_the_rulings_are_absent() -> None:
-    i_guard = TEXT.index('if [[ -z "${FOOTBAG_MEMBER_ADJUDICATIONS_DIR:-}" ]]')
+def test_production_load_refuses_when_its_inputs_are_absent() -> None:
+    # A production load is marked by the deploy target, not by a flag someone has
+    # to remember, and it refuses rather than quietly degrading to the ordinary
+    # load: a database built the lesser way is indistinguishable afterwards.
+    i_guard = TEXT.index('if [[ "${PRODUCTION_LOAD}" -eq 1 && "${ADJUDICATIONS_READY}" -eq 0 ]]')
     i_merge = TEXT.index('reconcile_legacy_members.py" --final-merge')
     assert i_guard < i_merge                      # the refusal precedes the merge
     guard = TEXT[i_guard:i_merge]
-    assert "REFUSING" in guard
+    assert "REFUSING a production load" in guard
     assert "exit 1" in guard
+    # The rulings are the one thing a human supplies, and the only thing a
+    # production load insists on. The measurement date defaults to today, so it
+    # is not a thing anyone can forget to set, and how old a dump is worth
+    # loading stays the operator's call rather than a gate.
+    assert "FOOTBAG_MEMBER_ADJUDICATIONS_DIR" in guard
+    assert 'CUTOVER_DATE="${FOOTBAG_CUTOVER_DATE:-$(date -u +%F)}"' in TEXT
+    assert "max-dump-age" not in TEXT
 
 
-def test_the_rulings_are_required_only_by_the_production_load() -> None:
+def test_the_rulings_are_applied_whenever_they_are_present() -> None:
     # Local and CI machines hold no private rulings, so an ordinary load must not
-    # depend on them: the guard and both flags sit inside the final-export block.
-    i_final_export = TEXT.index('if [[ "${FINAL_EXPORT}" -eq 1 ]]')
-    assert i_final_export < TEXT.index('if [[ -z "${FOOTBAG_MEMBER_ADJUDICATIONS_DIR:-}" ]]')
+    # depend on them; but a machine that has them applies them without being
+    # asked, because an opt-in flag is what let a development-shaped load reach
+    # production unnoticed.
+    assert 'ADJUDICATIONS_READY=1' in TEXT
+    assert TEXT.index('if [[ "${ADJUDICATIONS_READY}" -eq 1 ]]') < \
+        TEXT.index('reconcile_legacy_members.py" --final-merge')
     stage_b_call = TEXT[TEXT.index('reconcile_legacy_members.py" --stage-b'):
                         TEXT.index('reconcile_legacy_members.py" --qc-gate')]
     assert "FOOTBAG_MEMBER_ADJUDICATIONS_DIR" not in stage_b_call
+
+
+def test_the_board_roster_is_resolved_and_passed_by_the_runner() -> None:
+    # Nothing in the dump records who sits on the board, so the roster is an
+    # operator-supplied input like the rulings. It must be resolved and reported
+    # by the runner and handed to the extractor as an argument: relying on the
+    # extractor's own environment lookup makes it an input that takes effect only
+    # when a variable happens to be exported, and whose absence nothing reports.
+    assert 'BOARD_ROSTER="${FOOTBAG_BOARD_ROSTER:-}"' in TEXT
+    assert "BOARD_ROSTER_READY=1" in TEXT
+    extract_call = TEXT[TEXT.index("extract_legacy_members.py"):]
+    extract_call = extract_call[:extract_call.index("extract_legacy_admins.py")]
+    assert "--board-roster" in extract_call
+    assert "board roster:" in TEXT          # every extract run says whether it had one
+
+
+def test_production_extract_refuses_without_the_board_roster() -> None:
+    # A director loaded without the flag is an ordinary member, and the database
+    # that results looks entirely normal, so this refuses rather than degrading.
+    # Only at extraction, because that is where the flag is written into the CSV.
+    i_guard = TEXT.index('"${BOARD_ROSTER_READY}" -eq 0')
+    guard = TEXT[i_guard:TEXT.index("==> member intake:")]
+    assert "REFUSING a production extract" in guard
+    assert "FOOTBAG_BOARD_ROSTER" in guard
+    assert "exit 1" in guard
+    assert '"${DO_EXTRACT}" -eq 1' in TEXT[i_guard - 200:i_guard]
+
+
+def test_rulings_without_a_roster_are_refused_before_any_stage_runs() -> None:
+    # Supplying the rulings turns on the final merge, and that merge will not
+    # build its artifacts while no row carries the board flag. Left to itself the
+    # run walks every stage and the quality gate first and then aborts from inside
+    # the merge, naming a column instead of the file nobody set. Both doors into
+    # that dead end refuse ahead of any work: the extract that would bake a
+    # roster-less CSV, and the load handed one that was.
+    i_extract_guard = TEXT.index(
+        'if [[ "${ADJUDICATIONS_READY}" -eq 1 && "${DO_EXTRACT}" -eq 1 '
+        '&& "${BOARD_ROSTER_READY}" -eq 0 ]]')
+    assert i_extract_guard < TEXT.index("==> extract: members from the dump")
+    extract_guard = TEXT[i_extract_guard:TEXT.index("==> member intake:")]
+    assert "FOOTBAG_BOARD_ROSTER" in extract_guard
+    assert "exit 1" in extract_guard
+
+    i_csv_guard = TEXT.index('if [[ "${ADJUDICATIONS_READY}" -eq 1 && "${CSV_BOARD_ROWS}" -eq 0 ]]')
+    assert i_csv_guard < TEXT.index("==> validate export (hard gate)")
+    csv_guard = TEXT[i_csv_guard:TEXT.index("==> validate export (hard gate)")]
+    assert "REFUSING" in csv_guard
+    assert "exit 1" in csv_guard
+
+
+def test_a_load_reports_the_board_flag_from_the_csv_it_is_about_to_load() -> None:
+    # The flag was decided at extraction and is baked into the CSV, so the roster
+    # variable says nothing about a load. Reporting it from the variable would
+    # tell an operator their roster took effect on a run that never read it.
+    i_report = TEXT.index("CSV_BOARD_ROWS=")
+    assert i_report < TEXT.index("==> validate export (hard gate)")
+    assert "legacy_was_board_at_cutover" in TEXT[i_report:i_report + 600]
+    assert "board roster:" in TEXT[i_report:i_report + 900]
+
+
+def test_the_retired_mode_flag_is_refused_rather_than_ignored() -> None:
+    # A script or a note that still passes it must be corrected, not silently
+    # downgraded to a development load.
+    assert "--final-export no longer exists" in TEXT
+
+
+def test_the_help_promises_the_dump_age_only_where_a_dump_is_read() -> None:
+    # Only an extract has a dump in front of it. A promise that every run prints
+    # the dump's date and age reads as a staleness safeguard on a load that has
+    # no way to look, which is exactly the reassurance nothing gates on timing.
+    usage = TEXT[TEXT.index("DEPLOY_TARGET=footbag-production"):TEXT.index("\nUSAGE")]
+    assert "an extract\n" in usage
+    assert "prints no age" in usage
+    assert "every run" not in usage

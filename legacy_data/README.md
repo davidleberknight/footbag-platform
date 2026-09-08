@@ -30,7 +30,12 @@ required by `canonical_only` / `full` / `--soup-to-nuts`; the roster is required
 the membership-enrichment modes (`full` / `csv_only` / `enrichment_only`). Every
 other input a full run reads is committed — the curated inputs under
 `inputs/curated/`, the `overrides/`, the latest identity-lock snapshots, and the
-`seed/` CSVs — so the mirror and the roster are the only two you must supply.
+`seed/` CSVs — so for the pipeline itself the mirror and the roster are the only
+two you must supply. The member load is the separate track with more: it reads
+the legacy database dump (the `footbag_legacy_repo` repo-root symlink) and, on a
+production build, the recorded-human-decision CSVs from the maintainers' private
+checkout — see the private-inputs rows in the register below and the member-data
+scripts' own README.
 
 Run from `legacy_data/`. You need only `python3`: the pipeline creates the venv and
 installs requirements automatically on every run (every stage runs inside the venv),
@@ -101,11 +106,16 @@ steps; those, and everything under the gitignored `out/` trees, are byproducts,
 not script inputs, and are never committed. The final, useful results are
 committed as the curated, seed, and identity inputs below.
 
-**One script input is gitignored (the member roster); every other CSV a script reads is committed.**
+**Two kinds of script input are never committed: the membership roster below, and the member
+load's five recorded-human-decision CSVs, which live in the maintainers' private checkout and
+reach a run through environment variables.** Every other CSV a script reads is committed.
 
 | CSV (path / glob) | Git | Read by | What it is |
 |---|---|---|---|
 | `membership/inputs/membership_input_normalized.csv` | **gitignored** | `membership/scripts/01_build_membership_enrichment.py` (phase C) | IFPA member roster (names and membership status, no contact data); operator handoff, not regenerable |
+| `stage_a_adjudication.csv`, `entitlement_dispositions.csv` (in the directory `FOOTBAG_MEMBER_ADJUDICATIONS_DIR` names) | **private checkout, never committed here** | `member_data_scripts/run_legacy_members.sh` (which passes them to the reconciler's final merge) | recorded human rulings about which duplicate legacy accounts are the same person, and the entitlement disposition per merged set; fingerprinted, failing closed against an extract they were not adjudicated on |
+| `board_at_cutover.csv` (the file `FOOTBAG_BOARD_ROSTER` names) | **private checkout, never committed here** | `member_data_scripts/extract_legacy_members.py`, resolved and passed by the runner | the directors sitting at cutover, each with the paid tier underneath the seat; validated and fingerprinted against the dump it is applied to, same fail-closed contract as the rulings |
+| `person_link_holds.csv`, `review_resolutions.csv` (same private directory) | **private checkout, never committed here** | accepted by the reconciler; not passed by the runner today (whether the production load applies them is an open ruling in the maintainers' private tracker) | recorded holds on historical-person links, and review-outcome rulings |
 | `event_results/canonical_input/*.csv` (5 files) | committed | `reset-local-db.sh`, `run_pipeline.sh` canonical loaders | real committed competitor event data (event results and historical persons, `legacy_email` empty); the maintainer regenerates it from the mirror |
 | `seed/clubs.csv`, `seed/club_members.csv`, `seed/clubs_url_verdicts.csv` | committed | `load_clubs_seed.py`, `load_club_members_seed.py` | mirror-derived club seed (names and locations) |
 | `inputs/name_variants.csv` | committed | `load_name_variants_seed.py` | name-variant pairs (generated; only HIGH rows load) |
@@ -123,6 +133,16 @@ error before reading. `canonical_input` is committed, so it is present on every
 clone; the `reset-local-db.sh` fallback stages the synthetic fixtures only if it
 is somehow absent. The committed seed and name-variant loaders also error on a
 missing or malformed file rather than crashing opaquely.
+
+The member load's private inputs degrade by design rather than by accident. A
+machine without them loads anyway and every run says which it had. A production
+load (`DEPLOY_TARGET=footbag-production`) refuses without the rulings, and a
+production extract additionally refuses without the board roster, because the
+roster only takes effect where the flag is written into the intermediate CSV.
+Two dead ends refuse before any stage runs rather than failing late from inside
+the merge: an extract with the rulings present and no roster, and a load handed
+a CSV no roster ever touched while the rulings are present. The runner's own
+`--help` is authoritative for the variable names and what each changes.
 
 ---
 
@@ -208,6 +228,11 @@ Modes (see `scripts/deploy-local-data.sh --help` for full detail):
   the DB
 - `--db-only` delegates to `scripts/reset-local-db.sh` (fastest, skips
   phase C/D/E/F/G; see `reset-local-db.sh` warning below)
+- `--all-data` is `--from-csv` plus the legacy member intake: it invokes
+  `legacy_data/member_data_scripts/run_legacy_members.sh` (extract when the
+  dump is present, then validate + preview; a real apply is opt-in via
+  `--apply-members`). The rebuild path for a database that must carry member
+  data, which `--from-csv` leaves empty
 - `--dry-run` prints what each mode would run
 
 #### `scripts/deploy-to-aws.sh`
@@ -221,6 +246,9 @@ acting (rebuild local DB, replace staging DB, wipe S3).
 Modes (mutually exclusive; default = no flag = code-only):
 - `-r, --reuse-local-db` ships current `database/footbag.db` as-is
 - `-k, --keep-staging-db` doesn't touch the staging DB; code + media still ship
+- `--all-data` rebuilds with the member intake applied
+  (`deploy-local-data.sh --all-data --apply-members`) and ships the result;
+  the full migration-load shape, and the only mode that runs the member load
 
 Modifiers:
 - `-y, --yes` accepts every destructive prompt as default-yes (CI)
@@ -373,6 +401,18 @@ Each skipped video keeps its original URL in the mirror and is recorded
 videos during the crawl, or run `--video-backfill` afterward to fetch the
 recorded videos and repair their referring pages from that manifest.
 
+### The member-data scripts
+
+`legacy_data/member_data_scripts/` is the legacy member load: one path with no
+modes, entered through `run_legacy_members.sh` (`--extract` from the dump,
+`--load` / `--from-csv` through the Stage A/B reconciliation and the QC gate,
+`--apply` to write, read-only otherwise). What a run does is decided by what is
+on the machine — the dump, and on a production build the private
+recorded-human-decision inputs in the register above — and every run prints what
+it found. The scripts' own `README.md` in that directory is the catalog for the
+family (extractor, admin and honors backfills, reconciler, loader, link
+applier, snapshot and reports); it is deliberately not repeated here.
+
 ### Not catalogued
 
 One-shot patch scripts under `legacy_data/tools/patch_*.py`, audit and
@@ -458,6 +498,7 @@ bash deploy_to_aws.sh -k                            # explicit code-only; stagin
 bash deploy_to_aws.sh -r                            # ship current local DB as-is
 bash deploy_to_aws.sh --from-csv                    # rebuild local DB from committed CSVs (+ operator roster), replace staging
 bash deploy_to_aws.sh --soup-to-nuts                # regenerate from legacy mirror, then ship
+bash deploy_to_aws.sh --all-data                    # the same as --from-csv, plus the member intake applied
 bash deploy_to_aws.sh -y                            # accept defaults non-interactively (CI)
 bash deploy_to_aws.sh -n                            # dry run
 bash deploy_to_aws.sh -ryW                          # combined: reuse, yes, no S3 wipe

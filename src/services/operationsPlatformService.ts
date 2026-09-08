@@ -600,15 +600,16 @@ export class OperationsPlatformService {
   }
 
   /**
-   * SYS_Batch_Auto_Link cutover job (stage-and-confirm). Scans every Tier 0
+   * SYS_Batch_Auto_Link job (stage-and-confirm). Scans every Tier 0
    * unlinked member with a verified email and runs the auto-link classifier:
    *
    *   - high / medium → stage a candidate row in auto_link_staged_candidates
    *     plus a `legacy.auto_link_candidate_staged` audit event. NO live-table
    *     mutation, NO email. The member confirms or declines the candidate
    *     from the wizard card at next sign-in.
-   *   - low  → admin work queue (`auto_link_match`) with an `admin-alerts`
-   *     fan-out, so an administrator can resolve the case manually.
+   *   - low  → admin work queue (`auto_link_match`), silently: that task type
+   *     declares no urgent alert, so the queue is the only route and no mail
+   *     is sent. An administrator resolves the case there.
    *   - none / error → counter-only skip.
    *
    * Idempotent. Members already linked are skipped via the candidate-scan
@@ -616,7 +617,12 @@ export class OperationsPlatformService {
    * pair is a unique-constraint no-op (`skipped_already_staged`), and a pair
    * the member declined is never re-staged.
    *
-   * Designed to run once at cutover after the legacy data dump is loaded.
+   * Run against a seeded environment once its legacy data is loaded: the
+   * staging test load, whose personas wait at the wizard's claim step, so the
+   * staged rows this writes are rendered to them on the next draw. On the
+   * launched platform the wizard's claim task matches each member live as it
+   * renders, and the staged rows there come from the cross-source offer that
+   * follows a confirmed claim.
    * Wrapped by recordJobRun for `system_job_runs` lifecycle visibility.
    */
   async runBatchAutoLink(): Promise<{
@@ -660,7 +666,7 @@ export class OperationsPlatformService {
             category:   'identity',
             entityType: 'member',
             entityId:   c.id,
-            reasonText: 'Cutover batch auto-link: classifying a candidate threw',
+            reasonText: 'Batch auto-link: classifying a candidate threw',
             cause:      err,
           });
           result.skipped_error += 1;
@@ -724,7 +730,7 @@ export class OperationsPlatformService {
             category:   'identity',
             entityType: 'member',
             entityId:   c.id,
-            reasonText: 'Cutover batch auto-link: staging a candidate threw',
+            reasonText: 'Batch auto-link: staging a candidate threw',
             cause:      err,
           });
           result.skipped_error += 1;

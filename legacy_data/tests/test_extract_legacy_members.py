@@ -176,12 +176,9 @@ def test_no_filtering_invalid_row_emitted(tmp_path):
     assert by_id["99999"]["real_name"] == "Junk User"
 
 
-# ── final-export freshness gate ─────────────────────────────────────────────
-# The gate asserts, at day granularity, that a final production dump was
-# captured after the declared write-freeze date: the dump-completion date is
-# not before the freeze, and no member was modified after it.
+# ── MemberModified transport ────────────────────────────────────────────────
 
-FREEZE_DATE = "2024-06-15"
+MEASURED_AT = "2024-06-15"
 
 
 def _epoch(y, mo, d, h=12):
@@ -189,9 +186,9 @@ def _epoch(y, mo, d, h=12):
     return int(datetime(y, mo, d, h, tzinfo=timezone.utc).timestamp())
 
 
-def _freshness_dump(modified_epochs, completed_on):
+def _modified_dump(modified_epochs, completed_on):
     """A minimal members dump carrying a MemberModified column and a
-    `-- Dump completed on` trailer, for exercising the freshness gate."""
+    `-- Dump completed on` trailer."""
     cols = ["MemberID", "MemberValid", "MemberModified",
             "MemberIFPATier", "MemberIFPAExpiration"]
     create = ("CREATE TABLE `members` (\n"
@@ -210,60 +207,15 @@ def _write_dump(tmp_path, sql):
     return dump, tmp_path / "export.csv"
 
 
-def test_final_export_requires_cutover_date(tmp_path):
-    sql = _freshness_dump([_epoch(2024, 6, 14)], "2024-06-16 09:00:00")
-    dump, out = _write_dump(tmp_path, sql)
-    with pytest.raises(SystemExit) as exc:
-        elm.extract(dump, out, cutover_date=None, final_export=True)
-    assert "--final-export requires --cutover-date" in str(exc.value)
-    assert not out.exists()
-
-
-def test_final_export_rejects_stale_dump(tmp_path):
-    # Dump completed 2024-06-10, before the 2024-06-15 freeze: pre-freeze/stale.
-    sql = _freshness_dump([_epoch(2024, 6, 9)], "2024-06-10 09:00:00")
-    dump, out = _write_dump(tmp_path, sql)
-    with pytest.raises(SystemExit) as exc:
-        elm.extract(dump, out, cutover_date=FREEZE_DATE, final_export=True)
-    assert "before the declared write-freeze" in str(exc.value)
-    assert not out.exists()   # aborts before writing any CSV
-
-
-def test_final_export_rejects_post_freeze_modification(tmp_path):
-    # Dump completed after the freeze, but a member was modified 2024-06-16.
-    sql = _freshness_dump(
-        [_epoch(2024, 6, 14), _epoch(2024, 6, 16)], "2024-06-17 09:00:00")
-    dump, out = _write_dump(tmp_path, sql)
-    with pytest.raises(SystemExit) as exc:
-        elm.extract(dump, out, cutover_date=FREEZE_DATE, final_export=True)
-    assert "after the declared write-freeze" in str(exc.value)
-    assert not out.exists()
-
-
-def test_final_export_passes_fresh_dump(tmp_path):
-    # Completed after the freeze; latest modification on the freeze day itself.
-    sql = _freshness_dump(
-        [_epoch(2024, 6, 14), _epoch(2024, 6, 15, h=23)], "2024-06-16 09:00:00")
-    dump, out = _write_dump(tmp_path, sql)
-    stats = elm.extract(dump, out, cutover_date=FREEZE_DATE, final_export=True)
-    fr = stats["freshness"]
-    assert fr is not None
-    assert fr["generation_source"] == "dump-completion trailer"
-    assert fr["generation_date"] == "2024-06-16"
-    assert fr["freeze_date"] == FREEZE_DATE
-    assert fr["max_member_modified_iso"].startswith("2024-06-15")
-    assert out.exists()   # extraction proceeds after the gate passes
-
-
 def test_member_modified_carried_through_to_output_raw(tmp_path):
     # The extract transports the raw MemberModified value into the
     # legacy_member_modified output column untouched -- no normalization, no
     # reinterpretation -- so the shared-email resolver parses and validates it
     # centrally downstream.
     e1, e2 = _epoch(2024, 6, 14), _epoch(2024, 6, 15, h=23)
-    sql = _freshness_dump([e1, e2], "2024-06-16 09:00:00")
+    sql = _modified_dump([e1, e2], "2024-06-16 09:00:00")
     dump, out = _write_dump(tmp_path, sql)
-    elm.extract(dump, out, cutover_date=FREEZE_DATE, final_export=True)
+    elm.extract(dump, out, cutover_date=MEASURED_AT)
     rows = list(csv.DictReader(out.open(encoding="utf-8")))
     by_id = {r["legacy_member_id"]: r for r in rows}
     assert "legacy_member_modified" in rows[0]          # part of the output contract
@@ -282,14 +234,33 @@ def test_dump_level_counts(tmp_path):
     }
 
 def test_board_columns_are_never_derived_from_legacy_data(tmp_path):
-    # Board / Tier 3 standing is an administrator-set flag on the live member
-    # row, not something the extractor infers. Every row carries a definite
-    # non-board flag and no underlying paid tier, whatever its IFPA tier value.
-    # The fixture spans Tier 1, Tier 2 and an absent tier code.
+    # No legacy tier value encodes governance standing, so the flag comes only
+    # from the curated roster naming the directors sitting at cutover. With no
+    # roster in front of it every row carries a definite non-board flag and no
+    # underlying paid tier, whatever its IFPA tier value. The fixture spans
+    # Tier 1, Tier 2 and an absent tier code.
     _, rows, _, _ = _run(tmp_path)
     for r in rows:
         assert r["legacy_was_board_at_cutover"] == "0"
         assert r["legacy_board_underlying_paid_tier"] == ""
+
+
+def test_the_retired_mode_flag_is_refused_by_name(monkeypatch, tmp_path):
+    # A script or a note that still passes it must be told what replaced it.
+    # Left to argparse the answer is "unrecognized arguments", which says the
+    # flag is unknown and nothing about the inputs that took over its job.
+    monkeypatch.setattr(
+        "sys.argv",
+        ["extract_legacy_members.py", "--final-export",
+         "--members-sql", str(tmp_path / "members.sql"),
+         "--out", str(tmp_path / "out.csv")],
+    )
+    with pytest.raises(SystemExit) as excinfo:
+        elm.main()
+    message = str(excinfo.value)
+    assert "--final-export no longer exists" in message
+    assert "--cutover-date" in message
+    assert "--board-roster" in message
 
 
 def test_derive_ever_paid_tier2():
@@ -381,6 +352,7 @@ def test_tier_flags_without_cutover_date(tmp_path):
         "legacy_ever_paid_tier2": 4,
         "legacy_ever_paid_tier1_lifetime": 4,
         "legacy_tier1_annual_active_at_cutover": 0,
+        "legacy_was_board_at_cutover": 0,
     }
 
 
@@ -409,6 +381,8 @@ def test_tier_flags_with_cutover_date(tmp_path):
         "legacy_ever_paid_tier2": 4,
         "legacy_ever_paid_tier1_lifetime": 4,
         "legacy_tier1_annual_active_at_cutover": 2,
+        # No roster supplied here: the dump carries no board data of its own.
+        "legacy_was_board_at_cutover": 0,
     }
 
 
@@ -626,3 +600,153 @@ def test_recovered_spelling_comes_verbatim_from_the_companion():
     assert value is not None
     assert value == companion
     assert how == elm.SELECTED_UNDAMAGED
+
+
+def _board_roster(tmp_path, dump, out, tiers, fingerprint=None, name="board.csv"):
+    """A roster for the given ids, fingerprinted against this dump's own facts.
+
+    The fingerprint binds the roster to the account facts it was adjudicated
+    against, so building one means reading those facts back off an extract —
+    which is how an operator writes a real roster too. `fingerprint` overrides
+    the computed value, for the case where a roster has gone stale.
+    """
+    import stage_a_overrides  # the extractor puts its own directory on sys.path
+
+    elm.extract(dump, out, cutover_date=CUTOVER_DATE)
+    by_id = {r["legacy_member_id"]: r
+             for r in csv.DictReader(out.open(encoding="utf-8"))}
+    if fingerprint is None:
+        fingerprint = stage_a_overrides.board_roster_fingerprint(
+            (i, by_id[i]["real_name"], by_id[i]["birth_date"], by_id[i]["country"])
+            for i in tiers if i in by_id)
+    roster = tmp_path / name
+    lines = ["legacy_member_id,underlying_paid_tier,name,note,fingerprint"]
+    lines += [f"{i},{t},Listed Member,board at cutover,{fingerprint}"
+              for i, t in tiers.items()]
+    roster.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return roster
+
+
+def test_board_roster_flags_listed_accounts_and_carries_underlying_tier(tmp_path):
+    # The dump carries no board information at all, so board standing arrives as
+    # a curated roster keyed on the legacy account id. Both columns are
+    # grant-bearing: the final merge refuses to run while no row carries the
+    # flag, and the underlying tier is what a governance standing reverts to.
+    dump = tmp_path / "members.sql"
+    dump.write_text(FIXTURE_SQL, encoding="utf-8")
+    out = tmp_path / "export.csv"
+    roster = _board_roster(tmp_path, dump, out, {"12500": "tier2"})
+    stats = elm.extract(dump, out, cutover_date=CUTOVER_DATE, board_roster=roster)
+    by_id = {r["legacy_member_id"]: r
+             for r in csv.DictReader(out.open(encoding="utf-8"))}
+
+    assert by_id["12500"]["legacy_was_board_at_cutover"] == "1"
+    assert by_id["12500"]["legacy_board_underlying_paid_tier"] == "tier2"
+    assert by_id["12600"]["legacy_was_board_at_cutover"] == "0"
+    assert by_id["12600"]["legacy_board_underlying_paid_tier"] == ""
+    assert stats["tier_flags"]["legacy_was_board_at_cutover"] == 1
+    assert stats["board_roster_rows"] == 1
+
+
+def test_absent_board_roster_invents_no_standing(tmp_path):
+    # An absent roster leaves the flag unpopulated rather than guessing, which
+    # is what keeps the final merge's fail-closed refusal in force.
+    stats, by_id, _ = _run_with_cutover(tmp_path)
+    assert all(r["legacy_was_board_at_cutover"] == "0" for r in by_id.values())
+    assert stats["board_roster_rows"] == 0
+
+
+# A supplied roster is checked against the dump it is being applied to. Each of
+# the three ways it can be wrong grants, or fails to grant, board standing on
+# facts nobody re-checked, and none of them raises an error of its own: the
+# resulting database looks entirely normal and is wrong about the people most
+# visible in it. Every one removes the CSV, matching the tier-flag check, so no
+# later step loads output that was never validated.
+
+def test_a_roster_naming_an_absent_account_is_refused(tmp_path):
+    dump = tmp_path / "members.sql"
+    dump.write_text(FIXTURE_SQL, encoding="utf-8")
+    out = tmp_path / "export.csv"
+    roster = _board_roster(tmp_path, dump, out, {"12500": "tier2"})
+    # 88888 is in no fixture row, so the roster names somebody this dump has
+    # never heard of; the absence is what must be reported, ahead of anything
+    # the fingerprint would say about it.
+    roster.write_text(
+        roster.read_text(encoding="utf-8").replace("12500,", "88888,"),
+        encoding="utf-8")
+
+    with pytest.raises(SystemExit) as excinfo:
+        elm.extract(dump, out, cutover_date=CUTOVER_DATE, board_roster=roster)
+    message = str(excinfo.value)
+    assert "does not carry" in message
+    assert "88888" in message
+    assert not out.exists()
+
+
+def test_a_roster_with_an_unrecognised_underlying_tier_is_refused(tmp_path):
+    dump = tmp_path / "members.sql"
+    dump.write_text(FIXTURE_SQL, encoding="utf-8")
+    out = tmp_path / "export.csv"
+    # tier3 is the governance standing itself, not something underneath it.
+    roster = _board_roster(tmp_path, dump, out, {"12500": "tier3"})
+
+    with pytest.raises(SystemExit) as excinfo:
+        elm.extract(dump, out, cutover_date=CUTOVER_DATE, board_roster=roster)
+    message = str(excinfo.value)
+    assert "unrecognised underlying tier" in message
+    assert "tier1" in message and "tier2" in message
+    assert not out.exists()
+
+
+def test_a_roster_adjudicated_against_other_facts_is_refused(tmp_path):
+    dump = tmp_path / "members.sql"
+    dump.write_text(FIXTURE_SQL, encoding="utf-8")
+    out = tmp_path / "export.csv"
+    roster = _board_roster(tmp_path, dump, out, {"12500": "tier2"},
+                           fingerprint="0" * 64)
+
+    with pytest.raises(SystemExit) as excinfo:
+        elm.extract(dump, out, cutover_date=CUTOVER_DATE, board_roster=roster)
+    message = str(excinfo.value)
+    assert "fingerprint does not match" in message
+    # The computed value is printed, so recording it costs one refused run
+    # rather than a hunt for where the digest comes from.
+    assert "computed:" in message
+    assert not out.exists()
+
+
+def test_a_roster_with_no_fingerprint_at_all_is_refused(tmp_path):
+    # The roster predates this contract, or somebody wrote one by hand. Either
+    # way it has not been adjudicated against this dump.
+    dump = tmp_path / "members.sql"
+    dump.write_text(FIXTURE_SQL, encoding="utf-8")
+    out = tmp_path / "export.csv"
+    roster = tmp_path / "board.csv"
+    roster.write_text(
+        "legacy_member_id,underlying_paid_tier,name,note\n"
+        "12500,tier2,Listed Member,board at cutover\n",
+        encoding="utf-8")
+
+    with pytest.raises(SystemExit) as excinfo:
+        elm.extract(dump, out, cutover_date=CUTOVER_DATE, board_roster=roster)
+    assert "(none recorded)" in str(excinfo.value)
+    assert not out.exists()
+
+
+def test_the_board_roster_path_has_no_environment_fallback(monkeypatch, tmp_path):
+    # The runner resolves this path, reports on every run whether it had one,
+    # and refuses a production extract without it. An environment fallback here
+    # would let a direct invocation pick up a roster nobody reported, or miss
+    # one because of a typo nothing reads back.
+    monkeypatch.setenv("FOOTBAG_BOARD_ROSTER", str(tmp_path / "unread.csv"))
+    monkeypatch.setattr(
+        "sys.argv",
+        ["extract_legacy_members.py",
+         "--members-sql", str(tmp_path / "absent.sql"),
+         "--out", str(tmp_path / "out.csv")],
+    )
+    with pytest.raises(SystemExit) as excinfo:
+        elm.main()
+    # It gets as far as the missing dump, which means it never resolved a roster
+    # from the environment on the way there.
+    assert "members dump not found" in str(excinfo.value)

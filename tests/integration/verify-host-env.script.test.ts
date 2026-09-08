@@ -464,6 +464,62 @@ describe('verify-host-env.sh — CLI / fixture errors', () => {
     expect(`${result.stdout}${result.stderr}`).not.toMatch(/wrong host/);
   });
 
+  // The cutover window is the one state where the canonical base address is
+  // deliberately not platform_url: www serves the migration notice and preview
+  // is the only public name reaching the platform. Three-way contract, because
+  // accepting the preview form unconditionally would let a host stay on it
+  // after launch — silently building every link and mail link against a name
+  // the operator intends to remove.
+
+  it('accepts the preview form while the notice flag is compiled in', () => {
+    const envFilePath = writeEnvFile(
+      mutate(/^PUBLIC_BASE_URL=.*$/m, 'PUBLIC_BASE_URL=https://preview.footbag.org'),
+    );
+    const result = runScript({
+      envFilePath,
+      extraEnv: {
+        TF_PLATFORM_URL: 'https://www.footbag.org',
+        TF_PREVIEW_URL: 'https://preview.footbag.org',
+        TF_NOTICE_ENABLED: 'true',
+      },
+    });
+    expect(`${result.stdout}${result.stderr}`).toMatch(/cutover window/);
+    expect(`${result.stdout}${result.stderr}`).not.toMatch(/wrong host/);
+  });
+
+  it('rejects the preview form once the notice has lifted, and says the window is over', () => {
+    const envFilePath = writeEnvFile(
+      mutate(/^PUBLIC_BASE_URL=.*$/m, 'PUBLIC_BASE_URL=https://preview.footbag.org'),
+    );
+    const result = runScript({
+      envFilePath,
+      extraEnv: {
+        TF_PLATFORM_URL: 'https://www.footbag.org',
+        TF_PREVIEW_URL: 'https://preview.footbag.org',
+        TF_NOTICE_ENABLED: 'false',
+      },
+    });
+    expect(result.exitCode).not.toBe(0);
+    expect(`${result.stdout}${result.stderr}`).toMatch(/the window is over/);
+  });
+
+  it('still rejects an unrelated wrong host during the window', () => {
+    // The window relaxes the check for exactly one value, not for any value.
+    const envFilePath = writeEnvFile(
+      mutate(/^PUBLIC_BASE_URL=.*$/m, 'PUBLIC_BASE_URL=https://footbag.org'),
+    );
+    const result = runScript({
+      envFilePath,
+      extraEnv: {
+        TF_PLATFORM_URL: 'https://www.footbag.org',
+        TF_PREVIEW_URL: 'https://preview.footbag.org',
+        TF_NOTICE_ENABLED: 'true',
+      },
+    });
+    expect(result.exitCode).not.toBe(0);
+    expect(`${result.stdout}${result.stderr}`).toMatch(/wrong host/);
+  });
+
   it('--env-file path does not exist → exit 2', () => {
     const result = spawnSync(
       'bash',

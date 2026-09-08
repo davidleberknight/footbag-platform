@@ -348,7 +348,7 @@ Handles HTTP request/response cycle. Parses and validates input using Zod schema
 
 **Controller Pipeline for Form Submissions:**
 
-Controllers validate authentication/authorization and enforce HTTP verb discipline (no mutations on GET). State-changing requests are permitted only when authorized. If the origin is unavailable or returning 5xx errors, CloudFront serves the maintenance page (normal ↔ maintenance is the only operational state).
+Controllers validate authentication/authorization and enforce HTTP verb discipline (no mutations on GET). State-changing requests are permitted only when authorized. If the origin is unavailable or returning 5xx errors, CloudFront serves the maintenance page. Operational states are normal, maintenance, and the one-time cutover window, where the public names serve the migration notice from the CloudFront edge function while the preview hostname serves the real site (the DNS Cutover decision in DESIGN_DECISIONS).
 
 **Response Format Negotiation:**
 

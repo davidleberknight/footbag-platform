@@ -1720,6 +1720,7 @@ CREATE UNIQUE INDEX ux_recon_outstanding_dedup ON reconciliation_issues(
 --   honor.bap_tier2_grant        Big Add Posse induction grants Tier 2
 --   governance.tier3_set         Tier 3 governance assigned
 --   governance.tier3_removed     Tier 3 governance removed (reverts to underlying tier)
+--   admin.role_grant_tier2       Admin role granted; the role's Tier 2 invariant applied
 --   admin.override               Admin manual change (correction, exceptional remediation)
 --   admin.correction             Admin correction of a prior data error
 --   legacy.claim_tier_grant      Legacy migration claim resolved to a tier assignment
@@ -4545,10 +4546,11 @@ CREATE UNIQUE INDEX ux_legacy_members_legacy_user_id
   ON legacy_members(legacy_user_id)
   WHERE legacy_user_id IS NOT NULL;
 
--- Migration-only staging table: batch auto-link candidate matches. The batch
--- pass (and future registration-time passes) stage candidates here without
--- mutating live tables or sending mail; the onboarding wizard reads open rows
--- and the member confirms or declines. Confirmation runs the ordinary claim
+-- Migration-only staging table: auto-link candidate matches held for the
+-- member to answer. On a live platform the rows come from the cross-source
+-- offer that follows a confirmed claim; on a seeded test load the batch pass
+-- stages them too. Neither mutates live tables or sends mail; the onboarding
+-- wizard reads open rows and the member confirms or declines. Confirmation runs the ordinary claim
 -- transaction; nothing applies without member action. May be dropped after
 -- every staged row reaches a terminal state (confirmed, declined, expired).
 CREATE TABLE auto_link_staged_candidates (

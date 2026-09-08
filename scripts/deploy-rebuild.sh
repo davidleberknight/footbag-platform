@@ -301,6 +301,7 @@ RSYNC_INCLUDES=(
   --include='/ops/***'
   --include='/scripts/'
   --include='/scripts/backup-db.sh'
+  --include='/scripts/cutover-marker.sh'
   --include='/package.json'
   --include='/package-lock.json'
   --include='/tsconfig.json'

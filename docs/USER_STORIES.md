@@ -950,7 +950,7 @@ Match confidence bands:
 
 Card-at-login confirmation:
 
-- The wizard's universal claim task surfaces any candidates the platform staged for this member (via batch auto-link at cutover) or matched at sign-in. Each candidate appears as a card showing the legacy display name, country, year of first competition (if available), and the evidence anchor(s) the platform used to find it. The card never echoes the matched email or other anchor inputs.
+- The wizard's universal claim task surfaces any candidates the platform staged for this member (the cross-source offer that follows a confirmed claim, or the seeded-environment rehearsal pass) or matched when the task renders. Each candidate appears as a card showing the legacy display name, country, year of first competition (if available), and the evidence anchor(s) the platform used to find it. The card never echoes the matched email or other anchor inputs.
 - The member can Confirm or Decline each card. The wizard presents every outstanding card together, so a member who is unsure about one resolves the others and comes back to it.
 - Confirmation applies effects atomically: writes `members.legacy_member_id` and / or `members.historical_person_id`; marks the legacy row claimed (`claimed_by_member_id` + `claimed_at`); merges allowed profile fields, filling only where the member's own value is empty and taking the curated historical record ahead of the legacy dump wherever both carry a value; applies `first_competition_year` via COALESCE; writes a single tier grant per the tier-grant mapping in this story; preserves the `legacy_members` row as the permanent archival record. The audit row records the evidence-strength tag. Club affiliations and leadership are confirmed in the wizard's own club task, which asks the member about each candidate club, so those writes belong to that task's transactions.
 - Confirmation is race-safe: when two members confirm the same legacy account or the same historical person concurrently, exactly one claim lands; the other member sees the same "already claimed by another member" response the synchronous already-claimed check renders, and no partial effects (tier grant included) persist.
@@ -3507,7 +3507,7 @@ Story: As an admin, I can grant or revoke admin privileges so that I manage the 
 Success Criteria:
 
 - Admin can select member and grant/revoke admin role.
-- Granting admin requires: member has Tier 2 or Tier 3 status, confirmation dialog, mandatory reason.
+- Granting admin requires a confirmation dialog and a mandatory reason. Tier 2 is an invariant of the role rather than a precondition on the person: a target holding less is granted Tier 2 in the same transaction, by the same rule the bootstrap paths apply, and a target already at Tier 2 or Tier 3 keeps the tier they hold. The audit row for the grant records the tier movement.
 - Revoking admin requires: confirmation dialog, mandatory reason.
 - Admin cannot revoke their own admin status (ensures there is always at least one admin).
 - All role changes send email notification to affected member.
@@ -3856,16 +3856,18 @@ Success Criteria:
 
 ### SYS_Batch_Auto_Link
 
-Access: Operator-run cutover job under the system role.
+Access: Operator-run job under the system role, run against a seeded environment.
 
-Story: The system stages auto-link candidates for every unlinked member after a legacy data import, so that members who registered before their legacy data arrived get the same confirm-a-card claim experience as members who register after it.
+Story: The system stages auto-link candidates for every unlinked member in a seeded environment, so that the whole stage-and-confirm claim path is rehearsed against the test personas before the platform opens to members.
 
 Success Criteria:
 
-- The job evaluates every member without a linked legacy account or historical person against the imported legacy data, using the same classifier and evidence rules as sign-in matching (per M_Claim_Legacy_Account).
+- The job evaluates every member without a linked legacy account or historical person against the imported legacy data, using the same classifier and evidence rules as the wizard's claim task (per M_Claim_Legacy_Account).
 - It only stages candidates for members to confirm later in the wizard's claim task: it mutates no live identity tables and sends no email.
 - Re-running the job stages no duplicate candidate for the same member/target pair, and a candidate the member declined is not re-staged without new signal.
 - Each staged candidate carries its staged audit event, and the run is recorded with its status and counts so an operator can see when it ran and what it did.
+- Its environment is the seeded test load. Every account on the launched platform is created after launch and is matched live by the wizard's claim task as that task renders, so the job's subjects are the seeded personas waiting at the claim step with a graded match behind them. A run there exercises staged-card rendering, the re-run guard, the staged audit event, and the low-confidence route into the administrator work queue.
+- A run against production is refused rather than merely unnecessary: it reports the refusal as an error, stages nothing, and records no run. On the real database every member has finished signing up, and the wizard is the only surface that renders a staged suggestion, so a row staged there could be shown to nobody and resolved by nobody.
 
 ### SYS_Staged_Candidate_Expiry
 

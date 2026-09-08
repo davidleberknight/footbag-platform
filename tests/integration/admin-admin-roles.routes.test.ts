@@ -76,6 +76,12 @@ function readMember(id: string): { is_admin: number } {
   db.close();
   return row;
 }
+function readTier(id: string): string | undefined {
+  const db = new BetterSqlite3(dbPath);
+  const row = db.prepare(`SELECT tier_status FROM member_tier_current WHERE member_id = ?`).get(id) as { tier_status: string } | undefined;
+  db.close();
+  return row?.tier_status;
+}
 function readSubStatus(memberId: string, list: string): string | undefined {
   const db = new BetterSqlite3(dbPath);
   const row = db.prepare(`SELECT status FROM mailing_list_subscriptions WHERE member_id = ? AND mailing_list_id = ?`).get(memberId, list) as { status: string } | undefined;
@@ -163,15 +169,44 @@ describe('POST /admin/admin-roles/grant', () => {
     expect(readMember(T2_ID).is_admin).toBe(0);
   });
 
-  it('rejects granting a member below Tier 2 → 422, no change', async () => {
-    const res = await request(createApp())
+  it('granting a member below Tier 2 applies the tier the role requires', async () => {
+    // Tier 2 is an invariant of the admin role, established by the grant, not a
+    // precondition the target has to arrive holding. Refusing here would send an
+    // administrator to the tier-override surface to enable a grant the platform
+    // is about to make anyway.
+    const preview = await request(createApp())
       .post('/admin/admin-roles/grant')
       .set('Cookie', adminCookie())
       .type('form')
-      .send({ member_key: T1_SLUG, reason: 'Should fail.' });
-    expect(res.status).toBe(422);
+      .send({ member_key: T1_SLUG, reason: 'Joining the admin team.' });
+    expect(preview.status).toBe(200);
     expect(readMember(T1_ID).is_admin).toBe(0);
-    expect(countAudit('admin.role_granted', T1_ID)).toBe(0);
+    expect(readTier(T1_ID)).toBe('tier1');
+
+    const res = await request(createApp())
+      .post('/admin/admin-roles/grant/confirm')
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ member_key: T1_SLUG, reason: 'Joining the admin team.' });
+    expect(res.status).toBe(303);
+    expect(readMember(T1_ID).is_admin).toBe(1);
+    expect(readTier(T1_ID)).toBe('tier2');
+    expect(countAudit('admin.role_granted', T1_ID)).toBe(1);
+    // One event, one row: the tier movement rides the grant's own audit row
+    // rather than a second row claiming to be a bootstrap.
+    expect(countAudit('admin.bootstrap_grant', T1_ID)).toBe(0);
+    expect(readSubStatus(T1_ID, 'admin-alerts')).toBe('subscribed');
+  });
+
+  it('granting a member who already holds Tier 2 leaves their tier alone', async () => {
+    await request(createApp())
+      .post('/admin/admin-roles/grant/confirm')
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ member_key: T2_SLUG, reason: 'Joining the admin team.' });
+    expect(readMember(T2_ID).is_admin).toBe(1);
+    expect(readTier(T2_ID)).toBe('tier2');
+    expect(countAudit('admin.bootstrap_grant', T2_ID)).toBe(0);
   });
 
   it('rejects granting a member who is already an admin → 422', async () => {
