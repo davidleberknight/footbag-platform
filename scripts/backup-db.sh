@@ -9,25 +9,25 @@
 # fails three times in a row so a persistently failing backup surfaces even
 # while older snapshots keep the age metric healthy).
 #
-# Retention tiers. Every run writes routine/, which the bucket lifecycle keeps
+# Retention generations. Every run writes routine/, which the bucket lifecycle keeps
 # for two days. The first run of each hour is additionally copied to hourly/ and
 # the first run of each day to daily/, so the history thins with age: fine grain
 # for the last two days, hourly for a month, daily for just over a year. The
 # copies are server-side, so a promotion moves no bytes out of S3. Without the
-# tiers the stream is roughly a hundred gigabytes of near-identical full copies
+# generations the stream is roughly a hundred gigabytes of near-identical full copies
 # at any moment and still falls off a cliff at the routine window, which is the
 # wrong shape both ways: nobody needs six-minute precision three weeks back, and
 # a corruption found after the window has nothing to restore from at all.
 #
 # "First of the window" is decided by asking S3 whether that window already
 # holds a point, so a missed or failed promotion simply happens on the next run
-# instead of losing the tier. A promotion that fails raises
+# instead of losing the generation. A promotion that fails raises
 # BackupPromotionFailures but never fails the run: the snapshot itself is
 # already safe, and failing here would raise the consecutive-failure alarm for
 # something the alarm does not mean.
 #
 # Cross-region DR copies ride the bucket's S3 replication, which is scoped to
-# the promoted tiers: the off-region copy carries hourly and daily points, not
+# the promoted generations: the off-region copy carries hourly and daily points, not
 # the six-minute stream. Losing the region therefore costs up to an hour rather
 # than up to six minutes, which is the accepted trade for the transfer cost of
 # replicating every snapshot. The pre-cutover snapshot script uploads its own
@@ -143,19 +143,19 @@ fi
 echo "${NOW_EPOCH}" > "${STATE_FILE}"
 put_metric BackupAgeMinutes "${AGE_MINUTES}"
 
-# 5. Retention tiers. Copy this snapshot into hourly/ and daily/ when it is the
+# 5. Retention generations. Copy this snapshot into hourly/ and daily/ when it is the
 #    first of its window. The probe asks S3 rather than keeping local state, so
 #    a host rebuild, a clock step, or a skipped run cannot leave a window
 #    permanently unfilled: the next run in that window promotes instead.
 promotion_failed=0
 
 maybe_promote() {
-  local probe_prefix="$1" dest_key="$2" tier="$3" found
+  local probe_prefix="$1" dest_key="$2" generation="$3" found
   found=$(aws s3api list-objects-v2 --bucket "${BACKUP_S3_BUCKET}" \
             --prefix "${probe_prefix}" --max-keys 1 \
             --query 'length(Contents || `[]`)' --output text 2>/dev/null)
   if [[ -z "${found}" ]]; then
-    echo "backup-db: ${tier} retention probe failed; run left unpromoted" >&2
+    echo "backup-db: ${generation} retention probe failed; run left unpromoted" >&2
     promotion_failed=1
     return
   fi
@@ -178,7 +178,7 @@ maybe_promote() {
        --key "${dest_key}" --output text >/dev/null; then
     echo "backup-db: promoted to ${dest_key}"
   else
-    echo "backup-db: ${tier} promotion failed for ${dest_key}" >&2
+    echo "backup-db: ${generation} promotion failed for ${dest_key}" >&2
     promotion_failed=1
   fi
 }

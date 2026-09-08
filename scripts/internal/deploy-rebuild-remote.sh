@@ -500,9 +500,10 @@ unset ORIGIN_VERIFY_SECRET_VAL
 
 # Sync SESSION_SECRET from SSM to /srv/footbag/env. Mirrors the
 # X_ORIGIN_VERIFY_SECRET pattern above: the canonical value is generated
-# by random_id.session_secret in terraform/{env}/ssm.tf; this fetch
-# keeps the host env in sync after a `terraform apply
-# -replace=random_id.session_secret`. SESSION_SECRET rotation invalidates
+# by the SSM parameter itself: terraform/{env}/ssm.tf declares the shell with
+# a placeholder and ignore_changes, and scripts/provision-ssm-secret.sh writes
+# the real value out of band so it never enters Terraform state. This fetch
+# keeps the host env in sync after a fresh `store`. Rotation invalidates
 # every active session (cookie signatures fail under the new secret).
 # IAM: same as X_ORIGIN_VERIFY_SECRET; app_runtime holds ssm:GetParameter
 # on /footbag/{env}/* and kms:Decrypt on the main key.
@@ -532,7 +533,7 @@ if [[ "$SESSION_SECRET_VAL" == *'#'* ]]; then
   exit 1
 fi
 if [[ "${SESSION_SECRET_VAL,,}" == *changeme* ]]; then
-  echo "ERROR: SSM $ssm_session_param contains 'changeme'; generate a fresh value via terraform apply -replace=random_id.session_secret." >&2
+  echo "ERROR: SSM $ssm_session_param contains 'changeme'; write a fresh value via scripts/provision-ssm-secret.sh --secret session_secret store." >&2
   exit 1
 fi
 if (( ${#SESSION_SECRET_VAL} < 32 )); then

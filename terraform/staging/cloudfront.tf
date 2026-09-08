@@ -354,6 +354,93 @@ resource "aws_s3_bucket_lifecycle_configuration" "platform_logs" {
   }
 }
 
+# Mirrors production. This bucket had no Terraform policy and a live one the
+# log-delivery service wrote for itself; an aws_s3_bucket_policy replaces that
+# wholesale, so the delivery statements are reproduced here or delivery stops
+# silently. Copied from the archive log bucket, which has always been managed.
+data "aws_iam_policy_document" "platform_logs" {
+  count = var.enable_cloudfront ? 1 : 0
+
+  statement {
+    sid    = "DenyPlaintextAccess"
+    effect = "Deny"
+    principals {
+      type        = "AWS"
+      identifiers = ["*"]
+    }
+    actions = ["s3:*"]
+    resources = [
+      aws_s3_bucket.platform_logs[0].arn,
+      "${aws_s3_bucket.platform_logs[0].arn}/*",
+    ]
+    condition {
+      test     = "Bool"
+      variable = "aws:SecureTransport"
+      values   = ["false"]
+    }
+  }
+
+  statement {
+    sid       = "AWSLogDeliveryWrite"
+    effect    = "Allow"
+    actions   = ["s3:PutObject"]
+    resources = ["${aws_s3_bucket.platform_logs[0].arn}/AWSLogs/${var.aws_account_id}/*"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["delivery.logs.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "s3:x-amz-acl"
+      values   = ["bucket-owner-full-control"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceAccount"
+      values   = [var.aws_account_id]
+    }
+
+    condition {
+      test     = "ArnLike"
+      variable = "aws:SourceArn"
+      values   = ["arn:aws:logs:us-east-1:${var.aws_account_id}:delivery-source:*"]
+    }
+  }
+
+  statement {
+    sid       = "AWSLogDeliveryAclCheck"
+    effect    = "Allow"
+    actions   = ["s3:GetBucketAcl", "s3:ListBucket"]
+    resources = [aws_s3_bucket.platform_logs[0].arn]
+
+    principals {
+      type        = "Service"
+      identifiers = ["delivery.logs.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceAccount"
+      values   = [var.aws_account_id]
+    }
+
+    condition {
+      test     = "ArnLike"
+      variable = "aws:SourceArn"
+      values   = ["arn:aws:logs:us-east-1:${var.aws_account_id}:delivery-source:*"]
+    }
+  }
+}
+
+resource "aws_s3_bucket_policy" "platform_logs" {
+  count  = var.enable_cloudfront ? 1 : 0
+  bucket = aws_s3_bucket.platform_logs[0].id
+  policy = data.aws_iam_policy_document.platform_logs[0].json
+}
+
 # The log-delivery service rather than the in-distribution `logging_config`
 # block, which would require re-enabling S3 ACLs on the log bucket; every bucket
 # in this tree keeps ACLs disabled. CloudFront log delivery is configured out of

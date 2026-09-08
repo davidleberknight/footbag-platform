@@ -84,31 +84,63 @@ resource "aws_s3_bucket_lifecycle_configuration" "media" {
 # distribution. The web role (app_runtime, declared in iam.tf) holds
 # Put/Delete/Head only; CloudFront-OAC is the sole read path for clients.
 
+# The document and its policy are ungated even though the OAC statement inside
+# is not. They used to carry the CloudFront gate themselves, which would now
+# mean the deny-plaintext statement below vanished on any tree with the
+# distribution turned off — the first-apply bootstrap state, exactly when a
+# bucket is newest and least watched. The gate belongs on the one statement that
+# needs it.
 data "aws_iam_policy_document" "media_cloudfront_oac" {
-  count = var.enable_cloudfront ? 1 : 0
+  # Refusing plaintext costs nothing here: CloudFront reaches an OAC origin over
+  # HTTPS whenever signing_behavior is "always", which every origin access
+  # control in this tree sets, and the runtime role uses the SDK. That makes the
+  # signing behaviour load-bearing rather than merely conventional: downgrading
+  # any OAC to "never" would move the edge onto the viewer protocol and start
+  # taking 403s from here.
   statement {
-    sid       = "AllowCloudFrontServicePrincipalRead"
-    effect    = "Allow"
-    actions   = ["s3:GetObject"]
-    resources = ["${aws_s3_bucket.media.arn}/*"]
-
+    sid    = "DenyPlaintextAccess"
+    effect = "Deny"
     principals {
-      type        = "Service"
-      identifiers = ["cloudfront.amazonaws.com"]
+      type        = "AWS"
+      identifiers = ["*"]
     }
-
+    actions = ["s3:*"]
+    resources = [
+      aws_s3_bucket.media.arn,
+      "${aws_s3_bucket.media.arn}/*",
+    ]
     condition {
-      test     = "StringEquals"
-      variable = "AWS:SourceArn"
-      values   = [aws_cloudfront_distribution.main[0].arn]
+      test     = "Bool"
+      variable = "aws:SecureTransport"
+      values   = ["false"]
+    }
+  }
+
+  dynamic "statement" {
+    for_each = var.enable_cloudfront ? [1] : []
+    content {
+      sid       = "AllowCloudFrontServicePrincipalRead"
+      effect    = "Allow"
+      actions   = ["s3:GetObject"]
+      resources = ["${aws_s3_bucket.media.arn}/*"]
+
+      principals {
+        type        = "Service"
+        identifiers = ["cloudfront.amazonaws.com"]
+      }
+
+      condition {
+        test     = "StringEquals"
+        variable = "AWS:SourceArn"
+        values   = [aws_cloudfront_distribution.main[0].arn]
+      }
     }
   }
 }
 
 resource "aws_s3_bucket_policy" "media" {
-  count  = var.enable_cloudfront ? 1 : 0
   bucket = aws_s3_bucket.media.id
-  policy = data.aws_iam_policy_document.media_cloudfront_oac[0].json
+  policy = data.aws_iam_policy_document.media_cloudfront_oac.json
 }
 
 # ── Media DR (cross-region replication target, us-west-2) ────────────────────
@@ -147,6 +179,37 @@ resource "aws_s3_bucket_public_access_block" "media_dr" {
   block_public_policy     = true
   ignore_public_acls      = true
   restrict_public_buckets = true
+}
+
+# Deny-only policy. Nothing else grants on this bucket: replication writes
+# through the replication role's own IAM, which is an S3-internal TLS path, and
+# no client reads it directly. Adding a deny where no allow exists cannot
+# subtract anything.
+data "aws_iam_policy_document" "media_dr" {
+  statement {
+    sid    = "DenyPlaintextAccess"
+    effect = "Deny"
+    principals {
+      type        = "AWS"
+      identifiers = ["*"]
+    }
+    actions = ["s3:*"]
+    resources = [
+      aws_s3_bucket.media_dr.arn,
+      "${aws_s3_bucket.media_dr.arn}/*",
+    ]
+    condition {
+      test     = "Bool"
+      variable = "aws:SecureTransport"
+      values   = ["false"]
+    }
+  }
+}
+
+resource "aws_s3_bucket_policy" "media_dr" {
+  provider = aws.us_west_2
+  bucket   = aws_s3_bucket.media_dr.id
+  policy   = data.aws_iam_policy_document.media_dr.json
 }
 
 resource "aws_s3_bucket_lifecycle_configuration" "media_dr" {
@@ -261,6 +324,35 @@ resource "aws_s3_bucket_public_access_block" "snapshots" {
   restrict_public_buckets = true
 }
 
+# Deny-only policy on the bucket holding the member database. The host writes
+# and reads it through the runtime role over the SDK, and replication reads it
+# through the replication role; both are TLS. This refuses anything that is not.
+data "aws_iam_policy_document" "snapshots" {
+  statement {
+    sid    = "DenyPlaintextAccess"
+    effect = "Deny"
+    principals {
+      type        = "AWS"
+      identifiers = ["*"]
+    }
+    actions = ["s3:*"]
+    resources = [
+      aws_s3_bucket.snapshots.arn,
+      "${aws_s3_bucket.snapshots.arn}/*",
+    ]
+    condition {
+      test     = "Bool"
+      variable = "aws:SecureTransport"
+      values   = ["false"]
+    }
+  }
+}
+
+resource "aws_s3_bucket_policy" "snapshots" {
+  bucket = aws_s3_bucket.snapshots.id
+  policy = data.aws_iam_policy_document.snapshots.json
+}
+
 resource "aws_s3_bucket_lifecycle_configuration" "snapshots" {
   bucket = aws_s3_bucket.snapshots.id
   rule {
@@ -268,8 +360,13 @@ resource "aws_s3_bucket_lifecycle_configuration" "snapshots" {
     status = "Enabled"
     filter {}
     noncurrent_version_expiration { noncurrent_days = 90 }
+    # A snapshot is above the CLI's multipart threshold, so an upload killed
+    # partway leaves billable parts that no expiration rule above reaches: parts
+    # are not objects. The media and trail buckets already abort theirs; this one
+    # was the omission.
+    abort_incomplete_multipart_upload { days_after_initiation = 7 }
   }
-  # Three retention tiers, written by the backup producer. Every run lands in
+  # Three retention generations, written by the backup producer. Every run lands in
   # routine/; the first run of each hour is also copied to hourly/ and the first
   # of each day to daily/, so the history thins as it ages instead of holding
   # every full copy at full grain and then stopping dead.
@@ -369,7 +466,37 @@ resource "aws_s3_bucket_public_access_block" "dr" {
   restrict_public_buckets = true
 }
 
-# Replication carries the promoted hourly and daily tiers here, not the routine
+# Deny-only policy. Object Lock protects these copies from deletion; this
+# protects them in transit. The two are independent and a bucket policy does not
+# interact with the lock.
+data "aws_iam_policy_document" "dr" {
+  statement {
+    sid    = "DenyPlaintextAccess"
+    effect = "Deny"
+    principals {
+      type        = "AWS"
+      identifiers = ["*"]
+    }
+    actions = ["s3:*"]
+    resources = [
+      aws_s3_bucket.dr.arn,
+      "${aws_s3_bucket.dr.arn}/*",
+    ]
+    condition {
+      test     = "Bool"
+      variable = "aws:SecureTransport"
+      values   = ["false"]
+    }
+  }
+}
+
+resource "aws_s3_bucket_policy" "dr" {
+  provider = aws.us_west_2
+  bucket   = aws_s3_bucket.dr.id
+  policy   = data.aws_iam_policy_document.dr.json
+}
+
+# Replication carries the promoted hourly and daily generations here, not the routine
 # stream, so this bucket holds roughly one point an hour rather than one every
 # six minutes. Without expiry rules those still accumulate with no end, and the
 # routine rule below remains because copies replicated under the earlier
@@ -393,7 +520,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "dr" {
     expiration { days = 90 }
   }
 
-  # The hourly tier is the off-region recovery grain. 90 days rather than the
+  # The hourly generation is the off-region recovery granularity. 90 days rather than the
   # primary's 30, because Object Lock refuses a delete before the lock lapses
   # and a shorter window would only put the rule and the lock into disagreement.
   rule {
@@ -437,7 +564,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "dr" {
 }
 
 # ── Snapshots cross-region replication ───────────────────────────────────────
-# Replicates the promoted retention tiers (including delete markers) from
+# Replicates the promoted retention generations (including delete markers) from
 # snapshots (us-east-1) to dr (us-west-2) using the s3_replication IAM role
 # declared in iam.tf, at ONEZONE_IA on the destination.
 #
@@ -446,7 +573,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "dr" {
 # be thinned, because Object Lock refuses to delete anything for 90 days: the
 # transfer and the destination storage were together the largest line in the
 # backup bill, and the copy they bought was 90 days of near-identical snapshots.
-# Carrying the hourly and daily tiers instead costs about a tenth of that.
+# Carrying the hourly and daily generations instead costs about a tenth of that.
 #
 # The trade is stated plainly: losing the whole region costs up to an hour of
 # writes rather than up to six minutes. That is the rarest failure on the list
@@ -516,6 +643,21 @@ resource "aws_s3_bucket" "maintenance" {
   bucket = "${local.prefix}-maintenance"
 }
 
+# Declared rather than inherited. Objects here land encrypted either way, from
+# the S3 account-level default, but the encryption-at-rest decision says
+# Terraform sets this on each application-data bucket, and a baseline that
+# twelve buckets assert and this one inherits is a baseline with a hole in it:
+# the account default is not visible in this tree and can be changed elsewhere.
+resource "aws_s3_bucket_server_side_encryption_configuration" "maintenance" {
+  bucket = aws_s3_bucket.maintenance.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
 resource "aws_s3_bucket_public_access_block" "maintenance" {
   bucket                  = aws_s3_bucket.maintenance.id
   block_public_acls       = true
@@ -528,29 +670,51 @@ resource "aws_s3_bucket_public_access_block" "maintenance" {
 # distribution s3:GetObject scoped via aws:SourceArn so the bucket cannot be
 # read through any other CloudFront distribution.
 
+# Ungated document, gated statement, for the same reason as the media bucket
+# above: the deny must not disappear when the distribution is off.
 data "aws_iam_policy_document" "maintenance_cloudfront_oac" {
-  count = var.enable_cloudfront ? 1 : 0
   statement {
-    sid       = "AllowCloudFrontServicePrincipalRead"
-    effect    = "Allow"
-    actions   = ["s3:GetObject"]
-    resources = ["${aws_s3_bucket.maintenance.arn}/*"]
-
+    sid    = "DenyPlaintextAccess"
+    effect = "Deny"
     principals {
-      type        = "Service"
-      identifiers = ["cloudfront.amazonaws.com"]
+      type        = "AWS"
+      identifiers = ["*"]
     }
-
+    actions = ["s3:*"]
+    resources = [
+      aws_s3_bucket.maintenance.arn,
+      "${aws_s3_bucket.maintenance.arn}/*",
+    ]
     condition {
-      test     = "StringEquals"
-      variable = "AWS:SourceArn"
-      values   = [aws_cloudfront_distribution.main[0].arn]
+      test     = "Bool"
+      variable = "aws:SecureTransport"
+      values   = ["false"]
+    }
+  }
+
+  dynamic "statement" {
+    for_each = var.enable_cloudfront ? [1] : []
+    content {
+      sid       = "AllowCloudFrontServicePrincipalRead"
+      effect    = "Allow"
+      actions   = ["s3:GetObject"]
+      resources = ["${aws_s3_bucket.maintenance.arn}/*"]
+
+      principals {
+        type        = "Service"
+        identifiers = ["cloudfront.amazonaws.com"]
+      }
+
+      condition {
+        test     = "StringEquals"
+        variable = "AWS:SourceArn"
+        values   = [aws_cloudfront_distribution.main[0].arn]
+      }
     }
   }
 }
 
 resource "aws_s3_bucket_policy" "maintenance" {
-  count  = var.enable_cloudfront ? 1 : 0
   bucket = aws_s3_bucket.maintenance.id
-  policy = data.aws_iam_policy_document.maintenance_cloudfront_oac[0].json
+  policy = data.aws_iam_policy_document.maintenance_cloudfront_oac.json
 }

@@ -172,6 +172,28 @@ data "aws_iam_policy_document" "cloudtrail_bucket" {
       "${aws_s3_bucket.cloudtrail[0].arn}/*",
     ]
   }
+
+  # Plaintext is refused here as on every other bucket. CloudTrail delivers over
+  # HTTPS, so nothing legitimate is denied; what this closes is the gap between
+  # happening to use TLS and requiring it.
+  statement {
+    sid    = "DenyPlaintextAccess"
+    effect = "Deny"
+    principals {
+      type        = "AWS"
+      identifiers = ["*"]
+    }
+    actions = ["s3:*"]
+    resources = [
+      aws_s3_bucket.cloudtrail[0].arn,
+      "${aws_s3_bucket.cloudtrail[0].arn}/*",
+    ]
+    condition {
+      test     = "Bool"
+      variable = "aws:SecureTransport"
+      values   = ["false"]
+    }
+  }
 }
 
 resource "aws_s3_bucket_policy" "cloudtrail" {

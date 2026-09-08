@@ -1046,12 +1046,12 @@ function loadConfig(): AppConfig {
   if (isProd) {
     if (sessionSecret.length < 32) {
       throw new Error(
-        'SESSION_SECRET must be at least 32 characters in production. A deployed host takes this value from Parameter Store, where Terraform owns it: regenerate with `terraform apply -replace=random_id.session_secret`, then redeploy.',
+        'SESSION_SECRET must be at least 32 characters in production. A deployed host takes this value from Parameter Store, where Terraform owns the parameter but never the value: regenerate with `scripts/provision-ssm-secret.sh --env <env> --secret session_secret store`, then redeploy.',
       );
     }
     if (sessionSecret.toLowerCase().includes('changeme')) {
       throw new Error(
-        'SESSION_SECRET appears to contain the .env.example placeholder ("changeme"). A deployed host takes this value from Parameter Store, where Terraform owns it: regenerate with `terraform apply -replace=random_id.session_secret`, then redeploy.',
+        'SESSION_SECRET appears to contain the .env.example placeholder ("changeme"). A deployed host takes this value from Parameter Store, where Terraform owns the parameter but never the value: regenerate with `scripts/provision-ssm-secret.sh --env <env> --secret session_secret store`, then redeploy.',
       );
     }
   }

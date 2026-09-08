@@ -1,18 +1,18 @@
 /**
- * scripts/apply-snapshot-retention.sh -- applying the snapshot retention tiers,
- * and on production the tier-scoped cross-region replication, to one
+ * scripts/apply-snapshot-retention.sh -- applying the snapshot retention generations,
+ * and on production the generation-scoped cross-region replication, to one
  * environment.
  *
  * A real run plans and applies Terraform against a live account, which no test
  * can exercise. What is pinned here is everything that decides whether the run
  * is safe before any of that happens, and one thing above the rest: the gate
- * that refuses to apply until the promoted tiers hold history.
+ * that refuses to apply until the promoted generations hold history.
  *
  * That gate is the reason the script exists. The routine/ rule in this change
  * expires at two days, so applying it while hourly/ and daily/ are still filling
  * deletes the fine-grained stream with nothing yet written to replace it, and
  * the recovery window collapses from a month to two days while every alarm stays
- * green. A gate that can be skipped, or that passes when a tier holds a single
+ * green. A gate that can be skipped, or that passes when a generation holds a single
  * point, is the same as no gate, so both directions are asserted here.
  *
  * The two external commands are pointed at stubs so the whole sequence runs
@@ -53,7 +53,7 @@ afterAll(() => {
 });
 
 /**
- * A stand-in for the AWS CLI. The two tier counts are injected, so a test can
+ * A stand-in for the AWS CLI. The two generation counts are injected, so a test can
  * put the bucket in the state it wants to assert against; everything else
  * answers with the shape the real command returns.
  */
@@ -174,7 +174,7 @@ describe('apply-snapshot-retention.sh: the preview', () => {
     expect(calls()).toBe('');
   });
 
-  it('states the tier gate first, with the loss it prevents', () => {
+  it('states the generation gate first, with the loss it prevents', () => {
     const res = run(['--target', 'production', '--dry-run']);
     expect(res.stdout).toMatch(/1\..*hourly\/ and daily\/ each hold more than one object/s);
     expect(res.stdout).toMatch(/two-day routine\/ rule deletes the fine-grained/);
@@ -188,19 +188,19 @@ describe('apply-snapshot-retention.sh: the preview', () => {
   });
 });
 
-describe('apply-snapshot-retention.sh: the tier-history gate', () => {
+describe('apply-snapshot-retention.sh: the generation-history gate', () => {
   beforeAll(() => writeTerraformStub());
 
-  it('refuses when the daily tier holds a single point, and never reaches the plan', () => {
+  it('refuses when the daily generation holds a single point, and never reaches the plan', () => {
     writeAwsStub(5, 1);
     const res = run(['--target', 'production', '--yes']);
     expect(res.exitCode).toBe(1);
-    expect(res.stderr).toMatch(/REFUSING: the promoted tiers do not hold history yet/);
+    expect(res.stderr).toMatch(/REFUSING: the promoted generations do not hold history yet/);
     expect(res.stderr).toMatch(/collapse from a month to two days/);
     expect(calls()).not.toMatch(/terraform .*plan/);
   });
 
-  it('refuses when the hourly tier is empty', () => {
+  it('refuses when the hourly generation is empty', () => {
     writeAwsStub(0, 5);
     const res = run(['--target', 'production', '--yes']);
     expect(res.exitCode).toBe(1);
@@ -213,14 +213,14 @@ describe('apply-snapshot-retention.sh: the tier-history gate', () => {
       .toMatch(/stalled producer looks exactly like this/);
   });
 
-  it('proceeds to the plan once both tiers hold history', () => {
+  it('proceeds to the plan once both generations hold history', () => {
     writeAwsStub(2, 2);
     const res = run(['--target', 'production', '--yes']);
     expect(res.exitCode).toBe(0);
     expect(calls()).toMatch(/terraform .*plan/);
   });
 
-  it('consults both tiers before planning, not one', () => {
+  it('consults both generations before planning, not one', () => {
     writeAwsStub(2, 2);
     run(['--target', 'production', '--yes']);
     const log = calls();
@@ -270,9 +270,9 @@ describe('apply-snapshot-retention.sh: verification', () => {
     expect(calls()).not.toMatch(/terraform .*apply/);
   });
 
-  it('reports the three tier rules as present', () => {
+  it('reports the three generation rules as present', () => {
     const res = run(['--target', 'production', '--verify']);
-    expect(res.stdout).toMatch(/All three tier rules are present/);
+    expect(res.stdout).toMatch(/All three generation rules are present/);
   });
 
   it('reads insufficient-data as expected straight after an apply, not as a pass', () => {

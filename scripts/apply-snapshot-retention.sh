@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
 # apply-snapshot-retention.sh
 #
-# Applies the snapshot retention tiers, and on production the tier-scoped
+# Applies the snapshot retention generations, and on production the generation-scoped
 # cross-region replication, to one environment.
 #
 # WHAT THE CHANGE IS.
 #
 # The backup producer writes a snapshot every five minutes under routine/, and
 # promotes the first run of each hour to hourly/ and the first of each day to
-# daily/. The tiers exist so the history thins with age instead of keeping every
+# daily/. The generations exist so the history thins with age instead of keeping every
 # six-minute point for a month: fine grain for two days, hourly for weeks, daily
-# for far longer. On production the promoted tiers are also what crosses the
+# for far longer. On production the promoted generations are also what crosses the
 # wire to the disaster-recovery bucket, so the same change narrows replication
-# from every object to the two tiers.
+# from every object to the two promoted generations.
 #
 # WHY THE GATE IN STEP 1 IS THE WHOLE POINT.
 #
@@ -23,7 +23,7 @@
 # irreversible mistake available in this change, it is invisible while it
 # happens, and it is the reason this is a script rather than a plan and an apply
 # the operator is trusted to sequence. Step 1 refuses to continue until both
-# tiers hold history. There is no flag to skip it.
+# generations hold history. There is no flag to skip it.
 #
 # The bucket that gate reads is not named alike in the two environments:
 # staging is footbag-staging-snapshots and production is
@@ -53,7 +53,7 @@
 # recovered from.
 #
 # Steps (referenced by --from-step, so a failure part-way is resumable):
-#   1  the tier-history gate: refuse unless hourly/ and daily/ both hold history
+#   1  the generation-history gate: refuse unless hourly/ and daily/ both hold history
 #   2  terraform plan to a shredded file, confirm, apply that exact plan
 #   3  verify the lifecycle rules, the replication scope, and the alarm states
 #
@@ -93,7 +93,10 @@ source "${REPO_ROOT}/scripts/lib/host-env-remote.sh"
 AWS_BIN="${RETENTION_AWS_BIN:-aws}"
 TF_BIN="${RETENTION_TERRAFORM_BIN:-terraform}"
 
-# The three tier rules this change is about. Their retention windows differ
+# The three generation rules this change is about. The rule ids below still spell
+# the older word "tier"; renaming them is a Terraform change and an apply, so the
+# ids stay as they are until one is wanted for its own sake and the alarm
+# dimensions move with them. Their retention windows differ
 # between the environments by design and are read from the bucket rather than
 # asserted here, because restating a Terraform value in a shell script is how
 # the two drift apart. Their ids do not differ, so presence is checkable.
@@ -161,7 +164,7 @@ TF_DIR="$REPO_ROOT/terraform/$TARGET"
 
 # Snapshot cross-region replication exists on production only. Staging has no
 # snapshot disaster-recovery bucket, so its half of this change is the lifecycle
-# tiers alone, and step 3 must not report a missing replication rule there as a
+# generations alone, and step 3 must not report a missing replication rule there as a
 # fault.
 SNAPSHOT_REPLICATION=0
 [[ "$TARGET" == "production" ]] && SNAPSHOT_REPLICATION=1
@@ -190,9 +193,9 @@ resolve_snapshots_bucket() {
   printf '%s' "$name"
 }
 
-# Two keys is all the gate needs: the question is whether the tier holds more
-# than one point, not how many. --max-keys keeps it one cheap call per prefix.
-count_tier_objects() {
+# Two keys is all the gate needs: the question is whether the generation holds
+# more than one point, not how many. --max-keys keeps it one cheap call per prefix.
+count_generation_objects() {
   local bucket="$1" prefix="$2" out=""
   out="$(aws_read s3api list-objects-v2 \
     --bucket "$bucket" --prefix "$prefix" --max-keys 2 \
@@ -208,16 +211,16 @@ if (( DRY_RUN )); then
   echo "Would run, in order:"
   echo "  1. Read the snapshots bucket from terraform/$TARGET, then refuse to go on"
   echo "     unless hourly/ and daily/ each hold more than one object. Applied before"
-  echo "     the tiers hold history, the two-day routine/ rule deletes the fine-grained"
+  echo "     the generations hold history, the two-day routine/ rule deletes the fine-grained"
   echo "     stream while nothing yet writes what replaces it."
   echo "  2. terraform -chdir=terraform/$TARGET plan into a mode-600 file shredded on every"
   echo "     exit path, show it, take a typed APPLY, then apply that exact plan."
   if (( SNAPSHOT_REPLICATION )); then
-    echo "     Expect three tier rules on the snapshots bucket, the unfiltered snapshot"
+    echo "     Expect three generation rules on the snapshots bucket, the unfiltered snapshot"
     echo "     replication rule replaced by two scoped to hourly/ and daily/, and the"
     echo "     replication alarms with their queue and notifications where the flag is on."
   else
-    echo "     Expect three tier rules on the snapshots bucket. Staging has no snapshot"
+    echo "     Expect three generation rules on the snapshots bucket. Staging has no snapshot"
     echo "     disaster-recovery bucket, so no snapshot replication changes here."
   fi
   echo "  3. Read back the lifecycle rules, the replication scope and the alarm states."
@@ -229,22 +232,22 @@ if (( DRY_RUN )); then
   exit 0
 fi
 
-# ── Step 1: the tier-history gate ────────────────────────────────────────────
+# ── Step 1: the generation-history gate ──────────────────────────────────────
 BUCKET=""
 if (( FROM_STEP <= 1 )) && (( ! VERIFY_ONLY )); then
-  echo "-- step 1: tier history --"
+  echo "-- step 1: generation history --"
   echo ""
   BUCKET="$(resolve_snapshots_bucket)" || exit 1
   echo "  snapshots bucket: $BUCKET"
 
-  HOURLY="$(count_tier_objects "$BUCKET" "hourly/")"
-  DAILY="$(count_tier_objects "$BUCKET" "daily/")"
+  HOURLY="$(count_generation_objects "$BUCKET" "hourly/")"
+  DAILY="$(count_generation_objects "$BUCKET" "daily/")"
   echo "  hourly/ holds: $HOURLY (of the first 2 listed)"
   echo "  daily/  holds: $DAILY (of the first 2 listed)"
   echo ""
 
   if (( HOURLY < 2 || DAILY < 2 )); then
-    echo "REFUSING: the promoted tiers do not hold history yet." >&2
+    echo "REFUSING: the promoted generations do not hold history yet." >&2
     echo "" >&2
     echo "  The routine/ rule in this change expires at two days. Applied now, it would" >&2
     echo "  delete the fine-grained stream while hourly/ and daily/ are still filling," >&2
@@ -256,7 +259,7 @@ if (( FROM_STEP <= 1 )) && (( ! VERIFY_ONLY )); then
     echo "  host before waiting on it: a stalled producer looks exactly like this." >&2
     exit 1
   fi
-  echo "  Both tiers hold history. The two-day rule has something to fall back to."
+  echo "  Both generations hold history. The two-day rule has something to fall back to."
   echo ""
 fi
 
@@ -322,10 +325,10 @@ for rule_id in "${TIER_RULE_IDS[@]}"; do
   printf '%s' "$LIFECYCLE" | grep -q "^${rule_id}\b" || MISSING="${MISSING} ${rule_id}"
 done
 if [[ -n "$MISSING" ]]; then
-  echo "  MISSING tier rules:${MISSING}"
+  echo "  MISSING generation rules:${MISSING}"
   echo "  The apply did not land, or landed against a different bucket."
 else
-  echo "  All three tier rules are present. Their windows differ by environment by"
+  echo "  All three generation rules are present. Their windows differ by environment by"
   echo "  design; read the days above against the tree rather than against staging."
 fi
 echo ""
@@ -334,7 +337,7 @@ if (( SNAPSHOT_REPLICATION )); then
   # The disaster-recovery bucket, read directly rather than inferred from the
   # primary. Its windows are the ones that have to match its Object Lock, and a
   # verification that reads only the primary cannot see the rule that matters:
-  # a daily tier kept longer than the lock leaves a copy protected by access
+  # a daily generation kept longer than the lock leaves a copy protected by access
   # control alone for the difference, in the account whose credentials the lock
   # exists to defend against. That is exactly the drift this step missed once.
   DR_BUCKET="$("$TF_BIN" -chdir="$TF_DIR" output -raw dr_bucket_name 2>/dev/null)" || DR_BUCKET=""
@@ -390,6 +393,6 @@ else
   echo "  alarm without proving it produces. A failed alarm reads a metric published only"
   echo "  when a replication actually fails, so it can sit in INSUFFICIENT_DATA forever"
   echo "  while everything works; that is why it treats missing data as not breaching, and"
-  echo "  its state proves nothing either way. The daily tier promotes once a day, so its"
+  echo "  its state proves nothing either way. The daily generation promotes once a day, so its"
   echo "  pair needs a day before either reading means anything."
 fi

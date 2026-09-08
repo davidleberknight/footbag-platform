@@ -102,6 +102,19 @@ resource "aws_s3_bucket_public_access_block" "maintenance" {
   restrict_public_buckets = true
 }
 
+# Declared rather than inherited from the S3 account default, matching
+# production and the other buckets in this tree. The account default is not
+# visible here and can be changed elsewhere.
+resource "aws_s3_bucket_server_side_encryption_configuration" "maintenance" {
+  bucket = aws_s3_bucket.maintenance.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
 # ── Snapshot lifecycle — expire old versions after 90 days ───────────────────
 
 resource "aws_s3_bucket_lifecycle_configuration" "snapshots" {
@@ -114,6 +127,10 @@ resource "aws_s3_bucket_lifecycle_configuration" "snapshots" {
     noncurrent_version_expiration {
       noncurrent_days = 90
     }
+    # Matches production. A snapshot is above the CLI's multipart threshold, and
+    # parts left by a killed upload are not objects, so no expiration rule here
+    # reaches them.
+    abort_incomplete_multipart_upload { days_after_initiation = 7 }
   }
 
   # The routine backup producer runs on this host too and writes a fresh
@@ -316,30 +333,134 @@ resource "aws_s3_bucket_replication_configuration" "media" {
 # distribution. Web role (app_runtime) has Put/Delete/Head only -- CloudFront-OAC
 # is the sole read path.
 
+# Ungated document, gated statement, matching production: the deny must not
+# disappear on a tree with the distribution turned off.
 data "aws_iam_policy_document" "media_cloudfront_oac" {
-  count = var.enable_cloudfront ? 1 : 0
-
   statement {
-    sid       = "AllowCloudFrontServicePrincipalRead"
-    effect    = "Allow"
-    actions   = ["s3:GetObject"]
-    resources = ["${aws_s3_bucket.media.arn}/*"]
-
+    sid    = "DenyPlaintextAccess"
+    effect = "Deny"
     principals {
-      type        = "Service"
-      identifiers = ["cloudfront.amazonaws.com"]
+      type        = "AWS"
+      identifiers = ["*"]
     }
-
+    actions = ["s3:*"]
+    resources = [
+      aws_s3_bucket.media.arn,
+      "${aws_s3_bucket.media.arn}/*",
+    ]
     condition {
-      test     = "StringEquals"
-      variable = "AWS:SourceArn"
-      values   = [aws_cloudfront_distribution.main[0].arn]
+      test     = "Bool"
+      variable = "aws:SecureTransport"
+      values   = ["false"]
+    }
+  }
+
+  dynamic "statement" {
+    for_each = var.enable_cloudfront ? [1] : []
+    content {
+      sid       = "AllowCloudFrontServicePrincipalRead"
+      effect    = "Allow"
+      actions   = ["s3:GetObject"]
+      resources = ["${aws_s3_bucket.media.arn}/*"]
+
+      principals {
+        type        = "Service"
+        identifiers = ["cloudfront.amazonaws.com"]
+      }
+
+      condition {
+        test     = "StringEquals"
+        variable = "AWS:SourceArn"
+        values   = [aws_cloudfront_distribution.main[0].arn]
+      }
     }
   }
 }
 
 resource "aws_s3_bucket_policy" "media" {
-  count  = var.enable_cloudfront ? 1 : 0
   bucket = aws_s3_bucket.media.id
-  policy = data.aws_iam_policy_document.media_cloudfront_oac[0].json
+  policy = data.aws_iam_policy_document.media_cloudfront_oac.json
+}
+
+# Deny-only policies for the three staging buckets that grant nothing. Parity
+# with production, and the same reasoning: adding a deny where no allow exists
+# cannot subtract anything, and the estate should not have a bucket that accepts
+# plaintext just because nothing else needed a policy on it.
+data "aws_iam_policy_document" "snapshots" {
+  statement {
+    sid    = "DenyPlaintextAccess"
+    effect = "Deny"
+    principals {
+      type        = "AWS"
+      identifiers = ["*"]
+    }
+    actions = ["s3:*"]
+    resources = [
+      aws_s3_bucket.snapshots.arn,
+      "${aws_s3_bucket.snapshots.arn}/*",
+    ]
+    condition {
+      test     = "Bool"
+      variable = "aws:SecureTransport"
+      values   = ["false"]
+    }
+  }
+}
+
+resource "aws_s3_bucket_policy" "snapshots" {
+  bucket = aws_s3_bucket.snapshots.id
+  policy = data.aws_iam_policy_document.snapshots.json
+}
+
+data "aws_iam_policy_document" "maintenance" {
+  statement {
+    sid    = "DenyPlaintextAccess"
+    effect = "Deny"
+    principals {
+      type        = "AWS"
+      identifiers = ["*"]
+    }
+    actions = ["s3:*"]
+    resources = [
+      aws_s3_bucket.maintenance.arn,
+      "${aws_s3_bucket.maintenance.arn}/*",
+    ]
+    condition {
+      test     = "Bool"
+      variable = "aws:SecureTransport"
+      values   = ["false"]
+    }
+  }
+}
+
+resource "aws_s3_bucket_policy" "maintenance" {
+  bucket = aws_s3_bucket.maintenance.id
+  policy = data.aws_iam_policy_document.maintenance.json
+}
+
+data "aws_iam_policy_document" "media_dr" {
+  statement {
+    sid    = "DenyPlaintextAccess"
+    effect = "Deny"
+    principals {
+      type        = "AWS"
+      identifiers = ["*"]
+    }
+    actions = ["s3:*"]
+    resources = [
+      aws_s3_bucket.media_dr.arn,
+      "${aws_s3_bucket.media_dr.arn}/*",
+    ]
+    condition {
+      test     = "Bool"
+      variable = "aws:SecureTransport"
+      values   = ["false"]
+    }
+  }
+}
+
+resource "aws_s3_bucket_policy" "media_dr" {
+  provider = aws.us_west_2
+  bucket   = aws_s3_bucket.media_dr.id
+  policy   = data.aws_iam_policy_document.media_dr.json
 }

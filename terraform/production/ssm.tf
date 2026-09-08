@@ -189,36 +189,38 @@ resource "aws_ssm_parameter" "safe_browsing_api_key" {
 }
 
 # ── SESSION_SECRET (cookie-parser signing + env.ts boot-time check) ──────────
-# Terraform owns the canonical value via random_id below (32 bytes → 64 hex
-# chars, well past the env.ts ≥32 floor and never matches 'changeme'). The
-# deploy script (scripts/internal/deploy-{rebuild,code}-remote.sh) fetches
-# this parameter on every deploy and writes it into /srv/footbag/env, where
-# systemd picks it up and Docker Compose forwards it into each container.
+# SecureString + KMS-encrypted, on the same operator-supplied placeholder shape
+# as safe_browsing_api_key above. The deploy script
+# (scripts/internal/deploy-{rebuild,code}-remote.sh) fetches this parameter on
+# every deploy and writes it into /srv/footbag/env, where systemd picks it up
+# and Docker Compose forwards it into each container.
 #
-# Mirrors the origin_verify_secret pattern below for the same reasons:
-# Terraform-as-single-source-of-truth, no operator put-parameter step
-# required at first apply, rotation is `terraform apply -replace=
-# random_id.session_secret` followed by any subsequent deploy. A manual
-# `aws ssm put-parameter --overwrite` would be reverted on the next
-# terraform apply; the value is not operator-overridable by design.
+# It was a Terraform-generated random_id until this change, and the reason it is
+# not any more is the whole point: a random_id result is stored in state in
+# plaintext by construction, so Terraform owning the value meant the state file
+# held a live secret. A saved plan committed under an unmatched ignore rule then
+# published two of these for seven weeks. Encrypting the state harder does not
+# reach this; keeping the value out of state does, which is HashiCorp's own
+# guidance and the pattern this file already uses for every operator-supplied
+# secret.
 #
-# No `ignore_changes`: Terraform IS the writer. Any out-of-band drift
-# (operator put-parameter, console edit) is undone on next apply, which
-# is the intended posture for this secret.
-resource "random_id" "session_secret" {
-  byte_length = 32
-}
-
+#   scripts/provision-ssm-secret.sh --env <env> --secret session_secret store
+#
+# That script owns every write. It generates 32 bytes of hex, checks the
+# destination before writing, keeps the value off the command line and out of
+# shell history, and shreds its own copy afterwards.
+#
+# `lifecycle { ignore_changes = [value] }` because Terraform owns the resource
+# existence and the KMS reference, never the value. Rotation is a fresh
+# `store` followed by any deploy, and it invalidates every active session by
+# design. The TODO placeholder is rejected by the deploy's own shape gate and by
+# the env.ts boot check, so a deploy before the store step fails loudly.
 resource "aws_ssm_parameter" "app_session_secret" {
   name   = "${local.ssm_prefix}/secrets/session_secret"
   type   = "SecureString"
   key_id = aws_kms_alias.main.name
-  value  = random_id.session_secret.hex
-}
-
-data "aws_ssm_parameter" "app_session_secret" {
-  name            = aws_ssm_parameter.app_session_secret.name
-  with_decryption = true
+  value  = "TODO-set-via-cli-after-apply"
+  lifecycle { ignore_changes = [value] }
 }
 
 # ── Stripe secret API key (operator-supplied) ─────────────────────────────────

@@ -187,7 +187,7 @@ locals {
   # stale id names a rule that does not exist. Either way the alarm sits green
   # on missing data, because `treat_missing_data` is `notBreaching` and no
   # operations arriving is indistinguishable from none failing. The snapshots
-  # bucket replicates through two rules, one per promoted retention tier, so it
+  # bucket replicates through two rules, one per promoted retention generation, so it
   # takes two entries.
   replicated_buckets = var.enable_replication_alarm ? {
     "snapshots-hourly" = {

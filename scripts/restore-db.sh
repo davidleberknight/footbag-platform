@@ -38,7 +38,7 @@
 #
 # Which snapshot it looks for, which is never a guess between the two classes:
 #
-#   default             The routine stream and its thinned tiers: routine/ for
+#   default             The routine stream and its thinned generations: routine/ for
 #                       the last two days, hourly/ for a month, daily/ for just
 #                       over a year. The newest point across the three wins.
 #
@@ -175,12 +175,12 @@ AWS_ARGS=()
 if [[ "$PRE_FLIP" -eq 1 ]]; then
   SEARCH_PREFIX="pre-flip/"
 else
-  # All three retention tiers, newest wins. The producer keeps the six-minute
+  # All three retention generations, newest wins. The producer keeps the six-minute
   # stream under routine/ for two days only, promoting the first run of each
   # hour and each day into hourly/ and daily/, so searching routine/ alone would
   # find nothing older than two days and nothing at all in the disaster-recovery
-  # bucket, which carries the promoted tiers and not the raw stream. Every tier
-  # names its object footbag-<UTC timestamp>, so the tiers interleave correctly
+  # bucket, which carries the promoted generations and not the raw stream. Every
+  # generation names its object footbag-<UTC timestamp>, so they interleave correctly
   # when compared on that name.
   SEARCH_PREFIX="routine/ hourly/ daily/"
 fi
@@ -210,7 +210,7 @@ command -v aws >/dev/null 2>&1 || die "aws CLI not installed"
 # Latest unless the operator named one. Named explicitly is the normal case for
 # a real recovery, where the whole question is which point in time to return to.
 newest_under() {
-  # Objects sort chronologically within a tier because the key carries the UTC
+  # Objects sort chronologically within a generation because the key carries the UTC
   # date path followed by the timestamped name.
   aws "${AWS_ARGS[@]+"${AWS_ARGS[@]}"}" s3 ls "s3://${BUCKET}/$1" --recursive 2>/dev/null \
     | grep -v '\.manifest\.json$' | sort | tail -1 | tr -s ' ' | cut -d' ' -f4
@@ -221,7 +221,7 @@ if [[ -z "$SNAPSHOT_KEY" ]]; then
   if [[ "$PRE_FLIP" -eq 1 ]]; then
     SNAPSHOT_KEY="$(newest_under "pre-flip/")"
   else
-    # Compare the three tiers on the object name (field 5 of tier/YYYY/MM/DD/name),
+    # Compare the three generations on the object name (field 5 of gen/YYYY/MM/DD/name),
     # so the newest point wins wherever it happens to live.
     SNAPSHOT_KEY="$(printf '%s\n' \
         "$(newest_under 'routine/')" \

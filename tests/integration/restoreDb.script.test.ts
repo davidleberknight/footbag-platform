@@ -417,11 +417,11 @@ describe('the operator-facing restore script', () => {
     expect(res.stdout).not.toContain('routine/');
   });
 
-  it('searches every retention tier by default, and says so', () => {
+  it('searches every retention generation by default, and says so', () => {
     // The producer keeps the fine-grained stream for two days and promotes an
     // hourly and a daily point out of it, so a search confined to the raw
     // stream would find nothing older than two days, and nothing whatever in
-    // the disaster-recovery bucket, which carries only the promoted tiers.
+    // the disaster-recovery bucket, which carries only the promoted generations.
     const drill = join(workDir, 'routine.db');
     const res = runOperator([
       '--to-local', drill, '--source', 'production', '--dry-run',

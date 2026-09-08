@@ -183,6 +183,25 @@ data "aws_iam_policy_document" "archive_cloudfront_oac" {
   count = var.enable_archive ? 1 : 0
 
   statement {
+    sid    = "DenyPlaintextAccess"
+    effect = "Deny"
+    principals {
+      type        = "AWS"
+      identifiers = ["*"]
+    }
+    actions = ["s3:*"]
+    resources = [
+      aws_s3_bucket.archive[0].arn,
+      "${aws_s3_bucket.archive[0].arn}/*",
+    ]
+    condition {
+      test     = "Bool"
+      variable = "aws:SecureTransport"
+      values   = ["false"]
+    }
+  }
+
+  statement {
     sid       = "AllowCloudFrontServicePrincipalRead"
     effect    = "Allow"
     actions   = ["s3:GetObject"]
@@ -495,6 +514,25 @@ resource "aws_s3_bucket_lifecycle_configuration" "archive_logs" {
 # incident the logs were kept for.
 data "aws_iam_policy_document" "archive_logs_delivery" {
   count = var.enable_archive ? 1 : 0
+
+  statement {
+    sid    = "DenyPlaintextAccess"
+    effect = "Deny"
+    principals {
+      type        = "AWS"
+      identifiers = ["*"]
+    }
+    actions = ["s3:*"]
+    resources = [
+      aws_s3_bucket.archive_logs[0].arn,
+      "${aws_s3_bucket.archive_logs[0].arn}/*",
+    ]
+    condition {
+      test     = "Bool"
+      variable = "aws:SecureTransport"
+      values   = ["false"]
+    }
+  }
 
   statement {
     sid       = "AWSLogDeliveryWrite"

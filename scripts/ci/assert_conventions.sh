@@ -778,6 +778,11 @@ if ! bash scripts/ci/check_tfvars_sensitive.sh; then
   violations=$((violations + 1))
 fi
 
+echo "[conventions] check: every S3 bucket carries the encryption, public-access and deny-plaintext baseline (delegated)"
+if ! bash scripts/ci/check_bucket_baseline.sh; then
+  violations=$((violations + 1))
+fi
+
 echo "[conventions] check: config seed / Configurable Parameters parity (delegated)"
 if ! bash scripts/ci/check_config_seed_parity.sh; then
   violations=$((violations + 1))

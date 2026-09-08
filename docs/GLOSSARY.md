@@ -170,7 +170,7 @@
 
 **S3 (Simple Storage Service)**: AWS object storage service providing scalable, durable file storage. Footbag.org uses S3 to store uploaded photos (two processed variants per photo), SQLite database backup snapshots uploaded every 5 minutes, and the legacy archive. Application state (members, events, registrations, etc.) is stored in a SQLite database, not in S3.
 
-**S3 Lifecycle Rules**: Automated policies transitioning objects between storage classes or deleting after expiration. Footbag.org uses lifecycle rules to expire noncurrent object versions (30 days on the media buckets, 30 days on the snapshots bucket) and to expire routine database snapshots after 30 days, preventing unbounded storage growth.
+**S3 Lifecycle Rules**: Automated policies transitioning objects between storage classes or deleting after expiration. Footbag.org uses lifecycle rules to expire noncurrent object versions (30 days on the media buckets, 90 days on the snapshots bucket), to age the snapshot prefixes out at two days for the routine stream, thirty days for hourly and four hundred days for daily, and to abort incomplete multipart uploads, preventing unbounded storage growth.
 
 **S3 Object Lock (WORM)**: S3 feature preventing objects from being modified or deleted for a specified retention period, enforcing Write Once Read Many semantics. Footbag.org applies Object Lock (GOVERNANCE mode, 90-day retention) to the cross-region disaster-recovery database-snapshot bucket, so routine backups cannot be deleted before their retention window elapses, while a privileged operator can still honor a lawful erasure request.
 

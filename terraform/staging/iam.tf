@@ -85,13 +85,17 @@ resource "aws_iam_role_policy" "app_s3_snapshots" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
+      # Put, get and list, and deliberately not delete, matching production. Get
+      # and list serve the backup script's generation promotion; nothing deletes a
+      # snapshot, because expiry belongs to this bucket's lifecycle rules. This
+      # is the role the containers assume, so a delete grant here would let a
+      # compromised container write a delete marker over every snapshot.
       Sid    = "WriteSnapshots"
       Effect = "Allow"
       Action = [
         "s3:PutObject",
         "s3:GetObject",
-        "s3:ListBucket",
-        "s3:DeleteObject"
+        "s3:ListBucket"
       ]
       Resource = [
         aws_s3_bucket.snapshots.arn,

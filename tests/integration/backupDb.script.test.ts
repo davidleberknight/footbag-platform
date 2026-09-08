@@ -7,7 +7,7 @@
  * recovery story: a month of hourly points and a year of daily ones exist only
  * because a run made them.
  *
- * The contract they assert: the first run of a window promotes into both tiers and
+ * The contract they assert: the first run of a window promotes into both generations and
  * later runs in the same window promote into neither; the copy is made with an API
  * the backup role can actually call, since the role is scoped to reading and
  * writing objects and nothing else; and a promotion that fails says so, raises its
@@ -55,7 +55,7 @@ beforeEach(() => {
   db.close();
 
   // The bucket stands in as a directory tree, so a promotion is observable as a
-  // file appearing under the tier prefix.
+  // file appearing under the generation prefix.
   //
   // `s3 cp` between two bucket paths exits non-zero the way the real role does:
   // the friendly wrapper reads the source object's tags first, which the role is
@@ -169,8 +169,8 @@ function seedObject(key: string): void {
   writeFileSync(target, 'seeded');
 }
 
-/** Object keys present under a tier prefix in the stand-in bucket. */
-function keysUnder(tier: string): string[] {
+/** Object keys present under a generation prefix in the stand-in bucket. */
+function keysUnder(generation: string): string[] {
   const res = spawnSync('find', [join(s3Dir, BUCKET), '-type', 'f'], {
     encoding: 'utf8',
     ...SPAWN_GUARD,
@@ -179,11 +179,11 @@ function keysUnder(tier: string): string[] {
     .split('\n')
     .filter(Boolean)
     .map((p) => p.replace(`${join(s3Dir, BUCKET)}/`, ''))
-    .filter((k) => k.startsWith(tier));
+    .filter((k) => k.startsWith(generation));
 }
 
 describe('thinning the snapshot history by age', () => {
-  it('promotes the first run of the window into both the hourly and daily tiers', () => {
+  it('promotes the first run of the window into both the hourly and daily generations', () => {
     const res = runBackup();
 
     expect(res.status).toBe(0);
@@ -206,7 +206,7 @@ describe('thinning the snapshot history by age', () => {
   // apart, which is the window this case needs. They also share a timestamp, so
   // the second snapshot lands on the first one's key rather than beside it; the
   // routine stream is counted by what the run reports uploading instead.
-  it('leaves both tiers alone on a later run in the same window', () => {
+  it('leaves both generations alone on a later run in the same window', () => {
     runBackup();
     const firstHourly = keysUnder('hourly/')[0];
     const firstDaily = keysUnder('daily/')[0];
@@ -221,9 +221,9 @@ describe('thinning the snapshot history by age', () => {
   });
 
   // The hourly probe has to pin the hour, not the day. A probe widened to the
-  // day would find this object and skip, collapsing the hourly tier into a
-  // second daily tier: 1 restore point a day where the design promises 24.
-  it('still promotes when the hourly tier holds a point from a different hour', () => {
+  // day would find this object and skip, collapsing the hourly generation into
+  // a second daily one: 1 restore point a day where the design promises 24.
+  it('still promotes when the hourly generation holds a point from a different hour', () => {
     seedObject(`hourly/${utcDayPrefix()}/footbag-${stampInAnotherHour()}.db.gz`);
 
     const res = runBackup();
@@ -233,9 +233,9 @@ describe('thinning the snapshot history by age', () => {
     expect(keysUnder('hourly/')).toHaveLength(2);
   });
 
-  // The daily probe has to pin the day. Widened to the whole tier it would find
+  // The daily probe has to pin the day. Widened to the whole generation it would find
   // yesterday's point and never promote again.
-  it('still promotes when the daily tier holds yesterday', () => {
+  it('still promotes when the daily generation holds yesterday', () => {
     seedObject(`daily/${utcDayPrefix(-1)}/footbag-${stampInAnotherHour()}.db.gz`);
 
     const res = runBackup();

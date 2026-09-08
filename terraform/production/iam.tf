@@ -85,13 +85,23 @@ resource "aws_iam_role_policy" "app_s3_snapshots" {
     Version = "2012-10-17"
     Statement = [
       {
+        # Put, get and list, and deliberately not delete. The backup script uses
+        # get and list for the generation promotion: it probes each prefix with
+        # list-objects-v2 and copies the source object server-side. Nothing
+        # deletes a snapshot -- expiry belongs entirely to this bucket's
+        # lifecycle rules -- and this is the role the web and worker containers
+        # assume, so a delete grant here is a delete grant to any compromised
+        # container. It would not destroy a version, but it would write a delete
+        # marker over every snapshot; markers replicate, Object Lock on the
+        # replica protects versions rather than visibility, and no alarm watches
+        # for this, so both regions would read empty while backup age and the
+        # failure counter stayed healthy until someone needed a restore.
         Sid    = "WriteSnapshots"
         Effect = "Allow"
         Action = [
           "s3:PutObject",
           "s3:GetObject",
-          "s3:ListBucket",
-          "s3:DeleteObject"
+          "s3:ListBucket"
         ]
         Resource = [
           aws_s3_bucket.snapshots.arn,
@@ -103,9 +113,10 @@ resource "aws_iam_role_policy" "app_s3_snapshots" {
         # itself, pulling the object with this role, so a cutover rollback from
         # the DR bucket fails with AccessDenied without this statement -- after
         # the operator has typed the production confirmation, and with no second
-        # attempt available. Write and delete stay absent: replication is the
-        # only writer here, and the bucket's Object Lock exists so nothing on a
-        # host can remove a copy.
+        # attempt available. Delete stays absent, and the only write is the
+        # pre-flip statement below: replication is otherwise the sole writer,
+        # and the bucket's Object Lock exists so nothing on a host can remove a
+        # copy.
         Sid    = "ReadDisasterRecoverySnapshots"
         Effect = "Allow"
         Action = [
@@ -116,6 +127,19 @@ resource "aws_iam_role_policy" "app_s3_snapshots" {
           aws_s3_bucket.dr.arn,
           "${aws_s3_bucket.dr.arn}/*"
         ]
+      },
+      {
+        # The pre-flip rollback artifact, and nothing else. The cutover snapshot
+        # gate has the host write that one archive to this bucket under a prefix
+        # distinct from the replicated backup stream, so the rollback copy is
+        # never confused with a routine one. Without this the gate fails with
+        # AccessDenied inside the freeze window, which is the worst place to
+        # discover it. Prefix-scoped on purpose: the role can add the artifact
+        # and still cannot write over any replicated object.
+        Sid      = "WritePreFlipRollbackSnapshot"
+        Effect   = "Allow"
+        Action   = ["s3:PutObject"]
+        Resource = ["${aws_s3_bucket.dr.arn}/pre-flip/*"]
       }
     ]
   })

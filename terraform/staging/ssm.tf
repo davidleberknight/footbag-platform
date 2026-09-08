@@ -139,34 +139,30 @@ data "aws_ssm_parameter" "origin_verify_secret" {
 }
 
 # ── SESSION_SECRET (cookie-parser signing + env.ts boot-time check) ──────────
-# Terraform owns the canonical value via random_id below (32 bytes → 64 hex
-# chars, well past the env.ts ≥32 floor and never matches 'changeme'). The
-# deploy script (scripts/internal/deploy-{rebuild,code}-remote.sh) fetches
-# this parameter on every deploy and writes it into /srv/footbag/env, where
-# systemd picks it up and Docker Compose forwards it into each container.
+# SecureString + KMS-encrypted, on the operator-supplied placeholder shape,
+# matching production. The deploy script
+# (scripts/internal/deploy-{rebuild,code}-remote.sh) fetches this parameter on
+# every deploy and writes it into /srv/footbag/env, where systemd picks it up
+# and Docker Compose forwards it into each container.
 #
-# Rotation: `terraform apply -replace=random_id.session_secret` regenerates
-# the value, the SSM parameter updates, the next deploy fetches the new
-# value from SSM and rewrites SESSION_SECRET in /srv/footbag/env. All
-# active sessions are invalidated by the rotation (cookie signatures fail
-# verification under the new secret).
+# It was a Terraform-generated random_id until this change. A random_id result
+# is stored in state in plaintext by construction, so Terraform owning the value
+# meant the state file held a live secret — and a saved plan committed under an
+# unmatched ignore rule published this environment's value for seven weeks.
+# Keeping the value out of state is the fix; encrypting the state harder is not.
 #
-# No `ignore_changes`: Terraform IS the writer. A manual `aws ssm
-# put-parameter --overwrite` would be reverted on the next apply.
-resource "random_id" "session_secret" {
-  byte_length = 32
-}
-
+#   scripts/provision-ssm-secret.sh --env staging --secret session_secret store
+#
+# `lifecycle { ignore_changes = [value] }` because Terraform owns the resource
+# existence and the KMS reference, never the value. Rotation is a fresh `store`
+# followed by any deploy, and it invalidates every active session, because
+# cookie signatures fail verification under the new secret.
 resource "aws_ssm_parameter" "app_session_secret" {
   name   = "${local.ssm_prefix}/secrets/session_secret"
   type   = "SecureString"
   key_id = aws_kms_alias.main.name
-  value  = random_id.session_secret.hex
-}
-
-data "aws_ssm_parameter" "app_session_secret" {
-  name            = aws_ssm_parameter.app_session_secret.name
-  with_decryption = true
+  value  = "TODO-set-via-cli-after-apply"
+  lifecycle { ignore_changes = [value] }
 }
 
 # ── Safe Browsing v4 API key (operator-supplied) ─────────────────────────────
