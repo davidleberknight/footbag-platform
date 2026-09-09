@@ -842,6 +842,8 @@ Not every test runs every time. This section defines the named gates, what runs 
 
 The db-load smoke gate runs the loader pipeline against fixed fixtures on every CI-on-PR build; it carries no path filter, so a loader regression is caught regardless of which files a change touches. Class-specific gating (running a gate only when the surface it covers has changed) is a pattern the suite may adopt for other gates as tooling permits.
 
+**On a memory-constrained host the pre-PR gate needs splitting.** The full run holds the whole unit and integration suite in one process tree, and on a host with many cores relative to its memory the operating system's memory guard can kill it with no output, which reads as a broken suite rather than an exhausted one. Two things make it complete. `VITEST_MAX_FORKS` caps the worker count regardless of core count, and the suite runs in pieces: `npx vitest run tests/unit`, then `npx vitest run tests/integration --shard=1/3` and its two siblings. Four green runs are the same coverage as one. The deploy scripts run this same suite as their own preflight, so a deploy from such a host needs the same treatment, or `SKIP_TESTS=yes` once a split run has passed.
+
 ### 11.2 Selection mechanisms within a gate
 
 - *Test impact analysis* for the local fast loop. `vitest --changed` plus git-diff-driven file selection. The fast loop runs only tests that touch changed code paths.

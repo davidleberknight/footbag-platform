@@ -10289,12 +10289,13 @@ export const payments = {
     ORDER BY created_at
   `); },
 
-  // Strips the personal/linking fields after the compliance retention window,
-  // keeping the anonymized financial record (amount, type, currency, status,
-  // date) for aggregate history and referential integrity. A donation
-  // descriptor embeds the donor's free-text note, so it is reset to a neutral
-  // constant; membership and event descriptors carry no personal data and stay
-  // meaningful for aggregate history, so they are left intact.
+  // Strips the linking fields after the compliance retention window, keeping the
+  // anonymized financial record (amount, type, currency, status, date) for
+  // aggregate history and referential integrity. What goes is what ties the row
+  // to a person: the member id and every provider identifier. The donation note
+  // stays, because it is the gift's own meaning rather than a link to the donor;
+  // the descriptor stays because it is a neutral label on every payment type and
+  // carries no personal data.
   get anonymizeForCompliance() { return db.prepare(`
     UPDATE payments
     SET member_id                  = NULL,
@@ -10304,31 +10305,9 @@ export const payments = {
         stripe_subscription_id     = NULL,
         stripe_invoice_id          = NULL,
         recurring_subscription_id  = NULL,
-        donation_note              = NULL,
-        descriptor                 = CASE WHEN payment_type = 'donation' THEN 'Donation' ELSE descriptor END,
         metadata_json              = '{}',
         updated_at = ?, updated_by = ?, version = version + 1
     WHERE id = ?
-  `); },
-
-  // Account erasure and the deceased contact scrub: the member's own words on a
-  // donation and nothing else. The financial record -- amount, currency,
-  // status, provider references, and the tier or event the payment settles --
-  // is retained through erasure by design and anonymized separately once the
-  // compliance window expires. The descriptor holds a second copy of those
-  // words, because a donation's descriptor is composed as a base label plus the
-  // member's note, so it is reset to that base label; the recurring form is
-  // kept, since the subscription link survives erasure and whether a gift was
-  // recurring is not personal data. Scoped to donation rows so no membership or
-  // event descriptor is touched.
-  get clearDonationTextForMember() { return db.prepare(`
-    UPDATE payments
-    SET donation_note = NULL,
-        descriptor = CASE WHEN recurring_subscription_id IS NOT NULL
-                          THEN 'Recurring Annual Donation'
-                          ELSE 'Donation' END,
-        updated_at = ?, updated_by = 'operations_purge', version = version + 1
-    WHERE member_id = ? AND payment_type = 'donation'
   `); },
 
   get listByMember() { return db.prepare(`
@@ -10410,7 +10389,7 @@ export const recurringDonationSubscriptions = {
       id, created_at, created_by, updated_at, updated_by, version,
       member_id, stripe_customer_id, stripe_subscription_id, last_stripe_event_id,
       status, amount_cents, currency, billing_interval,
-      started_at, status_updated_at, donation_comment, provider_livemode
+      started_at, status_updated_at, donation_note, provider_livemode
     ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, 'active', ?, ?, 'yearly', ?, ?, ?, ?)
   `); },
 
@@ -10422,7 +10401,7 @@ export const recurringDonationSubscriptions = {
       id, created_at, created_by, updated_at, updated_by, version,
       member_id, stripe_customer_id, checkout_session_id,
       status, amount_cents, currency, billing_interval,
-      started_at, status_updated_at, donation_comment
+      started_at, status_updated_at, donation_note
     ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, 'incomplete', ?, ?, 'yearly', ?, ?, ?)
   `); },
 
@@ -10476,20 +10455,6 @@ export const recurringDonationSubscriptions = {
     SELECT * FROM recurring_donation_subscriptions
     WHERE status = 'incomplete' AND created_at < ?
     ORDER BY created_at
-  `); },
-
-  // Account erasure and the deceased contact scrub, matching the payments-side
-  // clear: the comment the member wrote to accompany the gift is removed and the
-  // subscription itself is left standing, because it is a live billing
-  // relationship with the provider and an ongoing financial fact. Every status
-  // is included, an abandoned 'incomplete' checkout among them: the member typed
-  // the comment before the redirect, so a row they walked away from still holds
-  // their words.
-  get clearDonationCommentForMember() { return db.prepare(`
-    UPDATE recurring_donation_subscriptions
-    SET donation_comment = NULL,
-        updated_at = ?, updated_by = 'operations_purge', version = version + 1
-    WHERE member_id = ? AND donation_comment IS NOT NULL
   `); },
 
   // Member-facing history lists canceled subscriptions too, so this reads the

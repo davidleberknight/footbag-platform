@@ -842,7 +842,7 @@ export interface RecurringDonationSubscriptionOverrides {
   amount_cents?: number;
   currency?: string;
   started_at?: string;
-  donation_comment?: string | null;
+  donation_note?: string | null;
   is_cancel_at_period_end?: 0 | 1;
   cancel_requested_at?: string | null;
   canceled_at?: string | null;
@@ -868,7 +868,7 @@ export function insertRecurringDonationSubscription(
       status, amount_cents, currency, billing_interval,
       started_at, status_updated_at,
       is_cancel_at_period_end, cancel_requested_at, canceled_at,
-      donation_comment, failure_count, last_stripe_event_created, provider_livemode
+      donation_note, failure_count, last_stripe_event_created, provider_livemode
     ) VALUES (?, ?, 'system', ?, 'system', 1, ?, ?, ?, ?, ?, ?, ?, 'yearly', ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id, o.created_at ?? startedAt, startedAt,
@@ -888,7 +888,7 @@ export function insertRecurringDonationSubscription(
     // The table refuses a cancellation time on a live subscription, so the
     // default follows the status rather than being independently settable.
     o.canceled_at ?? (status === 'canceled' ? startedAt : null),
-    o.donation_comment ?? null,
+    o.donation_note ?? null,
     o.failure_count ?? 0,
     o.last_stripe_event_created ?? null,
     'provider_livemode' in o ? o.provider_livemode ?? null : 1,

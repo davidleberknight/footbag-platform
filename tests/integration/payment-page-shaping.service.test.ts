@@ -239,7 +239,7 @@ describe('paymentService.getPaymentHistoryPage', () => {
   it('distinguishes a subscription setup from its later annual renewals', () => {
     insertMember(db, { id: 'm_sub', slug: 'sub_owner' });
     const subId = insertRecurringDonationSubscription(db, {
-      member_id: 'm_sub', donation_comment: 'BAP Fund',
+      member_id: 'm_sub', donation_note: 'BAP Fund',
     });
     insertPayment(db, {
       member_id: 'm_sub', payment_type: 'donation', created_at: '2025-01-01T00:00:00.000Z',

@@ -191,12 +191,13 @@ resource "aws_ssm_parameter" "safe_browsing_api_key" {
 }
 
 # ── Stripe secret API key (operator-supplied) ─────────────────────────────────
-# Same shell-with-placeholder pattern as safe_browsing_api_key above: Terraform
-# owns the resource existence + KMS reference, the operator supplies the real
-# key (Stripe test-mode key on staging) via put-parameter, and the live
-# payment adapter rejects the TODO placeholder so a deploy without the
-# put-parameter step fails the first checkout loudly, not silently. Path is
-# under /secrets/ because the runtime SecretsAdapter resolves
+# Same shell-with-placeholder pattern as safe_browsing_api_key above, with one
+# difference that matters: on staging the placeholder is the permanent value.
+# Staging never reaches Stripe in any mode, so no operator ever supplies a key
+# here and the config loader refuses the live payment adapter outside
+# production. The shell exists only to keep the parameter tree at parity with
+# production, where the operator does supply the key. Path is under /secrets/
+# because the runtime SecretsAdapter resolves
 # "${local.ssm_prefix}/secrets/<key>".
 resource "aws_ssm_parameter" "stripe_secret_key" {
   name   = "${local.ssm_prefix}/secrets/stripe_secret_key"

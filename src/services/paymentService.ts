@@ -351,6 +351,9 @@ export interface PaymentRow {
   /** The recurring donation a per-cycle charge settles; null on every other row.
    *  It is what tells a receipt whether the gift repeats yearly or was one-off. */
   recurring_subscription_id: string | null;
+  /** The donor's own words on a gift; null on every other payment type. The
+   *  only place they are held, since the descriptor stays a neutral label. */
+  donation_note: string | null;
   purchased_tier_status: 'tier1' | 'tier2' | null;
   /** Creation time of the most recent provider event applied to this row, used
    *  to recognise an out-of-order delivery. Null until the first event lands. */
@@ -389,7 +392,7 @@ export interface RecurringSubscriptionRow {
   is_cancel_at_period_end: 0 | 1;
   cancel_requested_at: string | null;
   canceled_at: string | null;
-  donation_comment: string | null;
+  donation_note: string | null;
   failure_count: number;
   last_stripe_event_created: string | null;
 }
@@ -710,9 +713,13 @@ function validateDonationAmount(amountCents: unknown): number {
   return amountCents;
 }
 
-function donationDescriptor(note: string | null, recurring: boolean): string {
-  const base = recurring ? 'Recurring Annual Donation' : 'Donation';
-  return note ? `${base}: ${note}` : base;
+// The descriptor is a neutral label and never carries the donor's note. The note
+// has one home, the donation_note column, and is rendered from there on every
+// surface that shows it. Composing the two into one string put a member's words
+// into a Stripe line-item name and into the subject line of a failed-payment
+// email, neither of which is a place this platform can correct them.
+function donationDescriptor(recurring: boolean): string {
+  return recurring ? 'Recurring Annual Donation' : 'Donation';
 }
 
 function safeReturnTo(value: unknown, fallback: string): string {
@@ -2171,6 +2178,9 @@ function enqueueReceiptEmail(payment: PaymentRow, outcome: 'succeeded' | 'failed
         outcome,
         isMembership: payment.payment_type === 'membership',
         isDonation: payment.payment_type === 'donation',
+        // Read from its own column rather than off the descriptor, which is a
+        // neutral label. Only the gift acknowledgement renders it.
+        donationNote: payment.donation_note,
         purchasedTier:
           payment.purchased_tier_status === 'tier1' || payment.purchased_tier_status === 'tier2'
             ? payment.purchased_tier_status
@@ -2655,7 +2665,7 @@ function handleInvoicePaymentSucceeded(event: StripeWebhookEvent): WebhookOutcom
 
   const paymentId = newPaymentId();
   const now = new Date().toISOString();
-  const descriptor = donationDescriptor(sub.donation_comment, true);
+  const descriptor = donationDescriptor(true);
 
   let claimed: boolean;
   try {
@@ -2670,7 +2680,7 @@ function handleInvoicePaymentSucceeded(event: StripeWebhookEvent): WebhookOutcom
       sub.member_id,
       amountCents, currency,
       descriptor,
-      sub.donation_comment,
+      sub.donation_note,
       sub.stripe_customer_id,
       stripeSubscriptionId,
       invoiceId,
@@ -3140,7 +3150,7 @@ function enqueueSubscriptionEmail(
       template,
       params: {
         amountDisplay: formatAmount(sub.amount_cents, sub.currency),
-        donationNote: sub.donation_comment,
+        donationNote: sub.donation_note,
         referenceId: sub.id,
         // Rendered by the setup confirmation only. The date the gift was set
         // up, not the date of this notice, so a later lifecycle notice cannot
@@ -3353,7 +3363,7 @@ function shapeRecurringRow(
     statusLabel: isCancelPending
       ? 'Ending after this period'
       : SUBSCRIPTION_STATUS_LABELS[sub.status],
-    noteDisplay: sub.donation_comment ?? '',
+    noteDisplay: sub.donation_note ?? '',
     showCancel: isLive && !isCancelPending,
     cancelHref: `/members/${memberKey}/recurring-donations/${sub.stripe_subscription_id}/cancel`,
     isCancelPending,
@@ -3440,9 +3450,10 @@ function openingChargeIds(items: PaymentHistoryItem[]): Set<string> {
 }
 
 /**
- * What the item cell says. A donation's stored descriptor carries the member's
- * note, which now has a column of its own, so the donation kinds are composed
- * here instead and the note is not printed twice on one row.
+ * What the item cell says. A donation's stored descriptor is the same neutral
+ * label for the opening charge and every renewal, so the cycle is spelled out
+ * here, where the row knows which of the two it is. The note is a column of its
+ * own and renders in its own cell.
  */
 function historyItemText(p: PaymentHistoryItem, isOpeningCharge: boolean): string {
   if (p.paymentType !== 'donation') return p.descriptor;
@@ -3568,7 +3579,7 @@ async function startDonation(
   }
 
   const safeReturn = safeReturnTo(returnTo, `/members/${profile.slug}`);
-  const descriptor = donationDescriptor(note, recurring);
+  const descriptor = donationDescriptor(recurring);
   const adapter = getPaymentAdapter();
 
   if (recurring) {

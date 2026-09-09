@@ -65,6 +65,11 @@ const PAYMENT_RECEIPT_FIELDS = [
   'descriptor', 'amountDisplay', 'paymentDate', 'intervalPhrase', 'referenceId',
 ] as const;
 
+// The gift acknowledgement adds the donor's own note. It is the only receipt
+// that carries it: the descriptor is a neutral label everywhere, and the note is
+// held in one column and rendered from there rather than glued into a label.
+const DONATION_RECEIPT_FIELDS = [...PAYMENT_RECEIPT_FIELDS, 'notePhrase'] as const;
+
 const RECURRING_DONATION_FIELDS = ['amountDisplay', 'notePhrase', 'referenceId'] as const;
 
 // The setup confirmation carries a date; the later lifecycle notices do not.
@@ -98,7 +103,7 @@ export const TEMPLATE_VARIANTS = {
   payment_receipt_succeeded_tier1: v('confidential', PAYMENT_RECEIPT_FIELDS),
   payment_receipt_succeeded_tier2: v('confidential', PAYMENT_RECEIPT_FIELDS),
   payment_receipt_succeeded:       v('confidential', PAYMENT_RECEIPT_FIELDS),
-  payment_receipt_succeeded_donation: v('confidential', PAYMENT_RECEIPT_FIELDS),
+  payment_receipt_succeeded_donation: v('confidential', DONATION_RECEIPT_FIELDS),
   payment_receipt_failed:          v('confidential', PAYMENT_RECEIPT_FIELDS),
   payment_receipt_failed_membership: v('confidential', PAYMENT_RECEIPT_FIELDS),
   donation_subscription_started:            v('confidential', RECURRING_DONATION_STARTED_FIELDS),
@@ -210,8 +215,9 @@ const SHAPERS = {
     isMembership: boolean;
     isDonation: boolean;
     purchasedTier: 'tier1' | 'tier2' | null;
+    donationNote: string | null;
     referenceId: string;
-  }): ShapedEmail => ({
+  }): ShapedEmail => {
     // Failure branches on what was being bought, for the same reason the
     // success side branches on the tier: a donor told their membership tier was
     // not changed is being answered about something they were not doing.
@@ -222,7 +228,7 @@ const SHAPERS = {
     // needs and cannot get from a bare receipt. That wording belongs on gifts
     // alone: a membership or an event fee buys something, so putting
     // deductibility language on those would be wrong.
-    variant: p.outcome === 'failed'
+    const variant = p.outcome === 'failed'
       ? (p.isMembership ? 'payment_receipt_failed_membership' : 'payment_receipt_failed')
       : p.isMembership && p.purchasedTier === 'tier1'
         ? 'payment_receipt_succeeded_tier1'
@@ -230,15 +236,25 @@ const SHAPERS = {
           ? 'payment_receipt_succeeded_tier2'
           : p.isDonation
             ? 'payment_receipt_succeeded_donation'
-            : 'payment_receipt_succeeded',
-    merge: {
-      descriptor: p.descriptor,
-      amountDisplay: p.amountDisplay,
-      paymentDate: p.paymentDate,
-      intervalPhrase: p.intervalPhrase,
-      referenceId: p.referenceId,
-    },
-  }),
+            : 'payment_receipt_succeeded';
+    return {
+      variant,
+      merge: {
+        descriptor: p.descriptor,
+        amountDisplay: p.amountDisplay,
+        paymentDate: p.paymentDate,
+        intervalPhrase: p.intervalPhrase,
+        referenceId: p.referenceId,
+        // Only the gift acknowledgement carries the donor's note. The descriptor
+        // is a neutral label on every receipt, so a settled donation is the one
+        // message where the words the donor wrote belong, and the four other
+        // receipt variants declare no such field.
+        ...(variant === 'payment_receipt_succeeded_donation'
+          ? { notePhrase: donationNotePhrase(p.donationNote) }
+          : {}),
+      },
+    };
+  },
   donation_subscription_started: (p: RecurringDonationParams): ShapedEmail => ({
     variant: 'donation_subscription_started',
     merge: { ...recurringDonationMerge(p), startedDate: p.startedDate },

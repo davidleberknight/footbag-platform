@@ -808,8 +808,9 @@ export class OperationsPlatformService {
    * counted, and the scan continues. Runs on the worker daily tick.
    *
    * A third branch anonymizes payments past the compliance-retention window
-   * (member-linking PII stripped, anonymized financial record kept), idempotent
-   * via the member_id-not-null marker. Vote ballots are deliberately not
+   * (member-linking PII stripped, anonymized financial record kept, including
+   * the donor's note, which is the gift's own meaning rather than a link to the
+   * donor), idempotent via the member_id-not-null marker. Vote ballots are deliberately not
    * touched: their retention window only permits cleanup, and destroying IFPA
    * vote records is an IFPA governance decision rather than an operator job.
    *

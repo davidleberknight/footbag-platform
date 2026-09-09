@@ -360,51 +360,44 @@ describe('memberService.purgeAccountPII', () => {
     expect(sent.status).toBe('sent');
   });
 
-  // The words a member wrote alongside a gift are their own writing, and the
-  // governance rule makes them purgeable. The money is not: a payment row is a
-  // financial record kept past the person leaving it and anonymized on its own
-  // compliance schedule, which is years away and no answer to an erasure
-  // request made today. So this asserts both halves, because clearing too much
-  // is as wrong as clearing too little.
-  it('clears the donation note, the descriptor that repeats it, and the subscription comment, leaving the money intact', () => {
+  // The note a donor wrote alongside a gift is the gift's own meaning, most
+  // often a dedication, and it is retained: erasure severs the person from the
+  // record rather than removing what they wrote. That makes this the one
+  // member-authored free-text field the purge leaves standing, so the test
+  // asserts the retention on both the payment and the subscription, and asserts
+  // that everything the purge is meant to reach still goes.
+  it('keeps the donor note on payments and subscriptions through a full purge', () => {
     seedClaimedMember('purge-donation');
     const other = 'purge-donation-bystander';
     const d = db();
     insertMember(d, { id: other, slug: 'purge_donation_other', login_email: `${other}@example.com` });
 
+    const dedication = 'For the Hall of Fame fund, in memory of my coach.';
     const subId = insertRecurringDonationSubscription(d, {
-      id: 'rds-erased', member_id: 'purge-donation',
-      donation_comment: 'For the Hall of Fame fund, in memory of my coach.',
+      id: 'rds-erased', member_id: 'purge-donation', donation_note: dedication,
     });
     // The one-off gift, and the recurring charge that carries the subscription
-    // link: the two descriptor forms differ, and only the recurring one has a
-    // label to preserve.
+    // link. Both descriptors are the neutral label the composer produces.
     insertPayment(d, {
       id: 'pay-oneoff', member_id: 'purge-donation', payment_type: 'donation',
       amount_cents: 5000, currency: 'USD', status: 'succeeded',
-      descriptor: 'Donation: For the Hall of Fame fund, in memory of my coach.',
-      donation_note: 'For the Hall of Fame fund, in memory of my coach.',
+      descriptor: 'Donation', donation_note: dedication,
     });
     insertPayment(d, {
       id: 'pay-recurring', member_id: 'purge-donation', payment_type: 'donation',
       amount_cents: 2500, status: 'succeeded', recurring_subscription_id: subId,
-      descriptor: 'Recurring Annual Donation: For the Hall of Fame fund, in memory of my coach.',
-      donation_note: 'For the Hall of Fame fund, in memory of my coach.',
+      descriptor: 'Recurring Annual Donation', donation_note: dedication,
     });
-    // A membership payment carries no member-authored text, so its descriptor
-    // must survive: the clear is scoped to donations.
     insertPayment(d, {
       id: 'pay-membership', member_id: 'purge-donation', payment_type: 'membership',
       descriptor: 'IFPA Tier 1 Membership',
     });
-    // Another member's donation, to prove the clear is scoped to one member.
     insertPayment(d, {
       id: 'pay-bystander', member_id: other, payment_type: 'donation',
-      descriptor: 'Donation: keep up the good work',
-      donation_note: 'keep up the good work',
+      descriptor: 'Donation', donation_note: 'keep up the good work',
     });
     insertRecurringDonationSubscription(d, {
-      id: 'rds-bystander', member_id: other, donation_comment: 'keep up the good work',
+      id: 'rds-bystander', member_id: other, donation_note: 'keep up the good work',
     });
     d.close();
 
@@ -419,18 +412,20 @@ describe('memberService.purgeAccountPII', () => {
     const subOther   = r.prepare('SELECT * FROM recurring_donation_subscriptions WHERE id = ?').get('rds-bystander') as Record<string, unknown>;
     r.close();
 
-    expect(oneOff.donation_note).toBeNull();
-    expect(oneOff.descriptor).toBe('Donation');
-    expect(recurring.donation_note).toBeNull();
-    // The recurring label is not personal data, and the subscription link that
-    // distinguishes it survives erasure, so the distinction is kept.
-    expect(recurring.descriptor).toBe('Recurring Annual Donation');
-    expect(sub.donation_comment).toBeNull();
+    // Retained, on all three rows that hold it.
+    expect(oneOff.donation_note).toBe(dedication);
+    expect(recurring.donation_note).toBe(dedication);
+    expect(sub.donation_note).toBe(dedication);
 
-    // The financial record the governance rule keeps: nothing about the money
-    // moved, and the payment still points at the member whose it was. The
-    // member link is stripped later by the compliance anonymization, on its own
-    // schedule, not by erasure.
+    // The descriptor is a neutral label and the purge does not touch it, so the
+    // recurring row still says which of the two kinds of gift it settles.
+    expect(oneOff.descriptor).toBe('Donation');
+    expect(recurring.descriptor).toBe('Recurring Annual Donation');
+    expect(membership.descriptor).toBe('IFPA Tier 1 Membership');
+
+    // The financial record: nothing about the money moved, and the payment still
+    // points at the member whose it was. The member link is stripped later by
+    // the compliance anonymization, on its own schedule, not by erasure.
     expect(oneOff.amount_cents).toBe(5000);
     expect(oneOff.currency).toBe('USD');
     expect(oneOff.status).toBe('succeeded');
@@ -439,24 +434,24 @@ describe('memberService.purgeAccountPII', () => {
     expect(sub.amount_cents).toBe(2500);
     expect(sub.status).toBe('active');
 
-    // Scope: a non-donation descriptor and another member's words are untouched.
-    expect(membership.descriptor).toBe('IFPA Tier 1 Membership');
+    // Another member's rows are untouched, which is the scope check that would
+    // still matter if the retention rule were ever narrowed.
     expect(bystander.donation_note).toBe('keep up the good work');
-    expect(bystander.descriptor).toBe('Donation: keep up the good work');
-    expect(subOther.donation_comment).toBe('keep up the good work');
+    expect(subOther.donation_note).toBe('keep up the good work');
   });
 
-  // What was cleared has to be legible from the ledger afterwards, because the
-  // rows themselves no longer say.
-  it('counts the cleared donation rows in the purge audit row', () => {
+  // The ledger row is the account of what the purge did. It must not claim to
+  // have cleared donation text, because a reader who believes it would conclude
+  // a donor's dedication is gone when it is still on the record.
+  it('records no donation-clearing claim in the purge audit row', () => {
     seedClaimedMember('purge-donation-audit');
     const d = db();
     insertPayment(d, {
       id: 'pay-audit', member_id: 'purge-donation-audit', payment_type: 'donation',
-      descriptor: 'Donation: thanks', donation_note: 'thanks',
+      descriptor: 'Donation', donation_note: 'thanks',
     });
     insertRecurringDonationSubscription(d, {
-      id: 'rds-audit', member_id: 'purge-donation-audit', donation_comment: 'thanks',
+      id: 'rds-audit', member_id: 'purge-donation-audit', donation_note: 'thanks',
     });
     d.close();
 
@@ -467,11 +462,15 @@ describe('memberService.purgeAccountPII', () => {
       SELECT metadata_json FROM audit_entries
        WHERE action_type = 'member.pii_purged' AND entity_id = ?
     `).get('purge-donation-audit') as { metadata_json: string };
+    const payment = r.prepare('SELECT * FROM payments WHERE id = ?').get('pay-audit') as Record<string, unknown>;
     r.close();
 
     const meta = JSON.parse(row.metadata_json) as Record<string, unknown>;
-    expect(meta.donation_payments_cleared).toBe(1);
-    expect(meta.donation_subscriptions_cleared).toBe(1);
+    expect(Object.keys(meta).filter((k) => k.startsWith('donation_'))).toEqual([]);
+    // The other counters still report, so an empty donation set is the rule
+    // rather than an audit row that stopped recording anything at all.
+    expect(meta.outbox_rows_scrubbed).toBeTypeOf('number');
+    expect(payment.donation_note).toBe('thanks');
   });
 
 });

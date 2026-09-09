@@ -79,7 +79,7 @@ test('member payment history and gallery editor render at phone width with their
     member_id: persona.memberId,
     status: 'active',
     amount_cents: 2500,
-    donation_comment: 'Phone-width layout check',
+    donation_note: 'Phone-width layout check',
   });
   insertPersonaNamedGallery(db, {
     galleryId: `gal_${slug}`,

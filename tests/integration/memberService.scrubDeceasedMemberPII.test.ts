@@ -232,26 +232,25 @@ describe('memberService.scrubDeceasedMemberPII', () => {
   });
 
   // The line this draws is the one the whole scrub is built on: the record goes
-  // on honoring what they did, and stops holding what they wrote. A gift is
-  // part of the record; the sentence they typed alongside it is theirs.
-  it('clears their donation comments while the gifts themselves stay on the record', () => {
+  // on honoring what they did. Their giving is part of that record, and so is
+  // the dedication they wrote alongside it, which is often the reason the gift
+  // was made. Contact data goes; the meaning of the gift stays.
+  it('keeps their donation notes, on the same terms as the gifts themselves', () => {
     seedDeceasedClaimedMember('scrub-donation');
+    const dedication = 'Happy to support the next generation of players.';
     const d = db();
     const subId = insertRecurringDonationSubscription(d, {
-      id: 'rds-scrub', member_id: 'scrub-donation',
-      donation_comment: 'Happy to support the next generation of players.',
+      id: 'rds-scrub', member_id: 'scrub-donation', donation_note: dedication,
     });
     insertPayment(d, {
       id: 'pay-scrub-oneoff', member_id: 'scrub-donation', payment_type: 'donation',
       amount_cents: 10000, status: 'succeeded',
-      descriptor: 'Donation: Happy to support the next generation of players.',
-      donation_note: 'Happy to support the next generation of players.',
+      descriptor: 'Donation', donation_note: dedication,
     });
     insertPayment(d, {
       id: 'pay-scrub-recurring', member_id: 'scrub-donation', payment_type: 'donation',
       amount_cents: 2500, status: 'succeeded', recurring_subscription_id: subId,
-      descriptor: 'Recurring Annual Donation: Happy to support the next generation of players.',
-      donation_note: 'Happy to support the next generation of players.',
+      descriptor: 'Recurring Annual Donation', donation_note: dedication,
     });
     d.close();
 
@@ -267,11 +266,11 @@ describe('memberService.scrubDeceasedMemberPII', () => {
     `).get('scrub-donation') as { metadata_json: string };
     r.close();
 
-    expect(oneOff.donation_note).toBeNull();
+    expect(oneOff.donation_note).toBe(dedication);
+    expect(recurring.donation_note).toBe(dedication);
+    expect(sub.donation_note).toBe(dedication);
     expect(oneOff.descriptor).toBe('Donation');
-    expect(recurring.donation_note).toBeNull();
     expect(recurring.descriptor).toBe('Recurring Annual Donation');
-    expect(sub.donation_comment).toBeNull();
 
     // The gifts stand, undisturbed, and still attributed to them: this scrub
     // preserves the record, and their giving is part of it.
@@ -281,9 +280,9 @@ describe('memberService.scrubDeceasedMemberPII', () => {
     expect(sub.amount_cents).toBe(2500);
     expect(sub.member_id).toBe('scrub-donation');
 
+    // The ledger row must not claim a clearing that did not happen.
     const meta = JSON.parse(audit.metadata_json) as Record<string, unknown>;
-    expect(meta.donation_payments_cleared).toBe(2);
-    expect(meta.donation_subscriptions_cleared).toBe(1);
+    expect(Object.keys(meta).filter((k) => k.startsWith('donation_'))).toEqual([]);
   });
 
   it('leaves the record standing, which is what the preserved fields are for', () => {

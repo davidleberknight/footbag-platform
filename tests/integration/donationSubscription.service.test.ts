@@ -37,12 +37,13 @@ const M_OUT_OF_ORDER_SUCCESS = 'don-ooo-success';
 const M_RENEWAL_CURRENCY = 'don-renewal-ccy';
 const M_LATE_ON_ENDED = 'don-late-on-ended';
 const M_UPDATE_ON_ENDED = 'don-update-on-ended';
+const M_DESCRIPTOR = 'don-descriptor';
 const ALL_MEMBERS = [
   M_PLAIN, M_HOF, M_BAP, M_BOTH, M_OTHER,
   M_FAIL_AGAIN, M_UPDATE_AGAIN, M_SIGNUP,
   M_PROMOTE, M_LEDGER, M_EXPIRE, M_EXPIRE_AGAIN,
   M_OUT_OF_ORDER_SUCCESS, M_RENEWAL_CURRENCY,
-  M_LATE_ON_ENDED, M_UPDATE_ON_ENDED,
+  M_LATE_ON_ENDED, M_UPDATE_ON_ENDED, M_DESCRIPTOR,
 ];
 
 beforeAll(async () => {
@@ -276,6 +277,55 @@ describe('startDonation: one-time gift', () => {
   });
 });
 
+describe('the donor note has one home and never rides on the descriptor', () => {
+  // The descriptor is the string handed to the payment provider as the checkout
+  // line-item name, and the same string is rendered into receipt emails, one of
+  // which puts it in the subject. Composing the donor's note into it therefore
+  // published their words to places this platform cannot reach to correct them.
+  // The note belongs in its own column and nowhere else.
+  it('leaves the note out of the descriptor a one-time gift sends and stores', async () => {
+    const paymentService = await svc();
+    await stubAdapter();
+    const note = 'In memory of my coach, who never let me quit';
+    const started = await paymentService.startDonation(M_PLAIN, 4000, note, false, '/x');
+
+    const row = openDb();
+    try {
+      const pending = row.prepare('SELECT * FROM payments WHERE id = ?').get(started.reference) as Record<string, unknown>;
+      // One local holds the descriptor for both the provider call and this row,
+      // so what is stored here is what the provider was sent.
+      expect(pending.descriptor).toBe('Donation');
+      expect(pending.donation_note).toBe(note);
+    } finally {
+      row.close();
+    }
+  });
+
+  it('leaves the note out of the descriptor a renewal charge books', async () => {
+    const paymentService = await svc();
+    const stub = await stubAdapter();
+    const note = 'For the Big Add Posse fund';
+    const { sessionId, subscriptionId } = await activateSubscription(M_DESCRIPTOR, { note });
+
+    const invoice = stub.buildSignedStubSubscriptionEvent(sessionId, 'invoice_succeeded');
+    expect(paymentService.handleWebhook(invoice.rawBody, invoice.signature)).toEqual({
+      outcome: 'processed',
+    });
+
+    const row = openDb();
+    try {
+      const charge = row.prepare(
+        'SELECT descriptor, donation_note FROM payments WHERE recurring_subscription_id = ?',
+      ).get(subscriptionId) as Record<string, unknown>;
+      expect(charge.descriptor).toBe('Recurring Annual Donation');
+      // The note still reaches the charge, from the subscription that carries it.
+      expect(charge.donation_note).toBe(note);
+    } finally {
+      row.close();
+    }
+  });
+});
+
 describe('startDonation: a recurring gift is recorded from the moment checkout opens', () => {
   it('writes an unresolved subscription row before the member is redirected', async () => {
     const paymentService = await svc();
@@ -286,7 +336,7 @@ describe('startDonation: a recurring gift is recorded from the moment checkout o
     expect(sub).toBeDefined();
     expect(sub.status).toBe('incomplete');
     expect(sub.amount_cents).toBe(2500);
-    expect(sub.donation_comment).toBe('For the kids');
+    expect(sub.donation_note).toBe('For the kids');
     // The provider mints both of these during checkout, so neither can exist
     // yet; the session is the only handle the row has until it is confirmed.
     expect(sub.stripe_subscription_id).toBeNull();
@@ -402,7 +452,7 @@ describe('customer.subscription.created', () => {
     expect(sub.status).toBe('active');
     expect(sub.amount_cents).toBe(3000);
     expect(sub.billing_interval).toBe('yearly');
-    expect(sub.donation_comment).toBe('Yearly support');
+    expect(sub.donation_note).toBe('Yearly support');
     expect(sub.stripe_subscription_id).toBe(stripeSubscriptionId);
     expect(sub.is_cancel_at_period_end).toBe(0);
 

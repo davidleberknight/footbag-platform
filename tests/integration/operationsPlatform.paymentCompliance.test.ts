@@ -45,9 +45,10 @@ function insertPaymentAt(
 beforeAll(async () => {
   db = createTestDb(dbPath);
   insertMember(db, { id: 'pc-mem', slug: 'pc_mem' });
-  // A donation past retention: its descriptor embeds the donor's note.
+  // A donation past retention, carrying a dedication in its own column.
   insertPaymentAt('pay-old', '2018-01-01T00:00:00.000Z', 'pc-mem', {
-    descriptor: 'Donation: in memory of a dear friend',
+    descriptor: 'Donation',
+    donationNote: 'in memory of a dear friend',
   });
   // A membership past retention: its descriptor is a fixed non-personal label.
   insertPaymentAt('pay-old-membership', '2018-02-01T00:00:00.000Z', 'pc-mem', {
@@ -81,14 +82,15 @@ describe('payment compliance cleanup', () => {
     expect(result.payments.errors).toHaveLength(0);
 
     const old = paymentRow('pay-old');
+    // What this pass exists to remove is what ties the row to a person.
     expect(old.member_id).toBeNull();
-    expect(old.donation_note).toBeNull();
     expect(old.stripe_payment_intent_id).toBeNull();
     expect(old.stripe_customer_id).toBeNull();
     expect(old.stripe_invoice_id).toBeNull();
     expect(old.metadata_json).toBe('{}');
-    // The donation descriptor embedded the note, so it is reset to a neutral
-    // constant, removing the note that also lived in donation_note.
+    // The dedication is the gift's own meaning, not a link to the donor, so it
+    // survives the window with the rest of the financial record.
+    expect(old.donation_note).toBe('in memory of a dear friend');
     expect(old.descriptor).toBe('Donation');
     // The anonymized financial record is preserved.
     expect(old.amount_cents).toBe(500);

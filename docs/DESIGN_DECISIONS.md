@@ -4697,7 +4697,7 @@ Impact:
 
 Decision:
 
-Target operational cost: \$50-100/month. Single Lightsail instance (\$40/month), S3 storage/transfer, CloudFront, SES. No high-availability cluster, no managed database, no sophisticated monitoring tools.
+Target operational cost: \$50-100/month. Single Lightsail instance (\$24/month), S3 storage/transfer, CloudFront, SES. No high-availability cluster, no managed database, no sophisticated monitoring tools.
 
 Rationale:
 

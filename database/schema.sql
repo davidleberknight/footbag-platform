@@ -1329,7 +1329,11 @@ CREATE TABLE recurring_donation_subscriptions (
   cancel_requested_at     TEXT,
   canceled_at             TEXT,
 
-  donation_comment TEXT,
+  -- The words the donor wrote alongside the gift, under the same column name the
+  -- payments ledger uses. Permanent: it is the gift's own meaning, most often a
+  -- dedication or the fund the donor cares about, so erasure severs the person
+  -- from the record rather than removing what they wrote.
+  donation_note    TEXT,
   failure_count    INTEGER NOT NULL DEFAULT 0,
   metadata_json    TEXT NOT NULL DEFAULT '{}',
 
@@ -1500,7 +1504,9 @@ CREATE TABLE payments (
   recurring_subscription_id TEXT
     REFERENCES recurring_donation_subscriptions(id),
 
-  -- Inlined donation detail (NULL for non-donation payments)
+  -- Inlined donation detail (NULL for non-donation payments). Permanent, on the
+  -- same terms as the subscription column of the same name: the descriptor above
+  -- stays a neutral label so this is the only place the donor's words are held.
   donation_note         TEXT,
 
   -- Inlined membership detail (NULL for non-membership payments)

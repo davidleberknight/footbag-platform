@@ -97,12 +97,12 @@ const CATALOG: CatalogEntry[] = [
     { params: { displayDate: 'January 1, 2030', isDayOf: true }, variant: 'active_player_expiry_day_of' },
   ] },
   { template: 'payment_receipt', services: ['paymentService'], samples: [
-    { params: { descriptor: 'd', amountDisplay: '$1.00 USD', paymentDate: '1 January 2030', intervalPhrase: 'One-time payment', outcome: 'succeeded', isMembership: true, isDonation: false, purchasedTier: 'tier1', referenceId: 'r' }, variant: 'payment_receipt_succeeded_tier1' },
-    { params: { descriptor: 'd', amountDisplay: '$1.00 USD', paymentDate: '1 January 2030', intervalPhrase: 'One-time payment', outcome: 'succeeded', isMembership: true, isDonation: false, purchasedTier: 'tier2', referenceId: 'r' }, variant: 'payment_receipt_succeeded_tier2' },
-    { params: { descriptor: 'd', amountDisplay: '$1.00 USD', paymentDate: '1 January 2030', intervalPhrase: 'One-time payment', outcome: 'succeeded', isMembership: false, isDonation: false, purchasedTier: null, referenceId: 'r' }, variant: 'payment_receipt_succeeded' },
-    { params: { descriptor: 'd', amountDisplay: '$1.00 USD', paymentDate: '1 January 2030', intervalPhrase: 'Yearly recurring donation', outcome: 'succeeded', isMembership: false, isDonation: true, purchasedTier: null, referenceId: 'r' }, variant: 'payment_receipt_succeeded_donation' },
-    { params: { descriptor: 'd', amountDisplay: '$1.00 USD', paymentDate: '1 January 2030', intervalPhrase: 'One-time payment', outcome: 'failed', isMembership: true, isDonation: false, purchasedTier: 'tier1', referenceId: 'r' }, variant: 'payment_receipt_failed_membership' },
-    { params: { descriptor: 'd', amountDisplay: '$1.00 USD', paymentDate: '1 January 2030', intervalPhrase: 'One-time payment', outcome: 'failed', isMembership: false, isDonation: false, purchasedTier: null, referenceId: 'r' }, variant: 'payment_receipt_failed' },
+    { params: { descriptor: 'd', amountDisplay: '$1.00 USD', paymentDate: '1 January 2030', intervalPhrase: 'One-time payment', outcome: 'succeeded', isMembership: true, isDonation: false, purchasedTier: 'tier1', donationNote: null, referenceId: 'r' }, variant: 'payment_receipt_succeeded_tier1' },
+    { params: { descriptor: 'd', amountDisplay: '$1.00 USD', paymentDate: '1 January 2030', intervalPhrase: 'One-time payment', outcome: 'succeeded', isMembership: true, isDonation: false, purchasedTier: 'tier2', donationNote: null, referenceId: 'r' }, variant: 'payment_receipt_succeeded_tier2' },
+    { params: { descriptor: 'd', amountDisplay: '$1.00 USD', paymentDate: '1 January 2030', intervalPhrase: 'One-time payment', outcome: 'succeeded', isMembership: false, isDonation: false, purchasedTier: null, donationNote: null, referenceId: 'r' }, variant: 'payment_receipt_succeeded' },
+    { params: { descriptor: 'd', amountDisplay: '$1.00 USD', paymentDate: '1 January 2030', intervalPhrase: 'Yearly recurring donation', outcome: 'succeeded', isMembership: false, isDonation: true, purchasedTier: null, donationNote: 'In memory of my coach', referenceId: 'r' }, variant: 'payment_receipt_succeeded_donation' },
+    { params: { descriptor: 'd', amountDisplay: '$1.00 USD', paymentDate: '1 January 2030', intervalPhrase: 'One-time payment', outcome: 'failed', isMembership: true, isDonation: false, purchasedTier: 'tier1', donationNote: null, referenceId: 'r' }, variant: 'payment_receipt_failed_membership' },
+    { params: { descriptor: 'd', amountDisplay: '$1.00 USD', paymentDate: '1 January 2030', intervalPhrase: 'One-time payment', outcome: 'failed', isMembership: false, isDonation: false, purchasedTier: null, donationNote: null, referenceId: 'r' }, variant: 'payment_receipt_failed' },
   ] },
   { template: 'donation_subscription_started', services: ['paymentService'], samples: [
     { params: { amountDisplay: '$25.00 USD', donationNote: 'HoF Fund', referenceId: 'r', startedDate: '1 January 2030' }, variant: 'donation_subscription_started' },
@@ -205,6 +205,44 @@ describe('email catalog', () => {
 
     const membership = read('payment_receipt_failed_membership').bodyTemplate;
     expect(membership).toMatch(/membership tier was not changed/);
+  });
+
+  // A donor who dedicates a gift should see that dedication in the message they
+  // keep for their records. It reaches them from the note's own column, and only
+  // on the gift acknowledgement: the descriptor is a neutral label on every
+  // receipt, so no other variant carries member-authored text at all.
+  it('the gift acknowledgement carries the donor note, and no other receipt does', () => {
+    const withNote = shapeEmail('payment_receipt', {
+      descriptor: 'Donation', amountDisplay: '$50.00 USD', paymentDate: '1 January 2030',
+      intervalPhrase: 'One-time payment', outcome: 'succeeded', isMembership: false,
+      isDonation: true, purchasedTier: null, donationNote: 'In memory of my coach',
+      referenceId: 'r',
+    });
+    expect(withNote.variant).toBe('payment_receipt_succeeded_donation');
+    expect(withNote.merge.notePhrase).toBe('Your note: In memory of my coach');
+    expect(withNote.merge.descriptor).toBe('Donation');
+
+    // A gift with no note still renders a complete sentence, because the stored
+    // template text is logic-less and an empty value would leave a gap.
+    const withoutNote = shapeEmail('payment_receipt', {
+      descriptor: 'Donation', amountDisplay: '$50.00 USD', paymentDate: '1 January 2030',
+      intervalPhrase: 'One-time payment', outcome: 'succeeded', isMembership: false,
+      isDonation: true, purchasedTier: null, donationNote: null, referenceId: 'r',
+    });
+    expect(withoutNote.merge.notePhrase).toBe('You did not include a note.');
+
+    // A failed donation renders the failure variant, whose subject is built from
+    // the descriptor. It must carry no note field at all: an email subject is the
+    // least protected place a member's own words could land.
+    const failed = shapeEmail('payment_receipt', {
+      descriptor: 'Donation', amountDisplay: '$50.00 USD', paymentDate: '1 January 2030',
+      intervalPhrase: 'One-time payment', outcome: 'failed', isMembership: false,
+      isDonation: true, purchasedTier: null, donationNote: 'In memory of my coach',
+      referenceId: 'r',
+    });
+    expect(failed.variant).toBe('payment_receipt_failed');
+    expect(Object.keys(failed.merge)).not.toContain('notePhrase');
+    expect(Object.values(failed.merge).join(' ')).not.toContain('my coach');
   });
 
   it('the Active Player reminders offer no route the rules refuse their reader', () => {

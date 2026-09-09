@@ -682,9 +682,62 @@ CONVERTIBLE_EXTENSIONS = {ext for ext, (_, convertible) in MEDIA_FORMATS.items()
 # /registration/listevent?eid= (We ignore event ids but we could add this feature)
 # /newmoves/addhint?id=21 (ignored for now, creates incorrect newmoves/addhint/index.html, not a big deal)
 
+# What each file held before this run first wrote it: path -> (mtime, digest),
+# or None for a path that did not exist yet. The publish step decides what to
+# upload by comparing modification times, so a run that ends with a file exactly
+# as it found it must hand that file back its original time or the whole capture
+# re-uploads. A revisit crawl is the case that matters: it re-fetches every page
+# and writes it twice, raw and then settled, and lands on the same bytes it
+# started from, which is a delta of nothing dressed as a hundred thousand
+# changes.
+_pre_write_state = {}
+
+
+def _remember_pre_write_state(path):
+    """Record a file's time and content the first time this run overwrites it."""
+    key = os.fspath(path)
+    if key in _pre_write_state:
+        # Only the state before the run counts. A page written raw and then
+        # settled passes through here twice, and the second reading would record
+        # the half-finished middle as though it were the starting point.
+        return
+    try:
+        mtime = os.stat(key).st_mtime
+        with open(key, 'rb') as existing:
+            _pre_write_state[key] = (mtime, hashlib.sha256(existing.read()).digest())
+    except OSError:
+        _pre_write_state[key] = None
+
+
+def restore_unchanged_mtimes():
+    """Give back the original modification time to every file this run left
+    byte-identical, so the publish that follows moves only real changes."""
+    restored = 0
+    for key, before in _pre_write_state.items():
+        if before is None:
+            continue
+        mtime, digest = before
+        try:
+            with open(key, 'rb') as current:
+                if hashlib.sha256(current.read()).digest() != digest:
+                    continue
+            os.utime(key, (mtime, mtime))
+        except OSError:
+            # A path the run deleted, or one the filesystem will not stamp.
+            continue
+        restored += 1
+    _pre_write_state.clear()
+    if restored:
+        logging.info(
+            f"Timestamps: {restored} file(s) ended the run byte-identical and "
+            "kept the time of the capture that made them")
+    return restored
+
+
 def _atomic_write_text(path, text):
     """Write a text file via temp + rename so a crash never leaves a truncated
     file that a resumed crawl (which trusts visited/exists state) would keep."""
+    _remember_pre_write_state(path)
     temp_path = str(path) + '.tmp'
     with open(temp_path, 'w', encoding='utf-8') as f:
         f.write(text)
@@ -4918,6 +4971,7 @@ def save_content(url, content, is_html):
                 mirror_state.stats['css_offsite_refs_dropped'] += dropped
                 _atomic_write_text(filepath, stylesheet)
             else:
+                _remember_pre_write_state(filepath)
                 with open(filepath, 'wb') as f:
                     f.write(content)
             if is_duplicate:
@@ -8084,6 +8138,16 @@ def crawl(start_urls):
             print_stats()
 
 def main():
+    # Every mode that writes leaves through here, including the tree-only modes
+    # that return early and a crawl that dies on an exception, so the timestamp
+    # restore sits on the way out rather than at any one of those exits.
+    try:
+        _run_crawler()
+    finally:
+        restore_unchanged_mtimes()
+
+
+def _run_crawler():
     global USERNAME, PASSWORD, LOG_TO_FILE, SKIP_VIDEOS, CONTENT_EXCLUSIONS
     global ACCOUNT_EMAIL, ACCOUNT_REDACTIONS, CRAWL_SESSION_YEAR, WITHHELD_EXACT_URLS
 
