@@ -11148,6 +11148,7 @@ export const internalGovernance = {
   get listCommitteeMembers() { return db.prepare(`SELECT * FROM internal_governance_committee_members WHERE committee_id = ? ORDER BY priority ASC`); },
   get listGroupFiles()      { return db.prepare(`SELECT * FROM internal_governance_group_files WHERE group_id = ? ORDER BY priority ASC`); },
   get listElections()       { return db.prepare(`SELECT * FROM internal_governance_elections ORDER BY starts_at DESC`); },
+  get getElection()         { return db.prepare(`SELECT * FROM internal_governance_elections WHERE election_id = ?`); },
   get listIssuesByElection() { return db.prepare(`SELECT * FROM internal_governance_issues WHERE election_id = ? ORDER BY election_order ASC`); },
   get listTalliesByIssue()  { return db.prepare(`SELECT * FROM internal_governance_issue_vote_tallies WHERE issue_id = ? ORDER BY answer_index ASC`); },
 };

@@ -53,14 +53,22 @@ COPY --from=builder /app/dist ./dist
 # default to INCLUDE_DEV_SHORTCUTS=0, which strips dist/testkit and
 # dist/dev-bootstrap. Statically-imported modules are replaced with no-op stubs
 # so app boot stays intact.
+#
+# dist/internal-governance ships in source but must never reach a production
+# runtime image; it is the throwaway legacy-governance review screen (deleted
+# entirely before go-live), stripped here alongside the dev/staging subtrees
+# as the interim safeguard, with its statically-imported router module
+# replaced with a null stub so app boot stays intact.
 ARG INCLUDE_DEV_SHORTCUTS=0
 RUN if [ "$INCLUDE_DEV_SHORTCUTS" != "1" ]; then \
-      rm -rf dist/testkit dist/dev-bootstrap && \
+      rm -rf dist/testkit dist/dev-bootstrap dist/internal-governance && \
       mkdir -p dist/testkit && \
       printf 'module.exports = { devRouter: null };\n' > dist/testkit/devRoutes.js && \
       printf 'module.exports = { getDevOutboxCaptureClient: function () { return { fetchWorkerCaptured: function () { return Promise.resolve([]); } }; } };\n' > dist/testkit/devOutboxCaptureClient.js && \
       mkdir -p dist/dev-bootstrap && \
-      printf 'module.exports = { applyDevStagingBootstrapAdmin: function () { return { applied: false }; }, getInitialAdminEmails: function () { return new Set(); } };\n' > dist/dev-bootstrap/runtime.js; \
+      printf 'module.exports = { applyDevStagingBootstrapAdmin: function () { return { applied: false }; }, getInitialAdminEmails: function () { return new Set(); } };\n' > dist/dev-bootstrap/runtime.js && \
+      mkdir -p dist/routes && \
+      printf 'module.exports = { internalGovernanceRouter: null };\n' > dist/routes/internalGovernanceRoutes.js; \
     fi
 
 # Copy non-compiled assets that tsc does not process (tsc emits only .js).

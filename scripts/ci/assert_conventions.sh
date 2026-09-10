@@ -1181,6 +1181,13 @@ DECLARED = {
     'mailing_lists',
     # Schema bookkeeping: the applied migration filenames.
     'schema_migrations',
+    # Legacy-governance-review only (DELETE BEFORE GO-LIVE): throwaway staging
+    # tables loaded once from the legacy export by legacy_data/scripts/load_governance_tables.py
+    # for the internal review screen. Nothing writes to them after the load,
+    # so there is no later actor or change to stamp.
+    'internal_governance_committees', 'internal_governance_committee_members',
+    'internal_governance_group_files', 'internal_governance_elections',
+    'internal_governance_issues', 'internal_governance_issue_vote_tallies',
 }
 
 # An append-only table whose author is a typed FK instead of the free-form actor
