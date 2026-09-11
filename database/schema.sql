@@ -5618,6 +5618,134 @@ CREATE TABLE symbolic_glossary_crosslinks (
   educational_value TEXT
 );
 
+-- ---- Legacy-governance-review only: DELETE BEFORE GO-LIVE ----
+-- Temporary tables holding the legacy governance export (committees, groups,
+-- rosters, group files, elections, issues, derived vote tallies) so the
+-- throwaway review screen has something to read. Not real schema: no platform
+-- surface reads these, nothing references them by foreign key, and they carry
+-- none of the standard id/created_at/created_by/updated_at/updated_by/version
+-- metadata because nothing writes to them after the load.
+-- Deleted together with src/internal-governance/ and its db.ts statement
+-- group, before the production build. See the retirement inventory in
+-- GO_LIVE_PLAN (private repo).
+
+-- Committees and informal groups. Source: legacy-export/groups/ifpa_committees.csv.
+CREATE TABLE internal_governance_committees (
+  committee_id               TEXT PRIMARY KEY,
+  committee_valid             INTEGER NOT NULL CHECK (committee_valid IN (0,1)),
+  committee_public            INTEGER NOT NULL CHECK (committee_public IN (0,1)),
+  committee_name              TEXT,
+  committee_owner_id          TEXT,
+  subcommittee_of_id          TEXT,
+  committee_charter           TEXT,
+  committee_email_enabled      INTEGER NOT NULL CHECK (committee_email_enabled IN (0,1)),
+  committee_prepend_subject   INTEGER NOT NULL CHECK (committee_prepend_subject IN (0,1)),
+  committee_email_subject     TEXT,
+  committee_email_restricted  INTEGER NOT NULL CHECK (committee_email_restricted IN (0,1)),
+  committee_email_moderated   INTEGER NOT NULL CHECK (committee_email_moderated IN (0,1)),
+  committee_email_archived    INTEGER NOT NULL CHECK (committee_email_archived IN (0,1)),
+  committee_keyword           TEXT,
+  committee_type              TEXT,
+  committee_is_official       INTEGER NOT NULL CHECK (committee_is_official IN (0,1)),
+  committee_created_at        TEXT,
+  committee_modified_at       TEXT
+);
+
+-- Committee/group rosters. Source: legacy-export/groups/ifpa_committee_members.csv.
+CREATE TABLE internal_governance_committee_members (
+  id                        TEXT PRIMARY KEY,
+  committee_id               TEXT NOT NULL,
+  committee_member_id        TEXT NOT NULL,
+  priority                   INTEGER,
+  title                      TEXT,
+  alias                      TEXT,
+  member_name                TEXT,
+  is_admin                   INTEGER NOT NULL CHECK (is_admin IN (0,1)),
+  privs                      TEXT,
+  is_voting                  INTEGER NOT NULL CHECK (is_voting IN (0,1))
+);
+CREATE INDEX idx_igcm_committee ON internal_governance_committee_members(committee_id);
+
+-- Group/committee file metadata (no file contents). Source:
+-- legacy-export/groups/ifpa_group_files.csv. committee_scoped and
+-- scope_committee_id are computed by the loader from FileScope alone --
+-- never from the private-custody manifest, which is a stale subset (97 of
+-- the 214 actually-scoped files) and would mislabel 117 files as unscoped.
+CREATE TABLE internal_governance_group_files (
+  file_id            TEXT PRIMARY KEY,
+  visible             INTEGER NOT NULL CHECK (visible IN (0,1)),
+  file_name           TEXT,
+  priority            INTEGER,
+  owner_id            TEXT,
+  group_id            TEXT,
+  file_location       TEXT,
+  created_at          TEXT,
+  modified_at         TEXT,
+  committee_scoped     INTEGER NOT NULL CHECK (committee_scoped IN (0,1)),
+  scope_committee_id   TEXT,
+  description          TEXT
+);
+CREATE INDEX idx_iggf_group ON internal_governance_group_files(group_id);
+CREATE INDEX idx_iggf_scope_committee ON internal_governance_group_files(scope_committee_id);
+
+-- Elections. Source: legacy-export/ifpa/ifpa_elections.csv.
+CREATE TABLE internal_governance_elections (
+  election_id         TEXT PRIMARY KEY,
+  owner_id             TEXT,
+  committee_id         TEXT,
+  visible              INTEGER NOT NULL CHECK (visible IN (0,1)),
+  title                TEXT,
+  starts_at            TEXT,
+  deadline_at          TEXT,
+  description          TEXT,
+  created_at           TEXT,
+  modified_at          TEXT
+);
+
+-- Issues (ballot questions), including the legacy stored per-answer tallies
+-- -- shown for reconciliation only, never as authoritative; see
+-- internal_governance_issue_vote_tallies. Source: legacy-export/ifpa/ifpa_issues.csv.
+-- No ballot-level row (ifpa_issue_votes.csv) is ever loaded into this or any table.
+CREATE TABLE internal_governance_issues (
+  issue_id            TEXT PRIMARY KEY,
+  visible              INTEGER NOT NULL CHECK (visible IN (0,1)),
+  election_id          TEXT,
+  election_order       INTEGER,
+  question             TEXT,
+  answer_1 TEXT, answer_2 TEXT, answer_3 TEXT, answer_4 TEXT, answer_5 TEXT,
+  answer_6 TEXT, answer_7 TEXT, answer_8 TEXT, answer_9 TEXT, answer_10 TEXT,
+  stored_tally_1 INTEGER, stored_tally_2 INTEGER, stored_tally_3 INTEGER,
+  stored_tally_4 INTEGER, stored_tally_5 INTEGER, stored_tally_6 INTEGER,
+  stored_tally_7 INTEGER, stored_tally_8 INTEGER, stored_tally_9 INTEGER,
+  stored_tally_10 INTEGER,
+  owner_id             TEXT,
+  created_at           TEXT,
+  modified_at          TEXT,
+  description          TEXT,
+  is_election          INTEGER NOT NULL CHECK (is_election IN (0,1))
+);
+
+-- Derived vote tallies with the three-way reconciliation (derived ballot
+-- count vs. legacy stored tally vs. live-site capture count). The card's
+-- explicit bar: the derived figure is shown, disagreement is shown, neither
+-- is hidden and the stored tally is never presented as authoritative.
+-- Source: legacy-export/derived-vote-tallies/tally_reconciliation.csv.
+CREATE TABLE internal_governance_issue_vote_tallies (
+  id             TEXT PRIMARY KEY,
+  issue_id        TEXT NOT NULL,
+  election_id     TEXT,
+  question        TEXT,
+  answer_index    INTEGER NOT NULL,
+  answer_text     TEXT,
+  derived_votes   INTEGER,
+  stored_tally    INTEGER,
+  capture_count   INTEGER,
+  status          TEXT
+);
+CREATE INDEX idx_igivt_issue ON internal_governance_issue_vote_tallies(issue_id);
+
+-- ---- end Legacy-governance-review only ----
+
 -- =============================================================================
 -- END OF SCHEMA v0.1
 -- =============================================================================

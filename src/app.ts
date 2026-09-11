@@ -19,6 +19,12 @@ import { publicRouter, STRIPE_WEBHOOK_PATH }   from './routes/publicRoutes';
 // production. Production images strip dist/testkit and stub this module to
 // export null, so the import is safe everywhere.
 import { devRouter }      from './testkit/devRoutes';
+// ---- Legacy-governance-review only: DELETE BEFORE GO-LIVE ----
+// Throwaway legacy-governance review router. Mounted only in development and
+// staging (see the mount block below); never mounted in production.
+// Production images strip dist/internal-governance and stub this module to
+// export null, so the import is safe everywhere.
+import { internalGovernanceRouter } from './routes/internalGovernanceRoutes';
 import { redactTokenPaths } from './lib/redactTokenPaths';
 import { renderForbidden, renderNotFound, renderServiceUnavailable } from './lib/controllerErrors';
 import { assetUrl, renderStylesheet } from './lib/assetVersion';
@@ -475,6 +481,14 @@ export function createApp(): express.Application {
   // module to null).
   if ((config.footbagEnv === 'development' || config.footbagEnv === 'staging') && devRouter) {
     app.use('/dev', devRouter);
+  }
+  // ---- Legacy-governance-review only: DELETE BEFORE GO-LIVE ----
+  // Throwaway review screen mount. Same double gate as /dev above: an env
+  // check plus the null guard (production images stub the router module to
+  // null after stripping dist/internal-governance), so this cannot reach
+  // production even if the code ships.
+  if ((config.footbagEnv === 'development' || config.footbagEnv === 'staging') && internalGovernanceRouter) {
+    app.use('/internal-governance', internalGovernanceRouter);
   }
   app.use('/',         publicRouter);
 

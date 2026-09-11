@@ -11135,6 +11135,25 @@ export const symbolicGrammar = {
   get glossaryCrosslinks()  { return db.prepare(`SELECT * FROM symbolic_glossary_crosslinks`); },
 };
 
+// ---- Legacy-governance-review only: DELETE BEFORE GO-LIVE ----
+// Read-only statement group over the throwaway tables defined in
+// schema.sql's "Legacy-governance-review only" block, populated by
+// legacy_data/scripts/load_governance_tables.py. Deleted together with
+// src/internal-governance/, that schema block and the loader script, before
+// the production build. See the retirement inventory in GO_LIVE_PLAN
+// (private repo).
+export const internalGovernance = {
+  get listCommittees()      { return db.prepare(`SELECT * FROM internal_governance_committees ORDER BY committee_name COLLATE NOCASE`); },
+  get getCommittee()        { return db.prepare(`SELECT * FROM internal_governance_committees WHERE committee_id = ?`); },
+  get listCommitteeMembers() { return db.prepare(`SELECT * FROM internal_governance_committee_members WHERE committee_id = ? ORDER BY priority ASC`); },
+  get listGroupFiles()      { return db.prepare(`SELECT * FROM internal_governance_group_files WHERE group_id = ? ORDER BY priority ASC`); },
+  get listElections()       { return db.prepare(`SELECT * FROM internal_governance_elections ORDER BY starts_at DESC`); },
+  get getElection()         { return db.prepare(`SELECT * FROM internal_governance_elections WHERE election_id = ?`); },
+  get listIssuesByElection() { return db.prepare(`SELECT * FROM internal_governance_issues WHERE election_id = ? ORDER BY election_order ASC`); },
+  get listTalliesByIssue()  { return db.prepare(`SELECT * FROM internal_governance_issue_vote_tallies WHERE issue_id = ? ORDER BY answer_index ASC`); },
+};
+// ---- end Legacy-governance-review only ----
+
 let helperTransactionOpen = false;
 
 function rollbackHelperTransaction(): void {

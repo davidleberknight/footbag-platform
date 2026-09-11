@@ -1,0 +1,41 @@
+{{! /internal-governance/elections/:id — throwaway legacy governance review screen }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  {{#if content.election.description}}
+  <section class="content-section">
+    <p class="text-muted">{{content.election.description}}</p>
+  </section>
+  {{/if}}
+
+  {{#each content.issues}}
+  <section class="content-section">
+    <h2>{{question}}</h2>
+    <p class="text-muted">Derived figure is the count from the ballot rows. Stored and capture figures are shown for
+      reconciliation only and are never authoritative: a disagreement is a records question, not resolved here.</p>
+    <div class="records-table-wrap">
+      <table class="records-table">
+        <thead>
+          <tr><th>Answer</th><th>Derived</th><th>Stored</th><th>Capture</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          {{#each tallies}}
+          <tr{{#if disagrees}} class="severity-high"{{/if}}>
+            <td>{{answerText}}</td>
+            <td><strong>{{derivedVotes}}</strong></td>
+            <td>{{storedTally}}</td>
+            <td>{{captureCount}}</td>
+            <td>{{status}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {{/each}}
+</div>
