@@ -11,22 +11,27 @@
 #
 # SAFE BY DESIGN — never touches real data:
 #   - It NEVER invokes the loader-pipeline scripts (scripts/reset-local-db.sh,
-#     scripts/ci/stage_*.sh) that write into legacy_data/. Those are a CI-only
-#     gate (db-load-smoke), run by GitHub Actions against a clean, empty
-#     checkout. See .claude/rules/testing.md.
+#     scripts/ci/stage_*.sh) that write into legacy_data/ IN THIS CHECKOUT. The
+#     clean-room gate runs the loader inside a throwaway git worktree holding
+#     only committed material, where the real-data trees a maintainer cannot
+#     regenerate are simply absent. The safety rule is about what the loader can
+#     overwrite, and in that worktree the answer is nothing.
 #   - As defense-in-depth it fingerprints legacy_data/ and curated/ before and
 #     after the run and ABORTS non-zero if any changed, so a future gate that
 #     writes real data fails the run instead of clobbering.
 #   The test suites themselves write only to os.tmpdir() / mktemp.
 #
-# Three CI jobs have no local counterpart here, by design or by tooling:
-#   - db-load-smoke: CI-only (writes legacy_data fixtures; safe only on an empty
-#     checkout). Do not run it locally. The real-data safety rule outranks
-#     gate-for-gate parity with CI.
+# Two CI jobs have no local counterpart here, and never can:
 #   - CodeQL static analysis: GitHub-hosted, and its findings are triaged in the
 #     repository's code-scanning view rather than at a terminal.
 #   - dependency-review: a GitHub Action over a pull request's dependency diff,
 #     with no standalone form; the audit gate here covers the whole tree.
+#
+# That list is no longer prose anyone has to keep true by hand:
+# scripts/ci/check_ci_parity.sh fails the convention gate when the workflow
+# gains a job that has neither a local gate nor a recorded reason it cannot have
+# one. The list above drifted before that check existed, naming three jobs when
+# there were four.
 #
 # The live-AWS adapter smoke suite (test:smoke) is likewise not part of the
 # default run:
@@ -138,8 +143,11 @@ Options:
                 it is slow and the ZAP leg needs Docker; CI does not run it.
   --full        Everything a non-operator can run: the full suite plus the
                 coverage thresholds, the blocking security probes, --pentest
-                and the persona crawl. With it, the gate set matches CI apart
-                from db-load-smoke, CodeQL, and dependency-review (see the
+                and the persona crawl, and the clean-room gate that rebuilds the
+                tree in a throwaway worktree and runs the suite as the push gate
+                sees it, including the loader smoke and the database-integrity
+                guards. With it, the gate set matches CI apart from CodeQL and
+                dependency-review, both GitHub-hosted (see the
                 header). The staging-AWS adapter smoke is
                 operator-only and never part of --full; it shows as a SKIP row.
                 Run it deliberately with --with-smoke (operator workstation). The persona crawl
@@ -153,13 +161,12 @@ Options:
   --fail-fast   Stop at the first failing gate instead of running them all.
   -h, --help    Show this message.
 
-SAFE BY DESIGN: this runner never writes to legacy_data/ or curated/. It
-excludes the db-load-smoke loader gate (CI-only; that gate writes legacy_data
-fixtures and is safe only on an empty checkout) and fingerprints the real-data
-trees before/after to prove nothing changed.
+SAFE BY DESIGN: this runner never writes to legacy_data/ or curated/. The loader
+gate runs only inside the clean room's throwaway worktree, which holds committed
+material and nothing a maintainer cannot regenerate, and this runner fingerprints
+the real-data trees before/after to prove nothing changed.
 
 Not run here:
-  - db-load-smoke (loader pipeline): runs in CI on every push (clean checkout).
   - CodeQL static analysis and the pull-request dependency review: GitHub-hosted,
     with no local form.
   - test:smoke (live staging AWS): opt in with --with-smoke from the operator
@@ -808,8 +815,17 @@ if (( WITH_MUTATION == 1 )); then
   run_gate mutation   gate_mutation
 fi
 
-# db-load-smoke (loader pipeline) is intentionally absent: it writes legacy_data
-# fixtures and is safe only on a clean checkout. CI runs it on every push.
+# The loader pipeline is absent from THIS runner for the reason it always was: it
+# writes legacy_data fixtures and is safe only where there is nothing real to
+# overwrite. It is no longer absent from the machine, though. The clean-room gate
+# below runs it inside a throwaway worktree holding only committed material,
+# which is the same condition the runner checks out into.
+# Under --full, which is the mode to reach for before a push: it installs from
+# the lockfile and re-runs the suite, so it roughly doubles the wall clock of an
+# ordinary run and earns that only when the question is "will the runner agree".
+if (( FULL == 1 )); then
+  run_gate clean-room bash scripts/ci/run_clean_room.sh
+fi
 
 assert_real_data_untouched
 summarize
@@ -819,4 +835,71 @@ if (( ANY_FAIL == 1 )); then
   echo "→ run_all_tests.sh: one or more gates FAILED." >&2
   exit 1
 fi
-echo "→ run_all_tests.sh: all gates passed."
+
+# A gate that could not run has not passed, and a run carrying one cannot promise
+# what a reader takes "all gates passed" to mean. Saying so is the difference
+# between knowing this tree is good and knowing only that nothing objected.
+#
+# Only a gate that stands for a push-gate job can change that promise, though.
+# The operator-only and real-data gates skip on any machine without the operator
+# dataset or an AWS profile, and the push gate never runs them either, so
+# counting those would make a clean verdict unreachable and teach the reader to
+# ignore it. They are reported, not held against the run.
+PUSH_GATE_EQUIVALENTS="build lint audit conventions harness generated-content secret-scan unit integration e2e terraform coverage security-probes python-pipeline clean-room"
+SKIPPED_PREDICTIVE=()
+SKIPPED_LOCAL_ONLY=()
+for i in "${!GATE_NAMES[@]}"; do
+  [[ "${GATE_RESULTS[$i]}" == "SKIP" ]] || continue
+  if grep -qw "${GATE_NAMES[$i]}" <<< "$PUSH_GATE_EQUIVALENTS"; then
+    SKIPPED_PREDICTIVE+=("${GATE_NAMES[$i]} (skipped; reason above)")
+  else
+    SKIPPED_LOCAL_ONLY+=("${GATE_NAMES[$i]}")
+  fi
+done
+
+# A gate this mode never scheduled is as unchecked as one that tried and could
+# not run, and counting only the second is how a --quick run came to announce
+# that everything the push gate runs had passed here. Nothing had skipped, because
+# nothing had been asked to.
+for _equivalent in $PUSH_GATE_EQUIVALENTS; do
+  printf '%s\n' "${GATE_NAMES[@]}" | grep -qx "$_equivalent" && continue
+  SKIPPED_PREDICTIVE+=("${_equivalent} (not run in this mode; --full runs it)")
+done
+unset _equivalent
+
+# Printed on every run, including a clean one. The question this runner exists to
+# answer is "will my push pass", and the honest answer always carries a footnote:
+# a short list of things GitHub will do that no workstation can. Printing it only
+# on failure would teach the reader that a clean run checked everything, which is
+# the belief that makes a surprise red mark surprising.
+echo ""
+echo "=============================================="
+echo " WHAT THIS RUN DID NOT CHECK"
+echo "=============================================="
+echo "  Never checkable on any workstation:"
+echo "    CodeQL static analysis   runs on GitHub's own infrastructure. It reports"
+echo "                             findings into the repository's code-scanning view"
+echo "                             rather than failing the push."
+echo "    dependency review        runs only on a pull request, and only looks at a"
+echo "                             change to the dependency list."
+if (( ${#SKIPPED_LOCAL_ONLY[@]} > 0 )); then
+  echo ""
+  echo "  Not run here, and not run by the push gate either, so they change nothing"
+  echo "  about whether your push passes:"
+  printf '    %s\n' "${SKIPPED_LOCAL_ONLY[@]}"
+fi
+if (( ${#SKIPPED_PREDICTIVE[@]} > 0 )); then
+  echo ""
+  echo "  THE PUSH GATE RUNS THESE AND THIS RUN COULD NOT. Their reasons are above:"
+  printf '    %s\n' "${SKIPPED_PREDICTIVE[@]}"
+fi
+echo "=============================================="
+
+if (( ${#SKIPPED_PREDICTIVE[@]} > 0 )); then
+  echo "→ run_all_tests.sh: INCOMPLETE. Everything that ran passed, but the gates named" >&2
+  echo "  above stand for push-gate jobs and did not run, so this run cannot tell you" >&2
+  echo "  whether your push will pass." >&2
+  exit 3
+fi
+echo "→ run_all_tests.sh: GREEN. Everything the push gate runs, apart from the two"
+echo "  GitHub-only jobs named above, ran here and passed."

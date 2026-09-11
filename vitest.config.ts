@@ -8,15 +8,26 @@ import os from 'node:os';
 // ONLY when RAM is the bottleneck; CPU-balanced machines and CI keep vitest's
 // default parallelism.
 //
-// The reservation is per worker and deliberately larger than a worker's own
-// footprint. It is the machine's budget divided by workers, so it also has to
-// cover the operating system, the page cache the SQLite test databases run on,
-// and a development server the developer left running alongside the suite. A
-// figure tight enough to leave the box with no free memory buys parallelism
-// with swap pressure and load-dependent flake, which costs more than the
-// wall-clock it saves.
+// Two separate reservations, because they scale differently and folding them
+// together is what went wrong before. The per-worker budget is deliberately
+// larger than a worker's own footprint, covering the page cache its SQLite
+// databases run on. The system reservation is a flat subtraction taken off the
+// top first: the operating system, the container daemon, an editor, a
+// development server left running alongside, an agent session. That figure does
+// not shrink when fewer workers run, so dividing it among workers hides it
+// entirely.
+//
+// Dividing total memory by the per-worker budget alone claims the whole machine.
+// On a box with 20 cores and 7.6 GB it authorised six workers against a 7.2 GB
+// budget, leaving under 400 MB for everything else, and a full run was killed by
+// the memory guard partway through whichever gate happened to be running when
+// something else on the box grew. The shortfall is invisible where cores are the
+// binding constraint, which is why it only ever bit the smallest machine.
+const SYSTEM_RESERVE_GB = 2;
+const WORKER_BUDGET_GB = 1.2;
 const cpuCount = os.cpus().length;
-const memWorkerCap = Math.max(1, Math.floor(os.totalmem() / (1.2 * 1024 ** 3)));
+const usableGb = Math.max(0, os.totalmem() / 1024 ** 3 - SYSTEM_RESERVE_GB);
+const memWorkerCap = Math.max(1, Math.floor(usableGb / WORKER_BUDGET_GB));
 const ramBound = memWorkerCap < cpuCount;
 // A VM that is CPU- or disk-slow but RAM-adequate slips past the memory cap and
 // runs full parallelism, so each worker's cold app-graph compile in beforeAll

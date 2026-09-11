@@ -340,6 +340,29 @@ for _aws_var in AWS_PROFILE AWS_CONFIG_FILE AWS_SHARED_CREDENTIALS_FILE AWS_EC2_
 done
 unset _aws_var
 
+# Rule: the same setup denies every worker the rest of the machine it runs on.
+# Reason: two suites passed on a maintainer's workstation and failed on the
+# runner, one reaching an operator signing key beneath the home directory, the
+# other reading a gitignored Terraform values file. Neither asserted the wrong
+# contract; both were satisfied by the filesystem rather than by the code, and
+# the branch where the contract breaks is unreachable on a machine holding those
+# files, so no amount of local running could have found it. The media defaults
+# are in the same declaration for a second reason: one of them points at a tree
+# holding real member media, and the rule that no test writes real data must not
+# depend on each media suite remembering to override it.
+echo "[conventions] check: the test setup isolates the rest of the machine"
+if ! grep -q 'noMachineState' tests/setup-env.ts; then
+  echo "  FAIL: tests/setup-env.ts must apply noMachineState from tests/fixtures/machineIsolation.ts" >&2
+  violations=$((violations + 1))
+fi
+for _machine_var in HOME FOOTBAG_ENV FOOTBAG_MEDIA_DIR FOOTBAG_CURATED_MEDIA_DIR; do
+  if ! grep -q "$_machine_var" tests/fixtures/machineIsolation.ts; then
+    echo "  FAIL: tests/fixtures/machineIsolation.ts no longer neutralises $_machine_var" >&2
+    violations=$((violations + 1))
+  fi
+done
+unset _machine_var
+
 echo "[conventions] check: synchronous spawns in tests carry the shared bound"
 spawn_files=$(grep -rlE --include='*.ts' '(spawnSync|execFileSync|execSync)\(' tests/ \
   | grep -v '^tests/fixtures/spawnGuard\.ts$' \
@@ -785,6 +808,11 @@ fi
 
 echo "[conventions] check: config seed / Configurable Parameters parity (delegated)"
 if ! bash scripts/ci/check_config_seed_parity.sh; then
+  violations=$((violations + 1))
+fi
+
+echo "[conventions] check: every CI job has a local gate or a recorded reason it cannot (delegated)"
+if ! bash scripts/ci/check_ci_parity.sh; then
   violations=$((violations + 1))
 fi
 

@@ -62,6 +62,8 @@ tests/
     spawnGuard.ts        ← bound every synchronous spawn must carry
     awsIsolation.ts      ← credential isolation the shared setup applies, so no
                            test (or script it spawns) can reach live AWS
+    machineIsolation.ts  ← the same, for the rest of the machine: home directory,
+                           deployment-environment variable, media directories
   unit/
     *.test.ts            ← pure-function tests (no DB, no HTTP)
   integration/

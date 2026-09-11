@@ -150,8 +150,23 @@ function writeAwsStub(hourly: number, daily: number, opts: Partial<AwsStubOption
  * A stand-in for Terraform. `plan -out` writes the file the script then applies,
  * so the saved-plan handling (create, apply that exact file, shred it) runs for
  * real against a throwaway file.
+ *
+ * It also answers the outputs the script reads, including whether this
+ * environment arms the replication alarms. That answer belongs here rather than
+ * in a file on disk: the environment's real values are not committed, so a run
+ * that read them would answer one way on a maintainer's workstation and another
+ * on a clean checkout, and every assertion below would hold in one place and not
+ * the other. `unpublished` is the tree that has not been applied since the output
+ * was added, which is the case the script must refuse rather than pass.
  */
-function writeTerraformStub(planShouldFail = false): void {
+function writeTerraformStub(
+  planShouldFail = false,
+  replicationAlarm: boolean | 'unpublished' = true,
+): void {
+  const alarmOutput =
+    replicationAlarm === 'unpublished'
+      ? '    replication_alarm_enabled) exit 1 ;;'
+      : `    replication_alarm_enabled) echo "${replicationAlarm}"; exit 0 ;;`;
   writeFileSync(
     tfStub,
     [
@@ -161,6 +176,7 @@ function writeTerraformStub(planShouldFail = false): void {
       '  case "$arg" in',
       '    dr_bucket_name)        echo "footbag-test-snapshots-dr"; exit 0 ;;',
       '    snapshots_bucket_name) echo "footbag-test-snapshots";    exit 0 ;;',
+      alarmOutput,
       `    plan)   ${planShouldFail ? 'exit 1' : ':'} ;;`,
       '  esac',
       'done',
@@ -468,9 +484,34 @@ describe('apply-snapshot-retention.sh: verification', () => {
 
   it('fails the run when production declares the replication alarm and none exists', () => {
     writeAwsStub(2, 2, { alarms: 'none' });
+    writeTerraformStub(false, true);
     const res = run(['--target', 'production', '--verify']);
     expect(res.exitCode).toBe(1);
     expect(res.stdout).toMatch(/enable_replication_alarm = true, so an alarm should/);
+  });
+
+  it('passes when no alarm exists and the environment declares none', () => {
+    // The flag is the whole reason a missing alarm can be read either way. With it
+    // off, the absence is the intended estate and there is nothing to prove.
+    writeAwsStub(2, 2, { alarms: 'none' });
+    writeTerraformStub(false, false);
+    const res = run(['--target', 'production', '--verify']);
+    expect(res.exitCode).toBe(0);
+    expect(res.stdout).toMatch(/enable_replication_alarm = false, so no alarm is/);
+  });
+
+  it('fails the run when the tree does not publish the flag, rather than passing on its behalf', () => {
+    // A verification that cannot read what it is checking against has proved
+    // nothing, and nothing is not a pass. The remedy is named so the operator is
+    // not left to work out why the run refused.
+    writeAwsStub(2, 2, { alarms: 'none' });
+    writeTerraformStub(false, 'unpublished');
+    const res = run(['--target', 'production', '--verify']);
+    expect(res.exitCode).toBe(1);
+    expect(res.stdout).toMatch(/does not publish replication_alarm_enabled/);
+    expect(res.stdout).toMatch(/Apply that tree so the output lands in state/);
+    expect(res.stderr).toMatch(/VERIFICATION FAILED on production/);
+    writeTerraformStub();
   });
 
   it('never fails on an alarm state, because insufficient data after an apply is correct', () => {

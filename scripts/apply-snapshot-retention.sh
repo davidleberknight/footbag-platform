@@ -194,16 +194,16 @@ aws_read() {
   "$AWS_BIN" "$@" --profile "$AWS_PROFILE_ARG" --region "$AWS_REGION_ARG"
 }
 
-# Whether this tree declares the replication alarms, read from the tree's own
-# values file rather than assumed. No Terraform output exposes the flag, and
-# without it the script cannot tell "no alarm because the flag is off", which is
-# correct, from "no alarm because the apply did not land", which is a failure. An
-# unreadable answer is neither, and leaves that section an explicit read-out.
+# Whether this tree arms the replication alarms, read from the tree's published
+# output. Without the answer the script cannot tell "no alarm because the flag is
+# off", which is correct, from "no alarm because the apply did not land", which is
+# a failure, so a run that cannot read it proves nothing and says so rather than
+# passing. Taken from declared intent and never from what CloudWatch holds: an
+# environment that lost its alarm would otherwise be read as deliberately
+# unwatched and pass the very check that exists to catch it.
 replication_alarm_declared() {
-  local tfvars="$TF_DIR/terraform.tfvars" value=""
-  [[ -r "$tfvars" ]] || { printf 'unknown'; return 0; }
-  value="$(grep -E '^[[:space:]]*enable_replication_alarm[[:space:]]*=' "$tfvars" \
-    | tail -1 | cut -d'=' -f2 | tr -d '[:space:]')" || value=""
+  local value=""
+  value="$("$TF_BIN" -chdir="$TF_DIR" output -raw replication_alarm_enabled 2>/dev/null)" || value=""
   case "$value" in
     true)  printf 'yes' ;;
     false) printf 'no' ;;
@@ -569,9 +569,11 @@ if [[ -z "$ALARMS" ]]; then
         echo "  expected and there is nothing to prove."
         ;;
       *)
-        echo "  Could not read enable_replication_alarm from terraform/$TARGET, so this"
+        echo "  terraform/$TARGET does not publish replication_alarm_enabled, so this run"
         echo "  cannot tell a deliberately absent alarm from an apply that did not land."
-        echo "  Read the flag in that tree and judge this line yourself."
+        echo "  Apply that tree so the output lands in state, then verify again. A run that"
+        echo "  cannot read the flag proves nothing here and does not pass on its behalf."
+        VERIFY_FAIL=1
         ;;
     esac
   else

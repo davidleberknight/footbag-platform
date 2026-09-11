@@ -15,6 +15,11 @@ import { threadId } from 'node:worker_threads';
 import { vi, beforeEach, afterEach } from 'vitest';
 
 import { NO_AWS_CREDENTIALS } from './fixtures/awsIsolation';
+import {
+  MACHINE_ENV_TO_CLEAR,
+  machineIsolationRoot,
+  noMachineState,
+} from './fixtures/machineIsolation';
 
 // Worker threads share a process.pid, so use threadId to keep each vitest
 // worker's keypair file distinct. Falls back to pid when threadId is 0
@@ -37,8 +42,18 @@ process.env.LOG_LEVEL               ??= 'error';
 // reported a clean pass. Any single file remembering to isolate itself is a rule
 // the next file can forget; this cannot be forgotten, only deliberately opted
 // out of by the one suite that means it.
+// The same default-deny applied to the rest of the machine: the home directory
+// operator keys live under, the deployment-environment variable, and the two
+// media directories whose defaults point at gitignored trees inside the checkout,
+// one of which holds real member media on a maintainer's workstation. A test that
+// inherits any of these is answered by the filesystem rather than by the code,
+// and passes or fails according to whose machine it runs on. The staging smoke
+// tier opts out of both blocks together: it exists to reach real AWS, and the
+// script it runs resolves an operator credential beneath the real home.
 if (process.env.RUN_STAGING_SMOKE !== '1') {
   Object.assign(process.env, NO_AWS_CREDENTIALS);
+  for (const key of MACHINE_ENV_TO_CLEAR) delete process.env[key];
+  Object.assign(process.env, noMachineState(machineIsolationRoot(workerTag)));
 }
 
 process.env.FOOTBAG_DB_PATH         ??= ':memory:';

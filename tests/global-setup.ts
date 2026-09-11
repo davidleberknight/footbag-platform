@@ -25,7 +25,7 @@
  * later one. `scripts/clean_up_rubbish.sh` remains the immediate, deliberate
  * operator sweep for anyone who wants the directory empty now.
  */
-import { readdirSync, statSync, unlinkSync } from 'node:fs';
+import { readdirSync, rmSync, statSync, unlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -48,8 +48,18 @@ export function sweepFootbagTransientArtifacts(): void {
     try {
       // A stat failure means the entry vanished under us or is unreadable;
       // either way it is not ours to delete.
-      if (statSync(full).mtimeMs > cutoff) continue;
-      unlinkSync(full);
+      const stat = statSync(full);
+      if (stat.mtimeMs > cutoff) continue;
+      // Directories need the recursive removal: `unlinkSync` raises EISDIR on
+      // one, and the surrounding catch swallowed it, so every directory-shaped
+      // artifact this claims to collect was in fact accumulating forever. Much
+      // of what the suite leaves behind is a `mkdtemp` directory, so that was
+      // most of them.
+      if (stat.isDirectory()) {
+        rmSync(full, { recursive: true, force: true });
+      } else {
+        unlinkSync(full);
+      }
     } catch {
       // Race with another process or stale-handle quirk; nothing to do.
     }

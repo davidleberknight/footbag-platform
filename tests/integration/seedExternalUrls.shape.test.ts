@@ -88,6 +88,15 @@ describe('committed seed external URLs are possible web addresses', () => {
     expect(rejections(clubSeedUrls())).toEqual([]);
   });
 
+  it('the gallery sidecars carry URLs to check, so this suite cannot pass vacuously', () => {
+    // The sibling assertion on the club seed has guarded this from the start.
+    // Without the same guard here, an empty directory, a renamed one, or a
+    // sidecar shape that stopped matching would leave the next assertion reading
+    // an empty list and reporting success, which is the exact failure this file
+    // exists to catch.
+    expect(gallerySidecarUrls().length).toBeGreaterThan(0);
+  });
+
   it('every curator gallery sidecar URL survives shape validation', () => {
     expect(rejections(gallerySidecarUrls())).toEqual([]);
   });

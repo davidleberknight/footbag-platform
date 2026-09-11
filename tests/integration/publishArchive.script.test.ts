@@ -11,14 +11,38 @@
  * Terraform and a stand-in aws, and it does not exist yet; the refusals below
  * are the floor, not the whole contract.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
+import * as os from 'node:os';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const SCRIPT = 'scripts/publish-archive.sh';
+
+/**
+ * A stand-in for the operator's archive signing key: a readable file, and nothing
+ * more, because no refusal below reaches the point where the key is used.
+ *
+ * It has to exist because the key's readability is checked ahead of the source
+ * checks, deliberately: an unreadable key discovered after the sync would fail a
+ * publish whose bucket is already written. Left to the operator's own key, the
+ * source refusals below would be reached on a maintainer's workstation and not on
+ * a clean checkout, where the run would stop on the missing key instead.
+ */
+let keyDir: string;
+let stubKey: string;
+
+beforeAll(() => {
+  keyDir = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-publish-archive-'));
+  stubKey = path.join(keyDir, 'archive-signing-key-staging.pem');
+  fs.writeFileSync(stubKey, 'not a key; this run never reaches the proof\n', { mode: 0o600 });
+});
+
+afterAll(() => {
+  fs.rmSync(keyDir, { recursive: true, force: true });
+});
 
 function run(args: string[]) {
   return spawnSync('bash', [SCRIPT, ...args], {
@@ -42,11 +66,24 @@ describe('publish-archive.sh refuses before it can publish the wrong thing', () 
     expect(res.stderr).toContain("--env must be 'staging' or 'production'");
   });
 
+  it('refuses an unreadable signing key before it syncs anything', () => {
+    // The key signs the edge proof at the very end of the run. Discovered there,
+    // an unreadable one would fail a publish whose bucket is already written and
+    // whose cache is already cleared, so the check belongs ahead of the sync.
+    const res = run(['--env', 'staging', '--signing-key', path.join(keyDir, 'absent.pem')]);
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain('signing key not readable');
+  });
+
   it('refuses a source that is not a mirror root', () => {
     // The sync ships the contents of the www subtree; pointed one level off, it
     // would ship the crawl manifests, and sitemap.txt carries the crawling
     // workstation's filesystem paths.
-    const res = run(['--env', 'staging', '--mirror-root', '/nonexistent/tree']);
+    const res = run([
+      '--env', 'staging',
+      '--signing-key', stubKey,
+      '--mirror-root', '/nonexistent/tree',
+    ]);
     expect(res.status).toBe(1);
     expect(res.stderr).toContain('/nonexistent/tree/www.footbag.org is missing');
   });

@@ -153,6 +153,12 @@ jobs:
           node-version: '22'
           cache: 'npm'
 
+      - name: Install ffmpeg + sqlite3
+        # The overlay-geometry cases derive their expected frame from the media,
+        # and the transcode parity cases encode a real clip. Without these the
+        # suites skip those cases and report green having executed none of them.
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg sqlite3
+
       - name: Install dependencies
         run: npm ci
 
@@ -185,6 +191,12 @@ jobs:
         # BeautifulSoup.
         run: python3 -m pip install -r legacy_data/requirements.txt
 
+      - name: Install ffmpeg + sqlite3
+        # The overlay-geometry cases derive their expected frame from the media,
+        # and the transcode parity cases encode a real clip. Without these the
+        # suites skip those cases and report green having executed none of them.
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg sqlite3
+
       - name: Install dependencies
         run: npm ci
 
@@ -215,6 +227,12 @@ jobs:
 
       - name: Install Python pipeline dependencies
         run: python3 -m pip install -r legacy_data/requirements.txt
+
+      - name: Install ffmpeg + sqlite3
+        # The overlay-geometry cases derive their expected frame from the media,
+        # and the transcode parity cases encode a real clip. Without these the
+        # suites skip those cases and report green having executed none of them.
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg sqlite3
 
       - name: Install dependencies
         run: npm ci
@@ -408,11 +426,16 @@ jobs:
 
   ci-complete:
     name: Type-check and test
-    needs: [typecheck, lint, dependency-audit, secret-scan, conventions, harness, unit-tests, integration-tests, coverage, db-load-smoke, e2e, security-probes, codeql, terraform]
+    needs: [typecheck, lint, dependency-audit, dependency-review, secret-scan, conventions, harness, unit-tests, integration-tests, coverage, db-load-smoke, freestyle-db-integrity, legacy-pytest, e2e, security-probes, codeql, terraform]
     runs-on: ubuntu-latest
     if: always()
 
     steps:
+      # The needs list above controls only what this job waits for. The verdict
+      # is decided here, by name. Adding a job to needs therefore gates nothing
+      # on its own, which is easy to get wrong and was: three jobs were added to
+      # needs believing that made them blocking, and the tick stayed green
+      # whatever they did. A job belongs in both places or neither.
       - name: Check results
         run: |
           if [ "${{ needs.typecheck.result }}" != "success" ] || \
@@ -442,6 +465,9 @@ jobs:
             echo "  db-load-smoke: ${{ needs.db-load-smoke.result }}"
             echo "  e2e: ${{ needs.e2e.result }}"
             echo "  security-probes: ${{ needs.security-probes.result }}"
+            echo "  dependency-review: ${{ needs.dependency-review.result }}  (not blocking)"
+            echo "  freestyle-db-integrity: ${{ needs.freestyle-db-integrity.result }}  (not blocking)"
+            echo "  legacy-pytest: ${{ needs.legacy-pytest.result }}  (not blocking)"
             echo "  codeql: ${{ needs.codeql.result }}"
             echo "  terraform: ${{ needs.terraform.result }}"
             exit 1

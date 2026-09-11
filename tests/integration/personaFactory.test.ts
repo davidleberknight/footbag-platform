@@ -404,12 +404,17 @@ describe('seedPersona — detection markers', () => {
 
 describe('persona harness — single-source containment', () => {
   it('TEST_PERSONA_SEED_PASSWORD_LITERAL appears in exactly one checked-in file: personaSecrets.ts', () => {
+    // `git grep` rather than a recursive `grep`, because the claim is about what
+    // is checked in and only git knows that. A directory-name exclusion list has
+    // to enumerate everything untracked, and it missed the trees that exist only
+    // on a maintainer's machine: the pipeline's output, two virtual environments,
+    // the local media store, the private operations checkout. A copy of the
+    // literal landing in any of them reddened this on one machine and left every
+    // other one green, and the run time moved with however much untracked
+    // material the machine happened to be carrying.
     const cmd =
-      `grep -r -l --include='*.ts' --include='*.tsx' --include='*.js' ` +
-      `--include='*.sh' --include='*.json' --include='*.hbs' ` +
-      `--exclude-dir=node_modules --exclude-dir=dist --exclude-dir=.git ` +
-      `--exclude-dir=database --exclude-dir=coverage ` +
-      `-F '${TEST_PERSONA_SEED_PASSWORD_LITERAL}' .`;
+      `git grep -l -F '${TEST_PERSONA_SEED_PASSWORD_LITERAL}' -- ` +
+      `'*.ts' '*.tsx' '*.js' '*.sh' '*.json' '*.hbs'`;
     let raw = '';
     try {
       raw = execSync(cmd, { cwd: REPO_ROOT, encoding: 'utf8', ...SPAWN_GUARD });

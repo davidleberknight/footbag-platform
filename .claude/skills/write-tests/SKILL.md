@@ -141,6 +141,32 @@ it('outbox failure → 503 + audit row', async () => {
 });
 ```
 
+## Step 5b: Give the test its own inputs
+
+A test must not inherit from the machine it runs on the state or the timing that decides its
+verdict. A test whose result depends on a file, a directory, an installed binary, or an exported
+variable that a developer's machine has and a clean checkout does not is green wherever that input
+happens to be right, and the branch where the contract breaks is unreachable on the machine that
+holds it. No amount of local running finds that, and Step 6 below does not either: breaking the code
+reddens such a test on the machine where the input is present, and says nothing about the machine
+where it is absent.
+
+So, for every input the test does not itself create:
+
+- Write the file, stub the binary, pass the path, set the variable. A default that resolves to the
+  developer's machine is not an input the test owns. `--signing-key` pointed at a temp file, a
+  Terraform stub answering an output, `--key-dir` on a mkdtemp: those are the shapes.
+- A `skipIf` on an installed binary is not a guard, it is a silent pass. If the assertion matters,
+  make the tool available where the verdict is taken; if it does not, delete the case.
+- Never assert on a listing of a directory the machine might add to, and never grep the working tree
+  when the claim is about what is checked in: `git grep` knows the difference.
+- The shared setup already denies credentials, the home directory, the deployment-environment
+  variable and the media directories. Extend that declaration rather than defending a new file
+  by hand.
+
+`scripts/ci/run_clean_room.sh` is how you check: it runs the suite in a throwaway worktree with an
+empty home and no ambient environment, which is what the runner has.
+
 ## Step 6: Prove each test can fail
 
 A test that has never failed has never been shown to test anything. Before a test is done,

@@ -48,6 +48,11 @@ output "media_dr_bucket_name" {
   value       = aws_s3_bucket.media_dr.bucket
 }
 
+output "replication_alarm_enabled" {
+  description = "Whether this environment arms the cross-region replication alarms. Published in both trees so the verification reads the same name wherever it runs; here the flag governs media replication only, because staging's snapshot bucket has no DR copy and so has no snapshot replication to watch."
+  value       = var.enable_replication_alarm
+}
+
 output "maintenance_bucket_name" {
   description = "S3 bucket hosting the static maintenance page"
   value       = aws_s3_bucket.maintenance.bucket

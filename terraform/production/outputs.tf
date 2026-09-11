@@ -32,6 +32,11 @@ output "dr_bucket_name" {
   value       = aws_s3_bucket.dr.bucket
 }
 
+output "replication_alarm_enabled" {
+  description = "Whether this environment arms the cross-region replication alarms. Read by scripts/apply-snapshot-retention.sh --verify to tell an alarm that is deliberately absent from an apply that did not land. Declared intent rather than what CloudWatch currently holds, so an environment that lost its alarm fails the verification instead of being read as deliberately unwatched."
+  value       = var.enable_replication_alarm
+}
+
 output "maintenance_bucket_name" {
   description = "S3 bucket hosting the static maintenance page"
   value       = aws_s3_bucket.maintenance.bucket

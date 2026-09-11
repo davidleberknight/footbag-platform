@@ -53,6 +53,21 @@ The consequences are non-negotiable:
 
 A change that adds an effect must not shrink the test to that effect alone. In the same scenario, the test re-asserts the invariants the change is required to preserve: that a signal raised for later review does not also block the action it flags, and that a privacy-sensitive path returns the identical response whether or not the sensitive value matched (the anti-enumeration posture in `docs/DATA_GOVERNANCE.md`). Asserting the new effect while dropping the preserved invariant passes by construction and lets the invariant regress unseen -- the same failure this rule forbids, in different clothes. Both halves trace to intent: the new behavior to its success criterion, the preserved invariant to the decision or governance rule that fixes it.
 
+### 2.5 A test's verdict comes from the code, never from the machine it ran on
+
+A test must not inherit from the machine it runs on the state or the timing that decides its verdict.
+
+The state half: a test whose result depends on a file, a directory, an installed binary, or an exported variable that a developer's machine has and a clean checkout does not. Such a test is green wherever that input happens to be right, and the branch where the contract breaks is unreachable on the machine that holds it, so no amount of local running can find it. Two suites failed this way at once: one reached an operator signing key beneath the home directory, the other read a Terraform values file that git ignores. Neither asserted the wrong contract. Both were satisfied by the filesystem rather than by the code, and both were green on the maintainer's machine and red on the runner. The same defect pointed the other way is worse and quieter: sixteen cases gated on an installed encoder skipped silently on the runner and reported green having executed nothing.
+
+The timing half: an assertion pinned to the single outcome an idle machine produced, where the choice between legitimate outcomes is not deterministic. A test that only passes on an idle machine is not verified.
+
+What follows from it:
+
+- Give the test its own input. Write the file, stub the binary, pass the path, set the variable. A default that resolves to the developer's machine is not an input the test owns.
+- Where a whole class of input would otherwise be inherited, deny it once in the shared setup rather than per file. `tests/fixtures/awsIsolation.ts` does this for credentials and `tests/fixtures/machineIsolation.ts` for the home directory, the deployment-environment variable, and the media directories. Any single file remembering to isolate itself is a rule the next file can forget.
+- Assert the contract, not the one manifestation of it the author's machine produced.
+- Before a push, `scripts/ci/run_clean_room.sh` runs the suite in a throwaway worktree with an empty home and no ambient environment, which is the only way to see the suite as the runner sees it.
+
 ---
 
 ## 3. Risk classification and OWASP ASVS levels
@@ -237,7 +252,7 @@ The generated route-by-persona authorization matrix (§4.6) lives here: it cross
 
 ### 5.3 db-load smoke
 
-The CI job `db-load-smoke` (in `.github/workflows/ci.yml`) applies the schema and runs the legacy_data loader pipeline against fixed fixtures, asserting row counts and shape. The canonical regression gate for the historical-data pipeline.
+The `db-load-smoke` job (in `.github/workflows/ci.yml`) applies the schema and runs the legacy_data loader pipeline against fixed fixtures, asserting row counts and shape. The canonical regression gate for the historical-data pipeline. It also runs locally inside the clean-room gate's throwaway worktree, which holds only committed material and so presents the same empty-checkout condition.
 
 Belongs:
 

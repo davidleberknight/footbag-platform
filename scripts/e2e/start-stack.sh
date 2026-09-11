@@ -31,19 +31,23 @@ echo "→ E2E ephemeral curated root: ${CURATED_ROOT}"
 export FOOTBAG_DB_PATH="${TEST_DB}"
 export FOOTBAG_ENV="development"
 export NODE_ENV="development"
-export PORT="3000"
-export IMAGE_PORT="4001"
+# The Playwright config already reads E2E_PORT; this end of the pair did not, so
+# the seam existed in name only and the suite was unrunnable while a dev stack
+# held 3000. The defaults are the previous fixed values, so nothing changes for
+# a run that sets neither.
+export PORT="${E2E_PORT:-3000}"
+export IMAGE_PORT="${E2E_IMAGE_PORT:-4001}"
 export LOG_LEVEL="warn"   # quiet info-level boot chatter so Playwright's
                           # stdout pipe does not back up under low buffer
 export SESSION_SECRET="${SESSION_SECRET:-e2e-test-session-secret-do-not-use-in-prod}"
 export INTERNAL_EVENT_SECRET="${INTERNAL_EVENT_SECRET:-e2e-test-internal-event-secret}"
-export PUBLIC_BASE_URL="http://127.0.0.1:3000"
+export PUBLIC_BASE_URL="http://127.0.0.1:${PORT}"
 export JWT_SIGNER="${JWT_SIGNER:-local}"
 export JWT_LOCAL_KEYPAIR_PATH="${JWT_LOCAL_KEYPAIR_PATH:-${TMPDIR:-/tmp}/footbag-e2e-jwt.pem}"
 export SES_ADAPTER="${SES_ADAPTER:-stub}"
 export AWS_REGION="${AWS_REGION:-us-east-1}"
 export SECRETS_ADAPTER="${SECRETS_ADAPTER:-stub}"
-export IMAGE_PROCESSOR_URL="http://127.0.0.1:4001"
+export IMAGE_PROCESSOR_URL="http://127.0.0.1:${IMAGE_PORT}"
 export ALLOW_CURATED_SIDECAR_WRITES="1"
 # Redirect curated reads/writes off the committed /curated/ tree (read by
 # getCuratedRootDir via config.curatedRootDirOverride) so an e2e curator
