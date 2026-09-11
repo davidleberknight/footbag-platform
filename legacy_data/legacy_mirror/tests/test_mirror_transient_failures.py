@@ -23,16 +23,37 @@ All fixtures are local; no live-site access. Run from repo root:
 """
 import importlib.util
 import logging
+import os
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
 
 SCRIPT_PATH = Path(__file__).resolve().parent.parent / 'create_mirror_footbag_org.py'
-spec = importlib.util.spec_from_file_location('mirror_script_transient', str(SCRIPT_PATH))
-mirror_script = importlib.util.module_from_spec(spec)
-sys.modules['mirror_script_transient'] = mirror_script
-spec.loader.exec_module(mirror_script)
+
+# All four crawl-state paths are read at import from FOOTBAG_MIRROR_STATE_DIR,
+# so relocating them has to happen before the module exists. Done here, this
+# module instance cannot name the live mirror tree, progress file, log or robots
+# cache at all, whatever any fixture below does. The variable is put back at
+# once so importing this file cannot move any other test module's paths.
+_STATE_DIR = tempfile.mkdtemp(prefix='footbag-test-mirror-state-')
+_PRIOR_STATE_DIR = os.environ.get('FOOTBAG_MIRROR_STATE_DIR')
+os.environ['FOOTBAG_MIRROR_STATE_DIR'] = _STATE_DIR
+try:
+    spec = importlib.util.spec_from_file_location('mirror_script_transient', str(SCRIPT_PATH))
+    mirror_script = importlib.util.module_from_spec(spec)
+    sys.modules['mirror_script_transient'] = mirror_script
+    spec.loader.exec_module(mirror_script)
+finally:
+    if _PRIOR_STATE_DIR is None:
+        os.environ.pop('FOOTBAG_MIRROR_STATE_DIR', None)
+    else:
+        os.environ['FOOTBAG_MIRROR_STATE_DIR'] = _PRIOR_STATE_DIR
+
+for _name in ('MIRROR_DIR', 'PROGRESS_FILE', 'LOG_FILE', 'ROBOTS_CACHE_FILE'):
+    _value = getattr(mirror_script, _name)
+    assert _value.startswith(_STATE_DIR), f'{_name} was not relocated: {_value}'
 
 BASE = mirror_script.BASE_URL
 URL_A = mirror_script.normalize_url(BASE + '/rules/chapter/30')
@@ -42,10 +63,16 @@ URL_C = mirror_script.normalize_url(BASE + '/faq/show/12')
 
 @pytest.fixture
 def state(tmp_path, monkeypatch):
+    # All four crawl-state paths together, never a subset: the crawler has four
+    # and any one left pointing at the real tree is a real file a test can
+    # destroy.
     mirror_dir = tmp_path / 'mirror_footbag_org'
     monkeypatch.setattr(mirror_script, 'MIRROR_DIR', str(mirror_dir))
     monkeypatch.setattr(mirror_script, 'PROGRESS_FILE',
                         str(tmp_path / 'mirror_progress.json'))
+    monkeypatch.setattr(mirror_script, 'LOG_FILE', str(tmp_path / 'mirror.log'))
+    monkeypatch.setattr(mirror_script, 'ROBOTS_CACHE_FILE',
+                        str(tmp_path / 'robots_cache.json'))
     st = mirror_script.MirrorState()
     monkeypatch.setattr(mirror_script, 'mirror_state', st)
     (mirror_dir / 'www.footbag.org').mkdir(parents=True)

@@ -20,16 +20,45 @@ All fixtures are local; no live-site access. Run from repo root:
 import importlib.util
 import json
 import logging
+import os
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
 
 SCRIPT_PATH = Path(__file__).resolve().parent.parent / 'create_mirror_footbag_org.py'
-spec = importlib.util.spec_from_file_location('mirror_script_guard', str(SCRIPT_PATH))
-mirror_script = importlib.util.module_from_spec(spec)
-sys.modules['mirror_script_guard'] = mirror_script
-spec.loader.exec_module(mirror_script)
+
+# The crawler reads all four of its crawl-state paths at import, from
+# FOOTBAG_MIRROR_STATE_DIR, so relocating them is something that has to happen
+# BEFORE the module exists. Doing it here rather than per fixture is what makes
+# the isolation structural: this module instance has no way to name the live
+# mirror tree, its progress file, its log or its robots cache, whatever any
+# fixture below does or forgets to do. It matters here more than in most test
+# files, because the reset path under test deletes all four by design.
+#
+# The variable is put back immediately, so importing this file cannot change
+# where any other test module points.
+_STATE_DIR = tempfile.mkdtemp(prefix='footbag-test-mirror-state-')
+_PRIOR_STATE_DIR = os.environ.get('FOOTBAG_MIRROR_STATE_DIR')
+os.environ['FOOTBAG_MIRROR_STATE_DIR'] = _STATE_DIR
+try:
+    spec = importlib.util.spec_from_file_location('mirror_script_guard', str(SCRIPT_PATH))
+    mirror_script = importlib.util.module_from_spec(spec)
+    sys.modules['mirror_script_guard'] = mirror_script
+    spec.loader.exec_module(mirror_script)
+finally:
+    if _PRIOR_STATE_DIR is None:
+        os.environ.pop('FOOTBAG_MIRROR_STATE_DIR', None)
+    else:
+        os.environ['FOOTBAG_MIRROR_STATE_DIR'] = _PRIOR_STATE_DIR
+
+# Proof rather than assumption, at collection time: if the relocation did not
+# take, every test below is running against the real crawl state and the file
+# must not be allowed to proceed.
+for _name in ('MIRROR_DIR', 'PROGRESS_FILE', 'LOG_FILE', 'ROBOTS_CACHE_FILE'):
+    _value = getattr(mirror_script, _name)
+    assert _value.startswith(_STATE_DIR), f'{_name} was not relocated: {_value}'
 
 BASE = mirror_script.BASE_URL
 
@@ -41,10 +70,20 @@ def urls(count, start=0):
 
 @pytest.fixture
 def state(tmp_path, monkeypatch):
+    # The import above already put all four paths in a throwaway directory. This
+    # narrows them again to one per test, so no case can see another's files,
+    # and it moves all four together: a fixture that relocates a subset is how
+    # the log came to be deleted by a test of the reset path.
     mirror_dir = tmp_path / 'mirror_footbag_org'
     monkeypatch.setattr(mirror_script, 'MIRROR_DIR', str(mirror_dir))
     monkeypatch.setattr(mirror_script, 'PROGRESS_FILE',
                         str(tmp_path / 'mirror_progress.json'))
+    monkeypatch.setattr(mirror_script, 'LOG_FILE', str(tmp_path / 'mirror.log'))
+    monkeypatch.setattr(mirror_script, 'ROBOTS_CACHE_FILE',
+                        str(tmp_path / 'robots_cache.json'))
+    for name in ('MIRROR_DIR', 'PROGRESS_FILE', 'LOG_FILE', 'ROBOTS_CACHE_FILE'):
+        assert str(tmp_path) in getattr(mirror_script, name), \
+            f'{name} still points outside the temp directory'
     st = mirror_script.MirrorState()
     monkeypatch.setattr(mirror_script, 'mirror_state', st)
     (mirror_dir / 'www.footbag.org').mkdir(parents=True)
@@ -70,6 +109,31 @@ def on_disk_visited():
 
 
 # --- the ordinary cases, which must not be disturbed ----------------------
+
+
+def test_no_crawl_state_path_points_at_the_real_tree(state, tmp_path):
+    # The reset path under test here deletes every crawl-state file the crawler
+    # knows about. A fixture that redirects only some of them lets a test delete
+    # a real crawl's log, which is a day of history and not regenerable.
+    for name in ('MIRROR_DIR', 'PROGRESS_FILE', 'LOG_FILE', 'ROBOTS_CACHE_FILE'):
+        value = getattr(mirror_script, name)
+        assert str(tmp_path) in value, f'{name} escapes the temp directory'
+        assert 'legacy_data/legacy_mirror/mirror' not in value, \
+            f'{name} points at the real crawl state'
+
+
+def test_an_explicit_reset_deletes_only_temp_files(state, tmp_path):
+    # The same reset, watched from outside: everything it removes must sit
+    # inside the directory this test owns.
+    (tmp_path / 'mirror.log').write_text('log')
+    (tmp_path / 'robots_cache.json').write_text('{}')
+    seed_record(10)
+
+    mirror_script.wipe_previous_mirror_state()
+
+    assert not (tmp_path / 'mirror.log').exists()
+    assert not (tmp_path / 'robots_cache.json').exists()
+    assert not Path(mirror_script.PROGRESS_FILE).exists()
 
 
 def test_a_first_save_with_no_existing_file_succeeds(state):
