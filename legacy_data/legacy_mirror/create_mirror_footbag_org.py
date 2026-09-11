@@ -590,6 +590,10 @@ def parse_args():
     return parser.parse_args()
 
 def wipe_previous_mirror_state():
+    # '-fresh' is the operator saying the capture record should go. Recorded so
+    # the save guard reads the empty state that follows as the declared intent
+    # it is, rather than as the accident it would otherwise look exactly like.
+    mirror_state.intentional_full_reset = True
     if os.path.isdir(MIRROR_DIR):
         shutil.rmtree(MIRROR_DIR)
         logging.info(f"Removed mirror directory: {MIRROR_DIR}")
@@ -779,6 +783,22 @@ def _atomic_write_text(path, text):
 class MirrorState:
     def __init__(self):
         self.visited = set()
+        # What this run is entitled to shrink the saved capture record by.
+        #
+        # The visited set only ever gets smaller in three places, and each one
+        # knows exactly how much it is dropping and why: a targeted revisit
+        # forgetting the addresses it was handed, a whole-capture revisit
+        # forgetting everything on purpose, and the exclusion sweep pruning
+        # addresses that must no longer be captured at all. Every other write is
+        # growth. So the legitimate floor for a save is arithmetic rather than a
+        # percentage: what was loaded, minus what was deliberately given up.
+        #
+        # None means this run never loaded the file it is about to overwrite,
+        # which is the state an accident arrives in. A run that has not read the
+        # capture record has no basis for shrinking it.
+        self.loaded_visited_baseline = None
+        self.authorized_visited_removals = 0
+        self.intentional_full_reset = False
         self.failed_urls = set()
         self.failed_conversion_videos = set()
         # Deliberately skipped videos (--skip-videos): normalized URL -> record.
@@ -805,8 +825,25 @@ class MirrorState:
         # a fetch that never succeeded is otherwise invisible - the pass ends
         # looking complete while pages were silently never (re-)read - so the
         # residue is recorded, persisted, and written out at the end of every
-        # crawl. A later successful fetch of the same URL clears its entry.
+        # crawl. An entry leaves three ways: a later successful fetch of the
+        # same URL; a targeted revisit of it drawing the same 5xx; or a fetch
+        # that settles the address on its own evidence, such as a redirect loop.
+        # The last two exist so an address cannot be owed forever.
         self.transient_failures = set()
+        # The subset of the above whose give-up was an HTTP 5xx: the site
+        # answered, and answered with a fault of its own. Kept apart because the
+        # cause decides what a REPEAT means. A timeout or a DNS failure says
+        # nothing about the far end, so two of them in a row are still two
+        # unknowns; two server faults in a row are the site telling us twice.
+        # Only this record can promote an address, so it is persisted with the
+        # owed list rather than derived from it.
+        self.transient_http_faults = set()
+        # URLs a targeted revisit listed in THIS run, so the crawl knows which
+        # addresses it is re-reading because an earlier pass already gave up on
+        # them. Session scope, never persisted: it records what this run was
+        # asked to do, not anything about the capture, and a later run that is
+        # not a targeted revisit must not inherit the judgement.
+        self.revisit_second_chance = set()
         self.queue = []
         self.url_depth = {}
         self.content_hashes = {}
@@ -834,6 +871,8 @@ class MirrorState:
         self.stats['css_assets_localized'] = 0
         self.stats['css_assets_queued'] = 0
         self.stats['css_offsite_refs_dropped'] = 0
+        self.stats['revisit_failures_made_permanent'] = 0
+        self.stats['redirect_loops_settled'] = 0
         self.session_start = time.time()
         self.duplicate_redirects = {}
 
@@ -996,8 +1035,80 @@ class MirrorState:
         _atomic_write_text(os.path.join(MIRROR_DIR, SKIPPED_VIDEO_SUMMARY), '\n'.join(lines))
         logging.info(f"Skipped-video manifest written: {manifest_path} ({len(records)} records)")
 
+    def _visited_floor(self, on_disk_count):
+        """The smallest visited count this run may legitimately write.
+
+        A whole-capture revisit is entitled to write nothing at all, because
+        forgetting everything is precisely what it was asked to do. A run that
+        loaded the record may give up exactly what it deliberately gave up. A
+        run that never loaded the record may not shrink it by so much as one
+        address: it does not know what is in there.
+        """
+        if self.intentional_full_reset:
+            return 0
+        if self.loaded_visited_baseline is None:
+            return on_disk_count
+        return max(0, self.loaded_visited_baseline - self.authorized_visited_removals)
+
+    def _refuse_destructive_save(self):
+        """Whether writing this state over the file on disk would destroy it.
+
+        Read the record about to be overwritten and compare. Growth is always
+        fine and is the ordinary case. A shrink is fine only when this run can
+        account for it. Anything else is the shape of an accident: an empty or
+        partial state arriving over a capture that took days to build, which is
+        unrecoverable once the file is replaced.
+        """
+        if not os.path.exists(PROGRESS_FILE):
+            return False
+        try:
+            with open(PROGRESS_FILE, 'r') as handle:
+                on_disk = json.load(handle)
+        except (OSError, json.JSONDecodeError) as exc:
+            # Nothing to compare against. The bytes are still preserved by the
+            # rolling copy below, which is the most this can do for a file it
+            # cannot read.
+            logging.warning(
+                f"Could not read the existing progress file to check this save "
+                f"against it, so the check is skipped and the old bytes are "
+                f"kept in {os.path.basename(PROGRESS_FILE)}.prev: {exc}")
+            return False
+
+        on_disk_count = len(on_disk.get('visited', []))
+        new_count = len(self.visited)
+        if new_count >= on_disk_count:
+            return False
+
+        floor = self._visited_floor(on_disk_count)
+        if new_count >= floor:
+            return False
+
+        if self.loaded_visited_baseline is None:
+            why = ("this run never loaded that file, so it has no basis for "
+                   "shrinking it")
+        else:
+            why = (f"this run loaded {self.loaded_visited_baseline:,} and "
+                   f"deliberately gave up "
+                   f"{self.authorized_visited_removals:,}, so the smallest it "
+                   f"may write is {floor:,}")
+        logging.error(
+            f"REFUSING to save progress: it would replace a record of "
+            f"{on_disk_count:,} visited URL(s) with one of {new_count:,}, and "
+            f"{why}. The file on disk is left exactly as it was. A capture "
+            f"record is days of crawling and cannot be rebuilt from the pages "
+            f"on disk. If this shrink is intended, re-run with -fresh, which "
+            f"clears the record explicitly, or --revisit-all, which forgets it "
+            f"on purpose.")
+        return True
+
     def save_progress(self):
-        """Save progress atomically to prevent corruption on interruption."""
+        """Save progress atomically, refusing a write that would destroy it.
+
+        Returns True when the file was written, False when the guard refused.
+        """
+        if self._refuse_destructive_save():
+            return False
+
         progress_data = {
             'visited': list(self.visited),
             'failed_urls': list(self.failed_urls),
@@ -1010,27 +1121,80 @@ class MirrorState:
             'stats': self.stats,
             'refused_pages': self.refused_pages,
             'transient_failures': sorted(self.transient_failures),
+            'transient_http_faults': sorted(self.transient_http_faults),
             'regsummary_map': self.regsummary_map,
             'timestamp': datetime.now().isoformat()
         }
         
-        # Atomic write using temp file + rename to prevent corruption
+        # Two files are being changed together: the live record, and the one
+        # generation kept behind it. Both go through a staging name and an
+        # atomic rename, and the order is what makes a failure safe.
+        #
+        #   1. serialize the new state to <progress>.tmp, flush, fsync, so the
+        #      bytes are on the platter before any name points at them;
+        #   2. copy the CURRENT live file aside to <progress>.prev.tmp, still
+        #      staged, so nothing the operator relies on has moved yet;
+        #   3. rename .tmp over the live file. THIS is the commit point, and it
+        #      is a single atomic operation;
+        #   4. rename .prev.tmp over .prev, which promotes the state that was
+        #      live a moment ago into the one generation kept behind.
+        #
+        # Anything that fails before step 3 leaves the live file and .prev both
+        # exactly as they were, with only staging names to clean up: a save that
+        # did not happen must not cost the operator the copy as well. A failure
+        # between 3 and 4 leaves the new state live and .prev one generation
+        # staler than it should be, which is a worse copy rather than a lost
+        # one, and it says so in the log.
+        #
+        # .prev is a recovery convenience rather than the durable record, so it
+        # is not fsynced: the atomic rename already means a crash mid-copy
+        # leaves the staging file torn and .prev untouched, and a second fsync
+        # of a file this size on every periodic save is real cost during a
+        # multi-day crawl for no additional safety.
         temp_file = PROGRESS_FILE + '.tmp'
+        prev_file = PROGRESS_FILE + '.prev'
+        prev_staged = prev_file + '.tmp'
+        staged_prev = False
         try:
             with open(temp_file, 'w') as f:
                 json.dump(progress_data, f, indent=2)
+                f.flush()
+                os.fsync(f.fileno())
+
+            if os.path.exists(PROGRESS_FILE):
+                shutil.copy2(PROGRESS_FILE, prev_staged)
+                staged_prev = True
+
             # os.replace() is atomic on POSIX systems
             os.replace(temp_file, PROGRESS_FILE)
-            logging.info(f"Progress saved to {PROGRESS_FILE}")
         except Exception as e:
             logging.error(f"Failed to save progress: {e}")
-            # Clean up temp file if it exists
-            if os.path.exists(temp_file):
-                try:
-                    os.remove(temp_file)
-                except:
-                    pass
+            for leftover in (temp_file, prev_staged):
+                if os.path.exists(leftover):
+                    try:
+                        os.remove(leftover)
+                    except OSError:
+                        pass
             raise
+
+        if staged_prev:
+            try:
+                os.replace(prev_staged, prev_file)
+            except OSError as e:
+                # The record itself is saved; only the spare copy is stale.
+                # Never fail the save for this.
+                logging.warning(
+                    f"Progress saved, but the one-generation copy at "
+                    f"{os.path.basename(prev_file)} could not be updated, so it "
+                    f"still holds an older state: {e}")
+                if os.path.exists(prev_staged):
+                    try:
+                        os.remove(prev_staged)
+                    except OSError:
+                        pass
+
+        logging.info(f"Progress saved to {PROGRESS_FILE}")
+        return True
     
     def load_progress(self):
         if not os.path.exists(PROGRESS_FILE):
@@ -1040,6 +1204,10 @@ class MirrorState:
                 data = json.load(f)
             
             self.visited = set(data.get('visited', []))
+            # The record this run is now standing on, and therefore the only
+            # record it may later shrink.
+            self.loaded_visited_baseline = len(self.visited)
+            self.authorized_visited_removals = 0
             self.failed_urls = set(data.get('failed_urls', []))
             self.failed_conversion_videos = set(data.get('failed_conversion_videos', []))
             self.skipped_videos = data.get('skipped_videos', {})
@@ -1052,6 +1220,10 @@ class MirrorState:
             # run's refusals into a different shape from the next run's.
             self.refused_pages = [tuple(r) for r in data.get('refused_pages', [])]
             self.transient_failures = set(data.get('transient_failures', []))
+            # Absent from a progress file written before the cause was recorded.
+            # Empty is the safe reading: nothing is promoted until the site has
+            # answered with a fault under a run that keeps this record.
+            self.transient_http_faults = set(data.get('transient_http_faults', []))
             self.regsummary_map = data.get('regsummary_map', {})
             # Ensure all stats keys exist (for backwards compatibility with old progress files)
             self.stats.setdefault('media_input_bytes', 0)
@@ -1067,6 +1239,8 @@ class MirrorState:
             self.stats.setdefault('magic_byte_failures', 0)
             self.stats.setdefault('skipped_videos', len(self.skipped_videos))
             self.stats.setdefault('skipped_video_declared_bytes', 0)
+            self.stats.setdefault('revisit_failures_made_permanent', 0)
+            self.stats.setdefault('redirect_loops_settled', 0)
             logging.info(f"Progress loaded from {PROGRESS_FILE}")
             logging.info(f"Resuming with {len(self.visited)} visited URLs, {len(self.queue)} queued")
             return True
@@ -1900,7 +2074,13 @@ def apply_exclusions_sweep(dry_run=False):
         before = (len(mirror_state.visited) + len(mirror_state.queue)
                   + len(mirror_state.failed_urls) + len(mirror_state.skipped_videos)
                   + len(mirror_state.sitemap) + len(mirror_state.content_hashes))
+        visited_before_prune = len(mirror_state.visited)
         mirror_state.visited = {u for u in mirror_state.visited if keep(u)}
+        # Pruning an excluded address out of the record is deliberate, so it
+        # counts against what this run is allowed to shrink rather than against
+        # it.
+        mirror_state.authorized_visited_removals += (
+            visited_before_prune - len(mirror_state.visited))
         mirror_state.failed_urls = {u for u in mirror_state.failed_urls if keep(u)}
         mirror_state.queue = [u for u in mirror_state.queue if keep(u)]
         mirror_state.url_depth = {u: d for u, d in mirror_state.url_depth.items() if keep(u)}
@@ -5253,6 +5433,12 @@ def print_stats():
     print(f"Stylesheet off-site refs dropped: {s.get('css_offsite_refs_dropped', 0):,}")
     if s.get('skipped_too_large', 0) > 0:
         print(f"Skipped too large: {s.get('skipped_too_large', 0):,}")
+    if s.get('revisit_failures_made_permanent', 0) > 0:
+        print(f"Revisited URLs settled as standing server faults: "
+              f"{s.get('revisit_failures_made_permanent', 0):,}")
+    if s.get('redirect_loops_settled', 0) > 0:
+        print(f"URLs settled as redirect loops: "
+              f"{s.get('redirect_loops_settled', 0):,}")
     print(f"Regsummaries added: {s.get('regsummary_links_detected', 0):,}")
     print("========================\n")
 
@@ -7464,6 +7650,41 @@ def is_events_show_url(url):
     except Exception:
         return False
 
+def is_standing_server_fault(url, failure_kind):
+    """Whether an exhausted fetch is a settled failure rather than a hiccup.
+
+    The bar is TWO server faults in separate runs. True only when the site
+    answers 5xx on every attempt of this pass AND an earlier run already gave up
+    on the same address on a 5xx of its own AND a targeted revisit listed it,
+    which is what put the two runs either side of an operator's decision to try
+    again. The site has then said the same thing twice, with a deliberate retry
+    in between. Left owed it would be re-owed forever: the manifest never
+    empties, and the completeness proof it is supposed to be degrades into a
+    note saying someone should try again. Recorded as failed, the dead-link pass
+    handles it like any other address the site will not serve.
+
+    Both halves of that evidence must be a server ANSWER. A timeout or a DNS
+    failure says nothing about the far end, so it neither settles an address nor
+    counts towards settling one: an address whose earlier give-up was a
+    transport failure starts again from one fault when the site later 5xxs, and
+    only a further revisit can settle it. Turning real links to text over a bad
+    local network is precisely what the transient record exists to prevent.
+
+    Being listed for a revisit is not itself evidence of anything: most listed
+    addresses are healthy pages being re-read for a sanitizer change. And a
+    wholesale re-read of the entire capture is not a second chance for a named
+    address, so it grants nothing here either.
+
+    A failure the site settles on its own, a 404 or a redirect loop, never
+    reaches this test: those are already conclusive in one observation, and this
+    rule exists only for evidence that is not.
+    """
+    if failure_kind != 'retryable_http':
+        return False
+    norm = normalize_url(url)
+    return (norm in mirror_state.revisit_second_chance
+            or canonicalize_cross_published(norm) in mirror_state.revisit_second_chance)
+
 def fetch(url):
     if is_unsafe_url(url):
         logging.info(f"Refusing admin/mutating URL (fetch): {url}")
@@ -7474,7 +7695,8 @@ def fetch(url):
     attempt = 0
     max_attempts = 1 + MAX_RETRIES  # total attempts = initial + retries
     auth_redirects = 0  # Track auth redirect loops
-    last_failure_kind = None  # 'permanent_http' | 'retryable_http' | 'retryable_transport' | None
+    last_failure_kind = None  # 'permanent_http' | 'permanent_redirect_loop'
+                              # | 'retryable_http' | 'retryable_transport' | None
     last_status = None
 
     while attempt < max_attempts:
@@ -7604,34 +7826,80 @@ def fetch(url):
                 continue
 
             # A fetch that answered clears any transient-failure residue an
-            # earlier run recorded for this address.
+            # earlier run recorded for this address, the recorded cause with it:
+            # a page that serves is owed nothing and has no fault standing
+            # against it.
             mirror_state.transient_failures.discard(normalize_url(url))
+            mirror_state.transient_http_faults.discard(normalize_url(url))
             time.sleep(DELAY_SECONDS)
             return resp, final_url
 
         except requests.exceptions.RequestException as e:
             # Transport/network errors → retryable; DO NOT count as failed_downloads on exhaustion
+            #
+            # The exception's own name travels into the log. Without it every
+            # cause here reads as "Network error", and a deterministic server
+            # behaviour is indistinguishable from a bad minute on the wire: an
+            # address can then be re-listed for revisit run after run while the
+            # log says nothing that would tell an operator to stop.
+            detail = f"{type(e).__name__}: {str(e)[:200]}"
+
+            # A redirect loop is the one exception here that is not a transport
+            # failure at all. Nothing was lost in transit; the server answered
+            # every time, and what it answered was another redirect, until the
+            # client gave up. That is the site fully describing its own
+            # behaviour, so one observation settles it and a retry only walks
+            # the same ring again at real cost to the site. Permanent on sight,
+            # like a 404, and deliberately not routed through the two-fault rule
+            # for ambiguous evidence: there is no ambiguity to resolve.
+            if isinstance(e, requests.exceptions.TooManyRedirects):
+                logging.warning(
+                    f"Redirect loop, recorded as failed rather than owed: {url} "
+                    f"never stopped redirecting, so no retry can reach a page. "
+                    f"[{detail}]")
+                last_failure_kind = 'permanent_redirect_loop'
+                break
+
             if is_dns_error(e):
                 wait_time = 240  # 4 minutes for DNS errors
-                logging.warning(f"DNS error on {url} (attempt {attempt + 1}/{max_attempts}), waiting {wait_time}s...")
+                logging.warning(f"DNS error on {url} (attempt {attempt + 1}/{max_attempts}), waiting {wait_time}s... [{detail}]")
             else:
                 wait_time = (2 ** attempt) * DELAY_SECONDS
-                logging.info(f"Network error on {url} (attempt {attempt + 1}/{max_attempts}), waiting {wait_time}s...")
+                logging.info(f"Network error on {url} (attempt {attempt + 1}/{max_attempts}), waiting {wait_time}s... [{detail}]")
 
             attempt += 1
             if attempt < max_attempts:
                 time.sleep(wait_time)
                 continue
             else:
-                logging.warning(f"Unrecoverable error on {url} after {max_attempts} attempts.")
+                logging.warning(f"Unrecoverable error on {url} after {max_attempts} attempts: {detail}")
                 last_failure_kind = 'retryable_transport'
                 break
 
     # All attempts exhausted — only count permanent failures
-    if last_failure_kind == 'permanent_http':
+    settled_on_its_own_evidence = last_failure_kind in (
+        'permanent_http', 'permanent_redirect_loop')
+    standing_server_fault = is_standing_server_fault(url, last_failure_kind)
+    if settled_on_its_own_evidence or standing_server_fault:
         mirror_state.failed_urls.add(url)
         mirror_state.stats['failed_downloads'] += 1
-        logging.info(f"Failed to fetch {url} (permanent HTTP {last_status})")
+        # Settled means settled by whichever route got here. An address left in
+        # the owed list as well would be both failed and outstanding, and the
+        # manifest would keep asking for a pass that can no longer change it.
+        settled = normalize_url(url)
+        mirror_state.transient_failures.discard(settled)
+        mirror_state.transient_http_faults.discard(settled)
+        if standing_server_fault:
+            mirror_state.stats['revisit_failures_made_permanent'] += 1
+            logging.warning(
+                f"Standing server fault, recorded as failed rather than owed: "
+                f"{url} answered HTTP {last_status} on every attempt of a "
+                f"revisit that listed it because an earlier pass had already "
+                f"given up on it. Retrying cannot clear this one.")
+        elif last_failure_kind == 'permanent_redirect_loop':
+            mirror_state.stats['redirect_loops_settled'] += 1
+        else:
+            logging.info(f"Failed to fetch {url} (permanent HTTP {last_status})")
     else:
         # retryable_http or retryable_transport → don't mark failed_downloads,
         # the dead-link pass must not act on a hiccup - but the crawl loop has
@@ -7640,6 +7908,10 @@ def fetch(url):
         # complete. The record is what lets an operator prove the final
         # freeze-window revisit actually re-read everything.
         mirror_state.transient_failures.add(normalize_url(url))
+        # The cause travels with the record: only a server fault can count
+        # towards settling this address on a later targeted revisit.
+        if last_failure_kind == 'retryable_http':
+            mirror_state.transient_http_faults.add(normalize_url(url))
         logging.info(f"Giving up on {url} after retries (retryable failure: {last_failure_kind or 'unknown'})")
     return None, None
 
@@ -7785,9 +8057,13 @@ def clear_for_revisit(urls=None):
     """
     if urls is None:
         seen, failed = len(mirror_state.visited), len(mirror_state.failed_urls)
+        # Forgetting the whole capture is the declared purpose of this call, so
+        # the save guard is told to expect a record of any size afterwards.
+        mirror_state.intentional_full_reset = True
         mirror_state.visited.clear()
         mirror_state.failed_urls.clear()
         mirror_state.transient_failures.clear()
+        mirror_state.transient_http_faults.clear()
         mirror_state.url_depth.clear()
         mirror_state.queue.clear()
         logging.info(
@@ -7800,11 +8076,31 @@ def clear_for_revisit(urls=None):
         norm = canonicalize_cross_published(normalize_url(url))
         if norm in mirror_state.visited:
             mirror_state.visited.discard(norm)
+            # Accounted for, so the save guard reads the smaller record as
+            # intended rather than as an accident.
+            mirror_state.authorized_visited_removals += 1
             cleared += 1
         else:
             unseen += 1
+        plain = normalize_url(url)
+        # Read the owed record BEFORE clearing it. Only an address this capture
+        # already owed on a server fault has spent a chance; being listed is an
+        # operator's intent to re-read, which most of the time has nothing to do
+        # with failure. The built-in list is healthy content pages re-read for a
+        # sanitizer change, and one bad minute on the site while that list runs
+        # must not settle any of them as permanently failed.
+        #
+        # Both spellings, because the exhaustion path knows an address only as
+        # normalize_url gives it and the cross-published form is what the rest
+        # of this loop works in.
+        if norm in mirror_state.transient_http_faults \
+                or plain in mirror_state.transient_http_faults:
+            mirror_state.revisit_second_chance.add(norm)
+            mirror_state.revisit_second_chance.add(plain)
         mirror_state.failed_urls.discard(norm)
         mirror_state.transient_failures.discard(norm)
+        mirror_state.transient_http_faults.discard(norm)
+        mirror_state.transient_http_faults.discard(plain)
         mirror_state.url_depth.pop(norm, None)
     logging.info(
         f"Revisit: {cleared} of {len(urls)} listed URL(s) cleared for re-reading; "
